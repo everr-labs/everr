@@ -25,7 +25,7 @@ panels:
               kind: ClickHouseSQL
               spec:
                 query: |
-                  SELECT toStartOfMinute(Timestamp) AS ts,
+                  SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
                          countIf(StatusCode >= 500) / count() * 100 AS error_pct
                   FROM traces
                   WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
@@ -62,7 +62,7 @@ What you `SELECT` determines what renders. The visualizations infer their struct
 - A remaining **string** column is treated as a series label, pivoting one value column into multiple lines. For example, grouping by `ServiceName`:
 
 ```sql
-SELECT toStartOfMinute(Timestamp) AS ts,
+SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
        ServiceName,
        count() AS spans
 FROM traces
@@ -99,7 +99,7 @@ LIMIT 50
 Reduces a numeric column to a single value via a calculation (`last`, `mean`, `max`, …). Return one numeric column (a time column enables the optional sparkline):
 
 ```sql
-SELECT toStartOfMinute(Timestamp) AS ts, count() AS requests
+SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts, count() AS requests
 FROM traces
 WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
 GROUP BY ts ORDER BY ts
@@ -114,6 +114,22 @@ WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
 ```
 
 A query that omits this scans all of history and won't follow the picker — time-series panels still clamp to the visible range, but `Table` and `StatChart` aggregate everything and stop matching the selected range. The parameters are always provided, so referencing them never errors.
+
+### Adaptive bucketing
+
+Alongside `from`/`to`, every query also receives `{step:UInt32}` — a bucket width in **seconds**, sized from the selected range so the series yields roughly **500 points** at any zoom level. Use it instead of hard-coding a resolution like `toStartOfMinute`, which over- or under-buckets the moment the picker moves:
+
+```sql
+SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+       count() AS spans
+FROM traces
+WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+GROUP BY ts ORDER BY ts
+```
+
+The width snaps to clock-aligned values so bucket boundaries land on clean axis lines — see [Query parameters](/docs/dashboards/dashboard-spec#query-parameters) for the exact widths. Like `from`/`to`, the parameter is always bound; queries that don't reference it are unaffected.
+
+### Variables
 
 Separately, you can reference dashboard [variables](/docs/dashboards/variables) with `$name` tokens, which Everr interpolates server-side before running the query.
 

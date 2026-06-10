@@ -32,7 +32,7 @@ spec:
                 kind: ClickHouseSQL
                 spec:
                   query: |
-                    SELECT toStartOfMinute(Timestamp) AS ts,
+                    SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
                            quantile(0.99)(Duration) / 1e6 AS p99_ms
                     FROM traces
                     WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}

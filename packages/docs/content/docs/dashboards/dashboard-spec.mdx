@@ -68,6 +68,15 @@ display:
 | `spec.plugin.spec` | object | Visualization options. |
 | `spec.queries` | [PanelQuery] | Optional list. Each query's SQL is at `spec.plugin.spec.query`; query `kind` is `ClickHouseSQL`. |
 
+### Query parameters
+
+Every panel query is run with these ClickHouse parameters bound. They are always provided (referencing them never errors, and unreferenced parameters are ignored), but they are **not** injected into the SQL — the query must reference them. Usage guide: [Time range and variables](/docs/dashboards/panels-and-visualizations#time-range-and-variables).
+
+| Parameter | Value |
+| --- | --- |
+| `{from:String}` / `{to:String}` | The dashboard's selected time range — UTC datetimes in `YYYY-MM-DD HH:MM:SS` form. |
+| `{step:UInt32}` | Adaptive bucket width in seconds: the range divided by a ~500-point budget, snapped up to the next clock-aligned width — 1/2/5/10/15/20/30s, 1/2/5/10/15/30m, 1/2/3/6/12h, 1d, then whole days. |
+
 ### Grid layout
 
 ```yaml
