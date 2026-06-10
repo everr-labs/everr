@@ -1,10 +1,16 @@
 import { getRequestHeaders } from "@tanstack/react-start/server";
-import { and, desc, eq, gt, isNull, lte } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { alertDefinitions, alertSettings, alertSilences } from "@/db/schema";
 import { auth } from "@/lib/auth.server";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
+import {
+  findSilenceForInstance,
+  type Matcher,
+  MatchersSchema,
+  validateMatchers,
+} from "./matchers";
 
 const DeliverySettingsSchema = z
   .object({
@@ -61,13 +67,8 @@ export type AlertSummary = {
   lastSeenAt: Date | null;
   lastRowCount: number;
   lastEvidenceSnapshot: AlertEvidenceValue;
-  activeSilence: {
-    id: string;
-    startsAt: Date;
-    endsAt: Date;
-    reason: string;
-    createdByUserId: string;
-  } | null;
+  firingInstanceCount: number;
+  activeSilenceCount: number;
 };
 
 export type AlertDetail = AlertSummary & {
@@ -93,15 +94,22 @@ type AlertEvent = {
   silenceId: string;
 };
 
-type AlertSummaryRow = Omit<AlertSummary, "activeSilence"> & {
-  silenceId: string | null;
-  silenceStartsAt: Date | null;
-  silenceEndsAt: Date | null;
-  silenceReason: string | null;
-  silenceCreatedByUserId: string | null;
+type AlertSummaryRow = Omit<AlertSummary, "activeSilenceCount"> & {
+  activeSilenceCount: number | string;
 };
 
 const alertIdInput = z.object({ alertId: z.string().uuid() });
+
+// Subquery instead of a join: a rule can have several active silences and a
+// join would duplicate list rows.
+const activeSilenceCountSql = sql<number>`(
+  select count(*)::int
+  from alert_silences s
+  where s.alert_definition_id = ${alertDefinitions.id}
+    and s.starts_at <= now()
+    and s.ends_at > now()
+    and s.cancelled_at is null
+)`.as("active_silence_count");
 
 const alertListColumns = {
   id: alertDefinitions.id,
@@ -122,11 +130,8 @@ const alertListColumns = {
   lastSeenAt: alertDefinitions.lastSeenAt,
   lastRowCount: alertDefinitions.lastRowCount,
   lastEvidenceSnapshot: alertDefinitions.lastEvidenceSnapshot,
-  silenceId: alertSilences.id,
-  silenceStartsAt: alertSilences.startsAt,
-  silenceEndsAt: alertSilences.endsAt,
-  silenceReason: alertSilences.reason,
-  silenceCreatedByUserId: alertSilences.createdByUserId,
+  firingInstanceCount: alertDefinitions.firingInstanceCount,
+  activeSilenceCount: activeSilenceCountSql,
 } as const;
 
 async function ensureOrgAdmin(userId: string, organizationId: string) {
@@ -182,20 +187,16 @@ function toAlertSummary(row: AlertSummaryRow): AlertSummary {
     lastSeenAt: row.lastSeenAt,
     lastRowCount: row.lastRowCount,
     lastEvidenceSnapshot: row.lastEvidenceSnapshot ?? [],
-    activeSilence: row.silenceId
-      ? {
-          id: row.silenceId,
-          startsAt: row.silenceStartsAt ?? new Date(0),
-          endsAt: row.silenceEndsAt ?? new Date(0),
-          reason: row.silenceReason ?? "",
-          createdByUserId: row.silenceCreatedByUserId ?? "",
-        }
-      : null,
+    firingInstanceCount: row.firingInstanceCount,
+    activeSilenceCount: Number(row.activeSilenceCount) || 0,
   };
 }
 
+function clickhouseIsoMillis(column: string): string {
+  return `concat(formatDateTime(${column}, '%Y-%m-%dT%H:%i:%S', 'UTC'), '.', substring(formatDateTime(${column}, '%f', 'UTC'), 1, 3), 'Z')`;
+}
+
 async function getAlertRow(alertId: string, organizationId: string) {
-  const now = new Date();
   const [row] = await db
     .select({
       ...alertListColumns,
@@ -205,16 +206,6 @@ async function getAlertRow(alertId: string, organizationId: string) {
       descriptionTemplate: alertDefinitions.descriptionTemplate,
     })
     .from(alertDefinitions)
-    .leftJoin(
-      alertSilences,
-      and(
-        eq(alertSilences.alertDefinitionId, alertDefinitions.id),
-        eq(alertSilences.organizationId, organizationId),
-        lte(alertSilences.startsAt, now),
-        gt(alertSilences.endsAt, now),
-        isNull(alertSilences.cancelledAt),
-      ),
-    )
     .where(
       and(
         eq(alertDefinitions.organizationId, organizationId),
@@ -229,20 +220,9 @@ export const listAlerts = createAuthenticatedServerFn({
   method: "GET",
 }).handler(async ({ context: { session } }) => {
   const organizationId = session.session.activeOrganizationId;
-  const now = new Date();
   const rows = await db
     .select(alertListColumns)
     .from(alertDefinitions)
-    .leftJoin(
-      alertSilences,
-      and(
-        eq(alertSilences.alertDefinitionId, alertDefinitions.id),
-        eq(alertSilences.organizationId, organizationId),
-        lte(alertSilences.startsAt, now),
-        gt(alertSilences.endsAt, now),
-        isNull(alertSilences.cancelledAt),
-      ),
-    )
     .where(eq(alertDefinitions.organizationId, organizationId))
     .orderBy(
       desc(alertDefinitions.active),
@@ -305,8 +285,8 @@ export const listAlertEvents = createAuthenticatedServerFn({ method: "GET" })
             repoid,
             slug,
             event_type AS eventType,
-            formatDateTime(event_time, '%FT%T.%3NZ', 'UTC') AS eventTime,
-            if(evaluation_scheduled_at = toDateTime64(0, 3), '', formatDateTime(evaluation_scheduled_at, '%FT%T.%3NZ', 'UTC')) AS evaluationScheduledAt,
+            ${clickhouseIsoMillis("event_time")} AS eventTime,
+            if(evaluation_scheduled_at = toDateTime64(0, 3), '', ${clickhouseIsoMillis("evaluation_scheduled_at")}) AS evaluationScheduledAt,
             row_count AS rowCount,
             evidence_truncated AS evidenceTruncated,
             evidence_json AS evidenceJson,
@@ -318,6 +298,7 @@ export const listAlertEvents = createAuthenticatedServerFn({ method: "GET" })
             AND repoid = {repoid:String}
             AND slug = {slug:String}
             AND alert_definition_id = {alertDefinitionId:String}
+            AND event_type NOT IN ('instance_fired', 'instance_resolved')
           ORDER BY event_time DESC, event_id DESC
           LIMIT {limit:UInt32}
         `,
@@ -347,6 +328,134 @@ export const listAlertEvents = createAuthenticatedServerFn({ method: "GET" })
       })) satisfies AlertEvent[];
     },
   );
+
+function parseJsonObject(json: string): Record<string, unknown> {
+  try {
+    const parsed: unknown = JSON.parse(json);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    // ignore malformed snapshots
+  }
+  return {};
+}
+
+function parseJsonRecord(json: string): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(parseJsonObject(json)).map(([k, v]) => [k, String(v)]),
+  );
+}
+
+export type AlertInstanceSummary = {
+  fingerprint: string;
+  labels: Record<string, string>;
+  state: "firing" | "resolved";
+  lastFiredAt: string | null;
+  lastResolvedAt: string | null;
+  lastRow: Record<string, unknown>;
+  silenced: boolean;
+};
+
+async function listActiveSilenceRows(alertId: string, organizationId: string) {
+  const now = new Date();
+  return db
+    .select({
+      id: alertSilences.id,
+      startsAt: alertSilences.startsAt,
+      endsAt: alertSilences.endsAt,
+      reason: alertSilences.reason,
+      createdByUserId: alertSilences.createdByUserId,
+      matchers: alertSilences.matchers,
+    })
+    .from(alertSilences)
+    .where(
+      and(
+        eq(alertSilences.organizationId, organizationId),
+        eq(alertSilences.alertDefinitionId, alertId),
+        lte(alertSilences.startsAt, now),
+        gt(alertSilences.endsAt, now),
+        isNull(alertSilences.cancelledAt),
+      ),
+    )
+    .orderBy(desc(alertSilences.endsAt));
+}
+
+export const listAlertInstances = createAuthenticatedServerFn({ method: "GET" })
+  .inputValidator(alertIdInput)
+  .handler(async ({ data: { alertId }, context: { session, clickhouse } }) => {
+    const organizationId = session.session.activeOrganizationId;
+    const alert = await getAlertRow(alertId, organizationId);
+    if (!alert) throw new Error("Alert not found");
+
+    const silences = await listActiveSilenceRows(alertId, organizationId);
+
+    const rows = await clickhouse.query<{
+      fingerprint: string;
+      lastEventType: string;
+      labelsJson: string;
+      lastFiredEvidenceJson: string;
+      lastFiredAt: string;
+      lastResolvedAt: string;
+    }>(
+      `
+        SELECT
+          instance_fingerprint AS fingerprint,
+          argMax(event_type, event_time) AS lastEventType,
+          argMax(instance_labels_json, event_time) AS labelsJson,
+          argMaxIf(evidence_json, event_time, event_type = 'instance_fired') AS lastFiredEvidenceJson,
+          if(countIf(event_type = 'instance_fired') = 0, '', ${clickhouseIsoMillis("maxIf(event_time, event_type = 'instance_fired')")}) AS lastFiredAt,
+          if(countIf(event_type = 'instance_resolved') = 0, '', ${clickhouseIsoMillis("maxIf(event_time, event_type = 'instance_resolved')")}) AS lastResolvedAt
+        FROM app.alert_events
+        WHERE organization_id = {organizationId:String}
+          AND repoid = {repoid:String}
+          AND slug = {slug:String}
+          AND alert_definition_id = {alertDefinitionId:String}
+          AND event_type IN ('instance_fired', 'instance_resolved')
+        GROUP BY instance_fingerprint
+        ORDER BY (lastEventType = 'instance_fired') DESC, max(event_time) DESC
+        LIMIT 500
+      `,
+      {
+        organizationId,
+        repoid: alert.repoid,
+        slug: alert.slug,
+        alertDefinitionId: alert.id,
+      },
+    );
+
+    return rows.map((row) => {
+      const labels = parseJsonRecord(row.labelsJson);
+      return {
+        fingerprint: row.fingerprint,
+        labels,
+        state: row.lastEventType === "instance_fired" ? "firing" : "resolved",
+        lastFiredAt: row.lastFiredAt || null,
+        lastResolvedAt: row.lastResolvedAt || null,
+        lastRow: parseJsonObject(row.lastFiredEvidenceJson),
+        silenced: Boolean(findSilenceForInstance(silences, labels)),
+      } satisfies AlertInstanceSummary;
+    });
+  });
+
+export type AlertSilenceSummary = {
+  id: string;
+  startsAt: Date;
+  endsAt: Date;
+  reason: string;
+  createdByUserId: string;
+  matchers: Matcher[];
+};
+
+export const listAlertSilences = createAuthenticatedServerFn({ method: "GET" })
+  .inputValidator(alertIdInput)
+  .handler(async ({ data: { alertId }, context: { session } }) => {
+    const organizationId = session.session.activeOrganizationId;
+    const alert = await getAlertRow(alertId, organizationId);
+    if (!alert) throw new Error("Alert not found");
+    const rows = await listActiveSilenceRows(alertId, organizationId);
+    return rows satisfies AlertSilenceSummary[];
+  });
 
 export const getAlertSettings = createAuthenticatedServerFn({
   method: "GET",
@@ -393,14 +502,21 @@ export const createSilence = createAuthenticatedServerFn({ method: "POST" })
     alertIdInput.extend({
       endsAt: z.string().datetime(),
       reason: z.string().trim().max(500).default(""),
+      matchers: MatchersSchema.default([]),
     }),
   )
   .handler(
-    async ({ data: { alertId, endsAt, reason }, context: { session } }) => {
+    async ({
+      data: { alertId, endsAt, reason, matchers },
+      context: { session },
+    }) => {
       const organizationId = session.session.activeOrganizationId;
       await ensureOrgAdmin(session.user.id, organizationId);
       const alert = await getAlertRow(alertId, organizationId);
       if (!alert) throw new Error("Alert not found");
+
+      const silenceMatchers = matchers ?? [];
+      validateMatchers(silenceMatchers);
 
       const startsAt = new Date();
       const parsedEndsAt = new Date(endsAt);
@@ -416,6 +532,7 @@ export const createSilence = createAuthenticatedServerFn({ method: "POST" })
           startsAt,
           endsAt: parsedEndsAt,
           reason,
+          matchers: silenceMatchers,
           createdByUserId: session.user.id,
         })
         .returning({
@@ -423,6 +540,7 @@ export const createSilence = createAuthenticatedServerFn({ method: "POST" })
           startsAt: alertSilences.startsAt,
           endsAt: alertSilences.endsAt,
           reason: alertSilences.reason,
+          matchers: alertSilences.matchers,
           createdByUserId: alertSilences.createdByUserId,
         });
 

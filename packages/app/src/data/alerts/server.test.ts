@@ -26,6 +26,7 @@ vi.mock("drizzle-orm", () => ({
   gt: vi.fn((left: unknown, right: unknown) => ({ type: "gt", left, right })),
   isNull: vi.fn((value: unknown) => ({ type: "isNull", value })),
   lte: vi.fn((left: unknown, right: unknown) => ({ type: "lte", left, right })),
+  sql: vi.fn(() => ({ as: vi.fn(() => "active_silence_count") })),
 }));
 
 vi.mock("@/db/schema", () => {
@@ -49,6 +50,7 @@ vi.mock("@/db/schema", () => {
     lastSeenAt: "alert_definitions.last_seen_at",
     lastRowCount: "alert_definitions.last_row_count",
     lastEvidenceSnapshot: "alert_definitions.last_evidence_snapshot",
+    firingInstanceCount: "alert_definitions.firing_instance_count",
     rawYaml: "alert_definitions.raw_yaml",
     parsedQuery: "alert_definitions.parsed_query",
     summaryTemplate: "alert_definitions.summary_template",
@@ -67,6 +69,7 @@ vi.mock("@/db/schema", () => {
     startsAt: "alert_silences.starts_at",
     endsAt: "alert_silences.ends_at",
     reason: "alert_silences.reason",
+    matchers: "alert_silences.matchers",
     createdByUserId: "alert_silences.created_by_user_id",
     cancelledAt: "alert_silences.cancelled_at",
     cancelledByUserId: "alert_silences.cancelled_by_user_id",
@@ -121,6 +124,7 @@ import {
   createSilence,
   deactivateAlert,
   listAlertEvents,
+  listAlertInstances,
   updateAlertSettings,
 } from "./server";
 
@@ -153,11 +157,8 @@ const alertRow = {
   lastSeenAt: null,
   lastRowCount: 3,
   lastEvidenceSnapshot: [],
-  silenceId: null,
-  silenceStartsAt: null,
-  silenceEndsAt: null,
-  silenceReason: null,
-  silenceCreatedByUserId: null,
+  firingInstanceCount: 1,
+  activeSilenceCount: 0,
   rawYaml: "",
   parsedQuery: "SELECT 1",
   summaryTemplate: "",
@@ -260,6 +261,43 @@ describe("silences", () => {
     );
   });
 
+  it("persists matchers when creating a silence", async () => {
+    mocks.selectLimit.mockResolvedValueOnce([alertRow]);
+    mocks.returning.mockResolvedValueOnce([{ id: "silence-1" }]);
+
+    await createSilence({
+      data: {
+        alertId: alertRow.id,
+        endsAt: new Date(Date.now() + 60_000).toISOString(),
+        reason: "",
+        matchers: [{ label: "route", op: "=", value: "/x" }],
+      },
+    });
+
+    expect(mocks.insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        matchers: [{ label: "route", op: "=", value: "/x" }],
+      }),
+    );
+  });
+
+  it("rejects silences with invalid regex matchers", async () => {
+    mocks.selectLimit.mockResolvedValueOnce([alertRow]);
+
+    await expect(
+      createSilence({
+        data: {
+          alertId: alertRow.id,
+          endsAt: new Date(Date.now() + 60_000).toISOString(),
+          reason: "",
+          matchers: [{ label: "route", op: "=~", value: "(" }],
+        },
+      }),
+    ).rejects.toThrow(/invalid regex/);
+
+    expect(mocks.insertValues).not.toHaveBeenCalled();
+  });
+
   it("persists cancelledByUserId when cancelling a silence", async () => {
     mocks.updateReturning.mockResolvedValueOnce([
       { id: "22222222-2222-2222-2222-222222222222" },
@@ -310,6 +348,13 @@ describe("listAlertEvents", () => {
     expect(sql).toContain("repoid = {repoid:String}");
     expect(sql).toContain("slug = {slug:String}");
     expect(sql).toContain("alert_definition_id = {alertDefinitionId:String}");
+    expect(sql).not.toContain("%3N");
+    expect(sql).toContain(
+      "substring(formatDateTime(event_time, '%f', 'UTC'), 1, 3)",
+    );
+    expect(sql).toContain(
+      "substring(formatDateTime(evaluation_scheduled_at, '%f', 'UTC'), 1, 3)",
+    );
     expect(vi.mocked(query).mock.calls[0]?.[2]).toMatchObject({
       organizationId: "test_org",
       repoid: alertRow.repoid,
@@ -317,11 +362,78 @@ describe("listAlertEvents", () => {
       alertDefinitionId: alertRow.id,
       limit: 25,
     });
+    expect(sql).toContain(
+      "event_type NOT IN ('instance_fired', 'instance_resolved')",
+    );
     expect(events[0]).toMatchObject({
       eventId: "event-1",
       evaluationScheduledAt: null,
       evidenceTruncated: false,
     });
+  });
+});
+
+describe("listAlertInstances", () => {
+  it("derives instance state from latest events and applies silences", async () => {
+    mocks.selectLimit.mockResolvedValueOnce([alertRow]);
+    mocks.selectOrderBy.mockResolvedValueOnce([
+      {
+        id: "sil-1",
+        startsAt: new Date(),
+        endsAt: new Date(Date.now() + 60_000),
+        reason: "",
+        createdByUserId: "test_user",
+        matchers: [{ label: "route", op: "=", value: "/a" }],
+      },
+    ]);
+    vi.mocked(query).mockResolvedValueOnce([
+      {
+        fingerprint: "f-a",
+        lastEventType: "instance_fired",
+        labelsJson: `{"route":"/a"}`,
+        lastFiredEvidenceJson: `{"route":"/a","count":5}`,
+        lastFiredAt: "2026-06-11T09:00:00.000Z",
+        lastResolvedAt: "",
+      },
+      {
+        fingerprint: "f-b",
+        lastEventType: "instance_resolved",
+        labelsJson: `{"route":"/b"}`,
+        lastFiredEvidenceJson: `{"route":"/b","count":2}`,
+        lastFiredAt: "2026-06-11T08:00:00.000Z",
+        lastResolvedAt: "2026-06-11T09:30:00.000Z",
+      },
+    ]);
+
+    const instances = await listAlertInstances({
+      data: { alertId: alertRow.id },
+    });
+
+    const sql = vi.mocked(query).mock.calls[0]?.[0] ?? "";
+    expect(sql).toContain("GROUP BY instance_fingerprint");
+    expect(sql).toContain(
+      "event_type IN ('instance_fired', 'instance_resolved')",
+    );
+    expect(instances).toEqual([
+      {
+        fingerprint: "f-a",
+        labels: { route: "/a" },
+        state: "firing",
+        lastFiredAt: "2026-06-11T09:00:00.000Z",
+        lastResolvedAt: null,
+        lastRow: { route: "/a", count: 5 },
+        silenced: true,
+      },
+      {
+        fingerprint: "f-b",
+        labels: { route: "/b" },
+        state: "resolved",
+        lastFiredAt: "2026-06-11T08:00:00.000Z",
+        lastResolvedAt: "2026-06-11T09:30:00.000Z",
+        lastRow: { route: "/b", count: 2 },
+        silenced: false,
+      },
+    ]);
   });
 });
 
