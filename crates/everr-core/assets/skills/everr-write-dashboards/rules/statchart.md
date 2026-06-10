@@ -6,16 +6,21 @@ One or more big single-value tiles, each optionally with a sparkline and thresho
 
 | Option | Type | Default | Values | Effect |
 | --- | --- | --- | --- | --- |
-| `calculation` | string | `last` | `last`, `first`, `mean`, `min`, `max`, `sum` | How each tile's column is reduced to one number. An unknown value falls back to `last`. |
-| `unit` | string | `""` | any string | Suffix after the value. No precision control — the value shows up to 2 decimals, locale-grouped. |
+| `calculation` | string | `last` | `last`, `first`, `mean`, `min`, `max`, `sum`, `count`, `range`, `diff` | How each tile's column is reduced to one number. `count` = number of points, `range` = max − min, `diff` = last − first. An unknown value is rejected by `everr apply`. |
+| `unit` | string | `""` | any string | Suffix after the value. |
+| `decimals` | number | none | `0`–`10` | Fixed fraction digits. Omitted: up to 2, trailing zeros dropped. |
 | `sparkline` | boolean | `false` | `true` | Draw a trend line under the value. **Needs a time column and ≥2 points** (see Data shape) or nothing draws. |
+| `colorMode` | string | `value` | `value`, `background` | `value` tints the number with the threshold color; `background` fills the whole tile. No effect without `thresholds`. |
+| `showLabel` | boolean | `false` | `true` | Show the column-name label even on a single-tile panel (multi-tile always shows it). |
+| `noValue` | string | `–` | any string | Text rendered for a query that produced no value (empty result / no numeric column). |
 | `thresholds` | object | none | see below | Color the value (and sparkline). Omit for default text color. |
 
 ### `thresholds`
 
 | Field | Type | Default | Values | Effect |
 | --- | --- | --- | --- | --- |
-| `mode` | string | `absolute` | `absolute`, `percent` | `absolute` compares the raw value; `percent` compares `value / tileMax × 100`. |
+| `mode` | string | `absolute` | `absolute`, `percent` | `absolute` compares the raw value; `percent` compares `value / max × 100`. |
+| `max` | number | tile's series max | any number | Reference for `percent` mode. Set it (e.g. an SLA ceiling) so percentages don't shift with the time window. Non-positive → no step is crossed. |
 | `defaultColor` | string | none | CSS color | Color before any step is crossed. Optional. |
 | `steps` | array | `[]` | `{ value: number, color?: string }` | Sorted ascending internally; the **highest step whose `value` ≤ the compare value wins**. A step with no `color` is crossed but leaves the color unchanged. |
 
@@ -25,6 +30,7 @@ plugin:
   spec:
     calculation: last
     unit: "%"
+    decimals: 1
     sparkline: true
     thresholds:
       mode: absolute
@@ -34,7 +40,7 @@ plugin:
         - { value: 5, color: "#ef4444" }   # red once value ≥ 5
 ```
 
-There is **no** `min` / `max`, `decimals` / precision, `title`, `colorMode`, `orientation`, or `graphMode`. `calculation`, `unit`, and `thresholds` apply to **every** tile uniformly.
+There is **no** `title`, `orientation`, or `graphMode`. `calculation`, `unit`, and `thresholds` apply to **every** tile uniformly.
 
 ## Data shape — one tile per numeric column per query
 
@@ -44,6 +50,9 @@ There is **no** `min` / `max`, `decimals` / precision, `title`, `colorMode`, `or
 
 ## Behaviors to know
 
-- A **single tile hides its label**; with multiple tiles each shows its column name. Choose column aliases accordingly.
-- **`percent` mode** compares against the tile's own series max, so a single-value (time-less) tile is always 100% — use `percent` with a sparkline series, not a scalar.
-- The resolved threshold color tints **both** the number and the sparkline.
+- A **single tile hides its label** unless `showLabel: true`; with multiple tiles each shows its column name. Choose column aliases accordingly.
+- Values ≥ 1 million **abbreviate** (`1234567` → `1.23M`, then `B`, `T`); smaller values keep thousands grouping.
+- A query that returns no value still renders its tile with the `noValue` text — it does not silently vanish from a multi-query panel.
+- **`percent` mode** without `thresholds.max` compares against the tile's own series max, so a single-value (time-less) tile is always 100% — set `max` or use it with a sparkline series.
+- The resolved threshold color tints **both** the number and the sparkline (`colorMode: background` fills the tile instead).
+- Value text scales down as tiles crowd the panel.

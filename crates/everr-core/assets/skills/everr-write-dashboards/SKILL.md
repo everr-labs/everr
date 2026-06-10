@@ -104,7 +104,7 @@ layouts:
 Every panel query runs against your ClickHouse telemetry tables (`traces`, `logs`, `metrics_*`). Three rules:
 
 - **Scope to the picker.** Always include `WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}`. Omitting it scans all history and stops following the time picker (Table/Stat aggregate everything).
-- **Alias the time column** for time-series x-axis. It's detected by name — alias to one of: `ts`, `time`, `timestamp`, `date`, `datetime`, `created_at`, `period`, `bucket`, `interval`.
+- **Alias the time column** for time-series x-axis. It's detected by exact name (case-insensitive) — alias to one of: `ts`, `time`, `timestamp`.
 - **`Duration` is nanoseconds.** Divide by `1e6` for ms, `1e9` for seconds. `StatusCode = 'Error'` for failed spans.
 - **Bucket time-series adaptively** (see below) — never hard-code `toStartOfMinute` for a chart that can be viewed over days.
 

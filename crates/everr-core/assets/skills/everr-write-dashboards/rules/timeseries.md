@@ -24,7 +24,7 @@ These five are the complete set. There is **no** `yAxis` / `min` / `max`, `legen
 
 Return a **time column** plus one or more **numeric** columns:
 
-- **Time column** — aliased to a detected name (case-insensitive prefix): `ts`, `time`, `timestamp`, `date`, `datetime`, `created_at`, `period`, `bucket`, `interval`. No match → the chart draws nothing. Bucket it adaptively with `toStartOfInterval(col, INTERVAL {step:UInt32} SECOND)`.
+- **Time column** — aliased to a detected name (case-insensitive **exact** match): `ts`, `time`, or `timestamp`. No match → the chart draws nothing. Bucket it adaptively with `toStartOfInterval(col, INTERVAL {step:UInt32} SECOND)`.
 - **Numeric columns** → one line each. Quoted ClickHouse integers (e.g. `"42"`) count as numeric.
 
 ### One line per label (string pivot) — mind the precondition
