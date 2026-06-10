@@ -14,6 +14,9 @@ describe("calculate", () => {
   it("min", () => expect(calculate(values, "min")).toBe(2));
   it("max", () => expect(calculate(values, "max")).toBe(8));
   it("sum", () => expect(calculate(values, "sum")).toBe(20));
+  it("count", () => expect(calculate(values, "count")).toBe(4));
+  it("range", () => expect(calculate(values, "range")).toBe(6));
+  it("diff", () => expect(calculate(values, "diff")).toBe(2));
   it("returns undefined for an empty series", () => {
     expect(calculate([], "last")).toBeUndefined();
   });
@@ -68,6 +71,21 @@ describe("resolveThresholdColor", () => {
     const pct = { ...thresholds, mode: "percent" as const };
     expect(resolveThresholdColor(0, pct, 0)).toBe("#888888");
   });
+
+  it("percent mode with a negative series max falls back to defaultColor", () => {
+    // An all-negative series used to invert the comparison: -50 / -10 = 500%.
+    const pct = { ...thresholds, mode: "percent" as const };
+    expect(resolveThresholdColor(-50, pct, -10)).toBe("#888888");
+  });
+
+  it("percent mode prefers the configured max over the series max", () => {
+    const pct = { ...thresholds, mode: "percent" as const, max: 200 };
+    // value 60 of configured max 200 → 30% → below all steps, even though the
+    // series max (60) would make it 100%.
+    expect(resolveThresholdColor(60, pct, 60)).toBe("#888888");
+    // value 170 of 200 → 85% → crosses the 80 step.
+    expect(resolveThresholdColor(170, pct, 60)).toBe("#ef4444");
+  });
 });
 
 describe("formatStatValue", () => {
@@ -75,7 +93,30 @@ describe("formatStatValue", () => {
     // compare against toLocaleString so the test is locale-independent
     expect(formatStatValue(Math.PI)).toBe((3.14).toLocaleString());
   });
-  it("groups thousands", () => {
-    expect(formatStatValue(1234567)).toBe((1234567).toLocaleString());
+  it("groups thousands below the abbreviation cutoff", () => {
+    expect(formatStatValue(123456)).toBe((123456).toLocaleString());
+  });
+  it("abbreviates millions, billions, and trillions", () => {
+    expect(formatStatValue(1234567)).toBe(`${(1.23).toLocaleString()}M`);
+    expect(formatStatValue(2_500_000_000)).toBe(`${(2.5).toLocaleString()}B`);
+    expect(formatStatValue(7.2e12)).toBe(`${(7.2).toLocaleString()}T`);
+  });
+  it("abbreviates negative magnitudes", () => {
+    expect(formatStatValue(-1500000)).toBe(`${(-1.5).toLocaleString()}M`);
+  });
+  it("fixes fraction digits when decimals is set", () => {
+    expect(formatStatValue(3, 2)).toBe(
+      (3).toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }),
+    );
+    expect(formatStatValue(3.4567, 0)).toBe((3).toLocaleString());
+    expect(formatStatValue(1234567, 1)).toBe(
+      `${(1.2).toLocaleString(undefined, {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      })}M`,
+    );
   });
 });
