@@ -23,9 +23,8 @@ import {
   YAxis,
 } from "recharts";
 import type { VisualizationProps } from "../index";
+import type { TimeSeriesChartSpec } from "./spec";
 import { buildChartModel, TS_KEY } from "./time-series-data";
-
-type CurveType = "monotone" | "linear" | "natural" | "stepBefore" | "stepAfter";
 
 function createTickFormatter(domain?: [number, number]) {
   const span = domain ? domain[1] - domain[0] : 0;
@@ -101,20 +100,12 @@ function pxToTimestamp(
 }
 
 export function TimeSeriesChartVisualization({
-  plugin,
+  spec,
   data,
   timeRange,
   onTimeRangeChange,
-}: VisualizationProps) {
-  const showLegend = plugin.spec.showLegend === true;
-  const connectNulls = plugin.spec.connectNulls === true;
-  const lineWidth =
-    typeof plugin.spec.lineWidth === "number" ? plugin.spec.lineWidth : 1.5;
-  const unit = typeof plugin.spec.unit === "string" ? plugin.spec.unit : "";
-  const curveType: CurveType =
-    typeof plugin.spec.curveType === "string"
-      ? (plugin.spec.curveType as CurveType)
-      : "monotone";
+}: VisualizationProps<TimeSeriesChartSpec>) {
+  const { showLegend, connectNulls, lineWidth, unit, curveType } = spec;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const plotRectRef = useRef<DOMRect | null>(null);

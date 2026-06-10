@@ -7,6 +7,8 @@ A panel's `plugin.kind` selects its visualization and `plugin.spec` configures i
 
 All three infer their structure from the columns your query returns — see [Panels and visualizations](/docs/dashboards/panels-and-visualizations#shaping-data-for-each-visualization) for the data shapes.
 
+Options are validated: `everr apply` rejects a dashboard whose option values don't match the tables below, naming the file and the offending option. Unknown option keys are accepted and preserved. If an already-stored dashboard contains an invalid value, the panel still renders with the default and shows a warning icon in its header listing the ignored options.
+
 ## TimeSeriesChart
 
 Line chart over time. The query's time column (detected by name: `ts`, `time`, `timestamp`, `date`, `datetime`, `created_at`, `period`, `bucket`, `interval`) is the x-axis; numeric columns become series, and a string column pivots a value column into one line per label. Supports drag-to-zoom (writes the new range to the URL).

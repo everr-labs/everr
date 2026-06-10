@@ -6,6 +6,7 @@ import {
 import { TableIcon } from "lucide-react";
 import { useState } from "react";
 import type { QueryResultRow, VisualizationProps } from "../index";
+import type { TableSpec } from "./spec";
 
 const QUERY_LABELS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
@@ -23,7 +24,10 @@ function buildColumns(rows: QueryResultRow[]): Column<QueryResultRow>[] {
   }));
 }
 
-export function TableVisualization({ plugin, data }: VisualizationProps) {
+export function TableVisualization({
+  spec,
+  data,
+}: VisualizationProps<TableSpec>) {
   const sets = data ?? [];
   const [selected, setSelected] = useState(0);
 
@@ -77,7 +81,7 @@ export function TableVisualization({ plugin, data }: VisualizationProps) {
             data={rows}
             columns={columns}
             rowKey={(_, i) => String(i)}
-            stickyHeader={plugin.spec.stickyHeader === true}
+            stickyHeader={spec.stickyHeader}
             bordered
           />
         )}

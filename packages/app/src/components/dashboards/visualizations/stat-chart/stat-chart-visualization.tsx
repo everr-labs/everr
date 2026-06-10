@@ -3,26 +3,17 @@ import { Hash } from "lucide-react";
 import { useMemo } from "react";
 import { Area, AreaChart } from "recharts";
 import type { VisualizationProps } from "../index";
-import {
-  formatStatValue,
-  isCalculationType,
-  resolveThresholdColor,
-  type ThresholdsSpec,
-} from "./stat-calculations";
+import type { StatChartSpec } from "./spec";
+import { formatStatValue, resolveThresholdColor } from "./stat-calculations";
 import { computeStatTiles } from "./stat-series";
 
 const SPARKLINE_COLOR = "hsl(217, 91%, 60%)";
 
-export function StatChartVisualization({ plugin, data }: VisualizationProps) {
-  const spec = plugin.spec;
-  const calculation = isCalculationType(spec.calculation)
-    ? spec.calculation
-    : "last";
-  const unit = typeof spec.unit === "string" ? spec.unit : "";
-  const showSparkline = spec.sparkline === true;
-  const thresholds = (spec.thresholds ?? undefined) as
-    | ThresholdsSpec
-    | undefined;
+export function StatChartVisualization({
+  spec,
+  data,
+}: VisualizationProps<StatChartSpec>) {
+  const { calculation, unit, sparkline: showSparkline, thresholds } = spec;
 
   const tiles = useMemo(
     () => (data ? computeStatTiles(data, calculation) : []),

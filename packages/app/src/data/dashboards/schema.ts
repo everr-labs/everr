@@ -1,4 +1,5 @@
 import * as z from "zod";
+import { panelPluginSpecs } from "./plugin-specs";
 
 /** Recursive JSON-serializable value type for Perses plugin specs. */
 export type PluginSpecValue =
@@ -172,6 +173,42 @@ export const dashboardSpecSchema = z
       });
     });
   });
+
+/**
+ * Strict variant for the write path (`everr apply`): additionally validates
+ * each panel's plugin spec against its visualization schema, so a typo'd
+ * option fails the apply with a precise path instead of silently falling back
+ * to a default at render time. Unknown plugin kinds still pass — they render
+ * a placeholder, never break validation.
+ *
+ * The read path (`server.ts`) keeps the base schema on purpose: a stored
+ * dashboard that predates validation must still load; the renderer parses
+ * specs leniently and surfaces ignored options as panel warnings.
+ */
+export const dashboardSpecSchemaStrict = dashboardSpecSchema.superRefine(
+  (spec, ctx) => {
+    for (const [key, p] of Object.entries(spec.panels)) {
+      const pluginSchema = panelPluginSpecs[p.spec.plugin.kind];
+      if (!pluginSchema) continue;
+      const result = pluginSchema.safeParse(p.spec.plugin.spec);
+      if (result.success) continue;
+      for (const issue of result.error.issues) {
+        ctx.addIssue({
+          code: "custom",
+          message: issue.message,
+          path: [
+            "panels",
+            key,
+            "spec",
+            "plugin",
+            "spec",
+            ...issue.path.map(String),
+          ],
+        });
+      }
+    }
+  },
+);
 
 export type DashboardDisplay = z.infer<typeof dashboardDisplay>;
 export type PanelPlugin = z.infer<typeof panelPlugin>;
