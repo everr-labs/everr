@@ -33,6 +33,35 @@ describe("resolveDesktopReleaseRedirectUrl", () => {
     );
   });
 
+  it("redirects Linux CLI release files to the public artifact base URL", () => {
+    expect(
+      resolveDesktopReleaseRedirectUrl({
+        pathname: "/everr-app/everr-linux-arm64",
+        publicBaseUrl,
+      }),
+    ).toBe(
+      "https://desktop-release.example.com/releases/everr-app/everr-linux-arm64",
+    );
+
+    expect(
+      resolveDesktopReleaseRedirectUrl({
+        pathname: "/everr-app/everr-linux-x86_64",
+        publicBaseUrl,
+      }),
+    ).toBe(
+      "https://desktop-release.example.com/releases/everr-app/everr-linux-x86_64",
+    );
+
+    expect(
+      resolveDesktopReleaseRedirectUrl({
+        pathname: "/everr-app/everr-linux-x86_64.sha256",
+        publicBaseUrl,
+      }),
+    ).toBe(
+      "https://desktop-release.example.com/releases/everr-app/everr-linux-x86_64.sha256",
+    );
+  });
+
   it("rejects unknown desktop release files", () => {
     expect(
       resolveDesktopReleaseRedirectUrl({

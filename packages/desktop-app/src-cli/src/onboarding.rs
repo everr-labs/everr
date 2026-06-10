@@ -1,9 +1,13 @@
 use std::fmt::Write as _;
 use std::io::IsTerminal;
 use std::path::Path;
+
+#[cfg(target_os = "macos")]
 use std::process::Command as ProcessCommand;
 
-use anyhow::{Context, Result, bail};
+#[cfg(target_os = "macos")]
+use anyhow::bail;
+use anyhow::{Context, Result};
 use everr_core::api::{ApiClient, MeResponse, OrgResponse};
 use everr_core::build;
 use everr_core::skills::{self as core_skills, SkillOperationOptions, SkillProvider, SkillScope};
@@ -439,6 +443,7 @@ fn outro_message(skills_installed: bool) -> &'static str {
     }
 }
 
+#[cfg(target_os = "macos")]
 async fn step_install_desktop_app() -> Result<bool> {
     let interactive = std::io::stdin().is_terminal();
     let app_path = Path::new("/Applications/Everr.app");
@@ -543,6 +548,11 @@ async fn step_install_desktop_app() -> Result<bool> {
     cliclack::log::success("Desktop app is now running in the menu bar.")?;
 
     Ok(true)
+}
+
+#[cfg(not(target_os = "macos"))]
+async fn step_install_desktop_app() -> Result<bool> {
+    Ok(false)
 }
 
 fn print_banner() {

@@ -13,8 +13,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
-    name: Build, Sign, Notarize
+  build-desktop:
+    name: Build, Sign, Notarize Desktop
     runs-on: blacksmith-6vcpu-macos-15
     timeout-minutes: 25
     env:
@@ -177,16 +177,10 @@ jobs:
           xcrun stapler validate "$app_path"
           xcrun stapler validate "$dmg_path"
 
-      - name: Attest release artifact checksums
-        uses: actions/attest@v4
-        with:
-          subject-checksums: target/desktop-release/SHA256SUMS
-
-      - name: Upload desktop release artifact
-        id: upload-desktop-release
+      - name: Upload desktop release payload
         uses: actions/upload-artifact@v4
         with:
-          name: everr-desktop-release-${{ github.sha }}
+          name: everr-desktop-release-payload-${{ github.sha }}
           path: target/desktop-release
           if-no-files-found: error
           retention-days: 14
@@ -197,9 +191,7 @@ jobs:
           {
             echo "## Desktop release artifact"
             echo
-            echo "- Artifact name: everr-desktop-release-${GITHUB_SHA}"
-            echo "- Artifact ID: ${{ steps.upload-desktop-release.outputs.artifact-id }}"
-            echo "- Artifact digest: ${{ steps.upload-desktop-release.outputs.artifact-digest }}"
+            echo "- Payload artifact: everr-desktop-release-payload-${GITHUB_SHA}"
             echo
             echo '```json'
             cat target/desktop-release/release-metadata.json
@@ -214,10 +206,188 @@ jobs:
             security delete-keychain "$APPLE_KEYCHAIN_PATH"
           fi
 
+  build-linux-cli:
+    name: Build Linux CLI ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: arm64
+            runner: blacksmith-2vcpu-ubuntu-2404-arm
+            asset: everr-linux-arm64
+          - name: x86_64
+            runner: ubuntu-24.04
+            asset: everr-linux-x86_64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+
+      - name: Test
+        run: cargo test --manifest-path packages/desktop-app/src-cli/Cargo.toml
+
+      - name: Build release binary
+        run: cargo build --release --manifest-path packages/desktop-app/src-cli/Cargo.toml
+
+      - name: Stage Linux CLI binary
+        run: |
+          set -euo pipefail
+          mkdir -p target/linux-cli-release
+          cp target/release/everr "target/linux-cli-release/${{ matrix.asset }}"
+          chmod +x "target/linux-cli-release/${{ matrix.asset }}"
+          (
+            cd target/linux-cli-release
+            sha256sum "${{ matrix.asset }}" > "${{ matrix.asset }}.sha256"
+          )
+
+      - name: Smoke test
+        run: ./target/linux-cli-release/${{ matrix.asset }} --help
+
+      - name: Upload Linux CLI payload
+        uses: actions/upload-artifact@v4
+        with:
+          name: everr-linux-cli-${{ matrix.name }}-${{ github.sha }}
+          path: |
+            target/linux-cli-release/${{ matrix.asset }}
+            target/linux-cli-release/${{ matrix.asset }}.sha256
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+  package-release:
+    name: Package Release
+    runs-on: ubuntu-24.04
+    needs:
+      - build-desktop
+      - build-linux-cli
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download desktop payload
+        uses: actions/download-artifact@v4
+        with:
+          name: everr-desktop-release-payload-${{ github.sha }}
+          path: target/desktop-release
+
+      - name: Download Linux CLI payloads
+        uses: actions/download-artifact@v4
+        with:
+          pattern: everr-linux-cli-*-${{ github.sha }}
+          path: target/linux-cli-release
+          merge-multiple: true
+
+      - name: Merge Linux CLI assets
+        run: |
+          set -euo pipefail
+
+          for asset in everr-linux-arm64 everr-linux-x86_64; do
+            test -f "target/linux-cli-release/$asset"
+            chmod +x "target/linux-cli-release/$asset"
+            test -x "target/linux-cli-release/$asset"
+            test -f "target/linux-cli-release/$asset.sha256"
+            (
+              cd target/linux-cli-release
+              sha256sum --check "$asset.sha256"
+            )
+            cp "target/linux-cli-release/$asset" "target/desktop-release/$asset"
+            cp "target/linux-cli-release/$asset.sha256" "target/desktop-release/$asset.sha256"
+          done
+
+      - name: Refresh release metadata and checksums
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const { createHash } = require("node:crypto");
+          const { readdirSync, readFileSync, statSync, writeFileSync } = require("node:fs");
+          const { join, relative } = require("node:path");
+
+          const root = "target/desktop-release";
+          const ignored = new Set(["SHA256SUMS", "release-metadata.json"]);
+
+          function findFiles(dir) {
+            return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+              const entryPath = join(dir, entry.name);
+              return entry.isDirectory() ? findFiles(entryPath) : [entryPath];
+            });
+          }
+
+          function rel(file) {
+            return relative(root, file).split(/[\\/]/).join("/");
+          }
+
+          function sha256(file) {
+            return createHash("sha256").update(readFileSync(file)).digest("hex");
+          }
+
+          const files = findFiles(root)
+            .filter((file) => !ignored.has(rel(file)))
+            .map((file) => ({
+              path: rel(file),
+              sha256: sha256(file),
+              size: statSync(file).size,
+            }))
+            .sort((left, right) => left.path.localeCompare(right.path));
+
+          const metadataPath = join(root, "release-metadata.json");
+          const metadata = JSON.parse(readFileSync(metadataPath, "utf8"));
+          metadata.files = files;
+          writeFileSync(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`);
+
+          const checksums = findFiles(root)
+            .filter((file) => rel(file) !== "SHA256SUMS")
+            .map((file) => ({ path: rel(file), sha256: sha256(file) }))
+            .sort((left, right) => left.path.localeCompare(right.path))
+            .map((entry) => `${entry.sha256}  ${entry.path}`)
+            .join("\n");
+          writeFileSync(join(root, "SHA256SUMS"), `${checksums}\n`);
+          NODE
+
+      - name: Validate combined release payload
+        run: |
+          set -euo pipefail
+          test -f target/desktop-release/everr
+          test -f target/desktop-release/everr.sha256
+          test -f target/desktop-release/everr-linux-arm64
+          test -f target/desktop-release/everr-linux-arm64.sha256
+          test -f target/desktop-release/everr-linux-x86_64
+          test -f target/desktop-release/everr-linux-x86_64.sha256
+          test -f target/desktop-release/everr-app/latest.json
+          test -f target/desktop-release/everr-app/everr-macos-arm64.dmg
+          test -f target/desktop-release/everr-app/everr-macos-arm64.app.tar.gz
+          test -f target/desktop-release/everr-app/everr-macos-arm64.app.tar.gz.sig
+          (
+            cd target/desktop-release
+            sha256sum --check SHA256SUMS
+          )
+
+      - name: Attest release artifact checksums
+        uses: actions/attest@v4
+        with:
+          subject-checksums: target/desktop-release/SHA256SUMS
+
+      - name: Upload release artifact
+        id: upload-desktop-release
+        uses: actions/upload-artifact@v4
+        with:
+          name: everr-desktop-release-${{ github.sha }}
+          path: target/desktop-release
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
   notify-deploy:
     name: Notify Deploy Repo
     runs-on: blacksmith-2vcpu-ubuntu-2404
-    needs: build
+    needs: package-release
     steps:
       - name: Checkout
         uses: actions/checkout@v4
