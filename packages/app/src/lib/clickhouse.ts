@@ -197,7 +197,13 @@ export interface AlertEventRow {
   alert_definition_id: string;
   repoid: string;
   slug: string;
-  event_type: "firing" | "resolved" | "evaluation_failed" | "delivery_attempt";
+  event_type:
+    | "firing"
+    | "resolved"
+    | "evaluation_failed"
+    | "delivery_attempt"
+    | "instance_fired"
+    | "instance_resolved";
   evaluation_scheduled_at?: string;
   row_count?: number;
   evidence_truncated?: 0 | 1;
@@ -205,6 +211,8 @@ export interface AlertEventRow {
   delivery_target_type?: "" | "email" | "telegram";
   delivery_outcome?: "" | "sent" | "failed" | "silenced";
   silence_id?: string;
+  instance_fingerprint?: string;
+  instance_labels_json?: string;
 }
 
 export async function insertAlertEvents(rows: AlertEventRow[]): Promise<void> {

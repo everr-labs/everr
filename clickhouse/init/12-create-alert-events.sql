@@ -21,7 +21,9 @@ CREATE TABLE IF NOT EXISTS app.alert_events
   evidence_json String DEFAULT '{}',
   delivery_target_type LowCardinality(String) DEFAULT '',
   delivery_outcome LowCardinality(String) DEFAULT '',
-  silence_id String DEFAULT ''
+  silence_id String DEFAULT '',
+  instance_fingerprint String DEFAULT '',
+  instance_labels_json String DEFAULT '{}'
 )
 ENGINE = MergeTree
 PARTITION BY toYYYYMM(event_date)
@@ -43,6 +45,12 @@ ON app.alert_events
 FOR SELECT
 USING organization_id = getSetting('SQL_everr_tenant_id')
 TO app_ro;
+
+-- Idempotent upgrade for tables created before the instance columns existed.
+-- The MV is recreated below so it always projects the current column set.
+ALTER TABLE app.alert_events ADD COLUMN IF NOT EXISTS instance_fingerprint String DEFAULT '';
+ALTER TABLE app.alert_events ADD COLUMN IF NOT EXISTS instance_labels_json String DEFAULT '{}';
+DROP VIEW IF EXISTS app.alert_events_logs_mv;
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS app.alert_events_logs_mv
 TO app.logs
@@ -72,7 +80,9 @@ SELECT
     'alert.silence_id', silence_id,
     'alert.row_count', toString(row_count),
     'alert.evidence_truncated', toString(evidence_truncated),
-    'alert.evidence_json', evidence_json
+    'alert.evidence_json', evidence_json,
+    'alert.instance_fingerprint', instance_fingerprint,
+    'alert.instance_labels', instance_labels_json
   ) AS LogAttributes,
   concat('everr.alert.', event_type) AS EventName,
   -- Required for app.logs RLS and TTL; ResourceAttributes alone is not enough.

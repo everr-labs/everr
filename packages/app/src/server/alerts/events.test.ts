@@ -3,6 +3,7 @@ import {
   boundEvidence,
   buildDeliveryEvent,
   buildEvaluationEvent,
+  buildInstanceEvent,
   MAX_EVIDENCE_BYTES,
   MAX_EVIDENCE_ROWS,
 } from "./events";
@@ -51,6 +52,57 @@ describe("event row construction", () => {
       row_count: 1,
       evidence_truncated: 0,
     });
+  });
+
+  it("builds instance_fired with labels and source row", () => {
+    const event = buildInstanceEvent({
+      def,
+      eventType: "instance_fired",
+      scheduledFor: new Date("2026-06-11T10:00:00.000Z"),
+      fingerprint: "abc123",
+      labels: { route: "/x" },
+      row: { route: "/x", error_count: 9 },
+    });
+
+    expect(event.event_type).toBe("instance_fired");
+    expect(event.instance_fingerprint).toBe("abc123");
+    expect(JSON.parse(event.instance_labels_json ?? "")).toEqual({
+      route: "/x",
+    });
+    expect(JSON.parse(event.evidence_json ?? "")).toEqual({
+      route: "/x",
+      error_count: 9,
+    });
+    expect(event.row_count).toBe(1);
+    expect(event.evaluation_scheduled_at).toBe("2026-06-11 10:00:00.000");
+  });
+
+  it("builds instance_resolved without a row", () => {
+    const event = buildInstanceEvent({
+      def,
+      eventType: "instance_resolved",
+      scheduledFor: new Date("2026-06-11T10:00:00.000Z"),
+      fingerprint: "abc123",
+      labels: { route: "/x" },
+    });
+
+    expect(event.event_type).toBe("instance_resolved");
+    expect(event.evidence_json).toBe("{}");
+    expect(event.row_count).toBe(0);
+  });
+
+  it("caps oversized labels json", () => {
+    const event = buildInstanceEvent({
+      def,
+      eventType: "instance_fired",
+      scheduledFor: new Date("2026-06-11T10:00:00.000Z"),
+      fingerprint: "abc123",
+      labels: { big: "x".repeat(70 * 1024) },
+      row: { big: "x".repeat(70 * 1024) },
+    });
+
+    expect(event.instance_labels_json).toBe("{}");
+    expect(event.evidence_json).toBe("{}");
   });
 
   it("builds delivery events with target, outcome, and silence id", () => {
