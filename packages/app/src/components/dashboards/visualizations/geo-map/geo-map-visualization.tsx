@@ -1,6 +1,6 @@
 import { geoNaturalEarth1, geoPath } from "d3-geo";
 import { Map as MapIcon } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { queryLabel, SERIES_COLORS } from "../data-utils";
 import type { VisualizationProps } from "../index";
 import { formatStatValue } from "../stat-chart/stat-calculations";
@@ -12,7 +12,7 @@ import {
   mergeRegions,
   schemeBaseColor,
 } from "./geo-data";
-import type { GeoMapSpec } from "./spec";
+import type { GeoColorScheme, GeoMapSpec } from "./spec";
 import { getWorldCountries } from "./world-geometry";
 
 const VW = 980;
@@ -21,10 +21,23 @@ const R_RANGE: [number, number] = [3, 22];
 /** Marker fill opacity — shared by map markers and the legend swatches. */
 const MARKER_OPACITY = 0.65;
 
-/** Marker color encodes which query: frame 0 = scheme base, then the palette. */
+/** SERIES_COLORS index each scheme resembles — skipped when picking the
+ *  secondary marker colors so multi-query overlays stay visually distinct. */
+const SCHEME_SERIES_INDEX: Record<GeoColorScheme, number> = {
+  blue: 0,
+  green: 1,
+  red: 2,
+  orange: 4,
+};
+
+/** Marker color encodes which query: frame 0 = scheme base; later frames use
+ *  the shared palette, skipping the hue closest to the scheme color. */
 function markerColor(frame: number, spec: GeoMapSpec): string {
   if (frame === 0) return schemeBaseColor(spec.colorScheme);
-  return SERIES_COLORS[frame % SERIES_COLORS.length] ?? SERIES_COLORS[0]!;
+  const secondary = SERIES_COLORS.filter(
+    (_, i) => i !== SCHEME_SERIES_INDEX[spec.colorScheme],
+  );
+  return secondary[(frame - 1) % secondary.length] ?? SERIES_COLORS[0]!;
 }
 
 interface Hover {
@@ -48,6 +61,7 @@ export function GeoMapVisualization({
   data,
 }: VisualizationProps<GeoMapSpec>) {
   const countries = getWorldCountries();
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const projection = useMemo(
     () => geoNaturalEarth1().fitSize([VW, VH], { type: "Sphere" }),
@@ -61,6 +75,13 @@ export function GeoMapVisualization({
     v == null
       ? "–"
       : `${formatStatValue(v, undefined)}${spec.unit ? ` ${spec.unit}` : ""}`;
+
+  // Pointer position relative to the container, for HTML-overlay tooltips.
+  const posFromEvent = (e: { clientX: number; clientY: number }) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return null;
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  };
 
   const content = useMemo(() => {
     if (!data) return null;
@@ -89,13 +110,21 @@ export function GeoMapVisualization({
 
   return (
     <div className="flex h-full flex-col border-t border-border">
-      <div className="min-h-0 flex-1 overflow-hidden">
+      <div
+        ref={containerRef}
+        className="relative min-h-0 flex-1 overflow-hidden"
+      >
         <svg
           viewBox={`0 0 ${VW} ${VH}`}
           preserveAspectRatio="xMidYMid meet"
           className="h-full w-full"
           role="img"
           aria-label="Geographic map"
+          onMouseMove={(e) => {
+            const p = posFromEvent(e);
+            setHover((h) => (h && p ? { ...h, x: p.x, y: p.y } : h));
+          }}
+          onMouseLeave={() => setHover(null)}
         >
           <title>Geographic map</title>
 
@@ -121,6 +150,7 @@ export function GeoMapVisualization({
               const d = path(f) ?? undefined;
               if (!d) return null;
               const t = d1 > d0 ? (v - d0) / (d1 - d0) : 1;
+              const title = f.properties?.name ?? String(f.id);
               return (
                 // biome-ignore lint/a11y/noStaticElementInteractions: map region hover
                 <path
@@ -129,14 +159,9 @@ export function GeoMapVisualization({
                   fill={colorRamp(spec.colorScheme, t)}
                   className="stroke-border"
                   strokeWidth={0.5}
-                  onMouseEnter={() => {
-                    const c = path.centroid(f);
-                    setHover({
-                      x: c[0],
-                      y: c[1],
-                      title: f.properties?.name ?? String(f.id),
-                      value: v,
-                    });
+                  onMouseEnter={(e) => {
+                    const p = posFromEvent(e);
+                    if (p) setHover({ ...p, title, value: v });
                   }}
                   onMouseLeave={() => setHover(null)}
                 />
@@ -148,6 +173,8 @@ export function GeoMapVisualization({
               const xy = projection([m.lon, m.lat]);
               if (!xy) return null;
               const r = markerRadius(m.value ?? d0, content.domain, R_RANGE);
+              const title =
+                m.label ?? `${m.lat.toFixed(2)}, ${m.lon.toFixed(2)}`;
               return (
                 // biome-ignore lint/a11y/noStaticElementInteractions: marker hover
                 <circle
@@ -159,114 +186,64 @@ export function GeoMapVisualization({
                   fillOpacity={MARKER_OPACITY}
                   stroke="white"
                   strokeWidth={0.75}
-                  onMouseEnter={() =>
-                    setHover({
-                      x: xy[0],
-                      y: xy[1],
-                      title:
-                        m.label ?? `${m.lat.toFixed(2)}, ${m.lon.toFixed(2)}`,
-                      value: m.value,
-                    })
-                  }
+                  onMouseEnter={(e) => {
+                    const p = posFromEvent(e);
+                    if (p) setHover({ ...p, title, value: m.value });
+                  }}
                   onMouseLeave={() => setHover(null)}
                 />
               );
             })}
-
-          {hover && (
-            <g
-              transform={`translate(${hover.x}, ${hover.y})`}
-              pointerEvents="none"
-            >
-              <rect
-                x={8}
-                y={-28}
-                width={160}
-                height={34}
-                rx={4}
-                fill="rgba(17,24,39,0.92)"
-              />
-              <text x={16} y={-14} fill="white" fontSize={12} fontWeight={600}>
-                {hover.title.slice(0, 22)}
-              </text>
-              <text x={16} y={1} fill="white" fontSize={12} opacity={0.85}>
-                {fmt(hover.value)}
-              </text>
-            </g>
-          )}
-
-          {spec.showLegend && content.kind === "points" && frameCount > 1 && (
-            <g transform={`translate(12, ${VH - 12 - frameCount * 18})`}>
-              {Array.from({ length: frameCount }, (_, f) => (
-                <g key={f} transform={`translate(0, ${f * 18})`}>
-                  <circle
-                    cx={6}
-                    cy={6}
-                    r={6}
-                    fill={markerColor(f, spec)}
-                    fillOpacity={MARKER_OPACITY}
-                    stroke="white"
-                    strokeWidth={0.75}
-                  />
-                  <text x={18} y={10} fontSize={12} className="fill-foreground">
-                    {queryLabel(f)}
-                  </text>
-                </g>
-              ))}
-            </g>
-          )}
-          {spec.showLegend && content.kind === "choropleth" && (
-            <g transform={`translate(12, ${VH - 40})`}>
-              <defs>
-                <linearGradient id="geo-ramp" x1="0" x2="1" y1="0" y2="0">
-                  <stop
-                    offset="0%"
-                    stopColor={schemeBaseColor(spec.colorScheme)}
-                    stopOpacity={0}
-                  />
-                  <stop
-                    offset="100%"
-                    stopColor={schemeBaseColor(spec.colorScheme)}
-                    stopOpacity={1}
-                  />
-                </linearGradient>
-              </defs>
-              <rect
-                x={0}
-                y={0}
-                width={160}
-                height={10}
-                rx={2}
-                className="fill-muted"
-              />
-              <rect
-                x={0}
-                y={0}
-                width={160}
-                height={10}
-                rx={2}
-                fill="url(#geo-ramp)"
-              />
-              <text
-                x={0}
-                y={24}
-                fontSize={11}
-                className="fill-muted-foreground"
-              >
-                {fmt(d0)}
-              </text>
-              <text
-                x={160}
-                y={24}
-                fontSize={11}
-                textAnchor="end"
-                className="fill-muted-foreground"
-              >
-                {fmt(d1)}
-              </text>
-            </g>
-          )}
         </svg>
+
+        {/* tooltip — constant-size HTML overlay (stays readable as the map scales) */}
+        {hover && (
+          <div
+            className="pointer-events-none absolute z-10 whitespace-nowrap rounded-md border bg-popover px-2 py-1 text-xs shadow-md"
+            style={{
+              left: hover.x,
+              top: hover.y,
+              transform: "translate(10px, -120%)",
+            }}
+          >
+            <div className="font-semibold text-popover-foreground">
+              {hover.title}
+            </div>
+            <div className="text-muted-foreground">{fmt(hover.value)}</div>
+          </div>
+        )}
+
+        {/* legend — HTML overlay, constant size */}
+        {spec.showLegend && content.kind === "points" && frameCount > 1 && (
+          <div className="pointer-events-none absolute bottom-2 left-2 flex flex-col gap-1 rounded-md bg-background/70 px-2 py-1.5 text-xs backdrop-blur-sm">
+            {Array.from({ length: frameCount }, (_, f) => (
+              <div key={f} className="flex items-center gap-2">
+                <span
+                  className="size-3 rounded-full ring-1 ring-white/70"
+                  style={{
+                    backgroundColor: markerColor(f, spec),
+                    opacity: MARKER_OPACITY,
+                  }}
+                />
+                <span className="text-foreground">{queryLabel(f)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {spec.showLegend && content.kind === "choropleth" && (
+          <div className="pointer-events-none absolute bottom-2 left-2 flex items-center gap-2 rounded-md bg-background/70 px-2 py-1.5 text-xs backdrop-blur-sm">
+            <span className="text-muted-foreground">{fmt(d0)}</span>
+            <span className="inline-block h-2.5 w-28 rounded-sm bg-muted align-middle">
+              <span
+                className="block h-full w-full rounded-sm"
+                style={{
+                  background: `linear-gradient(to right, transparent, ${schemeBaseColor(spec.colorScheme)})`,
+                }}
+              />
+            </span>
+            <span className="text-muted-foreground">{fmt(d1)}</span>
+          </div>
+        )}
       </div>
     </div>
   );

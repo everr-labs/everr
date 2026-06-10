@@ -135,10 +135,11 @@ spec:
     - kind: Grid
       spec:
         items:
-          - { x: 0,  y: 0,  width: 12, height: 9, content: { $ref: "#/spec/panels/geo-points" } }
-          - { x: 12, y: 0,  width: 12, height: 9, content: { $ref: "#/spec/panels/geo-points-multi" } }
-          - { x: 0,  y: 9,  width: 12, height: 9, content: { $ref: "#/spec/panels/geo-choropleth" } }
-          - { x: 12, y: 9,  width: 12, height: 9, content: { $ref: "#/spec/panels/geo-choropleth-green" } }
-          - { x: 0,  y: 18, width: 12, height: 9, content: { $ref: "#/spec/panels/geo-choropleth-orange" } }
-          - { x: 12, y: 18, width: 12, height: 9, content: { $ref: "#/spec/panels/geo-choropleth-red-nolegend" } }
-          - { x: 0,  y: 27, width: 12, height: 8, content: { $ref: "#/spec/panels/geo-empty" } }
+          # Full-width hero map for the demo.
+          - { x: 0,  y: 0,  width: 24, height: 12, content: { $ref: "#/spec/panels/geo-points" } }
+          - { x: 0,  y: 12, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-points-multi" } }
+          - { x: 12, y: 12, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-choropleth" } }
+          - { x: 0,  y: 21, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-choropleth-green" } }
+          - { x: 12, y: 21, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-choropleth-orange" } }
+          - { x: 0,  y: 30, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-choropleth-red-nolegend" } }
+          - { x: 12, y: 30, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-empty" } }
