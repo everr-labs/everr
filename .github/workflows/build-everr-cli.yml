@@ -12,38 +12,28 @@ on:
     paths:
       - .github/workflows/build-everr-cli.yml
       - packages/desktop-app/src-cli/**
+      - packages/desktop-app/scripts/build-cli.sh
       - crates/everr-core/**
       - Makefile
       - packages/docs/Dockerfile
       - packages/docs/public/install.sh
-      - packages/docs/public/install-dev.sh
       - packages/docs/content/docs/cli/**
   push:
     branches: [main]
     paths:
       - .github/workflows/build-everr-cli.yml
       - packages/desktop-app/src-cli/**
+      - packages/desktop-app/scripts/build-cli.sh
       - crates/everr-core/**
       - Makefile
       - packages/docs/Dockerfile
       - packages/docs/public/install.sh
-      - packages/docs/public/install-dev.sh
       - packages/docs/content/docs/cli/**
 
 jobs:
   build:
-    name: Build ${{ matrix.name }}
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: linux-arm64
-            runner: blacksmith-2vcpu-ubuntu-2404-arm
-            asset: everr-linux-arm64
-          - name: linux-x86_64
-            runner: ubuntu-24.04
-            asset: everr-linux-x86_64
+    name: Build
+    runs-on: blacksmith-2vcpu-ubuntu-2404-arm
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -62,32 +52,10 @@ jobs:
           workspaces: . -> target
 
       - name: Test
-        run: cargo test --manifest-path packages/desktop-app/src-cli/Cargo.toml
+        run: cargo +nightly test --manifest-path packages/desktop-app/src-cli/Cargo.toml -- --report-time -Z unstable-options
 
       - name: Build release binary
         run: cargo build --release --manifest-path packages/desktop-app/src-cli/Cargo.toml
 
-      - name: Stage release binary
-        run: |
-          set -euo pipefail
-          mkdir -p target/cli-release
-          cp target/release/everr "target/cli-release/${{ matrix.asset }}"
-          chmod +x "target/cli-release/${{ matrix.asset }}"
-          (
-            cd target/cli-release
-            sha256sum "${{ matrix.asset }}" > "${{ matrix.asset }}.sha256"
-          )
-
       - name: Smoke test
-        run: ./target/cli-release/${{ matrix.asset }} --help
-
-      - name: Upload architecture artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: everr-cli-${{ matrix.name }}-${{ github.sha }}
-          path: |
-            target/cli-release/${{ matrix.asset }}
-            target/cli-release/${{ matrix.asset }}.sha256
-          if-no-files-found: error
-          retention-days: 14
-          compression-level: 0
+        run: ./target/release/everr --help
