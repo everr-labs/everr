@@ -17,8 +17,7 @@ export interface MarkdownSource {
   file?: string;
 }
 
-/** @expected-unused — consumed by the notebooks as-code path in follow-up tasks. */
-export const markdownSource: z.ZodType<MarkdownSource> = z
+const markdownSource: z.ZodType<MarkdownSource> = z
   .strictObject({
     inline: z.string().optional(),
     file: z.string().optional(),
@@ -42,8 +41,7 @@ export interface NotebookPage {
   pages?: NotebookPage[];
 }
 
-/** @expected-unused — consumed by the notebooks as-code path in follow-up tasks. */
-export const notebookPage: z.ZodType<NotebookPage> = z.lazy(() =>
+const notebookPage: z.ZodType<NotebookPage> = z.lazy(() =>
   z.object({
     name: dashboardSlugSchema,
     display: dashboardDisplay.optional(),

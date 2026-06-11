@@ -318,7 +318,7 @@ everr apply ./dashboards --dry-run     # always preview first; writes nothing
 everr apply ./dashboards               # prints the destination org, then asks to confirm
 ```
 
-Apply is **declarative and delete-by-default within the declared projects**: new files are created, changed files updated, removed files **deleted**. Re-applying with no changes prints `Nothing to apply.` In CI, set `EVERR_API_TOKEN` and pass `--yes`.
+Apply is **declarative and delete-by-default within the declared projects**: new files are created, changed files updated, removed files **deleted**. This spans **all resource kinds** — the tree is the complete desired state for its declared projects, so applying a dashboards-only directory that declares a project also prunes that project's notebooks (see the `everr-write-notebooks` skill). Never split one project across two apply directories. Re-applying with no changes prints `Nothing to apply.` In CI, set `EVERR_API_TOKEN` and pass `--yes`.
 
 ## Common mistakes
 
