@@ -70,7 +70,11 @@ export function TableVisualization({
           </ToggleGroup>
         </div>
       )}
-      <div className="min-h-0 flex-1 overflow-auto overscroll-none">
+      {/* No overscroll-none: it would swallow wheel events whenever the rows
+          fit (a non-scrollable scroll container with overscroll-behavior:none
+          blocks scroll chaining), leaving the dashboard unscrollable from
+          above this panel. */}
+      <div className="min-h-0 flex-1 overflow-auto">
         {rows.length === 0 ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             No rows
