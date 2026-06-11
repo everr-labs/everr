@@ -29,10 +29,10 @@ function alert(overrides = {}) {
     metadata: { name: "high-errors" },
     spec: {
       evaluationInterval: "5m",
-      window: "15m",
       summary: `\${row_count} errors in \${top_service}`,
       description: `route: \${top_route}`,
-      query: `SELECT service, route, count() AS count FROM logs WHERE TimestampTime >= now() - INTERVAL \${window} GROUP BY service, route`,
+      query:
+        "SELECT service, route, count() AS count FROM logs WHERE TimestampTime >= now() - INTERVAL 15 MINUTE GROUP BY service, route",
       ...overrides,
     },
   };
@@ -66,7 +66,7 @@ describe("/api/cli/alerts/test", () => {
 
     expect(response.status).toBe(200);
     expect(mockedQuerySqlApiWithMeta).toHaveBeenCalledWith(
-      expect.stringContaining("INTERVAL 15 MINUTE"),
+      expect.stringContaining("TimestampTime >= now() - INTERVAL 15 MINUTE"),
       CLI_TEST_ORG_ID,
     );
     expect(await response.json()).toEqual({

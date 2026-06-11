@@ -19,8 +19,7 @@ CREATE TABLE IF NOT EXISTS app.alert_events
   row_count UInt32 DEFAULT 0,
   evidence_truncated UInt8 DEFAULT 0,
   evidence_json String DEFAULT '{}',
-  delivery_target_type LowCardinality(String) DEFAULT '',
-  delivery_outcome LowCardinality(String) DEFAULT '',
+  delivery_targets Map(String, Array(String)) DEFAULT map(),
   silence_id String DEFAULT '',
   instance_fingerprint String DEFAULT '',
   instance_labels_json String DEFAULT '{}'
@@ -50,6 +49,7 @@ TO app_ro;
 -- The MV is recreated below so it always projects the current column set.
 ALTER TABLE app.alert_events ADD COLUMN IF NOT EXISTS instance_fingerprint String DEFAULT '';
 ALTER TABLE app.alert_events ADD COLUMN IF NOT EXISTS instance_labels_json String DEFAULT '{}';
+ALTER TABLE app.alert_events ADD COLUMN IF NOT EXISTS delivery_targets Map(String, Array(String)) DEFAULT map();
 DROP VIEW IF EXISTS app.alert_events_logs_mv;
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS app.alert_events_logs_mv
@@ -76,7 +76,7 @@ SELECT
     'alert.repoid', repoid,
     'alert.slug', slug,
     'alert.event_type', event_type,
-    'alert.delivery_outcome', delivery_outcome,
+    'alert.delivery_targets', toJSONString(delivery_targets),
     'alert.silence_id', silence_id,
     'alert.row_count', toString(row_count),
     'alert.evidence_truncated', toString(evidence_truncated),

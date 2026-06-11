@@ -48,9 +48,11 @@ function clickhouseDateTime64(date: Date): string {
 
 export function buildEvaluationEvent(opts: {
   def: { id: string; organizationId: string; repoid: string; slug: string };
-  eventType: "firing" | "resolved" | "evaluation_failed";
+  eventType: "firing" | "resolved" | "partial_resolved" | "evaluation_failed";
   scheduledFor: Date;
   evidence?: BoundedEvidence;
+  deliveryTargets?: Partial<Record<"email" | "telegram", string[]>>;
+  silenceId?: string;
 }): AlertEventRow {
   return {
     organization_id: opts.def.organizationId,
@@ -62,6 +64,8 @@ export function buildEvaluationEvent(opts: {
     row_count: opts.evidence?.rowCount ?? 0,
     evidence_truncated: opts.evidence?.truncated ? 1 : 0,
     evidence_json: opts.evidence?.json ?? "{}",
+    delivery_targets: opts.deliveryTargets,
+    silence_id: opts.silenceId ?? "",
   };
 }
 
@@ -89,23 +93,5 @@ export function buildInstanceEvent(opts: {
     instance_labels_json: boundJson(opts.labels),
     evidence_json: opts.row ? boundJson(opts.row) : "{}",
     row_count: opts.row ? 1 : 0,
-  };
-}
-
-export function buildDeliveryEvent(opts: {
-  def: { id: string; organizationId: string; repoid: string; slug: string };
-  target: "email" | "telegram";
-  outcome: "sent" | "failed" | "silenced";
-  silenceId?: string;
-}): AlertEventRow {
-  return {
-    organization_id: opts.def.organizationId,
-    alert_definition_id: opts.def.id,
-    repoid: opts.def.repoid,
-    slug: opts.def.slug,
-    event_type: "delivery_attempt",
-    delivery_target_type: opts.target,
-    delivery_outcome: opts.outcome,
-    silence_id: opts.silenceId ?? "",
   };
 }

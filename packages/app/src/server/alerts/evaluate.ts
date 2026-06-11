@@ -1,6 +1,5 @@
 import { eq } from "drizzle-orm";
-import { renderMessage, renderQuery } from "@/data/alerts/template";
-import { parseWindow } from "@/data/alerts/window";
+import { renderMessage } from "@/data/alerts/template";
 import { db } from "@/db/client";
 import { alertDefinitions } from "@/db/schema";
 import {
@@ -9,7 +8,7 @@ import {
   querySqlApiWithMeta,
 } from "@/lib/clickhouse";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
-import { deliverAlertNotification } from "./delivery";
+import { type DeliveryMetadata, deliverAlertNotification } from "./delivery";
 import {
   boundEvidence,
   buildEvaluationEvent,
@@ -45,6 +44,15 @@ function parsePayload(payload: EvaluatePayload) {
   };
 }
 
+function deliveryFields(metadata: DeliveryMetadata | null) {
+  return metadata
+    ? {
+        deliveryTargets: metadata.deliveryTargets,
+        silenceId: metadata.silenceId,
+      }
+    : {};
+}
+
 export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
   const parsedPayload = parsePayload(payload);
   if (!parsedPayload) return;
@@ -58,7 +66,7 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
 
   const scheduledFor = parsedPayload.scheduledFor;
   const now = new Date();
-  const query = renderQuery(def.parsedQuery, parseWindow(def.window).interval);
+  const query = def.parsedQuery;
 
   async function recordAlertEvents(events: AlertEventRow[]) {
     if (events.length === 0) return;
@@ -157,7 +165,7 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
     })
     .where(eq(alertDefinitions.id, def.id));
 
-  const events = [
+  const events: AlertEventRow[] = [
     ...diff.newlyFired.map((instance) =>
       buildInstanceEvent({
         def,
@@ -179,29 +187,7 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
     ),
   ];
   if (diff.newlyFired.length > 0) {
-    events.push(
-      buildEvaluationEvent({
-        def,
-        eventType: "firing",
-        scheduledFor,
-        evidence,
-      }),
-    );
-  }
-  if (wasFiring && !isFiring) {
-    events.push(
-      buildEvaluationEvent({
-        def,
-        eventType: "resolved",
-        scheduledFor,
-        evidence,
-      }),
-    );
-  }
-  await recordAlertEvents(events);
-
-  if (diff.newlyFired.length > 0) {
-    await deliverAlertNotification({
+    const delivery = await deliverAlertNotification({
       def,
       kind: "firing",
       summary,
@@ -212,8 +198,18 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
         labels,
       })),
     });
-  } else if (wasFiring && !isFiring) {
-    await deliverAlertNotification({
+    events.push(
+      buildEvaluationEvent({
+        def,
+        eventType: "firing",
+        scheduledFor,
+        evidence,
+        ...deliveryFields(delivery),
+      }),
+    );
+  }
+  if (wasFiring && !isFiring) {
+    const delivery = await deliverAlertNotification({
       def,
       kind: "resolved",
       summary,
@@ -221,5 +217,33 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
       firingCount: 0,
       instances: diff.nowResolved,
     });
+    events.push(
+      buildEvaluationEvent({
+        def,
+        eventType: "resolved",
+        scheduledFor,
+        evidence,
+        ...deliveryFields(delivery),
+      }),
+    );
+  } else if (diff.nowResolved.length > 0) {
+    const delivery = await deliverAlertNotification({
+      def,
+      kind: "partial_resolved",
+      summary,
+      description,
+      firingCount: current.length,
+      instances: diff.nowResolved,
+    });
+    events.push(
+      buildEvaluationEvent({
+        def,
+        eventType: "partial_resolved",
+        scheduledFor,
+        evidence,
+        ...deliveryFields(delivery),
+      }),
+    );
   }
+  await recordAlertEvents(events);
 }

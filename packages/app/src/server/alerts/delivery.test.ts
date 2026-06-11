@@ -10,9 +10,8 @@ vi.mock("@/lib/telegram.server", () => ({
   sendTelegramMessage: (...args: unknown[]) => sendTelegram(...args),
 }));
 
-const insertEvents = vi.fn();
-vi.mock("@/lib/clickhouse", () => ({
-  insertAlertEvents: (...args: unknown[]) => insertEvents(...args),
+vi.mock("@/env", () => ({
+  env: { BETTER_AUTH_URL: "https://app.example.com" },
 }));
 
 const settingsRows = vi.fn();
@@ -63,7 +62,6 @@ beforeEach(() => {
   settingsRows.mockReset();
   silenceRows.mockReset();
   sendTelegram.mockResolvedValue(undefined);
-  insertEvents.mockResolvedValue(undefined);
   settingsRows.mockReturnValue([
     {
       delivery: {
@@ -79,7 +77,7 @@ beforeEach(() => {
 
 describe("deliverAlertNotification", () => {
   it("sends email and telegram for firing, listing instances", async () => {
-    await deliverAlertNotification({
+    const result = await deliverAlertNotification({
       def,
       kind: "firing",
       summary: "3 bad",
@@ -95,22 +93,26 @@ describe("deliverAlertNotification", () => {
         text: expect.stringContaining("Firing instances: 2"),
       }),
     );
+    expect(sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: expect.stringContaining("https://app.example.com/alerts/a1"),
+      }),
+    );
     expect(sendTelegram).toHaveBeenCalledWith(
       "123",
       expect.stringContaining("route=/a"),
     );
-    expect(insertEvents).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        expect.objectContaining({
-          delivery_target_type: "email",
-          delivery_outcome: "sent",
-        }),
-        expect.objectContaining({
-          delivery_target_type: "telegram",
-          delivery_outcome: "sent",
-        }),
-      ]),
+    expect(sendTelegram).toHaveBeenCalledWith(
+      "123",
+      expect.stringContaining("https://app.example.com/alerts/a1"),
     );
+    expect(result).toEqual({
+      deliveryTargets: {
+        email: ["a@example.com"],
+        telegram: ["123"],
+      },
+      silenceId: "",
+    });
   });
 
   it("suppresses delivery when matchers silence every instance", async () => {
@@ -118,7 +120,7 @@ describe("deliverAlertNotification", () => {
       { id: "sil-1", matchers: [{ label: "route", op: "=", value: "/a" }] },
     ]);
 
-    await deliverAlertNotification({
+    const result = await deliverAlertNotification({
       def,
       kind: "firing",
       summary: "x",
@@ -129,14 +131,7 @@ describe("deliverAlertNotification", () => {
 
     expect(sendEmail).not.toHaveBeenCalled();
     expect(sendTelegram).not.toHaveBeenCalled();
-    expect(insertEvents).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        expect.objectContaining({
-          delivery_outcome: "silenced",
-          silence_id: "sil-1",
-        }),
-      ]),
-    );
+    expect(result).toEqual({ deliveryTargets: {}, silenceId: "sil-1" });
   });
 
   it("excludes silenced instances but still notifies the rest", async () => {
@@ -144,7 +139,7 @@ describe("deliverAlertNotification", () => {
       { id: "sil-1", matchers: [{ label: "route", op: "=", value: "/a" }] },
     ]);
 
-    await deliverAlertNotification({
+    const result = await deliverAlertNotification({
       def,
       kind: "firing",
       summary: "x",
@@ -157,12 +152,19 @@ describe("deliverAlertNotification", () => {
     const text = sendTelegram.mock.calls[0][1] as string;
     expect(text).toContain("route=/b");
     expect(text).not.toContain("route=/a");
+    expect(result).toEqual({
+      deliveryTargets: {
+        email: ["a@example.com"],
+        telegram: ["123"],
+      },
+      silenceId: "",
+    });
   });
 
   it("suppresses everything under a whole-rule silence (no matchers)", async () => {
     silenceRows.mockReturnValue([{ id: "sil-1", matchers: [] }]);
 
-    await deliverAlertNotification({
+    const result = await deliverAlertNotification({
       def,
       kind: "firing",
       summary: "x",
@@ -173,32 +175,69 @@ describe("deliverAlertNotification", () => {
 
     expect(sendEmail).not.toHaveBeenCalled();
     expect(sendTelegram).not.toHaveBeenCalled();
-    expect(insertEvents).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        expect.objectContaining({ delivery_outcome: "silenced" }),
-      ]),
-    );
+    expect(result).toEqual({ deliveryTargets: {}, silenceId: "sil-1" });
   });
 
-  it("skips resolved delivery unless notifyOnResolved is enabled", async () => {
-    await deliverAlertNotification({
+  it("sends resolved delivery without a global toggle", async () => {
+    const result = await deliverAlertNotification({
       def,
       kind: "resolved",
       summary: "ok",
-      description: "",
+      description: "details",
       firingCount: 0,
       instances: instances(["/a"]),
     });
 
-    expect(sendEmail).not.toHaveBeenCalled();
-    expect(sendTelegram).not.toHaveBeenCalled();
-    expect(insertEvents).not.toHaveBeenCalled();
+    expect(sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "a@example.com",
+        subject: "[resolved] s1",
+        text: expect.stringContaining("All instances resolved"),
+      }),
+    );
+    const text = sendTelegram.mock.calls[0][1] as string;
+    expect(text).not.toContain("[resolved] s1");
+    expect(text).not.toContain("ok");
+    expect(text).not.toContain("details");
+    expect(result).toEqual({
+      deliveryTargets: {
+        email: ["a@example.com"],
+        telegram: ["123"],
+      },
+      silenceId: "",
+    });
   });
 
-  it("records failed attempts without throwing", async () => {
+  it("sends partial resolved delivery", async () => {
+    await deliverAlertNotification({
+      def,
+      kind: "partial_resolved",
+      summary: "1 recovered",
+      description: "details",
+      firingCount: 2,
+      instances: instances(["/a"]),
+    });
+
+    expect(sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "a@example.com",
+        subject: "[partial_resolved] s1",
+        text: expect.stringContaining("Resolved instances: 1"),
+      }),
+    );
+    const text = sendTelegram.mock.calls[0][1] as string;
+    expect(text).toContain("Still firing instances: 2");
+    expect(text).toContain("route=/a");
+    expect(text).not.toContain("[partial_resolved] s1");
+    expect(text).not.toContain("1 recovered");
+    expect(text).not.toContain("details");
+    expect(text).not.toContain("All instances resolved");
+  });
+
+  it("returns target metadata when a send fails", async () => {
     sendTelegram.mockRejectedValue(new Error("nope"));
 
-    await deliverAlertNotification({
+    const result = await deliverAlertNotification({
       def,
       kind: "firing",
       summary: "x",
@@ -207,13 +246,12 @@ describe("deliverAlertNotification", () => {
       instances: instances(["/a"]),
     });
 
-    expect(insertEvents).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        expect.objectContaining({
-          delivery_target_type: "telegram",
-          delivery_outcome: "failed",
-        }),
-      ]),
-    );
+    expect(result).toEqual({
+      deliveryTargets: {
+        email: ["a@example.com"],
+        telegram: ["123"],
+      },
+      silenceId: "",
+    });
   });
 });

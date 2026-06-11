@@ -2,16 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import * as z from "zod";
 import { AlertRuleYamlSchema } from "@/data/alerts/schema";
 import {
-  renderQuery,
   validateMessageTemplate,
   validateQueryTemplate,
   validateTopColumns,
 } from "@/data/alerts/template";
-import {
-  type ParsedWindow,
-  parseEvaluationInterval,
-  parseWindow,
-} from "@/data/alerts/window";
+import { parseEvaluationInterval } from "@/data/alerts/window";
 import { querySqlApiWithMeta, type SqlApiResult } from "@/lib/clickhouse";
 import { boundEvidence } from "@/server/alerts/events";
 
@@ -81,10 +76,8 @@ export const Route = createFileRoute("/api/cli/alerts/test")({
           }
 
           const rule = parsedRule.data;
-          let window: ParsedWindow;
           try {
             parseEvaluationInterval(rule.spec.evaluationInterval);
-            window = parseWindow(rule.spec.window);
             validateQueryTemplate(rule.spec.query);
             validateMessageTemplate(rule.spec.summary);
             if (rule.spec.description) {
@@ -97,11 +90,10 @@ export const Route = createFileRoute("/api/cli/alerts/test")({
             );
           }
 
-          const query = renderQuery(rule.spec.query, window.interval);
           let queryResult: SqlApiResult<Record<string, unknown>>;
           try {
             queryResult = await querySqlApiWithMeta<Record<string, unknown>>(
-              query,
+              rule.spec.query,
               organizationId,
             );
           } catch (error) {

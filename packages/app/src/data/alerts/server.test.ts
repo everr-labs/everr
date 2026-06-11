@@ -36,7 +36,6 @@ vi.mock("@/db/schema", () => {
     repoid: "alert_definitions.repoid",
     slug: "alert_definitions.slug",
     evaluationIntervalSeconds: "alert_definitions.evaluation_interval_seconds",
-    window: "alert_definitions.window",
     sourceLink: "alert_definitions.source_link",
     configFilePath: "alert_definitions.config_file_path",
     currentState: "alert_definitions.current_state",
@@ -51,6 +50,7 @@ vi.mock("@/db/schema", () => {
     lastRowCount: "alert_definitions.last_row_count",
     lastEvidenceSnapshot: "alert_definitions.last_evidence_snapshot",
     firingInstanceCount: "alert_definitions.firing_instance_count",
+    instanceLabelColumns: "alert_definitions.instance_label_columns",
     rawYaml: "alert_definitions.raw_yaml",
     parsedQuery: "alert_definitions.parsed_query",
     summaryTemplate: "alert_definitions.summary_template",
@@ -143,7 +143,6 @@ const alertRow = {
   repoid: "owner/repo",
   slug: "build-failures",
   evaluationIntervalSeconds: 300,
-  window: "15m",
   sourceLink: "",
   configFilePath: ".everr/alerts.yaml",
   currentState: "firing",
@@ -156,13 +155,17 @@ const alertRow = {
   lastResolvedAt: null,
   lastSeenAt: null,
   lastRowCount: 3,
-  lastEvidenceSnapshot: [],
+  lastEvidenceSnapshot: [
+    { route: "/a", count: 9, status: "degraded" },
+    { route: "/a", count: 7, status: "still-degraded" },
+  ],
   firingInstanceCount: 1,
+  instanceLabelColumns: ["route"],
   activeSilenceCount: 0,
   rawYaml: "",
   parsedQuery: "SELECT 1",
-  summaryTemplate: "",
-  descriptionTemplate: "",
+  summaryTemplate: "$" + "{row_count} hits for $" + "{top_route}",
+  descriptionTemplate: "latest count $" + "{top_count}",
 };
 
 beforeEach(() => {
@@ -204,7 +207,6 @@ describe("updateAlertSettings", () => {
         data: {
           delivery: {
             email: { enabled: true, to: ["alerts@example.com"] },
-            notifyOnResolved: true,
           },
         },
       }),
@@ -214,12 +216,91 @@ describe("updateAlertSettings", () => {
     expect(db.insert).not.toHaveBeenCalled();
   });
 
+  it("rejects an enabled channel with no recipients", async () => {
+    await expect(
+      updateAlertSettings({
+        data: {
+          delivery: {
+            email: { enabled: true, to: [] },
+          },
+        },
+      }),
+    ).rejects.toThrow();
+
+    await expect(
+      updateAlertSettings({
+        data: {
+          delivery: {
+            telegram: { enabled: true, chatIds: [] },
+          },
+        },
+      }),
+    ).rejects.toThrow();
+
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it("rejects malformed recipients", async () => {
+    await expect(
+      updateAlertSettings({
+        data: {
+          delivery: {
+            email: { enabled: true, to: ["not-an-email"] },
+          },
+        },
+      }),
+    ).rejects.toThrow();
+
+    await expect(
+      updateAlertSettings({
+        data: {
+          delivery: {
+            telegram: { enabled: true, chatIds: ["abc"] },
+          },
+        },
+      }),
+    ).rejects.toThrow();
+
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it("accepts numeric and @username Telegram chat IDs", async () => {
+    await updateAlertSettings({
+      data: {
+        delivery: {
+          telegram: { enabled: true, chatIds: ["-1001234567890", "@my_team"] },
+        },
+      },
+    });
+
+    expect(mocks.insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        delivery: {
+          email: { enabled: false, to: [] },
+          telegram: { enabled: true, chatIds: ["-1001234567890", "@my_team"] },
+        },
+      }),
+    );
+  });
+
+  it("allows a disabled channel with no recipients", async () => {
+    await updateAlertSettings({
+      data: {
+        delivery: {
+          email: { enabled: false, to: [] },
+          telegram: { enabled: false, chatIds: [] },
+        },
+      },
+    });
+
+    expect(mocks.insertValues).toHaveBeenCalled();
+  });
+
   it("normalizes and upserts strict delivery settings", async () => {
     await updateAlertSettings({
       data: {
         delivery: {
           email: { enabled: true, to: ["alerts@example.com"] },
-          notifyOnResolved: false,
         },
       },
     });
@@ -230,7 +311,6 @@ describe("updateAlertSettings", () => {
         delivery: {
           email: { enabled: true, to: ["alerts@example.com"] },
           telegram: { enabled: false, chatIds: [] },
-          notifyOnResolved: false,
         },
       }),
     );
@@ -331,9 +411,24 @@ describe("listAlertEvents", () => {
         rowCount: 3,
         evidenceTruncated: 0,
         evidenceJson: "{}",
-        deliveryTargetType: "",
-        deliveryOutcome: "",
+        deliveryTargetsJson: `{"email":["alerts@example.com"]}`,
         silenceId: "",
+        instanceLabelsJson: [`{"route":"/a"}`],
+      },
+      {
+        eventId: "event-2",
+        alertDefinitionId: alertRow.id,
+        repoid: alertRow.repoid,
+        slug: alertRow.slug,
+        eventType: "partial_resolved",
+        eventTime: "2026-06-10T10:01:00.000Z",
+        evaluationScheduledAt: "2026-06-10T10:01:00.000Z",
+        rowCount: 2,
+        evidenceTruncated: 0,
+        evidenceJson: "{}",
+        deliveryTargetsJson: "{}",
+        silenceId: "",
+        instanceLabelsJson: [`{"route":"/b"}`],
       },
     ]);
 
@@ -350,10 +445,10 @@ describe("listAlertEvents", () => {
     expect(sql).toContain("alert_definition_id = {alertDefinitionId:String}");
     expect(sql).not.toContain("%3N");
     expect(sql).toContain(
-      "substring(formatDateTime(event_time, '%f', 'UTC'), 1, 3)",
+      "substring(formatDateTime(history.event_time, '%f', 'UTC'), 1, 3)",
     );
     expect(sql).toContain(
-      "substring(formatDateTime(evaluation_scheduled_at, '%f', 'UTC'), 1, 3)",
+      "substring(formatDateTime(history.evaluation_scheduled_at, '%f', 'UTC'), 1, 3)",
     );
     expect(vi.mocked(query).mock.calls[0]?.[2]).toMatchObject({
       organizationId: "test_org",
@@ -363,12 +458,20 @@ describe("listAlertEvents", () => {
       limit: 25,
     });
     expect(sql).toContain(
-      "event_type NOT IN ('instance_fired', 'instance_resolved')",
+      "event_type NOT IN ('instance_fired', 'instance_resolved', 'delivery_attempt')",
     );
+    expect(sql).toContain("LEFT JOIN app.alert_events AS instance_events");
+    expect(sql).toContain("groupArrayIf(");
     expect(events[0]).toMatchObject({
       eventId: "event-1",
       evaluationScheduledAt: null,
       evidenceTruncated: false,
+      deliveryTargets: { email: ["alerts@example.com"] },
+      instances: [{ state: "firing", labels: { route: "/a" } }],
+    });
+    expect(events[1]).toMatchObject({
+      eventId: "event-2",
+      instances: [{ state: "resolved", labels: { route: "/b" } }],
     });
   });
 });
@@ -384,6 +487,14 @@ describe("listAlertInstances", () => {
         reason: "",
         createdByUserId: "test_user",
         matchers: [{ label: "route", op: "=", value: "/a" }],
+      },
+      {
+        id: "sil-2",
+        startsAt: new Date(),
+        endsAt: new Date(Date.now() + 60_000),
+        reason: "",
+        createdByUserId: "test_user",
+        matchers: [{ label: "route", op: "=", value: "/b" }],
       },
     ]);
     vi.mocked(query).mockResolvedValueOnce([
@@ -422,6 +533,12 @@ describe("listAlertInstances", () => {
         lastFiredAt: "2026-06-11T09:00:00.000Z",
         lastResolvedAt: null,
         lastRow: { route: "/a", count: 5 },
+        lastEvaluationRows: [
+          { route: "/a", count: 9, status: "degraded" },
+          { route: "/a", count: 7, status: "still-degraded" },
+        ],
+        lastEvaluationSummary: "3 hits for /a",
+        lastEvaluationDescription: "latest count 9",
         silenced: true,
       },
       {
@@ -431,6 +548,9 @@ describe("listAlertInstances", () => {
         lastFiredAt: "2026-06-11T08:00:00.000Z",
         lastResolvedAt: "2026-06-11T09:30:00.000Z",
         lastRow: { route: "/b", count: 2 },
+        lastEvaluationRows: [],
+        lastEvaluationSummary: null,
+        lastEvaluationDescription: null,
         silenced: false,
       },
     ]);

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   boundEvidence,
-  buildDeliveryEvent,
   buildEvaluationEvent,
   buildInstanceEvent,
   MAX_EVIDENCE_BYTES,
@@ -54,6 +53,25 @@ describe("event row construction", () => {
     });
   });
 
+  it("adds delivery targets and silence id to evaluator events", () => {
+    const row = buildEvaluationEvent({
+      def,
+      eventType: "firing",
+      scheduledFor: new Date("2026-06-10T12:00:00.000Z"),
+      deliveryTargets: { email: ["alerts@example.com"], telegram: ["123"] },
+      silenceId: "sil-1",
+    });
+
+    expect(row).toMatchObject({
+      event_type: "firing",
+      delivery_targets: {
+        email: ["alerts@example.com"],
+        telegram: ["123"],
+      },
+      silence_id: "sil-1",
+    });
+  });
+
   it("builds instance_fired with labels and source row", () => {
     const event = buildInstanceEvent({
       def,
@@ -103,21 +121,5 @@ describe("event row construction", () => {
 
     expect(event.instance_labels_json).toBe("{}");
     expect(event.evidence_json).toBe("{}");
-  });
-
-  it("builds delivery events with target, outcome, and silence id", () => {
-    expect(
-      buildDeliveryEvent({
-        def,
-        target: "telegram",
-        outcome: "silenced",
-        silenceId: "sil-1",
-      }),
-    ).toMatchObject({
-      event_type: "delivery_attempt",
-      delivery_target_type: "telegram",
-      delivery_outcome: "silenced",
-      silence_id: "sil-1",
-    });
   });
 });

@@ -15,6 +15,7 @@ interface DataTableProps<T> {
   emptyState?: ReactNode;
   stickyHeader?: boolean;
   bordered?: boolean;
+  containerClassName?: string;
 }
 
 export function DataTable<T>({
@@ -24,6 +25,7 @@ export function DataTable<T>({
   emptyState,
   stickyHeader,
   bordered,
+  containerClassName,
 }: DataTableProps<T>) {
   if (data.length === 0 && emptyState) {
     return <>{emptyState}</>;
@@ -33,7 +35,7 @@ export function DataTable<T>({
   const isLast = (i: number) => i === columns.length - 1;
 
   return (
-    <div className={bordered ? undefined : "overflow-x-auto"}>
+    <div className={cn(!bordered && "overflow-x-auto", containerClassName)}>
       <table
         className={cn(
           "w-full text-sm",

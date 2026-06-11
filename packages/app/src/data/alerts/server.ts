@@ -11,6 +11,8 @@ import {
   MatchersSchema,
   validateMatchers,
 } from "./matchers";
+import { validateTelegramChatId } from "./recipients";
+import { renderMessage } from "./template";
 
 const DeliverySettingsSchema = z
   .object({
@@ -20,24 +22,45 @@ const DeliverySettingsSchema = z
         to: z.array(z.string().email()).default([]),
       })
       .strict()
+      .refine((value) => !value.enabled || value.to.length > 0, {
+        message: "Email is enabled but has no recipients",
+      })
       .optional(),
     telegram: z
       .object({
         enabled: z.boolean(),
-        chatIds: z.array(z.string().min(1)).default([]),
+        chatIds: z
+          .array(
+            z
+              .string()
+              .refine((value) => validateTelegramChatId(value) === null, {
+                message: "Invalid Telegram chat ID",
+              }),
+          )
+          .default([]),
       })
       .strict()
+      .refine((value) => !value.enabled || value.chatIds.length > 0, {
+        message: "Telegram is enabled but has no chat IDs",
+      })
       .optional(),
-    notifyOnResolved: z.boolean().optional(),
   })
   .strict();
 
 type AlertDeliverySettings = z.infer<typeof DeliverySettingsSchema>;
+type NormalizedAlertDeliverySettings = {
+  email: { enabled: boolean; to: string[] };
+  telegram: { enabled: boolean; chatIds: string[] };
+};
+type AlertDeliveryTargets = Partial<Record<"email" | "telegram", string[]>>;
+type AlertEventInstance = {
+  state: "firing" | "resolved";
+  labels: Record<string, string>;
+};
 
-const DEFAULT_DELIVERY_SETTINGS: Required<AlertDeliverySettings> = {
+const DEFAULT_DELIVERY_SETTINGS: NormalizedAlertDeliverySettings = {
   email: { enabled: false, to: [] },
   telegram: { enabled: false, chatIds: [] },
-  notifyOnResolved: true,
 };
 
 type AlertEvidenceValue =
@@ -53,7 +76,6 @@ export type AlertSummary = {
   repoid: string;
   slug: string;
   evaluationIntervalSeconds: number;
-  window: string;
   sourceLink: string;
   configFilePath: string;
   currentState: "unknown" | "resolved" | "firing";
@@ -76,6 +98,7 @@ type AlertDetail = AlertSummary & {
   parsedQuery: string;
   summaryTemplate: string;
   descriptionTemplate: string;
+  instanceLabelColumns: string[];
 };
 
 type AlertEvent = {
@@ -89,9 +112,9 @@ type AlertEvent = {
   rowCount: number;
   evidenceTruncated: boolean;
   evidenceJson: string;
-  deliveryTargetType: string;
-  deliveryOutcome: string;
+  deliveryTargets: AlertDeliveryTargets;
   silenceId: string;
+  instances: AlertEventInstance[];
 };
 
 type AlertSummaryRow = Omit<AlertSummary, "activeSilenceCount"> & {
@@ -116,7 +139,6 @@ const alertListColumns = {
   repoid: alertDefinitions.repoid,
   slug: alertDefinitions.slug,
   evaluationIntervalSeconds: alertDefinitions.evaluationIntervalSeconds,
-  window: alertDefinitions.window,
   sourceLink: alertDefinitions.sourceLink,
   configFilePath: alertDefinitions.configFilePath,
   currentState: alertDefinitions.currentState,
@@ -147,7 +169,7 @@ async function ensureOrgAdmin(userId: string, organizationId: string) {
 
 function normalizeDeliverySettings(
   delivery: AlertDeliverySettings | null | undefined,
-): Required<AlertDeliverySettings> {
+): NormalizedAlertDeliverySettings {
   return {
     email: {
       enabled:
@@ -162,8 +184,6 @@ function normalizeDeliverySettings(
         delivery?.telegram?.chatIds ??
         DEFAULT_DELIVERY_SETTINGS.telegram.chatIds,
     },
-    notifyOnResolved:
-      delivery?.notifyOnResolved ?? DEFAULT_DELIVERY_SETTINGS.notifyOnResolved,
   };
 }
 
@@ -173,7 +193,6 @@ function toAlertSummary(row: AlertSummaryRow): AlertSummary {
     repoid: row.repoid,
     slug: row.slug,
     evaluationIntervalSeconds: row.evaluationIntervalSeconds,
-    window: row.window,
     sourceLink: row.sourceLink,
     configFilePath: row.configFilePath,
     currentState: row.currentState,
@@ -204,6 +223,7 @@ async function getAlertRow(alertId: string, organizationId: string) {
       parsedQuery: alertDefinitions.parsedQuery,
       summaryTemplate: alertDefinitions.summaryTemplate,
       descriptionTemplate: alertDefinitions.descriptionTemplate,
+      instanceLabelColumns: alertDefinitions.instanceLabelColumns,
     })
     .from(alertDefinitions)
     .where(
@@ -248,6 +268,7 @@ export const getAlert = createAuthenticatedServerFn({ method: "GET" })
       parsedQuery: row.parsedQuery,
       summaryTemplate: row.summaryTemplate,
       descriptionTemplate: row.descriptionTemplate,
+      instanceLabelColumns: row.instanceLabelColumns,
     } satisfies AlertDetail;
   });
 
@@ -274,34 +295,77 @@ export const listAlertEvents = createAuthenticatedServerFn({ method: "GET" })
         rowCount: number;
         evidenceTruncated: number;
         evidenceJson: string;
-        deliveryTargetType: string;
-        deliveryOutcome: string;
+        deliveryTargetsJson: string;
         silenceId: string;
+        instanceLabelsJson: string[];
       }>(
         `
-          SELECT
-            toString(event_id) AS eventId,
-            alert_definition_id AS alertDefinitionId,
-            repoid,
-            slug,
-            event_type AS eventType,
-            ${clickhouseIsoMillis("event_time")} AS eventTime,
-            if(evaluation_scheduled_at = toDateTime64(0, 3), '', ${clickhouseIsoMillis("evaluation_scheduled_at")}) AS evaluationScheduledAt,
-            row_count AS rowCount,
-            evidence_truncated AS evidenceTruncated,
-            evidence_json AS evidenceJson,
-            delivery_target_type AS deliveryTargetType,
-            delivery_outcome AS deliveryOutcome,
-            silence_id AS silenceId
-          FROM app.alert_events
-          WHERE organization_id = {organizationId:String}
-            AND repoid = {repoid:String}
-            AND slug = {slug:String}
-            AND alert_definition_id = {alertDefinitionId:String}
-            AND event_type NOT IN ('instance_fired', 'instance_resolved')
-          ORDER BY event_time DESC, event_id DESC
-          LIMIT {limit:UInt32}
-        `,
+	          WITH history AS (
+	            SELECT
+	              organization_id,
+	              alert_definition_id,
+	              repoid,
+	              slug,
+	              event_id,
+	              event_type,
+	              event_time,
+	              evaluation_scheduled_at,
+	              row_count,
+	              evidence_truncated,
+	              evidence_json,
+	              toJSONString(delivery_targets) AS deliveryTargetsJson,
+	              silence_id
+	            FROM app.alert_events
+	            WHERE organization_id = {organizationId:String}
+	              AND repoid = {repoid:String}
+	              AND slug = {slug:String}
+	              AND alert_definition_id = {alertDefinitionId:String}
+	              AND event_type NOT IN ('instance_fired', 'instance_resolved', 'delivery_attempt')
+	            ORDER BY event_time DESC, event_id DESC
+	            LIMIT {limit:UInt32}
+	          )
+	          SELECT
+	            toString(history.event_id) AS eventId,
+	            history.alert_definition_id AS alertDefinitionId,
+	            history.repoid AS repoid,
+	            history.slug AS slug,
+	            history.event_type AS eventType,
+	            ${clickhouseIsoMillis("history.event_time")} AS eventTime,
+	            if(history.evaluation_scheduled_at = toDateTime64(0, 3), '', ${clickhouseIsoMillis("history.evaluation_scheduled_at")}) AS evaluationScheduledAt,
+	            history.row_count AS rowCount,
+	            history.evidence_truncated AS evidenceTruncated,
+	            history.evidence_json AS evidenceJson,
+	            history.deliveryTargetsJson AS deliveryTargetsJson,
+	            history.silence_id AS silenceId,
+	            groupArrayIf(
+	              instance_events.instance_labels_json,
+	              (history.event_type = 'firing' AND instance_events.event_type = 'instance_fired')
+	                OR (history.event_type IN ('resolved', 'partial_resolved') AND instance_events.event_type = 'instance_resolved')
+	            ) AS instanceLabelsJson
+	          FROM history
+	          LEFT JOIN app.alert_events AS instance_events
+	            ON instance_events.organization_id = history.organization_id
+	            AND instance_events.repoid = history.repoid
+	            AND instance_events.slug = history.slug
+	            AND instance_events.alert_definition_id = history.alert_definition_id
+	            AND instance_events.evaluation_scheduled_at = history.evaluation_scheduled_at
+	            AND instance_events.event_type IN ('instance_fired', 'instance_resolved')
+	          GROUP BY
+	            history.organization_id,
+	            history.alert_definition_id,
+	            history.repoid,
+	            history.slug,
+	            history.event_id,
+	            history.event_type,
+	            history.event_time,
+	            history.evaluation_scheduled_at,
+	            history.row_count,
+	            history.evidence_truncated,
+	            history.evidence_json,
+	            history.deliveryTargetsJson,
+	            history.silence_id
+	          ORDER BY history.event_time DESC, history.event_id DESC
+	        `,
         {
           organizationId,
           repoid: alert.repoid,
@@ -322,9 +386,9 @@ export const listAlertEvents = createAuthenticatedServerFn({ method: "GET" })
         rowCount: Number(row.rowCount),
         evidenceTruncated: Boolean(row.evidenceTruncated),
         evidenceJson: row.evidenceJson,
-        deliveryTargetType: row.deliveryTargetType,
-        deliveryOutcome: row.deliveryOutcome,
+        deliveryTargets: parseDeliveryTargets(row.deliveryTargetsJson),
         silenceId: row.silenceId,
+        instances: parseEventInstances(row.eventType, row.instanceLabelsJson),
       })) satisfies AlertEvent[];
     },
   );
@@ -347,6 +411,86 @@ function parseJsonRecord(json: string): Record<string, string> {
   );
 }
 
+function parseDeliveryTargets(json: string): AlertDeliveryTargets {
+  const parsed = parseJsonObject(json);
+  const targets: AlertDeliveryTargets = {};
+  if (Array.isArray(parsed.email)) {
+    targets.email = parsed.email.map((value) => String(value));
+  }
+  if (Array.isArray(parsed.telegram)) {
+    targets.telegram = parsed.telegram.map((value) => String(value));
+  }
+  return targets;
+}
+
+function parseEventInstances(
+  eventType: string,
+  labelsJson: readonly string[],
+): AlertEventInstance[] {
+  const state =
+    eventType === "firing"
+      ? "firing"
+      : eventType === "resolved" || eventType === "partial_resolved"
+        ? "resolved"
+        : null;
+  if (!state) return [];
+  return labelsJson.map((json) => ({
+    state,
+    labels: parseJsonRecord(json),
+  }));
+}
+
+function evidenceRows(
+  value: AlertEvidenceValue | null | undefined,
+): Record<string, AlertEvidenceValue>[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (row): row is Record<string, AlertEvidenceValue> =>
+      Boolean(row) && typeof row === "object" && !Array.isArray(row),
+  );
+}
+
+function labelsForEvidenceRow(
+  row: Record<string, AlertEvidenceValue>,
+  instanceLabelColumns: readonly string[],
+): Record<string, string> {
+  if (instanceLabelColumns.length > 0) {
+    return Object.fromEntries(
+      instanceLabelColumns.map((column) => {
+        const value = row[column];
+        return [
+          column,
+          value === undefined || value === null ? "" : String(value),
+        ];
+      }),
+    );
+  }
+  return Object.fromEntries(
+    Object.entries(row)
+      .filter(([, value]) => typeof value === "string")
+      .map(([key, value]) => [key, String(value)]),
+  );
+}
+
+function labelsEqual(
+  left: Record<string, string>,
+  right: Record<string, string>,
+) {
+  const keys = Object.keys(left);
+  if (keys.length !== Object.keys(right).length) return false;
+  return keys.every((key) => left[key] === right[key]);
+}
+
+function findLastEvaluationRows(
+  rows: Record<string, AlertEvidenceValue>[],
+  labels: Record<string, string>,
+  instanceLabelColumns: readonly string[],
+) {
+  return rows.filter((row) =>
+    labelsEqual(labelsForEvidenceRow(row, instanceLabelColumns), labels),
+  );
+}
+
 export type AlertInstanceSummary = {
   fingerprint: string;
   labels: Record<string, string>;
@@ -354,6 +498,9 @@ export type AlertInstanceSummary = {
   lastFiredAt: string | null;
   lastResolvedAt: string | null;
   lastRow: Record<string, AlertEvidenceValue>;
+  lastEvaluationRows: Record<string, AlertEvidenceValue>[];
+  lastEvaluationSummary: string | null;
+  lastEvaluationDescription: string | null;
   silenced: boolean;
 };
 
@@ -424,19 +571,51 @@ export const listAlertInstances = createAuthenticatedServerFn({ method: "GET" })
       },
     );
 
+    const lastEvaluationSnapshotRows = evidenceRows(
+      alert.lastEvidenceSnapshot as AlertEvidenceValue | undefined,
+    );
+    const instanceLabelColumns = alert.instanceLabelColumns ?? [];
+
     return rows.map((row) => {
       const labels = parseJsonRecord(row.labelsJson);
+      const state =
+        row.lastEventType === "instance_fired" ? "firing" : "resolved";
+      const lastEvaluationRows =
+        state === "firing"
+          ? findLastEvaluationRows(
+              lastEvaluationSnapshotRows,
+              labels,
+              instanceLabelColumns,
+            )
+          : [];
+      const firstEvaluationRow = lastEvaluationRows[0];
       return {
         fingerprint: row.fingerprint,
         labels,
-        state: row.lastEventType === "instance_fired" ? "firing" : "resolved",
+        state,
         lastFiredAt: row.lastFiredAt || null,
         lastResolvedAt: row.lastResolvedAt || null,
         lastRow: parseJsonObject(row.lastFiredEvidenceJson) as Record<
           string,
           AlertEvidenceValue
         >,
-        silenced: Boolean(findSilenceForInstance(silences, labels)),
+        lastEvaluationRows,
+        lastEvaluationSummary: firstEvaluationRow
+          ? renderMessage(alert.summaryTemplate, {
+              rowCount: alert.lastRowCount,
+              firstRow: firstEvaluationRow,
+            })
+          : null,
+        lastEvaluationDescription:
+          firstEvaluationRow && alert.descriptionTemplate
+            ? renderMessage(alert.descriptionTemplate, {
+                rowCount: alert.lastRowCount,
+                firstRow: firstEvaluationRow,
+              })
+            : null,
+        silenced:
+          state === "firing" &&
+          Boolean(findSilenceForInstance(silences, labels)),
       } satisfies AlertInstanceSummary;
     });
   });

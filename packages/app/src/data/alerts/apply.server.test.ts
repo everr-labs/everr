@@ -124,10 +124,10 @@ function alert(name = "high-errors", overrides = {}) {
     metadata: { name },
     spec: {
       evaluationInterval: "5m",
-      window: "15m",
       summary: `\${row_count} errors in \${top_service}`,
       description: `top service \${top_service}`,
-      query: `SELECT service, count() AS count FROM logs WHERE timestamp > now() - INTERVAL \${window} GROUP BY service`,
+      query:
+        "SELECT service, count() AS count FROM logs WHERE timestamp > now() - INTERVAL 15 MINUTE GROUP BY service",
       ...overrides,
     },
   };
@@ -182,7 +182,7 @@ describe("applyAlertSpecs", () => {
       repoid: "repo-1",
       slug: "high-errors",
       evaluationIntervalSeconds: 300,
-      window: "15m",
+      window: "",
       parsedQuery: expect.stringContaining("INTERVAL 15 MINUTE"),
       summaryTemplate: `\${row_count} errors in \${top_service}`,
       descriptionTemplate: `top service \${top_service}`,
@@ -248,7 +248,7 @@ describe("applyAlertSpecs", () => {
       deleted: ["stale"],
     });
     expect(updateSets).toEqual([
-      expect.objectContaining({ active: true, window: "15m" }),
+      expect.objectContaining({ active: true, window: "" }),
       expect.objectContaining({ active: false, nextEvaluationAt: null }),
     ]);
     expect(deleteCalled).toBe(false);

@@ -21,7 +21,6 @@ export const alertStateEnum = pgEnum("alert_state", [
 export type AlertDeliverySettings = {
   email?: { enabled: boolean; to: string[] };
   telegram?: { enabled: boolean; chatIds: string[] };
-  notifyOnResolved?: boolean;
 };
 
 export const alertDefinitions = pgTable(

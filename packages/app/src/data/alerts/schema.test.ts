@@ -6,7 +6,6 @@ const valid = {
   metadata: { name: "high-5xx", labels: { team: "platform" } },
   spec: {
     evaluationInterval: "1m",
-    window: "5m",
     summary: `\${row_count} routes have elevated 5xxs`,
     query: "SELECT 1",
   },
@@ -45,6 +44,12 @@ describe("AlertRuleYamlSchema", () => {
     expect(AlertRuleYamlSchema.safeParse({ ...valid, extra: 1 }).success).toBe(
       false,
     );
+    expect(
+      AlertRuleYamlSchema.safeParse({
+        ...valid,
+        spec: { ...valid.spec, window: "5m" },
+      }).success,
+    ).toBe(false);
     expect(
       AlertRuleYamlSchema.safeParse({
         ...valid,

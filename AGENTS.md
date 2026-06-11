@@ -4,7 +4,7 @@ Never use `tsx`
 
 # CONSTITUTION
 
-When working on the web app, always test changes manually, use the credentials from .auth
+When working on the web app, always test changes manually, use the credentials from .auth (look for this on the main worktree)
 If .auth is not available, skip.
 
 When working with Telemetry, always check that ingestion works as expected using Everr.

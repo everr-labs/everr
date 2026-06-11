@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   extractVariables,
   renderMessage,
-  renderQuery,
   validateMessageTemplate,
   validateQueryTemplate,
   validateTopColumns,
@@ -18,10 +17,11 @@ describe("extractVariables", () => {
 });
 
 describe("validateQueryTemplate", () => {
-  it("allows only window variables", () => {
+  it("rejects query variables", () => {
+    expect(() => validateQueryTemplate("SELECT 1")).not.toThrow();
     expect(() =>
       validateQueryTemplate(`WHERE t >= now() - INTERVAL \${window}`),
-    ).not.toThrow();
+    ).toThrow(/window/);
     expect(() => validateQueryTemplate(`SELECT \${row_count}`)).toThrow(
       /row_count/,
     );
@@ -50,12 +50,6 @@ describe("validateTopColumns", () => {
 });
 
 describe("rendering", () => {
-  it("renderQuery expands window variables", () => {
-    expect(renderQuery(`INTERVAL \${window}`, "5 MINUTE")).toBe(
-      "INTERVAL 5 MINUTE",
-    );
-  });
-
   it("renderMessage fills row_count and top_ columns, empty string when no rows", () => {
     expect(
       renderMessage(`\${row_count} bad, top \${top_route}`, {

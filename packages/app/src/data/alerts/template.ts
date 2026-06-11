@@ -6,11 +6,9 @@ export function extractVariables(template: string): string[] {
 
 export function validateQueryTemplate(query: string): void {
   for (const name of extractVariables(query)) {
-    if (name !== "window") {
-      throw new Error(
-        `unsupported query variable \${${name}}: query templates support only \${window}`,
-      );
-    }
+    throw new Error(
+      `unsupported query variable \${${name}}: query templates do not support variables`,
+    );
   }
 }
 
@@ -37,10 +35,6 @@ export function validateTopColumns(
       );
     }
   }
-}
-
-export function renderQuery(query: string, windowInterval: string): string {
-  return query.replaceAll(`\${window}`, windowInterval);
 }
 
 export function renderMessage(

@@ -22,7 +22,6 @@ export const AlertRuleYamlSchema = z
     spec: z
       .object({
         evaluationInterval: nonEmptyString,
-        window: nonEmptyString,
         summary: nonEmptyString,
         description: z.string().optional(),
         query: nonEmptyString,

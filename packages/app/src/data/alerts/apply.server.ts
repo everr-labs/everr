@@ -8,16 +8,11 @@ import { alertDefinitions } from "@/db/schema";
 import { querySqlApiWithMeta, type SqlApiResult } from "@/lib/clickhouse";
 import { type AlertRuleYaml, AlertRuleYamlSchema } from "./schema";
 import {
-  renderQuery,
   validateMessageTemplate,
   validateQueryTemplate,
   validateTopColumns,
 } from "./template";
-import {
-  type ParsedWindow,
-  parseEvaluationInterval,
-  parseWindow,
-} from "./window";
+import { type ParsedWindow, parseEvaluationInterval } from "./window";
 
 interface DesiredAlert {
   slug: string;
@@ -136,19 +131,10 @@ async function buildDesiredAlerts(opts: {
     seen.set(slug, path);
 
     let evaluationInterval: ParsedWindow;
-    let window: ParsedWindow;
     try {
       evaluationInterval = parseEvaluationInterval(
         rule.spec.evaluationInterval,
       );
-    } catch (error) {
-      throw validationError(
-        path,
-        error instanceof Error ? error.message : String(error),
-      );
-    }
-    try {
-      window = parseWindow(rule.spec.window);
     } catch (error) {
       throw validationError(
         path,
@@ -167,13 +153,12 @@ async function buildDesiredAlerts(opts: {
       );
     }
 
-    const parsedQuery = renderQuery(rule.spec.query, window.interval);
     parsedAlerts.push({
       slug,
       path,
       rule,
       evaluationIntervalSeconds: evaluationInterval.seconds,
-      parsedQuery,
+      parsedQuery: rule.spec.query,
     });
   }
 
@@ -218,7 +203,7 @@ async function buildDesiredAlerts(opts: {
     out.push({
       slug: parsed.slug,
       evaluationIntervalSeconds: parsed.evaluationIntervalSeconds,
-      window: parsed.rule.spec.window,
+      window: "",
       rawYaml: rawSnapshot(parsed.rule),
       parsedQuery: parsed.parsedQuery,
       summaryTemplate: parsed.rule.spec.summary,

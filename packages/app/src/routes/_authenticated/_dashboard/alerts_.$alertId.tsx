@@ -35,8 +35,8 @@ import {
 } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { BellOff, CircleStop, Plus, X } from "lucide-react";
-import { useState } from "react";
-import { formatLabels, type Matcher } from "@/data/alerts/matchers";
+import { type ReactNode, useState } from "react";
+import type { Matcher } from "@/data/alerts/matchers";
 import {
   type AlertInstanceSummary,
   type AlertSilenceSummary,
@@ -82,15 +82,24 @@ const alertEventsQueryOptions = (alertId: string) =>
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/alerts_/$alertId",
 )({
-  staticData: { breadcrumb: "Alert", hideTimeRangePicker: true },
+  staticData: {
+    breadcrumb: (match: { loaderData?: { slug?: string } }) => [
+      { label: "Alerts", to: "/alerts" },
+      { label: match.loaderData?.slug ?? "Alert" },
+    ],
+    hideTimeRangePicker: true,
+  },
   head: () => ({ meta: [{ title: "Everr - Alert detail" }] }),
   loader: async ({ context: { queryClient }, params }) => {
+    const detail = await queryClient.ensureQueryData(
+      alertDetailQueryOptions(params.alertId),
+    );
     await Promise.all([
-      queryClient.prefetchQuery(alertDetailQueryOptions(params.alertId)),
       queryClient.prefetchQuery(alertInstancesQueryOptions(params.alertId)),
       queryClient.prefetchQuery(alertSilencesQueryOptions(params.alertId)),
       queryClient.prefetchQuery(alertEventsQueryOptions(params.alertId)),
     ]);
+    return { slug: detail.slug };
   },
   component: AlertDetailPage,
 });
@@ -126,6 +135,17 @@ function AlertDetailPage() {
     );
   }
   const detail = alert.data;
+  const definitionRows: [string, ReactNode][] = [
+    ["Evaluation interval", formatInterval(detail.evaluationIntervalSeconds)],
+    ["Summary", detail.summaryTemplate],
+    ["Description", detail.descriptionTemplate || "-"],
+    ...(detail.instanceLabelColumns.length > 0
+      ? ([
+          ["Instance labels", detail.instanceLabelColumns.join(", ")],
+        ] satisfies [string, ReactNode][])
+      : []),
+    ["Last evaluated", formatDate(detail.lastEvaluatedAt)],
+  ];
 
   return (
     <div className="flex w-full flex-col gap-6">
@@ -139,7 +159,10 @@ function AlertDetailPage() {
               state={detail.currentState}
               active={detail.active}
               firingInstanceCount={detail.firingInstanceCount}
-              silenced={detail.activeSilenceCount > 0}
+              silenced={
+                detail.currentState === "firing" &&
+                detail.activeSilenceCount > 0
+              }
             />
           </div>
           <p className="text-muted-foreground">
@@ -178,16 +201,14 @@ function AlertDetailPage() {
             <Skeleton className="m-3 h-36 w-full" />
           ) : (
             <DataTable
+              stickyHeader
+              containerClassName="max-h-[520px] overflow-auto"
               data={instances.data ?? []}
               columns={
                 [
                   {
                     header: "Labels",
-                    cell: (row) => (
-                      <span className="font-mono text-xs">
-                        {formatLabels(row.labels)}
-                      </span>
-                    ),
+                    cell: (row) => <KeyValueList values={row.labels} />,
                   },
                   {
                     header: "State",
@@ -196,11 +217,15 @@ function AlertDetailPage() {
                         <Badge variant={stateVariant(row.state)}>
                           {row.state}
                         </Badge>
-                        {row.silenced && (
+                        {row.state === "firing" && row.silenced && (
                           <Badge variant="secondary">silenced</Badge>
                         )}
                       </div>
                     ),
+                  },
+                  {
+                    header: "Last result",
+                    cell: (row) => <LastEvaluationResult instance={row} />,
                   },
                   {
                     header: "Fired",
@@ -244,23 +269,19 @@ function AlertDetailPage() {
           <CardHeader>
             <CardTitle>Definition</CardTitle>
           </CardHeader>
-          <CardContent>
-            <dl className="grid grid-cols-2 gap-2 text-xs">
-              <dt className="text-muted-foreground">Interval</dt>
-              <dd>{formatInterval(detail.evaluationIntervalSeconds)}</dd>
-              <dt className="text-muted-foreground">Window</dt>
-              <dd>{detail.window}</dd>
-              <dt className="text-muted-foreground">Last evaluated</dt>
-              <dd>{formatDate(detail.lastEvaluatedAt)}</dd>
-            </dl>
+          <CardContent className="flex flex-col gap-3">
+            <DefinitionTable rows={definitionRows} />
             {detail.lastEvaluationError && (
-              <pre className="mt-3 max-h-32 overflow-auto rounded bg-muted/30 p-2 text-xs text-destructive">
+              <pre className="max-h-32 overflow-auto rounded bg-muted/30 p-2 text-xs text-destructive">
                 {detail.lastEvaluationError}
               </pre>
             )}
-            <pre className="mt-3 max-h-72 overflow-auto rounded bg-muted/30 p-2 text-xs">
-              {detail.parsedQuery}
-            </pre>
+            <div className="flex flex-col gap-1">
+              <span className="text-muted-foreground text-xs">Query</span>
+              <pre className="max-h-72 overflow-auto rounded bg-muted/30 p-2 text-xs">
+                {detail.parsedQuery}
+              </pre>
+            </div>
           </CardContent>
         </Card>
 
@@ -296,17 +317,26 @@ function AlertDetailPage() {
             <Skeleton className="m-3 h-36 w-full" />
           ) : (
             <DataTable
+              stickyHeader
+              containerClassName="max-h-[520px] overflow-auto"
               data={events.data ?? []}
               columns={[
                 { header: "Time", cell: (row) => formatDate(row.eventTime) },
                 { header: "Type", cell: (row) => row.eventType },
+                {
+                  header: "State",
+                  cell: (row) => (
+                    <HistoryInstanceState instances={row.instances} />
+                  ),
+                },
+                {
+                  header: "Instances",
+                  cell: (row) => <HistoryInstances instances={row.instances} />,
+                },
                 { header: "Rows", cell: (row) => row.rowCount },
                 {
                   header: "Delivery",
-                  cell: (row) =>
-                    row.deliveryTargetType
-                      ? `${row.deliveryTargetType}: ${row.deliveryOutcome || "-"}`
-                      : "-",
+                  cell: (row) => formatDeliveryTargets(row),
                 },
               ]}
               rowKey={(row) => row.eventId}
@@ -325,6 +355,124 @@ function AlertDetailPage() {
         instance={silenceTarget}
         onClose={() => setSilenceTarget(null)}
       />
+    </div>
+  );
+}
+
+function LastEvaluationResult({
+  instance,
+}: {
+  instance: AlertInstanceSummary;
+}) {
+  if (instance.state !== "firing" || instance.lastEvaluationRows.length === 0) {
+    return "-";
+  }
+  const rows = instance.lastEvaluationRows
+    .map((row) => nonLabelValues(row, instance.labels))
+    .filter((row) => Object.keys(row).length > 0);
+  if (rows.length === 0) return "-";
+  return (
+    <div className="flex max-w-xl flex-col gap-1 font-mono text-xs">
+      {rows.map((row, index) => (
+        <KeyValueList key={index} values={row} />
+      ))}
+    </div>
+  );
+}
+
+function KeyValueList({ values }: { values: Record<string, string> }) {
+  const entries = Object.entries(values).sort(([a], [b]) => a.localeCompare(b));
+  if (entries.length === 0) {
+    return <span className="font-mono text-xs">(no labels)</span>;
+  }
+  return (
+    <span className="flex max-w-full flex-wrap gap-x-2 gap-y-1 font-mono text-xs">
+      {entries.map(([key, value]) => (
+        <span key={key} className="min-w-0 break-all">
+          {key}={value}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function DefinitionTable({ rows }: { rows: [string, ReactNode][] }) {
+  return (
+    <dl className="grid grid-cols-[140px_1fr] gap-x-3 gap-y-2 text-xs">
+      {rows.map(([label, value]) => (
+        <div key={label} className="contents">
+          <dt className="text-muted-foreground">{label}</dt>
+          <dd className="min-w-0 break-words">{value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function nonLabelValues(
+  row: Record<string, unknown>,
+  labels: Record<string, string>,
+) {
+  // With explicit instanceLabels, labels only contains those configured columns.
+  // Other string columns are evidence and must remain visible in Last result.
+  return Object.fromEntries(
+    Object.entries(row)
+      .filter(([key]) => !(key in labels))
+      .map(([key, value]) => [key, formatResultValue(value)]),
+  );
+}
+
+function formatResultValue(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+function formatDeliveryTargets(row: {
+  deliveryTargets: Partial<Record<"email" | "telegram", string[]>>;
+  silenceId: string;
+}) {
+  if (row.silenceId) return "silenced";
+  const targets = (["email", "telegram"] as const).filter(
+    (target) => (row.deliveryTargets[target]?.length ?? 0) > 0,
+  );
+  return targets.length > 0 ? targets.join(", ") : "-";
+}
+
+function HistoryInstances({
+  instances,
+}: {
+  instances: {
+    state: "firing" | "resolved";
+    labels: Record<string, string>;
+  }[];
+}) {
+  if (instances.length === 0) return "-";
+  return (
+    <div className="flex max-w-xl flex-col gap-1 font-mono text-xs">
+      {instances.map((instance, index) => (
+        <KeyValueList key={index} values={instance.labels} />
+      ))}
+    </div>
+  );
+}
+
+function HistoryInstanceState({
+  instances,
+}: {
+  instances: { state: "firing" | "resolved" }[];
+}) {
+  const states = Array.from(
+    new Set(instances.map((instance) => instance.state)),
+  );
+  if (states.length === 0) return "-";
+  return (
+    <div className="flex flex-wrap gap-1">
+      {states.map((state) => (
+        <Badge key={state} variant={stateVariant(state)}>
+          {state}
+        </Badge>
+      ))}
     </div>
   );
 }

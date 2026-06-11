@@ -62,8 +62,8 @@ const baseDef = {
   repoid: "r1",
   slug: "high-5xx",
   active: true,
-  window: "5m",
-  parsedQuery: `SELECT route FROM logs WHERE TimestampTime >= now() - INTERVAL \${window}`,
+  parsedQuery:
+    "SELECT route FROM logs WHERE TimestampTime >= now() - INTERVAL 5 MINUTE",
   summaryTemplate: `\${row_count} bad`,
   descriptionTemplate: "",
   currentState: "resolved",
@@ -80,7 +80,10 @@ const firing = (route: string) => ({
 beforeEach(() => {
   vi.clearAllMocks();
   updates.length = 0;
-  deliver.mockResolvedValue(undefined);
+  deliver.mockResolvedValue({
+    deliveryTargets: { email: ["a@example.com"] },
+    silenceId: "",
+  });
   insertEvents.mockResolvedValue(undefined);
   fetchFiring.mockResolvedValue([]);
 });
@@ -101,6 +104,10 @@ describe("evaluateAlert", () => {
       "firing",
     ]);
     expect(inserted[0]).toMatchObject({ instance_fingerprint: fp("/x") });
+    expect(inserted[1]).toMatchObject({
+      delivery_targets: { email: ["a@example.com"] },
+      silence_id: "",
+    });
     expect(
       updates.some(
         (u) => (u as { currentState?: string }).currentState === "firing",
@@ -213,8 +220,22 @@ describe("evaluateAlert", () => {
     });
 
     const inserted = insertEvents.mock.calls[0][0] as Record<string, unknown>[];
-    expect(inserted.map((e) => e.event_type)).toEqual(["instance_resolved"]);
-    expect(deliver).not.toHaveBeenCalled();
+    expect(inserted.map((e) => e.event_type)).toEqual([
+      "instance_resolved",
+      "partial_resolved",
+    ]);
+    expect(deliver).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "partial_resolved",
+        firingCount: 1,
+        instances: [
+          expect.objectContaining({
+            fingerprint: fp("/y"),
+            labels: { route: "/y" },
+          }),
+        ],
+      }),
+    );
   });
 
   it("records evaluation_failed when the firing-set read fails", async () => {

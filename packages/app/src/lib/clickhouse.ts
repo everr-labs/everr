@@ -200,16 +200,15 @@ export interface AlertEventRow {
   event_type:
     | "firing"
     | "resolved"
+    | "partial_resolved"
     | "evaluation_failed"
-    | "delivery_attempt"
     | "instance_fired"
     | "instance_resolved";
   evaluation_scheduled_at?: string;
   row_count?: number;
   evidence_truncated?: 0 | 1;
   evidence_json?: string;
-  delivery_target_type?: "" | "email" | "telegram";
-  delivery_outcome?: "" | "sent" | "failed" | "silenced";
+  delivery_targets?: Partial<Record<"email" | "telegram", string[]>>;
   silence_id?: string;
   instance_fingerprint?: string;
   instance_labels_json?: string;
