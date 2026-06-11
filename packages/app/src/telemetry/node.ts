@@ -1,5 +1,10 @@
 import { randomUUID } from "node:crypto";
 import {
+  consoleIntegration,
+  init as initErrorTracking,
+  nodeNetworkIntegration,
+} from "@everr/auto-otel-errors/node";
+import {
   type Attributes,
   SpanKind,
   SpanStatusCode,
@@ -126,6 +131,11 @@ function startTelemetry(): TelemetryState {
   });
 
   sdk.start();
+
+  // Fatal handlers stay below so SDK shutdown remains owned by the app.
+  initErrorTracking({
+    integrations: [consoleIntegration(), nodeNetworkIntegration()],
+  });
 
   const state = { sdk, shuttingDown: false };
   installShutdownHandlers(state);

@@ -24,13 +24,29 @@
     // packages/app/vite.config.ts (use-sync-external-store/shim).
     "packages/app/src/ssr-shims/**",
   ],
+  "ignoreDependencies": ["@everr/auto-otel-errors"],
   // Docs content (MDX) is loaded dynamically by fumadocs via import.meta.glob
   // in packages/docs/.source/*.ts — fallow can't trace through the glob.
-  "dynamicallyLoaded": ["packages/docs/content/**/*.{md,mdx}"],
+  "dynamicallyLoaded": [
+    "packages/docs/content/**/*.{md,mdx}",
+    "packages/auto-otel-errors/test/fixtures/*.mjs"
+  ],
+  "overrides": [
+    {
+      // Child-process fixtures intentionally import built package output, which
+      // does not exist during CI's pre-build dead-code scan.
+      "files": ["packages/auto-otel-errors/test/fixtures/*.mjs"],
+      "rules": { "unresolved-imports": "off" }
+    }
+  ],
   // Internal workspace libraries whose exported API surface is intentional —
   // subcomponents (shadcn-style) and repository methods accessed structurally
   // via `Pick<>` interfaces are kept even when no current consumer is visible.
-  "publicPackages": ["@everr/ui", "@everr/logs-explorer"],
+  "publicPackages": [
+    "@everr/ui",
+    "@everr/logs-explorer",
+    "@everr/auto-otel-errors"
+  ],
   // Error subclasses commonly set `name` and are discriminated via
   // `err.name === "..."` rather than `instanceof`; fallow can't see those
   // string-comparison references.

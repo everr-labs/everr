@@ -1,0 +1,53 @@
+import { Component, type ErrorInfo, type ReactNode } from "react";
+import { getClient } from "./core.js";
+
+export function captureReactError(
+  error: unknown,
+  errorInfo?: { componentStack?: string | null },
+): void {
+  getClient()?.capture({
+    error,
+    mechanism: "react",
+    handled: true,
+    attributes: errorInfo?.componentStack
+      ? { "react.component_stack": errorInfo.componentStack }
+      : {},
+  });
+}
+
+export interface ErrorBoundaryProps {
+  children?: ReactNode;
+  fallback?: ReactNode | ((error: Error) => ReactNode);
+  onError?: (error: Error, errorInfo: ErrorInfo) => void;
+}
+
+interface ErrorBoundaryState {
+  error: Error | null;
+}
+
+export class ErrorBoundary extends Component<
+  ErrorBoundaryProps,
+  ErrorBoundaryState
+> {
+  state: ErrorBoundaryState = { error: null };
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
+    captureReactError(error, errorInfo);
+    this.props.onError?.(error, errorInfo);
+  }
+
+  render(): ReactNode {
+    if (this.state.error) {
+      const { fallback } = this.props;
+      return typeof fallback === "function"
+        ? fallback(this.state.error)
+        : (fallback ?? null);
+    }
+
+    return this.props.children;
+  }
+}

@@ -1,3 +1,4 @@
+import { init as initErrorTracking } from "@everr/auto-otel-errors/browser";
 import { type Logger, logs, SeverityNumber } from "@opentelemetry/api-logs";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import {
@@ -110,6 +111,7 @@ async function initBrowserTelemetry() {
 
   logs.setGlobalLoggerProvider(loggerProvider);
   browserErrorLogger = logs.getLogger("everr-desktop.browser-errors");
+  initErrorTracking();
 
   for (const log of pendingErrorLogs.splice(0)) {
     emitErrorLog(log);

@@ -23,6 +23,7 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@everr/auto-otel-errors": "workspace:*",
     "@everr/datemath": "workspace:*",
     "@everr/telemetry-explorer": "workspace:*",
     "@everr/ui": "workspace:*",
