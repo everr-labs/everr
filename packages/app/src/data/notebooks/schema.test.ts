@@ -64,6 +64,13 @@ describe("notebookSpecSchema", () => {
     expect(r.success).toBe(false);
   });
 
+  it("rejects unknown keys in markdown (catches typos like 'flie')", () => {
+    const r = notebookSpecSchema.safeParse({
+      markdown: { inline: "x", flie: "y" },
+    });
+    expect(r.success).toBe(false);
+  });
+
   it("accepts shared panels and variables (dashboard schemas)", () => {
     const r = notebookSpecSchema.safeParse({
       markdown: md,
@@ -82,6 +89,42 @@ describe("notebookSpecSchema", () => {
 });
 
 describe("notebookSpecSchemaStrict", () => {
+  it("rejects a bad query plugin spec with path through collectPanelStrictIssues", () => {
+    const r = notebookSpecSchemaStrict.safeParse({
+      markdown: md,
+      panels: {
+        bad: {
+          kind: "Panel",
+          spec: {
+            plugin: { kind: "TimeSeriesChart", spec: {} },
+            queries: [
+              {
+                kind: "DataQuery",
+                spec: {
+                  plugin: {
+                    kind: "TestData",
+                    spec: {
+                      scenario: "random_walk",
+                      seed: "not-a-number",
+                      series: [{ name: "a" }],
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+    });
+    expect(r.success).toBe(false);
+    const paths = r.error?.issues.map((i) => i.path.join(".")) ?? [];
+    expect(
+      paths.some((p) =>
+        p.startsWith("panels.bad.spec.queries.0.spec.plugin.spec"),
+      ),
+    ).toBe(true);
+  });
+
   it("rejects an invalid panel plugin option with a precise path", () => {
     const r = notebookSpecSchemaStrict.safeParse({
       markdown: md,

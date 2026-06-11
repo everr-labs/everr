@@ -19,7 +19,7 @@ export interface MarkdownSource {
 
 /** @expected-unused — consumed by the notebooks as-code path in follow-up tasks. */
 export const markdownSource: z.ZodType<MarkdownSource> = z
-  .looseObject({
+  .strictObject({
     inline: z.string().optional(),
     file: z.string().optional(),
   })
@@ -59,17 +59,16 @@ function addDuplicatePageIssues(
   basePath: (string | number)[],
 ): void {
   if (!pages) return;
-  const seen = new Map<string, number>();
+  const seen = new Set<string>();
   pages.forEach((page, i) => {
-    const prior = seen.get(page.name);
-    if (prior !== undefined) {
+    if (seen.has(page.name)) {
       ctx.addIssue({
         code: "custom",
         path: [...basePath, i, "name"],
         message: `duplicate page name "${page.name}" among sibling pages`,
       });
     } else {
-      seen.set(page.name, i);
+      seen.add(page.name);
     }
     addDuplicatePageIssues(page.pages, ctx, [...basePath, i, "pages"]);
   });
@@ -95,6 +94,8 @@ export const notebookSpecSchema = z
  * Strict variant for the write path (`everr apply`): additionally validates
  * each shared panel's plugin spec, mirroring dashboards. Read path stays
  * lenient so stored notebooks with unknown plugin options still load.
+ * Query plugin specs are only validated for registered query kinds (currently
+ * TestData); unlisted kinds stay loose — never stricter than Perses.
  */
 export const notebookSpecSchemaStrict = notebookSpecSchema.superRefine(
   (spec, ctx) => {
