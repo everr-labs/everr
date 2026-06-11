@@ -12,7 +12,6 @@ export interface AlertInstance extends FiringInstance {
 
 export interface InstanceDiff {
   newlyFired: AlertInstance[];
-  stillFiring: AlertInstance[];
   nowResolved: FiringInstance[];
 }
 
@@ -66,19 +65,14 @@ export function diffInstances(
   const previousFingerprints = new Set(previous.map((i) => i.fingerprint));
   const currentFingerprints = new Set(current.map((i) => i.fingerprint));
   return {
-    newlyFired: current.filter(
-      (i) => !previousFingerprints.has(i.fingerprint),
-    ),
-    stillFiring: current.filter((i) =>
-      previousFingerprints.has(i.fingerprint),
-    ),
+    newlyFired: current.filter((i) => !previousFingerprints.has(i.fingerprint)),
     nowResolved: previous.filter(
       (i) => !currentFingerprints.has(i.fingerprint),
     ),
   };
 }
 
-function parseLabels(json: string): Record<string, string> {
+export function parseLabels(json: string): Record<string, string> {
   try {
     const parsed: unknown = JSON.parse(json);
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {

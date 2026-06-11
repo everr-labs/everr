@@ -11,17 +11,14 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { NormalizedAlertDeliverySettings } from "@/data/alerts/delivery-settings";
+import type { Matcher } from "@/data/alerts/matchers";
 
 export const alertStateEnum = pgEnum("alert_state", [
   "unknown",
   "resolved",
   "firing",
 ]);
-
-export type AlertDeliverySettings = {
-  email?: { enabled: boolean; to: string[] };
-  telegram?: { enabled: boolean; chatIds: string[] };
-};
 
 export const alertDefinitions = pgTable(
   "alert_definitions",
@@ -81,7 +78,9 @@ export const alertDefinitions = pgTable(
 export const alertSettings = pgTable("alert_settings", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: text("organization_id").notNull().unique(),
-  delivery: jsonb("delivery").notNull().$type<AlertDeliverySettings>(),
+  delivery: jsonb("delivery")
+    .notNull()
+    .$type<NormalizedAlertDeliverySettings>(),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -89,12 +88,6 @@ export const alertSettings = pgTable("alert_settings", {
     .notNull()
     .defaultNow(),
 });
-
-export type AlertSilenceMatcher = {
-  label: string;
-  op: "=" | "!=" | "=~" | "!~";
-  value: string;
-};
 
 export const alertSilences = pgTable(
   "alert_silences",
@@ -110,7 +103,7 @@ export const alertSilences = pgTable(
     matchers: jsonb("matchers")
       .notNull()
       .default(sql`'[]'::jsonb`)
-      .$type<AlertSilenceMatcher[]>(),
+      .$type<Matcher[]>(),
     createdByUserId: text("created_by_user_id").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

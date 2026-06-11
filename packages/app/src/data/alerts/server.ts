@@ -1,66 +1,29 @@
 import { getRequestHeaders } from "@tanstack/react-start/server";
-import { and, desc, eq, gt, isNull, lte, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { alertDefinitions, alertSettings, alertSilences } from "@/db/schema";
 import { auth } from "@/lib/auth.server";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
+import { extractInstanceLabels, parseLabels } from "@/server/alerts/instances";
+import {
+  ALERT_CHANNELS,
+  type AlertDeliveryTargets,
+  DeliverySettingsSchema,
+  normalizeDeliverySettings,
+} from "./delivery-settings";
 import {
   findSilenceForInstance,
   type Matcher,
   MatchersSchema,
   validateMatchers,
 } from "./matchers";
-import { validateTelegramChatId } from "./recipients";
+import { activeSilenceConditions } from "./silences";
 import { renderMessage } from "./template";
 
-const DeliverySettingsSchema = z
-  .object({
-    email: z
-      .object({
-        enabled: z.boolean(),
-        to: z.array(z.string().email()).default([]),
-      })
-      .strict()
-      .refine((value) => !value.enabled || value.to.length > 0, {
-        message: "Email is enabled but has no recipients",
-      })
-      .optional(),
-    telegram: z
-      .object({
-        enabled: z.boolean(),
-        chatIds: z
-          .array(
-            z
-              .string()
-              .refine((value) => validateTelegramChatId(value) === null, {
-                message: "Invalid Telegram chat ID",
-              }),
-          )
-          .default([]),
-      })
-      .strict()
-      .refine((value) => !value.enabled || value.chatIds.length > 0, {
-        message: "Telegram is enabled but has no chat IDs",
-      })
-      .optional(),
-  })
-  .strict();
-
-type AlertDeliverySettings = z.infer<typeof DeliverySettingsSchema>;
-type NormalizedAlertDeliverySettings = {
-  email: { enabled: boolean; to: string[] };
-  telegram: { enabled: boolean; chatIds: string[] };
-};
-type AlertDeliveryTargets = Partial<Record<"email" | "telegram", string[]>>;
 type AlertEventInstance = {
   state: "firing" | "resolved";
   labels: Record<string, string>;
-};
-
-const DEFAULT_DELIVERY_SETTINGS: NormalizedAlertDeliverySettings = {
-  email: { enabled: false, to: [] },
-  telegram: { enabled: false, chatIds: [] },
 };
 
 type AlertEvidenceValue =
@@ -156,57 +119,21 @@ const alertListColumns = {
   activeSilenceCount: activeSilenceCountSql,
 } as const;
 
-async function ensureOrgAdmin(userId: string, organizationId: string) {
-  const org = await auth.api.getFullOrganization({
+// The caller's role in the active organization — every call site gates a
+// mutation scoped to session.activeOrganizationId.
+async function ensureOrgAdmin() {
+  const { role } = await auth.api.getActiveMemberRole({
     headers: getRequestHeaders(),
-    query: { organizationId },
   });
-  const membership = org?.members.find((member) => member.userId === userId);
-  if (membership?.role !== "admin" && membership?.role !== "owner") {
+  if (role !== "admin" && role !== "owner") {
     throw new Error("Only organization admins can manage alerts");
   }
 }
 
-function normalizeDeliverySettings(
-  delivery: AlertDeliverySettings | null | undefined,
-): NormalizedAlertDeliverySettings {
-  return {
-    email: {
-      enabled:
-        delivery?.email?.enabled ?? DEFAULT_DELIVERY_SETTINGS.email.enabled,
-      to: delivery?.email?.to ?? DEFAULT_DELIVERY_SETTINGS.email.to,
-    },
-    telegram: {
-      enabled:
-        delivery?.telegram?.enabled ??
-        DEFAULT_DELIVERY_SETTINGS.telegram.enabled,
-      chatIds:
-        delivery?.telegram?.chatIds ??
-        DEFAULT_DELIVERY_SETTINGS.telegram.chatIds,
-    },
-  };
-}
-
 function toAlertSummary(row: AlertSummaryRow): AlertSummary {
   return {
-    id: row.id,
-    repoid: row.repoid,
-    slug: row.slug,
-    evaluationIntervalSeconds: row.evaluationIntervalSeconds,
-    sourceLink: row.sourceLink,
-    configFilePath: row.configFilePath,
-    currentState: row.currentState,
-    active: row.active,
-    validationStatus: row.validationStatus,
-    lastEvaluationStatus: row.lastEvaluationStatus,
-    lastEvaluationError: row.lastEvaluationError,
-    lastEvaluatedAt: row.lastEvaluatedAt,
-    lastFiredAt: row.lastFiredAt,
-    lastResolvedAt: row.lastResolvedAt,
-    lastSeenAt: row.lastSeenAt,
-    lastRowCount: row.lastRowCount,
+    ...row,
     lastEvidenceSnapshot: row.lastEvidenceSnapshot ?? [],
-    firingInstanceCount: row.firingInstanceCount,
     activeSilenceCount: Number(row.activeSilenceCount) || 0,
   };
 }
@@ -405,20 +332,14 @@ function parseJsonObject(json: string): Record<string, unknown> {
   return {};
 }
 
-function parseJsonRecord(json: string): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(parseJsonObject(json)).map(([k, v]) => [k, String(v)]),
-  );
-}
-
 function parseDeliveryTargets(json: string): AlertDeliveryTargets {
   const parsed = parseJsonObject(json);
   const targets: AlertDeliveryTargets = {};
-  if (Array.isArray(parsed.email)) {
-    targets.email = parsed.email.map((value) => String(value));
-  }
-  if (Array.isArray(parsed.telegram)) {
-    targets.telegram = parsed.telegram.map((value) => String(value));
+  for (const channel of ALERT_CHANNELS) {
+    const value = parsed[channel];
+    if (Array.isArray(value)) {
+      targets[channel] = value.map((item) => String(item));
+    }
   }
   return targets;
 }
@@ -436,7 +357,7 @@ function parseEventInstances(
   if (!state) return [];
   return labelsJson.map((json) => ({
     state,
-    labels: parseJsonRecord(json),
+    labels: parseLabels(json),
   }));
 }
 
@@ -450,28 +371,6 @@ function evidenceRows(
   );
 }
 
-function labelsForEvidenceRow(
-  row: Record<string, AlertEvidenceValue>,
-  instanceLabelColumns: readonly string[],
-): Record<string, string> {
-  if (instanceLabelColumns.length > 0) {
-    return Object.fromEntries(
-      instanceLabelColumns.map((column) => {
-        const value = row[column];
-        return [
-          column,
-          value === undefined || value === null ? "" : String(value),
-        ];
-      }),
-    );
-  }
-  return Object.fromEntries(
-    Object.entries(row)
-      .filter(([, value]) => typeof value === "string")
-      .map(([key, value]) => [key, String(value)]),
-  );
-}
-
 function labelsEqual(
   left: Record<string, string>,
   right: Record<string, string>,
@@ -479,16 +378,6 @@ function labelsEqual(
   const keys = Object.keys(left);
   if (keys.length !== Object.keys(right).length) return false;
   return keys.every((key) => left[key] === right[key]);
-}
-
-function findLastEvaluationRows(
-  rows: Record<string, AlertEvidenceValue>[],
-  labels: Record<string, string>,
-  instanceLabelColumns: readonly string[],
-) {
-  return rows.filter((row) =>
-    labelsEqual(labelsForEvidenceRow(row, instanceLabelColumns), labels),
-  );
 }
 
 export type AlertInstanceSummary = {
@@ -505,7 +394,6 @@ export type AlertInstanceSummary = {
 };
 
 async function listActiveSilenceRows(alertId: string, organizationId: string) {
-  const now = new Date();
   return db
     .select({
       id: alertSilences.id,
@@ -516,15 +404,7 @@ async function listActiveSilenceRows(alertId: string, organizationId: string) {
       matchers: alertSilences.matchers,
     })
     .from(alertSilences)
-    .where(
-      and(
-        eq(alertSilences.organizationId, organizationId),
-        eq(alertSilences.alertDefinitionId, alertId),
-        lte(alertSilences.startsAt, now),
-        gt(alertSilences.endsAt, now),
-        isNull(alertSilences.cancelledAt),
-      ),
-    )
+    .where(activeSilenceConditions(organizationId, alertId, new Date()))
     .orderBy(desc(alertSilences.endsAt));
 }
 
@@ -532,10 +412,11 @@ export const listAlertInstances = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(alertIdInput)
   .handler(async ({ data: { alertId }, context: { session, clickhouse } }) => {
     const organizationId = session.session.activeOrganizationId;
-    const alert = await getAlertRow(alertId, organizationId);
+    const [alert, silences] = await Promise.all([
+      getAlertRow(alertId, organizationId),
+      listActiveSilenceRows(alertId, organizationId),
+    ]);
     if (!alert) throw new Error("Alert not found");
-
-    const silences = await listActiveSilenceRows(alertId, organizationId);
 
     const rows = await clickhouse.query<{
       fingerprint: string;
@@ -571,22 +452,25 @@ export const listAlertInstances = createAuthenticatedServerFn({ method: "GET" })
       },
     );
 
-    const lastEvaluationSnapshotRows = evidenceRows(
-      alert.lastEvidenceSnapshot as AlertEvidenceValue | undefined,
-    );
     const instanceLabelColumns = alert.instanceLabelColumns ?? [];
+    // Labels per snapshot row are invariant across instances — extract once,
+    // not once per instance × row.
+    const snapshotRows = evidenceRows(
+      alert.lastEvidenceSnapshot as AlertEvidenceValue | undefined,
+    ).map((row) => ({
+      row,
+      labels: extractInstanceLabels(row, instanceLabelColumns),
+    }));
 
     return rows.map((row) => {
-      const labels = parseJsonRecord(row.labelsJson);
+      const labels = parseLabels(row.labelsJson);
       const state =
         row.lastEventType === "instance_fired" ? "firing" : "resolved";
       const lastEvaluationRows =
         state === "firing"
-          ? findLastEvaluationRows(
-              lastEvaluationSnapshotRows,
-              labels,
-              instanceLabelColumns,
-            )
+          ? snapshotRows
+              .filter((entry) => labelsEqual(entry.labels, labels))
+              .map((entry) => entry.row)
           : [];
       const firstEvaluationRow = lastEvaluationRows[0];
       return {
@@ -658,10 +542,9 @@ export const updateAlertSettings = createAuthenticatedServerFn({
 })
   .inputValidator(z.object({ delivery: DeliverySettingsSchema }))
   .handler(async ({ data: { delivery }, context: { session } }) => {
-    const parsedDelivery = DeliverySettingsSchema.parse(delivery);
     const organizationId = session.session.activeOrganizationId;
-    await ensureOrgAdmin(session.user.id, organizationId);
-    const normalized = normalizeDeliverySettings(parsedDelivery);
+    await ensureOrgAdmin();
+    const normalized = normalizeDeliverySettings(delivery);
     const now = new Date();
 
     await db
@@ -693,12 +576,11 @@ export const createSilence = createAuthenticatedServerFn({ method: "POST" })
       context: { session },
     }) => {
       const organizationId = session.session.activeOrganizationId;
-      await ensureOrgAdmin(session.user.id, organizationId);
+      await ensureOrgAdmin();
       const alert = await getAlertRow(alertId, organizationId);
       if (!alert) throw new Error("Alert not found");
 
-      const silenceMatchers = matchers ?? [];
-      validateMatchers(silenceMatchers);
+      validateMatchers(matchers);
 
       const startsAt = new Date();
       const parsedEndsAt = new Date(endsAt);
@@ -714,7 +596,7 @@ export const createSilence = createAuthenticatedServerFn({ method: "POST" })
           startsAt,
           endsAt: parsedEndsAt,
           reason,
-          matchers: silenceMatchers,
+          matchers,
           createdByUserId: session.user.id,
         })
         .returning({
@@ -734,7 +616,7 @@ export const cancelSilence = createAuthenticatedServerFn({ method: "POST" })
   .inputValidator(z.object({ silenceId: z.string().uuid() }))
   .handler(async ({ data: { silenceId }, context: { session } }) => {
     const organizationId = session.session.activeOrganizationId;
-    await ensureOrgAdmin(session.user.id, organizationId);
+    await ensureOrgAdmin();
     const now = new Date();
     const [row] = await db
       .update(alertSilences)
@@ -760,7 +642,7 @@ export const deactivateAlert = createAuthenticatedServerFn({ method: "POST" })
   .inputValidator(alertIdInput)
   .handler(async ({ data: { alertId }, context: { session } }) => {
     const organizationId = session.session.activeOrganizationId;
-    await ensureOrgAdmin(session.user.id, organizationId);
+    await ensureOrgAdmin();
     const [row] = await db
       .update(alertDefinitions)
       .set({

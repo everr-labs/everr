@@ -2,22 +2,19 @@ import { createHash } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { ApplyValidationError } from "@/data/as-code/errors";
 import type { Reconciler } from "@/data/as-code/registry";
-import type { ApplySource } from "@/data/as-code/schema";
+import type { ApplyResourceEntry, ApplySource } from "@/data/as-code/schema";
 import { db } from "@/db/client";
 import { alertDefinitions } from "@/db/schema";
-import { querySqlApiWithMeta, type SqlApiResult } from "@/lib/clickhouse";
-import { type AlertRuleYaml, AlertRuleYamlSchema } from "./schema";
+import type { AlertRuleYaml } from "./schema";
 import {
-  validateMessageTemplate,
-  validateQueryTemplate,
-  validateTopColumns,
-} from "./template";
-import { type ParsedWindow, parseEvaluationInterval } from "./window";
+  AlertRuleValidationError,
+  parseAlertRule,
+  validateAlertRuleQuery,
+} from "./validate.server";
 
 interface DesiredAlert {
   slug: string;
   evaluationIntervalSeconds: number;
-  window: string;
   rawYaml: string;
   parsedQuery: string;
   summaryTemplate: string;
@@ -28,18 +25,9 @@ interface DesiredAlert {
   sourceLink: string;
 }
 
-interface ParsedAlert {
-  slug: string;
-  path: string;
-  rule: AlertRuleYaml;
-  evaluationIntervalSeconds: number;
-  parsedQuery: string;
-}
-
 interface ExistingAlert {
   slug: string;
   evaluationIntervalSeconds: number;
-  window: string;
   rawYaml: string;
   parsedQuery: string;
   summaryTemplate: string;
@@ -56,12 +44,6 @@ interface ApplyAlertsResult {
   created: string[];
   updated: string[];
   deleted: string[];
-}
-
-function firstIssueMessage(error: {
-  issues: readonly { message: string }[];
-}): string {
-  return error.issues[0]?.message ?? "invalid alert rule";
 }
 
 function rawSnapshot(rule: AlertRuleYaml): string {
@@ -98,117 +80,58 @@ function scheduleJitterSeconds(
   return hash.readUInt32BE(0) % spread;
 }
 
-function validationError(path: string, message: string): ApplyValidationError {
-  return new ApplyValidationError(`${path}: ${message}`);
+function toApplyError(error: unknown): never {
+  if (error instanceof AlertRuleValidationError) {
+    throw new ApplyValidationError(error.message);
+  }
+  throw error;
 }
 
 async function buildDesiredAlerts(opts: {
   orgId: string;
   repoid: string;
-  resources: Parameters<Reconciler>[0]["resources"];
+  resources: ApplyResourceEntry[];
   source?: ApplySource;
 }): Promise<DesiredAlert[]> {
-  const parsedAlerts: ParsedAlert[] = [];
   const seen = new Map<string, string>();
-
-  for (const { path, resource } of opts.resources) {
-    const parsed = AlertRuleYamlSchema.safeParse(resource);
-    if (!parsed.success) {
-      throw validationError(
-        path,
-        `invalid alert rule: ${firstIssueMessage(parsed.error)}`,
-      );
+  const parsedAlerts = opts.resources.map(({ path, resource }) => {
+    let parsed: ReturnType<typeof parseAlertRule>;
+    try {
+      parsed = parseAlertRule(path, resource);
+    } catch (error) {
+      toApplyError(error);
     }
 
-    const rule = parsed.data;
-    const slug = rule.metadata.name;
-    const prior = seen.get(slug);
+    const prior = seen.get(parsed.slug);
     if (prior) {
       throw new ApplyValidationError(
-        `duplicate alert "${slug}" (${prior} and ${path})`,
+        `duplicate alert "${parsed.slug}" (${prior} and ${path})`,
       );
     }
-    seen.set(slug, path);
+    seen.set(parsed.slug, path);
+    return { ...parsed, path };
+  });
 
-    let evaluationInterval: ParsedWindow;
-    try {
-      evaluationInterval = parseEvaluationInterval(
-        rule.spec.evaluationInterval,
-      );
-    } catch (error) {
-      throw validationError(
-        path,
-        error instanceof Error ? error.message : String(error),
-      );
-    }
+  // The validation queries are independent; run them concurrently but report
+  // failures in file order so the surfaced error is deterministic.
+  const validations = await Promise.allSettled(
+    parsedAlerts.map((parsed) =>
+      validateAlertRuleQuery(parsed.path, parsed.rule, opts.orgId),
+    ),
+  );
 
-    try {
-      validateQueryTemplate(rule.spec.query);
-      validateMessageTemplate(rule.spec.summary);
-      if (rule.spec.description) validateMessageTemplate(rule.spec.description);
-    } catch (error) {
-      throw validationError(
-        path,
-        error instanceof Error ? error.message : String(error),
-      );
-    }
+  return parsedAlerts.map((parsed, index) => {
+    const validation = validations[index];
+    if (validation.status === "rejected") toApplyError(validation.reason);
 
-    parsedAlerts.push({
-      slug,
-      path,
-      rule,
-      evaluationIntervalSeconds: evaluationInterval.seconds,
-      parsedQuery: rule.spec.query,
-    });
-  }
-
-  const out: DesiredAlert[] = [];
-  for (const parsed of parsedAlerts) {
-    let result: SqlApiResult<Record<string, unknown>>;
-    try {
-      result = await querySqlApiWithMeta<Record<string, unknown>>(
-        parsed.parsedQuery,
-        opts.orgId,
-      );
-    } catch (error) {
-      throw validationError(
-        parsed.path,
-        `query failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-
-    try {
-      validateTopColumns(parsed.rule.spec.summary, result.columns);
-      if (parsed.rule.spec.description) {
-        validateTopColumns(parsed.rule.spec.description, result.columns);
-      }
-    } catch (error) {
-      throw validationError(
-        parsed.path,
-        error instanceof Error ? error.message : String(error),
-      );
-    }
-
-    const instanceLabelColumns = parsed.rule.spec.instanceLabels ?? [];
-    const columnNames = new Set(result.columns);
-    for (const column of instanceLabelColumns) {
-      if (!columnNames.has(column)) {
-        throw validationError(
-          parsed.path,
-          `instanceLabels references column "${column}" which the query does not return`,
-        );
-      }
-    }
-
-    out.push({
+    return {
       slug: parsed.slug,
       evaluationIntervalSeconds: parsed.evaluationIntervalSeconds,
-      window: "",
       rawYaml: rawSnapshot(parsed.rule),
-      parsedQuery: parsed.parsedQuery,
+      parsedQuery: parsed.rule.spec.query,
       summaryTemplate: parsed.rule.spec.summary,
       descriptionTemplate: parsed.rule.spec.description ?? "",
-      instanceLabelColumns,
+      instanceLabelColumns: validation.value.instanceLabelColumns,
       scheduleJitterSeconds: scheduleJitterSeconds(
         opts.orgId,
         opts.repoid,
@@ -217,10 +140,8 @@ async function buildDesiredAlerts(opts: {
       ),
       configFilePath: parsed.path,
       sourceLink: sourceLink(opts.source, parsed.path),
-    });
-  }
-
-  return out;
+    };
+  });
 }
 
 function needsUpdate(existing: ExistingAlert, desired: DesiredAlert): boolean {
@@ -228,7 +149,6 @@ function needsUpdate(existing: ExistingAlert, desired: DesiredAlert): boolean {
     !existing.active ||
     existing.validationStatus !== "valid" ||
     existing.evaluationIntervalSeconds !== desired.evaluationIntervalSeconds ||
-    existing.window !== desired.window ||
     existing.rawYaml !== desired.rawYaml ||
     existing.parsedQuery !== desired.parsedQuery ||
     existing.summaryTemplate !== desired.summaryTemplate ||
@@ -256,7 +176,6 @@ function activeValues(
 ) {
   const values = {
     evaluationIntervalSeconds: desired.evaluationIntervalSeconds,
-    window: desired.window,
     rawYaml: desired.rawYaml,
     parsedQuery: desired.parsedQuery,
     summaryTemplate: desired.summaryTemplate,
@@ -310,7 +229,6 @@ export const applyAlertSpecs: Reconciler = async ({
     .select({
       slug: alertDefinitions.slug,
       evaluationIntervalSeconds: alertDefinitions.evaluationIntervalSeconds,
-      window: alertDefinitions.window,
       rawYaml: alertDefinitions.rawYaml,
       parsedQuery: alertDefinitions.parsedQuery,
       summaryTemplate: alertDefinitions.summaryTemplate,
@@ -352,14 +270,20 @@ export const applyAlertSpecs: Reconciler = async ({
 
   const now = new Date();
   await db.transaction(async (tx) => {
-    for (const row of creates) {
-      await tx.insert(alertDefinitions).values({
-        organizationId: orgId,
-        repoid,
-        slug: row.slug,
-        ...activeValues(row, now),
-        createdAt: now,
-      });
+    if (creates.length > 0) {
+      await tx.insert(alertDefinitions).values(
+        creates.map((row) => ({
+          organizationId: orgId,
+          repoid,
+          slug: row.slug,
+          // The window column is NOT NULL without a default; the concept is
+          // unused (rules only have evaluationInterval) but the column stays
+          // until a migration drops it.
+          window: "",
+          ...activeValues(row, now),
+          createdAt: now,
+        })),
+      );
     }
 
     for (const row of updates) {

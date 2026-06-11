@@ -53,9 +53,17 @@ export function silenceMatchesInstance(
   return matchers.every((matcher) => matcherMatches(matcher, labels));
 }
 
+export const NO_LABELS_TEXT = "(no labels)";
+
+export function sortedLabelEntries(
+  labels: Record<string, string>,
+): [string, string][] {
+  return Object.entries(labels).sort(([a], [b]) => a.localeCompare(b));
+}
+
 export function formatLabels(labels: Record<string, string>): string {
-  const entries = Object.entries(labels).sort(([a], [b]) => a.localeCompare(b));
-  if (entries.length === 0) return "(no labels)";
+  const entries = sortedLabelEntries(labels);
+  if (entries.length === 0) return NO_LABELS_TEXT;
   return entries.map(([key, value]) => `${key}=${value}`).join(", ");
 }
 

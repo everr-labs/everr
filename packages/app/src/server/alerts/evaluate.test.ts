@@ -1,11 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const sqlApi = vi.fn();
-const insertEvents = vi.fn();
 vi.mock("@/lib/clickhouse", () => ({
   querySqlApiWithMeta: (...args: unknown[]) => sqlApi(...args),
-  insertAlertEvents: (...args: unknown[]) => insertEvents(...args),
 }));
+
+const insertEvents = vi.fn();
+vi.mock("./events", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./events")>();
+  return {
+    ...actual,
+    insertAlertEvents: (...args: unknown[]) => insertEvents(...args),
+  };
+});
 
 const deliver = vi.fn();
 vi.mock("./delivery", () => ({

@@ -1,4 +1,34 @@
-import type { AlertEventRow } from "@/lib/clickhouse";
+import type { AlertDeliveryTargets } from "@/data/alerts/delivery-settings";
+import { insertAdminRows } from "@/lib/clickhouse";
+
+export interface AlertEventRow {
+  organization_id: string;
+  alert_definition_id: string;
+  repoid: string;
+  slug: string;
+  event_type:
+    | "firing"
+    | "resolved"
+    | "partial_resolved"
+    | "evaluation_failed"
+    | "instance_fired"
+    | "instance_resolved";
+  evaluation_scheduled_at?: string;
+  row_count?: number;
+  evidence_truncated?: 0 | 1;
+  evidence_json?: string;
+  delivery_targets?: AlertDeliveryTargets;
+  silence_id?: string;
+  instance_fingerprint?: string;
+  instance_labels_json?: string;
+}
+
+export function insertAlertEvents(rows: AlertEventRow[]): Promise<void> {
+  return insertAdminRows("app.alert_events", rows, {
+    async_insert: 1,
+    wait_for_async_insert: 1,
+  });
+}
 
 export const MAX_EVIDENCE_ROWS = 50;
 export const MAX_EVIDENCE_BYTES = 64 * 1024;
@@ -51,7 +81,7 @@ export function buildEvaluationEvent(opts: {
   eventType: "firing" | "resolved" | "partial_resolved" | "evaluation_failed";
   scheduledFor: Date;
   evidence?: BoundedEvidence;
-  deliveryTargets?: Partial<Record<"email" | "telegram", string[]>>;
+  deliveryTargets?: AlertDeliveryTargets;
   silenceId?: string;
 }): AlertEventRow {
   return {

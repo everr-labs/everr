@@ -5,7 +5,8 @@ export function extractVariables(template: string): string[] {
 }
 
 export function validateQueryTemplate(query: string): void {
-  for (const name of extractVariables(query)) {
+  const [name] = extractVariables(query);
+  if (name !== undefined) {
     throw new Error(
       `unsupported query variable \${${name}}: query templates do not support variables`,
     );

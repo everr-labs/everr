@@ -128,18 +128,8 @@ import {
   updateAlertSettings,
 } from "./server";
 
-const adminOrg = {
-  id: "test_org",
-  members: [{ userId: "test_user", role: "admin" }],
-};
-
-const memberOrg = {
-  id: "test_org",
-  members: [{ userId: "test_user", role: "member" }],
-};
-
 const alertRow = {
-  id: "11111111-1111-1111-1111-111111111111",
+  id: "11111111-1111-4111-8111-111111111111",
   repoid: "owner/repo",
   slug: "build-failures",
   evaluationIntervalSeconds: 300,
@@ -175,7 +165,9 @@ beforeEach(() => {
   mocks.returning.mockResolvedValue([]);
   mocks.updateReturning.mockResolvedValue([]);
   mocks.onConflictDoUpdate.mockResolvedValue(undefined);
-  vi.mocked(auth.api.getFullOrganization).mockResolvedValue(adminOrg as never);
+  vi.mocked(auth.api.getActiveMemberRole).mockResolvedValue({
+    role: "admin",
+  } as never);
 });
 
 describe("updateAlertSettings", () => {
@@ -198,9 +190,9 @@ describe("updateAlertSettings", () => {
   });
 
   it("requires an organization admin or owner", async () => {
-    vi.mocked(auth.api.getFullOrganization).mockResolvedValueOnce(
-      memberOrg as never,
-    );
+    vi.mocked(auth.api.getActiveMemberRole).mockResolvedValueOnce({
+      role: "member",
+    } as never);
 
     await expect(
       updateAlertSettings({
@@ -380,11 +372,11 @@ describe("silences", () => {
 
   it("persists cancelledByUserId when cancelling a silence", async () => {
     mocks.updateReturning.mockResolvedValueOnce([
-      { id: "22222222-2222-2222-2222-222222222222" },
+      { id: "22222222-2222-4222-8222-222222222222" },
     ]);
 
     await cancelSilence({
-      data: { silenceId: "22222222-2222-2222-2222-222222222222" },
+      data: { silenceId: "22222222-2222-4222-8222-222222222222" },
     });
 
     expect(mocks.updateSet).toHaveBeenCalledWith(

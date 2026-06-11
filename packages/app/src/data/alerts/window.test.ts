@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import { parseEvaluationInterval, parseWindow } from "./window";
 
 describe("parseWindow", () => {
-  it("parses supported units into seconds and ClickHouse interval fragments", () => {
-    expect(parseWindow("30s")).toEqual({ seconds: 30, interval: "30 SECOND" });
-    expect(parseWindow("5m")).toEqual({ seconds: 300, interval: "5 MINUTE" });
-    expect(parseWindow("2h")).toEqual({ seconds: 7200, interval: "2 HOUR" });
-    expect(parseWindow("1d")).toEqual({ seconds: 86400, interval: "1 DAY" });
+  it("parses supported units into seconds", () => {
+    expect(parseWindow("30s")).toBe(30);
+    expect(parseWindow("5m")).toBe(300);
+    expect(parseWindow("2h")).toBe(7200);
+    expect(parseWindow("1d")).toBe(86400);
   });
 
   it("rejects malformed values", () => {
@@ -18,7 +18,7 @@ describe("parseWindow", () => {
 
 describe("parseEvaluationInterval", () => {
   it("enforces the 1m minimum", () => {
-    expect(parseEvaluationInterval("1m").seconds).toBe(60);
+    expect(parseEvaluationInterval("1m")).toBe(60);
     expect(() => parseEvaluationInterval("30s")).toThrow(/at least 1m/);
   });
 });

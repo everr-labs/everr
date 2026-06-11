@@ -176,7 +176,9 @@ describe("applyAlertSpecs", () => {
     expect(result.created).toEqual(["high-errors"]);
     expect(mockedDb.transaction).toHaveBeenCalledOnce();
     expect(insertValues).toHaveLength(1);
-    const created = insertValues[0] as Record<string, unknown>;
+    const batch = insertValues[0] as Record<string, unknown>[];
+    expect(batch).toHaveLength(1);
+    const created = batch[0];
     expect(created).toMatchObject({
       organizationId: "org-1",
       repoid: "repo-1",
@@ -248,7 +250,7 @@ describe("applyAlertSpecs", () => {
       deleted: ["stale"],
     });
     expect(updateSets).toEqual([
-      expect.objectContaining({ active: true, window: "" }),
+      expect.objectContaining({ active: true }),
       expect.objectContaining({ active: false, nextEvaluationAt: null }),
     ]);
     expect(deleteCalled).toBe(false);
@@ -374,9 +376,9 @@ describe("applyAlertSpecs", () => {
       ],
     });
 
-    expect(insertValues[0]).toMatchObject({
-      instanceLabelColumns: ["service"],
-    });
+    expect(insertValues[0]).toMatchObject([
+      { instanceLabelColumns: ["service"] },
+    ]);
   });
 
   it("validates top columns from metadata even when the query returns zero rows", async () => {

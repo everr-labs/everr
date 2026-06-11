@@ -15,10 +15,23 @@ type AnyFn = (...args: any[]) => any;
 
 /** Build a fluent chain where handler(fn) wraps fn with `wrapHandler`. */
 function makeServerFnChain(wrapHandler: (fn: AnyFn) => AnyFn) {
+  // Run the registered validator like production does, so handlers see parsed
+  // input (zod defaults applied, invalid input rejected) instead of raw data.
+  let validate: ((input: unknown) => unknown) | undefined;
   const chain: Record<string, unknown> = {
     middleware: () => makeServerFnChain(wrapHandler),
-    inputValidator: () => chain,
-    handler: (fn: AnyFn) => wrapHandler(fn),
+    inputValidator: (schema: unknown) => {
+      validate =
+        typeof schema === "function"
+          ? (input) => (schema as AnyFn)(input)
+          : (input) =>
+              (schema as { parse: (input: unknown) => unknown }).parse(input);
+      return chain;
+    },
+    handler: (fn: AnyFn) =>
+      wrapHandler((args: { data?: unknown }) =>
+        fn(validate ? { ...args, data: validate(args.data) } : args),
+      ),
   };
   // The chain itself is callable: createAuthenticatedServerFn({ method: "GET" })
   return Object.assign(() => chain, chain);
@@ -156,6 +169,7 @@ vi.mock("@/lib/auth.server", () => ({
         session: { id: "test_session", activeOrganizationId: "test_org" },
       }),
       getFullOrganization: vi.fn(),
+      getActiveMemberRole: vi.fn(),
       createOrganization: vi.fn(),
       deleteOrganization: vi.fn(),
       deleteUser: vi.fn(),

@@ -50,7 +50,7 @@ vi.unmock("@/lib/clickhouse");
 
 import {
   deprovisionSqlApiOrgUser,
-  insertAlertEvents,
+  insertAdminRows,
   provisionSqlApiOrgUser,
   query,
   querySqlApi,
@@ -158,17 +158,21 @@ describe("querySqlApiWithMeta", () => {
   });
 });
 
-describe("insertAlertEvents", () => {
-  it("writes alert events through the admin client with async inserts", async () => {
-    await insertAlertEvents([
-      {
-        organization_id: ORG,
-        alert_definition_id: "alert-1",
-        repoid: "repo-1",
-        slug: "high-5xx",
-        event_type: "firing",
-      },
-    ]);
+describe("insertAdminRows", () => {
+  it("writes rows through the admin client with the given settings", async () => {
+    await insertAdminRows(
+      "app.alert_events",
+      [
+        {
+          organization_id: ORG,
+          alert_definition_id: "alert-1",
+          repoid: "repo-1",
+          slug: "high-5xx",
+          event_type: "firing",
+        },
+      ],
+      { async_insert: 1, wait_for_async_insert: 1 },
+    );
 
     expect(mockInsert).toHaveBeenCalledWith({
       table: "app.alert_events",
@@ -190,7 +194,7 @@ describe("insertAlertEvents", () => {
   });
 
   it("does not issue an insert for an empty batch", async () => {
-    await insertAlertEvents([]);
+    await insertAdminRows("app.alert_events", []);
 
     expect(mockInsert).not.toHaveBeenCalled();
   });

@@ -36,7 +36,15 @@ import {
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { BellOff, CircleStop, Plus, X } from "lucide-react";
 import { type ReactNode, useState } from "react";
-import type { Matcher } from "@/data/alerts/matchers";
+import {
+  ALERT_CHANNELS,
+  type AlertDeliveryTargets,
+} from "@/data/alerts/delivery-settings";
+import {
+  type Matcher,
+  NO_LABELS_TEXT,
+  sortedLabelEntries,
+} from "@/data/alerts/matchers";
 import {
   type AlertInstanceSummary,
   type AlertSilenceSummary,
@@ -91,10 +99,8 @@ export const Route = createFileRoute(
   },
   head: () => ({ meta: [{ title: "Everr - Alert detail" }] }),
   loader: async ({ context: { queryClient }, params }) => {
-    const detail = await queryClient.ensureQueryData(
-      alertDetailQueryOptions(params.alertId),
-    );
-    await Promise.all([
+    const [detail] = await Promise.all([
+      queryClient.ensureQueryData(alertDetailQueryOptions(params.alertId)),
       queryClient.prefetchQuery(alertInstancesQueryOptions(params.alertId)),
       queryClient.prefetchQuery(alertSilencesQueryOptions(params.alertId)),
       queryClient.prefetchQuery(alertEventsQueryOptions(params.alertId)),
@@ -381,9 +387,9 @@ function LastEvaluationResult({
 }
 
 function KeyValueList({ values }: { values: Record<string, string> }) {
-  const entries = Object.entries(values).sort(([a], [b]) => a.localeCompare(b));
+  const entries = sortedLabelEntries(values);
   if (entries.length === 0) {
-    return <span className="font-mono text-xs">(no labels)</span>;
+    return <span className="font-mono text-xs">{NO_LABELS_TEXT}</span>;
   }
   return (
     <span className="flex max-w-full flex-wrap gap-x-2 gap-y-1 font-mono text-xs">
@@ -429,11 +435,11 @@ function formatResultValue(value: unknown): string {
 }
 
 function formatDeliveryTargets(row: {
-  deliveryTargets: Partial<Record<"email" | "telegram", string[]>>;
+  deliveryTargets: AlertDeliveryTargets;
   silenceId: string;
 }) {
   if (row.silenceId) return "silenced";
-  const targets = (["email", "telegram"] as const).filter(
+  const targets = ALERT_CHANNELS.filter(
     (target) => (row.deliveryTargets[target]?.length ?? 0) > 0,
   );
   return targets.length > 0 ? targets.join(", ") : "-";

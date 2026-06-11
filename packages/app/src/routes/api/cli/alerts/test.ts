@@ -1,19 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import * as z from "zod";
-import { AlertRuleYamlSchema } from "@/data/alerts/schema";
 import {
-  validateMessageTemplate,
-  validateQueryTemplate,
-  validateTopColumns,
-} from "@/data/alerts/template";
-import { parseEvaluationInterval } from "@/data/alerts/window";
-import { querySqlApiWithMeta, type SqlApiResult } from "@/lib/clickhouse";
+  AlertRuleValidationError,
+  parseAlertRule,
+  validateAlertRuleQuery,
+} from "@/data/alerts/validate.server";
+import { resourceEntrySchema } from "@/data/as-code/schema";
 import { boundEvidence } from "@/server/alerts/events";
-
-const ResourceEntrySchema = z.object({
-  path: z.string().min(1),
-  resource: z.unknown(),
-});
 
 const OptionsSchema = z
   .object({
@@ -24,17 +17,14 @@ const OptionsSchema = z
 
 const BodySchema = z.object({
   options: OptionsSchema,
-  alerts: z.array(ResourceEntrySchema),
+  alerts: z.array(resourceEntrySchema),
 });
 
-function firstIssueMessage(error: {
-  issues: readonly { message: string }[];
-}): string {
-  return error.issues[0]?.message ?? "invalid alert rule";
-}
-
-function badRequest(path: string, message: string): Response {
-  return Response.json({ error: `${path}: ${message}` }, { status: 400 });
+function badRequest(error: unknown): Response {
+  if (error instanceof AlertRuleValidationError) {
+    return Response.json({ error: error.message }, { status: 400 });
+  }
+  throw error;
 }
 
 export const Route = createFileRoute("/api/cli/alerts/test")({
@@ -64,66 +54,42 @@ export const Route = createFileRoute("/api/cli/alerts/test")({
           return Response.json({ error: "Unauthorized" }, { status: 401 });
         }
 
+        // Same pipeline as `everr apply` (see data/alerts/validate.server.ts):
+        // static validation first, then the independent validation queries
+        // concurrently, reporting failures in file order.
+        let parsedRules: {
+          path: string;
+          rule: ReturnType<typeof parseAlertRule>;
+        }[];
+        try {
+          parsedRules = parsedBody.data.alerts.map(({ path, resource }) => ({
+            path,
+            rule: parseAlertRule(path, resource),
+          }));
+        } catch (error) {
+          return badRequest(error);
+        }
+
+        const validations = await Promise.allSettled(
+          parsedRules.map(({ path, rule }) =>
+            validateAlertRuleQuery(path, rule.rule, organizationId),
+          ),
+        );
+
         const results = [];
-
-        for (const { path, resource } of parsedBody.data.alerts) {
-          const parsedRule = AlertRuleYamlSchema.safeParse(resource);
-          if (!parsedRule.success) {
-            return badRequest(
-              path,
-              `invalid alert rule: ${firstIssueMessage(parsedRule.error)}`,
-            );
+        for (const [index, { path, rule }] of parsedRules.entries()) {
+          const validation = validations[index];
+          if (validation.status === "rejected") {
+            return badRequest(validation.reason);
           }
 
-          const rule = parsedRule.data;
-          try {
-            parseEvaluationInterval(rule.spec.evaluationInterval);
-            validateQueryTemplate(rule.spec.query);
-            validateMessageTemplate(rule.spec.summary);
-            if (rule.spec.description) {
-              validateMessageTemplate(rule.spec.description);
-            }
-          } catch (error) {
-            return badRequest(
-              path,
-              error instanceof Error ? error.message : String(error),
-            );
-          }
-
-          let queryResult: SqlApiResult<Record<string, unknown>>;
-          try {
-            queryResult = await querySqlApiWithMeta<Record<string, unknown>>(
-              rule.spec.query,
-              organizationId,
-            );
-          } catch (error) {
-            return badRequest(
-              path,
-              `query failed: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
-            );
-          }
-
-          try {
-            validateTopColumns(rule.spec.summary, queryResult.columns);
-            if (rule.spec.description) {
-              validateTopColumns(rule.spec.description, queryResult.columns);
-            }
-          } catch (error) {
-            return badRequest(
-              path,
-              error instanceof Error ? error.message : String(error),
-            );
-          }
-
-          const evidence = boundEvidence(queryResult.rows);
+          const evidence = boundEvidence(validation.value.queryResult.rows);
           results.push({
             path,
-            slug: rule.metadata.name,
+            slug: rule.slug,
             firing: evidence.rowCount > 0,
             rowCount: evidence.rowCount,
-            columns: queryResult.columns,
+            columns: validation.value.queryResult.columns,
             evidence: evidence.rows,
             truncated: evidence.truncated,
           });

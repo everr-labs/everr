@@ -1,18 +1,8 @@
 const WINDOW_RE = /^(\d+)([smhd])$/;
 
-const UNITS = {
-  s: { seconds: 1, name: "SECOND" },
-  m: { seconds: 60, name: "MINUTE" },
-  h: { seconds: 3600, name: "HOUR" },
-  d: { seconds: 86400, name: "DAY" },
-} as const;
+const UNIT_SECONDS = { s: 1, m: 60, h: 3600, d: 86400 } as const;
 
-export interface ParsedWindow {
-  seconds: number;
-  interval: string;
-}
-
-export function parseWindow(value: string): ParsedWindow {
+export function parseWindow(value: string): number {
   const match = WINDOW_RE.exec(value);
   if (!match) {
     throw new Error(
@@ -21,23 +11,19 @@ export function parseWindow(value: string): ParsedWindow {
   }
 
   const amount = Number(match[1]);
-  const unit = UNITS[match[2] as keyof typeof UNITS];
   if (amount <= 0) {
     throw new Error(`invalid window "${value}": must be positive`);
   }
 
-  return {
-    seconds: amount * unit.seconds,
-    interval: `${amount} ${unit.name}`,
-  };
+  return amount * UNIT_SECONDS[match[2] as keyof typeof UNIT_SECONDS];
 }
 
-export function parseEvaluationInterval(value: string): ParsedWindow {
-  const parsed = parseWindow(value);
-  if (parsed.seconds < 60) {
+export function parseEvaluationInterval(value: string): number {
+  const seconds = parseWindow(value);
+  if (seconds < 60) {
     throw new Error(
       `invalid evaluationInterval "${value}": must be at least 1m`,
     );
   }
-  return parsed;
+  return seconds;
 }

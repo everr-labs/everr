@@ -71,7 +71,7 @@ describe("diffInstances", () => {
     return { fingerprint: instanceFingerprint(labels), labels, row: { route } };
   };
 
-  it("computes newlyFired, stillFiring, nowResolved", () => {
+  it("computes newlyFired and nowResolved", () => {
     const prevX = {
       fingerprint: instanceFingerprint({ route: "/x" }),
       labels: { route: "/x" },
@@ -81,7 +81,6 @@ describe("diffInstances", () => {
       labels: { route: "/z" },
     };
     const diff = diffInstances([prevX, prevZ], [inst("/x"), inst("/y")]);
-    expect(diff.stillFiring.map((i) => i.labels.route)).toEqual(["/x"]);
     expect(diff.newlyFired.map((i) => i.labels.route)).toEqual(["/y"]);
     expect(diff.nowResolved.map((i) => i.labels.route)).toEqual(["/z"]);
   });
@@ -89,7 +88,6 @@ describe("diffInstances", () => {
   it("handles empty to empty", () => {
     const diff = diffInstances([], []);
     expect(diff.newlyFired).toEqual([]);
-    expect(diff.stillFiring).toEqual([]);
     expect(diff.nowResolved).toEqual([]);
   });
 });

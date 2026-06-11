@@ -1,18 +1,17 @@
 import { eq } from "drizzle-orm";
+import { z } from "zod";
 import { renderMessage } from "@/data/alerts/template";
 import { db } from "@/db/client";
 import { alertDefinitions } from "@/db/schema";
-import {
-  type AlertEventRow,
-  insertAlertEvents,
-  querySqlApiWithMeta,
-} from "@/lib/clickhouse";
+import { querySqlApiWithMeta } from "@/lib/clickhouse";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 import { type DeliveryMetadata, deliverAlertNotification } from "./delivery";
 import {
+  type AlertEventRow,
   boundEvidence,
   buildEvaluationEvent,
   buildInstanceEvent,
+  insertAlertEvents,
 } from "./events";
 import {
   diffInstances,
@@ -22,15 +21,14 @@ import {
 } from "./instances";
 import type { EvaluatePayload } from "./scanner";
 
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const EvaluatePayloadSchema = z.object({
+  alertDefinitionId: z.string().uuid(),
+  scheduledFor: z.coerce.date(),
+});
 
 function parsePayload(payload: EvaluatePayload) {
-  const scheduledFor = new Date(payload.scheduledFor);
-  if (
-    !UUID_RE.test(payload.alertDefinitionId) ||
-    Number.isNaN(scheduledFor.getTime())
-  ) {
+  const parsed = EvaluatePayloadSchema.safeParse(payload);
+  if (!parsed.success) {
     serverLogger.warn("alerts.evaluate.invalid_payload", {
       "alert.definition_id": String(payload.alertDefinitionId),
       "alert.scheduled_for": String(payload.scheduledFor),
@@ -38,10 +36,7 @@ function parsePayload(payload: EvaluatePayload) {
     return null;
   }
 
-  return {
-    alertDefinitionId: payload.alertDefinitionId,
-    scheduledFor,
-  };
+  return parsed.data;
 }
 
 function deliveryFields(metadata: DeliveryMetadata | null) {
@@ -106,13 +101,19 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
     ]);
   }
 
+  // Independent ClickHouse reads — run them concurrently. The pre-attached
+  // no-op catch keeps an early return on query failure from leaving an
+  // unhandled rejection behind.
+  const queryPromise = querySqlApiWithMeta<Record<string, unknown>>(
+    query,
+    def.organizationId,
+  );
+  const firingPromise = fetchFiringInstances(def);
+  firingPromise.catch(() => {});
+
   let rows: Record<string, unknown>[];
   try {
-    const result = await querySqlApiWithMeta<Record<string, unknown>>(
-      query,
-      def.organizationId,
-    );
-    rows = result.rows;
+    rows = (await queryPromise).rows;
   } catch (error) {
     await recordEvaluationFailure(error, "alerts.evaluate.query_failed");
     return;
@@ -120,7 +121,7 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
 
   let previous: FiringInstance[];
   try {
-    previous = await fetchFiringInstances(def);
+    previous = await firingPromise;
   } catch (error) {
     await recordEvaluationFailure(
       error,
@@ -193,10 +194,7 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
       summary,
       description,
       firingCount: current.length,
-      instances: diff.newlyFired.map(({ fingerprint, labels }) => ({
-        fingerprint,
-        labels,
-      })),
+      instances: diff.newlyFired,
     });
     events.push(
       buildEvaluationEvent({
@@ -208,28 +206,13 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
       }),
     );
   }
-  if (wasFiring && !isFiring) {
+  // nowResolved > 0 implies wasFiring; an empty current set means a full
+  // resolve (all previous instances are in nowResolved), otherwise partial.
+  if (diff.nowResolved.length > 0) {
+    const kind = isFiring ? "partial_resolved" : "resolved";
     const delivery = await deliverAlertNotification({
       def,
-      kind: "resolved",
-      summary,
-      description,
-      firingCount: 0,
-      instances: diff.nowResolved,
-    });
-    events.push(
-      buildEvaluationEvent({
-        def,
-        eventType: "resolved",
-        scheduledFor,
-        evidence,
-        ...deliveryFields(delivery),
-      }),
-    );
-  } else if (diff.nowResolved.length > 0) {
-    const delivery = await deliverAlertNotification({
-      def,
-      kind: "partial_resolved",
+      kind,
       summary,
       description,
       firingCount: current.length,
@@ -238,7 +221,7 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
     events.push(
       buildEvaluationEvent({
         def,
-        eventType: "partial_resolved",
+        eventType: kind,
         scheduledFor,
         evidence,
         ...deliveryFields(delivery),
