@@ -119,7 +119,6 @@ export interface NotebookMetadata {
   project?: string;
 }
 
-/** @expected-unused — consumed by the notebooks as-code path in follow-up tasks. */
 export interface Notebook {
   kind: "Notebook";
   metadata: NotebookMetadata;
