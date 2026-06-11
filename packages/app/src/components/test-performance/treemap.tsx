@@ -2,7 +2,7 @@ import { Badge } from "@everr/ui/components/badge";
 import { ChartEmptyState } from "@everr/ui/components/chart-helpers";
 import { formatDurationCompact } from "@everr/ui/lib/formatting";
 import { useMemo } from "react";
-import { TreemapChart } from "@/components/treemap-chart";
+import { TreemapChart } from "@/components/dashboards/visualizations/treemap/treemap-chart";
 import type { TestPerfChild } from "@/data/test-performance/children";
 import { testNameLastSegment } from "@/lib/formatting";
 import {

@@ -1,9 +1,9 @@
 import { LayoutGrid } from "lucide-react";
 import { useMemo } from "react";
-import { TreemapChart } from "@/components/treemap-chart";
 import type { VisualizationProps } from "../index";
 import { formatStatValue } from "../stat-chart/stat-calculations";
 import type { TreemapSpec } from "./spec";
+import { TreemapChart } from "./treemap-chart";
 import { buildTreemapTiles } from "./treemap-data";
 
 function formatValue(value: number, unit: string): string {
