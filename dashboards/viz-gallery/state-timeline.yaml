@@ -97,7 +97,7 @@ spec:
       spec:
         display:
           name: "StateTimeline: mergeConsecutive off"
-          description: "mergeConsecutive: false — every sample renders its own box instead of collapsing equal neighbors (status-history style)"
+          description: "mergeConsecutive: false — every sample renders its own box instead of collapsing equal neighbors (see the StatusHistory gallery for the dedicated per-sample visualization)"
         plugin:
           kind: StateTimeline
           spec:

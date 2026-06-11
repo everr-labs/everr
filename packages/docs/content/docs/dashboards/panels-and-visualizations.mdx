@@ -110,6 +110,10 @@ ORDER BY ts
 
 Each state holds until the lane's next sample (the last one holds to the end of the range), so emit a row per bucket — or only on state changes — and return `NULL` for "no data" gaps.
 
+### Status history
+
+`StatusHistory` takes the same data shapes as `StateTimeline` (wide or long, same `seriesColumn`/`stateColumn` pivot) but with the opposite sample semantics: each sample is an independent observation drawn as one discrete cell, nothing holds until the next sample, and a missing sample stays visibly empty. Reach for it when each row is a periodic check or run (health probes, cron jobs, CI builds per bucket) and "did it run, and what did it return?" matters; reach for `StateTimeline` when rows are state transitions and duration matters.
+
 ### Heatmap
 
 `Heatmap` needs the same time column (alias to `ts`, `time`, or `timestamp`), plus a bucket column for the y-axis and a numeric column for the cell intensity — `GROUP BY` time and bucket:
@@ -273,4 +277,4 @@ lat/lon/value rows; `shape: regions` emits region/value rows.
 
 ## Unknown visualizations
 
-If a panel's `plugin.kind` isn't a registered visualization, the panel renders a clear "Unknown visualization: &lt;kind&gt;" placeholder instead of failing the whole dashboard. Stick to `TimeSeriesChart`, `Table`, `StatChart`, `GaugeChart`, `GeoMap`, `Treemap`, `StateTimeline`, and `Heatmap`.
+If a panel's `plugin.kind` isn't a registered visualization, the panel renders a clear "Unknown visualization: &lt;kind&gt;" placeholder instead of failing the whole dashboard. Stick to `TimeSeriesChart`, `Table`, `StatChart`, `GaugeChart`, `GeoMap`, `Treemap`, `StateTimeline`, `StatusHistory`, and `Heatmap`.

@@ -4,6 +4,7 @@ import { geoMapSpec } from "@/components/dashboards/visualizations/geo-map/spec"
 import { heatmapSpec } from "@/components/dashboards/visualizations/heatmap/spec";
 import { statChartSpec } from "@/components/dashboards/visualizations/stat-chart/spec";
 import { stateTimelineSpec } from "@/components/dashboards/visualizations/state-timeline/spec";
+import { statusHistorySpec } from "@/components/dashboards/visualizations/status-history/spec";
 import { tableSpec } from "@/components/dashboards/visualizations/table/spec";
 import { timeSeriesChartSpec } from "@/components/dashboards/visualizations/time-series-chart/spec";
 import { treemapSpec } from "@/components/dashboards/visualizations/treemap/spec";
@@ -22,6 +23,7 @@ export const panelPluginSpecs: Record<string, z.ZodType> = {
   Heatmap: heatmapSpec,
   StatChart: statChartSpec,
   StateTimeline: stateTimelineSpec,
+  StatusHistory: statusHistorySpec,
   Table: tableSpec,
   TimeSeriesChart: timeSeriesChartSpec,
   Treemap: treemapSpec,

@@ -209,11 +209,42 @@ plugin:
 | --- | --- | --- | --- |
 | `seriesColumn` | string | — | Long-format input: one lane per distinct value of this column. Unset, every non-time column is its own lane. |
 | `stateColumn` | string | first remaining column | State column for long-format input. Ignored without `seriesColumn`. |
-| `mergeConsecutive` | boolean | `true` | Merge consecutive samples with the same state into one segment. `false` renders one box per sample (status-history style). |
+| `mergeConsecutive` | boolean | `true` | Merge consecutive samples with the same state into one segment. `false` renders one box per sample — though if that's what you want, [StatusHistory](#statushistory) is usually the better fit. |
 | `showValues` | boolean | `true` | Render the state text inside segments wide enough to fit it. |
 | `showLegend` | boolean | `true` | State color legend below the timeline. |
 | `colors` | object | `{}` | Fixed state → CSS color mapping (e.g. `{ ok: "#22c55e" }`); unmapped states cycle the shared palette. |
 | `rowHeight` | number | `0.9` | Segment thickness as a fraction of the lane height (0.2–1). |
+
+## StatusHistory
+
+Horizontal lanes of discrete colored cells, one per sample — periodic health checks, cron-job runs, CI builds per interval, SLO probes. The query's time column (detected by exact name, case-insensitive: `ts`, `time`, or `timestamp`) is the x-axis. Each sample renders as a fixed-width cell centered on its timestamp, sized to the sampling interval (the smallest gap between distinct timestamps), so a missing sample shows as a visible empty slot. A `NULL` status also draws nothing. Supports drag-to-zoom (writes the new range to the URL).
+
+**StatusHistory vs StateTimeline:** they share the same data shapes but answer different questions. StateTimeline treats samples as *state transitions* — a state holds until the next sample, segments stretch to fill time, and consecutive equal states merge into one band. Use it for things that are continuously *in* a state (service up/down, deploy phases, leader/follower) where "how long was it in state X, and when did it change?" is the question. StatusHistory treats samples as *independent observations* — each one is its own cell, nothing extends or merges, and a gap in sampling stays visibly empty instead of being painted over by the previous result. Use it for periodic checks and runs (health probes, cron jobs, per-bucket CI status) where "what did each check return — and did it run at all?" is the question.
+
+Two data shapes are supported. **Wide** (the default): every non-time column is its own lane, with the cell value as the status. **Long**: set `seriesColumn` to pivot `GROUP BY`-style rows into one lane per value of that column, with the status read from `stateColumn`.
+
+```yaml
+plugin:
+  kind: StatusHistory
+  spec:
+    seriesColumn: check
+    stateColumn: result
+    showValues: false
+    showLegend: true
+    colors:
+      pass: "#22c55e"
+      fail: "#ef4444"
+```
+
+| Option | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `seriesColumn` | string | — | Long-format input: one lane per distinct value of this column. Unset, every non-time column is its own lane. |
+| `stateColumn` | string | first remaining column | Status column for long-format input. Ignored without `seriesColumn`. |
+| `showValues` | boolean | `false` | Render the status text inside cells wide enough to fit it. |
+| `showLegend` | boolean | `true` | Status color legend below the lanes. |
+| `colors` | object | `{}` | Fixed status → CSS color mapping (e.g. `{ pass: "#22c55e" }`); unmapped statuses cycle the shared palette. |
+| `rowHeight` | number | `0.9` | Cell height as a fraction of the lane height (0.2–1). |
+| `colWidth` | number | `0.9` | Cell width as a fraction of the sampling-interval slot (0.2–1) — lower values add horizontal breathing room between cells. |
 
 ## Heatmap
 

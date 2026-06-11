@@ -12,6 +12,8 @@ import { statChartSpec } from "./stat-chart/spec";
 import { StatChartVisualization } from "./stat-chart/stat-chart-visualization";
 import { stateTimelineSpec } from "./state-timeline/spec";
 import { StateTimelineVisualization } from "./state-timeline/state-timeline-visualization";
+import { statusHistorySpec } from "./status-history/spec";
+import { StatusHistoryVisualization } from "./status-history/status-history-visualization";
 import { tableSpec } from "./table/spec";
 import { TableVisualization } from "./table/table-visualization";
 import { timeSeriesChartSpec } from "./time-series-chart/spec";
@@ -81,6 +83,10 @@ const registry: Record<string, VisualizationEntry> = {
   StateTimeline: defineVisualization({
     schema: stateTimelineSpec,
     component: StateTimelineVisualization,
+  }),
+  StatusHistory: defineVisualization({
+    schema: statusHistorySpec,
+    component: StatusHistoryVisualization,
   }),
   Table: defineVisualization({
     schema: tableSpec,
