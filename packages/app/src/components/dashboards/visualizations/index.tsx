@@ -7,6 +7,8 @@ import type { GeoMapSpec } from "./geo-map/spec";
 import { geoMapSpec } from "./geo-map/spec";
 import { HeatmapVisualization } from "./heatmap/heatmap-visualization";
 import { heatmapSpec } from "./heatmap/spec";
+import { NodeGraphVisualization } from "./node-graph/node-graph-visualization";
+import { nodeGraphSpec } from "./node-graph/spec";
 import { parseSpecLenient } from "./parse-spec";
 import { statChartSpec } from "./stat-chart/spec";
 import { StatChartVisualization } from "./stat-chart/stat-chart-visualization";
@@ -75,6 +77,11 @@ const registry: Record<string, VisualizationEntry> = {
   Heatmap: defineVisualization({
     schema: heatmapSpec,
     component: HeatmapVisualization,
+  }),
+  NodeGraph: defineVisualization({
+    schema: nodeGraphSpec,
+    component: NodeGraphVisualization,
+    inset: "flush-content",
   }),
   StatChart: defineVisualization({
     schema: statChartSpec,
