@@ -1,6 +1,7 @@
 mod api;
 mod auth;
 mod cli;
+mod command_telemetry;
 mod core;
 mod init;
 mod onboarding;
@@ -10,13 +11,21 @@ mod uninstall;
 mod update_notice;
 mod wrap;
 
+#[cfg(test)]
+mod test_support {
+    pub static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+}
+
 use anyhow::Result;
 use clap::Parser;
 use cli::{CiSubcommand, Cli, CloudSubcommand, Commands};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let cli = Cli::parse();
+    let argv: Vec<std::ffi::OsString> = std::env::args_os().collect();
+    let cli = Cli::parse_from(argv.clone());
+    let telemetry = command_telemetry::init();
+    command_telemetry::record_invocation(&cli, argv);
     update_notice::maybe_print(&cli).await;
 
     match cli.command {
@@ -40,6 +49,8 @@ async fn main() -> Result<()> {
         Commands::Skills(args) => skills::run(args)?,
         Commands::Apply(args) => core::run_apply(args).await?,
     }
+
+    telemetry.shutdown();
 
     Ok(())
 }
