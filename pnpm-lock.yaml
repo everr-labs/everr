@@ -246,6 +246,9 @@ importers:
       world-atlas:
         specifier: ^2.0.2
         version: 2.0.2
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
       zod:
         specifier: 'catalog:'
         version: 4.4.3
