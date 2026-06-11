@@ -6,6 +6,7 @@ import {
 import { resolveTimeRange } from "@everr/ui/lib/time-range";
 import { useNavigate } from "@tanstack/react-router";
 import { TriangleAlert } from "lucide-react";
+import type { ReactNode } from "react";
 import { useCallback, useMemo } from "react";
 import type { Panel } from "@/data/dashboards/schema";
 import { useTimeRange } from "@/hooks/use-time-range";
@@ -20,6 +21,8 @@ import {
 interface DashboardPanelProps {
   panel: Panel;
   panelKey: string;
+  /** Extra header action rendered next to the spec-warnings indicator. */
+  action?: ReactNode;
 }
 
 function SpecWarningsIndicator({ warnings }: { warnings: string[] }) {
@@ -50,7 +53,11 @@ function SpecWarningsIndicator({ warnings }: { warnings: string[] }) {
   );
 }
 
-export function DashboardPanel({ panel, panelKey }: DashboardPanelProps) {
+export function DashboardPanel({
+  panel,
+  panelKey,
+  action,
+}: DashboardPanelProps) {
   const { display, plugin } = panel.spec;
   const navigate = useNavigate();
   // Effective range: explicit URL params, else the dashboard's route defaults,
@@ -91,8 +98,13 @@ export function DashboardPanel({ panel, panelKey }: DashboardPanelProps) {
         className="h-full"
         inset={getVisualizationInset(plugin.kind)}
         action={
-          specWarnings.length > 0 ? (
-            <SpecWarningsIndicator warnings={specWarnings} />
+          action || specWarnings.length > 0 ? (
+            <div className="flex items-center gap-1.5">
+              {specWarnings.length > 0 && (
+                <SpecWarningsIndicator warnings={specWarnings} />
+              )}
+              {action}
+            </div>
           ) : undefined
         }
       >

@@ -129,18 +129,21 @@ function DashboardEmbed({
   }
   return (
     <EmbedFrame height={embed.height}>
-      <div className="relative h-full">
-        <DashboardPanel panel={panel} panelKey={embed.panel} />
-        <Link
-          to="/dashboards/$project/$slug"
-          params={{ project: embed.project, slug: embed.slug }}
-          aria-label={`Open panel in dashboard ${embed.project}/${embed.slug}`}
-          title={`Open in ${data.spec.display?.name ?? embed.slug}`}
-          className="absolute right-3 top-3 z-10 rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-        >
-          <ArrowUpRight className="size-4" />
-        </Link>
-      </div>
+      <DashboardPanel
+        panel={panel}
+        panelKey={embed.panel}
+        action={
+          <Link
+            to="/dashboards/$project/$slug"
+            params={{ project: embed.project, slug: embed.slug }}
+            aria-label={`Open panel in dashboard ${embed.project}/${embed.slug}`}
+            title={`Open in ${data.spec.display?.name ?? embed.slug}`}
+            className="rounded-md p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            <ArrowUpRight className="size-4" />
+          </Link>
+        }
+      />
     </EmbedFrame>
   );
 }
