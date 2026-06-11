@@ -50,6 +50,7 @@ vi.mock("@/telemetry/logger", () => ({
   serverLogger: { error: vi.fn(), warn: vi.fn() },
 }));
 
+import { serverLogger } from "@/telemetry/logger";
 import { evaluateAlert } from "./evaluate";
 import { instanceFingerprint } from "./instances";
 
@@ -94,10 +95,7 @@ describe("evaluateAlert", () => {
       scheduledFor: "2026-06-10T12:00:00.000Z",
     });
 
-    const inserted = insertEvents.mock.calls[0][0] as Record<
-      string,
-      unknown
-    >[];
+    const inserted = insertEvents.mock.calls[0][0] as Record<string, unknown>[];
     expect(inserted.map((e) => e.event_type)).toEqual([
       "instance_fired",
       "firing",
@@ -119,6 +117,29 @@ describe("evaluateAlert", () => {
     );
   });
 
+  it("logs event insert failures without blocking notifications", async () => {
+    definitionRows.mockReturnValue([baseDef]);
+    sqlApi.mockResolvedValue({ rows: [{ route: "/x" }], columns: ["route"] });
+    insertEvents.mockRejectedValueOnce(new Error("readonly"));
+
+    await evaluateAlert({
+      alertDefinitionId,
+      scheduledFor: "2026-06-10T12:00:00.000Z",
+    });
+
+    expect(serverLogger.error).toHaveBeenCalledWith(
+      "alerts.evaluate.event_insert_failed",
+      expect.objectContaining({
+        "alert.definition_id": alertDefinitionId,
+        "exception.message": "readonly",
+        "error.handled": true,
+      }),
+    );
+    expect(deliver).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "firing", firingCount: 1 }),
+    );
+  });
+
   it("re-notifies when a new instance joins an already firing rule", async () => {
     definitionRows.mockReturnValue([{ ...baseDef, currentState: "firing" }]);
     fetchFiring.mockResolvedValue([firing("/x")]);
@@ -132,10 +153,7 @@ describe("evaluateAlert", () => {
       scheduledFor: "2026-06-10T12:00:00.000Z",
     });
 
-    const inserted = insertEvents.mock.calls[0][0] as Record<
-      string,
-      unknown
-    >[];
+    const inserted = insertEvents.mock.calls[0][0] as Record<string, unknown>[];
     expect(inserted.map((e) => e.event_type)).toEqual([
       "instance_fired",
       "firing",
@@ -174,10 +192,7 @@ describe("evaluateAlert", () => {
       scheduledFor: "2026-06-10T12:00:00.000Z",
     });
 
-    const inserted = insertEvents.mock.calls[0][0] as Record<
-      string,
-      unknown
-    >[];
+    const inserted = insertEvents.mock.calls[0][0] as Record<string, unknown>[];
     expect(inserted.map((e) => e.event_type)).toEqual([
       "instance_resolved",
       "resolved",
@@ -197,10 +212,7 @@ describe("evaluateAlert", () => {
       scheduledFor: "2026-06-10T12:00:00.000Z",
     });
 
-    const inserted = insertEvents.mock.calls[0][0] as Record<
-      string,
-      unknown
-    >[];
+    const inserted = insertEvents.mock.calls[0][0] as Record<string, unknown>[];
     expect(inserted.map((e) => e.event_type)).toEqual(["instance_resolved"]);
     expect(deliver).not.toHaveBeenCalled();
   });
@@ -250,6 +262,35 @@ describe("evaluateAlert", () => {
     expect(insertEvents).toHaveBeenCalledWith([
       expect.objectContaining({ event_type: "evaluation_failed" }),
     ]);
+    expect(deliver).not.toHaveBeenCalled();
+  });
+
+  it("logs the original evaluation failure when event insertion also fails", async () => {
+    definitionRows.mockReturnValue([{ ...baseDef, currentState: "firing" }]);
+    sqlApi.mockRejectedValue(new Error("query down"));
+    insertEvents.mockRejectedValueOnce(new Error("readonly"));
+
+    await evaluateAlert({
+      alertDefinitionId,
+      scheduledFor: "2026-06-10T12:00:00.000Z",
+    });
+
+    expect(serverLogger.error).toHaveBeenCalledWith(
+      "alerts.evaluate.query_failed",
+      expect.objectContaining({
+        "alert.definition_id": alertDefinitionId,
+        "exception.message": "query down",
+        "error.handled": true,
+      }),
+    );
+    expect(serverLogger.error).toHaveBeenCalledWith(
+      "alerts.evaluate.event_insert_failed",
+      expect.objectContaining({
+        "alert.definition_id": alertDefinitionId,
+        "exception.message": "readonly",
+        "error.handled": true,
+      }),
+    );
     expect(deliver).not.toHaveBeenCalled();
   });
 

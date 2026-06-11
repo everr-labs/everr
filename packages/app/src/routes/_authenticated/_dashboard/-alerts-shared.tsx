@@ -22,12 +22,6 @@ export function stateVariant(state: "unknown" | "resolved" | "firing") {
   return "outline" as const;
 }
 
-export function formatLabels(labels: Record<string, string>) {
-  const entries = Object.entries(labels).sort(([a], [b]) => a.localeCompare(b));
-  if (entries.length === 0) return "(no labels)";
-  return entries.map(([key, value]) => `${key}=${value}`).join(", ");
-}
-
 export function AlertStateBadges({
   state,
   active,

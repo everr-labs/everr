@@ -53,6 +53,12 @@ export function silenceMatchesInstance(
   return matchers.every((matcher) => matcherMatches(matcher, labels));
 }
 
+export function formatLabels(labels: Record<string, string>): string {
+  const entries = Object.entries(labels).sort(([a], [b]) => a.localeCompare(b));
+  if (entries.length === 0) return "(no labels)";
+  return entries.map(([key, value]) => `${key}=${value}`).join(", ");
+}
+
 export function findSilenceForInstance<S extends { matchers: Matcher[] }>(
   silences: readonly S[],
   labels: Record<string, string>,

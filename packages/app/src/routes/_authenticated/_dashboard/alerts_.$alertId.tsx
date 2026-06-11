@@ -36,7 +36,7 @@ import {
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { BellOff, CircleStop, Plus, X } from "lucide-react";
 import { useState } from "react";
-import type { Matcher } from "@/data/alerts/matchers";
+import { formatLabels, type Matcher } from "@/data/alerts/matchers";
 import {
   type AlertInstanceSummary,
   type AlertSilenceSummary,
@@ -52,7 +52,6 @@ import {
   AlertStateBadges,
   formatDate,
   formatInterval,
-  formatLabels,
   stateVariant,
 } from "./-alerts-shared";
 
@@ -251,10 +250,6 @@ function AlertDetailPage() {
               <dd>{formatInterval(detail.evaluationIntervalSeconds)}</dd>
               <dt className="text-muted-foreground">Window</dt>
               <dd>{detail.window}</dd>
-              <dt className="text-muted-foreground">Validation</dt>
-              <dd>{detail.validationStatus}</dd>
-              <dt className="text-muted-foreground">Last status</dt>
-              <dd>{detail.lastEvaluationStatus || "-"}</dd>
               <dt className="text-muted-foreground">Last evaluated</dt>
               <dd>{formatDate(detail.lastEvaluatedAt)}</dd>
             </dl>
@@ -400,6 +395,11 @@ function SilenceDialog({
     setInitializedFor(instance.fingerprint);
   }
 
+  const patchMatcher = (index: number, patch: Partial<Matcher>) =>
+    setMatchers((prev) =>
+      prev.map((m, i) => (i === index ? { ...m, ...patch } : m)),
+    );
+
   const create = useMutation({
     mutationFn: () => {
       const parsedHours = Number(hours);
@@ -443,7 +443,6 @@ function SilenceDialog({
             )}
             {matchers.map((matcher, index) => (
               <div
-                // biome-ignore lint/suspicious/noArrayIndexKey: rows are positional editor state
                 key={index}
                 className="grid grid-cols-[1fr_90px_1fr_32px] items-center gap-2"
               >
@@ -451,21 +450,13 @@ function SilenceDialog({
                   aria-label="Label"
                   value={matcher.label}
                   onChange={(event) =>
-                    setMatchers((prev) =>
-                      prev.map((m, i) =>
-                        i === index ? { ...m, label: event.target.value } : m,
-                      ),
-                    )
+                    patchMatcher(index, { label: event.target.value })
                   }
                 />
                 <Select
                   value={matcher.op}
                   onValueChange={(op) =>
-                    setMatchers((prev) =>
-                      prev.map((m, i) =>
-                        i === index ? { ...m, op: op as Matcher["op"] } : m,
-                      ),
-                    )
+                    patchMatcher(index, { op: op as Matcher["op"] })
                   }
                 >
                   <SelectTrigger aria-label="Operator">
@@ -483,11 +474,7 @@ function SilenceDialog({
                   aria-label="Value"
                   value={matcher.value}
                   onChange={(event) =>
-                    setMatchers((prev) =>
-                      prev.map((m, i) =>
-                        i === index ? { ...m, value: event.target.value } : m,
-                      ),
-                    )
+                    patchMatcher(index, { value: event.target.value })
                   }
                 />
                 <Button

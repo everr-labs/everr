@@ -1,5 +1,5 @@
 import { and, eq, gt, isNull, lte } from "drizzle-orm";
-import { findSilenceForInstance } from "@/data/alerts/matchers";
+import { findSilenceForInstance, formatLabels } from "@/data/alerts/matchers";
 import { db } from "@/db/client";
 import { alertSettings, alertSilences } from "@/db/schema";
 import { type AlertEventRow, insertAlertEvents } from "@/lib/clickhouse";
@@ -20,12 +20,6 @@ export interface DeliveryInput {
   firingCount: number;
   // newlyFired for "firing", nowResolved for "resolved".
   instances: FiringInstance[];
-}
-
-function formatLabels(labels: Record<string, string>): string {
-  const entries = Object.entries(labels).sort(([a], [b]) => a.localeCompare(b));
-  if (entries.length === 0) return "(no labels)";
-  return entries.map(([key, value]) => `${key}=${value}`).join(", ");
 }
 
 function buildText(input: DeliveryInput, listed: FiringInstance[]): string {

@@ -3,14 +3,22 @@ import { renderMessage, renderQuery } from "@/data/alerts/template";
 import { parseWindow } from "@/data/alerts/window";
 import { db } from "@/db/client";
 import { alertDefinitions } from "@/db/schema";
-import { insertAlertEvents, querySqlApiWithMeta } from "@/lib/clickhouse";
+import {
+  type AlertEventRow,
+  insertAlertEvents,
+  querySqlApiWithMeta,
+} from "@/lib/clickhouse";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 import { deliverAlertNotification } from "./delivery";
-import { boundEvidence, buildEvaluationEvent, buildInstanceEvent } from "./events";
+import {
+  boundEvidence,
+  buildEvaluationEvent,
+  buildInstanceEvent,
+} from "./events";
 import {
   diffInstances,
-  fetchFiringInstances,
   type FiringInstance,
+  fetchFiringInstances,
   rowsToInstances,
 } from "./instances";
 import type { EvaluatePayload } from "./scanner";
@@ -52,6 +60,20 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
   const now = new Date();
   const query = renderQuery(def.parsedQuery, parseWindow(def.window).interval);
 
+  async function recordAlertEvents(events: AlertEventRow[]) {
+    if (events.length === 0) return;
+    try {
+      await insertAlertEvents(events);
+    } catch (error) {
+      serverLogger.error("alerts.evaluate.event_insert_failed", {
+        ...exceptionAttributes(error),
+        "alert.definition_id": def.id,
+        "alert.event_count": events.length,
+        "error.handled": true,
+      });
+    }
+  }
+
   async function recordEvaluationFailure(error: unknown, logEvent: string) {
     const message = error instanceof Error ? error.message : String(error);
     await db
@@ -62,17 +84,18 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
         lastEvaluatedAt: now,
       })
       .where(eq(alertDefinitions.id, def.id));
-    await insertAlertEvents([
+    serverLogger.error(logEvent, {
+      ...exceptionAttributes(error),
+      "alert.definition_id": def.id,
+      "error.handled": true,
+    });
+    await recordAlertEvents([
       buildEvaluationEvent({
         def,
         eventType: "evaluation_failed",
         scheduledFor,
       }),
     ]);
-    serverLogger.error(logEvent, {
-      ...exceptionAttributes(error),
-      "alert.definition_id": def.id,
-    });
   }
 
   let rows: Record<string, unknown>[];
@@ -157,7 +180,12 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
   ];
   if (diff.newlyFired.length > 0) {
     events.push(
-      buildEvaluationEvent({ def, eventType: "firing", scheduledFor, evidence }),
+      buildEvaluationEvent({
+        def,
+        eventType: "firing",
+        scheduledFor,
+        evidence,
+      }),
     );
   }
   if (wasFiring && !isFiring) {
@@ -170,7 +198,7 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
       }),
     );
   }
-  if (events.length > 0) await insertAlertEvents(events);
+  await recordAlertEvents(events);
 
   if (diff.newlyFired.length > 0) {
     await deliverAlertNotification({

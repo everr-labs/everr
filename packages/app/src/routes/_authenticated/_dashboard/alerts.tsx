@@ -33,11 +33,7 @@ import {
   listAlerts,
   updateAlertSettings,
 } from "@/data/alerts/server";
-import {
-  AlertStateBadges,
-  formatDate,
-  formatInterval,
-} from "./-alerts-shared";
+import { AlertStateBadges, formatDate, formatInterval } from "./-alerts-shared";
 
 const alertsQueryOptions = () =>
   queryOptions({ queryKey: ["alerts"], queryFn: () => listAlerts() });
@@ -170,6 +166,43 @@ function AlertsPage() {
   );
 }
 
+function ChannelField({
+  label,
+  recipientsLabel,
+  placeholder,
+  enabled,
+  onEnabledChange,
+  recipients,
+  onRecipientsChange,
+}: {
+  label: string;
+  recipientsLabel: string;
+  placeholder: string;
+  enabled: boolean;
+  onEnabledChange: (enabled: boolean) => void;
+  recipients: string;
+  onRecipientsChange: (recipients: string) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <Label className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(event) => onEnabledChange(event.target.checked)}
+        />
+        {label}
+      </Label>
+      <Textarea
+        aria-label={recipientsLabel}
+        placeholder={placeholder}
+        value={recipients}
+        onChange={(event) => onRecipientsChange(event.target.value)}
+      />
+    </div>
+  );
+}
+
 function NotificationSettingsDialog({
   open,
   onOpenChange,
@@ -225,38 +258,24 @@ function NotificationSettingsDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-2">
-            <Label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={emailEnabled}
-                onChange={(event) => setEmailEnabled(event.target.checked)}
-              />
-              Email
-            </Label>
-            <Textarea
-              aria-label="Email recipients"
-              placeholder="team@example.com"
-              value={emailTo}
-              onChange={(event) => setEmailTo(event.target.value)}
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={telegramEnabled}
-                onChange={(event) => setTelegramEnabled(event.target.checked)}
-              />
-              Telegram
-            </Label>
-            <Textarea
-              aria-label="Telegram chat IDs"
-              placeholder="-1001234567890"
-              value={telegramChatIds}
-              onChange={(event) => setTelegramChatIds(event.target.value)}
-            />
-          </div>
+          <ChannelField
+            label="Email"
+            recipientsLabel="Email recipients"
+            placeholder="team@example.com"
+            enabled={emailEnabled}
+            onEnabledChange={setEmailEnabled}
+            recipients={emailTo}
+            onRecipientsChange={setEmailTo}
+          />
+          <ChannelField
+            label="Telegram"
+            recipientsLabel="Telegram chat IDs"
+            placeholder="-1001234567890"
+            enabled={telegramEnabled}
+            onEnabledChange={setTelegramEnabled}
+            recipients={telegramChatIds}
+            onRecipientsChange={setTelegramChatIds}
+          />
           <Label className="flex items-center gap-2">
             <input
               type="checkbox"
