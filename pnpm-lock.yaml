@@ -246,9 +246,6 @@ importers:
       world-atlas:
         specifier: ^2.0.2
         version: 2.0.2
-      world-countries:
-        specifier: ^5.1.0
-        version: 5.1.0
       zod:
         specifier: 'catalog:'
         version: 4.4.3
@@ -7076,9 +7073,6 @@ packages:
   world-atlas@2.0.2:
     resolution: {integrity: sha512-IXfV0qwlKXpckz1FhwXVwKRjiIhOnWttOskm5CtxMsjgE/MXAYRHWJqgXOpM8IkcPBoXnyTU5lFHcYa5ChG0LQ==}
 
-  world-countries@5.1.0:
-    resolution: {integrity: sha512-CXR6EBvTbArDlDDIWU3gfKb7Qk0ck2WNZ234b/A0vuecPzIfzzxH+O6Ejnvg1sT8XuiZjVlzOH0h08ZtaO7g0w==}
-
   wrap-ansi@7.0.0:
     resolution: {integrity: sha512-YVGIj2kamLSTxw6NsZjoBxfSwsn0ycdesmc4p+Q21c5zPuZ1pl+NfxVdxPtdHvmNVOQ6XSYG4AUtyt/Fi7D16Q==}
     engines: {node: '>=10'}
@@ -13881,8 +13875,6 @@ snapshots:
       stackback: 0.0.2
 
   world-atlas@2.0.2: {}
-
-  world-countries@5.1.0: {}
 
   wrap-ansi@7.0.0:
     dependencies:

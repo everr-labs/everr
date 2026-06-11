@@ -1,7 +1,7 @@
-import { type ComponentType, useMemo } from "react";
+import { type ComponentType, lazy, Suspense, useMemo } from "react";
 import type * as z from "zod";
 import type { PanelPlugin } from "@/data/dashboards/schema";
-import { GeoMapVisualization } from "./geo-map/geo-map-visualization";
+import type { GeoMapSpec } from "./geo-map/spec";
 import { geoMapSpec } from "./geo-map/spec";
 import { parseSpecLenient } from "./parse-spec";
 import { statChartSpec } from "./stat-chart/spec";
@@ -10,6 +10,14 @@ import { tableSpec } from "./table/spec";
 import { TableVisualization } from "./table/table-visualization";
 import { timeSeriesChartSpec } from "./time-series-chart/spec";
 import { TimeSeriesChartVisualization } from "./time-series-chart/time-series-chart-visualization";
+
+const GeoMapVisualization = lazy(() =>
+  import("./geo-map/geo-map-visualization").then((m) => ({
+    default: m.GeoMapVisualization as ComponentType<
+      VisualizationProps<GeoMapSpec>
+    >,
+  })),
+);
 
 export type QueryResultRow = Record<string, string | number | boolean | null>;
 
@@ -115,11 +123,19 @@ export function PanelVisualization({
 
   const Component = entry.component;
   return (
-    <Component
-      spec={parsed.spec}
-      data={data}
-      timeRange={timeRange}
-      onTimeRangeChange={onTimeRangeChange}
-    />
+    <Suspense
+      fallback={
+        <div className="flex h-full items-center justify-center p-4 text-center text-muted-foreground">
+          <p className="text-sm">Loading…</p>
+        </div>
+      }
+    >
+      <Component
+        spec={parsed.spec}
+        data={data}
+        timeRange={timeRange}
+        onTimeRangeChange={onTimeRangeChange}
+      />
+    </Suspense>
   );
 }
