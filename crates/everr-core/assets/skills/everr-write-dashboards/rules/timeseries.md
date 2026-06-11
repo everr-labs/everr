@@ -1,6 +1,6 @@
 # TimeSeriesChart
 
-A line chart over time. It infers its structure from the columns you `SELECT` — there is no axis, color, stacking, or area configuration.
+A line chart over time (or a stacked area chart with `stacked: true`). It infers its structure from the columns you `SELECT` — there is no axis, color, or per-series configuration.
 
 ## Options (`plugin.spec`)
 
@@ -11,14 +11,15 @@ A line chart over time. It infers its structure from the columns you `SELECT` �
 | `lineWidth` | number | `1.5` | any number | Line stroke width. |
 | `curveType` | string | `monotone` | `monotone`, `linear`, `natural`, `stepBefore`, `stepAfter` | Line interpolation. An unknown value falls back to the renderer default. |
 | `connectNulls` | boolean | `false` | `true` | Bridge gaps instead of breaking the line at them. |
+| `stacked` | boolean | `false` | `true` | Render the series as stacked filled areas instead of overlaid lines. A series with no sample at a timestamp contributes 0 there; `connectNulls` has no effect. |
 
 ```yaml
 plugin:
   kind: TimeSeriesChart
-  spec: { unit: ms, showLegend: true, lineWidth: 1.5, curveType: monotone, connectNulls: false }
+  spec: { unit: ms, showLegend: true, lineWidth: 1.5, curveType: monotone, connectNulls: false, stacked: false }
 ```
 
-These five are the complete set. There is **no** `yAxis` / `min` / `max`, `legend` object, `stack` / `stacking`, area / fill, `thresholds`, `decimals`, `pointRadius`, or per-series color. Series colors come from a fixed 6-color palette assigned by order (wrapping after 6) and are not configurable.
+These six are the complete set. There is **no** `yAxis` / `min` / `max`, `legend` object, separate area / fill option, `thresholds`, `decimals`, `pointRadius`, or per-series color. Series colors come from a fixed 6-color palette assigned by order (wrapping after 6) and are not configurable.
 
 ## Data shape
 

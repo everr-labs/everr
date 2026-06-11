@@ -7,7 +7,7 @@ spec:
     name: Visualization Gallery — Time Series
     description: >-
       TimeSeriesChart regression sheet — every option (unit, showLegend,
-      lineWidth, curveType, connectNulls) and behavior (grouped pivot,
+      lineWidth, curveType, connectNulls, stacked) and behavior (grouped pivot,
       multi-column, multi-query, null gaps, empty result) exercised with
       deterministic TestData.
   duration: 7d
@@ -138,6 +138,60 @@ spec:
                   seed: 9
                   series:
                     - { name: spans, start: 50, noise: 10, min: 0 }
+    ts-stacked-grouped:
+      kind: Panel
+      spec:
+        display:
+          name: "TS: stacked, grouped, legend"
+          description: "stacked: true · showLegend: true · grouped pivot (one band per StatusCode)"
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            unit: ""
+            showLegend: true
+            lineWidth: 1.5
+            curveType: monotone
+            connectNulls: false
+            stacked: true
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 11
+                  labelColumn: status
+                  series:
+                    - { name: Ok,    start: 800, noise: 60, min: 0 }
+                    - { name: Error, start: 40,  noise: 12, min: 0 }
+                    - { name: Unset, start: 120, noise: 20, min: 0 }
+    ts-stacked-sparse-step:
+      kind: Panel
+      spec:
+        display:
+          name: "TS: stacked, sparse series, stepAfter"
+          description: "stacked: true · curveType: stepAfter · sparse series contributes 0 where unsampled (no gaps when stacking)"
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            unit: ""
+            showLegend: true
+            lineWidth: 1
+            curveType: stepAfter
+            connectNulls: false
+            stacked: true
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 21
+                  series:
+                    - { name: requests, start: 300, noise: 30, min: 0 }
+                    - { name: retries,  start: 25,  noise: 15, min: 0, nullChance: 0.45 }
     # ── Data-shape behaviors + edge states ───────────────────────────
     ts-multi-query:
       kind: Panel
@@ -204,5 +258,7 @@ spec:
           - { x: 0,  y: 8,  width: 8,  height: 7, content: { $ref: "#/spec/panels/ts-linear-connect-nulls" } }
           - { x: 8,  y: 8,  width: 8,  height: 7, content: { $ref: "#/spec/panels/ts-natural" } }
           - { x: 16, y: 8,  width: 8,  height: 7, content: { $ref: "#/spec/panels/ts-step-before" } }
-          - { x: 0,  y: 15, width: 16, height: 8, content: { $ref: "#/spec/panels/ts-multi-query" } }
-          - { x: 16, y: 15, width: 8,  height: 8, content: { $ref: "#/spec/panels/ts-empty" } }
+          - { x: 0,  y: 15, width: 12, height: 8, content: { $ref: "#/spec/panels/ts-stacked-grouped" } }
+          - { x: 12, y: 15, width: 12, height: 8, content: { $ref: "#/spec/panels/ts-stacked-sparse-step" } }
+          - { x: 0,  y: 23, width: 16, height: 8, content: { $ref: "#/spec/panels/ts-multi-query" } }
+          - { x: 16, y: 23, width: 8,  height: 8, content: { $ref: "#/spec/panels/ts-empty" } }
