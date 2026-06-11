@@ -7,8 +7,11 @@ spec:
     name: Visualization Gallery — GeoMap
     description: >-
       GeoMap regression sheet — both modes (points, choropleth), every
-      colorScheme enum, showLegend on/off, multi-query overlay, and the empty
-      state, driven by the deterministic geo TestData scenario.
+      colorScheme enum, every aggregation (sum/avg/max/last), every scaleType
+      (linear/sqrt/log) and projection (naturalEarth1/mercator/equalEarth), the
+      minRadius/maxRadius range, showLegend on/off, multi-query overlay, the
+      unmapped-rows badge, and the empty state, driven by the deterministic geo
+      and csv TestData scenarios.
   duration: 7d
   refreshInterval: 1m
   panels:
@@ -116,6 +119,201 @@ spec:
               plugin:
                 kind: TestData
                 spec: { scenario: geo, shape: regions, seed: 34, count: 16 }
+    geo-choropleth-avg:
+      kind: Panel
+      spec:
+        display:
+          name: "GeoMap: choropleth, avg"
+          description: "mode: choropleth · aggregation: avg · blue ramp"
+        plugin:
+          kind: GeoMap
+          spec: { mode: choropleth, aggregation: avg, colorScheme: blue, showLegend: true }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec: { scenario: geo, shape: regions, seed: 41, count: 16 }
+    geo-choropleth-max:
+      kind: Panel
+      spec:
+        display:
+          name: "GeoMap: choropleth, max"
+          description: "mode: choropleth · aggregation: max · green ramp"
+        plugin:
+          kind: GeoMap
+          spec: { mode: choropleth, aggregation: max, colorScheme: green, showLegend: true }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec: { scenario: geo, shape: regions, seed: 42, count: 16 }
+    geo-choropleth-min:
+      kind: Panel
+      spec:
+        display:
+          name: "GeoMap: choropleth, min"
+          description: "mode: choropleth · aggregation: min · red ramp"
+        plugin:
+          kind: GeoMap
+          spec: { mode: choropleth, aggregation: min, colorScheme: red, showLegend: true }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec: { scenario: geo, shape: regions, seed: 44, count: 16 }
+    geo-choropleth-last:
+      kind: Panel
+      spec:
+        display:
+          name: "GeoMap: choropleth, last"
+          description: "mode: choropleth · aggregation: last · orange ramp"
+        plugin:
+          kind: GeoMap
+          spec: { mode: choropleth, aggregation: last, colorScheme: orange, showLegend: true }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec: { scenario: geo, shape: regions, seed: 43, count: 16 }
+    geo-choropleth-log:
+      kind: Panel
+      spec:
+        display:
+          name: "GeoMap: choropleth, log scale"
+          description: "mode: choropleth · scaleType: log · skewed values stay visible"
+        plugin:
+          kind: GeoMap
+          spec: { mode: choropleth, scaleType: log, colorScheme: red, showLegend: true }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [region, value]
+                  rows:
+                    - [US, 10000]
+                    - [BR, 1000]
+                    - [DE, 100]
+                    - [FR, 10]
+                    - [JP, 1]
+    geo-points-sqrt:
+      kind: Panel
+      spec:
+        display:
+          name: "GeoMap: points, sqrt scale"
+          description: "mode: points · scaleType: sqrt · marker area ∝ value"
+        plugin:
+          kind: GeoMap
+          spec: { mode: points, scaleType: sqrt, colorScheme: blue, showLegend: true }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [lat, lon, value]
+                  rows:
+                    - [40.71, -74.01, 1]
+                    - [51.51, -0.13, 10]
+                    - [35.68, 139.69, 100]
+                    - [-33.87, 151.21, 10000]
+    geo-points-log:
+      kind: Panel
+      spec:
+        display:
+          name: "GeoMap: points, log scale"
+          description: "mode: points · scaleType: log · heavily skewed values"
+        plugin:
+          kind: GeoMap
+          spec: { mode: points, scaleType: log, colorScheme: green, showLegend: true }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [lat, lon, value]
+                  rows:
+                    - [40.71, -74.01, 1]
+                    - [51.51, -0.13, 10]
+                    - [35.68, 139.69, 100]
+                    - [-33.87, 151.21, 10000]
+    geo-points-mercator:
+      kind: Panel
+      spec:
+        display:
+          name: "GeoMap: points, mercator"
+          description: "mode: points · projection: mercator"
+        plugin:
+          kind: GeoMap
+          spec: { mode: points, projection: mercator, colorScheme: orange, showLegend: true }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec: { scenario: geo, shape: points, seed: 51, points: 24 }
+    geo-choropleth-equalearth:
+      kind: Panel
+      spec:
+        display:
+          name: "GeoMap: choropleth, equalEarth"
+          description: "mode: choropleth · projection: equalEarth"
+        plugin:
+          kind: GeoMap
+          spec: { mode: choropleth, projection: equalEarth, colorScheme: green, showLegend: true }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec: { scenario: geo, shape: regions, seed: 52, count: 16 }
+    geo-points-radius:
+      kind: Panel
+      spec:
+        display:
+          name: "GeoMap: points, tight radius range"
+          description: "mode: points · minRadius: 6 · maxRadius: 12"
+        plugin:
+          kind: GeoMap
+          spec: { mode: points, minRadius: 6, maxRadius: 12, colorScheme: blue, showLegend: true }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec: { scenario: geo, shape: points, seed: 61, points: 24 }
+    geo-points-unmapped:
+      kind: Panel
+      spec:
+        display:
+          name: "GeoMap: points, unmapped rows"
+          description: "mode: points · some null/invalid lat/lon → 'N rows not mapped' badge"
+        plugin:
+          kind: GeoMap
+          spec: { mode: points, colorScheme: red, showLegend: true }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [lat, lon, value]
+                  rows:
+                    - [40.71, -74.01, 5]
+                    - [51.51, -0.13, 8]
+                    - [null, null, 3]
+                    - [35.68, null, 7]
+                    - [-33.87, 151.21, 6]
     geo-empty:
       kind: Panel
       spec:
@@ -142,4 +340,19 @@ spec:
           - { x: 0,  y: 21, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-choropleth-green" } }
           - { x: 12, y: 21, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-choropleth-orange" } }
           - { x: 0,  y: 30, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-choropleth-red-nolegend" } }
-          - { x: 12, y: 30, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-empty" } }
+          # Aggregation modes (choropleth).
+          - { x: 12, y: 30, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-choropleth-avg" } }
+          - { x: 0,  y: 39, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-choropleth-max" } }
+          - { x: 12, y: 39, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-choropleth-last" } }
+          - { x: 0,  y: 48, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-choropleth-min" } }
+          # Scale types.
+          - { x: 12, y: 48, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-choropleth-log" } }
+          - { x: 0,  y: 57, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-points-sqrt" } }
+          - { x: 12, y: 57, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-points-log" } }
+          # Projections.
+          - { x: 0,  y: 66, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-points-mercator" } }
+          - { x: 12, y: 66, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-choropleth-equalearth" } }
+          # Marker radius range + unmapped-rows badge.
+          - { x: 0,  y: 75, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-points-radius" } }
+          - { x: 12, y: 75, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-points-unmapped" } }
+          - { x: 0,  y: 84, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-empty" } }

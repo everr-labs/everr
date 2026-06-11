@@ -13,6 +13,12 @@ export const geoMapSpec = z.looseObject({
 
   // choropleth mode: ISO-3166 alpha-2/alpha-3 region column
   regionColumn: z.string().default("region"),
+  /** How rows mapping to the same region combine (choropleth mode). */
+  aggregation: z.enum(["sum", "avg", "min", "max", "last"]).default("sum"),
+
+  // points mode: marker radius range in viewBox units
+  minRadius: z.number().positive().default(3),
+  maxRadius: z.number().positive().default(22),
 
   // shared
   /** Sizes markers / shades regions. */
@@ -23,6 +29,16 @@ export const geoMapSpec = z.looseObject({
   unit: z.string().default(""),
   showLegend: z.boolean().default(true),
   colorScheme: z.enum(["blue", "green", "orange", "red"]).default("blue"),
+  /** Map projection. */
+  projection: z
+    .enum(["naturalEarth1", "mercator", "equalEarth"])
+    .default("naturalEarth1"),
+  /**
+   * Value→color/size curve. `sqrt` keeps marker *area* proportional to the
+   * value; `log` spreads heavily skewed data (one dominant country) so the
+   * rest stays visible.
+   */
+  scaleType: z.enum(["linear", "sqrt", "log"]).default("linear"),
   /** Color/size domain; auto-derived from the data when unset. */
   min: z.number().optional(),
   max: z.number().optional(),
@@ -30,3 +46,5 @@ export const geoMapSpec = z.looseObject({
 
 export type GeoMapSpec = z.infer<typeof geoMapSpec>;
 export type GeoColorScheme = GeoMapSpec["colorScheme"];
+export type GeoScaleType = GeoMapSpec["scaleType"];
+export type GeoProjection = GeoMapSpec["projection"];

@@ -6,6 +6,7 @@ import {
   extractMarkers,
   markerRadius,
   mergeRegions,
+  normalizeValue,
   schemeBaseColor,
 } from "./geo-data";
 import { geoMapSpec } from "./spec";
@@ -65,6 +66,26 @@ describe("mergeRegions", () => {
     expect(unmatched).toBe(0);
   });
 
+  it("combines same-region rows with the configured aggregation", () => {
+    const frames = [
+      [
+        { region: "US", value: 2 },
+        { region: "US", value: 8 },
+        { region: "US", value: 5 },
+      ],
+    ];
+    const get = (aggregation: string) =>
+      mergeRegions(
+        frames,
+        spec({ mode: "choropleth", aggregation }),
+      ).values.get("840");
+    expect(get("sum")).toBe(15);
+    expect(get("avg")).toBe(5);
+    expect(get("min")).toBe(2);
+    expect(get("max")).toBe(8);
+    expect(get("last")).toBe(5);
+  });
+
   it("counts rows whose region code is unknown", () => {
     const frames = [[{ region: "ZZ", value: 1 }]];
     const { values, unmatched } = mergeRegions(
@@ -90,6 +111,54 @@ describe("deriveDomain", () => {
   it("falls back to [0,1] for an empty set", () => {
     expect(deriveDomain([], spec())).toEqual([0, 1]);
   });
+
+  it("zeroFloor extends an all-positive extent down to 0", () => {
+    expect(deriveDomain([3, 9], spec(), { zeroFloor: true })).toEqual([0, 9]);
+    // explicit spec.min wins over the floor
+    expect(deriveDomain([3, 9], spec({ min: 2 }), { zeroFloor: true })).toEqual(
+      [2, 9],
+    );
+    // negative extents are kept as-is
+    expect(deriveDomain([-4, 9], spec(), { zeroFloor: true })).toEqual([-4, 9]);
+  });
+
+  it("handles large value sets without spreading onto the stack", () => {
+    const vals = Array.from({ length: 300_000 }, (_, i) => i % 1000);
+    expect(deriveDomain(vals, spec())).toEqual([0, 999]);
+  });
+});
+
+describe("normalizeValue", () => {
+  it("is linear by default, clamped to [0,1]", () => {
+    expect(normalizeValue(5, [0, 10])).toBe(0.5);
+    expect(normalizeValue(-1, [0, 10])).toBe(0);
+    expect(normalizeValue(11, [0, 10])).toBe(1);
+  });
+
+  it("sqrt boosts mid-range values (area-proportional markers)", () => {
+    expect(normalizeValue(25, [0, 100], "sqrt")).toBe(0.5);
+    expect(normalizeValue(0, [0, 100], "sqrt")).toBe(0);
+    expect(normalizeValue(100, [0, 100], "sqrt")).toBe(1);
+  });
+
+  it("log spreads decades evenly over a positive domain", () => {
+    expect(normalizeValue(10, [1, 1000], "log")).toBeCloseTo(1 / 3);
+    expect(normalizeValue(100, [1, 1000], "log")).toBeCloseTo(2 / 3);
+    expect(normalizeValue(1, [1, 1000], "log")).toBe(0);
+    expect(normalizeValue(1000, [1, 1000], "log")).toBe(1);
+  });
+
+  it("log with a non-positive min spans the top three decades below max", () => {
+    // lo becomes 1000/1000 = 1
+    expect(normalizeValue(1, [0, 1000], "log")).toBe(0);
+    expect(normalizeValue(0, [0, 1000], "log")).toBe(0);
+    expect(normalizeValue(1000, [0, 1000], "log")).toBe(1);
+  });
+
+  it("log handles degenerate domains without NaN", () => {
+    expect(normalizeValue(5, [5, 5], "log")).toBe(1);
+    expect(normalizeValue(-1, [-10, 0], "log")).toBe(0);
+  });
 });
 
 describe("markerRadius", () => {
@@ -102,6 +171,11 @@ describe("markerRadius", () => {
   it("clamps out-of-domain values and handles a degenerate domain", () => {
     expect(markerRadius(99, [0, 10], [2, 12])).toBe(12);
     expect(markerRadius(5, [5, 5], [2, 12])).toBe(2);
+  });
+
+  it("applies the scale curve to the radius", () => {
+    expect(markerRadius(25, [0, 100], [0, 10], "sqrt")).toBe(5);
+    expect(markerRadius(10, [1, 1000], [0, 9], "log")).toBeCloseTo(3);
   });
 });
 
