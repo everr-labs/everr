@@ -4,6 +4,7 @@ import {
   GitBranch,
   LayoutDashboard,
   type LucideIcon,
+  NotebookText,
   ScrollText,
   Workflow,
 } from "lucide-react";
@@ -24,6 +25,11 @@ export const navMain: NavItem[] = [
     title: "Dashboards",
     url: "/dashboards",
     icon: LayoutDashboard,
+  },
+  {
+    title: "Notebooks",
+    url: "/notebooks",
+    icon: NotebookText,
   },
   {
     title: "CI/CD",

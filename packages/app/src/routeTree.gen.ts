@@ -45,6 +45,7 @@ import { Route as AuthInviteInvitationIdRouteImport } from './routes/_auth/invit
 import { Route as AuthAuthErrorRouteImport } from './routes/_auth/auth/error'
 import { Route as AuthenticatedDashboardWorkflowsIndexRouteImport } from './routes/_authenticated/_dashboard/workflows/index'
 import { Route as AuthenticatedDashboardRunsIndexRouteImport } from './routes/_authenticated/_dashboard/runs/index'
+import { Route as AuthenticatedDashboardNotebooksIndexRouteImport } from './routes/_authenticated/_dashboard/notebooks/index'
 import { Route as AuthenticatedDashboardDashboardsIndexRouteImport } from './routes/_authenticated/_dashboard/dashboards/index'
 import { Route as ApiGithubInstallStartRouteImport } from './routes/api/github/install/start'
 import { Route as ApiGithubInstallCallbackRouteImport } from './routes/api/github/install/callback'
@@ -66,6 +67,8 @@ import { Route as AuthenticatedDashboardTracesTraceIdModalRouteImport } from './
 import { Route as AuthenticatedDashboardRunsTraceIdTraceRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/trace'
 import { Route as AuthenticatedDashboardErrorsFingerprintModalRouteImport } from './routes/_authenticated/_dashboard/errors/$fingerprint/modal'
 import { Route as AuthenticatedDashboardDashboardsProjectSlugRouteImport } from './routes/_authenticated/_dashboard/dashboards/$project.$slug'
+import { Route as AuthenticatedDashboardNotebooksProjectSlugIndexRouteImport } from './routes/_authenticated/_dashboard/notebooks/$project.$slug.index'
+import { Route as AuthenticatedDashboardNotebooksProjectSlugSplatRouteImport } from './routes/_authenticated/_dashboard/notebooks/$project.$slug.$'
 import { Route as AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/index'
 import { Route as AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
 
@@ -259,6 +262,12 @@ const AuthenticatedDashboardRunsIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedDashboardRunsRoute,
   } as any)
+const AuthenticatedDashboardNotebooksIndexRoute =
+  AuthenticatedDashboardNotebooksIndexRouteImport.update({
+    id: '/notebooks/',
+    path: '/notebooks/',
+    getParentRoute: () => AuthenticatedDashboardRoute,
+  } as any)
 const AuthenticatedDashboardDashboardsIndexRoute =
   AuthenticatedDashboardDashboardsIndexRouteImport.update({
     id: '/dashboards/',
@@ -378,6 +387,18 @@ const AuthenticatedDashboardDashboardsProjectSlugRoute =
     path: '/dashboards/$project/$slug',
     getParentRoute: () => AuthenticatedDashboardRoute,
   } as any)
+const AuthenticatedDashboardNotebooksProjectSlugIndexRoute =
+  AuthenticatedDashboardNotebooksProjectSlugIndexRouteImport.update({
+    id: '/notebooks/$project/$slug/',
+    path: '/notebooks/$project/$slug/',
+    getParentRoute: () => AuthenticatedDashboardRoute,
+  } as any)
+const AuthenticatedDashboardNotebooksProjectSlugSplatRoute =
+  AuthenticatedDashboardNotebooksProjectSlugSplatRouteImport.update({
+    id: '/notebooks/$project/$slug/$',
+    path: '/notebooks/$project/$slug/$',
+    getParentRoute: () => AuthenticatedDashboardRoute,
+  } as any)
 const AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRoute =
   AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRouteImport.update({
     id: '/jobs/$jobId/',
@@ -436,6 +457,7 @@ export interface FileRoutesByFullPath {
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
   '/dashboards/': typeof AuthenticatedDashboardDashboardsIndexRoute
+  '/notebooks/': typeof AuthenticatedDashboardNotebooksIndexRoute
   '/runs/': typeof AuthenticatedDashboardRunsIndexRoute
   '/workflows/': typeof AuthenticatedDashboardWorkflowsIndexRoute
   '/dashboards/$project/$slug': typeof AuthenticatedDashboardDashboardsProjectSlugRoute
@@ -445,6 +467,8 @@ export interface FileRoutesByFullPath {
   '/workflows/$repo/$workflowName': typeof AuthenticatedDashboardWorkflowsRepoWorkflowNameRoute
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/runs/$traceId/': typeof AuthenticatedDashboardRunsTraceIdIndexRoute
+  '/notebooks/$project/$slug/$': typeof AuthenticatedDashboardNotebooksProjectSlugSplatRoute
+  '/notebooks/$project/$slug/': typeof AuthenticatedDashboardNotebooksProjectSlugIndexRoute
   '/runs/$traceId/jobs/$jobId/': typeof AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRoute
   '/runs/$traceId/jobs/$jobId/steps/$stepNumber': typeof AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRoute
 }
@@ -491,6 +515,7 @@ export interface FileRoutesByTo {
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
   '/dashboards': typeof AuthenticatedDashboardDashboardsIndexRoute
+  '/notebooks': typeof AuthenticatedDashboardNotebooksIndexRoute
   '/runs': typeof AuthenticatedDashboardRunsIndexRoute
   '/workflows': typeof AuthenticatedDashboardWorkflowsIndexRoute
   '/dashboards/$project/$slug': typeof AuthenticatedDashboardDashboardsProjectSlugRoute
@@ -500,6 +525,8 @@ export interface FileRoutesByTo {
   '/workflows/$repo/$workflowName': typeof AuthenticatedDashboardWorkflowsRepoWorkflowNameRoute
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdIndexRoute
+  '/notebooks/$project/$slug/$': typeof AuthenticatedDashboardNotebooksProjectSlugSplatRoute
+  '/notebooks/$project/$slug': typeof AuthenticatedDashboardNotebooksProjectSlugIndexRoute
   '/runs/$traceId/jobs/$jobId': typeof AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRoute
   '/runs/$traceId/jobs/$jobId/steps/$stepNumber': typeof AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRoute
 }
@@ -553,6 +580,7 @@ export interface FileRoutesById {
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
   '/_authenticated/_dashboard/dashboards/': typeof AuthenticatedDashboardDashboardsIndexRoute
+  '/_authenticated/_dashboard/notebooks/': typeof AuthenticatedDashboardNotebooksIndexRoute
   '/_authenticated/_dashboard/runs/': typeof AuthenticatedDashboardRunsIndexRoute
   '/_authenticated/_dashboard/workflows/': typeof AuthenticatedDashboardWorkflowsIndexRoute
   '/_authenticated/_dashboard/dashboards/$project/$slug': typeof AuthenticatedDashboardDashboardsProjectSlugRoute
@@ -562,6 +590,8 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/workflows/$repo/$workflowName': typeof AuthenticatedDashboardWorkflowsRepoWorkflowNameRoute
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/_authenticated/_dashboard/runs/$traceId/': typeof AuthenticatedDashboardRunsTraceIdIndexRoute
+  '/_authenticated/_dashboard/notebooks/$project/$slug/$': typeof AuthenticatedDashboardNotebooksProjectSlugSplatRoute
+  '/_authenticated/_dashboard/notebooks/$project/$slug/': typeof AuthenticatedDashboardNotebooksProjectSlugIndexRoute
   '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/': typeof AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRoute
   '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber': typeof AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRoute
 }
@@ -612,6 +642,7 @@ export interface FileRouteTypes {
     | '/api/github/install/callback'
     | '/api/github/install/start'
     | '/dashboards/'
+    | '/notebooks/'
     | '/runs/'
     | '/workflows/'
     | '/dashboards/$project/$slug'
@@ -621,6 +652,8 @@ export interface FileRouteTypes {
     | '/workflows/$repo/$workflowName'
     | '/api/cli/runs/$traceId/logs'
     | '/runs/$traceId/'
+    | '/notebooks/$project/$slug/$'
+    | '/notebooks/$project/$slug/'
     | '/runs/$traceId/jobs/$jobId/'
     | '/runs/$traceId/jobs/$jobId/steps/$stepNumber'
   fileRoutesByTo: FileRoutesByTo
@@ -667,6 +700,7 @@ export interface FileRouteTypes {
     | '/api/github/install/callback'
     | '/api/github/install/start'
     | '/dashboards'
+    | '/notebooks'
     | '/runs'
     | '/workflows'
     | '/dashboards/$project/$slug'
@@ -676,6 +710,8 @@ export interface FileRouteTypes {
     | '/workflows/$repo/$workflowName'
     | '/api/cli/runs/$traceId/logs'
     | '/runs/$traceId'
+    | '/notebooks/$project/$slug/$'
+    | '/notebooks/$project/$slug'
     | '/runs/$traceId/jobs/$jobId'
     | '/runs/$traceId/jobs/$jobId/steps/$stepNumber'
   id:
@@ -728,6 +764,7 @@ export interface FileRouteTypes {
     | '/api/github/install/callback'
     | '/api/github/install/start'
     | '/_authenticated/_dashboard/dashboards/'
+    | '/_authenticated/_dashboard/notebooks/'
     | '/_authenticated/_dashboard/runs/'
     | '/_authenticated/_dashboard/workflows/'
     | '/_authenticated/_dashboard/dashboards/$project/$slug'
@@ -737,6 +774,8 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/workflows/$repo/$workflowName'
     | '/api/cli/runs/$traceId/logs'
     | '/_authenticated/_dashboard/runs/$traceId/'
+    | '/_authenticated/_dashboard/notebooks/$project/$slug/$'
+    | '/_authenticated/_dashboard/notebooks/$project/$slug/'
     | '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/'
     | '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
   fileRoutesById: FileRoutesById
@@ -1010,6 +1049,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRunsIndexRouteImport
       parentRoute: typeof AuthenticatedDashboardRunsRoute
     }
+    '/_authenticated/_dashboard/notebooks/': {
+      id: '/_authenticated/_dashboard/notebooks/'
+      path: '/notebooks'
+      fullPath: '/notebooks/'
+      preLoaderRoute: typeof AuthenticatedDashboardNotebooksIndexRouteImport
+      parentRoute: typeof AuthenticatedDashboardRoute
+    }
     '/_authenticated/_dashboard/dashboards/': {
       id: '/_authenticated/_dashboard/dashboards/'
       path: '/dashboards'
@@ -1157,6 +1203,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardDashboardsProjectSlugRouteImport
       parentRoute: typeof AuthenticatedDashboardRoute
     }
+    '/_authenticated/_dashboard/notebooks/$project/$slug/': {
+      id: '/_authenticated/_dashboard/notebooks/$project/$slug/'
+      path: '/notebooks/$project/$slug'
+      fullPath: '/notebooks/$project/$slug/'
+      preLoaderRoute: typeof AuthenticatedDashboardNotebooksProjectSlugIndexRouteImport
+      parentRoute: typeof AuthenticatedDashboardRoute
+    }
+    '/_authenticated/_dashboard/notebooks/$project/$slug/$': {
+      id: '/_authenticated/_dashboard/notebooks/$project/$slug/$'
+      path: '/notebooks/$project/$slug/$'
+      fullPath: '/notebooks/$project/$slug/$'
+      preLoaderRoute: typeof AuthenticatedDashboardNotebooksProjectSlugSplatRouteImport
+      parentRoute: typeof AuthenticatedDashboardRoute
+    }
     '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/': {
       id: '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/'
       path: '/jobs/$jobId'
@@ -1294,9 +1354,12 @@ interface AuthenticatedDashboardRouteChildren {
   AuthenticatedDashboardErrorsFingerprintRoute: typeof AuthenticatedDashboardErrorsFingerprintRoute
   AuthenticatedDashboardTracesTraceIdRoute: typeof AuthenticatedDashboardTracesTraceIdRoute
   AuthenticatedDashboardDashboardsIndexRoute: typeof AuthenticatedDashboardDashboardsIndexRoute
+  AuthenticatedDashboardNotebooksIndexRoute: typeof AuthenticatedDashboardNotebooksIndexRoute
   AuthenticatedDashboardWorkflowsIndexRoute: typeof AuthenticatedDashboardWorkflowsIndexRoute
   AuthenticatedDashboardDashboardsProjectSlugRoute: typeof AuthenticatedDashboardDashboardsProjectSlugRoute
   AuthenticatedDashboardWorkflowsRepoWorkflowNameRoute: typeof AuthenticatedDashboardWorkflowsRepoWorkflowNameRoute
+  AuthenticatedDashboardNotebooksProjectSlugSplatRoute: typeof AuthenticatedDashboardNotebooksProjectSlugSplatRoute
+  AuthenticatedDashboardNotebooksProjectSlugIndexRoute: typeof AuthenticatedDashboardNotebooksProjectSlugIndexRoute
 }
 
 const AuthenticatedDashboardRouteChildren: AuthenticatedDashboardRouteChildren =
@@ -1328,12 +1391,18 @@ const AuthenticatedDashboardRouteChildren: AuthenticatedDashboardRouteChildren =
       AuthenticatedDashboardTracesTraceIdRoute,
     AuthenticatedDashboardDashboardsIndexRoute:
       AuthenticatedDashboardDashboardsIndexRoute,
+    AuthenticatedDashboardNotebooksIndexRoute:
+      AuthenticatedDashboardNotebooksIndexRoute,
     AuthenticatedDashboardWorkflowsIndexRoute:
       AuthenticatedDashboardWorkflowsIndexRoute,
     AuthenticatedDashboardDashboardsProjectSlugRoute:
       AuthenticatedDashboardDashboardsProjectSlugRoute,
     AuthenticatedDashboardWorkflowsRepoWorkflowNameRoute:
       AuthenticatedDashboardWorkflowsRepoWorkflowNameRoute,
+    AuthenticatedDashboardNotebooksProjectSlugSplatRoute:
+      AuthenticatedDashboardNotebooksProjectSlugSplatRoute,
+    AuthenticatedDashboardNotebooksProjectSlugIndexRoute:
+      AuthenticatedDashboardNotebooksProjectSlugIndexRoute,
   }
 
 const AuthenticatedDashboardRouteWithChildren =

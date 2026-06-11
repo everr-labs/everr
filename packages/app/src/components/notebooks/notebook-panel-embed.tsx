@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { isNotFound, Link } from "@tanstack/react-router";
@@ -39,8 +38,6 @@ function EmbedError({ message }: { message: string }) {
 
 /**
  * A ```panel fence: parse the YAML and render the matching embed form.
- *
- * @expected-unused — consumed by the notebook viewer in a later task.
  */
 export function PanelEmbedBlock({ source }: { source: string }) {
   const parsed = useMemo<

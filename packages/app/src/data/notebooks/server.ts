@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file
 import { notFound } from "@tanstack/react-router";
 import { and, eq, sql } from "drizzle-orm";
 import * as z from "zod";
@@ -8,9 +7,6 @@ import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import type { Notebook } from "./schema";
 import { notebookSpecSchema } from "./schema";
 
-/**
- * @expected-unused — UI consumers come in a later task.
- */
 export const getNotebook = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(z.object({ project: z.string(), slug: z.string() }))
   .handler(async ({ data: { project, slug }, context }) => {
@@ -42,9 +38,6 @@ export const getNotebook = createAuthenticatedServerFn({ method: "GET" })
     return row.document satisfies Notebook;
   });
 
-/**
- * @expected-unused — UI consumers come in a later task.
- */
 export const listNotebooks = createAuthenticatedServerFn({
   method: "GET",
 }).handler(async ({ context }) => {

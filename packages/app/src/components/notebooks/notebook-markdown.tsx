@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file
 import {
   Children,
   type ComponentPropsWithoutRef,
@@ -32,9 +31,6 @@ function PreBlock({ children, ...props }: ComponentPropsWithoutRef<"pre">) {
   return <pre {...props}>{children}</pre>;
 }
 
-/**
- * @expected-unused — consumed by the notebook viewer in a later task.
- */
 export function NotebookMarkdown({ markdown }: { markdown: string }) {
   // The app runs dark-only (see styles/global.css — :root is the dark theme),
   // so prose-invert is applied unconditionally for readable text.
