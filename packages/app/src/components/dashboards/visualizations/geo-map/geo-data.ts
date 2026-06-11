@@ -1,7 +1,8 @@
+import { normalizeValue, type ScaleType } from "../color-scale";
 import { toNumber } from "../data-utils";
 import type { QueryResultRow } from "../index";
 import { regionToNumericId } from "./country-codes";
-import type { GeoColorScheme, GeoMapSpec, GeoScaleType } from "./spec";
+import type { GeoMapSpec } from "./spec";
 
 export interface GeoMarker {
   lat: number;
@@ -9,33 +10,6 @@ export interface GeoMarker {
   value: number | null;
   frame: number;
   label: string | undefined;
-}
-
-/** Full saturated color per scheme (markers + choropleth high end). */
-const SCHEME_COLOR: Record<GeoColorScheme, [number, number, number]> = {
-  blue: [37, 99, 235],
-  green: [22, 163, 74],
-  orange: [234, 88, 12],
-  red: [220, 38, 38],
-};
-
-/**
- * Choropleth fill for a scheme at position t in [0,1]: the scheme's full color
- * at opacity t, so low values fade toward transparent (revealing the land
- * beneath) and high values reach full color. Avoids a washed-out white low end
- * on dark backgrounds.
- */
-export function colorRamp(scheme: GeoColorScheme, t: number): string {
-  const [r, g, b] = SCHEME_COLOR[scheme];
-  const u = t < 0 ? 0 : t > 1 ? 1 : t;
-  const a = Math.round(u * 1000) / 1000;
-  return `rgba(${r}, ${g}, ${b}, ${a})`;
-}
-
-/** The scheme's full color — used as a points-mode marker base color. */
-export function schemeBaseColor(scheme: GeoColorScheme): string {
-  const [r, g, b] = SCHEME_COLOR[scheme];
-  return `rgb(${r}, ${g}, ${b})`;
 }
 
 function validLat(n: number): boolean {
@@ -160,37 +134,12 @@ export function deriveDomain(
   return [min, max];
 }
 
-/**
- * Map a value over [d0,d1] onto [0,1], clamped, through the spec's scale
- * curve. `sqrt` keeps marker area proportional to the value; `log` works on
- * the raw values (not the normalized t) so decades spread evenly — when the
- * domain min is ≤ 0 it spans the top three decades below the max.
- */
-export function normalizeValue(
-  value: number,
-  [d0, d1]: [number, number],
-  scale: GeoScaleType = "linear",
-): number {
-  if (scale === "log") {
-    if (d1 <= 0) return value >= d1 ? 1 : 0;
-    const lo = d0 > 0 ? d0 : d1 / 1000;
-    if (d1 <= lo) return value >= d1 ? 1 : 0;
-    const v = value > 0 ? value : lo;
-    const t = (Math.log(v) - Math.log(lo)) / (Math.log(d1) - Math.log(lo));
-    return t < 0 ? 0 : t > 1 ? 1 : t;
-  }
-  if (d1 <= d0) return 1;
-  const t = (value - d0) / (d1 - d0);
-  const u = t < 0 ? 0 : t > 1 ? 1 : t;
-  return scale === "sqrt" ? Math.sqrt(u) : u;
-}
-
 /** Marker radius for a value: [rMin,rMax] scaled by the normalized value. */
 export function markerRadius(
   value: number,
   domain: [number, number],
   [r0, r1]: [number, number],
-  scale: GeoScaleType = "linear",
+  scale: ScaleType = "linear",
 ): number {
   if (domain[1] <= domain[0]) return r0;
   return r0 + (r1 - r0) * normalizeValue(value, domain, scale);

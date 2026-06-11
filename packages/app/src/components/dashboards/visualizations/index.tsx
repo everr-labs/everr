@@ -5,6 +5,8 @@ import { GaugeChartVisualization } from "./gauge-chart/gauge-chart-visualization
 import { gaugeChartSpec } from "./gauge-chart/spec";
 import type { GeoMapSpec } from "./geo-map/spec";
 import { geoMapSpec } from "./geo-map/spec";
+import { HeatmapVisualization } from "./heatmap/heatmap-visualization";
+import { heatmapSpec } from "./heatmap/spec";
 import { parseSpecLenient } from "./parse-spec";
 import { statChartSpec } from "./stat-chart/spec";
 import { StatChartVisualization } from "./stat-chart/stat-chart-visualization";
@@ -67,6 +69,10 @@ const registry: Record<string, VisualizationEntry> = {
     schema: geoMapSpec,
     component: GeoMapVisualization,
     inset: "flush-content",
+  }),
+  Heatmap: defineVisualization({
+    schema: heatmapSpec,
+    component: HeatmapVisualization,
   }),
   StatChart: defineVisualization({
     schema: statChartSpec,

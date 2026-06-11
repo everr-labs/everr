@@ -3,7 +3,7 @@ title: Visualizations
 description: The built-in panel visualizations and the spec options each one accepts.
 ---
 
-A panel's `plugin.kind` selects its visualization and `plugin.spec` configures it. Everr ships seven visualizations. An unrecognized `kind` renders an "Unknown visualization" placeholder rather than breaking the dashboard.
+A panel's `plugin.kind` selects its visualization and `plugin.spec` configures it. Everr ships eight visualizations. An unrecognized `kind` renders an "Unknown visualization" placeholder rather than breaking the dashboard.
 
 They infer their structure from the columns your query returns — see [Panels and visualizations](/docs/dashboards/panels-and-visualizations#shaping-data-for-each-visualization) for the data shapes.
 
@@ -214,3 +214,33 @@ plugin:
 | `showLegend` | boolean | `true` | State color legend below the timeline. |
 | `colors` | object | `{}` | Fixed state → CSS color mapping (e.g. `{ ok: "#22c55e" }`); unmapped states cycle the shared palette. |
 | `rowHeight` | number | `0.9` | Segment thickness as a fraction of the lane height (0.2–1). |
+
+## Heatmap
+
+A time × bucket grid of color-intensity cells — request-duration histograms over time, status-code distributions, per-entity activity. The query's time column (detected by exact name, case-insensitive: `ts`, `time`, or `timestamp`) is the x-axis; a bucket column is the y-axis and a numeric column drives the cell color. Rows landing on the same (time, bucket) cell are summed — within a query and across queries. Supports drag-to-zoom (writes the new range to the URL).
+
+Buckets that are all numeric (histogram bounds) sort like a y-axis with the largest at the top; categorical buckets keep their first-seen order top-down. Cells are opaque — a cell at the domain minimum gets the ramp's low-end color, while a cell with no rows draws nothing (the panel background shows through).
+
+```yaml
+plugin:
+  kind: Heatmap
+  spec:
+    yColumn: duration_bucket
+    valueColumn: requests
+    unit: req
+    colorScheme: spectral
+    scaleType: log
+```
+
+| Option | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `yColumn` | string | first non-time column | Y-bucket column. |
+| `valueColumn` | string | first remaining numeric column | Cell intensity column. |
+| `unit` | string | `""` | Value formatting in cells, tooltip and legend. |
+| `showLegend` | boolean | `true` | Color ramp legend (min → max) below the grid. |
+| `showValues` | boolean | `false` | Render the value inside cells wide enough to fit it. |
+| `colorScheme` | enum | `spectral` | Cell color ramp. Multi-hue: `spectral` (cool blue → yellow → hot red), `greenYellowRed`. Single-hue light→dark: `blues`, `greens`, `oranges`, `reds`. |
+| `scaleType` | enum | `linear` | Value→color curve. `sqrt` lifts the low end; `log` spreads heavily skewed data (e.g. histogram counts) so sparse cells stay visible. |
+| `min` | number | `0` (or the data minimum if negative) | Lower bound of the color domain — cells at or below it clamp to the ramp's low-end color. |
+| `max` | number | data maximum | Upper bound of the color domain. Set it (e.g. an expected ceiling) for colors that don't shift with the time window. |
+| `cellGap` | number | `1` | Gap between cells in px (0–4). |

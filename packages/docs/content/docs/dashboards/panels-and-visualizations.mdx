@@ -110,6 +110,24 @@ ORDER BY ts
 
 Each state holds until the lane's next sample (the last one holds to the end of the range), so emit a row per bucket — or only on state changes — and return `NULL` for "no data" gaps.
 
+### Heatmap
+
+`Heatmap` needs the same time column (alias to `ts`, `time`, or `timestamp`), plus a bucket column for the y-axis and a numeric column for the cell intensity — `GROUP BY` time and bucket:
+
+```sql
+SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+       multiIf(Duration < 1e7, '<10ms',
+               Duration < 1e8, '<100ms',
+               Duration < 1e9, '<1s', '≥1s') AS bucket,
+       count() AS requests
+FROM traces
+WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+GROUP BY ts, bucket
+ORDER BY ts
+```
+
+Rows that land on the same (time, bucket) cell are summed. All-numeric buckets sort largest-at-top like a y-axis; categorical buckets keep first-seen order.
+
 ### Stat and gauge
 
 `StatChart` and `GaugeChart` share the same data shape: each reduces a numeric column to a single value via a calculation (`last`, `mean`, `max`, …) — stat shows it as a big number, gauge as a filled arc between `min` and `max`. Return one numeric column (the stat's optional sparkline follows the time column, or row order without one):
@@ -255,4 +273,4 @@ lat/lon/value rows; `shape: regions` emits region/value rows.
 
 ## Unknown visualizations
 
-If a panel's `plugin.kind` isn't a registered visualization, the panel renders a clear "Unknown visualization: &lt;kind&gt;" placeholder instead of failing the whole dashboard. Stick to `TimeSeriesChart`, `Table`, `StatChart`, `GaugeChart`, `GeoMap`, and `Treemap`.
+If a panel's `plugin.kind` isn't a registered visualization, the panel renders a clear "Unknown visualization: &lt;kind&gt;" placeholder instead of failing the whole dashboard. Stick to `TimeSeriesChart`, `Table`, `StatChart`, `GaugeChart`, `GeoMap`, `Treemap`, `StateTimeline`, and `Heatmap`.

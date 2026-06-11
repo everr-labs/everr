@@ -1,6 +1,7 @@
 import type * as z from "zod";
 import { gaugeChartSpec } from "@/components/dashboards/visualizations/gauge-chart/spec";
 import { geoMapSpec } from "@/components/dashboards/visualizations/geo-map/spec";
+import { heatmapSpec } from "@/components/dashboards/visualizations/heatmap/spec";
 import { statChartSpec } from "@/components/dashboards/visualizations/stat-chart/spec";
 import { stateTimelineSpec } from "@/components/dashboards/visualizations/state-timeline/spec";
 import { tableSpec } from "@/components/dashboards/visualizations/table/spec";
@@ -18,6 +19,7 @@ import { testDataSpec } from "./testdata/spec";
 export const panelPluginSpecs: Record<string, z.ZodType> = {
   GaugeChart: gaugeChartSpec,
   GeoMap: geoMapSpec,
+  Heatmap: heatmapSpec,
   StatChart: statChartSpec,
   StateTimeline: stateTimelineSpec,
   Table: tableSpec,

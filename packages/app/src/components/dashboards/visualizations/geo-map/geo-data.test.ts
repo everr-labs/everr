@@ -1,13 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { colorRamp, normalizeValue, schemeBaseColor } from "../color-scale";
 import type { QueryResultRow } from "../index";
 import {
-  colorRamp,
   deriveDomain,
   extractMarkers,
   markerRadius,
   mergeRegions,
-  normalizeValue,
-  schemeBaseColor,
 } from "./geo-data";
 import { geoMapSpec } from "./spec";
 
