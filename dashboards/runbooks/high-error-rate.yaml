@@ -1,0 +1,40 @@
+kind: Notebook
+metadata:
+  name: high-error-rate
+  project: demo
+spec:
+  display:
+    name: High error rate runbook
+    description: Triage steps for HTTP 5xx spikes
+  duration: 24h
+  panels:
+    error-rate:
+      kind: Panel
+      spec:
+        display: { name: "5xx rate" }
+        plugin:
+          kind: TimeSeriesChart
+          spec: { unit: req }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                           count() AS error_spans
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND ServiceName = 'everr-web-node'
+                      AND SpanKind = 'Server'
+                      AND StatusCode = 'Error'
+                    GROUP BY ts
+                    ORDER BY ts
+  markdown:
+    file: ./high-error-rate.md
+  pages:
+    - name: triage
+      display: { name: Triage }
+      markdown:
+        file: ./triage.md
