@@ -64,13 +64,30 @@ const csvSpec = z.looseObject({
   rows: z.array(z.array(cellValue)),
 });
 
+const geoSpec = z.looseObject({
+  scenario: z.literal("geo"),
+  seed: z.number().default(1),
+  /** "points" → lat/lon/value rows; "regions" → region/value rows. */
+  shape: z.enum(["points", "regions"]).default("points"),
+  /** Number of point rows (points shape). */
+  points: z.number().int().positive().default(20),
+  /** Number of region rows (regions shape). */
+  count: z.number().int().positive().default(12),
+  latColumn: z.string().default("lat"),
+  lonColumn: z.string().default("lon"),
+  regionColumn: z.string().default("region"),
+  valueColumn: z.string().default("value"),
+});
+
 export const testDataSpec = z.discriminatedUnion("scenario", [
   randomWalkSpec,
   tableSpec,
   csvSpec,
+  geoSpec,
 ]);
 
 export type TestDataSpec = z.infer<typeof testDataSpec>;
 export type RandomWalkSpec = z.infer<typeof randomWalkSpec>;
 export type TableSpec = z.infer<typeof tableSpec>;
 export type CsvSpec = z.infer<typeof csvSpec>;
+export type GeoSpec = z.infer<typeof geoSpec>;

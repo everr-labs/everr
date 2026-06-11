@@ -161,3 +161,48 @@ describe("generateTestData – csv", () => {
     expect(gen({ scenario: "csv", columns: ["a"], rows: [] })).toEqual([]);
   });
 });
+
+describe("geo scenario", () => {
+  const GEO_PARAMS = {
+    from: "2026-06-10 00:00:00.000",
+    to: "2026-06-10 06:00:00.000",
+    step: 600,
+  };
+
+  it("points shape emits lat/lon/value and is deterministic", () => {
+    const spec = {
+      scenario: "geo" as const,
+      shape: "points" as const,
+      seed: 5,
+      points: 8,
+    };
+    const a = generateTestData(testDataSpec.parse(spec), GEO_PARAMS);
+    const b = generateTestData(testDataSpec.parse(spec), GEO_PARAMS);
+    expect(a).toEqual(b);
+    expect(a).toHaveLength(8);
+    for (const row of a) {
+      expect(typeof row.lat).toBe("number");
+      expect(typeof row.lon).toBe("number");
+      expect(typeof row.value).toBe("number");
+      expect(row.lat as number).toBeGreaterThanOrEqual(-90);
+      expect(row.lat as number).toBeLessThanOrEqual(90);
+      expect(row.lon as number).toBeGreaterThanOrEqual(-180);
+      expect(row.lon as number).toBeLessThanOrEqual(180);
+    }
+  });
+
+  it("regions shape emits region/value with valid ISO codes", () => {
+    const spec = {
+      scenario: "geo" as const,
+      shape: "regions" as const,
+      seed: 3,
+      count: 6,
+    };
+    const rows = generateTestData(testDataSpec.parse(spec), GEO_PARAMS);
+    expect(rows).toHaveLength(6);
+    for (const row of rows) {
+      expect(typeof row.region).toBe("string");
+      expect(typeof row.value).toBe("number");
+    }
+  });
+});

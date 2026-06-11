@@ -1,7 +1,7 @@
 import { toClickHouseDateTime } from "@everr/ui/lib/time-range";
 import { parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
 import type { QueryResultRow } from "@/components/dashboards/visualizations";
-import type { RandomWalkSpec, TableSpec, TestDataSpec } from "./spec";
+import type { GeoSpec, RandomWalkSpec, TableSpec, TestDataSpec } from "./spec";
 
 export interface TestDataParams {
   /** ClickHouse DateTime string (start of range). */
@@ -171,6 +171,67 @@ function generateTable(
   return rows;
 }
 
+/** A few city centroids [lon, lat] for clustered point data. */
+const GEO_CENTROIDS: [number, number][] = [
+  [-122.4, 37.8],
+  [-74.0, 40.7],
+  [-0.1, 51.5],
+  [13.4, 52.5],
+  [139.7, 35.7],
+  [151.2, -33.9],
+  [-46.6, -23.5],
+  [77.2, 28.6],
+];
+
+/** ISO alpha-2 codes for region (choropleth) data. */
+const GEO_REGIONS = [
+  "US",
+  "DE",
+  "GB",
+  "FR",
+  "JP",
+  "BR",
+  "IN",
+  "AU",
+  "CA",
+  "ES",
+  "IT",
+  "ZA",
+  "MX",
+  "NL",
+  "SE",
+  "CN",
+];
+
+function generateGeo(spec: GeoSpec): QueryResultRow[] {
+  const rng = mulberry32(spec.seed);
+  if (spec.shape === "regions") {
+    const rows: QueryResultRow[] = [];
+    for (let i = 0; i < spec.count; i++) {
+      const row: QueryResultRow = {};
+      row[spec.regionColumn] = GEO_REGIONS[i % GEO_REGIONS.length] as string;
+      row[spec.valueColumn] = Math.round(rng() * 1000);
+      rows.push(row);
+    }
+    return rows;
+  }
+  const rows: QueryResultRow[] = [];
+  for (let i = 0; i < spec.points; i++) {
+    const [clon, clat] = GEO_CENTROIDS[i % GEO_CENTROIDS.length] as [
+      number,
+      number,
+    ];
+    const lon = clamp(clon + (rng() * 2 - 1) * 6, -180, 180);
+    const lat = clamp(clat + (rng() * 2 - 1) * 6, -90, 90);
+    const row: QueryResultRow = {};
+    row[spec.latColumn] = Number(lat.toFixed(3));
+    row[spec.lonColumn] = Number(lon.toFixed(3));
+    row[spec.valueColumn] = Math.round(rng() * 500);
+    rows.push(row);
+  }
+  return rows;
+}
+
 export function generateTestData(
   spec: TestDataSpec,
   params: TestDataParams,
@@ -188,5 +249,7 @@ export function generateTestData(
         });
         return obj;
       });
+    case "geo":
+      return generateGeo(spec);
   }
 }

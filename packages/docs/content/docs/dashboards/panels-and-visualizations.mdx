@@ -32,7 +32,7 @@ panels:
                   GROUP BY ts ORDER BY ts
 ```
 
-- **`plugin.kind`** selects the visualization: `TimeSeriesChart`, `Table`, or `StatChart`. Its `spec` holds visualization options — see the [Visualizations reference](/docs/dashboards/visualizations).
+- **`plugin.kind`** selects the visualization: `TimeSeriesChart`, `Table`, `StatChart`, or `GeoMap`. Its `spec` holds visualization options — see the [Visualizations reference](/docs/dashboards/visualizations).
 - **`queries`** is a list. Each entry is a `ClickHouseSQL` query whose SQL lives at `spec.plugin.spec.query`. ClickHouse SQL is the query plugin for real data; a deterministic [`TestData`](#testdata-query-kind-development--test) plugin is also available for development and visual testing.
 - Multiple queries are supported: the time-series chart overlays all of them, the table shows a per-query selector, and the stat chart renders one tile per resulting series.
 
@@ -198,6 +198,45 @@ aligned to `columns`, and may be `null`.
           - [WARN, 48]
 ```
 
+### geo
+
+Generated geographic rows for the `GeoMap` visualization. `shape: points` emits
+lat/lon/value rows; `shape: regions` emits region/value rows.
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `shape` | `points` | `points` → lat/lon/value rows; `regions` → region/value rows |
+| `seed` | `1` | deterministic generation |
+| `points` | `20` | number of point rows (`points` shape) |
+| `count` | `12` | number of region rows (`regions` shape) |
+| `latColumn` | `lat` | latitude column name (`points` shape) |
+| `lonColumn` | `lon` | longitude column name (`points` shape) |
+| `regionColumn` | `region` | region column name (`regions` shape) |
+| `valueColumn` | `value` | value column name |
+
+```yaml
+- kind: TestData
+  spec:
+    plugin:
+      kind: TestData
+      spec:
+        scenario: geo
+        shape: points
+        points: 30
+        seed: 7
+```
+
+```yaml
+- kind: TestData
+  spec:
+    plugin:
+      kind: TestData
+      spec:
+        scenario: geo
+        shape: regions
+        count: 20
+```
+
 ## Unknown visualizations
 
-If a panel's `plugin.kind` isn't a registered visualization, the panel renders a clear "Unknown visualization: &lt;kind&gt;" placeholder instead of failing the whole dashboard. Stick to `TimeSeriesChart`, `Table`, and `StatChart`.
+If a panel's `plugin.kind` isn't a registered visualization, the panel renders a clear "Unknown visualization: &lt;kind&gt;" placeholder instead of failing the whole dashboard. Stick to `TimeSeriesChart`, `Table`, `StatChart`, and `GeoMap`.
