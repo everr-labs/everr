@@ -33,7 +33,7 @@ panels:
 ```
 
 - **`plugin.kind`** selects the visualization: `TimeSeriesChart`, `Table`, or `StatChart`. Its `spec` holds visualization options — see the [Visualizations reference](/docs/dashboards/visualizations).
-- **`queries`** is a list. Each entry is a `ClickHouseSQL` query whose SQL lives at `spec.plugin.spec.query`. ClickHouse SQL is the only query plugin today.
+- **`queries`** is a list. Each entry is a `ClickHouseSQL` query whose SQL lives at `spec.plugin.spec.query`. ClickHouse SQL is the query plugin for real data; a deterministic [`TestData`](#testdata-query-kind-development--test) plugin is also available for development and visual testing.
 - Multiple queries are supported: the time-series chart overlays all of them, the table shows a per-query selector, and the stat chart renders one tile per resulting series.
 
 ## Placing panels on the grid
@@ -96,7 +96,7 @@ LIMIT 50
 
 ### Stat
 
-Reduces a numeric column to a single value via a calculation (`last`, `mean`, `max`, …). Return one numeric column (a time column enables the optional sparkline):
+Reduces a numeric column to a single value via a calculation (`last`, `mean`, `max`, …). Return one numeric column (the optional sparkline follows the time column, or row order without one):
 
 ```sql
 SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts, count() AS requests
@@ -143,6 +143,60 @@ The width snaps to clock-aligned values so bucket boundaries land on clean axis 
 ### Variables
 
 Separately, you can reference dashboard [variables](/docs/dashboards/variables) with `$name` tokens, which Everr interpolates server-side before running the query.
+
+## TestData query kind (development / test)
+
+`TestData` is a synthetic, deterministic query source for development and visual
+testing — it returns generated rows without touching ClickHouse, so a dashboard
+renders stable output independent of real telemetry. It powers the Visualization
+Gallery. It is not meant for product dashboards.
+
+A query selects it with `kind: TestData` and a `scenario`. It reuses the panel's
+resolved time range and adaptive `{step}`, so time-series scenarios span
+`[from, to]` exactly like a real query. Generation is deterministic given `seed`.
+
+### `random_walk`
+
+Numeric time series (or row-indexed series) — for charts and stat tiles.
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `series` | — | list of `{ name, start, noise, min?, max?, nullChance?, round? }`; one numeric column each |
+| `seed` | `1` | deterministic generation |
+| `labelColumn` | — | when set, emit long output (`ts`, `<labelColumn>`, `<valueColumn>`) → one series per label (grouped pivot) |
+| `valueColumn` | `value` | value column name for long output |
+| `timeColumn` | `true` | `false` omits `ts` and emits `points` rows (row-order sparkline) |
+| `points` | `50` | row count when `timeColumn: false` |
+
+### `table`
+
+Generated tabular rows. `rows: 0` yields an empty frame.
+
+| Column field | Meaning |
+| --- | --- |
+| `time: true` | timestamp spread across `[from, to]` |
+| `values: [...]` | cycled categorical values (may include `null`) |
+| `walk: { start, noise, min?, max?, round? }` | numeric random walk |
+| `seq: true` | ascending integer (1-based) |
+| `const: <value>` | constant for every row |
+
+### `csv`
+
+Literal rows, verbatim. `rows: []` yields an empty frame. Values are positional,
+aligned to `columns`, and may be `null`.
+
+```yaml
+- kind: TestData
+  spec:
+    plugin:
+      kind: TestData
+      spec:
+        scenario: csv
+        columns: [severity, logs]
+        rows:
+          - [ERROR, 12]
+          - [WARN, 48]
+```
 
 ## Unknown visualizations
 

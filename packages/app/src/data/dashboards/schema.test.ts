@@ -147,6 +147,82 @@ describe("dashboardSpecSchemaStrict plugin specs", () => {
   });
 });
 
+describe("dashboardSpecSchemaStrict – query plugin specs", () => {
+  const base = (querySpec: unknown) => ({
+    panels: {
+      p: {
+        kind: "Panel",
+        spec: {
+          plugin: { kind: "TimeSeriesChart", spec: {} },
+          queries: [
+            {
+              kind: "TestData",
+              spec: { plugin: { kind: "TestData", spec: querySpec } },
+            },
+          ],
+        },
+      },
+    },
+    layouts: [
+      {
+        kind: "Grid",
+        spec: {
+          items: [
+            {
+              x: 0,
+              y: 0,
+              width: 1,
+              height: 1,
+              content: { $ref: "#/spec/panels/p" },
+            },
+          ],
+        },
+      },
+    ],
+  });
+
+  it("accepts a valid TestData query spec", () => {
+    const result = dashboardSpecSchemaStrict.safeParse(
+      base({ scenario: "random_walk", series: [{ name: "v" }] }),
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a malformed TestData query spec with a precise path", () => {
+    const result = dashboardSpecSchemaStrict.safeParse(
+      base({ scenario: "nope" }),
+    );
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    const issue = result.error.issues[0]!;
+    // The path must locate the offending query spec within the panel.
+    expect(issue.path.slice(0, 8)).toEqual([
+      "panels",
+      "p",
+      "spec",
+      "queries",
+      0,
+      "spec",
+      "plugin",
+      "spec",
+    ]);
+  });
+
+  it("leaves ClickHouseSQL query specs unvalidated (loose)", () => {
+    const spec = base({});
+    spec.panels.p.spec.queries[0] = {
+      kind: "ClickHouseSQL",
+      spec: {
+        plugin: {
+          kind: "ClickHouseSQL",
+          spec: { query: "select 1", bogus: 9 },
+        },
+      },
+    } as never;
+    expect(dashboardSpecSchemaStrict.safeParse(spec).success).toBe(true);
+  });
+});
+
 describe("dashboardSlugSchema", () => {
   it("accepts valid slugs", () => {
     expect(dashboardSlugSchema.safeParse("abc").success).toBe(true);

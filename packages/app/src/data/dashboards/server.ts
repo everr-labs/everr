@@ -10,6 +10,8 @@ import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { interpolateVariables } from "./interpolate";
 import type { Dashboard } from "./schema";
 import { dashboardSpecSchema } from "./schema";
+import { generateTestData } from "./testdata/generate";
+import { testDataSpec } from "./testdata/spec";
 
 /** A time-series panel targets ~this many points; `step` is sized to hit it. */
 const PANEL_TARGET_POINTS = 500;
@@ -91,12 +93,20 @@ export const listDashboards = createAuthenticatedServerFn({
 
 type QueryRow = Record<string, string | number | boolean | null>;
 
+const querySource = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("ClickHouseSQL"), sql: z.string().min(1) }),
+  z.object({
+    kind: z.literal("TestData"),
+    spec: z.record(z.string(), z.unknown()),
+  }),
+]);
+
 export const runPanelQuery = createAuthenticatedServerFn({
   method: "POST",
 })
   .inputValidator(
     z.object({
-      sql: z.string().min(1),
+      source: querySource,
       from: z.string().optional(),
       to: z.string().optional(),
       variables: z
@@ -114,10 +124,25 @@ export const runPanelQuery = createAuthenticatedServerFn({
     }),
   )
   .handler(
-    async ({ data: { sql, from, to, variables, variableMeta }, context }) => {
+    async ({
+      data: { source, from, to, variables, variableMeta },
+      context,
+    }) => {
+      // Synthetic data for the gallery / dev dashboards: deterministic, no
+      // ClickHouse, no tenant data. Reuses the same range + adaptive {step}.
+      if (source.kind === "TestData") {
+        // Parse the loose spec here (not in the input validator) so the client
+        // can pass the raw plugin spec. A malformed spec throws → surfaces as a
+        // panel query error; the gallery's specs are validated at apply time.
+        const spec = testDataSpec.parse(source.spec);
+        return {
+          rows: generateTestData(spec, dashboardQueryParams({ from, to })),
+        };
+      }
+
       const interpolated = variables
-        ? interpolateVariables(sql, variables, variableMeta ?? {})
-        : sql;
+        ? interpolateVariables(source.sql, variables, variableMeta ?? {})
+        : source.sql;
       // User-supplied SQL: run it through the per-org SQL API user, whose tenant
       // filter is a row policy bound to the user — not a `SETTINGS`-based filter
       // a malicious query could override to read another tenant's rows.

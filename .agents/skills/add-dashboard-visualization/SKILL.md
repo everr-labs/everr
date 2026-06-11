@@ -1,6 +1,6 @@
 ---
 name: add-dashboard-visualization
-description: Use when adding a new visualization type (chart, table, stat, gauge, etc.) to the dashboard panel system. Guides creating the spec schema, the read-only renderer component, and registering both.
+description: Use when adding a new visualization type (chart, table, stat, gauge, etc.) to the dashboard panel system, or adding options to an existing one. Guides creating the spec schema, the read-only renderer component, registering both, and keeping the viz-gallery dashboard exhaustive.
 user-invocable: true
 ---
 
@@ -158,7 +158,24 @@ Without this, `everr apply` accepts any spec for the new kind instead of rejecti
 
 Add the new kind and its option table to `packages/docs/content/docs/dashboards/visualizations.mdx`, and update the `everr-write-dashboards` skill in `crates/everr-core/assets/skills/` so dashboard-authoring agents know the options exist.
 
-### 7. Use it in a dashboard
+### 7. Add it to the gallery dashboard
+
+The `dashboards/viz-gallery/` directory (project `demo`) is the visual regression sheet, split by visualization type into one dashboard per kind — `time-series.yaml`, `stat.yaml`, and `table.yaml`. Together they must exercise **every visualization kind with every spec option** — including each enum value — and every meaningful data-shape behavior (multi-query, grouped pivot, no time column, empty/no-data states) at least once. This step applies to ANY spec change, not just new kinds: when you add an option (or enum value) to an existing visualization, add or extend a panel in the matching per-type file that exercises it.
+
+The gallery's panels are driven by the **`TestData`** query kind (a deterministic,
+ClickHouse-free dev data source), not real telemetry — so the sheet renders
+identical output every time. When you add an option that needs specific data to be
+visible, drive the new panel with a `TestData` scenario (`random_walk` for time
+series/stats, `table` for tabular data, `csv` for exact small frames) rather than a
+`ClickHouseSQL` query. See the TestData section in
+`packages/docs/content/docs/dashboards/panels-and-visualizations.mdx` for the
+scenario options.
+
+- One panel per meaningful option combination; put the options it exercises in the panel's `display.description` (e.g. `"curveType: stepAfter · unit: ms"`).
+- Reference each new panel from the layout grid at the bottom of the same per-type file.
+- Reconcile and eyeball it: `everr apply ./dashboards`, then open `/dashboards/demo/viz-gallery-time-series` (or `-stat` / `-table`).
+
+### 8. Use it in a dashboard
 
 There is no UI picker — a panel selects this visualization by setting
 `plugin.kind` in a dashboard file. Add a panel to a Perses dashboard

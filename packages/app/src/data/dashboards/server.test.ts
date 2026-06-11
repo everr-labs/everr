@@ -88,7 +88,10 @@ describe("runPanelQuery – variable interpolation", () => {
 
     await runPanelQuery({
       data: {
-        sql: "SELECT * FROM logs WHERE service = $service AND env IN $env",
+        source: {
+          kind: "ClickHouseSQL",
+          sql: "SELECT * FROM logs WHERE service = $service AND env IN $env",
+        },
         variables: { service: "api", env: ["prod", "staging"] },
       },
     });
@@ -107,7 +110,10 @@ describe("runPanelQuery – variable interpolation", () => {
 
     await runPanelQuery({
       data: {
-        sql: "SELECT * FROM logs WHERE env IN $env",
+        source: {
+          kind: "ClickHouseSQL",
+          sql: "SELECT * FROM logs WHERE env IN $env",
+        },
         variables: { env: "__all" },
         variableMeta: { env: { options: ["prod", "staging"] } },
       },
@@ -121,7 +127,11 @@ describe("runPanelQuery – variable interpolation", () => {
   it("runs the SQL unchanged when no variables are provided", async () => {
     mockedClickhouse.mockResolvedValue([]);
 
-    await runPanelQuery({ data: { sql: "SELECT $notavar FROM logs" } });
+    await runPanelQuery({
+      data: {
+        source: { kind: "ClickHouseSQL", sql: "SELECT $notavar FROM logs" },
+      },
+    });
 
     expect(mockedClickhouse.mock.calls[0]![0]).toBe(
       "SELECT $notavar FROM logs",
@@ -131,7 +141,9 @@ describe("runPanelQuery – variable interpolation", () => {
   it("binds from/to and an adaptive {step} bucket as query params", async () => {
     mockedClickhouse.mockResolvedValue([]);
 
-    await runPanelQuery({ data: { sql: "SELECT 1" } });
+    await runPanelQuery({
+      data: { source: { kind: "ClickHouseSQL", sql: "SELECT 1" } },
+    });
 
     const params = mockedClickhouse.mock.calls[0]![2] as Record<
       string,
@@ -291,5 +303,40 @@ describe("listDashboards (with project + folderPath)", () => {
     expect(rows).toEqual([
       { slug: "cpu", project: "team", name: "CPU", folderPath: "Infra" },
     ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// runPanelQuery – TestData source
+// ---------------------------------------------------------------------------
+
+describe("runPanelQuery – TestData", () => {
+  it("generates synthetic rows without touching ClickHouse", async () => {
+    const { rows } = await runPanelQuery({
+      data: {
+        source: {
+          kind: "TestData",
+          spec: { scenario: "csv", columns: ["a", "b"], rows: [["x", 1]] },
+        },
+      },
+    });
+    expect(rows).toEqual([{ a: "x", b: 1 }]);
+    expect(mockedClickhouse).not.toHaveBeenCalled();
+  });
+
+  it("spans the resolved time range for a random_walk scenario", async () => {
+    const { rows } = await runPanelQuery({
+      data: {
+        source: {
+          kind: "TestData",
+          spec: { scenario: "random_walk", seed: 1, series: [{ name: "v" }] },
+        },
+        from: "2026-06-10 00:00:00",
+        to: "2026-06-10 00:10:00",
+      },
+    });
+    expect(rows.length).toBeGreaterThan(0);
+    expect(Object.keys(rows[0])).toContain("ts");
+    expect(Object.keys(rows[0])).toContain("v");
   });
 });

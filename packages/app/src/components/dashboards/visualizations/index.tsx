@@ -19,8 +19,8 @@ export interface ResolvedTimeRange {
 export interface VisualizationProps<TSpec = unknown> {
   spec: TSpec;
   data?: QueryResultRow[][];
-  timeRange?: ResolvedTimeRange;
-  onTimeRangeChange?: (range: ResolvedTimeRange) => void;
+  timeRange: ResolvedTimeRange;
+  onTimeRangeChange: (range: ResolvedTimeRange) => void;
 }
 
 interface VisualizationEntry {
@@ -78,8 +78,8 @@ export function getVisualizationSpecWarnings(plugin: PanelPlugin): string[] {
 export interface PanelVisualizationProps {
   plugin: PanelPlugin;
   data?: QueryResultRow[][];
-  timeRange?: ResolvedTimeRange;
-  onTimeRangeChange?: (range: ResolvedTimeRange) => void;
+  timeRange: ResolvedTimeRange;
+  onTimeRangeChange: (range: ResolvedTimeRange) => void;
 }
 
 export function PanelVisualization({

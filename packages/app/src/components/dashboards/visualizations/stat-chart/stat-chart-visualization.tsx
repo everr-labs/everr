@@ -3,13 +3,11 @@ import { cn } from "@everr/ui/lib/utils";
 import { Hash } from "lucide-react";
 import { useMemo } from "react";
 import { Area, AreaChart, XAxis } from "recharts";
+import { queryLabel, SERIES_COLORS } from "../data-utils";
 import type { VisualizationProps } from "../index";
 import type { StatChartSpec } from "./spec";
 import { formatStatValue, resolveThresholdColor } from "./stat-calculations";
 import { computeStatTiles } from "./stat-series";
-
-const SPARKLINE_COLOR = "hsl(217, 91%, 60%)";
-const QUERY_LABELS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 /** Value text scales down as tiles crowd the panel. */
 function valueSizeClass(tileCount: number): string {
@@ -64,14 +62,19 @@ export function StatChartVisualization({
     <div className="flex h-full flex-wrap items-stretch justify-center gap-4">
       {tiles.map((tile) => {
         const value = tile.value;
-        const label =
-          tile.label || `Query ${QUERY_LABELS[tile.frame] ?? tile.frame + 1}`;
-        const seriesMax = tile.values.length > 0 ? Math.max(...tile.values) : 0;
+        const label = tile.label || queryLabel(tile.frame);
+        const seriesMax =
+          tile.points.length > 0
+            ? Math.max(...tile.points.map((p) => p.value))
+            : 0;
         const color =
           value !== undefined
             ? resolveThresholdColor(value, thresholds, seriesMax)
             : undefined;
         const background = colorMode === "background" && color !== undefined;
+        const sparklineColor = background
+          ? "rgba(255, 255, 255, 0.9)"
+          : (color ?? SERIES_COLORS[0]!);
         return (
           <div
             key={`${tile.frame}-${tile.label}`}
@@ -120,14 +123,7 @@ export function StatChartVisualization({
             {showSparkline && tile.points.length > 1 && (
               <div className="h-1/3 max-h-24 w-full">
                 <ChartContainer
-                  config={{
-                    value: {
-                      label: "value",
-                      color: background
-                        ? "rgba(255, 255, 255, 0.9)"
-                        : (color ?? SPARKLINE_COLOR),
-                    },
-                  }}
+                  config={{}}
                   className="aspect-auto h-full w-full"
                 >
                   <AreaChart
@@ -146,8 +142,8 @@ export function StatChartVisualization({
                     <Area
                       dataKey="value"
                       type="monotone"
-                      stroke="var(--color-value)"
-                      fill="var(--color-value)"
+                      stroke={sparklineColor}
+                      fill={sparklineColor}
                       fillOpacity={0.2}
                       strokeWidth={1.5}
                       dot={false}

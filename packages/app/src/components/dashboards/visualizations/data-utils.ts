@@ -1,6 +1,24 @@
 import { parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
 import type { QueryResultRow } from "./index";
 
+/** Shared series palette. Index 0 doubles as the accent color for brush
+ * selections and sparklines. */
+export const SERIES_COLORS = [
+  "hsl(217, 91%, 60%)",
+  "hsl(142, 71%, 45%)",
+  "hsl(0, 84%, 60%)",
+  "hsl(280, 68%, 60%)",
+  "hsl(35, 92%, 50%)",
+  "hsl(190, 90%, 50%)",
+];
+
+const QUERY_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+/** Display name for a panel query by index: "Query A", "Query B", … */
+export function queryLabel(index: number): string {
+  return `Query ${QUERY_LETTERS[index] ?? index + 1}`;
+}
+
 /**
  * The time-axis column, detected by EXACT name (case-insensitive). A prefix
  * match would claim columns like `timezone` or `timestamp_label` as the time
@@ -25,12 +43,7 @@ export function detectTimeKey(rows: QueryResultRow[]): string | undefined {
  * would see no value columns and render empty.
  */
 export function isNumericValue(value: unknown): boolean {
-  if (typeof value === "number") return Number.isFinite(value);
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    return trimmed !== "" && Number.isFinite(Number(trimmed));
-  }
-  return false;
+  return toNumber(value) !== null;
 }
 
 /** Coerce a numeric value (number or numeric string) to a number, else null. */

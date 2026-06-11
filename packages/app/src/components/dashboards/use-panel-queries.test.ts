@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 // jsdom runs as a "client", so stub the db client to keep that import inert.
 vi.mock("@/db/client", () => ({ db: {} }));
 
+import type { PanelQuerySource } from "./query-array";
 import {
   buildPanelQueryRequest,
   buildPanelQueryRequests,
@@ -20,9 +21,11 @@ const ctx = {
   allErrors: {} as Record<string, string>,
 };
 
+const ch = (sql: string): PanelQuerySource => ({ kind: "ClickHouseSQL", sql });
+
 function state(partial: Partial<SingleQueryState>): SingleQueryState {
   return {
-    sql: "select 1",
+    active: true,
     missingName: undefined,
     isPending: false,
     isError: false,
@@ -33,15 +36,18 @@ function state(partial: Partial<SingleQueryState>): SingleQueryState {
 }
 
 describe("buildPanelQueryRequests", () => {
-  it("resolves variables per query independently", () => {
-    const reqs = buildPanelQueryRequests(["select $region", "select 1"], ctx);
+  it("resolves variables per ClickHouse query independently", () => {
+    const reqs = buildPanelQueryRequests(
+      [ch("select $region"), ch("select 1")],
+      ctx,
+    );
     expect(reqs[0]!.variables).toEqual({ region: "us" });
     expect(reqs[0]!.missingName).toBeUndefined();
     expect(reqs[1]!.variables).toBeUndefined();
   });
 
   it("flags a query whose variable has no value", () => {
-    const reqs = buildPanelQueryRequests(["select $region"], {
+    const reqs = buildPanelQueryRequests([ch("select $region")], {
       ...ctx,
       values: {},
     });
@@ -49,50 +55,48 @@ describe("buildPanelQueryRequests", () => {
   });
 
   it("flags a query waiting for all-expansion options", () => {
-    const reqs = buildPanelQueryRequests(["select $region"], {
+    const reqs = buildPanelQueryRequests([ch("select $region")], {
       ...ctx,
       pendingAllNames: ["region"],
     });
     expect(reqs[0]!.waitingForOptions).toBe(true);
   });
 
-  it("buildPanelQueryRequest matches the array form for one sql", () => {
-    expect(buildPanelQueryRequest("select $region", ctx)).toEqual(
-      buildPanelQueryRequests(["select $region"], ctx)[0],
-    );
-  });
-
   it("surfaces a used variable's options error", () => {
-    const req = buildPanelQueryRequest("select $region", {
+    const req = buildPanelQueryRequest(ch("select $region"), {
       ...ctx,
       allErrors: { region: 'Variable "$region" has too many values' },
     });
     expect(req.optionsError).toBe('Variable "$region" has too many values');
   });
 
-  it("ignores an options error for a variable the query does not use", () => {
-    const req = buildPanelQueryRequest("select 1", {
-      ...ctx,
-      allErrors: { region: "boom" },
-    });
-    expect(req.optionsError).toBeUndefined();
+  it("does no variable handling for a TestData source", () => {
+    const source: PanelQuerySource = {
+      kind: "TestData",
+      spec: { scenario: "csv", columns: ["a"], rows: [] },
+    };
+    const req = buildPanelQueryRequest(source, { ...ctx, values: {} });
+    expect(req.source).toEqual(source);
+    expect(req.variables).toBeUndefined();
+    expect(req.missingName).toBeUndefined();
+    expect(req.waitingForOptions).toBe(false);
   });
 });
 
 describe("combineQueryStates", () => {
-  it("is success with one result set per non-empty query, in order", () => {
+  it("is success with one result set per active query, in order", () => {
     const result = combineQueryStates([
-      state({ sql: "a", rows: [{ x: 1 }] }),
-      state({ sql: "b", rows: [{ x: 2 }] }),
+      state({ rows: [{ x: 1 }] }),
+      state({ rows: [{ x: 2 }] }),
     ]);
     expect(result.status).toBe("success");
     expect(result.data).toEqual([[{ x: 1 }], [{ x: 2 }]]);
   });
 
-  it("ignores empty-sql queries entirely", () => {
+  it("ignores inactive queries entirely", () => {
     const result = combineQueryStates([
-      state({ sql: "a", rows: [{ x: 1 }] }),
-      state({ sql: "   ", rows: undefined, isPending: true }),
+      state({ rows: [{ x: 1 }] }),
+      state({ active: false, rows: undefined, isPending: true }),
     ]);
     expect(result.status).toBe("success");
     expect(result.data).toEqual([[{ x: 1 }]]);
@@ -100,8 +104,8 @@ describe("combineQueryStates", () => {
 
   it("errors the whole panel when any query errors", () => {
     const result = combineQueryStates([
-      state({ sql: "a", rows: [{ x: 1 }] }),
-      state({ sql: "b", isError: true, error: new Error("boom") }),
+      state({ rows: [{ x: 1 }] }),
+      state({ isError: true, error: new Error("boom") }),
     ]);
     expect(result.status).toBe("error");
     expect(result.errorMessage).toBe("boom");
@@ -110,7 +114,6 @@ describe("combineQueryStates", () => {
   it("errors with the options error before considering pending state", () => {
     const result = combineQueryStates([
       state({
-        sql: "select $region",
         optionsError: "Failed to load options for $region: boom",
         rows: undefined,
         isPending: true,
@@ -124,7 +127,7 @@ describe("combineQueryStates", () => {
 
   it("errors with a variable hint when a query is missing a value", () => {
     const result = combineQueryStates([
-      state({ sql: "select $region", missingName: "region", rows: undefined }),
+      state({ missingName: "region", rows: undefined }),
     ]);
     expect(result.status).toBe("error");
     expect(result.errorMessage).toBe("Select a value for $region");
@@ -132,14 +135,16 @@ describe("combineQueryStates", () => {
 
   it("is pending while any active query has no rows yet", () => {
     const result = combineQueryStates([
-      state({ sql: "a", rows: [{ x: 1 }] }),
-      state({ sql: "b", isPending: true, rows: undefined }),
+      state({ rows: [{ x: 1 }] }),
+      state({ isPending: true, rows: undefined }),
     ]);
     expect(result.status).toBe("pending");
   });
 
   it("is success with undefined data when no queries are active", () => {
-    const result = combineQueryStates([state({ sql: "", rows: undefined })]);
+    const result = combineQueryStates([
+      state({ active: false, rows: undefined }),
+    ]);
     expect(result.status).toBe("success");
     expect(result.data).toBeUndefined();
   });

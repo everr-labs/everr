@@ -4,30 +4,28 @@ import {
   ChartLegendContent,
 } from "@everr/ui/components/chart";
 import { LineChart as LineChartIcon } from "lucide-react";
-import {
-  Fragment,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { Fragment, useCallback, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   CartesianGrid,
-  Customized,
   Line,
   LineChart,
   ReferenceArea,
+  ReferenceDot,
+  ReferenceLine,
   XAxis,
   YAxis,
 } from "recharts";
+import { SERIES_COLORS } from "../data-utils";
 import type { VisualizationProps } from "../index";
 import type { TimeSeriesChartSpec } from "./spec";
 import { buildChartModel, TS_KEY } from "./time-series-data";
 
-function createTickFormatter(domain?: [number, number]) {
-  const span = domain ? domain[1] - domain[0] : 0;
+const BRUSH_COLOR = SERIES_COLORS[0]!;
+const MAX_X_TICKS = 6;
+
+function createTickFormatter(domain: [number, number]) {
+  const span = domain[1] - domain[0];
   return (ms: number) => {
     const d = new Date(ms);
     if (span > 86_400_000) {
@@ -109,7 +107,6 @@ export function TimeSeriesChartVisualization({
 
   const containerRef = useRef<HTMLDivElement>(null);
   const plotRectRef = useRef<DOMRect | null>(null);
-  const [maxTicks, setMaxTicks] = useState(6);
   const [brushStart, setBrushStart] = useState<number | null>(null);
   const [brushEnd, setBrushEnd] = useState<number | null>(null);
   const [tooltipState, setTooltipState] = useState<{
@@ -118,26 +115,8 @@ export function TimeSeriesChartVisualization({
     index: number;
   } | null>(null);
 
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const computeTicks = (width: number) =>
-      Math.max(2, Math.floor(width / 120));
-    setMaxTicks(computeTicks(el.clientWidth));
-    const observer = new ResizeObserver(([entry]) => {
-      if (!entry) return;
-      const next = computeTicks(entry.contentRect.width);
-      setMaxTicks((prev) => (prev === next ? prev : next));
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
-  const domain: [number, number] | undefined = useMemo(
-    () =>
-      timeRange
-        ? [timeRange.from.getTime(), timeRange.to.getTime()]
-        : undefined,
+  const domain = useMemo<[number, number]>(
+    () => [timeRange.from.getTime(), timeRange.to.getTime()],
     [timeRange],
   );
 
@@ -146,14 +125,11 @@ export function TimeSeriesChartVisualization({
     [data, domain],
   );
 
-  const ticks = useMemo(
-    () => (domain ? generateTicks(domain, maxTicks) : undefined),
-    [domain, maxTicks],
-  );
+  const ticks = useMemo(() => generateTicks(domain, MAX_X_TICKS), [domain]);
 
   const handleChartMouseMove = useCallback(
     (e: React.MouseEvent) => {
-      if (!containerRef.current || !domain || chartData.length === 0) return;
+      if (!containerRef.current || chartData.length === 0) return;
       const plotRect = getPlotArea(containerRef.current);
       if (!plotRect) return;
       const ts = pxToTimestamp(e.clientX, plotRect, domain);
@@ -181,7 +157,7 @@ export function TimeSeriesChartVisualization({
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
-      if (!containerRef.current || !domain) return;
+      if (!containerRef.current) return;
       const plotRect = getPlotArea(containerRef.current);
       if (!plotRect) return;
       plotRectRef.current = plotRect;
@@ -195,7 +171,7 @@ export function TimeSeriesChartVisualization({
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
-      if (brushStart == null || !plotRectRef.current || !domain) return;
+      if (brushStart == null || !plotRectRef.current) return;
       const ts = pxToTimestamp(e.clientX, plotRectRef.current, domain);
       setBrushEnd(ts);
     },
@@ -203,7 +179,7 @@ export function TimeSeriesChartVisualization({
   );
 
   const handlePointerUp = useCallback(() => {
-    if (brushStart != null && brushEnd != null && onTimeRangeChange) {
+    if (brushStart != null && brushEnd != null) {
       const from = Math.min(brushStart, brushEnd);
       const to = Math.max(brushStart, brushEnd);
       if (to - from > 1000) {
@@ -232,6 +208,9 @@ export function TimeSeriesChartVisualization({
     );
   }
 
+  const tooltipRow = tooltipState ? chartData[tooltipState.index] : undefined;
+  const tooltipTs = tooltipRow ? (tooltipRow[TS_KEY] as number) : undefined;
+
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: chart interaction area
     <div
@@ -253,7 +232,7 @@ export function TimeSeriesChartVisualization({
           <XAxis
             dataKey={TS_KEY}
             type="number"
-            domain={domain ?? ["dataMin", "dataMax"]}
+            domain={domain}
             ticks={ticks}
             tickLine={false}
             axisLine={false}
@@ -271,55 +250,6 @@ export function TimeSeriesChartVisualization({
             tickMargin={8}
             tickFormatter={(v) => (unit ? `${v}${unit}` : String(v))}
           />
-          <Customized
-            component={(props: Record<string, unknown>) => {
-              if (!tooltipState) return null;
-              const row = chartData[tooltipState.index];
-              if (!row) return null;
-              const xMap = props.xAxisMap as
-                | Record<string, { scale: (v: number) => number }>
-                | undefined;
-              const yMap = props.yAxisMap as
-                | Record<string, { scale: (v: number) => number }>
-                | undefined;
-              const xScale = xMap ? Object.values(xMap)[0]?.scale : undefined;
-              const yScale = yMap ? Object.values(yMap)[0]?.scale : undefined;
-              if (!xScale || !yScale) return null;
-              const cx = xScale(row[TS_KEY] as number);
-              const offset = props.offset as
-                | { top?: number; height?: number }
-                | undefined;
-              const top = offset?.top ?? 0;
-              const height = offset?.height ?? 0;
-              return (
-                <g>
-                  <line
-                    x1={cx}
-                    x2={cx}
-                    y1={top}
-                    y2={top + height}
-                    stroke="var(--border)"
-                    strokeDasharray="3 3"
-                  />
-                  {valueKeys.map((key) => {
-                    const val = row[key];
-                    if (val == null || typeof val !== "number") return null;
-                    return (
-                      <circle
-                        key={key}
-                        cx={cx}
-                        cy={yScale(val)}
-                        r={4}
-                        fill={chartConfig[key]?.color}
-                        stroke="var(--card)"
-                        strokeWidth={2}
-                      />
-                    );
-                  })}
-                </g>
-              );
-            }}
-          />
           {showLegend && <ChartLegend content={<ChartLegendContent />} />}
           {valueKeys.map((key) => (
             <Line
@@ -336,36 +266,56 @@ export function TimeSeriesChartVisualization({
               isAnimationActive={false}
             />
           ))}
+          {tooltipTs !== undefined && (
+            <ReferenceLine
+              x={tooltipTs}
+              stroke="var(--border)"
+              strokeDasharray="3 3"
+            />
+          )}
+          {tooltipTs !== undefined &&
+            valueKeys.map((key) => {
+              const val = tooltipRow?.[key];
+              if (typeof val !== "number") return null;
+              return (
+                <ReferenceDot
+                  key={key}
+                  x={tooltipTs}
+                  y={val}
+                  r={4}
+                  fill={chartConfig[key]?.color}
+                  stroke="var(--card)"
+                  strokeWidth={2}
+                />
+              );
+            })}
           {brushStart != null && brushEnd != null && (
             <ReferenceArea
               x1={brushStart}
               x2={brushEnd}
-              fill="hsl(217, 91%, 60%)"
+              fill={BRUSH_COLOR}
               fillOpacity={0.15}
-              stroke="hsl(217, 91%, 60%)"
+              stroke={BRUSH_COLOR}
               strokeOpacity={0.3}
             />
           )}
         </LineChart>
       </ChartContainer>
-      {tooltipState &&
-        chartData[tooltipState.index] &&
+      {tooltipRow &&
         createPortal(
           <div
             className="pointer-events-none fixed z-50 rounded-md border border-border bg-card px-3 py-2 text-xs shadow-md"
             style={{
-              left: tooltipState.clientX + 12,
-              top: tooltipState.clientY + 12,
+              left: tooltipState!.clientX + 12,
+              top: tooltipState!.clientY + 12,
             }}
           >
             <div className="mb-1 text-muted-foreground">
-              {new Date(
-                chartData[tooltipState.index]![TS_KEY] as number,
-              ).toLocaleString()}
+              {new Date(tooltipTs!).toLocaleString()}
             </div>
             <div className="grid grid-cols-[auto_1fr_auto] items-center gap-x-2 gap-y-0.5">
               {valueKeys.map((key) => {
-                const val = chartData[tooltipState.index]![key];
+                const val = tooltipRow[key];
                 if (val == null) return null;
                 return (
                   <Fragment key={key}>

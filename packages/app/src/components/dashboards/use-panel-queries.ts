@@ -8,12 +8,12 @@ import {
 import { panelQueryOptions } from "@/data/dashboards/options";
 import type { Panel } from "@/data/dashboards/schema";
 import { pickByNames } from "@/data/dashboards/variable-values";
-import { getQueryTexts } from "./query-array";
+import { getPanelQuerySources, type PanelQuerySource } from "./query-array";
 import { useDashboardVariables } from "./use-dashboard-variables";
 import type { QueryResultRow } from "./visualizations";
 
 export interface PanelQueryRequest {
-  sql: string;
+  source: PanelQuerySource;
   variables?: VariableValues;
   variableMeta?: VariableMeta;
   missingName?: string;
@@ -30,11 +30,22 @@ export interface VariableContext {
   allErrors: Record<string, string>;
 }
 
+/** A source runs if it has something to execute. `none` never runs. */
+function sourceIsActive(source: PanelQuerySource): boolean {
+  if (source.kind === "ClickHouseSQL") return source.sql.trim().length > 0;
+  return source.kind === "TestData";
+}
+
 export function buildPanelQueryRequest(
-  sql: string,
+  source: PanelQuerySource,
   ctx: VariableContext,
 ): PanelQueryRequest {
-  const usedNames = extractVariableTokens(sql).filter((n) =>
+  // Only ClickHouse SQL carries `$variable` tokens; other sources skip the
+  // whole variable-resolution path (no missing/waiting/options states).
+  if (source.kind !== "ClickHouseSQL") {
+    return { source, waitingForOptions: false };
+  }
+  const usedNames = extractVariableTokens(source.sql).filter((n) =>
     ctx.definedNames.has(n),
   );
   const missingName = usedNames.find((n) => ctx.values[n] === undefined);
@@ -45,7 +56,7 @@ export function buildPanelQueryRequest(
     .map((n) => ctx.allErrors[n])
     .find((e) => e !== undefined);
   return {
-    sql,
+    source,
     variables:
       usedNames.length > 0 ? pickByNames(ctx.values, usedNames) : undefined,
     variableMeta:
@@ -57,10 +68,10 @@ export function buildPanelQueryRequest(
 }
 
 export function buildPanelQueryRequests(
-  sqls: string[],
+  sources: PanelQuerySource[],
   ctx: VariableContext,
 ): PanelQueryRequest[] {
-  return sqls.map((sql) => buildPanelQueryRequest(sql, ctx));
+  return sources.map((source) => buildPanelQueryRequest(source, ctx));
 }
 
 export type PanelQueriesStatus = "pending" | "error" | "success";
@@ -72,7 +83,7 @@ export interface CombinedPanelResult {
 }
 
 export interface SingleQueryState {
-  sql: string;
+  active: boolean;
   missingName?: string;
   optionsError?: string;
   isPending: boolean;
@@ -85,7 +96,7 @@ export function combineQueryStates(
   states: SingleQueryState[],
 ): CombinedPanelResult {
   for (const s of states) {
-    if (s.sql.trim().length === 0) continue;
+    if (!s.active) continue;
     if (s.missingName !== undefined) {
       return {
         status: "error",
@@ -104,7 +115,7 @@ export function combineQueryStates(
     }
   }
 
-  const active = states.filter((s) => s.sql.trim().length > 0);
+  const active = states.filter((s) => s.active);
   if (active.length === 0) return { status: "success", data: undefined };
   if (active.some((s) => s.isPending || s.rows === undefined)) {
     return { status: "pending" };
@@ -116,7 +127,7 @@ export interface UsePanelQueriesOptions {
   from?: string;
   to?: string;
   enabled?: boolean;
-  queryEnabled?: (sql: string, index: number) => boolean;
+  queryEnabled?: (source: PanelQuerySource, index: number) => boolean;
 }
 
 export function usePanelQueries(
@@ -129,23 +140,23 @@ export function usePanelQueries(
     () => new Set(variables.map((v) => v.spec.name)),
     [variables],
   );
-  const sqls = useMemo(() => getQueryTexts(panel), [panel]);
+  const sources = useMemo(() => getPanelQuerySources(panel), [panel]);
   const requests = useMemo(
     () =>
-      buildPanelQueryRequests(sqls, {
+      buildPanelQueryRequests(sources, {
         definedNames,
         values,
         meta,
         pendingAllNames,
         allErrors,
       }),
-    [sqls, definedNames, values, meta, pendingAllNames, allErrors],
+    [sources, definedNames, values, meta, pendingAllNames, allErrors],
   );
 
   const results = useQueries({
     queries: requests.map((r, i) => ({
       ...panelQueryOptions(
-        r.sql,
+        r.source,
         opts.from,
         opts.to,
         r.variables,
@@ -153,11 +164,11 @@ export function usePanelQueries(
       ),
       enabled:
         (opts.enabled ?? true) &&
-        r.sql.trim().length > 0 &&
+        sourceIsActive(r.source) &&
         r.missingName === undefined &&
         r.optionsError === undefined &&
         !r.waitingForOptions &&
-        (opts.queryEnabled?.(r.sql, i) ?? true),
+        (opts.queryEnabled?.(r.source, i) ?? true),
     })),
   });
 
@@ -165,7 +176,7 @@ export function usePanelQueries(
     () =>
       combineQueryStates(
         requests.map((r, i) => ({
-          sql: r.sql,
+          active: sourceIsActive(r.source),
           missingName: r.missingName,
           optionsError: r.optionsError,
           isPending: results[i]?.isPending ?? false,
