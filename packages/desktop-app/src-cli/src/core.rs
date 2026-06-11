@@ -15,6 +15,7 @@ use crate::cli::{
     GetLogsArgs, ListRunsArgs, LogPagingArgs, ShowRunArgs, StatusArgs, TelemetryFormat,
     TelemetryQueryArgs, WatchArgs,
 };
+use crate::command_telemetry;
 use crate::telemetry;
 
 fn resolve_commit(explicit: Option<String>, cwd: &std::path::Path) -> Result<String> {
@@ -153,7 +154,7 @@ pub async fn runs_logs(args: GetLogsArgs) -> Result<()> {
             print_more_logs_notice(paged_logs.page_size, paged_logs.next_offset)?;
         }
         if args.egrep.is_some() && paged_logs.logs.is_empty() {
-            std::process::exit(1);
+            command_telemetry::exit(1);
         }
         return Ok(());
     }
@@ -167,7 +168,7 @@ pub async fn runs_logs(args: GetLogsArgs) -> Result<()> {
     let response = client.get_step_logs(&args.trace_id, &query).await?;
     print_step_logs(&response.logs, args.color)?;
     if args.egrep.is_some() && response.logs.is_empty() {
-        std::process::exit(1);
+        command_telemetry::exit(1);
     }
     Ok(())
 }
@@ -628,9 +629,7 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
                 .filter(|u| !u.is_empty())
                 .or_else(persisted_api_base_url)
                 .ok_or_else(|| {
-                    anyhow::anyhow!(
-                        "EVERR_API_TOKEN is set but no base URL; set EVERR_API_URL"
-                    )
+                    anyhow::anyhow!("EVERR_API_TOKEN is set but no base URL; set EVERR_API_URL")
                 })?;
             everr_core::api::ApiClient::from_token(&base_url, &token)?
         }
@@ -654,9 +653,10 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let has_changes = plan.results.iter().any(|r| {
-        !r.created.is_empty() || !r.updated.is_empty() || !r.deleted.is_empty()
-    });
+    let has_changes = plan
+        .results
+        .iter()
+        .any(|r| !r.created.is_empty() || !r.updated.is_empty() || !r.deleted.is_empty());
     if !has_changes {
         println!("Nothing to apply.");
         return Ok(());
@@ -665,11 +665,8 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
     // Confirm the (destructive) change before writing.
     if !args.yes {
         if std::io::stdin().is_terminal() && std::io::stdout().is_terminal() {
-            let proceed = cliclack::confirm(format!(
-                "Apply to «{}»?",
-                plan.organization.name
-            ))
-            .interact()?;
+            let proceed =
+                cliclack::confirm(format!("Apply to «{}»?", plan.organization.name)).interact()?;
             if !proceed {
                 println!("Aborted.");
                 return Ok(());
