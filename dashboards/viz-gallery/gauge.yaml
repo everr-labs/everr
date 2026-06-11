@@ -1,0 +1,366 @@
+kind: Dashboard
+metadata:
+  name: viz-gallery-gauge
+  project: demo
+spec:
+  display:
+    name: Visualization Gallery — Gauge
+    description: >-
+      GaugeChart regression sheet — every option (all 9 calculations, unit,
+      decimals, min/max bounds, thresholds absolute/percent with and without
+      thresholds.max, showLabel, noValue) and behavior (spec defaults, clamping
+      past the bounds, multi-query placeholder, multi-gauge, empty) exercised
+      with deterministic TestData.
+  duration: 7d
+  refreshInterval: 1m
+  panels:
+    # ── Calculations + options ───────────────────────────────────────
+    gauge-last:
+      kind: Panel
+      spec:
+        display:
+          name: "Gauge: last"
+          description: "calculation: last · unit: % · decimals: 1 · defaults min: 0 / max: 100 · absolute thresholds (arc color + step ticks)"
+        plugin:
+          kind: GaugeChart
+          spec:
+            calculation: last
+            unit: "%"
+            decimals: 1
+            thresholds:
+              mode: absolute
+              defaultColor: "#22c55e"
+              steps:
+                - { value: 70, color: "#f59e0b" }
+                - { value: 90, color: "#ef4444" }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 70
+                  series:
+                    - { name: cpu_pct, start: 75, noise: 6, min: 0 }
+    gauge-first:
+      kind: Panel
+      spec:
+        display:
+          name: "Gauge: first"
+          description: "calculation: first · decimals: 0 · max: 500"
+        plugin:
+          kind: GaugeChart
+          spec:
+            calculation: first
+            decimals: 0
+            max: 500
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 71
+                  series:
+                    - { name: ci_spans, start: 200, noise: 30, min: 0 }
+    gauge-mean:
+      kind: Panel
+      spec:
+        display:
+          name: "Gauge: mean"
+          description: "calculation: mean · unit: s · decimals: 2 · max: 2"
+        plugin:
+          kind: GaugeChart
+          spec:
+            calculation: mean
+            unit: s
+            decimals: 2
+            max: 2
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 72
+                  series:
+                    - { name: avg_s, start: 0.6, noise: 0.1, min: 0 }
+    gauge-min:
+      kind: Panel
+      spec:
+        display:
+          name: "Gauge: min"
+          description: "calculation: min · unit: ms · max: 50"
+        plugin:
+          kind: GaugeChart
+          spec:
+            calculation: min
+            unit: ms
+            max: 50
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 73
+                  series:
+                    - { name: min_ms, start: 5, noise: 2, min: 0 }
+    gauge-max-percent-thresholds:
+      kind: Panel
+      spec:
+        display:
+          name: "Gauge: max, percent thresholds"
+          description: "calculation: max · max: 2000 · thresholds mode: percent without thresholds.max (compares against the gauge max)"
+        plugin:
+          kind: GaugeChart
+          spec:
+            calculation: max
+            max: 2000
+            thresholds:
+              mode: percent
+              defaultColor: "#22c55e"
+              steps:
+                - { value: 50, color: "#f59e0b" }
+                - { value: 90, color: "#ef4444" }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 74
+                  series:
+                    - { name: ci_spans, start: 800, noise: 200, min: 0 }
+    gauge-sum-percent-max:
+      kind: Panel
+      spec:
+        display:
+          name: "Gauge: sum, explicit thresholds.max"
+          description: "calculation: sum · max: 100000 · thresholds mode: percent with max: 50000 (steps reference 50k, not the gauge max)"
+        plugin:
+          kind: GaugeChart
+          spec:
+            calculation: sum
+            max: 100000
+            thresholds:
+              mode: percent
+              max: 50000
+              defaultColor: "#3b82f6"
+              steps:
+                - { value: 60, color: "#f59e0b" }
+                - { value: 95, color: "#ef4444" }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 75
+                  series:
+                    - { name: ci_spans, start: 300, noise: 80, min: 0 }
+    gauge-count-show-label:
+      kind: Panel
+      spec:
+        display:
+          name: "Gauge: count, forced label"
+          description: "calculation: count (number of buckets) · showLabel: true on a single gauge · max: 600"
+        plugin:
+          kind: GaugeChart
+          spec:
+            calculation: count
+            showLabel: true
+            max: 600
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 76
+                  series:
+                    - { name: active_buckets, start: 10, noise: 4, min: 0 }
+    gauge-range:
+      kind: Panel
+      spec:
+        display:
+          name: "Gauge: range"
+          description: "calculation: range (max − min) · max: 1000"
+        plugin:
+          kind: GaugeChart
+          spec:
+            calculation: range
+            max: 1000
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 77
+                  series:
+                    - { name: ci_spans, start: 500, noise: 120, min: 0 }
+    gauge-diff-negative-min:
+      kind: Panel
+      spec:
+        display:
+          name: "Gauge: diff, negative min"
+          description: "calculation: diff (last − first; can be negative) · min: -500 / max: 500 — the arc midpoint is zero"
+        plugin:
+          kind: GaugeChart
+          spec:
+            calculation: diff
+            min: -500
+            max: 500
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 78
+                  series:
+                    - { name: ci_spans, start: 500, noise: 120, min: 0 }
+    # ── Defaults, clamping, multi-query, multi-gauge, empty ──────────
+    gauge-defaults:
+      kind: Panel
+      spec:
+        display:
+          name: "Gauge: spec defaults"
+          description: "Empty spec {} — calculation: last, min: 0, max: 100, no unit/thresholds. Exact value 42 via csv."
+        plugin:
+          kind: GaugeChart
+          spec: {}
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [pct]
+                  rows:
+                    - [42]
+    gauge-clamped:
+      kind: Panel
+      spec:
+        display:
+          name: "Gauge: clamped past max"
+          description: "Value 130 on a 0–100 gauge — the arc pegs full while the text shows the real value"
+        plugin:
+          kind: GaugeChart
+          spec:
+            unit: "%"
+            thresholds:
+              defaultColor: "#22c55e"
+              steps:
+                - { value: 90, color: "#ef4444" }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [pct]
+                  rows:
+                    - [130]
+    gauge-multi-query-no-value:
+      kind: Panel
+      spec:
+        display:
+          name: "Gauge: multi-query + noValue"
+          description: "Two queries on one panel — Query B returns no rows, so its gauge stays empty and shows the custom noValue text under the Query B fallback label."
+        plugin:
+          kind: GaugeChart
+          spec:
+            calculation: last
+            noValue: "n/a"
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 79
+                  series:
+                    - { name: cpu_pct, start: 60, noise: 8, min: 0 }
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [svc, never]
+                  rows: []
+    gauge-multi:
+      kind: Panel
+      spec:
+        display:
+          name: "Gauge: multi-gauge (3 columns)"
+          description: "One query, three numeric columns → one gauge each (labels always shown) · unit: ms · max: 300"
+        plugin:
+          kind: GaugeChart
+          spec:
+            calculation: last
+            unit: ms
+            max: 300
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 80
+                  series:
+                    - { name: p50_ms, start: 40,  noise: 6,  min: 0 }
+                    - { name: p95_ms, start: 120, noise: 14, min: 0 }
+                    - { name: p99_ms, start: 240, noise: 30, min: 0 }
+    gauge-empty:
+      kind: Panel
+      spec:
+        display:
+          name: "Gauge: empty result"
+          description: "Single query returns no rows → 'No numeric data'"
+        plugin:
+          kind: GaugeChart
+          spec:
+            calculation: last
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [ts, value]
+                  rows: []
+  layouts:
+    - kind: Grid
+      spec:
+        items:
+          - { x: 0,  y: 0,  width: 8, height: 5, content: { $ref: "#/spec/panels/gauge-last" } }
+          - { x: 8,  y: 0,  width: 8, height: 5, content: { $ref: "#/spec/panels/gauge-first" } }
+          - { x: 16, y: 0,  width: 8, height: 5, content: { $ref: "#/spec/panels/gauge-mean" } }
+          - { x: 0,  y: 5,  width: 8, height: 5, content: { $ref: "#/spec/panels/gauge-min" } }
+          - { x: 8,  y: 5,  width: 8, height: 5, content: { $ref: "#/spec/panels/gauge-max-percent-thresholds" } }
+          - { x: 16, y: 5,  width: 8, height: 5, content: { $ref: "#/spec/panels/gauge-sum-percent-max" } }
+          - { x: 0,  y: 10, width: 8, height: 5, content: { $ref: "#/spec/panels/gauge-count-show-label" } }
+          - { x: 8,  y: 10, width: 8, height: 5, content: { $ref: "#/spec/panels/gauge-range" } }
+          - { x: 16, y: 10, width: 8, height: 5, content: { $ref: "#/spec/panels/gauge-diff-negative-min" } }
+          - { x: 0,  y: 15, width: 8, height: 5, content: { $ref: "#/spec/panels/gauge-defaults" } }
+          - { x: 8,  y: 15, width: 8, height: 5, content: { $ref: "#/spec/panels/gauge-clamped" } }
+          - { x: 16, y: 15, width: 8, height: 5, content: { $ref: "#/spec/panels/gauge-multi-query-no-value" } }
+          - { x: 0,  y: 20, width: 16, height: 6, content: { $ref: "#/spec/panels/gauge-multi" } }
+          - { x: 16, y: 20, width: 8,  height: 6, content: { $ref: "#/spec/panels/gauge-empty" } }

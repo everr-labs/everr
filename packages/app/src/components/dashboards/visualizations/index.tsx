@@ -1,6 +1,8 @@
 import { type ComponentType, lazy, Suspense, useMemo } from "react";
 import type * as z from "zod";
 import type { PanelPlugin } from "@/data/dashboards/schema";
+import { GaugeChartVisualization } from "./gauge-chart/gauge-chart-visualization";
+import { gaugeChartSpec } from "./gauge-chart/spec";
 import type { GeoMapSpec } from "./geo-map/spec";
 import { geoMapSpec } from "./geo-map/spec";
 import { parseSpecLenient } from "./parse-spec";
@@ -55,6 +57,10 @@ function defineVisualization<S extends z.ZodType>(entry: {
 }
 
 const registry: Record<string, VisualizationEntry> = {
+  GaugeChart: defineVisualization({
+    schema: gaugeChartSpec,
+    component: GaugeChartVisualization,
+  }),
   GeoMap: defineVisualization({
     schema: geoMapSpec,
     component: GeoMapVisualization,
