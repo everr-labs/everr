@@ -1,50 +1,48 @@
-import type { Dashboard } from "./schema";
-
-/** A dashboard as it exists in the store, scoped to its project. */
-export interface ExistingDashboard {
+/** A resource as it exists in the store, scoped to its project. */
+export interface ExistingResource {
   project: string;
   slug: string;
   folderPath: string;
-  document: Dashboard;
+  document: unknown;
 }
 
-/** A dashboard declared in the desired set (parsed from a file). */
-export interface DesiredDashboard {
+/** A resource declared in the desired set (parsed from a file). */
+export interface DesiredResource {
   project: string;
   slug: string;
   folderPath: string;
-  document: Dashboard;
+  document: unknown;
 }
 
 export interface ReconcileDiff {
-  creates: DesiredDashboard[];
-  updates: DesiredDashboard[];
+  creates: DesiredResource[];
+  updates: DesiredResource[];
   deletes: { project: string; slug: string }[];
 }
 
 /**
- * Compute the create/update/delete diff to make the given dashboards match the
+ * Compute the create/update/delete diff to make the given resources match the
  * desired set. Identity is keyed by (project, slug). `existing` MUST already be
  * scoped to the declared reconcile scope (which may include projects absent from
  * `desired`, e.g. the stale side of a cross-project move or an emptied project) —
  * this function prunes anything in `existing` not in `desired`, which is what
  * makes delete-by-default safe across projects and across repos.
  *
- * A dashboard is "changed" when its folderPath or its document differs.
- * Documents are compared by stable-stringify so unknown Perses fields
- * participate in the comparison and are preserved verbatim (stored as-is).
+ * A resource is "changed" when its folderPath or its document differs.
+ * Documents are compared by stable-stringify so unknown fields participate in
+ * the comparison and are preserved verbatim (stored as-is).
  */
 export function reconcile(input: {
-  existing: ExistingDashboard[];
-  desired: DesiredDashboard[];
+  existing: ExistingResource[];
+  desired: DesiredResource[];
 }): ReconcileDiff {
   const key = (d: { project: string; slug: string }) =>
     `${d.project} ${d.slug}`;
   const existingByKey = new Map(input.existing.map((d) => [key(d), d]));
   const desiredKeys = new Set(input.desired.map(key));
 
-  const creates: DesiredDashboard[] = [];
-  const updates: DesiredDashboard[] = [];
+  const creates: DesiredResource[] = [];
+  const updates: DesiredResource[] = [];
   for (const want of input.desired) {
     const have = existingByKey.get(key(want));
     if (!have) {

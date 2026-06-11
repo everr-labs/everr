@@ -1,13 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { reconcile } from "./reconcile";
-import type { Dashboard } from "./schema";
 
-const doc = (n: number, slug = "d"): Dashboard =>
-  ({
-    kind: "Dashboard",
-    metadata: { name: slug },
-    spec: { panels: {}, layouts: [], _v: n },
-  }) as unknown as Dashboard;
+const doc = (n: number, slug = "d") => ({
+  kind: "Dashboard",
+  metadata: { name: slug },
+  spec: { panels: {}, layouts: [], _v: n },
+});
 
 describe("reconcile", () => {
   it("creates desired dashboards that don't exist", () => {
@@ -127,7 +125,7 @@ describe("reconcile", () => {
             kind: "Dashboard",
             metadata: { name: "a" },
             spec: { panels: {}, layouts: [], x: 1, y: 2 },
-          } as unknown as Dashboard,
+          },
         },
       ],
       desired: [
@@ -139,7 +137,7 @@ describe("reconcile", () => {
             metadata: { name: "a" },
             kind: "Dashboard",
             spec: { panels: {}, layouts: [], y: 2, x: 1 },
-          } as unknown as Dashboard,
+          },
         },
       ],
     });

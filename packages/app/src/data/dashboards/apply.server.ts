@@ -1,9 +1,9 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { ApplyValidationError } from "@/data/as-code/errors";
+import { reconcile } from "@/data/as-code/reconcile";
 import { db } from "@/db/client";
 import { dashboards } from "@/db/schema";
 import { buildDesiredSet } from "./desired";
-import { reconcile } from "./reconcile";
 import type { Dashboard } from "./schema";
 
 export interface ApplyDashboardsResult {
