@@ -20,7 +20,7 @@ The file format mirrors [Perses](https://perses.dev), so the structure (`kind`/`
 
 1. **Queries are ClickHouse SQL, not PromQL.** The only query plugin is `ClickHouseSQL`. No Prometheus, no `rate()`, no `$__rate_interval`, no `PrometheusTimeSeriesQuery`.
 2. **Time range is two SQL params:** `{from:String}` and `{to:String}`. You must put them in your `WHERE`. There is no auto-injection.
-3. **Visualizations are three kinds with simple specs:** `TimeSeriesChart`, `Table`, `StatChart`. They infer structure from the columns you `SELECT` — there is no `yAxis`, `legend`, `columnSettings`, `format.unit`, etc.
+3. **Visualizations are four kinds with simple specs:** `TimeSeriesChart`, `Table`, `StatChart`, `GeoMap`. They infer structure from the columns you `SELECT` — there is no `yAxis`, `legend`, `columnSettings`, `format.unit`, etc.
 4. **Variable options come from `StaticListVariable` or `ClickHouseSQLVariable` only** — not `PrometheusLabelValuesVariable`. `$name` interpolates to a quoted ClickHouse literal.
 
 ## File layout and the required manifest
@@ -72,7 +72,7 @@ panels:
     spec:
       display: { name: Error rate }      # description optional
       plugin:
-        kind: TimeSeriesChart            # TimeSeriesChart | Table | StatChart
+        kind: TimeSeriesChart            # TimeSeriesChart | Table | StatChart | GeoMap
         spec: { unit: "%", showLegend: true }
       queries:
         - kind: ClickHouseSQL            # outer query kind
@@ -84,7 +84,7 @@ panels:
                   SELECT ...
 ```
 
-The double `ClickHouseSQL` (query `kind` **and** inner `plugin.kind`) is required, not a typo. Multiple queries are allowed: time-series overlays them, table shows a selector, stat renders one tile per series. The panel `plugin.kind` is one of `TimeSeriesChart`, `Table`, `StatChart` — see [Visualization options](#visualization-options) for each kind's `spec`.
+The double `ClickHouseSQL` (query `kind` **and** inner `plugin.kind`) is required, not a typo. Multiple queries are allowed: time-series overlays them, table shows a selector, stat renders one tile per series, geo-map overlays markers (points) or merges regions (choropleth). The panel `plugin.kind` is one of `TimeSeriesChart`, `Table`, `StatChart`, `GeoMap` — see [Visualization options](#visualization-options) for each kind's `spec`.
 
 ### Layout — panels only render if a layout references them
 
@@ -130,6 +130,7 @@ Data shape per visualization (the viz infers everything from your columns):
 | `TimeSeriesChart` | a time column (aliased above) + numeric series columns. A non-numeric **string** column pivots one value column into one line per label (e.g. `GROUP BY ts, ServiceName`) — but **only with exactly one numeric column** (see `rules/timeseries.md`). |
 | `Table` | any columns, rendered as-is in query order (no formatting — do it in SQL). |
 | `StatChart` | one or more numeric columns — **one tile per numeric column** (each reduced by `calculation`). A string column creates no tile. Include a time column for per-tile sparklines. |
+| `GeoMap` | points mode: numeric lat/lon columns (+ optional value/label); choropleth mode: an ISO-3166 alpha-2/alpha-3 country-code column + a numeric value column (see `rules/geomap.md`). No time axis. |
 
 ## Visualization options
 
@@ -140,6 +141,7 @@ Each visualization has its own option set and behaviors. **Load the rule file fo
 | `TimeSeriesChart` | `rules/timeseries.md` | a line chart over time — units, legend, curve, gaps, per-series breakdown |
 | `Table` | `rules/table.md` | a row/column table — sticky header, column formatting (SQL-side) |
 | `StatChart` | `rules/statchart.md` | big single-value tiles — calculations, sparklines, threshold coloring |
+| `GeoMap` | `rules/geomap.md` | a world map — lat/lon markers or country shading, aggregation, color/size scales |
 
 ## Variables
 
@@ -312,7 +314,7 @@ Apply is **declarative and delete-by-default within the declared projects**: new
 | Forgetting the `everr.yaml` manifest, or a `metadata.project` not listed in it | Every apply dir needs `everr.yaml` listing projects; each dashboard's project must be in it. |
 | No `{from:String}`/`{to:String}` in the `WHERE` | Add `WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}` — it is not auto-injected. |
 | Time-series x-axis blank | Alias the time column to `ts`/`time`/`timestamp`/… so it's detected. |
-| Inventing viz options (`yAxis`, `legend`, `columnSettings`, `format.unit`, `calculation: last-number`, axis min/max, stacking) | Only the options in each viz's rule file (`rules/timeseries.md`, `rules/table.md`, `rules/statchart.md`) exist. Format/round in SQL, not via spec. |
+| Inventing viz options (`yAxis`, `legend`, `columnSettings`, `format.unit`, `calculation: last-number`, axis min/max, stacking) | Only the options in each viz's rule file (`rules/timeseries.md`, `rules/table.md`, `rules/statchart.md`, `rules/geomap.md`) exist. Format/round in SQL, not via spec. |
 | `PrometheusLabelValuesVariable` or other variable plugins | Only `StaticListVariable` and `ClickHouseSQLVariable`. |
 | Single `ClickHouseSQL` in the query block | Both the query `kind` and the inner `plugin.kind` are `ClickHouseSQL`. |
 | `Duration` treated as ms/seconds | It's **nanoseconds** — divide by `1e6` (ms) or `1e9` (s). |
