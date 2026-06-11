@@ -47,10 +47,22 @@ impl CliTestEnv {
         cmd
     }
 
+    pub fn command_with_release_metadata_url(&self, url: &str) -> Command {
+        let mut cmd = self.command();
+        cmd.env("EVERR_RELEASE_METADATA_URL_FOR_TESTS", url);
+        cmd
+    }
+
     pub fn session_path(&self) -> PathBuf {
         self.config_dir
             .join(build::session_namespace())
             .join(build::default_session_file_name())
+    }
+
+    pub fn update_cache_path(&self) -> PathBuf {
+        platform_data_local_dir(&self.home_dir)
+            .join(build::session_namespace())
+            .join("cli-update-check-dev.json")
     }
 
     pub fn telemetry_dir(&self) -> PathBuf {
@@ -115,6 +127,18 @@ fn platform_config_dir(home_dir: &Path) -> PathBuf {
     #[cfg(not(target_os = "macos"))]
     {
         home_dir.join(".config")
+    }
+}
+
+fn platform_data_local_dir(home_dir: &Path) -> PathBuf {
+    #[cfg(target_os = "macos")]
+    {
+        home_dir.join("Library").join("Application Support")
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        home_dir.join(".local").join("share")
     }
 }
 
