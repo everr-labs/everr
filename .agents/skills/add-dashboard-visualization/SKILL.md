@@ -99,6 +99,29 @@ export function <Kind>Visualization({
 - Available chart wrapper: `ChartContainer` from `@everr/ui/components/chart`
 - Available table: `DataTable` from `@everr/ui/components/data-table`
 
+**Hover tooltips use the shared `CursorTooltip`** (`@/components/cursor-tooltip`) —
+do not hand-roll positioning or use recharts' `<Tooltip>` (it anchors at the
+shape's center, not the cursor). `CursorTooltip` is a portaled card that follows
+the pointer and flips at viewport edges instead of clipping; you provide the
+content, it provides the card chrome and positioning. Track hover yourself and
+render it conditionally:
+
+```tsx
+const [hover, setHover] = useState<{ datum: D; x: number; y: number } | null>(null);
+// on each shape: onMouseEnter={(e) => setHover({ datum, x: e.clientX, y: e.clientY })}
+//                onMouseLeave={() => setHover(null)}
+// on the chart container, keep the position tracking the pointer:
+//                onMouseMove={(e) => setHover((h) => (h ? { ...h, x: e.clientX, y: e.clientY } : h))}
+{hover && (
+  <CursorTooltip x={hover.x} y={hover.y}>
+    {/* time-series-style content: muted header, then swatch · label · tabular-nums value */}
+  </CursorTooltip>
+)}
+```
+
+The TimeSeriesChart, GeoMap, and Treemap visualizations all use it — match
+their tooltip content structure for visual consistency.
+
 **Scrolling and overflow are visualization concerns.** `PanelShell` provides `min-h-0 flex-1` on its content area but no `overflow`. Each visualization must manage its own scroll container. For example, the table visualization wraps itself in a flex column with a scrollable inner div:
 
 ```tsx

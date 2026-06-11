@@ -6,7 +6,8 @@ import {
   geoPath,
 } from "d3-geo";
 import { Map as MapIcon } from "lucide-react";
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
+import { CursorTooltip } from "@/components/cursor-tooltip";
 import { queryLabel, SERIES_COLORS } from "../data-utils";
 import type { VisualizationProps } from "../index";
 import { formatStatValue } from "../stat-chart/stat-calculations";
@@ -60,11 +61,11 @@ function markerColor(frame: number, scheme: GeoColorScheme): string {
   return secondary[(frame - 1) % secondary.length] ?? schemeBaseColor(scheme);
 }
 
-/** Tooltip content only — its position is written straight to the DOM on
- *  mousemove so tracking the pointer never re-renders the component. */
 interface Hover {
   title: string;
   value: number | null;
+  x: number;
+  y: number;
 }
 
 type SizedMarker = GeoMarker & { r: number };
@@ -105,58 +106,6 @@ export function GeoMapVisualization({
   }, [countries, projection]);
 
   const [hover, setHover] = useState<Hover | null>(null);
-
-  const containerRef = useRef<HTMLDivElement>(null);
-  const tooltipRef = useRef<HTMLDivElement>(null);
-  // Container rect, measured once when the pointer enters the SVG. Reading it
-  // per mousemove would force a synchronous layout on every pointer event.
-  const rectRef = useRef<DOMRect | null>(null);
-  // Last pointer position, so the tooltip can be placed when it first mounts.
-  const lastPointer = useRef<{ x: number; y: number } | null>(null);
-
-  const moveRaf = useRef(0);
-
-  // Writes the tooltip position for the last known pointer, flipping near the
-  // container edges so it never clips. The tooltip sits at 0,0 on its own
-  // compositor layer (will-change: transform) and moves by transform only —
-  // no layout or paint per pointer event, just a compositing update.
-  const placeTooltip = useCallback(() => {
-    const el = tooltipRef.current;
-    const rect = rectRef.current;
-    const p = lastPointer.current;
-    if (!el || !rect || !p) return;
-    const x = p.x - rect.left;
-    const y = p.y - rect.top;
-    const flipX = x > rect.width - 160;
-    const flipY = y < 48;
-    el.style.transform = `translate3d(${x}px, ${y}px, 0) translate(${
-      flipX ? "calc(-100% - 10px)" : "10px"
-    }, ${flipY ? "16px" : "-120%"})`;
-  }, []);
-
-  // Pointer tracking — no React state, coalesced to one style write per frame
-  // so high-rate (120Hz+) pointer events don't queue redundant work.
-  const moveTooltip = useCallback(
-    (clientX: number, clientY: number) => {
-      lastPointer.current = { x: clientX, y: clientY };
-      if (moveRaf.current) return;
-      moveRaf.current = requestAnimationFrame(() => {
-        moveRaf.current = 0;
-        placeTooltip();
-      });
-    },
-    [placeTooltip],
-  );
-
-  useLayoutEffect(() => {
-    return () => cancelAnimationFrame(moveRaf.current);
-  }, []);
-
-  // The tooltip element doesn't exist until the hover render commits — place
-  // it at the pointer synchronously, before paint, to avoid a 0,0 flash.
-  useLayoutEffect(() => {
-    if (hover) placeTooltip();
-  }, [hover, placeTooltip]);
 
   const fmt = (v: number | null) =>
     v == null
@@ -231,15 +180,14 @@ export function GeoMapVisualization({
           fill={colorRamp(spec.colorScheme, t)}
           className="stroke-border"
           strokeWidth={0.5}
-          onMouseEnter={(e) => {
-            moveTooltip(e.clientX, e.clientY);
-            setHover({ title: c.name, value: v });
-          }}
+          onMouseEnter={(e) =>
+            setHover({ title: c.name, value: v, x: e.clientX, y: e.clientY })
+          }
           onMouseLeave={() => setHover(null)}
         />
       );
     });
-  }, [content, countryPaths, spec.colorScheme, spec.scaleType, moveTooltip]);
+  }, [content, countryPaths, spec.colorScheme, spec.scaleType]);
 
   const markersLayer = useMemo(() => {
     if (content?.kind !== "points") return null;
@@ -258,15 +206,14 @@ export function GeoMapVisualization({
           fillOpacity={MARKER_OPACITY}
           stroke="white"
           strokeWidth={0.75}
-          onMouseEnter={(e) => {
-            moveTooltip(e.clientX, e.clientY);
-            setHover({ title, value: m.value });
-          }}
+          onMouseEnter={(e) =>
+            setHover({ title, value: m.value, x: e.clientX, y: e.clientY })
+          }
           onMouseLeave={() => setHover(null)}
         />
       );
     });
-  }, [content, projection, spec.colorScheme, moveTooltip]);
+  }, [content, projection, spec.colorScheme]);
 
   if (!content) return <EmptyState />;
   const hasData =
@@ -280,21 +227,16 @@ export function GeoMapVisualization({
 
   return (
     <div className="flex h-full flex-col border-t border-border">
-      <div
-        ref={containerRef}
-        className="relative min-h-0 flex-1 overflow-hidden"
-      >
+      <div className="relative min-h-0 flex-1 overflow-hidden">
         <svg
           viewBox={`0 0 ${VW} ${VH}`}
           preserveAspectRatio="xMidYMid meet"
           className="h-full w-full"
           role="img"
           aria-label="Geographic map"
-          onMouseEnter={() => {
-            rectRef.current =
-              containerRef.current?.getBoundingClientRect() ?? null;
-          }}
-          onMouseMove={(e) => moveTooltip(e.clientX, e.clientY)}
+          onMouseMove={(e) =>
+            setHover((h) => (h ? { ...h, x: e.clientX, y: e.clientY } : h))
+          }
           onMouseLeave={() => setHover(null)}
         >
           <title>Geographic map</title>
@@ -305,15 +247,10 @@ export function GeoMapVisualization({
 
         {/* tooltip — constant-size HTML overlay (stays readable as the map scales) */}
         {hover && (
-          <div
-            ref={tooltipRef}
-            className="pointer-events-none absolute top-0 left-0 z-10 whitespace-nowrap rounded-md border bg-popover px-2 py-1 text-xs shadow-md will-change-transform"
-          >
-            <div className="font-semibold text-popover-foreground">
-              {hover.title}
-            </div>
+          <CursorTooltip x={hover.x} y={hover.y}>
+            <div className="font-semibold">{hover.title}</div>
             <div className="text-muted-foreground">{fmt(hover.value)}</div>
-          </div>
+          </CursorTooltip>
         )}
 
         {/* rows the result contained but the map could not place */}
