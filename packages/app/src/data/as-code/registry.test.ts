@@ -5,6 +5,11 @@ vi.mock("@/data/dashboards/apply.server", () => ({
   applyDashboardSpecs: (...a: unknown[]) => dashboardReconciler(...a),
 }));
 
+const notebookReconciler = vi.fn();
+vi.mock("@/data/notebooks/apply.server", () => ({
+  applyNotebookSpecs: (...a: unknown[]) => notebookReconciler(...a),
+}));
+
 import { applyResources } from "./registry";
 
 const doc = (kind: string, name: string) => ({
@@ -15,6 +20,12 @@ const doc = (kind: string, name: string) => ({
 beforeEach(() => {
   vi.clearAllMocks();
   dashboardReconciler.mockResolvedValue({
+    created: [],
+    updated: [],
+    deleted: [],
+    dryRun: false,
+  });
+  notebookReconciler.mockResolvedValue({
     created: [],
     updated: [],
     deleted: [],
@@ -46,7 +57,35 @@ describe("applyResources", () => {
       dryRun: false,
       results: [
         { kind: "Dashboard", created: ["cpu"], updated: [], deleted: [] },
+        { kind: "Notebook", created: [], updated: [], deleted: [] },
       ],
+    });
+  });
+
+  it("routes Notebook docs to the notebook reconciler and returns a per-kind summary", async () => {
+    notebookReconciler.mockResolvedValueOnce({
+      created: ["runbook"],
+      updated: [],
+      deleted: [],
+      dryRun: false,
+    });
+    const out = await applyResources({
+      orgId: "org-1",
+      projects: ["default"],
+      documents: [doc("Notebook", "runbook")],
+      dryRun: false,
+    });
+    expect(notebookReconciler).toHaveBeenCalledWith({
+      orgId: "org-1",
+      projects: ["default"],
+      documents: [doc("Notebook", "runbook")],
+      dryRun: false,
+    });
+    expect(out.results).toContainEqual({
+      kind: "Notebook",
+      created: ["runbook"],
+      updated: [],
+      deleted: [],
     });
   });
 

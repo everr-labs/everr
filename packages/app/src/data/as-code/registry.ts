@@ -1,4 +1,5 @@
 import { applyDashboardSpecs } from "@/data/dashboards/apply.server";
+import { applyNotebookSpecs } from "@/data/notebooks/apply.server";
 import { ApplyValidationError } from "./errors";
 
 export interface ApplyDocument {
@@ -34,6 +35,7 @@ type Reconciler = (opts: {
  */
 const REGISTRY: Record<string, Reconciler> = {
   Dashboard: applyDashboardSpecs,
+  Notebook: applyNotebookSpecs,
 };
 
 function documentKind(doc: ApplyDocument): string {

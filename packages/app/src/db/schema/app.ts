@@ -12,6 +12,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import type { Dashboard } from "@/data/dashboards/schema";
+import type { Notebook } from "@/data/notebooks/schema";
 
 export const githubInstallationStatusEnum = pgEnum("installation_status", [
   "active",
@@ -205,6 +206,39 @@ export const dashboards = pgTable(
       table.slug,
     ),
     index("dashboards_tenant_updated_idx").on(
+      table.organizationId,
+      sql`updated_at DESC`,
+    ),
+  ],
+);
+
+export const notebooks = pgTable(
+  "notebooks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: text("organization_id").notNull(),
+    // Perses project namespace that owns this notebook (identity + prune
+    // scope), denormalized from metadata.project like dashboards.
+    project: text("project").notNull(),
+    slug: text("slug").notNull(),
+    folderPath: text("folder_path").notNull().default(""),
+    // The whole document, stored verbatim so unknown fields survive a
+    // read/apply round-trip. Markdown is always inlined by the CLI.
+    document: jsonb("document").notNull().$type<Notebook>(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("notebooks_tenant_project_slug_uq").on(
+      table.organizationId,
+      table.project,
+      table.slug,
+    ),
+    index("notebooks_tenant_updated_idx").on(
       table.organizationId,
       sql`updated_at DESC`,
     ),
