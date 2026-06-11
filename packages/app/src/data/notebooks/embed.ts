@@ -106,7 +106,7 @@ export interface PanelFence {
   yaml: string;
 }
 
-const FENCE_RE = /^```panel[ \t]*\n([\s\S]*?)\n```[ \t]*$/gm;
+const FENCE_RE = /^```panel[ \t]*\r?\n([\s\S]*?)\r?\n```[ \t]*$/gm;
 
 /**
  * Extract ```panel fences for apply-time validation. The viewer does NOT use

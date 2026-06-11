@@ -53,7 +53,9 @@ describe("parsePanelEmbed", () => {
   });
 
   it("rejects an inline panel that fails the panel schema", () => {
-    expect(() => parsePanelEmbed("kind: Panel\nspec: {}")).toThrow();
+    expect(() => parsePanelEmbed("kind: Panel\nspec: {}")).toThrow(
+      /invalid inline panel/,
+    );
   });
 });
 
@@ -84,5 +86,10 @@ describe("extractPanelFences", () => {
 
   it("returns empty for markdown without fences", () => {
     expect(extractPanelFences("just text")).toEqual([]);
+  });
+
+  it("extracts fences from CRLF markdown", () => {
+    const md = "intro\r\n```panel\r\nref: a\r\n```\r\n";
+    expect(extractPanelFences(md).map((f) => f.yaml)).toEqual(["ref: a"]);
   });
 });
