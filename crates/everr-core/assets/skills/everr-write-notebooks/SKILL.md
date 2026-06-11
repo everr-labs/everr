@@ -105,7 +105,7 @@ panel: request-rate
 ```
 ````
 
-The dashboard embed resolves **at view time**, so it stays live and in sync with the source dashboard, and the rendered panel header deep-links to `/dashboards/demo/web-http-overview` with that panel highlighted.
+The dashboard embed resolves **at view time**, so it stays live and in sync with the source dashboard, and the rendered panel header carries a link that opens `/dashboards/demo/web-http-overview`.
 
 ## Apply semantics
 
