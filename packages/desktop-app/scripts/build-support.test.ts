@@ -61,7 +61,7 @@ afterEach(async () => {
 });
 
 describe("build-support version helpers", () => {
-  it("derives CI release identity from GitHub Actions env vars", () => {
+  it("keeps the checked-in desktop version for GitHub Actions release identity", () => {
     expect(
       resolveDesktopReleaseIdentity({
         env: {
@@ -72,7 +72,7 @@ describe("build-support version helpers", () => {
         fallbackSha: "localsha",
       }),
     ).toEqual({
-      platformVersion: "0.1.1264",
+      platformVersion: "0.1.30",
       releaseSha: "82efe1cf1358e8395b2862c4ee9f93567f10c16e",
       releaseShortSha: "82efe1c",
       source: "github-actions",
@@ -94,7 +94,7 @@ describe("build-support version helpers", () => {
     });
   });
 
-  it("uses pre-resolved release env without adding the GitHub run number again", () => {
+  it("uses pre-resolved release SHA env without changing the checked-in desktop version", () => {
     expect(
       resolveDesktopReleaseIdentity({
         env: {
@@ -107,39 +107,39 @@ describe("build-support version helpers", () => {
         fallbackVersion: "0.1.30",
       }),
     ).toEqual({
-      platformVersion: "0.1.1264",
+      platformVersion: "0.1.30",
       releaseSha: "82efe1cf1358e8395b2862c4ee9f93567f10c16e",
       releaseShortSha: "82efe1c",
       source: "github-actions",
     });
   });
 
-  it("rejects invalid generated platform versions", () => {
+  it("rejects invalid GitHub release SHAs", () => {
     expect(() =>
       resolveDesktopReleaseIdentity({
         env: {
-          GITHUB_SHA: "82efe1cf1358e8395b2862c4ee9f93567f10c16e",
-          GITHUB_RUN_NUMBER: "not-a-number",
+          GITHUB_SHA: "not-a-sha",
+          GITHUB_RUN_NUMBER: "1234",
         },
         fallbackVersion: "0.1.30",
         fallbackSha: "localsha",
       }),
-    ).toThrow(/GITHUB_RUN_NUMBER/);
+    ).toThrow(/GITHUB_SHA/);
   });
 
-  it("writes a Tauri config override with the generated platform version", async () => {
+  it("writes a Tauri config override with the desktop version", async () => {
     const rootDir = await makeTempDir();
     const overridePath = path.join(rootDir, "release-tauri.conf.json");
 
     await expect(
       writeDesktopReleaseTauriConfigOverride({
         outputPath: overridePath,
-        platformVersion: "0.1.1264",
+        platformVersion: "0.1.31",
       }),
     ).resolves.toBe(overridePath);
 
     await expect(readFile(overridePath, "utf8")).resolves.toBe(
-      `${JSON.stringify({ version: "0.1.1264" }, null, 2)}\n`,
+      `${JSON.stringify({ version: "0.1.31" }, null, 2)}\n`,
     );
   });
 

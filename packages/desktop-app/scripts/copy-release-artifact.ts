@@ -436,7 +436,7 @@ export async function stageReleaseArtifacts() {
   const releaseVersion = await readDesktopPackageVersion();
   const fallbackVersion = await readDesktopTauriVersion();
   const identity = resolveDesktopReleaseIdentity({
-    fallbackVersion: process.env.EVERR_PLATFORM_VERSION ?? fallbackVersion,
+    fallbackVersion,
     fallbackSha: process.env.EVERR_RELEASE_SHA ?? process.env.GITHUB_SHA,
   });
   const publicBaseUrl = resolvePublicBaseUrl();
