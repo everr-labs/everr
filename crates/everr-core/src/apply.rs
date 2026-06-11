@@ -1,3 +1,4 @@
+use std::fs;
 use std::path::Path;
 
 use anyhow::{Context, Result};
@@ -75,14 +76,81 @@ pub fn load_resource_documents(dir: &Path) -> Result<Vec<ResourceDocument>> {
             .replace('\\', "/");
         let contents =
             std::fs::read_to_string(path).with_context(|| format!("{rel}: failed to read file"))?;
-        let document =
+        let mut document =
             parse_document(path, &contents).with_context(|| format!("{rel}: failed to parse"))?;
+        inline_notebook_markdown(dir, &rel, &mut document)?;
         out.push(ResourceDocument {
             path: rel,
             document,
         });
     }
     Ok(out)
+}
+
+/// Resolve `markdown: { file: ... }` pointers in a Notebook document to
+/// `markdown: { inline: ... }`, reading files relative to the document's own
+/// location under the apply root. The server only accepts the inline form, so
+/// this is the authoring convenience that keeps `.md` files first-class on
+/// disk. Non-Notebook documents are untouched.
+fn inline_notebook_markdown(root: &Path, doc_rel_path: &str, document: &mut Value) -> Result<()> {
+    if document.get("kind").and_then(Value::as_str) != Some("Notebook") {
+        return Ok(());
+    }
+    let doc_dir = Path::new(doc_rel_path)
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_default();
+    if let Some(spec) = document.get_mut("spec") {
+        inline_markdown_node(root, &doc_dir, doc_rel_path, spec)?;
+    }
+    Ok(())
+}
+
+/// Walk one node carrying an optional `markdown` and optional recursive
+/// `pages`, inlining as we go (the spec root and every page share this shape).
+fn inline_markdown_node(
+    root: &Path,
+    doc_dir: &Path,
+    doc_path: &str,
+    node: &mut Value,
+) -> Result<()> {
+    if let Some(markdown) = node.get_mut("markdown") {
+        inline_markdown_source(root, doc_dir, doc_path, markdown)?;
+    }
+    if let Some(pages) = node.get_mut("pages").and_then(Value::as_array_mut) {
+        for page in pages {
+            inline_markdown_node(root, doc_dir, doc_path, page)?;
+        }
+    }
+    Ok(())
+}
+
+fn inline_markdown_source(
+    root: &Path,
+    doc_dir: &Path,
+    doc_path: &str,
+    markdown: &mut Value,
+) -> Result<()> {
+    let Some(file) = markdown.get("file").and_then(Value::as_str) else {
+        return Ok(());
+    };
+    let resolved = root.join(doc_dir).join(file);
+    // Canonicalize to keep reads inside the apply tree: the desired-state dir
+    // is the trust boundary; a `../../` pointer silently uploading arbitrary
+    // files would be surprising.
+    let canonical = resolved
+        .canonicalize()
+        .with_context(|| format!("{doc_path}: failed to read markdown file {file}"))?;
+    let canonical_root = root
+        .canonicalize()
+        .with_context(|| format!("failed to resolve apply directory {}", root.display()))?;
+    if !canonical.starts_with(&canonical_root) {
+        anyhow::bail!("{doc_path}: markdown file {file} is outside the apply directory");
+    }
+    let contents = fs::read_to_string(&canonical)
+        .with_context(|| format!("{doc_path}: failed to read markdown file {file}"))?;
+    *markdown = serde_json::json!({ "inline": contents });
+    Ok(())
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
@@ -305,6 +373,88 @@ mod tests {
         };
         let v = serde_json::to_value(&req).unwrap();
         assert_eq!(v["projects"], serde_json::json!(["default"]));
+    }
+
+    #[test]
+    fn inlines_notebook_markdown_files_recursively() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::create_dir_all(dir.path().join("runbooks/triage")).unwrap();
+        fs::write(dir.path().join("runbooks/index.md"), "# Index\n").unwrap();
+        fs::write(dir.path().join("runbooks/triage/net.md"), "# Net\n").unwrap();
+        fs::write(
+            dir.path().join("runbooks/rb.yaml"),
+            concat!(
+                "kind: Notebook\n",
+                "metadata:\n  name: rb\n",
+                "spec:\n",
+                "  markdown:\n    file: ./index.md\n",
+                "  pages:\n",
+                "    - name: triage\n",
+                "      markdown:\n        inline: already inline\n",
+                "      pages:\n",
+                "        - name: net\n",
+                "          markdown:\n            file: ./triage/net.md\n",
+            ),
+        )
+        .unwrap();
+
+        let docs = load_resource_documents(dir.path()).unwrap();
+
+        assert_eq!(docs.len(), 1);
+        let spec = &docs[0].document["spec"];
+        assert_eq!(spec["markdown"], serde_json::json!({"inline": "# Index\n"}));
+        assert_eq!(
+            spec["pages"][0]["markdown"],
+            serde_json::json!({"inline": "already inline"})
+        );
+        assert_eq!(
+            spec["pages"][0]["pages"][0]["markdown"],
+            serde_json::json!({"inline": "# Net\n"})
+        );
+    }
+
+    #[test]
+    fn notebook_markdown_missing_file_errors_with_both_paths() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(
+            dir.path().join("rb.yaml"),
+            "kind: Notebook\nmetadata:\n  name: rb\nspec:\n  markdown:\n    file: ./missing.md\n",
+        )
+        .unwrap();
+        let err = load_resource_documents(dir.path()).unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(msg.contains("rb.yaml"), "error was: {msg}");
+        assert!(msg.contains("missing.md"), "error was: {msg}");
+    }
+
+    #[test]
+    fn notebook_markdown_outside_apply_dir_is_rejected() {
+        let dir = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        fs::write(outside.path().join("secret.md"), "secret").unwrap();
+        fs::write(
+            dir.path().join("rb.yaml"),
+            format!(
+                "kind: Notebook\nmetadata:\n  name: rb\nspec:\n  markdown:\n    file: {}\n",
+                outside.path().join("secret.md").display()
+            ),
+        )
+        .unwrap();
+        let err = load_resource_documents(dir.path()).unwrap_err();
+        assert!(format!("{err:#}").contains("outside"), "error was: {err:#}");
+    }
+
+    #[test]
+    fn non_notebook_documents_are_untouched_by_inlining() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(
+            dir.path().join("d.yaml"),
+            "kind: Dashboard\nmetadata:\n  name: d\nspec:\n  panels: {}\n  layouts: []\n  markdown:\n    file: ./nope.md\n",
+        )
+        .unwrap();
+        // A Dashboard with a stray markdown key must not trigger file resolution.
+        let docs = load_resource_documents(dir.path()).unwrap();
+        assert_eq!(docs[0].document["spec"]["markdown"]["file"], "./nope.md");
     }
 
     #[test]
