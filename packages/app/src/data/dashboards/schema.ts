@@ -185,52 +185,59 @@ export const dashboardSpecSchema = z
  * dashboard that predates validation must still load; the renderer parses
  * specs leniently and surfaces ignored options as panel warnings.
  */
+/**
+ * Strict plugin/query spec issues for one panel, paths relative to the panel
+ * object. Shared by the dashboard and notebook write-path validation.
+ */
+export function collectPanelStrictIssues(
+  p: Panel,
+): { path: (string | number)[]; message: string }[] {
+  const issues: { path: (string | number)[]; message: string }[] = [];
+  const pluginSchema = panelPluginSpecs[p.spec.plugin.kind];
+  if (pluginSchema) {
+    const result = pluginSchema.safeParse(p.spec.plugin.spec);
+    if (!result.success) {
+      for (const issue of result.error.issues) {
+        issues.push({
+          path: ["spec", "plugin", "spec", ...issue.path.map(String)],
+          message: issue.message,
+        });
+      }
+    }
+  }
+  (p.spec.queries ?? []).forEach((q, qi) => {
+    const querySchema = queryPluginSpecs[q.spec.plugin.kind];
+    if (!querySchema) return;
+    const qResult = querySchema.safeParse(q.spec.plugin.spec);
+    if (qResult.success) return;
+    for (const issue of qResult.error.issues) {
+      issues.push({
+        path: [
+          "spec",
+          "queries",
+          qi,
+          "spec",
+          "plugin",
+          "spec",
+          ...issue.path.map(String),
+        ],
+        message: issue.message,
+      });
+    }
+  });
+  return issues;
+}
+
 export const dashboardSpecSchemaStrict = dashboardSpecSchema.superRefine(
   (spec, ctx) => {
     for (const [key, p] of Object.entries(spec.panels)) {
-      const pluginSchema = panelPluginSpecs[p.spec.plugin.kind];
-      if (pluginSchema) {
-        const result = pluginSchema.safeParse(p.spec.plugin.spec);
-        if (!result.success) {
-          for (const issue of result.error.issues) {
-            ctx.addIssue({
-              code: "custom",
-              message: issue.message,
-              path: [
-                "panels",
-                key,
-                "spec",
-                "plugin",
-                "spec",
-                ...issue.path.map(String),
-              ],
-            });
-          }
-        }
+      for (const issue of collectPanelStrictIssues(p)) {
+        ctx.addIssue({
+          code: "custom",
+          message: issue.message,
+          path: ["panels", key, ...issue.path],
+        });
       }
-      (p.spec.queries ?? []).forEach((q, qi) => {
-        const querySchema = queryPluginSpecs[q.spec.plugin.kind];
-        if (!querySchema) return;
-        const qResult = querySchema.safeParse(q.spec.plugin.spec);
-        if (qResult.success) return;
-        for (const issue of qResult.error.issues) {
-          ctx.addIssue({
-            code: "custom",
-            message: issue.message,
-            path: [
-              "panels",
-              key,
-              "spec",
-              "queries",
-              qi,
-              "spec",
-              "plugin",
-              "spec",
-              ...issue.path.map(String),
-            ],
-          });
-        }
-      });
     }
   },
 );
