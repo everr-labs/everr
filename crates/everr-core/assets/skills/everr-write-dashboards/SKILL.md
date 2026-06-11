@@ -20,7 +20,7 @@ The file format mirrors [Perses](https://perses.dev), so the structure (`kind`/`
 
 1. **Queries are ClickHouse SQL, not PromQL.** The only query plugin is `ClickHouseSQL`. No Prometheus, no `rate()`, no `$__rate_interval`, no `PrometheusTimeSeriesQuery`.
 2. **Time range is two SQL params:** `{from:String}` and `{to:String}`. You must put them in your `WHERE`. There is no auto-injection.
-3. **Visualizations are six kinds with simple specs:** `TimeSeriesChart`, `Table`, `StatChart`, `GaugeChart`, `GeoMap`, `Treemap`. They infer structure from the columns you `SELECT` — there is no `yAxis`, `legend`, `columnSettings`, `format.unit`, etc.
+3. **Visualizations are seven kinds with simple specs:** `TimeSeriesChart`, `Table`, `StatChart`, `GaugeChart`, `GeoMap`, `Treemap`, `StateTimeline`. They infer structure from the columns you `SELECT` — there is no `yAxis`, `legend`, `columnSettings`, `format.unit`, etc.
 4. **Variable options come from `StaticListVariable` or `ClickHouseSQLVariable` only** — not `PrometheusLabelValuesVariable`. `$name` interpolates to a quoted ClickHouse literal.
 
 ## File layout and the required manifest
@@ -72,7 +72,7 @@ panels:
     spec:
       display: { name: Error rate }      # description optional
       plugin:
-        kind: TimeSeriesChart            # TimeSeriesChart | Table | StatChart | GaugeChart | GeoMap | Treemap
+        kind: TimeSeriesChart            # TimeSeriesChart | Table | StatChart | GaugeChart | GeoMap | Treemap | StateTimeline
         spec: { unit: "%", showLegend: true }
       queries:
         - kind: ClickHouseSQL            # outer query kind
@@ -84,7 +84,7 @@ panels:
                   SELECT ...
 ```
 
-The double `ClickHouseSQL` (query `kind` **and** inner `plugin.kind`) is required, not a typo. Multiple queries are allowed: time-series overlays them, table shows a selector, stat renders one tile per series, geo-map overlays markers (points) or merges regions (choropleth), treemap colors tiles per query, gauge renders one gauge per series. The panel `plugin.kind` is one of `TimeSeriesChart`, `Table`, `StatChart`, `GaugeChart`, `GeoMap`, `Treemap` — see [Visualization options](#visualization-options) for each kind's `spec`.
+The double `ClickHouseSQL` (query `kind` **and** inner `plugin.kind`) is required, not a typo. Multiple queries are allowed: time-series overlays them, table shows a selector, stat renders one tile per series, geo-map overlays markers (points) or merges regions (choropleth), treemap colors tiles per query, gauge renders one gauge per series, state-timeline accumulates lanes across queries. The panel `plugin.kind` is one of `TimeSeriesChart`, `Table`, `StatChart`, `GaugeChart`, `GeoMap`, `Treemap`, `StateTimeline` — see [Visualization options](#visualization-options) for each kind's `spec`.
 
 ### Layout — panels only render if a layout references them
 
@@ -133,6 +133,7 @@ Data shape per visualization (the viz infers everything from your columns):
 | `GaugeChart` | same shape as `StatChart` — one gauge per numeric column, reduced by `calculation`. Pick the gauge's `min`/`max` in the spec; no time axis needed. |
 | `GeoMap` | points mode: numeric lat/lon columns (+ optional value/label); choropleth mode: an ISO-3166 alpha-2/alpha-3 country-code column + a numeric value column (see `rules/geomap.md`). No time axis. |
 | `Treemap` | a label column + a **positive** numeric column (tile area), optionally a group column for color (see `rules/treemap.md`). No time axis; always `LIMIT`. |
+| `StateTimeline` | a time column (aliased above) + state columns — **one lane per non-time column**, cell value = state. For `GROUP BY` rows set `seriesColumn`/`stateColumn` in the spec to pivot one lane per label (see `rules/statetimeline.md`). |
 
 ## Visualization options
 
@@ -146,6 +147,7 @@ Each visualization has its own option set and behaviors. **Load the rule file fo
 | `GaugeChart` | `rules/gaugechart.md` | a value on a min→max arc — bounds, calculations, threshold bands |
 | `GeoMap` | `rules/geomap.md` | a world map — lat/lon markers or country shading, aggregation, color/size scales |
 | `Treemap` | `rules/treemap.md` | proportional-area tiles — part-of-whole breakdowns, grouping/colors, value labels |
+| `StateTimeline` | `rules/statetimeline.md` | discrete states over time — health/status lanes, state colors, merging, gaps |
 
 ## Variables
 

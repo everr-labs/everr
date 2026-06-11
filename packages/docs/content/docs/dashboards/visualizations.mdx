@@ -3,7 +3,7 @@ title: Visualizations
 description: The built-in panel visualizations and the spec options each one accepts.
 ---
 
-A panel's `plugin.kind` selects its visualization and `plugin.spec` configures it. Everr ships six visualizations. An unrecognized `kind` renders an "Unknown visualization" placeholder rather than breaking the dashboard.
+A panel's `plugin.kind` selects its visualization and `plugin.spec` configures it. Everr ships seven visualizations. An unrecognized `kind` renders an "Unknown visualization" placeholder rather than breaking the dashboard.
 
 They infer their structure from the columns your query returns — see [Panels and visualizations](/docs/dashboards/panels-and-visualizations#shaping-data-for-each-visualization) for the data shapes.
 
@@ -184,3 +184,33 @@ plugin:
 | `unit` | string | `""` | Value formatting in tiles and the tooltip. |
 | `showValues` | boolean | `true` | Render the value inside tiles that are large enough to fit it. |
 | `showLegend` | boolean | `true` | Group color legend — only shown when there are groups (from `groupColumn` or multiple queries). |
+
+## StateTimeline
+
+Horizontal lanes of colored segments showing discrete states over time — service health, deploy status, CI results. The query's time column (detected by exact name, case-insensitive: `ts`, `time`, or `timestamp`) is the x-axis. Each sample's state holds until the lane's next sample; the last sample holds to the end of the time range, and a `NULL` state renders as a gap. Supports drag-to-zoom (writes the new range to the URL).
+
+Two data shapes are supported. **Wide** (the default): every non-time column is its own lane, with the cell value as the state. **Long**: set `seriesColumn` to pivot `GROUP BY`-style rows into one lane per value of that column, with the state read from `stateColumn`.
+
+```yaml
+plugin:
+  kind: StateTimeline
+  spec:
+    seriesColumn: service
+    stateColumn: status
+    mergeConsecutive: true
+    showValues: true
+    showLegend: true
+    colors:
+      ok: "#22c55e"
+      error: "#ef4444"
+```
+
+| Option | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `seriesColumn` | string | — | Long-format input: one lane per distinct value of this column. Unset, every non-time column is its own lane. |
+| `stateColumn` | string | first remaining column | State column for long-format input. Ignored without `seriesColumn`. |
+| `mergeConsecutive` | boolean | `true` | Merge consecutive samples with the same state into one segment. `false` renders one box per sample (status-history style). |
+| `showValues` | boolean | `true` | Render the state text inside segments wide enough to fit it. |
+| `showLegend` | boolean | `true` | State color legend below the timeline. |
+| `colors` | object | `{}` | Fixed state → CSS color mapping (e.g. `{ ok: "#22c55e" }`); unmapped states cycle the shared palette. |
+| `rowHeight` | number | `0.9` | Segment thickness as a fraction of the lane height (0.2–1). |

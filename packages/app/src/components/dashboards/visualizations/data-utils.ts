@@ -12,6 +12,68 @@ export const SERIES_COLORS = [
   "hsl(190, 90%, 50%)",
 ];
 
+/** Clean clock intervals a time axis may tick at, ascending. */
+const TICK_INTERVALS = [
+  1_000,
+  5_000,
+  10_000,
+  30_000,
+  60_000,
+  5 * 60_000,
+  10 * 60_000,
+  30 * 60_000,
+  3_600_000,
+  3 * 3_600_000,
+  6 * 3_600_000,
+  12 * 3_600_000,
+  86_400_000,
+  2 * 86_400_000,
+  3 * 86_400_000,
+  7 * 86_400_000,
+  14 * 86_400_000,
+  30 * 86_400_000,
+  90 * 86_400_000,
+  365 * 86_400_000,
+];
+
+/** Tick label formatter for a time axis: date for multi-day spans, time otherwise. */
+export function createTimeTickFormatter(domain: [number, number]) {
+  const span = domain[1] - domain[0];
+  return (ms: number) => {
+    const d = new Date(ms);
+    if (span > 86_400_000) {
+      return d.toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+      });
+    }
+    return d.toLocaleTimeString(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+}
+
+/** Clock-aligned tick positions across a time domain, at most maxTicks of them. */
+export function generateTimeTicks(
+  domain: [number, number],
+  maxTicks: number,
+): number[] {
+  const span = domain[1] - domain[0];
+  if (span <= 0) return [];
+
+  const ideal = span / maxTicks;
+  const interval =
+    TICK_INTERVALS.find((i) => i >= ideal) ?? TICK_INTERVALS.at(-1)!;
+
+  const first = Math.ceil(domain[0] / interval) * interval;
+  const ticks: number[] = [];
+  for (let t = first; t <= domain[1]; t += interval) {
+    ticks.push(t);
+  }
+  return ticks;
+}
+
 const QUERY_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 /** Display name for a panel query by index: "Query A", "Query B", … */
