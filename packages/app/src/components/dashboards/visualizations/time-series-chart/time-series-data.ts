@@ -1,8 +1,9 @@
 import type { ChartConfig } from "@everr/ui/components/chart";
 import {
   detectTimeKey,
+  getGroupKeys,
   getValueKeys,
-  isNumericValue,
+  pivotByGroup,
   SERIES_COLORS,
   toNumber,
   toTimestamp,
@@ -10,54 +11,6 @@ import {
 import type { QueryResultRow } from "../index";
 
 export const TS_KEY = "__ts";
-
-function getGroupKeys(rows: QueryResultRow[], timeKey: string): string[] {
-  const first = rows[0];
-  if (!first) return [];
-  // A column is a grouping dimension if it carries non-numeric string content in
-  // *any* row. A string that parses as a number (e.g. a quoted ClickHouse
-  // aggregate) is a value, not a dimension — exclude it so it isn't
-  // double-counted. Scanning all rows mirrors getValueKeys: the leading bucket
-  // may be NULL for a dimension that is populated later.
-  return Object.keys(first).filter(
-    (k) =>
-      k !== timeKey &&
-      rows.some((row) => typeof row[k] === "string" && !isNumericValue(row[k])),
-  );
-}
-
-function pivotByGroup(
-  rows: QueryResultRow[],
-  timeKey: string,
-  groupKey: string,
-  valueKey: string,
-): {
-  pivoted: QueryResultRow[];
-  seriesKeys: string[];
-} {
-  const byTimestamp = new Map<string | number, QueryResultRow>();
-  const seriesSet = new Set<string>();
-
-  for (const row of rows) {
-    const ts = row[timeKey];
-    // The raw group value is the series identifier — keep it intact (it's the
-    // label, and uniqueness comes from the Set, not from mangling the name).
-    const group = String(row[groupKey]);
-    const value = toNumber(row[valueKey]);
-    seriesSet.add(group);
-
-    let entry = byTimestamp.get(ts as string | number);
-    if (!entry) {
-      entry = { [timeKey]: ts };
-      byTimestamp.set(ts as string | number, entry);
-    }
-    entry[group] = value;
-  }
-
-  const seriesKeys = [...seriesSet].sort();
-  const pivoted = [...byTimestamp.values()];
-  return { pivoted, seriesKeys };
-}
 
 function detectInterval(timestamps: number[]): number | null {
   if (timestamps.length < 2) return null;
@@ -189,7 +142,7 @@ export function buildChartModel(
     const tk = detectTimeKey(data);
     if (!tk) return;
 
-    const groupKeys = getGroupKeys(data, tk);
+    const groupKeys = getGroupKeys(data, [tk]);
     const rawValueKeys = getValueKeys(data, tk);
 
     let rows: QueryResultRow[];
