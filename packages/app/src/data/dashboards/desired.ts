@@ -20,7 +20,6 @@ function segmentLabel(segment: string): string {
 
 /**
  * Folder path from a file path: directory segments joined by " / ".
- * @expected-unused — shared with the notebooks as-code path (consumers added in follow-up tasks).
  */
 export function folderPathFromFile(path: string): string {
   const segments = path
@@ -36,7 +35,6 @@ const DEFAULT_PROJECT = "default";
 
 /**
  * Project from metadata.project, defaulting to "default"; validated.
- * @expected-unused — shared with the notebooks as-code path (consumers added in follow-up tasks).
  */
 export function projectFromDocument(path: string, document: unknown): string {
   const meta = (document as { metadata?: { project?: unknown } }).metadata;
@@ -55,7 +53,6 @@ export function projectFromDocument(path: string, document: unknown): string {
 
 /**
  * Slug from metadata.name, falling back to the filename without extension.
- * @expected-unused — shared with the notebooks as-code path (consumers added in follow-up tasks).
  */
 export function slugFromDocument(path: string, document: unknown): string {
   const meta = (document as { metadata?: { name?: unknown } }).metadata;
