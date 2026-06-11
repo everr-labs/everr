@@ -6,6 +6,7 @@ import { notebookOptions } from "@/data/notebooks/options";
 import {
   findPage,
   pageNavTree,
+  resolveNotebookLink,
   toDashboardDocument,
 } from "@/data/notebooks/pages";
 import { NotebookMarkdown } from "./notebook-markdown";
@@ -43,7 +44,14 @@ export function NotebookViewer({
         <div className="min-w-0 max-w-4xl flex-1">
           <VariableBar />
           {page ? (
-            <NotebookMarkdown markdown={page.markdown} />
+            <NotebookMarkdown
+              markdown={page.markdown}
+              project={project}
+              slug={slug}
+              resolveLink={(href) =>
+                resolveNotebookLink(href, page.file, notebook.spec)
+              }
+            />
           ) : (
             <div className="flex flex-col items-center gap-3 py-16 text-muted-foreground">
               <FileQuestion className="size-10" />

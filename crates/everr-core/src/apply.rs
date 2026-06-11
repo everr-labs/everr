@@ -149,7 +149,10 @@ fn inline_markdown_source(
     }
     let contents = fs::read_to_string(&canonical)
         .with_context(|| format!("{doc_path}: failed to read markdown file {file}"))?;
-    *markdown = serde_json::json!({ "inline": contents });
+    // Keep the original `file:` path alongside the inlined contents so the
+    // webapp viewer can resolve relative markdown links between pages back to
+    // their authored source files.
+    *markdown = serde_json::json!({ "inline": contents, "file": file });
     Ok(())
 }
 
@@ -402,14 +405,17 @@ mod tests {
 
         assert_eq!(docs.len(), 1);
         let spec = &docs[0].document["spec"];
-        assert_eq!(spec["markdown"], serde_json::json!({"inline": "# Index\n"}));
+        assert_eq!(
+            spec["markdown"],
+            serde_json::json!({"inline": "# Index\n", "file": "./index.md"})
+        );
         assert_eq!(
             spec["pages"][0]["markdown"],
             serde_json::json!({"inline": "already inline"})
         );
         assert_eq!(
             spec["pages"][0]["pages"][0]["markdown"],
-            serde_json::json!({"inline": "# Net\n"})
+            serde_json::json!({"inline": "# Net\n", "file": "./triage/net.md"})
         );
     }
 

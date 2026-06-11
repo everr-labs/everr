@@ -1,0 +1,54 @@
+kind: Notebook
+metadata:
+  name: incident-walkthrough
+  project: demo
+spec:
+  display:
+    name: Incident walkthrough (demo data)
+    description: >-
+      A worked example of investigating a latency incident, with every panel
+      driven by the deterministic TestData datasource — renders without any
+      telemetry ingested.
+  duration: 24h
+  panels:
+    latency:
+      kind: Panel
+      spec:
+        display:
+          name: Checkout latency (p50 / p95 / p99)
+          description: Shared panel — referenced from the index and the Timeline page.
+        plugin:
+          kind: TimeSeriesChart
+          spec: { unit: ms, showLegend: true }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 7
+                  series:
+                    - { name: p50, start: 80, noise: 8, min: 20 }
+                    - { name: p95, start: 240, noise: 30, min: 60 }
+                    - { name: p99, start: 600, noise: 90, min: 120 }
+  markdown:
+    file: ./incident-walkthrough/index.md
+  pages:
+    - name: traffic
+      display: { name: Traffic }
+      markdown:
+        file: ./incident-walkthrough/traffic.md
+    - name: dependencies
+      display: { name: Dependencies }
+      markdown:
+        file: ./incident-walkthrough/dependencies.md
+    - name: timeline
+      display: { name: Timeline }
+      markdown:
+        file: ./incident-walkthrough/timeline.md
+      pages:
+        - name: deploys
+          display: { name: Deploy history }
+          markdown:
+            file: ./incident-walkthrough/timeline-deploys.md

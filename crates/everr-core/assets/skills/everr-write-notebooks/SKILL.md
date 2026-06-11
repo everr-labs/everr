@@ -54,6 +54,7 @@ Rules:
 - **`spec.markdown` is required.** It is the index page (and the entire notebook when there are no child pages). There is no implicit "first page is the default."
 - **`spec.pages` is optional and recursive.** Each page has `name` (slug, **unique among its siblings**), optional `display`, **required** `markdown`, and optional nested `pages`. The viewer URL joins page names: `/notebooks/<project>/<slug>/triage/network`.
 - **`markdown` is `{ file: <path> }` or `{ inline: <string> }`.** `file:` paths resolve **relative to the YAML** and must stay **inside the apply directory**. The CLI reads each file and replaces it with `inline:` content before applying — the server only ever stores the inline form. A missing file fails the apply, naming both the YAML and the markdown path.
+- **Link between pages** with a relative path to the sibling page's `.md` file (resolved against the current file, e.g. `[Triage](./triage.md)` or `[Network](./triage/network.md)`), or by the page's path (`[Triage](triage)`, `[Network](triage/network)`). The viewer rewrites these into in-app navigation. Absolute (`/...`) and external (`http(s):`, `mailto:`) URLs are left untouched.
 - **`spec.variables` and `spec.panels` are the dashboard schema, reused verbatim.** Variables interpolate `$name` into panel queries server-side, identically to dashboards.
 
 ## The three ```panel embed forms

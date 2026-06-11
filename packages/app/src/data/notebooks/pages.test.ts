@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { findPage, pageNavTree, toDashboardDocument } from "./pages";
+import {
+  buildFileToPageMap,
+  findPage,
+  pageNavTree,
+  resolveNotebookLink,
+  toDashboardDocument,
+} from "./pages";
 import type { NotebookSpec } from "./schema";
 
 const spec: NotebookSpec = {
@@ -56,6 +62,120 @@ describe("pageNavTree", () => {
       },
       { path: "rollback", title: "rollback", children: [] },
     ]);
+  });
+});
+
+// Post-CLI spec: pages carry both `inline` contents and the original `file`.
+const fileSpec: NotebookSpec = {
+  markdown: { inline: "# Index", file: "./book/index.md" },
+  pages: [
+    {
+      name: "traffic",
+      markdown: { inline: "# Traffic", file: "./book/traffic.md" },
+    },
+    {
+      name: "timeline",
+      markdown: { inline: "# Timeline", file: "./book/timeline.md" },
+      pages: [
+        {
+          name: "deploys",
+          markdown: {
+            inline: "# Deploys",
+            file: "./book/timeline-deploys.md",
+          },
+        },
+      ],
+    },
+    // inline-only page: no file → absent from the file map.
+    { name: "rollback", markdown: { inline: "# Roll" } },
+  ],
+};
+
+describe("findPage file", () => {
+  it("returns file for the index page", () => {
+    expect(findPage(fileSpec, "")?.file).toBe("./book/index.md");
+  });
+
+  it("returns file for nested pages", () => {
+    expect(findPage(fileSpec, "timeline/deploys")?.file).toBe(
+      "./book/timeline-deploys.md",
+    );
+  });
+
+  it("omits file for inline-only pages", () => {
+    expect(findPage(fileSpec, "rollback")?.file).toBeUndefined();
+  });
+});
+
+describe("buildFileToPageMap", () => {
+  it("maps normalized file paths to page paths, index included", () => {
+    expect(buildFileToPageMap(fileSpec)).toEqual(
+      new Map([
+        ["book/index.md", ""],
+        ["book/traffic.md", "traffic"],
+        ["book/timeline.md", "timeline"],
+        ["book/timeline-deploys.md", "timeline/deploys"],
+      ]),
+    );
+  });
+});
+
+describe("resolveNotebookLink", () => {
+  it("returns null for external / absolute / hash links", () => {
+    expect(resolveNotebookLink("http://x", undefined, fileSpec)).toBeNull();
+    expect(resolveNotebookLink("https://x", undefined, fileSpec)).toBeNull();
+    expect(resolveNotebookLink("mailto:a@b", undefined, fileSpec)).toBeNull();
+    expect(resolveNotebookLink("#anchor", undefined, fileSpec)).toBeNull();
+    expect(
+      resolveNotebookLink("/dashboards/x", undefined, fileSpec),
+    ).toBeNull();
+  });
+
+  it("resolves direct page paths", () => {
+    expect(resolveNotebookLink("traffic", undefined, fileSpec)).toBe("traffic");
+    expect(resolveNotebookLink("timeline/deploys", undefined, fileSpec)).toBe(
+      "timeline/deploys",
+    );
+  });
+
+  it("returns null for unknown direct paths with no file context", () => {
+    expect(resolveNotebookLink("unknown", undefined, fileSpec)).toBeNull();
+  });
+
+  it("resolves a relative file link from the index", () => {
+    expect(
+      resolveNotebookLink("./traffic.md", "./book/index.md", fileSpec),
+    ).toBe("traffic");
+  });
+
+  it("resolves a relative file link from a nested page", () => {
+    expect(
+      resolveNotebookLink(
+        "./timeline-deploys.md",
+        "./book/timeline.md",
+        fileSpec,
+      ),
+    ).toBe("timeline/deploys");
+  });
+
+  it("resolves `..` traversal back to the index", () => {
+    expect(
+      resolveNotebookLink("../index.md", "./book/sub/page.md", fileSpec),
+    ).toBe("");
+  });
+
+  it("returns null for a .md link with no file context", () => {
+    // No currentFile → no file-map lookup; "traffic.md" is not a page path.
+    expect(resolveNotebookLink("traffic.md", undefined, fileSpec)).toBeNull();
+  });
+
+  it("ignores fragment and query suffixes when matching page paths", () => {
+    expect(resolveNotebookLink("traffic#section", undefined, fileSpec)).toBe(
+      "traffic",
+    );
+    expect(resolveNotebookLink("traffic?x=1", undefined, fileSpec)).toBe(
+      "traffic",
+    );
   });
 });
 
