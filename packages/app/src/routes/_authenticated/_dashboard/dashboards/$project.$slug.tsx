@@ -1,6 +1,8 @@
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { DashboardGrid } from "@/components/dashboards/dashboard-grid";
 import { DashboardNotFound } from "@/components/dashboards/dashboard-not-found";
+import { DashboardProvider } from "@/components/dashboards/use-dashboard";
 import { dashboardOptions } from "@/data/dashboards/options";
 import { dashboardTimeDefaults } from "@/data/dashboards/time-defaults";
 
@@ -14,7 +16,7 @@ export const Route = createFileRoute(
     ],
   },
   head: () => ({ meta: [{ title: "Everr - Dashboard" }] }),
-  component: DashboardGrid,
+  component: DashboardPage,
   notFoundComponent: DashboardNotFound,
   loader: async ({ context: { queryClient }, params: { project, slug } }) => {
     // A missing dashboard throws notFound() from the server fn (→ notFound UI);
@@ -32,3 +34,15 @@ export const Route = createFileRoute(
     };
   },
 });
+
+function DashboardPage() {
+  const { project, slug } = Route.useParams();
+  // The dashboard is immutable (gitops, read-only), so the query cache is the
+  // single source of truth; the loader has already ensured the data.
+  const { data: dashboard } = useSuspenseQuery(dashboardOptions(project, slug));
+  return (
+    <DashboardProvider document={dashboard}>
+      <DashboardGrid />
+    </DashboardProvider>
+  );
+}
