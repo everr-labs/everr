@@ -5,7 +5,6 @@ import {
 } from "@everr/ui/components/chart";
 import { LineChart as LineChartIcon } from "lucide-react";
 import { Fragment, useCallback, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import {
   CartesianGrid,
   Line,
@@ -16,6 +15,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { CursorTooltip } from "@/components/cursor-tooltip";
 import { SERIES_COLORS } from "../data-utils";
 import type { VisualizationProps } from "../index";
 import type { TimeSeriesChartSpec } from "./spec";
@@ -301,41 +301,33 @@ export function TimeSeriesChartVisualization({
           )}
         </LineChart>
       </ChartContainer>
-      {tooltipRow &&
-        createPortal(
-          <div
-            className="pointer-events-none fixed z-50 rounded-md border border-border bg-card px-3 py-2 text-xs shadow-md"
-            style={{
-              left: tooltipState!.clientX + 12,
-              top: tooltipState!.clientY + 12,
-            }}
-          >
-            <div className="mb-1 text-muted-foreground">
-              {new Date(tooltipTs!).toLocaleString()}
-            </div>
-            <div className="grid grid-cols-[auto_1fr_auto] items-center gap-x-2 gap-y-0.5">
-              {valueKeys.map((key) => {
-                const val = tooltipRow[key];
-                if (val == null) return null;
-                return (
-                  <Fragment key={key}>
-                    <span
-                      className="inline-block size-2.5 rounded-full"
-                      style={{ backgroundColor: chartConfig[key]?.color }}
-                    />
-                    <span className="text-muted-foreground">
-                      {chartConfig[key]?.label ?? key}
-                    </span>
-                    <span className="text-right font-medium tabular-nums">
-                      {unit ? `${val}${unit}` : String(val)}
-                    </span>
-                  </Fragment>
-                );
-              })}
-            </div>
-          </div>,
-          document.body,
-        )}
+      {tooltipRow && (
+        <CursorTooltip x={tooltipState!.clientX} y={tooltipState!.clientY}>
+          <div className="mb-1 text-muted-foreground">
+            {new Date(tooltipTs!).toLocaleString()}
+          </div>
+          <div className="grid grid-cols-[auto_1fr_auto] items-center gap-x-2 gap-y-0.5">
+            {valueKeys.map((key) => {
+              const val = tooltipRow[key];
+              if (val == null) return null;
+              return (
+                <Fragment key={key}>
+                  <span
+                    className="inline-block size-2.5 rounded-full"
+                    style={{ backgroundColor: chartConfig[key]?.color }}
+                  />
+                  <span className="text-muted-foreground">
+                    {chartConfig[key]?.label ?? key}
+                  </span>
+                  <span className="text-right font-medium tabular-nums">
+                    {unit ? `${val}${unit}` : String(val)}
+                  </span>
+                </Fragment>
+              );
+            })}
+          </div>
+        </CursorTooltip>
+      )}
     </div>
   );
 }

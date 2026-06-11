@@ -3,7 +3,7 @@ title: Visualizations
 description: The built-in panel visualizations and the spec options each one accepts.
 ---
 
-A panel's `plugin.kind` selects its visualization and `plugin.spec` configures it. Everr ships four visualizations. An unrecognized `kind` renders an "Unknown visualization" placeholder rather than breaking the dashboard.
+A panel's `plugin.kind` selects its visualization and `plugin.spec` configures it. Everr ships five visualizations. An unrecognized `kind` renders an "Unknown visualization" placeholder rather than breaking the dashboard.
 
 They infer their structure from the columns your query returns — see [Panels and visualizations](/docs/dashboards/panels-and-visualizations#shaping-data-for-each-visualization) for the data shapes.
 
@@ -120,3 +120,31 @@ plugin:
 | `maxRadius` | number | `22` | Points mode: largest marker radius in viewBox units. |
 | `min` | number | — | Lower bound of the color/size domain. When unset: 0 in choropleth mode, so the ramp and legend read 0→max and no shaded region fades out entirely (the data minimum is used instead if values go negative); the data minimum in points mode. |
 | `max` | number | — | Upper bound of the color/size domain. Auto-derived from data when unset. |
+
+## Treemap
+
+Tiles whose areas are proportional to a numeric column — good for part-of-whole breakdowns like requests per route or storage per table. Return one label column and one positive numeric column; rows sharing the same label are summed. Rows with a missing label or a non-positive value can't be tiled and are dropped — when any are, the panel shows a small "N rows not shown" badge in its top-right corner.
+
+With `groupColumn`, tiles are colored by that column's value and the legend lists the groups (a label can appear once per group). Without it, a multi-query panel colors tiles by query, and a single ungrouped query cycles the palette per tile.
+
+```yaml
+plugin:
+  kind: Treemap
+  spec:
+    nameColumn: route
+    valueColumn: requests
+    groupColumn: service
+    unit: req
+    showValues: true
+    showLegend: true
+```
+
+| Option | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `nameColumn` | string | `name` | Tile label column. |
+| `valueColumn` | string | `value` | Tile size column — must be positive; rows at or below 0 are dropped. |
+| `groupColumn` | string | — | Group tiles by this column: one color per group, legend lists the groups. Rows with a null group are dropped. |
+| `maxTiles` | number | — | Cap the tile count (≥ 2): the largest `maxTiles - 1` tiles stay, the rest merge into a single muted "Other (n)" tile so long tails don't render as slivers. Unset renders every row. |
+| `unit` | string | `""` | Value formatting in tiles and the tooltip. |
+| `showValues` | boolean | `true` | Render the value inside tiles that are large enough to fit it. |
+| `showLegend` | boolean | `true` | Group color legend — only shown when there are groups (from `groupColumn` or multiple queries). |
