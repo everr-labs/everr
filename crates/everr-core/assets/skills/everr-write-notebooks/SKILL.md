@@ -107,6 +107,8 @@ panel: request-rate
 
 The dashboard embed resolves **at view time**, so it stays live and in sync with the source dashboard, and the rendered panel header carries a link that opens `/dashboards/demo/web-http-overview`.
 
+**Embed variable-free dashboard panels** (or declare matching `spec.variables` in the notebook): a dashboard panel whose query uses `$variables` only interpolates variables the *notebook* defines — an undefined `$variable` reaches ClickHouse verbatim and the embed errors.
+
 ## Apply semantics
 
 Notebooks reconcile through the **same apply tree as dashboards**: one `everr.yaml` manifest at the directory root declares the projects, and one `everr apply <dir>` reconciles **one desired state across all kinds**. Applying a directory that declares a project **prunes that project's notebooks AND dashboards that are not present in the tree** — delete-by-default, per kind. So **never split one project across two apply directories**; put all of a project's dashboards and notebooks under a single tree.
