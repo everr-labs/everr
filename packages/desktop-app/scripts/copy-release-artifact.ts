@@ -128,8 +128,8 @@ export function buildUpdaterManifest({
 }
 
 export function buildReleaseMetadata({
-  releaseVersion,
-  platformVersion,
+  packageVersion,
+  desktopVersion,
   releaseSha,
   releaseShortSha,
   publicBaseUrl,
@@ -137,8 +137,8 @@ export function buildReleaseMetadata({
   files,
   createdAt,
 }: {
-  releaseVersion: string;
-  platformVersion: string;
+  packageVersion: string;
+  desktopVersion: string;
   releaseSha: string;
   releaseShortSha: string;
   publicBaseUrl: string;
@@ -150,8 +150,8 @@ export function buildReleaseMetadata({
     {
       schema_version: 1,
       product: "Everr",
-      version: releaseVersion,
-      platform_version: platformVersion,
+      version: packageVersion,
+      platform_version: desktopVersion,
       release_sha: releaseSha,
       release_short_sha: releaseShortSha,
       public_base_url: publicBaseUrl,
@@ -433,10 +433,10 @@ export async function stageReleaseArtifacts() {
   const bundleDir = await findBundleDir();
   const artifacts = await findReleaseArtifacts(bundleDir);
   const appDestDir = path.join(desktopReleaseDir, "everr-app");
-  const releaseVersion = await readDesktopPackageVersion();
-  const fallbackVersion = await readDesktopTauriVersion();
+  const packageVersion = await readDesktopPackageVersion();
+  const desktopVersion = await readDesktopTauriVersion();
   const identity = resolveDesktopReleaseIdentity({
-    fallbackVersion,
+    desktopVersion,
     fallbackSha: process.env.EVERR_RELEASE_SHA ?? process.env.GITHUB_SHA,
   });
   const publicBaseUrl = resolvePublicBaseUrl();
@@ -471,7 +471,7 @@ export async function stageReleaseArtifacts() {
     assetName: target.updaterArchiveName,
   });
   const manifest = buildUpdaterManifest({
-    version: identity.platformVersion,
+    version: identity.desktopVersion,
     releaseShortSha: identity.releaseShortSha,
     pubDate: createdAt,
     downloadUrl: updaterArchiveUrl,
@@ -485,8 +485,8 @@ export async function stageReleaseArtifacts() {
   await writeFile(
     path.join(desktopReleaseDir, RELEASE_METADATA_NAME),
     buildReleaseMetadata({
-      releaseVersion,
-      platformVersion: identity.platformVersion,
+      packageVersion,
+      desktopVersion: identity.desktopVersion,
       releaseSha: identity.releaseSha,
       releaseShortSha: identity.releaseShortSha,
       publicBaseUrl,
@@ -498,7 +498,7 @@ export async function stageReleaseArtifacts() {
   await writeReleaseChecksums(desktopReleaseDir);
 
   console.log(
-    `Staged desktop ${identity.releaseShortSha} (${identity.platformVersion}) release artifacts in ${desktopReleaseDir}`,
+    `Staged desktop ${identity.releaseShortSha} (${identity.desktopVersion}) release artifacts in ${desktopReleaseDir}`,
   );
   console.log(`Wrote updater manifest to ${path.join(appDestDir, "latest.json")}`);
 }

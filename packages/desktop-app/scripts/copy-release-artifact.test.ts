@@ -82,8 +82,8 @@ describe("copy-release-artifact helpers", () => {
 
   it("builds release metadata for the deploy artifact bundle", () => {
     const metadata = buildReleaseMetadata({
-      releaseVersion: "0.1.31",
-      platformVersion: "0.1.31",
+      packageVersion: "0.1.31",
+      desktopVersion: "0.1.31",
       releaseSha: "82efe1cf1358e8395b2862c4ee9f93567f10c16e",
       releaseShortSha: "82efe1c",
       publicBaseUrl: "https://everr.dev/everr-app",

@@ -64,10 +64,10 @@ export async function buildDesktop(args = process.argv.slice(2)) {
 
   await rm(desktopReleaseDir, { recursive: true, force: true });
 
-  const fallbackVersion = await readDesktopTauriConfigVersion();
+  const desktopVersion = await readDesktopTauriConfigVersion();
   const gitShaResult = await $({ nothrow: true })`git -C ${repoDir} rev-parse HEAD`;
   const identity = resolveDesktopReleaseIdentity({
-    fallbackVersion,
+    desktopVersion,
     fallbackSha: gitShaResult.exitCode === 0 ? gitShaResult.stdout.trim() : undefined,
   });
   Object.assign(process.env, {
@@ -79,7 +79,7 @@ export async function buildDesktop(args = process.argv.slice(2)) {
   if (ciBuild) {
     const overridePath = await writeDesktopReleaseTauriConfigOverride({
       outputPath: path.join(repoDir, "target", "desktop-build", "tauri-release.conf.json"),
-      platformVersion: identity.platformVersion,
+      desktopVersion: identity.desktopVersion,
     });
     tauriArgs.push("--config", overridePath);
   }

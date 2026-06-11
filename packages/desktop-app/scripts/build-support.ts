@@ -332,7 +332,7 @@ function normalizeDesktopVersion(version: string) {
 }
 
 export type DesktopReleaseIdentity = {
-  platformVersion: string;
+  desktopVersion: string;
   releaseSha: string;
   releaseShortSha: string;
   source: "github-actions" | "local";
@@ -353,22 +353,22 @@ function normalizeReleaseSha(value: string) {
 
 export function resolveDesktopReleaseIdentity({
   env = process.env,
-  fallbackVersion,
+  desktopVersion,
   fallbackSha,
 }: {
   env?: NodeJS.ProcessEnv;
-  fallbackVersion: string;
+  desktopVersion: string;
   fallbackSha?: string;
 }): DesktopReleaseIdentity {
   const envReleaseSha = env.EVERR_RELEASE_SHA?.trim();
   const envReleaseShortSha = env.EVERR_RELEASE_SHORT_SHA?.trim();
-  const platformVersion = normalizeDesktopVersion(fallbackVersion);
+  const normalizedDesktopVersion = normalizeDesktopVersion(desktopVersion);
 
   if (envReleaseSha) {
     const releaseSha = envReleaseSha;
 
     return {
-      platformVersion,
+      desktopVersion: normalizedDesktopVersion,
       releaseSha,
       releaseShortSha: envReleaseShortSha || releaseShortSha(releaseSha),
       source: env.GITHUB_SHA ? "github-actions" : "local",
@@ -381,7 +381,7 @@ export function resolveDesktopReleaseIdentity({
     const releaseSha = normalizeReleaseSha(githubSha);
 
     return {
-      platformVersion,
+      desktopVersion: normalizedDesktopVersion,
       releaseSha,
       releaseShortSha: releaseShortSha(releaseSha),
       source: "github-actions",
@@ -391,7 +391,7 @@ export function resolveDesktopReleaseIdentity({
   const releaseSha = fallbackSha?.trim() || "unknown";
 
   return {
-    platformVersion,
+    desktopVersion: normalizedDesktopVersion,
     releaseSha,
     releaseShortSha: releaseShortSha(releaseSha),
     source: "local",
@@ -421,12 +421,12 @@ export function resolveDesktopReleaseIngestKey({
 
 export async function writeDesktopReleaseTauriConfigOverride({
   outputPath,
-  platformVersion,
+  desktopVersion,
 }: {
   outputPath: string;
-  platformVersion: string;
+  desktopVersion: string;
 }) {
-  const version = normalizeDesktopVersion(platformVersion);
+  const version = normalizeDesktopVersion(desktopVersion);
   await mkdir(path.dirname(outputPath), { recursive: true });
   await writeFile(outputPath, `${JSON.stringify({ version }, null, 2)}\n`);
   return outputPath;

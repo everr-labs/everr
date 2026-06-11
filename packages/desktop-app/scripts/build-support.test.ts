@@ -68,11 +68,11 @@ describe("build-support version helpers", () => {
           GITHUB_SHA: "82efe1cf1358e8395b2862c4ee9f93567f10c16e",
           GITHUB_RUN_NUMBER: "1234",
         },
-        fallbackVersion: "0.1.30",
+        desktopVersion: "0.1.30",
         fallbackSha: "localsha",
       }),
     ).toEqual({
-      platformVersion: "0.1.30",
+      desktopVersion: "0.1.30",
       releaseSha: "82efe1cf1358e8395b2862c4ee9f93567f10c16e",
       releaseShortSha: "82efe1c",
       source: "github-actions",
@@ -83,11 +83,11 @@ describe("build-support version helpers", () => {
     expect(
       resolveDesktopReleaseIdentity({
         env: {},
-        fallbackVersion: "0.1.30",
+        desktopVersion: "0.1.30",
         fallbackSha: "localsha123456",
       }),
     ).toEqual({
-      platformVersion: "0.1.30",
+      desktopVersion: "0.1.30",
       releaseSha: "localsha123456",
       releaseShortSha: "localsh",
       source: "local",
@@ -104,10 +104,10 @@ describe("build-support version helpers", () => {
           EVERR_RELEASE_SHA: "82efe1cf1358e8395b2862c4ee9f93567f10c16e",
           EVERR_RELEASE_SHORT_SHA: "82efe1c",
         },
-        fallbackVersion: "0.1.30",
+        desktopVersion: "0.1.30",
       }),
     ).toEqual({
-      platformVersion: "0.1.30",
+      desktopVersion: "0.1.30",
       releaseSha: "82efe1cf1358e8395b2862c4ee9f93567f10c16e",
       releaseShortSha: "82efe1c",
       source: "github-actions",
@@ -121,7 +121,7 @@ describe("build-support version helpers", () => {
           GITHUB_SHA: "not-a-sha",
           GITHUB_RUN_NUMBER: "1234",
         },
-        fallbackVersion: "0.1.30",
+        desktopVersion: "0.1.30",
         fallbackSha: "localsha",
       }),
     ).toThrow(/GITHUB_SHA/);
@@ -134,12 +134,12 @@ describe("build-support version helpers", () => {
     await expect(
       writeDesktopReleaseTauriConfigOverride({
         outputPath: overridePath,
-        platformVersion: "0.1.31",
+        desktopVersion: "1.2.3",
       }),
     ).resolves.toBe(overridePath);
 
     await expect(readFile(overridePath, "utf8")).resolves.toBe(
-      `${JSON.stringify({ version: "0.1.31" }, null, 2)}\n`,
+      `${JSON.stringify({ version: "1.2.3" }, null, 2)}\n`,
     );
   });
 
@@ -149,7 +149,7 @@ describe("build-support version helpers", () => {
     await expect(
       writeDesktopReleaseTauriConfigOverride({
         outputPath: path.join(rootDir, "bad.conf.json"),
-        platformVersion: "82efe1c",
+        desktopVersion: "82efe1c",
       }),
     ).rejects.toThrow(/semantic version/);
   });
