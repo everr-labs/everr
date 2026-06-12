@@ -54,6 +54,8 @@ vi.mock("@/telemetry/logger", () => ({
   exceptionAttributes: (error: unknown) => ({
     "exception.message": error instanceof Error ? error.message : String(error),
   }),
+  errorMessage: (error: unknown) =>
+    error instanceof Error ? error.message : String(error),
   serverLogger: { error: vi.fn(), warn: vi.fn() },
 }));
 

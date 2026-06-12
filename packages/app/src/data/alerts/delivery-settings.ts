@@ -8,6 +8,24 @@ export const ALERT_CHANNELS = ["email", "telegram"] as const;
 export type AlertChannel = (typeof ALERT_CHANNELS)[number];
 export type AlertDeliveryTargets = Partial<Record<AlertChannel, string[]>>;
 
+// The "enabled channels need at least one recipient" rule, stated once and
+// consumed by both the server schema below and the settings form's inline
+// field validation.
+const EMPTY_CHANNEL_MESSAGES: Record<AlertChannel, string> = {
+  email: "Email is enabled but has no recipients",
+  telegram: "Telegram is enabled but has no chat IDs",
+};
+
+export function emptyChannelError(
+  channel: AlertChannel,
+  enabled: boolean,
+  recipients: readonly string[],
+): string | undefined {
+  return enabled && recipients.length === 0
+    ? EMPTY_CHANNEL_MESSAGES[channel]
+    : undefined;
+}
+
 export const DeliverySettingsSchema = z
   .object({
     email: z
@@ -24,8 +42,8 @@ export const DeliverySettingsSchema = z
           .default([]),
       })
       .strict()
-      .refine((value) => !value.enabled || value.to.length > 0, {
-        message: "Email is enabled but has no recipients",
+      .refine((value) => !emptyChannelError("email", value.enabled, value.to), {
+        message: EMPTY_CHANNEL_MESSAGES.email,
       })
       .optional(),
     telegram: z
@@ -42,9 +60,10 @@ export const DeliverySettingsSchema = z
           .default([]),
       })
       .strict()
-      .refine((value) => !value.enabled || value.chatIds.length > 0, {
-        message: "Telegram is enabled but has no chat IDs",
-      })
+      .refine(
+        (value) => !emptyChannelError("telegram", value.enabled, value.chatIds),
+        { message: EMPTY_CHANNEL_MESSAGES.telegram },
+      )
       .optional(),
   })
   .strict();

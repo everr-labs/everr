@@ -127,6 +127,7 @@ function AlertDetailPage() {
   const events = useQuery(alertEventsQueryOptions(alertId, timeRange));
   const [silenceTarget, setSilenceTarget] =
     useState<AlertInstanceSummary | null>(null);
+  const [newSilenceOpen, setNewSilenceOpen] = useState(false);
 
   const setActive = useMutation({
     mutationFn: (active: boolean) =>
@@ -203,7 +204,7 @@ function AlertDetailPage() {
             onClick={() => setActive.mutate(false)}
           >
             <CircleStop data-icon="inline-start" />
-            Deactivate
+            Pause Evaluation
           </Button>
         ) : (
           <Button
@@ -213,7 +214,7 @@ function AlertDetailPage() {
             onClick={() => setActive.mutate(true)}
           >
             <CirclePlay data-icon="inline-start" />
-            Activate
+            Resume Evaluation
           </Button>
         )}
       </div>
@@ -279,7 +280,10 @@ function AlertDetailPage() {
                         variant="outline"
                         size="sm"
                         aria-label="Silence"
-                        onClick={() => setSilenceTarget(row)}
+                        onClick={() => {
+                          setSilenceTarget(row);
+                          setNewSilenceOpen(false);
+                        }}
                       >
                         <BellOff data-icon="inline-start" />
                         <span className="hidden md:inline">Silence</span>
@@ -321,11 +325,23 @@ function AlertDetailPage() {
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle>Active silences</CardTitle>
-            <CardDescription>
-              Created from instances; matching instances stop notifying.
-            </CardDescription>
+          <CardHeader className="flex flex-row items-start justify-between">
+            <div>
+              <CardTitle>Active silences</CardTitle>
+              <CardDescription>
+                Created from instances; matching instances stop notifying.
+              </CardDescription>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setSilenceTarget(null);
+                setNewSilenceOpen(true);
+              }}
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
           </CardHeader>
           <CardContent>
             {silences.isPending ? (
@@ -387,7 +403,11 @@ function AlertDetailPage() {
       <SilenceDialog
         alertId={alertId}
         instance={silenceTarget}
-        onClose={() => setSilenceTarget(null)}
+        open={newSilenceOpen}
+        onClose={() => {
+          setSilenceTarget(null);
+          setNewSilenceOpen(false);
+        }}
       />
     </div>
   );
@@ -567,10 +587,12 @@ function silenceEnd(hours: string): Date {
 function SilenceDialog({
   alertId,
   instance,
+  open,
   onClose,
 }: {
   alertId: string;
   instance: AlertInstanceSummary | null;
+  open?: boolean;
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
@@ -616,9 +638,9 @@ function SilenceDialog({
 
   return (
     <Dialog
-      open={instance !== null}
-      onOpenChange={(open) => {
-        if (!open) {
+      open={instance !== null || (open ?? false)}
+      onOpenChange={(dialogOpen) => {
+        if (!dialogOpen) {
           onClose();
           setInitializedFor(null);
         }

@@ -6,6 +6,7 @@ import { db } from "@/db/client";
 import { alertDefinitions, alertSettings, alertSilences } from "@/db/schema";
 import { auth } from "@/lib/auth.server";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
+import { OPERATIONAL_EVENT_TYPES } from "@/server/alerts/events";
 import { extractInstanceLabels, parseLabels } from "@/server/alerts/instances";
 import {
   ALERT_CHANNELS,
@@ -253,7 +254,7 @@ export const listAlertEvents = createAuthenticatedServerFn({ method: "GET" })
 	              AND repoid = {repoid:String}
 	              AND slug = {slug:String}
 	              AND alert_definition_id = {alertDefinitionId:String}
-	              AND event_type NOT IN ('instance_fired', 'instance_resolved', 'delivery_attempt')
+	              AND event_type NOT IN (${OPERATIONAL_EVENT_TYPES.map((t) => `'${t}'`).join(", ")})
 	              AND event_time >= {fromTime:String}
 	              AND event_time <= {toTime:String}
 	            ORDER BY event_time DESC, event_id DESC

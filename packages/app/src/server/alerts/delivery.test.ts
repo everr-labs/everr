@@ -27,7 +27,9 @@ vi.mock("@/telemetry/logger", () => ({
   exceptionAttributes: (error: unknown) => ({
     "exception.message": error instanceof Error ? error.message : String(error),
   }),
-  serverLogger: { error: vi.fn() },
+  errorMessage: (error: unknown) =>
+    error instanceof Error ? error.message : String(error),
+  serverLogger: { error: vi.fn(), warn: vi.fn() },
 }));
 
 import { serverLogger } from "@/telemetry/logger";
@@ -141,6 +143,7 @@ describe("deliverAlertNotification", () => {
         telegram: ["123"],
       },
       silenceId: "",
+      failures: [],
     });
   });
 
@@ -160,7 +163,11 @@ describe("deliverAlertNotification", () => {
 
     expect(sendEmail).not.toHaveBeenCalled();
     expect(sendTelegram).not.toHaveBeenCalled();
-    expect(result).toEqual({ deliveryTargets: {}, silenceId: "sil-1" });
+    expect(result).toEqual({
+      deliveryTargets: {},
+      silenceId: "sil-1",
+      failures: [],
+    });
   });
 
   it("excludes silenced instances but still notifies the rest", async () => {
@@ -187,6 +194,7 @@ describe("deliverAlertNotification", () => {
         telegram: ["123"],
       },
       silenceId: "",
+      failures: [],
     });
   });
 
@@ -204,7 +212,11 @@ describe("deliverAlertNotification", () => {
 
     expect(sendEmail).not.toHaveBeenCalled();
     expect(sendTelegram).not.toHaveBeenCalled();
-    expect(result).toEqual({ deliveryTargets: {}, silenceId: "sil-1" });
+    expect(result).toEqual({
+      deliveryTargets: {},
+      silenceId: "sil-1",
+      failures: [],
+    });
   });
 
   it("sends resolved delivery without a global toggle", async () => {
@@ -245,6 +257,7 @@ describe("deliverAlertNotification", () => {
         telegram: ["123"],
       },
       silenceId: "",
+      failures: [],
     });
   });
 
@@ -345,7 +358,7 @@ describe("deliverAlertNotification", () => {
     expect(telegram).toContain("• route=/a — fired for 42m");
   });
 
-  it("returns target metadata when a send fails", async () => {
+  it("returns target metadata and the failure when a send fails", async () => {
     sendTelegram.mockRejectedValue(new Error("nope"));
 
     const result = await deliverAlertNotification({
@@ -363,6 +376,7 @@ describe("deliverAlertNotification", () => {
         telegram: ["123"],
       },
       silenceId: "",
+      failures: [{ channel: "telegram", target: "123", error: "nope" }],
     });
   });
 
@@ -396,14 +410,14 @@ describe("deliverAlertNotification", () => {
     );
     expect(sendTelegram).toHaveBeenCalledTimes(2);
     expect(sendTelegram).toHaveBeenLastCalledWith("456", expect.any(String));
-    expect(vi.mocked(serverLogger.error)).toHaveBeenCalledWith(
+    expect(vi.mocked(serverLogger.warn)).toHaveBeenCalledWith(
       "alerts.delivery.email_failed",
       expect.objectContaining({
         "alert.definition_id": "a1",
         "alert.delivery_target": "a@example.com",
       }),
     );
-    expect(vi.mocked(serverLogger.error)).toHaveBeenCalledWith(
+    expect(vi.mocked(serverLogger.warn)).toHaveBeenCalledWith(
       "alerts.delivery.telegram_failed",
       expect.objectContaining({
         "alert.definition_id": "a1",

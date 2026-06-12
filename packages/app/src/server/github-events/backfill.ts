@@ -22,8 +22,8 @@ import { db } from "@/db/client";
 import { workflowRuns } from "@/db/schema";
 import { githubEnv } from "@/env/github";
 import { serverLogger } from "@/telemetry/logger";
+import { enqueueWebhookEvent } from "./enqueue";
 import { getInstallationToken, paginate } from "./github-api";
-import { enqueueWebhookEvent } from "./runtime";
 import { generateWorkflowTraceId } from "./trace-id";
 
 // ---------------------------------------------------------------------------

@@ -1,8 +1,11 @@
-import { type SQLWrapper, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { db } from "@/db/client";
+import { addWorkerJob } from "@/server/worker/jobs";
 
 export const ALERT_EVALUATE_TASK = "alerts/evaluate";
 const SCANNER_BATCH_SIZE = 500;
+const EVALUATE_MAX_ATTEMPTS = 3;
+const ENQUEUE_CONCURRENCY = 5;
 
 export interface EvaluatePayload {
   alertDefinitionId: string;
@@ -15,14 +18,10 @@ interface ClaimedAlert extends Record<string, unknown> {
   evaluation_scheduled_at: Date | string;
 }
 
-type TransactionLike = {
-  execute: (query: string | SQLWrapper) => Promise<unknown> | unknown;
-};
-
 export async function scanDueAlerts(opts: { batchSize?: number } = {}) {
   const batchSize = opts.batchSize ?? SCANNER_BATCH_SIZE;
 
-  return db.transaction(async (tx) => {
+  const claimed = await db.transaction(async (tx) => {
     const claimedResult = await tx.execute<ClaimedAlert>(sql`
       WITH claim AS (
         SELECT now() AS claimed_at
@@ -43,63 +42,36 @@ export async function scanDueAlerts(opts: { batchSize?: number } = {}) {
       WHERE d.id = due.id
       RETURNING d.id, d.organization_id, claim.claimed_at AS evaluation_scheduled_at
     `);
-
-    const claimed = claimedResult.rows;
-    if (claimed.length > 0) {
-      await enqueueEvaluationJobs(tx, claimed);
-    }
-    return claimed.length;
+    return claimedResult.rows;
   });
-}
 
-// One statement for the whole batch instead of one add_job round trip per
-// claimed alert — the transaction holds the claimed row locks until commit, so
-// enqueue latency directly extends lock hold time.
-async function enqueueEvaluationJobs(
-  tx: TransactionLike,
-  alerts: ClaimedAlert[],
-) {
-  const payloads: string[] = [];
-  const queueNames: string[] = [];
-  const jobKeys: string[] = [];
-  for (const alert of alerts) {
-    const scheduledFor = isoTimestamp(alert.evaluation_scheduled_at);
-    const payload: EvaluatePayload = {
-      alertDefinitionId: alert.id,
-      scheduledFor,
-    };
-    payloads.push(JSON.stringify(payload));
-    queueNames.push(`alerts:eval:${alert.organization_id}`);
-    jobKeys.push(`${ALERT_EVALUATE_TASK}:${alert.id}:${scheduledFor}`);
+  // Enqueue after the claim commits, through graphile-worker's public API
+  // (deliberately not atomic with the claim). A crash between commit and
+  // enqueue skips one evaluation cycle; the alert is simply claimed again at
+  // its next interval. job_key replace semantics keep the enqueue idempotent.
+  //
+  // Chunked rather than one flat Promise.all: a full 500-alert batch would
+  // otherwise queue 500 checkouts at once on the shared pg pool (default max
+  // 10) and starve every other consumer while it drains.
+  for (let i = 0; i < claimed.length; i += ENQUEUE_CONCURRENCY) {
+    await Promise.all(
+      claimed.slice(i, i + ENQUEUE_CONCURRENCY).map((alert) => {
+        const scheduledFor = isoTimestamp(alert.evaluation_scheduled_at);
+        const payload: EvaluatePayload = {
+          alertDefinitionId: alert.id,
+          scheduledFor,
+        };
+        return addWorkerJob(ALERT_EVALUATE_TASK, payload, {
+          jobKey: `${ALERT_EVALUATE_TASK}:${alert.id}:${scheduledFor}`,
+          jobKeyMode: "replace",
+          maxAttempts: EVALUATE_MAX_ATTEMPTS,
+          queueName: `alerts:eval:${alert.organization_id}`,
+        });
+      }),
+    );
   }
 
-  await tx.execute(sql`
-    SELECT graphile_worker.add_job(
-      identifier => ${ALERT_EVALUATE_TASK}::text,
-      payload => job.payload::json,
-      queue_name => job.queue_name,
-      run_at => NULL::timestamptz,
-      max_attempts => 3::int,
-      job_key => job.job_key,
-      priority => NULL::int,
-      flags => NULL::text[],
-      job_key_mode => 'replace'::text
-    )
-    FROM unnest(
-      ${textArray(payloads)},
-      ${textArray(queueNames)},
-      ${textArray(jobKeys)}
-    ) AS job(payload, queue_name, job_key)
-  `);
-}
-
-// Interpolating a JS array into drizzle's sql template expands it to a
-// parenthesized parameter list — a row constructor, not a Postgres array.
-function textArray(values: string[]) {
-  return sql`ARRAY[${sql.join(
-    values.map((value) => sql`${value}`),
-    sql`, `,
-  )}]::text[]`;
+  return claimed.length;
 }
 
 function isoTimestamp(value: Date | string) {

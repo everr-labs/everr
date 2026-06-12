@@ -6,6 +6,7 @@ import type { ApplyResourceEntry, ApplySource } from "@/data/as-code/schema";
 import { db } from "@/db/client";
 import { alertDefinitions } from "@/db/schema";
 import { querySqlApiWithMeta, type SqlApiResult } from "@/lib/clickhouse";
+import { errorMessage } from "@/telemetry/logger";
 import { type AlertRuleYaml, AlertRuleYamlSchema } from "./schema";
 import {
   validateMessageTemplate,
@@ -69,7 +70,7 @@ function scheduleJitterSeconds(
 }
 
 function validationError(path: string, error: unknown): ApplyValidationError {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = errorMessage(error);
   return new ApplyValidationError(`${path}: ${message}`);
 }
 
@@ -113,7 +114,7 @@ async function validateAlertRuleQuery(
     );
   } catch (error) {
     throw new ApplyValidationError(
-      `${path}: query failed: ${error instanceof Error ? error.message : String(error)}`,
+      `${path}: query failed: ${errorMessage(error)}`,
     );
   }
 

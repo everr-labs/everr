@@ -4,11 +4,16 @@ import { renderMessage } from "@/data/alerts/template";
 import { db } from "@/db/client";
 import { alertDefinitions } from "@/db/schema";
 import { querySqlApiWithMeta } from "@/lib/clickhouse";
-import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
+import {
+  errorMessage,
+  exceptionAttributes,
+  serverLogger,
+} from "@/telemetry/logger";
 import { type DeliveryMetadata, deliverAlertNotification } from "./delivery";
 import {
   type AlertEventRow,
   boundEvidence,
+  buildDeliveryFailureEvent,
   buildEvaluationEvent,
   buildInstanceEvent,
   insertAlertEvents,
@@ -78,7 +83,7 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
   }
 
   async function recordEvaluationFailure(error: unknown, logEvent: string) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = errorMessage(error);
     await db
       .update(alertDefinitions)
       .set({
@@ -236,6 +241,11 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
         ...deliveryFields(resolvedDelivery),
       }),
     );
+  }
+  for (const delivery of [firingDelivery, resolvedDelivery]) {
+    for (const failure of delivery?.failures ?? []) {
+      events.push(buildDeliveryFailureEvent({ def, scheduledFor, failure }));
+    }
   }
   await recordAlertEvents(events);
 }

@@ -5,7 +5,7 @@ import {
 } from "@tanstack/react-start/server";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { db } from "@/db/client";
-import { startWorkerRuntime } from "@/server/github-events/runtime";
+import { startWorkerRuntime } from "@/server/worker/runtime";
 import {
   getTelemetryTracer,
   recordTelemetryError,

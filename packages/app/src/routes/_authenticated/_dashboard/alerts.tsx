@@ -19,6 +19,7 @@ import { Label } from "@everr/ui/components/label";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { Switch } from "@everr/ui/components/switch";
 import { TagsInput } from "@everr/ui/components/tags-input";
+import { useForm } from "@tanstack/react-form";
 import {
   queryOptions,
   useMutation,
@@ -27,7 +28,11 @@ import {
 } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Settings } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import {
+  emptyChannelError,
+  type NormalizedAlertDeliverySettings,
+} from "@/data/alerts/delivery-settings";
 import {
   validateEmailRecipient,
   validateTelegramChatId,
@@ -216,58 +221,7 @@ function NotificationSettingsDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const queryClient = useQueryClient();
   const settings = useQuery(alertSettingsQueryOptions());
-  const [emailEnabled, setEmailEnabled] = useState(false);
-  const [emailTo, setEmailTo] = useState<string[]>([]);
-  const [telegramEnabled, setTelegramEnabled] = useState(false);
-  const [telegramChatIds, setTelegramChatIds] = useState<string[]>([]);
-  const [fieldErrors, setFieldErrors] = useState<{
-    email?: string;
-    telegram?: string;
-  }>({});
-
-  useEffect(() => {
-    const delivery = settings.data?.delivery;
-    if (!delivery || !open) return;
-    setEmailEnabled(delivery.email.enabled);
-    setEmailTo(delivery.email.to);
-    setTelegramEnabled(delivery.telegram.enabled);
-    setTelegramChatIds(delivery.telegram.chatIds);
-    setFieldErrors({});
-  }, [settings.data, open]);
-
-  const update = useMutation({
-    mutationFn: () =>
-      updateAlertSettings({
-        data: {
-          delivery: {
-            email: { enabled: emailEnabled, to: emailTo },
-            telegram: {
-              enabled: telegramEnabled,
-              chatIds: telegramChatIds,
-            },
-          },
-        },
-      }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["alerts", "settings"] });
-      onOpenChange(false);
-    },
-  });
-
-  function save() {
-    const errors: { email?: string; telegram?: string } = {};
-    if (emailEnabled && emailTo.length === 0) {
-      errors.email = "Email is enabled but has no recipients.";
-    }
-    if (telegramEnabled && telegramChatIds.length === 0) {
-      errors.telegram = "Telegram is enabled but has no chat IDs.";
-    }
-    setFieldErrors(errors);
-    if (errors.email || errors.telegram) return;
-    update.mutate();
-  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -278,60 +232,144 @@ function NotificationSettingsDialog({
             Organization-level delivery for alert notifications.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col gap-4">
-          <ChannelField
-            label="Email"
-            recipientsLabel="Email recipients"
-            placeholder="team@example.com"
-            enabled={emailEnabled}
-            onEnabledChange={(enabled) => {
-              setEmailEnabled(enabled);
-              setFieldErrors((errors) => ({ ...errors, email: undefined }));
-            }}
-            recipients={emailTo}
-            onRecipientsChange={(recipients) => {
-              setEmailTo(recipients);
-              setFieldErrors((errors) => ({ ...errors, email: undefined }));
-            }}
-            validate={validateEmailRecipient}
-            error={fieldErrors.email}
+        {settings.data ? (
+          // Mounted fresh on every dialog open (the popup unmounts on close),
+          // so the form reads its defaults once — no effect syncing state.
+          <NotificationSettingsForm
+            initial={settings.data.delivery}
+            onClose={() => onOpenChange(false)}
           />
-          <ChannelField
-            label="Telegram"
-            recipientsLabel="Telegram chat IDs"
-            placeholder="-1001234567890"
-            enabled={telegramEnabled}
-            onEnabledChange={(enabled) => {
-              setTelegramEnabled(enabled);
-              setFieldErrors((errors) => ({ ...errors, telegram: undefined }));
-            }}
-            recipients={telegramChatIds}
-            onRecipientsChange={(recipients) => {
-              setTelegramChatIds(recipients);
-              setFieldErrors((errors) => ({ ...errors, telegram: undefined }));
-            }}
-            validate={validateTelegramChatId}
-            error={fieldErrors.telegram}
-          />
-          {update.error && (
-            <p className="text-destructive" role="alert">
-              {update.error.message}
-            </p>
-          )}
-        </div>
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={update.isPending}
-          >
-            Cancel
-          </Button>
-          <Button disabled={update.isPending} onClick={save}>
-            Save
-          </Button>
-        </DialogFooter>
+        ) : (
+          <Skeleton className="h-48 w-full" />
+        )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function NotificationSettingsForm({
+  initial,
+  onClose,
+}: {
+  initial: NormalizedAlertDeliverySettings;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+
+  const update = useMutation({
+    mutationFn: (delivery: NormalizedAlertDeliverySettings) =>
+      updateAlertSettings({ data: { delivery } }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["alerts", "settings"] });
+      onClose();
+    },
+  });
+
+  const form = useForm({
+    defaultValues: initial,
+    // Failures stay in the mutation state and render inline.
+    onSubmit: ({ value }) => update.mutate(value),
+  });
+
+  return (
+    <form
+      className="flex flex-col gap-4"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void form.handleSubmit();
+      }}
+    >
+      <div className="flex flex-col gap-4">
+        <form.Field
+          name="email.enabled"
+          listeners={{
+            // Re-check the recipients rule when the channel is toggled.
+            onChange: ({ fieldApi }) =>
+              fieldApi.form.validateField("email.to", "change"),
+          }}
+        >
+          {(enabledField) => (
+            <form.Field
+              name="email.to"
+              validators={{
+                onChange: ({ value, fieldApi }) =>
+                  emptyChannelError(
+                    "email",
+                    fieldApi.form.state.values.email.enabled,
+                    value,
+                  ),
+              }}
+            >
+              {(toField) => (
+                <ChannelField
+                  label="Email"
+                  recipientsLabel="Email recipients"
+                  placeholder="team@example.com"
+                  enabled={enabledField.state.value}
+                  onEnabledChange={enabledField.handleChange}
+                  recipients={toField.state.value}
+                  onRecipientsChange={toField.handleChange}
+                  validate={validateEmailRecipient}
+                  error={toField.state.meta.errors[0]}
+                />
+              )}
+            </form.Field>
+          )}
+        </form.Field>
+        <form.Field
+          name="telegram.enabled"
+          listeners={{
+            onChange: ({ fieldApi }) =>
+              fieldApi.form.validateField("telegram.chatIds", "change"),
+          }}
+        >
+          {(enabledField) => (
+            <form.Field
+              name="telegram.chatIds"
+              validators={{
+                onChange: ({ value, fieldApi }) =>
+                  emptyChannelError(
+                    "telegram",
+                    fieldApi.form.state.values.telegram.enabled,
+                    value,
+                  ),
+              }}
+            >
+              {(chatIdsField) => (
+                <ChannelField
+                  label="Telegram"
+                  recipientsLabel="Telegram chat IDs"
+                  placeholder="-1001234567890"
+                  enabled={enabledField.state.value}
+                  onEnabledChange={enabledField.handleChange}
+                  recipients={chatIdsField.state.value}
+                  onRecipientsChange={chatIdsField.handleChange}
+                  validate={validateTelegramChatId}
+                  error={chatIdsField.state.meta.errors[0]}
+                />
+              )}
+            </form.Field>
+          )}
+        </form.Field>
+        {update.error && (
+          <p className="text-destructive text-sm" role="alert">
+            {update.error.message}
+          </p>
+        )}
+      </div>
+      <DialogFooter>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onClose}
+          disabled={update.isPending}
+        >
+          Cancel
+        </Button>
+        <Button type="submit" disabled={update.isPending}>
+          Save
+        </Button>
+      </DialogFooter>
+    </form>
   );
 }

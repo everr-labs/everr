@@ -10,34 +10,54 @@ import { alertSettings, alertSilences } from "@/db/schema";
 import { env } from "@/env";
 import { mailer } from "@/lib/mailer.server";
 import { sendTelegramMessage } from "@/lib/telegram.server";
-import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
+import {
+  errorMessage,
+  exceptionAttributes,
+  serverLogger,
+} from "@/telemetry/logger";
 import { buildAlertEmail } from "./email";
 import type { DeliveryInput, NotifiableInstance } from "./format";
 import { buildTelegramText } from "./telegram";
 
 export type { DeliveryInput } from "./format";
 
+export interface DeliveryFailure {
+  channel: AlertChannel;
+  target: string;
+  error: string;
+}
+
 export interface DeliveryMetadata {
   deliveryTargets: AlertDeliveryTargets;
   silenceId: string;
+  // Per-target send failures, recorded as `delivery_failed` alert events by
+  // the caller. Sends fail for plenty of reasons outside our control, so they
+  // are tracked as events (and warn logs), not errors.
+  failures: DeliveryFailure[];
 }
 
 function alertUrl(alertId: string): string {
   return new URL(`/alerts/${alertId}`, env.BETTER_AUTH_URL).toString();
 }
 
-function logDeliveryFailure(
+function recordDeliveryFailure(
+  failures: DeliveryFailure[],
   channel: AlertChannel,
   target: string,
   def: DeliveryInput["def"],
   error: unknown,
 ) {
-  serverLogger.error(`alerts.delivery.${channel}_failed`, {
+  serverLogger.warn(`alerts.delivery.${channel}_failed`, {
     ...exceptionAttributes(error),
     "alert.definition_id": def.id,
     "alert.slug": def.slug,
     "alert.delivery_target": target,
     "error.handled": true,
+  });
+  failures.push({
+    channel,
+    target,
+    error: errorMessage(error),
   });
 }
 
@@ -85,7 +105,11 @@ export async function deliverAlertNotification(
   }
 
   if (input.instances.length > 0 && unsilenced.length === 0) {
-    return { deliveryTargets: {}, silenceId: suppressingSilenceId };
+    return {
+      deliveryTargets: {},
+      silenceId: suppressingSilenceId,
+      failures: [],
+    };
   }
 
   const buildOptions = { url: alertUrl(def.id), now };
@@ -97,23 +121,26 @@ export async function deliverAlertNotification(
   const telegramText = buildTelegramText(input, unsilenced, buildOptions);
 
   // Each send is isolated: one bad recipient must not block the others, and
-  // each failure is logged with the alert and target it belongs to.
+  // each failure is recorded with the alert and target it belongs to.
+  const failures: DeliveryFailure[] = [];
   const sends: Promise<void>[] = [];
   for (const to of deliveryTargets.email ?? []) {
     sends.push(
       mailer
         .send({ to, subject, text, html })
-        .catch((error) => logDeliveryFailure("email", to, def, error)),
+        .catch((error) =>
+          recordDeliveryFailure(failures, "email", to, def, error),
+        ),
     );
   }
   for (const chatId of deliveryTargets.telegram ?? []) {
     sends.push(
       sendTelegramMessage(chatId, telegramText).catch((error) =>
-        logDeliveryFailure("telegram", chatId, def, error),
+        recordDeliveryFailure(failures, "telegram", chatId, def, error),
       ),
     );
   }
   await Promise.all(sends);
 
-  return { deliveryTargets, silenceId: "" };
+  return { deliveryTargets, silenceId: "", failures };
 }

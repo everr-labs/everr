@@ -11,6 +11,11 @@ vi.mock("@/db/client", () => ({
   },
 }));
 
+const addWorkerJob = vi.fn();
+vi.mock("@/server/worker/jobs", () => ({
+  addWorkerJob: (...args: unknown[]) => addWorkerJob(...args),
+}));
+
 import { scanDueAlerts } from "./scanner";
 
 function drizzleSqlText(value: unknown): string {
@@ -23,27 +28,26 @@ function drizzleSqlText(value: unknown): string {
 beforeEach(() => {
   vi.clearAllMocks();
   transaction.mockImplementation((fn) => fn({ execute: txExecute }));
+  addWorkerJob.mockResolvedValue(undefined);
 });
 
 describe("scanDueAlerts", () => {
-  it("claims due alerts and enqueues evaluate jobs in the same transaction", async () => {
+  it("claims due alerts and enqueues evaluate jobs via the public API", async () => {
     const due = new Date("2026-06-10T12:00:00.000Z");
-    txExecute
-      .mockResolvedValueOnce({
-        rows: [
-          {
-            id: "a1",
-            organization_id: "org-1",
-            evaluation_scheduled_at: due,
-          },
-        ],
-      })
-      .mockResolvedValueOnce({ rows: [] });
+    txExecute.mockResolvedValueOnce({
+      rows: [
+        {
+          id: "a1",
+          organization_id: "org-1",
+          evaluation_scheduled_at: due,
+        },
+      ],
+    });
 
     await expect(scanDueAlerts({ batchSize: 100 })).resolves.toBe(1);
 
     expect(transaction).toHaveBeenCalledOnce();
-    expect(txExecute).toHaveBeenCalledTimes(2);
+    expect(txExecute).toHaveBeenCalledTimes(1);
     const claimSql = drizzleSqlText(txExecute.mock.calls[0]?.[0]);
     expect(claimSql).toContain("SELECT now() AS claimed_at");
     expect(claimSql).toContain(
@@ -53,8 +57,20 @@ describe("scanDueAlerts", () => {
     expect(claimSql).not.toContain(
       "next_evaluation_at = due.next_evaluation_at + make_interval",
     );
-    expect(txExecute.mock.calls[1]?.[0]).toEqual(
-      expect.objectContaining({ queryChunks: expect.any(Array) }),
+
+    expect(addWorkerJob).toHaveBeenCalledOnce();
+    expect(addWorkerJob).toHaveBeenCalledWith(
+      "alerts/evaluate",
+      {
+        alertDefinitionId: "a1",
+        scheduledFor: "2026-06-10T12:00:00.000Z",
+      },
+      {
+        jobKey: "alerts/evaluate:a1:2026-06-10T12:00:00.000Z",
+        jobKeyMode: "replace",
+        maxAttempts: 3,
+        queueName: "alerts:eval:org-1",
+      },
     );
   });
 
@@ -64,5 +80,6 @@ describe("scanDueAlerts", () => {
     await expect(scanDueAlerts({ batchSize: 100 })).resolves.toBe(0);
 
     expect(txExecute).toHaveBeenCalledTimes(1);
+    expect(addWorkerJob).not.toHaveBeenCalled();
   });
 });

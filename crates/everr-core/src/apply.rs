@@ -91,29 +91,28 @@ struct ApplyManifest {
     repoid: String,
 }
 
-/// Read the required `everr.yaml` manifest at the apply root and return its
-/// `repoid` (the stable repository identifier and apply ownership boundary).
-/// `everr.yaml` is the only canonical name; a legacy `everr.yml` is a hard
-/// error so it is never silently parsed as a resource document.
+/// Read the required manifest at the apply root and return its `repoid`
+/// (the stable repository identifier and apply ownership boundary).
+/// `everr.yaml` is the canonical name; `everr.yml` is also accepted.
+/// Both are excluded from resource loading so they are never parsed as documents.
 pub fn load_apply_manifest(dir: &Path) -> Result<String> {
-    if dir.join("everr.yml").is_file() {
-        anyhow::bail!(
-            "everr.yml found in {} — rename it to everr.yaml (the canonical manifest name)",
-            dir.display()
-        );
-    }
-    let path = dir.join("everr.yaml");
-    if !path.is_file() {
+    let path = if dir.join("everr.yaml").is_file() {
+        dir.join("everr.yaml")
+    } else if dir.join("everr.yml").is_file() {
+        dir.join("everr.yml")
+    } else {
         anyhow::bail!(
             "no everr.yaml found in {} — create one with the stable repository id, e.g.\nrepoid: \"2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1\"",
             dir.display()
         );
-    }
-    let contents = std::fs::read_to_string(&path).context("everr.yaml: failed to read file")?;
+    };
+    let name = path.file_name().unwrap_or(path.as_os_str()).to_string_lossy();
+    let contents = std::fs::read_to_string(&path)
+        .with_context(|| format!("{name}: failed to read file"))?;
     let manifest: ApplyManifest = serde_yaml::from_str(&contents)
-        .context("everr.yaml: failed to parse (it must contain only `repoid`)")?;
+        .with_context(|| format!("{name}: failed to parse (it must contain only `repoid`)"))?;
     if manifest.repoid.trim().is_empty() {
-        anyhow::bail!("everr.yaml: repoid must be a non-empty string");
+        anyhow::bail!("{name}: repoid must be a non-empty string");
     }
     Ok(manifest.repoid)
 }
@@ -341,11 +340,18 @@ mod tests {
     }
 
     #[test]
-    fn manifest_rejects_legacy_everr_yml() {
+    fn manifest_accepts_everr_yml() {
         let dir = tempfile::tempdir().unwrap();
         write(dir.path(), "everr.yml", "repoid: \"abc\"\n");
-        let err = load_apply_manifest(dir.path()).unwrap_err().to_string();
-        assert!(err.contains("rename"), "got: {err}");
+        assert_eq!(load_apply_manifest(dir.path()).unwrap(), "abc");
+    }
+
+    #[test]
+    fn manifest_prefers_everr_yaml_over_everr_yml() {
+        let dir = tempfile::tempdir().unwrap();
+        write(dir.path(), "everr.yaml", "repoid: \"canonical\"\n");
+        write(dir.path(), "everr.yml", "repoid: \"legacy\"\n");
+        assert_eq!(load_apply_manifest(dir.path()).unwrap(), "canonical");
     }
 
     #[test]

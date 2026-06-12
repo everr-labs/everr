@@ -1,4 +1,7 @@
-import type { AlertDeliveryTargets } from "@/data/alerts/delivery-settings";
+import type {
+  AlertChannel,
+  AlertDeliveryTargets,
+} from "@/data/alerts/delivery-settings";
 import { insertAdminRows } from "@/lib/clickhouse";
 
 export interface AlertEventRow {
@@ -12,7 +15,8 @@ export interface AlertEventRow {
     | "partial_resolved"
     | "evaluation_failed"
     | "instance_fired"
-    | "instance_resolved";
+    | "instance_resolved"
+    | "delivery_failed";
   evaluation_scheduled_at?: string;
   row_count?: number;
   evidence_truncated?: 0 | 1;
@@ -22,6 +26,15 @@ export interface AlertEventRow {
   instance_fingerprint?: string;
   instance_labels_json?: string;
 }
+
+// Operational detail rather than state transitions: queryable in ClickHouse
+// (and projected to app.logs) but excluded from the alert history UI.
+export const OPERATIONAL_EVENT_TYPES = [
+  "instance_fired",
+  "instance_resolved",
+  "delivery_attempt",
+  "delivery_failed",
+] as const;
 
 export function insertAlertEvents(rows: AlertEventRow[]): Promise<void> {
   return insertAdminRows("app.alert_events", rows, {
@@ -99,9 +112,48 @@ export function buildEvaluationEvent(opts: {
   };
 }
 
-function boundJson(value: unknown): string {
+// Serialize an object, keeping the leading entries that fit the evidence
+// budget — partial labels/rows beat losing the whole object. Single pass:
+// each entry is stringified once and byte-counted into a running total.
+function boundJson(value: Record<string, unknown>): string {
   const json = JSON.stringify(value);
-  return Buffer.byteLength(json, "utf8") > MAX_EVIDENCE_BYTES ? "{}" : json;
+  if (Buffer.byteLength(json, "utf8") <= MAX_EVIDENCE_BYTES) return json;
+
+  const parts: string[] = [];
+  let bytes = 2; // the surrounding braces
+  for (const [key, entry] of Object.entries(value)) {
+    const entryJson = JSON.stringify(entry);
+    // JSON.stringify(value) drops undefined/function entries; mirror that.
+    if (entryJson === undefined) continue;
+    const part = `${JSON.stringify(key)}:${entryJson}`;
+    const partBytes =
+      Buffer.byteLength(part, "utf8") + (parts.length > 0 ? 1 : 0);
+    if (bytes + partBytes > MAX_EVIDENCE_BYTES) break;
+    parts.push(part);
+    bytes += partBytes;
+  }
+  return `{${parts.join(",")}}`;
+}
+
+// Delivery failures are operational events, not state transitions: they are
+// queryable in ClickHouse (and projected to app.logs) but excluded from the
+// alert history UI. delivery_targets identifies the channel + target; the
+// error message travels in evidence_json.
+export function buildDeliveryFailureEvent(opts: {
+  def: { id: string; organizationId: string; repoid: string; slug: string };
+  scheduledFor: Date;
+  failure: { channel: AlertChannel; target: string; error: string };
+}): AlertEventRow {
+  return {
+    organization_id: opts.def.organizationId,
+    alert_definition_id: opts.def.id,
+    repoid: opts.def.repoid,
+    slug: opts.def.slug,
+    event_type: "delivery_failed",
+    evaluation_scheduled_at: clickhouseDateTime64(opts.scheduledFor),
+    delivery_targets: { [opts.failure.channel]: [opts.failure.target] },
+    evidence_json: boundJson({ error: opts.failure.error }),
+  };
 }
 
 export function buildInstanceEvent(opts: {

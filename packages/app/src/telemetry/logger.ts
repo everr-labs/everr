@@ -52,6 +52,11 @@ export function exceptionAttributes(reason: unknown): Attributes {
   };
 }
 
+/** The human-readable message for any thrown value. */
+export function errorMessage(reason: unknown): string {
+  return normalizeError(reason).message;
+}
+
 function normalizeError(reason: unknown) {
   if (reason instanceof Error) {
     return reason;

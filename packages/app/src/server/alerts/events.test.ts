@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   boundEvidence,
+  buildDeliveryFailureEvent,
   buildEvaluationEvent,
   buildInstanceEvent,
   MAX_EVIDENCE_BYTES,
@@ -109,17 +110,49 @@ describe("event row construction", () => {
     expect(event.row_count).toBe(0);
   });
 
-  it("caps oversized labels json", () => {
+  it("drops trailing entries from oversized json until it fits", () => {
+    const event = buildInstanceEvent({
+      def,
+      eventType: "instance_fired",
+      scheduledFor: new Date("2026-06-11T10:00:00.000Z"),
+      fingerprint: "abc123",
+      labels: { route: "/x", big: "x".repeat(70 * 1024) },
+      row: { route: "/x", big: "x".repeat(70 * 1024) },
+    });
+
+    // The small leading entry survives; only the oversized one is dropped.
+    expect(event.instance_labels_json).toBe('{"route":"/x"}');
+    expect(event.evidence_json).toBe('{"route":"/x"}');
+  });
+
+  it("falls back to an empty object when a single entry exceeds the budget", () => {
     const event = buildInstanceEvent({
       def,
       eventType: "instance_fired",
       scheduledFor: new Date("2026-06-11T10:00:00.000Z"),
       fingerprint: "abc123",
       labels: { big: "x".repeat(70 * 1024) },
-      row: { big: "x".repeat(70 * 1024) },
     });
 
     expect(event.instance_labels_json).toBe("{}");
-    expect(event.evidence_json).toBe("{}");
+  });
+
+  it("builds delivery_failed events with channel, target, and error", () => {
+    const event = buildDeliveryFailureEvent({
+      def,
+      scheduledFor: new Date("2026-06-11T10:00:00.000Z"),
+      failure: {
+        channel: "telegram",
+        target: "-100123",
+        error: "telegram sendMessage failed: 403",
+      },
+    });
+
+    expect(event.event_type).toBe("delivery_failed");
+    expect(event.delivery_targets).toEqual({ telegram: ["-100123"] });
+    expect(event.evidence_json).toBe(
+      '{"error":"telegram sendMessage failed: 403"}',
+    );
+    expect(event.evaluation_scheduled_at).toBe("2026-06-11 10:00:00.000");
   });
 });

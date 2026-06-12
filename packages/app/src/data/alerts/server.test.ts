@@ -455,7 +455,7 @@ describe("listAlertEvents", () => {
       limit: 25,
     });
     expect(sql).toContain(
-      "event_type NOT IN ('instance_fired', 'instance_resolved', 'delivery_attempt')",
+      "event_type NOT IN ('instance_fired', 'instance_resolved', 'delivery_attempt', 'delivery_failed')",
     );
     // The join side must be bounded by the same alert + time filters as the
     // history CTE, not the bare table.
