@@ -118,10 +118,18 @@ function stripHrefSuffix(href: string): string {
   return value.replace(/\/+$/, "");
 }
 
+/** Resolve one markdown href against a notebook to a page path, or null. */
+export type NotebookLinkResolver = (
+  href: string,
+  currentFile: string | undefined,
+) => string | null;
+
 /**
- * Resolve a markdown href to a notebook page path, or null when the link is
- * external/unresolvable and should render as a plain anchor.
- * Resolution order:
+ * Build a resolver that maps a markdown href to a notebook page path, or null
+ * when the link is external/unresolvable and should render as a plain anchor.
+ * The spec-derived lookups (page-path set, file→page map) are computed once and
+ * captured, so resolving many links on a page doesn't re-walk the tree per link.
+ * Resolution order, per href:
  *  1. external schemes (http:, https:, mailto:), hash-only, and app-absolute
  *     ("/...") hrefs → null
  *  2. href (sans trailing slash and any "#fragment"/"?query" suffix) matches a
@@ -130,24 +138,9 @@ function stripHrefSuffix(href: string): string {
  *     page's markdown.file) matches an entry in buildFileToPageMap → that page
  *  4. otherwise null
  */
-export function resolveNotebookLink(
-  href: string,
-  currentFile: string | undefined,
+export function makeNotebookLinkResolver(
   spec: NotebookSpec,
-): string | null {
-  // 1. external / absolute / hash-only links are not notebook navigation.
-  if (
-    href === "" ||
-    href.startsWith("#") ||
-    href.startsWith("/") ||
-    /^[a-z][a-z0-9+.-]*:/i.test(href)
-  ) {
-    return null;
-  }
-
-  const target = stripHrefSuffix(href);
-
-  // 2. direct page-path match against the nav tree (plus "" for the index).
+): NotebookLinkResolver {
   const pagePaths = new Set<string>([""]);
   const collect = (nodes: PageNavNode[]): void => {
     for (const node of nodes) {
@@ -156,20 +149,48 @@ export function resolveNotebookLink(
     }
   };
   collect(pageNavTree(spec));
-  if (pagePaths.has(target)) return target;
+  const fileMap = buildFileToPageMap(spec);
 
-  // 3. resolve relative to the current page's source file against the file map.
-  if (currentFile !== undefined) {
-    const dir = currentFile.includes("/")
-      ? currentFile.slice(0, currentFile.lastIndexOf("/"))
-      : "";
-    const resolved = normalizePath(dir ? `${dir}/${target}` : target);
-    const fileMap = buildFileToPageMap(spec);
-    const page = fileMap.get(resolved);
-    if (page !== undefined) return page;
-  }
+  return (href, currentFile) => {
+    // 1. external / absolute / hash-only links are not notebook navigation.
+    if (
+      href === "" ||
+      href.startsWith("#") ||
+      href.startsWith("/") ||
+      /^[a-z][a-z0-9+.-]*:/i.test(href)
+    ) {
+      return null;
+    }
 
-  return null;
+    const target = stripHrefSuffix(href);
+
+    // 2. direct page-path match against the nav tree (plus "" for the index).
+    if (pagePaths.has(target)) return target;
+
+    // 3. resolve relative to the current page's source file against the file map.
+    if (currentFile !== undefined) {
+      const dir = currentFile.includes("/")
+        ? currentFile.slice(0, currentFile.lastIndexOf("/"))
+        : "";
+      const resolved = normalizePath(dir ? `${dir}/${target}` : target);
+      const page = fileMap.get(resolved);
+      if (page !== undefined) return page;
+    }
+
+    return null;
+  };
+}
+
+/**
+ * Convenience wrapper around {@link makeNotebookLinkResolver} for a single href
+ * — builds a throwaway resolver, so prefer the factory when resolving many.
+ */
+export function resolveNotebookLink(
+  href: string,
+  currentFile: string | undefined,
+  spec: NotebookSpec,
+): string | null {
+  return makeNotebookLinkResolver(spec)(href, currentFile);
 }
 
 /**

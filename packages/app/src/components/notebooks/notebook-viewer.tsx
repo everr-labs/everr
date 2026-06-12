@@ -1,12 +1,13 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { FileQuestion } from "lucide-react";
+import { useMemo } from "react";
 import { DashboardProvider } from "@/components/dashboards/use-dashboard";
 import { VariableBar } from "@/components/dashboards/variable-bar";
 import { notebookOptions } from "@/data/notebooks/options";
 import {
   findPage,
+  makeNotebookLinkResolver,
   pageNavTree,
-  resolveNotebookLink,
   toDashboardDocument,
 } from "@/data/notebooks/pages";
 import { NotebookMarkdown } from "./notebook-markdown";
@@ -28,6 +29,12 @@ export function NotebookViewer({
   const page = findPage(notebook.spec, pagePath);
   const tree = pageNavTree(notebook.spec);
   const indexTitle = notebook.spec.display?.name ?? slug;
+  // Build the link resolver once per notebook — it captures the page-path set
+  // and file map so each rendered link doesn't re-walk the spec tree.
+  const resolveLink = useMemo(
+    () => makeNotebookLinkResolver(notebook.spec),
+    [notebook.spec],
+  );
 
   return (
     <DashboardProvider document={toDashboardDocument(notebook, project, slug)}>
@@ -48,9 +55,7 @@ export function NotebookViewer({
               markdown={page.markdown}
               project={project}
               slug={slug}
-              resolveLink={(href) =>
-                resolveNotebookLink(href, page.file, notebook.spec)
-              }
+              resolveLink={(href) => resolveLink(href, page.file)}
             />
           ) : (
             <div className="flex flex-col items-center gap-3 py-16 text-muted-foreground">

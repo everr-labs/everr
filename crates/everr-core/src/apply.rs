@@ -100,8 +100,14 @@ fn inline_notebook_markdown(root: &Path, doc_rel_path: &str, document: &mut Valu
         .parent()
         .map(Path::to_path_buf)
         .unwrap_or_default();
+    // Canonicalize the apply root once per notebook; every page's markdown file
+    // is checked against this same trust boundary, so there's no need to redo
+    // the syscall per page.
+    let canonical_root = root
+        .canonicalize()
+        .with_context(|| format!("failed to resolve apply directory {}", root.display()))?;
     if let Some(spec) = document.get_mut("spec") {
-        inline_markdown_node(root, &doc_dir, doc_rel_path, spec)?;
+        inline_markdown_node(root, &canonical_root, &doc_dir, doc_rel_path, spec)?;
     }
     Ok(())
 }
@@ -110,16 +116,17 @@ fn inline_notebook_markdown(root: &Path, doc_rel_path: &str, document: &mut Valu
 /// `pages`, inlining as we go (the spec root and every page share this shape).
 fn inline_markdown_node(
     root: &Path,
+    canonical_root: &Path,
     doc_dir: &Path,
     doc_path: &str,
     node: &mut Value,
 ) -> Result<()> {
     if let Some(markdown) = node.get_mut("markdown") {
-        inline_markdown_source(root, doc_dir, doc_path, markdown)?;
+        inline_markdown_source(root, canonical_root, doc_dir, doc_path, markdown)?;
     }
     if let Some(pages) = node.get_mut("pages").and_then(Value::as_array_mut) {
         for page in pages {
-            inline_markdown_node(root, doc_dir, doc_path, page)?;
+            inline_markdown_node(root, canonical_root, doc_dir, doc_path, page)?;
         }
     }
     Ok(())
@@ -127,6 +134,7 @@ fn inline_markdown_node(
 
 fn inline_markdown_source(
     root: &Path,
+    canonical_root: &Path,
     doc_dir: &Path,
     doc_path: &str,
     markdown: &mut Value,
@@ -141,10 +149,7 @@ fn inline_markdown_source(
     let canonical = resolved
         .canonicalize()
         .with_context(|| format!("{doc_path}: failed to read markdown file {file}"))?;
-    let canonical_root = root
-        .canonicalize()
-        .with_context(|| format!("failed to resolve apply directory {}", root.display()))?;
-    if !canonical.starts_with(&canonical_root) {
+    if !canonical.starts_with(canonical_root) {
         anyhow::bail!("{doc_path}: markdown file {file} is outside the apply directory");
     }
     let contents = fs::read_to_string(&canonical)
