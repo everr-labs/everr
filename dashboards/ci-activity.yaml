@@ -1,0 +1,157 @@
+kind: Dashboard
+metadata:
+  name: ci-activity
+  project: demo
+spec:
+  display:
+    name: GitHub Actions CI Activity
+    description: CI job/step activity, durations, and errors for github-actions
+  duration: 7d
+  refreshInterval: 5m
+  variables:
+    - kind: ListVariable
+      spec:
+        name: status
+        display: { name: Status }
+        allowMultiple: true
+        allowAllValue: true
+        defaultValue: "__all"
+        plugin:
+          kind: StaticListVariable
+          spec:
+            values:
+              - Ok
+              - Error
+              - Unset
+  panels:
+    spans-over-time:
+      kind: Panel
+      spec:
+        display: { name: CI span count over time by status }
+        plugin:
+          kind: TimeSeriesChart
+          spec: { showLegend: true }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                           StatusCode AS status,
+                           count() AS spans
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND ServiceName = 'github-actions'
+                      AND StatusCode IN $status
+                    GROUP BY ts, status
+                    ORDER BY ts
+    p95-duration:
+      kind: Panel
+      spec:
+        display: { name: p95 CI span duration }
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last
+            unit: s
+            sparkline: true
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                           quantile(0.95)(Duration) / 1e9 AS p95_s
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND ServiceName = 'github-actions'
+                      AND StatusCode IN $status
+                    GROUP BY ts
+                    ORDER BY ts
+    error-spans:
+      kind: Panel
+      spec:
+        display: { name: Total error spans }
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last
+            thresholds:
+              mode: absolute
+              defaultColor: "#22c55e"
+              steps:
+                - { value: 1, color: "#ef4444" }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT countIf(StatusCode = 'Error') AS error_spans
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND ServiceName = 'github-actions'
+                      AND StatusCode IN $status
+    slowest-operations:
+      kind: Panel
+      spec:
+        display: { name: Slowest CI operations (top 20) }
+        plugin:
+          kind: Table
+          spec: { stickyHeader: true }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT SpanName,
+                           count() AS spans,
+                           round(quantile(0.95)(Duration) / 1e9, 1) AS p95_s,
+                           countIf(StatusCode = 'Error') AS errors
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND ServiceName = 'github-actions'
+                      AND StatusCode IN $status
+                    GROUP BY SpanName
+                    ORDER BY p95_s DESC
+                    LIMIT 20
+    duration-percentiles:
+      kind: Panel
+      spec:
+        display: { name: CI duration p50 / p95 / max over time }
+        plugin:
+          kind: TimeSeriesChart
+          spec: { unit: s, showLegend: true }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                           quantile(0.5)(Duration) / 1e9 AS p50_s,
+                           quantile(0.95)(Duration) / 1e9 AS p95_s,
+                           max(Duration) / 1e9 AS max_s
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND ServiceName = 'github-actions'
+                      AND StatusCode IN $status
+                    GROUP BY ts
+                    ORDER BY ts
+  layouts:
+    - kind: Grid
+      spec:
+        items:
+          - { x: 0,  y: 0,  width: 16, height: 8,  content: { $ref: "#/spec/panels/spans-over-time" } }
+          - { x: 16, y: 0,  width: 4,  height: 8,  content: { $ref: "#/spec/panels/p95-duration" } }
+          - { x: 20, y: 0,  width: 4,  height: 8,  content: { $ref: "#/spec/panels/error-spans" } }
+          - { x: 0,  y: 8,  width: 24, height: 10, content: { $ref: "#/spec/panels/slowest-operations" } }
+          - { x: 0,  y: 18, width: 24, height: 8,  content: { $ref: "#/spec/panels/duration-percentiles" } }

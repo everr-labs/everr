@@ -32,7 +32,7 @@ panels:
                   GROUP BY ts ORDER BY ts
 ```
 
-- **`plugin.kind`** selects the visualization: `TimeSeriesChart`, `BarChart`, `Table`, `StatChart`, `GeoMap`, or `Treemap`. Its `spec` holds visualization options — see the [Visualizations reference](/docs/dashboards/visualizations).
+- **`plugin.kind`** selects the visualization: `TimeSeriesChart`, `BarChart`, `Table`, `StatChart`, `GaugeChart`, `GeoMap`, or `Treemap`. Its `spec` holds visualization options — see the [Visualizations reference](/docs/dashboards/visualizations).
 - **`queries`** is a list. Each entry is a `ClickHouseSQL` query whose SQL lives at `spec.plugin.spec.query`. ClickHouse SQL is the query plugin for real data; a deterministic [`TestData`](#testdata-query-kind-development--test) plugin is also available for development and visual testing.
 - Multiple queries are supported: the time-series and bar charts overlay all of them on one axis, the table shows a per-query selector, and the stat chart renders one tile per resulting series.
 
@@ -109,9 +109,9 @@ ORDER BY spans DESC
 LIMIT 50
 ```
 
-### Stat
+### Stat and gauge
 
-Reduces a numeric column to a single value via a calculation (`last`, `mean`, `max`, …). Return one numeric column (the optional sparkline follows the time column, or row order without one):
+`StatChart` and `GaugeChart` share the same data shape: each reduces a numeric column to a single value via a calculation (`last`, `mean`, `max`, …) — stat shows it as a big number, gauge as a filled arc between `min` and `max`. Return one numeric column (the stat's optional sparkline follows the time column, or row order without one):
 
 ```sql
 SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts, count() AS requests
@@ -254,4 +254,4 @@ lat/lon/value rows; `shape: regions` emits region/value rows.
 
 ## Unknown visualizations
 
-If a panel's `plugin.kind` isn't a registered visualization, the panel renders a clear "Unknown visualization: &lt;kind&gt;" placeholder instead of failing the whole dashboard. Stick to `TimeSeriesChart`, `BarChart`, `Table`, `StatChart`, `GeoMap`, and `Treemap`.
+If a panel's `plugin.kind` isn't a registered visualization, the panel renders a clear "Unknown visualization: &lt;kind&gt;" placeholder instead of failing the whole dashboard. Stick to `TimeSeriesChart`, `BarChart`, `Table`, `StatChart`, `GaugeChart`, `GeoMap`, and `Treemap`.

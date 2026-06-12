@@ -5,7 +5,7 @@ const thresholdStep = z.looseObject({
   color: z.string().optional(),
 });
 
-const thresholdsSpec = z.looseObject({
+export const thresholdsSpec = z.looseObject({
   mode: z.enum(["absolute", "percent"]).default("absolute"),
   defaultColor: z.string().optional(),
   steps: z.array(thresholdStep).optional(),
@@ -22,20 +22,21 @@ const thresholdsSpec = z.looseObject({
  * (validation must never be stricter than Perses on shape); every known field
  * is defaulted so `{}` always parses — the lenient render path relies on it.
  */
+/** How a series is reduced to one number — shared with GaugeChart. */
+export const calculationSpec = z.enum([
+  "last",
+  "first",
+  "mean",
+  "min",
+  "max",
+  "sum",
+  "count",
+  "range",
+  "diff",
+]);
+
 export const statChartSpec = z.looseObject({
-  calculation: z
-    .enum([
-      "last",
-      "first",
-      "mean",
-      "min",
-      "max",
-      "sum",
-      "count",
-      "range",
-      "diff",
-    ])
-    .default("last"),
+  calculation: calculationSpec.default("last"),
   unit: z.string().default(""),
   /** Fixed fraction digits; omitted = up to 2, trailing zeros dropped. */
   decimals: z.number().int().min(0).max(10).optional(),

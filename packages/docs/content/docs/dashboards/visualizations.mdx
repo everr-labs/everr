@@ -3,7 +3,7 @@ title: Visualizations
 description: The built-in panel visualizations and the spec options each one accepts.
 ---
 
-A panel's `plugin.kind` selects its visualization and `plugin.spec` configures it. Everr ships six visualizations. An unrecognized `kind` renders an "Unknown visualization" placeholder rather than breaking the dashboard.
+A panel's `plugin.kind` selects its visualization and `plugin.spec` configures it. Everr ships seven visualizations. An unrecognized `kind` renders an "Unknown visualization" placeholder rather than breaking the dashboard.
 
 They infer their structure from the columns your query returns — see [Panels and visualizations](/docs/dashboards/panels-and-visualizations#shaping-data-for-each-visualization) for the data shapes.
 
@@ -109,6 +109,42 @@ plugin:
 | `thresholds.max` | number | series max | Reference for `percent` mode. Set it (e.g. an SLA ceiling) for percentages that don't shift with the time window. |
 | `thresholds.defaultColor` | string | — | Color when no step is crossed. |
 | `thresholds.steps[]` | `{ value, color }` | — | Ascending thresholds; the highest crossed step's color wins. |
+
+## GaugeChart
+
+Reduces a numeric column to a single value — same calculations and data shape as StatChart — and renders it as a semicircular arc filled proportionally between `min` and `max`. Values outside the bounds clamp the arc to empty/full while the centered text still shows the real value. Multiple resulting series render as multiple gauges; a query that returns no value renders its gauge empty with the `noValue` text.
+
+Threshold steps color the filled arc and draw a tick mark on the gauge at each step's position, so the at-a-glance read is "how close to the next band am I".
+
+```yaml
+plugin:
+  kind: GaugeChart
+  spec:
+    calculation: last
+    unit: "%"
+    min: 0
+    max: 100
+    thresholds:
+      defaultColor: "#22c55e"
+      steps:
+        - { value: 70, color: "#f59e0b" }
+        - { value: 90, color: "#ef4444" }
+```
+
+| Option | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `calculation` | enum | `last` | One of `last`, `first`, `mean`, `min`, `max`, `sum`, `count`, `range`, `diff`. |
+| `unit` | string | `""` | Suffix appended to the value. |
+| `decimals` | number | — | Fixed fraction digits (0–10). Omitted: up to 2, trailing zeros dropped. |
+| `min` | number | `0` | Gauge axis lower bound. |
+| `max` | number | `100` | Gauge axis upper bound. Set it to the metric's real ceiling — the arc reads as value ÷ range. |
+| `showLabel` | boolean | `false` | Show the series label on a single-gauge panel too. |
+| `noValue` | string | `–` | Text shown for a query that produced no value. |
+| `thresholds` | object | — | Color the arc and mark step positions on the gauge. |
+| `thresholds.mode` | enum | `absolute` | `absolute` compares the raw value; `percent` compares against `thresholds.max`. |
+| `thresholds.max` | number | gauge `max` | Reference for `percent` mode. |
+| `thresholds.defaultColor` | string | — | Arc color when no step is crossed. |
+| `thresholds.steps[]` | `{ value, color }` | — | Ascending thresholds; the highest crossed step's color wins. Each step also draws a tick on the gauge. |
 
 ## GeoMap
 
