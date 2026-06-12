@@ -1,3 +1,4 @@
+import { isNumericValue } from "@/lib/numeric";
 import type { QueryResultRow } from "./index";
 
 export function detectTimeKey(rows: QueryResultRow[]): string | undefined {
@@ -11,10 +12,6 @@ export function detectTimeKey(rows: QueryResultRow[]): string | undefined {
   }
   return undefined;
 }
-
-import { isNumericValue } from "@/lib/numeric";
-
-export { isNumericValue };
 
 /** Coerce a numeric value (number or numeric string) to a number, else null. */
 export function toNumber(value: unknown): number | null {

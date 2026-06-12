@@ -12,25 +12,14 @@ import { mailer } from "@/lib/mailer.server";
 import { sendTelegramMessage } from "@/lib/telegram.server";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 import { buildAlertEmail } from "./email";
-import type { DeliveryKind, NotifiableInstance } from "./format";
+import type { DeliveryInput, NotifiableInstance } from "./format";
 import { buildTelegramText } from "./telegram";
+
+export type { DeliveryInput } from "./format";
 
 export interface DeliveryMetadata {
   deliveryTargets: AlertDeliveryTargets;
   silenceId: string;
-}
-
-export interface DeliveryInput {
-  def: { id: string; organizationId: string; repoid: string; slug: string };
-  kind: DeliveryKind;
-  summary: string;
-  description: string;
-  // Current firing instance count after this evaluation.
-  firingCount: number;
-  // newlyFired for "firing", nowResolved for "resolved" and
-  // "partial_resolved". Firing instances carry the query result row they came
-  // from; resolved ones only have the labels (the row is gone by then).
-  instances: NotifiableInstance[];
 }
 
 function alertUrl(alertId: string): string {

@@ -1,6 +1,7 @@
 import { formatLabels } from "@/data/alerts/matchers";
-import type { DeliveryInput } from "./delivery";
 import {
+  type BuildOptions,
+  type DeliveryInput,
   type DeliveryKind,
   escapeHtml,
   formatUtc,
@@ -17,13 +18,6 @@ export interface AlertEmail {
   text: string;
   html: string;
 }
-
-interface BuildOptions {
-  url: string;
-  now: Date;
-}
-
-type Kind = DeliveryKind;
 
 // Hex equivalents of the oklch theme tokens in packages/ui global.css — the
 // app ships a single dark theme, and the email mirrors it. Text colors are
@@ -47,7 +41,7 @@ const COLORS = {
 
 // Email layers colors on top of the shared kind → emoji/label presentation.
 const STATUS: Record<
-  Kind,
+  DeliveryKind,
   {
     label: string;
     strip: string;

@@ -1,15 +1,11 @@
-import type { DeliveryInput } from "./delivery";
 import {
+  type BuildOptions,
+  type DeliveryInput,
   formatUtc,
   instanceLines,
   KIND_STATUS,
   type NotifiableInstance,
 } from "./format";
-
-interface BuildOptions {
-  url: string;
-  now: Date;
-}
 
 // Plain text by choice: no parse mode means nothing to escape, nothing for
 // Telegram to reject, and the URL in the body needs no validation.

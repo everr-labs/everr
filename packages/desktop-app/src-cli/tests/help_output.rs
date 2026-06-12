@@ -31,8 +31,7 @@ fn root_help_lists_main_commands() {
         .stdout(predicates::str::contains("\n  show").not())
         .stdout(predicates::str::contains("\n  logs").not())
         .stdout(contains("wrap"))
-        .stdout(contains("skills"))
-        .stdout(contains("alerts"));
+        .stdout(contains("skills"));
 }
 
 #[test]
@@ -178,25 +177,6 @@ fn skills_help_describes_skill_management() {
         .stdout(contains("update"))
         .stdout(contains("uninstall"))
         .stdout(predicates::str::contains("--json").not());
-}
-
-#[test]
-fn alerts_help_lists_test_command_and_flags() {
-    let env = CliTestEnv::new();
-
-    env.command()
-        .args(["alerts", "--help"])
-        .assert()
-        .success()
-        .stdout(contains("test"));
-
-    env.command()
-        .args(["alerts", "test", "--help"])
-        .assert()
-        .success()
-        .stdout(contains("<DIR>"))
-        .stdout(contains("--local"))
-        .stdout(contains("--json"));
 }
 
 #[test]

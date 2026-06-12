@@ -5,6 +5,25 @@ import { isNumericValue } from "@/lib/numeric";
 
 export type DeliveryKind = "firing" | "resolved" | "partial_resolved";
 
+export interface DeliveryInput {
+  def: { id: string; organizationId: string; repoid: string; slug: string };
+  kind: DeliveryKind;
+  summary: string;
+  description: string;
+  // Current firing instance count after this evaluation.
+  firingCount: number;
+  // newlyFired for "firing", nowResolved for "resolved" and
+  // "partial_resolved". Firing instances carry the query result row they came
+  // from; resolved ones only have the labels (the row is gone by then).
+  instances: NotifiableInstance[];
+}
+
+// What a channel body builder needs beyond the input itself.
+export interface BuildOptions {
+  url: string;
+  now: Date;
+}
+
 // One definition of how each kind presents across channels; email layers its
 // colors on top, telegram lowercases the label for its headline.
 export const KIND_STATUS: Record<

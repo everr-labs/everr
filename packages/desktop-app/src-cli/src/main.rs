@@ -11,7 +11,7 @@ mod wrap;
 
 use anyhow::Result;
 use clap::Parser;
-use cli::{AlertsSubcommand, CiSubcommand, Cli, CloudSubcommand, Commands};
+use cli::{CiSubcommand, Cli, CloudSubcommand, Commands};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -37,9 +37,6 @@ async fn main() -> Result<()> {
         Commands::Init => init::run().await?,
         Commands::Skills(args) => skills::run(args)?,
         Commands::Apply(args) => core::run_apply(args).await?,
-        Commands::Alerts(args) => match args.command {
-            AlertsSubcommand::Test(args) => core::run_alerts_test(args).await?,
-        },
     }
 
     Ok(())

@@ -1,7 +1,7 @@
 import * as z from "zod";
 
 /** One resource in the apply state: its repo-relative path and raw contents. */
-export const resourceEntrySchema = z.object({
+const resourceEntrySchema = z.object({
   path: z.string().min(1),
   // Raw parsed YAML/JSON; deep-validated per kind by that kind's reconciler.
   resource: z.unknown(),

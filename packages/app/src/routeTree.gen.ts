@@ -52,7 +52,6 @@ import { Route as ApiGithubInstallCallbackRouteImport } from './routes/api/githu
 import { Route as ApiCliRunsStatusRouteImport } from './routes/api/cli/runs/status'
 import { Route as ApiCliRunsTraceIdRouteImport } from './routes/api/cli/runs/$traceId'
 import { Route as ApiCliOrgNameRouteImport } from './routes/api/cli/org/name'
-import { Route as ApiCliAlertsTestRouteImport } from './routes/api/cli/alerts/test'
 import { Route as AuthenticatedDashboardTracesTraceIdRouteImport } from './routes/_authenticated/_dashboard/traces_.$traceId'
 import { Route as AuthenticatedDashboardErrorsFingerprintRouteImport } from './routes/_authenticated/_dashboard/errors_.$fingerprint'
 import { Route as AuthenticatedDashboardCheckoutSuccessRouteImport } from './routes/_authenticated/_dashboard/checkout.success'
@@ -300,11 +299,6 @@ const ApiCliOrgNameRoute = ApiCliOrgNameRouteImport.update({
   path: '/name',
   getParentRoute: () => ApiCliOrgRoute,
 } as any)
-const ApiCliAlertsTestRoute = ApiCliAlertsTestRouteImport.update({
-  id: '/alerts/test',
-  path: '/alerts/test',
-  getParentRoute: () => ApiCliRoute,
-} as any)
 const AuthenticatedDashboardTracesTraceIdRoute =
   AuthenticatedDashboardTracesTraceIdRouteImport.update({
     id: '/traces_/$traceId',
@@ -452,7 +446,6 @@ export interface FileRoutesByFullPath {
   '/checkout/success': typeof AuthenticatedDashboardCheckoutSuccessRoute
   '/errors/$fingerprint': typeof AuthenticatedDashboardErrorsFingerprintRoute
   '/traces/$traceId': typeof AuthenticatedDashboardTracesTraceIdRoute
-  '/api/cli/alerts/test': typeof ApiCliAlertsTestRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
@@ -510,7 +503,6 @@ export interface FileRoutesByTo {
   '/checkout/success': typeof AuthenticatedDashboardCheckoutSuccessRoute
   '/errors/$fingerprint': typeof AuthenticatedDashboardErrorsFingerprintRoute
   '/traces/$traceId': typeof AuthenticatedDashboardTracesTraceIdRoute
-  '/api/cli/alerts/test': typeof ApiCliAlertsTestRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
@@ -575,7 +567,6 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/checkout/success': typeof AuthenticatedDashboardCheckoutSuccessRoute
   '/_authenticated/_dashboard/errors_/$fingerprint': typeof AuthenticatedDashboardErrorsFingerprintRoute
   '/_authenticated/_dashboard/traces_/$traceId': typeof AuthenticatedDashboardTracesTraceIdRoute
-  '/api/cli/alerts/test': typeof ApiCliAlertsTestRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
@@ -637,7 +628,6 @@ export interface FileRouteTypes {
     | '/checkout/success'
     | '/errors/$fingerprint'
     | '/traces/$traceId'
-    | '/api/cli/alerts/test'
     | '/api/cli/org/name'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/status'
@@ -695,7 +685,6 @@ export interface FileRouteTypes {
     | '/checkout/success'
     | '/errors/$fingerprint'
     | '/traces/$traceId'
-    | '/api/cli/alerts/test'
     | '/api/cli/org/name'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/status'
@@ -759,7 +748,6 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/checkout/success'
     | '/_authenticated/_dashboard/errors_/$fingerprint'
     | '/_authenticated/_dashboard/traces_/$traceId'
-    | '/api/cli/alerts/test'
     | '/api/cli/org/name'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/status'
@@ -1096,13 +1084,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/cli/org/name'
       preLoaderRoute: typeof ApiCliOrgNameRouteImport
       parentRoute: typeof ApiCliOrgRoute
-    }
-    '/api/cli/alerts/test': {
-      id: '/api/cli/alerts/test'
-      path: '/alerts/test'
-      fullPath: '/api/cli/alerts/test'
-      preLoaderRoute: typeof ApiCliAlertsTestRouteImport
-      parentRoute: typeof ApiCliRoute
     }
     '/_authenticated/_dashboard/traces_/$traceId': {
       id: '/_authenticated/_dashboard/traces_/$traceId'
@@ -1464,7 +1445,6 @@ interface ApiCliRouteChildren {
   ApiCliReposRoute: typeof ApiCliReposRoute
   ApiCliRunsRoute: typeof ApiCliRunsRouteWithChildren
   ApiCliSqlRoute: typeof ApiCliSqlRoute
-  ApiCliAlertsTestRoute: typeof ApiCliAlertsTestRoute
 }
 
 const ApiCliRouteChildren: ApiCliRouteChildren = {
@@ -1475,7 +1455,6 @@ const ApiCliRouteChildren: ApiCliRouteChildren = {
   ApiCliReposRoute: ApiCliReposRoute,
   ApiCliRunsRoute: ApiCliRunsRouteWithChildren,
   ApiCliSqlRoute: ApiCliSqlRoute,
-  ApiCliAlertsTestRoute: ApiCliAlertsTestRoute,
 }
 
 const ApiCliRouteWithChildren =

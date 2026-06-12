@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  getValueKeys,
-  isNumericValue,
-  toNumber,
-  toTimestamp,
-} from "./data-utils";
+import { isNumericValue } from "@/lib/numeric";
+import { getValueKeys, toNumber, toTimestamp } from "./data-utils";
 
 describe("isNumericValue", () => {
   it("accepts numbers and numeric strings", () => {

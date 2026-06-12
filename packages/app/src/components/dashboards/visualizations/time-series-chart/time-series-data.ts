@@ -1,8 +1,8 @@
 import type { ChartConfig } from "@everr/ui/components/chart";
+import { isNumericValue } from "@/lib/numeric";
 import {
   detectTimeKey,
   getValueKeys,
-  isNumericValue,
   toNumber,
   toTimestamp,
 } from "../data-utils";

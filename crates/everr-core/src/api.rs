@@ -325,30 +325,6 @@ impl ApiClient {
         Ok(())
     }
 
-    pub async fn test_alerts(&self, request: &AlertTestRequest) -> Result<AlertTestResponse> {
-        let response = self
-            .http
-            .post(format!("{}/alerts/test", self.base_endpoint))
-            .json(request)
-            .send()
-            .await
-            .context("alerts test request failed")?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let text = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "<failed to read body>".to_string());
-            return Err(http_status_error(status, text, "alerts test request"));
-        }
-
-        response
-            .json()
-            .await
-            .context("failed to decode alerts test response")
-    }
-
     async fn get_json(&self, path: &str, query: &[(&str, String)]) -> Result<Value> {
         self.get(path, query).await
     }
@@ -526,39 +502,6 @@ impl OrgResponse {
 pub struct RepoEntry {
     pub id: i64,
     pub full_name: String,
-}
-
-#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct AlertTestOptions {
-    #[serde(default)]
-    pub local: bool,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
-pub struct AlertTestRequest {
-    #[serde(default)]
-    pub options: AlertTestOptions,
-    pub alerts: Vec<crate::apply::ResourceEntry>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct AlertTestResult {
-    pub path: String,
-    pub slug: String,
-    pub firing: bool,
-    pub row_count: usize,
-    pub columns: Vec<String>,
-    pub evidence: Vec<Value>,
-    pub truncated: bool,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct AlertTestResponse {
-    pub options: AlertTestOptions,
-    pub results: Vec<AlertTestResult>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -742,46 +685,6 @@ mod api_client_tests {
             .await
             .unwrap();
 
-        mock.assert_async().await;
-    }
-
-    #[tokio::test]
-    async fn test_alerts_posts_alert_entries_and_parses_response() {
-        let mut server = mockito::Server::new_async().await;
-        let mock = server
-            .mock("POST", "/api/cli/alerts/test")
-            .match_body(mockito::Matcher::Json(serde_json::json!({
-                "options": { "local": true },
-                "alerts": [
-                    {
-                        "path": "alerts/high-errors.yaml",
-                        "resource": { "kind": "AlertRule" }
-                    }
-                ]
-            })))
-            .with_status(200)
-            .with_header("content-type", "application/json")
-            .with_body(
-                r#"{"options":{"local":true},"results":[{"path":"alerts/high-errors.yaml","slug":"high-errors","firing":true,"rowCount":2,"columns":["service"],"evidence":[{"service":"api"}],"truncated":false}]}"#,
-            )
-            .create_async()
-            .await;
-
-        let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
-        let response = client
-            .test_alerts(&AlertTestRequest {
-                options: AlertTestOptions { local: true },
-                alerts: vec![crate::apply::ResourceEntry {
-                    path: "alerts/high-errors.yaml".to_string(),
-                    resource: serde_json::json!({ "kind": "AlertRule" }),
-                }],
-            })
-            .await
-            .unwrap();
-
-        assert!(response.options.local);
-        assert_eq!(response.results[0].slug, "high-errors");
-        assert_eq!(response.results[0].row_count, 2);
         mock.assert_async().await;
     }
 

@@ -5,11 +5,14 @@ import type { Reconciler } from "@/data/as-code/registry";
 import type { ApplyResourceEntry, ApplySource } from "@/data/as-code/schema";
 import { db } from "@/db/client";
 import { alertDefinitions } from "@/db/schema";
+import { querySqlApiWithMeta, type SqlApiResult } from "@/lib/clickhouse";
+import { type AlertRuleYaml, AlertRuleYamlSchema } from "./schema";
 import {
-  AlertRuleValidationError,
-  parseAlertRule,
-  validateAlertRuleQuery,
-} from "./validate.server";
+  validateMessageTemplate,
+  validateQueryTemplate,
+  validateTopColumns,
+} from "./template";
+import { parseEvaluationInterval } from "./window";
 
 interface DesiredAlert {
   slug: string;
@@ -65,11 +68,75 @@ function scheduleJitterSeconds(
   return hash.readUInt32BE(0) % spread;
 }
 
-function toApplyError(error: unknown): never {
-  if (error instanceof AlertRuleValidationError) {
-    throw new ApplyValidationError(error.message);
+function validationError(path: string, error: unknown): ApplyValidationError {
+  const message = error instanceof Error ? error.message : String(error);
+  return new ApplyValidationError(`${path}: ${message}`);
+}
+
+// Static validation: schema, evaluation interval, template syntax. No I/O.
+function parseAlertRule(path: string, resource: unknown) {
+  const parsed = AlertRuleYamlSchema.safeParse(resource);
+  if (!parsed.success) {
+    throw new ApplyValidationError(
+      `${path}: invalid alert rule: ${parsed.error.issues[0]?.message ?? "invalid alert rule"}`,
+    );
   }
-  throw error;
+
+  const rule = parsed.data;
+  let evaluationIntervalSeconds: number;
+  try {
+    evaluationIntervalSeconds = parseEvaluationInterval(
+      rule.spec.evaluationInterval,
+    );
+    validateQueryTemplate(rule.spec.query);
+    validateMessageTemplate(rule.spec.summary);
+    if (rule.spec.description) validateMessageTemplate(rule.spec.description);
+  } catch (error) {
+    throw validationError(path, error);
+  }
+
+  return { rule, slug: rule.metadata.name, evaluationIntervalSeconds };
+}
+
+// Result-dependent validation: run the rule's query against the org's data and
+// check template/instance-label columns against the result schema.
+async function validateAlertRuleQuery(
+  path: string,
+  rule: AlertRuleYaml,
+  organizationId: string,
+): Promise<{ instanceLabelColumns: string[] }> {
+  let queryResult: SqlApiResult<Record<string, unknown>>;
+  try {
+    queryResult = await querySqlApiWithMeta<Record<string, unknown>>(
+      rule.spec.query,
+      organizationId,
+    );
+  } catch (error) {
+    throw new ApplyValidationError(
+      `${path}: query failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  try {
+    validateTopColumns(rule.spec.summary, queryResult.columns);
+    if (rule.spec.description) {
+      validateTopColumns(rule.spec.description, queryResult.columns);
+    }
+  } catch (error) {
+    throw validationError(path, error);
+  }
+
+  const instanceLabelColumns = rule.spec.instanceLabels ?? [];
+  const columnNames = new Set(queryResult.columns);
+  for (const column of instanceLabelColumns) {
+    if (!columnNames.has(column)) {
+      throw new ApplyValidationError(
+        `${path}: instanceLabels references column "${column}" which the query does not return`,
+      );
+    }
+  }
+
+  return { instanceLabelColumns };
 }
 
 async function buildDesiredAlerts(opts: {
@@ -80,12 +147,7 @@ async function buildDesiredAlerts(opts: {
 }): Promise<DesiredAlert[]> {
   const seen = new Map<string, string>();
   const parsedAlerts = opts.resources.map(({ path, resource }) => {
-    let parsed: ReturnType<typeof parseAlertRule>;
-    try {
-      parsed = parseAlertRule(path, resource);
-    } catch (error) {
-      toApplyError(error);
-    }
+    const parsed = parseAlertRule(path, resource);
 
     const prior = seen.get(parsed.slug);
     if (prior) {
@@ -107,7 +169,7 @@ async function buildDesiredAlerts(opts: {
 
   return parsedAlerts.map((parsed, index) => {
     const validation = validations[index];
-    if (validation.status === "rejected") toApplyError(validation.reason);
+    if (validation.status === "rejected") throw validation.reason;
 
     return {
       slug: parsed.slug,

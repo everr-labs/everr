@@ -12,13 +12,10 @@ use crate::api::{
 };
 use crate::auth;
 use crate::cli::{
-    AlertsTestArgs, GetLogsArgs, ListRunsArgs, LogPagingArgs, ShowRunArgs, StatusArgs,
-    TelemetryFormat, TelemetryQueryArgs, WatchArgs,
+    GetLogsArgs, ListRunsArgs, LogPagingArgs, ShowRunArgs, StatusArgs, TelemetryFormat,
+    TelemetryQueryArgs, WatchArgs,
 };
 use crate::telemetry;
-
-const LOCAL_APP_API_BASE_URL: &str = "http://localhost:5173";
-const API_BASE_URL_OVERRIDE_ENV: &str = "EVERR_API_BASE_URL_FOR_TESTS";
 
 fn resolve_commit(explicit: Option<String>, cwd: &std::path::Path) -> Result<String> {
     match explicit {
@@ -696,100 +693,6 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
         .await?;
     print_apply_summary(&summary, false);
     Ok(())
-}
-
-pub async fn run_alerts_test(args: AlertsTestArgs) -> anyhow::Result<()> {
-    use everr_core::api::{AlertTestOptions, AlertTestRequest};
-    use everr_core::apply::{classify_documents, load_resource_documents};
-
-    let dir = std::path::Path::new(&args.dir);
-    if !dir.is_dir() {
-        anyhow::bail!("{} is not a directory", args.dir);
-    }
-
-    let documents = load_resource_documents(dir)?;
-    let state = classify_documents(documents)?.into_wire();
-    if state.alerts.is_empty() {
-        anyhow::bail!("no AlertRule resources found under {}", args.dir);
-    }
-
-    let client = alerts_test_client(args.local).await?;
-    let response = client
-        .test_alerts(&AlertTestRequest {
-            options: AlertTestOptions { local: args.local },
-            alerts: state.alerts,
-        })
-        .await?;
-
-    if args.json {
-        print_json(&response)?;
-    } else {
-        print_alerts_test_summary(&response);
-    }
-
-    Ok(())
-}
-
-async fn alerts_test_client(local: bool) -> anyhow::Result<everr_core::api::ApiClient> {
-    if local {
-        let mut session = crate::auth::state_store().load_session().map_err(|error| {
-            if error.to_string().contains("no active session") {
-                anyhow::anyhow!(
-                    "no active session; run `{} cloud login`",
-                    everr_core::build::command_name()
-                )
-            } else {
-                error
-            }
-        })?;
-        session.api_base_url = local_app_base_url();
-        return everr_core::api::ApiClient::from_session(&session);
-    }
-
-    let session = crate::auth::require_session_with_refresh().await?;
-    everr_core::api::ApiClient::from_session(&session)
-}
-
-fn local_app_base_url() -> String {
-    std::env::var(API_BASE_URL_OVERRIDE_ENV)
-        .ok()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| LOCAL_APP_API_BASE_URL.to_string())
-}
-
-fn print_alerts_test_summary(response: &everr_core::api::AlertTestResponse) {
-    for result in &response.results {
-        let status = if result.firing { "FIRING" } else { "OK" };
-        println!("{status} {}  rows: {}", result.slug, result.row_count);
-        println!("  path: {}", result.path);
-        print_evidence_preview(result);
-    }
-}
-
-fn print_evidence_preview(result: &everr_core::api::AlertTestResult) {
-    if result.evidence.is_empty() {
-        println!("  evidence: []");
-        return;
-    }
-
-    println!("  evidence:");
-    for row in result.evidence.iter().take(3) {
-        println!("    {}", truncate_line(&row.to_string(), 160));
-    }
-    if result.evidence.len() > 3 || result.truncated {
-        println!("    ...");
-    }
-}
-
-fn truncate_line(value: &str, max_chars: usize) -> String {
-    if value.chars().count() <= max_chars {
-        return value.to_string();
-    }
-
-    let mut out: String = value.chars().take(max_chars.saturating_sub(3)).collect();
-    out.push_str("...");
-    out
 }
 
 fn print_apply_summary(summary: &everr_core::apply::ApplySummary, plan: bool) {
