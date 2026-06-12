@@ -131,6 +131,28 @@ function buildSeriesData(
   return result;
 }
 
+/**
+ * Stacking renders every series from ONE shared array (recharts accumulates
+ * `stackId` series row-by-row across the chart-level data), so each merged
+ * timestamp must carry a number for every series. A missing or null sample
+ * means "this series contributes nothing to the bucket" — fill it with 0;
+ * leaving it undefined would corrupt the running stack offset for the series
+ * above it.
+ */
+export function buildStackedData(
+  chartData: Array<Record<string, unknown>>,
+  valueKeys: string[],
+): Array<Record<string, unknown>> {
+  return chartData.map((row) => {
+    const filled: Record<string, unknown> = { [TS_KEY]: row[TS_KEY] };
+    for (const key of valueKeys) {
+      const value = row[key];
+      filled[key] = typeof value === "number" ? value : 0;
+    }
+    return filled;
+  });
+}
+
 export interface ChartModel {
   /** Merged timeline (all series by timestamp). Drives the x-axis domain and
    * the crosshair/tooltip lookup — NOT the lines. */

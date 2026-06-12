@@ -138,7 +138,7 @@ Each visualization has its own option set and behaviors. **Load the rule file fo
 
 | Visualization | Rule | Load when you need |
 | --- | --- | --- |
-| `TimeSeriesChart` | `rules/timeseries.md` | a line chart over time — units, legend, curve, gaps, per-series breakdown |
+| `TimeSeriesChart` | `rules/timeseries.md` | a line or stacked area chart over time — units, legend, curve, gaps, stacking, per-series breakdown |
 | `Table` | `rules/table.md` | a row/column table — sticky header, column formatting (SQL-side) |
 | `StatChart` | `rules/statchart.md` | big single-value tiles — calculations, sparklines, threshold coloring |
 | `GeoMap` | `rules/geomap.md` | a world map — lat/lon markers or country shading, aggregation, color/size scales |
@@ -314,7 +314,7 @@ Apply is **declarative and delete-by-default within the declared projects**: new
 | Forgetting the `everr.yaml` manifest, or a `metadata.project` not listed in it | Every apply dir needs `everr.yaml` listing projects; each dashboard's project must be in it. |
 | No `{from:String}`/`{to:String}` in the `WHERE` | Add `WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}` — it is not auto-injected. |
 | Time-series x-axis blank | Alias the time column to `ts`/`time`/`timestamp`/… so it's detected. |
-| Inventing viz options (`yAxis`, `legend`, `columnSettings`, `format.unit`, `calculation: last-number`, axis min/max, stacking) | Only the options in each viz's rule file (`rules/timeseries.md`, `rules/table.md`, `rules/statchart.md`, `rules/geomap.md`) exist. Format/round in SQL, not via spec. |
+| Inventing viz options (`yAxis`, `legend`, `columnSettings`, `format.unit`, `calculation: last-number`, axis min/max) | Only the options in each viz's rule file (`rules/timeseries.md`, `rules/table.md`, `rules/statchart.md`, `rules/geomap.md`) exist. Format/round in SQL, not via spec. |
 | `PrometheusLabelValuesVariable` or other variable plugins | Only `StaticListVariable` and `ClickHouseSQLVariable`. |
 | Single `ClickHouseSQL` in the query block | Both the query `kind` and the inner `plugin.kind` are `ClickHouseSQL`. |
 | `Duration` treated as ms/seconds | It's **nanoseconds** — divide by `1e6` (ms) or `1e9` (s). |
