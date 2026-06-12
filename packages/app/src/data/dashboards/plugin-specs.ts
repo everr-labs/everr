@@ -1,4 +1,5 @@
 import type * as z from "zod";
+import { barChartSpec } from "@/components/dashboards/visualizations/bar-chart/spec";
 import { geoMapSpec } from "@/components/dashboards/visualizations/geo-map/spec";
 import { statChartSpec } from "@/components/dashboards/visualizations/stat-chart/spec";
 import { tableSpec } from "@/components/dashboards/visualizations/table/spec";
@@ -14,6 +15,7 @@ import { testDataSpec } from "./testdata/spec";
  * "Unknown visualization" placeholder for them instead of failing validation.
  */
 export const panelPluginSpecs: Record<string, z.ZodType> = {
+  BarChart: barChartSpec,
   GeoMap: geoMapSpec,
   StatChart: statChartSpec,
   Table: tableSpec,

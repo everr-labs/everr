@@ -9,6 +9,7 @@ use tokio::process::Command;
 use tokio::sync::mpsc;
 
 use crate::cli::WrapArgs;
+use crate::command_telemetry;
 
 const BATCH_SIZE: usize = 64;
 const READ_BUFFER_SIZE: usize = 8 * 1024;
@@ -24,7 +25,7 @@ pub async fn run(args: WrapArgs) -> Result<()> {
     let exporter = OtlpLogExporter::new(command.clone());
     if exporter.probe().await.is_err() {
         eprintln!("{COLLECTOR_UNAVAILABLE}");
-        std::process::exit(2);
+        command_telemetry::exit(2);
     }
 
     let mut child = Command::new(&command.program)
@@ -81,7 +82,7 @@ pub async fn run(args: WrapArgs) -> Result<()> {
         return Ok(());
     }
 
-    std::process::exit(exit_code);
+    command_telemetry::exit(exit_code);
 }
 
 async fn forward_stream<R, W>(

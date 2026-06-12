@@ -16,9 +16,9 @@ fn main() {
     println!("cargo:rerun-if-env-changed=EVERR_EMBEDDED_COLLECTOR_GZ");
     println!("cargo:rerun-if-env-changed=EVERR_EMBEDDED_CHDB_GZ");
     println!("cargo:rerun-if-env-changed=EVERR_REQUIRE_EMBEDDED_COLLECTOR");
-    println!("cargo:rerun-if-env-changed=EVERR_PLATFORM_VERSION");
     println!("cargo:rerun-if-env-changed=EVERR_RELEASE_SHA");
     println!("cargo:rerun-if-env-changed=EVERR_RELEASE_SHORT_SHA");
+    println!("cargo:rerun-if-env-changed=EVERR_INGEST_KEY");
     println!("cargo:rustc-check-cfg=cfg(everr_embedded_collector_assets)");
 
     let content = std::fs::read_to_string(&tauri_conf).expect("failed to read tauri.conf.json");
@@ -27,8 +27,7 @@ fn main() {
     let fallback_version = json["version"]
         .as_str()
         .expect("missing 'version' in tauri.conf.json");
-    let version =
-        std::env::var("EVERR_PLATFORM_VERSION").unwrap_or_else(|_| fallback_version.into());
+    let version = fallback_version;
     let release_sha = std::env::var("EVERR_RELEASE_SHA").unwrap_or_else(|_| "unknown".into());
     let release_short_sha = std::env::var("EVERR_RELEASE_SHORT_SHA")
         .unwrap_or_else(|_| release_sha.chars().take(7).collect());

@@ -32,9 +32,9 @@ panels:
                   GROUP BY ts ORDER BY ts
 ```
 
-- **`plugin.kind`** selects the visualization: `TimeSeriesChart`, `Table`, `StatChart`, or `GeoMap`. Its `spec` holds visualization options — see the [Visualizations reference](/docs/dashboards/visualizations).
+- **`plugin.kind`** selects the visualization: `TimeSeriesChart`, `BarChart`, `Table`, `StatChart`, `GeoMap`, or `Treemap`. Its `spec` holds visualization options — see the [Visualizations reference](/docs/dashboards/visualizations).
 - **`queries`** is a list. Each entry is a `ClickHouseSQL` query whose SQL lives at `spec.plugin.spec.query`. ClickHouse SQL is the query plugin for real data; a deterministic [`TestData`](#testdata-query-kind-development--test) plugin is also available for development and visual testing.
-- Multiple queries are supported: the time-series chart overlays all of them, the table shows a per-query selector, and the stat chart renders one tile per resulting series.
+- Multiple queries are supported: the time-series and bar charts overlay all of them on one axis, the table shows a per-query selector, and the stat chart renders one tile per resulting series.
 
 ## Placing panels on the grid
 
@@ -80,6 +80,21 @@ This produces one line per service.
   value column and renders as its own line instead of pivoting. Make the label
   unambiguous, for example `concat('status-', toString(StatusCode))`.
 </Callout>
+
+### Bar
+
+Same column rules as the time series — a time column (`ts`/`time`/`timestamp`) makes one bar group per bucket, numeric columns become series, and a remaining string column pivots a single value column into one series per label. Without a time column the **first string column** becomes the category axis instead:
+
+```sql
+SELECT ServiceName, count() AS spans
+FROM traces
+WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+GROUP BY ServiceName
+ORDER BY spans DESC
+LIMIT 10
+```
+
+This produces one bar per service, in the query's order.
 
 ### Table
 
@@ -239,4 +254,4 @@ lat/lon/value rows; `shape: regions` emits region/value rows.
 
 ## Unknown visualizations
 
-If a panel's `plugin.kind` isn't a registered visualization, the panel renders a clear "Unknown visualization: &lt;kind&gt;" placeholder instead of failing the whole dashboard. Stick to `TimeSeriesChart`, `Table`, `StatChart`, and `GeoMap`.
+If a panel's `plugin.kind` isn't a registered visualization, the panel renders a clear "Unknown visualization: &lt;kind&gt;" placeholder instead of failing the whole dashboard. Stick to `TimeSeriesChart`, `BarChart`, `Table`, `StatChart`, `GeoMap`, and `Treemap`.

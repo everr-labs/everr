@@ -29,7 +29,13 @@ fn wrap_preserves_output_and_sends_logs_to_collector() {
         .stdout(diff("hello stdout\n"))
         .stderr(diff("hello stderr\n"));
 
-    let bodies = collector.bodies();
+    let bodies = collector.bodies_until(|bodies| {
+        bodies.iter().any(|body| body.contains("hello stdout"))
+            && bodies.iter().any(|body| body.contains("hello stderr"))
+            && bodies
+                .iter()
+                .any(|body| body.contains(r#""service.name""#) && body.contains("everr-wrap-sh"))
+    });
     assert!(
         bodies.iter().any(|body| body.contains("hello stdout")),
         "expected stdout log in OTLP payloads, got: {bodies:#?}"
@@ -56,17 +62,92 @@ fn wrap_preserves_output_and_sends_logs_to_collector() {
             .any(|body| body.contains(r#""service.name""#) && body.contains("everr-wrap-sh")),
         "expected command-specific service name, got: {bodies:#?}"
     );
+    let wrap_bodies: Vec<&String> = bodies
+        .iter()
+        .filter(|body| body.contains(r#""everr.wrap.stream""#))
+        .collect();
     assert!(
-        bodies
+        wrap_bodies
             .iter()
             .all(|body| !body.contains(r#""service.version""#)),
         "wrap payload should not include service.version, got: {bodies:#?}"
     );
     assert!(
-        bodies
+        wrap_bodies
             .iter()
             .all(|body| !body.contains(r#""deployment.environment""#)),
         "wrap payload should not include deployment.environment, got: {bodies:#?}"
+    );
+}
+
+#[test]
+fn cli_command_telemetry_records_command_shape_without_option_values() {
+    let collector = OtlpLogServer::start();
+    let env = CliTestEnv::new();
+
+    env.command()
+        .env("EVERR_OTLP_HTTP_ORIGIN", collector.origin())
+        .args(["skills", "list", "--global", "--agent", "codex"])
+        .assert()
+        .success();
+
+    let bodies = collector.bodies_until(has_cli_command_body);
+    let command_body = cli_command_body(&bodies);
+    assert!(
+        command_body.contains("everr-cli"),
+        "expected CLI service name, got: {command_body:?}"
+    );
+    assert!(
+        command_body.contains("service.version"),
+        "expected service.version resource attribute, got: {command_body:?}"
+    );
+    assert!(
+        command_body.contains("everr.cli.command") && command_body.contains("skills"),
+        "expected command attribute, got: {command_body:?}"
+    );
+    assert!(
+        command_body.contains("everr.cli.subcommand") && command_body.contains("list"),
+        "expected subcommand attribute, got: {command_body:?}"
+    );
+    assert!(
+        command_body.contains("everr.cli.options")
+            && command_body.contains("agent")
+            && command_body.contains("global"),
+        "expected option names, got: {command_body:?}"
+    );
+    assert!(
+        command_body.contains("os.type") && command_body.contains(std::env::consts::OS),
+        "expected OS attribute, got: {command_body:?}"
+    );
+    assert!(
+        !command_body.contains("codex"),
+        "option values must not be recorded, got: {command_body:?}"
+    );
+}
+
+#[test]
+fn cli_command_telemetry_does_not_record_wrapped_command() {
+    let collector = OtlpLogServer::start();
+    let env = CliTestEnv::new();
+
+    env.command()
+        .env("EVERR_OTLP_HTTP_ORIGIN", collector.origin())
+        .args(["wrap", "--", "sh", "-c", "printf 'secret\\n'"])
+        .assert()
+        .success()
+        .stdout(diff("secret\n"));
+
+    let bodies = collector.bodies_until(has_cli_command_body);
+    let command_body = cli_command_body(&bodies);
+    assert!(
+        command_body.contains("everr.cli.command") && command_body.contains("wrap"),
+        "expected wrap command telemetry, got: {command_body:?}"
+    );
+    assert!(
+        !command_body.contains("sh")
+            && !command_body.contains("printf")
+            && !command_body.contains("secret"),
+        "wrapped command details must not be recorded in CLI command telemetry, got: {command_body:?}"
     );
 }
 
@@ -127,6 +208,13 @@ fn wrap_preserves_wrapped_command_exit_code() {
         .assert()
         .code(7)
         .stdout(diff("before fail\n"));
+
+    let bodies = collector.bodies_until(has_cli_command_body);
+    let command_body = cli_command_body(&bodies);
+    assert!(
+        command_body.contains("everr.cli.command") && command_body.contains("wrap"),
+        "expected wrap command telemetry before process exit, got: {command_body:?}"
+    );
 }
 
 #[test]
@@ -271,16 +359,29 @@ impl OtlpLogServer {
         &self.origin
     }
 
-    fn bodies(&self) -> Vec<String> {
+    fn bodies_until(&self, ready: impl Fn(&[String]) -> bool) -> Vec<String> {
         let deadline = std::time::Instant::now() + Duration::from_secs(2);
+
         loop {
             let current = self.bodies.lock().expect("lock bodies").clone();
-            if current.len() >= 2 || std::time::Instant::now() >= deadline {
+            if ready(&current) || std::time::Instant::now() >= deadline {
                 return current;
             }
             thread::sleep(Duration::from_millis(10));
         }
     }
+}
+
+fn has_cli_command_body(bodies: &[String]) -> bool {
+    bodies.iter().any(|body| body.contains("everr.cli.command"))
+}
+
+fn cli_command_body(bodies: &[String]) -> &str {
+    bodies
+        .iter()
+        .find(|body| body.contains("everr.cli.command"))
+        .map(String::as_str)
+        .unwrap_or_else(|| panic!("expected CLI command telemetry payload, got: {bodies:#?}"))
 }
 
 fn everr_process(env: &CliTestEnv, collector_origin: &str) -> ProcessCommand {
