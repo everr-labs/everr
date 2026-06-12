@@ -1,40 +1,37 @@
-import { ChartGantt } from "lucide-react";
+import { LayoutGrid } from "lucide-react";
 import { useMemo } from "react";
 import type { VisualizationProps } from "../index";
 import { LaneTimelineChart } from "../lane-timeline-chart";
-import type { StateTimelineSpec } from "./spec";
-import { buildStateTimelineModel } from "./state-timeline-data";
+import type { StatusHistorySpec } from "./spec";
+import { buildStatusHistoryModel } from "./status-history-data";
 
-export function StateTimelineVisualization({
+export function StatusHistoryVisualization({
   spec,
   data,
   timeRange,
   onTimeRangeChange,
-}: VisualizationProps<StateTimelineSpec>) {
+}: VisualizationProps<StatusHistorySpec>) {
   const domain = useMemo<[number, number]>(
     () => [timeRange.from.getTime(), timeRange.to.getTime()],
     [timeRange],
   );
 
   const model = useMemo(
-    () => (data ? buildStateTimelineModel(data, spec, domain) : null),
+    () => (data ? buildStatusHistoryModel(data, spec, domain) : null),
     [data, spec, domain],
   );
 
-  // Each segment spans its sample until the lane's next one, so its tooltip
-  // reads as a time range.
+  // Each cell is an independent sample, so its tooltip shows the single instant.
   const lanes = useMemo(
     () =>
       (model?.lanes ?? []).map((lane) => ({
         label: lane.label,
-        items: lane.segments.map((s) => ({
-          key: s.start,
-          start: s.start,
-          end: s.end,
-          state: s.state,
-          title: `${new Date(s.start).toLocaleString()} – ${new Date(
-            s.end,
-          ).toLocaleString()}`,
+        items: lane.cells.map((c) => ({
+          key: c.ts,
+          start: c.start,
+          end: c.end,
+          state: c.state,
+          title: new Date(c.ts).toLocaleString(),
         })),
       })),
     [model],
@@ -49,11 +46,12 @@ export function StateTimelineVisualization({
       rowHeight={spec.rowHeight}
       showValues={spec.showValues}
       showLegend={spec.showLegend}
+      rounded
       onTimeRangeChange={onTimeRangeChange}
-      emptyIcon={<ChartGantt className="size-8" />}
+      emptyIcon={<LayoutGrid className="size-8" />}
       emptyMessage={
         data
-          ? "No state data in this time range"
+          ? "No status data in this time range"
           : "Configure a query to see results"
       }
     />

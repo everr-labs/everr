@@ -32,7 +32,7 @@ panels:
                   GROUP BY ts ORDER BY ts
 ```
 
-- **`plugin.kind`** selects the visualization: `TimeSeriesChart`, `BarChart`, `Table`, `StatChart`, `GaugeChart`, `GeoMap`, `Treemap`, `StateTimeline`, or `Heatmap`. Its `spec` holds visualization options — see the [Visualizations reference](/docs/dashboards/visualizations).
+- **`plugin.kind`** selects the visualization: `TimeSeriesChart`, `BarChart`, `Table`, `StatChart`, `GaugeChart`, `GeoMap`, `Treemap`, `StateTimeline`, `StatusHistory`, or `Heatmap`. Its `spec` holds visualization options — see the [Visualizations reference](/docs/dashboards/visualizations).
 - **`queries`** is a list. Each entry is a `ClickHouseSQL` query whose SQL lives at `spec.plugin.spec.query`. ClickHouse SQL is the query plugin for real data; a deterministic [`TestData`](#testdata-query-kind-development--test) plugin is also available for development and visual testing.
 - Multiple queries are supported: the time-series and bar charts overlay all of them on one axis, the table shows a per-query selector, and the stat chart renders one tile per resulting series.
 
@@ -124,6 +124,10 @@ ORDER BY ts
 ```
 
 Each state holds until the lane's next sample (the last one holds to the end of the range), so emit a row per bucket — or only on state changes — and return `NULL` for "no data" gaps.
+
+### Status history
+
+`StatusHistory` takes the same data shapes as `StateTimeline` (wide or long, same `seriesColumn`/`stateColumn` pivot) but with the opposite sample semantics: each sample is an independent observation drawn as one discrete cell, nothing holds until the next sample, and a missing sample stays visibly empty. Reach for it when each row is a periodic check or run (health probes, cron jobs, CI builds per bucket) and "did it run, and what did it return?" matters; reach for `StateTimeline` when rows are state transitions and duration matters.
 
 ### Heatmap
 
@@ -288,4 +292,4 @@ lat/lon/value rows; `shape: regions` emits region/value rows.
 
 ## Unknown visualizations
 
-If a panel's `plugin.kind` isn't a registered visualization, the panel renders a clear "Unknown visualization: &lt;kind&gt;" placeholder instead of failing the whole dashboard. Stick to `TimeSeriesChart`, `BarChart`, `Table`, `StatChart`, `GaugeChart`, `GeoMap`, `Treemap`, `StateTimeline`, and `Heatmap`.
+If a panel's `plugin.kind` isn't a registered visualization, the panel renders a clear "Unknown visualization: &lt;kind&gt;" placeholder instead of failing the whole dashboard. Stick to `TimeSeriesChart`, `BarChart`, `Table`, `StatChart`, `GaugeChart`, `GeoMap`, `Treemap`, `StateTimeline`, `StatusHistory`, and `Heatmap`.

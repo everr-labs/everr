@@ -20,7 +20,7 @@ The file format mirrors [Perses](https://perses.dev), so the structure (`kind`/`
 
 1. **Queries are ClickHouse SQL, not PromQL.** The only query plugin is `ClickHouseSQL`. No Prometheus, no `rate()`, no `$__rate_interval`, no `PrometheusTimeSeriesQuery`.
 2. **Time range is two SQL params:** `{from:String}` and `{to:String}`. You must put them in your `WHERE`. There is no auto-injection.
-3. **Visualizations are nine kinds with simple specs:** `TimeSeriesChart`, `BarChart`, `Table`, `StatChart`, `GaugeChart`, `GeoMap`, `Treemap`, `StateTimeline`, `Heatmap`. They infer structure from the columns you `SELECT` — there is no `yAxis`, `legend`, `columnSettings`, `format.unit`, etc.
+3. **Visualizations are ten kinds with simple specs:** `TimeSeriesChart`, `BarChart`, `Table`, `StatChart`, `GaugeChart`, `GeoMap`, `Treemap`, `StateTimeline`, `StatusHistory`, `Heatmap`. They infer structure from the columns you `SELECT` — there is no `yAxis`, `legend`, `columnSettings`, `format.unit`, etc.
 4. **Variable options come from `StaticListVariable` or `ClickHouseSQLVariable` only** — not `PrometheusLabelValuesVariable`. `$name` interpolates to a quoted ClickHouse literal.
 
 ## File layout and the required manifest
@@ -72,7 +72,7 @@ panels:
     spec:
       display: { name: Error rate }      # description optional
       plugin:
-        kind: TimeSeriesChart            # TimeSeriesChart | BarChart | Table | StatChart | GaugeChart | GeoMap | Treemap | StateTimeline | Heatmap
+        kind: TimeSeriesChart            # TimeSeriesChart | BarChart | Table | StatChart | GaugeChart | GeoMap | Treemap | StateTimeline | StatusHistory | Heatmap
         spec: { unit: "%", showLegend: true }
       queries:
         - kind: ClickHouseSQL            # outer query kind
@@ -84,7 +84,7 @@ panels:
                   SELECT ...
 ```
 
-The double `ClickHouseSQL` (query `kind` **and** inner `plugin.kind`) is required, not a typo. Multiple queries are allowed: time-series and bar charts overlay them on one axis, table shows a selector, stat renders one tile per series, gauge renders one gauge per series, geo-map overlays markers (points) or merges regions (choropleth), treemap colors tiles per query, state-timeline accumulates lanes across queries, heatmap sums cells across queries. The panel `plugin.kind` is one of `TimeSeriesChart`, `BarChart`, `Table`, `StatChart`, `GaugeChart`, `GeoMap`, `Treemap`, `StateTimeline`, `Heatmap` — see [Visualization options](#visualization-options) for each kind's `spec`.
+The double `ClickHouseSQL` (query `kind` **and** inner `plugin.kind`) is required, not a typo. Multiple queries are allowed: time-series and bar charts overlay them on one axis, table shows a selector, stat renders one tile per series, gauge renders one gauge per series, geo-map overlays markers (points) or merges regions (choropleth), treemap colors tiles per query, state-timeline and status-history accumulate lanes across queries, heatmap sums cells across queries. The panel `plugin.kind` is one of `TimeSeriesChart`, `BarChart`, `Table`, `StatChart`, `GaugeChart`, `GeoMap`, `Treemap`, `StateTimeline`, `StatusHistory`, `Heatmap` — see [Visualization options](#visualization-options) for each kind's `spec`.
 
 ### Layout — panels only render if a layout references them
 
@@ -135,6 +135,7 @@ Data shape per visualization (the viz infers everything from your columns):
 | `GeoMap` | points mode: numeric lat/lon columns (+ optional value/label); choropleth mode: an ISO-3166 alpha-2/alpha-3 country-code column + a numeric value column (see `rules/geomap.md`). No time axis. |
 | `Treemap` | a label column + a **positive** numeric column (tile area), optionally a group column for color (see `rules/treemap.md`). No time axis; always `LIMIT`. |
 | `StateTimeline` | a time column (aliased above) + state columns — **one lane per non-time column**, cell value = state. For `GROUP BY` rows set `seriesColumn`/`stateColumn` in the spec to pivot one lane per label (see `rules/statetimeline.md`). |
+| `StatusHistory` | same shapes as `StateTimeline`, but each sample is an **independent cell** — nothing holds until the next sample; missing samples stay visibly empty (see `rules/statushistory.md`). |
 | `Heatmap` | a time column (aliased above) + a bucket column (y-axis) + a numeric value column (cell color) — `GROUP BY` time and bucket; same-cell rows sum (see `rules/heatmap.md`). |
 
 ## Visualization options
@@ -151,6 +152,7 @@ Each visualization has its own option set and behaviors. **Load the rule file fo
 | `GeoMap` | `rules/geomap.md` | a world map — lat/lon markers or country shading, aggregation, color/size scales |
 | `Treemap` | `rules/treemap.md` | proportional-area tiles — part-of-whole breakdowns, grouping/colors, value labels |
 | `StateTimeline` | `rules/statetimeline.md` | discrete states over time — health/status lanes, state colors, merging, gaps |
+| `StatusHistory` | `rules/statushistory.md` | one cell per periodic check/run — probe results, cron outcomes, missing-sample visibility |
 | `Heatmap` | `rules/heatmap.md` | a time × bucket density grid — histograms over time, color ramps, scale curves |
 
 ## Variables
@@ -324,7 +326,7 @@ Apply is **declarative and delete-by-default within the declared projects**: new
 | Forgetting the `everr.yaml` manifest, or a `metadata.project` not listed in it | Every apply dir needs `everr.yaml` listing projects; each dashboard's project must be in it. |
 | No `{from:String}`/`{to:String}` in the `WHERE` | Add `WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}` — it is not auto-injected. |
 | Time-series x-axis blank | Alias the time column to `ts`/`time`/`timestamp`/… so it's detected. |
-| Inventing viz options (`yAxis`, `legend`, `columnSettings`, `format.unit`, `calculation: last-number`, axis min/max) | Only the options in each viz's rule file (`rules/timeseries.md`, `rules/barchart.md`, `rules/table.md`, `rules/statchart.md`, `rules/gaugechart.md`, `rules/geomap.md`, `rules/treemap.md`, `rules/statetimeline.md`, `rules/heatmap.md`) exist. Format/round in SQL, not via spec. |
+| Inventing viz options (`yAxis`, `legend`, `columnSettings`, `format.unit`, `calculation: last-number`, axis min/max) | Only the options in each viz's rule file (`rules/timeseries.md`, `rules/barchart.md`, `rules/table.md`, `rules/statchart.md`, `rules/gaugechart.md`, `rules/geomap.md`, `rules/treemap.md`, `rules/statetimeline.md`, `rules/statushistory.md`, `rules/heatmap.md`) exist. Format/round in SQL, not via spec. |
 | `PrometheusLabelValuesVariable` or other variable plugins | Only `StaticListVariable` and `ClickHouseSQLVariable`. |
 | Single `ClickHouseSQL` in the query block | Both the query `kind` and the inner `plugin.kind` are `ClickHouseSQL`. |
 | `Duration` treated as ms/seconds | It's **nanoseconds** — divide by `1e6` (ms) or `1e9` (s). |

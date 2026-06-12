@@ -1,0 +1,318 @@
+kind: Dashboard
+metadata:
+  name: viz-gallery-status-history
+  project: demo
+spec:
+  display:
+    name: Visualization Gallery — Status History
+    description: >-
+      StatusHistory regression sheet — every option (wide and long formats via
+      seriesColumn/stateColumn, showValues, showLegend, colors mapping,
+      rowHeight, colWidth) and behavior (spec defaults, missing-sample slots,
+      numeric statuses, single sample fallback, multi-query lanes, empty, no
+      time column) exercised with deterministic TestData.
+  duration: 7d
+  refreshInterval: 1m
+  panels:
+    # ── Formats and options ──────────────────────────────────────────
+    sh-defaults:
+      kind: Panel
+      spec:
+        display:
+          name: "StatusHistory: spec defaults"
+          description: "Empty spec {} — wide format: one lane per non-time column · one cell per sample, no merging · showValues: false · showLegend: true · palette colors"
+        plugin:
+          kind: StatusHistory
+          spec: {}
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  seed: 110
+                  rows: 30
+                  columns:
+                    - { name: ts, time: true }
+                    - { name: api,    values: [pass, pass, pass, fail, pass, pass, fail, pass, pass, pass] }
+                    - { name: db,     values: [pass, pass, pass, pass, pass, pass, pass, pass, fail, pass] }
+                    - { name: worker, values: [pass, fail, pass, pass, pass, fail, fail, pass, pass, pass] }
+    sh-colors-values:
+      kind: Panel
+      spec:
+        display:
+          name: "StatusHistory: fixed colors, values shown"
+          description: "colors: { pass: green, fail: red } · showValues: true — semantic status → color mapping and status text inside cells wide enough"
+        plugin:
+          kind: StatusHistory
+          spec:
+            showValues: true
+            colors:
+              pass: "#22c55e"
+              fail: "#ef4444"
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  seed: 111
+                  rows: 12
+                  columns:
+                    - { name: ts, time: true }
+                    - { name: checkout, values: [pass, pass, fail, pass, pass, pass, fail, fail, pass, pass] }
+                    - { name: payments, values: [pass, fail, pass, pass, pass, pass, pass, pass, pass, fail] }
+    sh-long-format:
+      kind: Panel
+      spec:
+        display:
+          name: "StatusHistory: long format"
+          description: "seriesColumn: check · stateColumn: result — one lane per check value, GROUP BY-style rows"
+        plugin:
+          kind: StatusHistory
+          spec:
+            seriesColumn: check
+            stateColumn: result
+            colors:
+              ok: "#22c55e"
+              warn: "#f59e0b"
+              error: "#ef4444"
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  seed: 112
+                  rows: 90
+                  columns:
+                    - { name: ts, time: true }
+                    - { name: check, values: [dns, tls, http] }
+                    - { name: result, values: [ok, ok, ok, ok, warn, ok, ok, error, ok, ok, ok, warn, warn, ok, ok] }
+    sh-colwidth:
+      kind: Panel
+      spec:
+        display:
+          name: "StatusHistory: narrow cells"
+          description: "colWidth: 0.4 — cells take 40% of the sampling-interval slot, adding horizontal breathing room"
+        plugin:
+          kind: StatusHistory
+          spec:
+            colWidth: 0.4
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  seed: 113
+                  rows: 20
+                  columns:
+                    - { name: ts, time: true }
+                    - { name: backup, values: [done, done, skipped, done, done] }
+                    - { name: report, values: [done, failed, done, done, done] }
+    sh-compact:
+      kind: Panel
+      spec:
+        display:
+          name: "StatusHistory: compact rows"
+          description: "rowHeight: 0.4 — short cells leaving vertical whitespace in each lane"
+        plugin:
+          kind: StatusHistory
+          spec:
+            rowHeight: 0.4
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  seed: 114
+                  rows: 25
+                  columns:
+                    - { name: ts, time: true }
+                    - { name: probe-1, values: [up, up, up, down, up] }
+                    - { name: probe-2, values: [up, down, up, up, up] }
+                    - { name: probe-3, values: [up, up, up, up, up, down, up] }
+    sh-legend-off-full:
+      kind: Panel
+      spec:
+        display:
+          name: "StatusHistory: no legend, full-size cells"
+          description: "showLegend: false · rowHeight: 1 · colWidth: 1 — cells touch lane and slot edges, no legend row"
+        plugin:
+          kind: StatusHistory
+          spec:
+            showLegend: false
+            rowHeight: 1
+            colWidth: 1
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  seed: 115
+                  rows: 20
+                  columns:
+                    - { name: ts, time: true }
+                    - { name: nightly, values: [green, green, red, green, green] }
+                    - { name: canary,  values: [green, red, green, green, red] }
+    # ── Data-shape behaviors ─────────────────────────────────────────
+    sh-missing-samples:
+      kind: Panel
+      spec:
+        display:
+          name: "StatusHistory: missing samples"
+          description: "Null statuses draw no cell — skipped runs show as empty slots instead of the previous result bleeding on (contrast with StateTimeline)"
+        plugin:
+          kind: StatusHistory
+          spec:
+            colors:
+              completed: "#22c55e"
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  seed: 116
+                  rows: 30
+                  columns:
+                    - { name: ts, time: true }
+                    - { name: cron, values: [completed, completed, null, null, completed, completed, null, completed, completed, completed] }
+    sh-numeric-statuses:
+      kind: Panel
+      spec:
+        display:
+          name: "StatusHistory: numeric statuses"
+          description: "Numeric column values (0/1/2) are stringified into discrete statuses, not plotted"
+        plugin:
+          kind: StatusHistory
+          spec: {}
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  seed: 117
+                  rows: 25
+                  columns:
+                    - { name: ts, time: true }
+                    - { name: exit_code, values: [0, 0, 0, 1, 0, 0, 2, 0, 0, 0] }
+    sh-single-sample:
+      kind: Panel
+      spec:
+        display:
+          name: "StatusHistory: single sample"
+          description: "One row only — no sampling interval to measure, the cell falls back to 1/20 of the time range"
+        plugin:
+          kind: StatusHistory
+          spec: {}
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  seed: 118
+                  rows: 1
+                  columns:
+                    - { name: ts, time: true }
+                    - { name: release, values: [shipped] }
+    sh-multi-query:
+      kind: Panel
+      spec:
+        display:
+          name: "StatusHistory: multi-query lanes"
+          description: "Two queries on one panel — lanes accumulate across queries, statuses share one legend and palette, slot width is global"
+        plugin:
+          kind: StatusHistory
+          spec: {}
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  seed: 119
+                  rows: 20
+                  columns:
+                    - { name: ts, time: true }
+                    - { name: ci, values: [green, green, red, green, green] }
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  seed: 120
+                  rows: 20
+                  columns:
+                    - { name: ts, time: true }
+                    - { name: deploys, values: [ok, ok, rolled-back, ok, ok, rolled-back, ok] }
+    sh-empty:
+      kind: Panel
+      spec:
+        display:
+          name: "StatusHistory: empty result"
+          description: "Single query returns no rows → 'No status data in this time range'"
+        plugin:
+          kind: StatusHistory
+          spec: {}
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [ts, status]
+                  rows: []
+    sh-no-time:
+      kind: Panel
+      spec:
+        display:
+          name: "StatusHistory: no time column"
+          description: "Result without a ts/time/timestamp column can't be placed on the axis → empty state"
+        plugin:
+          kind: StatusHistory
+          spec: {}
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [check, status]
+                  rows:
+                    - [dns, ok]
+                    - [tls, fail]
+  layouts:
+    - kind: Grid
+      spec:
+        items:
+          - { x: 0,  y: 0,  width: 12, height: 6, content: { $ref: "#/spec/panels/sh-defaults" } }
+          - { x: 12, y: 0,  width: 12, height: 6, content: { $ref: "#/spec/panels/sh-colors-values" } }
+          - { x: 0,  y: 6,  width: 12, height: 6, content: { $ref: "#/spec/panels/sh-long-format" } }
+          - { x: 12, y: 6,  width: 12, height: 6, content: { $ref: "#/spec/panels/sh-colwidth" } }
+          - { x: 0,  y: 12, width: 12, height: 6, content: { $ref: "#/spec/panels/sh-compact" } }
+          - { x: 12, y: 12, width: 12, height: 6, content: { $ref: "#/spec/panels/sh-legend-off-full" } }
+          - { x: 0,  y: 18, width: 8,  height: 5, content: { $ref: "#/spec/panels/sh-missing-samples" } }
+          - { x: 8,  y: 18, width: 8,  height: 5, content: { $ref: "#/spec/panels/sh-numeric-statuses" } }
+          - { x: 16, y: 18, width: 8,  height: 5, content: { $ref: "#/spec/panels/sh-single-sample" } }
+          - { x: 0,  y: 23, width: 8,  height: 5, content: { $ref: "#/spec/panels/sh-multi-query" } }
+          - { x: 8,  y: 23, width: 8,  height: 5, content: { $ref: "#/spec/panels/sh-empty" } }
+          - { x: 16, y: 23, width: 8,  height: 5, content: { $ref: "#/spec/panels/sh-no-time" } }
