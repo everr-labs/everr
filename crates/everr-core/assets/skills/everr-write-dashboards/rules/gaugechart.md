@@ -10,7 +10,7 @@ One or more semicircular gauges, each showing a single value as an arc filled be
 | `unit` | string | `""` | any string | Suffix after the value. |
 | `decimals` | number | none | `0`–`10` | Fixed fraction digits. Omitted: up to 2, trailing zeros dropped. |
 | `min` | number | `0` | any number | Gauge axis lower bound. |
-| `max` | number | `100` | any number | Gauge axis upper bound. **Set it to the metric's real ceiling** — the default 100 only suits percentages. |
+| `max` | number | `100` | any number | Gauge axis upper bound. **Set it to the metric's real ceiling** — the default 100 only suits percentages. Inverting the bounds (`min > max`) inverts the arc, so a lower value reads as fuller — useful for "lower is better" metrics. |
 | `showLabel` | boolean | `false` | `true` | Show the column-name label even on a single-gauge panel (multi-gauge always shows it). |
 | `noValue` | string | `–` | any string | Text rendered for a query that produced no value (empty result / no numeric column). |
 | `thresholds` | object | none | see below | Color the arc and mark step positions on the gauge. Omit for the default series color. |
