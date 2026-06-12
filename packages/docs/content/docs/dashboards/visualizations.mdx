@@ -3,7 +3,7 @@ title: Visualizations
 description: The built-in panel visualizations and the spec options each one accepts.
 ---
 
-A panel's `plugin.kind` selects its visualization and `plugin.spec` configures it. Everr ships ten visualizations. An unrecognized `kind` renders an "Unknown visualization" placeholder rather than breaking the dashboard.
+A panel's `plugin.kind` selects its visualization and `plugin.spec` configures it. Everr ships eleven visualizations. An unrecognized `kind` renders an "Unknown visualization" placeholder rather than breaking the dashboard.
 
 They infer their structure from the columns your query returns — see [Panels and visualizations](/docs/dashboards/panels-and-visualizations#shaping-data-for-each-visualization) for the data shapes.
 
@@ -300,3 +300,30 @@ plugin:
 | `min` | number | `0` (or the data minimum if negative) | Lower bound of the color domain — cells at or below it clamp to the ramp's low-end color. |
 | `max` | number | data maximum | Upper bound of the color domain. Set it (e.g. an expected ceiling) for colors that don't shift with the time window. |
 | `cellGap` | number | `1` | Gap between cells in px (0–4). |
+
+## NodeGraph
+
+A directed graph of nodes and weighted edges laid out with a deterministic force-directed layout — service dependency maps, call graphs, data flows. The query returns an **edge list**: one row per edge with a source column, a target column, and an optional numeric weight. Nodes are derived from the distinct endpoints, sized by the total weight flowing through them; edge thickness tracks the edge's weight. Hovering a node highlights its neighborhood; hovering a node or edge shows a tooltip with the value and (for nodes) the in/out edge counts.
+
+Rows with the same (source, target) pair are summed — within a query and across queries — and the reverse direction is a separate edge (drawn offset so both stay visible). Rows missing either endpoint, and self-loops, are dropped — when any are, the panel shows a small "not shown" badge in its top-right corner. Without a numeric column every edge weighs 1, so a plain `SELECT client, server` edge list still sizes by row count.
+
+```yaml
+plugin:
+  kind: NodeGraph
+  spec:
+    sourceColumn: client
+    targetColumn: server
+    valueColumn: calls
+    unit: req
+    directed: true
+```
+
+| Option | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `sourceColumn` | string | `source` | Edge source column; falls back to the first column when absent. |
+| `targetColumn` | string | `target` | Edge target column; falls back to the second column when absent. |
+| `valueColumn` | string | `value` | Edge weight column — drives edge thickness and node size. Falls back to the first remaining numeric column; without one every edge weighs 1. |
+| `unit` | string | `""` | Value formatting in tooltips and edge labels. |
+| `directed` | boolean | `true` | Draw arrowheads pointing at each edge's target. |
+| `showValues` | boolean | `false` | Render the edge's value at its midpoint. |
+| `maxNodes` | number | — | Cap the node count (≥ 2): the highest-value nodes stay, the rest (and their edges) are hidden behind the "not shown" badge. The layout also has a built-in 250-node limit. |
