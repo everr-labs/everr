@@ -44,7 +44,9 @@ export function TreemapVisualization({
       group,
       color: tiles.find((t) => t.group === group)?.color,
     }))
-    .filter((g): g is { group: string; color: string } => g.color !== undefined);
+    .filter(
+      (g): g is { group: string; color: string } => g.color !== undefined,
+    );
 
   return (
     <div className="flex h-full flex-col border-t border-border">
