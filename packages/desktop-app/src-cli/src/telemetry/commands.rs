@@ -4,6 +4,7 @@ use anyhow::{Context, Result};
 use serde_json::Value;
 
 use crate::cli::{LocalArgs, LocalSubcommand, TelemetryFormat, TelemetryQueryArgs};
+use crate::command_telemetry;
 use crate::telemetry::client::{QueryClient, Rows};
 use crate::telemetry::collector;
 
@@ -42,14 +43,14 @@ async fn run_status() -> Result<()> {
         everr_core::collector::HealthcheckResult::NetworkBlocked => {
             println!("collector: unreachable");
             eprintln!("{LOCALHOST_NETWORK_BLOCKED_MESSAGE}");
-            std::process::exit(2);
+            command_telemetry::exit(2);
         }
         everr_core::collector::HealthcheckResult::Unavailable => {
             println!("collector: stopped");
             eprintln!(
                 "telemetry collector isn't running - run `everr local start` or open Everr Desktop"
             );
-            std::process::exit(2);
+            command_telemetry::exit(2);
         }
     }
 }
@@ -61,7 +62,7 @@ fn run_query(args: TelemetryQueryArgs) -> Result<()> {
         Err(err) => {
             if is_connect_error(&err) {
                 eprintln!("{}", connection_failure_message(&err));
-                std::process::exit(2);
+                command_telemetry::exit(2);
             }
             return Err(err).context("query failed");
         }

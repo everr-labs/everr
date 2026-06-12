@@ -1,0 +1,148 @@
+kind: Dashboard
+metadata:
+  name: errors-and-logs
+  project: demo
+spec:
+  display:
+    name: Errors & Logs
+    description: Error spans and log activity across services.
+  duration: 7d
+  refreshInterval: 1m
+  variables:
+    - kind: ListVariable
+      spec:
+        name: service
+        display: { name: Service }
+        allowMultiple: true
+        allowAllValue: true
+        defaultValue: "__all"
+        sort: alphabetical-asc
+        plugin:
+          kind: ClickHouseSQLVariable
+          spec:
+            query: SELECT DISTINCT ServiceName FROM traces ORDER BY ServiceName
+  panels:
+    error-spans-over-time:
+      kind: Panel
+      spec:
+        display: { name: Error spans over time (per service) }
+        plugin:
+          kind: TimeSeriesChart
+          spec: { showLegend: true, lineWidth: 1.5, curveType: monotone }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                           toString(ServiceName) AS service,
+                           count() AS error_spans
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND StatusCode = 'Error'
+                      AND ServiceName IN $service
+                    GROUP BY ts, service
+                    ORDER BY ts
+    error-rate:
+      kind: Panel
+      spec:
+        display: { name: Error rate }
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last
+            unit: "%"
+            thresholds:
+              mode: absolute
+              defaultColor: "#22c55e"
+              steps:
+                - { value: 1, color: "#f59e0b" }
+                - { value: 5, color: "#ef4444" }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT countIf(StatusCode = 'Error') / count() * 100 AS error_pct
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND ServiceName IN $service
+    total-error-logs:
+      kind: Panel
+      spec:
+        display: { name: Total error logs }
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT count() AS error_logs
+                    FROM logs
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND SeverityNumber >= 17
+                      AND ServiceName IN $service
+    recent-error-logs:
+      kind: Panel
+      spec:
+        display: { name: Recent error logs }
+        plugin:
+          kind: Table
+          spec: { stickyHeader: true }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT Timestamp,
+                           ServiceName,
+                           Body,
+                           TraceId
+                    FROM logs
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND SeverityNumber >= 17
+                      AND ServiceName IN $service
+                    ORDER BY Timestamp DESC
+                    LIMIT 50
+    log-volume-over-time:
+      kind: Panel
+      spec:
+        display: { name: Log volume over time (per severity) }
+        plugin:
+          kind: TimeSeriesChart
+          spec: { showLegend: true, lineWidth: 1.5, curveType: monotone }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                           toString(SeverityText) AS severity,
+                           count() AS logs
+                    FROM logs
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND ServiceName IN $service
+                    GROUP BY ts, severity
+                    ORDER BY ts
+  layouts:
+    - kind: Grid
+      spec:
+        items:
+          - { x: 0,  y: 0,  width: 16, height: 8,  content: { $ref: "#/spec/panels/error-spans-over-time" } }
+          - { x: 16, y: 0,  width: 4,  height: 8,  content: { $ref: "#/spec/panels/error-rate" } }
+          - { x: 20, y: 0,  width: 4,  height: 8,  content: { $ref: "#/spec/panels/total-error-logs" } }
+          - { x: 0,  y: 8,  width: 24, height: 10, content: { $ref: "#/spec/panels/recent-error-logs" } }
+          - { x: 0,  y: 18, width: 24, height: 8,  content: { $ref: "#/spec/panels/log-volume-over-time" } }

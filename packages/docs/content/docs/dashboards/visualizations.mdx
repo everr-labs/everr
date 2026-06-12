@@ -3,7 +3,7 @@ title: Visualizations
 description: The built-in panel visualizations and the spec options each one accepts.
 ---
 
-A panel's `plugin.kind` selects its visualization and `plugin.spec` configures it. Everr ships eight visualizations. An unrecognized `kind` renders an "Unknown visualization" placeholder rather than breaking the dashboard.
+A panel's `plugin.kind` selects its visualization and `plugin.spec` configures it. Everr ships nine visualizations. An unrecognized `kind` renders an "Unknown visualization" placeholder rather than breaking the dashboard.
 
 They infer their structure from the columns your query returns — see [Panels and visualizations](/docs/dashboards/panels-and-visualizations#shaping-data-for-each-visualization) for the data shapes.
 
@@ -22,6 +22,7 @@ plugin:
     lineWidth: 1.5
     curveType: monotone
     connectNulls: false
+    stacked: false
 ```
 
 | Option | Type | Default | Notes |
@@ -31,6 +32,30 @@ plugin:
 | `lineWidth` | number | `1.5` | Stroke width. |
 | `curveType` | enum | `monotone` | One of `monotone`, `linear`, `natural`, `stepBefore`, `stepAfter`. |
 | `connectNulls` | boolean | `false` | Bridge gaps instead of breaking the line. |
+| `stacked` | boolean | `false` | Stack series on top of each other as filled areas. A series with no sample at a timestamp contributes 0 there, and `connectNulls` has no effect. |
+
+## BarChart
+
+Bar chart over time or over categories. When the query returns a time column (detected like the time-series chart: `ts`, `time`, or `timestamp`), each bucket becomes one bar group; without one, the first string column becomes the category axis. Numeric columns become series, and any remaining string column pivots a single value column into one series per label — same pivot rule as `TimeSeriesChart`. Multiple queries merge onto one axis.
+
+```yaml
+plugin:
+  kind: BarChart
+  spec:
+    unit: req
+    showLegend: true
+    stacking: stacked
+    orientation: vertical
+    showValues: false
+```
+
+| Option | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `unit` | string | `""` | Suffix appended to axis/values. |
+| `showLegend` | boolean | `false` | Show the series legend. |
+| `stacking` | enum | `none` | `none` draws series side by side; `stacked` piles them into one bar per x value; `percent` additionally normalizes each stack to 100% (the value axis becomes percentages, tooltips keep raw values). |
+| `orientation` | enum | `vertical` | `vertical` draws bars bottom-up; `horizontal` draws them left-to-right with categories on the y-axis (best for categorical data with long labels). |
+| `showValues` | boolean | `false` | Draw the value on each bar (on top/right of grouped bars, centered inside stacked segments). |
 
 ## Table
 

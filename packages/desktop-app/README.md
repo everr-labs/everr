@@ -26,10 +26,10 @@ CI uses the same release path through:
 pnpm build:desktop:ci
 ```
 
-CI uses the commit SHA as the human release identity and generates the numeric
-Tauri/macOS updater version from the checked-in development version plus the
-workflow run number. The checked-in version stays as the local development
-fallback.
+CI uses the commit SHA as the human release identity. The app bundle, macOS
+updater manifest, CLI, and production telemetry version all use the checked-in
+desktop version from `src-tauri/tauri.conf.json`, which is synced from this
+package's `package.json`.
 
 Install the signed release CLI into `~/.local/bin` only when you explicitly opt in:
 
