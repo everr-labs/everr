@@ -45,6 +45,28 @@ pub enum Commands {
     Apply(ApplyArgs),
 }
 
+impl Cli {
+    pub fn prints_human_stdout(&self, stdout_is_terminal: bool) -> bool {
+        self.command.prints_human_stdout(stdout_is_terminal)
+    }
+}
+
+impl Commands {
+    fn prints_human_stdout(&self, stdout_is_terminal: bool) -> bool {
+        match self {
+            Commands::Uninstall => true,
+            Commands::Cloud(args) => args.command.prints_human_stdout(stdout_is_terminal),
+            Commands::Ci(args) => args.command.prints_human_stdout(stdout_is_terminal),
+            Commands::Local(args) => args.command.prints_human_stdout(stdout_is_terminal),
+            Commands::Wrap(_) => false,
+            Commands::Setup => true,
+            Commands::Init => true,
+            Commands::Skills(_) => true,
+            Commands::Apply(_) => true,
+        }
+    }
+}
+
 #[derive(Args, Debug)]
 pub struct CloudArgs {
     #[command(subcommand)]
@@ -59,6 +81,17 @@ pub enum CloudSubcommand {
     Logout,
     /// Run a read-only SQL query against cloud CI data
     Query(TelemetryQueryArgs),
+}
+
+impl CloudSubcommand {
+    fn prints_human_stdout(&self, stdout_is_terminal: bool) -> bool {
+        match self {
+            CloudSubcommand::Login(_) | CloudSubcommand::Logout => true,
+            CloudSubcommand::Query(args) => {
+                telemetry_query_prints_human_stdout(args, stdout_is_terminal)
+            }
+        }
+    }
 }
 
 #[derive(Args, Debug)]
@@ -81,6 +114,18 @@ pub enum CiSubcommand {
     Logs(GetLogsArgs),
 }
 
+impl CiSubcommand {
+    fn prints_human_stdout(&self, _stdout_is_terminal: bool) -> bool {
+        match self {
+            CiSubcommand::Watch(_) => true,
+            CiSubcommand::Status(_)
+            | CiSubcommand::Runs(_)
+            | CiSubcommand::Show(_)
+            | CiSubcommand::Logs(_) => false,
+        }
+    }
+}
+
 #[derive(Args, Debug)]
 pub struct LocalArgs {
     #[command(subcommand)]
@@ -95,6 +140,17 @@ pub enum LocalSubcommand {
     Query(TelemetryQueryArgs),
     /// Check whether the local collector is running.
     Status,
+}
+
+impl LocalSubcommand {
+    fn prints_human_stdout(&self, stdout_is_terminal: bool) -> bool {
+        match self {
+            LocalSubcommand::Start(_) | LocalSubcommand::Status => true,
+            LocalSubcommand::Query(args) => {
+                telemetry_query_prints_human_stdout(args, stdout_is_terminal)
+            }
+        }
+    }
 }
 
 #[derive(Args, Debug)]
@@ -225,6 +281,17 @@ pub enum TelemetryFormat {
     Json,
     Ndjson,
     Table,
+}
+
+fn telemetry_query_prints_human_stdout(
+    args: &TelemetryQueryArgs,
+    stdout_is_terminal: bool,
+) -> bool {
+    match args.format {
+        Some(TelemetryFormat::Table) => true,
+        Some(TelemetryFormat::Json | TelemetryFormat::Ndjson) => false,
+        None => stdout_is_terminal,
+    }
 }
 
 #[derive(Args, Debug, Default)]
@@ -809,6 +876,46 @@ mod tests {
         assert_eq!(branch, None);
         assert_eq!(commit, None);
         assert_eq!(run_id, None);
+    }
+
+    #[test]
+    fn update_notice_is_allowed_for_human_commands() {
+        let cli = Cli::try_parse_from(["everr", "skills", "list"]).expect("skills list command");
+        assert!(cli.prints_human_stdout(false));
+
+        let cli = Cli::try_parse_from(["everr", "ci", "watch"]).expect("ci watch command");
+        assert!(cli.prints_human_stdout(false));
+
+        let cli = Cli::try_parse_from(["everr", "local", "query", "SELECT 1", "--format", "table"])
+            .expect("local query table command");
+        assert!(cli.prints_human_stdout(false));
+    }
+
+    #[test]
+    fn update_notice_is_skipped_for_stream_and_json_commands() {
+        let cli =
+            Cli::try_parse_from(["everr", "wrap", "--", "echo", "hello"]).expect("wrap command");
+        assert!(!cli.prints_human_stdout(true));
+
+        let cli = Cli::try_parse_from(["everr", "local", "query", "SELECT 1", "--format", "json"])
+            .expect("local query json command");
+        assert!(!cli.prints_human_stdout(true));
+
+        let cli = Cli::try_parse_from(["everr", "local", "query", "SELECT 1"])
+            .expect("local query default command");
+        assert!(!cli.prints_human_stdout(false));
+
+        let cli = Cli::try_parse_from([
+            "everr",
+            "ci",
+            "logs",
+            "trace-1",
+            "--job-name",
+            "build",
+            "--log-failed",
+        ])
+        .expect("ci logs command");
+        assert!(!cli.prints_human_stdout(true));
     }
 
     #[test]

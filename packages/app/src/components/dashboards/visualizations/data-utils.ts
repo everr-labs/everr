@@ -139,6 +139,63 @@ export function getValueKeys(
 }
 
 /**
+ * Grouping-dimension columns. A column is a grouping dimension if it carries
+ * non-numeric string content in *any* row. A string that parses as a number
+ * (e.g. a quoted ClickHouse aggregate) is a value, not a dimension — exclude
+ * it so it isn't double-counted. Scanning all rows mirrors getValueKeys: the
+ * leading bucket may be NULL for a dimension that is populated later.
+ */
+export function getGroupKeys(
+  rows: QueryResultRow[],
+  excludeKeys: string[],
+): string[] {
+  const first = rows[0];
+  if (!first) return [];
+  return Object.keys(first).filter(
+    (k) =>
+      !excludeKeys.includes(k) &&
+      rows.some((row) => typeof row[k] === "string" && !isNumericValue(row[k])),
+  );
+}
+
+/**
+ * Pivot long rows (`axis, group, value`) into wide rows keyed by the axis
+ * value, one column per distinct group.
+ */
+export function pivotByGroup(
+  rows: QueryResultRow[],
+  axisKey: string,
+  groupKey: string,
+  valueKey: string,
+): {
+  pivoted: QueryResultRow[];
+  seriesKeys: string[];
+} {
+  const byAxis = new Map<string | number, QueryResultRow>();
+  const seriesSet = new Set<string>();
+
+  for (const row of rows) {
+    const axis = row[axisKey];
+    // The raw group value is the series identifier — keep it intact (it's the
+    // label, and uniqueness comes from the Set, not from mangling the name).
+    const group = String(row[groupKey]);
+    const value = toNumber(row[valueKey]);
+    seriesSet.add(group);
+
+    let entry = byAxis.get(axis as string | number);
+    if (!entry) {
+      entry = { [axisKey]: axis };
+      byAxis.set(axis as string | number, entry);
+    }
+    entry[group] = value;
+  }
+
+  const seriesKeys = [...seriesSet].sort();
+  const pivoted = [...byAxis.values()];
+  return { pivoted, seriesKeys };
+}
+
+/**
  * Normalize a numeric epoch to milliseconds. ClickHouse `toUnixTimestamp(...)`
  * returns SECONDS (and `toUnixTimestamp64Milli` returns ms); disambiguate by
  * magnitude — any realistic date is < 1e12 in seconds and >= 1e12 in ms. Without

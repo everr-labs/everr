@@ -15,7 +15,7 @@ import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 import { createGzip } from "node:zlib";
-import { parse as parseVersion, valid as validVersion } from "semver";
+import { valid as validVersion } from "semver";
 import { $ } from "zx";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -332,7 +332,7 @@ function normalizeDesktopVersion(version: string) {
 }
 
 export type DesktopReleaseIdentity = {
-  platformVersion: string;
+  desktopVersion: string;
   releaseSha: string;
   releaseShortSha: string;
   source: "github-actions" | "local";
@@ -340,30 +340,6 @@ export type DesktopReleaseIdentity = {
 
 function releaseShortSha(releaseSha: string) {
   return releaseSha === "unknown" ? "unknown" : releaseSha.slice(0, 7);
-}
-
-function normalizeGithubRunNumber(value: string) {
-  const trimmed = value.trim();
-  if (!/^[1-9][0-9]*$/.test(trimmed)) {
-    throw new Error(
-      `GITHUB_RUN_NUMBER must be a positive integer to generate a desktop platform version; got "${value}".`,
-    );
-  }
-
-  return trimmed;
-}
-
-function buildGithubActionsPlatformVersion(fallbackVersion: string, githubRunNumber: string) {
-  const parsed = parseVersion(normalizeDesktopVersion(fallbackVersion));
-  if (!parsed) {
-    throw new Error(
-      `Unsupported desktop app version "${fallbackVersion}". Expected a semantic version in the form X.Y.Z.`,
-    );
-  }
-
-  return normalizeDesktopVersion(
-    `${parsed.major}.${parsed.minor}.${parsed.patch + Number(githubRunNumber)}`,
-  );
 }
 
 function normalizeReleaseSha(value: string) {
@@ -377,52 +353,45 @@ function normalizeReleaseSha(value: string) {
 
 export function resolveDesktopReleaseIdentity({
   env = process.env,
-  fallbackVersion,
+  desktopVersion,
   fallbackSha,
 }: {
   env?: NodeJS.ProcessEnv;
-  fallbackVersion: string;
+  desktopVersion: string;
   fallbackSha?: string;
 }): DesktopReleaseIdentity {
-  const envPlatformVersion = env.EVERR_PLATFORM_VERSION?.trim();
   const envReleaseSha = env.EVERR_RELEASE_SHA?.trim();
   const envReleaseShortSha = env.EVERR_RELEASE_SHORT_SHA?.trim();
+  const normalizedDesktopVersion = normalizeDesktopVersion(desktopVersion);
 
-  if (envPlatformVersion) {
-    const platformVersion = normalizeDesktopVersion(envPlatformVersion);
-    const releaseSha = envReleaseSha || fallbackSha?.trim() || "unknown";
+  if (envReleaseSha) {
+    const releaseSha = envReleaseSha;
 
     return {
-      platformVersion,
+      desktopVersion: normalizedDesktopVersion,
       releaseSha,
       releaseShortSha: envReleaseShortSha || releaseShortSha(releaseSha),
-      source: env.GITHUB_SHA && env.GITHUB_RUN_NUMBER ? "github-actions" : "local",
+      source: env.GITHUB_SHA ? "github-actions" : "local",
     };
   }
 
   const githubSha = env.GITHUB_SHA?.trim();
-  const githubRunNumber = env.GITHUB_RUN_NUMBER?.trim();
 
-  if (githubSha && githubRunNumber) {
+  if (githubSha) {
     const releaseSha = normalizeReleaseSha(githubSha);
-    const platformVersion = buildGithubActionsPlatformVersion(
-      fallbackVersion,
-      normalizeGithubRunNumber(githubRunNumber),
-    );
 
     return {
-      platformVersion,
+      desktopVersion: normalizedDesktopVersion,
       releaseSha,
       releaseShortSha: releaseShortSha(releaseSha),
       source: "github-actions",
     };
   }
 
-  const platformVersion = normalizeDesktopVersion(fallbackVersion);
   const releaseSha = fallbackSha?.trim() || "unknown";
 
   return {
-    platformVersion,
+    desktopVersion: normalizedDesktopVersion,
     releaseSha,
     releaseShortSha: releaseShortSha(releaseSha),
     source: "local",
@@ -452,12 +421,12 @@ export function resolveDesktopReleaseIngestKey({
 
 export async function writeDesktopReleaseTauriConfigOverride({
   outputPath,
-  platformVersion,
+  desktopVersion,
 }: {
   outputPath: string;
-  platformVersion: string;
+  desktopVersion: string;
 }) {
-  const version = normalizeDesktopVersion(platformVersion);
+  const version = normalizeDesktopVersion(desktopVersion);
   await mkdir(path.dirname(outputPath), { recursive: true });
   await writeFile(outputPath, `${JSON.stringify({ version }, null, 2)}\n`);
   return outputPath;

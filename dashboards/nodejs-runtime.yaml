@@ -1,0 +1,264 @@
+kind: Dashboard
+metadata:
+  name: nodejs-runtime
+  project: demo
+spec:
+  display:
+    name: Node.js Runtime
+    description: OpenTelemetry runtime metrics for everr-web-node (event loop, heap, GC, HTTP, CPU/memory, DB pool)
+  duration: 7d
+  refreshInterval: 1m
+  panels:
+    snapshot:
+      kind: Panel
+      spec:
+        display: { name: Runtime snapshot }
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last
+            sparkline: true
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT
+                      toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts,
+                      avgIf(Value, MetricName = 'v8js.memory.heap.used') / 1048576 AS heap_used_mib,
+                      avgIf(Value, MetricName = 'nodejs.eventloop.delay.p99') * 1000 AS eventloop_p99_ms,
+                      avgIf(Value, MetricName = 'system.cpu.utilization') * 100 AS cpu_pct,
+                      avgIf(Value, MetricName = 'system.memory.utilization') * 100 AS sys_mem_pct
+                    FROM metrics_gauge
+                    WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
+                      AND ServiceName = 'everr-web-node'
+                    GROUP BY ts
+                    ORDER BY ts
+    eventloop-delay:
+      kind: Panel
+      spec:
+        display: { name: Event-loop delay (ms) }
+        plugin:
+          kind: TimeSeriesChart
+          spec: { unit: ms, showLegend: true }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT
+                      toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts,
+                      avgIf(Value, MetricName = 'nodejs.eventloop.delay.p50') * 1000 AS p50_ms,
+                      avgIf(Value, MetricName = 'nodejs.eventloop.delay.p90') * 1000 AS p90_ms,
+                      avgIf(Value, MetricName = 'nodejs.eventloop.delay.p99') * 1000 AS p99_ms,
+                      avgIf(Value, MetricName = 'nodejs.eventloop.delay.max') * 1000 AS max_ms
+                    FROM metrics_gauge
+                    WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
+                      AND ServiceName = 'everr-web-node'
+                    GROUP BY ts
+                    ORDER BY ts
+    eventloop-utilization:
+      kind: Panel
+      spec:
+        display: { name: Event-loop utilization (%) }
+        plugin:
+          kind: TimeSeriesChart
+          spec: { unit: "%", showLegend: true }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT
+                      toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts,
+                      avgIf(Value, MetricName = 'nodejs.eventloop.utilization') * 100 AS utilization_pct
+                    FROM metrics_gauge
+                    WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
+                      AND ServiceName = 'everr-web-node'
+                    GROUP BY ts
+                    ORDER BY ts
+    heap-by-space:
+      kind: Panel
+      spec:
+        display: { name: V8 heap used by space (MiB) }
+        plugin:
+          kind: TimeSeriesChart
+          spec: { unit: MiB, showLegend: true }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT
+                      toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts,
+                      Attributes['v8js.heap.space.name'] AS heap_space,
+                      avg(Value) / 1048576 AS heap_used_mib
+                    FROM metrics_gauge
+                    WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
+                      AND ServiceName = 'everr-web-node'
+                      AND MetricName = 'v8js.memory.heap.used'
+                    GROUP BY ts, heap_space
+                    ORDER BY ts, heap_space
+    heap-limit:
+      kind: Panel
+      spec:
+        display: { name: V8 heap limit (MiB) }
+        plugin:
+          kind: TimeSeriesChart
+          spec: { unit: MiB, showLegend: true }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT
+                      toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts,
+                      avg(Value) / 1048576 AS heap_limit_mib
+                    FROM metrics_sum
+                    WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
+                      AND ServiceName = 'everr-web-node'
+                      AND MetricName = 'v8js.memory.heap.limit'
+                    GROUP BY ts
+                    ORDER BY ts
+    gc-duration:
+      kind: Panel
+      spec:
+        display: { name: GC avg duration (ms) and count }
+        plugin:
+          kind: TimeSeriesChart
+          spec: { showLegend: true }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT
+                      toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts,
+                      sum(Sum) / sum(Count) * 1000 AS gc_avg_ms,
+                      sum(Count) AS gc_count
+                    FROM metrics_histogram
+                    WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
+                      AND ServiceName = 'everr-web-node'
+                      AND MetricName = 'v8js.gc.duration'
+                    GROUP BY ts
+                    ORDER BY ts
+    http-request-rate:
+      kind: Panel
+      spec:
+        display: { name: HTTP request rate (per min) by status }
+        plugin:
+          kind: TimeSeriesChart
+          spec: { showLegend: true }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT
+                      toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts,
+                      concat('http_', Attributes['http.status_code']) AS status,
+                      sum(Count) AS requests
+                    FROM metrics_histogram
+                    WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
+                      AND ServiceName = 'everr-web-node'
+                      AND MetricName = 'http.server.duration'
+                    GROUP BY ts, status
+                    ORDER BY ts, status
+    http-latency:
+      kind: Panel
+      spec:
+        display: { name: HTTP avg latency (ms) by status }
+        plugin:
+          kind: TimeSeriesChart
+          spec: { unit: ms, showLegend: true }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT
+                      toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts,
+                      concat('http_', Attributes['http.status_code']) AS status,
+                      sum(Sum) / sum(Count) AS avg_latency_ms
+                    FROM metrics_histogram
+                    WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
+                      AND ServiceName = 'everr-web-node'
+                      AND MetricName = 'http.server.duration'
+                    GROUP BY ts, status
+                    ORDER BY ts, status
+    system-cpu-mem:
+      kind: Panel
+      spec:
+        display: { name: System CPU and memory (%) }
+        plugin:
+          kind: TimeSeriesChart
+          spec: { unit: "%", showLegend: true }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT
+                      toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts,
+                      avgIf(Value, MetricName = 'system.cpu.utilization') * 100 AS cpu_pct,
+                      avgIf(Value, MetricName = 'system.memory.utilization') * 100 AS mem_pct
+                    FROM metrics_gauge
+                    WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
+                      AND ServiceName = 'everr-web-node'
+                    GROUP BY ts
+                    ORDER BY ts
+    db-pool:
+      kind: Panel
+      spec:
+        display: { name: DB connection pool }
+        plugin:
+          kind: TimeSeriesChart
+          spec: { showLegend: true }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT
+                      toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts,
+                      avgIf(Value, MetricName = 'db.client.connection.count') AS connections,
+                      avgIf(Value, MetricName = 'db.client.connection.pending_requests') AS pending_requests
+                    FROM metrics_sum
+                    WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
+                      AND ServiceName = 'everr-web-node'
+                    GROUP BY ts
+                    ORDER BY ts
+  layouts:
+    - kind: Grid
+      spec:
+        items:
+          - { x: 0,  y: 0,  width: 24, height: 6,  content: { $ref: "#/spec/panels/snapshot" } }
+          - { x: 0,  y: 6,  width: 12, height: 8,  content: { $ref: "#/spec/panels/eventloop-delay" } }
+          - { x: 12, y: 6,  width: 12, height: 8,  content: { $ref: "#/spec/panels/eventloop-utilization" } }
+          - { x: 0,  y: 14, width: 12, height: 8,  content: { $ref: "#/spec/panels/heap-by-space" } }
+          - { x: 12, y: 14, width: 12, height: 8,  content: { $ref: "#/spec/panels/heap-limit" } }
+          - { x: 0,  y: 22, width: 24, height: 8,  content: { $ref: "#/spec/panels/gc-duration" } }
+          - { x: 0,  y: 30, width: 12, height: 8,  content: { $ref: "#/spec/panels/http-request-rate" } }
+          - { x: 12, y: 30, width: 12, height: 8,  content: { $ref: "#/spec/panels/http-latency" } }
+          - { x: 0,  y: 38, width: 12, height: 8,  content: { $ref: "#/spec/panels/system-cpu-mem" } }
+          - { x: 12, y: 38, width: 12, height: 8,  content: { $ref: "#/spec/panels/db-pool" } }

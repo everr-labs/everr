@@ -196,16 +196,14 @@ fn current_api_base_url() -> Result<String> {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Mutex;
-
     use everr_core::auth::{AuthConfig, DeviceAuthorization};
     use everr_core::build;
     use mockito::Server;
     use tempfile::tempdir;
 
-    use super::state_store;
+    use crate::test_support::ENV_LOCK;
 
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
+    use super::state_store;
 
     struct TempConfigEnv {
         original_home: Option<std::ffi::OsString>,

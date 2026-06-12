@@ -31,9 +31,14 @@ function arcPath(startAngle: number, endAngle: number): string {
   return `M ${s.x} ${s.y} A ${R} ${R} 0 0 1 ${e.x} ${e.y}`;
 }
 
-/** 0..1 position of `value` on the gauge axis; 0 when the axis is degenerate. */
+/**
+ * 0..1 position of `value` along the gauge axis, measured from the `min` end.
+ * Inverted bounds (`min > max`) are supported: the signed span flips the
+ * direction so the arc fills toward the `max` end as the value approaches it.
+ * Returns 0 only for a truly degenerate axis (`min === max`).
+ */
 function axisFraction(value: number, min: number, max: number): number {
-  if (max <= min) return 0;
+  if (max === min) return 0;
   return Math.min(1, Math.max(0, (value - min) / (max - min)));
 }
 
@@ -54,18 +59,25 @@ function thresholdTicks(
 ): ThresholdTick[] {
   if (!thresholds?.steps) return [];
   const ref = thresholds.max ?? max;
-  return thresholds.steps
-    .map((step) => ({
-      value:
-        thresholds.mode === "percent" ? (step.value / 100) * ref : step.value,
-      color: step.color,
-    }))
-    .filter((t): t is { value: number; color: string } => t.color !== undefined)
-    .filter((t) => t.value > min && t.value < max)
-    .map((t) => ({
-      fraction: axisFraction(t.value, min, max),
-      color: t.color,
-    }));
+  return (
+    thresholds.steps
+      .map((step) => ({
+        value:
+          thresholds.mode === "percent" ? (step.value / 100) * ref : step.value,
+        color: step.color,
+      }))
+      .filter(
+        (t): t is { value: number; color: string } => t.color !== undefined,
+      )
+      // Keep ticks strictly inside the axis span — works for inverted bounds too.
+      .filter(
+        (t) => t.value > Math.min(min, max) && t.value < Math.max(min, max),
+      )
+      .map((t) => ({
+        fraction: axisFraction(t.value, min, max),
+        color: t.color,
+      }))
+  );
 }
 
 export function GaugeChartVisualization({
