@@ -4,7 +4,7 @@ import {
   ChartLegendContent,
 } from "@everr/ui/components/chart";
 import { LineChart as LineChartIcon } from "lucide-react";
-import { Fragment, useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Area,
@@ -19,6 +19,7 @@ import {
 } from "recharts";
 import { SERIES_COLORS } from "../data-utils";
 import type { VisualizationProps } from "../index";
+import { SeriesTooltipCard } from "../series-tooltip";
 import type { TimeSeriesChartSpec } from "./spec";
 import { buildChartModel, buildStackedData, TS_KEY } from "./time-series-data";
 
@@ -339,37 +340,25 @@ export function TimeSeriesChartVisualization({
       </ChartContainer>
       {tooltipRow &&
         createPortal(
-          <div
-            className="pointer-events-none fixed z-50 rounded-md border border-border bg-card px-3 py-2 text-xs shadow-md"
+          <SeriesTooltipCard
+            className="pointer-events-none fixed z-50"
             style={{
               left: tooltipState!.clientX + 12,
               top: tooltipState!.clientY + 12,
             }}
-          >
-            <div className="mb-1 text-muted-foreground">
-              {new Date(tooltipTs!).toLocaleString()}
-            </div>
-            <div className="grid grid-cols-[auto_1fr_auto] items-center gap-x-2 gap-y-0.5">
-              {valueKeys.map((key) => {
+            title={new Date(tooltipTs!).toLocaleString()}
+            rows={valueKeys
+              .filter((key) => tooltipRow[key] != null)
+              .map((key) => {
                 const val = tooltipRow[key];
-                if (val == null) return null;
-                return (
-                  <Fragment key={key}>
-                    <span
-                      className="inline-block size-2.5 rounded-full"
-                      style={{ backgroundColor: chartConfig[key]?.color }}
-                    />
-                    <span className="text-muted-foreground">
-                      {chartConfig[key]?.label ?? key}
-                    </span>
-                    <span className="text-right font-medium tabular-nums">
-                      {unit ? `${val}${unit}` : String(val)}
-                    </span>
-                  </Fragment>
-                );
+                return {
+                  key,
+                  color: chartConfig[key]?.color,
+                  label: chartConfig[key]?.label ?? key,
+                  value: unit ? `${val}${unit}` : String(val),
+                };
               })}
-            </div>
-          </div>,
+          />,
           document.body,
         )}
     </div>
