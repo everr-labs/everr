@@ -120,6 +120,7 @@ vi.mock("@/db/client", () => {
 });
 
 import {
+  activateAlert,
   cancelSilence,
   createSilence,
   deactivateAlert,
@@ -425,7 +426,11 @@ describe("listAlertEvents", () => {
     ]);
 
     const events = await listAlertEvents({
-      data: { alertId: alertRow.id, limit: 25 },
+      data: {
+        alertId: alertRow.id,
+        limit: 25,
+        timeRange: { from: "now-7d", to: "now" },
+      },
     });
 
     expect(query).toHaveBeenCalledTimes(1);
@@ -509,7 +514,10 @@ describe("listAlertInstances", () => {
     ]);
 
     const instances = await listAlertInstances({
-      data: { alertId: alertRow.id },
+      data: {
+        alertId: alertRow.id,
+        timeRange: { from: "now-7d", to: "now" },
+      },
     });
 
     const sql = vi.mocked(query).mock.calls[0]?.[0] ?? "";
@@ -561,5 +569,30 @@ describe("deactivateAlert", () => {
         nextEvaluationAt: null,
       }),
     );
+  });
+});
+
+describe("activateAlert", () => {
+  it("resumes scheduling immediately when re-activating an alert", async () => {
+    mocks.updateReturning.mockResolvedValueOnce([{ id: alertRow.id }]);
+
+    await activateAlert({ data: { alertId: alertRow.id } });
+
+    expect(mocks.updateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        active: true,
+        nextEvaluationAt: expect.any(Date),
+      }),
+    );
+  });
+
+  it("requires an organization admin or owner", async () => {
+    vi.mocked(auth.api.getActiveMemberRole).mockResolvedValueOnce({
+      role: "member",
+    } as never);
+
+    await expect(
+      activateAlert({ data: { alertId: alertRow.id } }),
+    ).rejects.toThrow("Only organization admins can manage alerts");
   });
 });

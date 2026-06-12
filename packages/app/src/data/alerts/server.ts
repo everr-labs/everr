@@ -1,3 +1,4 @@
+import { resolveTimeRange, TimeRangeSchema } from "@everr/ui/lib/time-range";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -203,13 +204,18 @@ export const listAlertEvents = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(
     alertIdInput.extend({
       limit: z.number().int().min(1).max(100).default(50),
+      timeRange: TimeRangeSchema,
     }),
   )
   .handler(
-    async ({ data: { alertId, limit }, context: { session, clickhouse } }) => {
+    async ({
+      data: { alertId, limit, timeRange },
+      context: { session, clickhouse },
+    }) => {
       const organizationId = session.session.activeOrganizationId;
       const alert = await getAlertRow(alertId, organizationId);
       if (!alert) throw new Error("Alert not found");
+      const { fromISO, toISO } = resolveTimeRange(timeRange);
 
       const rows = await clickhouse.query<{
         eventId: string;
@@ -248,6 +254,8 @@ export const listAlertEvents = createAuthenticatedServerFn({ method: "GET" })
 	              AND slug = {slug:String}
 	              AND alert_definition_id = {alertDefinitionId:String}
 	              AND event_type NOT IN ('instance_fired', 'instance_resolved', 'delivery_attempt')
+	              AND event_time >= {fromTime:String}
+	              AND event_time <= {toTime:String}
 	            ORDER BY event_time DESC, event_id DESC
 	            LIMIT {limit:UInt32}
 	          )
@@ -299,6 +307,8 @@ export const listAlertEvents = createAuthenticatedServerFn({ method: "GET" })
           slug: alert.slug,
           alertDefinitionId: alert.id,
           limit,
+          fromTime: fromISO,
+          toTime: toISO,
         },
       );
 
@@ -409,24 +419,29 @@ async function listActiveSilenceRows(alertId: string, organizationId: string) {
 }
 
 export const listAlertInstances = createAuthenticatedServerFn({ method: "GET" })
-  .inputValidator(alertIdInput)
-  .handler(async ({ data: { alertId }, context: { session, clickhouse } }) => {
-    const organizationId = session.session.activeOrganizationId;
-    const [alert, silences] = await Promise.all([
-      getAlertRow(alertId, organizationId),
-      listActiveSilenceRows(alertId, organizationId),
-    ]);
-    if (!alert) throw new Error("Alert not found");
+  .inputValidator(alertIdInput.extend({ timeRange: TimeRangeSchema }))
+  .handler(
+    async ({
+      data: { alertId, timeRange },
+      context: { session, clickhouse },
+    }) => {
+      const organizationId = session.session.activeOrganizationId;
+      const [alert, silences] = await Promise.all([
+        getAlertRow(alertId, organizationId),
+        listActiveSilenceRows(alertId, organizationId),
+      ]);
+      if (!alert) throw new Error("Alert not found");
+      const { fromISO, toISO } = resolveTimeRange(timeRange);
 
-    const rows = await clickhouse.query<{
-      fingerprint: string;
-      lastEventType: string;
-      labelsJson: string;
-      lastFiredEvidenceJson: string;
-      lastFiredAt: string;
-      lastResolvedAt: string;
-    }>(
-      `
+      const rows = await clickhouse.query<{
+        fingerprint: string;
+        lastEventType: string;
+        labelsJson: string;
+        lastFiredEvidenceJson: string;
+        lastFiredAt: string;
+        lastResolvedAt: string;
+      }>(
+        `
         SELECT
           instance_fingerprint AS fingerprint,
           argMax(event_type, event_time) AS lastEventType,
@@ -440,69 +455,74 @@ export const listAlertInstances = createAuthenticatedServerFn({ method: "GET" })
           AND slug = {slug:String}
           AND alert_definition_id = {alertDefinitionId:String}
           AND event_type IN ('instance_fired', 'instance_resolved')
+          AND event_time >= {fromTime:String}
+          AND event_time <= {toTime:String}
         GROUP BY instance_fingerprint
         ORDER BY (lastEventType = 'instance_fired') DESC, max(event_time) DESC
         LIMIT 500
       `,
-      {
-        organizationId,
-        repoid: alert.repoid,
-        slug: alert.slug,
-        alertDefinitionId: alert.id,
-      },
-    );
+        {
+          organizationId,
+          repoid: alert.repoid,
+          slug: alert.slug,
+          alertDefinitionId: alert.id,
+          fromTime: fromISO,
+          toTime: toISO,
+        },
+      );
 
-    const instanceLabelColumns = alert.instanceLabelColumns ?? [];
-    // Labels per snapshot row are invariant across instances — extract once,
-    // not once per instance × row.
-    const snapshotRows = evidenceRows(
-      alert.lastEvidenceSnapshot as AlertEvidenceValue | undefined,
-    ).map((row) => ({
-      row,
-      labels: extractInstanceLabels(row, instanceLabelColumns),
-    }));
+      const instanceLabelColumns = alert.instanceLabelColumns ?? [];
+      // Labels per snapshot row are invariant across instances — extract once,
+      // not once per instance × row.
+      const snapshotRows = evidenceRows(
+        alert.lastEvidenceSnapshot as AlertEvidenceValue | undefined,
+      ).map((row) => ({
+        row,
+        labels: extractInstanceLabels(row, instanceLabelColumns),
+      }));
 
-    return rows.map((row) => {
-      const labels = parseLabels(row.labelsJson);
-      const state =
-        row.lastEventType === "instance_fired" ? "firing" : "resolved";
-      const lastEvaluationRows =
-        state === "firing"
-          ? snapshotRows
-              .filter((entry) => labelsEqual(entry.labels, labels))
-              .map((entry) => entry.row)
-          : [];
-      const firstEvaluationRow = lastEvaluationRows[0];
-      return {
-        fingerprint: row.fingerprint,
-        labels,
-        state,
-        lastFiredAt: row.lastFiredAt || null,
-        lastResolvedAt: row.lastResolvedAt || null,
-        lastRow: parseJsonObject(row.lastFiredEvidenceJson) as Record<
-          string,
-          AlertEvidenceValue
-        >,
-        lastEvaluationRows,
-        lastEvaluationSummary: firstEvaluationRow
-          ? renderMessage(alert.summaryTemplate, {
-              rowCount: alert.lastRowCount,
-              firstRow: firstEvaluationRow,
-            })
-          : null,
-        lastEvaluationDescription:
-          firstEvaluationRow && alert.descriptionTemplate
-            ? renderMessage(alert.descriptionTemplate, {
+      return rows.map((row) => {
+        const labels = parseLabels(row.labelsJson);
+        const state =
+          row.lastEventType === "instance_fired" ? "firing" : "resolved";
+        const lastEvaluationRows =
+          state === "firing"
+            ? snapshotRows
+                .filter((entry) => labelsEqual(entry.labels, labels))
+                .map((entry) => entry.row)
+            : [];
+        const firstEvaluationRow = lastEvaluationRows[0];
+        return {
+          fingerprint: row.fingerprint,
+          labels,
+          state,
+          lastFiredAt: row.lastFiredAt || null,
+          lastResolvedAt: row.lastResolvedAt || null,
+          lastRow: parseJsonObject(row.lastFiredEvidenceJson) as Record<
+            string,
+            AlertEvidenceValue
+          >,
+          lastEvaluationRows,
+          lastEvaluationSummary: firstEvaluationRow
+            ? renderMessage(alert.summaryTemplate, {
                 rowCount: alert.lastRowCount,
                 firstRow: firstEvaluationRow,
               })
             : null,
-        silenced:
-          state === "firing" &&
-          Boolean(findSilenceForInstance(silences, labels)),
-      } satisfies AlertInstanceSummary;
-    });
-  });
+          lastEvaluationDescription:
+            firstEvaluationRow && alert.descriptionTemplate
+              ? renderMessage(alert.descriptionTemplate, {
+                  rowCount: alert.lastRowCount,
+                  firstRow: firstEvaluationRow,
+                })
+              : null,
+          silenced:
+            state === "firing" &&
+            Boolean(findSilenceForInstance(silences, labels)),
+        } satisfies AlertInstanceSummary;
+      });
+    },
+  );
 
 export type AlertSilenceSummary = {
   id: string;
@@ -649,6 +669,35 @@ export const deactivateAlert = createAuthenticatedServerFn({ method: "POST" })
         active: false,
         nextEvaluationAt: null,
         updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(alertDefinitions.organizationId, organizationId),
+          eq(alertDefinitions.id, alertId),
+        ),
+      )
+      .returning({ id: alertDefinitions.id });
+
+    if (!row) throw new Error("Alert not found");
+    return row;
+  });
+
+// Resumes scheduling immediately (the scanner picks the alert up on its next
+// tick). Runtime state is kept — unlike an `everr apply` revival, the
+// definition hasn't changed, and the next evaluation corrects a stale
+// firing/resolved state anyway.
+export const activateAlert = createAuthenticatedServerFn({ method: "POST" })
+  .inputValidator(alertIdInput)
+  .handler(async ({ data: { alertId }, context: { session } }) => {
+    const organizationId = session.session.activeOrganizationId;
+    await ensureOrgAdmin();
+    const now = new Date();
+    const [row] = await db
+      .update(alertDefinitions)
+      .set({
+        active: true,
+        nextEvaluationAt: now,
+        updatedAt: now,
       })
       .where(
         and(

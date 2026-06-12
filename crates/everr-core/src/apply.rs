@@ -160,6 +160,8 @@ impl ApplyStateDocs {
 
 /// Split discovered documents by `kind`. Unknown kinds (including
 /// `AlertSettings`, which is web-UI-only state) are a hard CLI-side error.
+/// Keep the kinds in sync with the server reconciler REGISTRY in
+/// packages/app/src/data/as-code/registry.ts.
 pub fn classify_documents(docs: Vec<ResourceDocument>) -> Result<ApplyStateDocs> {
     let mut dashboards = Vec::new();
     let mut alerts = Vec::new();

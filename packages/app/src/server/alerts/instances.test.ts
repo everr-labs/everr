@@ -51,6 +51,7 @@ describe("instanceFingerprint", () => {
 
 describe("rowsToInstances", () => {
   it("keeps the first row per fingerprint", () => {
+    const firedAt = new Date("2026-06-12T10:00:00Z");
     const instances = rowsToInstances(
       [
         { route: "/x", error_count: 9 },
@@ -58,10 +59,12 @@ describe("rowsToInstances", () => {
         { route: "/y", error_count: 1 },
       ],
       [],
+      firedAt,
     );
     expect(instances).toHaveLength(2);
     expect(instances[0].labels).toEqual({ route: "/x" });
     expect(instances[0].row).toEqual({ route: "/x", error_count: 9 });
+    expect(instances[0].firedAt).toBe(firedAt);
   });
 });
 

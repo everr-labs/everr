@@ -27,6 +27,9 @@ export type Reconciler = (opts: {
  * State key → (kind label, reconciler). Every registered kind reconciles on
  * each apply, so an empty array prunes that kind within the repoid — the
  * submitted state is the complete desired state for the repo.
+ *
+ * Keep the kinds in sync with classify_documents in
+ * crates/everr-core/src/apply.rs, which routes documents by kind CLI-side.
  */
 const REGISTRY: {
   key: keyof ApplyInput["state"];

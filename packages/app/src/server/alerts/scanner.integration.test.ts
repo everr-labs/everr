@@ -17,7 +17,7 @@ describe.skipIf(!databaseUrl)("scanner under concurrency", () => {
       ).join(",");
       await pool.query(`
         INSERT INTO alert_definitions
-          (organization_id, repoid, slug, evaluation_interval_seconds, window,
+          (organization_id, repoid, slug, evaluation_interval_seconds, "window",
            raw_yaml, parsed_query, summary_template, description_template,
            next_evaluation_at, active)
         VALUES ${values}
@@ -56,6 +56,9 @@ describe.skipIf(!databaseUrl)("scanner under concurrency", () => {
       }
       expect(total).toBe(1000);
     } finally {
+      await pool
+        .query("DELETE FROM alert_definitions WHERE organization_id = 'it-org'")
+        .catch(() => {});
       await pool.end();
     }
   }, 60_000);

@@ -27,6 +27,7 @@ import {
 } from "@everr/ui/components/select";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { Textarea } from "@everr/ui/components/textarea";
+import { type TimeRange, withTimeRange } from "@everr/ui/lib/time-range";
 import {
   queryOptions,
   useMutation,
@@ -34,7 +35,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { BellOff, CircleStop, Plus, X } from "lucide-react";
+import { BellOff, CirclePlay, CircleStop, Plus, X } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import {
   ALERT_CHANNELS,
@@ -48,6 +49,7 @@ import {
 import {
   type AlertInstanceSummary,
   type AlertSilenceSummary,
+  activateAlert,
   cancelSilence,
   createSilence,
   deactivateAlert,
@@ -56,6 +58,7 @@ import {
   listAlertInstances,
   listAlertSilences,
 } from "@/data/alerts/server";
+import { useTimeRange } from "@/hooks/use-time-range";
 import {
   AlertStateBadges,
   formatDate,
@@ -69,10 +72,10 @@ const alertDetailQueryOptions = (alertId: string) =>
     queryFn: () => getAlert({ data: { alertId } }),
   });
 
-const alertInstancesQueryOptions = (alertId: string) =>
+const alertInstancesQueryOptions = (alertId: string, timeRange: TimeRange) =>
   queryOptions({
-    queryKey: ["alerts", alertId, "instances"],
-    queryFn: () => listAlertInstances({ data: { alertId } }),
+    queryKey: ["alerts", alertId, "instances", timeRange],
+    queryFn: () => listAlertInstances({ data: { alertId, timeRange } }),
   });
 
 const alertSilencesQueryOptions = (alertId: string) =>
@@ -81,10 +84,10 @@ const alertSilencesQueryOptions = (alertId: string) =>
     queryFn: () => listAlertSilences({ data: { alertId } }),
   });
 
-const alertEventsQueryOptions = (alertId: string) =>
+const alertEventsQueryOptions = (alertId: string, timeRange: TimeRange) =>
   queryOptions({
-    queryKey: ["alerts", alertId, "events"],
-    queryFn: () => listAlertEvents({ data: { alertId, limit: 50 } }),
+    queryKey: ["alerts", alertId, "events", timeRange],
+    queryFn: () => listAlertEvents({ data: { alertId, limit: 50, timeRange } }),
   });
 
 export const Route = createFileRoute(
@@ -95,15 +98,19 @@ export const Route = createFileRoute(
       { label: "Alerts", to: "/alerts" },
       { label: match.loaderData?.slug ?? "Alert" },
     ],
-    hideTimeRangePicker: true,
   },
   head: () => ({ meta: [{ title: "Everr - Alert detail" }] }),
-  loader: async ({ context: { queryClient }, params }) => {
+  loaderDeps: ({ search }) => withTimeRange(search),
+  loader: async ({ context: { queryClient }, params, deps }) => {
     const [detail] = await Promise.all([
       queryClient.ensureQueryData(alertDetailQueryOptions(params.alertId)),
-      queryClient.prefetchQuery(alertInstancesQueryOptions(params.alertId)),
+      queryClient.prefetchQuery(
+        alertInstancesQueryOptions(params.alertId, deps.timeRange),
+      ),
       queryClient.prefetchQuery(alertSilencesQueryOptions(params.alertId)),
-      queryClient.prefetchQuery(alertEventsQueryOptions(params.alertId)),
+      queryClient.prefetchQuery(
+        alertEventsQueryOptions(params.alertId, deps.timeRange),
+      ),
     ]);
     return { slug: detail.slug };
   },
@@ -113,15 +120,23 @@ export const Route = createFileRoute(
 function AlertDetailPage() {
   const { alertId } = Route.useParams();
   const queryClient = useQueryClient();
+  const { timeRange } = useTimeRange();
   const alert = useQuery(alertDetailQueryOptions(alertId));
-  const instances = useQuery(alertInstancesQueryOptions(alertId));
+  const instances = useQuery(alertInstancesQueryOptions(alertId, timeRange));
   const silences = useQuery(alertSilencesQueryOptions(alertId));
-  const events = useQuery(alertEventsQueryOptions(alertId));
+  const events = useQuery(alertEventsQueryOptions(alertId, timeRange));
   const [silenceTarget, setSilenceTarget] =
     useState<AlertInstanceSummary | null>(null);
 
   const deactivate = useMutation({
     mutationFn: () => deactivateAlert({ data: { alertId } }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["alerts"] });
+    },
+  });
+
+  const activate = useMutation({
+    mutationFn: () => activateAlert({ data: { alertId } }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["alerts"] });
     },
@@ -183,15 +198,28 @@ function AlertDetailPage() {
             )}
           </p>
         </div>
-        <Button
-          variant="destructive"
-          size="sm"
-          disabled={!detail.active || deactivate.isPending}
-          onClick={() => deactivate.mutate()}
-        >
-          <CircleStop data-icon="inline-start" />
-          Deactivate
-        </Button>
+        {detail.active ? (
+          <Button
+            variant="destructive"
+            size="sm"
+            className="hidden md:inline-flex"
+            disabled={deactivate.isPending}
+            onClick={() => deactivate.mutate()}
+          >
+            <CircleStop data-icon="inline-start" />
+            Deactivate
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            className="hidden md:inline-flex"
+            disabled={activate.isPending}
+            onClick={() => activate.mutate()}
+          >
+            <CirclePlay data-icon="inline-start" />
+            Activate
+          </Button>
+        )}
       </div>
 
       <Card inset="flush-content">
@@ -208,7 +236,6 @@ function AlertDetailPage() {
           ) : (
             <DataTable
               stickyHeader
-              containerClassName="max-h-[520px] overflow-auto"
               data={instances.data ?? []}
               columns={
                 [
@@ -231,6 +258,11 @@ function AlertDetailPage() {
                   },
                   {
                     header: "Last result",
+                    // Column className replaces the DataTable defaults, so the
+                    // middle-column padding is restated alongside the
+                    // responsive hiding.
+                    className: "hidden pb-2 pr-4 md:table-cell",
+                    cellClassName: "hidden py-2 pr-4 md:table-cell",
                     cell: (row) => <LastEvaluationResult instance={row} />,
                   },
                   {
@@ -250,10 +282,11 @@ function AlertDetailPage() {
                       <Button
                         variant="outline"
                         size="sm"
+                        aria-label="Silence"
                         onClick={() => setSilenceTarget(row)}
                       >
                         <BellOff data-icon="inline-start" />
-                        Silence
+                        <span className="hidden md:inline">Silence</span>
                       </Button>
                     ),
                   },
@@ -324,7 +357,6 @@ function AlertDetailPage() {
           ) : (
             <DataTable
               stickyHeader
-              containerClassName="max-h-[520px] overflow-auto"
               data={events.data ?? []}
               columns={[
                 { header: "Time", cell: (row) => formatDate(row.eventTime) },
@@ -521,6 +553,20 @@ function SilenceRow({ silence }: { silence: AlertSilenceSummary }) {
 
 const MATCHER_OPS = ["=", "!=", "=~", "!~"] as const;
 
+const SILENCE_DURATIONS = [
+  { value: "1", label: "1 hour" },
+  { value: "2", label: "2 hours" },
+  { value: "4", label: "4 hours" },
+  { value: "8", label: "8 hours" },
+  { value: "24", label: "1 day" },
+  { value: "72", label: "3 days" },
+  { value: "168", label: "7 days" },
+] as const;
+
+function silenceEnd(hours: string): Date {
+  return new Date(Date.now() + Math.max(Number(hours) || 1, 1) * 3_600_000);
+}
+
 function SilenceDialog({
   alertId,
   instance,
@@ -555,13 +601,15 @@ function SilenceDialog({
     );
 
   const create = useMutation({
-    mutationFn: () => {
-      const parsedHours = Number(hours);
-      const endsAt = new Date(
-        Date.now() + Math.max(parsedHours || 1, 1) * 60 * 60 * 1000,
-      ).toISOString();
-      return createSilence({ data: { alertId, endsAt, reason, matchers } });
-    },
+    mutationFn: () =>
+      createSilence({
+        data: {
+          alertId,
+          endsAt: silenceEnd(hours).toISOString(),
+          reason,
+          matchers,
+        },
+      }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["alerts"] });
       onClose();
@@ -598,10 +646,12 @@ function SilenceDialog({
             {matchers.map((matcher, index) => (
               <div
                 key={index}
-                className="grid grid-cols-[1fr_90px_1fr_32px] items-center gap-2"
+                className="grid grid-cols-[1fr_72px_1fr_28px] items-center gap-1.5"
               >
                 <Input
                   aria-label="Label"
+                  placeholder="label"
+                  className="font-mono"
                   value={matcher.label}
                   onChange={(event) =>
                     patchMatcher(index, { label: event.target.value })
@@ -613,12 +663,12 @@ function SilenceDialog({
                     patchMatcher(index, { op: op as Matcher["op"] })
                   }
                 >
-                  <SelectTrigger aria-label="Operator">
+                  <SelectTrigger aria-label="Operator" className="font-mono">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {MATCHER_OPS.map((op) => (
-                      <SelectItem key={op} value={op}>
+                      <SelectItem key={op} value={op} className="font-mono">
                         {op}
                       </SelectItem>
                     ))}
@@ -626,6 +676,8 @@ function SilenceDialog({
                 </Select>
                 <Input
                   aria-label="Value"
+                  placeholder="value"
+                  className="font-mono"
                   value={matcher.value}
                   onChange={(event) =>
                     patchMatcher(index, { value: event.target.value })
@@ -635,6 +687,7 @@ function SilenceDialog({
                   variant="ghost"
                   size="icon"
                   aria-label="Remove matcher"
+                  className="text-muted-foreground hover:text-destructive"
                   onClick={() =>
                     setMatchers((prev) => prev.filter((_, i) => i !== index))
                   }
@@ -658,26 +711,46 @@ function SilenceDialog({
               Add matcher
             </Button>
           </div>
-          <div className="grid grid-cols-[120px_1fr] items-center gap-2">
-            <Label htmlFor="silence-hours">Hours</Label>
-            <Input
-              id="silence-hours"
-              type="number"
-              min="1"
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="silence-duration">Duration</Label>
+            <Select
               value={hours}
-              onChange={(event) => setHours(event.target.value)}
-            />
+              onValueChange={(value) => value && setHours(value)}
+            >
+              <SelectTrigger id="silence-duration" className="w-full">
+                <SelectValue>
+                  {SILENCE_DURATIONS.find((d) => d.value === hours)?.label ??
+                    `${hours} hours`}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {SILENCE_DURATIONS.map(({ value, label }) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Silenced until {formatDate(silenceEnd(hours))}
+            </p>
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="silence-reason">Reason</Label>
+            <Label htmlFor="silence-reason">
+              Reason{" "}
+              <span className="font-normal text-muted-foreground">
+                (optional)
+              </span>
+            </Label>
             <Textarea
               id="silence-reason"
+              placeholder="Why are these instances silenced?"
               value={reason}
               onChange={(event) => setReason(event.target.value)}
             />
           </div>
           {create.error && (
-            <p className="text-destructive" role="alert">
+            <p className="text-sm text-destructive" role="alert">
               {create.error.message}
             </p>
           )}

@@ -1,9 +1,13 @@
 import { createHash } from "node:crypto";
+import { parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
 import { query } from "@/lib/clickhouse";
 
 export interface FiringInstance {
   fingerprint: string;
   labels: Record<string, string>;
+  // Start of the current firing streak. Absent when the backing event predates
+  // this field or its timestamp failed to parse.
+  firedAt?: Date;
 }
 
 export interface AlertInstance extends FiringInstance {
@@ -42,9 +46,13 @@ export function instanceFingerprint(labels: Record<string, string>): string {
   return createHash("sha256").update(canonical).digest("hex").slice(0, 16);
 }
 
+// firedAt is the evaluation time: it is only meaningful for instances that
+// turn out to be newly fired (diffInstances keeps the previous set's own
+// timestamps for everything else that consumers look at).
 export function rowsToInstances(
   rows: readonly Record<string, unknown>[],
   instanceLabelColumns: readonly string[],
+  firedAt: Date,
 ): AlertInstance[] {
   const instances: AlertInstance[] = [];
   const seen = new Set<string>();
@@ -53,7 +61,7 @@ export function rowsToInstances(
     const fingerprint = instanceFingerprint(labels);
     if (seen.has(fingerprint)) continue;
     seen.add(fingerprint);
-    instances.push({ fingerprint, labels, row });
+    instances.push({ fingerprint, labels, firedAt, row });
   }
   return instances;
 }
@@ -99,12 +107,17 @@ export async function fetchFiringInstances(def: {
   repoid: string;
   slug: string;
 }): Promise<FiringInstance[]> {
-  const rows = await query<{ fingerprint: string; labelsJson: string }>(
+  const rows = await query<{
+    fingerprint: string;
+    labelsJson: string;
+    firedAt: string;
+  }>(
     `
       SELECT
         instance_fingerprint AS fingerprint,
         argMax(instance_labels_json, event_time) AS labelsJson,
-        argMax(event_type, event_time) AS lastEventType
+        argMax(event_type, event_time) AS lastEventType,
+        max(event_time) AS firedAt
       FROM app.alert_events
       WHERE organization_id = {organizationId:String}
         AND repoid = {repoid:String}
@@ -122,8 +135,13 @@ export async function fetchFiringInstances(def: {
       alertDefinitionId: def.id,
     },
   );
+  // instance_fired is only emitted when an instance newly fires, so the latest
+  // event (which the HAVING pins to instance_fired) marks the start of the
+  // current firing streak.
   return rows.map((row) => ({
     fingerprint: row.fingerprint,
     labels: parseLabels(row.labelsJson),
+    // ClickHouse DateTime64 comes back as "YYYY-MM-DD HH:MM:SS.mmm" in UTC.
+    firedAt: parseTimestampAsUTC(row.firedAt) ?? undefined,
   }));
 }

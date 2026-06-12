@@ -178,6 +178,10 @@ function workflowJobData(): WebhookJobData {
 
 async function loadRuntime() {
   vi.resetModules();
+  // The runner handle deliberately lives on globalThis to survive HMR module
+  // replacement; tests need each import to start from a clean slate.
+  delete (globalThis as { __everrWorkerRuntime?: unknown })
+    .__everrWorkerRuntime;
   runtimeMocks.handleStatusEvent.mockReset().mockResolvedValue(undefined);
   runtimeMocks.logActiveSpan.length = 0;
   runtimeMocks.pool.query.mockReset();

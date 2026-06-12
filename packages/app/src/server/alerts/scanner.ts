@@ -86,11 +86,20 @@ async function enqueueEvaluationJobs(
       job_key_mode => 'replace'::text
     )
     FROM unnest(
-      ${payloads}::text[],
-      ${queueNames}::text[],
-      ${jobKeys}::text[]
+      ${textArray(payloads)},
+      ${textArray(queueNames)},
+      ${textArray(jobKeys)}
     ) AS job(payload, queue_name, job_key)
   `);
+}
+
+// Interpolating a JS array into drizzle's sql template expands it to a
+// parenthesized parameter list — a row constructor, not a Postgres array.
+function textArray(values: string[]) {
+  return sql`ARRAY[${sql.join(
+    values.map((value) => sql`${value}`),
+    sql`, `,
+  )}]::text[]`;
 }
 
 function isoTimestamp(value: Date | string) {

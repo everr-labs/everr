@@ -5,7 +5,6 @@ import type { Reconciler } from "@/data/as-code/registry";
 import type { ApplyResourceEntry, ApplySource } from "@/data/as-code/schema";
 import { db } from "@/db/client";
 import { alertDefinitions } from "@/db/schema";
-import type { AlertRuleYaml } from "./schema";
 import {
   AlertRuleValidationError,
   parseAlertRule,
@@ -25,17 +24,7 @@ interface DesiredAlert {
   sourceLink: string;
 }
 
-interface ExistingAlert {
-  slug: string;
-  evaluationIntervalSeconds: number;
-  rawYaml: string;
-  parsedQuery: string;
-  summaryTemplate: string;
-  descriptionTemplate: string;
-  instanceLabelColumns: string[];
-  scheduleJitterSeconds: number;
-  configFilePath: string;
-  sourceLink: string;
+interface ExistingAlert extends DesiredAlert {
   active: boolean;
   validationStatus: string;
 }
@@ -44,10 +33,6 @@ interface ApplyAlertsResult {
   created: string[];
   updated: string[];
   deleted: string[];
-}
-
-function rawSnapshot(rule: AlertRuleYaml): string {
-  return JSON.stringify(rule, null, 2);
 }
 
 function pathForLink(path: string): string {
@@ -127,7 +112,7 @@ async function buildDesiredAlerts(opts: {
     return {
       slug: parsed.slug,
       evaluationIntervalSeconds: parsed.evaluationIntervalSeconds,
-      rawYaml: rawSnapshot(parsed.rule),
+      rawYaml: JSON.stringify(parsed.rule, null, 2),
       parsedQuery: parsed.rule.spec.query,
       summaryTemplate: parsed.rule.spec.summary,
       descriptionTemplate: parsed.rule.spec.description ?? "",

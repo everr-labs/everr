@@ -134,6 +134,7 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
   const current = rowsToInstances(
     evidence.rows,
     def.instanceLabelColumns ?? [],
+    now,
   );
   const diff = diffInstances(previous, current);
   const wasFiring = previous.length > 0;

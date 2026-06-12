@@ -32,7 +32,23 @@ const COLLECTOR_TASK_IDENTIFIER = "github-events/collector";
 const STATUS_TASK_IDENTIFIER = "github-events/status";
 const tracer = getTelemetryTracer("everr-app.github_events");
 
-let runner: Runner | undefined;
+// HMR replaces this module while the previous runner is still alive, and the
+// dispose hook is not awaited before the new instance evaluates. Keeping the
+// handles on globalThis lets the replacement wait for the old runner to stop
+// (two live runners double-poll the queue and keep stale task code running).
+interface WorkerRuntimeState {
+  starting?: Promise<Runner>;
+  stopping?: Promise<void>;
+}
+
+const globalWithRuntime = globalThis as typeof globalThis & {
+  __everrWorkerRuntime?: WorkerRuntimeState;
+};
+globalWithRuntime.__everrWorkerRuntime ??= {};
+const workerState: WorkerRuntimeState = globalWithRuntime.__everrWorkerRuntime;
+
+// A hung in-flight job must not keep the replacement runner down forever.
+const STOP_TIMEOUT_MS = 15_000;
 
 function prefixedExceptionAttributes(prefix: string, reason: unknown) {
   const error = reason instanceof Error ? reason : new Error(String(reason));
@@ -163,14 +179,20 @@ const TASK_LIST: TaskList = {
   [STATUS_TASK_IDENTIFIER]: context.bind(ROOT_CONTEXT, processStatusTask),
 };
 
-async function startGitHubEventsRuntime(): Promise<Runner> {
-  if (runner) return runner;
+async function doStartRuntime(): Promise<Runner> {
+  if (workerState.stopping) {
+    await Promise.race([
+      workerState.stopping,
+      new Promise((resolve) => setTimeout(resolve, STOP_TIMEOUT_MS)),
+    ]);
+    workerState.stopping = undefined;
+  }
 
   serverLogger.info("github_events.runtime.start");
   const events = new EventEmitter() as WorkerEvents;
   attachGraphileWorkerEventLogging(events);
 
-  runner = await run({
+  return run({
     concurrency: GH_EVENTS_CONFIG.workerCount,
     events,
     noHandleSignals: true,
@@ -178,19 +200,18 @@ async function startGitHubEventsRuntime(): Promise<Runner> {
     pgPool: pool,
     taskList: { ...TASK_LIST, ...alertTaskList },
   });
-
-  return runner;
 }
 
-export async function startWorkerRuntime(): Promise<Runner> {
-  return startGitHubEventsRuntime();
+export function startWorkerRuntime(): Promise<Runner> {
+  workerState.starting ??= doStartRuntime();
+  return workerState.starting;
 }
 
 export async function enqueueWebhookEvent(
   eventId: string,
   data: WebhookJobData,
 ): Promise<void> {
-  const activeRunner = await startGitHubEventsRuntime();
+  const activeRunner = await startWorkerRuntime();
 
   await Promise.all(
     [COLLECTOR_TASK_IDENTIFIER, STATUS_TASK_IDENTIFIER].map((taskIdentifier) =>
@@ -202,14 +223,34 @@ export async function enqueueWebhookEvent(
   );
 }
 
-async function stopGitHubEventsRuntime(): Promise<void> {
-  const activeRunner = runner;
-  runner = undefined;
-  await activeRunner?.stop();
+async function stopWorkerRuntime(): Promise<void> {
+  const starting = workerState.starting;
+  workerState.starting = undefined;
+  if (!starting) return;
+
+  workerState.stopping = (async () => {
+    const activeRunner = await starting.catch(() => undefined);
+    await activeRunner?.stop();
+  })().catch((error) => {
+    serverLogger.error(
+      "github_events.runtime.stop_failed",
+      exceptionAttributes(error),
+    );
+  });
+  await workerState.stopping;
 }
 
 if (import.meta.hot) {
-  import.meta.hot.dispose(async () => {
-    await stopGitHubEventsRuntime();
+  import.meta.hot.dispose(() => {
+    // Not awaited by vite; the new instance waits on workerState.stopping.
+    void stopWorkerRuntime();
+  });
+  // Self-accept so edits anywhere under the worker graph restart the runner
+  // immediately, instead of leaving it stopped until the next HTTP request
+  // happens to re-import server.ts.
+  import.meta.hot.accept((newModule) => {
+    void (
+      newModule as typeof import("./runtime") | undefined
+    )?.startWorkerRuntime();
   });
 }
