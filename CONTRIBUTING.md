@@ -128,9 +128,10 @@ For macOS distribution, use:
 pnpm --dir packages/desktop-app build:desktop
 ```
 
-CI derives the release identity from the commit SHA and generates the numeric
-Tauri/macOS updater version automatically, so release prep does not need a
-manual desktop version bump.
+CI derives the release identity from the commit SHA, but the desktop app,
+macOS updater, CLI, and production telemetry version come from
+`packages/desktop-app/src-tauri/tauri.conf.json`. Bump the desktop package
+version before shipping a production desktop release.
 
 If you also want that release flow to install the signed CLI into `~/.local/bin`, opt in explicitly:
 

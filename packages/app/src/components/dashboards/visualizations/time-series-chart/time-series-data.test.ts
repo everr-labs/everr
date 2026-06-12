@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildChartModel } from "./time-series-data";
+import { buildChartModel, buildStackedData } from "./time-series-data";
 
 const TS_KEY = "__ts";
 
@@ -266,5 +266,25 @@ describe("buildChartModel", () => {
     expect(model.seriesData.s0).toHaveLength(6);
     expect(model.seriesData.s0?.filter((r) => r.s0 === null)).toHaveLength(1);
     expect(model.chartData).toHaveLength(5);
+  });
+});
+
+describe("buildStackedData", () => {
+  it("fills missing and null samples with 0 so every row carries every series", () => {
+    const model = buildChartModel(
+      [
+        [
+          { time: "2026-06-07T00:00:00", a: 1, b: 10 },
+          { time: "2026-06-07T00:01:00", a: 2, b: "oops" }, // non-numeric → null sample
+        ],
+        [{ time: "2026-06-07T00:00:00", c: 100 }], // absent at 00:01
+      ],
+      WIDE,
+    );
+    const stacked = buildStackedData(model.chartData, model.valueKeys);
+    expect(stacked).toHaveLength(2);
+    expect(stacked[0]).toMatchObject({ s0: 1, s1: 10, s2: 100 });
+    expect(stacked[1]).toMatchObject({ s0: 2, s1: 0, s2: 0 });
+    expect(stacked[0]?.[TS_KEY]).toBe(model.chartData[0]?.[TS_KEY]);
   });
 });

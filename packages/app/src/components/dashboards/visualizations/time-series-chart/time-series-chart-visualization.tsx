@@ -4,11 +4,12 @@ import {
   ChartLegendContent,
 } from "@everr/ui/components/chart";
 import { LineChart as LineChartIcon } from "lucide-react";
-import { Fragment, useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
+  Area,
   CartesianGrid,
+  ComposedChart,
   Line,
-  LineChart,
   ReferenceArea,
   ReferenceDot,
   ReferenceLine,
@@ -18,8 +19,9 @@ import {
 import { CursorTooltip } from "@/components/cursor-tooltip";
 import { SERIES_COLORS } from "../data-utils";
 import type { VisualizationProps } from "../index";
+import { SeriesTooltipContent } from "../series-tooltip";
 import type { TimeSeriesChartSpec } from "./spec";
-import { buildChartModel, TS_KEY } from "./time-series-data";
+import { buildChartModel, buildStackedData, TS_KEY } from "./time-series-data";
 
 const BRUSH_COLOR = SERIES_COLORS[0]!;
 const MAX_X_TICKS = 6;
@@ -103,7 +105,8 @@ export function TimeSeriesChartVisualization({
   timeRange,
   onTimeRangeChange,
 }: VisualizationProps<TimeSeriesChartSpec>) {
-  const { showLegend, connectNulls, lineWidth, unit, curveType } = spec;
+  const { showLegend, connectNulls, lineWidth, unit, curveType, stacked } =
+    spec;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const plotRectRef = useRef<DOMRect | null>(null);
@@ -123,6 +126,11 @@ export function TimeSeriesChartVisualization({
   const { chartData, valueKeys, chartConfig, seriesData } = useMemo(
     () => buildChartModel(data ?? [], domain),
     [data, domain],
+  );
+
+  const stackedData = useMemo(
+    () => (stacked ? buildStackedData(chartData, valueKeys) : null),
+    [stacked, chartData, valueKeys],
   );
 
   const ticks = useMemo(() => generateTicks(domain, MAX_X_TICKS), [domain]);
@@ -227,7 +235,10 @@ export function TimeSeriesChartVisualization({
         className="h-full w-full"
         debounce={100}
       >
-        <LineChart data={chartData} margin={{ left: 12, right: 12, top: 8 }}>
+        <ComposedChart
+          data={stackedData ?? chartData}
+          margin={{ left: 12, right: 12, top: 8 }}
+        >
           <CartesianGrid vertical={false} />
           <XAxis
             dataKey={TS_KEY}
@@ -251,21 +262,39 @@ export function TimeSeriesChartVisualization({
             tickFormatter={(v) => (unit ? `${v}${unit}` : String(v))}
           />
           {showLegend && <ChartLegend content={<ChartLegendContent />} />}
-          {valueKeys.map((key) => (
-            <Line
-              key={key}
-              // Each line renders from its own data so it connects its own
-              // points regardless of where other series have samples.
-              data={seriesData[key]}
-              dataKey={key}
-              type={curveType}
-              stroke={`var(--color-${key})`}
-              strokeWidth={lineWidth}
-              dot={false}
-              connectNulls={connectNulls}
-              isAnimationActive={false}
-            />
-          ))}
+          {valueKeys.map((key) =>
+            stacked ? (
+              // Stacked areas must all read from the chart-level data (the
+              // zero-filled merged timeline) — recharts accumulates stackId
+              // offsets across that shared array, not across per-series ones.
+              <Area
+                key={key}
+                stackId="stack"
+                dataKey={key}
+                type={curveType}
+                stroke={`var(--color-${key})`}
+                fill={`var(--color-${key})`}
+                fillOpacity={0.4}
+                strokeWidth={lineWidth}
+                dot={false}
+                isAnimationActive={false}
+              />
+            ) : (
+              <Line
+                key={key}
+                // Each line renders from its own data so it connects its own
+                // points regardless of where other series have samples.
+                data={seriesData[key]}
+                dataKey={key}
+                type={curveType}
+                stroke={`var(--color-${key})`}
+                strokeWidth={lineWidth}
+                dot={false}
+                connectNulls={connectNulls}
+                isAnimationActive={false}
+              />
+            ),
+          )}
           {tooltipTs !== undefined && (
             <ReferenceLine
               x={tooltipTs}
@@ -274,21 +303,29 @@ export function TimeSeriesChartVisualization({
             />
           )}
           {tooltipTs !== undefined &&
-            valueKeys.map((key) => {
-              const val = tooltipRow?.[key];
-              if (typeof val !== "number") return null;
-              return (
-                <ReferenceDot
-                  key={key}
-                  x={tooltipTs}
-                  y={val}
-                  r={4}
-                  fill={chartConfig[key]?.color}
-                  stroke="var(--card)"
-                  strokeWidth={2}
-                />
-              );
-            })}
+            (() => {
+              // In stacked mode each dot sits at the series' cumulative top
+              // (the running sum in render order), matching where the band
+              // edge is drawn — not at the raw value.
+              let stackTop = 0;
+              return valueKeys.map((key) => {
+                const val = tooltipRow?.[key];
+                const raw = typeof val === "number" ? val : 0;
+                stackTop += raw;
+                if (typeof val !== "number") return null;
+                return (
+                  <ReferenceDot
+                    key={key}
+                    x={tooltipTs}
+                    y={stacked ? stackTop : val}
+                    r={4}
+                    fill={chartConfig[key]?.color}
+                    stroke="var(--card)"
+                    strokeWidth={2}
+                  />
+                );
+              });
+            })()}
           {brushStart != null && brushEnd != null && (
             <ReferenceArea
               x1={brushStart}
@@ -299,33 +336,24 @@ export function TimeSeriesChartVisualization({
               strokeOpacity={0.3}
             />
           )}
-        </LineChart>
+        </ComposedChart>
       </ChartContainer>
       {tooltipRow && (
         <CursorTooltip x={tooltipState!.clientX} y={tooltipState!.clientY}>
-          <div className="mb-1 text-muted-foreground">
-            {new Date(tooltipTs!).toLocaleString()}
-          </div>
-          <div className="grid grid-cols-[auto_1fr_auto] items-center gap-x-2 gap-y-0.5">
-            {valueKeys.map((key) => {
-              const val = tooltipRow[key];
-              if (val == null) return null;
-              return (
-                <Fragment key={key}>
-                  <span
-                    className="inline-block size-2.5 rounded-full"
-                    style={{ backgroundColor: chartConfig[key]?.color }}
-                  />
-                  <span className="text-muted-foreground">
-                    {chartConfig[key]?.label ?? key}
-                  </span>
-                  <span className="text-right font-medium tabular-nums">
-                    {unit ? `${val}${unit}` : String(val)}
-                  </span>
-                </Fragment>
-              );
-            })}
-          </div>
+          <SeriesTooltipContent
+            title={new Date(tooltipTs!).toLocaleString()}
+            rows={valueKeys
+              .filter((key) => tooltipRow[key] != null)
+              .map((key) => {
+                const val = tooltipRow[key];
+                return {
+                  key,
+                  color: chartConfig[key]?.color,
+                  label: chartConfig[key]?.label ?? key,
+                  value: unit ? `${val}${unit}` : String(val),
+                };
+              })}
+          />
         </CursorTooltip>
       )}
     </div>

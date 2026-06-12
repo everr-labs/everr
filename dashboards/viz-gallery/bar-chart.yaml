@@ -1,0 +1,232 @@
+kind: Dashboard
+metadata:
+  name: viz-gallery-bar-chart
+  project: demo
+spec:
+  display:
+    name: Visualization Gallery — Bar Chart
+    description: >-
+      BarChart regression sheet — every option (unit, showLegend, stacking
+      none/stacked/percent, orientation vertical/horizontal, showValues) and
+      behavior (time axis, categorical axis, grouped pivot, multi-query merge,
+      empty result) exercised with deterministic TestData.
+  duration: 7d
+  refreshInterval: 1m
+  panels:
+    # ── Options + core behaviors ─────────────────────────────────────
+    bar-time-stacked:
+      kind: Panel
+      spec:
+        display:
+          name: "Bar: stacked over time, grouped"
+          description: "stacking: stacked · showLegend: true · time axis · grouped pivot (one segment per status)"
+        plugin:
+          kind: BarChart
+          spec:
+            stacking: stacked
+            showLegend: true
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [ts, status, spans]
+                  rows:
+                    - ["2026-06-08 00:00:00", "Ok", 820]
+                    - ["2026-06-08 00:00:00", "Error", 35]
+                    - ["2026-06-08 00:00:00", "Unset", 110]
+                    - ["2026-06-08 04:00:00", "Ok", 760]
+                    - ["2026-06-08 04:00:00", "Error", 52]
+                    - ["2026-06-08 04:00:00", "Unset", 95]
+                    - ["2026-06-08 08:00:00", "Ok", 905]
+                    - ["2026-06-08 08:00:00", "Error", 41]
+                    - ["2026-06-08 08:00:00", "Unset", 130]
+                    - ["2026-06-08 12:00:00", "Ok", 1010]
+                    - ["2026-06-08 12:00:00", "Error", 88]
+                    - ["2026-06-08 12:00:00", "Unset", 142]
+                    - ["2026-06-08 16:00:00", "Ok", 930]
+                    - ["2026-06-08 16:00:00", "Error", 64]
+                    # Unset missing here on purpose: absent group → no bar, not 0
+                    - ["2026-06-08 20:00:00", "Ok", 845]
+                    - ["2026-06-08 20:00:00", "Error", 47]
+                    - ["2026-06-08 20:00:00", "Unset", 105]
+    bar-time-grouped:
+      kind: Panel
+      spec:
+        display:
+          name: "Bar: side-by-side over time, unit"
+          description: "stacking: none · unit: ms · two value columns from one query (grouped bars per bucket)"
+        plugin:
+          kind: BarChart
+          spec:
+            stacking: none
+            unit: ms
+            showLegend: true
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  seed: 22
+                  rows: 12
+                  columns:
+                    - { name: ts, time: true }
+                    - { name: p50_ms, walk: { start: 40,  noise: 5,  min: 0, round: 0 } }
+                    - { name: p95_ms, walk: { start: 120, noise: 12, min: 0, round: 0 } }
+    bar-percent:
+      kind: Panel
+      spec:
+        display:
+          name: "Bar: percent stacking"
+          description: "stacking: percent (axis 0–100%, tooltip keeps raw values) · showLegend: true"
+        plugin:
+          kind: BarChart
+          spec:
+            stacking: percent
+            showLegend: true
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [ts, status, requests]
+                  rows:
+                    - ["2026-06-08 00:00:00", "2xx", 940]
+                    - ["2026-06-08 00:00:00", "4xx", 85]
+                    - ["2026-06-08 00:00:00", "5xx", 12]
+                    - ["2026-06-08 04:00:00", "2xx", 810]
+                    - ["2026-06-08 04:00:00", "4xx", 120]
+                    - ["2026-06-08 04:00:00", "5xx", 45]
+                    - ["2026-06-08 08:00:00", "2xx", 1020]
+                    - ["2026-06-08 08:00:00", "4xx", 95]
+                    - ["2026-06-08 08:00:00", "5xx", 8]
+                    - ["2026-06-08 12:00:00", "2xx", 760]
+                    - ["2026-06-08 12:00:00", "4xx", 210]
+                    - ["2026-06-08 12:00:00", "5xx", 130]
+                    - ["2026-06-08 16:00:00", "2xx", 890]
+                    - ["2026-06-08 16:00:00", "4xx", 105]
+                    - ["2026-06-08 16:00:00", "5xx", 22]
+                    - ["2026-06-08 20:00:00", "2xx", 970]
+                    - ["2026-06-08 20:00:00", "4xx", 76]
+                    - ["2026-06-08 20:00:00", "5xx", 15]
+    bar-categorical-horizontal:
+      kind: Panel
+      spec:
+        display:
+          name: "Bar: horizontal categories, values"
+          description: "orientation: horizontal · showValues: true · unit: req · category axis (no time column), query order kept"
+        plugin:
+          kind: BarChart
+          spec:
+            orientation: horizontal
+            showValues: true
+            unit: req
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [endpoint, requests]
+                  rows:
+                    - ["/api/users", 1240]
+                    - ["/api/orders", 870]
+                    - ["/api/search", 605]
+                    - ["/api/login", 432]
+                    - ["/healthz", 121]
+    bar-categorical-pivot:
+      kind: Panel
+      spec:
+        display:
+          name: "Bar: categorical pivot, stacked values"
+          description: "category axis + string pivot (one series per method) · stacking: stacked · showValues: true (centered in segments)"
+        plugin:
+          kind: BarChart
+          spec:
+            stacking: stacked
+            showValues: true
+            showLegend: true
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [endpoint, method, requests]
+                  rows:
+                    - ["/api/users", "GET", 980]
+                    - ["/api/users", "POST", 260]
+                    - ["/api/orders", "GET", 560]
+                    - ["/api/orders", "POST", 310]
+                    - ["/api/search", "GET", 605]
+    # ── Data-shape behaviors + edge states ───────────────────────────
+    bar-multi-query:
+      kind: Panel
+      spec:
+        display:
+          name: "Bar: multi-query merge"
+          description: "Two queries merged onto shared categories (side-by-side series) · showLegend: true"
+        plugin:
+          kind: BarChart
+          spec:
+            showLegend: true
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [service, errors]
+                  rows:
+                    - ["api", 42]
+                    - ["worker", 17]
+                    - ["web", 8]
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [service, warnings]
+                  rows:
+                    - ["api", 130]
+                    - ["worker", 95]
+                    - ["web", 61]
+    bar-empty:
+      kind: Panel
+      spec:
+        display:
+          name: "Bar: empty result"
+          description: "Query returns no rows → 'No data in this time range' (the chart's single empty state)"
+        plugin:
+          kind: BarChart
+          spec: {}
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [endpoint, requests]
+                  rows: []
+  layouts:
+    - kind: Grid
+      spec:
+        items:
+          - { x: 0,  y: 0,  width: 12, height: 8, content: { $ref: "#/spec/panels/bar-time-stacked" } }
+          - { x: 12, y: 0,  width: 12, height: 8, content: { $ref: "#/spec/panels/bar-time-grouped" } }
+          - { x: 0,  y: 8,  width: 12, height: 8, content: { $ref: "#/spec/panels/bar-percent" } }
+          - { x: 12, y: 8,  width: 12, height: 8, content: { $ref: "#/spec/panels/bar-categorical-horizontal" } }
+          - { x: 0,  y: 16, width: 8,  height: 8, content: { $ref: "#/spec/panels/bar-categorical-pivot" } }
+          - { x: 8,  y: 16, width: 8,  height: 8, content: { $ref: "#/spec/panels/bar-multi-query" } }
+          - { x: 16, y: 16, width: 8,  height: 8, content: { $ref: "#/spec/panels/bar-empty" } }
