@@ -19,12 +19,15 @@ export function SeriesTooltipContent({
   title,
   rows,
 }: {
-  title: ReactNode;
+  /** Omitted entirely when nullish — e.g. an ungrouped treemap tile. */
+  title?: ReactNode;
   rows: SeriesTooltipRow[];
 }) {
   return (
     <>
-      <div className="mb-1 text-muted-foreground">{title}</div>
+      {title != null && (
+        <div className="mb-1 text-muted-foreground">{title}</div>
+      )}
       <div className="grid grid-cols-[auto_1fr_auto] items-center gap-x-2 gap-y-0.5">
         {rows.map((row) => (
           <Fragment key={row.key}>
