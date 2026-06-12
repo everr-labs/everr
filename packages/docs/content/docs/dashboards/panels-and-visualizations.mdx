@@ -32,7 +32,7 @@ panels:
                   GROUP BY ts ORDER BY ts
 ```
 
-- **`plugin.kind`** selects the visualization: `TimeSeriesChart`, `BarChart`, `Table`, `StatChart`, `GaugeChart`, `GeoMap`, or `Treemap`. Its `spec` holds visualization options — see the [Visualizations reference](/docs/dashboards/visualizations).
+- **`plugin.kind`** selects the visualization: `TimeSeriesChart`, `BarChart`, `Table`, `StatChart`, `GaugeChart`, `GeoMap`, `Treemap`, or `StateTimeline`. Its `spec` holds visualization options — see the [Visualizations reference](/docs/dashboards/visualizations).
 - **`queries`** is a list. Each entry is a `ClickHouseSQL` query whose SQL lives at `spec.plugin.spec.query`. ClickHouse SQL is the query plugin for real data; a deterministic [`TestData`](#testdata-query-kind-development--test) plugin is also available for development and visual testing.
 - Multiple queries are supported: the time-series and bar charts overlay all of them on one axis, the table shows a per-query selector, and the stat chart renders one tile per resulting series.
 
@@ -108,6 +108,22 @@ GROUP BY ServiceName
 ORDER BY spans DESC
 LIMIT 50
 ```
+
+### State timeline
+
+`StateTimeline` needs the same time column as a time series (alias to `ts`, `time`, or `timestamp`). By default every other column is its own lane and the cell value is the state; for `GROUP BY`-style rows, set `seriesColumn` (and optionally `stateColumn`) in the spec to pivot one lane per label:
+
+```sql
+SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+       ServiceName AS service,
+       if(countIf(StatusCode = 'Error') > 0, 'error', 'ok') AS status
+FROM traces
+WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+GROUP BY ts, service
+ORDER BY ts
+```
+
+Each state holds until the lane's next sample (the last one holds to the end of the range), so emit a row per bucket — or only on state changes — and return `NULL` for "no data" gaps.
 
 ### Stat and gauge
 
@@ -254,4 +270,4 @@ lat/lon/value rows; `shape: regions` emits region/value rows.
 
 ## Unknown visualizations
 
-If a panel's `plugin.kind` isn't a registered visualization, the panel renders a clear "Unknown visualization: &lt;kind&gt;" placeholder instead of failing the whole dashboard. Stick to `TimeSeriesChart`, `BarChart`, `Table`, `StatChart`, `GaugeChart`, `GeoMap`, and `Treemap`.
+If a panel's `plugin.kind` isn't a registered visualization, the panel renders a clear "Unknown visualization: &lt;kind&gt;" placeholder instead of failing the whole dashboard. Stick to `TimeSeriesChart`, `BarChart`, `Table`, `StatChart`, `GaugeChart`, `GeoMap`, `Treemap`, and `StateTimeline`.

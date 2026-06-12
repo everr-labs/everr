@@ -126,17 +126,19 @@ their tooltip content structure for visual consistency.
 
 ```tsx
 <div className="flex h-full flex-col">
-  <div className="min-h-0 flex-1 overflow-auto overscroll-none">
+  <div className="min-h-0 flex-1 overflow-auto">
     {/* visualization content */}
   </div>
 </div>
 ```
 
+Never add `overscroll-none` to these containers: an `overflow:auto` element is a scroll container even when its content fits, and `overscroll-behavior: none` then swallows wheel events instead of chaining them — making the dashboard unscrollable while the cursor is over the panel.
+
 For `flush-content` visualizations that need a top border separating the header from content, place `border-t border-border` on the outer wrapper — outside the scroll container so it stays fixed:
 
 ```tsx
 <div className="flex h-full flex-col border-t border-border">
-  <div className="min-h-0 flex-1 overflow-auto overscroll-none">
+  <div className="min-h-0 flex-1 overflow-auto">
     {/* content */}
   </div>
 </div>

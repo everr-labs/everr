@@ -17,7 +17,11 @@ import {
   YAxis,
 } from "recharts";
 import { CursorTooltip } from "@/components/cursor-tooltip";
-import { SERIES_COLORS } from "../data-utils";
+import {
+  createTimeTickFormatter,
+  generateTimeTicks,
+  SERIES_COLORS,
+} from "../data-utils";
 import type { VisualizationProps } from "../index";
 import { SeriesTooltipContent } from "../series-tooltip";
 import type { TimeSeriesChartSpec } from "./spec";
@@ -25,62 +29,6 @@ import { buildChartModel, buildStackedData, TS_KEY } from "./time-series-data";
 
 const BRUSH_COLOR = SERIES_COLORS[0]!;
 const MAX_X_TICKS = 6;
-
-function createTickFormatter(domain: [number, number]) {
-  const span = domain[1] - domain[0];
-  return (ms: number) => {
-    const d = new Date(ms);
-    if (span > 86_400_000) {
-      return d.toLocaleDateString(undefined, {
-        month: "short",
-        day: "numeric",
-      });
-    }
-    return d.toLocaleTimeString(undefined, {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-}
-
-const TICK_INTERVALS = [
-  1_000,
-  5_000,
-  10_000,
-  30_000,
-  60_000,
-  5 * 60_000,
-  10 * 60_000,
-  30 * 60_000,
-  3_600_000,
-  3 * 3_600_000,
-  6 * 3_600_000,
-  12 * 3_600_000,
-  86_400_000,
-  2 * 86_400_000,
-  3 * 86_400_000,
-  7 * 86_400_000,
-  14 * 86_400_000,
-  30 * 86_400_000,
-  90 * 86_400_000,
-  365 * 86_400_000,
-];
-
-function generateTicks(domain: [number, number], maxTicks: number): number[] {
-  const span = domain[1] - domain[0];
-  if (span <= 0) return [];
-
-  const ideal = span / maxTicks;
-  const interval =
-    TICK_INTERVALS.find((i) => i >= ideal) ?? TICK_INTERVALS.at(-1)!;
-
-  const first = Math.ceil(domain[0] / interval) * interval;
-  const ticks: number[] = [];
-  for (let t = first; t <= domain[1]; t += interval) {
-    ticks.push(t);
-  }
-  return ticks;
-}
 
 function getPlotArea(container: HTMLElement): DOMRect | null {
   const grid = container.querySelector(".recharts-cartesian-grid");
@@ -133,7 +81,7 @@ export function TimeSeriesChartVisualization({
     [stacked, chartData, valueKeys],
   );
 
-  const ticks = useMemo(() => generateTicks(domain, MAX_X_TICKS), [domain]);
+  const ticks = useMemo(() => generateTimeTicks(domain, MAX_X_TICKS), [domain]);
 
   const handleChartMouseMove = useCallback(
     (e: React.MouseEvent) => {
@@ -248,7 +196,7 @@ export function TimeSeriesChartVisualization({
             tickLine={false}
             axisLine={false}
             tickMargin={8}
-            tickFormatter={createTickFormatter(domain)}
+            tickFormatter={createTimeTickFormatter(domain)}
             // Hard domain: the leading bucket kept by buildSeriesData sits
             // before `from` — clip its line at the plot edge instead of letting
             // recharts stretch the axis to fit it (which would also skew the
