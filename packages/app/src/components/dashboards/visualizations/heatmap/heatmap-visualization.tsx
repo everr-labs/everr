@@ -8,6 +8,7 @@ import {
   SERIES_COLORS,
 } from "../data-utils";
 import type { VisualizationProps } from "../index";
+import { SeriesTooltipContent } from "../series-tooltip";
 import { formatStatValue } from "../stat-chart/stat-calculations";
 import { heatmapColor, heatmapColorRgb, isDarkColor } from "./heatmap-colors";
 import { buildHeatmapModel, type HeatmapCell } from "./heatmap-data";
@@ -61,13 +62,19 @@ export function HeatmapVisualization({
     [domain, span],
   );
 
-  const cellColor = useCallback(
-    (value: number) =>
-      heatmapColor(
+  // One RGB compute per value yields both the fill and the text-contrast flag
+  // (model is set wherever cells render).
+  const cellAppearance = useCallback(
+    (value: number) => {
+      const rgb = heatmapColorRgb(
         spec.colorScheme,
-        // model is set wherever cells render
         normalizeValue(value, model?.domain ?? [0, 1], spec.scaleType),
-      ),
+      );
+      return {
+        fill: `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`,
+        dark: isDarkColor(rgb),
+      };
+    },
     [spec.colorScheme, spec.scaleType, model?.domain],
   );
 
@@ -164,50 +171,40 @@ export function HeatmapVisualization({
                   {bucket}
                 </div>
                 <div className="relative min-w-0 flex-1 overflow-hidden">
-                  {cellsByBucket[b]!.map((cell) => (
-                    // biome-ignore lint/a11y/noStaticElementInteractions: hover target for the tooltip
-                    <div
-                      key={cell.start}
-                      className="absolute @container flex items-center justify-center overflow-hidden"
-                      style={{
-                        left: `calc(${toPct(cell.start)}% + ${gap / 2}px)`,
-                        width: `calc(${toPct(cell.end) - toPct(cell.start)}% - ${gap}px)`,
-                        minWidth: 1,
-                        top: gap / 2,
-                        height: `calc(100% - ${gap}px)`,
-                        backgroundColor: cellColor(cell.value),
-                      }}
-                      onMouseEnter={(e) =>
-                        setHover({ bucket, cell, x: e.clientX, y: e.clientY })
-                      }
-                      onMouseLeave={() => setHover(null)}
-                    >
-                      {spec.showValues && (
-                        // Container query: the value only renders once the
-                        // cell is wide enough to fit a short number — narrow
-                        // cells would otherwise show ellipsis specks.
-                        <span
-                          className="hidden @[2rem]:block truncate text-[10px] font-medium tabular-nums"
-                          style={{
-                            color: isDarkColor(
-                              heatmapColorRgb(
-                                spec.colorScheme,
-                                normalizeValue(
-                                  cell.value,
-                                  [d0, d1],
-                                  spec.scaleType,
-                                ),
-                              ),
-                            )
-                              ? "white"
-                              : "black",
-                          }}
-                        >
-                          {formatValue(cell.value, spec.unit)}
-                        </span>
-                      )}
-                    </div>
-                  ))}
+                  {cellsByBucket[b]!.map((cell) => {
+                    const { fill, dark } = cellAppearance(cell.value);
+                    return (
+                      // biome-ignore lint/a11y/noStaticElementInteractions: hover target for the tooltip
+                      <div
+                        key={cell.start}
+                        className="absolute @container flex items-center justify-center overflow-hidden"
+                        style={{
+                          left: `calc(${toPct(cell.start)}% + ${gap / 2}px)`,
+                          width: `calc(${toPct(cell.end) - toPct(cell.start)}% - ${gap}px)`,
+                          minWidth: 1,
+                          top: gap / 2,
+                          height: `calc(100% - ${gap}px)`,
+                          backgroundColor: fill,
+                        }}
+                        onMouseEnter={(e) =>
+                          setHover({ bucket, cell, x: e.clientX, y: e.clientY })
+                        }
+                        onMouseLeave={() => setHover(null)}
+                      >
+                        {spec.showValues && (
+                          // Container query: the value only renders once the
+                          // cell is wide enough to fit a short number — narrow
+                          // cells would otherwise show ellipsis specks.
+                          <span
+                            className="hidden @[2rem]:block truncate text-[10px] font-medium tabular-nums"
+                            style={{ color: dark ? "white" : "black" }}
+                          >
+                            {formatValue(cell.value, spec.unit)}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ))}
@@ -280,20 +277,17 @@ export function HeatmapVisualization({
 
       {hover && (
         <CursorTooltip x={hover.x} y={hover.y}>
-          <div className="mb-1 text-muted-foreground">
-            {new Date(hover.cell.start).toLocaleString()} –{" "}
-            {new Date(hover.cell.end).toLocaleString()}
-          </div>
-          <div className="grid grid-cols-[auto_1fr_auto] items-center gap-x-2 gap-y-0.5">
-            <span
-              className="inline-block size-2.5 rounded-full"
-              style={{ backgroundColor: cellColor(hover.cell.value) }}
-            />
-            <span className="text-muted-foreground">{hover.bucket}</span>
-            <span className="text-right font-medium tabular-nums">
-              {formatValue(hover.cell.value, spec.unit)}
-            </span>
-          </div>
+          <SeriesTooltipContent
+            title={`${new Date(hover.cell.start).toLocaleString()} – ${new Date(hover.cell.end).toLocaleString()}`}
+            rows={[
+              {
+                key: hover.bucket,
+                color: cellAppearance(hover.cell.value).fill,
+                label: hover.bucket,
+                value: formatValue(hover.cell.value, spec.unit),
+              },
+            ]}
+          />
         </CursorTooltip>
       )}
     </div>

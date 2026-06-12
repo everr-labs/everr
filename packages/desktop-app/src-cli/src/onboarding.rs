@@ -685,14 +685,10 @@ mod tests {
 
     #[test]
     fn setup_marks_desktop_wizard_complete() {
-        use std::sync::Mutex;
-
         use everr_core::build;
         use everr_core::state::AppStateStore;
 
-        static ENV_LOCK: Mutex<()> = Mutex::new(());
-
-        let _guard = ENV_LOCK
+        let _guard = crate::test_support::ENV_LOCK
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         let temp = tempfile::tempdir().expect("tempdir");
