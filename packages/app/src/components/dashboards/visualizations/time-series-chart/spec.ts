@@ -13,6 +13,7 @@ export const timeSeriesChartSpec = z.looseObject({
     .enum(["monotone", "linear", "natural", "stepBefore", "stepAfter"])
     .default("monotone"),
   connectNulls: z.boolean().default(false),
+  stacked: z.boolean().default(false),
 });
 
 export type TimeSeriesChartSpec = z.infer<typeof timeSeriesChartSpec>;

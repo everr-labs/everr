@@ -1,5 +1,5 @@
-import { detectTimeKey, SERIES_COLORS, toTimestamp } from "../data-utils";
 import type { QueryResultRow } from "../index";
+import { assignStateColors, collectLaneSamples } from "../lane-timeline-data";
 import type { StatusHistorySpec } from "./spec";
 
 export interface StatusCell {
@@ -48,51 +48,7 @@ export function buildStatusHistoryModel(
   spec: StatusHistorySpec,
   domain: [number, number],
 ): StatusHistoryModel {
-  // Per lane: ts → status (null = no cell), collapsed last-write-wins on
-  // duplicate timestamps. Map preserves first-seen lane order across frames.
-  const samplesByLane = new Map<string, Map<number, string | null>>();
-  const laneSamples = (label: string) => {
-    let samples = samplesByLane.get(label);
-    if (!samples) {
-      samples = new Map();
-      samplesByLane.set(label, samples);
-    }
-    return samples;
-  };
-
-  for (const rows of frames) {
-    if (!rows || rows.length === 0) continue;
-    const timeKey = detectTimeKey(rows);
-    if (!timeKey) continue;
-    const first = rows[0]!;
-
-    if (spec.seriesColumn !== undefined && spec.seriesColumn in first) {
-      // Long format: one lane per seriesColumn value.
-      const seriesKey = spec.seriesColumn;
-      const stateKey =
-        spec.stateColumn ??
-        Object.keys(first).find((k) => k !== timeKey && k !== seriesKey);
-      if (stateKey === undefined) continue;
-      for (const row of rows) {
-        const ts = toTimestamp(row[timeKey]);
-        const lane = row[seriesKey];
-        if (ts === null || lane == null) continue;
-        const state = row[stateKey];
-        laneSamples(String(lane)).set(ts, state == null ? null : String(state));
-      }
-    } else {
-      // Wide format: one lane per non-time column.
-      const laneKeys = Object.keys(first).filter((k) => k !== timeKey);
-      for (const row of rows) {
-        const ts = toTimestamp(row[timeKey]);
-        if (ts === null) continue;
-        for (const key of laneKeys) {
-          const state = row[key];
-          laneSamples(key).set(ts, state == null ? null : String(state));
-        }
-      }
-    }
-  }
+  const samplesByLane = collectLaneSamples(frames, spec);
 
   // Sampling interval: smallest gap between consecutive distinct timestamps
   // across all lanes. One shared slot width keeps cells aligned across lanes
@@ -127,13 +83,9 @@ export function buildStatusHistoryModel(
     lanes.push({ label, cells });
   }
 
-  const colorByState: Record<string, string> = {};
-  let paletteIndex = 0;
-  for (const state of states) {
-    colorByState[state] =
-      spec.colors[state] ??
-      SERIES_COLORS[paletteIndex++ % SERIES_COLORS.length]!;
-  }
-
-  return { lanes, states, colorByState };
+  return {
+    lanes,
+    states,
+    colorByState: assignStateColors(states, spec.colors),
+  };
 }

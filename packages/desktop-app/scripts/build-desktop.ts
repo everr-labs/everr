@@ -36,11 +36,11 @@ export async function buildDesktop(args = process.argv.slice(2)) {
     }
 
     if (arg === "--release") {
-      throw new Error("Desktop release versions are derived from the CI commit SHA.");
+      throw new Error("Desktop release versions are derived from src-tauri/tauri.conf.json.");
     }
 
     if (arg === "--version" || arg.startsWith("--version=")) {
-      throw new Error("Desktop release versions are derived from the CI commit SHA.");
+      throw new Error("Desktop release versions are derived from src-tauri/tauri.conf.json.");
     }
 
     if (arg === "--bundles" || arg.startsWith("--bundles=")) {
@@ -64,14 +64,13 @@ export async function buildDesktop(args = process.argv.slice(2)) {
 
   await rm(desktopReleaseDir, { recursive: true, force: true });
 
-  const fallbackVersion = await readDesktopTauriConfigVersion();
+  const desktopVersion = await readDesktopTauriConfigVersion();
   const gitShaResult = await $({ nothrow: true })`git -C ${repoDir} rev-parse HEAD`;
   const identity = resolveDesktopReleaseIdentity({
-    fallbackVersion,
+    desktopVersion,
     fallbackSha: gitShaResult.exitCode === 0 ? gitShaResult.stdout.trim() : undefined,
   });
   Object.assign(process.env, {
-    EVERR_PLATFORM_VERSION: identity.platformVersion,
     EVERR_RELEASE_SHA: identity.releaseSha,
     EVERR_RELEASE_SHORT_SHA: identity.releaseShortSha,
     ...(releaseIngestKey ? { EVERR_INGEST_KEY: releaseIngestKey } : {}),
@@ -80,7 +79,7 @@ export async function buildDesktop(args = process.argv.slice(2)) {
   if (ciBuild) {
     const overridePath = await writeDesktopReleaseTauriConfigOverride({
       outputPath: path.join(repoDir, "target", "desktop-build", "tauri-release.conf.json"),
-      platformVersion: identity.platformVersion,
+      desktopVersion: identity.desktopVersion,
     });
     tauriArgs.push("--config", overridePath);
   }
@@ -90,7 +89,6 @@ export async function buildDesktop(args = process.argv.slice(2)) {
     env: {
       ...process.env,
       CI: process.env.CI || "true",
-      EVERR_PLATFORM_VERSION: identity.platformVersion,
       EVERR_RELEASE_SHA: identity.releaseSha,
       EVERR_RELEASE_SHORT_SHA: identity.releaseShortSha,
     },
