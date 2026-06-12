@@ -1,5 +1,21 @@
 // Shared formatting for alert notification bodies (email and telegram).
 
+import { formatLabels } from "@/data/alerts/matchers";
+import { isNumericValue } from "@/lib/numeric";
+
+export type DeliveryKind = "firing" | "resolved" | "partial_resolved";
+
+// One definition of how each kind presents across channels; email layers its
+// colors on top, telegram lowercases the label for its headline.
+export const KIND_STATUS: Record<
+  DeliveryKind,
+  { emoji: string; label: string }
+> = {
+  firing: { emoji: "🔥", label: "Firing" },
+  partial_resolved: { emoji: "✅", label: "Partially resolved" },
+  resolved: { emoji: "✅", label: "Resolved" },
+};
+
 export const MAX_LISTED_INSTANCES = 10;
 
 export function escapeHtml(value: string): string {
@@ -48,7 +64,7 @@ export function extractInstanceValues(
   if (!row) return [];
   const values: string[] = [];
   for (const [column, value] of Object.entries(row)) {
-    if (column in labels || !isNumeric(value)) continue;
+    if (column in labels || !isNumericValue(value)) continue;
     values.push(`${column}: ${String(value)}`);
     if (values.length === MAX_INSTANCE_VALUES) break;
   }
@@ -59,7 +75,7 @@ export function extractInstanceValues(
 // firing, how long it fired once resolved. Empty when neither is available.
 export function instanceDetail(
   instance: NotifiableInstance,
-  kind: "firing" | "resolved" | "partial_resolved",
+  kind: DeliveryKind,
   now: Date,
 ): string {
   if (kind === "firing") {
@@ -68,6 +84,24 @@ export function instanceDetail(
   return instance.firedAt
     ? `fired for ${formatDuration(instance.firedAt, now)}`
     : "";
+}
+
+// One bullet line per listed instance plus the overflow line, shared between
+// the telegram body and the email text part so the channels can't drift.
+export function instanceLines(
+  listed: readonly NotifiableInstance[],
+  kind: DeliveryKind,
+  now: Date,
+  bullet: string,
+): string[] {
+  const lines = listed.slice(0, MAX_LISTED_INSTANCES).map((instance) => {
+    const detail = instanceDetail(instance, kind, now);
+    return `${bullet} ${formatLabels(instance.labels)}${detail ? ` — ${detail}` : ""}`;
+  });
+  if (listed.length > MAX_LISTED_INSTANCES) {
+    lines.push(`… and ${listed.length - MAX_LISTED_INSTANCES} more`);
+  }
+  return lines;
 }
 
 // Longest firing duration across instances; "" when no timestamps survive.
@@ -82,10 +116,4 @@ export function longestDuration(
     }
   }
   return earliest ? formatDuration(earliest, now) : "";
-}
-
-function isNumeric(value: unknown): boolean {
-  if (typeof value === "number") return Number.isFinite(value);
-  // ClickHouse returns 64-bit integers as strings.
-  return typeof value === "string" && /^-?\d+(\.\d+)?$/.test(value.trim());
 }

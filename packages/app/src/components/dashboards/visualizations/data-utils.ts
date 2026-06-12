@@ -12,20 +12,9 @@ export function detectTimeKey(rows: QueryResultRow[]): string | undefined {
   return undefined;
 }
 
-/**
- * Whether a value is numeric. ClickHouse's JSONEachRow encodes 64-bit integers
- * (e.g. `count()`, `sum()`) as quoted strings to preserve precision, so a
- * numeric string counts as numeric here — otherwise stat/time-series panels
- * would see no value columns and render empty.
- */
-export function isNumericValue(value: unknown): boolean {
-  if (typeof value === "number") return Number.isFinite(value);
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    return trimmed !== "" && Number.isFinite(Number(trimmed));
-  }
-  return false;
-}
+import { isNumericValue } from "@/lib/numeric";
+
+export { isNumericValue };
 
 /** Coerce a numeric value (number or numeric string) to a number, else null. */
 export function toNumber(value: unknown): number | null {

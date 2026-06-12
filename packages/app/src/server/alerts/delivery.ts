@@ -3,7 +3,7 @@ import type {
   AlertChannel,
   AlertDeliveryTargets,
 } from "@/data/alerts/delivery-settings";
-import { findSilenceForInstance, formatLabels } from "@/data/alerts/matchers";
+import { findSilenceForInstance } from "@/data/alerts/matchers";
 import { activeSilenceConditions } from "@/data/alerts/silences";
 import { db } from "@/db/client";
 import { alertSettings, alertSilences } from "@/db/schema";
@@ -12,16 +12,8 @@ import { mailer } from "@/lib/mailer.server";
 import { sendTelegramMessage } from "@/lib/telegram.server";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 import { buildAlertEmail } from "./email";
-import { formatUtc, instanceDetail, MAX_LISTED_INSTANCES } from "./format";
-import type { FiringInstance } from "./instances";
-
-type DeliveryKind = "firing" | "resolved" | "partial_resolved";
-
-// Firing deliveries carry the query result row each instance came from;
-// resolved ones only have the labels (the row is gone by then).
-export type DeliveryInstance = FiringInstance & {
-  row?: Record<string, unknown>;
-};
+import type { DeliveryKind, NotifiableInstance } from "./format";
+import { buildTelegramText } from "./telegram";
 
 export interface DeliveryMetadata {
   deliveryTargets: AlertDeliveryTargets;
@@ -35,46 +27,10 @@ export interface DeliveryInput {
   description: string;
   // Current firing instance count after this evaluation.
   firingCount: number;
-  // newlyFired for "firing", nowResolved for "resolved" and "partial_resolved".
-  instances: DeliveryInstance[];
-}
-
-// Plain text by choice: no parse mode means nothing to escape, nothing for
-// Telegram to reject, and the URL in the body needs no validation.
-function buildTelegramText(
-  input: DeliveryInput,
-  listed: DeliveryInstance[],
-  now: Date,
-): string {
-  const lines: string[] = [];
-  switch (input.kind) {
-    case "firing":
-      lines.push(`🔥 ${input.def.slug} firing`);
-      lines.push("", input.summary);
-      if (input.description) lines.push(input.description);
-      lines.push("", `Firing: ${input.firingCount}`);
-      break;
-    case "partial_resolved":
-      lines.push(`✅ ${input.def.slug} partial resolved`);
-      lines.push("", `Resolved: ${listed.length}`);
-      lines.push(`Still firing: ${input.firingCount}`);
-      break;
-    case "resolved":
-      lines.push(`✅ ${input.def.slug} resolved`);
-      lines.push("", "All instances resolved");
-      break;
-  }
-  for (const instance of listed.slice(0, MAX_LISTED_INSTANCES)) {
-    const detail = instanceDetail(instance, input.kind, now);
-    lines.push(
-      `• ${formatLabels(instance.labels)}${detail ? ` — ${detail}` : ""}`,
-    );
-  }
-  if (listed.length > MAX_LISTED_INSTANCES) {
-    lines.push(`… and ${listed.length - MAX_LISTED_INSTANCES} more`);
-  }
-  lines.push("", formatUtc(now), alertUrl(input.def.id));
-  return lines.join("\n");
+  // newlyFired for "firing", nowResolved for "resolved" and
+  // "partial_resolved". Firing instances carry the query result row they came
+  // from; resolved ones only have the labels (the row is gone by then).
+  instances: NotifiableInstance[];
 }
 
 function alertUrl(alertId: string): string {
@@ -128,7 +84,7 @@ export async function deliverAlertNotification(
   }
   if (Object.keys(deliveryTargets).length === 0) return null;
 
-  const unsilenced: DeliveryInstance[] = [];
+  const unsilenced: NotifiableInstance[] = [];
   let suppressingSilenceId = "";
   for (const instance of input.instances) {
     const silence = findSilenceForInstance(silences, instance.labels);
@@ -143,11 +99,13 @@ export async function deliverAlertNotification(
     return { deliveryTargets: {}, silenceId: suppressingSilenceId };
   }
 
-  const { subject, text, html } = buildAlertEmail(input, unsilenced, {
-    url: alertUrl(def.id),
-    now,
-  });
-  const telegramText = buildTelegramText(input, unsilenced, now);
+  const buildOptions = { url: alertUrl(def.id), now };
+  const { subject, text, html } = buildAlertEmail(
+    input,
+    unsilenced,
+    buildOptions,
+  );
+  const telegramText = buildTelegramText(input, unsilenced, buildOptions);
 
   // Each send is isolated: one bad recipient must not block the others, and
   // each failure is logged with the alert and target it belongs to.

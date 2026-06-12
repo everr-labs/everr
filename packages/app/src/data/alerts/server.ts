@@ -278,13 +278,18 @@ export const listAlertEvents = createAuthenticatedServerFn({ method: "GET" })
 	                OR (history.event_type IN ('resolved', 'partial_resolved') AND instance_events.event_type = 'instance_resolved')
 	            ) AS instanceLabelsJson
 	          FROM history
-	          LEFT JOIN app.alert_events AS instance_events
-	            ON instance_events.organization_id = history.organization_id
-	            AND instance_events.repoid = history.repoid
-	            AND instance_events.slug = history.slug
-	            AND instance_events.alert_definition_id = history.alert_definition_id
-	            AND instance_events.evaluation_scheduled_at = history.evaluation_scheduled_at
-	            AND instance_events.event_type IN ('instance_fired', 'instance_resolved')
+	          LEFT JOIN (
+	            SELECT evaluation_scheduled_at, event_type, instance_labels_json
+	            FROM app.alert_events
+	            WHERE organization_id = {organizationId:String}
+	              AND repoid = {repoid:String}
+	              AND slug = {slug:String}
+	              AND alert_definition_id = {alertDefinitionId:String}
+	              AND event_type IN ('instance_fired', 'instance_resolved')
+	              AND event_time >= {fromTime:String}
+	              AND event_time <= {toTime:String}
+	          ) AS instance_events
+	            ON instance_events.evaluation_scheduled_at = history.evaluation_scheduled_at
 	          GROUP BY
 	            history.organization_id,
 	            history.alert_definition_id,
@@ -658,55 +663,44 @@ export const cancelSilence = createAuthenticatedServerFn({ method: "POST" })
     return row;
   });
 
+// Admin-gated, org-scoped active toggle. Activation resumes scheduling
+// immediately (the scanner picks the alert up on its next tick) and keeps
+// runtime state — unlike an `everr apply` revival, the definition hasn't
+// changed, and the next evaluation corrects a stale firing/resolved state.
+async function setAlertActive(
+  alertId: string,
+  organizationId: string,
+  active: boolean,
+) {
+  await ensureOrgAdmin();
+  const now = new Date();
+  const [row] = await db
+    .update(alertDefinitions)
+    .set({
+      active,
+      nextEvaluationAt: active ? now : null,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(alertDefinitions.organizationId, organizationId),
+        eq(alertDefinitions.id, alertId),
+      ),
+    )
+    .returning({ id: alertDefinitions.id });
+
+  if (!row) throw new Error("Alert not found");
+  return row;
+}
+
 export const deactivateAlert = createAuthenticatedServerFn({ method: "POST" })
   .inputValidator(alertIdInput)
-  .handler(async ({ data: { alertId }, context: { session } }) => {
-    const organizationId = session.session.activeOrganizationId;
-    await ensureOrgAdmin();
-    const [row] = await db
-      .update(alertDefinitions)
-      .set({
-        active: false,
-        nextEvaluationAt: null,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(alertDefinitions.organizationId, organizationId),
-          eq(alertDefinitions.id, alertId),
-        ),
-      )
-      .returning({ id: alertDefinitions.id });
+  .handler(({ data: { alertId }, context: { session } }) =>
+    setAlertActive(alertId, session.session.activeOrganizationId, false),
+  );
 
-    if (!row) throw new Error("Alert not found");
-    return row;
-  });
-
-// Resumes scheduling immediately (the scanner picks the alert up on its next
-// tick). Runtime state is kept — unlike an `everr apply` revival, the
-// definition hasn't changed, and the next evaluation corrects a stale
-// firing/resolved state anyway.
 export const activateAlert = createAuthenticatedServerFn({ method: "POST" })
   .inputValidator(alertIdInput)
-  .handler(async ({ data: { alertId }, context: { session } }) => {
-    const organizationId = session.session.activeOrganizationId;
-    await ensureOrgAdmin();
-    const now = new Date();
-    const [row] = await db
-      .update(alertDefinitions)
-      .set({
-        active: true,
-        nextEvaluationAt: now,
-        updatedAt: now,
-      })
-      .where(
-        and(
-          eq(alertDefinitions.organizationId, organizationId),
-          eq(alertDefinitions.id, alertId),
-        ),
-      )
-      .returning({ id: alertDefinitions.id });
-
-    if (!row) throw new Error("Alert not found");
-    return row;
-  });
+  .handler(({ data: { alertId }, context: { session } }) =>
+    setAlertActive(alertId, session.session.activeOrganizationId, true),
+  );

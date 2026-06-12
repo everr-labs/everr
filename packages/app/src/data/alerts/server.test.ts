@@ -457,7 +457,11 @@ describe("listAlertEvents", () => {
     expect(sql).toContain(
       "event_type NOT IN ('instance_fired', 'instance_resolved', 'delivery_attempt')",
     );
-    expect(sql).toContain("LEFT JOIN app.alert_events AS instance_events");
+    // The join side must be bounded by the same alert + time filters as the
+    // history CTE, not the bare table.
+    expect(sql).toMatch(
+      /LEFT JOIN \(\s*SELECT[\s\S]*?alert_definition_id = \{alertDefinitionId:String\}[\s\S]*?event_time >= \{fromTime:String\}[\s\S]*?\) AS instance_events/,
+    );
     expect(sql).toContain("groupArrayIf(");
     expect(events[0]).toMatchObject({
       eventId: "event-1",

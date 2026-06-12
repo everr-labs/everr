@@ -1,9 +1,12 @@
 import { formatLabels } from "@/data/alerts/matchers";
 import type { DeliveryInput } from "./delivery";
 import {
+  type DeliveryKind,
   escapeHtml,
   formatUtc,
   instanceDetail,
+  instanceLines,
+  KIND_STATUS,
   longestDuration,
   MAX_LISTED_INSTANCES,
   type NotifiableInstance,
@@ -20,7 +23,7 @@ interface BuildOptions {
   now: Date;
 }
 
-type Kind = DeliveryInput["kind"];
+type Kind = DeliveryKind;
 
 // Hex equivalents of the oklch theme tokens in packages/ui global.css — the
 // app ships a single dark theme, and the email mirrors it. Text colors are
@@ -42,6 +45,7 @@ const COLORS = {
   amberStrip: "#fbbf24", // non-text use only
 } as const;
 
+// Email layers colors on top of the shared kind → emoji/label presentation.
 const STATUS: Record<
   Kind,
   {
@@ -53,25 +57,22 @@ const STATUS: Record<
   }
 > = {
   firing: {
-    label: "Firing",
+    ...KIND_STATUS.firing,
     strip: COLORS.destructiveStrip,
     badgeText: COLORS.primaryForeground,
     badgeBg: COLORS.destructiveStrip,
-    emoji: "🔥",
   },
   partial_resolved: {
-    label: "Partially resolved",
+    ...KIND_STATUS.partial_resolved,
     strip: COLORS.amberStrip,
     badgeText: "#fcd368", // Lc -80 on the badge bg
     badgeBg: "#2a2110",
-    emoji: "✅",
   },
   resolved: {
-    label: "Resolved",
+    ...KIND_STATUS.resolved,
     strip: COLORS.primary,
     badgeText: COLORS.primary, // Lc -94 on the badge bg
     badgeBg: "#262b0a",
-    emoji: "✅",
   },
 };
 
@@ -125,15 +126,7 @@ function buildText(
       break;
     }
   }
-  for (const instance of listed.slice(0, MAX_LISTED_INSTANCES)) {
-    const detail = instanceDetail(instance, input.kind, opts.now);
-    lines.push(
-      `- ${formatLabels(instance.labels)}${detail ? ` — ${detail}` : ""}`,
-    );
-  }
-  if (listed.length > MAX_LISTED_INSTANCES) {
-    lines.push(`… and ${listed.length - MAX_LISTED_INSTANCES} more`);
-  }
+  lines.push(...instanceLines(listed, input.kind, opts.now, "-"));
   lines.push("", formatUtc(opts.now));
   return lines.join("\n");
 }

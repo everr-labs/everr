@@ -268,7 +268,7 @@ describe("deliverAlertNotification", () => {
     const text = sendTelegram.mock.calls[0][1] as string;
     expect(text).toBe(
       [
-        "✅ s1 partial resolved",
+        "✅ s1 partially resolved",
         "",
         "Resolved: 1",
         "Still firing: 2",
@@ -293,7 +293,6 @@ describe("deliverAlertNotification", () => {
       firingCount: 1,
       instances: [
         {
-          fingerprint: "f1",
           labels: { route: "/a<script>" },
           row: { route: "/a<script>", error_rate: 7.2, error_count: "12" },
         },
@@ -329,7 +328,6 @@ describe("deliverAlertNotification", () => {
         firingCount: 0,
         instances: [
           {
-            fingerprint: "f1",
             labels: { route: "/a" },
             firedAt: new Date("2026-06-12T11:18:00Z"),
           },

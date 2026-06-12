@@ -188,44 +188,52 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
       }),
     ),
   ];
+  // nowResolved > 0 implies wasFiring; an empty current set means a full
+  // resolve (all previous instances are in nowResolved), otherwise partial.
+  // The two deliveries are independent — run them concurrently so an instance
+  // churn (some fired, some resolved) doesn't serialize two send fan-outs.
+  const resolvedKind = isFiring ? "partial_resolved" : "resolved";
+  const [firingDelivery, resolvedDelivery] = await Promise.all([
+    diff.newlyFired.length > 0
+      ? deliverAlertNotification({
+          def,
+          kind: "firing",
+          summary,
+          description,
+          firingCount: current.length,
+          instances: diff.newlyFired,
+        })
+      : null,
+    diff.nowResolved.length > 0
+      ? deliverAlertNotification({
+          def,
+          kind: resolvedKind,
+          summary,
+          description,
+          firingCount: current.length,
+          instances: diff.nowResolved,
+        })
+      : null,
+  ]);
   if (diff.newlyFired.length > 0) {
-    const delivery = await deliverAlertNotification({
-      def,
-      kind: "firing",
-      summary,
-      description,
-      firingCount: current.length,
-      instances: diff.newlyFired,
-    });
     events.push(
       buildEvaluationEvent({
         def,
         eventType: "firing",
         scheduledFor,
         evidence,
-        ...deliveryFields(delivery),
+        ...deliveryFields(firingDelivery),
       }),
     );
   }
-  // nowResolved > 0 implies wasFiring; an empty current set means a full
-  // resolve (all previous instances are in nowResolved), otherwise partial.
   if (diff.nowResolved.length > 0) {
-    const kind = isFiring ? "partial_resolved" : "resolved";
-    const delivery = await deliverAlertNotification({
-      def,
-      kind,
-      summary,
-      description,
-      firingCount: current.length,
-      instances: diff.nowResolved,
-    });
     events.push(
       buildEvaluationEvent({
         def,
-        eventType: kind,
+        eventType: resolvedKind,
         scheduledFor,
         evidence,
-        ...deliveryFields(delivery),
+        ...deliveryFields(resolvedDelivery),
       }),
     );
   }

@@ -128,15 +128,11 @@ function AlertDetailPage() {
   const [silenceTarget, setSilenceTarget] =
     useState<AlertInstanceSummary | null>(null);
 
-  const deactivate = useMutation({
-    mutationFn: () => deactivateAlert({ data: { alertId } }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["alerts"] });
-    },
-  });
-
-  const activate = useMutation({
-    mutationFn: () => activateAlert({ data: { alertId } }),
+  const setActive = useMutation({
+    mutationFn: (active: boolean) =>
+      active
+        ? activateAlert({ data: { alertId } })
+        : deactivateAlert({ data: { alertId } }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["alerts"] });
     },
@@ -203,8 +199,8 @@ function AlertDetailPage() {
             variant="destructive"
             size="sm"
             className="hidden md:inline-flex"
-            disabled={deactivate.isPending}
-            onClick={() => deactivate.mutate()}
+            disabled={setActive.isPending}
+            onClick={() => setActive.mutate(false)}
           >
             <CircleStop data-icon="inline-start" />
             Deactivate
@@ -213,8 +209,8 @@ function AlertDetailPage() {
           <Button
             size="sm"
             className="hidden md:inline-flex"
-            disabled={activate.isPending}
-            onClick={() => activate.mutate()}
+            disabled={setActive.isPending}
+            onClick={() => setActive.mutate(true)}
           >
             <CirclePlay data-icon="inline-start" />
             Activate
@@ -563,8 +559,9 @@ const SILENCE_DURATIONS = [
   { value: "168", label: "7 days" },
 ] as const;
 
+// `hours` only ever holds a SILENCE_DURATIONS value.
 function silenceEnd(hours: string): Date {
-  return new Date(Date.now() + Math.max(Number(hours) || 1, 1) * 3_600_000);
+  return new Date(Date.now() + Number(hours) * 3_600_000);
 }
 
 function SilenceDialog({
@@ -719,8 +716,7 @@ function SilenceDialog({
             >
               <SelectTrigger id="silence-duration" className="w-full">
                 <SelectValue>
-                  {SILENCE_DURATIONS.find((d) => d.value === hours)?.label ??
-                    `${hours} hours`}
+                  {SILENCE_DURATIONS.find((d) => d.value === hours)?.label}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
