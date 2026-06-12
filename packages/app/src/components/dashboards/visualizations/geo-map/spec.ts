@@ -1,4 +1,5 @@
 import * as z from "zod";
+import { COLOR_SCHEMES, SCALE_TYPES } from "../color-scale";
 
 /**
  * GeoMap plugin options. Loose so unknown keys flow through verbatim; every
@@ -28,7 +29,7 @@ export const geoMapSpec = z.looseObject({
   /** Value formatting in tooltip + legend. */
   unit: z.string().default(""),
   showLegend: z.boolean().default(true),
-  colorScheme: z.enum(["blue", "green", "orange", "red"]).default("blue"),
+  colorScheme: z.enum(COLOR_SCHEMES).default("blue"),
   /** Map projection. */
   projection: z
     .enum(["naturalEarth1", "mercator", "equalEarth"])
@@ -38,7 +39,7 @@ export const geoMapSpec = z.looseObject({
    * value; `log` spreads heavily skewed data (one dominant country) so the
    * rest stays visible.
    */
-  scaleType: z.enum(["linear", "sqrt", "log"]).default("linear"),
+  scaleType: z.enum(SCALE_TYPES).default("linear"),
   /** Color/size domain; auto-derived from the data when unset. */
   min: z.number().optional(),
   max: z.number().optional(),
@@ -46,5 +47,4 @@ export const geoMapSpec = z.looseObject({
 
 export type GeoMapSpec = z.infer<typeof geoMapSpec>;
 export type GeoColorScheme = GeoMapSpec["colorScheme"];
-export type GeoScaleType = GeoMapSpec["scaleType"];
 export type GeoProjection = GeoMapSpec["projection"];

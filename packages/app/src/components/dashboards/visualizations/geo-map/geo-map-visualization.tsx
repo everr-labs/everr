@@ -8,18 +8,16 @@ import {
 import { Map as MapIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import { CursorTooltip } from "@/components/cursor-tooltip";
+import { colorRamp, normalizeValue, schemeBaseColor } from "../color-scale";
 import { queryLabel, SERIES_COLORS } from "../data-utils";
 import type { VisualizationProps } from "../index";
 import { formatStatValue } from "../stat-chart/stat-calculations";
 import {
-  colorRamp,
   deriveDomain,
   extractMarkers,
   type GeoMarker,
   markerRadius,
   mergeRegions,
-  normalizeValue,
-  schemeBaseColor,
 } from "./geo-data";
 import type { GeoColorScheme, GeoMapSpec, GeoProjection } from "./spec";
 import { getWorldCountries } from "./world-geometry";
