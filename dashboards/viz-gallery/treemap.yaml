@@ -1,0 +1,267 @@
+kind: Dashboard
+metadata:
+  name: viz-gallery-treemap
+  project: demo
+spec:
+  display:
+    name: Visualization Gallery — Treemap
+    description: >-
+      Treemap regression sheet — default and custom name/value columns, unit,
+      groupColumn coloring + legend, showLegend off, showValues off, palette
+      cycling when ungrouped, multi-query grouping, duplicate-name summing,
+      maxTiles tail collapsing into the Other tile, the dropped-rows badge,
+      and the empty state, driven by the deterministic csv TestData scenario.
+  duration: 7d
+  refreshInterval: 1m
+  panels:
+    treemap-defaults:
+      kind: Panel
+      spec:
+        display:
+          name: "Treemap: defaults"
+          description: "default name/value columns · ungrouped → palette cycles per tile"
+        plugin:
+          kind: Treemap
+          spec: {}
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [name, value]
+                  rows:
+                    - [checkout, 420]
+                    - [search, 260]
+                    - [cart, 180]
+                    - [login, 120]
+                    - [profile, 75]
+                    - [settings, 40]
+                    - [help, 18]
+    treemap-columns-unit:
+      kind: Panel
+      spec:
+        display:
+          name: "Treemap: custom columns + unit"
+          description: "nameColumn: route · valueColumn: requests · unit: req"
+        plugin:
+          kind: Treemap
+          spec: { nameColumn: route, valueColumn: requests, unit: req }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [route, requests]
+                  rows:
+                    - [/api/orders, 9800]
+                    - [/api/items, 5400]
+                    - [/api/users, 3100]
+                    - [/healthz, 1500]
+                    - [/api/auth, 900]
+    treemap-grouped:
+      kind: Panel
+      spec:
+        display:
+          name: "Treemap: grouped"
+          description: "groupColumn: service → one color per group · showLegend: true"
+        plugin:
+          kind: Treemap
+          spec: { groupColumn: service, unit: req, showLegend: true }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [service, name, value]
+                  rows:
+                    - [api, orders, 520]
+                    - [api, items, 340]
+                    - [api, auth, 150]
+                    - [web, home, 410]
+                    - [web, product, 230]
+                    - [worker, emails, 120]
+                    - [worker, exports, 60]
+    treemap-grouped-nolegend:
+      kind: Panel
+      spec:
+        display:
+          name: "Treemap: grouped, no legend"
+          description: "groupColumn: service · showLegend: false"
+        plugin:
+          kind: Treemap
+          spec: { groupColumn: service, showLegend: false }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [service, name, value]
+                  rows:
+                    - [api, orders, 520]
+                    - [api, items, 340]
+                    - [web, home, 410]
+                    - [web, product, 230]
+    treemap-novalues:
+      kind: Panel
+      spec:
+        display:
+          name: "Treemap: values hidden"
+          description: "showValues: false → labels only inside tiles"
+        plugin:
+          kind: Treemap
+          spec: { showValues: false }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [name, value]
+                  rows:
+                    - [alpha, 50]
+                    - [beta, 30]
+                    - [gamma, 20]
+                    - [delta, 10]
+    treemap-multiquery:
+      kind: Panel
+      spec:
+        display:
+          name: "Treemap: multi-query"
+          description: "Two queries, no groupColumn → grouped/colored by query + legend"
+        plugin:
+          kind: Treemap
+          spec: { showLegend: true }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [name, value]
+                  rows:
+                    - [orders, 300]
+                    - [items, 180]
+                    - [auth, 90]
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [name, value]
+                  rows:
+                    - [home, 260]
+                    - [product, 140]
+    treemap-duplicates:
+      kind: Panel
+      spec:
+        display:
+          name: "Treemap: duplicate names sum"
+          description: "Repeated labels merge into one tile (a=2+3=5, b=1)"
+        plugin:
+          kind: Treemap
+          spec: {}
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [name, value]
+                  rows:
+                    - [a, 2]
+                    - [a, 3]
+                    - [b, 1]
+    treemap-dropped:
+      kind: Panel
+      spec:
+        display:
+          name: "Treemap: dropped rows"
+          description: "null name, zero/negative values → 'N rows not shown' badge"
+        plugin:
+          kind: Treemap
+          spec: {}
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [name, value]
+                  rows:
+                    - [ok, 12]
+                    - [also-ok, 7]
+                    - [null, 5]
+                    - [zero, 0]
+                    - [negative, -4]
+    treemap-maxtiles:
+      kind: Panel
+      spec:
+        display:
+          name: "Treemap: maxTiles"
+          description: "maxTiles: 6 → top 5 tiles + muted 'Other (7)' tile for the long tail"
+        plugin:
+          kind: Treemap
+          spec: { maxTiles: 6, unit: req }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [name, value]
+                  rows:
+                    - [checkout, 900]
+                    - [search, 540]
+                    - [cart, 310]
+                    - [login, 220]
+                    - [profile, 160]
+                    - [settings, 45]
+                    - [help, 30]
+                    - [about, 22]
+                    - [terms, 15]
+                    - [privacy, 12]
+                    - [sitemap, 8]
+                    - [status, 5]
+    treemap-empty:
+      kind: Panel
+      spec:
+        display:
+          name: "Treemap: empty result"
+          description: "Query returns no rows → 'No data to tile in this result'"
+        plugin:
+          kind: Treemap
+          spec: {}
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec: { scenario: csv, columns: [name, value], rows: [] }
+  layouts:
+    - kind: Grid
+      spec:
+        items:
+          - { x: 0,  y: 0,  width: 24, height: 12, content: { $ref: "#/spec/panels/treemap-grouped" } }
+          - { x: 0,  y: 12, width: 12, height: 9,  content: { $ref: "#/spec/panels/treemap-defaults" } }
+          - { x: 12, y: 12, width: 12, height: 9,  content: { $ref: "#/spec/panels/treemap-columns-unit" } }
+          - { x: 0,  y: 21, width: 12, height: 9,  content: { $ref: "#/spec/panels/treemap-grouped-nolegend" } }
+          - { x: 12, y: 21, width: 12, height: 9,  content: { $ref: "#/spec/panels/treemap-novalues" } }
+          - { x: 0,  y: 30, width: 12, height: 9,  content: { $ref: "#/spec/panels/treemap-multiquery" } }
+          - { x: 12, y: 30, width: 12, height: 9,  content: { $ref: "#/spec/panels/treemap-duplicates" } }
+          - { x: 0,  y: 39, width: 12, height: 9,  content: { $ref: "#/spec/panels/treemap-maxtiles" } }
+          - { x: 12, y: 39, width: 12, height: 9,  content: { $ref: "#/spec/panels/treemap-dropped" } }
+          - { x: 0,  y: 48, width: 12, height: 9,  content: { $ref: "#/spec/panels/treemap-empty" } }

@@ -12,6 +12,8 @@ import { tableSpec } from "./table/spec";
 import { TableVisualization } from "./table/table-visualization";
 import { timeSeriesChartSpec } from "./time-series-chart/spec";
 import { TimeSeriesChartVisualization } from "./time-series-chart/time-series-chart-visualization";
+import { treemapSpec } from "./treemap/spec";
+import { TreemapVisualization } from "./treemap/treemap-visualization";
 
 const GeoMapVisualization = lazy(() =>
   import("./geo-map/geo-map-visualization").then((m) => ({
@@ -76,6 +78,11 @@ const registry: Record<string, VisualizationEntry> = {
   TimeSeriesChart: defineVisualization({
     schema: timeSeriesChartSpec,
     component: TimeSeriesChartVisualization,
+  }),
+  Treemap: defineVisualization({
+    schema: treemapSpec,
+    component: TreemapVisualization,
+    inset: "flush-content",
   }),
 };
 

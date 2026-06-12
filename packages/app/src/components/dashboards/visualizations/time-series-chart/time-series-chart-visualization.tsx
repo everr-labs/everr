@@ -5,7 +5,6 @@ import {
 } from "@everr/ui/components/chart";
 import { LineChart as LineChartIcon } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import {
   Area,
   CartesianGrid,
@@ -17,9 +16,10 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { CursorTooltip } from "@/components/cursor-tooltip";
 import { SERIES_COLORS } from "../data-utils";
 import type { VisualizationProps } from "../index";
-import { SeriesTooltipCard } from "../series-tooltip";
+import { SeriesTooltipContent } from "../series-tooltip";
 import type { TimeSeriesChartSpec } from "./spec";
 import { buildChartModel, buildStackedData, TS_KEY } from "./time-series-data";
 
@@ -338,14 +338,9 @@ export function TimeSeriesChartVisualization({
           )}
         </ComposedChart>
       </ChartContainer>
-      {tooltipRow &&
-        createPortal(
-          <SeriesTooltipCard
-            className="pointer-events-none fixed z-50"
-            style={{
-              left: tooltipState!.clientX + 12,
-              top: tooltipState!.clientY + 12,
-            }}
+      {tooltipRow && (
+        <CursorTooltip x={tooltipState!.clientX} y={tooltipState!.clientY}>
+          <SeriesTooltipContent
             title={new Date(tooltipTs!).toLocaleString()}
             rows={valueKeys
               .filter((key) => tooltipRow[key] != null)
@@ -358,9 +353,9 @@ export function TimeSeriesChartVisualization({
                   value: unit ? `${val}${unit}` : String(val),
                 };
               })}
-          />,
-          document.body,
-        )}
+          />
+        </CursorTooltip>
+      )}
     </div>
   );
 }
