@@ -7,6 +7,7 @@ import {
   SERIES_COLORS,
 } from "../data-utils";
 import type { VisualizationProps } from "../index";
+import { SeriesTooltipContent } from "../series-tooltip";
 import type { StateTimelineSpec } from "./spec";
 import {
   buildStateTimelineModel,
@@ -235,20 +236,17 @@ export function StateTimelineVisualization({
 
       {hover && (
         <CursorTooltip x={hover.x} y={hover.y}>
-          <div className="mb-1 text-muted-foreground">
-            {new Date(hover.segment.start).toLocaleString()} –{" "}
-            {new Date(hover.segment.end).toLocaleString()}
-          </div>
-          <div className="grid grid-cols-[auto_1fr_auto] items-center gap-x-2 gap-y-0.5">
-            <span
-              className="inline-block size-2.5 rounded-full"
-              style={{ backgroundColor: colorByState[hover.segment.state] }}
-            />
-            <span className="text-muted-foreground">{hover.lane}</span>
-            <span className="text-right font-medium">
-              {hover.segment.state}
-            </span>
-          </div>
+          <SeriesTooltipContent
+            title={`${new Date(hover.segment.start).toLocaleString()} – ${new Date(hover.segment.end).toLocaleString()}`}
+            rows={[
+              {
+                key: hover.lane,
+                color: colorByState[hover.segment.state],
+                label: hover.lane,
+                value: hover.segment.state,
+              },
+            ]}
+          />
         </CursorTooltip>
       )}
     </div>
