@@ -1,0 +1,295 @@
+kind: Dashboard
+metadata:
+  name: viz-gallery-state-timeline
+  project: demo
+spec:
+  display:
+    name: Visualization Gallery — State Timeline
+    description: >-
+      StateTimeline regression sheet — every option (wide and long formats via
+      seriesColumn/stateColumn, mergeConsecutive, showValues, showLegend,
+      colors mapping, rowHeight) and behavior (spec defaults, numeric states,
+      null gaps, multi-query lanes, empty, no time column) exercised with
+      deterministic TestData.
+  duration: 7d
+  refreshInterval: 1m
+  panels:
+    # ── Formats and options ──────────────────────────────────────────
+    st-defaults:
+      kind: Panel
+      spec:
+        display:
+          name: "StateTimeline: spec defaults"
+          description: "Empty spec {} — wide format: one lane per non-time column · mergeConsecutive: true · showValues: true · showLegend: true · palette colors"
+        plugin:
+          kind: StateTimeline
+          spec: {}
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  seed: 90
+                  rows: 40
+                  columns:
+                    - { name: ts, time: true }
+                    - { name: api,    values: [up, up, up, degraded, up, up, down, up, up, up] }
+                    - { name: db,     values: [up, up, up, up, up, up, up, up, degraded, up] }
+                    - { name: worker, values: [up, down, up, up, up, degraded, degraded, up, up, up] }
+    st-colors:
+      kind: Panel
+      spec:
+        display:
+          name: "StateTimeline: fixed colors"
+          description: "colors: { up: green, degraded: amber, down: red } — semantic state → color mapping instead of the palette"
+        plugin:
+          kind: StateTimeline
+          spec:
+            colors:
+              up: "#22c55e"
+              degraded: "#f59e0b"
+              down: "#ef4444"
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  seed: 91
+                  rows: 40
+                  columns:
+                    - { name: ts, time: true }
+                    - { name: checkout, values: [up, up, degraded, degraded, up, up, up, down, down, up] }
+                    - { name: payments, values: [up, up, up, up, degraded, up, up, up, up, up] }
+    st-long-format:
+      kind: Panel
+      spec:
+        display:
+          name: "StateTimeline: long format"
+          description: "seriesColumn: service · stateColumn: status — one lane per service value, GROUP BY-style rows"
+        plugin:
+          kind: StateTimeline
+          spec:
+            seriesColumn: service
+            stateColumn: status
+            colors:
+              ok: "#22c55e"
+              warn: "#f59e0b"
+              error: "#ef4444"
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  seed: 92
+                  rows: 90
+                  columns:
+                    - { name: ts, time: true }
+                    - { name: service, values: [api, db, worker] }
+                    - { name: status, values: [ok, ok, ok, ok, warn, ok, ok, error, ok, ok, ok, warn, warn, ok, ok] }
+    st-merge-off:
+      kind: Panel
+      spec:
+        display:
+          name: "StateTimeline: mergeConsecutive off"
+          description: "mergeConsecutive: false — every sample renders its own box instead of collapsing equal neighbors (see the StatusHistory gallery for the dedicated per-sample visualization)"
+        plugin:
+          kind: StateTimeline
+          spec:
+            mergeConsecutive: false
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  seed: 93
+                  rows: 25
+                  columns:
+                    - { name: ts, time: true }
+                    - { name: deploy, values: [idle, idle, building, building, idle] }
+    st-compact:
+      kind: Panel
+      spec:
+        display:
+          name: "StateTimeline: compact rows, no labels"
+          description: "showValues: false · rowHeight: 0.4 — thin bands without state text"
+        plugin:
+          kind: StateTimeline
+          spec:
+            showValues: false
+            rowHeight: 0.4
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  seed: 94
+                  rows: 40
+                  columns:
+                    - { name: ts, time: true }
+                    - { name: node-1, values: [ready, ready, ready, cordoned, ready] }
+                    - { name: node-2, values: [ready, notready, ready, ready, ready] }
+                    - { name: node-3, values: [ready, ready, ready, ready, ready, notready, ready] }
+    st-legend-off-full-height:
+      kind: Panel
+      spec:
+        display:
+          name: "StateTimeline: no legend, full-height rows"
+          description: "showLegend: false · rowHeight: 1 — bands touch lane edges, no legend row"
+        plugin:
+          kind: StateTimeline
+          spec:
+            showLegend: false
+            rowHeight: 1
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  seed: 95
+                  rows: 30
+                  columns:
+                    - { name: ts, time: true }
+                    - { name: primary, values: [leader, leader, follower, leader, leader] }
+                    - { name: replica, values: [follower, follower, leader, follower, follower] }
+    # ── Data-shape behaviors ─────────────────────────────────────────
+    st-numeric-states:
+      kind: Panel
+      spec:
+        display:
+          name: "StateTimeline: numeric states"
+          description: "Numeric column values (0/1/2) are stringified into discrete states, not plotted"
+        plugin:
+          kind: StateTimeline
+          spec: {}
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  seed: 96
+                  rows: 30
+                  columns:
+                    - { name: ts, time: true }
+                    - { name: exit_code, values: [0, 0, 0, 1, 0, 0, 2, 0, 0, 0] }
+    st-gaps:
+      kind: Panel
+      spec:
+        display:
+          name: "StateTimeline: null gaps"
+          description: "Null state values render as gaps in the lane — the previous state does not bleed across them"
+        plugin:
+          kind: StateTimeline
+          spec:
+            colors:
+              reporting: "#22c55e"
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  seed: 97
+                  rows: 30
+                  columns:
+                    - { name: ts, time: true }
+                    - { name: agent, values: [reporting, reporting, null, null, reporting, reporting, null, reporting, reporting, reporting] }
+    st-multi-query:
+      kind: Panel
+      spec:
+        display:
+          name: "StateTimeline: multi-query lanes"
+          description: "Two queries on one panel — lanes accumulate across queries, states share one legend and palette"
+        plugin:
+          kind: StateTimeline
+          spec: {}
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  seed: 98
+                  rows: 30
+                  columns:
+                    - { name: ts, time: true }
+                    - { name: ci, values: [green, green, red, green, green] }
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  seed: 99
+                  rows: 30
+                  columns:
+                    - { name: ts, time: true }
+                    - { name: deploys, values: [stable, stable, rolling, stable, stable, rolling, stable] }
+    st-empty:
+      kind: Panel
+      spec:
+        display:
+          name: "StateTimeline: empty result"
+          description: "Single query returns no rows → 'No state data in this time range'"
+        plugin:
+          kind: StateTimeline
+          spec: {}
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [ts, state]
+                  rows: []
+    st-no-time:
+      kind: Panel
+      spec:
+        display:
+          name: "StateTimeline: no time column"
+          description: "Result without a ts/time/timestamp column can't be placed on the timeline → empty state"
+        plugin:
+          kind: StateTimeline
+          spec: {}
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [service, state]
+                  rows:
+                    - [api, up]
+                    - [db, down]
+  layouts:
+    - kind: Grid
+      spec:
+        items:
+          - { x: 0,  y: 0,  width: 12, height: 6, content: { $ref: "#/spec/panels/st-defaults" } }
+          - { x: 12, y: 0,  width: 12, height: 6, content: { $ref: "#/spec/panels/st-colors" } }
+          - { x: 0,  y: 6,  width: 12, height: 6, content: { $ref: "#/spec/panels/st-long-format" } }
+          - { x: 12, y: 6,  width: 12, height: 6, content: { $ref: "#/spec/panels/st-merge-off" } }
+          - { x: 0,  y: 12, width: 12, height: 6, content: { $ref: "#/spec/panels/st-compact" } }
+          - { x: 12, y: 12, width: 12, height: 6, content: { $ref: "#/spec/panels/st-legend-off-full-height" } }
+          - { x: 0,  y: 18, width: 8,  height: 5, content: { $ref: "#/spec/panels/st-numeric-states" } }
+          - { x: 8,  y: 18, width: 8,  height: 5, content: { $ref: "#/spec/panels/st-gaps" } }
+          - { x: 16, y: 18, width: 8,  height: 5, content: { $ref: "#/spec/panels/st-multi-query" } }
+          - { x: 0,  y: 23, width: 12, height: 5, content: { $ref: "#/spec/panels/st-empty" } }
+          - { x: 12, y: 23, width: 12, height: 5, content: { $ref: "#/spec/panels/st-no-time" } }

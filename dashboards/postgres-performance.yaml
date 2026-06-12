@@ -1,0 +1,170 @@
+kind: Dashboard
+metadata:
+  name: postgres-performance
+  project: demo
+spec:
+  display:
+    name: Postgres Performance
+    description: Postgres/database client-span latency, throughput, and slowest statements.
+  duration: 7d
+  refreshInterval: 30s
+  variables:
+    - kind: TextVariable
+      spec:
+        name: op_filter
+        display: { name: Operation filter (substring) }
+        value: ""
+    - kind: ListVariable
+      spec:
+        name: db_op
+        display: { name: DB operation }
+        allowMultiple: true
+        allowAllValue: true
+        defaultValue: "__all"
+        sort: alphabetical-asc
+        plugin:
+          kind: ClickHouseSQLVariable
+          spec:
+            query: |
+              SELECT DISTINCT SpanAttributes['db.operation.name'] AS db_op
+              FROM traces
+              WHERE SpanKind = 'Client'
+                AND SpanAttributes['db.system'] != ''
+                AND SpanAttributes['db.operation.name'] != ''
+              ORDER BY db_op
+  panels:
+    db-latency-p95:
+      kind: Panel
+      spec:
+        display: { name: DB query latency p95 (ms) by operation }
+        plugin:
+          kind: TimeSeriesChart
+          spec: { unit: ms, showLegend: true, lineWidth: 1.5, curveType: monotone, connectNulls: false }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                           toString(SpanAttributes['db.operation.name']) AS operation,
+                           quantile(0.95)(Duration) / 1e6 AS p95_ms
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND SpanKind = 'Client'
+                      AND SpanAttributes['db.system'] != ''
+                      AND SpanAttributes['db.operation.name'] IN $db_op
+                      AND (length($op_filter) = 0 OR positionCaseInsensitive(SpanAttributes['db.operation.name'], $op_filter) > 0)
+                    GROUP BY ts, operation
+                    ORDER BY ts, operation
+    db-query-count:
+      kind: Panel
+      spec:
+        display: { name: DB query count }
+        plugin:
+          kind: TimeSeriesChart
+          spec: { unit: "", showLegend: false, lineWidth: 1.5, curveType: monotone, connectNulls: false }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                           count() AS queries
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND SpanKind = 'Client'
+                      AND SpanAttributes['db.system'] != ''
+                    GROUP BY ts
+                    ORDER BY ts
+    db-latency-p99:
+      kind: Panel
+      spec:
+        display: { name: p99 DB latency (ms) }
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last
+            unit: ms
+            sparkline: true
+            thresholds:
+              mode: absolute
+              defaultColor: "#22c55e"
+              steps:
+                - { value: 10, color: "#f59e0b" }
+                - { value: 50, color: "#ef4444" }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                           quantile(0.99)(Duration) / 1e6 AS p99_ms
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND SpanKind = 'Client'
+                      AND SpanAttributes['db.system'] != ''
+                    GROUP BY ts
+                    ORDER BY ts
+    db-total-queries:
+      kind: Panel
+      spec:
+        display: { name: Total DB queries }
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last
+            unit: ""
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT count() AS total_queries
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND SpanKind = 'Client'
+                      AND SpanAttributes['db.system'] != ''
+    slowest-statements:
+      kind: Panel
+      spec:
+        display: { name: Slowest statements (top 20) }
+        plugin:
+          kind: Table
+          spec: { stickyHeader: true }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT SpanAttributes['db.operation.name'] AS operation,
+                           any(SpanAttributes['db.statement']) AS sample_statement,
+                           count() AS queries,
+                           round(quantile(0.95)(Duration) / 1e6, 1) AS p95_ms
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND SpanKind = 'Client'
+                      AND SpanAttributes['db.system'] != ''
+                      AND SpanAttributes['db.operation.name'] IN $db_op
+                      AND (length($op_filter) = 0 OR positionCaseInsensitive(SpanAttributes['db.operation.name'], $op_filter) > 0)
+                    GROUP BY operation, SpanAttributes['db.statement']
+                    ORDER BY p95_ms DESC
+                    LIMIT 20
+  layouts:
+    - kind: Grid
+      spec:
+        items:
+          - { x: 0,  y: 0,  width: 24, height: 8,  content: { $ref: "#/spec/panels/db-latency-p95" } }
+          - { x: 0,  y: 8,  width: 12, height: 8,  content: { $ref: "#/spec/panels/db-query-count" } }
+          - { x: 12, y: 8,  width: 6,  height: 8,  content: { $ref: "#/spec/panels/db-latency-p99" } }
+          - { x: 18, y: 8,  width: 6,  height: 8,  content: { $ref: "#/spec/panels/db-total-queries" } }
+          - { x: 0,  y: 16, width: 24, height: 10, content: { $ref: "#/spec/panels/slowest-statements" } }

@@ -2,22 +2,29 @@
 set -euo pipefail
 
 DOWNLOAD_BASE_URL="https://everr.dev/everr-app"
-BINARY_NAME="everr"
 INSTALL_DIR="${HOME}/.local/bin"
 INSTALL_PATH="${INSTALL_DIR}/everr"
 
 os="$(uname -s)"
 arch="$(uname -m)"
 
-if [ "${os}" != "Darwin" ]; then
-  echo "everr install script currently supports macOS only (detected: ${os})." >&2
-  exit 1
-fi
+case "${os}:${arch}" in
+  Darwin:arm64)
+    BINARY_NAME="everr"
+    ;;
+  Linux:aarch64|Linux:arm64)
+    BINARY_NAME="everr-linux-arm64"
+    ;;
+  Linux:x86_64|Linux:amd64)
+    BINARY_NAME="everr-linux-x86_64"
+    ;;
+  *)
+    echo "everr install script does not support ${os} ${arch}." >&2
+    exit 1
+    ;;
+esac
 
-if [ "${arch}" != "arm64" ]; then
-  echo "everr install script currently supports macOS arm64 only (detected: ${arch})." >&2
-  exit 1
-fi
+CHECKSUM_NAME="${BINARY_NAME}.sha256"
 
 tmp_dir="$(mktemp -d)"
 cleanup() {
@@ -26,15 +33,22 @@ cleanup() {
 trap cleanup EXIT
 
 binary_url="${DOWNLOAD_BASE_URL%/}/${BINARY_NAME}"
-checksum_url="${DOWNLOAD_BASE_URL%/}/${BINARY_NAME}.sha256"
+checksum_url="${DOWNLOAD_BASE_URL%/}/${CHECKSUM_NAME}"
 
 echo "Downloading Everr CLI..."
 curl -fsSL "${binary_url}" -o "${tmp_dir}/${BINARY_NAME}"
-curl -fsSL "${checksum_url}" -o "${tmp_dir}/${BINARY_NAME}.sha256"
+curl -fsSL "${checksum_url}" -o "${tmp_dir}/${CHECKSUM_NAME}"
 
 (
   cd "${tmp_dir}"
-  shasum -a 256 -c "${BINARY_NAME}.sha256" > /dev/null
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 -c "${CHECKSUM_NAME}" > /dev/null
+  elif command -v sha256sum >/dev/null 2>&1; then
+    sha256sum -c "${CHECKSUM_NAME}" > /dev/null
+  else
+    echo "No SHA-256 checksum tool found. Install shasum or sha256sum." >&2
+    exit 1
+  fi
 )
 
 mkdir -p "${INSTALL_DIR}"

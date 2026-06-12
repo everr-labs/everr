@@ -73,6 +73,11 @@
       // Dashboard Zod schemas — Perses-compat surface (variables/datasources) kept schema-only by design.
       "file": "packages/app/src/data/dashboards/schema.ts",
       "exports": ["*"]
+    },
+    {
+      // TestData query spec — schema-only module, consumers added in follow-up tasks.
+      "file": "packages/app/src/data/dashboards/testdata/spec.ts",
+      "exports": ["*"]
     }
   ]
 }

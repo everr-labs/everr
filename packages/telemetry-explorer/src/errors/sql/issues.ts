@@ -145,8 +145,19 @@ export function buildOccurrencesQuery(
       occurrenceLimit: input.occurrenceLimit,
     },
     sql: `
-      WITH ${cte.sql}
+      WITH ${cte.sql},
+      ranked_occurrence_rows AS (
+        SELECT
+          *,
+          row_number() OVER (
+            PARTITION BY Timestamp
+            ORDER BY Timestamp DESC, ServiceName DESC, TraceId DESC, SpanId DESC, Body DESC
+          ) AS timestampRank
+        FROM exception_logs
+        WHERE fingerprint = {fingerprint:String}
+      )
       SELECT
+        toUInt32(timestampRank) AS timestampRank,
         fingerprint,
         toString(Timestamp) AS timestamp,
         ServiceName AS serviceName,
@@ -159,9 +170,8 @@ export function buildOccurrencesQuery(
         ResourceAttributes AS resourceAttributes,
         LogAttributes AS logAttributes,
         ScopeAttributes AS scopeAttributes
-      FROM exception_logs
-      WHERE fingerprint = {fingerprint:String}
-      ORDER BY Timestamp DESC
+      FROM ranked_occurrence_rows
+      ORDER BY Timestamp DESC, timestampRank ASC
       LIMIT {occurrenceLimit:UInt32}
     `,
   };

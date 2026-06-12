@@ -5,9 +5,9 @@ import {
 } from "@everr/ui/components/toggle-group";
 import { TableIcon } from "lucide-react";
 import { useState } from "react";
+import { queryLabel } from "../data-utils";
 import type { QueryResultRow, VisualizationProps } from "../index";
-
-const QUERY_LABELS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+import type { TableSpec } from "./spec";
 
 function buildColumns(rows: QueryResultRow[]): Column<QueryResultRow>[] {
   const first = rows[0];
@@ -23,7 +23,10 @@ function buildColumns(rows: QueryResultRow[]): Column<QueryResultRow>[] {
   }));
 }
 
-export function TableVisualization({ plugin, data }: VisualizationProps) {
+export function TableVisualization({
+  spec,
+  data,
+}: VisualizationProps<TableSpec>) {
   const sets = data ?? [];
   const [selected, setSelected] = useState(0);
 
@@ -61,13 +64,17 @@ export function TableVisualization({ plugin, data }: VisualizationProps) {
           >
             {sets.map((_, i) => (
               <ToggleGroupItem key={i} value={String(i)}>
-                Query {QUERY_LABELS[i] ?? i + 1}
+                {queryLabel(i)}
               </ToggleGroupItem>
             ))}
           </ToggleGroup>
         </div>
       )}
-      <div className="min-h-0 flex-1 overflow-auto overscroll-none">
+      {/* No overscroll-none: it would swallow wheel events whenever the rows
+          fit (a non-scrollable scroll container with overscroll-behavior:none
+          blocks scroll chaining), leaving the dashboard unscrollable from
+          above this panel. */}
+      <div className="min-h-0 flex-1 overflow-auto">
         {rows.length === 0 ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             No rows
@@ -77,7 +84,7 @@ export function TableVisualization({ plugin, data }: VisualizationProps) {
             data={rows}
             columns={columns}
             rowKey={(_, i) => String(i)}
-            stickyHeader={plugin.spec.stickyHeader === true}
+            stickyHeader={spec.stickyHeader}
             bordered
           />
         )}

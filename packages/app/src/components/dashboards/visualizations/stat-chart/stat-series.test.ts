@@ -38,13 +38,51 @@ describe("computeStatTiles", () => {
   });
 
   it("handles value-only rows with no time column", () => {
-    const tiles = computeStatTiles([[{ value: 7 }]], "last");
-    expect(tiles[0]?.value).toBe(7);
-    expect(tiles[0]?.points).toEqual([]);
+    const tiles = computeStatTiles([[{ value: 7 }, { value: 9 }]], "last");
+    expect(tiles[0]?.value).toBe(9);
+    // Without a time column the row index stands in as the sparkline ts.
+    expect(tiles[0]?.points).toEqual([
+      { ts: 0, value: 7 },
+      { ts: 1, value: 9 },
+    ]);
   });
 
-  it("skips empty result sets", () => {
-    expect(computeStatTiles([[]], "last")).toEqual([]);
+  it("emits a placeholder tile for an empty result set", () => {
+    const tiles = computeStatTiles([[]], "last");
+    expect(tiles).toHaveLength(1);
+    expect(tiles[0]).toMatchObject({ frame: 0, label: "", value: undefined });
+  });
+
+  it("emits a placeholder for a query with no numeric column", () => {
+    const tiles = computeStatTiles(
+      [[{ ts: "2026-06-07T00:00:00", value: 5 }], [{ service: "api" }]],
+      "last",
+    );
+    expect(tiles).toHaveLength(2);
+    expect(tiles[0]?.value).toBe(5);
+    expect(tiles[1]).toMatchObject({ frame: 1, label: "", value: undefined });
+  });
+
+  it("records the originating query index on each tile", () => {
+    const tiles = computeStatTiles([[{ a: 1, b: 2 }], [{ c: 3 }]], "last");
+    expect(tiles.map((t) => t.frame)).toEqual([0, 0, 1]);
+  });
+
+  it("drops rows whose timestamp cannot be parsed", () => {
+    const tiles = computeStatTiles(
+      [
+        [
+          { ts: "N/A", value: 99 },
+          { ts: "2026-06-07T00:00:00", value: 1 },
+          { ts: "2026-06-07T00:01:00", value: 3 },
+        ],
+      ],
+      "first",
+    );
+    // The unparseable row must not become the chronological "first" (it used
+    // to land at epoch 0 and sort to the front).
+    expect(tiles[0]?.value).toBe(1);
+    expect(tiles[0]?.points).toHaveLength(2);
   });
 
   it("detects a metric that is NULL in the first bucket but numeric later", () => {

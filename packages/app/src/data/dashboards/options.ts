@@ -1,4 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
+import type { PanelQuerySource } from "@/components/dashboards/query-array";
+import type { QueryResultRow } from "@/components/dashboards/visualizations";
 import type { VariableMeta, VariableValues } from "./interpolate";
 import {
   getDashboard,
@@ -22,7 +24,7 @@ export const dashboardListOptions = () =>
   });
 
 export const panelQueryOptions = (
-  sql: string,
+  source: PanelQuerySource,
   from?: string,
   to?: string,
   variables?: VariableValues,
@@ -31,15 +33,23 @@ export const panelQueryOptions = (
   queryOptions({
     queryKey: [
       "panel-query",
-      sql,
+      source,
       from,
       to,
       variables ?? null,
       variableMeta ?? null,
     ],
-    queryFn: () =>
-      runPanelQuery({ data: { sql, from, to, variables, variableMeta } }),
-    enabled: sql.trim().length > 0,
+    queryFn: async (): Promise<{ rows: QueryResultRow[] }> => {
+      // `none` is never enabled, but the queryFn must still type-check.
+      if (source.kind === "none") return { rows: [] };
+      return runPanelQuery({
+        data: { source, from, to, variables, variableMeta },
+      });
+    },
+    enabled:
+      source.kind === "ClickHouseSQL"
+        ? source.sql.trim().length > 0
+        : source.kind === "TestData",
   });
 
 export const variableOptionsQueryOptions = (

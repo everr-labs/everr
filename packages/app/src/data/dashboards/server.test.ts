@@ -88,7 +88,10 @@ describe("runPanelQuery – variable interpolation", () => {
 
     await runPanelQuery({
       data: {
-        sql: "SELECT * FROM logs WHERE service = $service AND env IN $env",
+        source: {
+          kind: "ClickHouseSQL",
+          sql: "SELECT * FROM logs WHERE service = $service AND env IN $env",
+        },
         variables: { service: "api", env: ["prod", "staging"] },
       },
     });
@@ -107,7 +110,10 @@ describe("runPanelQuery – variable interpolation", () => {
 
     await runPanelQuery({
       data: {
-        sql: "SELECT * FROM logs WHERE env IN $env",
+        source: {
+          kind: "ClickHouseSQL",
+          sql: "SELECT * FROM logs WHERE env IN $env",
+        },
         variables: { env: "__all" },
         variableMeta: { env: { options: ["prod", "staging"] } },
       },
@@ -121,11 +127,32 @@ describe("runPanelQuery – variable interpolation", () => {
   it("runs the SQL unchanged when no variables are provided", async () => {
     mockedClickhouse.mockResolvedValue([]);
 
-    await runPanelQuery({ data: { sql: "SELECT $notavar FROM logs" } });
+    await runPanelQuery({
+      data: {
+        source: { kind: "ClickHouseSQL", sql: "SELECT $notavar FROM logs" },
+      },
+    });
 
     expect(mockedClickhouse.mock.calls[0]![0]).toBe(
       "SELECT $notavar FROM logs",
     );
+  });
+
+  it("binds from/to and an adaptive {step} bucket as query params", async () => {
+    mockedClickhouse.mockResolvedValue([]);
+
+    await runPanelQuery({
+      data: { source: { kind: "ClickHouseSQL", sql: "SELECT 1" } },
+    });
+
+    const params = mockedClickhouse.mock.calls[0]![2] as Record<
+      string,
+      unknown
+    >;
+    expect(typeof params.from).toBe("string");
+    expect(typeof params.to).toBe("string");
+    // Default range is now-7d..now → 604800s / 500 = 1209.6 → snapped to 30m.
+    expect(params.step).toBe(1800);
   });
 });
 
@@ -147,6 +174,24 @@ describe("runVariableOptionsQuery", () => {
     });
 
     expect(result).toEqual({ options: ["api", "web", "42"], truncated: false });
+  });
+
+  it("binds the same from/to/step params as a panel query", async () => {
+    // The docs promise the parameters are always available; an options query
+    // referencing {step}/{from}/{to} must not error where a panel wouldn't.
+    mockedClickhouse.mockResolvedValue([]);
+
+    await runVariableOptionsQuery({
+      data: { query: "SELECT DISTINCT ServiceName FROM traces" },
+    });
+
+    const params = mockedClickhouse.mock.calls[0]![2] as Record<
+      string,
+      unknown
+    >;
+    expect(typeof params.from).toBe("string");
+    expect(typeof params.to).toBe("string");
+    expect(params.step).toBe(1800); // default now-7d..now → 30m
   });
 
   it("injects a LIMIT so the SQL API profile never throws on overflow", async () => {
@@ -258,5 +303,40 @@ describe("listDashboards (with project + folderPath)", () => {
     expect(rows).toEqual([
       { slug: "cpu", project: "team", name: "CPU", folderPath: "Infra" },
     ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// runPanelQuery – TestData source
+// ---------------------------------------------------------------------------
+
+describe("runPanelQuery – TestData", () => {
+  it("generates synthetic rows without touching ClickHouse", async () => {
+    const { rows } = await runPanelQuery({
+      data: {
+        source: {
+          kind: "TestData",
+          spec: { scenario: "csv", columns: ["a", "b"], rows: [["x", 1]] },
+        },
+      },
+    });
+    expect(rows).toEqual([{ a: "x", b: 1 }]);
+    expect(mockedClickhouse).not.toHaveBeenCalled();
+  });
+
+  it("spans the resolved time range for a random_walk scenario", async () => {
+    const { rows } = await runPanelQuery({
+      data: {
+        source: {
+          kind: "TestData",
+          spec: { scenario: "random_walk", seed: 1, series: [{ name: "v" }] },
+        },
+        from: "2026-06-10 00:00:00",
+        to: "2026-06-10 00:10:00",
+      },
+    });
+    expect(rows.length).toBeGreaterThan(0);
+    expect(Object.keys(rows[0])).toContain("ts");
+    expect(Object.keys(rows[0])).toContain("v");
   });
 });

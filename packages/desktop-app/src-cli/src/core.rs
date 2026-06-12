@@ -15,6 +15,7 @@ use crate::cli::{
     GetLogsArgs, ListRunsArgs, LogPagingArgs, ShowRunArgs, StatusArgs, TelemetryFormat,
     TelemetryQueryArgs, WatchArgs,
 };
+use crate::command_telemetry;
 use crate::telemetry;
 
 fn resolve_commit(explicit: Option<String>, cwd: &std::path::Path) -> Result<String> {
@@ -153,7 +154,7 @@ pub async fn runs_logs(args: GetLogsArgs) -> Result<()> {
             print_more_logs_notice(paged_logs.page_size, paged_logs.next_offset)?;
         }
         if args.egrep.is_some() && paged_logs.logs.is_empty() {
-            std::process::exit(1);
+            command_telemetry::exit(1);
         }
         return Ok(());
     }
@@ -167,7 +168,7 @@ pub async fn runs_logs(args: GetLogsArgs) -> Result<()> {
     let response = client.get_step_logs(&args.trace_id, &query).await?;
     print_step_logs(&response.logs, args.color)?;
     if args.egrep.is_some() && response.logs.is_empty() {
-        std::process::exit(1);
+        command_telemetry::exit(1);
     }
     Ok(())
 }

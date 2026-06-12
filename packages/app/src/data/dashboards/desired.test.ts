@@ -57,6 +57,33 @@ describe("buildDesiredSet", () => {
     );
   });
 
+  it("rejects an invalid plugin option, naming the file and the option path", () => {
+    const input = [
+      {
+        path: "team/cpu.yaml",
+        document: {
+          kind: "Dashboard",
+          metadata: { name: "cpu" },
+          spec: {
+            panels: {
+              cpu: {
+                kind: "Panel",
+                spec: {
+                  plugin: { kind: "TimeSeriesChart", spec: { lineWidth: "3" } },
+                },
+              },
+            },
+            layouts: [],
+          },
+        },
+      },
+    ];
+    expect(() => buildDesiredSet(input)).toThrow(ApplyValidationError);
+    expect(() => buildDesiredSet(input)).toThrow(
+      /team\/cpu\.yaml: invalid dashboard spec at panels\.cpu\.spec\.plugin\.spec\.lineWidth/,
+    );
+  });
+
   it("allows the same slug in different projects, rejects a duplicate within one project", () => {
     const a = {
       kind: "Dashboard",

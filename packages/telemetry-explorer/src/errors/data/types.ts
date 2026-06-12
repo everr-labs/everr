@@ -21,6 +21,7 @@ export type ErrorIssuesResult = {
 };
 
 export type ErrorOccurrence = {
+  timestampRank?: number;
   fingerprint: string;
   timestamp: string;
   serviceName: string;

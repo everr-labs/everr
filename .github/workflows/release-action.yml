@@ -112,17 +112,29 @@ jobs:
           git config user.name "everr-action-bot"
           git config user.email "everr-action-bot@users.noreply.github.com"
 
+          preserved_bin="${RUNNER_TEMP}/everr-action-preserved-bin"
+          rm -rf "$preserved_bin"
+          if [[ -d bin ]]; then
+            cp -R bin "$preserved_bin"
+          fi
+
           # Replace the mirror contents with the staged tree.
           git rm -rf . >/dev/null 2>&1 || true
           rm -rf -- *
           cp -R "$STAGING"/. .
+          if [[ -d "$preserved_bin" ]]; then
+            cp -R "$preserved_bin" bin
+          fi
 
           git add -A
           if git diff --cached --quiet; then
             echo "No changes to publish."
           else
             git commit -m "Release ${VERSION_TAG} (from everr-labs/everr@${SRC_SHA})"
-            git push origin "$MIRROR_BRANCH"
+            git push origin "$MIRROR_BRANCH" || {
+              git pull --rebase origin "$MIRROR_BRANCH"
+              git push origin "$MIRROR_BRANCH"
+            }
           fi
 
           git tag -f "$VERSION_TAG"

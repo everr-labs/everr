@@ -1,0 +1,128 @@
+kind: Dashboard
+metadata:
+  name: viz-gallery-table
+  project: demo
+spec:
+  display:
+    name: Visualization Gallery — Table
+    description: >-
+      Table regression sheet — stickyHeader option and behaviors (multi-query
+      selector, NULL rendering, scroll, single-query empty, all-frames-empty)
+      exercised with deterministic TestData.
+  duration: 7d
+  refreshInterval: 1m
+  panels:
+    table-sticky:
+      kind: Panel
+      spec:
+        display:
+          name: "Table: sticky header"
+          description: "stickyHeader: true — header stays pinned while the 100 rows scroll."
+        plugin:
+          kind: Table
+          spec:
+            stickyHeader: true
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  seed: 41
+                  rows: 100
+                  columns:
+                    - { name: Timestamp,  time: true }
+                    - { name: SpanName,   values: [GET /users, POST /orders, GET /health, POST /login, GET /metrics] }
+                    - { name: SpanKind,   values: [Server, Client, Internal] }
+                    - { name: StatusCode, values: [Ok, Error, Unset] }
+                    - { name: duration_ms, walk: { start: 50, noise: 30, min: 0, round: 1 } }
+    table-multi-query:
+      kind: Panel
+      spec:
+        display:
+          name: "Table: query selector"
+          description: "stickyHeader: false · two queries — the Query A/B toggle switches frames."
+        plugin:
+          kind: Table
+          spec:
+            stickyHeader: false
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  seed: 42
+                  rows: 20
+                  columns:
+                    - { name: SpanName, values: [GET /users, POST /orders, GET /health, POST /login, GET /metrics] }
+                    - { name: spans,    walk: { start: 200, noise: 50, min: 0, round: 0 } }
+                    - { name: p95_ms,   walk: { start: 120, noise: 20, min: 0, round: 1 } }
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [severity, logs]
+                  rows:
+                    - [ERROR, 12]
+                    - [WARN, 48]
+                    - [INFO, 320]
+                    - [DEBUG, 90]
+    table-empty:
+      kind: Panel
+      spec:
+        display:
+          name: "Table: empty result"
+          description: "Single query returns no rows → 'No data — run a query to see results'"
+        plugin:
+          kind: Table
+          spec:
+            stickyHeader: false
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [SpanName, count]
+                  rows: []
+    table-multi-empty:
+      kind: Panel
+      spec:
+        display:
+          name: "Table: all frames empty"
+          description: "Two queries, both empty → selector shows, each frame renders 'No rows'"
+        plugin:
+          kind: Table
+          spec:
+            stickyHeader: false
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [SpanName, count]
+                  rows: []
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [severity, logs]
+                  rows: []
+  layouts:
+    - kind: Grid
+      spec:
+        items:
+          - { x: 0,  y: 0,  width: 24, height: 10, content: { $ref: "#/spec/panels/table-sticky" } }
+          - { x: 0,  y: 10, width: 24, height: 8,  content: { $ref: "#/spec/panels/table-multi-query" } }
+          - { x: 0,  y: 18, width: 12, height: 6,  content: { $ref: "#/spec/panels/table-empty" } }
+          - { x: 12, y: 18, width: 12, height: 6,  content: { $ref: "#/spec/panels/table-multi-empty" } }

@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { buildChartModel } from "./time-series-data";
+import { buildChartModel, buildStackedData } from "./time-series-data";
 
 const TS_KEY = "__ts";
+
+// A domain wide enough that no test data is clamped away.
+const WIDE: [number, number] = [0, Date.parse("2100-01-01T00:00:00Z")];
 
 describe("buildChartModel", () => {
   it("assigns an opaque render key and keeps the column name as the label", () => {
     const model = buildChartModel(
       [[{ time: "2026-06-07T00:00:00", value: 5 }]],
-      undefined,
+      WIDE,
     );
     expect(model.valueKeys).toEqual(["s0"]);
     expect(model.chartConfig.s0?.label).toBe("value");
@@ -16,13 +19,29 @@ describe("buildChartModel", () => {
     expect(model.seriesData.s0?.[0]?.s0).toBe(5);
   });
 
+  it("skips rows whose timestamp cannot be parsed", () => {
+    const model = buildChartModel(
+      [
+        [
+          { time: "garbage", value: 99 },
+          { time: "2026-06-07T00:00:00", value: 5 },
+        ],
+      ],
+      WIDE,
+    );
+    // The bad row must not become a point at epoch 0.
+    expect(model.chartData).toHaveLength(1);
+    expect(model.chartData[0]?.s0).toBe(5);
+    expect(model.seriesData.s0).toHaveLength(1);
+  });
+
   it("gives each series a distinct key across two queries and merges by time", () => {
     const model = buildChartModel(
       [
         [{ time: "2026-06-07T00:00:00", value: 1 }],
         [{ time: "2026-06-07T00:00:00", value: 2 }],
       ],
-      undefined,
+      WIDE,
     );
     expect(model.valueKeys).toEqual(["s0", "s1"]);
     expect(model.chartData).toHaveLength(1);
@@ -42,7 +61,7 @@ describe("buildChartModel", () => {
           { time: "2026-06-07T00:03:00", value: 4 },
         ],
       ],
-      undefined,
+      WIDE,
     );
     expect(model.valueKeys).toEqual(["s0", "s1"]);
     // Each series' own array holds only its own points — the other query's
@@ -61,13 +80,13 @@ describe("buildChartModel", () => {
         [{ time: "2026-06-07T00:00:00", value: 1 }],
         [{ time: "2026-06-07T00:00:00", value: 2 }],
       ],
-      undefined,
+      WIDE,
     );
     expect(model.chartConfig.s0?.color).not.toBe(model.chartConfig.s1?.color);
   });
 
   it("returns an empty model for empty input", () => {
-    expect(buildChartModel([], undefined)).toEqual({
+    expect(buildChartModel([], WIDE)).toEqual({
       chartData: [],
       valueKeys: [],
       chartConfig: {},
@@ -84,7 +103,7 @@ describe("buildChartModel", () => {
           { time: "2026-06-07T00:01:00", host: "a", value: 3 },
         ],
       ],
-      undefined,
+      WIDE,
     );
     // One opaque key per group value, in sorted group order (a, b).
     expect(model.valueKeys).toEqual(["s0", "s1"]);
@@ -109,7 +128,7 @@ describe("buildChartModel", () => {
           { time: "2026-06-07T00:00:00", host: "a b", value: 2 },
         ],
       ],
-      undefined,
+      WIDE,
     );
     // "a-b" and "a b" both sanitize to "a_b"; opaque keys keep them apart so
     // neither series overwrites the other.
@@ -123,7 +142,7 @@ describe("buildChartModel", () => {
   it("keeps non-identifier column names as the label without mangling the key", () => {
     const model = buildChartModel(
       [[{ time: "2026-06-07T00:00:00", "count()": "42" }]],
-      undefined,
+      WIDE,
     );
     // `count()` as a render key would produce `var(--color-count())` (invalid);
     // the opaque key sidesteps that and the original name stays as the label.
@@ -140,7 +159,7 @@ describe("buildChartModel", () => {
           { time: "2026-06-07T00:01:00", p99: 12.5 },
         ],
       ],
-      undefined,
+      WIDE,
     );
     expect(model.valueKeys).toEqual(["s0"]);
     expect(model.chartConfig.s0?.label).toBe("p99");
@@ -150,7 +169,7 @@ describe("buildChartModel", () => {
   it("treats quoted numeric strings (ClickHouse aggregates) as values", () => {
     const model = buildChartModel(
       [[{ time: "2026-06-07T00:00:00", count: "42" }]],
-      undefined,
+      WIDE,
     );
     expect(model.valueKeys).toEqual(["s0"]);
     expect(model.chartData[0]?.s0).toBe(42);
@@ -181,7 +200,9 @@ describe("buildChartModel", () => {
     const model = buildChartModel(
       [
         [
-          { time: "2026-06-07T00:00:00", value: 1 }, // before the domain
+          // Before the domain, and its bucket [00:00, 00:01) ends exactly at
+          // the domain start — no overlap, so it stays dropped.
+          { time: "2026-06-07T00:00:00", value: 1 },
           { time: "2026-06-07T00:01:00", value: 2 },
           { time: "2026-06-07T00:02:00", value: 3 },
         ],
@@ -190,6 +211,39 @@ describe("buildChartModel", () => {
     );
     expect(model.seriesData.s0?.map((r) => r.s0)).toEqual([2, 3]);
     expect(model.chartData.map((r) => r.s0)).toEqual([2, 3]);
+  });
+
+  it("keeps the leading bucket when its interval overlaps an unaligned domain start", () => {
+    const minute = 60_000;
+    const t0 = Date.parse("2026-06-07T00:00:00Z");
+    const model = buildChartModel(
+      [
+        [
+          // 30m buckets; the domain starts mid-bucket at 00:05, so the 00:00
+          // bucket covers in-range rows (00:05–00:30) and must survive.
+          { time: "2026-06-07T00:00:00", value: 1 },
+          { time: "2026-06-07T00:30:00", value: 2 },
+          { time: "2026-06-07T01:00:00", value: 3 },
+        ],
+      ],
+      [t0 + 5 * minute, t0 + 95 * minute],
+    );
+    expect(model.seriesData.s0?.map((r) => r.s0)).toEqual([1, 2, 3]);
+    expect(model.seriesData.s0?.[0]?.[TS_KEY]).toBe(t0);
+    // The merged crosshair/tooltip timeline stays strictly in-domain: the
+    // off-axis point renders (clipped) but is not hoverable.
+    expect(model.chartData.map((r) => r.s0)).toEqual([2, 3]);
+  });
+
+  it("still drops a lone pre-domain point when no bucket width can be inferred", () => {
+    const minute = 60_000;
+    const t0 = Date.parse("2026-06-07T00:00:00Z");
+    const model = buildChartModel(
+      [[{ time: "2026-06-07T00:00:00", value: 1 }]],
+      [t0 + 5 * minute, t0 + 65 * minute],
+    );
+    expect(model.seriesData.s0 ?? []).toHaveLength(0);
+    expect(model.chartData).toHaveLength(0);
   });
 
   it("inserts a single null marker into a series to break the line across a real gap", () => {
@@ -212,5 +266,25 @@ describe("buildChartModel", () => {
     expect(model.seriesData.s0).toHaveLength(6);
     expect(model.seriesData.s0?.filter((r) => r.s0 === null)).toHaveLength(1);
     expect(model.chartData).toHaveLength(5);
+  });
+});
+
+describe("buildStackedData", () => {
+  it("fills missing and null samples with 0 so every row carries every series", () => {
+    const model = buildChartModel(
+      [
+        [
+          { time: "2026-06-07T00:00:00", a: 1, b: 10 },
+          { time: "2026-06-07T00:01:00", a: 2, b: "oops" }, // non-numeric → null sample
+        ],
+        [{ time: "2026-06-07T00:00:00", c: 100 }], // absent at 00:01
+      ],
+      WIDE,
+    );
+    const stacked = buildStackedData(model.chartData, model.valueKeys);
+    expect(stacked).toHaveLength(2);
+    expect(stacked[0]).toMatchObject({ s0: 1, s1: 10, s2: 100 });
+    expect(stacked[1]).toMatchObject({ s0: 2, s1: 0, s2: 0 });
+    expect(stacked[0]?.[TS_KEY]).toBe(model.chartData[0]?.[TS_KEY]);
   });
 });

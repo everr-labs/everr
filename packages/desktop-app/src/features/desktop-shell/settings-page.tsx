@@ -1,7 +1,5 @@
 import { Button } from "@everr/ui/components/button";
-import { useQuery } from "@tanstack/react-query";
 import { RotateCw } from "lucide-react";
-import { invokeCommand } from "@/lib/tauri";
 import { AuthSettingsSection } from "../auth/auth";
 import {
   useCollectorStatusQuery,
@@ -9,36 +7,6 @@ import {
 } from "../local-telemetry/collector-status";
 import { NotificationEmailsSection } from "../notifications/notification-emails-section";
 import { SettingsSection } from "./ui";
-
-type BuildInfo = {
-  platform_version: string;
-  release_sha: string;
-  release_short_sha: string;
-};
-
-const buildInfoQueryKey = ["desktop-app", "build-info"] as const;
-
-function BuildInfoSection() {
-  const buildInfoQuery = useQuery({
-    queryKey: buildInfoQueryKey,
-    queryFn: () => invokeCommand<BuildInfo>("get_build_info"),
-  });
-
-  return (
-    <SettingsSection
-      title="Release"
-      description="Build identity for this desktop app."
-      compact
-    >
-      <dl className="grid max-w-[420px] grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
-        <dt className="text-[var(--settings-text-muted)]">SHA</dt>
-        <dd className="m-0 font-mono text-[var(--settings-text)]">
-          {buildInfoQuery.data?.release_short_sha ?? "unknown"}
-        </dd>
-      </dl>
-    </SettingsSection>
-  );
-}
 
 function LocalTelemetrySection() {
   const statusQuery = useCollectorStatusQuery();
@@ -115,7 +83,6 @@ export function SettingsPage() {
           </div>
           <NotificationEmailsSection />
           <LocalTelemetrySection />
-          <BuildInfoSection />
         </div>
       </div>
     </div>

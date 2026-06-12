@@ -1,6 +1,44 @@
 import { describe, expect, it } from "vitest";
 import { isNumericValue } from "@/lib/numeric";
-import { getValueKeys, toNumber, toTimestamp } from "./data-utils";
+import {
+  detectTimeKey,
+  getValueKeys,
+  toNumber,
+  toTimestamp,
+} from "./data-utils";
+
+describe("detectTimeKey", () => {
+  it("matches ts, time, and timestamp exactly, case-insensitively", () => {
+    expect(detectTimeKey([{ ts: "t", v: 1 }])).toBe("ts");
+    expect(detectTimeKey([{ time: "t", v: 1 }])).toBe("time");
+    expect(detectTimeKey([{ Timestamp: "t", v: 1 }])).toBe("Timestamp");
+  });
+
+  it("does not prefix-match look-alike columns", () => {
+    // `timezone` used to match the old /^time.../ prefix pattern and claim a
+    // text column as the time axis.
+    expect(detectTimeKey([{ timezone: "UTC", v: 1 }])).toBeUndefined();
+    expect(detectTimeKey([{ timestamp_label: "a", v: 1 }])).toBeUndefined();
+    expect(detectTimeKey([{ ts_count: 3, v: 1 }])).toBeUndefined();
+  });
+
+  it("no longer matches the retired alias names", () => {
+    for (const name of [
+      "date",
+      "datetime",
+      "created_at",
+      "period",
+      "bucket",
+      "interval",
+    ]) {
+      expect(detectTimeKey([{ [name]: "t", v: 1 }])).toBeUndefined();
+    }
+  });
+
+  it("returns undefined for no rows", () => {
+    expect(detectTimeKey([])).toBeUndefined();
+  });
+});
 
 describe("isNumericValue", () => {
   it("accepts numbers and numeric strings", () => {
@@ -69,9 +107,10 @@ describe("toTimestamp", () => {
     expect(toTimestamp("2026-06-07")).toBe(utc);
   });
 
-  it("returns 0 for unparseable input", () => {
-    expect(toTimestamp("not a date")).toBe(0);
-    expect(toTimestamp(null)).toBe(0);
+  it("returns null for unparseable input (0 would be a valid 1970 instant)", () => {
+    expect(toTimestamp("not a date")).toBeNull();
+    expect(toTimestamp(null)).toBeNull();
+    expect(toTimestamp(Number.NaN)).toBeNull();
   });
 });
 

@@ -2,6 +2,8 @@
 
 Never use `tsx`
 
+Never add tests for YAML files that only check their text content.
+
 # CONSTITUTION
 
 When working on the web app, always test changes manually, use the credentials from .auth (look for this on the main worktree)

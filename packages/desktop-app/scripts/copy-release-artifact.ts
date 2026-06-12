@@ -128,7 +128,8 @@ export function buildUpdaterManifest({
 }
 
 export function buildReleaseMetadata({
-  platformVersion,
+  packageVersion,
+  desktopVersion,
   releaseSha,
   releaseShortSha,
   publicBaseUrl,
@@ -136,7 +137,8 @@ export function buildReleaseMetadata({
   files,
   createdAt,
 }: {
-  platformVersion: string;
+  packageVersion: string;
+  desktopVersion: string;
   releaseSha: string;
   releaseShortSha: string;
   publicBaseUrl: string;
@@ -148,8 +150,8 @@ export function buildReleaseMetadata({
     {
       schema_version: 1,
       product: "Everr",
-      version: platformVersion,
-      platform_version: platformVersion,
+      version: packageVersion,
+      platform_version: desktopVersion,
       release_sha: releaseSha,
       release_short_sha: releaseShortSha,
       public_base_url: publicBaseUrl,
@@ -302,14 +304,27 @@ export async function findReleaseArtifacts(bundleDir: string): Promise<ReleaseAr
   };
 }
 
-async function readDesktopVersion() {
+async function readDesktopPackageVersion() {
+  const packageJsonPath = path.join(packageDir, "package.json");
+  const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8")) as {
+    version?: string;
+  };
+
+  if (!packageJson.version) {
+    throw new Error(`Could not resolve desktop app version from ${packageJsonPath}.`);
+  }
+
+  return packageJson.version;
+}
+
+async function readDesktopTauriVersion() {
   const configPath = path.join(packageDir, "src-tauri", "tauri.conf.json");
   const config = JSON.parse(await readFile(configPath, "utf8")) as {
     version?: string;
   };
 
   if (!config.version) {
-    throw new Error(`Could not resolve desktop app version from ${configPath}.`);
+    throw new Error(`Could not resolve desktop platform version from ${configPath}.`);
   }
 
   return config.version;
@@ -418,9 +433,10 @@ export async function stageReleaseArtifacts() {
   const bundleDir = await findBundleDir();
   const artifacts = await findReleaseArtifacts(bundleDir);
   const appDestDir = path.join(desktopReleaseDir, "everr-app");
-  const fallbackVersion = await readDesktopVersion();
+  const packageVersion = await readDesktopPackageVersion();
+  const desktopVersion = await readDesktopTauriVersion();
   const identity = resolveDesktopReleaseIdentity({
-    fallbackVersion: process.env.EVERR_PLATFORM_VERSION ?? fallbackVersion,
+    desktopVersion,
     fallbackSha: process.env.EVERR_RELEASE_SHA ?? process.env.GITHUB_SHA,
   });
   const publicBaseUrl = resolvePublicBaseUrl();
@@ -455,7 +471,7 @@ export async function stageReleaseArtifacts() {
     assetName: target.updaterArchiveName,
   });
   const manifest = buildUpdaterManifest({
-    version: identity.platformVersion,
+    version: identity.desktopVersion,
     releaseShortSha: identity.releaseShortSha,
     pubDate: createdAt,
     downloadUrl: updaterArchiveUrl,
@@ -469,7 +485,8 @@ export async function stageReleaseArtifacts() {
   await writeFile(
     path.join(desktopReleaseDir, RELEASE_METADATA_NAME),
     buildReleaseMetadata({
-      platformVersion: identity.platformVersion,
+      packageVersion,
+      desktopVersion: identity.desktopVersion,
       releaseSha: identity.releaseSha,
       releaseShortSha: identity.releaseShortSha,
       publicBaseUrl,
@@ -481,7 +498,7 @@ export async function stageReleaseArtifacts() {
   await writeReleaseChecksums(desktopReleaseDir);
 
   console.log(
-    `Staged desktop ${identity.releaseShortSha} (${identity.platformVersion}) release artifacts in ${desktopReleaseDir}`,
+    `Staged desktop ${identity.releaseShortSha} (${identity.desktopVersion}) release artifacts in ${desktopReleaseDir}`,
   );
   console.log(`Wrote updater manifest to ${path.join(appDestDir, "latest.json")}`);
 }

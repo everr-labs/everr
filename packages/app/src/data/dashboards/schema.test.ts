@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { dashboardSlugSchema, dashboardSpecSchema } from "./schema";
+import {
+  dashboardSlugSchema,
+  dashboardSpecSchema,
+  dashboardSpecSchemaStrict,
+} from "./schema";
 
 const panel = {
   kind: "Panel" as const,
@@ -73,6 +77,149 @@ describe("dashboardSpecSchema datasources", () => {
       },
     });
     expect(result.success).toBe(true);
+  });
+});
+
+describe("dashboardSpecSchemaStrict plugin specs", () => {
+  const specWithPlugin = (kind: string, pluginSpec: unknown) => ({
+    panels: {
+      cpu: {
+        kind: "Panel" as const,
+        spec: { plugin: { kind, spec: pluginSpec } },
+      },
+    },
+    layouts: [
+      {
+        kind: "Grid" as const,
+        spec: { items: [gridItem("#/spec/panels/cpu")] },
+      },
+    ],
+  });
+
+  it("accepts valid options for a known kind", () => {
+    const result = dashboardSpecSchemaStrict.safeParse(
+      specWithPlugin("TimeSeriesChart", { unit: "ms", lineWidth: 2 }),
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an invalid option value with the full panel path", () => {
+    const result = dashboardSpecSchemaStrict.safeParse(
+      specWithPlugin("TimeSeriesChart", { lineWidth: "3" }),
+    );
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.path).toEqual([
+      "panels",
+      "cpu",
+      "spec",
+      "plugin",
+      "spec",
+      "lineWidth",
+    ]);
+  });
+
+  it("rejects an out-of-enum option", () => {
+    const result = dashboardSpecSchemaStrict.safeParse(
+      specWithPlugin("StatChart", { calculation: "median" }),
+    );
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts unknown option keys on a known kind (never stricter than Perses)", () => {
+    const result = dashboardSpecSchemaStrict.safeParse(
+      specWithPlugin("Table", { stickyHeader: true, futureOption: 1 }),
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts unknown plugin kinds with arbitrary specs", () => {
+    const result = dashboardSpecSchemaStrict.safeParse(
+      specWithPlugin("GaugeChart", { whatever: { nested: true } }),
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it("the base schema stays lenient for the read path", () => {
+    const result = dashboardSpecSchema.safeParse(
+      specWithPlugin("TimeSeriesChart", { lineWidth: "3" }),
+    );
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("dashboardSpecSchemaStrict – query plugin specs", () => {
+  const base = (querySpec: unknown) => ({
+    panels: {
+      p: {
+        kind: "Panel",
+        spec: {
+          plugin: { kind: "TimeSeriesChart", spec: {} },
+          queries: [
+            {
+              kind: "TestData",
+              spec: { plugin: { kind: "TestData", spec: querySpec } },
+            },
+          ],
+        },
+      },
+    },
+    layouts: [
+      {
+        kind: "Grid",
+        spec: {
+          items: [
+            {
+              x: 0,
+              y: 0,
+              width: 1,
+              height: 1,
+              content: { $ref: "#/spec/panels/p" },
+            },
+          ],
+        },
+      },
+    ],
+  });
+
+  it("accepts a valid TestData query spec", () => {
+    const result = dashboardSpecSchemaStrict.safeParse(
+      base({ scenario: "random_walk", series: [{ name: "v" }] }),
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a malformed TestData query spec with a precise path", () => {
+    const result = dashboardSpecSchemaStrict.safeParse(
+      base({ scenario: "nope" }),
+    );
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    const issue = result.error.issues[0]!;
+    // The path must locate the offending query spec within the panel.
+    expect(issue.path.slice(0, 8)).toEqual([
+      "panels",
+      "p",
+      "spec",
+      "queries",
+      0,
+      "spec",
+      "plugin",
+      "spec",
+    ]);
+  });
+
+  it("leaves ClickHouseSQL query specs unvalidated (loose)", () => {
+    const spec = base({});
+    spec.panels.p.spec.queries[0] = {
+      kind: "ClickHouseSQL",
+      spec: {
+        plugin: {
+          kind: "ClickHouseSQL",
+          spec: { query: "select 1", bogus: 9 },
+        },
+      },
+    } as never;
+    expect(dashboardSpecSchemaStrict.safeParse(spec).success).toBe(true);
   });
 });
 

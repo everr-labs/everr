@@ -1,0 +1,286 @@
+kind: Dashboard
+metadata:
+  name: viz-gallery-node-graph
+  project: demo
+spec:
+  display:
+    name: Visualization Gallery — NodeGraph
+    description: >-
+      NodeGraph regression sheet — default and custom source/target/value
+      columns, column fallback, unit, directed off, showValues edge labels,
+      weightless edge lists, bidirectional edge pairs, duplicate-edge and
+      multi-query summing, dropped rows (nulls + self-loops), maxNodes
+      trimming, and the empty state, driven by the deterministic csv
+      TestData scenario.
+  duration: 7d
+  refreshInterval: 1m
+  panels:
+    node-graph-defaults:
+      kind: Panel
+      spec:
+        display:
+          name: "NodeGraph: defaults"
+          description: "default source/target/value columns · directed arrows · node size = total weight"
+        plugin:
+          kind: NodeGraph
+          spec: {}
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [source, target, value]
+                  rows:
+                    - [web, api, 420]
+                    - [web, auth, 90]
+                    - [api, db, 310]
+                    - [api, cache, 260]
+                    - [api, auth, 70]
+                    - [auth, db, 60]
+                    - [worker, db, 120]
+                    - [worker, queue, 200]
+                    - [api, queue, 80]
+    node-graph-columns-unit:
+      kind: Panel
+      spec:
+        display:
+          name: "NodeGraph: custom columns + unit"
+          description: "sourceColumn: caller · targetColumn: callee · valueColumn: calls · unit: req"
+        plugin:
+          kind: NodeGraph
+          spec:
+            sourceColumn: caller
+            targetColumn: callee
+            valueColumn: calls
+            unit: req
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [caller, callee, calls]
+                  rows:
+                    - [frontend, checkout, 1200]
+                    - [frontend, search, 800]
+                    - [checkout, payments, 950]
+                    - [checkout, inventory, 400]
+                    - [search, inventory, 300]
+    node-graph-fallback:
+      kind: Panel
+      spec:
+        display:
+          name: "NodeGraph: column fallback"
+          description: "no source/target/value columns → first two columns + first numeric column"
+        plugin:
+          kind: NodeGraph
+          spec: {}
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [from, to, note, n]
+                  rows:
+                    - [a, b, x, 5]
+                    - [b, c, y, 3]
+                    - [a, c, z, 2]
+    node-graph-undirected:
+      kind: Panel
+      spec:
+        display:
+          name: "NodeGraph: undirected"
+          description: "directed: false → no arrowheads"
+        plugin:
+          kind: NodeGraph
+          spec: { directed: false }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [source, target, value]
+                  rows:
+                    - [eu-west, us-east, 40]
+                    - [eu-west, ap-south, 25]
+                    - [us-east, ap-south, 15]
+    node-graph-showvalues:
+      kind: Panel
+      spec:
+        display:
+          name: "NodeGraph: edge values"
+          description: "showValues: true → value label at each edge midpoint · unit: ms"
+        plugin:
+          kind: NodeGraph
+          spec: { showValues: true, unit: ms }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [source, target, value]
+                  rows:
+                    - [gateway, orders, 12]
+                    - [gateway, users, 8]
+                    - [orders, postgres, 4]
+                    - [users, postgres, 3]
+    node-graph-weightless:
+      kind: Panel
+      spec:
+        display:
+          name: "NodeGraph: no weight column"
+          description: "two-column edge list → every edge weighs 1, repeats sum (a→b twice)"
+        plugin:
+          kind: NodeGraph
+          spec: {}
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [source, target]
+                  rows:
+                    - [a, b]
+                    - [a, b]
+                    - [b, c]
+                    - [c, d]
+    node-graph-bidirectional:
+      kind: Panel
+      spec:
+        display:
+          name: "NodeGraph: bidirectional edges"
+          description: "a→b and b→a are distinct edges, drawn offset so both stay visible"
+        plugin:
+          kind: NodeGraph
+          spec: { unit: msg }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [source, target, value]
+                  rows:
+                    - [producer, broker, 500]
+                    - [broker, producer, 120]
+                    - [broker, consumer, 480]
+                    - [consumer, broker, 60]
+    node-graph-multiquery:
+      kind: Panel
+      spec:
+        display:
+          name: "NodeGraph: multi-query"
+          description: "two queries merge into one graph; the shared web→api edge sums (100+50)"
+        plugin:
+          kind: NodeGraph
+          spec: {}
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [source, target, value]
+                  rows:
+                    - [web, api, 100]
+                    - [api, db, 80]
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [source, target, value]
+                  rows:
+                    - [web, api, 50]
+                    - [api, cache, 30]
+    node-graph-dropped:
+      kind: Panel
+      spec:
+        display:
+          name: "NodeGraph: dropped rows"
+          description: "null endpoints and self-loops → 'N rows not shown' badge"
+        plugin:
+          kind: NodeGraph
+          spec: {}
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [source, target, value]
+                  rows:
+                    - [ok, fine, 10]
+                    - [fine, good, 6]
+                    - [null, fine, 5]
+                    - [ok, null, 4]
+                    - [ok, ok, 3]
+    node-graph-maxnodes:
+      kind: Panel
+      spec:
+        display:
+          name: "NodeGraph: maxNodes"
+          description: "maxNodes: 4 → the 4 highest-value nodes stay, 'N nodes not shown' badge"
+        plugin:
+          kind: NodeGraph
+          spec: { maxNodes: 4 }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [source, target, value]
+                  rows:
+                    - [hub, alpha, 900]
+                    - [hub, beta, 700]
+                    - [hub, gamma, 500]
+                    - [hub, delta, 20]
+                    - [hub, epsilon, 10]
+                    - [hub, zeta, 5]
+    node-graph-empty:
+      kind: Panel
+      spec:
+        display:
+          name: "NodeGraph: empty result"
+          description: "Query returns no rows → 'No edges to graph in this result'"
+        plugin:
+          kind: NodeGraph
+          spec: {}
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec: { scenario: csv, columns: [source, target, value], rows: [] }
+  layouts:
+    - kind: Grid
+      spec:
+        items:
+          - { x: 0,  y: 0,  width: 24, height: 12, content: { $ref: "#/spec/panels/node-graph-defaults" } }
+          - { x: 0,  y: 12, width: 12, height: 9,  content: { $ref: "#/spec/panels/node-graph-columns-unit" } }
+          - { x: 12, y: 12, width: 12, height: 9,  content: { $ref: "#/spec/panels/node-graph-fallback" } }
+          - { x: 0,  y: 21, width: 12, height: 9,  content: { $ref: "#/spec/panels/node-graph-undirected" } }
+          - { x: 12, y: 21, width: 12, height: 9,  content: { $ref: "#/spec/panels/node-graph-showvalues" } }
+          - { x: 0,  y: 30, width: 12, height: 9,  content: { $ref: "#/spec/panels/node-graph-weightless" } }
+          - { x: 12, y: 30, width: 12, height: 9,  content: { $ref: "#/spec/panels/node-graph-bidirectional" } }
+          - { x: 0,  y: 39, width: 12, height: 9,  content: { $ref: "#/spec/panels/node-graph-multiquery" } }
+          - { x: 12, y: 39, width: 12, height: 9,  content: { $ref: "#/spec/panels/node-graph-dropped" } }
+          - { x: 0,  y: 48, width: 12, height: 9,  content: { $ref: "#/spec/panels/node-graph-maxnodes" } }
+          - { x: 12, y: 48, width: 12, height: 9,  content: { $ref: "#/spec/panels/node-graph-empty" } }

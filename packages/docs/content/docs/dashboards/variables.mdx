@@ -74,7 +74,7 @@ Reference a variable in panel SQL with Grafana-style tokens. Everr interpolates 
 | `${name:raw}` | the value **unquoted** — comma-joined for lists; use only for trusted, non-string fragments |
 
 ```sql
-SELECT toStartOfMinute(Timestamp) AS ts, count() AS spans
+SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts, count() AS spans
 FROM traces
 WHERE ServiceName IN $service          -- ('api','web') for multi-select
   AND Environment = $env               -- 'prod'

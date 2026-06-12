@@ -3,7 +3,7 @@ import type { DesiredDashboard } from "./reconcile";
 import {
   dashboardProjectSchema,
   dashboardSlugSchema,
-  dashboardSpecSchema,
+  dashboardSpecSchemaStrict,
 } from "./schema";
 
 export interface InputDocument {
@@ -78,10 +78,15 @@ export function buildDesiredSet(inputs: InputDocument[]): DesiredDashboard[] {
     }
 
     const rawSpec = (document as { spec?: unknown }).spec;
-    const specResult = dashboardSpecSchema.safeParse(rawSpec);
+    const specResult = dashboardSpecSchemaStrict.safeParse(rawSpec);
     if (!specResult.success) {
+      const issue = specResult.error.issues[0];
+      const where =
+        issue && issue.path.length > 0
+          ? ` at ${issue.path.map(String).join(".")}`
+          : "";
       throw new ApplyValidationError(
-        `${path}: invalid dashboard spec: ${specResult.error.issues[0]?.message}`,
+        `${path}: invalid dashboard spec${where}: ${issue?.message}`,
       );
     }
 

@@ -1,71 +1,16 @@
 import type { ChartConfig } from "@everr/ui/components/chart";
-import { isNumericValue } from "@/lib/numeric";
 import {
   detectTimeKey,
+  getGroupKeys,
   getValueKeys,
+  pivotByGroup,
+  SERIES_COLORS,
   toNumber,
   toTimestamp,
 } from "../data-utils";
 import type { QueryResultRow } from "../index";
 
 export const TS_KEY = "__ts";
-
-const COLORS = [
-  "hsl(217, 91%, 60%)",
-  "hsl(142, 71%, 45%)",
-  "hsl(0, 84%, 60%)",
-  "hsl(280, 68%, 60%)",
-  "hsl(35, 92%, 50%)",
-  "hsl(190, 90%, 50%)",
-];
-
-function getGroupKeys(rows: QueryResultRow[], timeKey: string): string[] {
-  const first = rows[0];
-  if (!first) return [];
-  // A column is a grouping dimension if it carries non-numeric string content in
-  // *any* row. A string that parses as a number (e.g. a quoted ClickHouse
-  // aggregate) is a value, not a dimension — exclude it so it isn't
-  // double-counted. Scanning all rows mirrors getValueKeys: the leading bucket
-  // may be NULL for a dimension that is populated later.
-  return Object.keys(first).filter(
-    (k) =>
-      k !== timeKey &&
-      rows.some((row) => typeof row[k] === "string" && !isNumericValue(row[k])),
-  );
-}
-
-function pivotByGroup(
-  rows: QueryResultRow[],
-  timeKey: string,
-  groupKey: string,
-  valueKey: string,
-): {
-  pivoted: QueryResultRow[];
-  seriesKeys: string[];
-} {
-  const byTimestamp = new Map<string | number, QueryResultRow>();
-  const seriesSet = new Set<string>();
-
-  for (const row of rows) {
-    const ts = row[timeKey];
-    // The raw group value is the series identifier — keep it intact (it's the
-    // label, and uniqueness comes from the Set, not from mangling the name).
-    const group = String(row[groupKey]);
-    const value = toNumber(row[valueKey]);
-    seriesSet.add(group);
-
-    let entry = byTimestamp.get(ts as string | number);
-    if (!entry) {
-      entry = { [timeKey]: ts };
-      byTimestamp.set(ts as string | number, entry);
-    }
-    entry[group] = value;
-  }
-
-  const seriesKeys = [...seriesSet].sort();
-  const pivoted = [...byTimestamp.values()];
-  return { pivoted, seriesKeys };
-}
 
 function detectInterval(timestamps: number[]): number | null {
   if (timestamps.length < 2) return null;
@@ -81,16 +26,14 @@ function detectInterval(timestamps: number[]): number | null {
  * array drives the x-axis and the crosshair/tooltip lookup, not the lines). */
 function clampMerged(
   byTs: Map<number, Record<string, unknown>>,
-  domain: [number, number] | undefined,
+  domain: [number, number],
 ): Array<Record<string, unknown>> {
-  const merged = [...byTs.values()].sort(
-    (a, b) => (a[TS_KEY] as number) - (b[TS_KEY] as number),
-  );
-  if (!domain) return merged;
-  return merged.filter((r) => {
-    const ts = r[TS_KEY] as number;
-    return ts >= domain[0] && ts <= domain[1];
-  });
+  return [...byTs.values()]
+    .filter((r) => {
+      const ts = r[TS_KEY] as number;
+      return ts >= domain[0] && ts <= domain[1];
+    })
+    .sort((a, b) => (a[TS_KEY] as number) - (b[TS_KEY] as number));
 }
 
 /**
@@ -102,18 +45,29 @@ function clampMerged(
  * null marker is inserted when two consecutive points of THIS series are more
  * than ~1.5× its own typical interval apart, so a non-connecting line shows the
  * genuine gap.
+ *
+ * Domain clamping treats each point as a BUCKET, not an instant: a bucketed
+ * timestamp (e.g. ClickHouse `toStartOfInterval`) labels the bucket's start,
+ * so the bucket just before `from` still covers in-range rows whenever `from`
+ * isn't bucket-aligned. That point is kept when its bucket overlaps the
+ * domain; it sits left of the axis and the line clips at the plot edge
+ * (Grafana-style) instead of silently losing up to a bucket of data.
  */
 function buildSeriesData(
   samples: Map<number, number | null>,
   renderKey: string,
-  domain: [number, number] | undefined,
+  domain: [number, number],
 ): Array<Record<string, unknown>> {
-  let points = [...samples.entries()].sort((a, b) => a[0] - b[0]);
-  if (domain) {
-    points = points.filter(([ts]) => ts >= domain[0] && ts <= domain[1]);
-  }
+  const sorted = [...samples.entries()].sort((a, b) => a[0] - b[0]);
+  // Inferred from ALL samples, pre-clamp, so the leading bucket's width is
+  // known even when only one point lands inside the domain.
+  const interval = detectInterval(sorted.map(([ts]) => ts));
+  const points = sorted.filter(([ts]) => {
+    if (ts > domain[1]) return false;
+    if (ts >= domain[0]) return true;
+    return interval !== null && ts + interval > domain[0];
+  });
 
-  const interval = detectInterval(points.map(([ts]) => ts));
   const gapThreshold = interval ? interval * 1.5 : null;
 
   const result: Array<Record<string, unknown>> = [];
@@ -128,6 +82,28 @@ function buildSeriesData(
     result.push({ [TS_KEY]: ts, [renderKey]: value });
   }
   return result;
+}
+
+/**
+ * Stacking renders every series from ONE shared array (recharts accumulates
+ * `stackId` series row-by-row across the chart-level data), so each merged
+ * timestamp must carry a number for every series. A missing or null sample
+ * means "this series contributes nothing to the bucket" — fill it with 0;
+ * leaving it undefined would corrupt the running stack offset for the series
+ * above it.
+ */
+export function buildStackedData(
+  chartData: Array<Record<string, unknown>>,
+  valueKeys: string[],
+): Array<Record<string, unknown>> {
+  return chartData.map((row) => {
+    const filled: Record<string, unknown> = { [TS_KEY]: row[TS_KEY] };
+    for (const key of valueKeys) {
+      const value = row[key];
+      filled[key] = typeof value === "number" ? value : 0;
+    }
+    return filled;
+  });
 }
 
 export interface ChartModel {
@@ -151,13 +127,13 @@ export interface ChartModel {
  */
 export function buildChartModel(
   dataSets: QueryResultRow[][],
-  domain: [number, number] | undefined,
+  domain: [number, number],
 ): ChartModel {
   const chartConfig: ChartConfig = {};
   const valueKeys: string[] = [];
-  const byTs = new Map<number, Record<string, unknown>>();
   // Per render key: its own samples (ts → value), collapsed last-write-wins on
-  // duplicate timestamps — the source of each line's independent data array.
+  // duplicate timestamps. The single source of truth — both the per-series
+  // line data and the merged timeline derive from it.
   const samplesByKey = new Map<string, Map<number, number | null>>();
   let seriesIndex = 0;
 
@@ -166,7 +142,7 @@ export function buildChartModel(
     const tk = detectTimeKey(data);
     if (!tk) return;
 
-    const groupKeys = getGroupKeys(data, tk);
+    const groupKeys = getGroupKeys(data, [tk]);
     const rawValueKeys = getValueKeys(data, tk);
 
     let rows: QueryResultRow[];
@@ -201,7 +177,7 @@ export function buildChartModel(
       valueKeys.push(renderKey);
       chartConfig[renderKey] = {
         label: name,
-        color: COLORS[seriesIndex % COLORS.length],
+        color: SERIES_COLORS[seriesIndex % SERIES_COLORS.length],
       };
       samplesByKey.set(renderKey, new Map());
       seriesIndex++;
@@ -209,30 +185,34 @@ export function buildChartModel(
 
     for (const row of rows) {
       const ts = toTimestamp(row[tk]);
-      let entry = byTs.get(ts);
-      if (!entry) {
-        entry = { [TS_KEY]: ts };
-        byTs.set(ts, entry);
-      }
+      if (ts === null) continue;
       for (const name of seriesNames) {
         // Only record a sample where this series actually has one. A pivoted row
         // carries only the groups present at its timestamp, so a missing key is
         // "not sampled here" — NOT a gap — and must not appear in this series'
         // data (where it would break the line).
         if (!(name in row)) continue;
-        const renderKey = renderKeyByName.get(name)!;
         // Coerce numeric strings (quoted ClickHouse aggregates) to numbers so
         // recharts plots them; non-numeric values become null (a gap).
-        const value = toNumber(row[name]);
-        entry[renderKey] = value;
-        samplesByKey.get(renderKey)!.set(ts, value);
+        samplesByKey
+          .get(renderKeyByName.get(name)!)!
+          .set(ts, toNumber(row[name]));
       }
     }
   });
 
+  const byTs = new Map<number, Record<string, unknown>>();
   const seriesData: Record<string, Array<Record<string, unknown>>> = {};
-  for (const key of valueKeys) {
-    seriesData[key] = buildSeriesData(samplesByKey.get(key)!, key, domain);
+  for (const [key, samples] of samplesByKey) {
+    for (const [ts, value] of samples) {
+      let entry = byTs.get(ts);
+      if (!entry) {
+        entry = { [TS_KEY]: ts };
+        byTs.set(ts, entry);
+      }
+      entry[key] = value;
+    }
+    seriesData[key] = buildSeriesData(samples, key, domain);
   }
 
   return {
