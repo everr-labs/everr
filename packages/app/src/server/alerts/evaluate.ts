@@ -1,3 +1,26 @@
+// The imperative shell of one alert evaluation. The state machine itself is
+// pure and lives in transition.ts; this module sequences the I/O around it:
+//
+//   1. Validate the queued payload — stale or malformed jobs are dropped with
+//      a warning, never retried.
+//   2. Load the definition from Postgres; skip if missing or deactivated.
+//   3. Read concurrently from ClickHouse: the rule's query result and the
+//      currently firing instance set. If either read fails, mark the
+//      definition errored, record an `evaluation_failed` event, and stop.
+//   4. Derive (pure): bound the evidence, turn rows into labeled instances,
+//      diff them against the previous firing set, and build the transition —
+//      the definition patch plus the notifications to send.
+//   5. Persist the evaluation bookkeeping and the transition's patch to
+//      Postgres.
+//   6. Deliver the transition's notifications; they are independent, so
+//      instance churn (some fired, some resolved) fans out concurrently.
+//   7. Record the evaluation in ClickHouse: one row per instance transition,
+//      one per notification (carrying its delivery outcome), and one per
+//      failed delivery target.
+//
+// Evaluations of one definition never run concurrently (per-org Graphile
+// queue + job_key), so each run may assume it sees the previous run's state.
+
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { renderMessage } from "@/data/alerts/template";
@@ -12,6 +35,7 @@ import {
 import { type DeliveryMetadata, deliverAlertNotification } from "./delivery";
 import {
   type AlertEventRow,
+  type BoundedEvidence,
   boundEvidence,
   buildDeliveryFailureEvent,
   buildEvaluationEvent,
@@ -22,14 +46,122 @@ import {
   diffInstances,
   type FiringInstance,
   fetchFiringInstances,
+  type InstanceDiff,
   rowsToInstances,
 } from "./instances";
 import type { EvaluatePayload } from "./scanner";
+import { type AlertTransition, buildAlertTransition } from "./transition";
+
+type AlertDefinition = typeof alertDefinitions.$inferSelect;
 
 const EvaluatePayloadSchema = z.object({
   alertDefinitionId: z.string().uuid(),
   scheduledFor: z.coerce.date(),
 });
+
+export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
+  // 1. Validate the payload.
+  const parsedPayload = parsePayload(payload);
+  if (!parsedPayload) return;
+  const { alertDefinitionId, scheduledFor } = parsedPayload;
+
+  // 2. Load the definition.
+  const [def] = await db
+    .select()
+    .from(alertDefinitions)
+    .where(eq(alertDefinitions.id, alertDefinitionId))
+    .limit(1);
+  if (!def?.active) return;
+  const now = new Date();
+
+  // 3. Concurrent ClickHouse reads. The pre-attached no-op catch keeps an
+  // early return on query failure from leaving an unhandled rejection behind.
+  const queryPromise = querySqlApiWithMeta<Record<string, unknown>>(
+    def.parsedQuery,
+    def.organizationId,
+  );
+  const firingPromise = fetchFiringInstances(def);
+  firingPromise.catch(() => {});
+
+  let rows: Record<string, unknown>[];
+  try {
+    rows = (await queryPromise).rows;
+  } catch (error) {
+    await recordEvaluationFailure({
+      def,
+      now,
+      scheduledFor,
+      error,
+      logEvent: "alerts.evaluate.query_failed",
+    });
+    return;
+  }
+
+  let previous: FiringInstance[];
+  try {
+    previous = await firingPromise;
+  } catch (error) {
+    await recordEvaluationFailure({
+      def,
+      now,
+      scheduledFor,
+      error,
+      logEvent: "alerts.evaluate.firing_set_read_failed",
+    });
+    return;
+  }
+
+  // 4. Derive the transition (pure).
+  const evidence = boundEvidence(rows);
+  const current = rowsToInstances(
+    evidence.rows,
+    def.instanceLabelColumns ?? [],
+    now,
+  );
+  const diff = diffInstances(previous, current);
+  const transition = buildAlertTransition({ previous, current, diff, now });
+
+  // 5. Persist the evaluation bookkeeping and the transition's patch.
+  await db
+    .update(alertDefinitions)
+    .set({
+      lastEvaluationStatus: "ok",
+      lastEvaluationError: "",
+      lastEvaluatedAt: now,
+      lastRowCount: evidence.rowCount,
+      lastEvidenceSnapshot: evidence.rows,
+      ...transition.definitionUpdate,
+    })
+    .where(eq(alertDefinitions.id, def.id));
+
+  // 6. Deliver the transition's notifications.
+  const { summary, description } = renderMessages(def, evidence);
+  const deliveries = await Promise.all(
+    transition.actions.map((action) =>
+      deliverAlertNotification({
+        def,
+        kind: action.kind,
+        summary,
+        description,
+        firingCount: transition.firingCount,
+        instances: action.instances,
+      }),
+    ),
+  );
+
+  // 7. Record the evaluation's events.
+  await recordAlertEvents(
+    def,
+    buildEventRows({
+      def,
+      scheduledFor,
+      evidence,
+      diff,
+      transition,
+      deliveries,
+    }),
+  );
+}
 
 function parsePayload(payload: EvaluatePayload) {
   const parsed = EvaluatePayloadSchema.safeParse(payload);
@@ -44,133 +176,27 @@ function parsePayload(payload: EvaluatePayload) {
   return parsed.data;
 }
 
-function deliveryFields(metadata: DeliveryMetadata | null) {
-  return metadata
-    ? {
-        deliveryTargets: metadata.deliveryTargets,
-        silenceId: metadata.silenceId,
-      }
-    : {};
+function renderMessages(def: AlertDefinition, evidence: BoundedEvidence) {
+  const input = { rowCount: evidence.rowCount, firstRow: evidence.firstRow };
+  return {
+    summary: renderMessage(def.summaryTemplate, input),
+    description: def.descriptionTemplate
+      ? renderMessage(def.descriptionTemplate, input)
+      : "",
+  };
 }
 
-export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
-  const parsedPayload = parsePayload(payload);
-  if (!parsedPayload) return;
-
-  const [def] = await db
-    .select()
-    .from(alertDefinitions)
-    .where(eq(alertDefinitions.id, parsedPayload.alertDefinitionId))
-    .limit(1);
-  if (!def?.active) return;
-
-  const scheduledFor = parsedPayload.scheduledFor;
-  const now = new Date();
-  const query = def.parsedQuery;
-
-  async function recordAlertEvents(events: AlertEventRow[]) {
-    if (events.length === 0) return;
-    try {
-      await insertAlertEvents(events);
-    } catch (error) {
-      serverLogger.error("alerts.evaluate.event_insert_failed", {
-        ...exceptionAttributes(error),
-        "alert.definition_id": def.id,
-        "alert.event_count": events.length,
-        "error.handled": true,
-      });
-    }
-  }
-
-  async function recordEvaluationFailure(error: unknown, logEvent: string) {
-    const message = errorMessage(error);
-    await db
-      .update(alertDefinitions)
-      .set({
-        lastEvaluationStatus: "error",
-        lastEvaluationError: message,
-        lastEvaluatedAt: now,
-      })
-      .where(eq(alertDefinitions.id, def.id));
-    serverLogger.error(logEvent, {
-      ...exceptionAttributes(error),
-      "alert.definition_id": def.id,
-      "error.handled": true,
-    });
-    await recordAlertEvents([
-      buildEvaluationEvent({
-        def,
-        eventType: "evaluation_failed",
-        scheduledFor,
-      }),
-    ]);
-  }
-
-  // Independent ClickHouse reads — run them concurrently. The pre-attached
-  // no-op catch keeps an early return on query failure from leaving an
-  // unhandled rejection behind.
-  const queryPromise = querySqlApiWithMeta<Record<string, unknown>>(
-    query,
-    def.organizationId,
-  );
-  const firingPromise = fetchFiringInstances(def);
-  firingPromise.catch(() => {});
-
-  let rows: Record<string, unknown>[];
-  try {
-    rows = (await queryPromise).rows;
-  } catch (error) {
-    await recordEvaluationFailure(error, "alerts.evaluate.query_failed");
-    return;
-  }
-
-  let previous: FiringInstance[];
-  try {
-    previous = await firingPromise;
-  } catch (error) {
-    await recordEvaluationFailure(
-      error,
-      "alerts.evaluate.firing_set_read_failed",
-    );
-    return;
-  }
-
-  const evidence = boundEvidence(rows);
-  const current = rowsToInstances(
-    evidence.rows,
-    def.instanceLabelColumns ?? [],
-    now,
-  );
-  const diff = diffInstances(previous, current);
-  const wasFiring = previous.length > 0;
-  const isFiring = current.length > 0;
-
-  const summary = renderMessage(def.summaryTemplate, {
-    rowCount: evidence.rowCount,
-    firstRow: evidence.firstRow,
-  });
-  const description = def.descriptionTemplate
-    ? renderMessage(def.descriptionTemplate, {
-        rowCount: evidence.rowCount,
-        firstRow: evidence.firstRow,
-      })
-    : "";
-
-  await db
-    .update(alertDefinitions)
-    .set({
-      lastEvaluationStatus: "ok",
-      lastEvaluationError: "",
-      lastEvaluatedAt: now,
-      lastRowCount: evidence.rowCount,
-      lastEvidenceSnapshot: evidence.rows,
-      currentState: isFiring ? "firing" : "resolved",
-      firingInstanceCount: current.length,
-      ...(isFiring ? { lastSeenAt: now } : {}),
-      ...(diff.newlyFired.length > 0 && !wasFiring ? { lastFiredAt: now } : {}),
-      ...(wasFiring && !isFiring ? { lastResolvedAt: now } : {}),
-    })
-    .where(eq(alertDefinitions.id, def.id));
+// One row per instance transition, then per notification one evaluation event
+// (carrying its delivery outcome) followed by its delivery failures.
+function buildEventRows(opts: {
+  def: AlertDefinition;
+  scheduledFor: Date;
+  evidence: BoundedEvidence;
+  diff: InstanceDiff;
+  transition: AlertTransition;
+  deliveries: (DeliveryMetadata | null)[];
+}): AlertEventRow[] {
+  const { def, scheduledFor, evidence, diff, transition, deliveries } = opts;
 
   const events: AlertEventRow[] = [
     ...diff.newlyFired.map((instance) =>
@@ -193,59 +219,76 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
       }),
     ),
   ];
-  // nowResolved > 0 implies wasFiring; an empty current set means a full
-  // resolve (all previous instances are in nowResolved), otherwise partial.
-  // The two deliveries are independent — run them concurrently so an instance
-  // churn (some fired, some resolved) doesn't serialize two send fan-outs.
-  const resolvedKind = isFiring ? "partial_resolved" : "resolved";
-  const [firingDelivery, resolvedDelivery] = await Promise.all([
-    diff.newlyFired.length > 0
-      ? deliverAlertNotification({
-          def,
-          kind: "firing",
-          summary,
-          description,
-          firingCount: current.length,
-          instances: diff.newlyFired,
-        })
-      : null,
-    diff.nowResolved.length > 0
-      ? deliverAlertNotification({
-          def,
-          kind: resolvedKind,
-          summary,
-          description,
-          firingCount: current.length,
-          instances: diff.nowResolved,
-        })
-      : null,
-  ]);
-  if (diff.newlyFired.length > 0) {
+
+  for (const [index, action] of transition.actions.entries()) {
+    const delivery = deliveries[index] ?? null;
     events.push(
       buildEvaluationEvent({
         def,
-        eventType: "firing",
+        eventType: action.kind,
         scheduledFor,
         evidence,
-        ...deliveryFields(firingDelivery),
+        ...(delivery
+          ? {
+              deliveryTargets: delivery.deliveryTargets,
+              silenceId: delivery.silenceId,
+            }
+          : {}),
       }),
     );
-  }
-  if (diff.nowResolved.length > 0) {
-    events.push(
-      buildEvaluationEvent({
-        def,
-        eventType: resolvedKind,
-        scheduledFor,
-        evidence,
-        ...deliveryFields(resolvedDelivery),
-      }),
-    );
-  }
-  for (const delivery of [firingDelivery, resolvedDelivery]) {
     for (const failure of delivery?.failures ?? []) {
       events.push(buildDeliveryFailureEvent({ def, scheduledFor, failure }));
     }
   }
-  await recordAlertEvents(events);
+
+  return events;
+}
+
+async function recordAlertEvents(
+  def: Pick<AlertDefinition, "id">,
+  events: AlertEventRow[],
+): Promise<void> {
+  if (events.length === 0) return;
+  try {
+    await insertAlertEvents(events);
+  } catch (error) {
+    serverLogger.error("alerts.evaluate.event_insert_failed", {
+      ...exceptionAttributes(error),
+      "alert.definition_id": def.id,
+      "alert.event_count": events.length,
+      "error.handled": true,
+    });
+  }
+}
+
+// A ClickHouse read failed before any state could be derived: mark the
+// definition errored, log, and record an `evaluation_failed` event.
+async function recordEvaluationFailure(opts: {
+  def: AlertDefinition;
+  now: Date;
+  scheduledFor: Date;
+  error: unknown;
+  logEvent: string;
+}): Promise<void> {
+  const { def, now, scheduledFor, error, logEvent } = opts;
+  await db
+    .update(alertDefinitions)
+    .set({
+      lastEvaluationStatus: "error",
+      lastEvaluationError: errorMessage(error),
+      lastEvaluatedAt: now,
+    })
+    .where(eq(alertDefinitions.id, def.id));
+  serverLogger.error(logEvent, {
+    ...exceptionAttributes(error),
+    "alert.definition_id": def.id,
+    "error.handled": true,
+  });
+  await recordAlertEvents(def, [
+    buildEvaluationEvent({
+      def,
+      eventType: "evaluation_failed",
+      scheduledFor,
+    }),
+  ]);
 }
