@@ -1,0 +1,15 @@
+kind: AlertRule
+metadata:
+  name: even-minute-failure
+  labels:
+    team: platform
+spec:
+  evaluationInterval: 1m
+  instanceLabels: [checked_at]
+  summary: "Even-minute failure test is firing"
+  description: "The current minute is even at ${top_checked_at}"
+  query: |
+    SELECT
+      now() AS checked_at,
+      'Eh a me che me ne frega a me, Io cho Diesel' AS a_me_che_me_ne_frega_a_me
+    WHERE modulo(toMinute(now()), 2) = 0
