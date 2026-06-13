@@ -7,7 +7,11 @@ import { alertDefinitions, alertSettings, alertSilences } from "@/db/schema";
 import { auth } from "@/lib/auth.server";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { OPERATIONAL_EVENT_TYPES } from "@/server/alerts/events";
-import { extractInstanceLabels, parseLabels } from "@/server/alerts/instances";
+import {
+  extractInstanceLabels,
+  instanceFingerprint,
+  parseLabels,
+} from "@/server/alerts/instances";
 import {
   ALERT_CHANNELS,
   type AlertDeliveryTargets,
@@ -387,15 +391,6 @@ function evidenceRows(
   );
 }
 
-function labelsEqual(
-  left: Record<string, string>,
-  right: Record<string, string>,
-) {
-  const keys = Object.keys(left);
-  if (keys.length !== Object.keys(right).length) return false;
-  return keys.every((key) => left[key] === right[key]);
-}
-
 export type AlertInstanceSummary = {
   fingerprint: string;
   labels: Record<string, string>;
@@ -478,14 +473,25 @@ export const listAlertInstances = createAuthenticatedServerFn({ method: "GET" })
       );
 
       const instanceLabelColumns = alert.instanceLabelColumns ?? [];
-      // Labels per snapshot row are invariant across instances — extract once,
-      // not once per instance × row.
-      const snapshotRows = evidenceRows(
+      // Group snapshot rows by the same fingerprint the evaluator wrote to
+      // instance events, so each instance's rows are a single Map lookup.
+      const snapshotRowsByFingerprint = new Map<
+        string,
+        Record<string, AlertEvidenceValue>[]
+      >();
+      for (const row of evidenceRows(
         alert.lastEvidenceSnapshot as AlertEvidenceValue | undefined,
-      ).map((row) => ({
-        row,
-        labels: extractInstanceLabels(row, instanceLabelColumns),
-      }));
+      )) {
+        const fingerprint = instanceFingerprint(
+          extractInstanceLabels(row, instanceLabelColumns),
+        );
+        const group = snapshotRowsByFingerprint.get(fingerprint);
+        if (group) {
+          group.push(row);
+        } else {
+          snapshotRowsByFingerprint.set(fingerprint, [row]);
+        }
+      }
 
       return rows.map((row) => {
         const labels = parseLabels(row.labelsJson);
@@ -493,9 +499,7 @@ export const listAlertInstances = createAuthenticatedServerFn({ method: "GET" })
           row.lastEventType === "instance_fired" ? "firing" : "resolved";
         const lastEvaluationRows =
           state === "firing"
-            ? snapshotRows
-                .filter((entry) => labelsEqual(entry.labels, labels))
-                .map((entry) => entry.row)
+            ? (snapshotRowsByFingerprint.get(row.fingerprint) ?? [])
             : [];
         const firstEvaluationRow = lastEvaluationRows[0];
         return {

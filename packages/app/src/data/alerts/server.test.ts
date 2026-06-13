@@ -119,6 +119,7 @@ vi.mock("@/db/client", () => {
   };
 });
 
+import { instanceFingerprint } from "@/server/alerts/instances";
 import {
   activateAlert,
   cancelSilence,
@@ -500,7 +501,7 @@ describe("listAlertInstances", () => {
     ]);
     vi.mocked(query).mockResolvedValueOnce([
       {
-        fingerprint: "f-a",
+        fingerprint: instanceFingerprint({ route: "/a" }),
         lastEventType: "instance_fired",
         labelsJson: `{"route":"/a"}`,
         lastFiredEvidenceJson: `{"route":"/a","count":5}`,
@@ -508,7 +509,7 @@ describe("listAlertInstances", () => {
         lastResolvedAt: "",
       },
       {
-        fingerprint: "f-b",
+        fingerprint: instanceFingerprint({ route: "/b" }),
         lastEventType: "instance_resolved",
         labelsJson: `{"route":"/b"}`,
         lastFiredEvidenceJson: `{"route":"/b","count":2}`,
@@ -531,7 +532,7 @@ describe("listAlertInstances", () => {
     );
     expect(instances).toEqual([
       {
-        fingerprint: "f-a",
+        fingerprint: instanceFingerprint({ route: "/a" }),
         labels: { route: "/a" },
         state: "firing",
         lastFiredAt: "2026-06-11T09:00:00.000Z",
@@ -546,7 +547,7 @@ describe("listAlertInstances", () => {
         silenced: true,
       },
       {
-        fingerprint: "f-b",
+        fingerprint: instanceFingerprint({ route: "/b" }),
         labels: { route: "/b" },
         state: "resolved",
         lastFiredAt: "2026-06-11T08:00:00.000Z",
