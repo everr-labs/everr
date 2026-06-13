@@ -10,6 +10,20 @@ vi.mock("@/lib/telegram.server", () => ({
   sendTelegramMessage: (...args: unknown[]) => sendTelegram(...args),
 }));
 
+const addWorkerJob = vi.fn();
+vi.mock("@/server/worker/jobs", () => ({
+  addWorkerJob: (...args: unknown[]) => addWorkerJob(...args),
+}));
+
+const recordEvents = vi.fn();
+vi.mock("./events", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./events")>();
+  return {
+    ...actual,
+    recordAlertEvents: (...args: unknown[]) => recordEvents(...args),
+  };
+});
+
 vi.mock("@/env", () => ({
   env: { BETTER_AUTH_URL: "https://app.example.com" },
 }));
@@ -33,9 +47,14 @@ vi.mock("@/telemetry/logger", () => ({
 }));
 
 import { serverLogger } from "@/telemetry/logger";
-import { deliverAlertNotification } from "./delivery";
+import {
+  type DeliverySend,
+  enqueueAlertNotification,
+  runDeliverySend,
+} from "./delivery";
 
 const def = { id: "a1", organizationId: "org-1", repoid: "r1", slug: "s1" };
+const scheduledFor = new Date("2026-06-12T12:00:00Z");
 
 const instances = (routes: string[]) =>
   routes.map((route) => ({ fingerprint: route, labels: { route } }));
@@ -59,6 +78,15 @@ function makeSilencesChain(rows: unknown[]) {
   };
 }
 
+function queuedSends(): DeliverySend[] {
+  return addWorkerJob.mock.calls.map((call) => call[1] as DeliverySend);
+}
+
+function asEmailSend(send: DeliverySend | undefined) {
+  if (send?.channel !== "email") throw new Error("expected email send");
+  return send;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   // The message bodies embed the (UTC) delivery time; pin it.
@@ -67,8 +95,10 @@ beforeEach(() => {
   select.mockReset();
   settingsRows.mockReset();
   silenceRows.mockReset();
+  addWorkerJob.mockResolvedValue(undefined);
   sendEmail.mockResolvedValue(undefined);
   sendTelegram.mockResolvedValue(undefined);
+  recordEvents.mockResolvedValue(undefined);
   settingsRows.mockReturnValue([
     {
       delivery: {
@@ -86,44 +116,50 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe("deliverAlertNotification", () => {
-  it("sends email and telegram for firing, listing instances", async () => {
-    const result = await deliverAlertNotification({
-      def,
-      kind: "firing",
-      summary: "3 bad",
-      description: "",
-      firingCount: 2,
-      instances: instances(["/a", "/b"]),
-    });
+describe("enqueueAlertNotification", () => {
+  it("enqueues one retryable job per channel target", async () => {
+    const result = await enqueueAlertNotification(
+      {
+        def,
+        kind: "firing",
+        summary: "3 bad",
+        description: "",
+        firingCount: 2,
+        instances: instances(["/a", "/b"]),
+      },
+      scheduledFor,
+    );
 
-    expect(sendEmail).toHaveBeenCalledWith(
+    expect(addWorkerJob).toHaveBeenCalledTimes(2);
+    expect(addWorkerJob).toHaveBeenCalledWith(
+      "alerts/deliver",
+      expect.objectContaining({ channel: "email", target: "a@example.com" }),
+      {
+        jobKey:
+          "alerts/deliver:a1:2026-06-12T12:00:00.000Z:firing:email:a@example.com",
+        jobKeyMode: "replace",
+        maxAttempts: 5,
+      },
+    );
+    expect(addWorkerJob).toHaveBeenCalledWith(
+      "alerts/deliver",
+      expect.objectContaining({ channel: "telegram", target: "123" }),
       expect.objectContaining({
-        to: "a@example.com",
-        subject: "🔥 [firing] s1 — 2 instances",
-        text: expect.stringContaining("Firing instances: 2"),
-        html: expect.stringContaining("View alert"),
+        jobKey:
+          "alerts/deliver:a1:2026-06-12T12:00:00.000Z:firing:telegram:123",
       }),
     );
-    expect(sendEmail).toHaveBeenCalledWith(
-      expect.objectContaining({
-        html: expect.stringContaining("background:#ff6467;color:#0a0a0a"),
-      }),
-    );
-    expect(sendEmail).toHaveBeenCalledWith(
-      expect.objectContaining({
-        text: expect.stringContaining("https://app.example.com/alerts/a1"),
-        html: expect.stringContaining("https://app.example.com/alerts/a1"),
-      }),
-    );
-    expect(sendEmail).toHaveBeenCalledWith(
-      expect.objectContaining({
-        text: expect.stringContaining("2026-06-12 12:00 UTC"),
-        html: expect.stringContaining("2026-06-12 12:00 UTC"),
-      }),
-    );
-    expect(sendTelegram).toHaveBeenCalledWith(
-      "123",
+
+    const sends = queuedSends();
+    const email = asEmailSend(sends[0]);
+    const telegram = sends[1];
+    expect(email.subject).toBe("🔥 [firing] s1 — 2 instances");
+    expect(email.text).toContain("Firing instances: 2");
+    expect(email.text).toContain("2026-06-12 12:00 UTC");
+    expect(email.html).toContain("View alert");
+    expect(email.html).toContain("https://app.example.com/alerts/a1");
+    expect(email.def).toEqual(def);
+    expect(telegram.text).toBe(
       [
         "🔥 s1 firing",
         "",
@@ -137,13 +173,16 @@ describe("deliverAlertNotification", () => {
         "https://app.example.com/alerts/a1",
       ].join("\n"),
     );
+
+    // Nothing is sent inline anymore.
+    expect(sendEmail).not.toHaveBeenCalled();
+    expect(sendTelegram).not.toHaveBeenCalled();
     expect(result).toEqual({
       deliveryTargets: {
         email: ["a@example.com"],
         telegram: ["123"],
       },
       silenceId: "",
-      failures: [],
     });
   });
 
@@ -152,22 +191,20 @@ describe("deliverAlertNotification", () => {
       { id: "sil-1", matchers: [{ label: "route", op: "=", value: "/a" }] },
     ]);
 
-    const result = await deliverAlertNotification({
-      def,
-      kind: "firing",
-      summary: "x",
-      description: "",
-      firingCount: 1,
-      instances: instances(["/a"]),
-    });
+    const result = await enqueueAlertNotification(
+      {
+        def,
+        kind: "firing",
+        summary: "x",
+        description: "",
+        firingCount: 1,
+        instances: instances(["/a"]),
+      },
+      scheduledFor,
+    );
 
-    expect(sendEmail).not.toHaveBeenCalled();
-    expect(sendTelegram).not.toHaveBeenCalled();
-    expect(result).toEqual({
-      deliveryTargets: {},
-      silenceId: "sil-1",
-      failures: [],
-    });
+    expect(addWorkerJob).not.toHaveBeenCalled();
+    expect(result).toEqual({ deliveryTargets: {}, silenceId: "sil-1" });
   });
 
   it("excludes silenced instances but still notifies the rest", async () => {
@@ -175,165 +212,52 @@ describe("deliverAlertNotification", () => {
       { id: "sil-1", matchers: [{ label: "route", op: "=", value: "/a" }] },
     ]);
 
-    const result = await deliverAlertNotification({
-      def,
-      kind: "firing",
-      summary: "x",
-      description: "",
-      firingCount: 2,
-      instances: instances(["/a", "/b"]),
-    });
+    const result = await enqueueAlertNotification(
+      {
+        def,
+        kind: "firing",
+        summary: "x",
+        description: "",
+        firingCount: 2,
+        instances: instances(["/a", "/b"]),
+      },
+      scheduledFor,
+    );
 
-    expect(sendTelegram).toHaveBeenCalledOnce();
-    const text = sendTelegram.mock.calls[0][1] as string;
-    expect(text).toContain("route=/b");
-    expect(text).not.toContain("route=/a");
+    const telegram = queuedSends().find((send) => send.channel === "telegram");
+    expect(telegram?.text).toContain("route=/b");
+    expect(telegram?.text).not.toContain("route=/a");
     expect(result).toEqual({
       deliveryTargets: {
         email: ["a@example.com"],
         telegram: ["123"],
       },
       silenceId: "",
-      failures: [],
     });
   });
 
   it("suppresses everything under a whole-rule silence (no matchers)", async () => {
     silenceRows.mockReturnValue([{ id: "sil-1", matchers: [] }]);
 
-    const result = await deliverAlertNotification({
-      def,
-      kind: "firing",
-      summary: "x",
-      description: "",
-      firingCount: 2,
-      instances: instances(["/a", "/b"]),
-    });
-
-    expect(sendEmail).not.toHaveBeenCalled();
-    expect(sendTelegram).not.toHaveBeenCalled();
-    expect(result).toEqual({
-      deliveryTargets: {},
-      silenceId: "sil-1",
-      failures: [],
-    });
-  });
-
-  it("sends resolved delivery without a global toggle", async () => {
-    const result = await deliverAlertNotification({
-      def,
-      kind: "resolved",
-      summary: "ok",
-      description: "details",
-      firingCount: 0,
-      instances: instances(["/a"]),
-    });
-
-    expect(sendEmail).toHaveBeenCalledWith(
-      expect.objectContaining({
-        to: "a@example.com",
-        subject: "✅ [resolved] s1",
-        text: expect.stringContaining("All instances resolved"),
-      }),
-    );
-    const text = sendTelegram.mock.calls[0][1] as string;
-    expect(text).toBe(
-      [
-        "✅ s1 resolved",
-        "",
-        "All instances resolved",
-        "• route=/a",
-        "",
-        "2026-06-12 12:00 UTC",
-        "https://app.example.com/alerts/a1",
-      ].join("\n"),
-    );
-    expect(text).not.toContain("[resolved] s1");
-    expect(text).not.toContain("ok");
-    expect(text).not.toContain("details");
-    expect(result).toEqual({
-      deliveryTargets: {
-        email: ["a@example.com"],
-        telegram: ["123"],
+    const result = await enqueueAlertNotification(
+      {
+        def,
+        kind: "firing",
+        summary: "x",
+        description: "",
+        firingCount: 2,
+        instances: instances(["/a", "/b"]),
       },
-      silenceId: "",
-      failures: [],
-    });
+      scheduledFor,
+    );
+
+    expect(addWorkerJob).not.toHaveBeenCalled();
+    expect(result).toEqual({ deliveryTargets: {}, silenceId: "sil-1" });
   });
 
-  it("sends partial resolved delivery", async () => {
-    await deliverAlertNotification({
-      def,
-      kind: "partial_resolved",
-      summary: "1 recovered",
-      description: "details",
-      firingCount: 2,
-      instances: instances(["/a"]),
-    });
-
-    expect(sendEmail).toHaveBeenCalledWith(
-      expect.objectContaining({
-        to: "a@example.com",
-        subject: "✅ [partial_resolved] s1",
-        text: expect.stringContaining("Resolved instances: 1"),
-      }),
-    );
-    const text = sendTelegram.mock.calls[0][1] as string;
-    expect(text).toBe(
-      [
-        "✅ s1 partially resolved",
-        "",
-        "Resolved: 1",
-        "Still firing: 2",
-        "• route=/a",
-        "",
-        "2026-06-12 12:00 UTC",
-        "https://app.example.com/alerts/a1",
-      ].join("\n"),
-    );
-    expect(text).not.toContain("[partial_resolved] s1");
-    expect(text).not.toContain("1 recovered");
-    expect(text).not.toContain("details");
-    expect(text).not.toContain("All instances resolved");
-  });
-
-  it("includes instance values for firing and escapes labels in html", async () => {
-    await deliverAlertNotification({
-      def,
-      kind: "firing",
-      summary: "bad <b>stuff</b>",
-      description: "",
-      firingCount: 1,
-      instances: [
-        {
-          labels: { route: "/a<script>" },
-          row: { route: "/a<script>", error_rate: 7.2, error_count: "12" },
-        },
-      ],
-    });
-
-    const email = sendEmail.mock.calls[0][0] as {
-      text: string;
-      html: string;
-    };
-    expect(email.text).toContain(
-      "- route=/a<script> — error_rate: 7.2, error_count: 12",
-    );
-    expect(email.html).toContain("error_rate: 7.2");
-    expect(email.html).not.toContain("/a<script>");
-    expect(email.html).toContain("/a&lt;script&gt;");
-    expect(email.html).toContain("bad &lt;b&gt;stuff&lt;/b&gt;");
-    const telegram = sendTelegram.mock.calls[0][1] as string;
-    expect(telegram).toContain(
-      "• route=/a<script> — error_rate: 7.2, error_count: 12",
-    );
-  });
-
-  it("includes firing durations for resolved instances", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-06-12T12:00:00Z"));
-    try {
-      await deliverAlertNotification({
+  it("renders resolved notifications with firing durations", async () => {
+    await enqueueAlertNotification(
+      {
         def,
         kind: "resolved",
         summary: "ok",
@@ -345,84 +269,142 @@ describe("deliverAlertNotification", () => {
             firedAt: new Date("2026-06-12T11:18:00Z"),
           },
         ],
-      });
-    } finally {
-      vi.useRealTimers();
-    }
+      },
+      scheduledFor,
+    );
 
-    const email = sendEmail.mock.calls[0][0] as { text: string; html: string };
+    const sends = queuedSends();
+    const email = asEmailSend(sends[0]);
+    const telegram = sends[1];
+    expect(email.subject).toBe("✅ [resolved] s1");
     expect(email.text).toContain("All instances resolved (fired for 42m)");
     expect(email.text).toContain("- route=/a — fired for 42m");
-    expect(email.html).toContain("fired for 42m");
-    const telegram = sendTelegram.mock.calls[0][1] as string;
-    expect(telegram).toContain("• route=/a — fired for 42m");
+    expect(telegram.text).toBe(
+      [
+        "✅ s1 resolved",
+        "",
+        "All instances resolved",
+        "• route=/a — fired for 42m",
+        "",
+        "2026-06-12 12:00 UTC",
+        "https://app.example.com/alerts/a1",
+      ].join("\n"),
+    );
   });
 
-  it("returns target metadata and the failure when a send fails", async () => {
+  it("escapes user content in the email html", async () => {
+    await enqueueAlertNotification(
+      {
+        def,
+        kind: "firing",
+        summary: "bad <b>stuff</b>",
+        description: "",
+        firingCount: 1,
+        instances: [
+          {
+            labels: { route: "/a<script>" },
+            row: { route: "/a<script>", error_rate: 7.2, error_count: "12" },
+          },
+        ],
+      },
+      scheduledFor,
+    );
+
+    const email = asEmailSend(
+      queuedSends().find((send) => send.channel === "email"),
+    );
+    expect(email.text).toContain(
+      "- route=/a<script> — error_rate: 7.2, error_count: 12",
+    );
+    expect(email.html).not.toContain("/a<script>");
+    expect(email.html).toContain("/a&lt;script&gt;");
+    expect(email.html).toContain("bad &lt;b&gt;stuff&lt;/b&gt;");
+  });
+});
+
+function emailSend(): DeliverySend {
+  return {
+    channel: "email",
+    target: "a@example.com",
+    subject: "subject",
+    text: "text",
+    html: "<p>html</p>",
+    def,
+    scheduledFor,
+  };
+}
+
+function telegramSend(): DeliverySend {
+  return {
+    channel: "telegram",
+    target: "123",
+    text: "text",
+    def,
+    scheduledFor,
+  };
+}
+
+describe("runDeliverySend", () => {
+  it("sends one email", async () => {
+    await runDeliverySend(emailSend(), { attempts: 1, max_attempts: 5 });
+
+    expect(sendEmail).toHaveBeenCalledWith({
+      to: "a@example.com",
+      subject: "subject",
+      text: "text",
+      html: "<p>html</p>",
+    });
+    expect(sendTelegram).not.toHaveBeenCalled();
+  });
+
+  it("sends one telegram message", async () => {
+    await runDeliverySend(telegramSend(), { attempts: 1, max_attempts: 5 });
+
+    expect(sendTelegram).toHaveBeenCalledWith("123", "text");
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("rethrows on failure so the job retries, without recording an event", async () => {
     sendTelegram.mockRejectedValue(new Error("nope"));
 
-    const result = await deliverAlertNotification({
-      def,
-      kind: "firing",
-      summary: "x",
-      description: "",
-      firingCount: 1,
-      instances: instances(["/a"]),
-    });
+    await expect(
+      runDeliverySend(telegramSend(), { attempts: 1, max_attempts: 5 }),
+    ).rejects.toThrow("nope");
 
-    expect(result).toEqual({
-      deliveryTargets: {
-        email: ["a@example.com"],
-        telegram: ["123"],
-      },
-      silenceId: "",
-      failures: [{ channel: "telegram", target: "123", error: "nope" }],
-    });
-  });
-
-  it("still delivers to remaining targets when one recipient fails", async () => {
-    settingsRows.mockReturnValue([
-      {
-        delivery: {
-          email: { enabled: true, to: ["a@example.com", "b@example.com"] },
-          telegram: { enabled: true, chatIds: ["bad", "456"] },
-        },
-      },
-    ]);
-    select.mockReset();
-    select.mockImplementationOnce(() => makeSettingsChain(settingsRows()));
-    select.mockImplementationOnce(() => makeSilencesChain(silenceRows()));
-    sendEmail.mockRejectedValueOnce(new Error("mailbox full"));
-    sendTelegram.mockRejectedValueOnce(new Error("chat not found"));
-
-    await deliverAlertNotification({
-      def,
-      kind: "firing",
-      summary: "x",
-      description: "",
-      firingCount: 1,
-      instances: instances(["/a"]),
-    });
-
-    expect(sendEmail).toHaveBeenCalledTimes(2);
-    expect(sendEmail).toHaveBeenLastCalledWith(
-      expect.objectContaining({ to: "b@example.com" }),
-    );
-    expect(sendTelegram).toHaveBeenCalledTimes(2);
-    expect(sendTelegram).toHaveBeenLastCalledWith("456", expect.any(String));
-    expect(vi.mocked(serverLogger.warn)).toHaveBeenCalledWith(
-      "alerts.delivery.email_failed",
-      expect.objectContaining({
-        "alert.definition_id": "a1",
-        "alert.delivery_target": "a@example.com",
-      }),
-    );
     expect(vi.mocked(serverLogger.warn)).toHaveBeenCalledWith(
       "alerts.delivery.telegram_failed",
       expect.objectContaining({
         "alert.definition_id": "a1",
-        "alert.delivery_target": "bad",
+        "alert.delivery_target": "123",
+        "graphile_worker.job.attempts": 1,
+        "error.handled": false,
       }),
+    );
+    expect(recordEvents).not.toHaveBeenCalled();
+  });
+
+  it("records a delivery_failed event on the final attempt", async () => {
+    sendEmail.mockRejectedValue(new Error("mailbox full"));
+
+    await expect(
+      runDeliverySend(emailSend(), { attempts: 5, max_attempts: 5 }),
+    ).rejects.toThrow("mailbox full");
+
+    expect(recordEvents).toHaveBeenCalledWith(
+      def,
+      [
+        expect.objectContaining({
+          event_type: "delivery_failed",
+          alert_definition_id: "a1",
+          delivery_targets: { email: ["a@example.com"] },
+          evidence_json: '{"error":"mailbox full"}',
+        }),
+      ],
+      "alerts.delivery.failure_event_insert_failed",
+    );
+    expect(vi.mocked(serverLogger.warn)).toHaveBeenCalledWith(
+      "alerts.delivery.email_failed",
+      expect.objectContaining({ "error.handled": true }),
     );
   });
 });

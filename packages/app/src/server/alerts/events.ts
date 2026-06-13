@@ -3,6 +3,7 @@ import type {
   AlertDeliveryTargets,
 } from "@/data/alerts/delivery-settings";
 import { insertAdminRows } from "@/lib/clickhouse";
+import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 
 export interface AlertEventRow {
   organization_id: string;
@@ -32,15 +33,34 @@ export interface AlertEventRow {
 export const OPERATIONAL_EVENT_TYPES = [
   "instance_fired",
   "instance_resolved",
-  "delivery_attempt",
   "delivery_failed",
 ] as const;
 
-export function insertAlertEvents(rows: AlertEventRow[]): Promise<void> {
+function insertAlertEvents(rows: AlertEventRow[]): Promise<void> {
   return insertAdminRows("app.alert_events", rows, {
     async_insert: 1,
     wait_for_async_insert: 1,
   });
+}
+
+// Best-effort insert: recording history must never fail the operation that
+// produced it. Failures are logged under the caller's event name.
+export async function recordAlertEvents(
+  def: { id: string },
+  events: AlertEventRow[],
+  logEvent: string,
+): Promise<void> {
+  if (events.length === 0) return;
+  try {
+    await insertAlertEvents(events);
+  } catch (error) {
+    serverLogger.error(logEvent, {
+      ...exceptionAttributes(error),
+      "alert.definition_id": def.id,
+      "alert.event_count": events.length,
+      "error.handled": true,
+    });
+  }
 }
 
 export const MAX_EVIDENCE_ROWS = 50;

@@ -39,6 +39,7 @@ export const DeliverySettingsSchema = z
                 message: "Invalid email recipient",
               }),
           )
+          .max(50)
           .default([]),
       })
       .strict()
@@ -57,6 +58,7 @@ export const DeliverySettingsSchema = z
                 message: "Invalid Telegram chat ID",
               }),
           )
+          .max(50)
           .default([]),
       })
       .strict()

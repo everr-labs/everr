@@ -4,6 +4,7 @@ import {
   parseCronItems,
   type TaskList,
 } from "graphile-worker";
+import { ALERT_DELIVER_TASK, runDeliverySend } from "./delivery";
 import { evaluateAlert } from "./evaluate";
 import {
   ALERT_EVALUATE_TASK,
@@ -19,6 +20,9 @@ export const alertTaskList: TaskList = {
   }),
   [ALERT_EVALUATE_TASK]: context.bind(ROOT_CONTEXT, async (payload) => {
     await evaluateAlert(payload as EvaluatePayload);
+  }),
+  [ALERT_DELIVER_TASK]: context.bind(ROOT_CONTEXT, async (payload, helpers) => {
+    await runDeliverySend(payload, helpers.job);
   }),
 };
 

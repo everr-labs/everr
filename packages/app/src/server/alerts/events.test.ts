@@ -1,4 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const insertAdminRows = vi.fn();
+vi.mock("@/lib/clickhouse", () => ({
+  insertAdminRows: (...args: unknown[]) => insertAdminRows(...args),
+}));
+
+vi.mock("@/telemetry/logger", () => ({
+  exceptionAttributes: (error: unknown) => ({
+    "exception.message": error instanceof Error ? error.message : String(error),
+  }),
+  serverLogger: { error: vi.fn() },
+}));
+
+import { serverLogger } from "@/telemetry/logger";
 import {
   boundEvidence,
   buildDeliveryFailureEvent,
@@ -6,6 +20,7 @@ import {
   buildInstanceEvent,
   MAX_EVIDENCE_BYTES,
   MAX_EVIDENCE_ROWS,
+  recordAlertEvents,
 } from "./events";
 
 const def = { id: "d1", organizationId: "org-1", repoid: "r1", slug: "s1" };
@@ -154,5 +169,53 @@ describe("event row construction", () => {
       '{"error":"telegram sendMessage failed: 403"}',
     );
     expect(event.evaluation_scheduled_at).toBe("2026-06-11 10:00:00.000");
+  });
+});
+
+describe("recordAlertEvents", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    insertAdminRows.mockResolvedValue(undefined);
+  });
+
+  const row = buildEvaluationEvent({
+    def,
+    eventType: "firing",
+    scheduledFor: new Date("2026-06-11T10:00:00.000Z"),
+  });
+
+  it("inserts the rows", async () => {
+    await recordAlertEvents(def, [row], "alerts.test.insert_failed");
+
+    expect(insertAdminRows).toHaveBeenCalledWith(
+      "app.alert_events",
+      [row],
+      expect.anything(),
+    );
+    expect(vi.mocked(serverLogger.error)).not.toHaveBeenCalled();
+  });
+
+  it("skips the insert for an empty batch", async () => {
+    await recordAlertEvents(def, [], "alerts.test.insert_failed");
+
+    expect(insertAdminRows).not.toHaveBeenCalled();
+  });
+
+  it("logs under the caller's event name instead of throwing when the insert fails", async () => {
+    insertAdminRows.mockRejectedValue(new Error("clickhouse down"));
+
+    await expect(
+      recordAlertEvents(def, [row], "alerts.test.insert_failed"),
+    ).resolves.toBeUndefined();
+
+    expect(vi.mocked(serverLogger.error)).toHaveBeenCalledWith(
+      "alerts.test.insert_failed",
+      expect.objectContaining({
+        "exception.message": "clickhouse down",
+        "alert.definition_id": "d1",
+        "alert.event_count": 1,
+        "error.handled": true,
+      }),
+    );
   });
 });

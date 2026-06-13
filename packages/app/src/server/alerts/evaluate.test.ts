@@ -1,22 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const sqlApi = vi.fn();
+const insertEvents = vi.fn();
 vi.mock("@/lib/clickhouse", () => ({
   querySqlApiWithMeta: (...args: unknown[]) => sqlApi(...args),
+  // The real ./events module runs; only its ClickHouse write is stubbed, so
+  // the spy receives the event rows directly.
+  insertAdminRows: (_table: string, rows: unknown[]) => insertEvents(rows),
 }));
-
-const insertEvents = vi.fn();
-vi.mock("./events", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./events")>();
-  return {
-    ...actual,
-    insertAlertEvents: (...args: unknown[]) => insertEvents(...args),
-  };
-});
 
 const deliver = vi.fn();
 vi.mock("./delivery", () => ({
-  deliverAlertNotification: (...args: unknown[]) => deliver(...args),
+  enqueueAlertNotification: (...args: unknown[]) => deliver(...args),
 }));
 
 const fetchFiring = vi.fn();
@@ -130,6 +125,7 @@ describe("evaluateAlert", () => {
     ).toBe(true);
     expect(deliver).toHaveBeenCalledWith(
       expect.objectContaining({ kind: "firing", firingCount: 1 }),
+      expect.any(Date),
     );
   });
 
@@ -153,6 +149,7 @@ describe("evaluateAlert", () => {
     );
     expect(deliver).toHaveBeenCalledWith(
       expect.objectContaining({ kind: "firing", firingCount: 1 }),
+      expect.any(Date),
     );
   });
 
@@ -180,6 +177,7 @@ describe("evaluateAlert", () => {
         firingCount: 2,
         instances: [expect.objectContaining({ fingerprint: fp("/y") })],
       }),
+      expect.any(Date),
     );
   });
 
@@ -215,6 +213,7 @@ describe("evaluateAlert", () => {
     ]);
     expect(deliver).toHaveBeenCalledWith(
       expect.objectContaining({ kind: "resolved", firingCount: 0 }),
+      expect.any(Date),
     );
   });
 
@@ -244,6 +243,7 @@ describe("evaluateAlert", () => {
           }),
         ],
       }),
+      expect.any(Date),
     );
   });
 

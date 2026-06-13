@@ -12,11 +12,11 @@
 //      the definition patch plus the notifications to send.
 //   5. Persist the evaluation bookkeeping and the transition's patch to
 //      Postgres.
-//   6. Deliver the transition's notifications; they are independent, so
-//      instance churn (some fired, some resolved) fans out concurrently.
-//   7. Record the evaluation in ClickHouse: one row per instance transition,
-//      one per notification (carrying its delivery outcome), and one per
-//      failed delivery target.
+//   6. Resolve and enqueue the transition's notifications as retryable
+//      `alerts/deliver` jobs (one per channel target — see delivery.ts).
+//   7. Record the evaluation in ClickHouse: one row per instance transition
+//      and one per notification, carrying the targets it was queued for.
+//      Send failures are recorded later by the delivery job itself.
 //
 // Evaluations of one definition never run concurrently (per-org Graphile
 // queue + job_key), so each run may assume it sees the previous run's state.
@@ -32,15 +32,14 @@ import {
   exceptionAttributes,
   serverLogger,
 } from "@/telemetry/logger";
-import { type DeliveryMetadata, deliverAlertNotification } from "./delivery";
+import { type DeliveryMetadata, enqueueAlertNotification } from "./delivery";
 import {
   type AlertEventRow,
   type BoundedEvidence,
   boundEvidence,
-  buildDeliveryFailureEvent,
   buildEvaluationEvent,
   buildInstanceEvent,
-  insertAlertEvents,
+  recordAlertEvents,
 } from "./events";
 import {
   diffInstances,
@@ -134,18 +133,21 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
     })
     .where(eq(alertDefinitions.id, def.id));
 
-  // 6. Deliver the transition's notifications.
+  // 6. Resolve and enqueue the transition's notifications.
   const { summary, description } = renderMessages(def, evidence);
   const deliveries = await Promise.all(
     transition.actions.map((action) =>
-      deliverAlertNotification({
-        def,
-        kind: action.kind,
-        summary,
-        description,
-        firingCount: transition.firingCount,
-        instances: action.instances,
-      }),
+      enqueueAlertNotification(
+        {
+          def,
+          kind: action.kind,
+          summary,
+          description,
+          firingCount: transition.firingCount,
+          instances: action.instances,
+        },
+        scheduledFor,
+      ),
     ),
   );
 
@@ -160,6 +162,7 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
       transition,
       deliveries,
     }),
+    "alerts.evaluate.event_insert_failed",
   );
 }
 
@@ -186,8 +189,8 @@ function renderMessages(def: AlertDefinition, evidence: BoundedEvidence) {
   };
 }
 
-// One row per instance transition, then per notification one evaluation event
-// (carrying its delivery outcome) followed by its delivery failures.
+// One row per instance transition, then one evaluation event per notification
+// carrying the targets it was queued for (or the suppressing silence).
 function buildEventRows(opts: {
   def: AlertDefinition;
   scheduledFor: Date;
@@ -236,29 +239,9 @@ function buildEventRows(opts: {
           : {}),
       }),
     );
-    for (const failure of delivery?.failures ?? []) {
-      events.push(buildDeliveryFailureEvent({ def, scheduledFor, failure }));
-    }
   }
 
   return events;
-}
-
-async function recordAlertEvents(
-  def: Pick<AlertDefinition, "id">,
-  events: AlertEventRow[],
-): Promise<void> {
-  if (events.length === 0) return;
-  try {
-    await insertAlertEvents(events);
-  } catch (error) {
-    serverLogger.error("alerts.evaluate.event_insert_failed", {
-      ...exceptionAttributes(error),
-      "alert.definition_id": def.id,
-      "alert.event_count": events.length,
-      "error.handled": true,
-    });
-  }
 }
 
 // A ClickHouse read failed before any state could be derived: mark the
@@ -284,11 +267,15 @@ async function recordEvaluationFailure(opts: {
     "alert.definition_id": def.id,
     "error.handled": true,
   });
-  await recordAlertEvents(def, [
-    buildEvaluationEvent({
-      def,
-      eventType: "evaluation_failed",
-      scheduledFor,
-    }),
-  ]);
+  await recordAlertEvents(
+    def,
+    [
+      buildEvaluationEvent({
+        def,
+        eventType: "evaluation_failed",
+        scheduledFor,
+      }),
+    ],
+    "alerts.evaluate.event_insert_failed",
+  );
 }
