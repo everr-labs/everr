@@ -31,6 +31,7 @@ import { Route as ApiCliMeRouteImport } from './routes/api/cli/me'
 import { Route as ApiCliImportRouteImport } from './routes/api/cli/import'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as AuthenticatedDashboardUsersManagementRouteImport } from './routes/_authenticated/_dashboard/users-management'
+import { Route as AuthenticatedDashboardUsageRouteImport } from './routes/_authenticated/_dashboard/usage'
 import { Route as AuthenticatedDashboardTracesRouteImport } from './routes/_authenticated/_dashboard/traces'
 import { Route as AuthenticatedDashboardTestsOverviewRouteImport } from './routes/_authenticated/_dashboard/tests-overview'
 import { Route as AuthenticatedDashboardRunsRouteImport } from './routes/_authenticated/_dashboard/runs'
@@ -178,6 +179,12 @@ const AuthenticatedDashboardUsersManagementRoute =
   AuthenticatedDashboardUsersManagementRouteImport.update({
     id: '/users-management',
     path: '/users-management',
+    getParentRoute: () => AuthenticatedDashboardRoute,
+  } as any)
+const AuthenticatedDashboardUsageRoute =
+  AuthenticatedDashboardUsageRouteImport.update({
+    id: '/usage',
+    path: '/usage',
     getParentRoute: () => AuthenticatedDashboardRoute,
   } as any)
 const AuthenticatedDashboardTracesRoute =
@@ -432,6 +439,7 @@ export interface FileRoutesByFullPath {
   '/runs': typeof AuthenticatedDashboardRunsRouteWithChildren
   '/tests-overview': typeof AuthenticatedDashboardTestsOverviewRoute
   '/traces': typeof AuthenticatedDashboardTracesRouteWithChildren
+  '/usage': typeof AuthenticatedDashboardUsageRoute
   '/users-management': typeof AuthenticatedDashboardUsersManagementRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cli/import': typeof ApiCliImportRoute
@@ -491,6 +499,7 @@ export interface FileRoutesByTo {
   '/repos': typeof AuthenticatedDashboardReposRoute
   '/tests-overview': typeof AuthenticatedDashboardTestsOverviewRoute
   '/traces': typeof AuthenticatedDashboardTracesRouteWithChildren
+  '/usage': typeof AuthenticatedDashboardUsageRoute
   '/users-management': typeof AuthenticatedDashboardUsersManagementRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cli/import': typeof ApiCliImportRoute
@@ -554,6 +563,7 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/runs': typeof AuthenticatedDashboardRunsRouteWithChildren
   '/_authenticated/_dashboard/tests-overview': typeof AuthenticatedDashboardTestsOverviewRoute
   '/_authenticated/_dashboard/traces': typeof AuthenticatedDashboardTracesRouteWithChildren
+  '/_authenticated/_dashboard/usage': typeof AuthenticatedDashboardUsageRoute
   '/_authenticated/_dashboard/users-management': typeof AuthenticatedDashboardUsersManagementRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cli/import': typeof ApiCliImportRoute
@@ -617,6 +627,7 @@ export interface FileRouteTypes {
     | '/runs'
     | '/tests-overview'
     | '/traces'
+    | '/usage'
     | '/users-management'
     | '/api/auth/$'
     | '/api/cli/import'
@@ -676,6 +687,7 @@ export interface FileRouteTypes {
     | '/repos'
     | '/tests-overview'
     | '/traces'
+    | '/usage'
     | '/users-management'
     | '/api/auth/$'
     | '/api/cli/import'
@@ -738,6 +750,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/runs'
     | '/_authenticated/_dashboard/tests-overview'
     | '/_authenticated/_dashboard/traces'
+    | '/_authenticated/_dashboard/usage'
     | '/_authenticated/_dashboard/users-management'
     | '/api/auth/$'
     | '/api/cli/import'
@@ -949,6 +962,13 @@ declare module '@tanstack/react-router' {
       path: '/users-management'
       fullPath: '/users-management'
       preLoaderRoute: typeof AuthenticatedDashboardUsersManagementRouteImport
+      parentRoute: typeof AuthenticatedDashboardRoute
+    }
+    '/_authenticated/_dashboard/usage': {
+      id: '/_authenticated/_dashboard/usage'
+      path: '/usage'
+      fullPath: '/usage'
+      preLoaderRoute: typeof AuthenticatedDashboardUsageRouteImport
       parentRoute: typeof AuthenticatedDashboardRoute
     }
     '/_authenticated/_dashboard/traces': {
@@ -1348,6 +1368,7 @@ interface AuthenticatedDashboardRouteChildren {
   AuthenticatedDashboardRunsRoute: typeof AuthenticatedDashboardRunsRouteWithChildren
   AuthenticatedDashboardTestsOverviewRoute: typeof AuthenticatedDashboardTestsOverviewRoute
   AuthenticatedDashboardTracesRoute: typeof AuthenticatedDashboardTracesRouteWithChildren
+  AuthenticatedDashboardUsageRoute: typeof AuthenticatedDashboardUsageRoute
   AuthenticatedDashboardUsersManagementRoute: typeof AuthenticatedDashboardUsersManagementRoute
   AuthenticatedDashboardIndexRoute: typeof AuthenticatedDashboardIndexRoute
   AuthenticatedDashboardCheckoutSuccessRoute: typeof AuthenticatedDashboardCheckoutSuccessRoute
@@ -1380,6 +1401,7 @@ const AuthenticatedDashboardRouteChildren: AuthenticatedDashboardRouteChildren =
       AuthenticatedDashboardTestsOverviewRoute,
     AuthenticatedDashboardTracesRoute:
       AuthenticatedDashboardTracesRouteWithChildren,
+    AuthenticatedDashboardUsageRoute: AuthenticatedDashboardUsageRoute,
     AuthenticatedDashboardUsersManagementRoute:
       AuthenticatedDashboardUsersManagementRoute,
     AuthenticatedDashboardIndexRoute: AuthenticatedDashboardIndexRoute,

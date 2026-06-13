@@ -20,6 +20,7 @@ import { Link, useRouter } from "@tanstack/react-router";
 import {
   BadgeCheck,
   Building2,
+  ChartColumn,
   Check,
   ChevronsUpDown,
   CreditCard,
@@ -151,6 +152,13 @@ export function NavUser() {
                   >
                     <CreditCard />
                     Billing
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    render={<Link to="/usage" />}
+                    nativeButton={false}
+                  >
+                    <ChartColumn />
+                    Usage
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     render={<Link to="/users-management" />}
