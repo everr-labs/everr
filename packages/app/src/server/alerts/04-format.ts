@@ -3,19 +3,14 @@
 import { formatLabels } from "@/data/alerts/matchers";
 import { isNumericValue } from "@/lib/numeric";
 
-export type DeliveryKind = "firing" | "resolved" | "partial_resolved";
+export type DeliveryKind = "firing" | "resolved";
 
 export interface DeliveryInput {
   def: { id: string; organizationId: string; repoid: string; slug: string };
   kind: DeliveryKind;
   title: string;
   description: string;
-  // Current firing instance count after this evaluation.
-  firingCount: number;
-  // newlyFired for "firing", nowResolved for "resolved" and
-  // "partial_resolved". Firing instances carry the query result row they came
-  // from; resolved ones only have the labels (the row is gone by then).
-  instances: NotifiableInstance[];
+  instance: NotifiableInstance;
 }
 
 // What a channel body builder needs beyond the input itself.
@@ -31,11 +26,8 @@ export const KIND_STATUS: Record<
   { emoji: string; label: string }
 > = {
   firing: { emoji: "🔥", label: "Firing" },
-  partial_resolved: { emoji: "✅", label: "Partially resolved" },
   resolved: { emoji: "✅", label: "Resolved" },
 };
-
-export const MAX_LISTED_INSTANCES = 10;
 
 export function escapeHtml(value: string): string {
   return value
@@ -105,34 +97,12 @@ export function instanceDetail(
     : "";
 }
 
-// One bullet line per listed instance plus the overflow line, shared between
-// the telegram body and the email text part so the channels can't drift.
-export function instanceLines(
-  listed: readonly NotifiableInstance[],
+export function instanceLine(
+  instance: NotifiableInstance,
   kind: DeliveryKind,
   now: Date,
   bullet: string,
-): string[] {
-  const lines = listed.slice(0, MAX_LISTED_INSTANCES).map((instance) => {
-    const detail = instanceDetail(instance, kind, now);
-    return `${bullet} ${formatLabels(instance.labels)}${detail ? ` — ${detail}` : ""}`;
-  });
-  if (listed.length > MAX_LISTED_INSTANCES) {
-    lines.push(`… and ${listed.length - MAX_LISTED_INSTANCES} more`);
-  }
-  return lines;
-}
-
-// Longest firing duration across instances; "" when no timestamps survive.
-export function longestDuration(
-  instances: readonly NotifiableInstance[],
-  now: Date,
 ): string {
-  let earliest: Date | undefined;
-  for (const instance of instances) {
-    if (instance.firedAt && (!earliest || instance.firedAt < earliest)) {
-      earliest = instance.firedAt;
-    }
-  }
-  return earliest ? formatDuration(earliest, now) : "";
+  const detail = instanceDetail(instance, kind, now);
+  return `${bullet} ${formatLabels(instance.labels)}${detail ? ` — ${detail}` : ""}`;
 }

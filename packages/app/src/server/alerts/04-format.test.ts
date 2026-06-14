@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { extractInstanceValues, formatDuration } from "./04-format";
+import {
+  extractInstanceValues,
+  formatDuration,
+  instanceLine,
+} from "./04-format";
 
 const at = (iso: string) => new Date(iso);
 
@@ -32,5 +36,34 @@ describe("extractInstanceValues", () => {
       "c: 3",
     ]);
     expect(extractInstanceValues(undefined, {})).toEqual([]);
+  });
+});
+
+describe("instanceLine", () => {
+  const now = at("2026-06-14T12:00:00Z");
+
+  it("formats a firing instance with labels and values", () => {
+    const line = instanceLine(
+      { labels: { env: "prod" }, row: { error_rate: 5.1 } },
+      "firing",
+      now,
+      "•",
+    );
+    expect(line).toBe("• env=prod — error_rate: 5.1");
+  });
+
+  it("formats a resolved instance with duration", () => {
+    const line = instanceLine(
+      { labels: { env: "staging" }, firedAt: at("2026-06-14T10:00:00Z") },
+      "resolved",
+      now,
+      "-",
+    );
+    expect(line).toBe("- env=staging — fired for 2h");
+  });
+
+  it("omits detail when none is available", () => {
+    const line = instanceLine({ labels: { env: "dev" } }, "resolved", now, "•");
+    expect(line).toBe("• env=dev");
   });
 });
