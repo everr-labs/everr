@@ -71,7 +71,7 @@ describe("telemetry config", () => {
     ).toEqual({
       "deployment.environment.name": "production",
       "service.instance.id": "instance-1",
-      "service.name": "everr-app",
+      "service.name": "everr-dev-app",
       "service.namespace": "everr",
       "service.version": "abc123",
     });

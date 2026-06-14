@@ -138,4 +138,32 @@ describe("worker runtime", () => {
       }),
     );
   });
+
+  it("logs successful worker jobs with duration", async () => {
+    const runtime = await loadRuntime();
+    await runtime.startWorkerRuntime();
+
+    const worker = { workerId: "worker-test" };
+    const job = {
+      attempts: 1,
+      id: "18001",
+      max_attempts: 25,
+      task_identifier: "alerts/evaluate",
+    };
+
+    runtimeMocks.runOptions[0].events.emit("job:start", { job, worker });
+    runtimeMocks.runOptions[0].events.emit("job:success", { job, worker });
+
+    expect(runtimeMocks.serverLoggerInfo).toHaveBeenLastCalledWith(
+      "worker.jobs.job_completed",
+      expect.objectContaining({
+        "graphile_worker.job.attempts": 1,
+        "graphile_worker.job.duration_ms": expect.any(Number),
+        "graphile_worker.job.id": "18001",
+        "graphile_worker.job.max_attempts": 25,
+        "graphile_worker.task.identifier": "alerts/evaluate",
+        "graphile_worker.worker.id": "worker-test",
+      }),
+    );
+  });
 });

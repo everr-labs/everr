@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import { performance } from "node:perf_hooks";
 import { type Runner, run, type WorkerEvents } from "graphile-worker";
 import { pool } from "@/db/client";
 import { alertCronItems, alertTaskList } from "@/server/alerts/00-runtime";
@@ -17,6 +18,33 @@ function prefixedExceptionAttributes(prefix: string, reason: unknown) {
 }
 
 function attachGraphileWorkerEventLogging(events: WorkerEvents): void {
+  const startedAtByJobId = new Map<string, number>();
+
+  events.on("job:start", ({ job }) => {
+    startedAtByJobId.set(String(job.id), performance.now());
+  });
+
+  events.on("job:success", ({ job, worker }) => {
+    const jobId = String(job.id);
+    const startedAt = startedAtByJobId.get(jobId);
+    startedAtByJobId.delete(jobId);
+
+    serverLogger.info("worker.jobs.job_completed", {
+      ...(startedAt === undefined
+        ? {}
+        : { "graphile_worker.job.duration_ms": performance.now() - startedAt }),
+      "graphile_worker.job.attempts": job.attempts,
+      "graphile_worker.job.id": jobId,
+      "graphile_worker.job.max_attempts": job.max_attempts,
+      "graphile_worker.task.identifier": job.task_identifier,
+      "graphile_worker.worker.id": worker.workerId,
+    });
+  });
+
+  events.on("job:complete", ({ job }) => {
+    startedAtByJobId.delete(String(job.id));
+  });
+
   events.on("pool:listen:error", ({ error }) => {
     serverLogger.error(
       "worker.jobs.pool_listen_error",

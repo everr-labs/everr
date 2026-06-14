@@ -1,6 +1,5 @@
 import { type Attributes, context } from "@opentelemetry/api";
 import { logs, SeverityNumber } from "@opentelemetry/api-logs";
-import { TELEMETRY_SERVICE_NAME } from "./config";
 
 type LogLevel = "debug" | "error" | "info" | "warn";
 
@@ -38,9 +37,7 @@ export function createTelemetryLogger(name: string) {
   };
 }
 
-export const serverLogger = createTelemetryLogger(
-  `${TELEMETRY_SERVICE_NAME}.server`,
-);
+export const serverLogger = createTelemetryLogger("everr-app.server");
 
 export function exceptionAttributes(reason: unknown): Attributes {
   const error = normalizeError(reason);
