@@ -10,6 +10,5 @@ spec:
   description: "The current minute is even at ${top_checked_at}"
   query: |
     SELECT
-      now() AS checked_at,
-      'Eh a me che me ne frega a me, Io cho Diesel' AS a_me_che_me_ne_frega_a_me
+      now() AS checked_at
     WHERE modulo(toMinute(now()), 2) = 0
