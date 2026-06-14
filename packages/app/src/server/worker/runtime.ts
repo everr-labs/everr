@@ -36,6 +36,7 @@ function attachGraphileWorkerEventLogging(events: WorkerEvents): void {
       "graphile_worker.job.attempts": job.attempts,
       "graphile_worker.job.id": jobId,
       "graphile_worker.job.max_attempts": job.max_attempts,
+      "graphile_worker.job.name": job.task_identifier,
       "graphile_worker.task.identifier": job.task_identifier,
       "graphile_worker.worker.id": worker.workerId,
     });
@@ -76,6 +77,7 @@ function attachGraphileWorkerEventLogging(events: WorkerEvents): void {
     serverLogger.error("worker.jobs.job_failed", {
       ...exceptionAttributes(error),
       "graphile_worker.job.id": String(job.id),
+      "graphile_worker.job.name": job.task_identifier,
       "graphile_worker.task.identifier": job.task_identifier,
     });
   });

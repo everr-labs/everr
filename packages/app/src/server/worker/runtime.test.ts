@@ -161,6 +161,7 @@ describe("worker runtime", () => {
         "graphile_worker.job.duration_ms": expect.any(Number),
         "graphile_worker.job.id": "18001",
         "graphile_worker.job.max_attempts": 25,
+        "graphile_worker.job.name": "alerts/evaluate",
         "graphile_worker.task.identifier": "alerts/evaluate",
         "graphile_worker.worker.id": "worker-test",
       }),
