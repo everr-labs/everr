@@ -1,13 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const txExecute = vi.fn();
-const transaction = vi.fn();
+const dbExecute = vi.fn();
 
 vi.mock("@/db/client", () => ({
   db: {
-    transaction: (
-      fn: (tx: { execute: typeof txExecute }) => Promise<unknown>,
-    ) => transaction(fn),
+    execute: (...args: unknown[]) => dbExecute(...args),
   },
 }));
 
@@ -27,14 +24,13 @@ function drizzleSqlText(value: unknown): string {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  transaction.mockImplementation((fn) => fn({ execute: txExecute }));
   addWorkerJob.mockResolvedValue(undefined);
 });
 
 describe("scanDueAlerts", () => {
   it("claims due alerts and enqueues evaluate jobs via the public API", async () => {
     const due = new Date("2026-06-10T12:00:00.000Z");
-    txExecute.mockResolvedValueOnce({
+    dbExecute.mockResolvedValueOnce({
       rows: [
         {
           id: "a1",
@@ -46,9 +42,8 @@ describe("scanDueAlerts", () => {
 
     await expect(scanDueAlerts({ batchSize: 100 })).resolves.toBe(1);
 
-    expect(transaction).toHaveBeenCalledOnce();
-    expect(txExecute).toHaveBeenCalledTimes(1);
-    const claimSql = drizzleSqlText(txExecute.mock.calls[0]?.[0]);
+    expect(dbExecute).toHaveBeenCalledOnce();
+    const claimSql = drizzleSqlText(dbExecute.mock.calls[0]?.[0]);
     expect(claimSql).toContain("SELECT now() AS claimed_at");
     expect(claimSql).toContain(
       "next_evaluation_at = claim.claimed_at + make_interval",
@@ -75,11 +70,11 @@ describe("scanDueAlerts", () => {
   });
 
   it("returns 0 and does not enqueue when nothing is due", async () => {
-    txExecute.mockResolvedValueOnce({ rows: [] });
+    dbExecute.mockResolvedValueOnce({ rows: [] });
 
     await expect(scanDueAlerts({ batchSize: 100 })).resolves.toBe(0);
 
-    expect(txExecute).toHaveBeenCalledTimes(1);
+    expect(dbExecute).toHaveBeenCalledTimes(1);
     expect(addWorkerJob).not.toHaveBeenCalled();
   });
 });
