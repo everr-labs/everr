@@ -14,7 +14,7 @@ import type {
   FiringInstance,
   InstanceDiff,
 } from "./02-instances";
-import type { DeliveryKind, NotifiableInstance } from "./04-format";
+import type { NotifiableInstance } from "./04-format";
 
 // The runtime states the machine moves between.
 //
@@ -71,8 +71,8 @@ export interface AlertStateUpdate {
 // One notification to deliver: the kind doubles as the alert_events
 // event_type for the evaluation row recorded alongside the send.
 export interface AlertTransitionAction {
-  kind: DeliveryKind;
-  instances: NotifiableInstance[];
+  kind: "firing" | "resolved";
+  instance: NotifiableInstance;
 }
 
 export interface AlertTransition {
@@ -135,21 +135,14 @@ export function buildAlertTransition(input: {
     ...(name === "resolved" ? { lastResolvedAt: input.now } : {}),
   };
 
-  // At most two notifications per evaluation:
-  //   - "firing"           → newlyFired instances get notified
-  //   - "resolved"         → nowResolved instances, rule fully resolved
-  //   - "partial_resolved" → nowResolved instances, rule still firing
   // Still-firing instances never notify here — they were announced on their
   // started_firing or added_firing_instances transition.
   const actions: AlertTransitionAction[] = [];
-  if (hasNewlyFired) {
-    actions.push({ kind: "firing", instances: input.diff.newlyFired });
+  for (const instance of input.diff.newlyFired) {
+    actions.push({ kind: "firing", instance });
   }
-  if (hasResolved) {
-    actions.push({
-      kind: isFiring ? "partial_resolved" : "resolved",
-      instances: input.diff.nowResolved,
-    });
+  for (const instance of input.diff.nowResolved) {
+    actions.push({ kind: "resolved", instance });
   }
 
   return {

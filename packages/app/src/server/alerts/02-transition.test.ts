@@ -67,7 +67,7 @@ describe("buildAlertTransition", () => {
         lastSeenAt: now,
         lastFiredAt: now,
       },
-      actions: [{ kind: "firing" }],
+      actions: [{ kind: "firing", instance: currentInstance("/x") }],
     });
     expect(result.definitionUpdate).not.toHaveProperty("lastResolvedAt");
   });
@@ -108,9 +108,9 @@ describe("buildAlertTransition", () => {
         firingInstanceCount: 2,
         lastSeenAt: now,
       },
-      actions: [{ kind: "firing" }],
+      actions: [{ kind: "firing", instance: currentInstance("/y") }],
     });
-    expect(result.actions[0]?.instances).toEqual([currentInstance("/y")]);
+    expect(result.actions[0]?.instance).toEqual(currentInstance("/y"));
     expect(result.definitionUpdate).not.toHaveProperty("lastFiredAt");
     expect(result.definitionUpdate).not.toHaveProperty("lastResolvedAt");
   });
@@ -130,9 +130,9 @@ describe("buildAlertTransition", () => {
         firingInstanceCount: 1,
         lastSeenAt: now,
       },
-      actions: [{ kind: "partial_resolved" }],
+      actions: [{ kind: "resolved", instance: previousInstance("/y") }],
     });
-    expect(result.actions[0]?.instances).toEqual([previousInstance("/y")]);
+    expect(result.actions[0]?.instance).toEqual(previousInstance("/y"));
     expect(result.definitionUpdate).not.toHaveProperty("lastResolvedAt");
   });
 
@@ -148,9 +148,9 @@ describe("buildAlertTransition", () => {
         firingInstanceCount: 0,
         lastResolvedAt: now,
       },
-      actions: [{ kind: "resolved" }],
+      actions: [{ kind: "resolved", instance: previousInstance("/x") }],
     });
-    expect(result.actions[0]?.instances).toEqual([previousInstance("/x")]);
+    expect(result.actions[0]?.instance).toEqual(previousInstance("/x"));
     expect(result.definitionUpdate).not.toHaveProperty("lastSeenAt");
   });
 
@@ -169,10 +169,13 @@ describe("buildAlertTransition", () => {
         firingInstanceCount: 1,
         lastSeenAt: now,
       },
-      actions: [{ kind: "firing" }, { kind: "partial_resolved" }],
+      actions: [
+        { kind: "firing", instance: currentInstance("/y") },
+        { kind: "resolved", instance: previousInstance("/x") },
+      ],
     });
-    expect(result.actions[0]?.instances).toEqual([currentInstance("/y")]);
-    expect(result.actions[1]?.instances).toEqual([previousInstance("/x")]);
+    expect(result.actions[0]?.instance).toEqual(currentInstance("/y"));
+    expect(result.actions[1]?.instance).toEqual(previousInstance("/x"));
     expect(result.definitionUpdate).not.toHaveProperty("lastFiredAt");
     expect(result.definitionUpdate).not.toHaveProperty("lastResolvedAt");
   });
