@@ -13,7 +13,6 @@ export interface AlertEventRow {
   event_type:
     | "firing"
     | "resolved"
-    | "partial_resolved"
     | "evaluation_failed"
     | "instance_fired"
     | "instance_resolved"
@@ -113,7 +112,7 @@ function clickhouseDateTime64(date: Date): string {
 
 export function buildEvaluationEvent(opts: {
   def: { id: string; organizationId: string; repoid: string; slug: string };
-  eventType: "firing" | "resolved" | "partial_resolved" | "evaluation_failed";
+  eventType: "firing" | "resolved" | "evaluation_failed";
   scheduledFor: Date;
   evidence?: BoundedEvidence;
   deliveryTargets?: AlertDeliveryTargets;

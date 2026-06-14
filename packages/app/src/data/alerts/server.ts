@@ -307,7 +307,7 @@ export const listAlertEvents = createAuthenticatedServerFn({ method: "GET" })
 	            groupArrayIf(
 	              instance_events.instance_labels_json,
 	              (history.event_type = 'firing' AND instance_events.event_type = 'instance_fired')
-	                OR (history.event_type IN ('resolved', 'partial_resolved') AND instance_events.event_type = 'instance_resolved')
+	                OR (history.event_type = 'resolved' AND instance_events.event_type = 'instance_resolved')
 	            ) AS instanceLabelsJson
 	          FROM history
 	          LEFT JOIN (
@@ -399,7 +399,7 @@ function parseEventInstances(
   const state =
     eventType === "firing"
       ? "firing"
-      : eventType === "resolved" || eventType === "partial_resolved"
+      : eventType === "resolved"
         ? "resolved"
         : null;
   if (!state) return [];
@@ -543,14 +543,12 @@ export const listAlertInstances = createAuthenticatedServerFn({ method: "GET" })
           lastEvaluationRows,
           lastEvaluationTitle: firstEvaluationRow
             ? renderMessage(alert.notificationTitleTemplate, {
-                rowCount: alert.lastRowCount,
                 firstRow: firstEvaluationRow,
               })
             : null,
           lastEvaluationDescription:
             firstEvaluationRow && alert.notificationDescriptionTemplate
               ? renderMessage(alert.notificationDescriptionTemplate, {
-                  rowCount: alert.lastRowCount,
                   firstRow: firstEvaluationRow,
                 })
               : null,

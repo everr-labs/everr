@@ -163,7 +163,7 @@ const alertRow = {
     },
   },
   parsedQuery: "SELECT 1",
-  notificationTitleTemplate: "$" + "{row_count} hits for $" + "{route}",
+  notificationTitleTemplate: "hits for $" + "{route}",
   notificationDescriptionTemplate: "latest count $" + "{count}",
 };
 
@@ -443,7 +443,7 @@ describe("listAlertEvents", () => {
         alertDefinitionId: alertRow.id,
         repoid: alertRow.repoid,
         slug: alertRow.slug,
-        eventType: "partial_resolved",
+        eventType: "resolved",
         eventTime: "2026-06-10T10:01:00.000Z",
         evaluationScheduledAt: "2026-06-10T10:01:00.000Z",
         rowCount: 2,
@@ -574,7 +574,7 @@ describe("listAlertInstances", () => {
           { route: "/a", count: 9, status: "degraded" },
           { route: "/a", count: 7, status: "still-degraded" },
         ],
-        lastEvaluationTitle: "3 hits for /a",
+        lastEvaluationTitle: "hits for /a",
         lastEvaluationDescription: "latest count 9",
         silenced: true,
       },
