@@ -29,12 +29,12 @@ import {
   exceptionAttributes,
   serverLogger,
 } from "@/telemetry/logger";
-import { buildAlertEmail } from "./email";
-import { buildDeliveryFailureEvent, recordAlertEvents } from "./events";
-import type { DeliveryInput, NotifiableInstance } from "./format";
-import { buildTelegramText } from "./telegram";
+import { buildDeliveryFailureEvent, recordAlertEvents } from "./03-events";
+import { buildAlertEmail } from "./04-email";
+import type { DeliveryInput, NotifiableInstance } from "./04-format";
+import { buildTelegramText } from "./04-telegram";
 
-export type { DeliveryInput } from "./format";
+export type { DeliveryInput } from "./04-format";
 
 export const ALERT_DELIVER_TASK = "alerts/deliver";
 
@@ -103,7 +103,7 @@ export async function enqueueAlertNotification(
         matchers: alertSilences.matchers,
       })
       .from(alertSilences)
-      .where(activeSilenceConditions(def.organizationId, def.id, now)),
+      .where(activeSilenceConditions(def.organizationId, def.id)),
   ]);
   const delivery = settings?.delivery;
   if (!delivery) return null;

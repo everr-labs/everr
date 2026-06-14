@@ -11,7 +11,7 @@ import {
   longestDuration,
   MAX_LISTED_INSTANCES,
   type NotifiableInstance,
-} from "./format";
+} from "./04-format";
 
 export interface AlertEmail {
   subject: string;

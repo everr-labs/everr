@@ -32,7 +32,15 @@ import {
   exceptionAttributes,
   serverLogger,
 } from "@/telemetry/logger";
-import { type DeliveryMetadata, enqueueAlertNotification } from "./delivery";
+import type { EvaluatePayload } from "./01-scanner";
+import {
+  diffInstances,
+  type FiringInstance,
+  fetchFiringInstances,
+  type InstanceDiff,
+  rowsToInstances,
+} from "./02-instances";
+import { type AlertTransition, buildAlertTransition } from "./02-transition";
 import {
   type AlertEventRow,
   type BoundedEvidence,
@@ -40,16 +48,8 @@ import {
   buildEvaluationEvent,
   buildInstanceEvent,
   recordAlertEvents,
-} from "./events";
-import {
-  diffInstances,
-  type FiringInstance,
-  fetchFiringInstances,
-  type InstanceDiff,
-  rowsToInstances,
-} from "./instances";
-import type { EvaluatePayload } from "./scanner";
-import { type AlertTransition, buildAlertTransition } from "./transition";
+} from "./03-events";
+import { type DeliveryMetadata, enqueueAlertNotification } from "./04-delivery";
 
 type AlertDefinition = typeof alertDefinitions.$inferSelect;
 
@@ -110,13 +110,12 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
     return;
   }
 
-  // 4. Derive the transition (pure).
+  // 4. Derive the transition (pure). Instance identity and counts come from the
+  // full result; `evidence` is only the bounded snapshot kept for storage and
+  // message rendering. Deriving `current` from the bounded rows would cap the
+  // firing set at MAX_EVIDENCE_ROWS and falsely resolve everything past it.
   const evidence = boundEvidence(rows);
-  const current = rowsToInstances(
-    evidence.rows,
-    def.instanceLabelColumns ?? [],
-    now,
-  );
+  const current = rowsToInstances(rows, def.instanceLabelColumns ?? [], now);
   const diff = diffInstances(previous, current);
   const transition = buildAlertTransition({ previous, current, diff, now });
 
@@ -133,11 +132,18 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
     })
     .where(eq(alertDefinitions.id, def.id));
 
-  // 6. Resolve and enqueue the transition's notifications.
+  // 6. Resolve and enqueue the transition's notifications. This runs BEFORE the
+  // events are recorded: instance_fired/instance_resolved events are the firing
+  // set the next run reads, so recording them before the notification is durably
+  // enqueued would make a retry see the instance as already firing and skip the
+  // re-enqueue, dropping the notification. On failure we throw without recording,
+  // letting the job retry re-derive and re-enqueue (delivery jobKeys replace, so
+  // re-enqueuing is idempotent).
   const { summary, description } = renderMessages(def, evidence);
-  const deliveries = await Promise.all(
-    transition.actions.map((action) =>
-      enqueueAlertNotification(
+  const deliveries: (DeliveryMetadata | null)[] = [];
+  for (const action of transition.actions) {
+    deliveries.push(
+      await enqueueAlertNotification(
         {
           def,
           kind: action.kind,
@@ -148,8 +154,8 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
         },
         scheduledFor,
       ),
-    ),
-  );
+    );
+  }
 
   // 7. Record the evaluation's events.
   await recordAlertEvents(

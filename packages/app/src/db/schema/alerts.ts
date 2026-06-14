@@ -28,8 +28,7 @@ export const alertDefinitions = pgTable(
     repoid: text("repoid").notNull(),
     slug: text("slug").notNull(),
     evaluationIntervalSeconds: integer("evaluation_interval_seconds").notNull(),
-    window: text("window").notNull(),
-    rawYaml: text("raw_yaml").notNull(),
+    document: text("document").notNull(),
     parsedQuery: text("parsed_query").notNull(),
     summaryTemplate: text("summary_template").notNull(),
     descriptionTemplate: text("description_template").notNull().default(""),
@@ -47,7 +46,6 @@ export const alertDefinitions = pgTable(
       .notNull()
       .defaultNow(),
     active: boolean("active").notNull().default(true),
-    validationStatus: text("validation_status").notNull().default("valid"),
     lastEvaluationStatus: text("last_evaluation_status").notNull().default(""),
     lastEvaluationError: text("last_evaluation_error").notNull().default(""),
     currentState: alertStateEnum("current_state").notNull().default("unknown"),
@@ -115,10 +113,8 @@ export const alertSilences = pgTable(
     cancelledByUserId: text("cancelled_by_user_id"),
   },
   (table) => [
-    index("alert_silences_active_lookup_idx").on(
-      table.organizationId,
-      table.alertDefinitionId,
-      table.endsAt,
-    ),
+    index("alert_silences_active_lookup_idx")
+      .on(table.organizationId, table.alertDefinitionId, table.endsAt)
+      .where(sql`cancelled_at IS NULL`),
   ],
 );

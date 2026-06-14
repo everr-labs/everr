@@ -5,7 +5,7 @@ import {
   instanceLines,
   KIND_STATUS,
   type NotifiableInstance,
-} from "./format";
+} from "./04-format";
 
 // Plain text by choice: no parse mode means nothing to escape, nothing for
 // Telegram to reject, and the URL in the body needs no validation.

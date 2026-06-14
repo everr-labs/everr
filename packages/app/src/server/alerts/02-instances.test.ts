@@ -4,7 +4,7 @@ import {
   extractInstanceLabels,
   instanceFingerprint,
   rowsToInstances,
-} from "./instances";
+} from "./02-instances";
 
 describe("extractInstanceLabels", () => {
   it("uses string columns implicitly", () => {

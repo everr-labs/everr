@@ -10,13 +10,13 @@ vi.mock("@/lib/clickhouse", () => ({
 }));
 
 const deliver = vi.fn();
-vi.mock("./delivery", () => ({
+vi.mock("./04-delivery", () => ({
   enqueueAlertNotification: (...args: unknown[]) => deliver(...args),
 }));
 
 const fetchFiring = vi.fn();
-vi.mock("./instances", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./instances")>();
+vi.mock("./02-instances", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./02-instances")>();
   return {
     ...actual,
     fetchFiringInstances: (...args: unknown[]) => fetchFiring(...args),
@@ -55,8 +55,8 @@ vi.mock("@/telemetry/logger", () => ({
 }));
 
 import { serverLogger } from "@/telemetry/logger";
-import { evaluateAlert } from "./evaluate";
-import { instanceFingerprint } from "./instances";
+import { evaluateAlert } from "./02-evaluate";
+import { instanceFingerprint } from "./02-instances";
 
 const alertDefinitionId = "11111111-1111-4111-8111-111111111111";
 
@@ -149,6 +149,50 @@ describe("evaluateAlert", () => {
     );
     expect(deliver).toHaveBeenCalledWith(
       expect.objectContaining({ kind: "firing", firingCount: 1 }),
+      expect.any(Date),
+    );
+  });
+
+  it("rethrows enqueue failures without recording events so the retry re-notifies", async () => {
+    definitionRows.mockReturnValue([baseDef]);
+    sqlApi.mockResolvedValue({ rows: [{ route: "/x" }], columns: ["route"] });
+    deliver.mockRejectedValueOnce(new Error("queue down"));
+
+    await expect(
+      evaluateAlert({
+        alertDefinitionId,
+        scheduledFor: "2026-06-10T12:00:00.000Z",
+      }),
+    ).rejects.toThrow("queue down");
+
+    // instance_fired/instance_resolved events are the firing set the next run
+    // reads. Recording them here would make the retry treat the instance as
+    // already firing and skip the re-enqueue, dropping the notification.
+    expect(insertEvents).not.toHaveBeenCalled();
+  });
+
+  it("derives the full firing set from all rows, not the bounded snapshot", async () => {
+    definitionRows.mockReturnValue([baseDef]);
+    const rows = Array.from({ length: 60 }, (_, i) => ({ route: `/r${i}` }));
+    sqlApi.mockResolvedValue({ rows, columns: ["route"] });
+
+    await evaluateAlert({
+      alertDefinitionId,
+      scheduledFor: "2026-06-10T12:00:00.000Z",
+    });
+
+    const inserted = insertEvents.mock.calls[0][0] as Record<string, unknown>[];
+    expect(
+      inserted.filter((e) => e.event_type === "instance_fired"),
+    ).toHaveLength(60);
+    expect(
+      updates.some(
+        (u) =>
+          (u as { firingInstanceCount?: number }).firingInstanceCount === 60,
+      ),
+    ).toBe(true);
+    expect(deliver).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "firing", firingCount: 60 }),
       expect.any(Date),
     );
   });

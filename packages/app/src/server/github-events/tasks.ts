@@ -11,6 +11,10 @@ import { getTelemetryTracer } from "@/telemetry/node";
 import { replayWebhookToCollector } from "./collector";
 import { firstHeader } from "./headers";
 import {
+  COLLECTOR_TASK_IDENTIFIER,
+  STATUS_TASK_IDENTIFIER,
+} from "./identifiers";
+import {
   installationIdFromQueuedEvent,
   parseQueuedWorkflowEvent,
 } from "./payloads";
@@ -19,8 +23,6 @@ import { resolveOrganizationId } from "./tenant-resolver";
 import type { WebhookJobData } from "./types";
 import { TerminalEventError } from "./types";
 
-export const COLLECTOR_TASK_IDENTIFIER = "github-events/collector";
-export const STATUS_TASK_IDENTIFIER = "github-events/status";
 const tracer = getTelemetryTracer("everr-app.github_events");
 
 type ParsedQueuedEvent = ReturnType<typeof parseQueuedWorkflowEvent>;

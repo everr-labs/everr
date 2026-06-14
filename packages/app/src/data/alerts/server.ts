@@ -6,12 +6,12 @@ import { db } from "@/db/client";
 import { alertDefinitions, alertSettings, alertSilences } from "@/db/schema";
 import { auth } from "@/lib/auth.server";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
-import { OPERATIONAL_EVENT_TYPES } from "@/server/alerts/events";
 import {
   extractInstanceLabels,
   instanceFingerprint,
   parseLabels,
-} from "@/server/alerts/instances";
+} from "@/server/alerts/02-instances";
+import { OPERATIONAL_EVENT_TYPES } from "@/server/alerts/03-events";
 import {
   ALERT_CHANNELS,
   type AlertDeliveryTargets,
@@ -49,7 +49,6 @@ export type AlertSummary = {
   configFilePath: string;
   currentState: "unknown" | "resolved" | "firing";
   active: boolean;
-  validationStatus: string;
   lastEvaluationStatus: string;
   lastEvaluationError: string;
   lastEvaluatedAt: Date | null;
@@ -63,7 +62,7 @@ export type AlertSummary = {
 };
 
 type AlertDetail = AlertSummary & {
-  rawYaml: string;
+  document: string;
   parsedQuery: string;
   summaryTemplate: string;
   descriptionTemplate: string;
@@ -112,7 +111,6 @@ const alertListColumns = {
   configFilePath: alertDefinitions.configFilePath,
   currentState: alertDefinitions.currentState,
   active: alertDefinitions.active,
-  validationStatus: alertDefinitions.validationStatus,
   lastEvaluationStatus: alertDefinitions.lastEvaluationStatus,
   lastEvaluationError: alertDefinitions.lastEvaluationError,
   lastEvaluatedAt: alertDefinitions.lastEvaluatedAt,
@@ -152,7 +150,7 @@ async function getAlertRow(alertId: string, organizationId: string) {
   const [row] = await db
     .select({
       ...alertListColumns,
-      rawYaml: alertDefinitions.rawYaml,
+      document: alertDefinitions.document,
       parsedQuery: alertDefinitions.parsedQuery,
       summaryTemplate: alertDefinitions.summaryTemplate,
       descriptionTemplate: alertDefinitions.descriptionTemplate,
@@ -197,7 +195,7 @@ export const getAlert = createAuthenticatedServerFn({ method: "GET" })
     if (!row) throw new Error("Alert not found");
     return {
       ...toAlertSummary(row as AlertSummaryRow),
-      rawYaml: row.rawYaml,
+      document: row.document,
       parsedQuery: row.parsedQuery,
       summaryTemplate: row.summaryTemplate,
       descriptionTemplate: row.descriptionTemplate,
@@ -291,6 +289,7 @@ export const listAlertEvents = createAuthenticatedServerFn({ method: "GET" })
 	              AND slug = {slug:String}
 	              AND alert_definition_id = {alertDefinitionId:String}
 	              AND event_type IN ('instance_fired', 'instance_resolved')
+	              AND evaluation_scheduled_at IN (SELECT evaluation_scheduled_at FROM history)
 	              AND event_time >= {fromTime:String}
 	              AND event_time <= {toTime:String}
 	          ) AS instance_events
@@ -415,7 +414,7 @@ async function listActiveSilenceRows(alertId: string, organizationId: string) {
       matchers: alertSilences.matchers,
     })
     .from(alertSilences)
-    .where(activeSilenceConditions(organizationId, alertId, new Date()))
+    .where(activeSilenceConditions(organizationId, alertId))
     .orderBy(desc(alertSilences.endsAt));
 }
 

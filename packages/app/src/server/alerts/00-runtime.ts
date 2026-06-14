@@ -4,13 +4,13 @@ import {
   parseCronItems,
   type TaskList,
 } from "graphile-worker";
-import { ALERT_DELIVER_TASK, runDeliverySend } from "./delivery";
-import { evaluateAlert } from "./evaluate";
 import {
   ALERT_EVALUATE_TASK,
   type EvaluatePayload,
   scanDueAlerts,
-} from "./scanner";
+} from "./01-scanner";
+import { evaluateAlert } from "./02-evaluate";
+import { ALERT_DELIVER_TASK, runDeliverySend } from "./04-delivery";
 
 const ALERT_SCAN_TASK = "alerts/scan";
 

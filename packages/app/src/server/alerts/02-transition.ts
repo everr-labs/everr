@@ -9,9 +9,20 @@
 // rule-level (resolved ↔ firing), but instances can also come and go while
 // the rule stays firing — that's where the partial/churn cases below come from.
 
-import type { DeliveryKind, NotifiableInstance } from "./format";
-import type { AlertInstance, FiringInstance, InstanceDiff } from "./instances";
+import type {
+  AlertInstance,
+  FiringInstance,
+  InstanceDiff,
+} from "./02-instances";
+import type { DeliveryKind, NotifiableInstance } from "./04-format";
 
+// The runtime states the machine moves between.
+//
+//   "resolved" — no instances are currently firing
+//   "firing"   — at least one instance is firing
+//
+// The DB also stores "unknown" for never-evaluated or just-reset rows,
+// but it's not modeled here: the first evaluation overwrites it.
 export type AlertRuntimeState = "resolved" | "firing";
 
 // The seven possible outcomes of one evaluation:
@@ -25,6 +36,18 @@ export type AlertRuntimeState = "resolved" | "firing";
 //   yes         | yes        | some new                | added_firing_instances
 //   yes         | yes        | some resolved           | partially_resolved
 //   yes         | yes        | none                    | stayed_firing
+//
+// Effects per transition:
+//
+//   name                  | next state | timestamps set          | notifications
+//   ----------------------|------------|-------------------------|------------------
+//   stayed_resolved       | resolved   | —                       | —
+//   started_firing        | firing     | lastSeenAt, lastFiredAt | firing
+//   stayed_firing         | firing     | lastSeenAt              | —
+//   added_firing_instances| firing     | lastSeenAt              | firing (new only)
+//   partially_resolved    | firing     | lastSeenAt              | partial_resolved
+//   resolved              | resolved   | lastResolvedAt          | resolved
+//   churned               | firing     | lastSeenAt              | firing + partial_resolved
 export type AlertTransitionName =
   | "stayed_resolved"
   | "started_firing"
@@ -71,13 +94,13 @@ function transitionName(input: {
   // distinguished only by instance churn. Note the flags are not independent:
   // started_firing implies hasNewlyFired, and resolved implies hasResolved
   // (every previous instance is in nowResolved when the current set is empty).
-  if (!input.wasFiring && !input.isFiring) return "stayed_resolved";
-  if (!input.wasFiring && input.isFiring) return "started_firing";
-  if (input.wasFiring && !input.isFiring) return "resolved";
-  if (input.hasNewlyFired && input.hasResolved) return "churned";
-  if (input.hasNewlyFired) return "added_firing_instances";
-  if (input.hasResolved) return "partially_resolved";
-  return "stayed_firing";
+  if (!input.wasFiring && !input.isFiring) return "stayed_resolved"; // still quiet
+  if (!input.wasFiring && input.isFiring) return "started_firing"; // entering episode
+  if (input.wasFiring && !input.isFiring) return "resolved"; // episode ended
+  if (input.hasNewlyFired && input.hasResolved) return "churned"; // instances turning over
+  if (input.hasNewlyFired) return "added_firing_instances"; // new instances joined
+  if (input.hasResolved) return "partially_resolved"; // some instances recovered
+  return "stayed_firing"; // no instance changes
 }
 
 export function buildAlertTransition(input: {
@@ -112,11 +135,12 @@ export function buildAlertTransition(input: {
     ...(name === "resolved" ? { lastResolvedAt: input.now } : {}),
   };
 
-  // At most two notifications per evaluation: one for instances that started
-  // firing, one for instances that resolved. The resolved kind depends on the
-  // rule level — "resolved" only when nothing is left firing, otherwise
-  // "partial_resolved". Unchanged still-firing instances never notify; they
-  // were announced when they fired.
+  // At most two notifications per evaluation:
+  //   - "firing"           → newlyFired instances get notified
+  //   - "resolved"         → nowResolved instances, rule fully resolved
+  //   - "partial_resolved" → nowResolved instances, rule still firing
+  // Still-firing instances never notify here — they were announced on their
+  // started_firing or added_firing_instances transition.
   const actions: AlertTransitionAction[] = [];
   if (hasNewlyFired) {
     actions.push({ kind: "firing", instances: input.diff.newlyFired });

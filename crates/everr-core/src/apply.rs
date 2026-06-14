@@ -106,15 +106,19 @@ pub fn load_apply_manifest(dir: &Path) -> Result<String> {
             dir.display()
         );
     };
-    let name = path.file_name().unwrap_or(path.as_os_str()).to_string_lossy();
-    let contents = std::fs::read_to_string(&path)
-        .with_context(|| format!("{name}: failed to read file"))?;
+    let name = path
+        .file_name()
+        .unwrap_or(path.as_os_str())
+        .to_string_lossy();
+    let contents =
+        std::fs::read_to_string(&path).with_context(|| format!("{name}: failed to read file"))?;
     let manifest: ApplyManifest = serde_yaml::from_str(&contents)
         .with_context(|| format!("{name}: failed to parse (it must contain only `repoid`)"))?;
-    if manifest.repoid.trim().is_empty() {
+    let repoid = manifest.repoid.trim();
+    if repoid.is_empty() {
         anyhow::bail!("{name}: repoid must be a non-empty string");
     }
-    Ok(manifest.repoid)
+    Ok(repoid.to_string())
 }
 
 /// One resource entry on the wire: `{ "path": ..., "resource": ... }`.
@@ -335,7 +339,7 @@ mod tests {
     #[test]
     fn manifest_returns_repoid() {
         let dir = tempfile::tempdir().unwrap();
-        write(dir.path(), "everr.yaml", "repoid: \"abc-123\"\n");
+        write(dir.path(), "everr.yaml", "repoid: \" abc-123 \"\n");
         assert_eq!(load_apply_manifest(dir.path()).unwrap(), "abc-123");
     }
 

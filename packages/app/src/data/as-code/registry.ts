@@ -1,5 +1,6 @@
 import { applyAlertSpecs } from "@/data/alerts/apply.server";
 import { applyDashboardSpecs } from "@/data/dashboards/apply.server";
+import { ApplyValidationError } from "./errors";
 import type { ApplyInput, ApplyResourceEntry, ApplySource } from "./schema";
 
 export interface KindResult {
@@ -40,6 +41,20 @@ const REGISTRY: {
   { key: "alerts", kind: "AlertRule", reconcile: applyAlertSpecs },
 ];
 
+function validateResourceKind(
+  resources: ApplyResourceEntry[],
+  expectedKind: string,
+): void {
+  for (const resource of resources) {
+    const value = resource.resource as { kind?: unknown } | null | undefined;
+    if (value?.kind !== expectedKind) {
+      throw new ApplyValidationError(
+        `${resource.path}: expected kind "${expectedKind}"`,
+      );
+    }
+  }
+}
+
 /**
  * Apply grouped resources for one repo. Every registered kind is reconciled,
  * including empty arrays, so the submitted state is the full repo state.
@@ -55,6 +70,7 @@ export async function applyResources(opts: {
 
   const results: KindResult[] = [];
   for (const { key, kind, reconcile } of REGISTRY) {
+    validateResourceKind(state[key], kind);
     const r = await reconcile({
       orgId,
       repoid,

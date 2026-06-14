@@ -40,7 +40,6 @@ vi.mock("@/db/schema", () => {
     configFilePath: "alert_definitions.config_file_path",
     currentState: "alert_definitions.current_state",
     active: "alert_definitions.active",
-    validationStatus: "alert_definitions.validation_status",
     lastEvaluationStatus: "alert_definitions.last_evaluation_status",
     lastEvaluationError: "alert_definitions.last_evaluation_error",
     lastEvaluatedAt: "alert_definitions.last_evaluated_at",
@@ -51,7 +50,7 @@ vi.mock("@/db/schema", () => {
     lastEvidenceSnapshot: "alert_definitions.last_evidence_snapshot",
     firingInstanceCount: "alert_definitions.firing_instance_count",
     instanceLabelColumns: "alert_definitions.instance_label_columns",
-    rawYaml: "alert_definitions.raw_yaml",
+    document: "alert_definitions.document",
     parsedQuery: "alert_definitions.parsed_query",
     summaryTemplate: "alert_definitions.summary_template",
     descriptionTemplate: "alert_definitions.description_template",
@@ -119,7 +118,7 @@ vi.mock("@/db/client", () => {
   };
 });
 
-import { instanceFingerprint } from "@/server/alerts/instances";
+import { instanceFingerprint } from "@/server/alerts/02-instances";
 import {
   activateAlert,
   cancelSilence,
@@ -139,7 +138,6 @@ const alertRow = {
   configFilePath: ".everr/alerts.yaml",
   currentState: "firing",
   active: true,
-  validationStatus: "valid",
   lastEvaluationStatus: "ok",
   lastEvaluationError: "",
   lastEvaluatedAt: null,
@@ -154,7 +152,7 @@ const alertRow = {
   firingInstanceCount: 1,
   instanceLabelColumns: ["route"],
   activeSilenceCount: 0,
-  rawYaml: "",
+  document: "",
   parsedQuery: "SELECT 1",
   summaryTemplate: "$" + "{row_count} hits for $" + "{top_route}",
   descriptionTemplate: "latest count $" + "{top_count}",
@@ -462,6 +460,9 @@ describe("listAlertEvents", () => {
     // history CTE, not the bare table.
     expect(sql).toMatch(
       /LEFT JOIN \(\s*SELECT[\s\S]*?alert_definition_id = \{alertDefinitionId:String\}[\s\S]*?event_time >= \{fromTime:String\}[\s\S]*?\) AS instance_events/,
+    );
+    expect(sql).toContain(
+      "evaluation_scheduled_at IN (SELECT evaluation_scheduled_at FROM history)",
     );
     expect(sql).toContain("groupArrayIf(");
     expect(events[0]).toMatchObject({

@@ -6,7 +6,7 @@ CREATE TABLE "alert_definitions" (
 	"slug" text NOT NULL,
 	"evaluation_interval_seconds" integer NOT NULL,
 	"window" text NOT NULL,
-	"raw_yaml" text NOT NULL,
+	"document" text NOT NULL,
 	"parsed_query" text NOT NULL,
 	"summary_template" text NOT NULL,
 	"description_template" text DEFAULT '' NOT NULL,

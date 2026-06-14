@@ -608,6 +608,10 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
     if !dir.is_dir() {
         anyhow::bail!("{} is not a directory", args.dir);
     }
+    // The required everr.yaml declares the repoid (apply ownership boundary).
+    // Check it before parsing resources so unrelated YAML errors cannot hide a
+    // missing manifest.
+    let repoid = load_apply_manifest(dir)?;
     let documents = load_resource_documents(dir)?;
     if documents.is_empty() {
         eprintln!(
@@ -616,8 +620,6 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
         );
     }
 
-    // The required everr.yaml declares the repoid (apply ownership boundary).
-    let repoid = load_apply_manifest(dir)?;
     let state = classify_documents(documents)?.into_wire();
     let source = detect_git_source(dir);
 

@@ -18,7 +18,7 @@ import { parseEvaluationInterval } from "./window";
 interface DesiredAlert {
   slug: string;
   evaluationIntervalSeconds: number;
-  rawYaml: string;
+  document: string;
   parsedQuery: string;
   summaryTemplate: string;
   descriptionTemplate: string;
@@ -30,7 +30,6 @@ interface DesiredAlert {
 
 interface ExistingAlert extends DesiredAlert {
   active: boolean;
-  validationStatus: string;
 }
 
 interface ApplyAlertsResult {
@@ -140,6 +139,36 @@ async function validateAlertRuleQuery(
   return { instanceLabelColumns };
 }
 
+// One repo can declare many alerts; firing every validation query at ClickHouse
+// at once would risk exhausting the connection pool. Cap the in-flight queries.
+const VALIDATION_QUERY_CONCURRENCY = 8;
+
+// allSettled with a bounded worker pool: every item runs to completion and
+// results stay in input order, so callers can still report the first failure
+// deterministically.
+async function mapSettledWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<PromiseSettledResult<R>[]> {
+  const results = new Array<PromiseSettledResult<R>>(items.length);
+  let next = 0;
+  async function worker(): Promise<void> {
+    while (next < items.length) {
+      const index = next++;
+      try {
+        results[index] = { status: "fulfilled", value: await fn(items[index]) };
+      } catch (reason) {
+        results[index] = { status: "rejected", reason };
+      }
+    }
+  }
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, worker),
+  );
+  return results;
+}
+
 async function buildDesiredAlerts(opts: {
   orgId: string;
   repoid: string;
@@ -160,12 +189,12 @@ async function buildDesiredAlerts(opts: {
     return { ...parsed, path };
   });
 
-  // The validation queries are independent; run them concurrently but report
-  // failures in file order so the surfaced error is deterministic.
-  const validations = await Promise.allSettled(
-    parsedAlerts.map((parsed) =>
-      validateAlertRuleQuery(parsed.path, parsed.rule, opts.orgId),
-    ),
+  // The validation queries are independent; run them with bounded concurrency
+  // but report failures in file order so the surfaced error is deterministic.
+  const validations = await mapSettledWithConcurrency(
+    parsedAlerts,
+    VALIDATION_QUERY_CONCURRENCY,
+    (parsed) => validateAlertRuleQuery(parsed.path, parsed.rule, opts.orgId),
   );
 
   return parsedAlerts.map((parsed, index) => {
@@ -175,7 +204,7 @@ async function buildDesiredAlerts(opts: {
     return {
       slug: parsed.slug,
       evaluationIntervalSeconds: parsed.evaluationIntervalSeconds,
-      rawYaml: JSON.stringify(parsed.rule, null, 2),
+      document: JSON.stringify(parsed.rule, null, 2),
       parsedQuery: parsed.rule.spec.query,
       summaryTemplate: parsed.rule.spec.summary,
       descriptionTemplate: parsed.rule.spec.description ?? "",
@@ -192,17 +221,27 @@ async function buildDesiredAlerts(opts: {
   });
 }
 
+function instanceLabelsChanged(a: string[], b: string[]): boolean {
+  return a.length !== b.length || a.some((value, index) => value !== b[index]);
+}
+
+// The query and instance-label columns define the runtime state's shape; when
+// either changes the previous firing set no longer applies and must be reset.
+function queryOrLabelsChanged(a: DesiredAlert, b: DesiredAlert): boolean {
+  return (
+    a.parsedQuery !== b.parsedQuery ||
+    instanceLabelsChanged(a.instanceLabelColumns, b.instanceLabelColumns)
+  );
+}
+
 function needsUpdate(existing: ExistingAlert, desired: DesiredAlert): boolean {
   return (
     !existing.active ||
-    existing.validationStatus !== "valid" ||
     existing.evaluationIntervalSeconds !== desired.evaluationIntervalSeconds ||
-    existing.rawYaml !== desired.rawYaml ||
-    existing.parsedQuery !== desired.parsedQuery ||
+    existing.document !== desired.document ||
+    queryOrLabelsChanged(existing, desired) ||
     existing.summaryTemplate !== desired.summaryTemplate ||
     existing.descriptionTemplate !== desired.descriptionTemplate ||
-    JSON.stringify(existing.instanceLabelColumns) !==
-      JSON.stringify(desired.instanceLabelColumns) ||
     existing.scheduleJitterSeconds !== desired.scheduleJitterSeconds ||
     existing.configFilePath !== desired.configFilePath ||
     existing.sourceLink !== desired.sourceLink
@@ -224,7 +263,7 @@ function activeValues(
 ) {
   const values = {
     evaluationIntervalSeconds: desired.evaluationIntervalSeconds,
-    rawYaml: desired.rawYaml,
+    document: desired.document,
     parsedQuery: desired.parsedQuery,
     summaryTemplate: desired.summaryTemplate,
     descriptionTemplate: desired.descriptionTemplate,
@@ -234,7 +273,6 @@ function activeValues(
     configFilePath: desired.configFilePath,
     sourceLink: desired.sourceLink,
     active: true,
-    validationStatus: "valid",
     updatedAt: now,
   };
 
@@ -251,7 +289,16 @@ function activeValues(
     lastSeenAt: null,
     lastRowCount: 0,
     lastEvidenceSnapshot: [],
+    firingInstanceCount: 0,
   };
+}
+
+function shouldResetRuntimeState(
+  existing: ExistingAlert | undefined,
+  desired: DesiredAlert,
+): boolean {
+  if (!existing?.active) return true;
+  return queryOrLabelsChanged(existing, desired);
 }
 
 /**
@@ -277,7 +324,7 @@ export const applyAlertSpecs: Reconciler = async ({
     .select({
       slug: alertDefinitions.slug,
       evaluationIntervalSeconds: alertDefinitions.evaluationIntervalSeconds,
-      rawYaml: alertDefinitions.rawYaml,
+      document: alertDefinitions.document,
       parsedQuery: alertDefinitions.parsedQuery,
       summaryTemplate: alertDefinitions.summaryTemplate,
       descriptionTemplate: alertDefinitions.descriptionTemplate,
@@ -286,7 +333,6 @@ export const applyAlertSpecs: Reconciler = async ({
       configFilePath: alertDefinitions.configFilePath,
       sourceLink: alertDefinitions.sourceLink,
       active: alertDefinitions.active,
-      validationStatus: alertDefinitions.validationStatus,
     })
     .from(alertDefinitions)
     .where(
@@ -324,10 +370,6 @@ export const applyAlertSpecs: Reconciler = async ({
           organizationId: orgId,
           repoid,
           slug: row.slug,
-          // The window column is NOT NULL without a default; the concept is
-          // unused (rules only have evaluationInterval) but the column stays
-          // until a migration drops it.
-          window: "",
           ...activeValues(row, now),
           createdAt: now,
         })),
@@ -338,7 +380,11 @@ export const applyAlertSpecs: Reconciler = async ({
       const current = existingBySlug.get(row.slug);
       await tx
         .update(alertDefinitions)
-        .set(activeValues(row, now, { resetRuntimeState: !current?.active }))
+        .set(
+          activeValues(row, now, {
+            resetRuntimeState: shouldResetRuntimeState(current, row),
+          }),
+        )
         .where(
           and(
             eq(alertDefinitions.organizationId, orgId),

@@ -39,7 +39,7 @@ vi.mock("graphile-worker", () => ({
   run: runtimeMocks.run,
 }));
 
-vi.mock("@/server/alerts/runtime", () => ({
+vi.mock("@/server/alerts/00-runtime", () => ({
   alertCronItems: runtimeMocks.alertCronItems,
   alertTaskList: runtimeMocks.alertTaskList,
 }));
@@ -71,10 +71,11 @@ vi.mock("@/telemetry/logger", () => ({
 
 async function loadRuntime() {
   vi.resetModules();
-  // The runner handle deliberately lives on globalThis to survive HMR module
-  // replacement; tests need each import to start from a clean slate.
-  delete (globalThis as { __everrWorkerRuntime?: unknown })
-    .__everrWorkerRuntime;
+  // The runner handle deliberately lives on the hot-singleton registry on
+  // globalThis to survive HMR module replacement; tests need each import to
+  // start from a clean slate.
+  delete (globalThis as { __everrHotSingletons?: unknown })
+    .__everrHotSingletons;
   runtimeMocks.run.mockClear();
   runtimeMocks.runOptions.length = 0;
   runtimeMocks.serverLoggerError.mockClear();

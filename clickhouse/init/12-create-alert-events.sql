@@ -22,14 +22,18 @@ CREATE TABLE IF NOT EXISTS app.alert_events
   delivery_targets Map(String, Array(String)) DEFAULT map(),
   silence_id String DEFAULT '',
   instance_fingerprint String DEFAULT '',
-  instance_labels_json String DEFAULT '{}'
+  instance_labels_json String DEFAULT '{}',
+  INDEX alert_def_skip_idx alert_definition_id TYPE bloom_filter GRANULARITY 4
 )
 ENGINE = MergeTree
 PARTITION BY toYYYYMM(event_date)
 -- Dominant read: per-alert history by org + repoid + slug over a time range.
 -- ORDER BY is immutable, so this intentionally prioritizes alert filters over
--- date-only scans; monthly partitions handle lifecycle pruning.
-ORDER BY (organization_id, repoid, slug, event_time, event_id)
+-- date-only scans; monthly partitions handle lifecycle pruning. event_type is
+-- low-cardinality (~6 values) and filtered in every query, so it sits before
+-- the time column. alert_definition_id is always filtered but higher
+-- cardinality; a bloom skip index covers it.
+ORDER BY (organization_id, repoid, slug, event_type, event_time, event_id)
 TTL toDateTime(event_time) + INTERVAL dictGetOrDefault('app.tenant_retention', 'logs_days', organization_id, toUInt32(3650)) DAY
 SETTINGS index_granularity = 8192;
 
@@ -50,6 +54,7 @@ TO app_ro;
 ALTER TABLE app.alert_events ADD COLUMN IF NOT EXISTS instance_fingerprint String DEFAULT '';
 ALTER TABLE app.alert_events ADD COLUMN IF NOT EXISTS instance_labels_json String DEFAULT '{}';
 ALTER TABLE app.alert_events ADD COLUMN IF NOT EXISTS delivery_targets Map(String, Array(String)) DEFAULT map();
+ALTER TABLE app.alert_events ADD INDEX IF NOT EXISTS alert_def_skip_idx alert_definition_id TYPE bloom_filter GRANULARITY 4;
 DROP VIEW IF EXISTS app.alert_events_logs_mv;
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS app.alert_events_logs_mv

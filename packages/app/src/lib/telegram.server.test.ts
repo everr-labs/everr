@@ -48,6 +48,16 @@ describe("sendTelegramMessage", () => {
     expect(body.text.endsWith("…")).toBe(true);
   });
 
+  it("does not split surrogate pairs when truncating", async () => {
+    fetchMock.mockResolvedValueOnce(ok());
+
+    await sendTelegramMessage("123", `${"x".repeat(4094)}😀tail`);
+
+    const body = sentBody(0);
+    expect(body.text).toHaveLength(4095);
+    expect(body.text).toBe(`${"x".repeat(4094)}…`);
+  });
+
   it("throws with the response details on failure", async () => {
     fetchMock.mockResolvedValueOnce(err(400, "Bad Request: chat not found"));
 

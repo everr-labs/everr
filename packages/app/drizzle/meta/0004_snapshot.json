@@ -45,8 +45,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "raw_yaml": {
-          "name": "raw_yaml",
+        "document": {
+          "name": "document",
           "type": "text",
           "primaryKey": false,
           "notNull": true

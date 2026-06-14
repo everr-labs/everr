@@ -10,7 +10,16 @@ describe("parseWindow", () => {
   });
 
   it("rejects malformed values", () => {
-    for (const bad of ["", "5", "m", "5 m", "5mo", "-5m", "5.5m"]) {
+    for (const bad of [
+      "",
+      "5",
+      "m",
+      "5 m",
+      "5mo",
+      "-5m",
+      "5.5m",
+      `${"9".repeat(400)}d`,
+    ]) {
       expect(() => parseWindow(bad)).toThrow();
     }
   });

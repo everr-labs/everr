@@ -16,7 +16,7 @@ vi.mock("@/server/worker/jobs", () => ({
   addWorkerJob: (...args: unknown[]) => addWorkerJob(...args),
 }));
 
-import { scanDueAlerts } from "./scanner";
+import { scanDueAlerts } from "./01-scanner";
 
 function drizzleSqlText(value: unknown): string {
   const chunks =

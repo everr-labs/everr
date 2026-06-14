@@ -63,6 +63,8 @@ import {
   AlertStateBadges,
   formatDate,
   formatInterval,
+  QueryErrorMessage,
+  safeExternalHref,
   stateVariant,
 } from "./-alerts-shared";
 
@@ -143,9 +145,13 @@ function AlertDetailPage() {
     return <Skeleton className="h-96 w-full" />;
   }
   if (alert.isError || !alert.data) {
+    const notFound =
+      alert.error instanceof Error && alert.error.message === "Alert not found";
     return (
       <div className="flex flex-col items-start gap-4">
-        <p className="text-muted-foreground">Alert not found.</p>
+        <p className="text-muted-foreground" role="alert">
+          {notFound ? "Alert not found." : "Unable to load alert."}
+        </p>
         <Link to="/alerts" className="underline underline-offset-4">
           Back to alerts
         </Link>
@@ -153,6 +159,7 @@ function AlertDetailPage() {
     );
   }
   const detail = alert.data;
+  const sourceHref = safeExternalHref(detail.sourceLink);
   const definitionRows: [string, ReactNode][] = [
     ["Evaluation interval", formatInterval(detail.evaluationIntervalSeconds)],
     ["Summary", detail.summaryTemplate],
@@ -185,15 +192,25 @@ function AlertDetailPage() {
           </div>
           <p className="text-muted-foreground">
             {detail.repoid}
-            {detail.sourceLink && (
+            {sourceHref && (
               <>
                 {" · "}
-                <a className="underline" href={detail.sourceLink}>
+                <a
+                  className="underline"
+                  href={sourceHref}
+                  target="_blank"
+                  rel="noreferrer"
+                >
                   source
                 </a>
               </>
             )}
           </p>
+          {setActive.error && (
+            <p className="text-sm text-destructive" role="alert">
+              {setActive.error.message}
+            </p>
+          )}
         </div>
         {detail.active ? (
           <Button
@@ -228,7 +245,9 @@ function AlertDetailPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {instances.isPending ? (
+          {instances.isError ? (
+            <QueryErrorMessage message="Unable to load alert instances." />
+          ) : instances.isPending ? (
             <Skeleton className="m-3 h-36 w-full" />
           ) : (
             <DataTable
@@ -344,7 +363,9 @@ function AlertDetailPage() {
             </Button>
           </CardHeader>
           <CardContent>
-            {silences.isPending ? (
+            {silences.isError ? (
+              <QueryErrorMessage message="Unable to load silences." />
+            ) : silences.isPending ? (
               <Skeleton className="h-24 w-full" />
             ) : (silences.data?.length ?? 0) === 0 ? (
               <p className="text-muted-foreground">No active silences.</p>
@@ -364,7 +385,9 @@ function AlertDetailPage() {
           <CardTitle>History</CardTitle>
         </CardHeader>
         <CardContent>
-          {events.isPending ? (
+          {events.isError ? (
+            <QueryErrorMessage message="Unable to load alert history." />
+          ) : events.isPending ? (
             <Skeleton className="m-3 h-36 w-full" />
           ) : (
             <DataTable
@@ -554,15 +577,22 @@ function SilenceRow({ silence }: { silence: AlertSilenceSummary }) {
           {silence.reason ? ` · ${silence.reason}` : ""}
         </span>
       </div>
-      <Button
-        variant="ghost"
-        size="sm"
-        disabled={cancel.isPending}
-        onClick={() => cancel.mutate()}
-      >
-        <X data-icon="inline-start" />
-        Cancel
-      </Button>
+      <div className="flex flex-col items-end gap-1">
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={cancel.isPending}
+          onClick={() => cancel.mutate()}
+        >
+          <X data-icon="inline-start" />
+          Cancel
+        </Button>
+        {cancel.error && (
+          <span className="text-right text-destructive text-xs" role="alert">
+            {cancel.error.message}
+          </span>
+        )}
+      </div>
     </div>
   );
 }

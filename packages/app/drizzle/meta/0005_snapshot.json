@@ -1,6 +1,6 @@
 {
-  "id": "ddf506e1-8cdb-4c5f-8483-48595b719b31",
-  "prevId": "7cb49509-1433-4c70-840a-fd56b463d80e",
+  "id": "a153e106-e733-4400-839a-56f872503d6f",
+  "prevId": "d1043671-987e-4f93-8076-40994c643f85",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -43,7 +43,8 @@
           "name": "window",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "default": "''"
         },
         "document": {
           "name": "document",
@@ -186,6 +187,20 @@
         },
         "last_evidence_snapshot": {
           "name": "last_evidence_snapshot",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "firing_instance_count": {
+          "name": "firing_instance_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "instance_label_columns": {
+          "name": "instance_label_columns",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true,
@@ -345,6 +360,13 @@
           "notNull": true,
           "default": "''"
         },
+        "matchers": {
+          "name": "matchers",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
         "created_by_user_id": {
           "name": "created_by_user_id",
           "type": "text",
@@ -402,6 +424,7 @@
             }
           ],
           "isUnique": false,
+          "where": "cancelled_at IS NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}

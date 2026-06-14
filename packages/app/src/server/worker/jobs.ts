@@ -5,16 +5,15 @@ import {
 } from "graphile-worker";
 import { pool } from "@/db/client";
 
-// One long-lived WorkerUtils, kept on globalThis so HMR module replacement
-// doesn't accumulate one per edit. Callers enqueue through graphile-worker's
+// One long-lived WorkerUtils, memoized like the pool it attaches to. It is a
+// stateless enqueue client with no logic worth hot-reloading, so plain
+// module-level memoization is enough. Callers enqueue through graphile-worker's
 // public API rather than hand-written `graphile_worker.add_job` SQL.
-const globalWithUtils = globalThis as typeof globalThis & {
-  __everrWorkerUtils?: Promise<WorkerUtils>;
-};
+let workerUtils: Promise<WorkerUtils> | undefined;
 
 function getWorkerUtils(): Promise<WorkerUtils> {
-  globalWithUtils.__everrWorkerUtils ??= makeWorkerUtils({ pgPool: pool });
-  return globalWithUtils.__everrWorkerUtils;
+  workerUtils ??= makeWorkerUtils({ pgPool: pool });
+  return workerUtils;
 }
 
 export async function addWorkerJob(

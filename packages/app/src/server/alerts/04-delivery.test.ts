@@ -16,8 +16,8 @@ vi.mock("@/server/worker/jobs", () => ({
 }));
 
 const recordEvents = vi.fn();
-vi.mock("./events", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./events")>();
+vi.mock("./03-events", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./03-events")>();
   return {
     ...actual,
     recordAlertEvents: (...args: unknown[]) => recordEvents(...args),
@@ -51,7 +51,7 @@ import {
   type DeliverySend,
   enqueueAlertNotification,
   runDeliverySend,
-} from "./delivery";
+} from "./04-delivery";
 
 const def = { id: "a1", organizationId: "org-1", repoid: "r1", slug: "s1" };
 const scheduledFor = new Date("2026-06-12T12:00:00Z");

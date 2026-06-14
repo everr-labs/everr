@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractInstanceValues, formatDuration } from "./format";
+import { extractInstanceValues, formatDuration } from "./04-format";
 
 const at = (iso: string) => new Date(iso);
 

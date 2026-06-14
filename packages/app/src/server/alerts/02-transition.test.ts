@@ -3,8 +3,8 @@ import {
   type AlertInstance,
   diffInstances,
   type FiringInstance,
-} from "./instances";
-import { buildAlertTransition } from "./transition";
+} from "./02-instances";
+import { buildAlertTransition } from "./02-transition";
 
 const now = new Date("2026-06-10T12:00:00.000Z");
 const earlier = new Date("2026-06-10T11:55:00.000Z");

@@ -1,5 +1,26 @@
 import { Badge } from "@everr/ui/components/badge";
 
+// Centered load-failure message for a card or table body whose query errored.
+export function QueryErrorMessage({ message }: { message: string }) {
+  return (
+    <p className="px-3 py-6 text-center text-destructive" role="alert">
+      {message}
+    </p>
+  );
+}
+
+export function safeExternalHref(value: string): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:"
+      ? url.toString()
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export function formatDate(value: Date | string | null) {
   if (!value) return "-";
   const date = typeof value === "string" ? new Date(value) : value;

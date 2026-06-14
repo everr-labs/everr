@@ -67,4 +67,20 @@ describe("applyResources", () => {
     expect(dashboardReconciler).toHaveBeenCalledOnce();
     expect(alertReconciler).toHaveBeenCalledOnce();
   });
+
+  it("rejects resources placed under the wrong state key", async () => {
+    await expect(
+      applyResources({
+        orgId: "org-1",
+        repoid: "repo-1",
+        state: {
+          dashboards: [{ path: "alert.yaml", resource: { kind: "AlertRule" } }],
+          alerts: [],
+        },
+      }),
+    ).rejects.toThrow('alert.yaml: expected kind "Dashboard"');
+
+    expect(dashboardReconciler).not.toHaveBeenCalled();
+    expect(alertReconciler).not.toHaveBeenCalled();
+  });
 });

@@ -7,7 +7,7 @@ vi.mock("@/server/worker/jobs", () => ({
   addWorkerJob: (...args: unknown[]) => addWorkerJob(...args),
 }));
 
-vi.mock("./tasks", () => ({
+vi.mock("./identifiers", () => ({
   COLLECTOR_TASK_IDENTIFIER: "github-events/collector",
   STATUS_TASK_IDENTIFIER: "github-events/status",
 }));
@@ -37,11 +37,13 @@ describe("enqueueWebhookEvent", () => {
       payload,
       {
         jobKey: "github-events/collector:delivery-1",
+        jobKeyMode: "replace",
         maxAttempts: 10,
       },
     );
     expect(addWorkerJob).toHaveBeenCalledWith("github-events/status", payload, {
       jobKey: "github-events/status:delivery-1",
+      jobKeyMode: "replace",
       maxAttempts: 10,
     });
   });

@@ -61,8 +61,7 @@ vi.mock("@/db/schema", () => ({
     repoid: "repoid",
     slug: "slug",
     evaluationIntervalSeconds: "evaluation_interval_seconds",
-    window: "window",
-    rawYaml: "raw_yaml",
+    document: "document",
     parsedQuery: "parsed_query",
     summaryTemplate: "summary_template",
     descriptionTemplate: "description_template",
@@ -73,7 +72,6 @@ vi.mock("@/db/schema", () => ({
     createdAt: "created_at",
     updatedAt: "updated_at",
     active: "active",
-    validationStatus: "validation_status",
     lastEvaluationStatus: "last_evaluation_status",
     lastEvaluationError: "last_evaluation_error",
     currentState: "current_state",
@@ -184,7 +182,6 @@ describe("applyAlertSpecs", () => {
       repoid: "repo-1",
       slug: "high-errors",
       evaluationIntervalSeconds: 300,
-      window: "",
       parsedQuery: expect.stringContaining("INTERVAL 15 MINUTE"),
       summaryTemplate: `\${row_count} errors in \${top_service}`,
       descriptionTemplate: `top service \${top_service}`,
@@ -192,7 +189,6 @@ describe("applyAlertSpecs", () => {
       sourceLink:
         "https://github.com/everr/example/blob/abc123/alerts/high-errors.yaml",
       active: true,
-      validationStatus: "valid",
     });
     expect(created).not.toHaveProperty("currentState");
     expect(created).not.toHaveProperty("lastEvaluatedAt");
@@ -207,8 +203,7 @@ describe("applyAlertSpecs", () => {
       {
         slug: "high-errors",
         evaluationIntervalSeconds: 60,
-        window: "5m",
-        rawYaml: "{}",
+        document: "{}",
         parsedQuery: "SELECT 1",
         summaryTemplate: "old",
         descriptionTemplate: "",
@@ -216,15 +211,13 @@ describe("applyAlertSpecs", () => {
         configFilePath: "old.yaml",
         sourceLink: "",
         active: true,
-        validationStatus: "valid",
         currentState: "resolved",
         lastRowCount: 0,
       },
       {
         slug: "stale",
         evaluationIntervalSeconds: 300,
-        window: "15m",
-        rawYaml: "{}",
+        document: "{}",
         parsedQuery: "SELECT 1",
         summaryTemplate: "old",
         descriptionTemplate: "",
@@ -232,7 +225,6 @@ describe("applyAlertSpecs", () => {
         configFilePath: "stale.yaml",
         sourceLink: "",
         active: true,
-        validationStatus: "valid",
         currentState: "resolved",
         lastRowCount: 0,
       },
@@ -277,8 +269,7 @@ describe("applyAlertSpecs", () => {
       {
         slug: "high-errors",
         evaluationIntervalSeconds: 300,
-        window: "15m",
-        rawYaml: "{}",
+        document: "{}",
         parsedQuery: "SELECT 1",
         summaryTemplate: "old",
         descriptionTemplate: "",
@@ -286,7 +277,6 @@ describe("applyAlertSpecs", () => {
         configFilePath: "old.yaml",
         sourceLink: "",
         active: false,
-        validationStatus: "valid",
       },
     ]);
 
@@ -306,6 +296,46 @@ describe("applyAlertSpecs", () => {
       lastSeenAt: null,
       lastRowCount: 0,
       lastEvidenceSnapshot: [],
+      firingInstanceCount: 0,
+    });
+  });
+
+  it("resets runtime state when query or instance labels change", async () => {
+    mockApplySelect([
+      {
+        slug: "high-errors",
+        evaluationIntervalSeconds: 300,
+        document: "{}",
+        parsedQuery: "SELECT old_service AS service",
+        summaryTemplate: `\${row_count} errors in \${top_service}`,
+        descriptionTemplate: `top service \${top_service}`,
+        instanceLabelColumns: ["old_service"],
+        scheduleJitterSeconds: 0,
+        configFilePath: "alerts/high-errors.yaml",
+        sourceLink: "",
+        active: true,
+      },
+    ]);
+
+    const result = await applyAlertSpecs({
+      orgId: "org-1",
+      repoid: "repo-1",
+      resources: [
+        {
+          path: "alerts/high-errors.yaml",
+          resource: alert("high-errors", { instanceLabels: ["service"] }),
+        },
+      ],
+    });
+
+    expect(result.updated).toEqual(["high-errors"]);
+    expect(updateSets[0]).toMatchObject({
+      active: true,
+      currentState: "unknown",
+      lastEvaluatedAt: null,
+      lastRowCount: 0,
+      lastEvidenceSnapshot: [],
+      firingInstanceCount: 0,
     });
   });
 

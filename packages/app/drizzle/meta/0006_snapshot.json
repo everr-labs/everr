@@ -1,6 +1,6 @@
 {
-  "id": "ddf506e1-8cdb-4c5f-8483-48595b719b31",
-  "prevId": "7cb49509-1433-4c70-840a-fd56b463d80e",
+  "id": "e9c7c4d4-bf37-4041-955e-2d5449741f27",
+  "prevId": "a153e106-e733-4400-839a-56f872503d6f",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -36,12 +36,6 @@
         "evaluation_interval_seconds": {
           "name": "evaluation_interval_seconds",
           "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "window": {
-          "name": "window",
-          "type": "text",
           "primaryKey": false,
           "notNull": true
         },
@@ -124,13 +118,6 @@
           "notNull": true,
           "default": true
         },
-        "validation_status": {
-          "name": "validation_status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'valid'"
-        },
         "last_evaluation_status": {
           "name": "last_evaluation_status",
           "type": "text",
@@ -186,6 +173,20 @@
         },
         "last_evidence_snapshot": {
           "name": "last_evidence_snapshot",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "firing_instance_count": {
+          "name": "firing_instance_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "instance_label_columns": {
+          "name": "instance_label_columns",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true,
@@ -345,6 +346,13 @@
           "notNull": true,
           "default": "''"
         },
+        "matchers": {
+          "name": "matchers",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
         "created_by_user_id": {
           "name": "created_by_user_id",
           "type": "text",
@@ -402,6 +410,7 @@
             }
           ],
           "isUnique": false,
+          "where": "cancelled_at IS NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}

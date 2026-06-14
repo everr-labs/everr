@@ -13,7 +13,7 @@ describe.skipIf(!databaseUrl)("scanner under concurrency", () => {
     vi.doMock("@/server/worker/jobs", () => ({
       addWorkerJob: (...args: unknown[]) => addWorkerJob(...args),
     }));
-    const { scanDueAlerts } = await import("./scanner");
+    const { scanDueAlerts } = await import("./01-scanner");
 
     try {
       await pool.query(
@@ -22,7 +22,7 @@ describe.skipIf(!databaseUrl)("scanner under concurrency", () => {
       await pool.query(`
         INSERT INTO alert_definitions
           (organization_id, repoid, slug, evaluation_interval_seconds, "window",
-           raw_yaml, parsed_query, summary_template, description_template,
+           document, parsed_query, summary_template, description_template,
            next_evaluation_at, active)
         SELECT
           'it-org',

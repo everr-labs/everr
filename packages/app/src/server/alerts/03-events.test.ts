@@ -21,7 +21,7 @@ import {
   MAX_EVIDENCE_BYTES,
   MAX_EVIDENCE_ROWS,
   recordAlertEvents,
-} from "./events";
+} from "./03-events";
 
 const def = { id: "d1", organizationId: "org-1", repoid: "r1", slug: "s1" };
 

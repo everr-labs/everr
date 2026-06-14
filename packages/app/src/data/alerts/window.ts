@@ -11,11 +11,16 @@ export function parseWindow(value: string): number {
   }
 
   const amount = Number(match[1]);
-  if (amount <= 0) {
+  if (!Number.isSafeInteger(amount) || amount <= 0) {
     throw new Error(`invalid window "${value}": must be positive`);
   }
 
-  return amount * UNIT_SECONDS[match[2] as keyof typeof UNIT_SECONDS];
+  const seconds = amount * UNIT_SECONDS[match[2] as keyof typeof UNIT_SECONDS];
+  if (!Number.isSafeInteger(seconds)) {
+    throw new Error(`invalid window "${value}": value is too large`);
+  }
+
+  return seconds;
 }
 
 export function parseEvaluationInterval(value: string): number {

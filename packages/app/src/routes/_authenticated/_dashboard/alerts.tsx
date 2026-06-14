@@ -43,7 +43,13 @@ import {
   listAlerts,
   updateAlertSettings,
 } from "@/data/alerts/server";
-import { AlertStateBadges, formatDate, formatInterval } from "./-alerts-shared";
+import {
+  AlertStateBadges,
+  formatDate,
+  formatInterval,
+  QueryErrorMessage,
+  safeExternalHref,
+} from "./-alerts-shared";
 
 const alertsQueryOptions = () =>
   queryOptions({ queryKey: ["alerts"], queryFn: () => listAlerts() });
@@ -105,14 +111,21 @@ function AlertsPage() {
       },
       {
         header: "Source",
-        cell: (row) =>
-          row.sourceLink ? (
-            <a className="underline" href={row.sourceLink}>
+        cell: (row) => {
+          const href = safeExternalHref(row.sourceLink);
+          return href ? (
+            <a
+              className="underline"
+              href={href}
+              target="_blank"
+              rel="noreferrer"
+            >
               source
             </a>
           ) : (
             row.configFilePath || "-"
-          ),
+          );
+        },
       },
     ],
     [],
@@ -141,7 +154,9 @@ function AlertsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {alerts.isPending ? (
+          {alerts.isError ? (
+            <QueryErrorMessage message="Unable to load alerts." />
+          ) : alerts.isPending ? (
             <div className="flex flex-col gap-2 px-3 py-2">
               {Array.from({ length: 5 }).map((_, index) => (
                 <Skeleton key={index} className="h-8 w-full" />
@@ -232,7 +247,11 @@ function NotificationSettingsDialog({
             Organization-level delivery for alert notifications.
           </DialogDescription>
         </DialogHeader>
-        {settings.data ? (
+        {settings.isError ? (
+          <p className="text-destructive text-sm" role="alert">
+            Unable to load notification settings.
+          </p>
+        ) : settings.data ? (
           // Mounted fresh on every dialog open (the popup unmounts on close),
           // so the form reads its defaults once — no effect syncing state.
           <NotificationSettingsForm
