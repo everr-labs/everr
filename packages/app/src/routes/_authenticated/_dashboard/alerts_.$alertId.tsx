@@ -68,7 +68,6 @@ import {
 } from "@/data/alerts/server";
 import { useTimeRange } from "@/hooks/use-time-range";
 import {
-  AlertStateBadges,
   formatDate,
   formatInterval,
   QueryErrorMessage,
@@ -199,20 +198,9 @@ function AlertDetailPage() {
     <div className="flex w-full flex-col gap-6">
       <div className="flex items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-3">
-            <h1 className="font-mono text-xl font-bold tracking-tight">
-              {detail.display.name || detail.slug}
-            </h1>
-            <AlertStateBadges
-              state={detail.currentState}
-              active={detail.active}
-              firingInstanceCount={detail.firingInstanceCount}
-              silenced={
-                detail.currentState === "firing" &&
-                detail.activeSilenceCount > 0
-              }
-            />
-          </div>
+          <h1 className="font-mono text-xl font-bold tracking-tight">
+            {detail.display.name || detail.slug}
+          </h1>
           {detail.display.description && (
             <p className="max-w-3xl text-muted-foreground">
               {detail.display.description}
