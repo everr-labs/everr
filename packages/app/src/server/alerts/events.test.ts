@@ -63,7 +63,7 @@ describe("event row construction", () => {
     expect(row).toMatchObject({
       organization_id: "org-1",
       event_type: "firing",
-      evaluation_scheduled_at: "2026-06-10 12:00:00.000",
+      evaluation_scheduled_at: "2026-06-10T12:00:00.000Z",
       row_count: 1,
       evidence_truncated: 0,
     });
@@ -108,7 +108,7 @@ describe("event row construction", () => {
       error_count: 9,
     });
     expect(event.row_count).toBe(1);
-    expect(event.evaluation_scheduled_at).toBe("2026-06-11 10:00:00.000");
+    expect(event.evaluation_scheduled_at).toBe("2026-06-11T10:00:00.000Z");
   });
 
   it("builds instance_resolved without a row", () => {
@@ -168,7 +168,7 @@ describe("event row construction", () => {
     expect(event.evidence_json).toBe(
       '{"error":"telegram sendMessage failed: 403"}',
     );
-    expect(event.evaluation_scheduled_at).toBe("2026-06-11 10:00:00.000");
+    expect(event.evaluation_scheduled_at).toBe("2026-06-11T10:00:00.000Z");
   });
 });
 

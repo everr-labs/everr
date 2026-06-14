@@ -1,6 +1,8 @@
 import { parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
-import { isNumericValue } from "@/lib/numeric";
+import { isNumericValue, toNumber } from "@/lib/numeric";
 import type { QueryResultRow } from "./index";
+
+export { toNumber };
 
 /** Shared series palette. Index 0 doubles as the accent color for brush
  * selections and sparklines. */
@@ -97,18 +99,6 @@ export function detectTimeKey(rows: QueryResultRow[]): string | undefined {
     if (timeNames.test(key)) return key;
   }
   return undefined;
-}
-
-/** Coerce a numeric value (number or numeric string) to a number, else null. */
-export function toNumber(value: unknown): number | null {
-  if (typeof value === "number") return Number.isFinite(value) ? value : null;
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    if (trimmed === "") return null;
-    const n = Number(trimmed);
-    return Number.isFinite(n) ? n : null;
-  }
-  return null;
 }
 
 /**

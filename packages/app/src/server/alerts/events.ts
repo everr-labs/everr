@@ -40,6 +40,7 @@ function insertAlertEvents(rows: AlertEventRow[]): Promise<void> {
   return insertAdminRows("app.alert_events", rows, {
     async_insert: 1,
     wait_for_async_insert: 1,
+    date_time_input_format: "best_effort",
   });
 }
 
@@ -106,7 +107,8 @@ export function boundEvidence(
 }
 
 function clickhouseDateTime64(date: Date): string {
-  return date.toISOString().replace("T", " ").replace("Z", "");
+  // Keep the UTC designator; ClickHouse parses it with best_effort above.
+  return date.toISOString();
 }
 
 export function buildEvaluationEvent(opts: {
