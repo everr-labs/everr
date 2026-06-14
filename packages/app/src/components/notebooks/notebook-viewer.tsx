@@ -35,9 +35,23 @@ export function NotebookViewer({
     () => makeNotebookLinkResolver(notebook.spec),
     [notebook.spec],
   );
+  // Memoize the adapted document so the DashboardProvider value is stable across
+  // re-renders; a fresh object would re-render every useDashboard consumer
+  // (variable bar, panel queries, panels).
+  const dashboardDocument = useMemo(
+    () => toDashboardDocument(notebook, project, slug),
+    [notebook, project, slug],
+  );
+  // Bind the resolver to the current page's source file once, so NotebookMarkdown
+  // gets a stable callback (a fresh closure each render would re-render anchors).
+  const pageFile = page?.file;
+  const resolvePageLink = useMemo(
+    () => (href: string) => resolveLink(href, pageFile),
+    [resolveLink, pageFile],
+  );
 
   return (
-    <DashboardProvider document={toDashboardDocument(notebook, project, slug)}>
+    <DashboardProvider document={dashboardDocument}>
       <div className="flex gap-6">
         {tree.length > 0 && (
           <NotebookPageNav
@@ -59,7 +73,7 @@ export function NotebookViewer({
               markdown={page.markdown}
               project={project}
               slug={slug}
-              resolveLink={(href) => resolveLink(href, page.file)}
+              resolveLink={resolvePageLink}
             />
           ) : (
             <div className="flex flex-col items-center gap-3 py-16 text-muted-foreground">
