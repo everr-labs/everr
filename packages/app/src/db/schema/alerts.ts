@@ -48,6 +48,10 @@ export const alertDefinitions = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    // Set when `apply` removes a rule from the config: the row is kept (so
+    // history and events still resolve) but hidden from listings. Cleared when
+    // the rule is re-applied.
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
     active: boolean("active").notNull().default(true),
     lastEvaluationStatus: text("last_evaluation_status").notNull().default(""),
     lastEvaluationError: text("last_evaluation_error").notNull().default(""),

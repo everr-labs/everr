@@ -1,6 +1,6 @@
 kind: AlertRule
 metadata:
-  name: even-minute-failure
+  name: even-minute
   labels:
     team: platform
 spec:

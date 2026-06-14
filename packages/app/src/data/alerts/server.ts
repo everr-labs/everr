@@ -189,6 +189,7 @@ async function getAlertRow(alertId: string, organizationId: string) {
       and(
         eq(alertDefinitions.organizationId, organizationId),
         eq(alertDefinitions.id, alertId),
+        isNull(alertDefinitions.deletedAt),
       ),
     )
     .limit(1);
@@ -202,7 +203,12 @@ export const listAlerts = createAuthenticatedServerFn({
   const rows = await db
     .select(alertListColumns)
     .from(alertDefinitions)
-    .where(eq(alertDefinitions.organizationId, organizationId))
+    .where(
+      and(
+        eq(alertDefinitions.organizationId, organizationId),
+        isNull(alertDefinitions.deletedAt),
+      ),
+    )
     .orderBy(
       desc(alertDefinitions.active),
       desc(alertDefinitions.lastEvaluatedAt),

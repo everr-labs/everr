@@ -71,6 +71,7 @@ vi.mock("@/db/schema", () => ({
     sourceLink: "source_link",
     createdAt: "created_at",
     updatedAt: "updated_at",
+    deletedAt: "deleted_at",
     active: "active",
     lastEvaluationStatus: "last_evaluation_status",
     lastEvaluationError: "last_evaluation_error",
@@ -205,7 +206,7 @@ describe("applyAlertSpecs", () => {
     expect(created).not.toHaveProperty("lastEvidenceSnapshot");
   });
 
-  it("updates changed alerts and deactivates missing active alerts", async () => {
+  it("updates changed alerts and soft-deletes missing alerts", async () => {
     mockApplySelect([
       {
         slug: "high-errors",
@@ -249,11 +250,77 @@ describe("applyAlertSpecs", () => {
       deleted: ["stale"],
     });
     expect(updateSets).toEqual([
-      expect.objectContaining({ active: true }),
-      expect.objectContaining({ active: false, nextEvaluationAt: null }),
+      expect.objectContaining({ active: true, deletedAt: null }),
+      expect.objectContaining({
+        active: false,
+        nextEvaluationAt: null,
+        deletedAt: expect.any(Date),
+      }),
     ]);
     expect(deleteCalled).toBe(false);
     expect(eq).toHaveBeenCalledWith("repoid", "repo-1");
+  });
+
+  it("leaves already soft-deleted alerts untouched", async () => {
+    mockApplySelect([
+      {
+        slug: "gone",
+        evaluationIntervalSeconds: 300,
+        document: {},
+        parsedQuery: "SELECT 1",
+        notificationTitleTemplate: "old",
+        notificationDescriptionTemplate: "",
+        scheduleJitterSeconds: 0,
+        configFilePath: "gone.yaml",
+        sourceLink: "",
+        active: false,
+        deletedAt: new Date("2026-01-01T00:00:00Z"),
+      },
+    ]);
+
+    const result = await applyAlertSpecs({
+      orgId: "org-1",
+      repoid: "repo-1",
+      resources: [{ path: "alerts/high-errors.yaml", resource: alert() }],
+    });
+
+    expect(result).toEqual({
+      created: ["high-errors"],
+      updated: [],
+      deleted: [],
+    });
+    expect(updateSets).toEqual([]);
+  });
+
+  it("revives a soft-deleted alert when its rule is re-applied", async () => {
+    mockApplySelect([
+      {
+        slug: "high-errors",
+        evaluationIntervalSeconds: 300,
+        document: {},
+        parsedQuery: "SELECT 1",
+        notificationTitleTemplate: "old",
+        notificationDescriptionTemplate: "",
+        scheduleJitterSeconds: 0,
+        configFilePath: "alerts/high-errors.yaml",
+        sourceLink: "",
+        active: false,
+        deletedAt: new Date("2026-01-01T00:00:00Z"),
+      },
+    ]);
+
+    const result = await applyAlertSpecs({
+      orgId: "org-1",
+      repoid: "repo-1",
+      resources: [{ path: "alerts/high-errors.yaml", resource: alert() }],
+    });
+
+    expect(result.updated).toEqual(["high-errors"]);
+    expect(updateSets[0]).toMatchObject({
+      active: true,
+      deletedAt: null,
+      currentState: "unknown",
+    });
   });
 
   it("rejects duplicate alert names before querying ClickHouse", async () => {

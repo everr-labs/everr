@@ -30,6 +30,7 @@ interface DesiredAlert {
 
 interface ExistingAlert extends DesiredAlert {
   active: boolean;
+  deletedAt: Date | null;
 }
 
 interface ApplyAlertsResult {
@@ -299,6 +300,7 @@ function activeValues(
     configFilePath: desired.configFilePath,
     sourceLink: desired.sourceLink,
     active: true,
+    deletedAt: null,
     updatedAt: now,
   };
 
@@ -328,9 +330,10 @@ function shouldResetRuntimeState(
 }
 
 /**
- * Reconcile alert definitions for one repo. Missing active alerts are
- * deactivated, not removed, so historical state and events can keep pointing at
- * the same definition row.
+ * Reconcile alert definitions for one repo. Alerts missing from the config are
+ * soft-deleted (deletedAt set, deactivated) rather than removed, so historical
+ * state and events keep pointing at the same definition row while the alert
+ * disappears from listings. Re-applying a rule clears deletedAt.
  */
 export const applyAlertSpecs: Reconciler = async ({
   orgId,
@@ -360,6 +363,7 @@ export const applyAlertSpecs: Reconciler = async ({
       configFilePath: alertDefinitions.configFilePath,
       sourceLink: alertDefinitions.sourceLink,
       active: alertDefinitions.active,
+      deletedAt: alertDefinitions.deletedAt,
     })
     .from(alertDefinitions)
     .where(
@@ -378,7 +382,7 @@ export const applyAlertSpecs: Reconciler = async ({
     return current ? needsUpdate(current, row) : false;
   });
   const deletes = existing.filter(
-    (row) => row.active && !desiredBySlug.has(row.slug),
+    (row) => !row.deletedAt && !desiredBySlug.has(row.slug),
   );
 
   const summary: ApplyAlertsResult = {
@@ -426,6 +430,7 @@ export const applyAlertSpecs: Reconciler = async ({
         .update(alertDefinitions)
         .set({
           active: false,
+          deletedAt: now,
           nextEvaluationAt: null,
           updatedAt: now,
         })

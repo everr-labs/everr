@@ -44,7 +44,7 @@ import {
   Plus,
   X,
 } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import {
   ALERT_CHANNELS,
   type AlertDeliveryTargets,
@@ -307,11 +307,7 @@ function AlertDetailPage() {
                     },
                     {
                       header: "Firing since",
-                      cell: (row) => (
-                        <span title={formatDate(row.lastFiredAt)}>
-                          {formatRelativeTime(row.lastFiredAt ?? "")}
-                        </span>
-                      ),
+                      cell: (row) => <RelativeTime value={row.lastFiredAt} />,
                     },
                     {
                       header: "",
@@ -482,6 +478,19 @@ function AlertDetailPage() {
         }}
       />
     </div>
+  );
+}
+
+// Re-renders every minute so the elapsed time keeps ticking without a refetch
+// (formatRelativeTime's granularity is minutes/hours/days).
+function RelativeTime({ value }: { value: string | null }) {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => tick((n) => n + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <span title={formatDate(value)}>{formatRelativeTime(value ?? "")}</span>
   );
 }
 

@@ -8,8 +8,8 @@ spec:
     name: Log volume spike
     description: Services with elevated log volume in the recent window.
   notificationMessage:
-    title: "${row_count} services exceeded the log volume threshold"
-    description: "Service ${ServiceName} emitted ${n} logs in the last window"
+    title: "${ServiceName} exceeded the log volume threshold"
+    description: "SEmitted ${n} logs in the last window"
   evaluationInterval: 1m
   query: |
     SELECT
