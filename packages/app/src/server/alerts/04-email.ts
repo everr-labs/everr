@@ -23,7 +23,7 @@ export interface AlertEmail {
 // APCA (WCAG 3 draft) Lc threshold: ≥90 for running text, ≥75 for the small
 // bold labels, ≥60 for the large stat numbers.
 const COLORS = {
-  card: "#171717", // --card
+  card: "#000000",
   panel: "#0a0a0a", // --background
   border: "#262626", // ~--border on the card
   foreground: "#fafafa", // --foreground; Lc -103 on card
@@ -119,10 +119,12 @@ function buildHtml(input: DeliveryInput, opts: BuildOptions): string {
     footerSection(),
   ];
   return [
-    `<table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:${COLORS.card};border:1px solid ${COLORS.border};border-radius:8px;overflow:hidden;${FONT}">`,
+    `<table width="100%" cellpadding="0" cellspacing="0" style="background:#000000;${FONT}"><tr><td style="padding:0;">`,
+    `<table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:${COLORS.card};border:1px solid ${COLORS.border};border-radius:8px;overflow:hidden;">`,
     `<tr><td style="height:3px;background:${status.strip};"></td></tr>`,
     ...sections.filter(Boolean),
     "</table>",
+    "</td></tr></table>",
   ].join("\n");
 }
 
