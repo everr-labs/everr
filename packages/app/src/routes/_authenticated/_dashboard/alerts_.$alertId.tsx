@@ -3,7 +3,6 @@ import { Button } from "@everr/ui/components/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@everr/ui/components/card";
@@ -28,6 +27,7 @@ import {
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { Textarea } from "@everr/ui/components/textarea";
 import { type TimeRange, withTimeRange } from "@everr/ui/lib/time-range";
+import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import {
   queryOptions,
   useMutation,
@@ -37,6 +37,7 @@ import {
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   BellOff,
+  CircleCheck,
   CirclePlay,
   CircleStop,
   ExternalLink,
@@ -126,6 +127,13 @@ export const Route = createFileRoute(
   component: AlertDetailPage,
 });
 
+// What SilenceDialog needs to prefill matchers: an instance's fingerprint and
+// labels. Both the firing-instances row and a history event can produce one.
+type SilenceTarget = {
+  fingerprint: string;
+  labels: Record<string, string>;
+};
+
 function AlertDetailPage() {
   const { alertId } = Route.useParams();
   const queryClient = useQueryClient();
@@ -134,8 +142,9 @@ function AlertDetailPage() {
   const instances = useQuery(alertInstancesQueryOptions(alertId, timeRange));
   const silences = useQuery(alertSilencesQueryOptions(alertId));
   const events = useQuery(alertEventsQueryOptions(alertId, timeRange));
-  const [silenceTarget, setSilenceTarget] =
-    useState<AlertInstanceSummary | null>(null);
+  const [silenceTarget, setSilenceTarget] = useState<SilenceTarget | null>(
+    null,
+  );
   const [newSilenceOpen, setNewSilenceOpen] = useState(false);
 
   const setActive = useMutation({
@@ -179,6 +188,12 @@ function AlertDetailPage() {
       : []),
     ["Last evaluated", formatDate(detail.lastEvaluatedAt)],
   ];
+
+  const firingInstances = (instances.data ?? []).filter(
+    (row) => row.state === "firing",
+  );
+  const showFiringSuccess = instances.isSuccess && firingInstances.length === 0;
+  const silenceCount = silences.data?.length ?? 0;
 
   return (
     <div className="flex w-full flex-col gap-6">
@@ -233,160 +248,163 @@ function AlertDetailPage() {
         )}
       </div>
 
-      <Card inset="flush-content">
-        <CardHeader>
-          <CardTitle>Instances</CardTitle>
-          <CardDescription>
-            One row per alert instance. Silence an instance to pause its
-            notifications.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {instances.isError ? (
-            <QueryErrorMessage message="Unable to load alert instances." />
-          ) : instances.isPending ? (
-            <Skeleton className="m-3 h-36 w-full" />
-          ) : (
-            <DataTable
-              stickyHeader
-              data={instances.data ?? []}
-              columns={
-                [
-                  {
-                    header: "Labels",
-                    cell: (row) => <KeyValueList values={row.labels} />,
-                  },
-                  {
-                    header: "State",
-                    cell: (row) => (
-                      <div className="flex items-center gap-2">
-                        <Badge variant={stateVariant(row.state)}>
-                          {row.state}
-                        </Badge>
-                        {row.state === "firing" && row.silenced && (
-                          <Badge variant="secondary">silenced</Badge>
-                        )}
-                      </div>
-                    ),
-                  },
-                  {
-                    header: "Last result",
-                    // Column className replaces the DataTable defaults, so the
-                    // middle-column padding is restated alongside the
-                    // responsive hiding.
-                    className: "hidden pb-2 pr-4 md:table-cell",
-                    cellClassName: "hidden py-2 pr-4 md:table-cell",
-                    cell: (row) => <LastEvaluationResult instance={row} />,
-                  },
-                  {
-                    header: "Fired",
-                    cell: (row) => formatDate(row.lastFiredAt),
-                  },
-                  {
-                    header: "Resolved",
-                    cell: (row) =>
-                      row.state === "resolved"
-                        ? formatDate(row.lastResolvedAt)
-                        : "-",
-                  },
-                  {
-                    header: "",
-                    cell: (row) => (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        aria-label="Silence"
-                        onClick={() => {
-                          setSilenceTarget(row);
-                          setNewSilenceOpen(false);
-                        }}
-                      >
-                        <BellOff data-icon="inline-start" />
-                        <span className="hidden md:inline">Silence</span>
-                      </Button>
-                    ),
-                  },
-                ] satisfies Column<AlertInstanceSummary>[]
-              }
-              rowKey={(row) => row.fingerprint}
-              emptyState={
-                <div className="px-3 py-8 text-center text-muted-foreground">
-                  No alert instances recorded yet.
-                </div>
-              }
-            />
-          )}
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-4 xl:grid-cols-2">
-        <Card>
-          <CardHeader className="flex flex-row items-start justify-between gap-4">
-            <CardTitle>Definition</CardTitle>
-            {sourceHref && (
-              <a
-                className="inline-flex shrink-0 items-center gap-1 text-muted-foreground text-xs underline underline-offset-4 hover:text-foreground"
-                href={sourceHref}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <ExternalLink className="size-3" />
-                Source
-              </a>
-            )}
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            <DefinitionTable rows={definitionRows} />
-            {detail.lastEvaluationError && (
-              <pre className="max-h-32 overflow-auto rounded bg-muted/30 p-2 text-xs text-destructive">
-                {detail.lastEvaluationError}
-              </pre>
-            )}
-            <div className="flex flex-col gap-1">
-              <span className="text-muted-foreground text-xs">Query</span>
-              <pre className="max-h-72 overflow-auto rounded bg-muted/30 p-2 text-xs">
-                {detail.parsedQuery}
-              </pre>
-            </div>
+      {showFiringSuccess ? (
+        <Card className="border-emerald-500/30 bg-emerald-500/5 py-3">
+          <CardContent className="flex items-center gap-3">
+            <CircleCheck className="size-5 shrink-0 text-emerald-500" />
+            <p className="text-sm">
+              <span className="font-medium text-foreground">
+                You're all good.
+              </span>{" "}
+              <span className="text-muted-foreground">
+                Nothing's firing right now.
+              </span>
+            </p>
           </CardContent>
         </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-start justify-between">
-            <div>
-              <CardTitle>Active silences</CardTitle>
-              <CardDescription>
-                Created from instances; matching instances stop notifying.
-              </CardDescription>
-            </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setSilenceTarget(null);
-                setNewSilenceOpen(true);
-              }}
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
+      ) : (
+        <Card inset="flush-content">
+          <CardHeader>
+            <CardTitle>Firing instances</CardTitle>
           </CardHeader>
           <CardContent>
-            {silences.isError ? (
-              <QueryErrorMessage message="Unable to load silences." />
-            ) : silences.isPending ? (
-              <Skeleton className="h-24 w-full" />
-            ) : (silences.data?.length ?? 0) === 0 ? (
-              <p className="text-muted-foreground">No active silences.</p>
+            {instances.isError ? (
+              <QueryErrorMessage message="Unable to load alert instances." />
+            ) : instances.isPending ? (
+              <Skeleton className="m-3 h-36 w-full" />
             ) : (
-              <div className="flex flex-col gap-3">
-                {silences.data?.map((silence) => (
-                  <SilenceRow key={silence.id} silence={silence} />
-                ))}
-              </div>
+              <DataTable
+                stickyHeader
+                data={firingInstances}
+                rowClassName={(row) =>
+                  row.silenced ? "opacity-50" : undefined
+                }
+                columns={
+                  [
+                    {
+                      header: "Labels",
+                      cell: (row) => (
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="size-1.5 shrink-0 rounded-full bg-destructive"
+                            aria-hidden
+                          />
+                          <KeyValueList values={row.labels} />
+                          {row.silenced && (
+                            <Badge variant="secondary">silenced</Badge>
+                          )}
+                        </div>
+                      ),
+                    },
+                    {
+                      header: "Matched values",
+                      // Column className replaces the DataTable defaults, so the
+                      // middle-column padding is restated alongside the
+                      // responsive hiding.
+                      className: "hidden pb-2 pr-4 md:table-cell",
+                      cellClassName: "hidden py-2 pr-4 md:table-cell",
+                      cell: (row) => <LastEvaluationResult instance={row} />,
+                    },
+                    {
+                      header: "Firing since",
+                      cell: (row) => (
+                        <span title={formatDate(row.lastFiredAt)}>
+                          {formatRelativeTime(row.lastFiredAt ?? "")}
+                        </span>
+                      ),
+                    },
+                    {
+                      header: "",
+                      cell: (row) => (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          aria-label="Silence"
+                          onClick={() => {
+                            setSilenceTarget(row);
+                            setNewSilenceOpen(false);
+                          }}
+                        >
+                          <BellOff data-icon="inline-start" />
+                          <span className="hidden md:inline">Silence</span>
+                        </Button>
+                      ),
+                    },
+                  ] satisfies Column<AlertInstanceSummary>[]
+                }
+                rowKey={(row) => row.fingerprint}
+              />
             )}
           </CardContent>
         </Card>
-      </div>
+      )}
+
+      <Card>
+        <CardHeader className="flex flex-row items-start justify-between gap-4">
+          <CardTitle>Configuration</CardTitle>
+          {sourceHref && (
+            <a
+              className="inline-flex shrink-0 items-center gap-1 text-muted-foreground text-xs underline underline-offset-4 hover:text-foreground"
+              href={sourceHref}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <ExternalLink className="size-3" />
+              Source
+            </a>
+          )}
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 xl:grid-cols-2">
+            <div className="flex flex-col gap-3">
+              <DefinitionTable rows={definitionRows} />
+              {detail.lastEvaluationError && (
+                <pre className="max-h-32 overflow-auto rounded bg-muted/30 p-2 text-xs text-destructive">
+                  {detail.lastEvaluationError}
+                </pre>
+              )}
+
+              <div className="flex flex-col gap-1">
+                <span className="text-muted-foreground text-xs">Query</span>
+                <pre className="max-h-72 overflow-auto rounded bg-muted/30 p-2 text-xs">
+                  {detail.parsedQuery}
+                </pre>
+              </div>
+            </div>
+
+            <div className="grid h-fit grid-cols-[auto_1fr] items-start gap-x-3 gap-y-2 text-xs">
+              <dt className="flex items-center gap-1 text-muted-foreground">
+                Silences
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="size-5 cursor-pointer"
+                  aria-label="Add silence"
+                  onClick={() => {
+                    setSilenceTarget(null);
+                    setNewSilenceOpen(true);
+                  }}
+                >
+                  <Plus className="size-3" />
+                </Button>
+              </dt>
+              <dd className="min-w-0">
+                {silences.isError ? (
+                  <QueryErrorMessage message="Unable to load silences." />
+                ) : silences.isPending ? (
+                  <Skeleton className="h-5 w-full" />
+                ) : silenceCount > 0 ? (
+                  <div className="flex flex-col divide-y">
+                    {silences.data?.map((silence) => (
+                      <SilenceRow key={silence.id} silence={silence} />
+                    ))}
+                  </div>
+                ) : null}
+              </dd>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card inset="flush-content">
         <CardHeader>
@@ -403,7 +421,6 @@ function AlertDetailPage() {
               data={events.data ?? []}
               columns={[
                 { header: "Time", cell: (row) => formatDate(row.eventTime) },
-                { header: "Type", cell: (row) => row.eventType },
                 {
                   header: "State",
                   cell: (row) => (
@@ -414,10 +431,34 @@ function AlertDetailPage() {
                   header: "Instance",
                   cell: (row) => <HistoryInstances instances={row.instances} />,
                 },
-                { header: "Rows", cell: (row) => row.rowCount },
                 {
                   header: "Delivery",
                   cell: (row) => formatDeliveryTargets(row),
+                },
+                {
+                  header: "",
+                  cell: (row) => {
+                    const instance =
+                      row.instances.find((i) => i.state === "firing") ??
+                      row.instances[0];
+                    return (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="cursor-pointer"
+                        aria-label="Silence"
+                        onClick={() => {
+                          setSilenceTarget({
+                            fingerprint: row.eventId,
+                            labels: instance?.labels ?? {},
+                          });
+                          setNewSilenceOpen(false);
+                        }}
+                      >
+                        <BellOff />
+                      </Button>
+                    );
+                  },
                 },
               ]}
               rowKey={(row) => row.eventId}
@@ -571,36 +612,45 @@ function SilenceRow({ silence }: { silence: AlertSilenceSummary }) {
     },
   });
   return (
-    <div className="flex items-start justify-between gap-2 rounded-md border bg-muted/30 p-3">
-      <div className="flex flex-col gap-1">
-        <span className="font-mono text-xs">
-          {silence.matchers.length === 0
-            ? "(all instances)"
-            : silence.matchers
-                .map((m) => `${m.label}${m.op}"${m.value}"`)
-                .join(" ")}
-        </span>
-        <span className="text-xs text-muted-foreground">
-          Until {formatDate(silence.endsAt)}
-          {silence.reason ? ` · ${silence.reason}` : ""}
-        </span>
-      </div>
-      <div className="flex flex-col items-end gap-1">
+    <div className="flex flex-col gap-1 py-2 first:pt-0">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-1">
+          {silence.matchers.length === 0 ? (
+            <Badge variant="secondary">all instances</Badge>
+          ) : (
+            silence.matchers.map((m, i) => (
+              <Badge
+                key={i}
+                variant="secondary"
+                className="font-mono font-normal"
+              >
+                {m.label}
+                {m.op}
+                {m.value}
+              </Badge>
+            ))
+          )}
+        </div>
         <Button
           variant="ghost"
-          size="sm"
+          size="icon"
+          className="shrink-0 cursor-pointer text-muted-foreground hover:text-destructive"
+          aria-label="Cancel silence"
           disabled={cancel.isPending}
           onClick={() => cancel.mutate()}
         >
-          <X data-icon="inline-start" />
-          Cancel
+          <X />
         </Button>
-        {cancel.error && (
-          <span className="text-right text-destructive text-xs" role="alert">
-            {cancel.error.message}
-          </span>
-        )}
       </div>
+      <span className="text-muted-foreground text-xs">
+        Until {formatDate(silence.endsAt)}
+        {silence.reason ? ` · ${silence.reason}` : ""}
+      </span>
+      {cancel.error && (
+        <span className="text-destructive text-xs" role="alert">
+          {cancel.error.message}
+        </span>
+      )}
     </div>
   );
 }
@@ -629,7 +679,7 @@ function SilenceDialog({
   onClose,
 }: {
   alertId: string;
-  instance: AlertInstanceSummary | null;
+  instance: SilenceTarget | null;
   open?: boolean;
   onClose: () => void;
 }) {

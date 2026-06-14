@@ -12,6 +12,7 @@ interface DataTableProps<T> {
   data: T[];
   columns: Column<T>[];
   rowKey: (row: T, index: number) => string;
+  rowClassName?: (row: T, index: number) => string | undefined;
   emptyState?: ReactNode;
   stickyHeader?: boolean;
   bordered?: boolean;
@@ -22,6 +23,7 @@ export function DataTable<T>({
   data,
   columns,
   rowKey,
+  rowClassName,
   emptyState,
   stickyHeader,
   bordered,
@@ -72,6 +74,7 @@ export function DataTable<T>({
               className={cn(
                 "hover:bg-muted/50",
                 !bordered && "border-b last:border-0",
+                rowClassName?.(row, rowIndex),
               )}
             >
               {columns.map((col, i) => (
