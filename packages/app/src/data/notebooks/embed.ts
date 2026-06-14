@@ -41,6 +41,15 @@ export function parsePanelEmbed(source: string): PanelEmbed {
   }
   const obj = doc as Record<string, unknown>;
 
+  // `ref:` and an inline `kind: Panel` are distinct embed forms; a block with
+  // both is an authoring mistake. Reject it rather than silently taking `ref`
+  // (which the ordering below would otherwise do).
+  if ("ref" in obj && obj.kind === "Panel") {
+    throw new Error(
+      'panel block has both "ref" and "kind: Panel"; use exactly one — a "ref:" to a shared panel or an inline "kind: Panel"',
+    );
+  }
+
   if ("ref" in obj) {
     const r = refEmbed.safeParse(obj);
     if (!r.success) throw new Error(firstIssue(r.error));

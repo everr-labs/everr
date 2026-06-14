@@ -26,6 +26,12 @@ describe("parsePanelEmbed", () => {
     });
   });
 
+  it("rejects a block that has both ref and an inline panel", () => {
+    expect(() => parsePanelEmbed("ref: shared\nkind: Panel\nspec: {}")).toThrow(
+      /both "ref" and "kind: Panel"/,
+    );
+  });
+
   it("rejects invalid YAML with a parse message", () => {
     expect(() => parsePanelEmbed("kind: [unclosed")).toThrow(/YAML/i);
   });

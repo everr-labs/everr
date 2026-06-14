@@ -36,8 +36,11 @@ export function reconcile(input: {
   existing: ExistingResource[];
   desired: DesiredResource[];
 }): ReconcileDiff {
+  // Join with a NUL, which can't appear in a project or slug, so the key is
+  // unambiguous even if either ever contained the separator (a space would let
+  // "a b"+"c" collide with "a"+"b c").
   const key = (d: { project: string; slug: string }) =>
-    `${d.project} ${d.slug}`;
+    `${d.project}\u0000${d.slug}`;
   const existingByKey = new Map(input.existing.map((d) => [key(d), d]));
   const desiredKeys = new Set(input.desired.map(key));
 
@@ -69,7 +72,9 @@ function stableStringify(value: unknown): string {
 
 function sortKeys(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(sortKeys);
-  if (value && typeof value === "object") {
+  // Explicit `!== null`: `typeof null === "object"`, so without this guard a
+  // null field would hit the object branch and `Object.keys(null)` would throw.
+  if (value !== null && typeof value === "object") {
     return Object.fromEntries(
       Object.keys(value as Record<string, unknown>)
         .sort()

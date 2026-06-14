@@ -143,4 +143,36 @@ describe("reconcile", () => {
     });
     expect(diff.updates).toEqual([]);
   });
+
+  it("keys project and slug unambiguously when a value contains the separator", () => {
+    // With a space separator, ("a","b c") and ("a b","c") both key to "a b c"
+    // and would be treated as the same resource. They must stay distinct.
+    const diff = reconcile({
+      existing: [
+        { project: "a", slug: "b c", folderPath: "", document: doc(1, "b c") },
+      ],
+      desired: [
+        { project: "a b", slug: "c", folderPath: "", document: doc(1, "c") },
+      ],
+    });
+    expect(diff.creates.map((c) => c.slug)).toEqual(["c"]);
+    expect(diff.deletes).toEqual([{ project: "a", slug: "b c" }]);
+    expect(diff.updates).toEqual([]);
+  });
+
+  it("compares documents with null fields without throwing", () => {
+    // typeof null === "object": an unguarded sortKeys would call Object.keys(null).
+    const make = (extra: unknown) => ({
+      project: "p",
+      slug: "a",
+      folderPath: "",
+      document: { kind: "Dashboard", metadata: { name: "a" }, extra },
+    });
+    expect(
+      reconcile({ existing: [make(null)], desired: [make(null)] }).updates,
+    ).toEqual([]);
+    expect(
+      reconcile({ existing: [make(null)], desired: [make(1)] }).updates,
+    ).toHaveLength(1);
+  });
 });

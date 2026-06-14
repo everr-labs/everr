@@ -44,10 +44,15 @@ function validateFences(path: string, spec: NotebookSpec): void {
         );
       }
       if (embed.kind === "inline") {
-        const issue = collectPanelStrictIssues(embed.panel)[0];
-        if (issue) {
+        const issues = collectPanelStrictIssues(embed.panel);
+        if (issues.length > 0) {
+          // Report every issue, not just the first, so the author fixes them all
+          // in one pass instead of one re-apply per option.
+          const detail = issues
+            .map((i) => `${i.path.join(".")}: ${i.message}`)
+            .join("; ");
           throw new ApplyValidationError(
-            `${path}: invalid inline panel in ${where} at ${issue.path.join(".")}: ${issue.message}`,
+            `${path}: invalid inline panel in ${where}: ${detail}`,
           );
         }
       }
