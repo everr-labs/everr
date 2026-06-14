@@ -1,5 +1,6 @@
 import { EventEmitter } from "node:events";
 import { performance } from "node:perf_hooks";
+import { metrics } from "@opentelemetry/api";
 import { type Runner, run, type WorkerEvents } from "graphile-worker";
 import { pool } from "@/db/client";
 import { alertCronItems, alertTaskList } from "@/server/alerts/00-runtime";
@@ -8,6 +9,11 @@ import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 import { hotSingleton } from "./hot-singleton";
 
 const WORKER_CONCURRENCY = 2;
+
+const meter = metrics.getMeter("everr-app.worker");
+const activeJobs = meter.createUpDownCounter("worker.jobs.active", {
+  description: "Number of jobs currently being processed",
+});
 
 function prefixedExceptionAttributes(prefix: string, reason: unknown) {
   const error = reason instanceof Error ? reason : new Error(String(reason));
@@ -22,6 +28,7 @@ function attachGraphileWorkerEventLogging(events: WorkerEvents): void {
 
   events.on("job:start", ({ job }) => {
     startedAtByJobId.set(String(job.id), performance.now());
+    activeJobs.add(1);
   });
 
   events.on("job:success", ({ job, worker }) => {
@@ -44,6 +51,7 @@ function attachGraphileWorkerEventLogging(events: WorkerEvents): void {
 
   events.on("job:complete", ({ job }) => {
     startedAtByJobId.delete(String(job.id));
+    activeJobs.add(-1);
   });
 
   events.on("pool:listen:error", ({ error }) => {
