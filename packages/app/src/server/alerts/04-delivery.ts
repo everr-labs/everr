@@ -134,12 +134,8 @@ export async function enqueueAlertNotification(
   }
 
   const buildOptions = { url: alertUrl(def.id), now };
-  const { subject, text, html } = buildAlertEmail(
-    input,
-    unsilenced,
-    buildOptions,
-  );
-  const telegramText = buildTelegramText(input, unsilenced, buildOptions);
+  const { subject, text, html } = buildAlertEmail(input, buildOptions);
+  const telegramText = buildTelegramText(input, buildOptions);
 
   // Zod strips unknown keys, so this is the schema-defined subset of the full
   // definition row — one field list to maintain.
