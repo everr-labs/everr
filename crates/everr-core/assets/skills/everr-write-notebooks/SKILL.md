@@ -57,9 +57,9 @@ Rules:
 - **Link between pages** with a relative path to the sibling page's `.md` file (resolved against the current file, e.g. `[Triage](./triage.md)` or `[Network](./triage/network.md)`), or by the page's path (`[Triage](triage)`, `[Network](triage/network)`). The viewer rewrites these into in-app navigation. Absolute (`/...`) and external (`http(s):`, `mailto:`) URLs are left untouched.
 - **`spec.variables` and `spec.panels` are the dashboard schema, reused verbatim.** Variables interpolate `$name` into panel queries server-side, identically to dashboards.
 
-## The three ```panel embed forms
+## The two ```panel embed forms
 
-A notebook page embeds a visualization with a fenced ```panel block whose body is YAML. There are three forms, discriminated by shape. Every form takes an optional top-level `height:` in pixels (**80–2000, default 350**).
+A notebook page embeds a visualization with a fenced ```panel block whose body is YAML. There are two forms, discriminated by shape. Every form takes an optional top-level `height:` in pixels (**80–2000, default 350**).
 
 **1. Inline one-off panel** — a full `kind: Panel` object, defined right in the markdown:
 
@@ -97,19 +97,6 @@ height: 200
 ```
 ````
 
-**3. Dashboard panel embed** — `dashboard: <project>/<slug>` plus `panel: <key>` pulls a panel from an existing dashboard:
-
-````markdown
-```panel
-dashboard: demo/web-http-overview
-panel: request-rate
-```
-````
-
-The dashboard embed resolves **at view time**, so it stays live and in sync with the source dashboard, and the rendered panel header carries a link that opens `/dashboards/demo/web-http-overview`.
-
-**Embed variable-free dashboard panels** (or declare matching `spec.variables` in the notebook): a dashboard panel whose query uses `$variables` only interpolates variables the *notebook* defines — an undefined `$variable` reaches ClickHouse verbatim and the embed errors.
-
 ## Apply semantics
 
 Notebooks reconcile through the **same apply tree as dashboards**: one `everr.yaml` manifest at the directory root declares the projects, and one `everr apply <dir>` reconciles **one desired state across all kinds**. Applying a directory that declares a project **prunes that project's notebooks AND dashboards that are not present in the tree** — delete-by-default, per kind. So **never split one project across two apply directories**; put all of a project's dashboards and notebooks under a single tree.
@@ -143,7 +130,6 @@ Validation is **strict at apply time**, with precise messages and paths:
 
 - Malformed fence YAML, a `ref:` to a missing shared panel, or invalid panel/visualization options **fail the apply**.
 - Inline and `ref:` panel specs are validated against the visualization registry, exactly like dashboard panels.
-- A **`dashboard:` embed is NOT cross-checked at apply** — the target dashboard may be applied in the same run. A dangling dashboard embed renders an inline **error card** in the viewer instead of failing the apply.
 
 ## Panels and queries are dashboards
 

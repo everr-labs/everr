@@ -10,6 +10,7 @@ vi.mock("@/data/notebooks/apply.server", () => ({
   applyNotebookSpecs: (...a: unknown[]) => notebookReconciler(...a),
 }));
 
+import { ApplyValidationError } from "./errors";
 import { applyResources } from "./registry";
 
 const doc = (kind: string, name: string) => ({
@@ -35,7 +36,7 @@ beforeEach(() => {
 
 describe("applyResources", () => {
   it("routes Dashboard docs to the dashboard reconciler and returns a per-kind summary", async () => {
-    dashboardReconciler.mockResolvedValueOnce({
+    dashboardReconciler.mockResolvedValue({
       created: ["cpu"],
       updated: [],
       deleted: [],
@@ -63,7 +64,7 @@ describe("applyResources", () => {
   });
 
   it("routes Notebook docs to the notebook reconciler and returns a per-kind summary", async () => {
-    notebookReconciler.mockResolvedValueOnce({
+    notebookReconciler.mockResolvedValue({
       created: ["runbook"],
       updated: [],
       deleted: [],
@@ -87,6 +88,29 @@ describe("applyResources", () => {
       updated: [],
       deleted: [],
     });
+  });
+
+  it("validates every kind before any kind writes (an invalid Notebook blocks Dashboard's real apply)", async () => {
+    // A Notebook that fails validation: it throws on the no-write dry-run pass,
+    // exactly as buildDesiredNotebookSet would for a malformed document.
+    notebookReconciler.mockRejectedValue(
+      new ApplyValidationError("bad notebook"),
+    );
+
+    await expect(
+      applyResources({
+        orgId: "org-1",
+        projects: ["default"],
+        documents: [doc("Dashboard", "cpu"), doc("Notebook", "bad")],
+        dryRun: false,
+      }),
+    ).rejects.toThrow(/bad notebook/);
+
+    // Dashboard was only ever validated (dryRun: true) — never applied for real,
+    // so it cannot have pruned the project before Notebook validation threw.
+    expect(dashboardReconciler).not.toHaveBeenCalledWith(
+      expect.objectContaining({ dryRun: false }),
+    );
   });
 
   it("reconciles every registered kind even when absent from the tree (prunes)", async () => {

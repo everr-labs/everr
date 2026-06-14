@@ -114,7 +114,7 @@ describe("buildDesiredNotebookSet", () => {
     ).toThrow(/triage\/net/);
   });
 
-  it("accepts valid fences of all three forms", () => {
+  it("accepts valid fences of both forms", () => {
     const md = [
       "```panel",
       "kind: Panel",
@@ -123,10 +123,6 @@ describe("buildDesiredNotebookSet", () => {
       "```",
       "```panel",
       "ref: shared",
-      "```",
-      "```panel",
-      "dashboard: demo/web-http-overview",
-      "panel: request-rate",
       "```",
     ].join("\n");
     const d = doc({

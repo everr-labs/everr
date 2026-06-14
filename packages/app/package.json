@@ -47,6 +47,7 @@
     "drizzle-orm": "^0.45.2",
     "graphile-worker": "^0.16.6",
     "lucide-react": "catalog:",
+    "mdast-util-from-markdown": "^2.0.3",
     "motion": "catalog:",
     "nodemailer": "^8.0.7",
     "pg": "^8.20.0",

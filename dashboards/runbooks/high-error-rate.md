@@ -6,13 +6,6 @@ When the 5xx rate spikes, start here.
 ref: error-rate
 ```
 
-Compare against overall request volume:
-
-```panel
-dashboard: demo/service-health-stats
-panel: request-rate
-```
-
 One-off breakdown by service:
 
 ```panel

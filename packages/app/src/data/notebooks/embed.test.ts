@@ -26,24 +26,6 @@ describe("parsePanelEmbed", () => {
     });
   });
 
-  it("parses a dashboard embed", () => {
-    expect(
-      parsePanelEmbed("dashboard: demo/web-http-overview\npanel: request-rate"),
-    ).toEqual({
-      kind: "dashboard",
-      project: "demo",
-      slug: "web-http-overview",
-      panel: "request-rate",
-      height: undefined,
-    });
-  });
-
-  it("rejects a dashboard reference that is not project/slug", () => {
-    expect(() => parsePanelEmbed("dashboard: nope\npanel: p")).toThrow(
-      /project\/slug/,
-    );
-  });
-
   it("rejects invalid YAML with a parse message", () => {
     expect(() => parsePanelEmbed("kind: [unclosed")).toThrow(/YAML/i);
   });
@@ -73,15 +55,11 @@ describe("extractPanelFences", () => {
       "```",
       "",
       "```panel",
-      "dashboard: demo/x",
-      "panel: y",
+      "ref: b",
       "```",
     ].join("\n");
     const fences = extractPanelFences(md);
-    expect(fences.map((f) => f.yaml)).toEqual([
-      "ref: a",
-      "dashboard: demo/x\npanel: y",
-    ]);
+    expect(fences.map((f) => f.yaml)).toEqual(["ref: a", "ref: b"]);
   });
 
   it("returns empty for markdown without fences", () => {
@@ -90,6 +68,29 @@ describe("extractPanelFences", () => {
 
   it("extracts fences from CRLF markdown", () => {
     const md = "intro\r\n```panel\r\nref: a\r\n```\r\n";
+    expect(extractPanelFences(md).map((f) => f.yaml)).toEqual(["ref: a"]);
+  });
+
+  // CommonMark allows the opening fence to be indented up to three spaces, and
+  // react-markdown renders such a block as a panel. The extractor must see it
+  // too, or an indented invalid panel passes apply and only fails at render.
+  it("extracts an indented fence (matches the renderer)", () => {
+    const md = ["text", "   ```panel", "   ref: a", "   ```", ""].join("\n");
+    expect(extractPanelFences(md).map((f) => f.yaml)).toEqual(["ref: a"]);
+  });
+
+  it("extracts a tilde-delimited fence", () => {
+    const md = ["~~~panel", "ref: a", "~~~"].join("\n");
+    expect(extractPanelFences(md).map((f) => f.yaml)).toEqual(["ref: a"]);
+  });
+
+  it("extracts a panel fence nested in a blockquote", () => {
+    const md = ["> note", ">", "> ```panel", "> ref: a", "> ```"].join("\n");
+    expect(extractPanelFences(md).map((f) => f.yaml)).toEqual(["ref: a"]);
+  });
+
+  it("treats a `panel` info string with trailing meta as a panel", () => {
+    const md = ["```panel title", "ref: a", "```"].join("\n");
     expect(extractPanelFences(md).map((f) => f.yaml)).toEqual(["ref: a"]);
   });
 });

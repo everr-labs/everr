@@ -85,14 +85,6 @@ ref: latency
 - [ ] A dependency slowed down? → see the [Dependencies](./dependencies.md) page
 - [ ] Did something ship? → see the [Timeline](./timeline.md) page
 
-For comparison with a healthy baseline, the same gauge from the gallery
-dashboard (live embed — opens the dashboard via the header link):
-
-```panel
-dashboard: demo/viz-gallery-gauge
-panel: gauge-last
-```
-
 | Signal | Healthy | During incident |
 | --- | --- | --- |
 | p99 checkout | < 700 ms | 1.8 s |

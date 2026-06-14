@@ -20,11 +20,9 @@ export type { InputDocument };
 
 /**
  * Validate every ```panel fence in the notebook's markdown (index page and all
- * nested pages): the YAML must parse into one of the three embed forms, `ref:`
+ * nested pages): the YAML must parse into one of the two embed forms, `ref:`
  * targets must exist in spec.panels, and inline panels must pass the strict
  * plugin validation — same fail-early contract as dashboard panels.
- * Dashboard embeds are NOT cross-validated here (the target dashboard may be
- * applied in the same run); a dangling one renders an inline error card.
  */
 function validateFences(path: string, spec: NotebookSpec): void {
   const check = (markdown: string | undefined, where: string) => {

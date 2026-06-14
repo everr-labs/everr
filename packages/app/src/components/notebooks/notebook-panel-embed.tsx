@@ -1,11 +1,7 @@
-import { Skeleton } from "@everr/ui/components/skeleton";
-import { useQuery } from "@tanstack/react-query";
-import { isNotFound, Link } from "@tanstack/react-router";
-import { AlertCircle, ArrowUpRight } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { type ReactNode, useMemo } from "react";
 import { DashboardPanel } from "@/components/dashboards/dashboard-panel";
 import { useDashboard } from "@/components/dashboards/use-dashboard";
-import { dashboardOptions } from "@/data/dashboards/options";
 import { type PanelEmbed, parsePanelEmbed } from "@/data/notebooks/embed";
 
 const DEFAULT_HEIGHT = 350;
@@ -64,8 +60,7 @@ export function PanelEmbedBlock({ source }: { source: string }) {
       </EmbedFrame>
     );
   }
-  if (parsed.kind === "ref") return <RefEmbed embed={parsed} />;
-  return <DashboardEmbed embed={parsed} />;
+  return <RefEmbed embed={parsed} />;
 }
 
 function RefEmbed({ embed }: { embed: Extract<PanelEmbed, { kind: "ref" }> }) {
@@ -82,65 +77,6 @@ function RefEmbed({ embed }: { embed: Extract<PanelEmbed, { kind: "ref" }> }) {
   return (
     <EmbedFrame height={embed.height}>
       <DashboardPanel panel={panel} panelKey={embed.ref} />
-    </EmbedFrame>
-  );
-}
-
-function DashboardEmbed({
-  embed,
-}: {
-  embed: Extract<PanelEmbed, { kind: "dashboard" }>;
-}) {
-  const { data, isPending, isError, error } = useQuery(
-    dashboardOptions(embed.project, embed.slug),
-  );
-
-  if (isPending) {
-    return (
-      <EmbedFrame height={embed.height}>
-        <Skeleton className="h-full w-full" />
-      </EmbedFrame>
-    );
-  }
-  if (isError || !data) {
-    // getDashboard throws the framework's notFound() for a missing dashboard;
-    // surface that as a plain "not found" instead of leaking the NotFound shape.
-    const detail = isNotFound(error)
-      ? ": not found"
-      : error instanceof Error
-        ? `: ${error.message}`
-        : "";
-    return (
-      <EmbedError
-        message={`Failed to load dashboard ${embed.project}/${embed.slug}${detail}`}
-      />
-    );
-  }
-  const panel = data.spec.panels[embed.panel];
-  if (!panel) {
-    return (
-      <EmbedError
-        message={`Dashboard ${embed.project}/${embed.slug} has no panel "${embed.panel}"`}
-      />
-    );
-  }
-  return (
-    <EmbedFrame height={embed.height}>
-      <DashboardPanel
-        panel={panel}
-        panelKey={embed.panel}
-        action={
-          <Link
-            to="/dashboards/$project/$slug"
-            params={{ project: embed.project, slug: embed.slug }}
-            aria-label={`Open panel in dashboard ${embed.project}/${embed.slug}`}
-            title={`Open in ${data.spec.display?.name ?? embed.slug}`}
-            className="rounded-md p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
-          >
-            <ArrowUpRight className="size-4" />
-          </Link>
-        }
-      />
     </EmbedFrame>
   );
 }

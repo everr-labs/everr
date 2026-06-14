@@ -1,35 +1,17 @@
+import { fromMarkdown } from "mdast-util-from-markdown";
 import { parse } from "yaml";
 import * as z from "zod";
 import type { Panel } from "@/data/dashboards/schema";
-import {
-  dashboardProjectSchema,
-  dashboardSlugSchema,
-  panel,
-} from "@/data/dashboards/schema";
+import { panel } from "@/data/dashboards/schema";
 
 /** One ```panel fence, resolved to how it renders. */
 export type PanelEmbed =
   | { kind: "inline"; panel: Panel; height: number | undefined }
-  | { kind: "ref"; ref: string; height: number | undefined }
-  | {
-      kind: "dashboard";
-      project: string;
-      slug: string;
-      panel: string;
-      height: number | undefined;
-    };
+  | { kind: "ref"; ref: string; height: number | undefined };
 
 const heightSchema = z.number().int().min(80).max(2000).optional();
 
 const refEmbed = z.object({ ref: z.string().min(1), height: heightSchema });
-
-const dashboardEmbed = z.object({
-  dashboard: z
-    .string()
-    .regex(/^[^/\s]+\/[^/\s]+$/, 'dashboard must be "project/slug"'),
-  panel: z.string().min(1),
-  height: heightSchema,
-});
 
 function firstIssue(error: z.ZodError): string {
   const issue = error.issues[0];
@@ -41,10 +23,9 @@ function firstIssue(error: z.ZodError): string {
 }
 
 /**
- * Parse the YAML body of a ```panel fence into one of the three embed forms:
- * an inline `kind: Panel` object, a `ref:` to the notebook's shared panels, or
- * a `dashboard:`+`panel:` reference to a dashboard's panel. Throws with a
- * human-readable message — render and apply paths both surface it.
+ * Parse the YAML body of a ```panel fence into one of the two embed forms: an
+ * inline `kind: Panel` object, or a `ref:` to the notebook's shared panels.
+ * Throws with a human-readable message — render and apply paths both surface it.
  */
 export function parsePanelEmbed(source: string): PanelEmbed {
   let doc: unknown;
@@ -66,26 +47,6 @@ export function parsePanelEmbed(source: string): PanelEmbed {
     return { kind: "ref", ref: r.data.ref, height: r.data.height };
   }
 
-  if ("dashboard" in obj) {
-    const r = dashboardEmbed.safeParse(obj);
-    if (!r.success) throw new Error(firstIssue(r.error));
-    const [project, slug] = r.data.dashboard.split("/") as [string, string];
-    const projectOk = dashboardProjectSchema.safeParse(project);
-    const slugOk = dashboardSlugSchema.safeParse(slug);
-    if (!projectOk.success || !slugOk.success) {
-      throw new Error(
-        'dashboard must be "project/slug" (lowercase letters, digits, hyphens)',
-      );
-    }
-    return {
-      kind: "dashboard",
-      project,
-      slug,
-      panel: r.data.panel,
-      height: r.data.height,
-    };
-  }
-
   if (obj.kind === "Panel") {
     const { height: rawHeight, ...rest } = obj;
     const h = heightSchema.safeParse(rawHeight);
@@ -97,7 +58,7 @@ export function parsePanelEmbed(source: string): PanelEmbed {
   }
 
   throw new Error(
-    'panel block must be an inline panel (kind: Panel), a "ref:" to a notebook panel, or a "dashboard:" embed',
+    'panel block must be an inline panel (kind: Panel) or a "ref:" to a notebook panel',
   );
 }
 
@@ -106,17 +67,39 @@ export interface PanelFence {
   yaml: string;
 }
 
-const FENCE_RE = /^```panel[ \t]*\r?\n([\s\S]*?)\r?\n```[ \t]*$/gm;
+/**
+ * The slice of an mdast node we walk: a `code` leaf carries the fence's info
+ * string (`lang`) and body (`value`); container nodes carry `children`.
+ */
+interface MdastNode {
+  type: string;
+  lang?: string | null;
+  value?: string;
+  children?: MdastNode[];
+}
 
 /**
- * Extract ```panel fences for apply-time validation. The viewer does NOT use
- * this — react-markdown's parser drives rendering — so this only needs to
- * match well-formed fences, not every CommonMark edge case.
+ * Extract the bodies of ```panel fences for apply-time validation. Parses with
+ * the SAME CommonMark engine the viewer renders through (react-markdown →
+ * remark-parse → mdast-util-from-markdown), so apply sees exactly the fences the
+ * renderer will turn into panels: indented fences, `~~~` fences, fences nested
+ * in blockquotes/lists, and a `panel` info string with trailing meta all count —
+ * none of which a column-0 regex would catch, letting an invalid block slip past
+ * validation and only fail at render time.
+ *
+ * The renderer keys off the code node's first info word (`language-panel`), so
+ * we match `lang === "panel"` to stay in lockstep with it.
  */
 export function extractPanelFences(markdown: string): PanelFence[] {
   const fences: PanelFence[] = [];
-  for (const match of markdown.matchAll(FENCE_RE)) {
-    fences.push({ yaml: (match[1] ?? "").trim() });
-  }
+  const visit = (node: MdastNode) => {
+    if (node.type === "code") {
+      if (node.lang === "panel")
+        fences.push({ yaml: (node.value ?? "").trim() });
+      return;
+    }
+    for (const child of node.children ?? []) visit(child);
+  };
+  visit(fromMarkdown(markdown) as MdastNode);
   return fences;
 }
