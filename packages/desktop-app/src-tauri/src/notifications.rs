@@ -1,3 +1,4 @@
+#[cfg(target_os = "macos")]
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -49,6 +50,7 @@ pub(crate) fn notification_window_uses_native_panel() -> bool {
     cfg!(target_os = "macos")
 }
 
+#[cfg(target_os = "macos")]
 pub(crate) fn notification_hover_uses_native_panel_geometry() -> bool {
     cfg!(target_os = "macos")
 }
