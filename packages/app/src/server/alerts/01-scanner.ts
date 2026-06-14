@@ -21,29 +21,26 @@ interface ClaimedAlert extends Record<string, unknown> {
 export async function scanDueAlerts(opts: { batchSize?: number } = {}) {
   const batchSize = opts.batchSize ?? SCANNER_BATCH_SIZE;
 
-  const claimed = await db.transaction(async (tx) => {
-    const claimedResult = await tx.execute<ClaimedAlert>(sql`
-      WITH claim AS (
-        SELECT now() AS claimed_at
-      ),
-      due AS (
-        SELECT id, next_evaluation_at
-        FROM alert_definitions
-        WHERE active AND next_evaluation_at <= now()
-        ORDER BY next_evaluation_at
-        LIMIT ${batchSize}
-        FOR UPDATE SKIP LOCKED
-      )
-      UPDATE alert_definitions d
-      SET
-        next_evaluation_at = claim.claimed_at + make_interval(secs => d.evaluation_interval_seconds),
-        last_enqueued_at = claim.claimed_at
-      FROM due, claim
-      WHERE d.id = due.id
-      RETURNING d.id, d.organization_id, claim.claimed_at AS evaluation_scheduled_at
-    `);
-    return claimedResult.rows;
-  });
+  const { rows: claimed } = await db.execute<ClaimedAlert>(sql`
+    WITH claim AS (
+      SELECT now() AS claimed_at
+    ),
+    due AS (
+      SELECT id, next_evaluation_at
+      FROM alert_definitions
+      WHERE active AND next_evaluation_at <= now()
+      ORDER BY next_evaluation_at
+      LIMIT ${batchSize}
+      FOR UPDATE SKIP LOCKED
+    )
+    UPDATE alert_definitions d
+    SET
+      next_evaluation_at = claim.claimed_at + make_interval(secs => d.evaluation_interval_seconds),
+      last_enqueued_at = claim.claimed_at
+    FROM due, claim
+    WHERE d.id = due.id
+    RETURNING d.id, d.organization_id, claim.claimed_at AS evaluation_scheduled_at
+  `);
 
   // Enqueue after the claim commits, through graphile-worker's public API
   // (deliberately not atomic with the claim). A crash between commit and

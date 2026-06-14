@@ -35,7 +35,6 @@ import {
 import type { EvaluatePayload } from "./01-scanner";
 import {
   diffInstances,
-  type FiringInstance,
   fetchFiringInstances,
   type InstanceDiff,
   rowsToInstances,
@@ -73,42 +72,39 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
   if (!def?.active) return;
   const now = new Date();
 
-  // 3. Concurrent ClickHouse reads. The pre-attached no-op catch keeps an
-  // early return on query failure from leaving an unhandled rejection behind.
-  const queryPromise = querySqlApiWithMeta<Record<string, unknown>>(
-    def.parsedQuery,
-    def.organizationId,
-  );
-  const firingPromise = fetchFiringInstances(def);
-  firingPromise.catch(() => {});
+  // 3. Concurrent ClickHouse reads.
+  const [queryResult, firingResult] = await Promise.allSettled([
+    querySqlApiWithMeta<Record<string, unknown>>(
+      def.parsedQuery,
+      def.organizationId,
+    ),
+    fetchFiringInstances(def),
+  ]);
 
-  let rows: Record<string, unknown>[];
-  try {
-    rows = (await queryPromise).rows;
-  } catch (error) {
+  if (queryResult.status === "rejected") {
     await recordEvaluationFailure({
       def,
       now,
       scheduledFor,
-      error,
+      error: queryResult.reason,
       logEvent: "alerts.evaluate.query_failed",
     });
     return;
   }
 
-  let previous: FiringInstance[];
-  try {
-    previous = await firingPromise;
-  } catch (error) {
+  if (firingResult.status === "rejected") {
     await recordEvaluationFailure({
       def,
       now,
       scheduledFor,
-      error,
+      error: firingResult.reason,
       logEvent: "alerts.evaluate.firing_set_read_failed",
     });
     return;
   }
+
+  const rows = queryResult.value.rows;
+  const previous = firingResult.value;
 
   // 4. Derive the transition (pure). Instance identity and counts come from the
   // full result; `evidence` is only the bounded snapshot kept for storage and
