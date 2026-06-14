@@ -5,8 +5,15 @@ const valid = {
   kind: "AlertRule",
   metadata: { name: "high-5xx", labels: { team: "platform" } },
   spec: {
+    display: {
+      name: "High 5xx",
+      description: "Routes with elevated 5xx responses.",
+    },
     evaluationInterval: "1m",
-    summary: `\${row_count} routes have elevated 5xxs`,
+    notificationMessage: {
+      title: `\${row_count} routes have elevated 5xxs`,
+      description: `Worst route: \${route}`,
+    },
     query: "SELECT 1",
   },
 };
@@ -40,7 +47,7 @@ describe("AlertRuleYamlSchema", () => {
     ).toBe(false);
   });
 
-  it("rejects unknown keys, missing summary, and empty name", () => {
+  it("rejects unknown keys, missing title, and empty name", () => {
     expect(AlertRuleYamlSchema.safeParse({ ...valid, extra: 1 }).success).toBe(
       false,
     );
@@ -53,7 +60,13 @@ describe("AlertRuleYamlSchema", () => {
     expect(
       AlertRuleYamlSchema.safeParse({
         ...valid,
-        spec: { ...valid.spec, summary: undefined },
+        spec: {
+          ...valid.spec,
+          notificationMessage: {
+            ...valid.spec.notificationMessage,
+            title: undefined,
+          },
+        },
       }).success,
     ).toBe(false);
     expect(

@@ -20,7 +20,7 @@ export function buildTelegramText(
   ];
   switch (input.kind) {
     case "firing":
-      lines.push("", input.summary);
+      lines.push("", input.title);
       if (input.description) lines.push(input.description);
       lines.push("", `Firing: ${input.firingCount}`);
       break;

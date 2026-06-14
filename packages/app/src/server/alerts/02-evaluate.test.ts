@@ -68,8 +68,8 @@ const baseDef = {
   active: true,
   parsedQuery:
     "SELECT route FROM logs WHERE TimestampTime >= now() - INTERVAL 5 MINUTE",
-  summaryTemplate: `\${row_count} bad`,
-  descriptionTemplate: "",
+  notificationTitleTemplate: `\${row_count} bad`,
+  notificationDescriptionTemplate: "",
   currentState: "resolved",
   instanceLabelColumns: [],
   firingInstanceCount: 0,

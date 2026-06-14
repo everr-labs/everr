@@ -9,19 +9,19 @@ import { querySqlApiWithMeta, type SqlApiResult } from "@/lib/clickhouse";
 import { errorMessage } from "@/telemetry/logger";
 import { type AlertRuleYaml, AlertRuleYamlSchema } from "./schema";
 import {
+  validateMessageColumns,
   validateMessageTemplate,
   validateQueryTemplate,
-  validateTopColumns,
 } from "./template";
 import { parseEvaluationInterval } from "./window";
 
 interface DesiredAlert {
   slug: string;
   evaluationIntervalSeconds: number;
-  document: string;
+  document: AlertRuleYaml;
   parsedQuery: string;
-  summaryTemplate: string;
-  descriptionTemplate: string;
+  notificationTitleTemplate: string;
+  notificationDescriptionTemplate: string;
   instanceLabelColumns: string[];
   scheduleJitterSeconds: number;
   configFilePath: string;
@@ -89,8 +89,10 @@ function parseAlertRule(path: string, resource: unknown) {
       rule.spec.evaluationInterval,
     );
     validateQueryTemplate(rule.spec.query);
-    validateMessageTemplate(rule.spec.summary);
-    if (rule.spec.description) validateMessageTemplate(rule.spec.description);
+    validateMessageTemplate(rule.spec.notificationMessage.title);
+    if (rule.spec.notificationMessage.description) {
+      validateMessageTemplate(rule.spec.notificationMessage.description);
+    }
   } catch (error) {
     throw validationError(path, error);
   }
@@ -118,9 +120,15 @@ async function validateAlertRuleQuery(
   }
 
   try {
-    validateTopColumns(rule.spec.summary, queryResult.columns);
-    if (rule.spec.description) {
-      validateTopColumns(rule.spec.description, queryResult.columns);
+    validateMessageColumns(
+      rule.spec.notificationMessage.title,
+      queryResult.columns,
+    );
+    if (rule.spec.notificationMessage.description) {
+      validateMessageColumns(
+        rule.spec.notificationMessage.description,
+        queryResult.columns,
+      );
     }
   } catch (error) {
     throw validationError(path, error);
@@ -204,10 +212,11 @@ async function buildDesiredAlerts(opts: {
     return {
       slug: parsed.slug,
       evaluationIntervalSeconds: parsed.evaluationIntervalSeconds,
-      document: JSON.stringify(parsed.rule, null, 2),
+      document: parsed.rule,
       parsedQuery: parsed.rule.spec.query,
-      summaryTemplate: parsed.rule.spec.summary,
-      descriptionTemplate: parsed.rule.spec.description ?? "",
+      notificationTitleTemplate: parsed.rule.spec.notificationMessage.title,
+      notificationDescriptionTemplate:
+        parsed.rule.spec.notificationMessage.description ?? "",
       instanceLabelColumns: validation.value.instanceLabelColumns,
       scheduleJitterSeconds: scheduleJitterSeconds(
         opts.orgId,
@@ -225,6 +234,22 @@ function instanceLabelsChanged(a: string[], b: string[]): boolean {
   return a.length !== b.length || a.some((value, index) => value !== b[index]);
 }
 
+function stableStringify(value: unknown): string {
+  return JSON.stringify(sortKeys(value));
+}
+
+function sortKeys(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortKeys);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.keys(value as Record<string, unknown>)
+        .sort()
+        .map((key) => [key, sortKeys((value as Record<string, unknown>)[key])]),
+    );
+  }
+  return value;
+}
+
 // The query and instance-label columns define the runtime state's shape; when
 // either changes the previous firing set no longer applies and must be reset.
 function queryOrLabelsChanged(a: DesiredAlert, b: DesiredAlert): boolean {
@@ -238,10 +263,11 @@ function needsUpdate(existing: ExistingAlert, desired: DesiredAlert): boolean {
   return (
     !existing.active ||
     existing.evaluationIntervalSeconds !== desired.evaluationIntervalSeconds ||
-    existing.document !== desired.document ||
+    stableStringify(existing.document) !== stableStringify(desired.document) ||
     queryOrLabelsChanged(existing, desired) ||
-    existing.summaryTemplate !== desired.summaryTemplate ||
-    existing.descriptionTemplate !== desired.descriptionTemplate ||
+    existing.notificationTitleTemplate !== desired.notificationTitleTemplate ||
+    existing.notificationDescriptionTemplate !==
+      desired.notificationDescriptionTemplate ||
     existing.scheduleJitterSeconds !== desired.scheduleJitterSeconds ||
     existing.configFilePath !== desired.configFilePath ||
     existing.sourceLink !== desired.sourceLink
@@ -265,8 +291,8 @@ function activeValues(
     evaluationIntervalSeconds: desired.evaluationIntervalSeconds,
     document: desired.document,
     parsedQuery: desired.parsedQuery,
-    summaryTemplate: desired.summaryTemplate,
-    descriptionTemplate: desired.descriptionTemplate,
+    notificationTitleTemplate: desired.notificationTitleTemplate,
+    notificationDescriptionTemplate: desired.notificationDescriptionTemplate,
     instanceLabelColumns: desired.instanceLabelColumns,
     nextEvaluationAt: nextEvaluationAt(now, desired),
     scheduleJitterSeconds: desired.scheduleJitterSeconds,
@@ -326,8 +352,9 @@ export const applyAlertSpecs: Reconciler = async ({
       evaluationIntervalSeconds: alertDefinitions.evaluationIntervalSeconds,
       document: alertDefinitions.document,
       parsedQuery: alertDefinitions.parsedQuery,
-      summaryTemplate: alertDefinitions.summaryTemplate,
-      descriptionTemplate: alertDefinitions.descriptionTemplate,
+      notificationTitleTemplate: alertDefinitions.notificationTitleTemplate,
+      notificationDescriptionTemplate:
+        alertDefinitions.notificationDescriptionTemplate,
       instanceLabelColumns: alertDefinitions.instanceLabelColumns,
       scheduleJitterSeconds: alertDefinitions.scheduleJitterSeconds,
       configFilePath: alertDefinitions.configFilePath,

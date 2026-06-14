@@ -63,8 +63,8 @@ vi.mock("@/db/schema", () => ({
     evaluationIntervalSeconds: "evaluation_interval_seconds",
     document: "document",
     parsedQuery: "parsed_query",
-    summaryTemplate: "summary_template",
-    descriptionTemplate: "description_template",
+    notificationTitleTemplate: "summary_template",
+    notificationDescriptionTemplate: "description_template",
     nextEvaluationAt: "next_evaluation_at",
     scheduleJitterSeconds: "schedule_jitter_seconds",
     configFilePath: "config_file_path",
@@ -121,9 +121,15 @@ function alert(name = "high-errors", overrides = {}) {
     kind: "AlertRule",
     metadata: { name },
     spec: {
+      display: {
+        name: "High errors",
+        description: "Routes with elevated errors.",
+      },
       evaluationInterval: "5m",
-      summary: `\${row_count} errors in \${top_service}`,
-      description: `top service \${top_service}`,
+      notificationMessage: {
+        title: `\${row_count} errors in \${service}`,
+        description: `service \${service}`,
+      },
       query:
         "SELECT service, count() AS count FROM logs WHERE timestamp > now() - INTERVAL 15 MINUTE GROUP BY service",
       ...overrides,
@@ -182,9 +188,10 @@ describe("applyAlertSpecs", () => {
       repoid: "repo-1",
       slug: "high-errors",
       evaluationIntervalSeconds: 300,
+      document: alert(),
       parsedQuery: expect.stringContaining("INTERVAL 15 MINUTE"),
-      summaryTemplate: `\${row_count} errors in \${top_service}`,
-      descriptionTemplate: `top service \${top_service}`,
+      notificationTitleTemplate: `\${row_count} errors in \${service}`,
+      notificationDescriptionTemplate: `service \${service}`,
       configFilePath: "alerts/high-errors.yaml",
       sourceLink:
         "https://github.com/everr/example/blob/abc123/alerts/high-errors.yaml",
@@ -203,10 +210,10 @@ describe("applyAlertSpecs", () => {
       {
         slug: "high-errors",
         evaluationIntervalSeconds: 60,
-        document: "{}",
+        document: {},
         parsedQuery: "SELECT 1",
-        summaryTemplate: "old",
-        descriptionTemplate: "",
+        notificationTitleTemplate: "old",
+        notificationDescriptionTemplate: "",
         scheduleJitterSeconds: 0,
         configFilePath: "old.yaml",
         sourceLink: "",
@@ -217,10 +224,10 @@ describe("applyAlertSpecs", () => {
       {
         slug: "stale",
         evaluationIntervalSeconds: 300,
-        document: "{}",
+        document: {},
         parsedQuery: "SELECT 1",
-        summaryTemplate: "old",
-        descriptionTemplate: "",
+        notificationTitleTemplate: "old",
+        notificationDescriptionTemplate: "",
         scheduleJitterSeconds: 0,
         configFilePath: "stale.yaml",
         sourceLink: "",
@@ -269,10 +276,10 @@ describe("applyAlertSpecs", () => {
       {
         slug: "high-errors",
         evaluationIntervalSeconds: 300,
-        document: "{}",
+        document: {},
         parsedQuery: "SELECT 1",
-        summaryTemplate: "old",
-        descriptionTemplate: "",
+        notificationTitleTemplate: "old",
+        notificationDescriptionTemplate: "",
         scheduleJitterSeconds: 0,
         configFilePath: "old.yaml",
         sourceLink: "",
@@ -305,10 +312,10 @@ describe("applyAlertSpecs", () => {
       {
         slug: "high-errors",
         evaluationIntervalSeconds: 300,
-        document: "{}",
+        document: {},
         parsedQuery: "SELECT old_service AS service",
-        summaryTemplate: `\${row_count} errors in \${top_service}`,
-        descriptionTemplate: `top service \${top_service}`,
+        notificationTitleTemplate: `\${row_count} errors in \${service}`,
+        notificationDescriptionTemplate: `service \${service}`,
         instanceLabelColumns: ["old_service"],
         scheduleJitterSeconds: 0,
         configFilePath: "alerts/high-errors.yaml",
@@ -411,7 +418,7 @@ describe("applyAlertSpecs", () => {
     ]);
   });
 
-  it("validates top columns from metadata even when the query returns zero rows", async () => {
+  it("validates notification columns even when the query returns zero rows", async () => {
     mockedQuerySqlApiWithMeta.mockResolvedValueOnce({
       rows: [],
       columns: ["count"],
@@ -424,7 +431,7 @@ describe("applyAlertSpecs", () => {
         resources: [{ path: "missing-column.yaml", resource: alert() }],
       }),
     ).rejects.toThrow(
-      /missing-column\.yaml: \$\{top_service\} references column "service"/,
+      /missing-column\.yaml: \$\{service\} references column "service"/,
     );
   });
 

@@ -77,19 +77,17 @@ SELECT
   '' AS ScopeVersion,
   map() AS ScopeAttributes,
   map(
-    'alert.definition_id', alert_definition_id,
-    'alert.repoid', repoid,
     'alert.slug', slug,
     'alert.event_type', event_type,
     'alert.delivery_targets', toJSONString(delivery_targets),
-    'alert.silence_id', silence_id,
+    'alert.silenced', if(silence_id = '', 'false', 'true'),
     'alert.row_count', toString(row_count),
     'alert.evidence_truncated', toString(evidence_truncated),
     'alert.evidence_json', evidence_json,
     'alert.instance_fingerprint', instance_fingerprint,
     'alert.instance_labels', instance_labels_json
   ) AS LogAttributes,
-  concat('everr.alert.', event_type) AS EventName,
+  concat('alert.', slug, '.', event_type) AS EventName,
   -- Required for app.logs RLS and TTL; ResourceAttributes alone is not enough.
   organization_id AS tenant_id
 FROM app.alert_events;

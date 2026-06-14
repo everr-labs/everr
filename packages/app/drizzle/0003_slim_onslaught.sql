@@ -5,8 +5,7 @@ CREATE TABLE "alert_definitions" (
 	"repoid" text NOT NULL,
 	"slug" text NOT NULL,
 	"evaluation_interval_seconds" integer NOT NULL,
-	"window" text NOT NULL,
-	"document" text NOT NULL,
+	"document" jsonb NOT NULL,
 	"parsed_query" text NOT NULL,
 	"summary_template" text NOT NULL,
 	"description_template" text DEFAULT '' NOT NULL,
@@ -18,7 +17,6 @@ CREATE TABLE "alert_definitions" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"active" boolean DEFAULT true NOT NULL,
-	"validation_status" text DEFAULT 'valid' NOT NULL,
 	"last_evaluation_status" text DEFAULT '' NOT NULL,
 	"last_evaluation_error" text DEFAULT '' NOT NULL,
 	"current_state" "alert_state" DEFAULT 'unknown' NOT NULL,
@@ -27,7 +25,9 @@ CREATE TABLE "alert_definitions" (
 	"last_resolved_at" timestamp with time zone,
 	"last_seen_at" timestamp with time zone,
 	"last_row_count" integer DEFAULT 0 NOT NULL,
-	"last_evidence_snapshot" jsonb DEFAULT '[]'::jsonb NOT NULL
+	"last_evidence_snapshot" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"firing_instance_count" integer DEFAULT 0 NOT NULL,
+	"instance_label_columns" jsonb DEFAULT '[]'::jsonb NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "alert_settings" (
@@ -46,6 +46,7 @@ CREATE TABLE "alert_silences" (
 	"starts_at" timestamp with time zone NOT NULL,
 	"ends_at" timestamp with time zone NOT NULL,
 	"reason" text DEFAULT '' NOT NULL,
+	"matchers" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"created_by_user_id" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -58,5 +59,5 @@ ALTER TABLE "dashboards" ADD COLUMN "repoid" text DEFAULT '' NOT NULL;--> statem
 ALTER TABLE "alert_silences" ADD CONSTRAINT "alert_silences_alert_definition_id_alert_definitions_id_fk" FOREIGN KEY ("alert_definition_id") REFERENCES "public"."alert_definitions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "alert_definitions_org_repo_slug_uq" ON "alert_definitions" USING btree ("organization_id","repoid","slug");--> statement-breakpoint
 CREATE INDEX "alert_definitions_due_idx" ON "alert_definitions" USING btree ("active","next_evaluation_at");--> statement-breakpoint
-CREATE INDEX "alert_silences_active_lookup_idx" ON "alert_silences" USING btree ("organization_id","alert_definition_id","ends_at");--> statement-breakpoint
+CREATE INDEX "alert_silences_active_lookup_idx" ON "alert_silences" USING btree ("organization_id","alert_definition_id","ends_at") WHERE cancelled_at IS NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "dashboards_tenant_repo_project_slug_uq" ON "dashboards" USING btree ("organization_id","repoid","project","slug");

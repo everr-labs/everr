@@ -24,6 +24,7 @@ import {
   MatchersSchema,
   validateMatchers,
 } from "./matchers";
+import type { AlertRuleYaml } from "./schema";
 import { activeSilenceConditions } from "./silences";
 import { renderMessage } from "./template";
 
@@ -39,6 +40,11 @@ type AlertEvidenceValue =
   | null
   | AlertEvidenceValue[]
   | { [key: string]: AlertEvidenceValue };
+
+type AlertDisplay = {
+  name?: string;
+  description?: string;
+};
 
 export type AlertSummary = {
   id: string;
@@ -62,10 +68,11 @@ export type AlertSummary = {
 };
 
 type AlertDetail = AlertSummary & {
-  document: string;
+  display: AlertDisplay;
+  document: AlertRuleYaml;
   parsedQuery: string;
-  summaryTemplate: string;
-  descriptionTemplate: string;
+  notificationTitleTemplate: string;
+  notificationDescriptionTemplate: string;
   instanceLabelColumns: string[];
 };
 
@@ -146,14 +153,35 @@ function clickhouseIsoMillis(column: string): string {
   return `concat(formatDateTime(${column}, '%Y-%m-%dT%H:%i:%S', 'UTC'), '.', substring(formatDateTime(${column}, '%f', 'UTC'), 1, 3), 'Z')`;
 }
 
+const alertDisplaySchema = z
+  .object({
+    spec: z
+      .object({
+        display: z
+          .object({
+            name: z.string().optional(),
+            description: z.string().optional(),
+          })
+          .optional(),
+      })
+      .passthrough(),
+  })
+  .passthrough();
+
+function displayFromDocument(document: unknown): AlertDisplay {
+  const parsed = alertDisplaySchema.safeParse(document);
+  return parsed.success ? (parsed.data.spec.display ?? {}) : {};
+}
+
 async function getAlertRow(alertId: string, organizationId: string) {
   const [row] = await db
     .select({
       ...alertListColumns,
       document: alertDefinitions.document,
       parsedQuery: alertDefinitions.parsedQuery,
-      summaryTemplate: alertDefinitions.summaryTemplate,
-      descriptionTemplate: alertDefinitions.descriptionTemplate,
+      notificationTitleTemplate: alertDefinitions.notificationTitleTemplate,
+      notificationDescriptionTemplate:
+        alertDefinitions.notificationDescriptionTemplate,
       instanceLabelColumns: alertDefinitions.instanceLabelColumns,
     })
     .from(alertDefinitions)
@@ -195,10 +223,11 @@ export const getAlert = createAuthenticatedServerFn({ method: "GET" })
     if (!row) throw new Error("Alert not found");
     return {
       ...toAlertSummary(row as AlertSummaryRow),
+      display: displayFromDocument(row.document),
       document: row.document,
       parsedQuery: row.parsedQuery,
-      summaryTemplate: row.summaryTemplate,
-      descriptionTemplate: row.descriptionTemplate,
+      notificationTitleTemplate: row.notificationTitleTemplate,
+      notificationDescriptionTemplate: row.notificationDescriptionTemplate,
       instanceLabelColumns: row.instanceLabelColumns,
     } satisfies AlertDetail;
   });
@@ -398,7 +427,7 @@ export type AlertInstanceSummary = {
   lastResolvedAt: string | null;
   lastRow: Record<string, AlertEvidenceValue>;
   lastEvaluationRows: Record<string, AlertEvidenceValue>[];
-  lastEvaluationSummary: string | null;
+  lastEvaluationTitle: string | null;
   lastEvaluationDescription: string | null;
   silenced: boolean;
 };
@@ -512,15 +541,15 @@ export const listAlertInstances = createAuthenticatedServerFn({ method: "GET" })
             AlertEvidenceValue
           >,
           lastEvaluationRows,
-          lastEvaluationSummary: firstEvaluationRow
-            ? renderMessage(alert.summaryTemplate, {
+          lastEvaluationTitle: firstEvaluationRow
+            ? renderMessage(alert.notificationTitleTemplate, {
                 rowCount: alert.lastRowCount,
                 firstRow: firstEvaluationRow,
               })
             : null,
           lastEvaluationDescription:
-            firstEvaluationRow && alert.descriptionTemplate
-              ? renderMessage(alert.descriptionTemplate, {
+            firstEvaluationRow && alert.notificationDescriptionTemplate
+              ? renderMessage(alert.notificationDescriptionTemplate, {
                   rowCount: alert.lastRowCount,
                   firstRow: firstEvaluationRow,
                 })

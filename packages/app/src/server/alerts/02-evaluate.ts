@@ -139,7 +139,7 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
   // re-enqueue, dropping the notification. On failure we throw without recording,
   // letting the job retry re-derive and re-enqueue (delivery jobKeys replace, so
   // re-enqueuing is idempotent).
-  const { summary, description } = renderMessages(def, evidence);
+  const { title, description } = renderMessages(def, evidence);
   const deliveries: (DeliveryMetadata | null)[] = [];
   for (const action of transition.actions) {
     deliveries.push(
@@ -147,7 +147,7 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
         {
           def,
           kind: action.kind,
-          summary,
+          title,
           description,
           firingCount: transition.firingCount,
           instances: action.instances,
@@ -188,9 +188,9 @@ function parsePayload(payload: EvaluatePayload) {
 function renderMessages(def: AlertDefinition, evidence: BoundedEvidence) {
   const input = { rowCount: evidence.rowCount, firstRow: evidence.firstRow };
   return {
-    summary: renderMessage(def.summaryTemplate, input),
-    description: def.descriptionTemplate
-      ? renderMessage(def.descriptionTemplate, input)
+    title: renderMessage(def.notificationTitleTemplate, input),
+    description: def.notificationDescriptionTemplate
+      ? renderMessage(def.notificationDescriptionTemplate, input)
       : "",
   };
 }

@@ -13,6 +13,7 @@ import {
 } from "drizzle-orm/pg-core";
 import type { NormalizedAlertDeliverySettings } from "@/data/alerts/delivery-settings";
 import type { Matcher } from "@/data/alerts/matchers";
+import type { AlertRuleYaml } from "@/data/alerts/schema";
 
 export const alertStateEnum = pgEnum("alert_state", [
   "unknown",
@@ -28,10 +29,12 @@ export const alertDefinitions = pgTable(
     repoid: text("repoid").notNull(),
     slug: text("slug").notNull(),
     evaluationIntervalSeconds: integer("evaluation_interval_seconds").notNull(),
-    document: text("document").notNull(),
+    document: jsonb("document").notNull().$type<AlertRuleYaml>(),
     parsedQuery: text("parsed_query").notNull(),
-    summaryTemplate: text("summary_template").notNull(),
-    descriptionTemplate: text("description_template").notNull().default(""),
+    notificationTitleTemplate: text("summary_template").notNull(),
+    notificationDescriptionTemplate: text("description_template")
+      .notNull()
+      .default(""),
     nextEvaluationAt: timestamp("next_evaluation_at", { withTimezone: true }),
     scheduleJitterSeconds: integer("schedule_jitter_seconds")
       .notNull()

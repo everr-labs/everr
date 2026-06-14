@@ -30,7 +30,7 @@ describe.skipIf(!databaseUrl)("scanner under concurrency", () => {
           'it-' || i::text,
           60,
           '5m',
-          '',
+          '{}'::jsonb,
           'q',
           's',
           '',

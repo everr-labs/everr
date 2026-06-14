@@ -4,9 +4,13 @@ metadata:
   labels:
     team: platform
 spec:
+  display:
+    name: Log volume spike
+    description: Services with elevated log volume in the recent window.
+  notificationMessage:
+    title: "${row_count} services exceeded the log volume threshold"
+    description: "Service ${ServiceName} emitted ${n} logs in the last window"
   evaluationInterval: 1m
-  summary: "${row_count} services exceeded the log volume threshold"
-  description: "Top service ${top_ServiceName} emitted ${top_n} logs in the last window"
   query: |
     SELECT
       ServiceName,

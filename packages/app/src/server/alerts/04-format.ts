@@ -8,7 +8,7 @@ export type DeliveryKind = "firing" | "resolved" | "partial_resolved";
 export interface DeliveryInput {
   def: { id: string; organizationId: string; repoid: string; slug: string };
   kind: DeliveryKind;
-  summary: string;
+  title: string;
   description: string;
   // Current firing instance count after this evaluation.
   firingCount: number;

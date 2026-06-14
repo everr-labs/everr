@@ -122,7 +122,7 @@ describe("enqueueAlertNotification", () => {
       {
         def,
         kind: "firing",
-        summary: "3 bad",
+        title: "3 bad",
         description: "",
         firingCount: 2,
         instances: instances(["/a", "/b"]),
@@ -195,7 +195,7 @@ describe("enqueueAlertNotification", () => {
       {
         def,
         kind: "firing",
-        summary: "x",
+        title: "x",
         description: "",
         firingCount: 1,
         instances: instances(["/a"]),
@@ -216,7 +216,7 @@ describe("enqueueAlertNotification", () => {
       {
         def,
         kind: "firing",
-        summary: "x",
+        title: "x",
         description: "",
         firingCount: 2,
         instances: instances(["/a", "/b"]),
@@ -243,7 +243,7 @@ describe("enqueueAlertNotification", () => {
       {
         def,
         kind: "firing",
-        summary: "x",
+        title: "x",
         description: "",
         firingCount: 2,
         instances: instances(["/a", "/b"]),
@@ -260,7 +260,7 @@ describe("enqueueAlertNotification", () => {
       {
         def,
         kind: "resolved",
-        summary: "ok",
+        title: "ok",
         description: "",
         firingCount: 0,
         instances: [
@@ -297,7 +297,7 @@ describe("enqueueAlertNotification", () => {
       {
         def,
         kind: "firing",
-        summary: "bad <b>stuff</b>",
+        title: "bad <b>stuff</b>",
         description: "",
         firingCount: 1,
         instances: [

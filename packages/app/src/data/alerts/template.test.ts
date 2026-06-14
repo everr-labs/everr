@@ -2,16 +2,16 @@ import { describe, expect, it } from "vitest";
 import {
   extractVariables,
   renderMessage,
+  validateMessageColumns,
   validateMessageTemplate,
   validateQueryTemplate,
-  validateTopColumns,
 } from "./template";
 
 describe("extractVariables", () => {
   it("finds valid alert variables and ignores malformed ones", () => {
-    expect(extractVariables(`a \${window} b \${top_route} \${1bad}`)).toEqual([
+    expect(extractVariables(`a \${window} b \${route} \${1bad}`)).toEqual([
       "window",
-      "top_route",
+      "route",
     ]);
   });
 });
@@ -29,39 +29,39 @@ describe("validateQueryTemplate", () => {
 });
 
 describe("validateMessageTemplate", () => {
-  it("allows row_count and top_<column>, rejecting other variables", () => {
+  it("allows row_count and column variables", () => {
     expect(() =>
-      validateMessageTemplate(`\${row_count} \${top_route}`),
+      validateMessageTemplate(`\${row_count} \${route}`),
     ).not.toThrow();
-    expect(() => validateMessageTemplate(`\${window}`)).toThrow(/window/);
-    expect(() => validateMessageTemplate(`\${whatever}`)).toThrow(/whatever/);
+    expect(() => validateMessageTemplate(`\${window}`)).not.toThrow();
+    expect(() => validateMessageTemplate(`\${whatever}`)).not.toThrow();
   });
 });
 
-describe("validateTopColumns", () => {
-  it("rejects top_ variables whose column is missing from the result schema", () => {
+describe("validateMessageColumns", () => {
+  it("rejects column variables missing from the result schema", () => {
     expect(() =>
-      validateTopColumns(`\${top_route}`, ["route", "n"]),
+      validateMessageColumns(`\${route}`, ["route", "n"]),
     ).not.toThrow();
-    expect(() => validateTopColumns(`\${top_missing}`, ["route"])).toThrow(
+    expect(() => validateMessageColumns(`\${missing}`, ["route"])).toThrow(
       /missing/,
     );
   });
 });
 
 describe("rendering", () => {
-  it("renderMessage fills row_count and top_ columns, empty string when no rows", () => {
+  it("renderMessage fills row_count and columns, empty string when no rows", () => {
     expect(
-      renderMessage(`\${row_count} bad, top \${top_route}`, {
+      renderMessage(`\${row_count} bad, route \${route}`, {
         rowCount: 3,
         firstRow: { route: "/api/x" },
       }),
-    ).toBe("3 bad, top /api/x");
+    ).toBe("3 bad, route /api/x");
     expect(
-      renderMessage(`top \${top_route}`, {
+      renderMessage(`route \${route}`, {
         rowCount: 0,
         firstRow: undefined,
       }),
-    ).toBe("top ");
+    ).toBe("route ");
   });
 });

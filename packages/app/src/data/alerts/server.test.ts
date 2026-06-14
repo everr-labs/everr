@@ -52,8 +52,8 @@ vi.mock("@/db/schema", () => {
     instanceLabelColumns: "alert_definitions.instance_label_columns",
     document: "alert_definitions.document",
     parsedQuery: "alert_definitions.parsed_query",
-    summaryTemplate: "alert_definitions.summary_template",
-    descriptionTemplate: "alert_definitions.description_template",
+    notificationTitleTemplate: "alert_definitions.summary_template",
+    notificationDescriptionTemplate: "alert_definitions.description_template",
     updatedAt: "alert_definitions.updated_at",
   };
   const alertSettings = {
@@ -152,10 +152,19 @@ const alertRow = {
   firingInstanceCount: 1,
   instanceLabelColumns: ["route"],
   activeSilenceCount: 0,
-  document: "",
+  document: {
+    kind: "AlertRule",
+    metadata: { name: "build-failures" },
+    spec: {
+      display: {
+        name: "Build failures",
+        description: "Build jobs with recent failures.",
+      },
+    },
+  },
   parsedQuery: "SELECT 1",
-  summaryTemplate: "$" + "{row_count} hits for $" + "{top_route}",
-  descriptionTemplate: "latest count $" + "{top_count}",
+  notificationTitleTemplate: "$" + "{row_count} hits for $" + "{route}",
+  notificationDescriptionTemplate: "latest count $" + "{count}",
 };
 
 beforeEach(() => {
@@ -543,7 +552,7 @@ describe("listAlertInstances", () => {
           { route: "/a", count: 9, status: "degraded" },
           { route: "/a", count: 7, status: "still-degraded" },
         ],
-        lastEvaluationSummary: "3 hits for /a",
+        lastEvaluationTitle: "3 hits for /a",
         lastEvaluationDescription: "latest count 9",
         silenced: true,
       },
@@ -555,7 +564,7 @@ describe("listAlertInstances", () => {
         lastResolvedAt: "2026-06-11T09:30:00.000Z",
         lastRow: { route: "/b", count: 2 },
         lastEvaluationRows: [],
-        lastEvaluationSummary: null,
+        lastEvaluationTitle: null,
         lastEvaluationDescription: null,
         silenced: false,
       },

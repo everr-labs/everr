@@ -39,15 +39,9 @@
           "primaryKey": false,
           "notNull": true
         },
-        "window": {
-          "name": "window",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
         "document": {
           "name": "document",
-          "type": "text",
+          "type": "jsonb",
           "primaryKey": false,
           "notNull": true
         },
@@ -124,13 +118,6 @@
           "notNull": true,
           "default": true
         },
-        "validation_status": {
-          "name": "validation_status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'valid'"
-        },
         "last_evaluation_status": {
           "name": "last_evaluation_status",
           "type": "text",
@@ -186,6 +173,20 @@
         },
         "last_evidence_snapshot": {
           "name": "last_evidence_snapshot",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "firing_instance_count": {
+          "name": "firing_instance_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "instance_label_columns": {
+          "name": "instance_label_columns",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true,
@@ -345,6 +346,13 @@
           "notNull": true,
           "default": "''"
         },
+        "matchers": {
+          "name": "matchers",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
         "created_by_user_id": {
           "name": "created_by_user_id",
           "type": "text",
@@ -402,6 +410,7 @@
             }
           ],
           "isUnique": false,
+          "where": "cancelled_at IS NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}

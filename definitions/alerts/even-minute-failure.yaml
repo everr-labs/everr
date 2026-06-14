@@ -4,10 +4,14 @@ metadata:
   labels:
     team: platform
 spec:
+  display:
+    name: Even-minute failure test
+    description: Fires when the scheduler observes an even minute.
+  notificationMessage:
+    title: "Even-minute failure test is firing"
+    description: "The current minute is even at ${checked_at}"
   evaluationInterval: 1m
   instanceLabels: [checked_at]
-  summary: "Even-minute failure test is firing"
-  description: "The current minute is even at ${top_checked_at}"
   query: |
     SELECT
       now() AS checked_at

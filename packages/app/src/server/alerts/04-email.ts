@@ -98,7 +98,7 @@ function buildText(
   const lines: string[] = [];
   switch (input.kind) {
     case "firing":
-      lines.push(input.summary);
+      lines.push(input.title);
       if (input.description) lines.push("", input.description);
       lines.push("", `Alert: ${opts.url}`);
       lines.push("", `Firing instances: ${input.firingCount}`);
@@ -167,7 +167,7 @@ function headerSection(
   let subhead: string;
   switch (input.kind) {
     case "firing":
-      subhead = escapeHtml(input.summary);
+      subhead = escapeHtml(input.title);
       break;
     case "partial_resolved":
       subhead = `${listed.length} resolved · ${input.firingCount} still firing`;

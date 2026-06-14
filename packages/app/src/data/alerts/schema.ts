@@ -3,6 +3,19 @@ import * as z from "zod";
 const nonEmptyString = z.string().min(1);
 
 const alertLabelsSchema = z.record(nonEmptyString, nonEmptyString);
+const alertDisplaySchema = z
+  .object({
+    name: z.string().optional(),
+    description: z.string().optional(),
+  })
+  .strict();
+
+const notificationMessageSchema = z
+  .object({
+    title: nonEmptyString,
+    description: z.string().optional(),
+  })
+  .strict();
 
 export const EverrConfigYamlSchema = z
   .object({
@@ -21,9 +34,9 @@ export const AlertRuleYamlSchema = z
       .strict(),
     spec: z
       .object({
+        display: alertDisplaySchema.optional(),
         evaluationInterval: nonEmptyString,
-        summary: nonEmptyString,
-        description: z.string().optional(),
+        notificationMessage: notificationMessageSchema,
         query: nonEmptyString,
         instanceLabels: z.array(nonEmptyString).min(1).optional(),
       })

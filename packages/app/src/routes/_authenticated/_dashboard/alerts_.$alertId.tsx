@@ -35,7 +35,14 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { BellOff, CirclePlay, CircleStop, Plus, X } from "lucide-react";
+import {
+  BellOff,
+  CirclePlay,
+  CircleStop,
+  ExternalLink,
+  Plus,
+  X,
+} from "lucide-react";
 import { type ReactNode, useState } from "react";
 import {
   ALERT_CHANNELS,
@@ -161,9 +168,10 @@ function AlertDetailPage() {
   const detail = alert.data;
   const sourceHref = safeExternalHref(detail.sourceLink);
   const definitionRows: [string, ReactNode][] = [
+    ["Repository", detail.repoid],
     ["Evaluation interval", formatInterval(detail.evaluationIntervalSeconds)],
-    ["Summary", detail.summaryTemplate],
-    ["Description", detail.descriptionTemplate || "-"],
+    ["Notification title", detail.notificationTitleTemplate],
+    ["Notification description", detail.notificationDescriptionTemplate || "-"],
     ...(detail.instanceLabelColumns.length > 0
       ? ([
           ["Instance labels", detail.instanceLabelColumns.join(", ")],
@@ -178,7 +186,7 @@ function AlertDetailPage() {
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-3">
             <h1 className="font-mono text-xl font-bold tracking-tight">
-              {detail.slug}
+              {detail.display.name || detail.slug}
             </h1>
             <AlertStateBadges
               state={detail.currentState}
@@ -190,22 +198,11 @@ function AlertDetailPage() {
               }
             />
           </div>
-          <p className="text-muted-foreground">
-            {detail.repoid}
-            {sourceHref && (
-              <>
-                {" · "}
-                <a
-                  className="underline"
-                  href={sourceHref}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  source
-                </a>
-              </>
-            )}
-          </p>
+          {detail.display.description && (
+            <p className="max-w-3xl text-muted-foreground">
+              {detail.display.description}
+            </p>
+          )}
           {setActive.error && (
             <p className="text-sm text-destructive" role="alert">
               {setActive.error.message}
@@ -324,8 +321,19 @@ function AlertDetailPage() {
 
       <div className="grid gap-4 xl:grid-cols-2">
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-start justify-between gap-4">
             <CardTitle>Definition</CardTitle>
+            {sourceHref && (
+              <a
+                className="inline-flex shrink-0 items-center gap-1 text-muted-foreground text-xs underline underline-offset-4 hover:text-foreground"
+                href={sourceHref}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <ExternalLink className="size-3" />
+                Source
+              </a>
+            )}
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             <DefinitionTable rows={definitionRows} />
