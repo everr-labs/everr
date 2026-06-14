@@ -3,10 +3,10 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  CHDB_LIB_ARCHIVE_SHA256,
-  CHDB_LIB_ASSET_NAME,
+  CHDB_PLATFORM_ASSETS,
   CHDB_RELEASE_VERSION,
   chdbReleaseAssetUrl,
+  resolveChdbAsset,
   defaultDesktopVersionPaths,
   publishCliArtifact,
   readDesktopTauriConfigVersion,
@@ -183,11 +183,19 @@ describe("build-support version helpers", () => {
 });
 
 describe("build-support chDB helpers", () => {
-  it("pins the official macOS arm64 chDB release asset", () => {
+  it("pins official chDB release assets per platform", () => {
     expect(CHDB_RELEASE_VERSION).toBe("v4.0.2");
-    expect(CHDB_LIB_ASSET_NAME).toBe("macos-arm64-libchdb.tar.gz");
-    expect(CHDB_LIB_ARCHIVE_SHA256).toMatch(/^[a-f0-9]{64}$/);
-    expect(chdbReleaseAssetUrl()).toBe(
+    for (const [key, asset] of Object.entries(CHDB_PLATFORM_ASSETS)) {
+      expect(asset.assetName, key).toMatch(/libchdb\.tar\.gz$/);
+      expect(asset.sha256, key).toMatch(/^[a-f0-9]{64}$/);
+    }
+
+    expect(resolveChdbAsset("darwin", "arm64").assetName).toBe("macos-arm64-libchdb.tar.gz");
+    expect(resolveChdbAsset("linux", "arm64").assetName).toBe("linux-aarch64-libchdb.tar.gz");
+    expect(resolveChdbAsset("linux", "x64").assetName).toBe("linux-x86_64-libchdb.tar.gz");
+    expect(() => resolveChdbAsset("win32", "x64")).toThrow(/No bundled chDB release asset/);
+
+    expect(chdbReleaseAssetUrl("macos-arm64-libchdb.tar.gz")).toBe(
       "https://github.com/chdb-io/chdb/releases/download/v4.0.2/macos-arm64-libchdb.tar.gz",
     );
   });
