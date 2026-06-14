@@ -45,7 +45,11 @@ export function NotebookViewer({
             slug={slug}
             indexTitle={indexTitle}
             tree={tree}
-            activePath={page ? pagePath : ""}
+            // Keep the requested path even when the page is missing: it matches
+            // no nav node, so nothing is highlighted — rather than falling back
+            // to "" and wrongly highlighting the index while the pane shows
+            // page-not-found.
+            activePath={pagePath}
           />
         )}
         <div className="min-w-0 max-w-4xl flex-1">

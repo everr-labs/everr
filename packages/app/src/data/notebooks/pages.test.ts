@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildFileToPageMap,
   findPage,
+  hrefHash,
   pageNavTree,
   resolveNotebookLink,
   toDashboardDocument,
@@ -176,6 +177,23 @@ describe("resolveNotebookLink", () => {
     expect(resolveNotebookLink("traffic?x=1", undefined, fileSpec)).toBe(
       "traffic",
     );
+  });
+});
+
+describe("hrefHash", () => {
+  it("returns the fragment without the leading #", () => {
+    expect(hrefHash("./traffic.md#errors")).toBe("errors");
+    expect(hrefHash("traffic#section")).toBe("section");
+  });
+
+  it("reads the fragment after a query string", () => {
+    expect(hrefHash("traffic.md?x=1#errors")).toBe("errors");
+  });
+
+  it("returns undefined with no fragment or an empty one", () => {
+    expect(hrefHash("./traffic.md")).toBeUndefined();
+    expect(hrefHash("traffic?x=1")).toBeUndefined();
+    expect(hrefHash("traffic#")).toBeUndefined();
   });
 });
 

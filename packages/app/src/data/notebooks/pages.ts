@@ -118,6 +118,20 @@ function stripHrefSuffix(href: string): string {
   return value.replace(/\/+$/, "");
 }
 
+/**
+ * The "#fragment" of an href, without the leading "#", or undefined when there
+ * is none. The resolver strips the fragment to match a page path, so the link
+ * consumer re-applies it to the router <Link> (via its `hash` prop) — otherwise
+ * `traffic.md#errors` would navigate to the top of the page, not the heading.
+ * (Query strings are intentionally not carried: notebook routes have a typed
+ * search schema, so arbitrary markdown query params aren't part of it.)
+ */
+export function hrefHash(href: string): string | undefined {
+  const i = href.indexOf("#");
+  if (i === -1) return undefined;
+  return href.slice(i + 1) || undefined;
+}
+
 /** Resolve one markdown href against a notebook to a page path, or null. */
 export type NotebookLinkResolver = (
   href: string,

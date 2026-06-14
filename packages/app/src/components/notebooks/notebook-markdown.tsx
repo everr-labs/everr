@@ -7,6 +7,7 @@ import {
 } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { hrefHash } from "@/data/notebooks/pages";
 import { PanelEmbedBlock } from "./notebook-panel-embed";
 
 /** Flatten react-markdown code children to the raw fence text. */
@@ -58,14 +59,22 @@ export function NotebookMarkdown({
     ) {
       const resolved = resolveLink(href);
       if (resolved !== null) {
+        // Re-attach the link's "#fragment" the resolver stripped, so a link like
+        // `traffic.md#errors` scrolls to the heading instead of the page top.
+        const hash = hrefHash(href);
         return resolved === "" ? (
-          <Link to="/notebooks/$project/$slug" params={{ project, slug }}>
+          <Link
+            to="/notebooks/$project/$slug"
+            params={{ project, slug }}
+            hash={hash}
+          >
             {children}
           </Link>
         ) : (
           <Link
             to="/notebooks/$project/$slug/$"
             params={{ project, slug, _splat: resolved }}
+            hash={hash}
           >
             {children}
           </Link>
