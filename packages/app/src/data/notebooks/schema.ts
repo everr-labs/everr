@@ -41,8 +41,12 @@ export interface NotebookPage {
   pages?: NotebookPage[];
 }
 
+// strictObject: page fields are our own spec, not Perses, so an unknown key is
+// always an authoring typo (e.g. `pagse:`). z.object would silently strip it,
+// and since apply stores the raw document, the misspelled field would survive
+// in storage but be ignored by the viewer — content vanishing with no error.
 const notebookPage: z.ZodType<NotebookPage> = z.lazy(() =>
-  z.object({
+  z.strictObject({
     name: dashboardSlugSchema,
     display: dashboardDisplay.optional(),
     markdown: markdownSource,
@@ -72,8 +76,12 @@ function addDuplicatePageIssues(
   });
 }
 
+// strictObject for the same reason as notebookPage: these top-level keys are
+// our own spec, so an unknown one is a typo to reject, not a field to drop.
+// Leniency toward Perses lives inside the imported `panel`/`variable`/`display`
+// schemas, which are unchanged — only this wrapper's own keys are constrained.
 export const notebookSpecSchema = z
-  .object({
+  .strictObject({
     display: dashboardDisplay.optional(),
     variables: z.array(variable).optional(),
     /** Shared panels referenced from markdown via `ref:` blocks. */
@@ -90,10 +98,11 @@ export const notebookSpecSchema = z
 
 /**
  * Strict variant for the write path (`everr apply`): additionally validates
- * each shared panel's plugin spec, mirroring dashboards. Read path stays
- * lenient so stored notebooks with unknown plugin options still load.
- * Query plugin specs are only validated for registered query kinds (currently
- * TestData); unlisted kinds stay loose — never stricter than Perses.
+ * each shared panel's plugin spec, mirroring dashboards. The read path stays
+ * lenient about *plugin options* so stored notebooks with unknown ones still
+ * load (the structural wrapper above is strict on both paths). Query plugin
+ * specs are only validated for registered query kinds (currently TestData);
+ * unlisted kinds stay loose — never stricter than Perses.
  */
 export const notebookSpecSchemaStrict = notebookSpecSchema.superRefine(
   (spec, ctx) => {

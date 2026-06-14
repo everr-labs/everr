@@ -71,6 +71,24 @@ describe("notebookSpecSchema", () => {
     expect(r.success).toBe(false);
   });
 
+  it("rejects unknown keys on a page (catches typos like 'pagse')", () => {
+    const r = notebookSpecSchema.safeParse({
+      markdown: md,
+      pages: [
+        { name: "a", markdown: md, pagse: [{ name: "b", markdown: md }] },
+      ],
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects unknown top-level spec keys (catches typos like 'varaibles')", () => {
+    const r = notebookSpecSchema.safeParse({
+      markdown: md,
+      varaibles: [{ kind: "TextVariable", spec: { name: "s", value: "v" } }],
+    });
+    expect(r.success).toBe(false);
+  });
+
   it("accepts shared panels and variables (dashboard schemas)", () => {
     const r = notebookSpecSchema.safeParse({
       markdown: md,
