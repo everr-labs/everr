@@ -411,7 +411,7 @@ function AlertDetailPage() {
                   ),
                 },
                 {
-                  header: "Instances",
+                  header: "Instance",
                   cell: (row) => <HistoryInstances instances={row.instances} />,
                 },
                 { header: "Rows", cell: (row) => row.rowCount },
