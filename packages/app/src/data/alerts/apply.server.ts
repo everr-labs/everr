@@ -62,7 +62,7 @@ function scheduleJitterSeconds(
   slug: string,
   evaluationIntervalSeconds: number,
 ): number {
-  const spread = Math.min(evaluationIntervalSeconds, 300);
+  const spread = Math.min(evaluationIntervalSeconds, 5);
   const hash = createHash("sha256")
     .update(`${orgId}\0${repoid}\0${slug}`)
     .digest();

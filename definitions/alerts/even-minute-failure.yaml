@@ -1,6 +1,6 @@
 kind: AlertRule
 metadata:
-  name: even-minute
+  name: even-minute-check
   labels:
     team: platform
 spec:
