@@ -49,14 +49,8 @@ FOR SELECT
 USING organization_id = getSetting('SQL_everr_tenant_id')
 TO app_ro;
 
--- Idempotent upgrade for tables created before the instance columns existed.
--- The MV is recreated below so it always projects the current column set.
-ALTER TABLE app.alert_events ADD COLUMN IF NOT EXISTS instance_fingerprint String DEFAULT '';
-ALTER TABLE app.alert_events ADD COLUMN IF NOT EXISTS instance_labels_json String DEFAULT '{}';
-ALTER TABLE app.alert_events ADD COLUMN IF NOT EXISTS delivery_targets Map(String, Array(String)) DEFAULT map();
-ALTER TABLE app.alert_events ADD INDEX IF NOT EXISTS alert_def_skip_idx alert_definition_id TYPE bloom_filter GRANULARITY 4;
-DROP VIEW IF EXISTS app.alert_events_logs_mv;
-
+-- Fresh init path: there are no existing alert rows to backfill. The
+-- incremental MV projects future app.alert_events inserts into app.logs.
 CREATE MATERIALIZED VIEW IF NOT EXISTS app.alert_events_logs_mv
 TO app.logs
 AS
