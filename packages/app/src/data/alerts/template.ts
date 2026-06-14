@@ -23,7 +23,6 @@ export function validateMessageColumns(
 ): void {
   const names = new Set(columns);
   for (const name of extractVariables(template)) {
-    if (name === "row_count") continue;
     if (!names.has(name)) {
       throw new Error(
         `\${${name}} references column "${name}" which the query does not return`,
@@ -34,10 +33,9 @@ export function validateMessageColumns(
 
 export function renderMessage(
   template: string,
-  ctx: { rowCount: number; firstRow: Record<string, unknown> | undefined },
+  ctx: { firstRow: Record<string, unknown> | undefined },
 ): string {
   return template.replace(VARIABLE_RE, (_, name: string) => {
-    if (name === "row_count") return String(ctx.rowCount);
     const value = ctx.firstRow?.[name];
     if (value === undefined || value === null) return "";
     return String(value);

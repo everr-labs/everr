@@ -11,7 +11,7 @@ const valid = {
     },
     evaluationInterval: "1m",
     notificationMessage: {
-      title: `\${row_count} routes have elevated 5xxs`,
+      title: `Route \${route} has elevated 5xxs`,
       description: `Worst route: \${route}`,
     },
     query: "SELECT 1",

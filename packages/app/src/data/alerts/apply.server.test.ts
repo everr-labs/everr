@@ -127,7 +127,7 @@ function alert(name = "high-errors", overrides = {}) {
       },
       evaluationInterval: "5m",
       notificationMessage: {
-        title: `\${row_count} errors in \${service}`,
+        title: `\${count} errors in \${service}`,
         description: `service \${service}`,
       },
       query:
@@ -190,7 +190,7 @@ describe("applyAlertSpecs", () => {
       evaluationIntervalSeconds: 300,
       document: alert(),
       parsedQuery: expect.stringContaining("INTERVAL 15 MINUTE"),
-      notificationTitleTemplate: `\${row_count} errors in \${service}`,
+      notificationTitleTemplate: `\${count} errors in \${service}`,
       notificationDescriptionTemplate: `service \${service}`,
       configFilePath: "alerts/high-errors.yaml",
       sourceLink:
@@ -314,7 +314,7 @@ describe("applyAlertSpecs", () => {
         evaluationIntervalSeconds: 300,
         document: {},
         parsedQuery: "SELECT old_service AS service",
-        notificationTitleTemplate: `\${row_count} errors in \${service}`,
+        notificationTitleTemplate: `\${count} errors in \${service}`,
         notificationDescriptionTemplate: `service \${service}`,
         instanceLabelColumns: ["old_service"],
         scheduleJitterSeconds: 0,

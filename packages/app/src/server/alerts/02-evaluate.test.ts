@@ -24,16 +24,26 @@ vi.mock("./02-instances", async (importOriginal) => {
 });
 
 const definitionRows = vi.fn();
+const settingsRows = vi.fn();
+const silenceRows = vi.fn();
 const updates: unknown[] = [];
+let selectCallCount = 0;
 vi.mock("@/db/client", () => ({
   db: {
-    select: () => ({
-      from: () => ({
-        where: () => ({
-          limit: () => Promise.resolve(definitionRows()),
+    select: (_columns?: unknown) => {
+      const callIndex = selectCallCount++;
+      return {
+        from: () => ({
+          where: () => ({
+            limit: () => {
+              if (callIndex === 0) return Promise.resolve(definitionRows());
+              if (callIndex === 1) return Promise.resolve(settingsRows());
+              return Promise.resolve(silenceRows());
+            },
+          }),
         }),
-      }),
-    }),
+      };
+    },
     update: () => ({
       set: (value: unknown) => ({
         where: () => {
@@ -68,7 +78,7 @@ const baseDef = {
   active: true,
   parsedQuery:
     "SELECT route FROM logs WHERE TimestampTime >= now() - INTERVAL 5 MINUTE",
-  notificationTitleTemplate: `\${row_count} bad`,
+  notificationTitleTemplate: `\${route} bad`,
   notificationDescriptionTemplate: "",
   currentState: "resolved",
   instanceLabelColumns: [],
@@ -84,12 +94,17 @@ const firing = (route: string) => ({
 beforeEach(() => {
   vi.clearAllMocks();
   updates.length = 0;
+  selectCallCount = 0;
   deliver.mockResolvedValue({
     deliveryTargets: { email: ["a@example.com"] },
     silenceId: "",
   });
   insertEvents.mockResolvedValue(undefined);
   fetchFiring.mockResolvedValue([]);
+  settingsRows.mockReturnValue([
+    { delivery: { email: { enabled: true, to: ["a@example.com"] } } },
+  ]);
+  silenceRows.mockReturnValue([]);
 });
 
 describe("evaluateAlert", () => {
@@ -124,8 +139,9 @@ describe("evaluateAlert", () => {
       ),
     ).toBe(true);
     expect(deliver).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: "firing", firingCount: 1 }),
+      expect.objectContaining({ kind: "firing" }),
       expect.any(Date),
+      expect.any(Object),
     );
   });
 
@@ -148,8 +164,9 @@ describe("evaluateAlert", () => {
       }),
     );
     expect(deliver).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: "firing", firingCount: 1 }),
+      expect.objectContaining({ kind: "firing" }),
       expect.any(Date),
+      expect.any(Object),
     );
   });
 
@@ -192,8 +209,9 @@ describe("evaluateAlert", () => {
       ),
     ).toBe(true);
     expect(deliver).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: "firing", firingCount: 60 }),
+      expect.objectContaining({ kind: "firing" }),
       expect.any(Date),
+      expect.any(Object),
     );
   });
 
@@ -218,10 +236,10 @@ describe("evaluateAlert", () => {
     expect(deliver).toHaveBeenCalledWith(
       expect.objectContaining({
         kind: "firing",
-        firingCount: 2,
-        instances: [expect.objectContaining({ fingerprint: fp("/y") })],
+        instance: expect.objectContaining({ fingerprint: fp("/y") }),
       }),
       expect.any(Date),
+      expect.any(Object),
     );
   });
 
@@ -256,12 +274,13 @@ describe("evaluateAlert", () => {
       "resolved",
     ]);
     expect(deliver).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: "resolved", firingCount: 0 }),
+      expect.objectContaining({ kind: "resolved" }),
       expect.any(Date),
+      expect.any(Object),
     );
   });
 
-  it("resolves part of the set without a rule-level resolved event", async () => {
+  it("resolves part of the set", async () => {
     definitionRows.mockReturnValue([{ ...baseDef, currentState: "firing" }]);
     fetchFiring.mockResolvedValue([firing("/x"), firing("/y")]);
     sqlApi.mockResolvedValue({ rows: [{ route: "/x" }], columns: ["route"] });
@@ -274,20 +293,18 @@ describe("evaluateAlert", () => {
     const inserted = insertEvents.mock.calls[0][0] as Record<string, unknown>[];
     expect(inserted.map((e) => e.event_type)).toEqual([
       "instance_resolved",
-      "partial_resolved",
+      "resolved",
     ]);
     expect(deliver).toHaveBeenCalledWith(
       expect.objectContaining({
-        kind: "partial_resolved",
-        firingCount: 1,
-        instances: [
-          expect.objectContaining({
-            fingerprint: fp("/y"),
-            labels: { route: "/y" },
-          }),
-        ],
+        kind: "resolved",
+        instance: expect.objectContaining({
+          fingerprint: fp("/y"),
+          labels: { route: "/y" },
+        }),
       }),
       expect.any(Date),
+      expect.any(Object),
     );
   });
 

@@ -23,9 +23,10 @@
 
 import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { activeSilenceConditions } from "@/data/alerts/silences";
 import { renderMessage } from "@/data/alerts/template";
 import { db } from "@/db/client";
-import { alertDefinitions } from "@/db/schema";
+import { alertDefinitions, alertSettings, alertSilences } from "@/db/schema";
 import { querySqlApiWithMeta } from "@/lib/clickhouse";
 import {
   errorMessage,
@@ -48,7 +49,11 @@ import {
   buildInstanceEvent,
   recordAlertEvents,
 } from "./03-events";
-import { type DeliveryMetadata, enqueueAlertNotification } from "./04-delivery";
+import {
+  type DeliveryMetadata,
+  enqueueAlertNotification,
+  type ResolvedDeliveryContext,
+} from "./04-delivery";
 
 type AlertDefinition = typeof alertDefinitions.$inferSelect;
 
@@ -71,6 +76,25 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
     .limit(1);
   if (!def?.active) return;
   const now = new Date();
+
+  const [[settingsRow], silences] = await Promise.all([
+    db
+      .select({ delivery: alertSettings.delivery })
+      .from(alertSettings)
+      .where(eq(alertSettings.organizationId, def.organizationId))
+      .limit(1),
+    db
+      .select({
+        id: alertSilences.id,
+        matchers: alertSilences.matchers,
+      })
+      .from(alertSilences)
+      .where(activeSilenceConditions(def.organizationId, def.id)),
+  ]);
+  const deliveryContext: ResolvedDeliveryContext = {
+    settings: settingsRow ?? null,
+    silences,
+  };
 
   // 3. Concurrent ClickHouse reads.
   const [queryResult, firingResult] = await Promise.allSettled([
@@ -135,9 +159,9 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
   // re-enqueue, dropping the notification. On failure we throw without recording,
   // letting the job retry re-derive and re-enqueue (delivery jobKeys replace, so
   // re-enqueuing is idempotent).
-  const { title, description } = renderMessages(def, evidence);
   const deliveries: (DeliveryMetadata | null)[] = [];
   for (const action of transition.actions) {
+    const { title, description } = renderMessages(def, action.instance.row);
     deliveries.push(
       await enqueueAlertNotification(
         {
@@ -145,10 +169,10 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
           kind: action.kind,
           title,
           description,
-          firingCount: transition.firingCount,
-          instances: action.instances,
+          instance: action.instance,
         },
         scheduledFor,
+        deliveryContext,
       ),
     );
   }
@@ -181,12 +205,11 @@ function parsePayload(payload: EvaluatePayload) {
   return parsed.data;
 }
 
-function renderMessages(def: AlertDefinition, evidence: BoundedEvidence) {
-  const input = { rowCount: evidence.rowCount, firstRow: evidence.firstRow };
+function renderMessages(def: AlertDefinition, row?: Record<string, unknown>) {
   return {
-    title: renderMessage(def.notificationTitleTemplate, input),
+    title: renderMessage(def.notificationTitleTemplate, { firstRow: row }),
     description: def.notificationDescriptionTemplate
-      ? renderMessage(def.notificationDescriptionTemplate, input)
+      ? renderMessage(def.notificationDescriptionTemplate, { firstRow: row })
       : "",
   };
 }

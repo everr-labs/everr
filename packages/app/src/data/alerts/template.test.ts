@@ -29,10 +29,8 @@ describe("validateQueryTemplate", () => {
 });
 
 describe("validateMessageTemplate", () => {
-  it("allows row_count and column variables", () => {
-    expect(() =>
-      validateMessageTemplate(`\${row_count} \${route}`),
-    ).not.toThrow();
+  it("allows column variables", () => {
+    expect(() => validateMessageTemplate(`\${route}`)).not.toThrow();
     expect(() => validateMessageTemplate(`\${window}`)).not.toThrow();
     expect(() => validateMessageTemplate(`\${whatever}`)).not.toThrow();
   });
@@ -46,20 +44,21 @@ describe("validateMessageColumns", () => {
     expect(() => validateMessageColumns(`\${missing}`, ["route"])).toThrow(
       /missing/,
     );
+    expect(() => validateMessageColumns(`\${row_count}`, ["route"])).toThrow(
+      /row_count/,
+    );
   });
 });
 
 describe("rendering", () => {
-  it("renderMessage fills row_count and columns, empty string when no rows", () => {
-    expect(
-      renderMessage(`\${row_count} bad, route \${route}`, {
-        rowCount: 3,
-        firstRow: { route: "/api/x" },
-      }),
-    ).toBe("3 bad, route /api/x");
+  it("renderMessage fills columns and uses an empty string when no rows", () => {
     expect(
       renderMessage(`route \${route}`, {
-        rowCount: 0,
+        firstRow: { route: "/api/x" },
+      }),
+    ).toBe("route /api/x");
+    expect(
+      renderMessage(`route \${route}`, {
         firstRow: undefined,
       }),
     ).toBe("route ");

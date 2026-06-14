@@ -4,13 +4,11 @@ import {
   type DeliveryInput,
   type DeliveryKind,
   escapeHtml,
+  formatDuration,
   formatUtc,
   instanceDetail,
-  instanceLines,
+  instanceLine,
   KIND_STATUS,
-  longestDuration,
-  MAX_LISTED_INSTANCES,
-  type NotifiableInstance,
 } from "./04-format";
 
 export interface AlertEmail {
@@ -35,8 +33,6 @@ const COLORS = {
   primaryForeground: "#0a0a0a", // Lc 96 on primary
   destructiveStrip: "#ff6467", // --destructive, non-text use only
   destructiveDetail: "#ffbcbe", // 13px/600 details; Lc -75 on card
-  destructiveStat: "#ff9395", // 18px/600 stats; Lc -60 on panel
-  amberStrip: "#fbbf24", // non-text use only
 } as const;
 
 // Email layers colors on top of the shared kind → emoji/label presentation.
@@ -56,12 +52,6 @@ const STATUS: Record<
     badgeText: COLORS.primaryForeground,
     badgeBg: COLORS.destructiveStrip,
   },
-  partial_resolved: {
-    ...KIND_STATUS.partial_resolved,
-    strip: COLORS.amberStrip,
-    badgeText: "#fcd368", // Lc -80 on the badge bg
-    badgeBg: "#2a2110",
-  },
   resolved: {
     ...KIND_STATUS.resolved,
     strip: COLORS.primary,
@@ -72,55 +62,38 @@ const STATUS: Record<
 
 export function buildAlertEmail(
   input: DeliveryInput,
-  listed: readonly NotifiableInstance[],
   opts: BuildOptions,
 ): AlertEmail {
   return {
     subject: buildSubject(input),
-    text: buildText(input, listed, opts),
-    html: buildHtml(input, listed, opts),
+    text: buildText(input, opts),
+    html: buildHtml(input, opts),
   };
 }
 
 function buildSubject(input: DeliveryInput): string {
   const status = STATUS[input.kind];
-  const base = `${status.emoji} [${input.kind}] ${input.def.slug}`;
-  if (input.kind !== "firing") return base;
-  const noun = input.firingCount === 1 ? "instance" : "instances";
-  return `${base} — ${input.firingCount} ${noun}`;
+  const label = formatLabels(input.instance.labels);
+  return `${status.emoji} [${input.kind}] ${input.def.slug} — ${label}`;
 }
 
-function buildText(
-  input: DeliveryInput,
-  listed: readonly NotifiableInstance[],
-  opts: BuildOptions,
-): string {
+function buildText(input: DeliveryInput, opts: BuildOptions): string {
   const lines: string[] = [];
-  switch (input.kind) {
-    case "firing":
-      lines.push(input.title);
-      if (input.description) lines.push("", input.description);
-      lines.push("", `Alert: ${opts.url}`);
-      lines.push("", `Firing instances: ${input.firingCount}`);
-      break;
-    case "partial_resolved":
-      lines.push(`Alert: ${opts.url}`);
-      lines.push("", `Resolved instances: ${listed.length}`);
-      lines.push(`Still firing instances: ${input.firingCount}`);
-      break;
-    case "resolved": {
-      lines.push(`Alert: ${opts.url}`);
-      const duration = longestDuration(listed, opts.now);
-      lines.push(
-        "",
-        duration
-          ? `All instances resolved (fired for ${duration})`
-          : "All instances resolved",
-      );
-      break;
-    }
+  if (input.kind === "firing") {
+    lines.push(input.title);
+    if (input.description) lines.push("", input.description);
+  } else {
+    const duration = input.instance.firedAt
+      ? formatDuration(input.instance.firedAt, opts.now)
+      : "";
+    lines.push(
+      duration
+        ? `Instance resolved (fired for ${duration})`
+        : "Instance resolved",
+    );
   }
-  lines.push(...instanceLines(listed, input.kind, opts.now, "-"));
+  lines.push("", instanceLine(input.instance, input.kind, opts.now, "-"));
+  lines.push("", `Alert: ${opts.url}`);
   lines.push("", formatUtc(opts.now));
   return lines.join("\n");
 }
@@ -134,19 +107,14 @@ const HEADING =
 const MONO =
   "font-family:source-code-pro,ui-monospace,Menlo,Consolas,monospace;" as const;
 
-function buildHtml(
-  input: DeliveryInput,
-  listed: readonly NotifiableInstance[],
-  opts: BuildOptions,
-): string {
+function buildHtml(input: DeliveryInput, opts: BuildOptions): string {
   const status = STATUS[input.kind];
   const sections = [
-    headerSection(input, listed, opts),
+    headerSection(input, opts),
     input.kind === "firing" && input.description
       ? paragraphSection(input.description)
       : "",
-    statsSection(input, listed),
-    instanceSection(input, listed, opts),
+    instanceSection(input, opts),
     ctaSection(opts.url),
     footerSection(),
   ];
@@ -158,27 +126,18 @@ function buildHtml(
   ].join("\n");
 }
 
-function headerSection(
-  input: DeliveryInput,
-  listed: readonly NotifiableInstance[],
-  opts: BuildOptions,
-): string {
+function headerSection(input: DeliveryInput, opts: BuildOptions): string {
   const status = STATUS[input.kind];
   let subhead: string;
-  switch (input.kind) {
-    case "firing":
-      subhead = escapeHtml(input.title);
-      break;
-    case "partial_resolved":
-      subhead = `${listed.length} resolved · ${input.firingCount} still firing`;
-      break;
-    case "resolved": {
-      const duration = longestDuration(listed, opts.now);
-      subhead = duration
-        ? `All instances resolved · fired for ${duration}`
-        : "All instances resolved";
-      break;
-    }
+  if (input.kind === "firing") {
+    subhead = escapeHtml(input.title);
+  } else {
+    const duration = input.instance.firedAt
+      ? formatDuration(input.instance.firedAt, opts.now)
+      : "";
+    subhead = duration
+      ? `Instance resolved · fired for ${duration}`
+      : "Instance resolved";
   }
   return `<tr><td style="padding:24px 32px 0;">
 <div style="${HEADING}font-size:13px;font-weight:700;letter-spacing:0.18em;color:${COLORS.primary};margin-bottom:18px;">EVERR</div>
@@ -195,91 +154,19 @@ function paragraphSection(text: string): string {
 </td></tr>`;
 }
 
-function statsSection(
-  input: DeliveryInput,
-  listed: readonly NotifiableInstance[],
-): string {
-  let cells: { label: string; value: string; color: string }[];
-  switch (input.kind) {
-    case "firing":
-      cells = [
-        {
-          label: "Firing instances",
-          value: String(input.firingCount),
-          color: COLORS.destructiveStat,
-        },
-        {
-          label: "New",
-          value: String(listed.length),
-          color: COLORS.foreground,
-        },
-      ];
-      break;
-    case "partial_resolved":
-      cells = [
-        {
-          label: "Resolved",
-          value: String(listed.length),
-          color: COLORS.primary,
-        },
-        {
-          label: "Still firing",
-          value: String(input.firingCount),
-          color: COLORS.destructiveStat,
-        },
-      ];
-      break;
-    case "resolved":
-      return "";
-  }
-  const [left, right] = cells;
-  return `<tr><td style="padding:20px 32px 0;">
-<table cellpadding="0" cellspacing="0" width="100%" style="background:${COLORS.panel};border:1px solid ${COLORS.border};border-radius:6px;">
-<tr>
-<td style="padding:12px 16px;">
-<div style="font-size:12px;font-weight:600;color:${COLORS.muted};">${left.label}</div>
-<div style="font-size:18px;font-weight:600;${HEADING}color:${left.color};">${left.value}</div>
-</td>
-<td style="padding:12px 16px;text-align:right;">
-<div style="font-size:12px;font-weight:600;color:${COLORS.muted};">${right.label}</div>
-<div style="font-size:18px;font-weight:600;${HEADING}color:${right.color};">${right.value}</div>
-</td>
-</tr>
-</table>
-</td></tr>`;
-}
-
-function instanceSection(
-  input: DeliveryInput,
-  listed: readonly NotifiableInstance[],
-  opts: BuildOptions,
-): string {
-  if (listed.length === 0) return "";
-  const heading =
-    input.kind === "firing" ? "New instances" : "Resolved instances";
+function instanceSection(input: DeliveryInput, opts: BuildOptions): string {
+  const heading = input.kind === "firing" ? "Instance" : "Resolved instance";
   const detailColor =
     input.kind === "firing" ? COLORS.destructiveDetail : COLORS.muted;
-  const shown = listed.slice(0, MAX_LISTED_INSTANCES);
-  const rows = shown.map((instance, index) => {
-    const border =
-      index < shown.length - 1
-        ? `border-bottom:1px solid ${COLORS.border};`
-        : "";
-    const detail = instanceDetail(instance, input.kind, opts.now);
-    const detailCell = detail
-      ? `<td style="padding:6px 0;${border}text-align:right;${MONO}color:${detailColor};font-weight:600;">${escapeHtml(detail)}</td>`
-      : "";
-    return `<tr><td style="padding:6px 0;${border}${MONO}color:${COLORS.foreground};">${escapeHtml(formatLabels(instance.labels))}</td>${detailCell}</tr>`;
-  });
-  if (listed.length > MAX_LISTED_INSTANCES) {
-    rows.push(
-      `<tr><td colspan="2" style="padding:6px 0;color:${COLORS.body};">… and ${listed.length - MAX_LISTED_INSTANCES} more</td></tr>`,
-    );
-  }
+  const detail = instanceDetail(input.instance, input.kind, opts.now);
+  const detailCell = detail
+    ? `<td style="padding:6px 0;text-align:right;${MONO}color:${detailColor};font-weight:600;">${escapeHtml(detail)}</td>`
+    : "";
+  const row = `<tr><td style="padding:6px 0;${MONO}color:${COLORS.foreground};">${escapeHtml(formatLabels(input.instance.labels))}</td>${detailCell}</tr>`;
   return `<tr><td style="padding:20px 32px 0;">
 <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:${COLORS.muted};margin-bottom:8px;">${heading}</div>
 <table cellpadding="0" cellspacing="0" width="100%" style="font-size:13px;color:${COLORS.body};">
-${rows.join("\n")}
+${row}
 </table>
 </td></tr>`;
 }
