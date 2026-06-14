@@ -1,5 +1,3 @@
-import { env } from "@/env";
-
 // Telegram rejects messages longer than this outright.
 const MAX_TEXT_LENGTH = 4096;
 const SEND_TIMEOUT_MS = 10_000;
@@ -19,12 +17,13 @@ function truncateTelegramText(text: string): string {
 // buttons means Telegram has nothing to validate or reject (HTML entities,
 // non-public button URLs), so a send only fails for real delivery problems.
 export async function sendTelegramMessage(
+  botToken: string,
   chatId: string,
   text: string,
 ): Promise<void> {
-  const token = env.EVERR_ALERTS_TELEGRAM_BOT_TOKEN;
+  const token = botToken.trim();
   if (!token) {
-    throw new Error("EVERR_ALERTS_TELEGRAM_BOT_TOKEN is not configured");
+    throw new Error("Telegram bot token is not configured");
   }
 
   // A truncated alert beats a dropped one.

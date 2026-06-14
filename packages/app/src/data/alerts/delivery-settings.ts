@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { validateEmailRecipient, validateTelegramChatId } from "./recipients";
+import {
+  validateEmailRecipient,
+  validateTelegramBotToken,
+  validateTelegramChatId,
+} from "./recipients";
 
 // Single definition of the notification channels. Adding a channel means
 // extending this array, the schema below, and the per-channel send logic in
@@ -16,6 +20,9 @@ const EMPTY_CHANNEL_MESSAGES: Record<AlertChannel, string> = {
   telegram: "Telegram is enabled but has no chat IDs",
 };
 
+const MISSING_TELEGRAM_BOT_TOKEN_MESSAGE =
+  "Telegram is enabled but has no bot token";
+
 export function emptyChannelError(
   channel: AlertChannel,
   enabled: boolean,
@@ -23,6 +30,15 @@ export function emptyChannelError(
 ): string | undefined {
   return enabled && recipients.length === 0
     ? EMPTY_CHANNEL_MESSAGES[channel]
+    : undefined;
+}
+
+export function telegramBotTokenError(
+  enabled: boolean,
+  botToken: string,
+): string | undefined {
+  return enabled && validateTelegramBotToken(botToken) !== null
+    ? MISSING_TELEGRAM_BOT_TOKEN_MESSAGE
     : undefined;
 }
 
@@ -50,6 +66,7 @@ export const DeliverySettingsSchema = z
     telegram: z
       .object({
         enabled: z.boolean(),
+        botToken: z.string().trim().default(""),
         chatIds: z
           .array(
             z
@@ -66,6 +83,10 @@ export const DeliverySettingsSchema = z
         (value) => !emptyChannelError("telegram", value.enabled, value.chatIds),
         { message: EMPTY_CHANNEL_MESSAGES.telegram },
       )
+      .refine(
+        (value) => !telegramBotTokenError(value.enabled, value.botToken),
+        { message: MISSING_TELEGRAM_BOT_TOKEN_MESSAGE },
+      )
       .optional(),
   })
   .strict();
@@ -74,7 +95,7 @@ export type AlertDeliverySettings = z.infer<typeof DeliverySettingsSchema>;
 
 export type NormalizedAlertDeliverySettings = {
   email: { enabled: boolean; to: string[] };
-  telegram: { enabled: boolean; chatIds: string[] };
+  telegram: { enabled: boolean; botToken: string; chatIds: string[] };
 };
 
 export function normalizeDeliverySettings(
@@ -87,6 +108,7 @@ export function normalizeDeliverySettings(
     },
     telegram: {
       enabled: delivery?.telegram?.enabled ?? false,
+      botToken: delivery?.telegram?.botToken?.trim() ?? "",
       chatIds: delivery?.telegram?.chatIds ?? [],
     },
   };

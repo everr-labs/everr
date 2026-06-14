@@ -1,11 +1,8 @@
 # Alert Notification Configuration
 
-Everr alert notification settings are split between server-side delivery
-configuration and organization-level UI settings.
-
-Server operators configure provider credentials with environment variables.
-Organization admins choose the delivery channels and recipients from the Alerts
-page. Secrets are not stored in alert settings.
+Everr alert notification settings are organization-level UI settings.
+Organization admins choose delivery channels, recipients, and channel
+credentials from the Alerts page.
 
 ## Required Access
 
@@ -16,37 +13,6 @@ The settings apply to the active organization. They are not configured through
 alert YAML, `everr.yaml`, or the apply API.
 
 ## Server Configuration
-
-### Telegram
-
-Telegram delivery uses one server-side bot token:
-
-```sh
-EVERR_ALERTS_TELEGRAM_BOT_TOKEN="<telegram-bot-token>"
-```
-
-This token belongs in the app runtime environment. Do not put the token in the
-database, alert YAML, or the UI.
-
-Typical setup:
-
-1. Create a Telegram bot with BotFather.
-2. Store the bot token in `EVERR_ALERTS_TELEGRAM_BOT_TOKEN`.
-3. Restart the app process so the new environment variable is loaded.
-4. Add the bot to every Telegram chat that should receive alerts.
-5. Collect each chat id and enter it in the Everr UI.
-
-Chat ids can be user ids, group ids, or channel ids. Group and supergroup ids
-are commonly negative, and supergroup ids commonly start with `-100`.
-
-One practical way to discover a chat id during setup is:
-
-1. Add the bot to the target chat.
-2. Send a message in that chat.
-3. Call Telegram `getUpdates` with the bot token.
-4. Read the `message.chat.id` value from the response.
-
-The UI accepts multiple chat ids separated by commas or new lines.
 
 ### Email
 
@@ -105,11 +71,14 @@ email notifications.
 
 ### Telegram
 
-Enable `Telegram`, then enter one or more Telegram chat ids.
+Enable `Telegram`, then enter a Telegram bot token and one or more Telegram
+chat ids.
 
 Accepted format:
 
 ```text
+Bot token: 123456789:ABC...
+Chat ids:
 -1001234567890
 123456789
 ```
@@ -120,8 +89,25 @@ or:
 -1001234567890, 123456789
 ```
 
-If Telegram is disabled, or if the chat id list is empty, Everr does not send
-Telegram notifications.
+Typical setup:
+
+1. Create a Telegram bot with BotFather.
+2. Add the bot to every Telegram chat that should receive alerts.
+3. Collect each chat id and enter it in the Everr UI with the bot token.
+
+Chat ids can be user ids, group ids, or channel ids. Group and supergroup ids
+are commonly negative, and supergroup ids commonly start with `-100`.
+
+One practical way to discover a chat id during setup is:
+
+1. Add the bot to the target chat.
+2. Send a message in that chat.
+3. Call Telegram `getUpdates` with the bot token.
+4. Read the `message.chat.id` value from the response.
+
+The UI accepts multiple chat ids separated by commas or new lines. If Telegram
+is disabled, if the bot token is empty, or if the chat id list is empty, Everr
+does not send Telegram notifications.
 
 ## Delivery Behavior
 
@@ -146,8 +132,7 @@ the silence window. Evaluation continues while an alert or instance is silenced.
 
 Check:
 
-- `EVERR_ALERTS_TELEGRAM_BOT_TOKEN` is set in the app runtime.
-- The app process was restarted after setting the token.
+- A bot token is configured in `Alerts -> Notification settings`.
 - The bot was added to the target chat.
 - The chat id in the UI is correct.
 - The Telegram channel or group allows the bot to post messages.

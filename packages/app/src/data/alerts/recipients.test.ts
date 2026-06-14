@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { validateEmailRecipient, validateTelegramChatId } from "./recipients";
+import {
+  validateEmailRecipient,
+  validateTelegramBotToken,
+  validateTelegramChatId,
+} from "./recipients";
 
 describe("validateEmailRecipient", () => {
   it("accepts valid addresses", () => {
@@ -30,5 +34,18 @@ describe("validateTelegramChatId", () => {
     expect(validateTelegramChatId("@ab")).not.toBeNull();
     expect(validateTelegramChatId("12 34")).not.toBeNull();
     expect(validateTelegramChatId("")).not.toBeNull();
+  });
+});
+
+describe("validateTelegramBotToken", () => {
+  it("accepts non-empty tokens", () => {
+    expect(validateTelegramBotToken("token")).toBeNull();
+  });
+
+  it("rejects blank tokens", () => {
+    expect(validateTelegramBotToken("")).toBe("Telegram bot token is required");
+    expect(validateTelegramBotToken("   ")).toBe(
+      "Telegram bot token is required",
+    );
   });
 });

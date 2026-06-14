@@ -103,7 +103,7 @@ beforeEach(() => {
     {
       delivery: {
         email: { enabled: true, to: ["a@example.com"] },
-        telegram: { enabled: true, chatIds: ["123"] },
+        telegram: { enabled: true, botToken: "bot-token", chatIds: ["123"] },
       },
     },
   ]);
@@ -143,7 +143,11 @@ describe("enqueueAlertNotification", () => {
     );
     expect(addWorkerJob).toHaveBeenCalledWith(
       "alerts/deliver",
-      expect.objectContaining({ channel: "telegram", target: "123" }),
+      expect.objectContaining({
+        channel: "telegram",
+        target: "123",
+        botToken: "bot-token",
+      }),
       expect.objectContaining({
         jobKey:
           "alerts/deliver:a1:2026-06-12T12:00:00.000Z:firing:telegram:123",
@@ -338,6 +342,7 @@ function telegramSend(): DeliverySend {
   return {
     channel: "telegram",
     target: "123",
+    botToken: "bot-token",
     text: "text",
     def,
     scheduledFor,
@@ -360,7 +365,7 @@ describe("runDeliverySend", () => {
   it("sends one telegram message", async () => {
     await runDeliverySend(telegramSend(), { attempts: 1, max_attempts: 5 });
 
-    expect(sendTelegram).toHaveBeenCalledWith("123", "text");
+    expect(sendTelegram).toHaveBeenCalledWith("bot-token", "123", "text");
     expect(sendEmail).not.toHaveBeenCalled();
   });
 

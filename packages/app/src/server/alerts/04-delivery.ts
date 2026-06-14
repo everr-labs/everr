@@ -67,6 +67,7 @@ const DeliverySendSchema = z.discriminatedUnion("channel", [
   }),
   SendBaseSchema.extend({
     channel: z.literal("telegram"),
+    botToken: z.string(),
   }),
 ]);
 
@@ -159,6 +160,7 @@ export async function enqueueAlertNotification(
       (target): DeliverySend => ({
         channel: "telegram",
         target,
+        botToken: delivery.telegram?.botToken ?? "",
         text: telegramText,
         def: sendDef,
         scheduledFor,
@@ -201,7 +203,7 @@ export async function runDeliverySend(
         html: send.html,
       });
     } else {
-      await sendTelegramMessage(send.target, send.text);
+      await sendTelegramMessage(send.botToken, send.target, send.text);
     }
   } catch (error) {
     const finalAttempt = job.attempts >= job.max_attempts;

@@ -188,7 +188,7 @@ describe("updateAlertSettings", () => {
             telegram: {
               enabled: true,
               chatIds: ["123"],
-              botToken: "secret",
+              extra: "secret",
             },
           },
         } as never,
@@ -241,6 +241,20 @@ describe("updateAlertSettings", () => {
     expect(db.insert).not.toHaveBeenCalled();
   });
 
+  it("rejects enabled Telegram with no configured bot token", async () => {
+    await expect(
+      updateAlertSettings({
+        data: {
+          delivery: {
+            telegram: { enabled: true, chatIds: ["123"] },
+          },
+        },
+      }),
+    ).rejects.toThrow("Telegram is enabled but has no bot token");
+
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
   it("rejects malformed recipients", async () => {
     await expect(
       updateAlertSettings({
@@ -269,7 +283,11 @@ describe("updateAlertSettings", () => {
     await updateAlertSettings({
       data: {
         delivery: {
-          telegram: { enabled: true, chatIds: ["-1001234567890", "@my_team"] },
+          telegram: {
+            enabled: true,
+            botToken: "token-1",
+            chatIds: ["-1001234567890", "@my_team"],
+          },
         },
       },
     });
@@ -278,7 +296,11 @@ describe("updateAlertSettings", () => {
       expect.objectContaining({
         delivery: {
           email: { enabled: false, to: [] },
-          telegram: { enabled: true, chatIds: ["-1001234567890", "@my_team"] },
+          telegram: {
+            enabled: true,
+            botToken: "token-1",
+            chatIds: ["-1001234567890", "@my_team"],
+          },
         },
       }),
     );
@@ -311,7 +333,7 @@ describe("updateAlertSettings", () => {
         organizationId: "test_org",
         delivery: {
           email: { enabled: true, to: ["alerts@example.com"] },
-          telegram: { enabled: false, chatIds: [] },
+          telegram: { enabled: false, botToken: "", chatIds: [] },
         },
       }),
     );

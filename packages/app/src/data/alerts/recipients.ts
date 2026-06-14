@@ -11,3 +11,7 @@ export function validateTelegramChatId(value: string): string | null {
     ? null
     : `Invalid chat ID: ${value} — use a numeric ID or @username`;
 }
+
+export function validateTelegramBotToken(value: string): string | null {
+  return value.trim().length > 0 ? null : "Telegram bot token is required";
+}

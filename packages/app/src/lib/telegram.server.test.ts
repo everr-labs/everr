@@ -1,9 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/env", () => ({
-  env: { EVERR_ALERTS_TELEGRAM_BOT_TOKEN: "tok" },
-}));
-
 import { sendTelegramMessage } from "./telegram.server";
 
 const fetchMock = vi.fn();
@@ -32,16 +28,19 @@ describe("sendTelegramMessage", () => {
   it("sends plain text with no parse mode or markup", async () => {
     fetchMock.mockResolvedValueOnce(ok());
 
-    await sendTelegramMessage("123", "🚨 s1 firing");
+    await sendTelegramMessage("tok", "123", "🚨 s1 firing");
 
     const body = sentBody(0);
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "https://api.telegram.org/bottok/sendMessage",
+    );
     expect(body).toEqual({ chat_id: "123", text: "🚨 s1 firing" });
   });
 
   it("truncates text past telegram's 4096-character limit", async () => {
     fetchMock.mockResolvedValueOnce(ok());
 
-    await sendTelegramMessage("123", "x".repeat(5000));
+    await sendTelegramMessage("tok", "123", "x".repeat(5000));
 
     const body = sentBody(0);
     expect(body.text).toHaveLength(4096);
@@ -51,7 +50,7 @@ describe("sendTelegramMessage", () => {
   it("does not split surrogate pairs when truncating", async () => {
     fetchMock.mockResolvedValueOnce(ok());
 
-    await sendTelegramMessage("123", `${"x".repeat(4094)}😀tail`);
+    await sendTelegramMessage("tok", "123", `${"x".repeat(4094)}😀tail`);
 
     const body = sentBody(0);
     expect(body.text).toHaveLength(4095);
@@ -61,9 +60,16 @@ describe("sendTelegramMessage", () => {
   it("throws with the response details on failure", async () => {
     fetchMock.mockResolvedValueOnce(err(400, "Bad Request: chat not found"));
 
-    await expect(sendTelegramMessage("123", "hi")).rejects.toThrow(
+    await expect(sendTelegramMessage("tok", "123", "hi")).rejects.toThrow(
       "telegram sendMessage failed: 400 Bad Request: chat not found",
     );
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("requires a bot token", async () => {
+    await expect(sendTelegramMessage("", "123", "hi")).rejects.toThrow(
+      "Telegram bot token is not configured",
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

@@ -15,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@everr/ui/components/dialog";
+import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { Switch } from "@everr/ui/components/switch";
@@ -32,6 +33,7 @@ import { useMemo, useState } from "react";
 import {
   emptyChannelError,
   type NormalizedAlertDeliverySettings,
+  telegramBotTokenError,
 } from "@/data/alerts/delivery-settings";
 import {
   validateEmailRecipient,
@@ -339,35 +341,76 @@ function NotificationSettingsForm({
           name="telegram.enabled"
           listeners={{
             onChange: ({ fieldApi }) =>
-              fieldApi.form.validateField("telegram.chatIds", "change"),
+              void Promise.all([
+                fieldApi.form.validateField("telegram.chatIds", "change"),
+                fieldApi.form.validateField("telegram.botToken", "change"),
+              ]),
           }}
         >
           {(enabledField) => (
-            <form.Field
-              name="telegram.chatIds"
-              validators={{
-                onChange: ({ value, fieldApi }) =>
-                  emptyChannelError(
-                    "telegram",
-                    fieldApi.form.state.values.telegram.enabled,
-                    value,
-                  ),
-              }}
-            >
-              {(chatIdsField) => (
-                <ChannelField
-                  label="Telegram"
-                  recipientsLabel="Telegram chat IDs"
-                  placeholder="-1001234567890"
-                  enabled={enabledField.state.value}
-                  onEnabledChange={enabledField.handleChange}
-                  recipients={chatIdsField.state.value}
-                  onRecipientsChange={chatIdsField.handleChange}
-                  validate={validateTelegramChatId}
-                  error={chatIdsField.state.meta.errors[0]}
-                />
-              )}
-            </form.Field>
+            <div className="flex flex-col gap-2">
+              <form.Field
+                name="telegram.chatIds"
+                validators={{
+                  onChange: ({ value, fieldApi }) =>
+                    emptyChannelError(
+                      "telegram",
+                      fieldApi.form.state.values.telegram.enabled,
+                      value,
+                    ),
+                }}
+              >
+                {(chatIdsField) => (
+                  <ChannelField
+                    label="Telegram"
+                    recipientsLabel="Telegram chat IDs"
+                    placeholder="-1001234567890"
+                    enabled={enabledField.state.value}
+                    onEnabledChange={enabledField.handleChange}
+                    recipients={chatIdsField.state.value}
+                    onRecipientsChange={chatIdsField.handleChange}
+                    validate={validateTelegramChatId}
+                    error={chatIdsField.state.meta.errors[0]}
+                  />
+                )}
+              </form.Field>
+              <form.Field
+                name="telegram.botToken"
+                validators={{
+                  onChange: ({ value, fieldApi }) =>
+                    telegramBotTokenError(
+                      fieldApi.form.state.values.telegram.enabled,
+                      value,
+                    ),
+                }}
+              >
+                {(botTokenField) => (
+                  <div className="flex flex-col gap-1">
+                    <Label htmlFor="telegram-bot-token">
+                      Telegram bot token
+                    </Label>
+                    <Input
+                      id="telegram-bot-token"
+                      type="password"
+                      autoComplete="off"
+                      disabled={!enabledField.state.value}
+                      placeholder="123456789:ABC..."
+                      value={botTokenField.state.value}
+                      onChange={(event) =>
+                        botTokenField.handleChange(event.target.value)
+                      }
+                      onBlur={botTokenField.handleBlur}
+                      aria-invalid={botTokenField.state.meta.errors.length > 0}
+                    />
+                    {botTokenField.state.meta.errors[0] && (
+                      <p className="text-destructive text-xs" role="alert">
+                        {botTokenField.state.meta.errors[0]}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </form.Field>
+            </div>
           )}
         </form.Field>
         {update.error && (
