@@ -13,13 +13,12 @@
 // Only the final failed attempt records a `delivery_failed` alert event;
 // earlier attempts just log a warning with the attempt count.
 
-import { eq } from "drizzle-orm";
 import { z } from "zod";
-import type { AlertDeliveryTargets } from "@/data/alerts/delivery-settings";
-import { findSilenceForInstance } from "@/data/alerts/matchers";
-import { activeSilenceConditions } from "@/data/alerts/silences";
-import { db } from "@/db/client";
-import { alertSettings, alertSilences } from "@/db/schema";
+import type {
+  AlertDeliverySettings,
+  AlertDeliveryTargets,
+} from "@/data/alerts/delivery-settings";
+import { findSilenceForInstance, type Matcher } from "@/data/alerts/matchers";
 import { env } from "@/env";
 import { mailer } from "@/lib/mailer.server";
 import { sendTelegramMessage } from "@/lib/telegram.server";
@@ -31,10 +30,15 @@ import {
 } from "@/telemetry/logger";
 import { buildDeliveryFailureEvent, recordAlertEvents } from "./03-events";
 import { buildAlertEmail } from "./04-email";
-import type { DeliveryInput, NotifiableInstance } from "./04-format";
+import type { DeliveryInput } from "./04-format";
 import { buildTelegramText } from "./04-telegram";
 
 export type { DeliveryInput } from "./04-format";
+
+export interface ResolvedDeliveryContext {
+  settings: { delivery: AlertDeliverySettings } | null;
+  silences: { id: string; matchers: Matcher[] }[];
+}
 
 export const ALERT_DELIVER_TASK = "alerts/deliver";
 
@@ -88,26 +92,13 @@ function alertUrl(alertId: string): string {
 export async function enqueueAlertNotification(
   input: DeliveryInput,
   scheduledFor: Date,
+  context: ResolvedDeliveryContext,
 ): Promise<DeliveryMetadata | null> {
   const { def, kind } = input;
 
-  const now = new Date();
-  const [[settings], silences] = await Promise.all([
-    db
-      .select()
-      .from(alertSettings)
-      .where(eq(alertSettings.organizationId, def.organizationId))
-      .limit(1),
-    db
-      .select({
-        id: alertSilences.id,
-        matchers: alertSilences.matchers,
-      })
-      .from(alertSilences)
-      .where(activeSilenceConditions(def.organizationId, def.id)),
-  ]);
-  const delivery = settings?.delivery;
+  const delivery = context.settings?.delivery;
   if (!delivery) return null;
+  const silences = context.silences;
 
   const deliveryTargets: AlertDeliveryTargets = {};
   if (delivery.email?.enabled && delivery.email.to.length > 0) {
@@ -118,21 +109,12 @@ export async function enqueueAlertNotification(
   }
   if (Object.keys(deliveryTargets).length === 0) return null;
 
-  const unsilenced: NotifiableInstance[] = [];
-  let suppressingSilenceId = "";
-  for (const instance of input.instances) {
-    const silence = findSilenceForInstance(silences, instance.labels);
-    if (silence) {
-      suppressingSilenceId = suppressingSilenceId || silence.id;
-    } else {
-      unsilenced.push(instance);
-    }
+  const silence = findSilenceForInstance(silences, input.instance.labels);
+  if (silence) {
+    return { deliveryTargets: {}, silenceId: silence.id };
   }
 
-  if (input.instances.length > 0 && unsilenced.length === 0) {
-    return { deliveryTargets: {}, silenceId: suppressingSilenceId };
-  }
-
+  const now = new Date();
   const buildOptions = { url: alertUrl(def.id), now };
   const { subject, text, html } = buildAlertEmail(input, buildOptions);
   const telegramText = buildTelegramText(input, buildOptions);
