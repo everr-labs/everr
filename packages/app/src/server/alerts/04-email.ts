@@ -24,7 +24,7 @@ export interface AlertEmail {
 // small bold labels, and the stat numbers comfortably legible on the gray card.
 const COLORS = {
   card: "#171717", // --card
-  panel: "#0a0a0a", // --background
+  panel: "#FFF", // --background
   border: "#262626", // ~--border on the card
   foreground: "#fafafa", // --foreground; Lc -103 on card
   body: "#e6e6e6", // running text; Lc -90 on card
