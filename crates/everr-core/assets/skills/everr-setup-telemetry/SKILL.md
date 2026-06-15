@@ -1,6 +1,6 @@
 ---
 name: everr-setup-telemetry
-description: Use when a task mentions adding or fixing telemetry, OpenTelemetry, local collector setup, debug telemetry, missing or stale spans/logs/metrics, or instrumentation verification.
+description: Use when a task mentions adding or fixing telemetry, OpenTelemetry, local collector setup, debug telemetry, missing or stale spans/logs/metrics, instrumentation verification or alerting/notification rules.
 ---
 
 ## Startup Access
@@ -15,7 +15,7 @@ If the current tool cannot ask for a blanket permission grant, request scoped co
 
 # Setup Telemetry With Everr
 
-Use this skill when an app, service, test, script, or command needs to emit telemetry into Everr. 
+Use this skill when an app, service, test, script, or command needs to emit telemetry into Everr, or when setting up alerting rules on that telemetry.
 
 Local telemetry lets development match production behavior closely, and debug telemetry lets the agent collect extra evidence locally without guessing from the code.
 
@@ -37,10 +37,13 @@ Always read the relevant rule files before editing instrumentation. Use the tabl
 | `nextjs` | Next.js App Router, server/client split, trace propagation |
 | `tauri` | Tauri v2 desktop/mobile: Rust backend + browser frontend proxying telemetry through IPC |
 | `rust` | Rust tracing-based OpenTelemetry setup and runtime pitfalls |
+| `alerts` | AlertRule YAML, `everr apply`, notification channels, query patterns, verification |
 
 For most runtime work, read `resolve-values`, `resources`, `error-tracking`, `sensitive-data`, `validation`, and the signal/runtime rules that match the task.
 
 ## Default Workflow
+
+### Telemetry Setup
 
 1. Run `everr local status`.
 2. If the collector is stopped, run `everr local start` or ask the user to open Everr Desktop.
@@ -52,6 +55,16 @@ For most runtime work, read `resolve-values`, `resources`, `error-tracking`, `se
 8. Gate local-only exporters so local collector URLs do not ship in production bundles, and gate hosted ingest so it only runs when a production ingest key is present.
 9. Trigger the instrumented path and verify fresh local rows with `everr local query`, filtered by the expected `ServiceName`, a recent time window, and a unique run, request, or test id when practical.
 10. Do not claim setup works until query results prove the new telemetry came from the path just exercised.
+
+### Alert Setup
+
+Load `rules/alerts.md` before writing alert rules. The alert workflow is:
+
+1. Ensure an `everr.yaml` manifest with a `repoid` exists at the apply directory root.
+2. Write AlertRule YAML files with ClickHouse SQL queries.
+3. Run `everr apply <dir> --dry-run` to preview, then `everr apply <dir>` to reconcile.
+4. Configure notification channels (Email/Telegram) in the Everr UI.
+5. Verify by opening the Alerts page and confirming evaluation runs.
 
 ## Command Choice
 
