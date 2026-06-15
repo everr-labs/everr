@@ -51,28 +51,11 @@ repoid: "2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1"
 
 `everr apply <dir>` discovers every `kind: Dashboard` and `kind: AlertRule` document under the directory and makes the live resources for that repoid exactly match the tree: new documents are created, changed ones updated, and removed ones **deleted**. Use `--dry-run` to preview the changes without applying them. See the [`everr apply` reference](/docs/reference/cli#dashboards-gitops).
 
-## Evaluation states
-
-A rule is **firing** when at least one instance is firing and **resolved** when none are. Each evaluation runs the query, compares the current set of firing instances to the previous set, and produces exactly one transition. Notifications are per instance, sent on the firing and resolved edges.
-
-| Was firing | Is firing | Instance change | Transition | Notifications |
-| --- | --- | --- | --- | --- |
-| no | no | — | stayed resolved | none |
-| no | yes | all new | started firing | firing (each new instance) |
-| yes | yes | none | stayed firing | none |
-| yes | yes | some new | new instances firing | firing (new instances only) |
-| yes | yes | some gone | partially resolved | resolved (gone instances) |
-| yes | yes | some new + some gone | churned | firing (new) + resolved (gone) |
-| yes | no | all gone | resolved | resolved (each instance) |
-
-An instance is notified only once when it starts firing and once when it resolves — never on every interval in between.
-
 ## Constraints and errors
 
 - `evaluationInterval` must be ≥ `1m`.
 - `notificationMessage.title` is required and non-empty.
 - `${column}` must reference a column the `query` returns.
 - `instanceLabels` needs ≥1 entry when present.
-- `labels` values are strings.
 - `query` rejects `${...}`.
 - Supported document kinds for apply are `Dashboard` and `AlertRule`.

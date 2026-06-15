@@ -49,7 +49,7 @@ When the inferred identity isn't right — too coarse, too fine, or based on the
 
 A scheduler runs each rule on its `evaluationInterval`. A rule is **firing** when at least one instance fires and **resolved** when none do.
 
-Notifications fire on the **edges** of that transition — when an instance newly starts firing and when it resolves — not on every evaluation while it stays firing. So a service whose event loop has been blocked for an hour produces one "firing" notification, not one per minute. See the [evaluation states](/docs/alerts/alert-spec#evaluation-states) for the full state machine.
+Notifications fire on the **edges** of that transition — when an instance newly starts firing and when it resolves — not on every evaluation while it stays firing. So a service whose event loop has been blocked for an hour produces one "firing" notification, not one per minute.
 
 ## Notifications
 
