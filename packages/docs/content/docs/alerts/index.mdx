@@ -17,10 +17,10 @@ metadata:
     team: platform              # optional; for your own organization
 spec:
   display:
-    name: Service errors
+    name: Service error spike
   evaluationInterval: 1m        # how often the query runs (min 1m)
   notificationMessage:
-    title: "${ServiceName} is emitting errors"
+    title: "${ServiceName} has elevated errors"
     description: "${errors} errors in the last 15 minutes"
   query: |
     SELECT ServiceName, count() AS errors
@@ -28,14 +28,14 @@ spec:
     WHERE Timestamp >= now() - INTERVAL 15 MINUTE
       AND SeverityNumber >= 17
     GROUP BY ServiceName
-    HAVING errors > 0
+    HAVING errors > 50          # only services well above their normal noise
 ```
 
 ## The query-driven model
 
 The query *is* the alert condition. Everr runs `spec.query` — plain ClickHouse SQL — on the rule's schedule, and **every row it returns is a firing instance**. When the query returns no rows, the alert is resolved.
 
-There is no separate threshold field. The threshold lives in the SQL itself: a `WHERE` filter, a `HAVING errors > 0`, or whatever comparison defines "something is wrong." If you want to alert when error rate exceeds a number, you express that number in the query.
+There is no separate threshold field. The threshold lives in the SQL itself — a `WHERE` filter, a `HAVING` clause, or whatever comparison defines "something is wrong." Choose it so the query stays quiet under normal conditions and only returns rows when a human should act: a rule that fires on a single stray error (`HAVING errors > 0`) is noise, while `HAVING errors > 50` over a window catches a real spike. Every alert should be actionable.
 
 Note that the query SQL does **not** support `${...}` templating — that syntax is only for notification messages. The query is the literal SQL that runs. See [Writing alert queries](/docs/alerts/writing-queries) for patterns.
 

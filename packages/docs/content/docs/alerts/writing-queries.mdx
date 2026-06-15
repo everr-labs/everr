@@ -5,6 +5,16 @@ description: Express thresholds, alert per instance, and choose an evaluation in
 
 An alert's `spec.query` is plain ClickHouse SQL, and the rule is simple: every row the query returns is a firing instance, and an empty result means resolved. Everything else on this page follows from that one fact. Unlike panel queries, alert SQL does **not** support `${...}` template tokens — those are only for message templates.
 
+## What makes a good alert
+
+Before writing the query, decide whether the condition is worth alerting on at all. Google's [SRE practice](https://sre.google/sre-book/monitoring-distributed-systems/) is a good guide:
+
+- **Alert on symptoms, not causes.** Notify on what users actually feel — elevated errors, slow responses, a backlog that isn't draining — not on every underlying cause like one machine's CPU or a single restart. Causes belong on [dashboards](/docs/dashboards) for debugging; symptoms are what warrant a notification. For user-facing systems the four golden signals — latency, traffic, errors, and saturation — are a sound starting point.
+- **Every alert must be actionable.** If your honest answer to "what would I do when this fires?" is "nothing" or "wait and see," it shouldn't fire. Don't write rules for conditions you'd knowingly ignore — they only breed alert fatigue.
+- **Tune for signal, not noise.** A rule that fires on a single error or a momentary blip trains people to ignore it. Pick a threshold and window so the query stays quiet under normal conditions and returns rows only when a human should step in.
+
+The rest of this page is how to express that condition in SQL.
+
 ## Express a threshold
 
 There is no separate threshold field. You put the condition in the query itself, so it returns rows only when something is actually wrong. Use `WHERE` to scope the data you look at, and `HAVING` to threshold an aggregate:
