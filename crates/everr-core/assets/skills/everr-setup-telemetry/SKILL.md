@@ -62,7 +62,7 @@ Load `rules/alerts.md` before writing alert rules. The alert workflow is:
 
 1. Ensure an `everr.yaml` manifest with a `repoid` exists at the apply directory root.
 2. Write AlertRule YAML files with ClickHouse SQL queries.
-3. Run `everr apply <dir> --dry-run` to preview, then `everr apply <dir>` to reconcile.
+3. Run `everr apply <dir> --yes` to publish.
 4. Configure notification channels (Email/Telegram) in the Everr UI.
 5. Verify by opening the Alerts page and confirming evaluation runs.
 
