@@ -104,30 +104,20 @@ notificationMessage:
 
 Per-instance values come from that instance's firing row. If the query returns `ServiceName` and `count() AS n`, the template renders with the values from the row that produced the instance.
 
-## Running `everr apply`
+## Verification
+
+1. Test the query using `everr cloud query`
+2. Run `everr apply <dir> --dry-run` and confirm the plan shows the expected creates/updates.
+
+## Deploying alerts in production
+
+Only when the user is satisfied with the changes, to deploy them run:
 
 ```sh
 everr apply ./definitions --yes
 ```
 
 Apply discovers all `.yaml`/`.yml` files under the directory, classifies them by `kind`, and reconciles creates, updates, and deletes. Alerts not in the directory are soft-deleted (history is preserved).
-
-## Verification
-
-1. Test the query using `everr cloud query`
-2. Run `everr apply <dir>` and confirm the plan shows the expected creates/updates.
-3. Wait for the evaluation interval to elapse.
-
-Query alert events from the logs surface:
-
-```sql
-SELECT Timestamp, Body, LogAttributes['alert.event_type'] AS event_type, LogAttributes['alert.instance_labels'] AS labels
-FROM logs
-WHERE Timestamp > now() - INTERVAL 1 HOUR
-  AND ServiceName = 'alert'
-ORDER BY Timestamp DESC
-LIMIT 20
-```
 
 ## Common Mistakes
 
