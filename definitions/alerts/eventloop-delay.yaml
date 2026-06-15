@@ -1,8 +1,6 @@
 kind: AlertRule
 metadata:
   name: eventloop-delay
-  labels:
-    team: platform
 spec:
   display:
     name: Node.js event loop delay

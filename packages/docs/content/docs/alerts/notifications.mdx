@@ -15,9 +15,12 @@ Enable **Email**, add the recipient address(es) (e.g. `team@example.com`), and s
 
 ## Send to Telegram
 
-Enable **Telegram** and provide a **bot token** (from BotFather, like `123456789:ABC...`) and one or more **chat IDs** (e.g. `-1001234567890` for a group), then save.
+Enable **Telegram** and provide a **bot token** (like `123456789:ABC...`) and one or more **chat IDs** (e.g. `-1001234567890` for a group), then save. To create a bot and get its token, follow Telegram's [BotFather guide](https://core.telegram.org/bots/features#botfather).
 
-To find a chat ID, add your bot to the chat and read it from the Telegram Bot API `getUpdates` response.
+To find a chat ID:
+
+- Add your bot to the chat and read the ID from the Telegram Bot API [`getUpdates`](https://core.telegram.org/bots/api#getupdates) response, or
+- Open the channel or group in the [Telegram web app](https://web.telegram.org) and copy the number from the URL — for channels and supergroups it's the `-100…` value, which is the chat ID.
 
 ## What gets sent, and when
 

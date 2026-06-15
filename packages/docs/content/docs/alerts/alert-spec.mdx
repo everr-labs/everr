@@ -9,7 +9,6 @@ An `AlertRule` is a resource with three top-level keys. Everr validates it on `e
 kind: AlertRule
 metadata:
   name: <slug>
-  labels: { team: platform }   # optional
 spec:
   { ... }
 ```
@@ -18,7 +17,6 @@ spec:
 | --- | --- | --- |
 | `kind` | `"AlertRule"` | Selects the reconciler. Required. |
 | `metadata.name` | string | The rule's **slug** and identity. Required, non-empty. |
-| `metadata.labels` | map&lt;string, string&gt; | Optional. Free-form labels for your own organization; not used for routing. |
 | `spec` | object | The rule contents, below. |
 
 ## `spec`
