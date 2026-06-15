@@ -37,14 +37,6 @@ spec:
 
 All fields are strict — unknown keys are rejected.
 
-## What Makes a Good Alert
-
-Decide whether a condition is worth alerting on before writing any SQL (Google SRE guidance):
-
-- **Alert on symptoms, not causes.** Fire on what users feel — elevated errors, slow responses, saturation. The four golden signals (latency, traffic, errors, saturation) are a good starting point. Underlying causes (one machine's CPU, a single restart) belong on dashboards for debugging, not in a notification.
-- **Every alert must be actionable.** If the honest response to "what would I do when this fires?" is "nothing" or "wait and see," don't write it.
-- **Tune for signal, not noise.** Set the threshold and window so the query stays quiet under normal conditions. A rule that fires on a single error or a momentary blip trains people to ignore it.
-
 ## Writing Alert Queries
 
 The query drives everything. Thresholds, grouping, and instance identity all live in the SQL.
