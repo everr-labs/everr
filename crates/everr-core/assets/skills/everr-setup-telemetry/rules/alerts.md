@@ -22,8 +22,6 @@ Generate a stable UUID once per repository. Do not reuse repoids across unrelate
 kind: AlertRule              # required literal
 metadata:
   name: <slug>               # required; stable alert identity
-  labels:                    # optional; string → string map
-    team: platform
 spec:
   display:                   # optional
     name: <human name>
@@ -39,6 +37,14 @@ spec:
 
 All fields are strict — unknown keys are rejected.
 
+## What Makes a Good Alert
+
+Decide whether a condition is worth alerting on before writing any SQL (Google SRE guidance):
+
+- **Alert on symptoms, not causes.** Fire on what users feel — elevated errors, slow responses, saturation. The four golden signals (latency, traffic, errors, saturation) are a good starting point. Underlying causes (one machine's CPU, a single restart) belong on dashboards for debugging, not in a notification.
+- **Every alert must be actionable.** If the honest response to "what would I do when this fires?" is "nothing" or "wait and see," don't write it.
+- **Tune for signal, not noise.** Set the threshold and window so the query stays quiet under normal conditions. A rule that fires on a single error or a momentary blip trains people to ignore it.
+
 ## Writing Alert Queries
 
 The query drives everything. Thresholds, grouping, and instance identity all live in the SQL.
@@ -51,10 +57,10 @@ Express the condition in the query itself. Use `HAVING` for aggregates or `WHERE
 -- Aggregate threshold: fire when error count exceeds N
 SELECT ServiceName, count() AS n
 FROM logs
-WHERE TimestampTime >= now() - INTERVAL 15 MINUTE
-  AND SeverityText = 'ERROR'
+WHERE Timestamp >= now() - INTERVAL 15 MINUTE
+  AND SeverityNumber >= 17          -- ERROR and above
 GROUP BY ServiceName
-HAVING n > 10
+HAVING n > 10                       -- tune to the service's normal baseline
 ORDER BY n DESC
 LIMIT 50
 ```
@@ -63,8 +69,8 @@ LIMIT 50
 -- Row-level: fire when any row matches
 SELECT ServiceName, TraceId, Body
 FROM logs
-WHERE TimestampTime >= now() - INTERVAL 5 MINUTE
-  AND SeverityText = 'FATAL'
+WHERE Timestamp >= now() - INTERVAL 5 MINUTE
+  AND SeverityNumber >= 21          -- FATAL
 LIMIT 50
 ```
 
@@ -72,13 +78,13 @@ LIMIT 50
 
 Each returned row becomes a firing instance. By default, Everr infers identity from all string-typed columns the query returns. A query returning `ServiceName` (string) and `n` (UInt64) produces one instance per distinct `ServiceName` value.
 
-Use `instanceLabels` when the inferred set is wrong:
+Override with `instanceLabels` when the inferred set is wrong — most often when the query returns a string column you want in the message but not in the identity. A string whose value changes between evaluations (a host or pod name, a sample message) would otherwise fragment the identity and churn: the old instance resolves and a new one fires every time the value changes, even though the service never recovered.
 
 ```yaml
-instanceLabels: [ServiceName, route]  # identity = these columns only
+instanceLabels: [ServiceName]  # identity is exactly these columns; other strings ride along for the message
 ```
 
-Match `instanceLabels` to the query's `GROUP BY`. Every listed column must exist in the result set.
+Every listed column must exist in the result set, and the query must return a single row per identity — rows that share an identity collapse into one instance.
 
 ### Evaluation Interval and Time Windows
 
