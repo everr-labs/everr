@@ -5,6 +5,23 @@ description: Write one AlertRule, apply it with the CLI, and view it in Everr.
 
 This is the shortest path to a working alert: write one rule, reconcile it with `everr apply`, and open it in the Alerts UI. By the end you'll have a real alert and the workflow you'll reuse for every alert after.
 
+## Let your assistant write it
+
+The fastest way to a good alert is to ask your coding assistant. Everr ships the `everr-setup-telemetry` skill, which teaches the assistant the `AlertRule` format and how to ground a rule in your real telemetry. Run it from the repository that emits the telemetry, so it can connect services, routes, and metrics back to the code that produces them.
+
+A concrete prompt:
+
+```text
+Use the everr-setup-telemetry skill to create an Everr alert for this repo.
+First inspect the code and query my telemetry to find a real symptom worth
+alerting on (errors, latency, or saturation) — use local telemetry while I
+develop and `everr cloud query` for production — and pick a threshold that sits
+above normal. Then write the AlertRule YAML, validate the query, and show me
+`everr apply --dry-run` before applying anything.
+```
+
+The assistant inspects your data, picks the signal, writes the rule, and validates it against `everr cloud query` and a dry-run — so the threshold is grounded in your actual baselines rather than guessed. The rest of this page walks through the same steps by hand so you understand what it produces.
+
 ## Before you start
 
 - The CLI is installed. See [Install](/docs/getting-started/install).
