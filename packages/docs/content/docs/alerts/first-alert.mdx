@@ -8,7 +8,7 @@ This is the shortest path to a working alert: write one rule, reconcile it with 
 ## Before you start
 
 - The CLI is installed. See [Install](/docs/getting-started/install).
-- You have telemetry in Everr to query. If not, start with [Your first trace](/docs/getting-started/first-trace). This tutorial alerts on logs.
+- You have telemetry in Everr to query. If not, start with [Your first trace](/docs/getting-started/first-trace). This tutorial alerts on Node.js runtime metrics.
 - **`everr apply` uses your `everr cloud login` session by default** and prints the destination organization before writing. For CI or non-interactive use, set `EVERR_API_TOKEN` to an organization ingest key:
 
   ```sh
@@ -38,40 +38,40 @@ Generate your own UUID (for example with `uuidgen`) and keep it stable — chang
 
 ## Write the rule
 
-`alerts/service-errors.yaml`:
+`alerts/eventloop-delay.yaml`:
 
 ```yaml
 kind: AlertRule
 metadata:
-  name: service-errors
+  name: eventloop-delay
   labels:
     team: platform
 spec:
   display:
-    name: Service error spike
-    description: Services with elevated error volume in the last 15 minutes.
+    name: Node.js event loop delay
+    description: Services whose event loop is blocked over the last 5 minutes.
   evaluationInterval: 1m
   notificationMessage:
-    title: "${ServiceName} has elevated errors"
-    description: "${errors} errors in the last 15 minutes"
+    title: "${ServiceName} event loop is lagging"
+    description: "p99 event loop delay averaged ${p99_delay_ms}ms over the last 5 minutes"
   query: |
     SELECT
       ServiceName,
-      count() AS errors
-    FROM logs
-    WHERE Timestamp >= now() - INTERVAL 15 MINUTE
-      AND SeverityNumber >= 17
+      round(avg(Value) * 1000, 1) AS p99_delay_ms
+    FROM metrics_gauge
+    WHERE MetricName = 'nodejs.eventloop.delay.p99'
+      AND TimeUnix >= now() - INTERVAL 5 MINUTE
     GROUP BY ServiceName
-    HAVING errors > 50
-    ORDER BY errors DESC
+    HAVING p99_delay_ms > 100
+    ORDER BY p99_delay_ms DESC
 ```
 
 A few things worth noting:
 
 - `metadata.name` is the rule's **slug** and identity. Use lowercase letters, digits, and hyphens.
-- The query **is** the condition: one row per service that crosses the threshold → each such service is a firing instance; nothing over the threshold → no rows → resolved. `SeverityNumber >= 17` is ERROR and above, and `HAVING errors > 50` keeps the rule quiet until a service is well past its normal error noise — tune that number to your services. A rule that fires on a single error (`> 0`) is just noise.
+- The query **is** the condition: one row per service over the threshold → each such service is a firing instance; nothing over the threshold → no rows → resolved. `nodejs.eventloop.delay.p99` is a Node.js runtime metric reported in seconds, so the query converts it to milliseconds. A healthy service sits around 10ms, so `HAVING p99_delay_ms > 100` stays quiet until the event loop is genuinely blocked — tune that number to your services. Averaging over the 5-minute window keeps a single momentary blip from paging.
 - `ServiceName` is a string column, so Everr uses it as each instance's identity automatically — one alert instance per service. See [Writing alert queries](/docs/alerts/writing-queries).
-- `notificationMessage` is templated with `${ServiceName}` and `${errors}` from that instance's row; only columns the query returns can be referenced.
+- `notificationMessage` is templated with `${ServiceName}` and `${p99_delay_ms}` from that instance's row; only columns the query returns can be referenced.
 - `evaluationInterval: 1m` runs the query once a minute (the minimum).
 
 ## Preview the change
@@ -84,7 +84,7 @@ everr apply ./alerts --dry-run
 
 ```
 (dry run) AlertRule: 1 created, 0 updated, 0 deleted
-  + service-errors
+  + eventloop-delay
 ```
 
 ## Apply it
@@ -98,7 +98,7 @@ Apply first prints a plan, then — because there are changes — asks you to co
 ```
 (plan) Destination org: «Acme Corp»
 (plan) AlertRule: 1 created, 0 updated, 0 deleted
-  + service-errors
+  + eventloop-delay
 ```
 
 After you confirm, it runs the apply and prints the same summary without the `(plan)` prefix:
@@ -106,14 +106,14 @@ After you confirm, it runs the apply and prints the same summary without the `(p
 ```
 Destination org: «Acme Corp»
 AlertRule: 1 created, 0 updated, 0 deleted
-  + service-errors
+  + eventloop-delay
 ```
 
 If there are no changes, apply prints `Nothing to apply.` and exits without prompting. Re-running is idempotent — apply again and you'll see `Nothing to apply.`
 
 ## Open it in Everr
 
-Open Everr and go to **Alerts** (`/alerts`). Your `service-errors` rule appears in the **Rules** list with its current state. Open it:
+Open Everr and go to **Alerts** (`/alerts`). Your `eventloop-delay` rule appears in the **Rules** list with its current state. Open it:
 
 - The **Configuration** card shows the evaluation interval, instance labels, and the **Last evaluated** time.
 - When a service crosses the threshold, the **Firing instances** card lists one row per firing service with a **Firing since** time. If nothing is firing, it shows the resolved state.
@@ -125,19 +125,19 @@ Seeing the alert fire in the UI needs no setup. To actually receive it by email 
 
 ## Change and re-apply
 
-Edit the file — say, tighten the threshold to `HAVING errors > 100` — and apply again. A changed rule is updated in place; the slug and URL don't change because the slug didn't.
+Edit the file — say, tighten the threshold to `HAVING p99_delay_ms > 200` — and apply again. A changed rule is updated in place; the slug and URL don't change because the slug didn't.
 
 To remove a rule, delete its file and apply — reconciliation is delete-by-default within the repoid:
 
 ```sh
-rm alerts/service-errors.yaml
+rm alerts/eventloop-delay.yaml
 everr apply ./alerts
 ```
 
 ```
 (plan) Destination org: «Acme Corp»
 (plan) AlertRule: 0 created, 0 updated, 1 deleted
-  - service-errors
+  - eventloop-delay
 ```
 
 ## Next steps

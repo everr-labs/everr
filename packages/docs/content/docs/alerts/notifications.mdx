@@ -31,8 +31,8 @@ The notification text comes from `spec.notificationMessage`. The title is requir
 
 ```yaml
 notificationMessage:
-  title: "${ServiceName} has elevated errors"
-  description: "${errors} errors in the last 15 minutes — see your runbook"
+  title: "${ServiceName} event loop is lagging"
+  description: "p99 event loop delay averaged ${p99_delay_ms}ms over the last 5 minutes — see your runbook"
 ```
 
 - Only columns the query returns can be referenced. A `${foo}` where `foo` isn't a returned column is rejected on apply.

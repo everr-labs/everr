@@ -12,36 +12,38 @@ Here is a complete rule:
 ```yaml
 kind: AlertRule
 metadata:
-  name: service-errors          # the rule's slug and identity
+  name: eventloop-delay         # the rule's slug and identity
   labels:
     team: platform              # optional; for your own organization
 spec:
   display:
-    name: Service error spike
+    name: Node.js event loop delay
   evaluationInterval: 1m        # how often the query runs (min 1m)
   notificationMessage:
-    title: "${ServiceName} has elevated errors"
-    description: "${errors} errors in the last 15 minutes"
+    title: "${ServiceName} event loop is lagging"
+    description: "p99 event loop delay averaged ${p99_delay_ms}ms over the last 5 minutes"
   query: |
-    SELECT ServiceName, count() AS errors
-    FROM logs
-    WHERE Timestamp >= now() - INTERVAL 15 MINUTE
-      AND SeverityNumber >= 17
+    SELECT
+      ServiceName,
+      round(avg(Value) * 1000, 1) AS p99_delay_ms
+    FROM metrics_gauge
+    WHERE MetricName = 'nodejs.eventloop.delay.p99'
+      AND TimeUnix >= now() - INTERVAL 5 MINUTE
     GROUP BY ServiceName
-    HAVING errors > 50          # only services well above their normal noise
+    HAVING p99_delay_ms > 100    # normal is ~10ms; 100ms means the loop is blocked
 ```
 
 ## The query-driven model
 
 The query *is* the alert condition. Everr runs `spec.query` — plain ClickHouse SQL — on the rule's schedule, and **every row it returns is a firing instance**. When the query returns no rows, the alert is resolved.
 
-There is no separate threshold field. The threshold lives in the SQL itself — a `WHERE` filter, a `HAVING` clause, or whatever comparison defines "something is wrong." Choose it so the query stays quiet under normal conditions and only returns rows when a human should act: a rule that fires on a single stray error (`HAVING errors > 0`) is noise, while `HAVING errors > 50` over a window catches a real spike. Every alert should be actionable.
+There is no separate threshold field. The threshold lives in the SQL itself — a `WHERE` filter, a `HAVING` clause, or whatever comparison defines "something is wrong." Choose it so the query stays quiet under normal conditions and only returns rows when a human should act: here a healthy service sits around 10ms, so `HAVING p99_delay_ms > 100` only fires when the event loop is genuinely blocked. Every alert should be actionable.
 
 Note that the query SQL does **not** support `${...}` templating — that syntax is only for notification messages. The query is the literal SQL that runs. See [Writing alert queries](/docs/alerts/writing-queries) for patterns.
 
 ## Instances
 
-A single rule can fire for many things at once: there is one **instance** per returned row. By default, Everr derives each instance's identity from the string columns the query returns. In the example above, `ServiceName` is the identity, so the one `service-errors` rule covers every service — it fires independently for `checkout`, `payments`, and anything else that crosses the threshold.
+A single rule can fire for many things at once: there is one **instance** per returned row. By default, Everr derives each instance's identity from the string columns the query returns. In the example above, `ServiceName` is the identity, so the one `eventloop-delay` rule covers every service — it fires independently for `checkout`, `payments`, and anything else whose event loop is blocked.
 
 When the inferred identity isn't right — too coarse, too fine, or based on the wrong columns — set `spec.instanceLabels` to override which columns define an instance. See [instance identity](/docs/alerts/writing-queries#instance-identity).
 
@@ -49,11 +51,11 @@ When the inferred identity isn't right — too coarse, too fine, or based on the
 
 A scheduler runs each rule on its `evaluationInterval`. A rule is **firing** when at least one instance fires and **resolved** when none do.
 
-Notifications fire on the **edges** of that transition — when an instance newly starts firing and when it resolves — not on every evaluation while it stays firing. So a service that has been erroring for an hour produces one "firing" notification, not one per minute. See the [evaluation states](/docs/alerts/alert-spec#evaluation-states) for the full state machine.
+Notifications fire on the **edges** of that transition — when an instance newly starts firing and when it resolves — not on every evaluation while it stays firing. So a service whose event loop has been blocked for an hour produces one "firing" notification, not one per minute. See the [evaluation states](/docs/alerts/alert-spec#evaluation-states) for the full state machine.
 
 ## Notifications
 
-When an instance fires or resolves, Everr notifies the channels your organization has configured in-app (email, Telegram). Each notification is **per instance**, and its message is templated with `${column}` from that instance's row — so `${ServiceName}` and `${errors}` resolve to the values for the service that fired. In-app silences let you suppress notifications during maintenance. See [Notifications](/docs/alerts/notifications).
+When an instance fires or resolves, Everr notifies the channels your organization has configured in-app (email, Telegram). Each notification is **per instance**, and its message is templated with `${column}` from that instance's row — so `${ServiceName}` and `${p99_delay_ms}` resolve to the values for the service that fired. In-app silences let you suppress notifications during maintenance. See [Notifications](/docs/alerts/notifications).
 
 Every alert should be actionable: if no one would do anything when a rule fires, it shouldn't exist.
 

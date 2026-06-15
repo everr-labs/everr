@@ -20,19 +20,19 @@ The rest of this page is how to express that condition in SQL.
 There is no separate threshold field. You put the condition in the query itself, so it returns rows only when something is actually wrong. Use `WHERE` to scope the data you look at, and `HAVING` to threshold an aggregate:
 
 ```sql
-SELECT ServiceName, count() AS errors
-FROM logs
-WHERE Timestamp >= now() - INTERVAL 15 MINUTE
-  AND SeverityNumber >= 17
+SELECT ServiceName, round(avg(Value) * 1000, 1) AS p99_delay_ms
+FROM metrics_gauge
+WHERE MetricName = 'nodejs.eventloop.delay.p99'
+  AND TimeUnix >= now() - INTERVAL 5 MINUTE
 GROUP BY ServiceName
-HAVING errors > 10        -- fire only above the threshold
+HAVING p99_delay_ms > 100   -- normal is ~10ms; fire only when the loop is blocked
 ```
 
 When no service crosses the threshold the query returns nothing, and the alert is resolved.
 
 ## Instance identity
 
-By default, an instance's identity is the set of **string** columns the query returns. The query above returns `ServiceName` (a string) and `errors` (a number), so it produces one instance per service automatically — a single rule scales across every service instead of needing one rule each. Because the numeric `errors` column is not part of identity, a service stays the same instance as its error count rises and falls.
+By default, an instance's identity is the set of **string** columns the query returns. The query above returns `ServiceName` (a string) and `p99_delay_ms` (a number), so it produces one instance per service automatically — a single rule scales across every service instead of needing one rule each. Because the numeric `p99_delay_ms` column is not part of identity, a service stays the same instance as its delay rises and falls.
 
 Override the default with `spec.instanceLabels` when it isn't right for you — for example when the query returns extra string columns you don't want in the identity, or when you want a specific subset. The identity then becomes exactly the listed columns:
 
@@ -40,18 +40,22 @@ Override the default with `spec.instanceLabels` when it isn't right for you — 
 spec:
   instanceLabels: [ServiceName]   # identity is exactly this column
   query: |
-    SELECT ServiceName, Environment, count() AS errors
-    FROM logs
-    WHERE Timestamp >= now() - INTERVAL 15 MINUTE AND SeverityNumber >= 17
-    GROUP BY ServiceName, Environment
-    HAVING errors > 10
+    SELECT
+      ServiceName,
+      ResourceAttributes['deployment.environment'] AS environment,
+      round(avg(Value) * 1000, 1) AS p99_delay_ms
+    FROM metrics_gauge
+    WHERE MetricName = 'nodejs.eventloop.delay.p99'
+      AND TimeUnix >= now() - INTERVAL 5 MINUTE
+    GROUP BY ServiceName, environment
+    HAVING p99_delay_ms > 100
 ```
 
-Match `instanceLabels` to the columns you `GROUP BY`, and make sure each instance is a single row — if two rows share the same identity in one result, they collapse into one instance.
+Here the query returns `environment` so the message can mention it, but `instanceLabels: [ServiceName]` keeps identity at one instance per service. Match `instanceLabels` to the columns you `GROUP BY`, and make sure each instance is a single row — if two rows share the same identity in one result, they collapse into one instance.
 
 ## Choose an evaluation interval
 
-`spec.evaluationInterval` is an `<integer><s|m|h|d>` duration with a minimum of `1m` (for example `1m`, `5m`, `1h`). Align the query's time window to the interval: a 15-minute lookback evaluated every minute smooths transient spikes, because a single one-off error keeps the rule firing for the length of the window.
+`spec.evaluationInterval` is an `<integer><s|m|h|d>` duration with a minimum of `1m` (for example `1m`, `5m`, `1h`). Align the query's time window to the interval: a 5-minute lookback evaluated every minute smooths transient spikes, because a single momentary blip is averaged into the window rather than paging on its own.
 
 Everr notifies on the firing and resolved edges as soon as the rule evaluates. There is no separate "for" or pending duration to wait out, so use the query window itself to control flapping.
 
