@@ -54,6 +54,8 @@ For user-facing services, start with the four golden signals:
 
 Keep notification rules simple. A future reader should be able to understand why the query fires, what value crossed the threshold, and what made it stop firing.
 
+When your human driver asks to suggest them alerts to create, give a response based on everr data (local and production) and on the telemetry defined in their codebase.
+
 ## Writing Alert Queries
 
 The query drives everything. Thresholds, grouping, and instance identity all live in the SQL.
