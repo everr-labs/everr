@@ -1,18 +1,16 @@
 kind: AlertRule
 metadata:
-  name: even-minute-check
+  name: every-minute
   labels:
     team: platform
 spec:
   display:
-    name: Even-minute failure test
-    description: Fires when the scheduler observes an even minute.
+    name: Every minute alert
+    description: Fires an alert every minute to check that the schedule works properly
   notificationMessage:
-    title: "Even-minute failure test is firing"
-    description: "The current minute is even at ${checked_at}"
+    title: "Every minute failure test is firing"
+    description: "The current minute is ${minute} ad ${now}"
   evaluationInterval: 1m
-  instanceLabels: [checked_at]
+  instanceLabels: [minute]
   query: |
-    SELECT
-      now() AS checked_at
-    WHERE modulo(toMinute(now()), 2) = 0
+    SELECT toMinute(now()) AS minute, now() as now

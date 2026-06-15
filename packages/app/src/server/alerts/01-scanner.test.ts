@@ -45,6 +45,11 @@ describe("scanDueAlerts", () => {
     expect(dbExecute).toHaveBeenCalledOnce();
     const claimSql = drizzleSqlText(dbExecute.mock.calls[0]?.[0]);
     expect(claimSql).toContain("SELECT now() AS claimed_at");
+    // Claims alerts due within the grace window so per-minute cron jitter can't
+    // push a 1-minute alert past its tick and skip an evaluation.
+    expect(claimSql).toContain(
+      "next_evaluation_at <= now() + make_interval(secs =>",
+    );
     expect(claimSql).toContain(
       "next_evaluation_at = claim.claimed_at + make_interval",
     );

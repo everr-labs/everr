@@ -6,6 +6,12 @@ export const ALERT_EVALUATE_TASK = "alerts/evaluate";
 const SCANNER_BATCH_SIZE = 500;
 const EVALUATE_MAX_ATTEMPTS = 3;
 const ENQUEUE_CONCURRENCY = 5;
+// The scan cron fires once a minute, a few tens of ms after the boundary, so a
+// reschedule of `claimed_at + interval` lands just past the next boundary and
+// the following tick sees the alert as not-yet-due, skipping a minute. Claiming
+// anything due within this grace window absorbs that jitter; the reschedule
+// (still claimed_at + interval) keeps the phase from drifting earlier.
+const SCAN_GRACE_SECONDS = 5;
 
 export interface EvaluatePayload {
   alertDefinitionId: string;
@@ -28,7 +34,8 @@ export async function scanDueAlerts(opts: { batchSize?: number } = {}) {
     due AS (
       SELECT id, next_evaluation_at
       FROM alert_definitions
-      WHERE active AND next_evaluation_at <= now()
+      WHERE active
+        AND next_evaluation_at <= now() + make_interval(secs => ${SCAN_GRACE_SECONDS})
       ORDER BY next_evaluation_at
       LIMIT ${batchSize}
       FOR UPDATE SKIP LOCKED
