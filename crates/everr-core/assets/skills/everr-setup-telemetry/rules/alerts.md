@@ -4,7 +4,7 @@ Alerts are defined as code: `kind: AlertRule` YAML files reconciled with `everr 
 
 ## Prerequisites
 
-- An `everr.yaml` manifest at the apply directory root with a stable `repoid` (UUID).
+- An `everr.yaml` manifest at the apply directory root with a stable `repoid`.
 - Telemetry already flowing into Everr (traces, logs, or metrics).
 
 The manifest is required. Apply errors without it.
@@ -14,7 +14,7 @@ The manifest is required. Apply errors without it.
 repoid: "AE89E884-0AF0-45A9-8BA1-6237A162347D"
 ```
 
-Generate a stable UUID once per repository. Do not reuse repoids across unrelated repos.
+Use one stable id per repository. A UUID is a good default for new repositories; do not reuse repoids across unrelated repos.
 
 ## AlertRule Schema
 
@@ -37,6 +37,23 @@ spec:
 
 All fields are strict — unknown keys are rejected.
 
+## Alert Design Checklist
+
+Before writing SQL, decide whether the condition should notify a human at all. Prefer alerts that describe a real symptom: something urgent, actionable, and active or imminent. 
+
+Do not create alert rules for interesting, weird, or purely diagnostic signals; put those in dashboards or ad hoc queries instead.
+
+For user-facing services, start with the four golden signals:
+
+| Signal | Prefer alerting on | Avoid |
+| --- | --- | --- |
+| Latency | Tail latency such as p95/p99 over a recent window, separated by success/failure when possible | Mean latency, or mixing fast failures into successful request latency |
+| Traffic | Sudden drop to near-zero when traffic is expected, impossible spikes, or missing expected work | Raw high traffic unless it is causing a user-visible problem |
+| Errors | Error rate with a minimum-volume guard | A single error log row or every error occurrence |
+| Saturation | Resource near exhaustion, or expected to exhaust soon | Short CPU/memory blips without user impact |
+
+Keep notification rules simple. A future reader should be able to understand why the query fires, what value crossed the threshold, and what made it stop firing.
+
 ## Writing Alert Queries
 
 The query drives everything. Thresholds, grouping, and instance identity all live in the SQL.
@@ -46,25 +63,31 @@ The query drives everything. Thresholds, grouping, and instance identity all liv
 Express the condition in the query itself. Use `HAVING` for aggregates or `WHERE` for row-level filters.
 
 ```sql
--- Aggregate threshold: fire when error count exceeds N
-SELECT ServiceName, count() AS n
+-- Error-rate threshold with a minimum-volume guard
+SELECT
+  ServiceName,
+  count() AS total,
+  countIf(SeverityNumber >= 17) AS errors,
+  round(errors / total, 4) AS error_rate
 FROM logs
 WHERE Timestamp >= now() - INTERVAL 15 MINUTE
-  AND SeverityNumber >= 17          -- ERROR and above
 GROUP BY ServiceName
-HAVING n > 10                       -- tune to the service's normal baseline
-ORDER BY n DESC
+HAVING total >= 100
+  AND error_rate > 0.05
+ORDER BY error_rate DESC
 LIMIT 50
 ```
 
 ```sql
--- Row-level: fire when any row matches
+-- Row-level: reserve this shape for rare, clearly actionable events
 SELECT ServiceName, TraceId, Body
 FROM logs
 WHERE Timestamp >= now() - INTERVAL 5 MINUTE
   AND SeverityNumber >= 21          -- FATAL
 LIMIT 50
 ```
+
+Prefer rates over raw counts when traffic changes meaningfully. Always add a minimum-volume guard to percentage-based alerts so one failure in one request does not fire. Filter known-benign data in SQL, such as test services, development environments, or maintenance jobs.
 
 ### Instance Identity
 
@@ -86,9 +109,9 @@ Do not use `${...}` templates in queries. Queries are plain SQL. Template variab
 
 ### Keep Result Sets Small
 
-The firing set is the rows. Every returned row is tracked, fingerprinted, and potentially notified. 
+The firing set is the rows. Every returned row is tracked, fingerprinted, and potentially notified.
 
-Use `GROUP BY` and `LIMIT` to keep queries focused.
+Use selective time windows, `GROUP BY`, and `LIMIT` to keep queries focused. Avoid `SELECT *`; return only the identity columns, measured values, and message fields needed for the alert.
 
 ## Notification Message Templates
 
@@ -121,12 +144,14 @@ Apply discovers all `.yaml`/`.yml` files under the directory, classifies them by
 
 | Mistake | Fix |
 | --- | --- |
-| Missing `everr.yaml` manifest | Add `repoid: "<uuid>"` at the apply directory root |
-| Empty `repoid` or reusing across repos | Generate a stable UUID per repository |
+| Missing `everr.yaml` manifest | Add `repoid: "<stable-repository-id>"` at the apply directory root |
+| Empty `repoid` or reusing across repos | Use one stable id per repository; a UUID is a good default for new repos |
 | `${...}` in the query | Queries are plain SQL; use `${...}` only in `notificationMessage` |
 | `instanceLabels` references a missing column | Every label must exist in the query result set |
 | `evaluationInterval` below `1m` | Use `1m` or higher |
 | Query returns thousands of rows | Add `LIMIT` and tighten the `WHERE`/`HAVING` |
+| Error-rate alert without a minimum-volume guard | Add `HAVING total >= <baseline>` so tiny samples do not fire |
+| Alerting on mean latency | Prefer p95/p99 or another tail-latency signal |
 | Template variable `${Foo}` but query returns `foo` (case mismatch) | Match column names exactly |
 | Notification channel enabled but no recipients | Add at least one email address or Telegram chat ID |
 | Expecting re-notification on every evaluation | Notifications fire on transitions, not every tick |

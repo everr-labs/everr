@@ -1,6 +1,6 @@
 ---
 name: everr-setup-telemetry
-description: Use when a task mentions adding or fixing telemetry, OpenTelemetry, local collector setup, debug telemetry, missing or stale spans/logs/metrics, instrumentation verification or alerting/notification rules.
+description: Use when a task mentions adding or fixing telemetry, OpenTelemetry, local collector setup, debug telemetry, missing or stale spans/logs/metrics, instrumentation verification or alerting rules.
 ---
 
 ## Startup Access
@@ -55,10 +55,6 @@ For most runtime work, read `resolve-values`, `resources`, `error-tracking`, `se
 8. Gate local-only exporters so local collector URLs do not ship in production bundles, and gate hosted ingest so it only runs when a production ingest key is present.
 9. Trigger the instrumented path and verify fresh local rows with `everr local query`, filtered by the expected `ServiceName`, a recent time window, and a unique run, request, or test id when practical.
 10. Do not claim setup works until query results prove the new telemetry came from the path just exercised.
-
-### Alert Setup
-
-Load `rules/alerts.md` before writing alert rules.
 
 ## Command Choice
 
