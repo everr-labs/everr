@@ -1,0 +1,80 @@
+---
+title: AlertRule Spec
+description: The full AlertRule file format, the apply manifest, and the alert evaluation states.
+---
+
+An `AlertRule` is a resource with three top-level keys. Everr validates it on `everr apply` and again on read. The `spec` holds a ClickHouse query whose every returned row is a firing instance, plus the notification text to send when instances start and stop firing.
+
+```yaml
+kind: AlertRule
+metadata:
+  name: <slug>
+  labels: { team: platform }   # optional
+spec:
+  { ... }
+```
+
+| Key | Type | Notes |
+| --- | --- | --- |
+| `kind` | `"AlertRule"` | Selects the reconciler. Required. |
+| `metadata.name` | string | The rule's **slug** and identity. Required, non-empty. |
+| `metadata.labels` | map&lt;string, string&gt; | Optional. Free-form labels for your own organization; not used for routing. |
+| `spec` | object | The rule contents, below. |
+
+## `spec`
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `evaluationInterval` | string | yes | How often the query runs. `<int><s\|m\|h\|d>`, **minimum `1m`**. |
+| `query` | string | yes | ClickHouse SQL. Every returned row is a firing instance; empty = resolved. **No `${...}` templating.** |
+| `notificationMessage` | object | yes | The notification text. See below. |
+| `notificationMessage.title` | string | yes | Supports `${column}`. Non-empty. |
+| `notificationMessage.description` | string | no | Supports `${column}`. |
+| `instanceLabels` | [string] | no | Override for instance identity; ≥1 entry when present. Default identity is all string columns the query returns. |
+| `display` | object | no | `name` and/or `description`, both optional. Human-facing labels. |
+
+## Message templating
+
+`notificationMessage.title` and `notificationMessage.description` support `${column}` placeholders. Each placeholder is replaced with that firing instance's value for the named column, so one query produces one tailored message per instance.
+
+Every referenced name must be a column the `query` returns; this is validated on apply. A missing or null value renders as empty text. The `query` SQL itself does **not** support templating — placeholders work only in the notification message fields.
+
+## Manifest
+
+Every apply directory needs an `everr.yaml` (or `everr.yml`) file at its root with exactly one key:
+
+```yaml
+repoid: "2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1"
+```
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `repoid` | string (UUID) | Stable identifier you choose once. It's the reconcile/prune boundary — apply only touches resources under this repoid. The manifest rejects any other key. |
+
+`everr apply <dir>` discovers every `kind: Dashboard` and `kind: AlertRule` document under the directory and makes the live resources for that repoid exactly match the tree: new documents are created, changed ones updated, and removed ones **deleted**. Use `--dry-run` to preview the changes without applying them. See the [`everr apply` reference](/docs/reference/cli#dashboards-gitops).
+
+## Evaluation states
+
+A rule is **firing** when at least one instance is firing and **resolved** when none are. Each evaluation runs the query, compares the current set of firing instances to the previous set, and produces exactly one transition. Notifications are per instance, sent on the firing and resolved edges.
+
+| Was firing | Is firing | Instance change | Transition | Notifications |
+| --- | --- | --- | --- | --- |
+| no | no | — | stayed resolved | none |
+| no | yes | all new | started firing | firing (each new instance) |
+| yes | yes | none | stayed firing | none |
+| yes | yes | some new | new instances firing | firing (new instances only) |
+| yes | yes | some gone | partially resolved | resolved (gone instances) |
+| yes | yes | some new + some gone | churned | firing (new) + resolved (gone) |
+| yes | no | all gone | resolved | resolved (each instance) |
+
+An instance is notified only once when it starts firing and once when it resolves — never on every interval in between.
+
+## Constraints and errors
+
+- `evaluationInterval` must be ≥ `1m`.
+- `notificationMessage.title` is required and non-empty.
+- `${column}` must reference a column the `query` returns.
+- `instanceLabels` needs ≥1 entry when present.
+- `labels` values are strings.
+- `query` rejects `${...}`.
+- Supported document kinds for apply are `Dashboard` and `AlertRule`.
