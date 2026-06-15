@@ -50,6 +50,7 @@ export type AlertSummary = {
   id: string;
   repoid: string;
   slug: string;
+  displayName: string | null;
   evaluationIntervalSeconds: number;
   sourceLink: string;
   configFilePath: string;
@@ -92,8 +93,12 @@ type AlertEvent = {
   instances: AlertEventInstance[];
 };
 
-type AlertSummaryRow = Omit<AlertSummary, "activeSilenceCount"> & {
+type AlertSummaryRow = Omit<
+  AlertSummary,
+  "activeSilenceCount" | "displayName"
+> & {
   activeSilenceCount: number | string;
+  document: unknown;
 };
 
 const alertIdInput = z.object({ alertId: z.string().uuid() });
@@ -142,10 +147,12 @@ async function ensureOrgAdmin() {
 }
 
 function toAlertSummary(row: AlertSummaryRow): AlertSummary {
+  const { document, ...rest } = row;
   return {
-    ...row,
-    lastEvidenceSnapshot: row.lastEvidenceSnapshot ?? [],
-    activeSilenceCount: Number(row.activeSilenceCount) || 0,
+    ...rest,
+    displayName: displayFromDocument(document).name ?? null,
+    lastEvidenceSnapshot: rest.lastEvidenceSnapshot ?? [],
+    activeSilenceCount: Number(rest.activeSilenceCount) || 0,
   };
 }
 
@@ -201,7 +208,7 @@ export const listAlerts = createAuthenticatedServerFn({
 }).handler(async ({ context: { session } }) => {
   const organizationId = session.session.activeOrganizationId;
   const rows = await db
-    .select(alertListColumns)
+    .select({ ...alertListColumns, document: alertDefinitions.document })
     .from(alertDefinitions)
     .where(
       and(

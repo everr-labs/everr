@@ -47,10 +47,10 @@ import {
 } from "@/data/alerts/server";
 import {
   AlertStateBadges,
-  formatDate,
   formatInterval,
+  isEvaluationStale,
   QueryErrorMessage,
-  safeExternalHref,
+  RelativeTime,
 } from "./-alerts-shared";
 
 const alertsQueryOptions = () =>
@@ -76,7 +76,30 @@ export const Route = createFileRoute("/_authenticated/_dashboard/alerts")({
 
 function AlertsPage() {
   const alerts = useQuery(alertsQueryOptions());
+  const settings = useQuery(alertSettingsQueryOptions());
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const summary = useMemo(() => {
+    let firing = 0;
+    let errored = 0;
+    let ok = 0;
+    let inactive = 0;
+    for (const a of alerts.data ?? []) {
+      if (!a.active) inactive += 1;
+      else if (a.lastEvaluationStatus === "error") errored += 1;
+      else if (a.currentState === "firing") firing += 1;
+      else ok += 1;
+    }
+    return { firing, errored, ok, inactive };
+  }, [alerts.data]);
+
+  const delivery = settings.data?.delivery;
+  const hasChannel =
+    !!delivery &&
+    ((delivery.email.enabled && delivery.email.to.length > 0) ||
+      (delivery.telegram.enabled &&
+        delivery.telegram.chatIds.length > 0 &&
+        delivery.telegram.botToken.length > 0));
 
   const columns = useMemo<Column<AlertSummary>[]>(
     () => [
@@ -86,13 +109,21 @@ function AlertsPage() {
           <Link
             to="/alerts/$alertId"
             params={{ alertId: row.id }}
-            className="font-mono underline-offset-4 hover:underline"
+            className="block underline-offset-4 hover:underline"
           >
-            {row.slug}
+            {row.displayName ? (
+              <span className="flex items-baseline gap-2">
+                <span className="font-medium">{row.displayName}</span>
+                <span className="font-mono text-muted-foreground text-xs">
+                  {row.slug}
+                </span>
+              </span>
+            ) : (
+              <span className="font-mono">{row.slug}</span>
+            )}
           </Link>
         ),
       },
-      { header: "Repo", cell: (row) => row.repoid },
       {
         header: "State",
         cell: (row) => (
@@ -106,28 +137,39 @@ function AlertsPage() {
           />
         ),
       },
-      { header: "Last eval", cell: (row) => formatDate(row.lastEvaluatedAt) },
+      {
+        header: "Last eval",
+        cell: (row) => {
+          const stale = isEvaluationStale(
+            row.lastEvaluatedAt,
+            row.evaluationIntervalSeconds,
+          );
+          return (
+            <span
+              className={stale ? "text-amber-500" : undefined}
+              title={
+                stale
+                  ? "Evaluation overdue — this rule hasn't run recently"
+                  : undefined
+              }
+            >
+              <RelativeTime value={row.lastEvaluatedAt} />
+            </span>
+          );
+        },
+      },
+      {
+        header: "Firing since",
+        cell: (row) =>
+          row.currentState === "firing" ? (
+            <RelativeTime value={row.lastFiredAt} />
+          ) : (
+            "—"
+          ),
+      },
       {
         header: "Interval",
         cell: (row) => formatInterval(row.evaluationIntervalSeconds),
-      },
-      {
-        header: "Source",
-        cell: (row) => {
-          const href = safeExternalHref(row.sourceLink);
-          return href ? (
-            <a
-              className="underline"
-              href={href}
-              target="_blank"
-              rel="noreferrer"
-            >
-              source
-            </a>
-          ) : (
-            row.configFilePath || "-"
-          );
-        },
       },
     ],
     [],
@@ -147,6 +189,52 @@ function AlertsPage() {
           Notification settings
         </Button>
       </div>
+
+      {settings.data && !hasChannel && (
+        <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
+          No notification channels are configured, so firing alerts won't reach
+          anyone.{" "}
+          <button
+            type="button"
+            className="font-medium underline underline-offset-4"
+            onClick={() => setSettingsOpen(true)}
+          >
+            Configure notifications
+          </button>
+          .
+        </div>
+      )}
+
+      {alerts.data && alerts.data.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-muted-foreground text-sm">
+          <span>
+            <span
+              className={`font-semibold ${summary.firing > 0 ? "text-destructive" : "text-foreground"}`}
+            >
+              {summary.firing}
+            </span>{" "}
+            firing
+          </span>
+          <span>
+            <span
+              className={`font-semibold ${summary.errored > 0 ? "text-amber-500" : "text-foreground"}`}
+            >
+              {summary.errored}
+            </span>{" "}
+            errored
+          </span>
+          <span>
+            <span className="font-semibold text-foreground">{summary.ok}</span>{" "}
+            ok
+          </span>
+          <span>
+            <span className="font-semibold text-foreground">
+              {summary.inactive}
+            </span>{" "}
+            inactive
+          </span>
+        </div>
+      )}
 
       <Card inset="flush-content">
         <CardHeader>
@@ -171,7 +259,17 @@ function AlertsPage() {
               rowKey={(row) => row.id}
               emptyState={
                 <div className="px-3 py-8 text-center text-muted-foreground">
-                  No alerts have been applied for this organization.
+                  <p>No alerts have been applied for this organization.</p>
+                  <p className="mt-1">
+                    <a
+                      className="underline underline-offset-4"
+                      href="https://everr.dev/docs/alerts/first-alert"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Create your first alert
+                    </a>
+                  </p>
                 </div>
               }
             />
@@ -246,7 +344,16 @@ function NotificationSettingsDialog({
         <DialogHeader>
           <DialogTitle>Notification settings</DialogTitle>
           <DialogDescription>
-            Organization-level delivery for alert notifications.
+            Organization-level delivery for alert notifications.{" "}
+            <a
+              className="underline underline-offset-4"
+              href="https://everr.dev/docs/alerts/notifications"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Learn more
+            </a>
+            .
           </DialogDescription>
         </DialogHeader>
         {settings.isError ? (

@@ -27,7 +27,6 @@ import {
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { Textarea } from "@everr/ui/components/textarea";
 import { type TimeRange, withTimeRange } from "@everr/ui/lib/time-range";
-import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import {
   queryOptions,
   useMutation,
@@ -44,7 +43,7 @@ import {
   Plus,
   X,
 } from "lucide-react";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useState } from "react";
 import {
   ALERT_CHANNELS,
   type AlertDeliveryTargets,
@@ -71,6 +70,7 @@ import {
   formatDate,
   formatInterval,
   QueryErrorMessage,
+  RelativeTime,
   safeExternalHref,
   stateVariant,
 } from "./-alerts-shared";
@@ -466,19 +466,6 @@ function AlertDetailPage() {
         }}
       />
     </div>
-  );
-}
-
-// Re-renders every minute so the elapsed time keeps ticking without a refetch
-// (formatRelativeTime's granularity is minutes/hours/days).
-function RelativeTime({ value }: { value: string | null }) {
-  const [, tick] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => tick((n) => n + 1), 60_000);
-    return () => clearInterval(id);
-  }, []);
-  return (
-    <span title={formatDate(value)}>{formatRelativeTime(value ?? "")}</span>
   );
 }
 
