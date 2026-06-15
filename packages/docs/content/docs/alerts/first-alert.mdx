@@ -13,11 +13,6 @@ A concrete prompt:
 
 ```text
 Use the everr-setup-telemetry skill to create an Everr alert for this repo.
-First inspect the code and query my telemetry to find a real symptom worth
-alerting on (errors, latency, or saturation) — use local telemetry while I
-develop and `everr cloud query` for production — and pick a threshold that sits
-above normal. Then write the AlertRule YAML, validate the query, and show me
-`everr apply --dry-run` before applying anything.
 ```
 
 The assistant inspects your data, picks the signal, writes the rule, and validates it against `everr cloud query` and a dry-run — so the threshold is grounded in your actual baselines rather than guessed. The rest of this page walks through the same steps by hand so you understand what it produces.

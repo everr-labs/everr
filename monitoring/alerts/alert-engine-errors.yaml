@@ -1,0 +1,37 @@
+kind: AlertRule
+metadata:
+  name: alert-engine-errors
+  labels:
+    team: platform
+spec:
+  display:
+    name: Alert engine errors
+    description: Alert evaluator, delivery, or alert event projection failures.
+  notificationMessage:
+    title: "${ServiceName} alert engine has failures"
+    description: "${events} alert engine failure events in the last 10 minutes. Latest: ${sample_body} alert=${sample_alert}"
+  evaluationInterval: 1m
+  instanceLabels: [ServiceName]
+  query: |
+    SELECT
+      ServiceName,
+      count() AS events,
+      anyLast(Body) AS sample_body,
+      anyLast(LogAttributes['alert.slug']) AS sample_alert
+    FROM logs
+    WHERE TimestampTime >= now() - INTERVAL 10 MINUTE
+      AND ServiceName IN ('alert', 'everr-dev-app', 'everr-app')
+      AND (
+        SeverityNumber >= 17
+        OR LogAttributes['alert.event_type'] IN ('evaluation_failed', 'delivery_failed')
+        OR Body IN (
+          'alerts.evaluate.event_insert_failed',
+          'alerts.evaluate.firing_set_read_failed',
+          'alerts.evaluate.query_failed',
+          'alerts.delivery.failure_event_insert_failed'
+        )
+      )
+    GROUP BY ServiceName
+    HAVING events > 0
+    ORDER BY events DESC
+    LIMIT 10

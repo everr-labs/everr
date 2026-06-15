@@ -13,10 +13,6 @@ A concrete prompt:
 
 ```text
 Use the everr-write-dashboards skill to create an Everr dashboard for this repo.
-First inspect the code and query my telemetry to find the services, spans,
-metrics, and attributes worth charting — use local telemetry while I develop and
-`everr cloud query` for production. Then write the dashboard YAML, validate each
-panel's query, and show me `everr apply --dry-run` before applying anything.
 ```
 
 The assistant inspects your data, picks the panels and queries, writes the file, and validates it against `everr cloud query` and a dry-run — so the charts render real data rather than guessed column names. The rest of this page walks through the same steps by hand so you understand what it produces.
