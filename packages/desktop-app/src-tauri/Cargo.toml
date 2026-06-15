@@ -82,6 +82,7 @@ objc2-app-kit = "0.3.2"
 
 [target."cfg(target_os = \"linux\")".dependencies]
 libloading = "0.8"
+notify-rust = "4"
 tauri-plugin-single-instance = "2"
 zbus = "5"
 
