@@ -35,7 +35,7 @@ spec:
 
 `notificationMessage.title` and `notificationMessage.description` support `${column}` placeholders. Each placeholder is replaced with that firing instance's value for the named column, so one query produces one tailored message per instance.
 
-Every referenced name must be a column the `query` returns; this is validated on apply. A missing or null value renders as empty text. The `query` SQL itself does **not** support templating — placeholders work only in the notification message fields.
+Every referenced name must be a column the `query` returns; this is validated on apply. A missing or null value renders as empty text. The `query` SQL itself does **not** support templating, placeholders work only in the notification message fields.
 
 ## Manifest
 
@@ -47,7 +47,7 @@ repoid: "2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1"
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `repoid` | string (UUID) | Stable identifier you choose once. It's the reconcile/prune boundary — apply only touches resources under this repoid. The manifest rejects any other key. |
+| `repoid` | string (UUID) | Stable identifier you choose once. It's the reconcile/prune boundary, apply only touches resources under this repoid. The manifest rejects any other key. |
 
 `everr apply <dir>` discovers every `kind: Dashboard` and `kind: AlertRule` document under the directory and makes the live resources for that repoid exactly match the tree: new documents are created, changed ones updated, and removed ones **deleted**. Use `--dry-run` to preview the changes without applying them. See the [`everr apply` reference](/docs/reference/cli#dashboards-gitops).
 

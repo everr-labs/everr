@@ -13,7 +13,6 @@ This is the shortest path to a working alert: write one rule, reconcile it with 
 
   ```sh
   export EVERR_API_TOKEN="<your-org-ingest-key>"
-  export EVERR_API_URL="https://app.everr.dev"   # your Everr host; falls back to a prior `everr cloud login` URL
   ```
 
   See the [`everr apply` reference](/docs/reference/cli#dashboards-gitops).
@@ -26,7 +25,7 @@ Make a directory to hold your alerts and add an `everr.yaml` manifest at its roo
 mkdir -p alerts
 ```
 
-The manifest declares one stable `repoid` — a UUID you pick once and keep. It scopes what apply manages (its prune boundary).
+The manifest declares one stable `repoid`, a UUID you pick once and keep. It scopes what apply manages (its prune boundary).
 
 `alerts/everr.yaml`:
 
@@ -34,7 +33,7 @@ The manifest declares one stable `repoid` — a UUID you pick once and keep. It 
 repoid: "2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1"
 ```
 
-Generate your own UUID (for example with `uuidgen`) and keep it stable — changing it makes apply treat the rules as a different repo, so it would delete the old ones and recreate them. The manifest accepts only `repoid`; any other key is rejected. See the [manifest reference](/docs/alerts/alert-spec#manifest).
+Generate your own UUID (for example with `uuidgen`) and keep it stable, changing it makes apply treat the rules as a different repo, so it would delete the old ones and recreate them. The manifest accepts only `repoid`; any other key is rejected. See the [manifest reference](/docs/alerts/alert-spec#manifest).
 
 ## Write the rule
 
@@ -67,14 +66,14 @@ spec:
 A few things worth noting:
 
 - `metadata.name` is the rule's **slug** and identity. Use lowercase letters, digits, and hyphens.
-- The query **is** the condition: one row per service over the threshold → each such service is a firing instance; nothing over the threshold → no rows → resolved. `nodejs.eventloop.delay.p99` is a Node.js runtime metric reported in seconds, so the query converts it to milliseconds. A healthy service sits around 10ms, so `HAVING p99_delay_ms > 100` stays quiet until the event loop is genuinely blocked — tune that number to your services. Averaging over the 5-minute window keeps a single momentary blip from paging.
-- `ServiceName` is a string column, so Everr uses it as each instance's identity automatically — one alert instance per service. See [Writing alert queries](/docs/alerts/writing-queries).
+- The query **is** the condition: one row per service over the threshold → each such service is a firing instance; nothing over the threshold → no rows → resolved. `nodejs.eventloop.delay.p99` is a Node.js runtime metric reported in seconds, so the query converts it to milliseconds. A healthy service sits around 10ms, so `HAVING p99_delay_ms > 100` stays quiet until the event loop is genuinely blocked, tune that number to your services. Averaging over the 5-minute window keeps a single momentary blip from paging.
+- `ServiceName` is a string column, so Everr uses it as each instance's identity automatically, one alert instance per service. See [Writing alert queries](/docs/alerts/writing-queries).
 - `notificationMessage` is templated with `${ServiceName}` and `${p99_delay_ms}` from that instance's row; only columns the query returns can be referenced.
 - `evaluationInterval: 1m` runs the query once a minute (the minimum).
 
-## Preview the change
+## Test the change
 
-Always dry-run first. It computes the diff and writes nothing:
+To validate that the queries are correct and the file is valid use dry-run
 
 ```sh
 everr apply ./alerts --dry-run
@@ -85,13 +84,14 @@ everr apply ./alerts --dry-run
   + eventloop-delay
 ```
 
-## Apply it
+## Puvlish it
 
 ```sh
 everr apply ./alerts
 ```
 
-Apply first prints a plan, then — because there are changes — asks you to confirm before writing. Answer the `Apply to «Acme Corp»?` prompt, or pass `--yes` (`-y`) to skip it (required in CI and piped contexts).
+Apply first prints a plan, then, asks you to confirm before writing. 
+Answer the `Apply to «Acme Corp»?` prompt, or pass `--yes` (`-y`) to skip it (required in CI and piped contexts).
 
 ```
 (plan) Destination org: «Acme Corp»
@@ -107,7 +107,7 @@ AlertRule: 1 created, 0 updated, 0 deleted
   + eventloop-delay
 ```
 
-If there are no changes, apply prints `Nothing to apply.` and exits without prompting. Re-running is idempotent — apply again and you'll see `Nothing to apply.`
+If there are no changes, apply prints `Nothing to apply.` and exits without prompting. Re-running is idempotent, apply again and you'll see `Nothing to apply.`
 
 ## Open it in Everr
 
@@ -115,7 +115,7 @@ Open Everr and go to **Alerts** (`/alerts`). Your `eventloop-delay` rule appears
 
 - The **Configuration** card shows the evaluation interval, instance labels, and the **Last evaluated** time.
 - When a service crosses the threshold, the **Firing instances** card lists one row per firing service with a **Firing since** time. If nothing is firing, it shows the resolved state.
-- If the query errors, the rule shows an evaluation error on the detail page — fix the SQL and re-apply.
+- If the query errors, the rule shows an evaluation error on the detail page, fix the SQL and re-apply.
 
 ## Get notified
 
@@ -123,9 +123,9 @@ Seeing the alert fire in the UI needs no setup. To actually receive it by email 
 
 ## Change and re-apply
 
-Edit the file — say, tighten the threshold to `HAVING p99_delay_ms > 200` — and apply again. A changed rule is updated in place; the slug and URL don't change because the slug didn't.
+Edit the file, say, tighten the threshold to `HAVING p99_delay_ms > 200`, and apply again. A changed rule is updated in place; the slug and URL don't change because the slug didn't.
 
-To remove a rule, delete its file and apply — reconciliation is delete-by-default within the repoid:
+To remove a rule, delete its file and apply, reconciliation is delete-by-default within the repoid:
 
 ```sh
 rm alerts/eventloop-delay.yaml

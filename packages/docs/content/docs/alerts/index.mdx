@@ -1,11 +1,15 @@
 ---
 title: Alerts
-description: Alerts are defined as code, evaluated against your ClickHouse data, and notify you per firing instance when a query starts returning rows.
+description: Alerts are defined as code, evaluated against your data, and notify you per firing instance when a query starts returning rows.
 ---
 
-Everr alerts are **defined as code**, exactly like [dashboards](/docs/dashboards). You write rules as `kind: AlertRule` YAML files in a Git repository, then reconcile them into Everr with `everr apply`. The Everr app **evaluates** each rule — it runs the query on a schedule and tracks its state — but it never edits the rule. Git is the source of truth.
+Everr alerts are **defined as code**, exactly like [dashboards](/docs/dashboards).
 
-This means an alert changes when a file changes and you apply it. Rules are reviewable in pull requests, versioned with your code, and reproducible across environments.
+You write rules as `kind: AlertRule` YAML files in a Git repository, then reconcile them into Everr with `everr apply`. The Everr app **evaluates** each rule, it runs the query on a schedule and tracks its state, but it never edits the rule. Git is the source of truth.
+
+This means an alert changes when a file changes and you apply it. 
+
+Rules are reviewable in pull requests, versioned with your code, and reproducible across environments.
 
 Here is a complete rule:
 
@@ -33,27 +37,25 @@ spec:
 
 ## The query-driven model
 
-The query *is* the alert condition. Everr runs `spec.query` — plain ClickHouse SQL — on the rule's schedule, and **every row it returns is a firing instance**. When the query returns no rows, the alert is resolved.
+The query *is* the alert condition. Everr runs `spec.query` on the rule's schedule, and **every row it returns is a firing instance**. When the query returns no rows, the alert is resolved.
 
-There is no separate threshold field. The threshold lives in the SQL itself — a `WHERE` filter, a `HAVING` clause, or whatever comparison defines "something is wrong." Choose it so the query stays quiet under normal conditions and only returns rows when a human should act: here a healthy service sits around 10ms, so `HAVING p99_delay_ms > 100` only fires when the event loop is genuinely blocked. Every alert should be actionable.
-
-Note that the query SQL does **not** support `${...}` templating — that syntax is only for notification messages. The query is the literal SQL that runs. See [Writing alert queries](/docs/alerts/writing-queries) for patterns.
+There is no separate threshold field. The threshold lives in the SQL itself, a `WHERE` filter, a `HAVING` clause, or whatever comparison defines "something is wrong." Choose it so the query stays quiet under normal conditions and only returns rows when a human should act: here a healthy service sits around 10ms, so `HAVING p99_delay_ms > 100` only fires when the event loop is genuinely blocked.
 
 ## Instances
 
-A single rule can fire for many things at once: there is one **instance** per returned row. By default, Everr derives each instance's identity from the string columns the query returns. In the example above, `ServiceName` is the identity, so the one `eventloop-delay` rule covers every service — it fires independently for `checkout`, `payments`, and anything else whose event loop is blocked.
+A single rule can fire for many things at once: there is one **instance** per returned row. By default, Everr derives each instance's identity from the string columns the query returns. In the example above, `ServiceName` is the identity, so the one `eventloop-delay` rule covers every service, it fires independently for `checkout`, `payments`, and anything else whose event loop is blocked.
 
-When the inferred identity isn't right — too coarse, too fine, or based on the wrong columns — set `spec.instanceLabels` to override which columns define an instance. See [instance identity](/docs/alerts/writing-queries#instance-identity).
+When the inferred identity isn't right, too coarse, too fine, or based on the wrong columns, set `spec.instanceLabels` to override which columns define an instance. See [instance identity](/docs/alerts/writing-queries#instance-identity).
 
 ## The evaluation lifecycle
 
 A scheduler runs each rule on its `evaluationInterval`. A rule is **firing** when at least one instance fires and **resolved** when none do.
 
-Notifications fire on the **edges** of that transition — when an instance newly starts firing and when it resolves — not on every evaluation while it stays firing. So a service whose event loop has been blocked for an hour produces one "firing" notification, not one per minute.
+Notifications fire on the **edges** of that transition, when an instance newly starts firing and when it resolves, not on every evaluation while it stays firing. So a service whose event loop has been blocked for an hour produces one "firing" notification, not one per minute.
 
 ## Notifications
 
-When an instance fires or resolves, Everr notifies the channels your organization has configured in-app (email, Telegram). Each notification is **per instance**, and its message is templated with `${column}` from that instance's row — so `${ServiceName}` and `${p99_delay_ms}` resolve to the values for the service that fired. In-app silences let you suppress notifications during maintenance. See [Notifications](/docs/alerts/notifications).
+When an instance fires or resolves, Everr notifies the channels your organization has configured in-app (email, Telegram). Each notification is **per instance**, and its message is templated with `${column}` from that instance's row, so `${ServiceName}` and `${p99_delay_ms}` resolve to the values for the service that fired. In-app silences let you suppress notifications during maintenance. See [Notifications](/docs/alerts/notifications).
 
 Every alert should be actionable: if no one would do anything when a rule fires, it shouldn't exist.
 

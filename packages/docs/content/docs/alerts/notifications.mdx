@@ -3,7 +3,7 @@ title: Notifications
 description: Send firing and resolved alerts to email and Telegram, and template the message per instance.
 ---
 
-When an alert instance fires or resolves, Everr notifies the channels enabled for your organization. Channels are configured in the app — not as code — and apply to every rule in the org. Today there are two: email and Telegram.
+When an alert instance fires or resolves, Everr notifies the channels enabled for your organization. Channels are configured in the app, not as code, and apply to every rule in the org. Today there are two: email and Telegram.
 
 ## Open notification settings
 
@@ -20,11 +20,11 @@ Enable **Telegram** and provide a **bot token** (like `123456789:ABC...`) and on
 To find a chat ID:
 
 - Add your bot to the chat and read the ID from the Telegram Bot API [`getUpdates`](https://core.telegram.org/bots/api#getupdates) response, or
-- Open the channel or group in the [Telegram web app](https://web.telegram.org) and copy the number from the URL — for channels and supergroups it's the `-100…` value, which is the chat ID.
+- Open the channel or group in the [Telegram web app](https://web.telegram.org) and copy the number from the URL, for channels and supergroups it's the `-100…` value, which is the chat ID.
 
 ## What gets sent, and when
 
-Notifications go out on the edges only: once when an instance newly fires, and once when it resolves — not repeatedly while it keeps firing.
+Notifications go out on the edges only: once when an instance newly fires, and once when it resolves, not repeatedly while it keeps firing.
 
 They are per instance. A rule firing for three services sends three firing notifications, one per service.
 
@@ -35,7 +35,7 @@ The notification text comes from `spec.notificationMessage`. The title is requir
 ```yaml
 notificationMessage:
   title: "${ServiceName} event loop is lagging"
-  description: "p99 event loop delay averaged ${p99_delay_ms}ms over the last 5 minutes — see your runbook"
+  description: "p99 event loop delay averaged ${p99_delay_ms}ms over the last 5 minutes"
 ```
 
 - Only columns the query returns can be referenced. A `${foo}` where `foo` isn't a returned column is rejected on apply.
