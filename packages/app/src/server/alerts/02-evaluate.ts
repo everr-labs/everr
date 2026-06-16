@@ -24,7 +24,6 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { activeSilenceConditions } from "@/data/alerts/silences";
-import { renderMessage } from "@/data/alerts/template";
 import { db } from "@/db/client";
 import { alertDefinitions, alertSettings, alertSilences } from "@/db/schema";
 import { querySqlApiWithMeta } from "@/lib/clickhouse";
@@ -161,16 +160,14 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
   // re-enqueue (delivery jobKeys replace, so re-enqueuing is idempotent).
   let delivery: DeliveryMetadata | null = null;
   if (transition.actions.length > 0) {
-    const firstInstance = transition.actions[0].instance;
-    const { title, description } = renderMessages(def, firstInstance.row);
-
     delivery = await enqueueAlertNotification(
       {
         def,
         kind: transition.notificationKind,
-        title,
-        description: transition.actions.length > 1 ? "" : description,
-        instances: transition.actions.map((a) => a.instance),
+        instances: transition.actions.map((a) => ({
+          ...a.instance,
+          kind: a.kind,
+        })),
       },
       scheduledFor,
       deliveryContext,
@@ -203,15 +200,6 @@ function parsePayload(payload: EvaluatePayload) {
   }
 
   return parsed.data;
-}
-
-function renderMessages(def: AlertDefinition, row?: Record<string, unknown>) {
-  return {
-    title: renderMessage(def.notificationTitleTemplate, { firstRow: row }),
-    description: def.notificationDescriptionTemplate
-      ? renderMessage(def.notificationDescriptionTemplate, { firstRow: row })
-      : "",
-  };
 }
 
 // One row per instance transition, then one evaluation event for the
@@ -253,6 +241,8 @@ function buildEventRows(opts: {
     events.push(
       buildEvaluationEvent({
         def,
+        // event_type only carries firing/resolved; a mixed evaluation (the rule
+        // is still firing) is recorded as a firing event.
         eventType:
           transition.notificationKind === "mixed"
             ? "firing"

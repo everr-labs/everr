@@ -40,7 +40,17 @@ import {
   runDeliverySend,
 } from "./04-delivery";
 
-const def = { id: "a1", organizationId: "org-1", repoid: "r1", slug: "s1" };
+const def = {
+  id: "a1",
+  organizationId: "org-1",
+  repoid: "r1",
+  slug: "s1",
+  notificationTitleTemplate: "3 bad",
+  notificationDescriptionTemplate: "",
+};
+
+// The parsed def (without template fields) as it appears in delivery jobs
+const sendDef = { id: "a1", organizationId: "org-1", repoid: "r1", slug: "s1" };
 const scheduledFor = new Date("2026-06-12T12:00:00Z");
 
 const defaultContext: ResolvedDeliveryContext = {
@@ -75,8 +85,6 @@ describe("enqueueAlertNotification", () => {
       {
         def,
         kind: "firing",
-        title: "3 bad",
-        description: "",
         instances: [{ labels: { route: "/a" } }],
       },
       scheduledFor,
@@ -133,8 +141,6 @@ describe("enqueueAlertNotification", () => {
       {
         def,
         kind: "firing",
-        title: "x",
-        description: "",
         instances: [{ labels: { route: "/a" } }],
       },
       scheduledFor,
@@ -157,8 +163,6 @@ describe("enqueueAlertNotification", () => {
       {
         def,
         kind: "firing",
-        title: "x",
-        description: "",
         instances: [{ labels: { route: "/a" } }, { labels: { route: "/b" } }],
       },
       scheduledFor,
@@ -187,8 +191,6 @@ describe("enqueueAlertNotification", () => {
       {
         def,
         kind: "firing",
-        title: "x",
-        description: "",
         instances: [{ labels: { route: "/a" } }],
       },
       scheduledFor,
@@ -204,8 +206,6 @@ describe("enqueueAlertNotification", () => {
       {
         def,
         kind: "resolved",
-        title: "ok",
-        description: "",
         instances: [
           {
             labels: { route: "/a" },
@@ -232,13 +232,47 @@ describe("enqueueAlertNotification", () => {
     );
   });
 
+  it("renders mixed notifications with firing and resolved sections", async () => {
+    await enqueueAlertNotification(
+      {
+        def,
+        kind: "mixed",
+        instances: [
+          { labels: { route: "/a" }, row: { error_rate: 5.1 }, kind: "firing" },
+          {
+            labels: { route: "/b" },
+            firedAt: new Date("2026-06-12T11:18:00Z"),
+            kind: "resolved",
+          },
+        ],
+      },
+      scheduledFor,
+      defaultContext,
+    );
+
+    const sends = queuedSends();
+    const telegram = sends[0];
+    expect(telegram.text).toBe(
+      [
+        "🔥 s1 firing + resolved",
+        "",
+        "Firing:",
+        "• route=/a — error_rate: 5.1",
+        "",
+        "Resolved:",
+        "• route=/b — fired for 42m",
+        "",
+        "2026-06-12 12:00 UTC",
+        "https://app.example.com/alerts/a1",
+      ].join("\n"),
+    );
+  });
+
   it("returns null when settings are null", async () => {
     const result = await enqueueAlertNotification(
       {
         def,
         kind: "firing",
-        title: "x",
-        description: "",
         instances: [{ labels: { route: "/a" } }],
       },
       scheduledFor,
@@ -256,7 +290,7 @@ function telegramSend(): DeliverySend {
     target: "123",
     botToken: "bot-token",
     text: "text",
-    def,
+    def: sendDef,
     scheduledFor,
   };
 }
@@ -295,7 +329,7 @@ describe("runDeliverySend", () => {
     ).rejects.toThrow("chat deleted");
 
     expect(recordEvents).toHaveBeenCalledWith(
-      def,
+      sendDef,
       [
         expect.objectContaining({
           event_type: "delivery_failed",

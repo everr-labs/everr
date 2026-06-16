@@ -5,12 +5,19 @@ import {
   formatUtc,
   instanceLine,
   KIND_STATUS,
+  type NotifiableInstance,
 } from "./04-format";
+
+export interface RenderedMessages {
+  title: string;
+  description: string;
+}
 
 // Plain text by choice: no parse mode means nothing to escape, nothing for
 // Telegram to reject, and the URL in the body needs no validation.
 export function buildTelegramText(
   input: DeliveryInput,
+  rendered: RenderedMessages,
   opts: BuildOptions,
 ): string {
   const status = KIND_STATUS[input.kind];
@@ -19,9 +26,15 @@ export function buildTelegramText(
   ];
 
   if (input.kind === "mixed") {
-    // Mixed: firing + resolved in one notification
-    const firingInstances = input.instances.filter((i) => i.row);
-    const resolvedInstances = input.instances.filter((i) => !i.row);
+    // Mixed: firing + resolved in one notification. Split by the instance's own
+    // kind in a single pass rather than inferring it from `row` presence.
+    const firingInstances: NotifiableInstance[] = [];
+    const resolvedInstances: NotifiableInstance[] = [];
+    for (const instance of input.instances) {
+      (instance.kind === "resolved" ? resolvedInstances : firingInstances).push(
+        instance,
+      );
+    }
 
     if (firingInstances.length > 0) {
       lines.push("", "Firing:");
@@ -36,9 +49,9 @@ export function buildTelegramText(
       }
     }
   } else if (input.kind === "firing") {
-    lines.push("", input.title);
-    if (input.instances.length === 1 && input.description) {
-      lines.push("", input.description);
+    lines.push("", rendered.title);
+    if (rendered.description) {
+      lines.push("", rendered.description);
     }
     lines.push("");
     for (const instance of input.instances) {

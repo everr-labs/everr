@@ -6,10 +6,15 @@ import { isNumericValue } from "@/lib/numeric";
 export type DeliveryKind = "firing" | "resolved" | "mixed";
 
 export interface DeliveryInput {
-  def: { id: string; organizationId: string; repoid: string; slug: string };
+  def: {
+    id: string;
+    organizationId: string;
+    repoid: string;
+    slug: string;
+    notificationTitleTemplate: string;
+    notificationDescriptionTemplate?: string;
+  };
   kind: DeliveryKind;
-  title: string;
-  description: string;
   instances: NotifiableInstance[];
 }
 
@@ -36,6 +41,10 @@ export interface NotifiableInstance {
   labels: Record<string, string>;
   firedAt?: Date;
   row?: Record<string, unknown>;
+  // Whether this instance newly fired or resolved in the evaluation. Drives the
+  // firing/resolved split in a mixed notification rather than inferring it from
+  // the presence of `row`.
+  kind?: "firing" | "resolved";
 }
 
 // Notification timestamps are always UTC: recipients of one alert can be in

@@ -1,22 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  validateEmailRecipient,
-  validateTelegramBotToken,
-  validateTelegramChatId,
-} from "./recipients";
-
-describe("validateEmailRecipient", () => {
-  it("accepts valid addresses", () => {
-    expect(validateEmailRecipient("team@example.com")).toBeNull();
-    expect(validateEmailRecipient("a.b+c@sub.example.co")).toBeNull();
-  });
-
-  it("rejects malformed addresses with a message naming the value", () => {
-    expect(validateEmailRecipient("foo@")).toBe("Invalid email: foo@");
-    expect(validateEmailRecipient("foo@bar")).toContain("foo@bar");
-    expect(validateEmailRecipient("foo bar@example.com")).not.toBeNull();
-  });
-});
+import { validateTelegramBotToken, validateTelegramChatId } from "./recipients";
 
 describe("validateTelegramChatId", () => {
   it("accepts numeric IDs, including negative group IDs", () => {

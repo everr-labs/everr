@@ -19,6 +19,7 @@ import type {
   AlertDeliveryTargets,
 } from "@/data/alerts/delivery-settings";
 import { findSilenceForInstance, type Matcher } from "@/data/alerts/matchers";
+import { renderMessage } from "@/data/alerts/template";
 import { env } from "@/env";
 import { sendTelegramMessage } from "@/lib/telegram.server";
 import { addWorkerJob } from "@/server/worker/jobs";
@@ -77,6 +78,23 @@ function alertUrl(alertId: string): string {
   return new URL(`/alerts/${alertId}`, env.BETTER_AUTH_URL).toString();
 }
 
+function renderNotificationMessages(
+  def: DeliveryInput["def"],
+  instances: DeliveryInput["instances"],
+): { title: string; description: string } {
+  const firstRow = instances[0]?.row;
+  const title = renderMessage(def.notificationTitleTemplate, {
+    firstRow,
+  });
+  const description = def.notificationDescriptionTemplate
+    ? renderMessage(def.notificationDescriptionTemplate, { firstRow })
+    : "";
+  return {
+    title,
+    description: instances.length > 1 ? "" : description,
+  };
+}
+
 // Resolves targets, applies silences, renders messages, and enqueues the
 // per-target delivery jobs. Returns what the evaluation event should record:
 // the attempted target map, or the suppressing silence.
@@ -109,8 +127,10 @@ export async function enqueueAlertNotification(
 
   const now = new Date();
   const buildOptions = { url: alertUrl(def.id), now };
+  const rendered = renderNotificationMessages(def, unsilencedInstances);
   const telegramText = buildTelegramText(
     { ...input, instances: unsilencedInstances },
+    rendered,
     buildOptions,
   );
 
