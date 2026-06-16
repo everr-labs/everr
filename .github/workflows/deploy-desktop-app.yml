@@ -271,6 +271,7 @@ jobs:
   # serve them, plus a Linux `latest.json` if auto-update is wanted).
   build-linux-desktop:
     name: Build Linux Desktop ${{ matrix.name }}
+    if: false
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 40
     strategy:
@@ -404,6 +405,7 @@ jobs:
           done
 
       - name: Stage action bundled CLI assets
+        if: false
         run: |
           set -euo pipefail
 
@@ -503,6 +505,7 @@ jobs:
           compression-level: 0
 
       - name: Upload action bundled CLI artifact
+        if: false
         uses: actions/upload-artifact@v4
         with:
           name: everr-action-bundled-cli-${{ steps.version.outputs.version }}
@@ -512,6 +515,7 @@ jobs:
           compression-level: 0
 
       - name: Generate GitHub App token for action repo
+        if: false
         id: action-repo-token
         uses: actions/create-github-app-token@v3
         with:
@@ -521,6 +525,7 @@ jobs:
           repositories: everr-action
 
       - name: Push bundled CLI assets to action repo
+        if: false
         env:
           GH_TOKEN: ${{ steps.action-repo-token.outputs.token }}
           SRC_SHA: ${{ github.sha }}
