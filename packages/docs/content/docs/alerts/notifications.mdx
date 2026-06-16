@@ -18,29 +18,6 @@ To find a chat ID:
 - Add your bot to the chat and read the ID from the Telegram Bot API [`getUpdates`](https://core.telegram.org/bots/api#getupdates) response, or
 - Open the channel or group in the [Telegram web app](https://web.telegram.org) and copy the number from the URL, for channels and supergroups it's the `-100…` value, which is the chat ID.
 
-## What gets sent, and when
-
-One notification per evaluation, not per instance. If a rule fires for three services in the same evaluation, you get one notification listing all three.
-
-Notifications go out on the edges only: once when instances newly fire, and once when they resolve, not repeatedly while they keep firing.
-
-Mixed evaluations (some firing, some resolving) produce a single combined notification with both sections.
-
-## Write the message
-
-The notification text comes from `spec.notificationMessage`. The title is required, the description is optional. Both support `${column}` placeholders, filled from the first firing instance's row:
-
-```yaml
-notificationMessage:
-  title: "${ServiceName} event loop is lagging"
-  description: "p99 event loop delay averaged ${p99_delay_ms}ms over the last 5 minutes"
-```
-
-- Only columns the query returns can be referenced. A `${foo}` where `foo` isn't a returned column is rejected on apply.
-- A missing or null value renders as empty.
-- The description is only shown for single-instance notifications. When multiple instances fire, the title is repeated per instance instead.
-- Put a runbook or dashboard link in the description so responders can act without opening Everr.
-
 ## Silence during maintenance
 
 To stop notifications for a known issue or maintenance window without deleting the rule, silence it from the alert's detail page. Use the **Silence** action on a firing instance and set a time window. The rule keeps evaluating; silenced instances are filtered out of notifications. If all instances are silenced, no notification is sent.

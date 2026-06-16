@@ -84,8 +84,7 @@ describe("enqueueAlertNotification", () => {
     const result = await enqueueAlertNotification(
       {
         def,
-        kind: "firing",
-        instances: [{ labels: { route: "/a" } }],
+        instances: [{ labels: { route: "/a" }, kind: "firing" }],
       },
       scheduledFor,
       defaultContext,
@@ -122,10 +121,51 @@ describe("enqueueAlertNotification", () => {
 
     expect(sendTelegram).not.toHaveBeenCalled();
     expect(result).toEqual({
-      deliveryTargets: {
-        telegram: ["123"],
+      deliveryTargets: { telegram: ["123"] },
+      perKind: { firing: { silenceId: "" } },
+    });
+  });
+
+  it("repeats the title per instance for multiple firing instances", async () => {
+    const result = await enqueueAlertNotification(
+      {
+        // biome-ignore lint/suspicious/noTemplateCurlyInString: intentional template placeholder
+        def: { ...def, notificationTitleTemplate: "${route} is lagging" },
+        instances: [
+          {
+            labels: { route: "/a" },
+            row: { route: "/a", error_rate: 5.1 },
+            kind: "firing",
+          },
+          {
+            labels: { route: "/b" },
+            row: { route: "/b", error_rate: 6.3 },
+            kind: "firing",
+          },
+        ],
       },
-      silenceId: "",
+      scheduledFor,
+      defaultContext,
+    );
+
+    expect(addWorkerJob).toHaveBeenCalledTimes(1);
+    const telegram = queuedSends()[0];
+    expect(telegram.text).toBe(
+      [
+        "🔥 s1 firing",
+        "",
+        "• /a is lagging",
+        "  route=/a — error_rate: 5.1",
+        "• /b is lagging",
+        "  route=/b — error_rate: 6.3",
+        "",
+        "2026-06-12 12:00 UTC",
+        "https://app.example.com/alerts/a1",
+      ].join("\n"),
+    );
+    expect(result).toEqual({
+      deliveryTargets: { telegram: ["123"] },
+      perKind: { firing: { silenceId: "" } },
     });
   });
 
@@ -140,15 +180,17 @@ describe("enqueueAlertNotification", () => {
     const result = await enqueueAlertNotification(
       {
         def,
-        kind: "firing",
-        instances: [{ labels: { route: "/a" } }],
+        instances: [{ labels: { route: "/a" }, kind: "firing" }],
       },
       scheduledFor,
       silencedContext,
     );
 
     expect(addWorkerJob).not.toHaveBeenCalled();
-    expect(result).toEqual({ deliveryTargets: {}, silenceId: "all-silenced" });
+    expect(result).toEqual({
+      deliveryTargets: {},
+      perKind: { firing: { silenceId: "sil-1" } },
+    });
   });
 
   it("filters out silenced instances and notifies with remaining", async () => {
@@ -162,8 +204,10 @@ describe("enqueueAlertNotification", () => {
     const result = await enqueueAlertNotification(
       {
         def,
-        kind: "firing",
-        instances: [{ labels: { route: "/a" } }, { labels: { route: "/b" } }],
+        instances: [
+          { labels: { route: "/a" }, kind: "firing" },
+          { labels: { route: "/b" }, kind: "firing" },
+        ],
       },
       scheduledFor,
       silencedContext,
@@ -174,10 +218,8 @@ describe("enqueueAlertNotification", () => {
     expect(telegram?.text).toContain("route=/b");
     expect(telegram?.text).not.toContain("route=/a");
     expect(result).toEqual({
-      deliveryTargets: {
-        telegram: ["123"],
-      },
-      silenceId: "",
+      deliveryTargets: { telegram: ["123"] },
+      perKind: { firing: { silenceId: "" } },
     });
   });
 
@@ -190,26 +232,56 @@ describe("enqueueAlertNotification", () => {
     const result = await enqueueAlertNotification(
       {
         def,
-        kind: "firing",
-        instances: [{ labels: { route: "/a" } }],
+        instances: [{ labels: { route: "/a" }, kind: "firing" }],
       },
       scheduledFor,
       silencedContext,
     );
 
     expect(addWorkerJob).not.toHaveBeenCalled();
-    expect(result).toEqual({ deliveryTargets: {}, silenceId: "all-silenced" });
+    expect(result).toEqual({
+      deliveryTargets: {},
+      perKind: { firing: { silenceId: "sil-1" } },
+    });
+  });
+
+  it("records the first silence id when a kind is fully suppressed by different rules", async () => {
+    const silencedContext: ResolvedDeliveryContext = {
+      ...defaultContext,
+      silences: [
+        { id: "sil-1", matchers: [{ label: "route", op: "=", value: "/a" }] },
+        { id: "sil-2", matchers: [{ label: "route", op: "=", value: "/b" }] },
+      ],
+    };
+
+    const result = await enqueueAlertNotification(
+      {
+        def,
+        instances: [
+          { labels: { route: "/a" }, kind: "firing" },
+          { labels: { route: "/b" }, kind: "firing" },
+        ],
+      },
+      scheduledFor,
+      silencedContext,
+    );
+
+    expect(addWorkerJob).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      deliveryTargets: {},
+      perKind: { firing: { silenceId: "sil-1" } },
+    });
   });
 
   it("renders resolved notifications with firing durations", async () => {
     await enqueueAlertNotification(
       {
         def,
-        kind: "resolved",
         instances: [
           {
             labels: { route: "/a" },
             firedAt: new Date("2026-06-12T11:18:00Z"),
+            kind: "resolved",
           },
         ],
       },
@@ -236,7 +308,6 @@ describe("enqueueAlertNotification", () => {
     await enqueueAlertNotification(
       {
         def,
-        kind: "mixed",
         instances: [
           { labels: { route: "/a" }, row: { error_rate: 5.1 }, kind: "firing" },
           {
@@ -257,7 +328,8 @@ describe("enqueueAlertNotification", () => {
         "🔥 s1 firing + resolved",
         "",
         "Firing:",
-        "• route=/a — error_rate: 5.1",
+        "• 3 bad",
+        "  route=/a — error_rate: 5.1",
         "",
         "Resolved:",
         "• route=/b — fired for 42m",
@@ -268,12 +340,55 @@ describe("enqueueAlertNotification", () => {
     );
   });
 
+  it("drops a fully-silenced kind from a mixed notification but delivers the rest", async () => {
+    const silencedContext: ResolvedDeliveryContext = {
+      ...defaultContext,
+      silences: [
+        { id: "sil-1", matchers: [{ label: "route", op: "=", value: "/a" }] },
+      ],
+    };
+
+    const result = await enqueueAlertNotification(
+      {
+        def,
+        instances: [
+          { labels: { route: "/a" }, row: { error_rate: 5.1 }, kind: "firing" },
+          {
+            labels: { route: "/b" },
+            firedAt: new Date("2026-06-12T11:18:00Z"),
+            kind: "resolved",
+          },
+        ],
+      },
+      scheduledFor,
+      silencedContext,
+    );
+
+    expect(addWorkerJob).toHaveBeenCalledTimes(1);
+    const telegram = queuedSends()[0];
+    // The firing half was fully silenced, so the message drops to resolved.
+    expect(telegram.text).toBe(
+      [
+        "✅ s1 resolved",
+        "",
+        "Instance resolved (fired for 42m)",
+        "• route=/b — fired for 42m",
+        "",
+        "2026-06-12 12:00 UTC",
+        "https://app.example.com/alerts/a1",
+      ].join("\n"),
+    );
+    expect(result).toEqual({
+      deliveryTargets: { telegram: ["123"] },
+      perKind: { firing: { silenceId: "sil-1" }, resolved: { silenceId: "" } },
+    });
+  });
+
   it("returns null when settings are null", async () => {
     const result = await enqueueAlertNotification(
       {
         def,
-        kind: "firing",
-        instances: [{ labels: { route: "/a" } }],
+        instances: [{ labels: { route: "/a" }, kind: "firing" }],
       },
       scheduledFor,
       { settings: null, silences: [] },

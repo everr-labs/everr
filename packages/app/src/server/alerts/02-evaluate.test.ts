@@ -97,7 +97,7 @@ beforeEach(() => {
   selectCallCount = 0;
   deliver.mockResolvedValue({
     deliveryTargets: { telegram: ["123"] },
-    silenceId: "",
+    perKind: { firing: { silenceId: "" }, resolved: { silenceId: "" } },
   });
   insertEvents.mockResolvedValue(undefined);
   fetchFiring.mockResolvedValue([]);
@@ -143,7 +143,11 @@ describe("evaluateAlert", () => {
       ),
     ).toBe(true);
     expect(deliver).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: "firing" }),
+      expect.objectContaining({
+        instances: expect.arrayContaining([
+          expect.objectContaining({ kind: "firing" }),
+        ]),
+      }),
       expect.any(Date),
       expect.any(Object),
     );
@@ -168,7 +172,11 @@ describe("evaluateAlert", () => {
       }),
     );
     expect(deliver).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: "firing" }),
+      expect.objectContaining({
+        instances: expect.arrayContaining([
+          expect.objectContaining({ kind: "firing" }),
+        ]),
+      }),
       expect.any(Date),
       expect.any(Object),
     );
@@ -213,7 +221,11 @@ describe("evaluateAlert", () => {
       ),
     ).toBe(true);
     expect(deliver).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: "firing" }),
+      expect.objectContaining({
+        instances: expect.arrayContaining([
+          expect.objectContaining({ kind: "firing" }),
+        ]),
+      }),
       expect.any(Date),
       expect.any(Object),
     );
@@ -239,9 +251,8 @@ describe("evaluateAlert", () => {
     ]);
     expect(deliver).toHaveBeenCalledWith(
       expect.objectContaining({
-        kind: "firing",
         instances: expect.arrayContaining([
-          expect.objectContaining({ fingerprint: fp("/y") }),
+          expect.objectContaining({ fingerprint: fp("/y"), kind: "firing" }),
         ]),
       }),
       expect.any(Date),
@@ -280,7 +291,11 @@ describe("evaluateAlert", () => {
       "resolved",
     ]);
     expect(deliver).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: "resolved" }),
+      expect.objectContaining({
+        instances: expect.arrayContaining([
+          expect.objectContaining({ kind: "resolved" }),
+        ]),
+      }),
       expect.any(Date),
       expect.any(Object),
     );
@@ -303,12 +318,41 @@ describe("evaluateAlert", () => {
     ]);
     expect(deliver).toHaveBeenCalledWith(
       expect.objectContaining({
-        kind: "resolved",
         instances: expect.arrayContaining([
           expect.objectContaining({
             fingerprint: fp("/y"),
             labels: { route: "/y" },
+            kind: "resolved",
           }),
+        ]),
+      }),
+      expect.any(Date),
+      expect.any(Object),
+    );
+  });
+
+  it("notifies both firing and resolved when instances churn", async () => {
+    definitionRows.mockReturnValue([{ ...baseDef, currentState: "firing" }]);
+    fetchFiring.mockResolvedValue([firing("/x")]);
+    sqlApi.mockResolvedValue({ rows: [{ route: "/y" }], columns: ["route"] });
+
+    await evaluateAlert({
+      alertDefinitionId,
+      scheduledFor: "2026-06-10T12:00:00.000Z",
+    });
+
+    const inserted = insertEvents.mock.calls[0][0] as Record<string, unknown>[];
+    expect(inserted.map((e) => e.event_type)).toEqual([
+      "instance_fired",
+      "instance_resolved",
+      "firing",
+      "resolved",
+    ]);
+    expect(deliver).toHaveBeenCalledWith(
+      expect.objectContaining({
+        instances: expect.arrayContaining([
+          expect.objectContaining({ fingerprint: fp("/y"), kind: "firing" }),
+          expect.objectContaining({ fingerprint: fp("/x"), kind: "resolved" }),
         ]),
       }),
       expect.any(Date),

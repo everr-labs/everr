@@ -19,7 +19,6 @@ import type {
   AlertDeliveryTargets,
 } from "@/data/alerts/delivery-settings";
 import { findSilenceForInstance, type Matcher } from "@/data/alerts/matchers";
-import { renderMessage } from "@/data/alerts/template";
 import { env } from "@/env";
 import { sendTelegramMessage } from "@/lib/telegram.server";
 import { addWorkerJob } from "@/server/worker/jobs";
@@ -29,7 +28,11 @@ import {
   serverLogger,
 } from "@/telemetry/logger";
 import { buildDeliveryFailureEvent, recordAlertEvents } from "./03-events";
-import type { DeliveryInput } from "./04-format";
+import type {
+  DeliveryInput,
+  DeliveryKind,
+  NotifiableInstance,
+} from "./04-format";
 import { buildTelegramText } from "./04-telegram";
 
 export type { DeliveryInput } from "./04-format";
@@ -69,41 +72,48 @@ const DeliverySendSchema = SendBaseSchema.extend({
 
 export type DeliverySend = z.infer<typeof DeliverySendSchema>;
 
-export interface DeliveryMetadata {
+// What each kind contributed to the evaluation events: the silence that
+// suppressed it (every instance of the kind silenced), or "" when it notified.
+export type NotificationKind = "firing" | "resolved";
+
+export interface NotificationOutcome {
+  // Where the (single, combined) notification went; {} when nothing was sent.
   deliveryTargets: AlertDeliveryTargets;
-  silenceId: string;
+  // Present for each kind that had instances this evaluation.
+  perKind: Partial<Record<NotificationKind, { silenceId: string }>>;
+}
+
+export interface NotificationInput {
+  def: DeliveryInput["def"];
+  instances: NotifiableInstance[];
 }
 
 function alertUrl(alertId: string): string {
   return new URL(`/alerts/${alertId}`, env.BETTER_AUTH_URL).toString();
 }
 
-function renderNotificationMessages(
-  def: DeliveryInput["def"],
-  instances: DeliveryInput["instances"],
-): { title: string; description: string } {
-  const firstRow = instances[0]?.row;
-  const title = renderMessage(def.notificationTitleTemplate, {
-    firstRow,
-  });
-  const description = def.notificationDescriptionTemplate
-    ? renderMessage(def.notificationDescriptionTemplate, { firstRow })
-    : "";
-  return {
-    title,
-    description: instances.length > 1 ? "" : description,
-  };
+function instanceKind(instance: NotifiableInstance): NotificationKind {
+  return instance.kind === "resolved" ? "resolved" : "firing";
 }
 
-// Resolves targets, applies silences, renders messages, and enqueues the
-// per-target delivery jobs. Returns what the evaluation event should record:
-// the attempted target map, or the suppressing silence.
+// The message header reflects what actually goes out after silencing, so a
+// fully-silenced firing half correctly drops a mixed evaluation to "resolved".
+function deriveMessageKind(instances: NotifiableInstance[]): DeliveryKind {
+  const hasFiring = instances.some((i) => instanceKind(i) === "firing");
+  const hasResolved = instances.some((i) => instanceKind(i) === "resolved");
+  if (hasFiring && hasResolved) return "mixed";
+  return hasResolved ? "resolved" : "firing";
+}
+
+// Resolves targets, applies silences, renders the message, and enqueues the
+// per-target delivery jobs. Returns what the evaluation events should record:
+// per kind, the attempted target map or the suppressing silence.
 export async function enqueueAlertNotification(
-  input: DeliveryInput,
+  input: NotificationInput,
   scheduledFor: Date,
   context: ResolvedDeliveryContext,
-): Promise<DeliveryMetadata | null> {
-  const { def, kind } = input;
+): Promise<NotificationOutcome | null> {
+  const { def } = input;
 
   const delivery = context.settings?.delivery;
   if (!delivery) return null;
@@ -115,55 +125,68 @@ export async function enqueueAlertNotification(
   }
   if (Object.keys(deliveryTargets).length === 0) return null;
 
-  // Filter out silenced instances
-  const unsilencedInstances = input.instances.filter(
-    (instance) => !findSilenceForInstance(silences, instance.labels),
-  );
+  // Resolve each instance's silence once, then derive the per-kind outcome and
+  // the instances that still notify.
+  const resolved = input.instances.map((instance) => ({
+    instance,
+    silence: findSilenceForInstance(silences, instance.labels),
+  }));
+  const unsilenced = resolved.filter((r) => !r.silence).map((r) => r.instance);
 
-  // If all instances are silenced, skip notification
-  if (unsilencedInstances.length === 0) {
-    return { deliveryTargets: {}, silenceId: "all-silenced" };
+  // Per kind: "" when at least one of its instances notifies, otherwise the
+  // first matching silence's id (the kind was fully suppressed).
+  const perKind: NotificationOutcome["perKind"] = {};
+  for (const kind of ["firing", "resolved"] as const) {
+    const ofKind = resolved.filter((r) => instanceKind(r.instance) === kind);
+    if (ofKind.length === 0) continue;
+    const suppressed = ofKind.every((r) => r.silence);
+    perKind[kind] = {
+      silenceId: suppressed
+        ? (ofKind.find((r) => r.silence)?.silence?.id ?? "")
+        : "",
+    };
   }
 
+  // Nothing left to send, but still report the per-kind silence outcome.
+  if (unsilenced.length === 0) {
+    return { deliveryTargets: {}, perKind };
+  }
+
+  const messageKind = deriveMessageKind(unsilenced);
   const now = new Date();
   const buildOptions = { url: alertUrl(def.id), now };
-  const rendered = renderNotificationMessages(def, unsilencedInstances);
   const telegramText = buildTelegramText(
-    { ...input, instances: unsilencedInstances },
-    rendered,
+    { def, kind: messageKind, instances: unsilenced },
     buildOptions,
   );
 
   // Zod strips unknown keys, so this is the schema-defined subset of the full
   // definition row — one field list to maintain.
   const sendDef = SendDefSchema.parse(def);
-  const sends: DeliverySend[] = [
-    ...(deliveryTargets.telegram ?? []).map(
-      (target): DeliverySend => ({
-        channel: "telegram",
-        target,
-        botToken: delivery.telegram?.botToken ?? "",
-        text: telegramText,
-        def: sendDef,
-        scheduledFor,
-      }),
-    ),
-  ];
+  const sends: DeliverySend[] = (deliveryTargets.telegram ?? []).map(
+    (target): DeliverySend => ({
+      channel: "telegram",
+      target,
+      botToken: delivery.telegram?.botToken ?? "",
+      text: telegramText,
+      def: sendDef,
+      scheduledFor,
+    }),
+  );
 
-  // The job key spans evaluation + notification kind + target, so a retried
+  // The job key spans evaluation + message kind + target, so a retried
   // evaluation re-enqueues (replaces) the same jobs instead of duplicating
-  // them, while firing and resolved sends of one evaluation stay distinct.
-  // Sequential on purpose: each add_job is a sub-millisecond insert, and a
-  // parallel fan-out would briefly monopolize the shared pg pool.
+  // them. Sequential on purpose: each add_job is a sub-millisecond insert, and
+  // a parallel fan-out would briefly monopolize the shared pg pool.
   for (const send of sends) {
     await addWorkerJob(ALERT_DELIVER_TASK, send, {
-      jobKey: `${ALERT_DELIVER_TASK}:${def.id}:${scheduledFor.toISOString()}:${kind}:${send.channel}:${send.target}`,
+      jobKey: `${ALERT_DELIVER_TASK}:${def.id}:${scheduledFor.toISOString()}:${messageKind}:${send.channel}:${send.target}`,
       jobKeyMode: "replace",
       maxAttempts: DELIVERY_MAX_ATTEMPTS,
     });
   }
 
-  return { deliveryTargets, silenceId: "" };
+  return { deliveryTargets, perKind };
 }
 
 // The `alerts/deliver` task: one send, throwing on failure so Graphile Worker

@@ -98,12 +98,22 @@ function instanceDetail(
     : "";
 }
 
+// The instance's labels with its breaching values or fired-for duration
+// appended, without a bullet, so callers can prefix or indent it themselves.
+export function instanceDetailText(
+  instance: NotifiableInstance,
+  kind: DeliveryKind,
+  now: Date,
+): string {
+  const detail = instanceDetail(instance, kind, now);
+  return `${formatLabels(instance.labels)}${detail ? ` — ${detail}` : ""}`;
+}
+
 export function instanceLine(
   instance: NotifiableInstance,
   kind: DeliveryKind,
   now: Date,
   bullet: string,
 ): string {
-  const detail = instanceDetail(instance, kind, now);
-  return `${bullet} ${formatLabels(instance.labels)}${detail ? ` — ${detail}` : ""}`;
+  return `${bullet} ${instanceDetailText(instance, kind, now)}`;
 }

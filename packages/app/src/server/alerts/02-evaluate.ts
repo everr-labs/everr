@@ -39,7 +39,7 @@ import {
   type InstanceDiff,
   rowsToInstances,
 } from "./02-instances";
-import { type AlertTransition, buildAlertTransition } from "./02-transition";
+import { buildAlertTransition } from "./02-transition";
 import {
   type AlertEventRow,
   type BoundedEvidence,
@@ -49,8 +49,8 @@ import {
   recordAlertEvents,
 } from "./03-events";
 import {
-  type DeliveryMetadata,
   enqueueAlertNotification,
+  type NotificationOutcome,
   type ResolvedDeliveryContext,
 } from "./04-delivery";
 
@@ -158,12 +158,11 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
   // already firing and skip the re-enqueue, dropping the notification. On
   // failure we throw without recording, letting the job retry re-derive and
   // re-enqueue (delivery jobKeys replace, so re-enqueuing is idempotent).
-  let delivery: DeliveryMetadata | null = null;
+  let delivery: NotificationOutcome | null = null;
   if (transition.actions.length > 0) {
     delivery = await enqueueAlertNotification(
       {
         def,
-        kind: transition.notificationKind,
         instances: transition.actions.map((a) => ({
           ...a.instance,
           kind: a.kind,
@@ -182,7 +181,6 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
       scheduledFor,
       evidence,
       diff,
-      transition,
       delivery,
     }),
     "alerts.evaluate.event_insert_failed",
@@ -202,17 +200,17 @@ function parsePayload(payload: EvaluatePayload) {
   return parsed.data;
 }
 
-// One row per instance transition, then one evaluation event for the
-// notification carrying the targets it was queued for (or the suppressing silence).
+// One row per instance transition, then one evaluation event per notified kind
+// (a churned evaluation emits both a firing and a resolved row). Each carries
+// the targets it was queued for, or the silence that suppressed that kind.
 function buildEventRows(opts: {
   def: AlertDefinition;
   scheduledFor: Date;
   evidence: BoundedEvidence;
   diff: InstanceDiff;
-  transition: AlertTransition;
-  delivery: DeliveryMetadata | null;
+  delivery: NotificationOutcome | null;
 }): AlertEventRow[] {
-  const { def, scheduledFor, evidence, diff, transition, delivery } = opts;
+  const { def, scheduledFor, evidence, diff, delivery } = opts;
 
   const events: AlertEventRow[] = [
     ...diff.newlyFired.map((instance) =>
@@ -236,25 +234,25 @@ function buildEventRows(opts: {
     ),
   ];
 
-  // One evaluation event for the notification (if any actions exist)
-  if (transition.actions.length > 0) {
+  const kindPresent = {
+    firing: diff.newlyFired.length > 0,
+    resolved: diff.nowResolved.length > 0,
+  } as const;
+  for (const kind of ["firing", "resolved"] as const) {
+    if (!kindPresent[kind]) continue;
+    const meta = delivery?.perKind[kind];
     events.push(
       buildEvaluationEvent({
         def,
-        // event_type only carries firing/resolved; a mixed evaluation (the rule
-        // is still firing) is recorded as a firing event.
-        eventType:
-          transition.notificationKind === "mixed"
-            ? "firing"
-            : transition.notificationKind,
+        eventType: kind,
         scheduledFor,
         evidence,
-        ...(delivery
-          ? {
-              deliveryTargets: delivery.deliveryTargets,
-              silenceId: delivery.silenceId,
-            }
+        // Delivered (silenceId === "") records where it went; suppressed
+        // records the silence; no settings records neither.
+        ...(delivery && meta && !meta.silenceId
+          ? { deliveryTargets: delivery.deliveryTargets }
           : {}),
+        ...(meta ? { silenceId: meta.silenceId } : {}),
       }),
     );
   }

@@ -14,7 +14,7 @@ import type {
   FiringInstance,
   InstanceDiff,
 } from "./02-instances";
-import type { DeliveryKind, NotifiableInstance } from "./04-format";
+import type { NotifiableInstance } from "./04-format";
 
 // The runtime states the machine moves between.
 //
@@ -81,7 +81,6 @@ export interface AlertTransition {
   firingCount: number;
   definitionUpdate: AlertStateUpdate;
   actions: AlertTransitionAction[];
-  notificationKind: DeliveryKind;
 }
 
 function transitionName(input: {
@@ -146,19 +145,11 @@ export function buildAlertTransition(input: {
     actions.push({ kind: "resolved", instance });
   }
 
-  const notificationKind: DeliveryKind =
-    hasNewlyFired && hasResolved
-      ? "mixed"
-      : hasNewlyFired
-        ? "firing"
-        : "resolved";
-
   return {
     name,
     nextState,
     firingCount: input.current.length,
     definitionUpdate,
     actions,
-    notificationKind,
   };
 }
