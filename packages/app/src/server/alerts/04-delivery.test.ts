@@ -366,7 +366,6 @@ describe("enqueueAlertNotification", () => {
 
     expect(addWorkerJob).toHaveBeenCalledTimes(1);
     const telegram = queuedSends()[0];
-    // The firing half was fully silenced, so the message drops to resolved.
     expect(telegram.text).toBe(
       [
         "✅ s1 resolved",
@@ -383,7 +382,6 @@ describe("enqueueAlertNotification", () => {
       perKind: { firing: { silenceId: "sil-1" }, resolved: { silenceId: "" } },
     });
   });
-
   it("returns null when settings are null", async () => {
     const result = await enqueueAlertNotification(
       {
