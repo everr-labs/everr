@@ -77,7 +77,7 @@ describe("enqueueAlertNotification", () => {
         kind: "firing",
         title: "3 bad",
         description: "",
-        instance: { labels: { route: "/a" } },
+        instances: [{ labels: { route: "/a" } }],
       },
       scheduledFor,
       defaultContext,
@@ -121,7 +121,7 @@ describe("enqueueAlertNotification", () => {
     });
   });
 
-  it("suppresses delivery when a silence matches the instance", async () => {
+  it("suppresses delivery when all instances are silenced", async () => {
     const silencedContext: ResolvedDeliveryContext = {
       ...defaultContext,
       silences: [
@@ -135,17 +135,17 @@ describe("enqueueAlertNotification", () => {
         kind: "firing",
         title: "x",
         description: "",
-        instance: { labels: { route: "/a" } },
+        instances: [{ labels: { route: "/a" } }],
       },
       scheduledFor,
       silencedContext,
     );
 
     expect(addWorkerJob).not.toHaveBeenCalled();
-    expect(result).toEqual({ deliveryTargets: {}, silenceId: "sil-1" });
+    expect(result).toEqual({ deliveryTargets: {}, silenceId: "all-silenced" });
   });
 
-  it("notifies unsilenced instances normally", async () => {
+  it("filters out silenced instances and notifies with remaining", async () => {
     const silencedContext: ResolvedDeliveryContext = {
       ...defaultContext,
       silences: [
@@ -159,7 +159,7 @@ describe("enqueueAlertNotification", () => {
         kind: "firing",
         title: "x",
         description: "",
-        instance: { labels: { route: "/b" } },
+        instances: [{ labels: { route: "/a" } }, { labels: { route: "/b" } }],
       },
       scheduledFor,
       silencedContext,
@@ -168,6 +168,7 @@ describe("enqueueAlertNotification", () => {
     expect(addWorkerJob).toHaveBeenCalledTimes(1);
     const telegram = queuedSends().find((send) => send.channel === "telegram");
     expect(telegram?.text).toContain("route=/b");
+    expect(telegram?.text).not.toContain("route=/a");
     expect(result).toEqual({
       deliveryTargets: {
         telegram: ["123"],
@@ -188,14 +189,14 @@ describe("enqueueAlertNotification", () => {
         kind: "firing",
         title: "x",
         description: "",
-        instance: { labels: { route: "/a" } },
+        instances: [{ labels: { route: "/a" } }],
       },
       scheduledFor,
       silencedContext,
     );
 
     expect(addWorkerJob).not.toHaveBeenCalled();
-    expect(result).toEqual({ deliveryTargets: {}, silenceId: "sil-1" });
+    expect(result).toEqual({ deliveryTargets: {}, silenceId: "all-silenced" });
   });
 
   it("renders resolved notifications with firing durations", async () => {
@@ -205,10 +206,12 @@ describe("enqueueAlertNotification", () => {
         kind: "resolved",
         title: "ok",
         description: "",
-        instance: {
-          labels: { route: "/a" },
-          firedAt: new Date("2026-06-12T11:18:00Z"),
-        },
+        instances: [
+          {
+            labels: { route: "/a" },
+            firedAt: new Date("2026-06-12T11:18:00Z"),
+          },
+        ],
       },
       scheduledFor,
       defaultContext,
@@ -221,7 +224,6 @@ describe("enqueueAlertNotification", () => {
         "✅ s1 resolved",
         "",
         "Instance resolved (fired for 42m)",
-        "",
         "• route=/a — fired for 42m",
         "",
         "2026-06-12 12:00 UTC",
@@ -237,7 +239,7 @@ describe("enqueueAlertNotification", () => {
         kind: "firing",
         title: "x",
         description: "",
-        instance: { labels: { route: "/a" } },
+        instances: [{ labels: { route: "/a" } }],
       },
       scheduledFor,
       { settings: null, silences: [] },

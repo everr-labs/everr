@@ -83,6 +83,21 @@ export interface AlertTransition {
   actions: AlertTransitionAction[];
 }
 
+// One notification to deliver: the kind doubles as the alert_events
+// event_type for the evaluation row recorded alongside the send.
+export interface AlertTransitionAction {
+  kind: "firing" | "resolved";
+  instance: NotifiableInstance;
+}
+
+export interface AlertTransition {
+  name: AlertTransitionName;
+  nextState: AlertRuntimeState;
+  firingCount: number;
+  definitionUpdate: AlertStateUpdate;
+  actions: AlertTransitionAction[];
+}
+
 function transitionName(input: {
   wasFiring: boolean;
   isFiring: boolean;

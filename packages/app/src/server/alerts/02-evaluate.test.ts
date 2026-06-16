@@ -240,7 +240,9 @@ describe("evaluateAlert", () => {
     expect(deliver).toHaveBeenCalledWith(
       expect.objectContaining({
         kind: "firing",
-        instance: expect.objectContaining({ fingerprint: fp("/y") }),
+        instances: expect.arrayContaining([
+          expect.objectContaining({ fingerprint: fp("/y") }),
+        ]),
       }),
       expect.any(Date),
       expect.any(Object),
@@ -302,10 +304,12 @@ describe("evaluateAlert", () => {
     expect(deliver).toHaveBeenCalledWith(
       expect.objectContaining({
         kind: "resolved",
-        instance: expect.objectContaining({
-          fingerprint: fp("/y"),
-          labels: { route: "/y" },
-        }),
+        instances: expect.arrayContaining([
+          expect.objectContaining({
+            fingerprint: fp("/y"),
+            labels: { route: "/y" },
+          }),
+        ]),
       }),
       expect.any(Date),
       expect.any(Object),

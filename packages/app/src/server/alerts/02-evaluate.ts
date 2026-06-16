@@ -152,28 +152,34 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
     })
     .where(eq(alertDefinitions.id, def.id));
 
-  // 6. Resolve and enqueue the transition's notifications. This runs BEFORE the
-  // events are recorded: instance_fired/instance_resolved events are the firing
-  // set the next run reads, so recording them before the notification is durably
-  // enqueued would make a retry see the instance as already firing and skip the
-  // re-enqueue, dropping the notification. On failure we throw without recording,
-  // letting the job retry re-derive and re-enqueue (delivery jobKeys replace, so
-  // re-enqueuing is idempotent).
-  const deliveries: (DeliveryMetadata | null)[] = [];
-  for (const action of transition.actions) {
-    const { title, description } = renderMessages(def, action.instance.row);
-    deliveries.push(
-      await enqueueAlertNotification(
-        {
-          def,
-          kind: action.kind,
-          title,
-          description,
-          instance: action.instance,
-        },
-        scheduledFor,
-        deliveryContext,
-      ),
+  // 6. Resolve and enqueue ONE notification for the entire evaluation. This
+  // runs BEFORE the events are recorded: instance_fired/instance_resolved events
+  // are the firing set the next run reads, so recording them before the
+  // notification is durably enqueued would make a retry see the instance as
+  // already firing and skip the re-enqueue, dropping the notification. On
+  // failure we throw without recording, letting the job retry re-derive and
+  // re-enqueue (delivery jobKeys replace, so re-enqueuing is idempotent).
+  let delivery: DeliveryMetadata | null = null;
+  if (transition.actions.length > 0) {
+    const hasFiring = transition.actions.some((a) => a.kind === "firing");
+    const hasResolved = transition.actions.some((a) => a.kind === "resolved");
+    const kind =
+      hasFiring && hasResolved ? "mixed" : hasFiring ? "firing" : "resolved";
+
+    // Use the first instance's row for the title template
+    const firstInstance = transition.actions[0].instance;
+    const { title, description } = renderMessages(def, firstInstance.row);
+
+    delivery = await enqueueAlertNotification(
+      {
+        def,
+        kind,
+        title,
+        description: transition.actions.length > 1 ? "" : description,
+        instances: transition.actions.map((a) => a.instance),
+      },
+      scheduledFor,
+      deliveryContext,
     );
   }
 
@@ -186,7 +192,7 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
       evidence,
       diff,
       transition,
-      deliveries,
+      delivery,
     }),
     "alerts.evaluate.event_insert_failed",
   );
@@ -214,17 +220,17 @@ function renderMessages(def: AlertDefinition, row?: Record<string, unknown>) {
   };
 }
 
-// One row per instance transition, then one evaluation event per notification
-// carrying the targets it was queued for (or the suppressing silence).
+// One row per instance transition, then one evaluation event for the
+// notification carrying the targets it was queued for (or the suppressing silence).
 function buildEventRows(opts: {
   def: AlertDefinition;
   scheduledFor: Date;
   evidence: BoundedEvidence;
   diff: InstanceDiff;
   transition: AlertTransition;
-  deliveries: (DeliveryMetadata | null)[];
+  delivery: DeliveryMetadata | null;
 }): AlertEventRow[] {
-  const { def, scheduledFor, evidence, diff, transition, deliveries } = opts;
+  const { def, scheduledFor, evidence, diff, transition, delivery } = opts;
 
   const events: AlertEventRow[] = [
     ...diff.newlyFired.map((instance) =>
@@ -248,12 +254,17 @@ function buildEventRows(opts: {
     ),
   ];
 
-  for (const [index, action] of transition.actions.entries()) {
-    const delivery = deliveries[index] ?? null;
+  // One evaluation event for the notification (if any actions exist)
+  if (transition.actions.length > 0) {
+    const hasFiring = transition.actions.some((a) => a.kind === "firing");
+    const hasResolved = transition.actions.some((a) => a.kind === "resolved");
+    const eventType =
+      hasFiring && hasResolved ? "firing" : hasFiring ? "firing" : "resolved";
+
     events.push(
       buildEvaluationEvent({
         def,
-        eventType: action.kind,
+        eventType,
         scheduledFor,
         evidence,
         ...(delivery

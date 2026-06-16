@@ -64,20 +64,23 @@ does not send Telegram notifications.
 
 ## Delivery Behavior
 
-Everr sends notifications when alert instances newly fire. It does not resend a
-notification on every evaluation while the same instance remains firing.
+Everr sends one notification per evaluation, summarizing all instance changes.
+If a rule fires for three services in the same evaluation, you get one
+notification listing all three.
+
+Notifications go out on the edges only: once when instances newly fire, and
+once when they resolve, not repeatedly while they keep firing.
+
+Mixed evaluations (some firing, some resolving) produce a single combined
+notification with both sections.
 
 Every delivered notification includes a direct link to the alert detail page.
 The link is built from `BETTER_AUTH_URL`, so that environment variable must
 point to the public app origin in production.
 
-Everr sends resolved notifications when the alert transitions to resolved, and
-also sends a partial resolved notification when one or more instances resolve
-while other instances remain firing. Partial resolved notifications list the
-resolved instances and the number of instances still firing.
-
-Instance silences suppress notifications for matching firing instances during
-the silence window. Evaluation continues while an alert or instance is silenced.
+Instance silences filter out individual instances from notifications. If all
+instances are silenced, no notification is sent. Evaluation continues while an
+alert or instance is silenced.
 
 ## Troubleshooting
 

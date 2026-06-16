@@ -97,14 +97,22 @@ export async function enqueueAlertNotification(
   }
   if (Object.keys(deliveryTargets).length === 0) return null;
 
-  const silence = findSilenceForInstance(silences, input.instance.labels);
-  if (silence) {
-    return { deliveryTargets: {}, silenceId: silence.id };
+  // Filter out silenced instances
+  const unsilencedInstances = input.instances.filter(
+    (instance) => !findSilenceForInstance(silences, instance.labels),
+  );
+
+  // If all instances are silenced, skip notification
+  if (unsilencedInstances.length === 0) {
+    return { deliveryTargets: {}, silenceId: "all-silenced" };
   }
 
   const now = new Date();
   const buildOptions = { url: alertUrl(def.id), now };
-  const telegramText = buildTelegramText(input, buildOptions);
+  const telegramText = buildTelegramText(
+    { ...input, instances: unsilencedInstances },
+    buildOptions,
+  );
 
   // Zod strips unknown keys, so this is the schema-defined subset of the full
   // definition row — one field list to maintain.

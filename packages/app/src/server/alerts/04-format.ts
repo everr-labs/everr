@@ -3,14 +3,14 @@
 import { formatLabels } from "@/data/alerts/matchers";
 import { isNumericValue } from "@/lib/numeric";
 
-export type DeliveryKind = "firing" | "resolved";
+export type DeliveryKind = "firing" | "resolved" | "mixed";
 
 export interface DeliveryInput {
   def: { id: string; organizationId: string; repoid: string; slug: string };
   kind: DeliveryKind;
   title: string;
   description: string;
-  instance: NotifiableInstance;
+  instances: NotifiableInstance[];
 }
 
 // What a channel body builder needs beyond the input itself.
@@ -27,6 +27,7 @@ export const KIND_STATUS: Record<
 > = {
   firing: { emoji: "🔥", label: "Firing" },
   resolved: { emoji: "✅", label: "Resolved" },
+  mixed: { emoji: "🔥", label: "Firing + Resolved" },
 };
 
 function escapeHtml(value: string): string {

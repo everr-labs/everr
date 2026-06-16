@@ -17,21 +17,49 @@ export function buildTelegramText(
   const lines: string[] = [
     `${status.emoji} ${input.def.slug} ${status.label.toLowerCase()}`,
   ];
-  if (input.kind === "firing") {
+
+  if (input.kind === "mixed") {
+    // Mixed: firing + resolved in one notification
+    const firingInstances = input.instances.filter((i) => i.row);
+    const resolvedInstances = input.instances.filter((i) => !i.row);
+
+    if (firingInstances.length > 0) {
+      lines.push("", "Firing:");
+      for (const instance of firingInstances) {
+        lines.push(instanceLine(instance, "firing", opts.now, "•"));
+      }
+    }
+    if (resolvedInstances.length > 0) {
+      lines.push("", "Resolved:");
+      for (const instance of resolvedInstances) {
+        lines.push(instanceLine(instance, "resolved", opts.now, "•"));
+      }
+    }
+  } else if (input.kind === "firing") {
     lines.push("", input.title);
-    if (input.description) lines.push(input.description);
+    if (input.instances.length === 1 && input.description) {
+      lines.push("", input.description);
+    }
+    lines.push("");
+    for (const instance of input.instances) {
+      lines.push(instanceLine(instance, "firing", opts.now, "•"));
+    }
   } else {
-    const duration = input.instance.firedAt
-      ? formatDuration(input.instance.firedAt, opts.now)
-      : "";
-    lines.push(
-      "",
-      duration
-        ? `Instance resolved (fired for ${duration})`
-        : "Instance resolved",
-    );
+    // resolved
+    for (const instance of input.instances) {
+      const duration = instance.firedAt
+        ? formatDuration(instance.firedAt, opts.now)
+        : "";
+      lines.push(
+        "",
+        duration
+          ? `Instance resolved (fired for ${duration})`
+          : "Instance resolved",
+      );
+      lines.push(instanceLine(instance, "resolved", opts.now, "•"));
+    }
   }
-  lines.push("", instanceLine(input.instance, input.kind, opts.now, "•"));
+
   lines.push("", formatUtc(opts.now), opts.url);
   return lines.join("\n");
 }
