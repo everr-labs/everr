@@ -3,8 +3,6 @@
 @import "@fontsource-variable/inter";
 @import "@fontsource-variable/space-grotesk";
 
-@plugin "@tailwindcss/typography";
-
 @theme inline {
   --font-sans: "Inter Variable", sans-serif;
   --font-heading: "Space Grotesk Variable", sans-serif;
