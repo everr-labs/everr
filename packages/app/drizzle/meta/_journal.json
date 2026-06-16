@@ -22,6 +22,20 @@
       "when": 1781022089118,
       "tag": "0002_regular_mad_thinker",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1781077163574,
+      "tag": "0003_slim_onslaught",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1781471268473,
+      "tag": "0004_equal_shaman",
+      "breakpoints": true
     }
   ]
 }

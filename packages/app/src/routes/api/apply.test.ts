@@ -53,30 +53,39 @@ beforeEach(() => {
 describe("POST /api/apply", () => {
   it("applies and returns the per-kind summary with the org", async () => {
     applyResources.mockResolvedValueOnce({
-      dryRun: false,
+      dryRun: true,
       results: [
         { kind: "Dashboard", created: ["cpu"], updated: [], deleted: [] },
       ],
     });
     const res = await POST({
       request: req({
-        projects: ["default"],
-        documents: [
-          {
-            path: "cpu.yaml",
-            document: {
-              kind: "Dashboard",
-              metadata: { name: "cpu" },
-              spec: { panels: {}, layouts: [] },
+        repoid: "repo-1",
+        source: {
+          branch: "main",
+          commitSha: "abc123",
+          remote: "git@example.com:acme/repo.git",
+        },
+        dryRun: true,
+        state: {
+          dashboards: [
+            {
+              path: "cpu.yaml",
+              resource: {
+                kind: "Dashboard",
+                metadata: { name: "cpu" },
+                spec: { panels: {}, layouts: [] },
+              },
             },
-          },
-        ],
+          ],
+          alerts: [],
+        },
       }),
       context: ctx,
     });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      dryRun: false,
+      dryRun: true,
       results: [
         { kind: "Dashboard", created: ["cpu"], updated: [], deleted: [] },
       ],
@@ -84,18 +93,26 @@ describe("POST /api/apply", () => {
     });
     expect(applyResources).toHaveBeenCalledWith({
       orgId: "org-1",
-      projects: ["default"],
-      documents: [
-        {
-          path: "cpu.yaml",
-          document: {
-            kind: "Dashboard",
-            metadata: { name: "cpu" },
-            spec: { panels: {}, layouts: [] },
+      repoid: "repo-1",
+      state: {
+        dashboards: [
+          {
+            path: "cpu.yaml",
+            resource: {
+              kind: "Dashboard",
+              metadata: { name: "cpu" },
+              spec: { panels: {}, layouts: [] },
+            },
           },
-        },
-      ],
-      dryRun: undefined,
+        ],
+        alerts: [],
+      },
+      source: {
+        branch: "main",
+        commitSha: "abc123",
+        remote: "git@example.com:acme/repo.git",
+      },
+      dryRun: true,
     });
   });
 
@@ -111,8 +128,11 @@ describe("POST /api/apply", () => {
     );
     const res = await POST({
       request: req({
-        projects: ["default"],
-        documents: [{ path: "bad.yaml", document: { kind: "Gizmo" } }],
+        repoid: "repo-1",
+        state: {
+          dashboards: [{ path: "bad.yaml", resource: { kind: "Dashboard" } }],
+          alerts: [],
+        },
       }),
       context: ctx,
     });
@@ -127,13 +147,19 @@ describe("POST /api/apply", () => {
     );
     const res = await POST({
       request: req({
-        projects: ["default"],
-        documents: [
-          {
-            path: "cpu.yaml",
-            document: { kind: "Dashboard", spec: { panels: {}, layouts: [] } },
-          },
-        ],
+        repoid: "repo-1",
+        state: {
+          dashboards: [
+            {
+              path: "cpu.yaml",
+              resource: {
+                kind: "Dashboard",
+                spec: { panels: {}, layouts: [] },
+              },
+            },
+          ],
+          alerts: [],
+        },
       }),
       context: ctx,
     });

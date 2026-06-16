@@ -1,0 +1,30 @@
+kind: AlertRule
+metadata:
+  name: app-server-latency
+  labels:
+    team: platform
+spec:
+  display:
+    name: App server latency
+    description: App server spans with elevated p95 or p99 latency over the last 15 minutes.
+  notificationMessage:
+    title: "${ServiceName} server latency is elevated"
+    description: "p95=${p95_ms}ms, p99=${p99_ms}ms across ${total} successful server spans in the last 15 minutes"
+  evaluationInterval: 1m
+  instanceLabels: [ServiceName]
+  query: |
+    SELECT
+      ServiceName,
+      count() AS total,
+      round(quantile(0.95)(Duration) / 1000000, 1) AS p95_ms,
+      round(quantile(0.99)(Duration) / 1000000, 1) AS p99_ms
+    FROM traces
+    WHERE Timestamp >= now() - INTERVAL 15 MINUTE
+      AND ServiceName IN ('everr-dev-app', 'everr-app')
+      AND SpanKind = 'Server'
+      AND StatusCode != 'Error'
+    GROUP BY ServiceName
+    HAVING total >= 100
+      AND (p95_ms > 500 OR p99_ms > 1000)
+    ORDER BY p99_ms DESC
+    LIMIT 10

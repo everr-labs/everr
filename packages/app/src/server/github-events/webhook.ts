@@ -5,8 +5,8 @@ import { db } from "@/db/client";
 import { githubInstallationOrganizations } from "@/db/schema";
 import { env } from "@/env";
 import { serverLogger } from "@/telemetry/logger";
+import { enqueueWebhookEvent } from "./enqueue";
 import { headersToRecord } from "./headers";
-import { enqueueWebhookEvent } from "./runtime";
 
 const installationEventSchema = z.object({
   action: z.string().optional(),

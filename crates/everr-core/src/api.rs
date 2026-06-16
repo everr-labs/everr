@@ -556,6 +556,15 @@ mod api_client_tests {
         }
     }
 
+    fn empty_apply_request() -> crate::apply::ApplyRequest {
+        crate::apply::ApplyRequest {
+            repoid: "repo-1".to_string(),
+            state: crate::apply::ApplyState::default(),
+            source: None,
+            dry_run: false,
+        }
+    }
+
     #[tokio::test]
     async fn get_org_parses_response() {
         let mut server = mockito::Server::new_async().await;
@@ -711,11 +720,7 @@ mod api_client_tests {
             .await;
 
         let client = ApiClient::from_token(&server.url(), "bad-token").unwrap();
-        let request = crate::apply::ApplyRequest {
-            projects: vec![],
-            documents: vec![],
-            dry_run: false,
-        };
+        let request = empty_apply_request();
         let error = client.apply(&request).await.unwrap_err();
 
         // Token path: a 401 must NOT trigger the `cloud login` reauth path.
@@ -739,11 +744,7 @@ mod api_client_tests {
             .await;
 
         let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
-        let request = crate::apply::ApplyRequest {
-            projects: vec![],
-            documents: vec![],
-            dry_run: false,
-        };
+        let request = empty_apply_request();
         let error = client.apply(&request).await.unwrap_err();
 
         // Session path: a 401 (after refresh) routes through the standard reauth
@@ -766,11 +767,7 @@ mod api_client_tests {
             .await;
 
         let client = ApiClient::from_token(&server.url(), "tok").unwrap();
-        let request = crate::apply::ApplyRequest {
-            projects: vec![],
-            documents: vec![],
-            dry_run: false,
-        };
+        let request = empty_apply_request();
         let error = client.apply(&request).await.unwrap_err();
 
         assert!(!is_reauthentication_required(&error));

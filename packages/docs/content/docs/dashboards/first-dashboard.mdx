@@ -13,10 +13,21 @@ This is the shortest path to a working dashboard: write one YAML file, reconcile
 
   ```sh
   export EVERR_API_TOKEN="<your-org-ingest-key>"
-  export EVERR_API_URL="https://app.everr.dev"   # your Everr host; falls back to a prior `everr cloud login` URL
   ```
 
   See the [`everr apply` reference](/docs/reference/cli#dashboards-gitops).
+
+## Let your assistant write it
+
+The fastest way to a useful dashboard is to ask your coding assistant. Everr ships the `everr-write-dashboards` skill, which teaches the assistant the dashboard file format and how to build panels from your real telemetry. Run it from the repository that emits the telemetry, so it can connect services, routes, and metrics back to the code that produces them.
+
+A concrete prompt:
+
+```text
+Use the everr-write-dashboards skill to create an Everr dashboard for this repo.
+```
+
+The assistant inspects your data, picks the panels and queries, writes the file, and validates it against `everr cloud query` and a dry-run — so the charts render real data rather than guessed column names. The rest of this page walks through the same steps by hand so you understand what it produces.
 
 ## Create a dashboard file
 

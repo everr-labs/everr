@@ -1,6 +1,5 @@
 import { type Attributes, context } from "@opentelemetry/api";
 import { logs, SeverityNumber } from "@opentelemetry/api-logs";
-import { TELEMETRY_SERVICE_NAME } from "./config";
 
 type LogLevel = "debug" | "error" | "info" | "warn";
 
@@ -38,9 +37,7 @@ export function createTelemetryLogger(name: string) {
   };
 }
 
-export const serverLogger = createTelemetryLogger(
-  `${TELEMETRY_SERVICE_NAME}.server`,
-);
+export const serverLogger = createTelemetryLogger("everr-app.server");
 
 export function exceptionAttributes(reason: unknown): Attributes {
   const error = normalizeError(reason);
@@ -50,6 +47,11 @@ export function exceptionAttributes(reason: unknown): Attributes {
     "exception.type": error.name,
     ...(error.stack ? { "exception.stacktrace": error.stack } : {}),
   };
+}
+
+/** The human-readable message for any thrown value. */
+export function errorMessage(reason: unknown): string {
+  return normalizeError(reason).message;
 }
 
 function normalizeError(reason: unknown) {

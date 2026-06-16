@@ -40,6 +40,7 @@ import { Route as AuthenticatedDashboardIngestKeysRouteImport } from './routes/_
 import { Route as AuthenticatedDashboardErrorsRouteImport } from './routes/_authenticated/_dashboard/errors'
 import { Route as AuthenticatedDashboardCostAnalysisRouteImport } from './routes/_authenticated/_dashboard/cost-analysis'
 import { Route as AuthenticatedDashboardBillingRouteImport } from './routes/_authenticated/_dashboard/billing'
+import { Route as AuthenticatedDashboardAlertsRouteImport } from './routes/_authenticated/_dashboard/alerts'
 import { Route as AuthenticatedDashboardAccountRouteImport } from './routes/_authenticated/_dashboard/account'
 import { Route as AuthInviteInvitationIdRouteImport } from './routes/_auth/invite.$invitationId'
 import { Route as AuthAuthErrorRouteImport } from './routes/_auth/auth/error'
@@ -54,6 +55,7 @@ import { Route as ApiCliOrgNameRouteImport } from './routes/api/cli/org/name'
 import { Route as AuthenticatedDashboardTracesTraceIdRouteImport } from './routes/_authenticated/_dashboard/traces_.$traceId'
 import { Route as AuthenticatedDashboardErrorsFingerprintRouteImport } from './routes/_authenticated/_dashboard/errors_.$fingerprint'
 import { Route as AuthenticatedDashboardCheckoutSuccessRouteImport } from './routes/_authenticated/_dashboard/checkout.success'
+import { Route as AuthenticatedDashboardAlertsAlertIdRouteImport } from './routes/_authenticated/_dashboard/alerts_.$alertId'
 import { Route as AuthGuestAuthSignUpRouteImport } from './routes/_auth/_guest/auth/sign-up'
 import { Route as AuthGuestAuthSignInRouteImport } from './routes/_auth/_guest/auth/sign-in'
 import { Route as AuthGuestAuthResetPasswordRouteImport } from './routes/_auth/_guest/auth/reset-password'
@@ -231,6 +233,12 @@ const AuthenticatedDashboardBillingRoute =
     path: '/billing',
     getParentRoute: () => AuthenticatedDashboardRoute,
   } as any)
+const AuthenticatedDashboardAlertsRoute =
+  AuthenticatedDashboardAlertsRouteImport.update({
+    id: '/alerts',
+    path: '/alerts',
+    getParentRoute: () => AuthenticatedDashboardRoute,
+  } as any)
 const AuthenticatedDashboardAccountRoute =
   AuthenticatedDashboardAccountRouteImport.update({
     id: '/account',
@@ -307,6 +315,12 @@ const AuthenticatedDashboardCheckoutSuccessRoute =
   AuthenticatedDashboardCheckoutSuccessRouteImport.update({
     id: '/checkout/success',
     path: '/checkout/success',
+    getParentRoute: () => AuthenticatedDashboardRoute,
+  } as any)
+const AuthenticatedDashboardAlertsAlertIdRoute =
+  AuthenticatedDashboardAlertsAlertIdRouteImport.update({
+    id: '/alerts_/$alertId',
+    path: '/alerts/$alertId',
     getParentRoute: () => AuthenticatedDashboardRoute,
   } as any)
 const AuthGuestAuthSignUpRoute = AuthGuestAuthSignUpRouteImport.update({
@@ -402,6 +416,7 @@ export interface FileRoutesByFullPath {
   '/auth/error': typeof AuthAuthErrorRoute
   '/invite/$invitationId': typeof AuthInviteInvitationIdRoute
   '/account': typeof AuthenticatedDashboardAccountRoute
+  '/alerts': typeof AuthenticatedDashboardAlertsRoute
   '/billing': typeof AuthenticatedDashboardBillingRoute
   '/cost-analysis': typeof AuthenticatedDashboardCostAnalysisRoute
   '/errors': typeof AuthenticatedDashboardErrorsRouteWithChildren
@@ -427,6 +442,7 @@ export interface FileRoutesByFullPath {
   '/auth/reset-password': typeof AuthGuestAuthResetPasswordRoute
   '/auth/sign-in': typeof AuthGuestAuthSignInRoute
   '/auth/sign-up': typeof AuthGuestAuthSignUpRoute
+  '/alerts/$alertId': typeof AuthenticatedDashboardAlertsAlertIdRoute
   '/checkout/success': typeof AuthenticatedDashboardCheckoutSuccessRoute
   '/errors/$fingerprint': typeof AuthenticatedDashboardErrorsFingerprintRoute
   '/traces/$traceId': typeof AuthenticatedDashboardTracesTraceIdRoute
@@ -459,6 +475,7 @@ export interface FileRoutesByTo {
   '/auth/error': typeof AuthAuthErrorRoute
   '/invite/$invitationId': typeof AuthInviteInvitationIdRoute
   '/account': typeof AuthenticatedDashboardAccountRoute
+  '/alerts': typeof AuthenticatedDashboardAlertsRoute
   '/billing': typeof AuthenticatedDashboardBillingRoute
   '/cost-analysis': typeof AuthenticatedDashboardCostAnalysisRoute
   '/errors': typeof AuthenticatedDashboardErrorsRouteWithChildren
@@ -482,6 +499,7 @@ export interface FileRoutesByTo {
   '/auth/reset-password': typeof AuthGuestAuthResetPasswordRoute
   '/auth/sign-in': typeof AuthGuestAuthSignInRoute
   '/auth/sign-up': typeof AuthGuestAuthSignUpRoute
+  '/alerts/$alertId': typeof AuthenticatedDashboardAlertsAlertIdRoute
   '/checkout/success': typeof AuthenticatedDashboardCheckoutSuccessRoute
   '/errors/$fingerprint': typeof AuthenticatedDashboardErrorsFingerprintRoute
   '/traces/$traceId': typeof AuthenticatedDashboardTracesTraceIdRoute
@@ -518,6 +536,7 @@ export interface FileRoutesById {
   '/_auth/auth/error': typeof AuthAuthErrorRoute
   '/_auth/invite/$invitationId': typeof AuthInviteInvitationIdRoute
   '/_authenticated/_dashboard/account': typeof AuthenticatedDashboardAccountRoute
+  '/_authenticated/_dashboard/alerts': typeof AuthenticatedDashboardAlertsRoute
   '/_authenticated/_dashboard/billing': typeof AuthenticatedDashboardBillingRoute
   '/_authenticated/_dashboard/cost-analysis': typeof AuthenticatedDashboardCostAnalysisRoute
   '/_authenticated/_dashboard/errors': typeof AuthenticatedDashboardErrorsRouteWithChildren
@@ -544,6 +563,7 @@ export interface FileRoutesById {
   '/_auth/_guest/auth/reset-password': typeof AuthGuestAuthResetPasswordRoute
   '/_auth/_guest/auth/sign-in': typeof AuthGuestAuthSignInRoute
   '/_auth/_guest/auth/sign-up': typeof AuthGuestAuthSignUpRoute
+  '/_authenticated/_dashboard/alerts_/$alertId': typeof AuthenticatedDashboardAlertsAlertIdRoute
   '/_authenticated/_dashboard/checkout/success': typeof AuthenticatedDashboardCheckoutSuccessRoute
   '/_authenticated/_dashboard/errors_/$fingerprint': typeof AuthenticatedDashboardErrorsFingerprintRoute
   '/_authenticated/_dashboard/traces_/$traceId': typeof AuthenticatedDashboardTracesTraceIdRoute
@@ -578,6 +598,7 @@ export interface FileRouteTypes {
     | '/auth/error'
     | '/invite/$invitationId'
     | '/account'
+    | '/alerts'
     | '/billing'
     | '/cost-analysis'
     | '/errors'
@@ -603,6 +624,7 @@ export interface FileRouteTypes {
     | '/auth/reset-password'
     | '/auth/sign-in'
     | '/auth/sign-up'
+    | '/alerts/$alertId'
     | '/checkout/success'
     | '/errors/$fingerprint'
     | '/traces/$traceId'
@@ -635,6 +657,7 @@ export interface FileRouteTypes {
     | '/auth/error'
     | '/invite/$invitationId'
     | '/account'
+    | '/alerts'
     | '/billing'
     | '/cost-analysis'
     | '/errors'
@@ -658,6 +681,7 @@ export interface FileRouteTypes {
     | '/auth/reset-password'
     | '/auth/sign-in'
     | '/auth/sign-up'
+    | '/alerts/$alertId'
     | '/checkout/success'
     | '/errors/$fingerprint'
     | '/traces/$traceId'
@@ -693,6 +717,7 @@ export interface FileRouteTypes {
     | '/_auth/auth/error'
     | '/_auth/invite/$invitationId'
     | '/_authenticated/_dashboard/account'
+    | '/_authenticated/_dashboard/alerts'
     | '/_authenticated/_dashboard/billing'
     | '/_authenticated/_dashboard/cost-analysis'
     | '/_authenticated/_dashboard/errors'
@@ -719,6 +744,7 @@ export interface FileRouteTypes {
     | '/_auth/_guest/auth/reset-password'
     | '/_auth/_guest/auth/sign-in'
     | '/_auth/_guest/auth/sign-up'
+    | '/_authenticated/_dashboard/alerts_/$alertId'
     | '/_authenticated/_dashboard/checkout/success'
     | '/_authenticated/_dashboard/errors_/$fingerprint'
     | '/_authenticated/_dashboard/traces_/$traceId'
@@ -975,6 +1001,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardBillingRouteImport
       parentRoute: typeof AuthenticatedDashboardRoute
     }
+    '/_authenticated/_dashboard/alerts': {
+      id: '/_authenticated/_dashboard/alerts'
+      path: '/alerts'
+      fullPath: '/alerts'
+      preLoaderRoute: typeof AuthenticatedDashboardAlertsRouteImport
+      parentRoute: typeof AuthenticatedDashboardRoute
+    }
     '/_authenticated/_dashboard/account': {
       id: '/_authenticated/_dashboard/account'
       path: '/account'
@@ -1071,6 +1104,13 @@ declare module '@tanstack/react-router' {
       path: '/checkout/success'
       fullPath: '/checkout/success'
       preLoaderRoute: typeof AuthenticatedDashboardCheckoutSuccessRouteImport
+      parentRoute: typeof AuthenticatedDashboardRoute
+    }
+    '/_authenticated/_dashboard/alerts_/$alertId': {
+      id: '/_authenticated/_dashboard/alerts_/$alertId'
+      path: '/alerts/$alertId'
+      fullPath: '/alerts/$alertId'
+      preLoaderRoute: typeof AuthenticatedDashboardAlertsAlertIdRouteImport
       parentRoute: typeof AuthenticatedDashboardRoute
     }
     '/_auth/_guest/auth/sign-up': {
@@ -1279,6 +1319,7 @@ const AuthenticatedDashboardTracesRouteWithChildren =
 
 interface AuthenticatedDashboardRouteChildren {
   AuthenticatedDashboardAccountRoute: typeof AuthenticatedDashboardAccountRoute
+  AuthenticatedDashboardAlertsRoute: typeof AuthenticatedDashboardAlertsRoute
   AuthenticatedDashboardBillingRoute: typeof AuthenticatedDashboardBillingRoute
   AuthenticatedDashboardCostAnalysisRoute: typeof AuthenticatedDashboardCostAnalysisRoute
   AuthenticatedDashboardErrorsRoute: typeof AuthenticatedDashboardErrorsRouteWithChildren
@@ -1290,6 +1331,7 @@ interface AuthenticatedDashboardRouteChildren {
   AuthenticatedDashboardTracesRoute: typeof AuthenticatedDashboardTracesRouteWithChildren
   AuthenticatedDashboardUsersManagementRoute: typeof AuthenticatedDashboardUsersManagementRoute
   AuthenticatedDashboardIndexRoute: typeof AuthenticatedDashboardIndexRoute
+  AuthenticatedDashboardAlertsAlertIdRoute: typeof AuthenticatedDashboardAlertsAlertIdRoute
   AuthenticatedDashboardCheckoutSuccessRoute: typeof AuthenticatedDashboardCheckoutSuccessRoute
   AuthenticatedDashboardErrorsFingerprintRoute: typeof AuthenticatedDashboardErrorsFingerprintRoute
   AuthenticatedDashboardTracesTraceIdRoute: typeof AuthenticatedDashboardTracesTraceIdRoute
@@ -1302,6 +1344,7 @@ interface AuthenticatedDashboardRouteChildren {
 const AuthenticatedDashboardRouteChildren: AuthenticatedDashboardRouteChildren =
   {
     AuthenticatedDashboardAccountRoute: AuthenticatedDashboardAccountRoute,
+    AuthenticatedDashboardAlertsRoute: AuthenticatedDashboardAlertsRoute,
     AuthenticatedDashboardBillingRoute: AuthenticatedDashboardBillingRoute,
     AuthenticatedDashboardCostAnalysisRoute:
       AuthenticatedDashboardCostAnalysisRoute,
@@ -1320,6 +1363,8 @@ const AuthenticatedDashboardRouteChildren: AuthenticatedDashboardRouteChildren =
     AuthenticatedDashboardUsersManagementRoute:
       AuthenticatedDashboardUsersManagementRoute,
     AuthenticatedDashboardIndexRoute: AuthenticatedDashboardIndexRoute,
+    AuthenticatedDashboardAlertsAlertIdRoute:
+      AuthenticatedDashboardAlertsAlertIdRoute,
     AuthenticatedDashboardCheckoutSuccessRoute:
       AuthenticatedDashboardCheckoutSuccessRoute,
     AuthenticatedDashboardErrorsFingerprintRoute:

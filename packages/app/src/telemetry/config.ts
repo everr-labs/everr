@@ -1,4 +1,4 @@
-export const TELEMETRY_SERVICE_NAME = "everr-app";
+const TELEMETRY_SERVICE_NAME = "everr-dev-app";
 const TELEMETRY_SERVICE_NAMESPACE = "everr";
 const DEFAULT_LOCAL_OTLP_ENDPOINT = "http://127.0.0.1:54318";
 const EVERR_HOSTED_OTLP_ENDPOINT = "https://ingest.everr.dev";

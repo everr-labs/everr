@@ -1,0 +1,35 @@
+kind: AlertRule
+metadata:
+  name: worker-failures
+  labels:
+    team: platform
+spec:
+  display:
+    name: Worker failures
+    description: Graphile worker job, pool, or fatal failures in recent app logs.
+  notificationMessage:
+    title: "${ServiceName} worker is failing"
+    description: "${events} worker failure events in the last 10 minutes. Latest: ${sample_body} task=${sample_task}"
+  evaluationInterval: 1m
+  instanceLabels: [ServiceName]
+  query: |
+    SELECT
+      ServiceName,
+      count() AS events,
+      anyLast(Body) AS sample_body,
+      anyLast(LogAttributes['graphile_worker.task.identifier']) AS sample_task
+    FROM logs
+    WHERE TimestampTime >= now() - INTERVAL 10 MINUTE
+      AND ServiceName IN ('everr-dev-app', 'everr-app')
+      AND Body IN (
+        'worker.jobs.get_job_error',
+        'worker.jobs.graceful_shutdown_error',
+        'worker.jobs.job_failed',
+        'worker.jobs.pool_listen_error',
+        'worker.jobs.worker_fatal_error',
+        'worker.runtime.stop_failed'
+      )
+    GROUP BY ServiceName
+    HAVING events > 0
+    ORDER BY events DESC
+    LIMIT 10

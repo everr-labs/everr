@@ -1,0 +1,93 @@
+---
+title: Writing Alert Queries
+description: Express thresholds, alert per instance, and choose an evaluation interval in an AlertRule query.
+---
+
+An alert's `spec.query` is plain ClickHouse SQL, and the rule is simple: every row the query returns is a firing instance, and an empty result means resolved. Everything else on this page follows from that one fact. Unlike panel queries, alert SQL does **not** support `${...}` template tokens, those are only for message templates.
+
+## What makes a good alert
+
+Before writing the query, decide whether the condition is worth alerting on at all. Google's [SRE practice](https://sre.google/sre-book/monitoring-distributed-systems/) is a good guide:
+
+- **Alert on symptoms, not causes.** Notify on what users actually feel, elevated errors, slow responses, a backlog that isn't draining, not on every underlying cause like one machine's CPU or a single restart. Causes belong on [dashboards](/docs/dashboards) for debugging; symptoms are what warrant a notification. For user-facing systems the four golden signals, latency, traffic, errors, and saturation, are a sound starting point.
+- **Every alert must be actionable.** If your honest answer to "what would I do when this fires?" is "nothing" or "wait and see," it shouldn't fire. Don't write rules for conditions you'd knowingly ignore, they only breed alert fatigue.
+- **Tune for signal, not noise.** A rule that fires on a single error or a momentary blip trains people to ignore it. Pick a threshold and window so the query stays quiet under normal conditions and returns rows only when a human should step in.
+
+The rest of this page is how to express that condition in SQL.
+
+## Express a threshold
+
+There is no separate threshold field. You put the condition in the query itself, so it returns rows only when something is actually wrong. Use `WHERE` to scope the data you look at, and `HAVING` to threshold an aggregate:
+
+```sql
+SELECT ServiceName, round(avg(Value) * 1000, 1) AS p99_delay_ms
+FROM metrics_gauge
+WHERE MetricName = 'nodejs.eventloop.delay.p99'
+  AND TimeUnix >= now() - INTERVAL 5 MINUTE
+GROUP BY ServiceName
+HAVING p99_delay_ms > 100   -- normal is ~10ms; fire only when the loop is blocked
+```
+
+When no service crosses the threshold the query returns nothing, and the alert is resolved.
+
+For percentage alerts, guard against tiny samples. One failed request out of one total request is technically a 100% error rate, but it usually should not notify anyone. Add a minimum-volume condition alongside the rate:
+
+```sql
+SELECT
+  ServiceName,
+  count() AS total,
+  countIf(SeverityNumber >= 17) AS errors,
+  round(errors / total, 4) AS error_rate
+FROM logs
+WHERE Timestamp >= now() - INTERVAL 15 MINUTE
+GROUP BY ServiceName
+HAVING total >= 100
+  AND error_rate > 0.05
+ORDER BY error_rate DESC
+LIMIT 50
+```
+
+Filter known-benign data in SQL. For example, exclude test services, development environments, or maintenance jobs when those rows do not represent a real problem.
+
+## Instance identity
+
+By default, an instance's identity is the set of **string** columns the query returns. The query above returns `ServiceName` (a string) and `p99_delay_ms` (a number), so it produces one instance per service automatically, a single rule scales across every service instead of needing one rule each. Because the numeric `p99_delay_ms` column is not part of identity, a service stays the same instance as its delay rises and falls.
+
+The common reason to override is a string column you want in the notification but not in the identity. Say you surface the worst-affected host so the message can name it:
+
+```yaml
+spec:
+  query: |
+    SELECT
+      ServiceName,
+      argMax(ResourceAttributes['host.name'], Value) AS worst_host,
+      round(avg(Value) * 1000, 1) AS p99_delay_ms
+    FROM metrics_gauge
+    WHERE MetricName = 'nodejs.eventloop.delay.p99'
+      AND TimeUnix >= now() - INTERVAL 5 MINUTE
+    GROUP BY ServiceName
+    HAVING p99_delay_ms > 100
+```
+
+The query returns one row per service, but `worst_host` is also a string, so by default the identity is `ServiceName` **and** `worst_host`. Host names like `app-f9867cfd6-7p8qf` change on every redeploy and as load moves around, so the identity would churn: the old instance resolves and a new one fires each time the worst host changes, spamming notifications for a service that never actually recovered.
+
+Set `spec.instanceLabels` to pin the identity to just the service, keeping `worst_host` available for the message:
+
+```yaml
+spec:
+  instanceLabels: [ServiceName]   # identity is the service, regardless of host
+```
+
+The columns you list become the entire identity; any other string column is carried along only for the message. Make sure the query returns a single row per identity, if two rows share the same identity, they collapse into one instance.
+
+## Choose an evaluation interval
+
+`spec.evaluationInterval` is an `<integer><s|m|h|d>` duration with a minimum of `1m` (for example `1m`, `5m`, `1h`). Align the query's time window to the interval: a 5-minute lookback evaluated every minute smooths transient spikes, because a single momentary blip is averaged into the window rather than notifying on its own.
+
+Everr notifies on the firing and resolved edges as soon as the rule evaluates. There is no separate "for" or pending duration to wait out, so use the query window itself to control flapping.
+
+## Keep results small
+
+The firing set *is* the rows the query returns, so return only what's firing, push the filtering and the threshold into the SQL with `WHERE` and `HAVING`. Emit one row per instance, avoid `SELECT *` on large sets, and add a `LIMIT` for safety on broad queries.
+
+Return the columns needed for identity, message templates, and the measured values that explain why the alert fired. Extra high-cardinality string columns can create extra instances unless you override `spec.instanceLabels`.

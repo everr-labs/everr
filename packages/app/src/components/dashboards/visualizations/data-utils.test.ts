@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { isNumericValue } from "@/lib/numeric";
 import {
   detectTimeKey,
   getValueKeys,
-  isNumericValue,
   toNumber,
   toTimestamp,
 } from "./data-utils";

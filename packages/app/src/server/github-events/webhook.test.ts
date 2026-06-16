@@ -18,7 +18,7 @@ const { webhookSecret, webhookMocks } = vi.hoisted(() => {
   };
 });
 
-vi.mock("./runtime", () => ({
+vi.mock("./enqueue", () => ({
   enqueueWebhookEvent: webhookMocks.enqueueWebhookEvent,
 }));
 
