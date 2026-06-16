@@ -30,15 +30,6 @@ export const KIND_STATUS: Record<
   mixed: { emoji: "🔥", label: "Firing + Resolved" },
 };
 
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
-
 const MAX_INSTANCE_VALUES = 3;
 
 export interface NotifiableInstance {
