@@ -2,7 +2,7 @@
 
 Use this rule for Tauri v2 apps that need error telemetry from both the Rust backend and the browser webview.
 
-The webview cannot reach the collector directly, so Rust is an **OTLP passthrough proxy**: the browser runs normal OTel providers + exporters, serializes each batch to encoded OTLP, and hands the bytes to a Rust command that forwards them to the collector unchanged. **Rust must not decode, map, or rebuild browser telemetry.** Reconstructing log records or spans on the Rust side drops the log's trace context and leaves browser errors showing `Trace: N/A` in the UI — forwarding the encoded request verbatim preserves trace context, resource, scope, and severity, so errors stay linked to their traces.
+The webview cannot reach the collector directly, so Rust is an **OTLP passthrough proxy**: the browser runs normal OTel providers + exporters, serializes each batch to encoded OTLP, and hands the bytes to a Rust command that forwards them to the collector unchanged. **Rust must not decode, map, or rebuild browser telemetry.** Forwarding the encoded request verbatim preserves the resource, scope, severity, and attributes the renderer produced; reconstructing log records on the Rust side loses that fidelity for no benefit.
 
 Keep Rust's own backend telemetry (lifecycle, panics, sidecar) on its direct SDK exporter; only browser telemetry goes through the proxy.
 
@@ -220,7 +220,7 @@ fn signal_endpoint(base_endpoint: &str, signal: &str) -> String {
 
 ## OTLP Passthrough Proxy
 
-The Rust command is transport, not an application telemetry API. It receives an already-encoded OTLP request from the browser exporter and forwards the bytes to the collector. It validates the signal and size, attaches the configured headers, and POSTs — it never deserializes, maps, or rebuilds telemetry. This is what keeps trace context intact; a reconstruction path (re-emitting log records or rebuilding spans on the Rust side) loses it and produces `Trace: N/A`.
+The Rust command is transport, not an application telemetry API. It receives an already-encoded OTLP request from the browser exporter and forwards the bytes to the collector. It validates the signal and size, attaches the configured headers, and POSTs — it never deserializes, maps, or rebuilds telemetry. Forwarding bytes verbatim preserves the resource, severity, and attributes the renderer produced; a reconstruction path (re-emitting log records on the Rust side) loses that fidelity.
 
 ```rust
 use reqwest::Client;
@@ -336,7 +336,7 @@ Do not log Tauri command arguments, auth tokens, request headers, request bodies
 
 ## Browser Log Exporter
 
-The exporter serializes each batch to OTLP/JSON with `@opentelemetry/otlp-transformer` and hands the bytes to `proxy_otlp`. No body allowlist, no attribute mapping — the encoded request carries the log's body, severity, attributes, and (critically) its `trace_id`/`span_id`. The same pattern backs a `TracerProvider` if the app emits spans.
+The exporter serializes each batch to OTLP/JSON with `@opentelemetry/otlp-transformer` and hands the bytes to `proxy_otlp`. No body allowlist, no attribute mapping — the encoded request carries the log's body, severity, and attributes. The same pattern backs a `TracerProvider` if the app emits spans.
 
 ```ts
 import type { ExportResult } from '@opentelemetry/core';
@@ -425,8 +425,7 @@ export async function initBrowserTelemetry() {
 
   // If the app emits spans, register a TracerProvider the same way with a
   // BatchSpanProcessor(new OtlpProxySpanExporter(), batch) and
-  // trace.setGlobalTracerProvider(...). Emit error logs inside the span's
-  // context so the relayed log carries trace_id/span_id and links in the UI.
+  // trace.setGlobalTracerProvider(...).
 }
 
 export function shutdownBrowserTelemetry() {
@@ -527,30 +526,12 @@ WHERE Timestamp > now() - INTERVAL 10 MINUTE
 LIMIT 20
 ```
 
-A Rust-side change (the proxy command, headers, endpoint) needs a full app rebuild — a JS reload is not enough. If the app emits an error-context span, confirm the error log links to it (the fix for `Trace: N/A` — the log carries trace context natively through the forwarded OTLP, nothing reconstructs it):
-
-```sql
-SELECT
-  l.Body AS log_body,
-  l.TraceId AS log_trace,
-  t.TraceId AS span_trace,
-  t.SpanName AS span
-FROM logs l
-LEFT JOIN traces t ON l.TraceId = t.TraceId
-WHERE l.Timestamp > now() - INTERVAL 15 MINUTE
-  AND l.ServiceName = '<browser-service-name>'
-  AND notEmpty(l.TraceId)
-ORDER BY l.Timestamp DESC
-LIMIT 20
-```
-
-`log_trace` must be non-empty and equal `span_trace`. Empty `log_trace` means trace context was lost — the renderer must emit the log inside the span's context, and the proxy must forward the encoded request verbatim (reconstructing records in Rust strips it).
+A Rust-side change (the proxy command, headers, endpoint) needs a full app rebuild — a JS reload is not enough.
 
 ## Troubleshooting
 
 - No browser logs: verify `initBrowserTelemetry()` runs before app rendering, the global providers are set before capture starts, `get_telemetry_context` is registered, and `proxy_otlp` accepts the `signal`.
 - Proxy failures: verify the browser exporter serializes OTLP/JSON and passes it as `body`, and that `proxy_otlp` POSTs to `{endpoint}/v1/{signal}` with `content-type: application/json` (confirm the collector accepts OTLP/JSON).
-- Error shows `Trace: N/A`: trace context was lost. Do not reconstruct records in Rust — forward the encoded OTLP verbatim; emit the log inside the span context so the serialized request carries `trace_id`/`span_id`.
 - Missing release version or session id: verify Rust creates one telemetry context at process startup and the browser uses `get_telemetry_context`.
 - Unexpected telemetry volume: remove old web auto-instrumentation, IPC wrappers, HTTP timing helpers, request wrappers, metrics readers, React instrumentation plugins, and console monkey patches.
 - `unknown_service` rows: verify both logger providers initialize with `service.name`.

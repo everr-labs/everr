@@ -2,7 +2,7 @@
 
 Use this rule for Electron apps that need error telemetry from both the Node main process and the Chromium renderer.
 
-An Electron app has three contexts: the **main** process (Node), the **renderer** (Chromium, sandboxed), and the **preload** script (the bridge). The renderer should not hold the ingest key or reach the collector directly, so the main process is an **OTLP passthrough proxy**: the renderer runs normal OTel providers + exporters, serializes each batch to encoded OTLP, and sends the bytes to the main process over IPC, which forwards them to the collector unchanged. **The main process must not decode, map, or rebuild renderer telemetry** — reconstructing records drops the log's trace context and leaves renderer errors showing `Trace: N/A`. Forwarding the encoded request verbatim preserves trace context, resource, scope, and severity.
+An Electron app has three contexts: the **main** process (Node), the **renderer** (Chromium, sandboxed), and the **preload** script (the bridge). The renderer should not hold the ingest key or reach the collector directly, so the main process is an **OTLP passthrough proxy**: the renderer runs normal OTel providers + exporters, serializes each batch to encoded OTLP, and sends the bytes to the main process over IPC, which forwards them to the collector unchanged. **The main process must not decode, map, or rebuild renderer telemetry** — forwarding the encoded request verbatim preserves the resource, scope, severity, and attributes the renderer produced; reconstructing records loses that fidelity for no benefit.
 
 The main process is itself a Node process: set up its own telemetry and error capture per `nodejs.md` (`@everr/auto-otel-errors/node`), and reuse that exporter config to drive the proxy.
 
@@ -152,7 +152,7 @@ declare global {
 
 ## Renderer Exporters
 
-The exporter serializes each batch to OTLP/JSON with `@opentelemetry/otlp-transformer` and hands the bytes to `window.everrTelemetry.proxyOtlp`. No body allowlist, no attribute mapping — the encoded request carries the log's body, severity, attributes, and (critically) its `trace_id`/`span_id`. The same pattern backs a `TracerProvider` if the app emits spans.
+The exporter serializes each batch to OTLP/JSON with `@opentelemetry/otlp-transformer` and hands the bytes to `window.everrTelemetry.proxyOtlp`. No body allowlist, no attribute mapping — the encoded request carries the log's body, severity, and attributes. The same pattern backs a `TracerProvider` if the app emits spans.
 
 ```ts
 import { type ExportResult, ExportResultCode } from '@opentelemetry/core';
@@ -249,10 +249,6 @@ app.on('child-process-gone', (_event, details) => {
 });
 ```
 
-## Trace Linkage
-
-This is what makes a renderer error open its trace instead of showing `Trace: N/A`. The library emits the exception log inside the error-context span's context, so in the renderer the log and span already share one `trace_id`/`span_id`. The proxy must not lose that: it forwards the encoded OTLP verbatim, so trace context, resource, and severity arrive intact. Do not add a main-process path that re-emits log records or rebuilds spans — that strips the context.
-
 ## Validation
 
 A main-process change (proxy handler, headers, endpoint) needs an app restart. Trigger each error mechanism — add a dev-only menu item or button that throws an uncaught error, rejects a promise, and calls `captureError` — then query.
@@ -269,26 +265,10 @@ ORDER BY Timestamp DESC
 LIMIT 50
 ```
 
-If the renderer emits an error-context span, confirm the error log links to it (the fix for `Trace: N/A`):
-
-```sql
-SELECT l.Body AS log_body, l.TraceId AS log_trace, t.TraceId AS span_trace, t.SpanName AS span
-FROM logs l
-LEFT JOIN traces t ON l.TraceId = t.TraceId
-WHERE l.Timestamp > now() - INTERVAL 15 MINUTE
-  AND l.ServiceName = '<renderer-service-name>'
-  AND notEmpty(l.TraceId)
-ORDER BY l.Timestamp DESC
-LIMIT 20
-```
-
-`log_trace` must be non-empty and equal `span_trace`. Empty `log_trace` means trace context was lost — the renderer must emit the log inside the span context, and the main process must forward the encoded request verbatim.
-
 ## Troubleshooting
 
 - No renderer logs: verify `initRendererTelemetry()` runs before capture, the global providers are set before `initErrorTracking()`, the preload exposes `everrTelemetry`, and the `everr:proxy-otlp` handler is registered.
 - Proxy failures: verify the renderer serializes OTLP/JSON and passes it as `body`, and that `everr:proxy-otlp` POSTs to `{endpoint}/v1/{signal}` with `content-type: application/json` (confirm the collector accepts OTLP/JSON).
-- Error shows `Trace: N/A`: trace context was lost. Do not reconstruct records in the main process — forward the encoded OTLP verbatim; emit the log inside the span context.
 - Each error captured twice: the library's handlers are running alongside leftover hand-rolled `window`/`process` error handlers. Remove the hand-rolled ones.
 - `everrTelemetry` is undefined in the renderer: the preload script is not wired to the `BrowserWindow` (`webPreferences.preload`), or `contextIsolation` is off.
 
