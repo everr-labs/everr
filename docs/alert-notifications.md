@@ -12,33 +12,6 @@ owner or admin.
 The settings apply to the active organization. They are not configured through
 alert YAML, `everr.yaml`, or the apply API.
 
-## Server Configuration
-
-### Email
-
-Email delivery uses the existing app mailer.
-
-Required environment variables:
-
-```sh
-EMAIL_FROM="alerts@example.com"
-RESEND_API_KEY="<resend-api-key>"
-```
-
-In production, Everr sends email through Resend. `EMAIL_FROM` must be an email
-address that Resend is allowed to send from, usually from a verified domain.
-
-In local development, the mailer uses Nodemailer against the local Mailpit SMTP
-server at `localhost:1025`. The Docker Compose setup exposes Mailpit at:
-
-```text
-SMTP: localhost:1025
-Web UI: http://localhost:8025
-```
-
-The current app environment schema still requires `RESEND_API_KEY` to be set,
-even though development delivery uses Mailpit.
-
 ## Organization UI Settings
 
 Open the app and go to:
@@ -47,27 +20,7 @@ Open the app and go to:
 Alerts -> Notification settings
 ```
 
-The dialog contains two settings:
-
-### Email
-
-Enable `Email`, then enter one or more recipient email addresses.
-
-Accepted format:
-
-```text
-alerts@example.com
-oncall@example.com
-```
-
-or:
-
-```text
-alerts@example.com, oncall@example.com
-```
-
-If Email is disabled, or if the recipient list is empty, Everr does not send
-email notifications.
+The dialog contains Telegram notification settings.
 
 ### Telegram
 
@@ -111,20 +64,23 @@ does not send Telegram notifications.
 
 ## Delivery Behavior
 
-Everr sends notifications when alert instances newly fire. It does not resend a
-notification on every evaluation while the same instance remains firing.
+Everr sends one notification per evaluation, summarizing all instance changes.
+If a rule fires for three services in the same evaluation, you get one
+notification listing all three.
+
+Notifications go out on the edges only: once when instances newly fire, and
+once when they resolve, not repeatedly while they keep firing.
+
+Mixed evaluations (some firing, some resolving) produce a single combined
+notification with both sections.
 
 Every delivered notification includes a direct link to the alert detail page.
 The link is built from `BETTER_AUTH_URL`, so that environment variable must
 point to the public app origin in production.
 
-Everr sends resolved notifications when the alert transitions to resolved, and
-also sends a partial resolved notification when one or more instances resolve
-while other instances remain firing. Partial resolved notifications list the
-resolved instances and the number of instances still firing.
-
-Instance silences suppress notifications for matching firing instances during
-the silence window. Evaluation continues while an alert or instance is silenced.
+Instance silences filter out individual instances from notifications. If all
+instances are silenced, no notification is sent. Evaluation continues while an
+alert or instance is silenced.
 
 ## Troubleshooting
 
@@ -144,25 +100,6 @@ Relevant log events:
 ```text
 telegram.send.failed
 alerts.delivery.telegram_failed
-```
-
-### Email Notifications Are Not Sent
-
-Check:
-
-- `EMAIL_FROM` is set.
-- `RESEND_API_KEY` is set.
-- In production, the `EMAIL_FROM` domain is verified in Resend.
-- In development, Mailpit is running and reachable at `localhost:1025`.
-- Email is enabled in `Alerts -> Notification settings`.
-- The recipient list is not empty.
-- The alert is not silenced.
-
-Relevant log events:
-
-```text
-mailer.send.failed
-alerts.delivery.email_failed
 ```
 
 ### No Notification On Repeated Evaluations

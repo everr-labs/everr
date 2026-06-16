@@ -1,16 +1,21 @@
-// Shared formatting for alert notification bodies (email and telegram).
+// Shared formatting for alert notification bodies (telegram).
 
 import { formatLabels } from "@/data/alerts/matchers";
 import { isNumericValue } from "@/lib/numeric";
 
-export type DeliveryKind = "firing" | "resolved";
+export type DeliveryKind = "firing" | "resolved" | "mixed";
 
 export interface DeliveryInput {
-  def: { id: string; organizationId: string; repoid: string; slug: string };
+  def: {
+    id: string;
+    organizationId: string;
+    repoid: string;
+    slug: string;
+    notificationTitleTemplate: string;
+    notificationDescriptionTemplate?: string;
+  };
   kind: DeliveryKind;
-  title: string;
-  description: string;
-  instance: NotifiableInstance;
+  instances: NotifiableInstance[];
 }
 
 // What a channel body builder needs beyond the input itself.
@@ -19,24 +24,16 @@ export interface BuildOptions {
   now: Date;
 }
 
-// One definition of how each kind presents across channels; email layers its
-// colors on top, telegram lowercases the label for its headline.
+// One definition of how each kind presents across channels; telegram lowercases
+// the label for its headline.
 export const KIND_STATUS: Record<
   DeliveryKind,
   { emoji: string; label: string }
 > = {
   firing: { emoji: "🔥", label: "Firing" },
   resolved: { emoji: "✅", label: "Resolved" },
+  mixed: { emoji: "🔥", label: "Firing + Resolved" },
 };
-
-export function escapeHtml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
 
 const MAX_INSTANCE_VALUES = 3;
 
@@ -44,6 +41,10 @@ export interface NotifiableInstance {
   labels: Record<string, string>;
   firedAt?: Date;
   row?: Record<string, unknown>;
+  // Whether this instance newly fired or resolved in the evaluation. Drives the
+  // firing/resolved split in a mixed notification rather than inferring it from
+  // the presence of `row`.
+  kind?: "firing" | "resolved";
 }
 
 // Notification timestamps are always UTC: recipients of one alert can be in
@@ -84,7 +85,7 @@ export function extractInstanceValues(
 
 // What to show next to an instance's labels: the breaching values while
 // firing, how long it fired once resolved. Empty when neither is available.
-export function instanceDetail(
+function instanceDetail(
   instance: NotifiableInstance,
   kind: DeliveryKind,
   now: Date,
@@ -97,12 +98,22 @@ export function instanceDetail(
     : "";
 }
 
+// The instance's labels with its breaching values or fired-for duration
+// appended, without a bullet, so callers can prefix or indent it themselves.
+export function instanceDetailText(
+  instance: NotifiableInstance,
+  kind: DeliveryKind,
+  now: Date,
+): string {
+  const detail = instanceDetail(instance, kind, now);
+  return `${formatLabels(instance.labels)}${detail ? ` — ${detail}` : ""}`;
+}
+
 export function instanceLine(
   instance: NotifiableInstance,
   kind: DeliveryKind,
   now: Date,
   bullet: string,
 ): string {
-  const detail = instanceDetail(instance, kind, now);
-  return `${bullet} ${formatLabels(instance.labels)}${detail ? ` — ${detail}` : ""}`;
+  return `${bullet} ${instanceDetailText(instance, kind, now)}`;
 }

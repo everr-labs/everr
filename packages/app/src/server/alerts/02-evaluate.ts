@@ -24,7 +24,6 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { activeSilenceConditions } from "@/data/alerts/silences";
-import { renderMessage } from "@/data/alerts/template";
 import { db } from "@/db/client";
 import { alertDefinitions, alertSettings, alertSilences } from "@/db/schema";
 import { querySqlApiWithMeta } from "@/lib/clickhouse";
@@ -40,7 +39,7 @@ import {
   type InstanceDiff,
   rowsToInstances,
 } from "./02-instances";
-import { type AlertTransition, buildAlertTransition } from "./02-transition";
+import { buildAlertTransition } from "./02-transition";
 import {
   type AlertEventRow,
   type BoundedEvidence,
@@ -50,8 +49,8 @@ import {
   recordAlertEvents,
 } from "./03-events";
 import {
-  type DeliveryMetadata,
   enqueueAlertNotification,
+  type NotificationOutcome,
   type ResolvedDeliveryContext,
 } from "./04-delivery";
 
@@ -152,28 +151,25 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
     })
     .where(eq(alertDefinitions.id, def.id));
 
-  // 6. Resolve and enqueue the transition's notifications. This runs BEFORE the
-  // events are recorded: instance_fired/instance_resolved events are the firing
-  // set the next run reads, so recording them before the notification is durably
-  // enqueued would make a retry see the instance as already firing and skip the
-  // re-enqueue, dropping the notification. On failure we throw without recording,
-  // letting the job retry re-derive and re-enqueue (delivery jobKeys replace, so
-  // re-enqueuing is idempotent).
-  const deliveries: (DeliveryMetadata | null)[] = [];
-  for (const action of transition.actions) {
-    const { title, description } = renderMessages(def, action.instance.row);
-    deliveries.push(
-      await enqueueAlertNotification(
-        {
-          def,
-          kind: action.kind,
-          title,
-          description,
-          instance: action.instance,
-        },
-        scheduledFor,
-        deliveryContext,
-      ),
+  // 6. Resolve and enqueue ONE notification for the entire evaluation. This
+  // runs BEFORE the events are recorded: instance_fired/instance_resolved events
+  // are the firing set the next run reads, so recording them before the
+  // notification is durably enqueued would make a retry see the instance as
+  // already firing and skip the re-enqueue, dropping the notification. On
+  // failure we throw without recording, letting the job retry re-derive and
+  // re-enqueue (delivery jobKeys replace, so re-enqueuing is idempotent).
+  let delivery: NotificationOutcome | null = null;
+  if (transition.actions.length > 0) {
+    delivery = await enqueueAlertNotification(
+      {
+        def,
+        instances: transition.actions.map((a) => ({
+          ...a.instance,
+          kind: a.kind,
+        })),
+      },
+      scheduledFor,
+      deliveryContext,
     );
   }
 
@@ -185,8 +181,7 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
       scheduledFor,
       evidence,
       diff,
-      transition,
-      deliveries,
+      delivery,
     }),
     "alerts.evaluate.event_insert_failed",
   );
@@ -205,26 +200,17 @@ function parsePayload(payload: EvaluatePayload) {
   return parsed.data;
 }
 
-function renderMessages(def: AlertDefinition, row?: Record<string, unknown>) {
-  return {
-    title: renderMessage(def.notificationTitleTemplate, { firstRow: row }),
-    description: def.notificationDescriptionTemplate
-      ? renderMessage(def.notificationDescriptionTemplate, { firstRow: row })
-      : "",
-  };
-}
-
-// One row per instance transition, then one evaluation event per notification
-// carrying the targets it was queued for (or the suppressing silence).
+// One row per instance transition, then one evaluation event per notified kind
+// (a churned evaluation emits both a firing and a resolved row). Each carries
+// the targets it was queued for, or the silence that suppressed that kind.
 function buildEventRows(opts: {
   def: AlertDefinition;
   scheduledFor: Date;
   evidence: BoundedEvidence;
   diff: InstanceDiff;
-  transition: AlertTransition;
-  deliveries: (DeliveryMetadata | null)[];
+  delivery: NotificationOutcome | null;
 }): AlertEventRow[] {
-  const { def, scheduledFor, evidence, diff, transition, deliveries } = opts;
+  const { def, scheduledFor, evidence, diff, delivery } = opts;
 
   const events: AlertEventRow[] = [
     ...diff.newlyFired.map((instance) =>
@@ -248,20 +234,25 @@ function buildEventRows(opts: {
     ),
   ];
 
-  for (const [index, action] of transition.actions.entries()) {
-    const delivery = deliveries[index] ?? null;
+  const kindPresent = {
+    firing: diff.newlyFired.length > 0,
+    resolved: diff.nowResolved.length > 0,
+  } as const;
+  for (const kind of ["firing", "resolved"] as const) {
+    if (!kindPresent[kind]) continue;
+    const meta = delivery?.perKind[kind];
     events.push(
       buildEvaluationEvent({
         def,
-        eventType: action.kind,
+        eventType: kind,
         scheduledFor,
         evidence,
-        ...(delivery
-          ? {
-              deliveryTargets: delivery.deliveryTargets,
-              silenceId: delivery.silenceId,
-            }
+        // Delivered (silenceId === "") records where it went; suppressed
+        // records the silence; no settings records neither.
+        ...(delivery && meta && !meta.silenceId
+          ? { deliveryTargets: delivery.deliveryTargets }
           : {}),
+        ...(meta ? { silenceId: meta.silenceId } : {}),
       }),
     );
   }

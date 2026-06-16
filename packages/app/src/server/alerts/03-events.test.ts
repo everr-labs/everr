@@ -74,14 +74,13 @@ describe("event row construction", () => {
       def,
       eventType: "firing",
       scheduledFor: new Date("2026-06-10T12:00:00.000Z"),
-      deliveryTargets: { email: ["alerts@example.com"], telegram: ["123"] },
+      deliveryTargets: { telegram: ["123"] },
       silenceId: "sil-1",
     });
 
     expect(row).toMatchObject({
       event_type: "firing",
       delivery_targets: {
-        email: ["alerts@example.com"],
         telegram: ["123"],
       },
       silence_id: "sil-1",

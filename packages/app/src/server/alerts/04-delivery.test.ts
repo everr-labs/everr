@@ -1,10 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const sendEmail = vi.fn();
-vi.mock("@/lib/mailer.server", () => ({
-  mailer: { send: (...args: unknown[]) => sendEmail(...args) },
-}));
-
 const sendTelegram = vi.fn();
 vi.mock("@/lib/telegram.server", () => ({
   sendTelegramMessage: (...args: unknown[]) => sendTelegram(...args),
@@ -45,13 +40,22 @@ import {
   runDeliverySend,
 } from "./04-delivery";
 
-const def = { id: "a1", organizationId: "org-1", repoid: "r1", slug: "s1" };
+const def = {
+  id: "a1",
+  organizationId: "org-1",
+  repoid: "r1",
+  slug: "s1",
+  notificationTitleTemplate: "3 bad",
+  notificationDescriptionTemplate: "",
+};
+
+// The parsed def (without template fields) as it appears in delivery jobs
+const sendDef = { id: "a1", organizationId: "org-1", repoid: "r1", slug: "s1" };
 const scheduledFor = new Date("2026-06-12T12:00:00Z");
 
 const defaultContext: ResolvedDeliveryContext = {
   settings: {
     delivery: {
-      email: { enabled: true, to: ["a@example.com"] },
       telegram: { enabled: true, botToken: "bot-token", chatIds: ["123"] },
     },
   },
@@ -62,17 +66,11 @@ function queuedSends(): DeliverySend[] {
   return addWorkerJob.mock.calls.map((call) => call[1] as DeliverySend);
 }
 
-function asEmailSend(send: DeliverySend | undefined) {
-  if (send?.channel !== "email") throw new Error("expected email send");
-  return send;
-}
-
 beforeEach(() => {
   vi.clearAllMocks();
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-06-12T12:00:00Z"));
   addWorkerJob.mockResolvedValue(undefined);
-  sendEmail.mockResolvedValue(undefined);
   sendTelegram.mockResolvedValue(undefined);
   recordEvents.mockResolvedValue(undefined);
 });
@@ -86,26 +84,13 @@ describe("enqueueAlertNotification", () => {
     const result = await enqueueAlertNotification(
       {
         def,
-        kind: "firing",
-        title: "3 bad",
-        description: "",
-        instance: { labels: { route: "/a" } },
+        instances: [{ labels: { route: "/a" }, kind: "firing" }],
       },
       scheduledFor,
       defaultContext,
     );
 
-    expect(addWorkerJob).toHaveBeenCalledTimes(2);
-    expect(addWorkerJob).toHaveBeenCalledWith(
-      "alerts/deliver",
-      expect.objectContaining({ channel: "email", target: "a@example.com" }),
-      {
-        jobKey:
-          "alerts/deliver:a1:2026-06-12T12:00:00.000Z:firing:email:a@example.com",
-        jobKeyMode: "replace",
-        maxAttempts: 5,
-      },
-    );
+    expect(addWorkerJob).toHaveBeenCalledTimes(1);
     expect(addWorkerJob).toHaveBeenCalledWith(
       "alerts/deliver",
       expect.objectContaining({
@@ -120,14 +105,7 @@ describe("enqueueAlertNotification", () => {
     );
 
     const sends = queuedSends();
-    const email = asEmailSend(sends[0]);
-    const telegram = sends[1];
-    expect(email.subject).toBe("🔥 [firing] s1 — route=/a");
-    expect(email.text).toContain("route=/a");
-    expect(email.text).toContain("2026-06-12 12:00 UTC");
-    expect(email.html).toContain("View alert");
-    expect(email.html).toContain("https://app.example.com/alerts/a1");
-    expect(email.def).toEqual(def);
+    const telegram = sends[0];
     expect(telegram.text).toBe(
       [
         "🔥 s1 firing",
@@ -141,18 +119,57 @@ describe("enqueueAlertNotification", () => {
       ].join("\n"),
     );
 
-    expect(sendEmail).not.toHaveBeenCalled();
     expect(sendTelegram).not.toHaveBeenCalled();
     expect(result).toEqual({
-      deliveryTargets: {
-        email: ["a@example.com"],
-        telegram: ["123"],
-      },
-      silenceId: "",
+      deliveryTargets: { telegram: ["123"] },
+      perKind: { firing: { silenceId: "" } },
     });
   });
 
-  it("suppresses delivery when a silence matches the instance", async () => {
+  it("repeats the title per instance for multiple firing instances", async () => {
+    const result = await enqueueAlertNotification(
+      {
+        // biome-ignore lint/suspicious/noTemplateCurlyInString: intentional template placeholder
+        def: { ...def, notificationTitleTemplate: "${route} is lagging" },
+        instances: [
+          {
+            labels: { route: "/a" },
+            row: { route: "/a", error_rate: 5.1 },
+            kind: "firing",
+          },
+          {
+            labels: { route: "/b" },
+            row: { route: "/b", error_rate: 6.3 },
+            kind: "firing",
+          },
+        ],
+      },
+      scheduledFor,
+      defaultContext,
+    );
+
+    expect(addWorkerJob).toHaveBeenCalledTimes(1);
+    const telegram = queuedSends()[0];
+    expect(telegram.text).toBe(
+      [
+        "🔥 s1 firing",
+        "",
+        "• /a is lagging",
+        "  route=/a — error_rate: 5.1",
+        "• /b is lagging",
+        "  route=/b — error_rate: 6.3",
+        "",
+        "2026-06-12 12:00 UTC",
+        "https://app.example.com/alerts/a1",
+      ].join("\n"),
+    );
+    expect(result).toEqual({
+      deliveryTargets: { telegram: ["123"] },
+      perKind: { firing: { silenceId: "" } },
+    });
+  });
+
+  it("suppresses delivery when all instances are silenced", async () => {
     const silencedContext: ResolvedDeliveryContext = {
       ...defaultContext,
       silences: [
@@ -163,20 +180,20 @@ describe("enqueueAlertNotification", () => {
     const result = await enqueueAlertNotification(
       {
         def,
-        kind: "firing",
-        title: "x",
-        description: "",
-        instance: { labels: { route: "/a" } },
+        instances: [{ labels: { route: "/a" }, kind: "firing" }],
       },
       scheduledFor,
       silencedContext,
     );
 
     expect(addWorkerJob).not.toHaveBeenCalled();
-    expect(result).toEqual({ deliveryTargets: {}, silenceId: "sil-1" });
+    expect(result).toEqual({
+      deliveryTargets: {},
+      perKind: { firing: { silenceId: "sil-1" } },
+    });
   });
 
-  it("notifies unsilenced instances normally", async () => {
+  it("filters out silenced instances and notifies with remaining", async () => {
     const silencedContext: ResolvedDeliveryContext = {
       ...defaultContext,
       silences: [
@@ -187,24 +204,22 @@ describe("enqueueAlertNotification", () => {
     const result = await enqueueAlertNotification(
       {
         def,
-        kind: "firing",
-        title: "x",
-        description: "",
-        instance: { labels: { route: "/b" } },
+        instances: [
+          { labels: { route: "/a" }, kind: "firing" },
+          { labels: { route: "/b" }, kind: "firing" },
+        ],
       },
       scheduledFor,
       silencedContext,
     );
 
-    expect(addWorkerJob).toHaveBeenCalledTimes(2);
+    expect(addWorkerJob).toHaveBeenCalledTimes(1);
     const telegram = queuedSends().find((send) => send.channel === "telegram");
     expect(telegram?.text).toContain("route=/b");
+    expect(telegram?.text).not.toContain("route=/a");
     expect(result).toEqual({
-      deliveryTargets: {
-        email: ["a@example.com"],
-        telegram: ["123"],
-      },
-      silenceId: "",
+      deliveryTargets: { telegram: ["123"] },
+      perKind: { firing: { silenceId: "" } },
     });
   });
 
@@ -217,46 +232,70 @@ describe("enqueueAlertNotification", () => {
     const result = await enqueueAlertNotification(
       {
         def,
-        kind: "firing",
-        title: "x",
-        description: "",
-        instance: { labels: { route: "/a" } },
+        instances: [{ labels: { route: "/a" }, kind: "firing" }],
       },
       scheduledFor,
       silencedContext,
     );
 
     expect(addWorkerJob).not.toHaveBeenCalled();
-    expect(result).toEqual({ deliveryTargets: {}, silenceId: "sil-1" });
+    expect(result).toEqual({
+      deliveryTargets: {},
+      perKind: { firing: { silenceId: "sil-1" } },
+    });
+  });
+
+  it("records the first silence id when a kind is fully suppressed by different rules", async () => {
+    const silencedContext: ResolvedDeliveryContext = {
+      ...defaultContext,
+      silences: [
+        { id: "sil-1", matchers: [{ label: "route", op: "=", value: "/a" }] },
+        { id: "sil-2", matchers: [{ label: "route", op: "=", value: "/b" }] },
+      ],
+    };
+
+    const result = await enqueueAlertNotification(
+      {
+        def,
+        instances: [
+          { labels: { route: "/a" }, kind: "firing" },
+          { labels: { route: "/b" }, kind: "firing" },
+        ],
+      },
+      scheduledFor,
+      silencedContext,
+    );
+
+    expect(addWorkerJob).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      deliveryTargets: {},
+      perKind: { firing: { silenceId: "sil-1" } },
+    });
   });
 
   it("renders resolved notifications with firing durations", async () => {
     await enqueueAlertNotification(
       {
         def,
-        kind: "resolved",
-        title: "ok",
-        description: "",
-        instance: {
-          labels: { route: "/a" },
-          firedAt: new Date("2026-06-12T11:18:00Z"),
-        },
+        instances: [
+          {
+            labels: { route: "/a" },
+            firedAt: new Date("2026-06-12T11:18:00Z"),
+            kind: "resolved",
+          },
+        ],
       },
       scheduledFor,
       defaultContext,
     );
 
     const sends = queuedSends();
-    const email = asEmailSend(sends[0]);
-    const telegram = sends[1];
-    expect(email.subject).toBe("✅ [resolved] s1 — route=/a");
-    expect(email.text).toContain("route=/a — fired for 42m");
+    const telegram = sends[0];
     expect(telegram.text).toBe(
       [
         "✅ s1 resolved",
         "",
         "Instance resolved (fired for 42m)",
-        "",
         "• route=/a — fired for 42m",
         "",
         "2026-06-12 12:00 UTC",
@@ -265,41 +304,89 @@ describe("enqueueAlertNotification", () => {
     );
   });
 
-  it("escapes user content in the email html", async () => {
+  it("renders mixed notifications with firing and resolved sections", async () => {
     await enqueueAlertNotification(
       {
         def,
-        kind: "firing",
-        title: "bad <b>stuff</b>",
-        description: "",
-        instance: {
-          labels: { route: "/a<script>" },
-          row: { route: "/a<script>", error_rate: 7.2, error_count: "12" },
-        },
+        instances: [
+          { labels: { route: "/a" }, row: { error_rate: 5.1 }, kind: "firing" },
+          {
+            labels: { route: "/b" },
+            firedAt: new Date("2026-06-12T11:18:00Z"),
+            kind: "resolved",
+          },
+        ],
       },
       scheduledFor,
       defaultContext,
     );
 
-    const email = asEmailSend(
-      queuedSends().find((send) => send.channel === "email"),
+    const sends = queuedSends();
+    const telegram = sends[0];
+    expect(telegram.text).toBe(
+      [
+        "🔥 s1 firing + resolved",
+        "",
+        "Firing:",
+        "• 3 bad",
+        "  route=/a — error_rate: 5.1",
+        "",
+        "Resolved:",
+        "• route=/b — fired for 42m",
+        "",
+        "2026-06-12 12:00 UTC",
+        "https://app.example.com/alerts/a1",
+      ].join("\n"),
     );
-    expect(email.text).toContain(
-      "route=/a<script> — error_rate: 7.2, error_count: 12",
-    );
-    expect(email.html).not.toContain("/a<script>");
-    expect(email.html).toContain("/a&lt;script&gt;");
-    expect(email.html).toContain("bad &lt;b&gt;stuff&lt;/b&gt;");
   });
 
+  it("drops a fully-silenced kind from a mixed notification but delivers the rest", async () => {
+    const silencedContext: ResolvedDeliveryContext = {
+      ...defaultContext,
+      silences: [
+        { id: "sil-1", matchers: [{ label: "route", op: "=", value: "/a" }] },
+      ],
+    };
+
+    const result = await enqueueAlertNotification(
+      {
+        def,
+        instances: [
+          { labels: { route: "/a" }, row: { error_rate: 5.1 }, kind: "firing" },
+          {
+            labels: { route: "/b" },
+            firedAt: new Date("2026-06-12T11:18:00Z"),
+            kind: "resolved",
+          },
+        ],
+      },
+      scheduledFor,
+      silencedContext,
+    );
+
+    expect(addWorkerJob).toHaveBeenCalledTimes(1);
+    const telegram = queuedSends()[0];
+    expect(telegram.text).toBe(
+      [
+        "✅ s1 resolved",
+        "",
+        "Instance resolved (fired for 42m)",
+        "• route=/b — fired for 42m",
+        "",
+        "2026-06-12 12:00 UTC",
+        "https://app.example.com/alerts/a1",
+      ].join("\n"),
+    );
+    expect(result).toEqual({
+      deliveryTargets: { telegram: ["123"] },
+      perKind: { firing: { silenceId: "sil-1" }, resolved: { silenceId: "" } },
+    });
+  });
   it("returns null when settings are null", async () => {
     const result = await enqueueAlertNotification(
       {
         def,
-        kind: "firing",
-        title: "x",
-        description: "",
-        instance: { labels: { route: "/a" } },
+        instances: [{ labels: { route: "/a" }, kind: "firing" }],
       },
       scheduledFor,
       { settings: null, silences: [] },
@@ -310,47 +397,22 @@ describe("enqueueAlertNotification", () => {
   });
 });
 
-function emailSend(): DeliverySend {
-  return {
-    channel: "email",
-    target: "a@example.com",
-    subject: "subject",
-    text: "text",
-    html: "<p>html</p>",
-    def,
-    scheduledFor,
-  };
-}
-
 function telegramSend(): DeliverySend {
   return {
     channel: "telegram",
     target: "123",
     botToken: "bot-token",
     text: "text",
-    def,
+    def: sendDef,
     scheduledFor,
   };
 }
 
 describe("runDeliverySend", () => {
-  it("sends one email", async () => {
-    await runDeliverySend(emailSend(), { attempts: 1, max_attempts: 5 });
-
-    expect(sendEmail).toHaveBeenCalledWith({
-      to: "a@example.com",
-      subject: "subject",
-      text: "text",
-      html: "<p>html</p>",
-    });
-    expect(sendTelegram).not.toHaveBeenCalled();
-  });
-
   it("sends one telegram message", async () => {
     await runDeliverySend(telegramSend(), { attempts: 1, max_attempts: 5 });
 
     expect(sendTelegram).toHaveBeenCalledWith("bot-token", "123", "text");
-    expect(sendEmail).not.toHaveBeenCalled();
   });
 
   it("rethrows on failure so the job retries, without recording an event", async () => {
@@ -373,26 +435,26 @@ describe("runDeliverySend", () => {
   });
 
   it("records a delivery_failed event on the final attempt", async () => {
-    sendEmail.mockRejectedValue(new Error("mailbox full"));
+    sendTelegram.mockRejectedValue(new Error("chat deleted"));
 
     await expect(
-      runDeliverySend(emailSend(), { attempts: 5, max_attempts: 5 }),
-    ).rejects.toThrow("mailbox full");
+      runDeliverySend(telegramSend(), { attempts: 5, max_attempts: 5 }),
+    ).rejects.toThrow("chat deleted");
 
     expect(recordEvents).toHaveBeenCalledWith(
-      def,
+      sendDef,
       [
         expect.objectContaining({
           event_type: "delivery_failed",
           alert_definition_id: "a1",
-          delivery_targets: { email: ["a@example.com"] },
-          evidence_json: '{"error":"mailbox full"}',
+          delivery_targets: { telegram: ["123"] },
+          evidence_json: '{"error":"chat deleted"}',
         }),
       ],
       "alerts.delivery.failure_event_insert_failed",
     );
     expect(vi.mocked(serverLogger.warn)).toHaveBeenCalledWith(
-      "alerts.delivery.email_failed",
+      "alerts.delivery.telegram_failed",
       expect.objectContaining({ "error.handled": true }),
     );
   });
