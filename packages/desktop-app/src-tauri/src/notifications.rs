@@ -1,3 +1,9 @@
+// On Linux the custom top-right notification window can't be positioned under
+// Wayland, so we present native freedesktop notifications instead and the
+// window helpers below are intentionally unused on that platform.
+#![cfg_attr(target_os = "linux", allow(dead_code, unused_imports))]
+
+#[cfg(target_os = "macos")]
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -49,6 +55,7 @@ pub(crate) fn notification_window_uses_native_panel() -> bool {
     cfg!(target_os = "macos")
 }
 
+#[cfg(target_os = "macos")]
 pub(crate) fn notification_hover_uses_native_panel_geometry() -> bool {
     cfg!(target_os = "macos")
 }
@@ -393,23 +400,134 @@ pub(crate) fn open_notification_target_inner(app: &AppHandle, state: &RuntimeSta
 }
 
 pub(crate) fn sync_notification_window(app: &AppHandle, state: &RuntimeState) -> Result<()> {
-    let has_active_notification = {
-        let notifier = state
-            .notifier
-            .lock()
-            .map_err(|_| anyhow!("failed to lock notifier state"))?;
-        notifier.queue.active().is_some()
-    };
-
-    if has_active_notification {
-        show_notification_window(app)?;
-        app.emit(NOTIFICATION_CHANGED_EVENT, ())
-            .context("failed to emit notification update")
-    } else {
-        // Slide-out first, then emit the changed event + hide once animation completes.
-        // This keeps the card content visible during the exit animation.
-        hide_notification_window(app)
+    // GNOME/Wayland forbids clients from positioning their own top-level windows,
+    // so the custom top-right card lands wherever the compositor decides. Fall back
+    // to native freedesktop notifications instead.
+    #[cfg(target_os = "linux")]
+    {
+        return sync_native_notification(app, state);
     }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        let has_active_notification = {
+            let notifier = state
+                .notifier
+                .lock()
+                .map_err(|_| anyhow!("failed to lock notifier state"))?;
+            notifier.queue.active().is_some()
+        };
+
+        if has_active_notification {
+            show_notification_window(app)?;
+            app.emit(NOTIFICATION_CHANGED_EVENT, ())
+                .context("failed to emit notification update")
+        } else {
+            // Slide-out first, then emit the changed event + hide once animation completes.
+            // This keeps the card content visible during the exit animation.
+            hide_notification_window(app)
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn sync_native_notification(app: &AppHandle, state: &RuntimeState) -> Result<()> {
+    // GNOME keeps notifications resident in its tray and ignores client expiry
+    // timeouts, so the macOS one-card-at-a-time queue would stall here. The OS
+    // stacks native notifications itself, so drain the queue and present each one.
+    loop {
+        let notification = {
+            let mut notifier = state
+                .notifier
+                .lock()
+                .map_err(|_| anyhow!("failed to lock notifier state"))?;
+            let active = notifier.queue.active().cloned();
+            if active.is_some() {
+                notifier.queue.advance();
+            }
+            active
+        };
+
+        let Some(notification) = notification else {
+            break;
+        };
+
+        present_native_notification(notification);
+    }
+
+    // Keep settings/dev pages in sync with the now-empty active slot.
+    let _ = app.emit(NOTIFICATION_CHANGED_EVENT, ());
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn present_native_notification(notification: FailureNotification) {
+    use notify_rust::{Notification, Timeout};
+
+    // Build the auto-fix prompt up front so the "Copy fix prompt" action stays
+    // tied to this notification even after the queue has advanced past it.
+    let details_url = notification.details_url.clone();
+    let fix_prompt = build_notification_auto_fix_prompt(&notification);
+    let trace_id = notification.trace_id.clone();
+
+    std::thread::spawn(move || {
+        let span = notifier_span("notifier.native_present", &trace_id);
+        let _enter = span.enter();
+
+        let summary = format!("{} failed", notification.workflow_name);
+        let mut body = format!("{} · {}", notification.repo, notification.branch);
+        if let Some(job) = notification.failed_jobs.first() {
+            body.push('\n');
+            body.push_str(&job.job_name);
+        }
+
+        let result = Notification::new()
+            .appname(crate::current_app_name())
+            .summary(&summary)
+            .body(&body)
+            .icon(crate::current_app_name())
+            .action("default", "View run")
+            .action("open", "View run")
+            .action("copy", "Copy fix prompt")
+            .timeout(Timeout::Never)
+            .show();
+
+        match result {
+            Ok(handle) => {
+                handle.wait_for_action(|action| match action {
+                    "default" | "open" => {
+                        if let Err(error) = webbrowser::open(&details_url) {
+                            crate::crash_log::log_error(
+                                "native notification open",
+                                &anyhow::Error::from(error),
+                            );
+                        }
+                    }
+                    "copy" => {
+                        if let Err(error) = copy_text_to_clipboard(&fix_prompt) {
+                            crate::crash_log::log_error("native notification copy", &error);
+                        }
+                    }
+                    _ => {}
+                });
+            }
+            Err(error) => {
+                crate::crash_log::log_error(
+                    "native notification show",
+                    &anyhow!("failed to show desktop notification: {error}"),
+                );
+            }
+        }
+    });
+}
+
+#[cfg(target_os = "linux")]
+fn copy_text_to_clipboard(text: &str) -> Result<()> {
+    let mut clipboard = Clipboard::new().context("failed to access clipboard")?;
+    clipboard
+        .set_text(text.to_string())
+        .context("failed to copy text to clipboard")?;
+    Ok(())
 }
 
 fn show_notification_window(app: &AppHandle) -> Result<()> {

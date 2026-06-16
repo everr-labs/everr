@@ -8,7 +8,55 @@ use crate::{current_app_name, QUIT_MENU_ID, SETTINGS_MENU_ID, TRAY_ICON_ID};
 
 const OPEN_MENU_ID: &str = "open";
 
+/// On Linux the tray backend (`libappindicator-sys`) `dlopen`s the appindicator
+/// library when the tray is built and **panics** if it is missing. Probe for it
+/// first so a missing library degrades into a recoverable error instead of
+/// aborting the process (the main window is shown on launch as a fallback). The
+/// candidate sonames mirror the ones the backend itself tries.
+#[cfg(target_os = "linux")]
+fn appindicator_available() -> bool {
+    const CANDIDATES: [&str; 4] = [
+        "libayatana-appindicator3.so.1",
+        "libappindicator3.so.1",
+        "libayatana-appindicator3.so",
+        "libappindicator3.so",
+    ];
+
+    CANDIDATES
+        .iter()
+        .any(|name| unsafe { libloading::Library::new(name) }.is_ok())
+}
+
+/// A tray icon (StatusNotifierItem) is only *rendered* when a StatusNotifier
+/// host/watcher is registered on the session bus. KDE Plasma provides one
+/// natively; stock GNOME does not (it needs the AppIndicator extension), so the
+/// icon would be invisible even though the library loads. Returns whether a
+/// watcher is present so callers can decide to show the window instead.
+#[cfg(target_os = "linux")]
+pub(crate) fn status_notifier_host_available() -> bool {
+    use zbus::blocking::{fdo::DBusProxy, Connection};
+    use zbus::names::BusName;
+
+    let Ok(connection) = Connection::session() else {
+        return false;
+    };
+    let Ok(dbus) = DBusProxy::new(&connection) else {
+        return false;
+    };
+    let Ok(name) = BusName::try_from("org.kde.StatusNotifierWatcher") else {
+        return false;
+    };
+    dbus.name_has_owner(name).unwrap_or(false)
+}
+
 pub(crate) fn build_tray(app: &AppHandle) -> Result<()> {
+    #[cfg(target_os = "linux")]
+    if !appindicator_available() {
+        anyhow::bail!(
+            "system tray unavailable: libayatana-appindicator3 / libappindicator3 is not installed"
+        );
+    }
+
     let open = MenuItem::with_id(app, OPEN_MENU_ID, "Open", true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
     let settings = MenuItem::with_id(app, SETTINGS_MENU_ID, "Settings", true, None::<&str>)?;
@@ -44,7 +92,7 @@ pub(crate) fn build_tray(app: &AppHandle) -> Result<()> {
     Ok(())
 }
 
-fn open_main_window(app: &AppHandle) -> Result<()> {
+pub(crate) fn open_main_window(app: &AppHandle) -> Result<()> {
     if let Some(window) = app.get_webview_window("main") {
         #[cfg(target_os = "macos")]
         let _ = app.set_activation_policy(tauri::ActivationPolicy::Regular);

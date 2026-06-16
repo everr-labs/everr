@@ -2,6 +2,48 @@
 
 ## Development
 
+### System prerequisites
+
+You need the standard toolchains on every platform: Rust (stable), Node + pnpm,
+Go (for the collector), and Docker with the Compose plugin.
+
+On **macOS** no extra system packages are required beyond the Xcode command line
+tools. On **Linux**, the Tauri desktop app needs the GTK/WebKit development
+libraries to build, plus `libayatana-appindicator3` at runtime for the system
+tray (without it the app panics on launch).
+
+**Fedora** (verified on Fedora 44):
+
+```bash
+# Desktop app build dependencies
+sudo dnf install -y \
+  webkit2gtk4.1-devel gtk3-devel libsoup3-devel glib2-devel \
+  cairo-devel pango-devel gdk-pixbuf2-devel atk-devel \
+  openssl-devel librsvg2-devel
+
+# System tray runtime dependency
+sudo dnf install -y libayatana-appindicator-gtk3
+```
+
+To **build** the Linux desktop bundles (`deb`/`rpm`/`appimage`) you also need the
+appindicator development package — the Tauri bundler probes for the unversioned
+`.so` and panics with "Can't detect any appindicator library" without it:
+
+```bash
+sudo dnf install -y libayatana-appindicator-gtk3-devel   # Fedora
+# Debian/Ubuntu: the libayatana-appindicator3-dev package below already covers this
+```
+
+**Debian/Ubuntu**:
+
+```bash
+sudo apt update
+sudo apt install -y \
+  libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev \
+  libssl-dev librsvg2-dev libayatana-appindicator3-dev \
+  build-essential curl wget file
+```
+
 ### Set up GitHub webhook forwarding
 
 The web app starts a [`smee`](https://smee.io/) client during Vite dev when `SMEE_CHANNEL` is set.
@@ -14,11 +56,19 @@ The web app starts a [`smee`](https://smee.io/) client during Vite dev when `SME
    ```
 4. Start the web app with `pnpm dev:web`. The dev server forwards events from `https://smee.io/<SMEE_CHANNEL>` to `http://localhost:5173/webhook/github`.
 
-### Start ClickHouse
+### Start the local services (Postgres, ClickHouse, collector, mail)
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
+
+> [!NOTE]
+> **Fedora / SELinux:** the bind mounts in `docker-compose.yaml` carry the `:Z`
+> / `:z` flag, so Docker relabels the host paths for SELinux automatically — no
+> manual `chcon` is needed (the flag is ignored on macOS/Docker Desktop). Just
+> install the Compose plugin from Fedora's repositories
+> (`sudo dnf install docker-compose`) rather than the docker-ce
+> `docker-compose-plugin`, which conflicts with Fedora's `docker-buildx`.
 
 ### Install dependencies and build
 
@@ -143,3 +193,19 @@ The Apple signing and notarization inputs are documented in `packages/desktop-ap
 CI secret setup is documented in `docs/desktop-release-secrets.md`.
 `packages/desktop-app/.env` is sourced automatically by the package-native build scripts.
 That release flow stages the DMG, updater artifacts, checksums, release metadata, and signed CLI files into `target/desktop-release/`.
+
+For **Linux**, build installable bundles directly with the Tauri CLI (requires
+the build dependencies from [System prerequisites](#system-prerequisites),
+including the appindicator `-devel`/`-dev` package):
+
+```bash
+pnpm --dir packages/desktop-app tauri build \
+  --bundles deb,rpm,appimage \
+  --config '{"bundle":{"createUpdaterArtifacts":false}}'
+```
+
+Bundles land in `target/release/bundle/{deb,rpm,appimage}/`. The packages declare
+their runtime dependencies (WebKitGTK, GTK, and `libayatana-appindicator3`), so a
+package-manager install pulls in the system tray library automatically. The
+`build-linux-desktop` CI job produces the same bundles as downloadable artifacts;
+publishing them to everr.dev is a separate follow-up.
