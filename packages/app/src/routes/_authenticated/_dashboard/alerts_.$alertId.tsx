@@ -322,22 +322,7 @@ function AlertDetailPage() {
           </CardContent>
         </Card>
       )}
-
       <Card>
-        <CardHeader className="flex flex-row items-start justify-between gap-4">
-          <CardTitle>Configuration</CardTitle>
-          {sourceHref && (
-            <a
-              className="inline-flex shrink-0 items-center gap-1 text-muted-foreground text-xs underline underline-offset-4 hover:text-foreground"
-              href={sourceHref}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <ExternalLink className="size-3" />
-              Source
-            </a>
-          )}
-        </CardHeader>
         <CardContent>
           <div className="grid gap-4 xl:grid-cols-2">
             <div className="flex flex-col gap-3">

@@ -237,12 +237,6 @@ function AlertsPage() {
       )}
 
       <Card inset="flush-content">
-        <CardHeader>
-          <CardTitle>Rules</CardTitle>
-          <CardDescription>
-            One row per rule. Open a rule to see its alert instances.
-          </CardDescription>
-        </CardHeader>
         <CardContent>
           {alerts.isError ? (
             <QueryErrorMessage message="Unable to load alerts." />
