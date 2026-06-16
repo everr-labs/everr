@@ -1,4 +1,4 @@
-// Shared formatting for alert notification bodies (email and telegram).
+// Shared formatting for alert notification bodies (telegram).
 
 import { formatLabels } from "@/data/alerts/matchers";
 import { isNumericValue } from "@/lib/numeric";
@@ -19,8 +19,8 @@ export interface BuildOptions {
   now: Date;
 }
 
-// One definition of how each kind presents across channels; email layers its
-// colors on top, telegram lowercases the label for its headline.
+// One definition of how each kind presents across channels; telegram lowercases
+// the label for its headline.
 export const KIND_STATUS: Record<
   DeliveryKind,
   { emoji: string; label: string }
@@ -29,7 +29,7 @@ export const KIND_STATUS: Record<
   resolved: { emoji: "✅", label: "Resolved" },
 };
 
-export function escapeHtml(value: string): string {
+function escapeHtml(value: string): string {
   return value
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
@@ -84,7 +84,7 @@ export function extractInstanceValues(
 
 // What to show next to an instance's labels: the breaching values while
 // firing, how long it fired once resolved. Empty when neither is available.
-export function instanceDetail(
+function instanceDetail(
   instance: NotifiableInstance,
   kind: DeliveryKind,
   now: Date,

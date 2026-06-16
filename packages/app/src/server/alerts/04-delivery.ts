@@ -20,7 +20,6 @@ import type {
 } from "@/data/alerts/delivery-settings";
 import { findSilenceForInstance, type Matcher } from "@/data/alerts/matchers";
 import { env } from "@/env";
-import { mailer } from "@/lib/mailer.server";
 import { sendTelegramMessage } from "@/lib/telegram.server";
 import { addWorkerJob } from "@/server/worker/jobs";
 import {
@@ -29,7 +28,6 @@ import {
   serverLogger,
 } from "@/telemetry/logger";
 import { buildDeliveryFailureEvent, recordAlertEvents } from "./03-events";
-import { buildAlertEmail } from "./04-email";
 import type { DeliveryInput } from "./04-format";
 import { buildTelegramText } from "./04-telegram";
 
@@ -63,17 +61,10 @@ const SendBaseSchema = z.object({
   scheduledFor: z.coerce.date(),
 });
 
-const DeliverySendSchema = z.discriminatedUnion("channel", [
-  SendBaseSchema.extend({
-    channel: z.literal("email"),
-    subject: z.string(),
-    html: z.string(),
-  }),
-  SendBaseSchema.extend({
-    channel: z.literal("telegram"),
-    botToken: z.string(),
-  }),
-]);
+const DeliverySendSchema = SendBaseSchema.extend({
+  channel: z.literal("telegram"),
+  botToken: z.string(),
+});
 
 export type DeliverySend = z.infer<typeof DeliverySendSchema>;
 
@@ -101,9 +92,6 @@ export async function enqueueAlertNotification(
   const silences = context.silences;
 
   const deliveryTargets: AlertDeliveryTargets = {};
-  if (delivery.email?.enabled && delivery.email.to.length > 0) {
-    deliveryTargets.email = delivery.email.to;
-  }
   if (delivery.telegram?.enabled && delivery.telegram.chatIds.length > 0) {
     deliveryTargets.telegram = delivery.telegram.chatIds;
   }
@@ -116,24 +104,12 @@ export async function enqueueAlertNotification(
 
   const now = new Date();
   const buildOptions = { url: alertUrl(def.id), now };
-  const { subject, text, html } = buildAlertEmail(input, buildOptions);
   const telegramText = buildTelegramText(input, buildOptions);
 
   // Zod strips unknown keys, so this is the schema-defined subset of the full
   // definition row — one field list to maintain.
   const sendDef = SendDefSchema.parse(def);
   const sends: DeliverySend[] = [
-    ...(deliveryTargets.email ?? []).map(
-      (target): DeliverySend => ({
-        channel: "email",
-        target,
-        subject,
-        text,
-        html,
-        def: sendDef,
-        scheduledFor,
-      }),
-    ),
     ...(deliveryTargets.telegram ?? []).map(
       (target): DeliverySend => ({
         channel: "telegram",
@@ -173,16 +149,7 @@ export async function runDeliverySend(
   const send = DeliverySendSchema.parse(rawPayload);
 
   try {
-    if (send.channel === "email") {
-      await mailer.send({
-        to: send.target,
-        subject: send.subject,
-        text: send.text,
-        html: send.html,
-      });
-    } else {
-      await sendTelegramMessage(send.botToken, send.target, send.text);
-    }
+    await sendTelegramMessage(send.botToken, send.target, send.text);
   } catch (error) {
     const finalAttempt = job.attempts >= job.max_attempts;
     serverLogger.warn(`alerts.delivery.${send.channel}_failed`, {

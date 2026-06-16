@@ -12,33 +12,6 @@ owner or admin.
 The settings apply to the active organization. They are not configured through
 alert YAML, `everr.yaml`, or the apply API.
 
-## Server Configuration
-
-### Email
-
-Email delivery uses the existing app mailer.
-
-Required environment variables:
-
-```sh
-EMAIL_FROM="alerts@example.com"
-RESEND_API_KEY="<resend-api-key>"
-```
-
-In production, Everr sends email through Resend. `EMAIL_FROM` must be an email
-address that Resend is allowed to send from, usually from a verified domain.
-
-In local development, the mailer uses Nodemailer against the local Mailpit SMTP
-server at `localhost:1025`. The Docker Compose setup exposes Mailpit at:
-
-```text
-SMTP: localhost:1025
-Web UI: http://localhost:8025
-```
-
-The current app environment schema still requires `RESEND_API_KEY` to be set,
-even though development delivery uses Mailpit.
-
 ## Organization UI Settings
 
 Open the app and go to:
@@ -47,27 +20,7 @@ Open the app and go to:
 Alerts -> Notification settings
 ```
 
-The dialog contains two settings:
-
-### Email
-
-Enable `Email`, then enter one or more recipient email addresses.
-
-Accepted format:
-
-```text
-alerts@example.com
-oncall@example.com
-```
-
-or:
-
-```text
-alerts@example.com, oncall@example.com
-```
-
-If Email is disabled, or if the recipient list is empty, Everr does not send
-email notifications.
+The dialog contains Telegram notification settings.
 
 ### Telegram
 
@@ -144,25 +97,6 @@ Relevant log events:
 ```text
 telegram.send.failed
 alerts.delivery.telegram_failed
-```
-
-### Email Notifications Are Not Sent
-
-Check:
-
-- `EMAIL_FROM` is set.
-- `RESEND_API_KEY` is set.
-- In production, the `EMAIL_FROM` domain is verified in Resend.
-- In development, Mailpit is running and reachable at `localhost:1025`.
-- Email is enabled in `Alerts -> Notification settings`.
-- The recipient list is not empty.
-- The alert is not silenced.
-
-Relevant log events:
-
-```text
-mailer.send.failed
-alerts.delivery.email_failed
 ```
 
 ### No Notification On Repeated Evaluations

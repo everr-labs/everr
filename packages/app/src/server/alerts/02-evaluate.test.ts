@@ -96,13 +96,17 @@ beforeEach(() => {
   updates.length = 0;
   selectCallCount = 0;
   deliver.mockResolvedValue({
-    deliveryTargets: { email: ["a@example.com"] },
+    deliveryTargets: { telegram: ["123"] },
     silenceId: "",
   });
   insertEvents.mockResolvedValue(undefined);
   fetchFiring.mockResolvedValue([]);
   settingsRows.mockReturnValue([
-    { delivery: { email: { enabled: true, to: ["a@example.com"] } } },
+    {
+      delivery: {
+        telegram: { enabled: true, botToken: "token-1", chatIds: ["123"] },
+      },
+    },
   ]);
   silenceRows.mockReturnValue([]);
 });
@@ -124,7 +128,7 @@ describe("evaluateAlert", () => {
     ]);
     expect(inserted[0]).toMatchObject({ instance_fingerprint: fp("/x") });
     expect(inserted[1]).toMatchObject({
-      delivery_targets: { email: ["a@example.com"] },
+      delivery_targets: { telegram: ["123"] },
       silence_id: "",
     });
     expect(

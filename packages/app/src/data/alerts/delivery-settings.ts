@@ -1,14 +1,10 @@
 import { z } from "zod";
-import {
-  validateEmailRecipient,
-  validateTelegramBotToken,
-  validateTelegramChatId,
-} from "./recipients";
+import { validateTelegramBotToken, validateTelegramChatId } from "./recipients";
 
 // Single definition of the notification channels. Adding a channel means
 // extending this array, the schema below, and the per-channel send logic in
 // server/alerts/delivery.ts.
-export const ALERT_CHANNELS = ["email", "telegram"] as const;
+export const ALERT_CHANNELS = ["telegram"] as const;
 export type AlertChannel = (typeof ALERT_CHANNELS)[number];
 export type AlertDeliveryTargets = Partial<Record<AlertChannel, string[]>>;
 
@@ -16,7 +12,6 @@ export type AlertDeliveryTargets = Partial<Record<AlertChannel, string[]>>;
 // consumed by both the server schema below and the settings form's inline
 // field validation.
 const EMPTY_CHANNEL_MESSAGES: Record<AlertChannel, string> = {
-  email: "Email is enabled but has no recipients",
   telegram: "Telegram is enabled but has no chat IDs",
 };
 
@@ -44,25 +39,6 @@ export function telegramBotTokenError(
 
 export const DeliverySettingsSchema = z
   .object({
-    email: z
-      .object({
-        enabled: z.boolean(),
-        to: z
-          .array(
-            z
-              .string()
-              .refine((value) => validateEmailRecipient(value) === null, {
-                message: "Invalid email recipient",
-              }),
-          )
-          .max(50)
-          .default([]),
-      })
-      .strict()
-      .refine((value) => !emptyChannelError("email", value.enabled, value.to), {
-        message: EMPTY_CHANNEL_MESSAGES.email,
-      })
-      .optional(),
     telegram: z
       .object({
         enabled: z.boolean(),
@@ -94,7 +70,6 @@ export const DeliverySettingsSchema = z
 export type AlertDeliverySettings = z.infer<typeof DeliverySettingsSchema>;
 
 export type NormalizedAlertDeliverySettings = {
-  email: { enabled: boolean; to: string[] };
   telegram: { enabled: boolean; botToken: string; chatIds: string[] };
 };
 
@@ -102,10 +77,6 @@ export function normalizeDeliverySettings(
   delivery: AlertDeliverySettings | null | undefined,
 ): NormalizedAlertDeliverySettings {
   return {
-    email: {
-      enabled: delivery?.email?.enabled ?? false,
-      to: delivery?.email?.to ?? [],
-    },
     telegram: {
       enabled: delivery?.telegram?.enabled ?? false,
       botToken: delivery?.telegram?.botToken?.trim() ?? "",
