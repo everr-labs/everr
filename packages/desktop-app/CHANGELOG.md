@@ -1,5 +1,12 @@
 # @everr/desktop-app
 
+## 0.3.1
+
+### Patch Changes
+
+- 47014e1: Publish bundled CLI assets to the action repository during desktop releases and let the action install the matching bundled CLI for supported runners.
+- 12d63c0: Keep trace and error lists mounted while opening detail dialogs so closing a detail preserves the list state, and reserve the macOS titlebar space in windowed dialogs.
+
 ## 0.1.31
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @everr/action
 
+## 0.3.1
+
+### Patch Changes
+
+- 47014e1: Publish bundled CLI assets to the action repository during desktop releases and let the action install the matching bundled CLI for supported runners.
+
 ## 0.3.0
 
 ### Minor Changes
