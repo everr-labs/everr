@@ -1,0 +1,236 @@
+kind: Notebook
+metadata:
+  name: troubleshooting
+  project: demo
+spec:
+  display:
+    name: Troubleshooting Runbook
+    description: Common patterns for investigating incidents
+  duration: 7d
+  refreshInterval: 1m
+  variables:
+    - kind: ListVariable
+      spec:
+        name: env
+        display:
+          name: Environment
+        defaultValue: prod
+        allowAllValue: true
+        allowMultiple: false
+        plugin:
+          kind: StaticListVariable
+          spec:
+            values: [prod, staging, dev]
+  panels:
+    error-rate:
+      kind: Panel
+      spec:
+        display:
+          name: Error Rate
+          description: Error requests over time
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            unit: req/s
+            showLegend: true
+            lineWidth: 1.5
+            curveType: stepAfter
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 42
+                  series:
+                    - { name: "errors", start: 10, noise: 5, min: 0 }
+    latency-p95:
+      kind: Panel
+      spec:
+        display:
+          name: P95 Latency
+          description: 95th percentile request latency
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            unit: ms
+            showLegend: false
+            lineWidth: 2
+            curveType: monotone
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 7
+                  series:
+                    - { name: "p95_ms", start: 120, noise: 15, min: 20 }
+    cpu-gauge:
+      kind: Panel
+      spec:
+        display:
+          name: CPU Usage
+        plugin:
+          kind: GaugeChart
+          spec:
+            unit: percent
+            calculation: last
+            thresholds:
+              steps:
+                - { color: green, value: 0 }
+                - { color: yellow, value: 60 }
+                - { color: red, value: 85 }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 99
+                  series:
+                    - { name: cpu, start: 45, noise: 10, min: 5, max: 100 }
+    memory-table:
+      kind: Panel
+      spec:
+        display:
+          name: Top Memory Consumers
+        plugin:
+          kind: Table
+          spec: {}
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 77
+                  series:
+                    - { name: collector, start: 512, noise: 30, min: 128 }
+                    - { name: api, start: 256, noise: 20, min: 64 }
+                    - { name: ingest, start: 128, noise: 15, min: 32 }
+  markdown:
+    inline: |
+      # Troubleshooting Runbook
+
+      This runbook guides you through common incident investigation patterns.
+      Use the navigation on the left to jump between topics.
+
+      ## Quick Health Check
+
+      Start by checking the overall error rate and latency:
+
+      ```panel
+      ref: error-rate
+      ```
+
+      ```panel
+      ref: latency-p95
+      ```
+
+      ## What to Do First
+
+      1. **Confirm the alert** — check if the alert in PagerDuty/Slack matches an active incident
+      2. **Check dashboards** — open the relevant dashboard for the affected service
+      3. **Correlate deploys** — was a deploy or config change pushed in the last hour?
+      4. **Follow the page for your symptom** — see the navigation tree
+
+      ## Common Links
+
+      - [Error Investigation](/notebooks/demo/troubleshooting/errors) — spike in error counts
+      - [Latency Spikes](/notebooks/demo/troubleshooting/latency) — elevated response times
+      - [Resource Saturation](/notebooks/demo/troubleshooting/resources) — CPU/memory pressure
+  pages:
+    - name: errors
+      display:
+        name: Error Investigation
+      markdown:
+        inline: |
+          # Error Investigation
+
+          When error counts spike, work through these steps in order.
+
+          ## 1. Check Error Rate
+
+          ```panel
+          ref: error-rate
+          ```
+
+          ## 2. Common Causes
+
+          | Symptom | Likely Cause | Action |
+          |---------|-------------|--------|
+          | Sudden spike to all endpoints | Recent deploy | Roll back if regressed |
+          | Gradual increase | Resource leak | Check resource page |
+          | Single endpoint failing | Downstream outage | Check dependency status |
+          | Periodic bursts | Cron/batch job | Check job logs |
+
+          ## 3. Next Steps
+
+          - Correlate with deploy history
+          - Check downstream dependencies
+          - Review recent configuration changes
+          - Escalate to [resource saturation](/notebooks/demo/troubleshooting/resources) if CPU/memory is involved
+    - name: latency
+      display:
+        name: Latency Spikes
+      markdown:
+        inline: |
+          # Latency Investigation
+
+          Use this page to diagnose elevated response times.
+
+          ## Current P95
+
+          ```panel
+          ref: latency-p95
+          ```
+
+          ## Diagnosis Flow
+
+          1. **Is it all endpoints or one?** — check the dashboard breakdown by route
+          2. **Is it a specific percentile?** — p50 normal + p95 high = tail latency from slow backends
+          3. **Is the database slow?** — correlate with DB query times
+          4. **Is there GC pressure?** — check JVM/Go GC pause metrics
+
+          ## Typical Resolutions
+
+          - Scale up / scale out if traffic exceeds capacity
+          - Roll back if caused by a recent deploy
+          - Tune connection pools if DB is starved
+          - Enable caching for hot paths
+    - name: resources
+      display:
+        name: Resource Saturation
+      markdown:
+        inline: |
+          # Resource Saturation
+
+          Diagnose CPU and memory pressure.
+
+          ## CPU
+
+          ```panel
+          ref: cpu-gauge
+          ```
+
+          ## Memory
+
+          ```panel
+          ref: memory-table
+          ```
+
+          ## Actions
+
+          | Signal | Action |
+          |--------|--------|
+          | CPU > 80% sustained | Scale horizontally or profile hot code |
+          | Memory growing linearly | Look for leaks — check heap profiles |
+          | Memory > 90% | Restart before OOM, then investigate |
+          | Sudden CPU spike | Check for infinite loops or DDoS |
+
+          If nothing helps, escalation point: infrastructure team.
