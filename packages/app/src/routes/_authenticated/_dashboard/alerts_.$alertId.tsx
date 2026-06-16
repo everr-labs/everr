@@ -39,7 +39,6 @@ import {
   CircleCheck,
   CirclePlay,
   CircleStop,
-  ExternalLink,
   Plus,
   X,
 } from "lucide-react";
@@ -71,7 +70,6 @@ import {
   formatInterval,
   QueryErrorMessage,
   RelativeTime,
-  safeExternalHref,
   stateVariant,
 } from "./-alerts-shared";
 
@@ -174,7 +172,6 @@ function AlertDetailPage() {
     );
   }
   const detail = alert.data;
-  const sourceHref = safeExternalHref(detail.sourceLink);
   const definitionRows: [string, ReactNode][] = [
     ["Repository", detail.repoid],
     ["Evaluation interval", formatInterval(detail.evaluationIntervalSeconds)],

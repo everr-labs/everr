@@ -1,11 +1,5 @@
 import { Button } from "@everr/ui/components/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@everr/ui/components/card";
+import { Card, CardContent } from "@everr/ui/components/card";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
 import {
   Dialog,
