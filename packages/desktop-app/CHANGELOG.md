@@ -1,5 +1,11 @@
 # @everr/desktop-app
 
+## 0.3.2
+
+### Patch Changes
+
+- 84b0397: Temporarily disable everr-action release pipeline (bundled CLI binary exceeds GitHub 100 MB file limit)
+
 ## 0.3.1
 
 ### Patch Changes
