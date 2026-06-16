@@ -1,6 +1,6 @@
-import { and, eq, inArray } from "drizzle-orm";
-import { ApplyValidationError } from "@/data/as-code/errors";
+import { and, eq } from "drizzle-orm";
 import { reconcile } from "@/data/as-code/reconcile";
+import type { Reconciler } from "@/data/as-code/registry";
 import { db } from "@/db/client";
 import { notebooks } from "@/db/schema";
 import { buildDesiredNotebookSet } from "./desired";
@@ -10,57 +10,40 @@ export interface ApplyNotebooksResult {
   created: string[];
   updated: string[];
   deleted: string[];
-  dryRun: boolean;
 }
 
 /**
  * Declarative reconcile core for notebooks; same contract as dashboards: the
- * declared `projects` are the authoritative scope, every desired notebook must
- * target a declared project, anything existing-but-not-desired within scope is
- * pruned, and writes happen in one transaction.
+ * repoid (from everr.yaml) is the authoritative reconcile scope, existing rows
+ * are loaded only for (org, repoid), so anything missing from the desired tree
+ * is pruned within the repo — and other repos' notebooks are never touched.
+ * Unless dryRun, applies creates/updates/deletes in a single transaction.
  *
  * Lives in `.server.ts` (not `server.ts`) because it is a plain db-using
  * export; `server.ts` is reachable from the client and would drag `pg` into
  * the bundle.
  */
-export async function applyNotebookSpecs(opts: {
-  orgId: string;
-  projects: string[];
-  documents: { path: string; document: unknown }[];
-  dryRun?: boolean;
-}): Promise<ApplyNotebooksResult> {
-  const { orgId, projects, documents, dryRun } = opts;
+export const applyNotebookSpecs: Reconciler = async ({
+  orgId,
+  repoid,
+  resources,
+  dryRun,
+}): Promise<ApplyNotebooksResult> => {
+  const desired = buildDesiredNotebookSet(
+    resources.map((r) => ({ path: r.path, document: r.resource })),
+  );
 
-  const desired = buildDesiredNotebookSet(documents);
-
-  const scope = [...new Set(projects)];
-  const scopeSet = new Set(scope);
-
-  for (const d of desired) {
-    if (!scopeSet.has(d.project)) {
-      throw new ApplyValidationError(
-        `notebook "${d.slug}" targets project "${d.project}", which is not declared in everr.yaml (add it to projects)`,
-      );
-    }
-  }
-
-  const existing =
-    scope.length === 0
-      ? []
-      : await db
-          .select({
-            project: notebooks.project,
-            slug: notebooks.slug,
-            folderPath: notebooks.folderPath,
-            document: notebooks.document,
-          })
-          .from(notebooks)
-          .where(
-            and(
-              eq(notebooks.organizationId, orgId),
-              inArray(notebooks.project, scope),
-            ),
-          );
+  const existing = await db
+    .select({
+      project: notebooks.project,
+      slug: notebooks.slug,
+      folderPath: notebooks.folderPath,
+      document: notebooks.document,
+    })
+    .from(notebooks)
+    .where(
+      and(eq(notebooks.organizationId, orgId), eq(notebooks.repoid, repoid)),
+    );
 
   const diff = reconcile({ existing, desired });
 
@@ -68,7 +51,6 @@ export async function applyNotebookSpecs(opts: {
     created: diff.creates.map((d) => d.slug),
     updated: diff.updates.map((d) => d.slug),
     deleted: diff.deletes.map((d) => d.slug),
-    dryRun: dryRun ?? false,
   };
 
   if (dryRun) return summary;
@@ -77,6 +59,7 @@ export async function applyNotebookSpecs(opts: {
     for (const d of diff.creates) {
       await tx.insert(notebooks).values({
         organizationId: orgId,
+        repoid,
         project: d.project,
         slug: d.slug,
         folderPath: d.folderPath,
@@ -94,6 +77,7 @@ export async function applyNotebookSpecs(opts: {
         .where(
           and(
             eq(notebooks.organizationId, orgId),
+            eq(notebooks.repoid, repoid),
             eq(notebooks.project, d.project),
             eq(notebooks.slug, d.slug),
           ),
@@ -105,6 +89,7 @@ export async function applyNotebookSpecs(opts: {
         .where(
           and(
             eq(notebooks.organizationId, orgId),
+            eq(notebooks.repoid, repoid),
             eq(notebooks.project, d.project),
             eq(notebooks.slug, d.slug),
           ),
@@ -113,4 +98,4 @@ export async function applyNotebookSpecs(opts: {
   });
 
   return summary;
-}
+};

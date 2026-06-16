@@ -12,18 +12,22 @@ interface DataTableProps<T> {
   data: T[];
   columns: Column<T>[];
   rowKey: (row: T, index: number) => string;
+  rowClassName?: (row: T, index: number) => string | undefined;
   emptyState?: ReactNode;
   stickyHeader?: boolean;
   bordered?: boolean;
+  containerClassName?: string;
 }
 
 export function DataTable<T>({
   data,
   columns,
   rowKey,
+  rowClassName,
   emptyState,
   stickyHeader,
   bordered,
+  containerClassName,
 }: DataTableProps<T>) {
   if (data.length === 0 && emptyState) {
     return <>{emptyState}</>;
@@ -33,7 +37,7 @@ export function DataTable<T>({
   const isLast = (i: number) => i === columns.length - 1;
 
   return (
-    <div className={bordered ? undefined : "overflow-x-auto"}>
+    <div className={cn(!bordered && "overflow-x-auto", containerClassName)}>
       <table
         className={cn(
           "w-full text-sm",
@@ -70,6 +74,7 @@ export function DataTable<T>({
               className={cn(
                 "hover:bg-muted/50",
                 !bordered && "border-b last:border-0",
+                rowClassName?.(row, rowIndex),
               )}
             >
               {columns.map((col, i) => (

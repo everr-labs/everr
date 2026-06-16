@@ -27,8 +27,9 @@ export const Route = createFileRoute("/api/apply")({
         try {
           const summary = await applyResources({
             orgId: context.session.session.activeOrganizationId,
-            projects: parsed.data.projects,
-            documents: parsed.data.documents,
+            repoid: parsed.data.repoid,
+            state: parsed.data.state,
+            source: parsed.data.source,
             dryRun: parsed.data.dryRun,
           });
           return Response.json({

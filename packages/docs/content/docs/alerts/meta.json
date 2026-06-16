@@ -1,0 +1,11 @@
+{
+  "title": "Alerts",
+  "defaultOpen": true,
+  "pages": [
+    "index",
+    "first-alert",
+    "notifications",
+    "writing-queries",
+    "alert-spec"
+  ]
+}

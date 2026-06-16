@@ -78,7 +78,11 @@ export function CommandBar() {
         type="button"
         variant="outline"
         onClick={() => toggleCommandBar(true)}
-        className={cn("w-52 cursor-text", open ? "opacity-0" : "opacity-100")}
+        className={cn(
+          // Pointless without a keyboard and eats the narrow header on phones.
+          "hidden w-52 cursor-text md:inline-flex",
+          open ? "opacity-0" : "opacity-100",
+        )}
       >
         <SearchIcon className="size-3.5 shrink-0" />
         <span className="flex-1 text-left text-muted-foreground">

@@ -1,11 +1,8 @@
+import { applyAlertSpecs } from "@/data/alerts/apply.server";
 import { applyDashboardSpecs } from "@/data/dashboards/apply.server";
 import { applyNotebookSpecs } from "@/data/notebooks/apply.server";
 import { ApplyValidationError } from "./errors";
-
-export interface ApplyDocument {
-  path: string;
-  document: unknown;
-}
+import type { ApplyInput, ApplyResourceEntry, ApplySource } from "./schema";
 
 export interface KindResult {
   kind: string;
@@ -19,40 +16,50 @@ export interface ApplyResourcesResult {
   results: KindResult[];
 }
 
-/** A reconciler makes the org's resources of one kind match the given docs. */
-type Reconciler = (opts: {
+/** A reconciler makes the repo's resources of one kind match the given entries. */
+export type Reconciler = (opts: {
   orgId: string;
-  projects: string[];
-  documents: ApplyDocument[];
+  repoid: string;
+  resources: ApplyResourceEntry[];
+  source?: ApplySource;
   dryRun?: boolean;
 }) => Promise<{ created: string[]; updated: string[]; deleted: string[] }>;
 
 /**
- * Resource kind → reconciler. Add a new kind (e.g. "Alert") by adding one entry;
- * the CLI does not change. Every registered kind is reconciled on each apply, so
- * a kind absent from the tree is pruned within the declared projects — the tree
- * is the complete desired state across all kinds for those projects.
+ * State key → (kind label, reconciler). Every registered kind reconciles on
+ * each apply, including an empty array, so the submitted state is the complete
+ * desired state for the repo — an absent kind prunes within the repoid.
+ *
+ * Keep the kinds in sync with classify_documents in
+ * crates/everr-core/src/apply.rs, which routes documents by kind CLI-side.
  */
-const REGISTRY: Record<string, Reconciler> = {
-  Dashboard: applyDashboardSpecs,
-  Notebook: applyNotebookSpecs,
-};
+const REGISTRY: {
+  key: keyof ApplyInput["state"];
+  kind: string;
+  reconcile: Reconciler;
+}[] = [
+  { key: "dashboards", kind: "Dashboard", reconcile: applyDashboardSpecs },
+  { key: "notebooks", kind: "Notebook", reconcile: applyNotebookSpecs },
+  { key: "alerts", kind: "AlertRule", reconcile: applyAlertSpecs },
+];
 
-function documentKind(doc: ApplyDocument): string {
-  const kind = (doc.document as { kind?: unknown } | null)?.kind;
-  if (typeof kind !== "string" || kind.length === 0) {
-    throw new ApplyValidationError(
-      `${doc.path}: document is missing a string "kind"`,
-    );
+function validateResourceKind(
+  resources: ApplyResourceEntry[],
+  expectedKind: string,
+): void {
+  for (const resource of resources) {
+    const value = resource.resource as { kind?: unknown } | null | undefined;
+    if (value?.kind !== expectedKind) {
+      throw new ApplyValidationError(
+        `${resource.path}: expected kind "${expectedKind}"`,
+      );
+    }
   }
-  return kind;
 }
 
 /**
- * Apply a heterogeneous set of resource documents for the declared projects:
- * group by kind, reject unknown kinds, then reconcile EVERY registered kind
- * (groups default to empty so absent kinds prune within the declared projects).
- * Returns a per-kind summary.
+ * Apply grouped resources for one repo. Every registered kind is reconciled,
+ * including empty arrays, so the submitted state is the full repo state.
  *
  * Reconcilers run sequentially and each one writes on its own, so a later kind
  * that fails validation must not be able to let an earlier kind write first. We
@@ -60,30 +67,17 @@ function documentKind(doc: ApplyDocument): string {
  * (each reconciler runs its full document validation but performs no writes),
  * then — only if all kinds validated — the real apply pass. Without this, an
  * apply carrying a single invalid Notebook would let the Dashboard reconciler
- * prune the declared projects before Notebook validation threw.
+ * prune the repo before Notebook validation threw.
  */
 export async function applyResources(opts: {
   orgId: string;
-  projects: string[];
-  documents: ApplyDocument[];
+  repoid: string;
+  state: ApplyInput["state"];
+  source?: ApplySource;
   dryRun?: boolean;
 }): Promise<ApplyResourcesResult> {
-  const { orgId, projects, documents, dryRun } = opts;
+  const { orgId, repoid, state, source, dryRun } = opts;
 
-  const byKind = new Map<string, ApplyDocument[]>();
-  for (const doc of documents) {
-    const kind = documentKind(doc);
-    // Own-property check, not `kind in REGISTRY`: `in` walks the prototype chain,
-    // so inherited names like "constructor"/"toString" would pass validation but
-    // never reconcile (the loop below iterates own keys), silently dropping the
-    // doc while registered kinds still prune — a typo could wipe the project.
-    if (!Object.hasOwn(REGISTRY, kind)) {
-      throw new ApplyValidationError(`unknown kind "${kind}" in ${doc.path}`);
-    }
-    byKind.set(kind, [...(byKind.get(kind) ?? []), doc]);
-  }
-
-  const groupFor = (kind: string) => byKind.get(kind) ?? [];
   const summarize = (
     kind: string,
     r: { created: string[]; updated: string[]; deleted: string[] },
@@ -99,11 +93,13 @@ export async function applyResources(opts: {
   // before any kind has written. When the caller asked for a dry run, this pass
   // is also the result.
   const validated: KindResult[] = [];
-  for (const [kind, reconcile] of Object.entries(REGISTRY)) {
+  for (const { key, kind, reconcile } of REGISTRY) {
+    validateResourceKind(state[key], kind);
     const r = await reconcile({
       orgId,
-      projects,
-      documents: groupFor(kind),
+      repoid,
+      resources: state[key],
+      source,
       dryRun: true,
     });
     validated.push(summarize(kind, r));
@@ -113,11 +109,12 @@ export async function applyResources(opts: {
 
   // All kinds validated above; now apply for real.
   const results: KindResult[] = [];
-  for (const [kind, reconcile] of Object.entries(REGISTRY)) {
+  for (const { key, kind, reconcile } of REGISTRY) {
     const r = await reconcile({
       orgId,
-      projects,
-      documents: groupFor(kind),
+      repoid,
+      resources: state[key],
+      source,
       dryRun: false,
     });
     results.push(summarize(kind, r));

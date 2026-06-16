@@ -1,0 +1,47 @@
+---
+title: Notifications
+description: Send firing and resolved alerts to email and Telegram, and template the message per instance.
+---
+
+When an alert instance fires or resolves, Everr notifies the channels enabled for your organization. Channels are configured in the app, not as code, and apply to every rule in the org. Today there are two: email and Telegram.
+
+## Open notification settings
+
+In Everr, go to **Alerts** and click **Notification settings** (top-right of the Alerts list). Each channel has an enable toggle and its recipients. An enabled channel must have at least one recipient before you can save.
+
+## Send email
+
+Enable **Email**, add the recipient address(es) (e.g. `team@example.com`), and save. Firing and resolved notifications now go there.
+
+## Send to Telegram
+
+Enable **Telegram** and provide a **bot token** (like `123456789:ABC...`) and one or more **chat IDs** (e.g. `-1001234567890` for a group), then save. To create a bot and get its token, follow Telegram's [BotFather guide](https://core.telegram.org/bots/features#botfather).
+
+To find a chat ID:
+
+- Add your bot to the chat and read the ID from the Telegram Bot API [`getUpdates`](https://core.telegram.org/bots/api#getupdates) response, or
+- Open the channel or group in the [Telegram web app](https://web.telegram.org) and copy the number from the URL, for channels and supergroups it's the `-100…` value, which is the chat ID.
+
+## What gets sent, and when
+
+Notifications go out on the edges only: once when an instance newly fires, and once when it resolves, not repeatedly while it keeps firing.
+
+They are per instance. A rule firing for three services sends three firing notifications, one per service.
+
+## Write the message
+
+The notification text comes from `spec.notificationMessage`. The title is required, the description is optional. Both support `${column}` placeholders, filled from the firing instance's row:
+
+```yaml
+notificationMessage:
+  title: "${ServiceName} event loop is lagging"
+  description: "p99 event loop delay averaged ${p99_delay_ms}ms over the last 5 minutes"
+```
+
+- Only columns the query returns can be referenced. A `${foo}` where `foo` isn't a returned column is rejected on apply.
+- A missing or null value renders as empty.
+- Put a runbook or dashboard link in the description so responders can act without opening Everr.
+
+## Silence during maintenance
+
+To stop notifications for a known issue or maintenance window without deleting the rule, silence it from the alert's detail page. Use the **Silence** action on a firing instance and set a time window. The rule keeps evaluating; matching notifications are suppressed until the silence ends or you cancel it.

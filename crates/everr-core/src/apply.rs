@@ -162,38 +162,158 @@ fn inline_markdown_source(
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 struct ApplyManifest {
-    #[serde(default)]
-    projects: Vec<String>,
+    repoid: String,
 }
 
-/// Read the required `everr.yaml`/`everr.yml` manifest at the apply root and
-/// return its declared project list (the reconcile scope). Errors if no
-/// manifest is present — apply only operates on a directory that explicitly
-/// opts in.
-pub fn load_apply_manifest(dir: &Path) -> Result<Vec<String>> {
-    for name in MANIFEST_FILES {
-        let path = dir.join(name);
-        if path.is_file() {
-            let contents = std::fs::read_to_string(&path)
-                .with_context(|| format!("{name}: failed to read file"))?;
-            let manifest: ApplyManifest = serde_yaml::from_str(&contents)
-                .with_context(|| format!("{name}: failed to parse"))?;
-            return Ok(manifest.projects);
+/// Read the required manifest at the apply root and return its `repoid`
+/// (the stable repository identifier and apply ownership boundary).
+/// `everr.yaml` is the canonical name; `everr.yml` is also accepted.
+/// Both are excluded from resource loading so they are never parsed as documents.
+pub fn load_apply_manifest(dir: &Path) -> Result<String> {
+    let path = if dir.join("everr.yaml").is_file() {
+        dir.join("everr.yaml")
+    } else if dir.join("everr.yml").is_file() {
+        dir.join("everr.yml")
+    } else {
+        anyhow::bail!(
+            "no everr.yaml found in {} — create one with the stable repository id, e.g.\nrepoid: \"2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1\"",
+            dir.display()
+        );
+    };
+    let name = path
+        .file_name()
+        .unwrap_or(path.as_os_str())
+        .to_string_lossy();
+    let contents =
+        std::fs::read_to_string(&path).with_context(|| format!("{name}: failed to read file"))?;
+    let manifest: ApplyManifest = serde_yaml::from_str(&contents)
+        .with_context(|| format!("{name}: failed to parse (it must contain only `repoid`)"))?;
+    let repoid = manifest.repoid.trim();
+    if repoid.is_empty() {
+        anyhow::bail!("{name}: repoid must be a non-empty string");
+    }
+    Ok(repoid.to_string())
+}
+
+/// One resource entry on the wire: `{ "path": ..., "resource": ... }`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ResourceEntry {
+    pub path: String,
+    pub resource: Value,
+}
+
+impl From<ResourceDocument> for ResourceEntry {
+    fn from(d: ResourceDocument) -> Self {
+        ResourceEntry {
+            path: d.path,
+            resource: d.document,
         }
     }
-    anyhow::bail!(
-        "no everr.yaml found in {} — create one listing the projects this directory \
-         manages, e.g.\nprojects:\n  - default",
-        dir.display()
-    )
+}
+
+/// The complete desired state for one repo, grouped by resource kind.
+#[derive(Debug, Clone, Default, Serialize, PartialEq)]
+pub struct ApplyState {
+    pub dashboards: Vec<ResourceEntry>,
+    pub notebooks: Vec<ResourceEntry>,
+    pub alerts: Vec<ResourceEntry>,
+}
+
+/// classify_documents output before wire conversion (keeps ResourceDocument
+/// equality for tests).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ApplyStateDocs {
+    pub dashboards: Vec<ResourceDocument>,
+    pub notebooks: Vec<ResourceDocument>,
+    pub alerts: Vec<ResourceDocument>,
+}
+
+impl ApplyStateDocs {
+    pub fn into_wire(self) -> ApplyState {
+        ApplyState {
+            dashboards: self.dashboards.into_iter().map(Into::into).collect(),
+            notebooks: self.notebooks.into_iter().map(Into::into).collect(),
+            alerts: self.alerts.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+/// Split discovered documents by `kind`. Unknown kinds (including
+/// `AlertSettings`, which is web-UI-only state) are a hard CLI-side error.
+/// Keep the kinds in sync with the server reconciler REGISTRY in
+/// packages/app/src/data/as-code/registry.ts.
+pub fn classify_documents(docs: Vec<ResourceDocument>) -> Result<ApplyStateDocs> {
+    let mut dashboards = Vec::new();
+    let mut notebooks = Vec::new();
+    let mut alerts = Vec::new();
+    for doc in docs {
+        match doc.document.get("kind").and_then(|k| k.as_str()) {
+            Some("Dashboard") => dashboards.push(doc),
+            Some("Notebook") => notebooks.push(doc),
+            Some("AlertRule") => alerts.push(doc),
+            Some(other) => anyhow::bail!(
+                "{}: unsupported kind \"{other}\" (supported: Dashboard, Notebook, AlertRule)",
+                doc.path
+            ),
+            None => anyhow::bail!("{}: document is missing a string \"kind\"", doc.path),
+        }
+    }
+    Ok(ApplyStateDocs {
+        dashboards,
+        notebooks,
+        alerts,
+    })
+}
+
+/// Git-derived source metadata, best-effort: any git failure yields None.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ApplySource {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub commit_sha: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remote: Option<String>,
+}
+
+fn git_output(dir: &Path, args: &[&str]) -> Option<String> {
+    let out = std::process::Command::new("git")
+        .arg("-C")
+        .arg(dir)
+        .args(args)
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let s = String::from_utf8(out.stdout).ok()?.trim().to_string();
+    if s.is_empty() { None } else { Some(s) }
+}
+
+pub fn detect_git_source(dir: &Path) -> Option<ApplySource> {
+    let branch = git_output(dir, &["rev-parse", "--abbrev-ref", "HEAD"]);
+    let commit_sha = git_output(dir, &["rev-parse", "HEAD"]);
+    let remote = git_output(dir, &["remote", "get-url", "origin"]);
+    if branch.is_none() && commit_sha.is_none() && remote.is_none() {
+        return None;
+    }
+    Some(ApplySource {
+        branch,
+        commit_sha,
+        remote,
+    })
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ApplyRequest {
-    pub projects: Vec<String>,
-    pub documents: Vec<ResourceDocument>,
-    #[serde(rename = "dryRun", skip_serializing_if = "std::ops::Not::not")]
+    pub repoid: String,
+    pub state: ApplyState,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<ApplySource>,
+    #[serde(rename = "dryRun")]
     pub dry_run: bool,
 }
 
@@ -297,90 +417,126 @@ mod tests {
         assert!(err.to_string().contains("broken.yaml"), "error was: {err}");
     }
 
-    #[test]
-    fn apply_request_omits_dry_run_when_false() {
-        let req = ApplyRequest {
-            projects: vec![],
-            documents: vec![ResourceDocument {
-                path: "cpu.yaml".into(),
-                document: serde_json::json!({"kind": "Dashboard"}),
-            }],
-            dry_run: false,
-        };
-        let v = serde_json::to_value(&req).unwrap();
-        assert!(v.get("source").is_none(), "source must no longer be sent");
-        assert!(
-            v.get("dryRun").is_none(),
-            "dryRun should be omitted when false"
-        );
+    fn write(dir: &std::path::Path, name: &str, contents: &str) {
+        fs::write(dir.join(name), contents).unwrap();
     }
 
     #[test]
-    fn apply_request_includes_dry_run_when_true() {
-        let req = ApplyRequest {
-            projects: vec![],
-            documents: vec![],
-            dry_run: true,
-        };
-        let v = serde_json::to_value(&req).unwrap();
-        assert_eq!(v["dryRun"], true);
-    }
-
-    #[test]
-    fn load_apply_manifest_reads_projects() {
+    fn manifest_returns_repoid() {
         let dir = tempfile::tempdir().unwrap();
-        fs::write(
-            dir.path().join("everr.yaml"),
-            "projects:\n  - default\n  - platform\n",
-        )
-        .unwrap();
-        let projects = load_apply_manifest(dir.path()).unwrap();
-        assert_eq!(
-            projects,
-            vec!["default".to_string(), "platform".to_string()]
-        );
+        write(dir.path(), "everr.yaml", "repoid: \" abc-123 \"\n");
+        assert_eq!(load_apply_manifest(dir.path()).unwrap(), "abc-123");
     }
 
     #[test]
-    fn load_apply_manifest_allows_empty_projects() {
+    fn manifest_accepts_everr_yml() {
         let dir = tempfile::tempdir().unwrap();
-        fs::write(dir.path().join("everr.yaml"), "projects: []\n").unwrap();
-        assert_eq!(
-            load_apply_manifest(dir.path()).unwrap(),
-            Vec::<String>::new()
-        );
+        write(dir.path(), "everr.yml", "repoid: \"abc\"\n");
+        assert_eq!(load_apply_manifest(dir.path()).unwrap(), "abc");
     }
 
     #[test]
-    fn load_apply_manifest_errors_when_missing() {
+    fn manifest_prefers_everr_yaml_over_everr_yml() {
         let dir = tempfile::tempdir().unwrap();
-        let err = load_apply_manifest(dir.path()).unwrap_err();
-        assert!(err.to_string().contains("everr.yaml"), "got: {err}");
+        write(dir.path(), "everr.yaml", "repoid: \"canonical\"\n");
+        write(dir.path(), "everr.yml", "repoid: \"legacy\"\n");
+        assert_eq!(load_apply_manifest(dir.path()).unwrap(), "canonical");
+    }
+
+    #[test]
+    fn manifest_rejects_empty_repoid_and_extra_keys() {
+        let dir = tempfile::tempdir().unwrap();
+        write(dir.path(), "everr.yaml", "repoid: \"\"\n");
+        assert!(load_apply_manifest(dir.path()).is_err());
+        write(dir.path(), "everr.yaml", "repoid: \"x\"\nprojects: [a]\n");
+        assert!(load_apply_manifest(dir.path()).is_err());
+    }
+
+    #[test]
+    fn manifest_missing_is_an_error() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(load_apply_manifest(dir.path()).is_err());
     }
 
     #[test]
     fn load_resource_documents_excludes_the_manifest() {
         let dir = tempfile::tempdir().unwrap();
-        fs::write(dir.path().join("everr.yaml"), "projects: [default]\n").unwrap();
-        fs::write(
-            dir.path().join("cpu.yaml"),
+        write(dir.path(), "everr.yaml", "repoid: abc\n");
+        write(dir.path(), "everr.yml", "repoid: legacy\n");
+        write(
+            dir.path(),
+            "cpu.yaml",
             "kind: Dashboard\nmetadata:\n  name: cpu\nspec:\n  panels: {}\n  layouts: []\n",
-        )
-        .unwrap();
+        );
         let docs = load_resource_documents(dir.path()).unwrap();
         assert_eq!(docs.len(), 1);
         assert_eq!(docs[0].path, "cpu.yaml");
     }
 
     #[test]
-    fn apply_request_serializes_projects() {
+    fn classify_splits_dashboards_notebooks_and_alerts_and_rejects_unknown_kinds() {
+        let dash = ResourceDocument {
+            path: "d.yaml".into(),
+            document: serde_json::json!({"kind": "Dashboard"}),
+        };
+        let notebook = ResourceDocument {
+            path: "n.yaml".into(),
+            document: serde_json::json!({"kind": "Notebook"}),
+        };
+        let alert = ResourceDocument {
+            path: "a.yaml".into(),
+            document: serde_json::json!({"kind": "AlertRule"}),
+        };
+        let state =
+            classify_documents(vec![dash.clone(), notebook.clone(), alert.clone()]).unwrap();
+        assert_eq!(state.dashboards, vec![dash]);
+        assert_eq!(state.notebooks, vec![notebook]);
+        assert_eq!(state.alerts, vec![alert]);
+
+        let settings = ResourceDocument {
+            path: "s.yaml".into(),
+            document: serde_json::json!({"kind": "AlertSettings"}),
+        };
+        let err = classify_documents(vec![settings]).unwrap_err().to_string();
+        assert!(err.contains("AlertSettings"), "got: {err}");
+    }
+
+    #[test]
+    fn apply_request_serializes_repo_scoped_state() {
         let req = ApplyRequest {
-            projects: vec!["default".into()],
-            documents: vec![],
+            repoid: "repo-1".into(),
+            state: ApplyState {
+                dashboards: vec![ResourceEntry {
+                    path: "cpu.yaml".into(),
+                    resource: serde_json::json!({"kind": "Dashboard"}),
+                }],
+                notebooks: vec![ResourceEntry {
+                    path: "runbooks/triage.yaml".into(),
+                    resource: serde_json::json!({"kind": "Notebook"}),
+                }],
+                alerts: vec![ResourceEntry {
+                    path: "alerts/error-rate.yaml".into(),
+                    resource: serde_json::json!({"kind": "AlertRule"}),
+                }],
+            },
+            source: Some(ApplySource {
+                branch: Some("main".into()),
+                commit_sha: Some("abc".into()),
+                remote: Some("git@example.com:acme/repo.git".into()),
+            }),
             dry_run: false,
         };
         let v = serde_json::to_value(&req).unwrap();
-        assert_eq!(v["projects"], serde_json::json!(["default"]));
+        assert_eq!(v["repoid"], "repo-1");
+        assert_eq!(v["dryRun"], false);
+        assert_eq!(v["state"]["dashboards"][0]["path"], "cpu.yaml");
+        assert_eq!(
+            v["state"]["dashboards"][0]["resource"],
+            serde_json::json!({"kind": "Dashboard"})
+        );
+        assert_eq!(v["state"]["notebooks"][0]["path"], "runbooks/triage.yaml");
+        assert_eq!(v["state"]["alerts"][0]["path"], "alerts/error-rate.yaml");
+        assert_eq!(v["source"]["commitSha"], "abc");
     }
 
     #[test]

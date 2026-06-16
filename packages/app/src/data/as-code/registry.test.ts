@@ -1,92 +1,79 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const dashboardReconciler = vi.fn();
+const notebookReconciler = vi.fn();
+const alertReconciler = vi.fn();
 vi.mock("@/data/dashboards/apply.server", () => ({
   applyDashboardSpecs: (...a: unknown[]) => dashboardReconciler(...a),
 }));
-
-const notebookReconciler = vi.fn();
 vi.mock("@/data/notebooks/apply.server", () => ({
   applyNotebookSpecs: (...a: unknown[]) => notebookReconciler(...a),
+}));
+vi.mock("@/data/alerts/apply.server", () => ({
+  applyAlertSpecs: (...a: unknown[]) => alertReconciler(...a),
 }));
 
 import { ApplyValidationError } from "./errors";
 import { applyResources } from "./registry";
 
-const doc = (kind: string, name: string) => ({
-  path: `${name}.yaml`,
-  document: { kind, metadata: { name }, spec: { panels: {}, layouts: [] } },
-});
+const empty = { created: [], updated: [], deleted: [] };
 
 beforeEach(() => {
   vi.clearAllMocks();
-  dashboardReconciler.mockResolvedValue({
-    created: [],
-    updated: [],
-    deleted: [],
-    dryRun: false,
-  });
-  notebookReconciler.mockResolvedValue({
-    created: [],
-    updated: [],
-    deleted: [],
-    dryRun: false,
-  });
+  dashboardReconciler.mockResolvedValue(empty);
+  notebookReconciler.mockResolvedValue(empty);
+  alertReconciler.mockResolvedValue(empty);
 });
 
 describe("applyResources", () => {
-  it("routes Dashboard docs to the dashboard reconciler and returns a per-kind summary", async () => {
+  it("routes each state key to its reconciler with repoid and returns a per-kind summary", async () => {
+    const dash = { path: "d.yaml", resource: { kind: "Dashboard" } };
+    const notebook = { path: "n.yaml", resource: { kind: "Notebook" } };
+    const alert = { path: "a.yaml", resource: { kind: "AlertRule" } };
     dashboardReconciler.mockResolvedValue({
       created: ["cpu"],
       updated: [],
       deleted: [],
-      dryRun: false,
     });
-    const out = await applyResources({
-      orgId: "org-1",
-      projects: ["default"],
-      documents: [doc("Dashboard", "cpu")],
-      dryRun: false,
-    });
-    expect(dashboardReconciler).toHaveBeenCalledWith({
-      orgId: "org-1",
-      projects: ["default"],
-      documents: [doc("Dashboard", "cpu")],
-      dryRun: false,
-    });
-    expect(out).toEqual({
-      dryRun: false,
-      results: [
-        { kind: "Dashboard", created: ["cpu"], updated: [], deleted: [] },
-        { kind: "Notebook", created: [], updated: [], deleted: [] },
-      ],
-    });
-  });
-
-  it("routes Notebook docs to the notebook reconciler and returns a per-kind summary", async () => {
     notebookReconciler.mockResolvedValue({
       created: ["runbook"],
       updated: [],
       deleted: [],
-      dryRun: false,
     });
     const out = await applyResources({
       orgId: "org-1",
-      projects: ["default"],
-      documents: [doc("Notebook", "runbook")],
+      repoid: "repo-1",
+      state: { dashboards: [dash], notebooks: [notebook], alerts: [alert] },
       dryRun: false,
     });
-    expect(notebookReconciler).toHaveBeenCalledWith({
-      orgId: "org-1",
-      projects: ["default"],
-      documents: [doc("Notebook", "runbook")],
+    expect(dashboardReconciler).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orgId: "org-1",
+        repoid: "repo-1",
+        resources: [dash],
+      }),
+    );
+    expect(notebookReconciler).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orgId: "org-1",
+        repoid: "repo-1",
+        resources: [notebook],
+      }),
+    );
+    expect(alertReconciler).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orgId: "org-1",
+        repoid: "repo-1",
+        resources: [alert],
+      }),
+    );
+    expect(out).toEqual({
       dryRun: false,
-    });
-    expect(out.results).toContainEqual({
-      kind: "Notebook",
-      created: ["runbook"],
-      updated: [],
-      deleted: [],
+      results: [
+        { kind: "Dashboard", created: ["cpu"], updated: [], deleted: [] },
+        { kind: "Notebook", created: ["runbook"], updated: [], deleted: [] },
+        { kind: "AlertRule", created: [], updated: [], deleted: [] },
+      ],
     });
   });
 
@@ -100,75 +87,80 @@ describe("applyResources", () => {
     await expect(
       applyResources({
         orgId: "org-1",
-        projects: ["default"],
-        documents: [doc("Dashboard", "cpu"), doc("Notebook", "bad")],
+        repoid: "repo-1",
+        state: {
+          dashboards: [{ path: "d.yaml", resource: { kind: "Dashboard" } }],
+          notebooks: [{ path: "n.yaml", resource: { kind: "Notebook" } }],
+          alerts: [],
+        },
         dryRun: false,
       }),
     ).rejects.toThrow(/bad notebook/);
 
     // Dashboard was only ever validated (dryRun: true) — never applied for real,
-    // so it cannot have pruned the project before Notebook validation threw.
+    // so it cannot have pruned the repo before Notebook validation threw.
     expect(dashboardReconciler).not.toHaveBeenCalledWith(
       expect.objectContaining({ dryRun: false }),
     );
   });
 
-  it("reconciles every registered kind even when absent from the tree (prunes)", async () => {
+  it("dryRun reconciles every kind once with dryRun:true and returns the validated diff", async () => {
+    dashboardReconciler.mockResolvedValue({
+      created: ["cpu"],
+      updated: [],
+      deleted: [],
+    });
+    const out = await applyResources({
+      orgId: "org-1",
+      repoid: "repo-1",
+      state: { dashboards: [], notebooks: [], alerts: [] },
+      dryRun: true,
+    });
+    expect(dashboardReconciler).toHaveBeenCalledTimes(1);
+    expect(dashboardReconciler).toHaveBeenCalledWith(
+      expect.objectContaining({ dryRun: true }),
+    );
+    expect(out.dryRun).toBe(true);
+    expect(out.results).toContainEqual({
+      kind: "Dashboard",
+      created: ["cpu"],
+      updated: [],
+      deleted: [],
+    });
+  });
+
+  it("reconciles every kind even when its array is empty (prunes within repoid)", async () => {
     await applyResources({
       orgId: "org-1",
-      projects: ["default"],
-      documents: [],
-      dryRun: false,
+      repoid: "repo-1",
+      state: { dashboards: [], notebooks: [], alerts: [] },
     });
-    expect(dashboardReconciler).toHaveBeenCalledWith({
-      orgId: "org-1",
-      projects: ["default"],
-      documents: [],
-      dryRun: false,
-    });
+    expect(dashboardReconciler).toHaveBeenCalledWith(
+      expect.objectContaining({ dryRun: false }),
+    );
+    expect(notebookReconciler).toHaveBeenCalledWith(
+      expect.objectContaining({ dryRun: false }),
+    );
+    expect(alertReconciler).toHaveBeenCalledWith(
+      expect.objectContaining({ dryRun: false }),
+    );
   });
 
-  it("throws on a document missing a string kind", async () => {
+  it("rejects resources placed under the wrong state key", async () => {
     await expect(
       applyResources({
         orgId: "org-1",
-        projects: ["default"],
-        documents: [
-          { path: "bad.yaml", document: { metadata: { name: "x" } } },
-        ],
-        dryRun: false,
+        repoid: "repo-1",
+        state: {
+          dashboards: [{ path: "alert.yaml", resource: { kind: "AlertRule" } }],
+          notebooks: [],
+          alerts: [],
+        },
       }),
-    ).rejects.toThrow(/bad\.yaml.*kind/i);
-  });
+    ).rejects.toThrow('alert.yaml: expected kind "Dashboard"');
 
-  it("throws on an unknown kind", async () => {
-    await expect(
-      applyResources({
-        orgId: "org-1",
-        projects: ["default"],
-        documents: [doc("Gizmo", "x")],
-        dryRun: false,
-      }),
-    ).rejects.toThrow(/unknown kind "Gizmo".*x\.yaml/i);
-  });
-
-  it.each([
-    "constructor",
-    "toString",
-    "hasOwnProperty",
-    "__proto__",
-  ])("rejects the inherited Object property %p as an unknown kind and reconciles nothing", async (kind) => {
-    // `kind in REGISTRY` would accept these (prototype chain); an own-property
-    // check must not. They must throw BEFORE any reconciler runs — otherwise a
-    // doc with such a kind is dropped while Dashboard still prunes the project.
-    await expect(
-      applyResources({
-        orgId: "org-1",
-        projects: ["default"],
-        documents: [doc(kind, "x")],
-        dryRun: false,
-      }),
-    ).rejects.toThrow(new RegExp(`unknown kind "${kind}"`));
     expect(dashboardReconciler).not.toHaveBeenCalled();
+    expect(notebookReconciler).not.toHaveBeenCalled();
+    expect(alertReconciler).not.toHaveBeenCalled();
   });
 });

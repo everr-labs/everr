@@ -77,11 +77,12 @@ function sqlApiOrgPolicyName(organizationId: string, table: string): string {
 // to that user, so user SQL cannot override the tenant filter via SETTINGS or
 // any other channel. The query authenticates with HMAC-derived credentials per
 // query and reuses the shared `clickhouse` HTTP client.
-export async function querySqlApi<T>(
+function runSqlApiQuery<Format extends "JSONEachRow" | "JSON">(
   query: string,
   organizationId: string,
-  query_params?: Record<string, unknown>,
-): Promise<T[]> {
+  query_params: Record<string, unknown> | undefined,
+  format: Format,
+) {
   if (typeof organizationId !== "string" || !organizationId) {
     throw new Error("Missing ClickHouse tenant context");
   }
@@ -89,13 +90,13 @@ export async function querySqlApi<T>(
   const username = sqlApiOrgUserName(organizationId);
   const password = sqlApiOrgPassword(organizationId);
 
-  const result = await instrumentClickhouseOperation(
+  return instrumentClickhouseOperation(
     { client: "sql_api", operation: "QUERY" },
     () =>
       clickhouse.query({
         query,
         query_params,
-        format: "JSONEachRow",
+        format,
         auth: { username, password },
         // Per-tenant quota bucket. sql_api_quota is KEYED BY client_key, so each
         // org gets its own counters. The header value is server-derived from
@@ -103,8 +104,48 @@ export async function querySqlApi<T>(
         http_headers: { "X-ClickHouse-Quota": username },
       }),
   );
+}
 
+export async function querySqlApi<T>(
+  query: string,
+  organizationId: string,
+  query_params?: Record<string, unknown>,
+): Promise<T[]> {
+  const result = await runSqlApiQuery(
+    query,
+    organizationId,
+    query_params,
+    "JSONEachRow",
+  );
   return result.json<T>();
+}
+
+export interface SqlApiResult<T> {
+  rows: T[];
+  columns: string[];
+}
+
+export async function querySqlApiWithMeta<T>(
+  query: string,
+  organizationId: string,
+  query_params?: Record<string, unknown>,
+): Promise<SqlApiResult<T>> {
+  // JSON (not JSONEachRow) so column metadata is present even for empty results.
+  const result = await runSqlApiQuery(
+    query,
+    organizationId,
+    query_params,
+    "JSON",
+  );
+
+  const body = (await result.json()) as {
+    meta?: { name: string }[];
+    data?: T[];
+  };
+  return {
+    rows: body.data ?? [],
+    columns: (body.meta ?? []).map((m) => m.name),
+  };
 }
 
 export function createClickhouseQuery(organizationId: string) {
@@ -149,6 +190,31 @@ export async function upsertTenantRetention(row: {
           },
         ],
         format: "JSONEachRow",
+      }),
+  );
+}
+
+type AdminInsertSettings = Parameters<
+  typeof clickhouseAdmin.insert
+>[0]["clickhouse_settings"];
+
+// Generic admin-client insert for app-owned tables; row typing lives with the
+// feature that owns the table (e.g. server/alerts/events.ts).
+export async function insertAdminRows(
+  table: string,
+  rows: object[],
+  clickhouse_settings?: AdminInsertSettings,
+): Promise<void> {
+  if (rows.length === 0) return;
+
+  await instrumentClickhouseOperation(
+    { client: "admin", operation: "INSERT" },
+    () =>
+      clickhouseAdmin.insert({
+        table,
+        values: rows,
+        format: "JSONEachRow",
+        clickhouse_settings,
       }),
   );
 }

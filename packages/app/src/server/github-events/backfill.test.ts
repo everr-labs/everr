@@ -42,7 +42,7 @@ vi.mock("@/env/github", () => ({
 }));
 
 const mockEnqueue = vi.fn().mockResolvedValue(undefined);
-vi.mock("./runtime", () => ({
+vi.mock("./enqueue", () => ({
   enqueueWebhookEvent: (...args: unknown[]) => mockEnqueue(...args),
 }));
 

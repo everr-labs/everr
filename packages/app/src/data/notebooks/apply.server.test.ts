@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/client";
 
@@ -45,10 +46,16 @@ vi.mock("@/db/client", () => {
   };
 });
 
+vi.mock("drizzle-orm", () => ({
+  and: vi.fn((...conditions: unknown[]) => ({ op: "and", conditions })),
+  eq: vi.fn((left: unknown, right: unknown) => ({ op: "eq", left, right })),
+}));
+
 vi.mock("@/db/schema", () => ({
   notebooks: {
     id: "id",
     organizationId: "organization_id",
+    repoid: "repoid",
     slug: "slug",
     project: "project",
     folderPath: "folder_path",
@@ -86,16 +93,15 @@ const nb = (name: string, project?: string, inline = "# x") => ({
 });
 
 describe("applyNotebookSpecs", () => {
-  it("creates from an empty store", async () => {
+  it("accepts a defaulted doc under the repo scope", async () => {
     mockApplySelect([]);
     const result = await applyNotebookSpecs({
       orgId: "org-1",
-      projects: ["team"],
-      documents: [{ path: "a.yaml", document: nb("a", "team") }],
+      repoid: "repo-1",
+      dryRun: true,
+      resources: [{ path: "a.yaml", resource: nb("a") }],
     });
     expect(result.created).toEqual(["a"]);
-    expect(result.dryRun).toBe(false);
-    expect(mockedDb.transaction).toHaveBeenCalledOnce();
   });
 
   it("updates a notebook whose document changed", async () => {
@@ -109,8 +115,8 @@ describe("applyNotebookSpecs", () => {
     ]);
     const result = await applyNotebookSpecs({
       orgId: "org-1",
-      projects: ["team"],
-      documents: [{ path: "a.yaml", document: nb("a", "team", "# new") }],
+      repoid: "repo-1",
+      resources: [{ path: "a.yaml", resource: nb("a", "team", "# new") }],
     });
     expect(result).toMatchObject({
       created: [],
@@ -119,7 +125,7 @@ describe("applyNotebookSpecs", () => {
     });
   });
 
-  it("prunes a notebook in a declared project with no files", async () => {
+  it("prunes the last notebook of a repo with no files", async () => {
     mockApplySelect([
       {
         project: "team",
@@ -130,39 +136,81 @@ describe("applyNotebookSpecs", () => {
     ]);
     const result = await applyNotebookSpecs({
       orgId: "org-1",
-      projects: ["team"],
+      repoid: "repo-1",
       dryRun: true,
-      documents: [],
+      resources: [],
     });
     expect(result).toEqual({
       created: [],
       updated: [],
       deleted: ["old"],
-      dryRun: true,
     });
   });
 
-  it("rejects a doc whose project is not declared", async () => {
-    await expect(
-      applyNotebookSpecs({
-        orgId: "org-1",
-        projects: ["platform"],
-        documents: [{ path: "cpu.yaml", document: nb("cpu") }], // -> "default"
-      }),
-    ).rejects.toThrow(/project "default".*not declared/i);
-    expect(mockedDb.transaction).not.toHaveBeenCalled();
+  it("scopes existing rows by repoid so same slugs in different repos do not collide", async () => {
+    mockApplySelect([
+      {
+        project: "default",
+        slug: "a",
+        folderPath: "",
+        document: nb("a"),
+      },
+    ]);
+    const first = await applyNotebookSpecs({
+      orgId: "org-1",
+      repoid: "repo-1",
+      dryRun: true,
+      resources: [{ path: "a.yaml", resource: nb("a") }],
+    });
+
+    mockApplySelect([]);
+    const second = await applyNotebookSpecs({
+      orgId: "org-1",
+      repoid: "repo-2",
+      dryRun: true,
+      resources: [{ path: "a.yaml", resource: nb("a") }],
+    });
+
+    expect(first.deleted).toEqual([]);
+    expect(second.created).toEqual(["a"]);
+    expect(second.deleted).toEqual([]);
+    expect(eq).toHaveBeenCalledWith("repoid", "repo-1");
+    expect(eq).toHaveBeenCalledWith("repoid", "repo-2");
+  });
+
+  it("applies the diff inside a transaction when not a dry run", async () => {
+    mockApplySelect([]);
+    const result = await applyNotebookSpecs({
+      orgId: "org-1",
+      repoid: "repo-1",
+      resources: [{ path: "a.yaml", resource: nb("a", "team") }],
+    });
+    expect(result.created).toEqual(["a"]);
+    expect(mockedDb.transaction).toHaveBeenCalledOnce();
   });
 
   it("dryRun makes no writes", async () => {
     mockApplySelect([]);
     const result = await applyNotebookSpecs({
       orgId: "org-1",
-      projects: ["team"],
+      repoid: "repo-1",
       dryRun: true,
-      documents: [{ path: "a.yaml", document: nb("a", "team") }],
+      resources: [{ path: "a.yaml", resource: nb("a", "team") }],
     });
     expect(result.created).toEqual(["a"]);
-    expect(result.dryRun).toBe(true);
+    expect(mockedDb.transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects the apply when a document is invalid", async () => {
+    await expect(
+      applyNotebookSpecs({
+        orgId: "org-1",
+        repoid: "repo-1",
+        resources: [
+          { path: "bad.yaml", resource: { kind: "Notebook", spec: {} } },
+        ],
+      }),
+    ).rejects.toThrow(/bad\.yaml/);
     expect(mockedDb.transaction).not.toHaveBeenCalled();
   });
 });

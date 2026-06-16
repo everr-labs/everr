@@ -14,13 +14,9 @@ import { resourceFromAttributes } from "@opentelemetry/resources";
 import { BatchLogRecordProcessor } from "@opentelemetry/sdk-logs";
 import { PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
 import { NodeSDK } from "@opentelemetry/sdk-node";
-import {
-  resolveTelemetryConfig,
-  signalUrl,
-  TELEMETRY_SERVICE_NAME,
-} from "./config";
+import { resolveTelemetryConfig, signalUrl } from "./config";
 
-const errorLogger = logs.getLogger(`${TELEMETRY_SERVICE_NAME}.errors`);
+const errorLogger = logs.getLogger("everr-app.errors");
 
 const sensitiveQueryParams = [
   "AWSAccessKeyId",
@@ -81,7 +77,7 @@ export function recordTelemetryError(
   return error;
 }
 
-export function getTelemetryTracer(name = `${TELEMETRY_SERVICE_NAME}.server`) {
+export function getTelemetryTracer(name = "everr-app.server") {
   return trace.getTracer(name);
 }
 

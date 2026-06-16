@@ -1,4 +1,5 @@
-import { isNumericValue, toNumber } from "../data-utils";
+import { isNumericValue } from "@/lib/numeric";
+import { toNumber } from "../data-utils";
 import type { QueryResultRow } from "../index";
 import type { NodeGraphSpec } from "./spec";
 

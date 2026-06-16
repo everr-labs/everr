@@ -26,8 +26,22 @@
     {
       "idx": 3,
       "version": "7",
-      "when": 1781448852126,
-      "tag": "0003_noisy_zuras",
+      "when": 1781077163574,
+      "tag": "0003_slim_onslaught",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1781471268473,
+      "tag": "0004_equal_shaman",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1781638555434,
+      "tag": "0005_bitter_carnage",
       "breakpoints": true
     }
   ]

@@ -1,9 +1,5 @@
-import {
-  detectTimeKey,
-  isNumericValue,
-  toNumber,
-  toTimestamp,
-} from "../data-utils";
+import { isNumericValue } from "@/lib/numeric";
+import { detectTimeKey, toNumber, toTimestamp } from "../data-utils";
 import type { QueryResultRow } from "../index";
 import type { HeatmapSpec } from "./spec";
 
