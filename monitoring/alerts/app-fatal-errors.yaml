@@ -1,0 +1,32 @@
+kind: AlertRule
+metadata:
+  name: app-fatal-errors
+  labels:
+    team: platform
+spec:
+  display:
+    name: App fatal errors
+    description: Fatal, escaped, or unhandled app errors in recent logs.
+  notificationMessage:
+    title: "${ServiceName} emitted fatal or unhandled errors"
+    description: "${events} events in the last 5 minutes. Latest: ${sample_body} trace=${sample_trace_id}"
+  evaluationInterval: 1m
+  instanceLabels: [ServiceName]
+  query: |
+    SELECT
+      ServiceName,
+      count() AS events,
+      anyLast(Body) AS sample_body,
+      anyLast(TraceId) AS sample_trace_id
+    FROM logs
+    WHERE TimestampTime >= now() - INTERVAL 5 MINUTE
+      AND ServiceName IN ('everr-dev-app', 'everr-app')
+      AND (
+        SeverityNumber >= 21
+        OR LogAttributes['error.handled'] = 'false'
+        OR LogAttributes['exception.escaped'] = 'true'
+      )
+    GROUP BY ServiceName
+    HAVING events > 0
+    ORDER BY events DESC
+    LIMIT 10

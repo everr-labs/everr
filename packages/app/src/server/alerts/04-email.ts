@@ -18,13 +18,13 @@ export interface AlertEmail {
 }
 
 // Hex equivalents of the oklch theme tokens in packages/ui global.css — the
-// app ships a single dark theme, and the email mirrors it. Text colors are
-// tuned so every (color, background, size, weight) combination clears its
-// APCA (WCAG 3 draft) Lc threshold: ≥90 for running text, ≥75 for the small
-// bold labels, ≥60 for the large stat numbers.
+// app ships a single dark theme, and the email mirrors it: a gray --card sits
+// on the slightly darker --background, rather than pure black. Text colors are
+// the theme's light foreground/muted tokens, which keep running text, the
+// small bold labels, and the stat numbers comfortably legible on the gray card.
 const COLORS = {
-  card: "#000000",
-  panel: "#0a0a0a", // --background
+  card: "#171717", // --card
+  panel: "#FFF", // --background
   border: "#262626", // ~--border on the card
   foreground: "#fafafa", // --foreground; Lc -103 on card
   body: "#e6e6e6", // running text; Lc -90 on card
@@ -119,7 +119,7 @@ function buildHtml(input: DeliveryInput, opts: BuildOptions): string {
     footerSection(),
   ];
   return [
-    `<table width="100%" cellpadding="0" cellspacing="0" style="background:#000000;${FONT}"><tr><td style="padding:0;">`,
+    `<table width="100%" cellpadding="0" cellspacing="0" style="background:${COLORS.panel};${FONT}"><tr><td style="padding:0;">`,
     `<table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:${COLORS.card};border:1px solid ${COLORS.border};border-radius:8px;overflow:hidden;">`,
     `<tr><td style="height:3px;background:${status.strip};"></td></tr>`,
     ...sections.filter(Boolean),
