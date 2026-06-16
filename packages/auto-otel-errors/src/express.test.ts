@@ -42,13 +42,14 @@ afterEach(async () => {
 
 describe("errorHandler", () => {
   it("captures the error with http attributes and forwards it", async () => {
-    const response = await fetch(`${baseUrl}/boom`);
+    const response = await fetch(`${baseUrl}/boom?token=s3cret&page=2#ignored`);
     expect(response.status).toBe(500);
     const [record] = otel.records();
-    expect(record.attributes["exception.mechanism"]).toBe("express");
+    expect(record.eventName).toBe("http.server.request.exception");
+    expect(record.attributes["everr.error.mechanism"]).toBe("express");
     expect(record.attributes["exception.message"]).toBe("route exploded");
     expect(record.attributes["http.request.method"]).toBe("GET");
-    expect(record.attributes["url.full"]).toContain("/boom");
+    expect(record.attributes["url.full"]).toBe(`${baseUrl}/boom`);
     expect(record.attributes["http.route"]).toBe("/boom");
   });
 });

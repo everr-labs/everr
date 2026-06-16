@@ -1,6 +1,6 @@
 import { type Attributes, diag } from "@opentelemetry/api";
 import { Client, PKG_NAME, type Runtime } from "./client.js";
-import type { BreadcrumbInput, Integration, Options } from "./types.js";
+import type { Integration, Options } from "./types.js";
 
 let activeClient: Client | null = null;
 
@@ -27,10 +27,6 @@ export function getClient(): Client | null {
 
 export function captureError(error: unknown, attributes?: Attributes): void {
   activeClient?.capture({ error, mechanism: "manual", handled: true, attributes });
-}
-
-export function addBreadcrumb(crumb: BreadcrumbInput): void {
-  activeClient?.addBreadcrumb(crumb);
 }
 
 export function teardown(): void {

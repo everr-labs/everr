@@ -8,7 +8,8 @@ export function browserGlobalHandlersIntegration(): Integration {
     name: "browserGlobalHandlers",
     setup(client) {
       onError = (event) => {
-        if (!event.error) {
+        // Skip errors browserApiErrors already captured before re-throwing.
+        if (!event.error || client.wasCaptured(event.error)) {
           return;
         }
 

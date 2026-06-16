@@ -1,4 +1,5 @@
 import { getClient } from "./core.js";
+import { stripUrlQueryAndFragment } from "./scrub.js";
 
 interface FastifyLikeRequest {
   method: string;
@@ -28,9 +29,10 @@ export function errorTrackingPlugin(
       error,
       mechanism: "fastify",
       handled: true,
+      severity: "error",
       attributes: {
         "http.request.method": request.method,
-        "url.full": request.url,
+        "url.path": stripUrlQueryAndFragment(request.url),
         ...(request.routeOptions?.url
           ? { "http.route": request.routeOptions.url }
           : {}),

@@ -1,23 +1,26 @@
 use std::collections::HashMap;
 use std::env;
 
-use opentelemetry::logs::{AnyValue, LogRecord as _, Logger as _, LoggerProvider as _, Severity};
-use opentelemetry::Key;
 use opentelemetry_otlp::{Protocol, WithExportConfig, WithHttpConfig};
-use opentelemetry_sdk::logs::{SdkLogger, SdkLoggerProvider};
+use opentelemetry_sdk::logs::SdkLoggerProvider;
 use opentelemetry_sdk::Resource;
-use serde::{Deserialize, Serialize};
+use reqwest::Client;
+use serde::Serialize;
 use tauri::State;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
 use uuid::Uuid;
 
+/// Cap on a single relayed OTLP/JSON payload. Browser error telemetry is small;
+/// anything larger is rejected rather than forwarded.
+const MAX_OTLP_BODY_BYTES: usize = 4 * 1024 * 1024;
+
 const SERVICE_NAME: &str = "everr-desktop";
 const FRONTEND_SERVICE_NAME: &str = "everr-desktop-frontend";
 
 type TelemetryInitResult = Result<
-    (TelemetryGuard, RelayState, TelemetryContext),
+    (TelemetryGuard, OtlpProxy, TelemetryContext),
     Box<dyn std::error::Error + Send + Sync>,
 >;
 
@@ -41,33 +44,19 @@ pub struct TelemetryContextResponse {
     deployment_environment: String,
 }
 
-pub struct RelayState {
-    browser_logger: SdkLogger,
+/// Passthrough OTLP proxy for the webview. The renderer encodes real OTLP/JSON
+/// and hands it to `proxy_otlp`; Rust forwards the bytes to the collector without
+/// decoding, so trace context, resource, scope, and severity survive intact.
+/// `None` target means telemetry is disabled and the proxy is a no-op.
+pub struct OtlpProxy {
+    target: Option<ProxyTarget>,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct BrowserLogRecord {
-    body: String,
-    attributes: HashMap<String, BrowserLogAttribute>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
-pub enum BrowserLogAttribute {
-    String(String),
-    Bool(bool),
-    Number(f64),
-}
-
-impl BrowserLogAttribute {
-    fn into_any_value(self) -> AnyValue {
-        match self {
-            Self::String(value) => AnyValue::from(value),
-            Self::Bool(value) => AnyValue::from(value),
-            Self::Number(value) => AnyValue::from(value),
-        }
-    }
+#[derive(Clone)]
+struct ProxyTarget {
+    endpoint: String,
+    headers: HashMap<String, String>,
+    client: Client,
 }
 
 pub fn init_telemetry() -> TelemetryInitResult {
@@ -75,15 +64,16 @@ pub fn init_telemetry() -> TelemetryInitResult {
     let Some(config) = TelemetryConfig::from_env(telemetry_context.clone())? else {
         return Ok((
             TelemetryGuard::disabled(),
-            RelayState {
-                browser_logger: disabled_browser_logger(),
-            },
+            OtlpProxy { target: None },
             telemetry_context,
         ));
     };
 
     let resource = resource(&config);
 
+    // Rust's own telemetry (lifecycle events, panics, sidecar) still exports
+    // directly through the SDK. Browser telemetry does not touch this pipeline —
+    // it is forwarded as opaque OTLP by `proxy_otlp`.
     let log_exporter = opentelemetry_otlp::LogExporter::builder()
         .with_http()
         .with_protocol(Protocol::HttpBinary)
@@ -104,15 +94,19 @@ pub fn init_telemetry() -> TelemetryInitResult {
         .with(tracing_subscriber::fmt::layer())
         .try_init()?;
 
-    let relay = RelayState {
-        browser_logger: logger_provider.logger(FRONTEND_SERVICE_NAME),
+    let proxy = OtlpProxy {
+        target: Some(ProxyTarget {
+            endpoint: config.endpoint.clone(),
+            headers: config.headers.clone(),
+            client: Client::new(),
+        }),
     };
 
     Ok((
         TelemetryGuard {
             logger_provider: Some(logger_provider),
         },
-        relay,
+        proxy,
         config.context,
     ))
 }
@@ -128,48 +122,43 @@ pub fn get_telemetry_context(
     Ok(state.frontend_response())
 }
 
+/// Forward a pre-encoded OTLP/JSON request from the webview to the collector.
+/// The body is opaque: Rust validates the signal and size, then POSTs the bytes
+/// as-is with the configured headers. It never parses or reconstructs telemetry.
 #[tauri::command]
-pub fn relay_telemetry(
-    state: State<'_, RelayState>,
+pub async fn proxy_otlp(
+    state: State<'_, OtlpProxy>,
     signal: String,
-    records: Vec<BrowserLogRecord>,
+    body: String,
 ) -> Result<(), String> {
-    if signal != "logs" {
+    if !matches!(signal.as_str(), "logs" | "traces" | "metrics") {
         return Err(format!("unsupported telemetry signal: {signal}"));
     }
-
-    for browser_record in records {
-        let event_name = browser_event_name(&browser_record.body)?;
-        let mut record = state.browser_logger.create_log_record();
-        record.set_event_name(event_name);
-        record.set_body(AnyValue::from(event_name));
-        record.set_severity_number(Severity::Error);
-        record.set_severity_text("ERROR");
-        record.add_attributes(
-            browser_record
-                .attributes
-                .into_iter()
-                .map(|(key, value)| (Key::new(key), value.into_any_value())),
-        );
-        state.browser_logger.emit(record);
+    if body.len() > MAX_OTLP_BODY_BYTES {
+        return Err(format!("otlp payload too large: {} bytes", body.len()));
     }
 
-    Ok(())
-}
+    // Clone out of managed state so nothing borrowed is held across the await.
+    let Some(target) = state.target.clone() else {
+        return Ok(());
+    };
 
-fn browser_event_name(body: &str) -> Result<&'static str, String> {
-    match body {
-        "everr.browser.error" => Ok("everr.browser.error"),
-        "everr.browser.unhandled_rejection" => Ok("everr.browser.unhandled_rejection"),
-        "everr.react.render.error" => Ok("everr.react.render.error"),
-        _ => Err(format!("unsupported browser log body: {body}")),
+    let url = signal_endpoint(&target.endpoint, &signal);
+    let mut request = target
+        .client
+        .post(&url)
+        .header("content-type", "application/json")
+        .body(body);
+    for (name, value) in &target.headers {
+        request = request.header(name, value);
     }
-}
 
-fn disabled_browser_logger() -> SdkLogger {
-    SdkLoggerProvider::builder()
-        .build()
-        .logger(FRONTEND_SERVICE_NAME)
+    let response = request.send().await.map_err(|err| err.to_string())?;
+    if response.status().is_success() {
+        Ok(())
+    } else {
+        Err(format!("collector returned {}", response.status()))
+    }
 }
 
 impl TelemetryContext {

@@ -1,11 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  addBreadcrumb,
-  captureError,
-  getClient,
-  initClient,
-  teardown,
-} from "./core.js";
+import { captureError, getClient, initClient, teardown } from "./core.js";
 import { setupTestTelemetry } from "./test-utils.js";
 import type { Integration } from "./types.js";
 
@@ -45,14 +39,13 @@ describe("core API", () => {
     expect(second).toBe(first);
   });
 
-  it("captureError emits with mechanism manual; addBreadcrumb feeds the span", () => {
+  it("captureError emits with mechanism manual", () => {
     initClient({}, "node", []);
-    addBreadcrumb({ category: "custom", message: "user clicked save" });
     captureError(new Error("manual boom"), { feature: "billing" });
     const [record] = otel.records();
-    expect(record.attributes["exception.mechanism"]).toBe("manual");
+    expect(record.eventName).toBe("exception");
+    expect(record.attributes["everr.error.mechanism"]).toBe("manual");
     expect(record.attributes.feature).toBe("billing");
-    expect(otel.spans()[0].events[0].name).toBe("user clicked save");
   });
 
   it("captureError is a no-op before init", () => {

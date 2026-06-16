@@ -7,8 +7,9 @@ class StdoutExporter {
       process.stdout.write(
         `${JSON.stringify({
           body: record.body,
+          eventName: record.eventName,
           severityNumber: record.severityNumber,
-          mechanism: record.attributes["exception.mechanism"],
+          mechanism: record.attributes["everr.error.mechanism"],
         })}\n`,
       );
     }

@@ -1,22 +1,18 @@
 import {
   type Attributes,
-  type Context,
-  ROOT_CONTEXT,
   type Span,
-  type SpanContext,
-  SpanKind,
+  SpanStatusCode,
   context,
   diag,
   trace,
 } from "@opentelemetry/api";
 import { type Logger, SeverityNumber, logs } from "@opentelemetry/api-logs";
-import { BreadcrumbBuffer } from "./breadcrumb-buffer.js";
-import { normalizeError } from "./normalize.js";
+import { type NormalizedError, normalizeError } from "./normalize.js";
 import { RateLimiter } from "./rate-limit.js";
 import { DEFAULT_SCRUB_PATTERNS, scrubAttributes, scrubString } from "./scrub.js";
 import type {
-  BreadcrumbInput,
   ErrorEvent,
+  ErrorSeverity,
   Integration,
   Mechanism,
   Options,
@@ -31,7 +27,7 @@ export interface CaptureInput {
   error: unknown;
   mechanism: Mechanism;
   handled: boolean;
-  severity?: "error" | "fatal";
+  severity?: ErrorSeverity;
   message?: string;
   attributes?: Attributes;
 }
@@ -39,11 +35,11 @@ export interface CaptureInput {
 export class Client {
   readonly options: Options;
   readonly runtime: Runtime;
-  readonly breadcrumbs: BreadcrumbBuffer | null;
   private readonly integrations: Integration[];
   private readonly logger: Logger;
   private readonly rateLimiter: RateLimiter | null;
   private readonly scrubPatterns: RegExp[];
+  private readonly capturedObjects = new WeakSet<object>();
   private processing = false;
 
   constructor(options: Options, runtime: Runtime, integrations: Integration[]) {
@@ -59,10 +55,6 @@ export class Client {
             options.rateLimit?.windowMs ?? 5000,
           );
     this.scrubPatterns = options.scrubPatterns ?? DEFAULT_SCRUB_PATTERNS;
-    this.breadcrumbs =
-      options.breadcrumbs === false
-        ? null
-        : new BreadcrumbBuffer(options.breadcrumbs?.maxEntries ?? 100);
   }
 
   setup(): void {
@@ -85,21 +77,17 @@ export class Client {
     }
   }
 
-  breadcrumbsEnabledFor(category: "console" | "network" | "dom"): boolean {
-    const opts = this.options.breadcrumbs;
-    return this.breadcrumbs !== null && opts !== false && (opts?.[category] ?? true);
+  // Records an error object as already reported so a later handler (e.g. the
+  // window "error" event that fires after browserApiErrors re-throws) can skip
+  // the duplicate. Only object errors can be tracked.
+  markCaptured(error: unknown): void {
+    if (isObjectError(error)) {
+      this.capturedObjects.add(error);
+    }
   }
 
-  addBreadcrumb(crumb: BreadcrumbInput): void {
-    if (!this.breadcrumbs || this.processing) {
-      return;
-    }
-
-    this.breadcrumbs.add({
-      ...crumb,
-      timestamp: Date.now(),
-      traceId: trace.getActiveSpan()?.spanContext().traceId,
-    });
+  wasCaptured(error: unknown): boolean {
+    return isObjectError(error) && this.capturedObjects.has(error);
   }
 
   capture(input: CaptureInput): void {
@@ -155,77 +143,79 @@ export class Client {
         ...(normalized.stacktrace
           ? { "exception.stacktrace": normalized.stacktrace }
           : {}),
-        "exception.handled": event.handled,
-        "exception.mechanism": event.mechanism,
-        "error.id": errorId,
+        "everr.error.handled": event.handled,
+        "everr.error.mechanism": event.mechanism,
+        "log.record.uid": errorId,
       },
       this.scrubPatterns,
     );
     const body = scrubString(event.message, this.scrubPatterns);
-    const activeSpanContext = trace.getActiveSpan()?.spanContext();
-    const span = this.startBreadcrumbSpan(errorId, activeSpanContext);
-    const emitContext: Context = activeSpanContext
-      ? context.active()
-      : span
-        ? trace.setSpan(ROOT_CONTEXT, span)
-        : context.active();
+    const activeSpan = trace.getActiveSpan();
+
+    // On node, attach the error to the surrounding span so traces show the
+    // failure. Browsers rarely run inside a server span, so we skip it there.
+    if (this.runtime === "node" && activeSpan) {
+      this.markActiveSpan(activeSpan, normalized, input.error);
+    }
 
     this.logger.emit({
-      severityNumber:
-        event.severity === "fatal" ? SeverityNumber.FATAL : SeverityNumber.ERROR,
-      severityText: event.severity === "fatal" ? "FATAL" : "ERROR",
+      eventName: eventNameForMechanism(event.mechanism),
+      severityNumber: severityNumber(event.severity),
+      severityText: event.severity.toUpperCase(),
       body,
       attributes,
-      context: emitContext,
+      exception: input.error,
+      context: context.active(),
     });
-
-    span?.end(errorTime);
   }
 
-  private startBreadcrumbSpan(
-    errorId: string,
-    activeSpanContext: SpanContext | undefined,
-  ): Span | null {
-    if (!this.breadcrumbs) {
-      return null;
-    }
-
-    const crumbs =
-      this.runtime === "browser"
-        ? this.breadcrumbs.all()
-        : this.breadcrumbs.filtered(activeSpanContext?.traceId);
-
-    if (crumbs.length === 0) {
-      return null;
-    }
-
-    const tracer = trace.getTracer(PKG_NAME, PKG_VERSION);
-    const span = tracer.startSpan(
-      "error.context",
-      {
-        kind: SpanKind.INTERNAL,
-        // The buffer preserves insertion order, so the first crumb is earliest.
-        startTime: crumbs[0].timestamp,
-        attributes: { "error.id": errorId },
-        links: activeSpanContext ? [{ context: activeSpanContext }] : [],
-      },
-      ROOT_CONTEXT,
+  private markActiveSpan(
+    span: Span,
+    normalized: NormalizedError,
+    error: unknown,
+  ): void {
+    span.recordException(
+      error instanceof Error
+        ? error
+        : { name: normalized.type, message: normalized.message },
     );
-
-    for (const crumb of crumbs) {
-      span.addEvent(
-        scrubString(crumb.message, this.scrubPatterns),
-        {
-          "breadcrumb.category": crumb.category,
-          "breadcrumb.level": crumb.level ?? "info",
-          ...(crumb.data ? scrubAttributes(crumb.data, this.scrubPatterns) : {}),
-        },
-        crumb.timestamp,
-      );
-    }
-
-    return span;
+    span.setStatus({
+      code: SpanStatusCode.ERROR,
+      message: normalized.message
+        ? `${normalized.type}: ${normalized.message}`
+        : normalized.type,
+    });
   }
+
+}
+
+function severityNumber(severity: ErrorSeverity): SeverityNumber {
+  switch (severity) {
+    case "debug":
+      return SeverityNumber.DEBUG;
+    case "info":
+      return SeverityNumber.INFO;
+    case "warn":
+      return SeverityNumber.WARN;
+    case "fatal":
+      return SeverityNumber.FATAL;
+    case "error":
+      return SeverityNumber.ERROR;
+  }
+}
+
+function eventNameForMechanism(mechanism: Mechanism): string {
+  switch (mechanism) {
+    case "express":
+    case "fastify":
+      return "http.server.request.exception";
+    default:
+      return "exception";
+  }
+}
+
+function isObjectError(error: unknown): error is object {
+  return typeof error === "object" && error !== null;
 }
 
 function generateErrorId(): string {

@@ -32,7 +32,8 @@ describe("ErrorBoundary", () => {
     );
     expect(screen.getByText("something broke")).toBeDefined();
     const [record] = otel.records();
-    expect(record.attributes["exception.mechanism"]).toBe("react");
+    expect(record.eventName).toBe("exception");
+    expect(record.attributes["everr.error.mechanism"]).toBe("react");
     expect(record.attributes["exception.message"]).toBe("render boom");
     expect(String(record.attributes["react.component_stack"])).toContain("Boom");
   });
@@ -53,7 +54,7 @@ describe("captureReactError", () => {
   it("captures with mechanism react", () => {
     captureReactError(new Error("manual react"), { componentStack: "\n at App" });
     const [record] = otel.records();
-    expect(record.attributes["exception.mechanism"]).toBe("react");
+    expect(record.attributes["everr.error.mechanism"]).toBe("react");
     expect(record.attributes["react.component_stack"]).toBe("\n at App");
   });
 });

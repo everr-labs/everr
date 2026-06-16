@@ -36,6 +36,7 @@ Always read the relevant rule files before editing instrumentation. Use the tabl
 | `nodejs` | Node.js instrumentation setup and runtime pitfalls |
 | `nextjs` | Next.js App Router, server/client split, trace propagation |
 | `tauri` | Tauri v2 desktop/mobile: Rust backend + browser frontend proxying telemetry through IPC |
+| `electron` | Electron desktop: Node main process + Chromium renderer proxying telemetry through IPC |
 | `rust` | Rust tracing-based OpenTelemetry setup and runtime pitfalls |
 | `alerts` | AlertRule YAML, `everr apply`, notification channels, query patterns, verification |
 

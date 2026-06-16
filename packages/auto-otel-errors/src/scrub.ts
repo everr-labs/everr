@@ -23,7 +23,24 @@ export function scrubAttributes(
 ): Attributes {
   const out: Attributes = {};
   for (const [key, value] of Object.entries(attributes)) {
-    out[key] = typeof value === "string" ? scrubString(value, patterns) : value;
+    if (typeof value !== "string") {
+      out[key] = value;
+      continue;
+    }
+
+    const sanitized = key === "url.full" ? stripUrlQueryAndFragment(value) : value;
+    out[key] = scrubString(sanitized, patterns);
   }
   return out;
+}
+
+export function stripUrlQueryAndFragment(value: string): string {
+  try {
+    const url = new URL(value);
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return value.split(/[?#]/, 1)[0] ?? "";
+  }
 }

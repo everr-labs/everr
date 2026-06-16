@@ -23,13 +23,18 @@ describe("errorTrackingPlugin", () => {
     app.get("/boom", async () => {
       throw new Error("fastify exploded");
     });
-    const response = await app.inject({ method: "GET", url: "/boom" });
+    const response = await app.inject({
+      method: "GET",
+      url: "/boom?token=s3cret&page=2",
+    });
     expect(response.statusCode).toBe(500);
     const [record] = otel.records();
-    expect(record.attributes["exception.mechanism"]).toBe("fastify");
+    expect(record.eventName).toBe("http.server.request.exception");
+    expect(record.attributes["everr.error.mechanism"]).toBe("fastify");
     expect(record.attributes["exception.message"]).toBe("fastify exploded");
     expect(record.attributes["http.request.method"]).toBe("GET");
-    expect(record.attributes["url.full"]).toBe("/boom");
+    expect(record.attributes["url.full"]).toBeUndefined();
+    expect(record.attributes["url.path"]).toBe("/boom");
     await app.close();
   });
 

@@ -1,5 +1,5 @@
 import type { Attributes } from "@opentelemetry/api";
-import { getTelemetryTracer, recordTelemetryError, SpanKind } from "./node";
+import { captureError, getTelemetryTracer, SpanKind } from "./node";
 import { parameterizeTelemetryPath } from "./paths";
 
 const tracer = getTelemetryTracer("everr-app.server_fn");
@@ -27,7 +27,7 @@ export async function instrumentServerFunction<T>(
       try {
         return await run();
       } catch (error) {
-        recordTelemetryError(error, {
+        captureError(error, {
           ...attributes,
           "error.handled": false,
           "error.source": "server_fn",

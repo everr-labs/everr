@@ -28,6 +28,7 @@ export function errorHandler() {
       error: err,
       mechanism: "express",
       handled: true,
+      severity: "error",
       attributes,
     });
     next(err);

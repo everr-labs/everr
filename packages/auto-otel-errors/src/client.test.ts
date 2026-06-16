@@ -1,4 +1,4 @@
-import { trace } from "@opentelemetry/api";
+import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { SeverityNumber } from "@opentelemetry/api-logs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Client } from "./client.js";
@@ -27,15 +27,16 @@ describe("Client.capture", () => {
       handled: true,
     });
     const [record] = otel.records();
+    expect(record.eventName).toBe("exception");
     expect(record.severityNumber).toBe(SeverityNumber.ERROR);
     expect(record.severityText).toBe("ERROR");
     expect(record.body).toBe("TypeError: boom");
     expect(record.attributes["exception.type"]).toBe("TypeError");
     expect(record.attributes["exception.message"]).toBe("boom");
     expect(record.attributes["exception.stacktrace"]).toContain("client.test.ts");
-    expect(record.attributes["exception.handled"]).toBe(true);
-    expect(record.attributes["exception.mechanism"]).toBe("manual");
-    expect(record.attributes["error.id"]).toMatch(/^[0-9a-f-]{32,36}$/);
+    expect(record.attributes["everr.error.handled"]).toBe(true);
+    expect(record.attributes["everr.error.mechanism"]).toBe("manual");
+    expect(record.attributes["log.record.uid"]).toMatch(/^[0-9a-f-]{32,36}$/);
   });
 
   it("maps fatal severity", () => {
@@ -83,7 +84,7 @@ describe("Client.capture", () => {
     });
     const [record] = otel.records();
     expect(record.body).toBe("Error: login failed for [Filtered]");
-    expect(record.attributes["url.full"]).toBe("/cb?token=[Filtered]");
+    expect(record.attributes["url.full"]).toBe("/cb");
   });
 
   it("ignores re-entrant captures", () => {
@@ -97,24 +98,8 @@ describe("Client.capture", () => {
     expect(otel.records()).toHaveLength(1);
   });
 
-  it("emits a breadcrumb span correlated via error.id and trace context", () => {
+  it("emits the error log in the active span's trace context", () => {
     const client = makeClient();
-    client.addBreadcrumb({ category: "console", message: "step 1" });
-    client.addBreadcrumb({ category: "http", message: "GET /x 200" });
-    client.capture({ error: new Error("boom"), mechanism: "manual", handled: true });
-
-    const [record] = otel.records();
-    const [span] = otel.spans();
-    expect(span.name).toBe("error.context");
-    expect(span.attributes["error.id"]).toBe(record.attributes["error.id"]);
-    expect(span.events.map((e) => e.name)).toEqual(["step 1", "GET /x 200"]);
-    expect(span.events[0].attributes?.["breadcrumb.category"]).toBe("console");
-    expect(record.spanContext?.traceId).toBe(span.spanContext().traceId);
-  });
-
-  it("keeps the real trace on the record and links the breadcrumb span", () => {
-    const client = makeClient();
-    client.addBreadcrumb({ category: "console", message: "before" });
     const tracer = trace.getTracer("test");
     tracer.startActiveSpan("request", (requestSpan) => {
       client.capture({ error: new Error("in-trace"), mechanism: "manual", handled: true });
@@ -122,45 +107,37 @@ describe("Client.capture", () => {
     });
 
     const [record] = otel.records();
-    const breadcrumbSpan = otel.spans().find((s) => s.name === "error.context");
     const requestSpan = otel.spans().find((s) => s.name === "request");
     expect(record.spanContext?.traceId).toBe(requestSpan?.spanContext().traceId);
-    expect(breadcrumbSpan?.links[0]?.context.traceId).toBe(
-      requestSpan?.spanContext().traceId,
-    );
   });
 
-  it("filters node breadcrumbs by trace, browser includes all", () => {
-    const nodeClient = makeClient({}, "node");
-    nodeClient.breadcrumbs?.add({
-      timestamp: Date.now(),
-      category: "http",
-      message: "other request",
-      traceId: "0af7651916cd43dd8448eb211c80319c",
+  it("marks the active span as errored on node", () => {
+    const client = makeClient({}, "node");
+    trace.getTracer("test").startActiveSpan("request", (requestSpan) => {
+      client.capture({ error: new Error("boom"), mechanism: "manual", handled: true });
+      requestSpan.end();
     });
-    nodeClient.addBreadcrumb({ category: "console", message: "ambient" });
-    nodeClient.capture({ error: new Error("x"), mechanism: "manual", handled: true });
-    expect(otel.spans()[0].events.map((e) => e.name)).toEqual(["ambient"]);
 
-    otel.reset();
-    const browserClient = makeClient({}, "browser");
-    browserClient.breadcrumbs?.add({
-      timestamp: Date.now(),
-      category: "http",
-      message: "tagged",
-      traceId: "0af7651916cd43dd8448eb211c80319c",
-    });
-    browserClient.capture({ error: new Error("y"), mechanism: "manual", handled: true });
-    expect(otel.spans()[0].events.map((e) => e.name)).toEqual(["tagged"]);
+    const requestSpan = otel.spans().find((s) => s.name === "request");
+    expect(requestSpan?.status.code).toBe(SpanStatusCode.ERROR);
+    expect(requestSpan?.status.message).toBe("Error: boom");
+    expect(requestSpan?.events.map((e) => e.name)).toContain("exception");
   });
 
-  it("emits no span when there are no breadcrumbs or breadcrumbs are disabled", () => {
+  it("does not touch the active span on browser", () => {
+    const client = makeClient({}, "browser");
+    trace.getTracer("test").startActiveSpan("request", (requestSpan) => {
+      client.capture({ error: new Error("boom"), mechanism: "manual", handled: true });
+      requestSpan.end();
+    });
+
+    const requestSpan = otel.spans().find((s) => s.name === "request");
+    expect(requestSpan?.status.code).toBe(SpanStatusCode.UNSET);
+    expect(requestSpan?.events).toHaveLength(0);
+  });
+
+  it("emits no error.context span", () => {
     makeClient().capture({ error: new Error("bare"), mechanism: "manual", handled: true });
-    expect(otel.spans()).toHaveLength(0);
-
-    const disabled = makeClient({ breadcrumbs: false });
-    disabled.addBreadcrumb({ category: "console", message: "ignored" });
-    disabled.capture({ error: new Error("z"), mechanism: "manual", handled: true });
     expect(otel.spans()).toHaveLength(0);
   });
 });

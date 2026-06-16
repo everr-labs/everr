@@ -1,5 +1,5 @@
 import type { Attributes } from "@opentelemetry/api";
-import { getTelemetryTracer, recordTelemetryError, SpanKind } from "./node";
+import { captureError, getTelemetryTracer, SpanKind } from "./node";
 
 type ClickhouseClient = "admin" | "app" | "sql_api";
 
@@ -26,7 +26,7 @@ export async function instrumentClickhouseOperation<T>(
       try {
         return await run();
       } catch (error) {
-        recordTelemetryError(error, {
+        captureError(error, {
           ...spanAttributes,
           "error.handled": false,
           "error.source": "clickhouse",

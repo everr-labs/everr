@@ -57,6 +57,10 @@
     {
       "implements": "LogRecordExporter",
       "members": ["export", "shutdown", "forceFlush"]
+    },
+    {
+      "implements": "SpanExporter",
+      "members": ["export", "shutdown", "forceFlush"]
     }
   ],
   "duplicates": {

@@ -1,11 +1,19 @@
+import { diag } from "@opentelemetry/api";
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { PKG_NAME } from "./client.js";
 import { getClient } from "./core.js";
 
 export function captureReactError(
   error: unknown,
   errorInfo?: { componentStack?: string | null },
 ): void {
-  getClient()?.capture({
+  const client = getClient();
+  if (!client) {
+    diag.warn(`${PKG_NAME}: captureReactError called before init(); error dropped`);
+    return;
+  }
+
+  client.capture({
     error,
     mechanism: "react",
     handled: true,

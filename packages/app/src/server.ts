@@ -6,11 +6,7 @@ import {
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { db } from "@/db/client";
 import { startWorkerRuntime } from "@/server/worker/runtime";
-import {
-  getTelemetryTracer,
-  recordTelemetryError,
-  SpanKind,
-} from "@/telemetry/node";
+import { captureError, getTelemetryTracer, SpanKind } from "@/telemetry/node";
 import { instrumentServerFetch } from "@/telemetry/server";
 
 const startupTracer = getTelemetryTracer("everr-app.startup");
@@ -22,7 +18,7 @@ await startupTracer.startActiveSpan(
     try {
       await migrate(db, { migrationsFolder: "./drizzle" });
     } catch (error) {
-      recordTelemetryError(error, {
+      captureError(error, {
         "error.handled": false,
         "error.source": "startup.database_migration",
       });
@@ -34,7 +30,7 @@ await startupTracer.startActiveSpan(
 );
 
 void startWorkerRuntime().catch((error) => {
-  recordTelemetryError(error, {
+  captureError(error, {
     "error.handled": true,
     "error.source": "startup.worker_runtime",
   });

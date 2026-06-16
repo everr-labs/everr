@@ -27,9 +27,10 @@ describe("browserGlobalHandlersIntegration", () => {
       }),
     );
     const [record] = otel.records();
-    expect(record.attributes["exception.mechanism"]).toBe("onerror");
+    expect(record.eventName).toBe("exception");
+    expect(record.attributes["everr.error.mechanism"]).toBe("onerror");
     expect(record.attributes["exception.type"]).toBe("TypeError");
-    expect(record.attributes["exception.handled"]).toBe(false);
+    expect(record.attributes["everr.error.handled"]).toBe(false);
   });
 
   it("ignores error events without an error object (resource load errors)", () => {
@@ -42,7 +43,7 @@ describe("browserGlobalHandlersIntegration", () => {
     event.reason = new Error("rejected");
     window.dispatchEvent(event);
     const [record] = otel.records();
-    expect(record.attributes["exception.mechanism"]).toBe("unhandledrejection");
+    expect(record.attributes["everr.error.mechanism"]).toBe("unhandledrejection");
   });
 
   it("teardown removes listeners", () => {

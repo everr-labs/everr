@@ -1,4 +1,5 @@
 import { DeveloperNotificationSection } from "../notifications/notification-window";
+import { ErrorTrackingSection } from "./error-tracking-section";
 
 export function DeveloperPage() {
   return (
@@ -15,6 +16,7 @@ export function DeveloperPage() {
       </div>
       <div className="grid divide-y divide-white/[0.06]">
         <DeveloperNotificationSection />
+        <ErrorTrackingSection />
       </div>
     </div>
   );

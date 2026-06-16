@@ -22,15 +22,16 @@ describe("nodeGlobalHandlersIntegration", () => {
   it("captures uncaughtException as fatal/unhandled", () => {
     process.emit("uncaughtException", new Error("crash"));
     const [record] = otel.records();
-    expect(record.attributes["exception.mechanism"]).toBe("uncaughtException");
-    expect(record.attributes["exception.handled"]).toBe(false);
+    expect(record.eventName).toBe("exception");
+    expect(record.attributes["everr.error.mechanism"]).toBe("uncaughtException");
+    expect(record.attributes["everr.error.handled"]).toBe(false);
     expect(record.severityText).toBe("FATAL");
   });
 
   it("captures unhandledRejection including non-Error reasons", () => {
     process.emit("unhandledRejection", "string reason", Promise.resolve());
     const [record] = otel.records();
-    expect(record.attributes["exception.mechanism"]).toBe("unhandledrejection");
+    expect(record.attributes["everr.error.mechanism"]).toBe("unhandledrejection");
     expect(record.attributes["exception.type"]).toBe("NonError");
   });
 

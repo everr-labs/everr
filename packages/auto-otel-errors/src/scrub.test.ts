@@ -39,4 +39,18 @@ describe("scrubAttributes", () => {
       ok: true,
     });
   });
+
+  it("strips query and fragment from url.full before applying redaction", () => {
+    const result = scrubAttributes(
+      {
+        "url.full": "https://example.com/cb?token=s3cret&page=2#section",
+        other: "/cb?token=s3cret&page=2#section",
+      },
+      DEFAULT_SCRUB_PATTERNS,
+    );
+    expect(result).toEqual({
+      "url.full": "https://example.com/cb",
+      other: "/cb?token=[Filtered]&page=2#section",
+    });
+  });
 });

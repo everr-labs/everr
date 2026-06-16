@@ -25,6 +25,7 @@ describe("node fatal exit semantics (fixtures)", () => {
     const { status, records } = runFixture("uncaught-exit.mjs");
     expect(status).toBe(1);
     expect(records.at(-1)).toMatchObject({
+      eventName: "exception",
       mechanism: "uncaughtException",
       severityNumber: 21,
     });

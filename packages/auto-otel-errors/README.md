@@ -1,6 +1,6 @@
 # @everr/auto-otel-errors
 
-Sentry-style automatic error tracking that emits through OpenTelemetry. The package captures runtime errors, console errors, failed network calls, and framework errors as OTel log records, and lazily emits breadcrumb context as an `error.context` span only when an error is recorded. It only reads the global OTel API registries; if the host app has no global `LoggerProvider`, capture is a no-op.
+Automatic error tracking that emits through OpenTelemetry. The package captures uncaught exceptions, unhandled rejections, and framework errors as OTel exception log events, and exposes `captureError` for manual capture. In the browser it also wraps `setTimeout`/`setInterval`/`requestAnimationFrame`/`addEventListener` callbacks (`browserApiErrors`) to capture errors thrown there with a real stack — including the cross-origin `"Script error."` cases the `window` `error` handler can't see. It only reads the global OTel API registries; if the host app has no global `LoggerProvider`, capture is a no-op.
 
 ## Install
 
@@ -34,17 +34,13 @@ init();
 | `beforeSend` | Mutate an event or return `null` to drop it before emit. |
 | `scrubPatterns` | RegExp list applied to messages and string attributes. |
 | `rateLimit` | `{ count, windowMs }` per error key, or `false`. Default is 5 per 5 seconds. |
-| `console` | Console capture settings. Default captures `error`; breadcrumbs include all levels. |
-| `network` | HTTP status capture predicate and ignored URL patterns. Default captures status `>= 500`. |
-| `breadcrumbs` | Ring buffer and source toggles, or `false`. Default max is 100. |
 | `onFatal` | Node crash behavior for global handlers: `exit` or `continue`. Default is `exit`. |
 
 ## Manual Capture
 
 ```ts
-import { addBreadcrumb, captureError } from "@everr/auto-otel-errors";
+import { captureError } from "@everr/auto-otel-errors";
 
-addBreadcrumb({ category: "checkout", message: "clicked pay" });
 captureError(new Error("payment failed"), { feature: "billing" });
 ```
 
@@ -78,9 +74,9 @@ import { ErrorBoundary } from "@everr/auto-otel-errors/react";
 
 ## Data Model
 
-Each captured error emits one log record with `exception.type`, `exception.message`, optional `exception.stacktrace`, `exception.handled`, `exception.mechanism`, and `error.id`. Network and framework integrations add semantic attributes such as `http.request.method`, `http.response.status_code`, `http.route`, and `url.full`.
+Each captured error emits one exception log event with `eventName`, `exception.type`, `exception.message`, optional `exception.stacktrace`, `everr.error.handled`, `everr.error.mechanism`, and `log.record.uid`. Framework integrations add semantic attributes such as `http.request.method`, `http.route`, `url.full`, and `url.path` when available. Query strings and fragments are stripped from `url.full` before emission.
 
-Breadcrumbs are buffered in memory. When an error passes rate limiting and `beforeSend`, the package emits one `error.context` span with breadcrumb events and the same `error.id`. If a real trace is active, the log record keeps that trace and the breadcrumb span links to it. Without an active trace, the log record is emitted inside the synthesized breadcrumb span context.
+The log record is emitted in the active context, so when a trace is active it keeps that trace. On Node, a capture also marks the active span as errored (`recordException` + `ERROR` status).
 
 ## Crash Semantics
 

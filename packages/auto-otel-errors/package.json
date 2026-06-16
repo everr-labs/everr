@@ -8,34 +8,48 @@
   "files": ["dist"],
   "exports": {
     ".": {
-      "node": {
+      "node": "./src/node.ts",
+      "default": "./src/browser.ts"
+    },
+    "./node": "./src/node.ts",
+    "./browser": "./src/browser.ts",
+    "./express": "./src/express.ts",
+    "./fastify": "./src/fastify.ts",
+    "./react": "./src/react.ts"
+  },
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "node": {
+          "import": { "types": "./dist/node.d.ts", "default": "./dist/node.js" },
+          "require": { "types": "./dist/node.d.cts", "default": "./dist/node.cjs" }
+        },
+        "default": {
+          "import": { "types": "./dist/browser.d.ts", "default": "./dist/browser.js" },
+          "require": { "types": "./dist/browser.d.cts", "default": "./dist/browser.cjs" }
+        }
+      },
+      "./node": {
         "import": { "types": "./dist/node.d.ts", "default": "./dist/node.js" },
         "require": { "types": "./dist/node.d.cts", "default": "./dist/node.cjs" }
       },
-      "default": {
+      "./browser": {
         "import": { "types": "./dist/browser.d.ts", "default": "./dist/browser.js" },
         "require": { "types": "./dist/browser.d.cts", "default": "./dist/browser.cjs" }
+      },
+      "./express": {
+        "import": { "types": "./dist/express.d.ts", "default": "./dist/express.js" },
+        "require": { "types": "./dist/express.d.cts", "default": "./dist/express.cjs" }
+      },
+      "./fastify": {
+        "import": { "types": "./dist/fastify.d.ts", "default": "./dist/fastify.js" },
+        "require": { "types": "./dist/fastify.d.cts", "default": "./dist/fastify.cjs" }
+      },
+      "./react": {
+        "import": { "types": "./dist/react.d.ts", "default": "./dist/react.js" },
+        "require": { "types": "./dist/react.d.cts", "default": "./dist/react.cjs" }
       }
-    },
-    "./node": {
-      "import": { "types": "./dist/node.d.ts", "default": "./dist/node.js" },
-      "require": { "types": "./dist/node.d.cts", "default": "./dist/node.cjs" }
-    },
-    "./browser": {
-      "import": { "types": "./dist/browser.d.ts", "default": "./dist/browser.js" },
-      "require": { "types": "./dist/browser.d.cts", "default": "./dist/browser.cjs" }
-    },
-    "./express": {
-      "import": { "types": "./dist/express.d.ts", "default": "./dist/express.js" },
-      "require": { "types": "./dist/express.d.cts", "default": "./dist/express.cjs" }
-    },
-    "./fastify": {
-      "import": { "types": "./dist/fastify.d.ts", "default": "./dist/fastify.js" },
-      "require": { "types": "./dist/fastify.d.cts", "default": "./dist/fastify.cjs" }
-    },
-    "./react": {
-      "import": { "types": "./dist/react.d.ts", "default": "./dist/react.js" },
-      "require": { "types": "./dist/react.d.cts", "default": "./dist/react.cjs" }
     }
   },
   "scripts": {
