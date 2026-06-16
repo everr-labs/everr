@@ -161,19 +161,13 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
   // re-enqueue (delivery jobKeys replace, so re-enqueuing is idempotent).
   let delivery: DeliveryMetadata | null = null;
   if (transition.actions.length > 0) {
-    const hasFiring = transition.actions.some((a) => a.kind === "firing");
-    const hasResolved = transition.actions.some((a) => a.kind === "resolved");
-    const kind =
-      hasFiring && hasResolved ? "mixed" : hasFiring ? "firing" : "resolved";
-
-    // Use the first instance's row for the title template
     const firstInstance = transition.actions[0].instance;
     const { title, description } = renderMessages(def, firstInstance.row);
 
     delivery = await enqueueAlertNotification(
       {
         def,
-        kind,
+        kind: transition.notificationKind,
         title,
         description: transition.actions.length > 1 ? "" : description,
         instances: transition.actions.map((a) => a.instance),
@@ -256,15 +250,13 @@ function buildEventRows(opts: {
 
   // One evaluation event for the notification (if any actions exist)
   if (transition.actions.length > 0) {
-    const hasFiring = transition.actions.some((a) => a.kind === "firing");
-    const hasResolved = transition.actions.some((a) => a.kind === "resolved");
-    const eventType =
-      hasFiring && hasResolved ? "firing" : hasFiring ? "firing" : "resolved";
-
     events.push(
       buildEvaluationEvent({
         def,
-        eventType,
+        eventType:
+          transition.notificationKind === "mixed"
+            ? "firing"
+            : transition.notificationKind,
         scheduledFor,
         evidence,
         ...(delivery
