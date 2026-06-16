@@ -36,6 +36,13 @@
       "when": 1781471268473,
       "tag": "0004_equal_shaman",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1781638555434,
+      "tag": "0005_bitter_carnage",
+      "breakpoints": true
     }
   ]
 }

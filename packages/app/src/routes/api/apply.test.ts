@@ -78,6 +78,7 @@ describe("POST /api/apply", () => {
               },
             },
           ],
+          notebooks: [],
           alerts: [],
         },
       }),
@@ -105,6 +106,7 @@ describe("POST /api/apply", () => {
             },
           },
         ],
+        notebooks: [],
         alerts: [],
       },
       source: {
@@ -131,6 +133,7 @@ describe("POST /api/apply", () => {
         repoid: "repo-1",
         state: {
           dashboards: [{ path: "bad.yaml", resource: { kind: "Dashboard" } }],
+          notebooks: [],
           alerts: [],
         },
       }),
@@ -158,6 +161,7 @@ describe("POST /api/apply", () => {
               },
             },
           ],
+          notebooks: [],
           alerts: [],
         },
       }),

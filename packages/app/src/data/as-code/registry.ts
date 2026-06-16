@@ -1,5 +1,6 @@
 import { applyAlertSpecs } from "@/data/alerts/apply.server";
 import { applyDashboardSpecs } from "@/data/dashboards/apply.server";
+import { applyNotebookSpecs } from "@/data/notebooks/apply.server";
 import { ApplyValidationError } from "./errors";
 import type { ApplyInput, ApplyResourceEntry, ApplySource } from "./schema";
 
@@ -26,8 +27,8 @@ export type Reconciler = (opts: {
 
 /**
  * State key → (kind label, reconciler). Every registered kind reconciles on
- * each apply, so an empty array prunes that kind within the repoid — the
- * submitted state is the complete desired state for the repo.
+ * each apply, including an empty array, so the submitted state is the complete
+ * desired state for the repo — an absent kind prunes within the repoid.
  *
  * Keep the kinds in sync with classify_documents in
  * crates/everr-core/src/apply.rs, which routes documents by kind CLI-side.
@@ -38,6 +39,7 @@ const REGISTRY: {
   reconcile: Reconciler;
 }[] = [
   { key: "dashboards", kind: "Dashboard", reconcile: applyDashboardSpecs },
+  { key: "notebooks", kind: "Notebook", reconcile: applyNotebookSpecs },
   { key: "alerts", kind: "AlertRule", reconcile: applyAlertSpecs },
 ];
 
@@ -58,6 +60,14 @@ function validateResourceKind(
 /**
  * Apply grouped resources for one repo. Every registered kind is reconciled,
  * including empty arrays, so the submitted state is the full repo state.
+ *
+ * Reconcilers run sequentially and each one writes on its own, so a later kind
+ * that fails validation must not be able to let an earlier kind write first. We
+ * therefore reconcile in two passes: a dry-run pass that validates every kind
+ * (each reconciler runs its full document validation but performs no writes),
+ * then — only if all kinds validated — the real apply pass. Without this, an
+ * apply carrying a single invalid Notebook would let the Dashboard reconciler
+ * prune the repo before Notebook validation threw.
  */
 export async function applyResources(opts: {
   orgId: string;
@@ -68,7 +78,21 @@ export async function applyResources(opts: {
 }): Promise<ApplyResourcesResult> {
   const { orgId, repoid, state, source, dryRun } = opts;
 
-  const results: KindResult[] = [];
+  const summarize = (
+    kind: string,
+    r: { created: string[]; updated: string[]; deleted: string[] },
+  ): KindResult => ({
+    kind,
+    created: r.created,
+    updated: r.updated,
+    deleted: r.deleted,
+  });
+
+  // Validation pass: every kind reconciles in dryRun mode, which runs the full
+  // document validation but writes nothing. Any invalid document throws here,
+  // before any kind has written. When the caller asked for a dry run, this pass
+  // is also the result.
+  const validated: KindResult[] = [];
   for (const { key, kind, reconcile } of REGISTRY) {
     validateResourceKind(state[key], kind);
     const r = await reconcile({
@@ -76,15 +100,25 @@ export async function applyResources(opts: {
       repoid,
       resources: state[key],
       source,
-      dryRun,
+      dryRun: true,
     });
-    results.push({
-      kind,
-      created: r.created,
-      updated: r.updated,
-      deleted: r.deleted,
-    });
+    validated.push(summarize(kind, r));
   }
 
-  return { dryRun: dryRun ?? false, results };
+  if (dryRun) return { dryRun: true, results: validated };
+
+  // All kinds validated above; now apply for real.
+  const results: KindResult[] = [];
+  for (const { key, kind, reconcile } of REGISTRY) {
+    const r = await reconcile({
+      orgId,
+      repoid,
+      resources: state[key],
+      source,
+      dryRun: false,
+    });
+    results.push(summarize(kind, r));
+  }
+
+  return { dryRun: false, results };
 }

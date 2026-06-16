@@ -1,5 +1,5 @@
 import { ApplyValidationError } from "@/data/as-code/errors";
-import type { DesiredDashboard } from "./reconcile";
+import type { DesiredResource } from "@/data/as-code/reconcile";
 import {
   dashboardProjectSchema,
   dashboardSlugSchema,
@@ -18,8 +18,10 @@ function segmentLabel(segment: string): string {
   return segment.replace(/[_-]+/g, " ").trim();
 }
 
-/** Folder path from a file path: directory segments joined by " / ". */
-function folderPathFromFile(path: string): string {
+/**
+ * Folder path from a file path: directory segments joined by " / ".
+ */
+export function folderPathFromFile(path: string): string {
   const segments = path
     .split("/")
     .slice(0, -1)
@@ -31,8 +33,10 @@ function folderPathFromFile(path: string): string {
 
 const DEFAULT_PROJECT = "default";
 
-/** Project from metadata.project, defaulting to "default"; validated. */
-function projectFromDocument(path: string, document: unknown): string {
+/**
+ * Project from metadata.project, defaulting to "default"; validated.
+ */
+export function projectFromDocument(path: string, document: unknown): string {
   const meta = (document as { metadata?: { project?: unknown } }).metadata;
   const raw =
     meta && typeof meta.project === "string" && meta.project.length > 0
@@ -47,8 +51,10 @@ function projectFromDocument(path: string, document: unknown): string {
   return raw;
 }
 
-/** Slug from metadata.name, falling back to the filename without extension. */
-function slugFromDocument(path: string, document: unknown): string {
+/**
+ * Slug from metadata.name, falling back to the filename without extension.
+ */
+export function slugFromDocument(path: string, document: unknown): string {
   const meta = (document as { metadata?: { name?: unknown } }).metadata;
   if (meta && typeof meta.name === "string" && meta.name.length > 0) {
     return meta.name;
@@ -62,8 +68,8 @@ function slugFromDocument(path: string, document: unknown): string {
  * Throws on schema failure (message names the file) or a duplicate slug within
  * the same project.
  */
-export function buildDesiredSet(inputs: InputDocument[]): DesiredDashboard[] {
-  const out: DesiredDashboard[] = [];
+export function buildDesiredSet(inputs: InputDocument[]): DesiredResource[] {
+  const out: DesiredResource[] = [];
   const seen = new Map<string, string>(); // `${project} ${slug}` -> first path
 
   for (const { path, document } of inputs) {
@@ -106,7 +112,7 @@ export function buildDesiredSet(inputs: InputDocument[]): DesiredDashboard[] {
       project,
       slug,
       folderPath: folderPathFromFile(path),
-      document: document as DesiredDashboard["document"],
+      document,
     });
   }
 

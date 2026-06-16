@@ -4,6 +4,7 @@ import {
   ChevronRight,
   Folder,
   LayoutDashboard,
+  NotebookText,
 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import {
@@ -13,12 +14,20 @@ import {
   searchItems,
 } from "@/data/dashboards/tree";
 
+type TreeResource = "dashboard" | "notebook";
+
 interface DashboardTreeProps {
   dashboards: DashboardSummary[];
   search: string;
+  /** Which resource the rows link to; defaults to dashboards. */
+  resource?: TreeResource;
 }
 
-export function DashboardTree({ dashboards, search }: DashboardTreeProps) {
+export function DashboardTree({
+  dashboards,
+  search,
+  resource = "dashboard",
+}: DashboardTreeProps) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const tree = useMemo(() => buildTree(dashboards), [dashboards]);
@@ -48,11 +57,12 @@ export function DashboardTree({ dashboards, search }: DashboardTreeProps) {
               dashboard={dashboard}
               depth={0}
               path={path}
+              resource={resource}
             />
           ))}
           {results.dashboards.length === 0 && (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              No dashboards match your search
+              No {resource}s match your search
             </p>
           )}
         </>
@@ -65,6 +75,7 @@ export function DashboardTree({ dashboards, search }: DashboardTreeProps) {
               depth={0}
               expanded={expanded}
               onToggle={toggle}
+              resource={resource}
             />
           ))}
           {tree.dashboards.map((dashboard) => (
@@ -72,6 +83,7 @@ export function DashboardTree({ dashboards, search }: DashboardTreeProps) {
               key={`${dashboard.project}/${dashboard.slug}`}
               dashboard={dashboard}
               depth={0}
+              resource={resource}
             />
           ))}
         </>
@@ -85,11 +97,13 @@ function FolderRows({
   depth,
   expanded,
   onToggle,
+  resource,
 }: {
   node: FolderNode;
   depth: number;
   expanded: Set<string>;
   onToggle: (path: string) => void;
+  resource: TreeResource;
 }) {
   const isExpanded = expanded.has(node.path);
   return (
@@ -123,6 +137,7 @@ function FolderRows({
               depth={depth + 1}
               expanded={expanded}
               onToggle={onToggle}
+              resource={resource}
             />
           ))}
           {node.dashboards.map((dashboard) => (
@@ -130,6 +145,7 @@ function FolderRows({
               key={`${dashboard.project}/${dashboard.slug}`}
               dashboard={dashboard}
               depth={depth + 1}
+              resource={resource}
             />
           ))}
         </>
@@ -142,22 +158,29 @@ function DashboardRow({
   dashboard,
   depth,
   path,
+  resource,
 }: {
   dashboard: DashboardSummary;
   depth: number;
   path?: string;
+  resource: TreeResource;
 }) {
+  const Icon = resource === "notebook" ? NotebookText : LayoutDashboard;
   return (
     <div
       className="flex items-center gap-1 rounded-md py-1 pr-1 hover:bg-accent/50"
       style={{ paddingLeft: `${depth * 20 + 26}px` }}
     >
       <Link
-        to="/dashboards/$project/$slug"
+        to={
+          resource === "notebook"
+            ? "/notebooks/$project/$slug"
+            : "/dashboards/$project/$slug"
+        }
         params={{ project: dashboard.project, slug: dashboard.slug }}
         className="flex min-w-0 flex-1 items-center gap-2 py-0.5"
       >
-        <LayoutDashboard className="size-4 shrink-0 text-muted-foreground" />
+        <Icon className="size-4 shrink-0 text-muted-foreground" />
         <span className="truncate text-sm">{dashboard.name}</span>
         {path && (
           <span className="truncate text-xs text-muted-foreground">{path}</span>
