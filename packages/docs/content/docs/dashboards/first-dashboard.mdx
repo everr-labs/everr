@@ -37,16 +37,15 @@ Make a directory to hold your dashboards and add one file. The directory is the 
 mkdir -p dashboards
 ```
 
-Every apply directory needs an `everr.yaml` (or `everr.yml`) at its root declaring the projects it manages. Apply reads and reconciles exactly those projects — there is no implicit `default`, so to use the default project you list it explicitly.
+Every apply directory needs an `everr.yaml` (or `everr.yml`) at its root declaring a stable `repoid`. The repoid is the apply ownership boundary — apply reconciles exactly the resources previously applied under it.
 
 `dashboards/everr.yaml`:
 
 ```yaml
-projects:
-  - demo
+repoid: "2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1"
 ```
 
-Every dashboard's `metadata.project` (or `default` when omitted) must appear in this list, or apply rejects it. This tutorial uses `demo`; the simplest possible setup is `projects: [default]` plus dashboards that omit `metadata.project`.
+Use one stable id per repository (a UUID is a good default); never change it for an existing setup. Dashboards may set an optional `metadata.project` to namespace their identity and URL, but it does not appear in the manifest.
 
 `dashboards/api-latency.yaml`:
 

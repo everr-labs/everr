@@ -21,7 +21,7 @@ Each ```panel fence contains a runnable panel whose query is **ClickHouse SQL**.
 kind: Notebook
 metadata:
   name: high-error-rate          # slug; the URL segment. Defaults to the filename.
-  project: demo                  # optional; defaults to "default"; must be in everr.yaml
+  project: demo                  # optional; defaults to "default"; namespaces identity + URL
 spec:
   display:
     name: "High error rate runbook"
@@ -99,11 +99,11 @@ height: 200
 
 ## Apply semantics
 
-Notebooks reconcile through the **same apply tree as dashboards**: one `everr.yaml` manifest at the directory root declares the projects, and one `everr apply <dir>` reconciles **one desired state across all kinds**. Applying a directory that declares a project **prunes that project's notebooks AND dashboards that are not present in the tree** — delete-by-default, per kind. So **never split one project across two apply directories**; put all of a project's dashboards and notebooks under a single tree.
+Notebooks reconcile through the **same apply tree as dashboards**: one `everr.yaml` manifest at the directory root declares a stable `repoid`, and one `everr apply <dir>` reconciles **one desired state across all kinds**. Applying a directory **prunes the repoid's notebooks AND dashboards that are not present in the tree** — delete-by-default, per kind. So **never split one repoid across two apply directories**; put all of a repoid's dashboards and notebooks under a single tree.
 
 ```
 docs/
-  everr.yaml                 # REQUIRED manifest — declares the reconcile scope
+  everr.yaml                 # REQUIRED manifest — declares the repoid (reconcile scope)
   checkout-api.yaml          # a Dashboard
   high-error-rate.yaml       # a Notebook
   high-error-rate.md         # referenced by the notebook's `markdown.file`
@@ -115,8 +115,7 @@ docs/
 `docs/everr.yaml`:
 
 ```yaml
-projects:
-  - demo
+repoid: "2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1"
 ```
 
 Run it the same way as dashboards:

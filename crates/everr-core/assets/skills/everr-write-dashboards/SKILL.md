@@ -25,11 +25,11 @@ The file format mirrors [Perses](https://perses.dev), so the structure (`kind`/`
 
 ## File layout and the required manifest
 
-`everr apply <dir>` reconciles a directory. The directory **must** contain an `everr.yaml` (or `.yml`) at its root declaring the projects it manages — apply errors without it. There is no implicit `default`.
+`everr apply <dir>` reconciles a directory. The directory **must** contain an `everr.yaml` (or `.yml`) at its root declaring a stable `repoid` — apply errors without it.
 
 ```
 dashboards/
-  everr.yaml                 # REQUIRED manifest — declares the reconcile scope
+  everr.yaml                 # REQUIRED manifest — declares the repoid (reconcile scope)
   api-latency.yaml           # root folder
   platform/
     db-health.yaml           # folder "platform" (from the directory name)
@@ -38,12 +38,10 @@ dashboards/
 `dashboards/everr.yaml`:
 
 ```yaml
-projects:
-  - default
-  - platform
+repoid: "2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1"
 ```
 
-Every dashboard's `metadata.project` (or `default` when omitted) **must** appear in this list, or apply rejects it. Folders in the UI come from the directory tree — there are no folder objects.
+The `repoid` is the **apply ownership boundary** — `everr apply` reconciles exactly the resources previously applied under this id and nothing else. Use one stable id per repository (a UUID is a good default); never reuse a repoid across unrelated repos, and never change it for an existing one (that orphans everything applied under the old id). It is the only key the manifest accepts. Folders in the UI come from the directory tree — there are no folder objects.
 
 ## Dashboard spec quick reference
 
@@ -51,7 +49,7 @@ Every dashboard's `metadata.project` (or `default` when omitted) **must** appear
 kind: Dashboard
 metadata:
   name: <slug>               # required; lowercase letters/digits/hyphens, 1–200 chars, the URL segment
-  project: platform          # optional; defaults to "default"; must be in everr.yaml
+  project: platform          # optional; defaults to "default"; namespaces identity + URL
 spec:
   display: { name: ..., description: ... }   # optional
   duration: 1h               # optional; seeds the time-range picker (e.g. 1h, 24h)
@@ -201,8 +199,7 @@ For `allowAllValue`, "All" expands to every loaded option as a quoted list; set 
 `dashboards/everr.yaml`:
 
 ```yaml
-projects:
-  - demo
+repoid: "2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1"
 ```
 
 `dashboards/checkout-api.yaml`:
@@ -318,14 +315,14 @@ everr apply ./dashboards --dry-run     # always preview first; writes nothing
 everr apply ./dashboards               # prints the destination org, then asks to confirm
 ```
 
-Apply is **declarative and delete-by-default within the declared projects**: new files are created, changed files updated, removed files **deleted**. This spans **all resource kinds** — the tree is the complete desired state for its declared projects, so applying a dashboards-only directory that declares a project also prunes that project's notebooks (see the `everr-write-notebooks` skill). Never split one project across two apply directories. Re-applying with no changes prints `Nothing to apply.` In CI, set `EVERR_API_TOKEN` and pass `--yes`.
+Apply is **declarative and delete-by-default within the `repoid`**: new files are created, changed files updated, removed files **deleted**. This spans **all resource kinds** — the tree is the complete desired state for that repoid, so applying a dashboards-only directory also prunes notebooks previously applied under the same repoid (see the `everr-write-notebooks` skill). Never split one repoid across two apply directories. Re-applying with no changes prints `Nothing to apply.` In CI, set `EVERR_API_TOKEN` and pass `--yes`.
 
 ## Common mistakes
 
 | Mistake | Fix |
 | --- | --- |
 | PromQL / `rate()` / `$__rate_interval` / `PrometheusTimeSeriesQuery` | Queries are **ClickHouse SQL**; the only query plugin is `ClickHouseSQL`. |
-| Forgetting the `everr.yaml` manifest, or a `metadata.project` not listed in it | Every apply dir needs `everr.yaml` listing projects; each dashboard's project must be in it. |
+| Missing `everr.yaml` manifest, or wrong key in it | Every apply dir needs `everr.yaml` with a single stable `repoid:` — that is the only key it accepts. |
 | No `{from:String}`/`{to:String}` in the `WHERE` | Add `WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}` — it is not auto-injected. |
 | Time-series x-axis blank | Alias the time column to `ts`/`time`/`timestamp`/… so it's detected. |
 | Inventing viz options (`yAxis`, `legend`, `columnSettings`, `format.unit`, `calculation: last-number`, axis min/max) | Only the options in each viz's rule file (`rules/timeseries.md`, `rules/barchart.md`, `rules/table.md`, `rules/statchart.md`, `rules/gaugechart.md`, `rules/geomap.md`, `rules/treemap.md`, `rules/statetimeline.md`, `rules/statushistory.md`, `rules/heatmap.md`, `rules/nodegraph.md`) exist. Format/round in SQL, not via spec. |
