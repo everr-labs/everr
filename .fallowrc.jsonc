@@ -17,6 +17,7 @@
   "entry": [
     // CI scripts invoked directly by GitHub Actions workflows.
     ".github/actions/everr-action/scripts/build-readme.mjs",
+    ".github/actions/everr-action/scripts/sampler-macos.mjs",
     // Nitro scans these folders as file-based server entry points for docs.
     "packages/docs/middleware/**/*.{ts,tsx}",
     "packages/docs/routes/**/*.{ts,tsx}",

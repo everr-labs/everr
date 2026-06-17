@@ -1,4 +1,5 @@
 import { execFile, spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import * as artifact from "@actions/artifact";
 import * as core from "@actions/core";
 import * as fs from "node:fs";
@@ -33,6 +34,9 @@ type Log = (message: string) => void;
 type Now = () => Date;
 type AddPath = (inputPath: string) => void;
 type FinalizePartialArtifactImpl = typeof finalizePartialArtifact;
+type FetchImpl = (
+  url: string,
+) => Promise<{ ok: boolean; status: number; arrayBuffer: () => Promise<ArrayBuffer> }>;
 type ResolveFilesystemInfo = (workspacePath: string) => Promise<FilesystemInfo>;
 type UploadArtifactImpl = (
   name: string,
@@ -40,6 +44,8 @@ type UploadArtifactImpl = (
   rootDirectory: string,
   options: { retentionDays: number },
 ) => Promise<unknown>;
+
+const CLI_DOWNLOAD_BASE_URL = "https://everr.dev/everr-app";
 
 const defaultSampleIntervalSeconds = "5";
 
@@ -55,10 +61,11 @@ interface StartResourceUsageOptions {
   warning?: Log;
 }
 
-interface InstallBundledCliOptions {
-  actionRoot?: string;
+interface InstallCliOptions {
   addPath?: AddPath;
   arch?: string;
+  env?: Env;
+  fetchImpl?: FetchImpl;
   fspModule?: typeof fsp;
   getInput?: GetInput;
   info?: Log;
@@ -155,16 +162,60 @@ function bundledCliTargetForRuntime(
   return null;
 }
 
-async function installBundledCli({
-  actionRoot = resolveActionRoot(),
+function cliDownloadBinaryName(target: string): string | null {
+  switch (target) {
+    case "darwin-arm64":
+      return "everr";
+    case "linux-arm64":
+      return "everr-linux-arm64";
+    case "linux-x64":
+      return "everr-linux-x86_64";
+    default:
+      return null;
+  }
+}
+
+async function downloadFile(
+  fetchImpl: FetchImpl,
+  url: string,
+  destPath: string,
+  fspModule: typeof fsp,
+): Promise<void> {
+  const response = await fetchImpl(url);
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status} for ${url}`);
+  }
+  const buffer = Buffer.from(await response.arrayBuffer());
+  await fspModule.writeFile(destPath, buffer);
+}
+
+async function verifyChecksum(
+  filePath: string,
+  checksumPath: string,
+  fspModule: typeof fsp,
+): Promise<void> {
+  const checksumContent = await fspModule.readFile(checksumPath, "utf8");
+  const expectedHash = checksumContent.trim().split(/\s+/)[0];
+  const fileBuffer = await fspModule.readFile(filePath);
+  const actualHash = createHash("sha256").update(fileBuffer).digest("hex");
+  if (expectedHash !== actualHash) {
+    throw new Error(
+      `SHA-256 mismatch: expected ${expectedHash}, got ${actualHash}`,
+    );
+  }
+}
+
+async function installCli({
   addPath = core.addPath,
   arch = process.arch,
+  env = process.env,
+  fetchImpl = fetch,
   fspModule = fsp,
   getInput = core.getInput,
   info = core.info,
   platform = process.platform,
   warning = core.warning,
-}: InstallBundledCliOptions = {}): Promise<{
+}: InstallCliOptions = {}): Promise<{
   enabled: boolean;
   failed?: boolean;
   path?: string;
@@ -180,23 +231,35 @@ async function installBundledCli({
     return { enabled: true, failed: true };
   }
 
-  const binDir = path.join(actionRoot, "bin", target);
-  const cliPath = path.join(binDir, "everr");
-
-  try {
-    await fspModule.access(cliPath, fs.constants.X_OK);
-  } catch {
-    try {
-      await fspModule.chmod(cliPath, 0o755);
-    } catch (error) {
-      warning(`install-cli skipped: bundled Everr CLI is unavailable: ${formatError(error)}`);
-      return { enabled: true, failed: true, target };
-    }
+  const binaryName = cliDownloadBinaryName(target);
+  if (!binaryName) {
+    warning(`install-cli skipped: no binary name for target ${target}`);
+    return { enabled: true, failed: true, target };
   }
 
-  addPath(binDir);
-  info(`installed bundled Everr CLI for ${target}`);
-  return { enabled: true, path: cliPath, target };
+  const binaryUrl = `${CLI_DOWNLOAD_BASE_URL}/${binaryName}`;
+  const checksumUrl = `${CLI_DOWNLOAD_BASE_URL}/${binaryName}.sha256`;
+  const installDir = path.join(
+    env.RUNNER_TEMP || os.tmpdir(),
+    "everr-cli",
+  );
+  const cliPath = path.join(installDir, "everr");
+
+  try {
+    await fspModule.mkdir(installDir, { recursive: true });
+    await downloadFile(fetchImpl, binaryUrl, cliPath, fspModule);
+    await downloadFile(fetchImpl, checksumUrl, path.join(installDir, `${binaryName}.sha256`), fspModule);
+    await verifyChecksum(cliPath, path.join(installDir, `${binaryName}.sha256`), fspModule);
+    await fspModule.chmod(cliPath, 0o755);
+    addPath(installDir);
+    info(`installed Everr CLI for ${target} from ${binaryUrl}`);
+    return { enabled: true, path: cliPath, target };
+  } catch (error) {
+    warning(
+      `install-cli skipped: failed to install Everr CLI: ${formatError(error)}`,
+    );
+    return { enabled: true, failed: true, target };
+  }
 }
 
 async function startResourceUsage({
@@ -221,8 +284,11 @@ async function startResourceUsage({
 
   const actionRoot = resolveActionRoot();
 
-  if (env.RUNNER_OS !== "Linux") {
-    info("resource-usage sampling is supported only on Linux runners");
+  const runnerOs = env.RUNNER_OS || "";
+  if (runnerOs !== "Linux" && runnerOs !== "macOS") {
+    info(
+      "resource-usage sampling is supported only on Linux and macOS runners",
+    );
     saveState("enabled", "0");
     return { enabled: false };
   }
@@ -235,23 +301,25 @@ async function startResourceUsage({
 
   saveState("checkRunId", checkRunId);
   const { baseDir, samplesPath, pidPath, logPath } = buildRuntimePaths(env);
-  const samplerPath = path.join(actionRoot, "scripts", "sampler.sh");
   const workspacePath = env.GITHUB_WORKSPACE || process.cwd();
   const startedAt = now().toISOString();
+
+  const isMacOS = runnerOs === "macOS";
+  const samplerPath = isMacOS
+    ? path.join(actionRoot, "scripts", "sampler-macos.mjs")
+    : path.join(actionRoot, "scripts", "sampler.sh");
+  const spawnFile = isMacOS ? "node" : "bash";
+  const spawnArgs = [samplerPath, samplesPath, workspacePath, defaultSampleIntervalSeconds];
 
   try {
     await fspModule.mkdir(baseDir, { recursive: true });
     await fspModule.writeFile(samplesPath, "", "utf8");
 
     const logFd = fsModule.openSync(logPath, "a");
-    const child = spawnImpl(
-      "bash",
-      [samplerPath, samplesPath, workspacePath, defaultSampleIntervalSeconds],
-      {
-        detached: true,
-        stdio: ["ignore", logFd, logFd],
-      },
-    );
+    const child = spawnImpl(spawnFile, spawnArgs, {
+      detached: true,
+      stdio: ["ignore", logFd, logFd],
+    });
     child.unref();
     fsModule.closeSync(logFd);
 
@@ -300,13 +368,6 @@ async function finalizeAndUploadResourceUsage({
 }> {
   if (readState("enabled") !== "1") {
     return { enabled: false };
-  }
-
-  if (env.RUNNER_OS !== "Linux") {
-    warning(
-      "resource-usage finalization skipped: non-Linux runner (filesystem discovery uses GNU-only df flags)",
-    );
-    return { enabled: true, failed: true };
   }
 
   const checkRunId = readState("checkRunId");
@@ -433,8 +494,22 @@ function formatError(error: unknown): string {
 
 async function resolveWorkspaceFilesystemInfo(
   workspacePath: string,
+  runnerOs: string = process.env.RUNNER_OS || "",
 ): Promise<FilesystemInfo> {
-  const { stdout } = await execFileWithOutput("df", ["-PkT", "--", workspacePath]);
+  if (runnerOs === "macOS") {
+    return resolveFilesystemInfoMacOS(workspacePath);
+  }
+  return resolveFilesystemInfoLinux(workspacePath);
+}
+
+async function resolveFilesystemInfoLinux(
+  workspacePath: string,
+): Promise<FilesystemInfo> {
+  const { stdout } = await execFileWithOutput("df", [
+    "-PkT",
+    "--",
+    workspacePath,
+  ]);
   const lines = stdout
     .split("\n")
     .map((line) => line.trim())
@@ -454,6 +529,50 @@ async function resolveWorkspaceFilesystemInfo(
     type: fields[1] || "",
     mountpoint: fields[6] || "",
   };
+}
+
+async function resolveFilesystemInfoMacOS(
+  workspacePath: string,
+): Promise<FilesystemInfo> {
+  const { stdout } = await execFileWithOutput("df", [
+    "-Pk",
+    "--",
+    workspacePath,
+  ]);
+  const lines = stdout
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length < 2) {
+    throw new Error("df output did not include a filesystem row");
+  }
+
+  const fields = lines[1].split(/\s+/);
+  if (fields.length < 6) {
+    throw new Error("df output did not include device and mountpoint");
+  }
+
+  const device = fields[0] || "";
+  const mountpoint = fields[5] || "";
+
+  let type = "";
+  try {
+    const { stdout: mountOutput } = await execFileWithOutput("mount", []);
+    for (const line of mountOutput.split("\n")) {
+      if (line.includes(` on ${mountpoint} `)) {
+        const match = line.match(/\(([^,)]+)/);
+        if (match) {
+          type = match[1];
+        }
+        break;
+      }
+    }
+  } catch {
+    // filesystem type is best-effort on macOS
+  }
+
+  return { device, type, mountpoint };
 }
 
 async function execFileWithOutput(
@@ -481,7 +600,7 @@ async function run(): Promise<void> {
   const isPost = core.getState("isPost") === "true";
   if (!isPost) {
     core.saveState("isPost", "true");
-    await installBundledCli();
+    await installCli();
     await startResourceUsage();
     return;
   }
@@ -501,10 +620,11 @@ export {
   artifactNameForCheckRun,
   buildRuntimePaths,
   bundledCliTargetForRuntime,
+  cliDownloadBinaryName,
   ensureSamplesFile,
   finalizeAndUploadResourceUsage,
   formatError,
-  installBundledCli,
+  installCli,
   isCliInstallEnabled,
   isResourceUsageEnabled,
   normalizeCheckRunId,
