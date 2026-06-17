@@ -61,7 +61,7 @@ describe("event row construction", () => {
     });
 
     expect(row).toMatchObject({
-      organization_id: "org-1",
+      tenant_id: "org-1",
       event_type: "firing",
       evaluation_scheduled_at: "2026-06-10T12:00:00.000Z",
       row_count: 1,

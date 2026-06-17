@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS app.alert_events
   event_id UUID DEFAULT generateUUIDv4(),
   -- String, not UUID: application organization ids are text and the retention
   -- dictionary is keyed by tenant_id String.
-  organization_id String,
+  tenant_id String,
   alert_definition_id String,
   repoid String,
   slug String,
@@ -27,14 +27,14 @@ CREATE TABLE IF NOT EXISTS app.alert_events
 )
 ENGINE = MergeTree
 PARTITION BY toYYYYMM(event_date)
--- Dominant read: per-alert history by org + repoid + slug over a time range.
+-- Dominant read: per-alert history by tenant + repoid + slug over a time range.
 -- ORDER BY is immutable, so this intentionally prioritizes alert filters over
 -- date-only scans; monthly partitions handle lifecycle pruning. event_type is
 -- low-cardinality (~6 values) and filtered in every query, so it sits before
 -- the time column. alert_definition_id is always filtered but higher
 -- cardinality; a bloom skip index covers it.
-ORDER BY (organization_id, repoid, slug, event_type, event_time, event_id)
-TTL toDateTime(event_time) + INTERVAL dictGetOrDefault('app.tenant_retention', 'logs_days', organization_id, toUInt32(3650)) DAY
+ORDER BY (tenant_id, repoid, slug, event_type, event_time, event_id)
+TTL toDateTime(event_time) + INTERVAL dictGetOrDefault('app.tenant_retention', 'logs_days', tenant_id, toUInt32(3650)) DAY
 SETTINGS index_granularity = 8192;
 
 GRANT SELECT ON app.alert_events TO app_ro;
@@ -45,7 +45,7 @@ DROP ROW POLICY IF EXISTS tenant_filter_alert_events ON app.alert_events;
 CREATE ROW POLICY tenant_filter_alert_events
 ON app.alert_events
 FOR SELECT
-USING organization_id = getSetting('SQL_everr_tenant_id')
+USING tenant_id = getSetting('SQL_everr_tenant_id')
 TO app_ro;
 
 -- Fresh init path: there are no existing alert rows to backfill. The
@@ -64,7 +64,7 @@ SELECT
   'alert' AS ServiceName,
   concat('alert ', slug, ' ', event_type) AS Body,
   '' AS ResourceSchemaUrl,
-  map('everr.tenant.id', organization_id) AS ResourceAttributes,
+  map('everr.tenant.id', tenant_id) AS ResourceAttributes,
   '' AS ScopeSchemaUrl,
   'everr.alerting' AS ScopeName,
   '' AS ScopeVersion,
@@ -82,5 +82,5 @@ SELECT
   ) AS LogAttributes,
   concat('alert.', slug, '.', event_type) AS EventName,
   -- Required for app.logs RLS and TTL; ResourceAttributes alone is not enough.
-  organization_id AS tenant_id
+  tenant_id AS tenant_id
 FROM app.alert_events;

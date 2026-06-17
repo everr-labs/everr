@@ -451,7 +451,7 @@ describe("listAlertEvents", () => {
     expect(query).toHaveBeenCalledTimes(1);
     const sql = vi.mocked(query).mock.calls[0]?.[0] ?? "";
     expect(sql).toContain("FROM app.alert_events");
-    expect(sql).toContain("organization_id = {organizationId:String}");
+    expect(sql).toContain("tenant_id = {organizationId:String}");
     expect(sql).toContain("repoid = {repoid:String}");
     expect(sql).toContain("slug = {slug:String}");
     expect(sql).toContain("alert_definition_id = {alertDefinitionId:String}");
