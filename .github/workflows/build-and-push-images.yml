@@ -37,6 +37,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Collect resource usage
+        uses: ./.github/actions/everr-action
+        with:
+          check-run-id: ${{ job.check_run_id }}
+
       - name: Detect changed paths
         id: filter
         uses: dorny/paths-filter@v4
@@ -195,6 +200,14 @@ jobs:
        needs.detect-changes.outputs.docs == 'true') &&
       !contains(needs.*.result, 'failure')
     steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Collect resource usage
+        uses: ./.github/actions/everr-action
+        with:
+          check-run-id: ${{ job.check_run_id }}
+
       - name: Generate GitHub App token
         id: app-token
         uses: actions/create-github-app-token@v3

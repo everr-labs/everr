@@ -23,6 +23,11 @@ jobs:
       - name: Checkout monorepo
         uses: actions/checkout@v4
 
+      - name: Collect resource usage
+        uses: ./.github/actions/everr-action
+        with:
+          check-run-id: ${{ job.check_run_id }}
+
       - name: Extract version from tag
         id: version
         run: |
@@ -77,6 +82,7 @@ jobs:
           cp -R "$action_root/dist" "$staging/dist"
           mkdir -p "$staging/scripts"
           cp "$action_root/scripts/sampler.sh" "$staging/scripts/sampler.sh"
+          cp "$action_root/scripts/sampler-macos.mjs" "$staging/scripts/sampler-macos.mjs"
           cp "$action_root/README.generated.md" "$staging/README.md"
           if [[ -f LICENSE ]]; then
             cp LICENSE "$staging/LICENSE"
@@ -112,19 +118,10 @@ jobs:
           git config user.name "everr-action-bot"
           git config user.email "everr-action-bot@users.noreply.github.com"
 
-          preserved_bin="${RUNNER_TEMP}/everr-action-preserved-bin"
-          rm -rf "$preserved_bin"
-          if [[ -d bin ]]; then
-            cp -R bin "$preserved_bin"
-          fi
-
           # Replace the mirror contents with the staged tree.
           git rm -rf . >/dev/null 2>&1 || true
           rm -rf -- *
           cp -R "$STAGING"/. .
-          if [[ -d "$preserved_bin" ]]; then
-            cp -R "$preserved_bin" bin
-          fi
 
           git add -A
           if git diff --cached --quiet; then
