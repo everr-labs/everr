@@ -23,6 +23,7 @@
 
 import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { migrateStoredDeliverySettings } from "@/data/alerts/delivery-settings";
 import { activeSilenceConditions } from "@/data/alerts/silences";
 import { db } from "@/db/client";
 import { alertDefinitions, alertSettings, alertSilences } from "@/db/schema";
@@ -91,7 +92,9 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
       .where(activeSilenceConditions(def.organizationId, def.id)),
   ]);
   const deliveryContext: ResolvedDeliveryContext = {
-    settings: settingsRow ?? null,
+    settings: settingsRow
+      ? { delivery: migrateStoredDeliverySettings(settingsRow.delivery) }
+      : null,
     silences,
   };
 

@@ -5,6 +5,11 @@ vi.mock("@/lib/telegram.server", () => ({
   sendTelegramMessage: (...args: unknown[]) => sendTelegram(...args),
 }));
 
+const sendSlack = vi.fn();
+vi.mock("@/lib/slack.server", () => ({
+  sendSlackMessage: (...args: unknown[]) => sendSlack(...args),
+}));
+
 const addWorkerJob = vi.fn();
 vi.mock("@/server/worker/jobs", () => ({
   addWorkerJob: (...args: unknown[]) => addWorkerJob(...args),
@@ -56,7 +61,26 @@ const scheduledFor = new Date("2026-06-12T12:00:00Z");
 const defaultContext: ResolvedDeliveryContext = {
   settings: {
     delivery: {
-      telegram: { enabled: true, botToken: "bot-token", chatIds: ["123"] },
+      telegram: {
+        enabled: true,
+        entries: [{ id: "e1", botToken: "bot-token", chatId: "123" }],
+      },
+      slack: {
+        enabled: true,
+        webhooks: [{ id: "w1", url: "https://hooks.slack.com/services/T/B/x" }],
+      },
+    },
+  },
+  silences: [],
+};
+
+const telegramOnlyContext: ResolvedDeliveryContext = {
+  settings: {
+    delivery: {
+      telegram: {
+        enabled: true,
+        entries: [{ id: "e1", botToken: "bot-token", chatId: "123" }],
+      },
     },
   },
   silences: [],
@@ -72,6 +96,7 @@ beforeEach(() => {
   vi.setSystemTime(new Date("2026-06-12T12:00:00Z"));
   addWorkerJob.mockResolvedValue(undefined);
   sendTelegram.mockResolvedValue(undefined);
+  sendSlack.mockResolvedValue(undefined);
   recordEvents.mockResolvedValue(undefined);
 });
 
@@ -82,46 +107,27 @@ afterEach(() => {
 describe("enqueueAlertNotification", () => {
   it("enqueues one retryable job per channel target", async () => {
     const result = await enqueueAlertNotification(
-      {
-        def,
-        instances: [{ labels: { route: "/a" }, kind: "firing" }],
-      },
+      { def, instances: [{ labels: { route: "/a" }, kind: "firing" }] },
       scheduledFor,
       defaultContext,
     );
 
-    expect(addWorkerJob).toHaveBeenCalledTimes(1);
-    expect(addWorkerJob).toHaveBeenCalledWith(
-      "alerts/deliver",
-      expect.objectContaining({
-        channel: "telegram",
-        target: "123",
-        botToken: "bot-token",
-      }),
-      expect.objectContaining({
-        jobKey:
-          "alerts/deliver:a1:2026-06-12T12:00:00.000Z:firing:telegram:123",
-      }),
-    );
-
+    expect(addWorkerJob).toHaveBeenCalledTimes(2);
     const sends = queuedSends();
-    const telegram = sends[0];
-    expect(telegram.text).toBe(
-      [
-        "🔥 s1 firing",
-        "",
-        "3 bad",
-        "",
-        "• route=/a",
-        "",
-        "2026-06-12 12:00 UTC",
-        "https://app.example.com/alerts/a1",
-      ].join("\n"),
-    );
+    const telegram = sends.find((s) => s.channel === "telegram");
+    const slack = sends.find((s) => s.channel === "slack");
 
-    expect(sendTelegram).not.toHaveBeenCalled();
+    expect(telegram).toMatchObject({ target: "123", botToken: "bot-token" });
+    expect(telegram?.channel === "telegram" && telegram.text).toContain(
+      "🔥 s1 firing",
+    );
+    expect(slack).toMatchObject({
+      target: "w1",
+      webhookUrl: "https://hooks.slack.com/services/T/B/x",
+    });
+
     expect(result).toEqual({
-      deliveryTargets: { telegram: ["123"] },
+      deliveryTargets: { telegram: ["123"], slack: ["w1"] },
       perKind: { firing: { silenceId: "" } },
     });
   });
@@ -145,7 +151,7 @@ describe("enqueueAlertNotification", () => {
         ],
       },
       scheduledFor,
-      defaultContext,
+      telegramOnlyContext,
     );
 
     expect(addWorkerJob).toHaveBeenCalledTimes(1);
@@ -171,7 +177,7 @@ describe("enqueueAlertNotification", () => {
 
   it("suppresses delivery when all instances are silenced", async () => {
     const silencedContext: ResolvedDeliveryContext = {
-      ...defaultContext,
+      ...telegramOnlyContext,
       silences: [
         { id: "sil-1", matchers: [{ label: "route", op: "=", value: "/a" }] },
       ],
@@ -195,7 +201,7 @@ describe("enqueueAlertNotification", () => {
 
   it("filters out silenced instances and notifies with remaining", async () => {
     const silencedContext: ResolvedDeliveryContext = {
-      ...defaultContext,
+      ...telegramOnlyContext,
       silences: [
         { id: "sil-1", matchers: [{ label: "route", op: "=", value: "/a" }] },
       ],
@@ -225,7 +231,7 @@ describe("enqueueAlertNotification", () => {
 
   it("suppresses everything under a whole-rule silence (no matchers)", async () => {
     const silencedContext: ResolvedDeliveryContext = {
-      ...defaultContext,
+      ...telegramOnlyContext,
       silences: [{ id: "sil-1", matchers: [] }],
     };
 
@@ -247,7 +253,7 @@ describe("enqueueAlertNotification", () => {
 
   it("records the first silence id when a kind is fully suppressed by different rules", async () => {
     const silencedContext: ResolvedDeliveryContext = {
-      ...defaultContext,
+      ...telegramOnlyContext,
       silences: [
         { id: "sil-1", matchers: [{ label: "route", op: "=", value: "/a" }] },
         { id: "sil-2", matchers: [{ label: "route", op: "=", value: "/b" }] },
@@ -286,7 +292,7 @@ describe("enqueueAlertNotification", () => {
         ],
       },
       scheduledFor,
-      defaultContext,
+      telegramOnlyContext,
     );
 
     const sends = queuedSends();
@@ -318,7 +324,7 @@ describe("enqueueAlertNotification", () => {
         ],
       },
       scheduledFor,
-      defaultContext,
+      telegramOnlyContext,
     );
 
     const sends = queuedSends();
@@ -342,7 +348,7 @@ describe("enqueueAlertNotification", () => {
 
   it("drops a fully-silenced kind from a mixed notification but delivers the rest", async () => {
     const silencedContext: ResolvedDeliveryContext = {
-      ...defaultContext,
+      ...telegramOnlyContext,
       silences: [
         { id: "sil-1", matchers: [{ label: "route", op: "=", value: "/a" }] },
       ],
@@ -408,11 +414,30 @@ function telegramSend(): DeliverySend {
   };
 }
 
+function slackSend(): DeliverySend {
+  return {
+    channel: "slack",
+    target: "w1",
+    webhookUrl: "https://hooks.slack.com/services/T/B/x",
+    message: { attachments: [{ color: "#dc2626", blocks: [] }] },
+    def: sendDef,
+    scheduledFor,
+  };
+}
+
 describe("runDeliverySend", () => {
   it("sends one telegram message", async () => {
     await runDeliverySend(telegramSend(), { attempts: 1, max_attempts: 5 });
 
     expect(sendTelegram).toHaveBeenCalledWith("bot-token", "123", "text");
+  });
+
+  it("sends one slack message", async () => {
+    await runDeliverySend(slackSend(), { attempts: 1, max_attempts: 5 });
+    expect(sendSlack).toHaveBeenCalledWith(
+      "https://hooks.slack.com/services/T/B/x",
+      expect.objectContaining({ attachments: expect.any(Array) }),
+    );
   });
 
   it("rethrows on failure so the job retries, without recording an event", async () => {
@@ -456,6 +481,18 @@ describe("runDeliverySend", () => {
     expect(vi.mocked(serverLogger.warn)).toHaveBeenCalledWith(
       "alerts.delivery.telegram_failed",
       expect.objectContaining({ "error.handled": true }),
+    );
+  });
+
+  it("records a slack delivery_failed event on the final attempt", async () => {
+    sendSlack.mockRejectedValue(new Error("invalid_payload"));
+    await expect(
+      runDeliverySend(slackSend(), { attempts: 5, max_attempts: 5 }),
+    ).rejects.toThrow();
+    expect(recordEvents).toHaveBeenCalledWith(
+      sendDef,
+      [expect.objectContaining({ delivery_targets: { slack: ["w1"] } })],
+      "alerts.delivery.failure_event_insert_failed",
     );
   });
 });

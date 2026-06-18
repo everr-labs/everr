@@ -15,11 +15,12 @@
 
 import { z } from "zod";
 import type {
-  AlertDeliverySettings,
   AlertDeliveryTargets,
+  StoredDeliverySettings,
 } from "@/data/alerts/delivery-settings";
 import { findSilenceForInstance, type Matcher } from "@/data/alerts/matchers";
 import { env } from "@/env";
+import { sendSlackMessage } from "@/lib/slack.server";
 import { sendTelegramMessage } from "@/lib/telegram.server";
 import { addWorkerJob } from "@/server/worker/jobs";
 import {
@@ -33,12 +34,13 @@ import type {
   DeliveryKind,
   NotifiableInstance,
 } from "./04-format";
+import { buildSlackMessage, type SlackMessage } from "./04-slack";
 import { buildTelegramText } from "./04-telegram";
 
 export type { DeliveryInput } from "./04-format";
 
 export interface ResolvedDeliveryContext {
-  settings: { delivery: AlertDeliverySettings } | null;
+  settings: { delivery: StoredDeliverySettings } | null;
   silences: { id: string; matchers: Matcher[] }[];
 }
 
@@ -60,15 +62,26 @@ const SendDefSchema = z.object({
 // can be recorded as a `delivery_failed` event for the right evaluation.
 const SendBaseSchema = z.object({
   target: z.string(),
-  text: z.string(),
   def: SendDefSchema,
   scheduledFor: z.coerce.date(),
 });
 
-const DeliverySendSchema = SendBaseSchema.extend({
+const TelegramSendSchema = SendBaseSchema.extend({
   channel: z.literal("telegram"),
   botToken: z.string(),
+  text: z.string(),
 });
+
+const SlackSendSchema = SendBaseSchema.extend({
+  channel: z.literal("slack"),
+  webhookUrl: z.string(),
+  message: z.custom<SlackMessage>(),
+});
+
+const DeliverySendSchema = z.discriminatedUnion("channel", [
+  TelegramSendSchema,
+  SlackSendSchema,
+]);
 
 export type DeliverySend = z.infer<typeof DeliverySendSchema>;
 
@@ -120,9 +133,16 @@ export async function enqueueAlertNotification(
   const silences = context.silences;
 
   const deliveryTargets: AlertDeliveryTargets = {};
-  if (delivery.telegram?.enabled && delivery.telegram.chatIds.length > 0) {
-    deliveryTargets.telegram = delivery.telegram.chatIds;
-  }
+  const telegramEntries = delivery.telegram?.enabled
+    ? (delivery.telegram.entries ?? [])
+    : [];
+  const slackWebhooks = delivery.slack?.enabled
+    ? (delivery.slack.webhooks ?? [])
+    : [];
+  if (telegramEntries.length > 0)
+    deliveryTargets.telegram = telegramEntries.map((e) => e.chatId);
+  if (slackWebhooks.length > 0)
+    deliveryTargets.slack = slackWebhooks.map((w) => w.id);
   if (Object.keys(deliveryTargets).length === 0) return null;
 
   // Resolve each instance's silence once, then derive the per-kind outcome and
@@ -155,24 +175,37 @@ export async function enqueueAlertNotification(
   const messageKind = deriveMessageKind(unsilenced);
   const now = new Date();
   const buildOptions = { url: alertUrl(def.id), now };
-  const telegramText = buildTelegramText(
-    { def, kind: messageKind, instances: unsilenced },
-    buildOptions,
-  );
+  const deliveryInput = { def, kind: messageKind, instances: unsilenced };
+
+  const telegramText = buildTelegramText(deliveryInput, buildOptions);
+  const slackMessage = buildSlackMessage(deliveryInput, buildOptions);
 
   // Zod strips unknown keys, so this is the schema-defined subset of the full
   // definition row — one field list to maintain.
   const sendDef = SendDefSchema.parse(def);
-  const sends: DeliverySend[] = (deliveryTargets.telegram ?? []).map(
-    (target): DeliverySend => ({
-      channel: "telegram",
-      target,
-      botToken: delivery.telegram?.botToken ?? "",
-      text: telegramText,
-      def: sendDef,
-      scheduledFor,
-    }),
-  );
+
+  const sends: DeliverySend[] = [
+    ...telegramEntries.map(
+      (entry): DeliverySend => ({
+        channel: "telegram",
+        target: entry.chatId,
+        botToken: entry.botToken,
+        text: telegramText,
+        def: sendDef,
+        scheduledFor,
+      }),
+    ),
+    ...slackWebhooks.map(
+      (webhook): DeliverySend => ({
+        channel: "slack",
+        target: webhook.id,
+        webhookUrl: webhook.url,
+        message: slackMessage,
+        def: sendDef,
+        scheduledFor,
+      }),
+    ),
+  ];
 
   // The job key spans evaluation + message kind + target, so a retried
   // evaluation re-enqueues (replaces) the same jobs instead of duplicating
@@ -200,7 +233,11 @@ export async function runDeliverySend(
   const send = DeliverySendSchema.parse(rawPayload);
 
   try {
-    await sendTelegramMessage(send.botToken, send.target, send.text);
+    if (send.channel === "telegram") {
+      await sendTelegramMessage(send.botToken, send.target, send.text);
+    } else {
+      await sendSlackMessage(send.webhookUrl, send.message);
+    }
   } catch (error) {
     const finalAttempt = job.attempts >= job.max_attempts;
     serverLogger.warn(`alerts.delivery.${send.channel}_failed`, {
