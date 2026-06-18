@@ -1,11 +1,9 @@
 import { randomUUID } from "node:crypto";
 import {
-  type Attributes,
-  SpanKind,
-  SpanStatusCode,
-  trace,
-} from "@opentelemetry/api";
-import { logs, SeverityNumber } from "@opentelemetry/api-logs";
+  captureError,
+  init as initErrorTracking,
+} from "@everr/auto-otel-errors/node";
+import { SpanKind, trace } from "@opentelemetry/api";
 import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
 import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
@@ -15,8 +13,6 @@ import { BatchLogRecordProcessor } from "@opentelemetry/sdk-logs";
 import { PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { resolveTelemetryConfig, signalUrl } from "./config";
-
-const errorLogger = logs.getLogger("everr-app.errors");
 
 const sensitiveQueryParams = [
   "AWSAccessKeyId",
@@ -49,39 +45,11 @@ if (!globalTelemetry.__everrAppTelemetry) {
   globalTelemetry.__everrAppTelemetry = startTelemetry();
 }
 
-export function recordTelemetryError(
-  reason: unknown,
-  attributes: Attributes = {},
-) {
-  const error = normalizeError(reason);
-  const activeSpan = trace.getActiveSpan();
-
-  activeSpan?.recordException(error);
-  activeSpan?.setStatus({
-    code: SpanStatusCode.ERROR,
-    message: `${error.name}: ${error.message}`,
-  });
-
-  errorLogger.emit({
-    severityNumber: SeverityNumber.ERROR,
-    severityText: "ERROR",
-    body: "server.error",
-    attributes: {
-      ...attributes,
-      "exception.message": error.message,
-      "exception.type": error.name,
-      ...(error.stack ? { "exception.stacktrace": error.stack } : {}),
-    },
-  });
-
-  return error;
-}
-
 export function getTelemetryTracer(name = "everr-app.server") {
   return trace.getTracer(name);
 }
 
-export { SpanKind };
+export { captureError, SpanKind };
 
 function startTelemetry(): TelemetryState {
   const config = resolveTelemetryConfig(process.env, randomUUID());
@@ -127,9 +95,12 @@ function startTelemetry(): TelemetryState {
 
   sdk.start();
 
+  // Full node defaults: console + network breadcrumbs plus the global fatal
+  // handlers (uncaughtException/unhandledRejection), which flush logs and exit.
+  initErrorTracking();
+
   const state = { sdk, shuttingDown: false };
   installShutdownHandlers(state);
-  installFatalErrorHandlers(state);
 
   return state;
 }
@@ -143,35 +114,6 @@ function installShutdownHandlers(state: TelemetryState) {
   process.once("SIGINT", () => shutdownAndExit(0));
 }
 
-function installFatalErrorHandlers(state: TelemetryState) {
-  const handleFatalError = (reason: unknown, source: string) => {
-    const error = recordTelemetryError(reason, {
-      "error.handled": false,
-      "error.source": source,
-      "exception.escaped": true,
-    });
-
-    void shutdownTelemetry(state).finally(() => {
-      process.off("uncaughtException", handleUncaughtException);
-      process.off("unhandledRejection", handleUnhandledRejection);
-      setImmediate(() => {
-        throw error;
-      });
-    });
-  };
-
-  const handleUncaughtException = (error: Error) => {
-    handleFatalError(error, "process.uncaughtException");
-  };
-
-  const handleUnhandledRejection = (reason: unknown) => {
-    handleFatalError(reason, "process.unhandledRejection");
-  };
-
-  process.once("uncaughtException", handleUncaughtException);
-  process.once("unhandledRejection", handleUnhandledRejection);
-}
-
 async function shutdownTelemetry(state: TelemetryState) {
   if (!state.sdk || state.shuttingDown) {
     return;
@@ -179,12 +121,4 @@ async function shutdownTelemetry(state: TelemetryState) {
 
   state.shuttingDown = true;
   await state.sdk.shutdown();
-}
-
-function normalizeError(reason: unknown) {
-  if (reason instanceof Error) {
-    return reason;
-  }
-
-  return new Error(`Unhandled rejection: ${String(reason)}`);
 }

@@ -1,11 +1,49 @@
-import type { Logger } from "@opentelemetry/api-logs";
 import { render, screen } from "@testing-library/react";
-import type { ErrorInfo, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  ReactTelemetryErrorBoundary,
-  recordReactRenderError,
-} from "./react-error-boundary";
+import { ReactTelemetryErrorBoundary } from "./react-error-boundary";
+
+const telemetryMocks = vi.hoisted(() => ({
+  captureReactError: vi.fn(),
+}));
+
+vi.mock("@everr/auto-otel-errors/react", async () => {
+  const React = await import("react");
+
+  class ErrorBoundary extends React.Component<
+    {
+      children?: React.ReactNode;
+      fallback?: React.ReactNode | ((error: Error) => React.ReactNode);
+    },
+    { error: Error | null }
+  > {
+    state = { error: null };
+
+    static getDerivedStateFromError(error: Error) {
+      return { error };
+    }
+
+    componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+      telemetryMocks.captureReactError(error, errorInfo);
+    }
+
+    render() {
+      if (this.state.error) {
+        const { fallback } = this.props;
+        return typeof fallback === "function"
+          ? fallback(this.state.error)
+          : (fallback ?? null);
+      }
+
+      return this.props.children;
+    }
+  }
+
+  return {
+    ErrorBoundary,
+    captureReactError: telemetryMocks.captureReactError,
+  };
+});
 
 class ThrowsOnRender extends Error {
   name = "ThrowsOnRender";
@@ -15,19 +53,9 @@ function BrokenChild(): ReactNode {
   throw new ThrowsOnRender("render failed");
 }
 
-function createLoggerHarness() {
-  const logger = {
-    emit: vi.fn(),
-  };
-
-  return {
-    logger: logger as unknown as Logger,
-    loggerMocks: logger,
-  };
-}
-
 describe("ReactTelemetryErrorBoundary", () => {
   afterEach(() => {
+    telemetryMocks.captureReactError.mockReset();
     vi.restoreAllMocks();
   });
 
@@ -43,33 +71,19 @@ describe("ReactTelemetryErrorBoundary", () => {
     expect(screen.getByText("Something went wrong.")).toBeInTheDocument();
   });
 
-  it("records React render errors as logs without props or state", () => {
-    const { logger, loggerMocks } = createLoggerHarness();
-    const error = new ThrowsOnRender("render failed");
-    const info = {
-      componentStack: "\n    at BrokenChild\n    at TestApp",
-    } satisfies ErrorInfo;
+  it("reports render failures through the SDK error boundary", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
 
-    recordReactRenderError(error, info, logger);
+    render(
+      <ReactTelemetryErrorBoundary>
+        <BrokenChild />
+      </ReactTelemetryErrorBoundary>,
+    );
 
-    expect(loggerMocks.emit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        severityText: "ERROR",
-        body: "everr.react.render.error",
-        attributes: expect.objectContaining({
-          "exception.type": "ThrowsOnRender",
-          "exception.message": "render failed",
-          "everr.react.component_stack": info.componentStack,
-          "error.handled": true,
-        }),
-        exception: error,
-      }),
-    );
-    expect(loggerMocks.emit.mock.calls[0]?.[0].attributes).not.toHaveProperty(
-      "react.props",
-    );
-    expect(loggerMocks.emit.mock.calls[0]?.[0].attributes).not.toHaveProperty(
-      "react.state",
-    );
+    expect(telemetryMocks.captureReactError).toHaveBeenCalledOnce();
+    const [error, info] = telemetryMocks.captureReactError.mock.calls[0];
+    expect(error).toBeInstanceOf(ThrowsOnRender);
+    expect(error.message).toBe("render failed");
+    expect(info.componentStack).toContain("BrokenChild");
   });
 });

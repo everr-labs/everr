@@ -5,9 +5,9 @@ fn tauri_runtime_registers_backend_telemetry_and_relay() {
 
     assert!(lib.contains("pub mod otel;"));
     assert!(lib.contains("otel::init_telemetry"));
-    assert!(lib.contains(".manage(relay_state)"));
+    assert!(lib.contains(".manage(otlp_proxy)"));
     assert!(lib.contains(".manage(telemetry_context.clone())"));
-    assert!(lib.contains("otel::relay_telemetry"));
+    assert!(lib.contains("otel::proxy_otlp"));
     assert!(lib.contains("otel::get_telemetry_context"));
     assert!(lib.contains("otel::log_app_started"));
     assert!(lib.contains("otel::log_app_stopped"));
@@ -50,10 +50,11 @@ fn backend_telemetry_defaults_to_info_when_rust_log_is_absent() {
 }
 
 #[test]
-fn backend_telemetry_is_logs_only_with_session_resource_attributes() {
+fn backend_logs_directly_and_proxies_browser_otlp() {
     let otel = include_str!("../src/otel.rs");
     let build = include_str!("../build.rs");
 
+    // Rust's own telemetry exports directly through the SDK log pipeline.
     assert!(otel.contains("SdkLoggerProvider"));
     assert!(otel.contains("LogExporter::builder()"));
     assert!(otel.contains("service.version"));
@@ -61,11 +62,17 @@ fn backend_telemetry_is_logs_only_with_session_resource_attributes() {
     assert!(otel.contains("Uuid::new_v4"));
     assert!(otel.contains("get_telemetry_context"));
     assert!(otel.contains("\"logs\""));
-    assert!(otel.contains("BrowserLogRecord"));
-    assert!(otel.contains("records: Vec<BrowserLogRecord>"));
-    assert!(otel.contains("browser_logger"));
-    assert!(otel.contains("create_log_record"));
-    assert!(otel.contains("browser_logger.emit"));
+
+    // Browser telemetry is forwarded as opaque OTLP/JSON, not reconstructed.
+    assert!(otel.contains("pub async fn proxy_otlp"));
+    assert!(otel.contains("struct OtlpProxy"));
+    assert!(otel.contains("application/json"));
+    assert!(otel.contains("matches!(signal.as_str(), \"logs\" | \"traces\" | \"metrics\")"));
+    assert!(!otel.contains("BrowserLogRecord"));
+    assert!(!otel.contains("create_log_record"));
+    assert!(!otel.contains("set_trace_context"));
+    assert!(!otel.contains("build_browser_span_data"));
+
     assert!(otel.contains("option_env!(\"EVERR_INGEST_KEY\")"));
     assert!(otel.contains("https://ingest.everr.dev"));
     assert!(otel.contains("Authorization"));
@@ -109,17 +116,17 @@ fn collector_sidecar_emits_namespaced_status_logs() {
 #[test]
 fn rust_network_telemetry_is_removed_from_tauri_backend() {
     let manifest = include_str!("../Cargo.toml");
-    let relay = include_str!("../src/otel.rs");
+    let otel = include_str!("../src/otel.rs");
     let query = include_str!("../src/telemetry/query.rs");
 
     assert!(
         !manifest.contains("features = [ \"otel\" ]"),
         "tauri backend should not enable everr-core otel feature"
     );
-    assert!(!relay.contains("http_telemetry::send"));
-    assert!(!relay.contains("reqwest::Client"));
-    assert!(!relay.contains(".post("));
-    assert!(!relay.contains("error_for_status"));
+    // The backend's own telemetry still goes through the SDK exporter, not raw
+    // HTTP. The only direct HTTP from otel.rs is the OTLP passthrough proxy that
+    // forwards already-encoded browser telemetry.
+    assert!(!otel.contains("http_telemetry::send"));
     assert!(!query.contains("http_telemetry::send"));
 }
 

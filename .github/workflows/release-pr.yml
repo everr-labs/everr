@@ -47,16 +47,19 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
+          registry-url: https://registry.npmjs.org
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Open/update Version Packages PR or publish tags
+      - name: Open/update Version Packages PR or publish packages
         uses: changesets/action@v1
         with:
           version: pnpm run changeset:version
-          publish: pnpm run changeset:tag
+          publish: pnpm run changeset:publish
           title: "chore: version packages"
           commit: "chore: version packages"
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

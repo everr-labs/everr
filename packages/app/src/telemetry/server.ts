@@ -1,5 +1,5 @@
 import type { Attributes } from "@opentelemetry/api";
-import { getTelemetryTracer, recordTelemetryError, SpanKind } from "./node";
+import { captureError, getTelemetryTracer, SpanKind } from "./node";
 import { parameterizeTelemetryPath } from "./paths";
 
 const tracer = getTelemetryTracer();
@@ -23,7 +23,7 @@ export async function instrumentServerFetch(
 
         span.setAttribute("http.response.status_code", response.status);
         if (response.status >= 500) {
-          recordTelemetryError(new Error(`HTTP ${response.status}`), {
+          captureError(new Error(`HTTP ${response.status}`), {
             "error.handled": false,
             "error.source": "server.response",
             "http.request.method": method,
@@ -35,7 +35,7 @@ export async function instrumentServerFetch(
 
         return response;
       } catch (error) {
-        recordTelemetryError(error, {
+        captureError(error, {
           "error.handled": false,
           "error.source": "server.fetch",
           "http.request.method": method,

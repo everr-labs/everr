@@ -19,31 +19,33 @@ describe("desktop browser telemetry wiring", () => {
     expect(telemetryImport).toBeLessThan(render);
   });
 
-  it("configures browser telemetry as logs-only", () => {
+  it("forwards logs and spans through the OTLP proxy without web auto-instrumentation", () => {
     const telemetry = readSource("src/lib/telemetry.ts");
-    const exporter = readSource("src/lib/telemetry-exporter.ts");
-    const packageJson = readSource("package.json");
+    const proxyExporter = readSource("src/lib/otlp-proxy-exporter.ts");
 
     expect(telemetry).toContain("LoggerProvider");
     expect(telemetry).toContain("BatchLogRecordProcessor");
-    expect(telemetry).toContain("everr.browser.error");
-    expect(telemetry).toContain("everr.browser.unhandled_rejection");
-    expect(exporter).toContain("TauriLogExporter");
-    expect(exporter).toContain("toRelayLogRecord");
-    expect(exporter).toContain('invoke("relay_telemetry", { signal: "logs", records })');
-    expect(exporter).not.toContain("TauriSpanExporter");
-    expect(exporter).not.toContain("JsonLogsSerializer");
+    expect(telemetry).toContain("@everr/auto-otel-errors/browser");
+    expect(telemetry).toContain("initErrorTracking");
+    expect(telemetry).toContain("OtlpProxyLogExporter");
+
+    // Spans go through the same passthrough proxy — no full web tracing.
+    expect(telemetry).toContain("BasicTracerProvider");
+    expect(telemetry).toContain("BatchSpanProcessor");
+    expect(telemetry).toContain("OtlpProxySpanExporter");
+
+    // The proxy serializes real OTLP/JSON and hands it to Rust untouched; Rust
+    // does not reconstruct records, so trace context survives.
+    expect(proxyExporter).toContain("JsonLogsSerializer");
+    expect(proxyExporter).toContain("JsonTraceSerializer");
+    expect(proxyExporter).toContain('invoke("proxy_otlp"');
+    expect(proxyExporter).not.toContain("everr.browser.error");
+
     expect(telemetry).not.toContain("WebTracerProvider");
-    expect(telemetry).not.toContain("BatchSpanProcessor");
     expect(telemetry).not.toContain("getWebAutoInstrumentations");
     expect(telemetry).not.toContain("registerInstrumentations");
     expect(telemetry).not.toContain("W3CTraceContextPropagator");
     expect(telemetry).not.toContain("instrumentation-user-interaction");
-    expect(packageJson).not.toContain('"@opentelemetry/auto-instrumentations-web"');
-    expect(packageJson).not.toContain('"@opentelemetry/sdk-trace-web"');
-    expect(packageJson).not.toContain('"@opentelemetry/instrumentation"');
-    expect(packageJson).not.toContain('"@opentelemetry/plugin-react-load"');
-    expect(packageJson).not.toContain('"@opentelemetry/otlp-transformer"');
   });
 
   it("does not wrap application commands in Tauri IPC spans", () => {

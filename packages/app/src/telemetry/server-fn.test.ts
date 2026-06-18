@@ -7,7 +7,7 @@ const telemetryMocks = vi.hoisted(() => {
   };
 
   return {
-    recordTelemetryError: vi.fn(),
+    captureError: vi.fn(),
     startActiveSpan: vi.fn(
       async (
         _name: string,
@@ -23,10 +23,10 @@ const telemetryMocks = vi.hoisted(() => {
 });
 
 vi.mock("./node", () => ({
+  captureError: telemetryMocks.captureError,
   getTelemetryTracer: () => ({
     startActiveSpan: telemetryMocks.startActiveSpan,
   }),
-  recordTelemetryError: telemetryMocks.recordTelemetryError,
   SpanKind: { INTERNAL: 0 },
 }));
 
@@ -34,7 +34,7 @@ import { instrumentServerFunction } from "./server-fn-runtime";
 
 describe("instrumentServerFunction", () => {
   beforeEach(() => {
-    telemetryMocks.recordTelemetryError.mockClear();
+    telemetryMocks.captureError.mockClear();
     telemetryMocks.startActiveSpan.mockClear();
     telemetryMocks.span.end.mockClear();
     telemetryMocks.span.setAttribute.mockClear();
@@ -57,7 +57,7 @@ describe("instrumentServerFunction", () => {
       ),
     ).rejects.toThrow("Unauthenticated");
 
-    expect(telemetryMocks.recordTelemetryError).toHaveBeenCalledWith(error, {
+    expect(telemetryMocks.captureError).toHaveBeenCalledWith(error, {
       "error.handled": false,
       "error.source": "server_fn",
       "rpc.method": "getActiveOrganization",

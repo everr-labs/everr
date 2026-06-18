@@ -4,11 +4,10 @@ const telemetryMocks = vi.hoisted(() => {
   const span = {
     end: vi.fn(),
     setAttribute: vi.fn(),
-    setStatus: vi.fn(),
   };
 
   return {
-    recordTelemetryError: vi.fn(),
+    captureError: vi.fn(),
     startActiveSpan: vi.fn(
       async (
         _name: string,
@@ -16,7 +15,6 @@ const telemetryMocks = vi.hoisted(() => {
         run: (span: {
           end: () => void;
           setAttribute: () => void;
-          setStatus: () => void;
         }) => Promise<Response>,
       ) => run(span),
     ),
@@ -25,23 +23,21 @@ const telemetryMocks = vi.hoisted(() => {
 });
 
 vi.mock("./node", () => ({
+  captureError: telemetryMocks.captureError,
   getTelemetryTracer: () => ({
     startActiveSpan: telemetryMocks.startActiveSpan,
   }),
-  recordTelemetryError: telemetryMocks.recordTelemetryError,
   SpanKind: { SERVER: 1 },
-  SpanStatusCode: { ERROR: 2 },
 }));
 
 import { instrumentServerFetch } from "./server";
 
 describe("instrumentServerFetch", () => {
   beforeEach(() => {
-    telemetryMocks.recordTelemetryError.mockClear();
+    telemetryMocks.captureError.mockClear();
     telemetryMocks.startActiveSpan.mockClear();
     telemetryMocks.span.end.mockClear();
     telemetryMocks.span.setAttribute.mockClear();
-    telemetryMocks.span.setStatus.mockClear();
   });
 
   it("records 5xx responses as server response errors", async () => {
@@ -51,7 +47,7 @@ describe("instrumentServerFetch", () => {
     );
 
     expect(response.status).toBe(500);
-    expect(telemetryMocks.recordTelemetryError).toHaveBeenCalledWith(
+    expect(telemetryMocks.captureError).toHaveBeenCalledWith(
       expect.any(Error),
       {
         "error.handled": false,

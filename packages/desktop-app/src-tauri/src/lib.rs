@@ -188,7 +188,7 @@ impl NotificationQueue {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     crash_log::install_panic_hook();
-    let (telemetry_guard, relay_state, telemetry_context) =
+    let (telemetry_guard, otlp_proxy, telemetry_context) =
         otel::init_telemetry().expect("telemetry init failed");
     let startup_telemetry_context = telemetry_context.clone();
     let shutdown_telemetry_context = telemetry_context.clone();
@@ -207,7 +207,7 @@ pub fn run() {
     }
 
     builder
-        .manage(relay_state)
+        .manage(otlp_proxy)
         .manage(telemetry_context.clone())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .on_window_event(|window, event| {
@@ -337,7 +337,7 @@ pub fn run() {
             open_run_in_browser,
             copy_run_auto_fix_prompt,
             otel::get_telemetry_context,
-            otel::relay_telemetry,
+            otel::proxy_otlp,
             telemetry::query::telemetry_sql_query
         ])
         .build(tauri::generate_context!())
