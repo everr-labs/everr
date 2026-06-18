@@ -187,7 +187,7 @@ describe("updateAlertSettings", () => {
           delivery: {
             telegram: {
               enabled: true,
-              chatIds: ["123"],
+              entries: [{ botToken: "t", chatId: "123" }],
               extra: "secret",
             },
           },
@@ -207,7 +207,10 @@ describe("updateAlertSettings", () => {
       updateAlertSettings({
         data: {
           delivery: {
-            telegram: { enabled: true, botToken: "token-1", chatIds: ["123"] },
+            telegram: {
+              enabled: true,
+              entries: [{ botToken: "token-1", chatId: "123" }],
+            },
           },
         },
       }),
@@ -217,12 +220,12 @@ describe("updateAlertSettings", () => {
     expect(db.insert).not.toHaveBeenCalled();
   });
 
-  it("rejects an enabled channel with no recipients", async () => {
+  it("rejects an enabled channel with no entries", async () => {
     await expect(
       updateAlertSettings({
         data: {
           delivery: {
-            telegram: { enabled: true, chatIds: [] },
+            telegram: { enabled: true, entries: [] },
           },
         },
       }),
@@ -231,16 +234,16 @@ describe("updateAlertSettings", () => {
     expect(db.insert).not.toHaveBeenCalled();
   });
 
-  it("rejects enabled Telegram with no configured bot token", async () => {
+  it("rejects a new Telegram entry without a bot token", async () => {
     await expect(
       updateAlertSettings({
         data: {
           delivery: {
-            telegram: { enabled: true, chatIds: ["123"] },
+            telegram: { enabled: true, entries: [{ chatId: "123" }] },
           },
-        },
+        } as never,
       }),
-    ).rejects.toThrow("Telegram is enabled but has no bot token");
+    ).rejects.toThrow();
 
     expect(db.insert).not.toHaveBeenCalled();
   });
@@ -250,7 +253,10 @@ describe("updateAlertSettings", () => {
       updateAlertSettings({
         data: {
           delivery: {
-            telegram: { enabled: true, chatIds: ["abc"] },
+            telegram: {
+              enabled: true,
+              entries: [{ botToken: "t", chatId: "abc" }],
+            },
           },
         },
       }),
@@ -265,8 +271,10 @@ describe("updateAlertSettings", () => {
         delivery: {
           telegram: {
             enabled: true,
-            botToken: "token-1",
-            chatIds: ["-1001234567890", "@my_team"],
+            entries: [
+              { botToken: "token-1", chatId: "-1001234567890" },
+              { botToken: "token-1", chatId: "@my_team" },
+            ],
           },
         },
       },
@@ -274,22 +282,30 @@ describe("updateAlertSettings", () => {
 
     expect(mocks.insertValues).toHaveBeenCalledWith(
       expect.objectContaining({
-        delivery: {
-          telegram: {
+        delivery: expect.objectContaining({
+          telegram: expect.objectContaining({
             enabled: true,
-            botToken: "token-1",
-            chatIds: ["-1001234567890", "@my_team"],
-          },
-        },
+            entries: [
+              expect.objectContaining({
+                botToken: "token-1",
+                chatId: "-1001234567890",
+              }),
+              expect.objectContaining({
+                botToken: "token-1",
+                chatId: "@my_team",
+              }),
+            ],
+          }),
+        }),
       }),
     );
   });
 
-  it("allows a disabled channel with no recipients", async () => {
+  it("allows a disabled channel with no entries", async () => {
     await updateAlertSettings({
       data: {
         delivery: {
-          telegram: { enabled: false, botToken: "", chatIds: [] },
+          telegram: { enabled: false, entries: [] },
         },
       },
     });
@@ -297,14 +313,19 @@ describe("updateAlertSettings", () => {
     expect(mocks.insertValues).toHaveBeenCalled();
   });
 
-  it("normalizes and upserts strict delivery settings", async () => {
+  it("merges new entries and upserts strict delivery settings", async () => {
     await updateAlertSettings({
       data: {
         delivery: {
           telegram: {
             enabled: true,
-            botToken: "token-1",
-            chatIds: ["123"],
+            entries: [{ botToken: "token-1", chatId: "123", name: "Ops" }],
+          },
+          slack: {
+            enabled: true,
+            webhooks: [
+              { url: "https://hooks.slack.com/services/T0/B0/abc123" },
+            ],
           },
         },
       },
@@ -313,13 +334,26 @@ describe("updateAlertSettings", () => {
     expect(mocks.insertValues).toHaveBeenCalledWith(
       expect.objectContaining({
         organizationId: "test_org",
-        delivery: {
-          telegram: {
+        delivery: expect.objectContaining({
+          telegram: expect.objectContaining({
             enabled: true,
-            botToken: "token-1",
-            chatIds: ["123"],
-          },
-        },
+            entries: [
+              expect.objectContaining({
+                name: "Ops",
+                botToken: "token-1",
+                chatId: "123",
+              }),
+            ],
+          }),
+          slack: expect.objectContaining({
+            enabled: true,
+            webhooks: [
+              expect.objectContaining({
+                url: "https://hooks.slack.com/services/T0/B0/abc123",
+              }),
+            ],
+          }),
+        }),
       }),
     );
     expect(mocks.onConflictDoUpdate).toHaveBeenCalled();
