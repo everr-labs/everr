@@ -2,7 +2,7 @@
 
 Use this rule for Electron apps that need error telemetry from both the Node main process and the Chromium renderer.
 
-An Electron app has three contexts: the **main** process (Node), the **renderer** (Chromium, sandboxed), and the **preload** script (the bridge). The renderer should not hold the ingest key or reach the collector directly, so the main process is an **OTLP passthrough proxy**: the renderer runs a normal OTel provider + exporter, serializes each log batch to encoded OTLP, and sends the bytes to the main process over IPC, which forwards them to the collector unchanged. **The main process must not decode, map, or rebuild renderer telemetry** — forwarding the encoded request verbatim preserves the resource, scope, severity, and attributes the renderer produced; reconstructing records loses that fidelity for no benefit.
+An Electron app has three contexts: the **main** process (Node), the **renderer** (Chromium, sandboxed), and the **preload** script (the bridge). The renderer should not hold the ingest key or reach the collector directly, so the main process is an **OTLP passthrough proxy**: the renderer runs a normal OTel provider + exporter, serializes each log batch to encoded OTLP, and sends the bytes to the main process over IPC, which forwards them to the collector unchanged.
 
 The main process is itself a Node process: set up its own telemetry and error capture per `nodejs.md` (`@everr/auto-otel-errors/node`), and reuse that exporter config to drive the proxy.
 
@@ -25,7 +25,7 @@ Required resource attributes on both main and renderer telemetry:
 - `deployment.environment.name`
 - `process.type`
 
-Hardcode one stable `service.name` for the app (`<service-name>`) and use `process.type` (`main` or `renderer`) to distinguish where telemetry came from. Use `service.instance.id` as an opaque app/session UUID generated at app startup. Do not use an auth session, user id, machine id, tenant id, or token.
+Hardcode one stable `service.name` for the app (`<service-name>`) and use `process.type` (`main` or `renderer`) to distinguish where telemetry came from. The `nodejs.md` base setup does not add `process.type`, so the main SDK must add it to its resource explicitly (`process.type = main`); the renderer adds `process.type = renderer` to its own resource. Use `service.instance.id` as an opaque app/session UUID generated at app startup. Do not use an auth session, user id, machine id, tenant id, or token.
 
 ## Package Setup
 
@@ -39,7 +39,7 @@ Main-process dependencies are the Node setup from `nodejs.md` (`@everr/auto-otel
 
 ## Runtime Configuration
 
-Only the main process reads exporter configuration. The renderer runs its own `LoggerProvider` with a custom exporter that serializes each log batch to OTLP/JSON and calls the preload-exposed `proxyOtlpLogs`. The main process forwards the encoded bytes to `{endpoint}/v1/logs` with the configured headers, without parsing them. The main process's own telemetry exports directly through its SDK.
+Only the main process reads exporter configuration. The renderer runs its own `LoggerProvider` with a custom exporter that serializes each log batch to OTLP/JSON and calls the preload-exposed `proxyOtlpLogs`. The main process forwards the encoded bytes to `{endpoint}/v1/logs` with the configured headers. The main process's own telemetry exports directly through its SDK.
 
 ```bash
 # Local development
@@ -83,7 +83,8 @@ export function setupMainTelemetry(): void {
     deploymentEnvironment: app.isPackaged ? 'production' : 'development',
   };
 
-  // Main-process SDK uses SERVICE_NAME and process.type = main, per nodejs.md.
+  // Main-process SDK uses the nodejs.md NodeSDK setup with SERVICE_NAME, and must
+  // add process.type = main to its resource (nodejs.md does not add it by default).
   startMainSdk({ ...baseContext, processType: 'main' });
   initErrorTracking();
 
@@ -170,11 +171,7 @@ import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 
 const decoder = new TextDecoder();
 
-async function proxyLogs(payload: Uint8Array | undefined, done: (result: ExportResult) => void) {
-  if (!payload || payload.length === 0) {
-    done({ code: ExportResultCode.SUCCESS });
-    return;
-  }
+async function proxyLogs(payload: Uint8Array, done: (result: ExportResult) => void) {
   try {
     await window.everrTelemetry.proxyOtlpLogs(decoder.decode(payload));
     done({ code: ExportResultCode.SUCCESS });
@@ -250,6 +247,4 @@ LIMIT 50
 ## Safety Rules
 
 - Keep `contextIsolation: true` and `nodeIntegration: false`. Expose only the narrow telemetry API through `contextBridge`; never expose `ipcRenderer` or the ingest key to the renderer.
-- The `everr:proxy-otlp-logs` handler forwards only to the main-resolved endpoint, never a URL from the renderer. Cap the body size.
 - Never log auth tokens, request headers, request bodies, local file contents, user text, tenant ids, or machine identifiers.
-- Keep `service.instance.id` as the session UUID; do not also add it as a log attribute.
