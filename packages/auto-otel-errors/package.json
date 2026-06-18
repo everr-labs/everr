@@ -1,11 +1,13 @@
 {
   "name": "@everr/auto-otel-errors",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Automatic Sentry-style error tracking emitted through the OpenTelemetry SDK as logs.",
   "license": "MIT",
   "type": "module",
   "sideEffects": false,
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "exports": {
     ".": {
       "node": "./src/node.ts",
@@ -22,33 +24,75 @@
     "exports": {
       ".": {
         "node": {
-          "import": { "types": "./dist/node.d.ts", "default": "./dist/node.js" },
-          "require": { "types": "./dist/node.d.cts", "default": "./dist/node.cjs" }
+          "import": {
+            "types": "./dist/node.d.ts",
+            "default": "./dist/node.js"
+          },
+          "require": {
+            "types": "./dist/node.d.cts",
+            "default": "./dist/node.cjs"
+          }
         },
         "default": {
-          "import": { "types": "./dist/browser.d.ts", "default": "./dist/browser.js" },
-          "require": { "types": "./dist/browser.d.cts", "default": "./dist/browser.cjs" }
+          "import": {
+            "types": "./dist/browser.d.ts",
+            "default": "./dist/browser.js"
+          },
+          "require": {
+            "types": "./dist/browser.d.cts",
+            "default": "./dist/browser.cjs"
+          }
         }
       },
       "./node": {
-        "import": { "types": "./dist/node.d.ts", "default": "./dist/node.js" },
-        "require": { "types": "./dist/node.d.cts", "default": "./dist/node.cjs" }
+        "import": {
+          "types": "./dist/node.d.ts",
+          "default": "./dist/node.js"
+        },
+        "require": {
+          "types": "./dist/node.d.cts",
+          "default": "./dist/node.cjs"
+        }
       },
       "./browser": {
-        "import": { "types": "./dist/browser.d.ts", "default": "./dist/browser.js" },
-        "require": { "types": "./dist/browser.d.cts", "default": "./dist/browser.cjs" }
+        "import": {
+          "types": "./dist/browser.d.ts",
+          "default": "./dist/browser.js"
+        },
+        "require": {
+          "types": "./dist/browser.d.cts",
+          "default": "./dist/browser.cjs"
+        }
       },
       "./express": {
-        "import": { "types": "./dist/express.d.ts", "default": "./dist/express.js" },
-        "require": { "types": "./dist/express.d.cts", "default": "./dist/express.cjs" }
+        "import": {
+          "types": "./dist/express.d.ts",
+          "default": "./dist/express.js"
+        },
+        "require": {
+          "types": "./dist/express.d.cts",
+          "default": "./dist/express.cjs"
+        }
       },
       "./fastify": {
-        "import": { "types": "./dist/fastify.d.ts", "default": "./dist/fastify.js" },
-        "require": { "types": "./dist/fastify.d.cts", "default": "./dist/fastify.cjs" }
+        "import": {
+          "types": "./dist/fastify.d.ts",
+          "default": "./dist/fastify.js"
+        },
+        "require": {
+          "types": "./dist/fastify.d.cts",
+          "default": "./dist/fastify.cjs"
+        }
       },
       "./react": {
-        "import": { "types": "./dist/react.d.ts", "default": "./dist/react.js" },
-        "require": { "types": "./dist/react.d.cts", "default": "./dist/react.cjs" }
+        "import": {
+          "types": "./dist/react.d.ts",
+          "default": "./dist/react.js"
+        },
+        "require": {
+          "types": "./dist/react.d.cts",
+          "default": "./dist/react.cjs"
+        }
       }
     }
   },
@@ -65,7 +109,9 @@
     "react": ">=18.0.0"
   },
   "peerDependenciesMeta": {
-    "react": { "optional": true }
+    "react": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@opentelemetry/api": "^1.9.1",
