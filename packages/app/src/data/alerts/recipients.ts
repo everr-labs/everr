@@ -10,3 +10,13 @@ export function validateTelegramChatId(value: string): string | null {
 export function validateTelegramBotToken(value: string): string | null {
   return value.trim().length > 0 ? null : "Telegram bot token is required";
 }
+
+// Slack Incoming Webhook URL: https://hooks.slack.com/services/T.../B.../secret
+const SLACK_WEBHOOK_URL_PATTERN =
+  /^https:\/\/hooks\.slack\.com\/services\/[A-Z0-9]+\/[A-Z0-9]+\/[A-Za-z0-9_-]+$/;
+
+export function validateSlackWebhookUrl(value: string): string | null {
+  return SLACK_WEBHOOK_URL_PATTERN.test(value.trim())
+    ? null
+    : "Invalid Slack webhook URL — expected https://hooks.slack.com/services/...";
+}

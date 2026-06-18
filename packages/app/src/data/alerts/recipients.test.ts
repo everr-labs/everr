@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { validateTelegramBotToken, validateTelegramChatId } from "./recipients";
+import {
+  validateSlackWebhookUrl,
+  validateTelegramBotToken,
+  validateTelegramChatId,
+} from "./recipients";
 
 describe("validateTelegramChatId", () => {
   it("accepts numeric IDs, including negative group IDs", () => {
@@ -30,5 +34,25 @@ describe("validateTelegramBotToken", () => {
     expect(validateTelegramBotToken("   ")).toBe(
       "Telegram bot token is required",
     );
+  });
+});
+
+describe("validateSlackWebhookUrl", () => {
+  it("accepts well-formed Slack webhook URLs", () => {
+    expect(
+      validateSlackWebhookUrl(
+        "https://hooks.slack.com/services/T00000000/B11111111/abcdEFGH0123456789abcdEF",
+      ),
+    ).toBeNull();
+  });
+
+  it("rejects non-Slack or malformed URLs", () => {
+    expect(
+      validateSlackWebhookUrl("https://example.com/webhook"),
+    ).not.toBeNull();
+    expect(
+      validateSlackWebhookUrl("http://hooks.slack.com/services/T/B/x"),
+    ).not.toBeNull();
+    expect(validateSlackWebhookUrl("")).not.toBeNull();
   });
 });
