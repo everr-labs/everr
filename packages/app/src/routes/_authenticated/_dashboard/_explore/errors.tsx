@@ -12,8 +12,9 @@ import {
 } from "@tanstack/react-router";
 import { remoteErrorsRepo } from "@/data/errors/remote-repo";
 import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
+import { ExploreSearchShape } from "@/lib/explore-search";
 
-const RouteSearchSchema = ErrorIssueSearchSchema.omit({ service: true });
+const RouteSearchSchema = ErrorIssueSearchSchema.extend(ExploreSearchShape);
 const defaultSearch = RouteSearchSchema.parse({});
 
 export const Route = createFileRoute(

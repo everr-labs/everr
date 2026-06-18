@@ -11,9 +11,11 @@ import {
   useSearch,
 } from "@tanstack/react-router";
 import { remoteTracesRepo } from "@/data/traces/remote-repo";
+import { ExploreSearchShape } from "@/lib/explore-search";
 
-// Drop `service` from the route schema — it lives in the shared _explore topbar.
-const RouteSearchSchema = TraceSearchParamsSchema.omit({ service: true });
+// service/environment live in the shared _explore topbar but must also be in
+// the child schema so the leaf route's validateSearch doesn't strip them.
+const RouteSearchSchema = TraceSearchParamsSchema.extend(ExploreSearchShape);
 
 // Keep the URL clean: the schema fills in defaults (empty arrays, "all", …)
 // during validation, so without this every navigation would serialize them

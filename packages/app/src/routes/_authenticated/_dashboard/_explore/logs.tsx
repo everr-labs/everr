@@ -11,11 +11,13 @@ import { FileSearch } from "lucide-react";
 import { z } from "zod";
 import { remoteRepo } from "@/data/logs-explorer/remote-repo";
 import { runJobsOptions } from "@/data/runs/options";
+import { ExploreSearchShape } from "@/lib/explore-search";
 import { TimeRangeSearchSchema } from "@/lib/time-range";
 
 const SearchSchema = TimeRangeSearchSchema.extend({
   q: z.string().optional(),
   ...LogsSearchFiltersShape,
+  ...ExploreSearchShape,
   traceId: z.string().optional(),
   showVolume: z.boolean().default(true),
 }).omit({ services: true });

@@ -12,15 +12,10 @@ import {
   useRouterState,
   useSearch,
 } from "@tanstack/react-router";
-import { z } from "zod";
 import { remoteErrorsRepo } from "@/data/errors/remote-repo";
 import { remoteRepo } from "@/data/logs-explorer/remote-repo";
 import { remoteTracesRepo } from "@/data/traces/remote-repo";
-
-const ExploreSearchSchema = z.object({
-  service: z.array(z.string()).catch([]).default([]),
-  environment: z.array(z.string()).catch([]).default([]),
-});
+import { ExploreSearchSchema } from "@/lib/explore-search";
 
 const exploreDefaults = ExploreSearchSchema.parse({});
 
