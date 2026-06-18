@@ -121,12 +121,12 @@ describe("filterKeyValueData", () => {
     });
   });
 
-  it("returns empty object when behavior is false", () => {
+  it("leaves keys unfiltered when behavior is false", () => {
     const result = filterKeyValueData(
       { authorization: "Bearer token123" },
       false,
     );
-    expect(result).toEqual({});
+    expect(result).toEqual({ authorization: "Bearer token123" });
   });
 
   it("filters with custom deny terms", () => {

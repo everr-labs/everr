@@ -85,7 +85,7 @@ export function filterKeyValueData(
   behavior: CollectBehavior,
 ): Attributes {
   if (behavior === false) {
-    return {};
+    return { ...data };
   }
 
   const denyTerms =

@@ -46,8 +46,8 @@ export class Client {
   private readonly integrations: Integration[];
   private readonly logger: Logger;
   private readonly rateLimiter: RateLimiter | null;
-  private readonly scrubPatterns: RegExp[];
-  private readonly scrubKeys: CollectBehavior;
+  private readonly redactPatterns: RegExp[];
+  private readonly redactKeys: CollectBehavior;
   private readonly capturedObjects = new WeakSet<object>();
   private processing = false;
 
@@ -63,8 +63,8 @@ export class Client {
             options.rateLimit?.count ?? 5,
             options.rateLimit?.windowMs ?? 5000,
           );
-    this.scrubPatterns = options.scrubPatterns ?? DEFAULT_SCRUB_PATTERNS;
-    this.scrubKeys = options.scrubKeys ?? true;
+    this.redactPatterns = options.redactPatterns ?? DEFAULT_SCRUB_PATTERNS;
+    this.redactKeys = options.redactKeys ?? true;
   }
 
   setup(): void {
@@ -158,13 +158,13 @@ export class Client {
     };
     const filteredAttributes = filterKeyValueData(
       rawAttributes,
-      this.scrubKeys,
+      this.redactKeys,
     );
     const attributes = scrubAttributes(
       filteredAttributes,
-      this.scrubPatterns,
+      this.redactPatterns,
     );
-    const body = scrubString(event.message, this.scrubPatterns);
+    const body = scrubString(event.message, this.redactPatterns);
     const activeSpan = trace.getActiveSpan();
 
     // On node, attach the error to the surrounding span so traces show the

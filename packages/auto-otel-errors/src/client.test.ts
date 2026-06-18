@@ -75,7 +75,7 @@ describe("Client.capture", () => {
     expect(records[0].attributes.app).toBe("test");
   });
 
-  it("scrubs message and string attributes", () => {
+  it("redacts message and string attributes", () => {
     makeClient().capture({
       error: new Error("login failed for a@b.com"),
       mechanism: "manual",
@@ -85,6 +85,22 @@ describe("Client.capture", () => {
     const [record] = otel.records();
     expect(record.body).toBe("Error: login failed for [Filtered]");
     expect(record.attributes["url.full"]).toBe("/cb");
+  });
+
+  it("honors custom redaction options", () => {
+    makeClient({
+      redactKeys: false,
+      redactPatterns: [/secret/g],
+    }).capture({
+      error: new Error("secret"),
+      mechanism: "manual",
+      handled: true,
+      attributes: { "x-api-key": "keep" },
+    });
+
+    const [record] = otel.records();
+    expect(record.body).toBe("Error: [Filtered]");
+    expect(record.attributes["x-api-key"]).toBe("keep");
   });
 
   it("ignores re-entrant captures", () => {

@@ -32,8 +32,8 @@ init();
 | --- | --- |
 | `integrations` | Replaces the runtime defaults with explicit integrations. |
 | `beforeSend` | Mutate an event or return `null` to drop it before emit. |
-| `scrubPatterns` | RegExp list applied to messages and string attributes. |
-| `scrubKeys` | Controls key-based sensitive data filtering. `true` (default) filters keys matching built-in denylist. `{ deny: ["custom"] }` or `{ allow: ["safe"] }` for custom filtering. `false` disables key filtering. |
+| `redactPatterns` | RegExp list applied to messages and string attributes. |
+| `redactKeys` | Controls key-based sensitive data filtering. `true` (default) filters keys matching built-in denylist. `{ deny: ["custom"] }` or `{ allow: ["safe"] }` for custom filtering. `false` disables key filtering. |
 | `rateLimit` | `{ count, windowMs }` per error key, or `false`. Default is 5 per 5 seconds. |
 | `onFatal` | Node crash behavior for global handlers: `exit` or `continue`. Default is `exit`. |
 
@@ -77,27 +77,34 @@ import { ErrorBoundary } from "@everr/auto-otel-errors/react";
 
 Each captured error emits one exception log event with `eventName`, `exception.type`, `exception.message`, optional `exception.stacktrace`, `everr.error.handled`, `everr.error.mechanism`, and `log.record.uid`. Framework integrations add semantic attributes such as `http.request.method`, `http.route`, `url.full`, and `url.path` when available. Query strings and fragments are stripped from `url.full` before emission.
 
-## Sensitive Data Scrubbing
+## Sensitive Data Redaction
 
-The SDK scrubs sensitive data using two layers:
+The SDK redacts sensitive data using two layers:
 
-1. **Key-based filtering**: Attribute keys matching sensitive patterns (e.g., `auth`, `token`, `password`, `secret`) are filtered automatically. Configure with `scrubKeys` option.
+1. **Key-based redaction**: Attribute keys matching sensitive patterns (e.g., `auth`, `token`, `password`, `secret`) are filtered automatically. Configure with `redactKeys` option.
 
-2. **Value-based scrubbing**: String values are scrubbed using regex patterns (bearer tokens, emails, credit cards, etc.). Configure with `scrubPatterns` option or use defaults.
+2. **Value-based redaction**: String values are redacted using regex patterns (bearer tokens, emails, credit cards, etc.). Configure with `redactPatterns` option or use defaults.
 
 ```ts
 init({
-  // Disable key-based filtering
-  scrubKeys: false,
+  // Disable key-based filtering while keeping attributes
+  redactKeys: false,
 
-  // Custom deny list
-  scrubKeys: { deny: ["x-custom-secret"] },
+  // Add value patterns for things the defaults do not cover
+  redactPatterns: [/\b\d{3}-\d{2}-\d{4}\b/g], // SSN
+});
+```
 
-  // Custom allow list (sensitive keys still filtered)
-  scrubKeys: { allow: ["content-type"] },
+Use either `deny` or `allow` when you want key-based filtering:
 
-  // Custom value patterns
-  scrubPatterns: [/\b\d{3}-\d{2}-\d{4}\b/g], // SSN
+```ts
+init({
+  redactKeys: { deny: ["x-custom-secret"] },
+});
+
+init({
+  // Sensitive keys are still filtered even when listed here
+  redactKeys: { allow: ["content-type"] },
 });
 ```
 

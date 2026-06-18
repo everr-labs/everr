@@ -32,8 +32,8 @@ export interface Integration {
 export interface Options {
   integrations?: Integration[];
   beforeSend?: (event: ErrorEvent) => ErrorEvent | null;
-  scrubPatterns?: RegExp[];
-  scrubKeys?: CollectBehavior;
+  redactPatterns?: RegExp[];
+  redactKeys?: CollectBehavior;
   rateLimit?: { count: number; windowMs: number } | false;
   onFatal?: "exit" | "continue";
 }
