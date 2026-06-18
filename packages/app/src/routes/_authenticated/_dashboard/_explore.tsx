@@ -8,6 +8,7 @@ import {
   retainSearchParams,
   stripSearchParams,
   useMatches,
+  useNavigate,
   useRouterState,
   useSearch,
 } from "@tanstack/react-router";
@@ -45,7 +46,10 @@ function domainFromPath(pathname: string): ExploreDomain | null {
 
 function ExploreLayout() {
   const { service, environment } = Route.useSearch();
-  const navigate = Route.useNavigate();
+  // useNavigate() (unbound) keeps navigation on the current path.
+  // Route.useNavigate() binds from: "/" (the pathless layout's fullPath) and
+  // would redirect every search-only update to the homepage.
+  const navigate = useNavigate();
   const dashSearch = useSearch({ from: "/_authenticated/_dashboard" });
   const { timeRange } = withTimeRange(dashSearch);
   const refresh = dashSearch.refresh ?? "off";
@@ -62,10 +66,18 @@ function ExploreLayout() {
   }
 
   const onServiceChange = (next: string[]) =>
-    navigate({ search: (prev) => ({ ...prev, service: next }), replace: true });
+    navigate({
+      // @ts-expect-error -- route-agnostic navigation; useNavigate() can't infer search params without route context
+      search: (prev: Record<string, unknown>) => ({ ...prev, service: next }),
+      replace: true,
+    });
   const onEnvironmentChange = (next: string[]) =>
     navigate({
-      search: (prev) => ({ ...prev, environment: next }),
+      // @ts-expect-error -- route-agnostic navigation; useNavigate() can't infer search params without route context
+      search: (prev: Record<string, unknown>) => ({
+        ...prev,
+        environment: next,
+      }),
       replace: true,
     });
 
