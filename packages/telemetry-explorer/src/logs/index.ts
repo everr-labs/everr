@@ -11,6 +11,7 @@ export {
   LOG_LEVEL_META,
   PAGE_SIZE,
 } from "./ui/log-level-meta";
+export { LogsExploreFilters } from "./ui/logs-explore-filters";
 export type {
   LogsExplorerProps,
   LogsExplorerSearch,

@@ -10,6 +10,7 @@ import {
 import type { ReactNode } from "react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Virtuoso } from "react-virtuoso";
+import { withEnvironment } from "../../filters/environment";
 import { FilterSearchBar } from "../../filters/ui/filter-search-bar";
 import {
   logsExplorerInfiniteOptions,
@@ -37,6 +38,8 @@ export interface LogsExplorerProps {
   repo: LogsRepositoryLike;
   timeRange: TimeRange;
   search: LogsExplorerSearch;
+  environment?: string[];
+  hideSharedFilters?: boolean;
   onSearchChange: (next: LogsExplorerSearch) => void;
   onTimeRangeSelect?: (from: Date, to: Date) => void;
   renderRunLink?: (ctx: {
@@ -177,6 +180,8 @@ export function LogsExplorer({
   repo,
   timeRange,
   search,
+  environment = [],
+  hideSharedFilters = false,
   onSearchChange,
   onTimeRangeSelect,
   renderRunLink,
@@ -217,7 +222,7 @@ export function LogsExplorer({
     query: filters.q,
     levels: filters.levels,
     services: filters.services,
-    attributes: filters.attributes,
+    attributes: withEnvironment(filters.attributes, environment),
     traceId: filters.traceId,
   };
 
@@ -295,6 +300,7 @@ export function LogsExplorer({
             attributes={filters.attributes}
             traceId={filters.traceId}
             levelCounts={levelCounts}
+            hideSharedFilters={hideSharedFilters}
             onChange={(patch) => applyFilters(patch)}
           />
 

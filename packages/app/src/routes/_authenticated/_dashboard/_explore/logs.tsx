@@ -6,7 +6,7 @@ import {
 import { Button } from "@everr/ui/components/button";
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import { useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
 import { FileSearch } from "lucide-react";
 import { z } from "zod";
 import { remoteRepo } from "@/data/logs-explorer/remote-repo";
@@ -18,7 +18,7 @@ const SearchSchema = TimeRangeSearchSchema.extend({
   ...LogsSearchFiltersShape,
   traceId: z.string().optional(),
   showVolume: z.boolean().default(true),
-});
+}).omit({ services: true });
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_explore/logs",
@@ -33,13 +33,16 @@ function LogsExplorerPage() {
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
   const queryClient = useQueryClient();
+  const { service, environment } = useSearch({
+    from: "/_authenticated/_dashboard/_explore",
+  });
   const { showVolume, ...rest } = search;
   const { timeRange, ...filters } = withTimeRange(rest);
 
   const explorerSearch: LogsExplorerSearch = {
     q: filters.q,
     levels: filters.levels,
-    services: filters.services,
+    services: service,
     attributes: filters.attributes,
     traceId: filters.traceId,
     showVolume,
@@ -50,7 +53,9 @@ function LogsExplorerPage() {
       repo={remoteRepo}
       timeRange={timeRange}
       search={explorerSearch}
-      onSearchChange={(next) =>
+      environment={environment}
+      hideSharedFilters
+      onSearchChange={({ services: _ignored, ...next }) =>
         navigate({
           search: (prev) => ({ ...prev, ...next }),
           replace: true,

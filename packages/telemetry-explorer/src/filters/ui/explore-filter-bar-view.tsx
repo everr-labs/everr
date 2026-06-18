@@ -4,15 +4,15 @@ import type { QueryFunction, QueryKey } from "@tanstack/react-query";
 import type { AttributeRepositoryLike } from "../../attribute-filter/repository";
 import { EnvironmentSelect } from "./environment-select";
 
-interface ServiceOptions {
+interface ServiceOptions<TData> {
   queryKey: QueryKey;
-  queryFn: QueryFunction<string[]>;
-  select: (data: string[]) => string[];
+  queryFn: QueryFunction<TData>;
+  select: (data: TData) => string[];
 }
 
 // Presentational Service + Environment row for the Explore topbar. Domain
 // wrappers supply the service option-source and the repo/domain for env values.
-export function ExploreFilterBarView({
+export function ExploreFilterBarView<TData>({
   serviceValues,
   onServiceChange,
   serviceOptions,
@@ -24,7 +24,7 @@ export function ExploreFilterBarView({
 }: {
   serviceValues: string[];
   onServiceChange: (values: string[]) => void;
-  serviceOptions: ServiceOptions;
+  serviceOptions: ServiceOptions<TData>;
   environmentValues: string[];
   onEnvironmentChange: (values: string[]) => void;
   environmentRepo: AttributeRepositoryLike;
