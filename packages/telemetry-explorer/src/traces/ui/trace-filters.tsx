@@ -37,14 +37,57 @@ type TraceFiltersProps = {
   timeRange: TimeRange;
   value: FilterValue;
   identities: ServiceIdentity[];
+  hideSharedFilters?: boolean;
   onChange: (patch: Partial<FilterValue>) => void;
 };
+
+function ServiceAndEnvironment({
+  serviceList,
+  value,
+  repo,
+  timeRange,
+  onChange,
+}: {
+  serviceList: string[];
+  value: FilterValue;
+  repo: TracesRepositoryLike;
+  timeRange: TimeRange;
+  onChange: (patch: Partial<FilterValue>) => void;
+}) {
+  const serviceOptions = staticListOptions(
+    ["traces", "filter", "services", serviceList] as const,
+    serviceList,
+  );
+
+  return (
+    <>
+      <FilterCombobox
+        label="Service"
+        values={value.service}
+        onChange={(next) => onChange({ service: next })}
+        options={serviceOptions}
+        placeholder="All"
+        searchPlaceholder="Search services..."
+        className="w-full"
+      />
+
+      <EnvironmentFilter
+        repo={repo}
+        domain="traces"
+        timeRange={timeRange}
+        attributes={value.attributes}
+        onChange={(attributes) => onChange({ attributes })}
+      />
+    </>
+  );
+}
 
 export function TraceFilters({
   repo,
   timeRange,
   value,
   identities,
+  hideSharedFilters = false,
   onChange,
 }: TraceFiltersProps) {
   const namespaces = dedupe(
@@ -64,17 +107,15 @@ export function TraceFilters({
     ["traces", "filter", "namespaces", namespaces] as const,
     namespaces,
   );
-  const serviceOptions = staticListOptions(
-    ["traces", "filter", "services", serviceList] as const,
-    serviceList,
-  );
 
   // "Clear all" resets the sidebar filters only. The span-name search lives in
   // the header search bar (with its own clear control), so it is not part of
-  // hasActiveFilters nor reset by onClear.
+  // hasActiveFilters nor reset by onClear. When the service filter is shared
+  // (rendered in the topbar instead — hideSharedFilters), it is likewise owned
+  // there: it must not count toward hasActiveFilters nor be reset by onClear.
   const hasActiveFilters =
     value.namespace.length > 0 ||
-    value.service.length > 0 ||
+    (!hideSharedFilters && value.service.length > 0) ||
     value.minMs !== undefined ||
     value.maxMs !== undefined ||
     value.status !== "all" ||
@@ -87,7 +128,7 @@ export function TraceFilters({
       onClear={() =>
         onChange({
           namespace: [],
-          service: [],
+          ...(hideSharedFilters ? {} : { service: [] }),
           minMs: undefined,
           maxMs: undefined,
           status: "all",
@@ -138,25 +179,19 @@ export function TraceFilters({
         searchPlaceholder="Search namespaces..."
         className="w-full"
       />
-      <FilterCombobox
-        label="Service"
-        values={value.service}
-        onChange={(next) => onChange({ service: next })}
-        options={serviceOptions}
-        placeholder="All"
-        searchPlaceholder="Search services..."
-        className="w-full"
-      />
 
-      <EnvironmentFilter
-        repo={repo}
-        domain="traces"
-        timeRange={timeRange}
-        attributes={value.attributes}
-        onChange={(attributes) => onChange({ attributes })}
-      />
-
-      <Separator />
+      {!hideSharedFilters && (
+        <>
+          <ServiceAndEnvironment
+            serviceList={serviceList}
+            value={value}
+            repo={repo}
+            timeRange={timeRange}
+            onChange={onChange}
+          />
+          <Separator />
+        </>
+      )}
 
       <div className="flex gap-2">
         <DurationInput

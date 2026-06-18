@@ -12,7 +12,7 @@ import {
 } from "../../-trace-detail";
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/traces/$traceId/modal",
+  "/_authenticated/_dashboard/_explore/traces/$traceId/modal",
 )({
   staticData: { breadcrumb: "Trace", fullBleed: true },
   head: () => ({ meta: [{ title: "Everr - Trace" }] }),

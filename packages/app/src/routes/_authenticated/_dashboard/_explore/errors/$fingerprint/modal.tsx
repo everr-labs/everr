@@ -4,7 +4,7 @@ import { DetailRouteDialog } from "@/components/detail-route-dialog";
 import { ErrorDetailRouteContent } from "../../-error-detail";
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/errors/$fingerprint/modal",
+  "/_authenticated/_dashboard/_explore/errors/$fingerprint/modal",
 )({
   staticData: { breadcrumb: "Detail", fullBleed: true },
   head: () => ({ meta: [{ title: "Everr - Error detail" }] }),

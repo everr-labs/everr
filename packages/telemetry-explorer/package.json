@@ -4,6 +4,7 @@
   "type": "module",
   "exports": {
     "./errors": "./src/errors/index.ts",
+    "./filters": "./src/filters/index.ts",
     "./logs": "./src/logs/index.ts",
     "./styles.css": "./src/styles.css",
     "./traces": "./src/traces/index.ts"

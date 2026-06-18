@@ -8,16 +8,21 @@ import {
   Link,
   Outlet,
   stripSearchParams,
+  useSearch,
 } from "@tanstack/react-router";
 import { remoteErrorsRepo } from "@/data/errors/remote-repo";
 import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
+import { ExploreSearchShape } from "@/lib/explore-search";
 
-const defaultSearch = ErrorIssueSearchSchema.parse({});
+const RouteSearchSchema = ErrorIssueSearchSchema.extend(ExploreSearchShape);
+const defaultSearch = RouteSearchSchema.parse({});
 
-export const Route = createFileRoute("/_authenticated/_dashboard/errors")({
+export const Route = createFileRoute(
+  "/_authenticated/_dashboard/_explore/errors",
+)({
   staticData: { breadcrumb: "Errors", fullBleed: true },
   head: () => ({ meta: [{ title: "Everr - Errors" }] }),
-  validateSearch: ErrorIssueSearchSchema,
+  validateSearch: RouteSearchSchema,
   search: { middlewares: [stripSearchParams(defaultSearch)] },
   component: ErrorsRoute,
 });
@@ -38,7 +43,10 @@ function ErrorsPage() {
   useRealtimeSubscription({ scope: "tenant" });
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
-  const { timeRange, q, service, fingerprint, sort, refresh, attributes } =
+  const { service = [], environment = [] } = useSearch({
+    from: "/_authenticated/_dashboard/_explore",
+  });
+  const { timeRange, q, fingerprint, sort, refresh, attributes } =
     withTimeRange(search);
 
   return (
@@ -47,10 +55,13 @@ function ErrorsPage() {
       timeRange={timeRange}
       refresh={refresh ?? "off"}
       search={{ q, service, fingerprint, sort, attributes }}
+      environment={environment}
+      hideSharedFilters
       onSearchChange={(patch) =>
+        // Push a history entry per change so Back undoes filter changes one at a
+        // time (including Clear all, which routes through this same handler).
         navigate({
           search: (prev) => ({ ...prev, ...patch }),
-          replace: true,
         })
       }
       renderIssueLink={({ fingerprint: issueFingerprint, children }) => (

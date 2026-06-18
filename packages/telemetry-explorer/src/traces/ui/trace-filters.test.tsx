@@ -116,4 +116,44 @@ describe("TraceFilters sidebar", () => {
       attributes: [],
     });
   });
+
+  it("with hideSharedFilters, clear-all leaves the shared service filter untouched", () => {
+    const onChange = vi.fn();
+    renderWithQueryClient(
+      <TraceFilters
+        repo={makeRepo()}
+        timeRange={defaultTimeRange}
+        hideSharedFilters
+        value={{ ...defaultValue, status: "error", service: ["web"] }}
+        identities={[]}
+        onChange={onChange}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
+    const patch = onChange.mock.calls[0]?.[0];
+    expect(patch).not.toHaveProperty("service");
+    expect(patch).toEqual({
+      namespace: [],
+      minMs: undefined,
+      maxMs: undefined,
+      status: "all",
+      attributes: [],
+    });
+  });
+
+  it("with hideSharedFilters, a shared service alone does not surface Clear all", () => {
+    renderWithQueryClient(
+      <TraceFilters
+        repo={makeRepo()}
+        timeRange={defaultTimeRange}
+        hideSharedFilters
+        value={{ ...defaultValue, service: ["web"] }}
+        identities={[]}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Clear all" }),
+    ).not.toBeInTheDocument();
+  });
 });

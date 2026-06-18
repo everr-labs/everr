@@ -1,13 +1,11 @@
 import {
   Bell,
-  Bug,
   FlaskConical,
   GitBranch,
   LayoutDashboard,
   type LucideIcon,
   NotebookText,
-  ScrollText,
-  Workflow,
+  Telescope,
 } from "lucide-react";
 
 export type NavItem = {
@@ -53,24 +51,20 @@ export const navMain: NavItem[] = [
     ],
   },
   {
-    title: "Logs",
+    title: "Explore",
     url: "/logs",
-    icon: ScrollText,
-  },
-  {
-    title: "Errors",
-    url: "/errors",
-    icon: Bug,
+    icon: Telescope,
+    isActive: true,
+    items: [
+      { title: "Logs", url: "/logs" },
+      { title: "Errors", url: "/errors" },
+      { title: "Traces", url: "/traces" },
+    ],
   },
   {
     title: "Alerts",
     url: "/alerts",
     icon: Bell,
-  },
-  {
-    title: "Traces",
-    url: "/traces",
-    icon: Workflow,
   },
   {
     title: "Tests Overview",

@@ -11,6 +11,7 @@ import {
   Outlet,
   redirect,
   retainSearchParams,
+  stripSearchParams,
   useMatches,
 } from "@tanstack/react-router";
 import gridLayoutCSS from "react-grid-layout/css/styles.css?url";
@@ -21,12 +22,17 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { CommandBar } from "@/components/command-bar";
 import { DashboardBreadcrumb } from "@/components/dashboard-breadcrumb";
 import gridLayoutOverridesCSS from "@/components/dashboards/dashboard-grid.css?url";
+import { ExploreSearchRetainShape } from "@/lib/explore-search";
 import {
   ResolvedTimeRangeSearchSchema,
   TimeRangeSearchSchema,
 } from "@/lib/time-range";
 
 const DashboardSearchSchema = TimeRangeSearchSchema.extend({
+  // Explore section filters live at this level (not deeper on `_explore`) so the
+  // sidebar links — rendered in this layout — retain them on click. See the
+  // retainSearchParams note below.
+  ...ExploreSearchRetainShape,
   github_install: z.string().optional(),
   reason: z.string().optional(),
   // Dashboard variable values, e.g. ?vars={"env":"prod","svc":["a","b"]}.
@@ -41,7 +47,25 @@ const DashboardSearchSchema = TimeRangeSearchSchema.extend({
 export const Route = createFileRoute("/_authenticated/_dashboard")({
   validateSearch: DashboardSearchSchema,
   search: {
-    middlewares: [retainSearchParams(["from", "to", "refresh"])],
+    // `service`/`environment` are retained HERE (not on `_explore`) on purpose:
+    // the sidebar links live in this `_dashboard` layout, outside the `_explore`
+    // subtree, so only a retain declared at this level engages on a sidebar
+    // click. Declaring it on `_explore` makes the link's href look right but
+    // drops the params on the actual click. The explore route schemas include
+    // these keys so the destination route doesn't strip them on arrival.
+    //
+    // strip-then-retain, paired with optional (default-less) explore schemas, is
+    // what makes the filters both persistent AND clearable:
+    //   - cross-route nav: the key arrives absent (no schema default fills it),
+    //     so retain copies the live selection forward;
+    //   - explicit clear (service: []): the value is present, so strip drops it
+    //     as a default and retain — which only refills ABSENT keys — leaves it
+    //     gone, yielding a clean URL that reflects the cleared state.
+    // See ExploreSearchShape for why the schemas must stay optional.
+    middlewares: [
+      stripSearchParams({ service: [], environment: [] }),
+      retainSearchParams(["from", "to", "refresh", "service", "environment"]),
+    ],
   },
   beforeLoad({ search }) {
     const { from, to } = ResolvedTimeRangeSearchSchema.parse(search);

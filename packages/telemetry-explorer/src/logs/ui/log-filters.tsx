@@ -32,6 +32,7 @@ export interface LogFiltersBarProps {
   attributes: AttributeFilter[];
   traceId: string | undefined;
   levelCounts?: Record<LogLevel, number>;
+  hideSharedFilters?: boolean;
   onChange: (patch: {
     levels?: LogLevel[];
     services?: string[];
@@ -110,6 +111,7 @@ export function LogFiltersBar({
   attributes,
   traceId,
   levelCounts,
+  hideSharedFilters = false,
   onChange,
 }: LogFiltersBarProps) {
   const toggleLevel = (level: LogLevel) => {
@@ -119,9 +121,12 @@ export function LogFiltersBar({
     onChange({ levels: nextLevels });
   };
 
+  // When the service filter is shared (rendered in the topbar —
+  // hideSharedFilters), it is owned there: it must not count toward
+  // hasActiveFilters nor be reset by "Clear all".
   const hasActiveFilters =
     levels.length > 0 ||
-    services.length > 0 ||
+    (!hideSharedFilters && services.length > 0) ||
     attributes.length > 0 ||
     traceId !== undefined;
 
@@ -132,7 +137,7 @@ export function LogFiltersBar({
       onClear={() =>
         onChange({
           levels: [],
-          services: [],
+          ...(hideSharedFilters ? {} : { services: [] }),
           attributes: [],
           traceId: undefined,
         })
@@ -163,25 +168,29 @@ export function LogFiltersBar({
         ))}
       </div>
 
-      <Separator />
+      {!hideSharedFilters && (
+        <>
+          <Separator />
 
-      <FilterCombobox
-        label="Service"
-        values={services}
-        onChange={(nextServices) => onChange({ services: nextServices })}
-        options={logServiceFilterOptions(repo, { timeRange })}
-        placeholder="All services"
-        searchPlaceholder="Search services..."
-        className="w-full"
-      />
+          <FilterCombobox
+            label="Service"
+            values={services}
+            onChange={(nextServices) => onChange({ services: nextServices })}
+            options={logServiceFilterOptions(repo, { timeRange })}
+            placeholder="All services"
+            searchPlaceholder="Search services..."
+            className="w-full"
+          />
 
-      <EnvironmentFilter
-        repo={repo}
-        domain="logs"
-        timeRange={timeRange}
-        attributes={attributes}
-        onChange={(next) => onChange({ attributes: next })}
-      />
+          <EnvironmentFilter
+            repo={repo}
+            domain="logs"
+            timeRange={timeRange}
+            attributes={attributes}
+            onChange={(next) => onChange({ attributes: next })}
+          />
+        </>
+      )}
 
       <Separator />
 

@@ -11,9 +11,9 @@ import {
 } from "./-trace-detail";
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/traces_/$traceId",
+  "/_authenticated/_dashboard/_explore/traces_/$traceId",
 )({
-  staticData: { breadcrumb: "Trace", fullBleed: true },
+  staticData: { breadcrumb: "Trace", fullBleed: true, hideExploreBar: true },
   head: () => ({ meta: [{ title: "Everr - Trace" }] }),
   validateSearch: TraceDetailParamsSchema,
   loaderDeps: ({ search }) => getTraceDetailLoaderDeps(search),

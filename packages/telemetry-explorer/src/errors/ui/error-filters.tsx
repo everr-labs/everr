@@ -28,20 +28,19 @@ export type ErrorFiltersValue = {
   attributes: AttributeFilter[];
 };
 
-export function ErrorFilters({
+function ServiceAndEnvironment({
+  services,
+  value,
   repo,
   timeRange,
-  value,
-  services,
   onChange,
 }: {
+  services: string[];
+  value: ErrorFiltersValue;
   repo: ErrorsRepositoryLike;
   timeRange: TimeRange;
-  value: ErrorFiltersValue;
-  services: string[];
   onChange: (patch: Partial<ErrorFiltersValue>) => void;
 }) {
-  const orderLabelId = useId();
   const serviceOptions = [
     ...services,
     ...value.service.filter((service) => !services.includes(service)),
@@ -52,17 +51,68 @@ export function ErrorFilters({
     select: (data: string[]) => data,
   };
 
+  return (
+    <>
+      <FilterCombobox
+        label="Service"
+        values={value.service}
+        onChange={(nextServices) => onChange({ service: nextServices })}
+        options={serviceFilterOptions}
+        placeholder="All services"
+        searchPlaceholder="Search services..."
+        className="w-full"
+      />
+
+      <EnvironmentFilter
+        repo={repo}
+        domain="errors"
+        timeRange={timeRange}
+        attributes={value.attributes}
+        onChange={(attributes) => onChange({ attributes })}
+      />
+
+      <Separator />
+    </>
+  );
+}
+
+export function ErrorFilters({
+  repo,
+  timeRange,
+  value,
+  services = [],
+  hideSharedFilters = false,
+  onChange,
+}: {
+  repo: ErrorsRepositoryLike;
+  timeRange: TimeRange;
+  value: ErrorFiltersValue;
+  services?: string[];
+  hideSharedFilters?: boolean;
+  onChange: (patch: Partial<ErrorFiltersValue>) => void;
+}) {
+  const orderLabelId = useId();
+
   // "Clear all" resets active filters only. Sort is an ordering preference (it
   // always has a value), and q is owned by the separate search bar, so neither
-  // counts toward hasActiveFilters nor is reset by onClear.
+  // counts toward hasActiveFilters nor is reset by onClear. When the service
+  // filter is shared (rendered in the topbar — hideSharedFilters), it is owned
+  // there too: excluded from hasActiveFilters and left untouched by onClear.
   const hasActiveFilters =
-    value.service.length > 0 || value.attributes.length > 0;
+    (!hideSharedFilters && value.service.length > 0) ||
+    value.attributes.length > 0;
 
   return (
     <FilterSidebar
       label="Error filters"
       hasActiveFilters={hasActiveFilters}
-      onClear={() => onChange({ service: [], attributes: [] })}
+      onClear={() =>
+        onChange(
+          hideSharedFilters
+            ? { attributes: [] }
+            : { service: [], attributes: [] },
+        )
+      }
     >
       <div className="flex flex-col gap-1">
         <Label id={orderLabelId} className="text-muted-foreground text-xs">
@@ -97,25 +147,15 @@ export function ErrorFilters({
 
       <Separator />
 
-      <FilterCombobox
-        label="Service"
-        values={value.service}
-        onChange={(nextServices) => onChange({ service: nextServices })}
-        options={serviceFilterOptions}
-        placeholder="All services"
-        searchPlaceholder="Search services..."
-        className="w-full"
-      />
-
-      <EnvironmentFilter
-        repo={repo}
-        domain="errors"
-        timeRange={timeRange}
-        attributes={value.attributes}
-        onChange={(attributes) => onChange({ attributes })}
-      />
-
-      <Separator />
+      {!hideSharedFilters && (
+        <ServiceAndEnvironment
+          services={services}
+          value={value}
+          repo={repo}
+          timeRange={timeRange}
+          onChange={onChange}
+        />
+      )}
 
       <DedicatedAttributeSection
         repo={repo}

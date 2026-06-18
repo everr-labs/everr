@@ -68,6 +68,37 @@ describe("LogFiltersBar", () => {
     });
   });
 
+  it("with hideSharedFilters, clear-all leaves the shared service filter untouched", () => {
+    const onChange = vi.fn();
+    renderWithQueryClient(
+      <LogFiltersBar
+        {...baseProps}
+        hideSharedFilters
+        levels={["error"]}
+        services={["api"]}
+        onChange={onChange}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
+    const patch = onChange.mock.calls[0]?.[0];
+    expect(patch).not.toHaveProperty("services");
+    expect(patch).toEqual({ levels: [], attributes: [], traceId: undefined });
+  });
+
+  it("with hideSharedFilters, a shared service alone does not surface Clear all", () => {
+    renderWithQueryClient(
+      <LogFiltersBar
+        {...baseProps}
+        hideSharedFilters
+        services={["api"]}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Clear all" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("deployment.environment renders in the Environment combobox and NOT as an attribute pill", () => {
     // Invariant: deployment.environment is a dedicated combobox filter. It must
     // be split out of the attributes passed to AttributeFilterSection so it

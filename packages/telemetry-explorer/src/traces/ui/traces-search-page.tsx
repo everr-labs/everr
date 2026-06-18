@@ -5,6 +5,7 @@ import {
   useQuery,
 } from "@tanstack/react-query";
 import { type ReactNode, useMemo } from "react";
+import { withEnvironment } from "../../filters/environment";
 import { FilterSearchBar } from "../../filters/ui/filter-search-bar";
 import {
   listServiceIdentitiesOptions,
@@ -39,6 +40,8 @@ export type TracesSearchProps = {
   timeRange: TimeRange;
   refresh: string;
   search: TraceSearchValue;
+  environment?: string[];
+  hideSharedFilters?: boolean;
   onSearchChange: (patch: Partial<TraceSearchValue>) => void;
   renderTraceLink: (props: TraceLinkRenderProps) => ReactNode;
 };
@@ -48,6 +51,8 @@ export function TracesSearch({
   timeRange,
   refresh,
   search,
+  environment = [],
+  hideSharedFilters = false,
   onSearchChange,
   renderTraceLink,
 }: TracesSearchProps) {
@@ -74,7 +79,7 @@ export function TracesSearch({
       minMs: search.minMs,
       maxMs: search.maxMs,
       status: search.status,
-      attributes: search.attributes,
+      attributes: withEnvironment(search.attributes, environment),
       limit: TRACES_PAGE_SIZE,
     }),
     placeholderData: keepPreviousData,
@@ -110,6 +115,7 @@ export function TracesSearch({
               attributes: search.attributes,
             }}
             identities={identitiesQuery.data ?? []}
+            hideSharedFilters={hideSharedFilters}
             onChange={onSearchChange}
           />
           <main className="flex min-h-0 min-w-0 flex-col">
@@ -126,7 +132,9 @@ export function TracesSearch({
               onClearFilters={() =>
                 onSearchChange({
                   namespace: [],
-                  service: [],
+                  // Service is owned by the shared topbar filter when
+                  // hideSharedFilters is set; clearing here must not touch it.
+                  ...(hideSharedFilters ? {} : { service: [] }),
                   name: "",
                   minMs: undefined,
                   maxMs: undefined,
