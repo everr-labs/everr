@@ -7,12 +7,19 @@ import {
 
 const RetainSchema = z.object(ExploreSearchRetainShape);
 
-describe("ExploreSearchSchema (read-friendly, used by _explore + child routes)", () => {
-  it("defaults missing filters to empty arrays so consumers always get arrays", () => {
-    expect(ExploreSearchSchema.parse({})).toEqual({
-      service: [],
-      environment: [],
-    });
+describe("ExploreSearchSchema (shared by _explore + child routes)", () => {
+  // Load-bearing invariant for BOTH cross-section persistence and clearable
+  // filters: service/environment must NOT default to `[]`. A `.default([])`
+  // makes validateSearch fill `[]` on every navigation, which (a) blocks
+  // retainSearchParams from copying the real value from the current location and
+  // (b) makes an explicit clear indistinguishable from a default, so a cleared
+  // filter gets re-applied. Leaving them absent keeps both behaviors correct;
+  // read sites coalesce with `?? []`. If someone "tidies" these back to
+  // `.default([])`, this fails.
+  it("leaves missing filters UNDEFINED (no default — keeps them clearable + retainable)", () => {
+    const out = ExploreSearchSchema.parse({});
+    expect(out.service).toBeUndefined();
+    expect(out.environment).toBeUndefined();
   });
 
   it("keeps provided values", () => {
@@ -23,11 +30,9 @@ describe("ExploreSearchSchema (read-friendly, used by _explore + child routes)",
 });
 
 describe("ExploreSearchRetainShape (used by the _dashboard layout)", () => {
-  // This is the load-bearing invariant for cross-section persistence: the
-  // `_dashboard` schema must NOT default service/environment. A `.default([])`
-  // here makes validateSearch fill `[]` before retainSearchParams can copy the
-  // real value from the current location, silently resetting the filters on a
-  // sidebar click. If someone "tidies" these to `.default([])`, this fails.
+  // Same shape as ExploreSearchShape (re-exported alias) — the _dashboard layout,
+  // where retainSearchParams runs for the sidebar, depends on the absent-not-empty
+  // behavior just like the explore routes do.
   it("leaves filters UNDEFINED when absent (no default — lets retain fill them)", () => {
     const out = RetainSchema.parse({});
     expect(out.service).toBeUndefined();
