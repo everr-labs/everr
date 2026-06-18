@@ -11,11 +11,13 @@ import {
   createRouter,
   Outlet,
   RouterProvider,
+  retainSearchParams,
   stripSearchParams,
 } from "@tanstack/react-router";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 import { ErrorDetailRouteContent } from "./-error-detail";
 import { Route as ErrorsFileRoute } from "./errors";
 
@@ -108,8 +110,25 @@ describe("/errors route", () => {
       id: "_dashboard",
       component: Outlet,
     });
-    const errorsRoute = createRoute({
+    const exploreSearchSchema = z.object({
+      service: z.array(z.string()).catch([]).default([]),
+      environment: z.array(z.string()).catch([]).default([]),
+    });
+    const exploreDefaults = exploreSearchSchema.parse({});
+    const exploreRoute = createRoute({
       getParentRoute: () => dashboardRoute,
+      id: "_explore",
+      validateSearch: exploreSearchSchema,
+      search: {
+        middlewares: [
+          stripSearchParams(exploreDefaults),
+          retainSearchParams(["service", "environment"]),
+        ],
+      },
+      component: Outlet,
+    });
+    const errorsRoute = createRoute({
+      getParentRoute: () => exploreRoute,
       path: "errors",
       validateSearch: ErrorsFileRoute.options.validateSearch,
       search: {
@@ -118,7 +137,7 @@ describe("/errors route", () => {
       component: ErrorsFileRoute.options.component,
     });
     const errorFullPageRoute = createRoute({
-      getParentRoute: () => dashboardRoute,
+      getParentRoute: () => exploreRoute,
       path: "errors/$fingerprint",
       component: () => <div>Error full page route</div>,
     });
@@ -143,8 +162,10 @@ describe("/errors route", () => {
     const routeTree = rootRoute.addChildren([
       authenticatedRoute.addChildren([
         dashboardRoute.addChildren([
-          errorFullPageRoute,
-          errorsRoute.addChildren([errorModalRoute]),
+          exploreRoute.addChildren([
+            errorFullPageRoute,
+            errorsRoute.addChildren([errorModalRoute]),
+          ]),
         ]),
       ]),
     ]);

@@ -6,6 +6,7 @@ import {
   createFileRoute,
   Outlet,
   retainSearchParams,
+  stripSearchParams,
   useMatches,
   useRouterState,
   useSearch,
@@ -16,14 +17,19 @@ import { remoteRepo } from "@/data/logs-explorer/remote-repo";
 import { remoteTracesRepo } from "@/data/traces/remote-repo";
 
 const ExploreSearchSchema = z.object({
-  service: z.array(z.string()).default([]),
-  environment: z.array(z.string()).default([]),
+  service: z.array(z.string()).catch([]).default([]),
+  environment: z.array(z.string()).catch([]).default([]),
 });
+
+const exploreDefaults = ExploreSearchSchema.parse({});
 
 export const Route = createFileRoute("/_authenticated/_dashboard/_explore")({
   validateSearch: ExploreSearchSchema,
   search: {
-    middlewares: [retainSearchParams(["service", "environment"])],
+    middlewares: [
+      stripSearchParams(exploreDefaults),
+      retainSearchParams(["service", "environment"]),
+    ],
   },
   component: ExploreLayout,
 });

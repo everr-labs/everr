@@ -7,11 +7,14 @@ import {
   createRouter,
   Outlet,
   RouterProvider,
+  retainSearchParams,
+  stripSearchParams,
 } from "@tanstack/react-router";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 import { Route as TracesFileRoute } from "./traces";
 
 vi.mock("@/data/traces/remote-repo", () => ({
@@ -66,13 +69,30 @@ describe("/traces route", () => {
       id: "_dashboard",
       component: Outlet,
     });
-    const tracesRoute = createRoute({
+    const exploreSearchSchema = z.object({
+      service: z.array(z.string()).catch([]).default([]),
+      environment: z.array(z.string()).catch([]).default([]),
+    });
+    const exploreDefaults = exploreSearchSchema.parse({});
+    const exploreRoute = createRoute({
       getParentRoute: () => dashboardRoute,
+      id: "_explore",
+      validateSearch: exploreSearchSchema,
+      search: {
+        middlewares: [
+          stripSearchParams(exploreDefaults),
+          retainSearchParams(["service", "environment"]),
+        ],
+      },
+      component: Outlet,
+    });
+    const tracesRoute = createRoute({
+      getParentRoute: () => exploreRoute,
       path: "traces",
       component: TracesFileRoute.options.component,
     });
     const traceFullPageRoute = createRoute({
-      getParentRoute: () => dashboardRoute,
+      getParentRoute: () => exploreRoute,
       path: "traces/$traceId",
       component: () => <div>Trace full page route</div>,
     });
@@ -84,8 +104,10 @@ describe("/traces route", () => {
     const routeTree = rootRoute.addChildren([
       authenticatedRoute.addChildren([
         dashboardRoute.addChildren([
-          traceFullPageRoute,
-          tracesRoute.addChildren([traceModalRoute]),
+          exploreRoute.addChildren([
+            traceFullPageRoute,
+            tracesRoute.addChildren([traceModalRoute]),
+          ]),
         ]),
       ]),
     ]);
