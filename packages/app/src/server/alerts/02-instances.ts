@@ -119,7 +119,7 @@ export async function fetchFiringInstances(def: {
         argMax(event_type, event_time) AS lastEventType,
         max(event_time) AS firedAt
       FROM app.alert_events
-      WHERE organization_id = {organizationId:String}
+      WHERE tenant_id = {organizationId:String}
         AND repoid = {repoid:String}
         AND slug = {slug:String}
         AND alert_definition_id = {alertDefinitionId:String}

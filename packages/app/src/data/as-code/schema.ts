@@ -27,6 +27,7 @@ export const applyInput = z
     state: z
       .object({
         dashboards: z.array(resourceEntrySchema),
+        notebooks: z.array(resourceEntrySchema),
         alerts: z.array(resourceEntrySchema),
       })
       .strict(),

@@ -3,7 +3,7 @@ description: Everr CI helpers. Capabilities are toggled via inputs.
 
 inputs:
   install-cli:
-    description: Add the bundled Everr CLI to PATH for later workflow steps. Supports macOS arm64, Linux arm64, and Linux x64 runners when the matching binary is bundled.
+    description: Download the Everr CLI from everr.dev and add it to PATH for later workflow steps. Supports macOS arm64, Linux arm64, and Linux x64 runners.
     required: false
     default: "false"
   resource-usage:

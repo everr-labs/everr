@@ -16,7 +16,7 @@ services:
       APP_RO_PASSWORD: app-dev
       WEB_APP_ADMIN_PASSWORD: web-app-admin-dev
     volumes:
-      - ./volumes/clickhouse:/var/lib/clickhouse
+      - ./volumes/clickhouse:/var/lib/clickhouse:Z
 
   postgres:
     image: postgres:18.3-alpine3.23
@@ -31,7 +31,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     volumes:
-      - ./volumes/postgres:/var/lib/postgresql
+      - ./volumes/postgres:/var/lib/postgresql:Z
 
   collector:
     build: ./collector
@@ -45,15 +45,15 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - ./collector/config.yml:/etc/everr-collector/config.yaml:ro
-      - ./collector/dev-everr-app.pem:/etc/everr-collector/dev-everr-app.pem:ro
+      - ./collector/config.yml:/etc/everr-collector/config.yaml:ro,z
+      - ./collector/dev-everr-app.pem:/etc/everr-collector/dev-everr-app.pem:ro,z
 
   mailpit:
     image: axllent/mailpit
     container_name: mailpit
     restart: unless-stopped
     volumes:
-      - ./volumes/mailpit:/data
+      - ./volumes/mailpit:/data:Z
     ports:
       - 8025:8025
       - 1025:1025

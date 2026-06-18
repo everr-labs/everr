@@ -280,7 +280,7 @@ export const listAlertEvents = createAuthenticatedServerFn({ method: "GET" })
         `
 	          WITH history AS (
 	            SELECT
-	              organization_id,
+	              tenant_id,
 	              alert_definition_id,
 	              repoid,
 	              slug,
@@ -294,7 +294,7 @@ export const listAlertEvents = createAuthenticatedServerFn({ method: "GET" })
 	              toJSONString(delivery_targets) AS deliveryTargetsJson,
 	              silence_id
 	            FROM app.alert_events
-	            WHERE organization_id = {organizationId:String}
+	            WHERE tenant_id = {organizationId:String}
 	              AND repoid = {repoid:String}
 	              AND slug = {slug:String}
 	              AND alert_definition_id = {alertDefinitionId:String}
@@ -326,7 +326,7 @@ export const listAlertEvents = createAuthenticatedServerFn({ method: "GET" })
 	          LEFT JOIN (
 	            SELECT evaluation_scheduled_at, event_type, instance_labels_json
 	            FROM app.alert_events
-	            WHERE organization_id = {organizationId:String}
+	            WHERE tenant_id = {organizationId:String}
 	              AND repoid = {repoid:String}
 	              AND slug = {slug:String}
 	              AND alert_definition_id = {alertDefinitionId:String}
@@ -337,7 +337,7 @@ export const listAlertEvents = createAuthenticatedServerFn({ method: "GET" })
 	          ) AS instance_events
 	            ON instance_events.evaluation_scheduled_at = history.evaluation_scheduled_at
 	          GROUP BY
-	            history.organization_id,
+	            history.tenant_id,
 	            history.alert_definition_id,
 	            history.repoid,
 	            history.slug,
@@ -492,7 +492,7 @@ export const listAlertInstances = createAuthenticatedServerFn({ method: "GET" })
           if(countIf(event_type = 'instance_fired') = 0, '', ${clickhouseIsoMillis("maxIf(event_time, event_type = 'instance_fired')")}) AS lastFiredAt,
           if(countIf(event_type = 'instance_resolved') = 0, '', ${clickhouseIsoMillis("maxIf(event_time, event_type = 'instance_resolved')")}) AS lastResolvedAt
         FROM app.alert_events
-        WHERE organization_id = {organizationId:String}
+        WHERE tenant_id = {organizationId:String}
           AND repoid = {repoid:String}
           AND slug = {slug:String}
           AND alert_definition_id = {alertDefinitionId:String}

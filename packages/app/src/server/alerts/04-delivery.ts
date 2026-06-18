@@ -20,7 +20,6 @@ import type {
 } from "@/data/alerts/delivery-settings";
 import { findSilenceForInstance, type Matcher } from "@/data/alerts/matchers";
 import { env } from "@/env";
-import { mailer } from "@/lib/mailer.server";
 import { sendTelegramMessage } from "@/lib/telegram.server";
 import { addWorkerJob } from "@/server/worker/jobs";
 import {
@@ -29,8 +28,11 @@ import {
   serverLogger,
 } from "@/telemetry/logger";
 import { buildDeliveryFailureEvent, recordAlertEvents } from "./03-events";
-import { buildAlertEmail } from "./04-email";
-import type { DeliveryInput } from "./04-format";
+import type {
+  DeliveryInput,
+  DeliveryKind,
+  NotifiableInstance,
+} from "./04-format";
 import { buildTelegramText } from "./04-telegram";
 
 export type { DeliveryInput } from "./04-format";
@@ -63,103 +65,128 @@ const SendBaseSchema = z.object({
   scheduledFor: z.coerce.date(),
 });
 
-const DeliverySendSchema = z.discriminatedUnion("channel", [
-  SendBaseSchema.extend({
-    channel: z.literal("email"),
-    subject: z.string(),
-    html: z.string(),
-  }),
-  SendBaseSchema.extend({
-    channel: z.literal("telegram"),
-    botToken: z.string(),
-  }),
-]);
+const DeliverySendSchema = SendBaseSchema.extend({
+  channel: z.literal("telegram"),
+  botToken: z.string(),
+});
 
 export type DeliverySend = z.infer<typeof DeliverySendSchema>;
 
-export interface DeliveryMetadata {
+// What each kind contributed to the evaluation events: the silence that
+// suppressed it (every instance of the kind silenced), or "" when it notified.
+export type NotificationKind = "firing" | "resolved";
+
+export interface NotificationOutcome {
+  // Where the (single, combined) notification went; {} when nothing was sent.
   deliveryTargets: AlertDeliveryTargets;
-  silenceId: string;
+  // Present for each kind that had instances this evaluation.
+  perKind: Partial<Record<NotificationKind, { silenceId: string }>>;
+}
+
+export interface NotificationInput {
+  def: DeliveryInput["def"];
+  instances: NotifiableInstance[];
 }
 
 function alertUrl(alertId: string): string {
   return new URL(`/alerts/${alertId}`, env.BETTER_AUTH_URL).toString();
 }
 
-// Resolves targets, applies silences, renders messages, and enqueues the
-// per-target delivery jobs. Returns what the evaluation event should record:
-// the attempted target map, or the suppressing silence.
+function instanceKind(instance: NotifiableInstance): NotificationKind {
+  return instance.kind === "resolved" ? "resolved" : "firing";
+}
+
+// The message header reflects what actually goes out after silencing, so a
+// fully-silenced firing half correctly drops a mixed evaluation to "resolved".
+function deriveMessageKind(instances: NotifiableInstance[]): DeliveryKind {
+  const hasFiring = instances.some((i) => instanceKind(i) === "firing");
+  const hasResolved = instances.some((i) => instanceKind(i) === "resolved");
+  if (hasFiring && hasResolved) return "mixed";
+  return hasResolved ? "resolved" : "firing";
+}
+
+// Resolves targets, applies silences, renders the message, and enqueues the
+// per-target delivery jobs. Returns what the evaluation events should record:
+// per kind, the attempted target map or the suppressing silence.
 export async function enqueueAlertNotification(
-  input: DeliveryInput,
+  input: NotificationInput,
   scheduledFor: Date,
   context: ResolvedDeliveryContext,
-): Promise<DeliveryMetadata | null> {
-  const { def, kind } = input;
+): Promise<NotificationOutcome | null> {
+  const { def } = input;
 
   const delivery = context.settings?.delivery;
   if (!delivery) return null;
   const silences = context.silences;
 
   const deliveryTargets: AlertDeliveryTargets = {};
-  if (delivery.email?.enabled && delivery.email.to.length > 0) {
-    deliveryTargets.email = delivery.email.to;
-  }
   if (delivery.telegram?.enabled && delivery.telegram.chatIds.length > 0) {
     deliveryTargets.telegram = delivery.telegram.chatIds;
   }
   if (Object.keys(deliveryTargets).length === 0) return null;
 
-  const silence = findSilenceForInstance(silences, input.instance.labels);
-  if (silence) {
-    return { deliveryTargets: {}, silenceId: silence.id };
+  // Resolve each instance's silence once, then derive the per-kind outcome and
+  // the instances that still notify.
+  const resolved = input.instances.map((instance) => ({
+    instance,
+    silence: findSilenceForInstance(silences, instance.labels),
+  }));
+  const unsilenced = resolved.filter((r) => !r.silence).map((r) => r.instance);
+
+  // Per kind: "" when at least one of its instances notifies, otherwise the
+  // first matching silence's id (the kind was fully suppressed).
+  const perKind: NotificationOutcome["perKind"] = {};
+  for (const kind of ["firing", "resolved"] as const) {
+    const ofKind = resolved.filter((r) => instanceKind(r.instance) === kind);
+    if (ofKind.length === 0) continue;
+    const suppressed = ofKind.every((r) => r.silence);
+    perKind[kind] = {
+      silenceId: suppressed
+        ? (ofKind.find((r) => r.silence)?.silence?.id ?? "")
+        : "",
+    };
   }
 
+  // Nothing left to send, but still report the per-kind silence outcome.
+  if (unsilenced.length === 0) {
+    return { deliveryTargets: {}, perKind };
+  }
+
+  const messageKind = deriveMessageKind(unsilenced);
   const now = new Date();
   const buildOptions = { url: alertUrl(def.id), now };
-  const { subject, text, html } = buildAlertEmail(input, buildOptions);
-  const telegramText = buildTelegramText(input, buildOptions);
+  const telegramText = buildTelegramText(
+    { def, kind: messageKind, instances: unsilenced },
+    buildOptions,
+  );
 
   // Zod strips unknown keys, so this is the schema-defined subset of the full
   // definition row — one field list to maintain.
   const sendDef = SendDefSchema.parse(def);
-  const sends: DeliverySend[] = [
-    ...(deliveryTargets.email ?? []).map(
-      (target): DeliverySend => ({
-        channel: "email",
-        target,
-        subject,
-        text,
-        html,
-        def: sendDef,
-        scheduledFor,
-      }),
-    ),
-    ...(deliveryTargets.telegram ?? []).map(
-      (target): DeliverySend => ({
-        channel: "telegram",
-        target,
-        botToken: delivery.telegram?.botToken ?? "",
-        text: telegramText,
-        def: sendDef,
-        scheduledFor,
-      }),
-    ),
-  ];
+  const sends: DeliverySend[] = (deliveryTargets.telegram ?? []).map(
+    (target): DeliverySend => ({
+      channel: "telegram",
+      target,
+      botToken: delivery.telegram?.botToken ?? "",
+      text: telegramText,
+      def: sendDef,
+      scheduledFor,
+    }),
+  );
 
-  // The job key spans evaluation + notification kind + target, so a retried
+  // The job key spans evaluation + message kind + target, so a retried
   // evaluation re-enqueues (replaces) the same jobs instead of duplicating
-  // them, while firing and resolved sends of one evaluation stay distinct.
-  // Sequential on purpose: each add_job is a sub-millisecond insert, and a
-  // parallel fan-out would briefly monopolize the shared pg pool.
+  // them. Sequential on purpose: each add_job is a sub-millisecond insert, and
+  // a parallel fan-out would briefly monopolize the shared pg pool.
   for (const send of sends) {
     await addWorkerJob(ALERT_DELIVER_TASK, send, {
-      jobKey: `${ALERT_DELIVER_TASK}:${def.id}:${scheduledFor.toISOString()}:${kind}:${send.channel}:${send.target}`,
+      jobKey: `${ALERT_DELIVER_TASK}:${def.id}:${scheduledFor.toISOString()}:${messageKind}:${send.channel}:${send.target}`,
       jobKeyMode: "replace",
       maxAttempts: DELIVERY_MAX_ATTEMPTS,
     });
   }
 
-  return { deliveryTargets, silenceId: "" };
+  return { deliveryTargets, perKind };
 }
 
 // The `alerts/deliver` task: one send, throwing on failure so Graphile Worker
@@ -173,16 +200,7 @@ export async function runDeliverySend(
   const send = DeliverySendSchema.parse(rawPayload);
 
   try {
-    if (send.channel === "email") {
-      await mailer.send({
-        to: send.target,
-        subject: send.subject,
-        text: send.text,
-        html: send.html,
-      });
-    } else {
-      await sendTelegramMessage(send.botToken, send.target, send.text);
-    }
+    await sendTelegramMessage(send.botToken, send.target, send.text);
   } catch (error) {
     const finalAttempt = job.attempts >= job.max_attempts;
     serverLogger.warn(`alerts.delivery.${send.channel}_failed`, {

@@ -1,10 +1,5 @@
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Numeric chat ID (negative for groups/channels) or a public @username.
 const TELEGRAM_CHAT_ID_PATTERN = /^(-?\d+|@[A-Za-z0-9_]{5,32})$/;
-
-export function validateEmailRecipient(value: string): string | null {
-  return EMAIL_PATTERN.test(value) ? null : `Invalid email: ${value}`;
-}
 
 export function validateTelegramChatId(value: string): string | null {
   return TELEGRAM_CHAT_ID_PATTERN.test(value)

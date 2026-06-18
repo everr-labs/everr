@@ -155,5 +155,5 @@ Apply discovers all `.yaml`/`.yml` files under the directory, classifies them by
 | Error-rate alert without a minimum-volume guard | Add `HAVING total >= <baseline>` so tiny samples do not fire |
 | Alerting on mean latency | Prefer p95/p99 or another tail-latency signal |
 | Template variable `${Foo}` but query returns `foo` (case mismatch) | Match column names exactly |
-| Notification channel enabled but no recipients | Add at least one email address or Telegram chat ID |
+| Notification channel enabled but no recipients | Add at least one Telegram chat ID |
 | Expecting re-notification on every evaluation | Notifications fire on transitions, not every tick |

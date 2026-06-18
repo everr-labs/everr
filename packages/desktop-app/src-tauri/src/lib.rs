@@ -193,7 +193,20 @@ pub fn run() {
     let startup_telemetry_context = telemetry_context.clone();
     let shutdown_telemetry_context = telemetry_context.clone();
 
-    tauri::Builder::default()
+    #[cfg_attr(not(target_os = "linux"), allow(unused_mut))]
+    let mut builder = tauri::Builder::default();
+
+    // Single-instance must be the first plugin registered. On Linux it doubles
+    // as the recovery path when the tray is missing/invisible: re-launching the
+    // app focuses the existing window instead of spawning a second instance.
+    #[cfg(target_os = "linux")]
+    {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            let _ = tray::open_main_window(app);
+        }));
+    }
+
+    builder
         .manage(otlp_proxy)
         .manage(telemetry_context.clone())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -212,6 +225,7 @@ pub fn run() {
                 } else {
                     let _ = window.hide();
 
+                    #[cfg(target_os = "macos")]
                     let _ = window
                         .app_handle()
                         .set_activation_policy(tauri::ActivationPolicy::Accessory);
@@ -224,7 +238,9 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
-            let mut autostart = tauri_plugin_autostart::Builder::new().app_name(current_app_name());
+            #[cfg_attr(not(target_os = "macos"), allow(unused_mut))]
+            let mut autostart =
+                tauri_plugin_autostart::Builder::new().app_name(current_app_name());
             #[cfg(target_os = "macos")]
             {
                 autostart = autostart.macos_launcher(MacosLauncher::LaunchAgent);
@@ -258,9 +274,38 @@ pub fn run() {
                 collector_state,
             );
 
-            build_tray(app.handle())?;
+            // A missing/unsupported tray must never take down the app, so any
+            // failure building it is logged and recovered from.
+            #[cfg_attr(not(target_os = "linux"), allow(unused_variables))]
+            let tray_built = match build_tray(app.handle()) {
+                Ok(()) => true,
+                Err(err) => {
+                    tracing::warn!(
+                        target: "everr.app",
+                        error = %err,
+                        "system tray unavailable",
+                    );
+                    false
+                }
+            };
+
             if wizard_incomplete(&runtime)? {
                 open_settings_window(app.handle())?;
+            } else {
+                // On Linux the tray can be absent (no appindicator library) or
+                // present-but-invisible (e.g. stock GNOME with no StatusNotifier
+                // host). When no tray icon will actually be shown, surface the
+                // main window on launch so users can tell the app is running.
+                #[cfg(target_os = "linux")]
+                if !(tray_built && tray::status_notifier_host_available()) {
+                    if let Err(err) = tray::open_main_window(app.handle()) {
+                        tracing::warn!(
+                            target: "everr.app",
+                            error = %err,
+                            "failed to show main window on launch",
+                        );
+                    }
+                }
             }
             start_notifier_loop(app.handle().clone(), runtime.clone());
             start_state_change_loop(app.handle().clone(), runtime);

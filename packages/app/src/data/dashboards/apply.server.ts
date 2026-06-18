@@ -1,9 +1,9 @@
 import { and, eq } from "drizzle-orm";
+import { reconcile } from "@/data/as-code/reconcile";
 import type { Reconciler } from "@/data/as-code/registry";
 import { db } from "@/db/client";
 import { dashboards } from "@/db/schema";
 import { buildDesiredSet } from "./desired";
-import { reconcile } from "./reconcile";
 import type { Dashboard } from "./schema";
 
 export interface ApplyDashboardsResult {

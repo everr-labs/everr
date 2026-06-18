@@ -164,7 +164,7 @@ describe("insertAdminRows", () => {
       "app.alert_events",
       [
         {
-          organization_id: ORG,
+          tenant_id: ORG,
           alert_definition_id: "alert-1",
           repoid: "repo-1",
           slug: "high-5xx",
@@ -178,7 +178,7 @@ describe("insertAdminRows", () => {
       table: "app.alert_events",
       values: [
         {
-          organization_id: ORG,
+          tenant_id: ORG,
           alert_definition_id: "alert-1",
           repoid: "repo-1",
           slug: "high-5xx",

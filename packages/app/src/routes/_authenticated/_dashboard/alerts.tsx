@@ -29,10 +29,7 @@ import {
   type NormalizedAlertDeliverySettings,
   telegramBotTokenError,
 } from "@/data/alerts/delivery-settings";
-import {
-  validateEmailRecipient,
-  validateTelegramChatId,
-} from "@/data/alerts/recipients";
+import { validateTelegramChatId } from "@/data/alerts/recipients";
 import {
   type AlertSummary,
   getAlertSettings,
@@ -90,10 +87,9 @@ function AlertsPage() {
   const delivery = settings.data?.delivery;
   const hasChannel =
     !!delivery &&
-    ((delivery.email.enabled && delivery.email.to.length > 0) ||
-      (delivery.telegram.enabled &&
-        delivery.telegram.chatIds.length > 0 &&
-        delivery.telegram.botToken.length > 0));
+    delivery.telegram.enabled &&
+    delivery.telegram.chatIds.length > 0 &&
+    delivery.telegram.botToken.length > 0;
 
   const columns = useMemo<Column<AlertSummary>[]>(
     () => [
@@ -396,42 +392,6 @@ function NotificationSettingsForm({
       }}
     >
       <div className="flex flex-col gap-4">
-        <form.Field
-          name="email.enabled"
-          listeners={{
-            // Re-check the recipients rule when the channel is toggled.
-            onChange: ({ fieldApi }) =>
-              fieldApi.form.validateField("email.to", "change"),
-          }}
-        >
-          {(enabledField) => (
-            <form.Field
-              name="email.to"
-              validators={{
-                onChange: ({ value, fieldApi }) =>
-                  emptyChannelError(
-                    "email",
-                    fieldApi.form.state.values.email.enabled,
-                    value,
-                  ),
-              }}
-            >
-              {(toField) => (
-                <ChannelField
-                  label="Email"
-                  recipientsLabel="Email recipients"
-                  placeholder="team@example.com"
-                  enabled={enabledField.state.value}
-                  onEnabledChange={enabledField.handleChange}
-                  recipients={toField.state.value}
-                  onRecipientsChange={toField.handleChange}
-                  validate={validateEmailRecipient}
-                  error={toField.state.meta.errors[0]}
-                />
-              )}
-            </form.Field>
-          )}
-        </form.Field>
         <form.Field
           name="telegram.enabled"
           listeners={{

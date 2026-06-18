@@ -6,7 +6,7 @@ import { insertAdminRows } from "@/lib/clickhouse";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 
 export interface AlertEventRow {
-  organization_id: string;
+  tenant_id: string;
   alert_definition_id: string;
   repoid: string;
   slug: string;
@@ -119,7 +119,7 @@ export function buildEvaluationEvent(opts: {
   silenceId?: string;
 }): AlertEventRow {
   return {
-    organization_id: opts.def.organizationId,
+    tenant_id: opts.def.organizationId,
     alert_definition_id: opts.def.id,
     repoid: opts.def.repoid,
     slug: opts.def.slug,
@@ -166,7 +166,7 @@ export function buildDeliveryFailureEvent(opts: {
   failure: { channel: AlertChannel; target: string; error: string };
 }): AlertEventRow {
   return {
-    organization_id: opts.def.organizationId,
+    tenant_id: opts.def.organizationId,
     alert_definition_id: opts.def.id,
     repoid: opts.def.repoid,
     slug: opts.def.slug,
@@ -186,7 +186,7 @@ export function buildInstanceEvent(opts: {
   row?: Record<string, unknown>;
 }): AlertEventRow {
   return {
-    organization_id: opts.def.organizationId,
+    tenant_id: opts.def.organizationId,
     alert_definition_id: opts.def.id,
     repoid: opts.def.repoid,
     slug: opts.def.slug,

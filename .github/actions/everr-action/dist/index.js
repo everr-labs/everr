@@ -127912,10 +127912,11 @@ __nccwpck_require__.d(__webpack_exports__, {
   UU: () => (/* binding */ artifactNameForCheckRun),
   Bd: () => (/* binding */ buildRuntimePaths),
   FD: () => (/* binding */ bundledCliTargetForRuntime),
+  $q: () => (/* binding */ cliDownloadBinaryName),
   kB: () => (/* binding */ ensureSamplesFile),
   iA: () => (/* binding */ finalizeAndUploadResourceUsage),
   Wk: () => (/* binding */ src_formatError),
-  c4: () => (/* binding */ installBundledCli),
+  sE: () => (/* binding */ installCli),
   h: () => (/* binding */ isCliInstallEnabled),
   zB: () => (/* binding */ isResourceUsageEnabled),
   Y3: () => (/* binding */ normalizeCheckRunId),
@@ -127928,6 +127929,8 @@ __nccwpck_require__.d(__webpack_exports__, {
 
 ;// CONCATENATED MODULE: external "node:child_process"
 const external_node_child_process_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("node:child_process");
+// EXTERNAL MODULE: external "node:crypto"
+var external_node_crypto_ = __nccwpck_require__(77598);
 // EXTERNAL MODULE: ../../../node_modules/.pnpm/@actions+artifact@2.2.2/node_modules/@actions/artifact/lib/artifact.js
 var artifact = __nccwpck_require__(92785);
 // EXTERNAL MODULE: ../../../node_modules/.pnpm/@actions+core@1.11.1/node_modules/@actions/core/lib/core.js
@@ -128109,7 +128112,9 @@ async function finalizePartialArtifact({ samplesPath, outputDir, metadata, }) {
 
 
 
+
 const artifactClient = new artifact.DefaultArtifactClient();
+const CLI_DOWNLOAD_BASE_URL = "https://everr.dev/everr-app";
 const defaultSampleIntervalSeconds = "5";
 function artifactNameForCheckRun(checkRunId) {
     return `everr-resource-usage-v2-${checkRunId}`;
@@ -128161,7 +128166,36 @@ function bundledCliTargetForRuntime(platform = process.platform, arch = process.
     }
     return null;
 }
-async function installBundledCli({ actionRoot = resolveActionRoot(), addPath = core.addPath, arch = process.arch, fspModule = promises_, getInput = core.getInput, info = core.info, platform = process.platform, warning = core.warning, } = {}) {
+function cliDownloadBinaryName(target) {
+    switch (target) {
+        case "darwin-arm64":
+            return "everr";
+        case "linux-arm64":
+            return "everr-linux-arm64";
+        case "linux-x64":
+            return "everr-linux-x86_64";
+        default:
+            return null;
+    }
+}
+async function downloadFile(fetchImpl, url, destPath, fspModule) {
+    const response = await fetchImpl(url);
+    if (!response.ok) {
+        throw new Error(`HTTP ${response.status} for ${url}`);
+    }
+    const buffer = Buffer.from(await response.arrayBuffer());
+    await fspModule.writeFile(destPath, buffer);
+}
+async function verifyChecksum(filePath, checksumPath, fspModule) {
+    const checksumContent = await fspModule.readFile(checksumPath, "utf8");
+    const expectedHash = checksumContent.trim().split(/\s+/)[0];
+    const fileBuffer = await fspModule.readFile(filePath);
+    const actualHash = (0,external_node_crypto_.createHash)("sha256").update(fileBuffer).digest("hex");
+    if (expectedHash !== actualHash) {
+        throw new Error(`SHA-256 mismatch: expected ${expectedHash}, got ${actualHash}`);
+    }
+}
+async function installCli({ addPath = core.addPath, arch = process.arch, env = process.env, fetchImpl = fetch, fspModule = promises_, getInput = core.getInput, info = core.info, platform = process.platform, warning = core.warning, } = {}) {
     if (!isCliInstallEnabled(getInput)) {
         return { enabled: false };
     }
@@ -128170,23 +128204,29 @@ async function installBundledCli({ actionRoot = resolveActionRoot(), addPath = c
         warning(`install-cli skipped: unsupported runner ${platform}-${arch}`);
         return { enabled: true, failed: true };
     }
-    const binDir = external_node_path_.join(actionRoot, "bin", target);
-    const cliPath = external_node_path_.join(binDir, "everr");
+    const binaryName = cliDownloadBinaryName(target);
+    if (!binaryName) {
+        warning(`install-cli skipped: no binary name for target ${target}`);
+        return { enabled: true, failed: true, target };
+    }
+    const binaryUrl = `${CLI_DOWNLOAD_BASE_URL}/${binaryName}`;
+    const checksumUrl = `${CLI_DOWNLOAD_BASE_URL}/${binaryName}.sha256`;
+    const installDir = external_node_path_.join(env.RUNNER_TEMP || external_node_os_.tmpdir(), "everr-cli");
+    const cliPath = external_node_path_.join(installDir, "everr");
     try {
-        await fspModule.access(cliPath, external_node_fs_.constants.X_OK);
+        await fspModule.mkdir(installDir, { recursive: true });
+        await downloadFile(fetchImpl, binaryUrl, cliPath, fspModule);
+        await downloadFile(fetchImpl, checksumUrl, external_node_path_.join(installDir, `${binaryName}.sha256`), fspModule);
+        await verifyChecksum(cliPath, external_node_path_.join(installDir, `${binaryName}.sha256`), fspModule);
+        await fspModule.chmod(cliPath, 0o755);
+        addPath(installDir);
+        info(`installed Everr CLI for ${target} from ${binaryUrl}`);
+        return { enabled: true, path: cliPath, target };
     }
-    catch {
-        try {
-            await fspModule.chmod(cliPath, 0o755);
-        }
-        catch (error) {
-            warning(`install-cli skipped: bundled Everr CLI is unavailable: ${src_formatError(error)}`);
-            return { enabled: true, failed: true, target };
-        }
+    catch (error) {
+        warning(`install-cli skipped: failed to install Everr CLI: ${src_formatError(error)}`);
+        return { enabled: true, failed: true, target };
     }
-    addPath(binDir);
-    info(`installed bundled Everr CLI for ${target}`);
-    return { enabled: true, path: cliPath, target };
 }
 async function startResourceUsage({ env = process.env, fsModule = external_node_fs_, fspModule = promises_, saveState = core.saveState, getInput = core.getInput, info = core.info, warning = core.warning, now = () => new Date(), spawnImpl = external_node_child_process_namespaceObject.spawn, } = {}) {
     if (!isResourceUsageEnabled(getInput)) {
@@ -128194,8 +128234,9 @@ async function startResourceUsage({ env = process.env, fsModule = external_node_
         return { enabled: false };
     }
     const actionRoot = resolveActionRoot();
-    if (env.RUNNER_OS !== "Linux") {
-        info("resource-usage sampling is supported only on Linux runners");
+    const runnerOs = env.RUNNER_OS || "";
+    if (runnerOs !== "Linux" && runnerOs !== "macOS") {
+        info("resource-usage sampling is supported only on Linux and macOS runners");
         saveState("enabled", "0");
         return { enabled: false };
     }
@@ -128206,14 +128247,19 @@ async function startResourceUsage({ env = process.env, fsModule = external_node_
     }
     saveState("checkRunId", checkRunId);
     const { baseDir, samplesPath, pidPath, logPath } = buildRuntimePaths(env);
-    const samplerPath = external_node_path_.join(actionRoot, "scripts", "sampler.sh");
     const workspacePath = env.GITHUB_WORKSPACE || process.cwd();
     const startedAt = now().toISOString();
+    const isMacOS = runnerOs === "macOS";
+    const samplerPath = isMacOS
+        ? external_node_path_.join(actionRoot, "scripts", "sampler-macos.mjs")
+        : external_node_path_.join(actionRoot, "scripts", "sampler.sh");
+    const spawnFile = isMacOS ? "node" : "bash";
+    const spawnArgs = [samplerPath, samplesPath, workspacePath, defaultSampleIntervalSeconds];
     try {
         await fspModule.mkdir(baseDir, { recursive: true });
         await fspModule.writeFile(samplesPath, "", "utf8");
         const logFd = fsModule.openSync(logPath, "a");
-        const child = spawnImpl("bash", [samplerPath, samplesPath, workspacePath, defaultSampleIntervalSeconds], {
+        const child = spawnImpl(spawnFile, spawnArgs, {
             detached: true,
             stdio: ["ignore", logFd, logFd],
         });
@@ -128246,10 +128292,6 @@ async function startResourceUsage({ env = process.env, fsModule = external_node_
 async function finalizeAndUploadResourceUsage({ env = process.env, fspModule = promises_, readState = core.getState, info = core.info, warning = core.warning, now = () => new Date(), finalizeImpl = finalizePartialArtifact, resolveFilesystemInfo = resolveWorkspaceFilesystemInfo, uploadArtifactImpl = (name, files, rootDirectory, options) => artifactClient.uploadArtifact(name, files, rootDirectory, options), } = {}) {
     if (readState("enabled") !== "1") {
         return { enabled: false };
-    }
-    if (env.RUNNER_OS !== "Linux") {
-        warning("resource-usage finalization skipped: non-Linux runner (filesystem discovery uses GNU-only df flags)");
-        return { enabled: true, failed: true };
     }
     const checkRunId = readState("checkRunId");
     const samplesPath = readState("samplesPath");
@@ -128356,8 +128398,18 @@ function src_formatError(error) {
     }
     return String(error);
 }
-async function resolveWorkspaceFilesystemInfo(workspacePath) {
-    const { stdout } = await execFileWithOutput("df", ["-PkT", "--", workspacePath]);
+async function resolveWorkspaceFilesystemInfo(workspacePath, runnerOs = process.env.RUNNER_OS || "") {
+    if (runnerOs === "macOS") {
+        return resolveFilesystemInfoMacOS(workspacePath);
+    }
+    return resolveFilesystemInfoLinux(workspacePath);
+}
+async function resolveFilesystemInfoLinux(workspacePath) {
+    const { stdout } = await execFileWithOutput("df", [
+        "-PkT",
+        "--",
+        workspacePath,
+    ]);
     const lines = stdout
         .split("\n")
         .map((line) => line.trim())
@@ -128374,6 +128426,43 @@ async function resolveWorkspaceFilesystemInfo(workspacePath) {
         type: fields[1] || "",
         mountpoint: fields[6] || "",
     };
+}
+async function resolveFilesystemInfoMacOS(workspacePath) {
+    const { stdout } = await execFileWithOutput("df", [
+        "-Pk",
+        "--",
+        workspacePath,
+    ]);
+    const lines = stdout
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean);
+    if (lines.length < 2) {
+        throw new Error("df output did not include a filesystem row");
+    }
+    const fields = lines[1].split(/\s+/);
+    if (fields.length < 6) {
+        throw new Error("df output did not include device and mountpoint");
+    }
+    const device = fields[0] || "";
+    const mountpoint = fields[5] || "";
+    let type = "";
+    try {
+        const { stdout: mountOutput } = await execFileWithOutput("mount", []);
+        for (const line of mountOutput.split("\n")) {
+            if (line.includes(` on ${mountpoint} `)) {
+                const match = line.match(/\(([^,)]+)/);
+                if (match) {
+                    type = match[1];
+                }
+                break;
+            }
+        }
+    }
+    catch {
+        // filesystem type is best-effort on macOS
+    }
+    return { device, type, mountpoint };
 }
 async function execFileWithOutput(file, args) {
     return await new Promise((resolve, reject) => {
@@ -128393,7 +128482,7 @@ async function run() {
     const isPost = core.getState("isPost") === "true";
     if (!isPost) {
         core.saveState("isPost", "true");
-        await installBundledCli();
+        await installCli();
         await startResourceUsage();
         return;
     }
@@ -128410,10 +128499,11 @@ if (entrypointPath === (0,external_node_url_.fileURLToPath)(import.meta.url)) {
 var __webpack_exports__artifactNameForCheckRun = __webpack_exports__.UU;
 var __webpack_exports__buildRuntimePaths = __webpack_exports__.Bd;
 var __webpack_exports__bundledCliTargetForRuntime = __webpack_exports__.FD;
+var __webpack_exports__cliDownloadBinaryName = __webpack_exports__.$q;
 var __webpack_exports__ensureSamplesFile = __webpack_exports__.kB;
 var __webpack_exports__finalizeAndUploadResourceUsage = __webpack_exports__.iA;
 var __webpack_exports__formatError = __webpack_exports__.Wk;
-var __webpack_exports__installBundledCli = __webpack_exports__.c4;
+var __webpack_exports__installCli = __webpack_exports__.sE;
 var __webpack_exports__isCliInstallEnabled = __webpack_exports__.h;
 var __webpack_exports__isResourceUsageEnabled = __webpack_exports__.zB;
 var __webpack_exports__normalizeCheckRunId = __webpack_exports__.Y3;
@@ -128422,4 +128512,4 @@ var __webpack_exports__resolveCheckRunIdInput = __webpack_exports__.dI;
 var __webpack_exports__resolveWorkspaceFilesystemInfo = __webpack_exports__.RH;
 var __webpack_exports__startResourceUsage = __webpack_exports__.sk;
 var __webpack_exports__stopSampler = __webpack_exports__.X6;
-export { __webpack_exports__artifactNameForCheckRun as artifactNameForCheckRun, __webpack_exports__buildRuntimePaths as buildRuntimePaths, __webpack_exports__bundledCliTargetForRuntime as bundledCliTargetForRuntime, __webpack_exports__ensureSamplesFile as ensureSamplesFile, __webpack_exports__finalizeAndUploadResourceUsage as finalizeAndUploadResourceUsage, __webpack_exports__formatError as formatError, __webpack_exports__installBundledCli as installBundledCli, __webpack_exports__isCliInstallEnabled as isCliInstallEnabled, __webpack_exports__isResourceUsageEnabled as isResourceUsageEnabled, __webpack_exports__normalizeCheckRunId as normalizeCheckRunId, __webpack_exports__resolveActionRoot as resolveActionRoot, __webpack_exports__resolveCheckRunIdInput as resolveCheckRunIdInput, __webpack_exports__resolveWorkspaceFilesystemInfo as resolveWorkspaceFilesystemInfo, __webpack_exports__startResourceUsage as startResourceUsage, __webpack_exports__stopSampler as stopSampler };
+export { __webpack_exports__artifactNameForCheckRun as artifactNameForCheckRun, __webpack_exports__buildRuntimePaths as buildRuntimePaths, __webpack_exports__bundledCliTargetForRuntime as bundledCliTargetForRuntime, __webpack_exports__cliDownloadBinaryName as cliDownloadBinaryName, __webpack_exports__ensureSamplesFile as ensureSamplesFile, __webpack_exports__finalizeAndUploadResourceUsage as finalizeAndUploadResourceUsage, __webpack_exports__formatError as formatError, __webpack_exports__installCli as installCli, __webpack_exports__isCliInstallEnabled as isCliInstallEnabled, __webpack_exports__isResourceUsageEnabled as isResourceUsageEnabled, __webpack_exports__normalizeCheckRunId as normalizeCheckRunId, __webpack_exports__resolveActionRoot as resolveActionRoot, __webpack_exports__resolveCheckRunIdInput as resolveCheckRunIdInput, __webpack_exports__resolveWorkspaceFilesystemInfo as resolveWorkspaceFilesystemInfo, __webpack_exports__startResourceUsage as startResourceUsage, __webpack_exports__stopSampler as stopSampler };

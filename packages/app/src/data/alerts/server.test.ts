@@ -207,7 +207,7 @@ describe("updateAlertSettings", () => {
       updateAlertSettings({
         data: {
           delivery: {
-            email: { enabled: true, to: ["alerts@example.com"] },
+            telegram: { enabled: true, botToken: "token-1", chatIds: ["123"] },
           },
         },
       }),
@@ -218,16 +218,6 @@ describe("updateAlertSettings", () => {
   });
 
   it("rejects an enabled channel with no recipients", async () => {
-    await expect(
-      updateAlertSettings({
-        data: {
-          delivery: {
-            email: { enabled: true, to: [] },
-          },
-        },
-      }),
-    ).rejects.toThrow();
-
     await expect(
       updateAlertSettings({
         data: {
@@ -260,16 +250,6 @@ describe("updateAlertSettings", () => {
       updateAlertSettings({
         data: {
           delivery: {
-            email: { enabled: true, to: ["not-an-email"] },
-          },
-        },
-      }),
-    ).rejects.toThrow();
-
-    await expect(
-      updateAlertSettings({
-        data: {
-          delivery: {
             telegram: { enabled: true, chatIds: ["abc"] },
           },
         },
@@ -295,7 +275,6 @@ describe("updateAlertSettings", () => {
     expect(mocks.insertValues).toHaveBeenCalledWith(
       expect.objectContaining({
         delivery: {
-          email: { enabled: false, to: [] },
           telegram: {
             enabled: true,
             botToken: "token-1",
@@ -310,8 +289,7 @@ describe("updateAlertSettings", () => {
     await updateAlertSettings({
       data: {
         delivery: {
-          email: { enabled: false, to: [] },
-          telegram: { enabled: false, chatIds: [] },
+          telegram: { enabled: false, botToken: "", chatIds: [] },
         },
       },
     });
@@ -323,7 +301,11 @@ describe("updateAlertSettings", () => {
     await updateAlertSettings({
       data: {
         delivery: {
-          email: { enabled: true, to: ["alerts@example.com"] },
+          telegram: {
+            enabled: true,
+            botToken: "token-1",
+            chatIds: ["123"],
+          },
         },
       },
     });
@@ -332,8 +314,11 @@ describe("updateAlertSettings", () => {
       expect.objectContaining({
         organizationId: "test_org",
         delivery: {
-          email: { enabled: true, to: ["alerts@example.com"] },
-          telegram: { enabled: false, botToken: "", chatIds: [] },
+          telegram: {
+            enabled: true,
+            botToken: "token-1",
+            chatIds: ["123"],
+          },
         },
       }),
     );
@@ -434,7 +419,7 @@ describe("listAlertEvents", () => {
         rowCount: 3,
         evidenceTruncated: 0,
         evidenceJson: "{}",
-        deliveryTargetsJson: `{"email":["alerts@example.com"]}`,
+        deliveryTargetsJson: `{"telegram":["123"]}`,
         silenceId: "",
         instanceLabelsJson: [`{"route":"/a"}`],
       },
@@ -466,7 +451,7 @@ describe("listAlertEvents", () => {
     expect(query).toHaveBeenCalledTimes(1);
     const sql = vi.mocked(query).mock.calls[0]?.[0] ?? "";
     expect(sql).toContain("FROM app.alert_events");
-    expect(sql).toContain("organization_id = {organizationId:String}");
+    expect(sql).toContain("tenant_id = {organizationId:String}");
     expect(sql).toContain("repoid = {repoid:String}");
     expect(sql).toContain("slug = {slug:String}");
     expect(sql).toContain("alert_definition_id = {alertDefinitionId:String}");
@@ -500,7 +485,7 @@ describe("listAlertEvents", () => {
       eventId: "event-1",
       evaluationScheduledAt: null,
       evidenceTruncated: false,
-      deliveryTargets: { email: ["alerts@example.com"] },
+      deliveryTargets: { telegram: ["123"] },
       instances: [{ state: "firing", labels: { route: "/a" } }],
     });
     expect(events[1]).toMatchObject({

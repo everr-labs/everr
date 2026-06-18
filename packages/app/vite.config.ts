@@ -61,7 +61,9 @@ const config = defineConfig(({ mode }) => {
           routeFileIgnorePattern: "\\.test\\.",
         },
       }),
-      nitro(),
+      nitro({
+        traceDeps: ["tslib*"],
+      }),
       viteReact(),
     ],
   };

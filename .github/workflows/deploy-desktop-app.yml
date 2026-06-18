@@ -26,6 +26,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Collect resource usage
+        uses: ./.github/actions/everr-action
+        with:
+          check-run-id: ${{ job.check_run_id }}
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
 
@@ -225,6 +230,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Collect resource usage
+        uses: ./.github/actions/everr-action
+        with:
+          check-run-id: ${{ job.check_run_id }}
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
@@ -264,6 +274,99 @@ jobs:
           retention-days: 14
           compression-level: 0
 
+  # Builds installable Linux desktop bundles (deb/rpm/appimage) and uploads them
+  # as workflow artifacts. Intentionally NOT a dependency of package-release, so
+  # a failure here never blocks the macOS release. Publishing these to everr.dev
+  # is a follow-up (stage them into the release payload + teach everr-deploy to
+  # serve them, plus a Linux `latest.json` if auto-update is wanted).
+  build-linux-desktop:
+    name: Build Linux Desktop ${{ matrix.name }}
+    if: false
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: arm64
+            runner: blacksmith-2vcpu-ubuntu-2404-arm
+          - name: x86_64
+            runner: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: collector/go.mod
+          cache-dependency-path: |
+            collector/**/go.sum
+
+      - name: Install Linux build dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev \
+            libssl-dev librsvg2-dev libayatana-appindicator3-dev \
+            build-essential curl wget file
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Linux desktop bundles
+        env:
+          EVERR_INGEST_KEY: ${{ secrets.EVERR_INGEST_KEY }}
+        run: |
+          set -euo pipefail
+          # beforeBuildCommand runs desktop:prepare:release (embeds the Linux
+          # collector + chDB) and frontend:build. Skip updater artifacts: the
+          # Tauri auto-updater is macOS-only today.
+          pnpm --dir packages/desktop-app tauri build \
+            --bundles deb,rpm,appimage \
+            --config '{"bundle":{"createUpdaterArtifacts":false}}'
+
+      - name: Stage Linux desktop bundles
+        run: |
+          set -euo pipefail
+          out="target/linux-desktop-release"
+          mkdir -p "$out"
+          find target/release/bundle \
+            \( -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' \) \
+            -exec cp {} "$out"/ \;
+          (
+            cd "$out"
+            for f in *; do sha256sum "$f" > "$f.sha256"; done
+          )
+          ls -la "$out"
+
+      - name: Upload Linux desktop bundles
+        uses: actions/upload-artifact@v4
+        with:
+          name: everr-linux-desktop-${{ matrix.name }}-${{ github.sha }}
+          path: target/linux-desktop-release
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
   package-release:
     name: Package Release
     runs-on: ubuntu-24.04
@@ -273,6 +376,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Collect resource usage
+        uses: ./.github/actions/everr-action
+        with:
+          check-run-id: ${{ job.check_run_id }}
 
       - name: Download desktop payload
         uses: actions/download-artifact@v4
@@ -310,23 +418,6 @@ jobs:
             cp "target/linux-cli-release/$asset" "target/desktop-release/$asset"
             cp "target/linux-cli-release/$asset.sha256" "target/desktop-release/$asset.sha256"
           done
-
-      - name: Stage action bundled CLI assets
-        run: |
-          set -euo pipefail
-
-          action_bin="target/action-bundled-cli"
-          rm -rf "$action_bin"
-          mkdir -p "$action_bin/darwin-arm64" "$action_bin/linux-arm64" "$action_bin/linux-x64"
-
-          cp target/desktop-release/everr "$action_bin/darwin-arm64/everr"
-          cp target/desktop-release/everr.sha256 "$action_bin/darwin-arm64/everr.sha256"
-          cp target/desktop-release/everr-linux-arm64 "$action_bin/linux-arm64/everr"
-          cp target/desktop-release/everr-linux-arm64.sha256 "$action_bin/linux-arm64/everr.sha256"
-          cp target/desktop-release/everr-linux-x86_64 "$action_bin/linux-x64/everr"
-          cp target/desktop-release/everr-linux-x86_64.sha256 "$action_bin/linux-x64/everr.sha256"
-
-          chmod +x "$action_bin/darwin-arm64/everr" "$action_bin/linux-arm64/everr" "$action_bin/linux-x64/everr"
 
       - name: Refresh release metadata and checksums
         run: |
@@ -410,56 +501,6 @@ jobs:
           retention-days: 14
           compression-level: 0
 
-      - name: Upload action bundled CLI artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: everr-action-bundled-cli-${{ steps.version.outputs.version }}
-          path: target/action-bundled-cli
-          if-no-files-found: error
-          retention-days: 14
-          compression-level: 0
-
-      - name: Generate GitHub App token for action repo
-        id: action-repo-token
-        uses: actions/create-github-app-token@v3
-        with:
-          app-id: ${{ secrets.EVERR_DEPLOY_BOT_APP_ID }}
-          private-key: ${{ secrets.EVERR_DEPLOY_BOT_PRIVATE_KEY }}
-          owner: everr-labs
-          repositories: everr-action
-
-      - name: Push bundled CLI assets to action repo
-        env:
-          GH_TOKEN: ${{ steps.action-repo-token.outputs.token }}
-          SRC_SHA: ${{ github.sha }}
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          set -euo pipefail
-
-          work="${RUNNER_TEMP}/everr-action-clone"
-          rm -rf "$work"
-          git clone --depth 1 --branch main \
-            "https://x-access-token:${GH_TOKEN}@github.com/everr-labs/everr-action.git" "$work"
-
-          cd "$work"
-          git config user.name "everr-action-bot"
-          git config user.email "everr-action-bot@users.noreply.github.com"
-
-          rm -rf bin
-          mkdir -p bin
-          cp -R "${GITHUB_WORKSPACE}/target/action-bundled-cli"/. bin/
-
-          git add -A bin
-          if git diff --cached --quiet; then
-            echo "No bundled CLI asset changes to publish."
-          else
-            git commit -m "Update bundled CLI ${VERSION} (from everr-labs/everr@${SRC_SHA})"
-            git push origin main || {
-              git pull --rebase origin main
-              git push origin main
-            }
-          fi
-
   notify-deploy:
     name: Notify Deploy Repo
     runs-on: blacksmith-2vcpu-ubuntu-2404
@@ -467,6 +508,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Collect resource usage
+        uses: ./.github/actions/everr-action
+        with:
+          check-run-id: ${{ job.check_run_id }}
 
       - name: Read desktop app version
         id: version

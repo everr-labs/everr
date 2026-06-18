@@ -1,6 +1,6 @@
 ---
 title: Organizing Dashboards and Projects
-description: Use directories for folders, manage dashboards from multiple repos with projects, and apply from CI.
+description: Use directories for folders, a repoid to manage dashboards from multiple repos, and apply from CI.
 ---
 
 As you add dashboards, two things matter: how they're grouped in the UI, and how multiple teams or repos contribute without stepping on each other. Both come from how `everr apply` works.
@@ -11,7 +11,7 @@ The dashboards index shows a folder tree. You don't define folders — they're d
 
 ```
 dashboards/
-  everr.yaml                    -> manifest (declares the projects)
+  everr.yaml                    -> manifest (declares the repoid)
   overview.yaml                 -> root
   platform/
     api-latency.yaml            -> folder "platform"
@@ -25,30 +25,26 @@ Directory segments become the folder path, joined by ` / `. Underscores and hyph
 
 ## The manifest declares what you manage
 
-Every apply directory must contain an `everr.yaml` (or `everr.yml`) at its root that lists the projects it manages:
+Every apply directory must contain an `everr.yaml` (or `everr.yml`) at its root declaring a stable `repoid`:
 
 ```yaml
 # dashboards/everr.yaml
-projects:
-  - default
-  - platform
+repoid: "2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1"
 ```
 
-This list is the **authoritative reconcile scope**. `everr apply` reads and reconciles exactly the projects named here — nothing else is touched. There is no implicit `default`: to manage the default project you must list `default` explicitly. Every dashboard's `metadata.project` (or `default` when omitted) must appear in the list, or apply rejects it, naming the file and project.
+The `repoid` is the **apply ownership boundary**. `everr apply` reconciles exactly the resources previously applied under this id — nothing else is touched. Use one stable id per repository (a UUID is a good default); never reuse a repoid across unrelated repos, and never change it for an existing setup (that orphans everything applied under the old id, leaving the old resources live but unmanaged). It is the only key the manifest accepts.
 
-## Projects: who owns what
+## Projects namespace identity
 
-Every dashboard belongs to a project, declared in `metadata.project` (defaults to `default`). A project is an identifier you choose for a set of dashboards — typically one per repo or team (`platform`, `team-payments`). It does two things:
+Independently of the repoid, every dashboard may declare a `metadata.project` (defaults to `default`). A project is an identifier you choose for a set of dashboards — typically one per team (`platform`, `team-payments`). It **namespaces identity**: a dashboard's full identity is `project` + `slug`, and its URL is `/dashboards/<project>/<slug>`, so two projects can both have an `overview` dashboard without colliding. It is optional and does **not** need to appear in the manifest.
 
-1. **Namespaces identity.** A dashboard's full identity is `project` + `slug`, and its URL is `/dashboards/<project>/<slug>`. Two projects can both have an `overview` dashboard without colliding.
-2. **Scopes reconciliation.** `everr apply` makes each declared project's dashboards exactly match its files — and only affects the projects listed in `everr.yaml`. It can never modify another project's (or another organization's) dashboards.
+## Multiple repos stay isolated by repoid
 
-This is what makes multiple repos safe. Each repo's `everr.yaml` lists only its own projects, so repos with disjoint project lists never affect each other — a repo can only ever change the dashboards in the projects it declares.
+Give each repo its own `repoid`, and applies never collide: `everr apply` only ever touches resources under the repoid in that repo's `everr.yaml`. It can never modify another repo's (or another organization's) dashboards.
 
 ```yaml
 # platform repo — dashboards/everr.yaml
-projects:
-  - platform
+repoid: "0b6c1f4e-8a21-4d3b-9f17-2c5e7a9d6b04"
 ```
 
 ```yaml
@@ -63,8 +59,7 @@ spec:
 
 ```yaml
 # payments repo — dashboards/everr.yaml
-projects:
-  - team-payments
+repoid: "9d2a77c3-1e54-4f8a-b6d0-3a8c1f2e5b97"
 ```
 
 ```yaml
@@ -87,15 +82,15 @@ everr apply ./dashboards
 everr apply ./dashboards
 ```
 
-## Full reconcile, scoped to the declared projects
+## Full reconcile, scoped to the repoid
 
-`everr apply` is declarative. For each project listed in `everr.yaml` it makes the live dashboards exactly match the files:
+`everr apply` is declarative. For everything under the repoid it makes the live dashboards exactly match the files:
 
 - **create** dashboards whose files are new,
 - **update** dashboards whose files changed,
 - **delete** dashboards whose files are no longer present.
 
-There is no separate prune step — removing a file removes the dashboard on the next apply, moving a dashboard's file between two declared projects relocates it (no duplicate), and emptying a declared project removes its last dashboard. It's safe because reconciliation only ever applies within the projects named in `everr.yaml`. Always preview with `--dry-run` first:
+There is no separate prune step — removing a file removes the dashboard on the next apply, moving a dashboard's file within the tree relocates it (no duplicate), and emptying the tree removes its last dashboard. It's safe because reconciliation only ever applies within the repoid declared in `everr.yaml`. Always preview with `--dry-run` first:
 
 ```sh
 everr apply ./dashboards --dry-run
