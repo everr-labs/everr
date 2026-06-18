@@ -12,8 +12,12 @@ export { browserApiErrorsIntegration } from "./integrations/browser-api-errors.j
 export { browserGlobalHandlersIntegration } from "./integrations/browser-globals.js";
 export type { ErrorEvent, Integration, Mechanism, Options } from "./types.js";
 
+// `browserApiErrors` patches setTimeout/setInterval/requestAnimationFrame/
+// addEventListener globally, so it is opt-in rather than a default. Add it
+// explicitly when capturing third-party script errors matters:
+//   init({ integrations: [...browserDefaultIntegrations(), browserApiErrorsIntegration()] })
 export function browserDefaultIntegrations(): Integration[] {
-  return [browserGlobalHandlersIntegration(), browserApiErrorsIntegration()];
+  return [browserGlobalHandlersIntegration()];
 }
 
 export function init(options: Options = {}): Client {

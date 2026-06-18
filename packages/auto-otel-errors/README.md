@@ -1,6 +1,6 @@
 # @everr/auto-otel-errors
 
-Automatic error tracking that emits through OpenTelemetry. The package captures uncaught exceptions, unhandled rejections, and framework errors as OTel exception log events, and exposes `captureError` for manual capture. In the browser it also wraps `setTimeout`/`setInterval`/`requestAnimationFrame`/`addEventListener` callbacks (`browserApiErrors`) to capture errors thrown there with a real stack — including the cross-origin `"Script error."` cases the `window` `error` handler can't see. It only reads the global OTel API registries; if the host app has no global `LoggerProvider`, capture is a no-op.
+Automatic error tracking that emits through OpenTelemetry. The package captures uncaught exceptions, unhandled rejections, and framework errors as OTel exception log events, and exposes `captureError` for manual capture. It only reads the global OTel API registries; if the host app has no global `LoggerProvider`, capture is a no-op.
 
 ## Install
 
@@ -44,6 +44,26 @@ import { captureError } from "@everr/auto-otel-errors";
 
 captureError(new Error("payment failed"), { feature: "billing" });
 ```
+
+## Capturing Third-Party Script Errors (`browserApiErrors`)
+
+By default the browser entry only installs the `window` `error`/`unhandledrejection` handlers. The optional `browserApiErrors` integration additionally wraps `setTimeout`/`setInterval`/`requestAnimationFrame`/`addEventListener` callbacks so errors thrown inside them are captured with a real stack — including the cross-origin `"Script error."` cases the `window` `error` handler can't see.
+
+It is **off by default** because it patches those globals process-wide. Enable it when capturing errors from third-party scripts (analytics, embeds, payment widgets) matters:
+
+```ts
+import {
+  init,
+  browserDefaultIntegrations,
+  browserApiErrorsIntegration,
+} from "@everr/auto-otel-errors/browser";
+
+init({
+  integrations: [...browserDefaultIntegrations(), browserApiErrorsIntegration()],
+});
+```
+
+`integrations` replaces the defaults, so spread `browserDefaultIntegrations()` to keep the global handlers.
 
 ## Frameworks
 

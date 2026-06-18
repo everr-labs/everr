@@ -24,7 +24,7 @@ describe("entry points", () => {
       browserEntry
         .browserDefaultIntegrations()
         .map((integration) => integration.name),
-    ).toEqual(["browserGlobalHandlers", "browserApiErrors"]);
+    ).toEqual(["browserGlobalHandlers"]);
   });
 
   it("browser init installs default capture handlers", async () => {
