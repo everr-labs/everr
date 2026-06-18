@@ -25,7 +25,9 @@ import type {
 } from "./types.js";
 
 export const PKG_NAME = "@everr/auto-otel-errors";
-const PKG_VERSION = "0.1.0";
+declare const __PACKAGE_VERSION__: string | undefined;
+const PKG_VERSION =
+  typeof __PACKAGE_VERSION__ === "string" ? __PACKAGE_VERSION__ : "0.0.0-dev";
 
 export type Runtime = "node" | "browser";
 

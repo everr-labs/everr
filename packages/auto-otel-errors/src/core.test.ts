@@ -1,3 +1,4 @@
+import { diag } from "@opentelemetry/api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { captureError, getClient, initClient, teardown } from "./core.js";
 import { setupTestTelemetry } from "./test-utils.js";
@@ -65,8 +66,12 @@ describe("core API", () => {
   });
 
   it("captureError is a no-op before init", () => {
+    const warn = vi.spyOn(diag, "warn").mockImplementation(() => {});
     expect(() => captureError(new Error("ignored"))).not.toThrow();
     expect(otel.records()).toHaveLength(0);
+    expect(warn).toHaveBeenCalledWith(
+      "@everr/auto-otel-errors: captureError called before init(); error dropped",
+    );
   });
 
   it("teardown tears down integrations and clears the client", () => {

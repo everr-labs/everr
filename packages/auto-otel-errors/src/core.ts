@@ -38,7 +38,12 @@ export function captureError(
   const handled =
     options?.handled ?? (typeof handledAttr === "boolean" ? handledAttr : true);
 
-  activeClient?.capture({ error, mechanism: "manual", handled, attributes });
+  if (!activeClient) {
+    diag.warn(`${PKG_NAME}: captureError called before init(); error dropped`);
+    return;
+  }
+
+  activeClient.capture({ error, mechanism: "manual", handled, attributes });
 }
 
 export function teardown(): void {

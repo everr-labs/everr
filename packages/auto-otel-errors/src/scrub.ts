@@ -24,10 +24,60 @@ export const SENSITIVE_KEY_SNIPPETS = [
   "identity",
 ];
 
+const SHORT_SENSITIVE_KEY_SNIPPETS = new Set([
+  "auth",
+  "key",
+  "sid",
+  "pwd",
+  "jwt",
+  "sso",
+  "saml",
+  "csrf",
+  "xsrf",
+]);
+
 export type CollectBehavior = boolean | { allow: string[] } | { deny: string[] };
 
 function isSensitiveKey(lower: string): boolean {
-  return SENSITIVE_KEY_SNIPPETS.some((snippet) => lower.includes(snippet));
+  return SENSITIVE_KEY_SNIPPETS.some((snippet) =>
+    SHORT_SENSITIVE_KEY_SNIPPETS.has(snippet)
+      ? hasSensitiveShortKey(lower, snippet)
+      : lower.includes(snippet),
+  );
+}
+
+function hasSensitiveShortKey(lower: string, snippet: string): boolean {
+  if (hasDelimitedTerm(lower, snippet)) {
+    return true;
+  }
+
+  if (snippet === "auth") {
+    return lower.includes("authorization") || lower.includes("authenticat");
+  }
+
+  if (snippet === "key") {
+    return lower.includes("apikey") || lower.includes("accesskey");
+  }
+
+  return false;
+}
+
+function hasDelimitedTerm(value: string, term: string): boolean {
+  let index = value.indexOf(term);
+  while (index !== -1) {
+    const before = index === 0 ? "" : value[index - 1]!;
+    const afterIndex = index + term.length;
+    const after = afterIndex >= value.length ? "" : value[afterIndex]!;
+    if (!isAlphaNumeric(before) && !isAlphaNumeric(after)) {
+      return true;
+    }
+    index = value.indexOf(term, index + 1);
+  }
+  return false;
+}
+
+function isAlphaNumeric(char: string): boolean {
+  return /^[a-z0-9]$/.test(char);
 }
 
 export function filterKeyValueData(

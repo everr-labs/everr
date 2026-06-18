@@ -85,17 +85,39 @@ describe("filterKeyValueData", () => {
     const result = filterKeyValueData(
       {
         authorization: "Bearer token123",
+        "x-auth-token": "token456",
         "content-type": "application/json",
         password: "secret",
         "x-api-key": "key123",
+        apiKey: "key456",
       },
       true,
     );
     expect(result).toEqual({
       authorization: "[Filtered]",
+      "x-auth-token": "[Filtered]",
       "content-type": "application/json",
       password: "[Filtered]",
       "x-api-key": "[Filtered]",
+      apiKey: "[Filtered]",
+    });
+  });
+
+  it("does not filter ordinary words containing short sensitive snippets", () => {
+    const result = filterKeyValueData(
+      {
+        monkey: "banana",
+        keyboard: "ansi",
+        author: "Ada",
+        authority: "docs",
+      },
+      true,
+    );
+    expect(result).toEqual({
+      monkey: "banana",
+      keyboard: "ansi",
+      author: "Ada",
+      authority: "docs",
     });
   });
 

@@ -1,5 +1,7 @@
 import { defineConfig } from "tsdown";
 
+const packageVersion = process.env.npm_package_version ?? "0.0.0-dev";
+
 export default defineConfig({
   entry: {
     node: "src/node.ts",
@@ -12,4 +14,7 @@ export default defineConfig({
   dts: true,
   platform: "neutral",
   external: [/^@opentelemetry\//, "react", /^node:/],
+  define: {
+    __PACKAGE_VERSION__: JSON.stringify(packageVersion),
+  },
 });
