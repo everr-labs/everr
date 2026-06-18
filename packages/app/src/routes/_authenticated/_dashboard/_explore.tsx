@@ -1,6 +1,4 @@
-import { ErrorsExploreFilters } from "@everr/telemetry-explorer/errors";
-import { LogsExploreFilters } from "@everr/telemetry-explorer/logs";
-import { TracesExploreFilters } from "@everr/telemetry-explorer/traces";
+import { ExploreGlobalFilters } from "@everr/telemetry-explorer/filters";
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import {
   createFileRoute,
@@ -10,7 +8,6 @@ import {
   useRouterState,
   useSearch,
 } from "@tanstack/react-router";
-import { remoteErrorsRepo } from "@/data/errors/remote-repo";
 import { remoteRepo } from "@/data/logs-explorer/remote-repo";
 import { remoteTracesRepo } from "@/data/traces/remote-repo";
 import { ExploreSearchSchema } from "@/lib/explore-search";
@@ -44,7 +41,6 @@ function ExploreLayout() {
   const navigate = useNavigate();
   const dashSearch = useSearch({ from: "/_authenticated/_dashboard" });
   const { timeRange } = withTimeRange(dashSearch);
-  const refresh = dashSearch.refresh ?? "off";
 
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const domain = domainFromPath(pathname);
@@ -79,38 +75,18 @@ function ExploreLayout() {
     <div className="flex min-h-0 flex-1 flex-col">
       {showBar ? (
         <div className="flex h-12 items-center justify-start gap-2 border-b border-sidebar-border bg-sidebar px-3">
-          {domain === "logs" ? (
-            <LogsExploreFilters
-              repo={remoteRepo}
-              timeRange={timeRange}
-              service={service}
-              environment={environment}
-              onServiceChange={onServiceChange}
-              onEnvironmentChange={onEnvironmentChange}
-            />
-          ) : null}
-          {domain === "errors" ? (
-            <ErrorsExploreFilters
-              repo={remoteErrorsRepo}
-              timeRange={timeRange}
-              refresh={refresh}
-              service={service}
-              environment={environment}
-              onServiceChange={onServiceChange}
-              onEnvironmentChange={onEnvironmentChange}
-            />
-          ) : null}
-          {domain === "traces" ? (
-            <TracesExploreFilters
-              repo={remoteTracesRepo}
-              timeRange={timeRange}
-              refresh={refresh}
-              service={service}
-              environment={environment}
-              onServiceChange={onServiceChange}
-              onEnvironmentChange={onEnvironmentChange}
-            />
-          ) : null}
+          {/* One filter bar for every Explore view: the Service/Environment
+              options are the union across logs + traces, so they no longer
+              depend on which domain you are currently looking at. */}
+          <ExploreGlobalFilters
+            logsRepo={remoteRepo}
+            tracesRepo={remoteTracesRepo}
+            timeRange={timeRange}
+            service={service}
+            environment={environment}
+            onServiceChange={onServiceChange}
+            onEnvironmentChange={onEnvironmentChange}
+          />
         </div>
       ) : null}
       <div className="flex min-h-0 flex-1 flex-col">

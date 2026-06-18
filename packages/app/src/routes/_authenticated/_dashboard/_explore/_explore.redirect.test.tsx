@@ -50,8 +50,8 @@ vi.mock("@/data/traces/remote-repo", () => ({
   remoteTracesRepo: {},
 }));
 
-vi.mock("@everr/telemetry-explorer/logs", () => ({
-  LogsExploreFilters: ({
+vi.mock("@everr/telemetry-explorer/filters", () => ({
+  ExploreGlobalFilters: ({
     onServiceChange,
   }: {
     onServiceChange: (v: string[]) => void;
@@ -64,14 +64,6 @@ vi.mock("@everr/telemetry-explorer/logs", () => ({
       set
     </button>
   ),
-}));
-
-vi.mock("@everr/telemetry-explorer/errors", () => ({
-  ErrorsExploreFilters: () => <div>errors filters stub</div>,
-}));
-
-vi.mock("@everr/telemetry-explorer/traces", () => ({
-  TracesExploreFilters: () => <div>traces filters stub</div>,
 }));
 
 describe("ExploreLayout — service filter does not redirect to homepage", () => {
