@@ -1,10 +1,10 @@
 # Tauri Instrumentation
 
-Use this rule for Tauri v2 apps that need error telemetry from both the Rust backend and the browser webview.
+Use this rule for Tauri v2 apps that need telemetry from both the Rust backend and the browser webview.
 
-The webview cannot reach the collector directly, so Rust is an **OTLP passthrough proxy**: the browser runs normal OTel providers + exporters, serializes each batch to encoded OTLP, and hands the bytes to a Rust command that forwards them to the collector unchanged. **Rust must not decode, map, or rebuild browser telemetry.** Forwarding the encoded request verbatim preserves the resource, scope, severity, and attributes the renderer produced; reconstructing log records on the Rust side loses that fidelity for no benefit.
+The webview cannot reach the collector directly, so Rust is an **OTLP passthrough proxy**: the browser runs normal OTel providers + exporters, serializes each batch to encoded OTLP, and hands the bytes to a Rust command that forwards them to the collector unchanged. **Rust must not decode, map, or rebuild browser telemetry.** Forwarding the encoded request verbatim preserves the resource, scope, severity, and attributes the renderer produced; reconstructing records on the Rust side loses that fidelity for no benefit.
 
-Keep Rust's own backend telemetry (lifecycle, panics, sidecar) on its direct SDK exporter; only browser telemetry goes through the proxy.
+The Rust backend is itself a Rust process: set up its own telemetry per `rust.md` and error tracking per `error-tracking.md`, and reuse that exporter config (endpoint + headers) to drive the proxy. Only browser telemetry goes through the proxy; Rust's own logs, traces, and metrics export directly through its SDK.
 
 This rule is app-agnostic. Resolve concrete service names, release version, environment, and endpoint from the app before editing code. Use placeholders in plans until the values are known:
 
@@ -18,7 +18,7 @@ This rule is app-agnostic. Resolve concrete service names, release version, envi
 
 Rust owns the per-process app session UUID and release version. The browser must get that context from Rust through a Tauri command so both sides share the same session identity.
 
-Required resource attributes on both Rust and browser logs:
+Required resource attributes on both Rust and browser telemetry:
 
 - `service.name`
 - `service.version`
@@ -34,32 +34,27 @@ Choose service names from the app, not from this rule. Use a stable backend name
 
 ## Package Setup
 
-Use the app's package manager for the browser dependencies. `@opentelemetry/otlp-transformer` provides the serializers that turn spans/logs into OTLP the proxy forwards; add `@opentelemetry/sdk-trace-base` if the browser emits spans:
+Browser dependencies. `@opentelemetry/otlp-transformer` provides the serializers that turn each signal into OTLP the proxy forwards:
 
 ```bash
-pnpm add @opentelemetry/api @opentelemetry/api-logs @opentelemetry/core @opentelemetry/otlp-transformer @opentelemetry/resources @opentelemetry/sdk-logs @opentelemetry/sdk-trace-base @opentelemetry/semantic-conventions @tauri-apps/api
+pnpm add @everr/auto-otel-errors @opentelemetry/api @opentelemetry/api-logs @opentelemetry/core @opentelemetry/otlp-transformer @opentelemetry/resources @opentelemetry/sdk-logs @opentelemetry/sdk-trace-base @opentelemetry/sdk-metrics @opentelemetry/semantic-conventions @tauri-apps/api
 ```
 
 Use equivalent `npm install` or `yarn add` commands when the project does not use pnpm.
 
-Rust dependencies. The proxy POSTs the forwarded bytes with an async HTTP client; the OTel deps remain for Rust's own backend telemetry:
+Rust dependencies. The OpenTelemetry crates come from `rust.md` (they drive the backend's own telemetry). The proxy delta only adds an async HTTP client, serde for the command response, and a UUID for the session id:
 
 ```toml
+# Plus the OpenTelemetry crates from rust.md.
 [dependencies]
-opentelemetry = { version = "0.30", features = ["logs"] }
-opentelemetry_sdk = { version = "0.30", features = ["logs", "rt-tokio"] }
-opentelemetry-otlp = { version = "0.30", features = ["http-proto", "logs", "reqwest-rustls", "reqwest-blocking-client"] }
-opentelemetry-appender-tracing = "0.30"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 serde = { version = "1", features = ["derive"] }
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "registry"] }
-uuid = { version = "1", features = ["v4", "serde"] }
+uuid = { version = "1", features = ["v4"] }
 ```
 
 ## Runtime Configuration
 
-Only Rust reads exporter configuration. The browser runs its own OTel providers (a `LoggerProvider`, plus a `TracerProvider` if it emits spans) with a custom exporter that serializes each batch to OTLP/JSON and calls `proxy_otlp`. Rust forwards the encoded bytes to `{endpoint}/v1/{signal}` with the configured headers, without parsing them. Rust's own backend telemetry still exports directly through its SDK.
+Only Rust reads exporter configuration (per `rust.md`). The browser runs its own OTel providers (`LoggerProvider`, `TracerProvider`, `MeterProvider`) with custom exporters that serialize each batch to OTLP/JSON and call `proxy_otlp`. Rust forwards the encoded bytes to `{endpoint}/v1/{signal}` with the configured headers, without parsing them.
 
 Local development:
 
@@ -76,7 +71,7 @@ EVERR_INGEST_KEY=<secret-manager-reference>
 
 ## Rust Context
 
-Create one telemetry context during app startup. Keep the service names as constants or resolved configuration values for the app.
+The only Tauri-specific Rust state is the shared session context. Generate the session UUID once at startup, build the resource the `rust.md` setup uses for the backend SDK, and return the same values to the browser through a command so both sides share `service.instance.id`.
 
 ```rust
 use opentelemetry::KeyValue;
@@ -112,6 +107,9 @@ impl TelemetryContext {
         }
     }
 
+    /// Pass this into the rust.md setup so the backend SDK and the browser
+    /// share the same session identity. Extend rust.md's `resource()` to merge
+    /// these attributes onto the hardcoded `service.name`.
     pub fn resource(&self) -> Resource {
         Resource::builder()
             .with_service_name(RUST_SERVICE_NAME)
@@ -136,91 +134,9 @@ impl TelemetryContext {
 
 Resolve the release version from the Tauri app/package metadata or build system. Resolve the deployment environment from the app's existing environment conventions.
 
-## Rust Log Exporter
-
-Install a Rust logs-only OTel provider. Bridge `tracing` events into OTel logs.
-
-```rust
-use opentelemetry::logs::LoggerProvider as _;
-use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
-use opentelemetry_otlp::{Protocol, WithExportConfig, WithHttpConfig};
-use opentelemetry_sdk::logs::SdkLoggerProvider;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
-
-pub struct TelemetryGuard {
-    logger_provider: Option<SdkLoggerProvider>,
-}
-
-impl TelemetryGuard {
-    pub fn shutdown(mut self) {
-        if let Some(provider) = self.logger_provider.take() {
-            let _ = provider.shutdown();
-        }
-    }
-}
-
-impl Drop for TelemetryGuard {
-    fn drop(&mut self) {
-        if let Some(provider) = self.logger_provider.take() {
-            let _ = provider.shutdown();
-        }
-    }
-}
-
-pub fn init_telemetry(
-    context: TelemetryContext,
-    endpoint: &str,
-    headers: std::collections::HashMap<String, String>,
-) -> Result<(TelemetryGuard, OtlpProxy, TelemetryContext), Box<dyn std::error::Error + Send + Sync>> {
-    // Rust's own telemetry exports directly through the SDK. Browser telemetry is
-    // forwarded as opaque OTLP by proxy_otlp and never touches this pipeline.
-    let log_exporter = opentelemetry_otlp::LogExporter::builder()
-        .with_http()
-        .with_protocol(Protocol::HttpBinary)
-        .with_endpoint(signal_endpoint(endpoint, "logs"))
-        .with_headers(headers.clone())
-        .build()?;
-
-    let logger_provider = SdkLoggerProvider::builder()
-        .with_resource(context.resource())
-        .with_batch_exporter(log_exporter)
-        .build();
-
-    tracing_subscriber::registry()
-        .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
-        .with(OpenTelemetryTracingBridge::new(&logger_provider))
-        .try_init()?;
-
-    let proxy = OtlpProxy {
-        target: Some(ProxyTarget {
-            endpoint: endpoint.trim_end_matches('/').to_string(),
-            headers,
-            client: reqwest::Client::new(),
-        }),
-    };
-
-    Ok((
-        TelemetryGuard {
-            logger_provider: Some(logger_provider),
-        },
-        proxy,
-        context,
-    ))
-}
-
-fn signal_endpoint(base_endpoint: &str, signal: &str) -> String {
-    let endpoint = base_endpoint.trim_end_matches('/');
-    if endpoint.ends_with(&format!("/v1/{signal}")) {
-        endpoint.to_string()
-    } else {
-        format!("{endpoint}/v1/{signal}")
-    }
-}
-```
-
 ## OTLP Passthrough Proxy
 
-The Rust command is transport, not an application telemetry API. It receives an already-encoded OTLP request from the browser exporter and forwards the bytes to the collector. It validates the signal and size, attaches the configured headers, and POSTs — it never deserializes, maps, or rebuilds telemetry. Forwarding bytes verbatim preserves the resource, severity, and attributes the renderer produced; a reconstruction path (re-emitting log records on the Rust side) loses that fidelity.
+The Rust command is transport, not an application telemetry API. It receives an already-encoded OTLP request from a browser exporter and forwards the bytes to the collector. It validates the signal and size, attaches the configured headers, and POSTs — it never deserializes, maps, or rebuilds telemetry. The proxy only forwards to the Rust-resolved endpoint, never a URL from the renderer, and the ingest key stays server-side.
 
 ```rust
 use reqwest::Client;
@@ -238,6 +154,32 @@ struct ProxyTarget {
     endpoint: String,
     headers: HashMap<String, String>,
     client: Client,
+}
+
+impl OtlpProxy {
+    /// Build from the same endpoint + headers the rust.md setup resolves.
+    pub fn new(endpoint: &str, headers: HashMap<String, String>) -> Self {
+        Self {
+            target: Some(ProxyTarget {
+                endpoint: endpoint.trim_end_matches('/').to_string(),
+                headers,
+                client: Client::new(),
+            }),
+        }
+    }
+
+    pub fn disabled() -> Self {
+        Self { target: None }
+    }
+}
+
+fn signal_endpoint(base_endpoint: &str, signal: &str) -> String {
+    let endpoint = base_endpoint.trim_end_matches('/');
+    if endpoint.ends_with(&format!("/v1/{signal}")) {
+        endpoint.to_string()
+    } else {
+        format!("{endpoint}/v1/{signal}")
+    }
 }
 
 #[tauri::command]
@@ -284,20 +226,27 @@ pub async fn proxy_otlp(
 }
 ```
 
-OTLP/JSON is UTF-8 text, so `body` is passed as a string and POSTed with `content-type: application/json`. The Everr collector's OTLP/HTTP receiver accepts JSON; verify this in validation. The proxy only forwards to the Rust-resolved endpoint, never a URL from the renderer, and the ingest key stays server-side.
+OTLP/JSON is UTF-8 text, so `body` is passed as a string and POSTed with `content-type: application/json`. The Everr collector's OTLP/HTTP receiver accepts JSON; verify this in validation.
 
 Custom commands registered with `invoke_handler` do not need extra Tauri permissions. Only Tauri core APIs, plugins, file system access, shell access, HTTP access, windows, and capabilities need permission entries.
 
 ## Tauri Builder
 
-Initialize telemetry before app setup, manage the OTLP proxy state and telemetry context, register the commands, and flush on shutdown.
+Resolve the exporter endpoint + headers once, drive the `rust.md` backend setup and the proxy from the same values, manage the proxy and context, register the commands, and flush on shutdown.
 
 ```rust
+// Resolve once; the same values drive backend telemetry and the proxy.
+let endpoint = resolve_otlp_endpoint();   // OTEL_EXPORTER_OTLP_ENDPOINT (or hosted ingest)
+let headers = ingest_headers_from_env();  // EVERR_INGEST_KEY -> Authorization: Bearer <key>
+
 let telemetry_context = TelemetryContext::new("<release-version>", "<deployment-environment>");
-let headers = ingest_headers_from_env();
-let (telemetry_guard, otlp_proxy, telemetry_context) =
-    init_telemetry(telemetry_context, "<otlp-url-from-status>", headers)
+
+// Backend telemetry via rust.md, using the shared resource so the session id matches.
+let telemetry_guard =
+    telemetry_setup::init_telemetry(telemetry_context.resource(), &endpoint, &headers)
         .expect("telemetry init failed");
+
+let otlp_proxy = OtlpProxy::new(&endpoint, headers);
 
 tauri::Builder::default()
     .manage(otlp_proxy)
@@ -312,48 +261,46 @@ tauri::Builder::default()
 telemetry_guard.shutdown();
 ```
 
-Keep `ingest_headers_from_env()` server-side. If exporting to Everr hosted ingest, it should read `EVERR_INGEST_KEY` and return `Authorization: Bearer <key>`.
+Keep `ingest_headers_from_env()` server-side. If exporting to Everr hosted ingest, it reads `EVERR_INGEST_KEY` and returns `Authorization: Bearer <key>`. When no endpoint resolves, use `OtlpProxy::disabled()` and the `rust.md` setup's disabled path.
 
-## Rust Error Logs
+## Rust Backend Errors
 
-Use one helper so Rust failures emit consistent exception fields.
+Capture Rust backend failures and panics per `error-tracking.md` and `rust.md`'s "Errors And Panics": emit one structured exception event at the failing boundary, and install a panic hook that emits a redacted event with `error.handled=false` before delegating to the previous hook. Do not log Tauri command arguments, auth tokens, request headers, request bodies, local file contents, paths from file dialogs, or user-entered text.
 
-```rust
-pub fn log_rust_error(error: &(dyn std::error::Error + 'static), handled: bool) {
-    tracing::error!(
-        "event.name" = "rust.error",
-        "exception.type" = std::any::type_name_of_val(error),
-        "exception.message" = %error,
-        "error.handled" = handled,
-        "rust.error",
-    );
-}
-```
+## Browser Exporters
 
-Install a panic hook that emits `rust.error` with `error.handled=false` before delegating to the previous hook.
-
-Do not log Tauri command arguments, auth tokens, request headers, request bodies, local file contents, paths from file dialogs, or user-entered text.
-
-## Browser Log Exporter
-
-The exporter serializes each batch to OTLP/JSON with `@opentelemetry/otlp-transformer` and hands the bytes to `proxy_otlp`. No body allowlist, no attribute mapping — the encoded request carries the log's body, severity, and attributes. The same pattern backs a `TracerProvider` if the app emits spans.
+Each exporter serializes its batch to OTLP/JSON with `@opentelemetry/otlp-transformer` and hands the bytes to `proxy_otlp`. No body allowlist, no attribute mapping — the encoded request carries the signal's body, severity, and attributes.
 
 ```ts
 import type { ExportResult } from '@opentelemetry/core';
 import { ExportResultCode } from '@opentelemetry/core';
 import {
   JsonLogsSerializer,
+  JsonMetricsSerializer,
   JsonTraceSerializer,
 } from '@opentelemetry/otlp-transformer';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import { logs } from '@opentelemetry/api-logs';
+import { metrics, trace } from '@opentelemetry/api';
 import {
   BatchLogRecordProcessor,
   LoggerProvider,
   type LogRecordExporter,
   type ReadableLogRecord,
 } from '@opentelemetry/sdk-logs';
-import type { ReadableSpan, SpanExporter } from '@opentelemetry/sdk-trace-base';
+import {
+  BatchSpanProcessor,
+  BasicTracerProvider,
+  type ReadableSpan,
+  type SpanExporter,
+} from '@opentelemetry/sdk-trace-base';
+import {
+  AggregationTemporality,
+  MeterProvider,
+  PeriodicExportingMetricReader,
+  type PushMetricExporter,
+  type ResourceMetrics,
+} from '@opentelemetry/sdk-metrics';
 import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import { invoke } from '@tauri-apps/api/core';
 
@@ -364,10 +311,12 @@ type TelemetryContext = {
   deploymentEnvironment: string;
 };
 
+type Signal = 'logs' | 'traces' | 'metrics';
+
 const decoder = new TextDecoder();
 
 async function proxyOtlp(
-  signal: 'logs' | 'traces',
+  signal: Signal,
   payload: Uint8Array | undefined,
   done: (result: ExportResult) => void,
 ) {
@@ -399,10 +348,29 @@ class OtlpProxySpanExporter implements SpanExporter {
   async shutdown() {}
 }
 
+class OtlpProxyMetricExporter implements PushMetricExporter {
+  export(data: ResourceMetrics, done: (result: ExportResult) => void) {
+    void proxyOtlp('metrics', JsonMetricsSerializer.serializeRequest(data), done);
+  }
+  selectAggregationTemporality() {
+    return AggregationTemporality.DELTA;
+  }
+  async forceFlush() {}
+  async shutdown() {}
+}
+
 let loggerProvider: LoggerProvider | null = null;
+let tracerProvider: BasicTracerProvider | null = null;
+let meterProvider: MeterProvider | null = null;
 
 export async function initBrowserTelemetry() {
   const context = await invoke<TelemetryContext>('get_telemetry_context');
+  const resource = resourceFromAttributes({
+    [ATTR_SERVICE_NAME]: context.serviceName,
+    'service.version': context.serviceVersion,
+    'service.instance.id': context.serviceInstanceId,
+    'deployment.environment.name': context.deploymentEnvironment,
+  });
   const batch = {
     maxQueueSize: 100,
     maxExportBatchSize: 32,
@@ -411,98 +379,67 @@ export async function initBrowserTelemetry() {
   };
 
   loggerProvider = new LoggerProvider({
-    resource: resourceFromAttributes({
-      [ATTR_SERVICE_NAME]: context.serviceName,
-      'service.version': context.serviceVersion,
-      'service.instance.id': context.serviceInstanceId,
-      'deployment.environment.name': context.deploymentEnvironment,
-    }),
-    processors: [
-      new BatchLogRecordProcessor(new OtlpProxyLogExporter(), batch),
-    ],
+    resource,
+    processors: [new BatchLogRecordProcessor(new OtlpProxyLogExporter(), batch)],
   });
   logs.setGlobalLoggerProvider(loggerProvider);
 
-  // If the app emits spans, register a TracerProvider the same way with a
-  // BatchSpanProcessor(new OtlpProxySpanExporter(), batch) and
-  // trace.setGlobalTracerProvider(...).
+  tracerProvider = new BasicTracerProvider({
+    resource,
+    spanProcessors: [new BatchSpanProcessor(new OtlpProxySpanExporter(), batch)],
+  });
+  trace.setGlobalTracerProvider(tracerProvider);
+
+  meterProvider = new MeterProvider({
+    resource,
+    readers: [
+      new PeriodicExportingMetricReader({
+        exporter: new OtlpProxyMetricExporter(),
+        exportIntervalMillis: 30_000,
+      }),
+    ],
+  });
+  metrics.setGlobalMeterProvider(meterProvider);
 }
 
-export function shutdownBrowserTelemetry() {
-  return loggerProvider?.shutdown();
+export async function shutdownBrowserTelemetry() {
+  await Promise.allSettled([
+    loggerProvider?.shutdown(),
+    tracerProvider?.shutdown(),
+    meterProvider?.shutdown(),
+  ]);
 }
 ```
 
-> Capture the actual errors however the app already does (`@everr/auto-otel-errors/browser` or hand-rolled `window`/React handlers below) and emit them through this `LoggerProvider`. The proxy forwards whatever OTel the providers produce, so the capture layer is independent of the transport.
+## Browser Error Capture
 
-Install browser error listeners before rendering the app so early errors are buffered or emitted.
+Capture renderer errors with `@everr/auto-otel-errors/browser` (and `/react` for React), emitting through the providers above. Set the global providers, then call `init()`:
 
 ```ts
-window.addEventListener('error', (event) => {
-  logBrowserException('browser.error', event.error ?? event.message, {
-    'browser.error.filename': event.filename,
-    'browser.error.lineno': event.lineno,
-    'browser.error.colno': event.colno,
-  });
-});
+import { init as initErrorTracking } from '@everr/auto-otel-errors/browser';
 
-window.addEventListener('unhandledrejection', (event) => {
-  logBrowserException('browser.unhandled_rejection', event.reason);
-});
+await initBrowserTelemetry();
+initErrorTracking();
+```
 
+`init()` installs the `window` `error`/`unhandledrejection` handlers and exposes `captureError` for manual capture. Do not also register your own `window` error listeners — that double-captures. Wrap React apps with `ErrorBoundary` from `@everr/auto-otel-errors/react`.
+
+Flush on exit so buffered batches are sent:
+
+```ts
 window.addEventListener('beforeunload', () => {
   void shutdownBrowserTelemetry();
 });
 ```
 
-Runtime errors, promise rejections, and framework error-boundary failures are the browser error sources for this setup.
-
-## React Error Boundary
-
-For React apps, keep React handling as a normal error boundary that emits one log and renders fallback UI. Skip this section for non-React Tauri apps.
-
-```tsx
-import { Component, type ErrorInfo, type ReactNode } from 'react';
-import { logBrowserException } from './telemetry';
-
-export class ReactErrorBoundary extends Component<
-  { children: ReactNode; fallback?: ReactNode },
-  { hasError: boolean }
-> {
-  state = { hasError: false };
-
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-
-  componentDidCatch(error: Error, info: ErrorInfo) {
-    logBrowserException('react.render.error', error, {
-      'react.component_stack': info.componentStack,
-    });
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return this.props.fallback ?? null;
-    }
-
-    return this.props.children;
-  }
-}
-```
-
 ## Validation
 
-After rebuilding and running the app, query recent logs by the resolved service names:
+After rebuilding and running the app, query recent telemetry by the resolved service names. Because the proxy forwards the renderer's own OTLP, browser telemetry carries the **renderer's** resource, so it lands under `<browser-service-name>` (not the Rust service name).
+
+Recent logs:
 
 ```sql
-SELECT
-  Timestamp,
-  ServiceName,
-  SeverityText,
-  Body,
-  ResourceAttributes,
-  LogAttributes
+SELECT Timestamp, ServiceName, SeverityText, Body, ResourceAttributes, LogAttributes
 FROM logs
 WHERE Timestamp > now() - INTERVAL 10 MINUTE
   AND ServiceName IN ('<rust-service-name>', '<browser-service-name>')
@@ -510,7 +447,24 @@ ORDER BY Timestamp DESC
 LIMIT 50
 ```
 
-Expected rows depend on the exercised path: browser error logs under `<browser-service-name>` only when browser errors occur, and `rust.error` only for Rust failures. Because the proxy forwards the renderer's own OTLP, browser telemetry carries the **renderer's** resource, so it lands under `<browser-service-name>` (not the Rust service name).
+Recent spans and metrics (confirm both sides export all signals):
+
+```sql
+SELECT Timestamp, ServiceName, SpanName, TraceId
+FROM traces
+WHERE Timestamp > now() - INTERVAL 10 MINUTE
+  AND ServiceName IN ('<rust-service-name>', '<browser-service-name>')
+ORDER BY Timestamp DESC
+LIMIT 50;
+
+SELECT MetricName, ServiceName, max(TimeUnix) AS last_seen
+FROM metrics_sum
+WHERE TimeUnix > now() - INTERVAL 10 MINUTE
+  AND ServiceName IN ('<rust-service-name>', '<browser-service-name>')
+GROUP BY MetricName, ServiceName
+ORDER BY last_seen DESC
+LIMIT 50
+```
 
 Confirm all rows include the required resource attributes:
 
@@ -526,15 +480,15 @@ WHERE Timestamp > now() - INTERVAL 10 MINUTE
 LIMIT 20
 ```
 
-A Rust-side change (the proxy command, headers, endpoint) needs a full app rebuild — a JS reload is not enough.
+A Rust-side change (the proxy command, headers, endpoint, backend setup) needs a full app rebuild — a JS reload is not enough.
 
 ## Troubleshooting
 
-- No browser logs: verify `initBrowserTelemetry()` runs before app rendering, the global providers are set before capture starts, `get_telemetry_context` is registered, and `proxy_otlp` accepts the `signal`.
+- No browser telemetry: verify `initBrowserTelemetry()` runs before capture, the global providers are set before `initErrorTracking()`, `get_telemetry_context` is registered, and `proxy_otlp` accepts the `signal`.
 - Proxy failures: verify the browser exporter serializes OTLP/JSON and passes it as `body`, and that `proxy_otlp` POSTs to `{endpoint}/v1/{signal}` with `content-type: application/json` (confirm the collector accepts OTLP/JSON).
-- Missing release version or session id: verify Rust creates one telemetry context at process startup and the browser uses `get_telemetry_context`.
-- Unexpected telemetry volume: remove old web auto-instrumentation, IPC wrappers, HTTP timing helpers, request wrappers, metrics readers, React instrumentation plugins, and console monkey patches.
-- `unknown_service` rows: verify both logger providers initialize with `service.name`.
+- Each error captured twice: the library's handlers are running alongside leftover hand-rolled `window` error handlers. Remove the hand-rolled ones.
+- Missing release version or session id: verify Rust creates one telemetry context at process startup, passes `context.resource()` into the backend setup, and the browser uses `get_telemetry_context`.
+- `unknown_service` rows: verify the backend resource and the browser providers all initialize with `service.name`.
 
 ## Safety Rules
 
