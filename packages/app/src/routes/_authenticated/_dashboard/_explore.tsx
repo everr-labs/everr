@@ -5,8 +5,6 @@ import { withTimeRange } from "@everr/ui/lib/time-range";
 import {
   createFileRoute,
   Outlet,
-  retainSearchParams,
-  stripSearchParams,
   useMatches,
   useNavigate,
   useRouterState,
@@ -17,16 +15,13 @@ import { remoteRepo } from "@/data/logs-explorer/remote-repo";
 import { remoteTracesRepo } from "@/data/traces/remote-repo";
 import { ExploreSearchSchema } from "@/lib/explore-search";
 
-const exploreDefaults = ExploreSearchSchema.parse({});
-
 export const Route = createFileRoute("/_authenticated/_dashboard/_explore")({
   validateSearch: ExploreSearchSchema,
-  search: {
-    middlewares: [
-      stripSearchParams(exploreDefaults),
-      retainSearchParams(["service", "environment"]),
-    ],
-  },
+  // service/environment retain + strip is handled on the `_dashboard` layout, not
+  // here. Search middlewares run leaf→root, so the `_dashboard` retain runs AFTER
+  // any strip declared on this route — which re-injects a just-cleared filter from
+  // the previous location. Keeping both on `_dashboard` (retain then strip) lets a
+  // cleared `[]` survive retain and then get stripped as a default last of all.
   component: ExploreLayout,
 });
 
@@ -40,7 +35,9 @@ function domainFromPath(pathname: string): ExploreDomain | null {
 }
 
 function ExploreLayout() {
-  const { service, environment } = Route.useSearch();
+  // Optional in the schema (see ExploreSearchShape) so absence stays meaningful
+  // for retainSearchParams; coalesce to [] for the presentational filters.
+  const { service = [], environment = [] } = Route.useSearch();
   // useNavigate() (unbound) keeps navigation on the current path.
   // Route.useNavigate() binds from: "/" (the pathless layout's fullPath) and
   // would redirect every search-only update to the homepage.
@@ -81,7 +78,7 @@ function ExploreLayout() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {showBar ? (
-        <div className="flex h-12 items-center justify-end gap-2 border-b border-sidebar-border bg-sidebar px-3">
+        <div className="flex h-12 items-center justify-start gap-2 border-b border-sidebar-border bg-sidebar px-3">
           {domain === "logs" ? (
             <LogsExploreFilters
               repo={remoteRepo}

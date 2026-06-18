@@ -35,7 +35,7 @@ function LogsExplorerPage() {
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
   const queryClient = useQueryClient();
-  const { service, environment } = useSearch({
+  const { service = [], environment = [] } = useSearch({
     from: "/_authenticated/_dashboard/_explore",
   });
   const { showVolume, ...rest } = search;

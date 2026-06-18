@@ -48,7 +48,7 @@ function TracesSearchPage() {
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
   const { timeRange } = withTimeRange(search);
-  const { service, environment } = useSearch({
+  const { service = [], environment = [] } = useSearch({
     from: "/_authenticated/_dashboard/_explore",
   });
 

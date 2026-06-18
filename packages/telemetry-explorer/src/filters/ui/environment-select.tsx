@@ -1,8 +1,9 @@
-import { FilterCombobox } from "@everr/ui/components/filter-combobox";
 import type { TimeRange } from "@everr/ui/lib/time-range";
+import { Layers } from "lucide-react";
 import { attributeValuesOptions } from "../../attribute-filter/options";
 import type { AttributeRepositoryLike } from "../../attribute-filter/repository";
 import { ENVIRONMENT_ATTRIBUTE } from "./dedicated-attributes";
+import { ExploreFilterPill } from "./explore-filter-pill";
 
 // String-valued Environment selector for the shared Explore topbar. Unlike the
 // sidebar's EnvironmentFilter (which reads/writes an AttributeFilter[]), this
@@ -21,8 +22,9 @@ export function EnvironmentSelect({
   onChange: (values: string[]) => void;
 }) {
   return (
-    <FilterCombobox
+    <ExploreFilterPill
       label="Environment"
+      icon={Layers}
       values={values}
       onChange={onChange}
       options={{
@@ -39,7 +41,6 @@ export function EnvironmentSelect({
       }}
       placeholder="All environments"
       searchPlaceholder="Search environments..."
-      className="w-45"
     />
   );
 }

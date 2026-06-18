@@ -1,8 +1,9 @@
-import { FilterCombobox } from "@everr/ui/components/filter-combobox";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import type { QueryFunction, QueryKey } from "@tanstack/react-query";
+import { Boxes } from "lucide-react";
 import type { AttributeRepositoryLike } from "../../attribute-filter/repository";
 import { EnvironmentSelect } from "./environment-select";
+import { ExploreFilterPill } from "./explore-filter-pill";
 
 interface ServiceOptions<TData> {
   queryKey: QueryKey;
@@ -33,14 +34,14 @@ export function ExploreFilterBarView<TData>({
 }) {
   return (
     <div className="flex items-center gap-1.5">
-      <FilterCombobox
+      <ExploreFilterPill
         label="Service"
+        icon={Boxes}
         values={serviceValues}
         onChange={onServiceChange}
         options={serviceOptions}
         placeholder="All services"
         searchPlaceholder="Search services..."
-        className="w-45"
       />
       <EnvironmentSelect
         repo={environmentRepo}

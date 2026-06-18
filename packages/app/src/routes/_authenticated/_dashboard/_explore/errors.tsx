@@ -43,7 +43,7 @@ function ErrorsPage() {
   useRealtimeSubscription({ scope: "tenant" });
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
-  const { service, environment } = useSearch({
+  const { service = [], environment = [] } = useSearch({
     from: "/_authenticated/_dashboard/_explore",
   });
   const { timeRange, q, fingerprint, sort, refresh, attributes } =

@@ -11,6 +11,7 @@ import {
   Outlet,
   redirect,
   retainSearchParams,
+  stripSearchParams,
   useMatches,
 } from "@tanstack/react-router";
 import gridLayoutCSS from "react-grid-layout/css/styles.css?url";
@@ -52,7 +53,17 @@ export const Route = createFileRoute("/_authenticated/_dashboard")({
     // click. Declaring it on `_explore` makes the link's href look right but
     // drops the params on the actual click. The explore route schemas include
     // these keys so the destination route doesn't strip them on arrival.
+    //
+    // strip-then-retain, paired with optional (default-less) explore schemas, is
+    // what makes the filters both persistent AND clearable:
+    //   - cross-route nav: the key arrives absent (no schema default fills it),
+    //     so retain copies the live selection forward;
+    //   - explicit clear (service: []): the value is present, so strip drops it
+    //     as a default and retain — which only refills ABSENT keys — leaves it
+    //     gone, yielding a clean URL that reflects the cleared state.
+    // See ExploreSearchShape for why the schemas must stay optional.
     middlewares: [
+      stripSearchParams({ service: [], environment: [] }),
       retainSearchParams(["from", "to", "refresh", "service", "environment"]),
     ],
   },
