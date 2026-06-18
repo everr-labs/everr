@@ -1,6 +1,6 @@
 {
   "name": "@everr/auto-otel-errors",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Automatic Sentry-style error tracking emitted through the OpenTelemetry SDK as logs.",
   "license": "MIT",
   "repository": {

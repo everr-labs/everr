@@ -1,5 +1,13 @@
 # @everr/desktop-app
 
+## 0.4.2
+
+### Patch Changes
+
+- 6b94d92: Retry release with NPM_TOKEN authentication.
+- Updated dependencies [6b94d92]
+  - @everr/auto-otel-errors@0.2.2
+
 ## 0.4.1
 
 ### Patch Changes
