@@ -16,8 +16,8 @@ import {
   ALERT_CHANNELS,
   type AlertDeliveryTargets,
   DeliverySettingsSchema,
-  migrateStoredDeliverySettings,
   mergeDeliveryEntries,
+  migrateStoredDeliverySettings,
   redactDeliverySecrets,
 } from "./delivery-settings";
 import {
@@ -605,7 +605,11 @@ export const getAlertSettings = createAuthenticatedServerFn({
     )
     .limit(1);
 
-  return { delivery: redactDeliverySecrets(migrateStoredDeliverySettings(row?.delivery)) };
+  return {
+    delivery: redactDeliverySecrets(
+      migrateStoredDeliverySettings(row?.delivery),
+    ),
+  };
 });
 
 export const updateAlertSettings = createAuthenticatedServerFn({
