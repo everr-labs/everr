@@ -27,7 +27,16 @@ export const Route = createFileRoute("/api/cli/repos")({
           return Response.json([]);
         }
 
-        const repos = await listInstallationRepos(active.installationId);
+        let repos: Awaited<ReturnType<typeof listInstallationRepos>>;
+        try {
+          repos = await listInstallationRepos(active.installationId);
+        } catch (error) {
+          if (isMissingGitHubInstallation(error)) {
+            return Response.json([]);
+          }
+          throw error;
+        }
+
         return Response.json(
           repos.map((r) => ({ id: r.id, fullName: r.full_name })),
         );
@@ -35,3 +44,16 @@ export const Route = createFileRoute("/api/cli/repos")({
     },
   },
 });
+
+function isMissingGitHubInstallation(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+
+  const message = error.message;
+  return (
+    message.startsWith("Failed to create installation token: status=404") ||
+    (message.startsWith(
+      "GitHub API error: GET https://api.github.com/installation/repositories",
+    ) &&
+      message.includes(" status=404 "))
+  );
+}
