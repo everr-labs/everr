@@ -1,6 +1,6 @@
 {
   "name": "@everr/auto-otel-errors",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Auto wiring for error tracking with OpenTelemetry",
   "license": "MIT",
   "repository": {

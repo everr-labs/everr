@@ -1,5 +1,11 @@
 # @everr/auto-otel-errors
 
+## 0.2.3
+
+### Patch Changes
+
+- 28e8199: Retry release with NPM_TOKEN authentication.
+
 ## 0.2.2
 
 ### Patch Changes
