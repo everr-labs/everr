@@ -1,5 +1,6 @@
 import { ErrorsExploreFilters } from "@everr/telemetry-explorer/errors";
 import { LogsExploreFilters } from "@everr/telemetry-explorer/logs";
+import { TracesExploreFilters } from "@everr/telemetry-explorer/traces";
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import {
   createFileRoute,
@@ -12,6 +13,7 @@ import {
 import { z } from "zod";
 import { remoteErrorsRepo } from "@/data/errors/remote-repo";
 import { remoteRepo } from "@/data/logs-explorer/remote-repo";
+import { remoteTracesRepo } from "@/data/traces/remote-repo";
 
 const ExploreSearchSchema = z.object({
   service: z.array(z.string()).default([]),
@@ -88,7 +90,17 @@ function ExploreLayout() {
               onEnvironmentChange={onEnvironmentChange}
             />
           ) : null}
-          {/* traces branch added in Task 6 */}
+          {domain === "traces" ? (
+            <TracesExploreFilters
+              repo={remoteTracesRepo}
+              timeRange={timeRange}
+              refresh={refresh}
+              service={service}
+              environment={environment}
+              onServiceChange={onServiceChange}
+              onEnvironmentChange={onEnvironmentChange}
+            />
+          ) : null}
         </div>
       ) : null}
       <div className="flex min-h-0 flex-1 flex-col">

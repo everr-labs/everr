@@ -8,20 +8,24 @@ import {
   Link,
   Outlet,
   stripSearchParams,
+  useSearch,
 } from "@tanstack/react-router";
 import { remoteTracesRepo } from "@/data/traces/remote-repo";
+
+// Drop `service` from the route schema — it lives in the shared _explore topbar.
+const RouteSearchSchema = TraceSearchParamsSchema.omit({ service: true });
 
 // Keep the URL clean: the schema fills in defaults (empty arrays, "all", …)
 // during validation, so without this every navigation would serialize them
 // back into the query string.
-const defaultSearch = TraceSearchParamsSchema.parse({});
+const defaultSearch = RouteSearchSchema.parse({});
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_explore/traces",
 )({
   staticData: { breadcrumb: "Traces", fullBleed: true },
   head: () => ({ meta: [{ title: "Everr - Traces" }] }),
-  validateSearch: TraceSearchParamsSchema,
+  validateSearch: RouteSearchSchema,
   search: { middlewares: [stripSearchParams(defaultSearch)] },
   component: TracesRoute,
 });
@@ -42,6 +46,9 @@ function TracesSearchPage() {
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
   const { timeRange } = withTimeRange(search);
+  const { service, environment } = useSearch({
+    from: "/_authenticated/_dashboard/_explore",
+  });
 
   return (
     <TracesSearch
@@ -50,13 +57,15 @@ function TracesSearchPage() {
       refresh={search.refresh ?? "off"}
       search={{
         namespace: search.namespace,
-        service: search.service,
+        service,
         name: search.name,
         minMs: search.minMs,
         maxMs: search.maxMs,
         status: search.status,
         attributes: search.attributes,
       }}
+      environment={environment}
+      hideSharedFilters
       onSearchChange={(patch) =>
         navigate({
           search: (prev) => ({ ...prev, ...patch }),

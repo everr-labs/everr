@@ -14,6 +14,7 @@ export type {
   TraceDetailSearch,
 } from "./ui/trace-detail-page";
 export { TraceDetail } from "./ui/trace-detail-page";
+export { TracesExploreFilters } from "./ui/traces-explore-filters";
 export type {
   TraceLinkRenderProps,
   TraceSearchValue,
