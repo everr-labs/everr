@@ -1,4 +1,5 @@
 import type { Attributes } from "@opentelemetry/api";
+import { isExpectedSqlApiQueryError } from "./expected-errors";
 import { captureError, getTelemetryTracer, SpanKind } from "./node";
 
 type ClickhouseClient = "admin" | "app" | "sql_api";
@@ -26,11 +27,13 @@ export async function instrumentClickhouseOperation<T>(
       try {
         return await run();
       } catch (error) {
-        captureError(error, {
-          ...spanAttributes,
-          "error.handled": false,
-          "error.source": "clickhouse",
-        });
+        if (!isExpectedSqlApiQueryError(attributes, error)) {
+          captureError(error, {
+            ...spanAttributes,
+            "error.handled": false,
+            "error.source": "clickhouse",
+          });
+        }
         throw error;
       } finally {
         span.end();

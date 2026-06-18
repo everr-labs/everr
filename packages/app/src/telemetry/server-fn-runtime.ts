@@ -1,4 +1,5 @@
 import type { Attributes } from "@opentelemetry/api";
+import { isExpectedServerFunctionError } from "./expected-errors";
 import { captureError, getTelemetryTracer, SpanKind } from "./node";
 import { parameterizeTelemetryPath } from "./paths";
 
@@ -27,11 +28,13 @@ export async function instrumentServerFunction<T>(
       try {
         return await run();
       } catch (error) {
-        captureError(error, {
-          ...attributes,
-          "error.handled": false,
-          "error.source": "server_fn",
-        });
+        if (!isExpectedServerFunctionError(error)) {
+          captureError(error, {
+            ...attributes,
+            "error.handled": false,
+            "error.source": "server_fn",
+          });
+        }
         throw error;
       } finally {
         span.end();

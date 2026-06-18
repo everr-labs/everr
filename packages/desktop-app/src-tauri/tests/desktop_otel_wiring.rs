@@ -133,6 +133,7 @@ fn rust_network_telemetry_is_removed_from_tauri_backend() {
 #[test]
 fn rust_errors_emit_exception_logs() {
     let crash_log = include_str!("../src/crash_log.rs");
+    let notifications = include_str!("../src/notifications.rs");
 
     assert!(crash_log.contains("everr.rust.error"));
     assert!(!crash_log.contains("desktop.rust.error"));
@@ -141,6 +142,10 @@ fn rust_errors_emit_exception_logs() {
     assert!(crash_log.contains("exception.message"));
     assert!(crash_log.contains("exception.stacktrace"));
     assert!(crash_log.contains("error.handled"));
+    assert!(notifications.contains("log_notifier_sse_reconnect"));
+    assert!(notifications.contains("everr.notifier.sse.reconnect"));
+    assert!(!notifications.contains("log_error(\"notifier SSE\""));
+    assert!(!notifications.contains("log_error(\"notifier SSE auth\""));
 }
 
 #[test]
