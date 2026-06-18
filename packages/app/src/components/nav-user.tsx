@@ -90,7 +90,7 @@ export function NavUser() {
             </div>
             <div className="grid flex-1 text-left text-sm leading-tight">
               <span className="truncate font-medium">{fullName}</span>
-              <span className="truncate text-xs">{user.email}</span>
+              <span className="truncate text-xs">{activeOrg?.name ?? " "}</span>
             </div>
             <ChevronsUpDown className="ml-auto size-4" />
           </DropdownMenuTrigger>
@@ -106,7 +106,9 @@ export function NavUser() {
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">{fullName}</span>
-                <span className="truncate text-xs">{user.email}</span>
+                <span className="truncate text-xs">
+                  {activeOrg?.name ?? " "}
+                </span>
               </div>
             </div>
             <DropdownMenuSeparator />
@@ -115,7 +117,7 @@ export function NavUser() {
                 <DropdownMenuSub>
                   <DropdownMenuSubTrigger>
                     <Building2 />
-                    {activeOrg?.name ?? "Switch organization"}
+                    Switch organization
                   </DropdownMenuSubTrigger>
                   <DropdownMenuSubContent>
                     {orgs.map((org) => (

@@ -26,7 +26,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold">Everr</span>
-                <span className="truncate text-xs">CI/CD Observability</span>
+                <span className="truncate text-xs">
+                  Observability made simple
+                </span>
               </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
