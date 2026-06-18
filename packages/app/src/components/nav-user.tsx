@@ -117,7 +117,7 @@ export function NavUser() {
                 <DropdownMenuSub>
                   <DropdownMenuSubTrigger>
                     <Building2 />
-                    {activeOrg?.name ?? "Switch organization"}
+                    Switch organization
                   </DropdownMenuSubTrigger>
                   <DropdownMenuSubContent>
                     {orgs.map((org) => (
