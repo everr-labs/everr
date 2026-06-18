@@ -1,9 +1,9 @@
 ---
 title: Notifications
-description: Send firing and resolved alerts to Telegram, with one notification per evaluation.
+description: Send firing and resolved alerts to Telegram and Slack, with one notification per evaluation.
 ---
 
-When an alert evaluates, Everr sends one notification summarizing all instance changes. Channels are configured in the app, not as code, and apply to every rule in the org. Currently Telegram is supported.
+When an alert evaluates, Everr sends one notification summarizing all instance changes. Channels are configured in the app, not as code, and apply to every rule in the org. Currently Telegram and Slack are supported.
 
 ## Open notification settings
 
@@ -11,12 +11,20 @@ In Everr, go to **Alerts** and click **Notification settings** (top-right of the
 
 ## Send to Telegram
 
-Enable **Telegram** and provide a **bot token** (like `123456789:ABC...`) and one or more **chat IDs** (e.g. `-1001234567890` for a group), then save. To create a bot and get its token, follow Telegram's [BotFather guide](https://core.telegram.org/bots/features#botfather).
+Enable **Telegram** and add one or more entries. Each entry pairs a **bot token** (like `123456789:ABC...`) with a **chat ID** (e.g. `-1001234567890` for a group) and an optional **name**. To create a bot and get its token, follow Telegram's [BotFather guide](https://core.telegram.org/bots/features#botfather).
+
+Entries are immutable: you add or delete them, you do not edit them in place. The bot token is **write-only** — after saving, Everr never shows it again. To change a token, delete the entry and add a new one. The chat ID remains visible.
 
 To find a chat ID:
 
 - Add your bot to the chat and read the ID from the Telegram Bot API [`getUpdates`](https://core.telegram.org/bots/api#getupdates) response, or
 - Open the channel or group in the [Telegram web app](https://web.telegram.org) and copy the number from the URL, for channels and supergroups it's the `-100…` value, which is the chat ID.
+
+## Send to Slack
+
+Enable **Slack** and add one or more **Incoming Webhook** URLs. In Slack, create a webhook from your workspace's app settings (each webhook posts to one channel), copy the `https://hooks.slack.com/services/...` URL, and paste it here. Give each webhook an optional name so you can remember which channel it targets.
+
+Webhook URLs are write-only: after saving, Everr never shows the URL again — to change one, delete it and add a new one. Each enabled webhook receives every alert notification for the organization.
 
 ## Silence during maintenance
 
