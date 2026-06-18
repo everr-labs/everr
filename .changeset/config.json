@@ -2,12 +2,7 @@
   "$schema": "https://unpkg.com/@changesets/config@3.1.4/schema.json",
   "changelog": "@changesets/cli/changelog",
   "commit": false,
-  "fixed": [
-    [
-      "@everr/action",
-      "@everr/desktop-app"
-    ]
-  ],
+  "fixed": [],
   "linked": [],
   "access": "restricted",
   "baseBranch": "main",

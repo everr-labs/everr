@@ -2,6 +2,7 @@ name: Release PR
 
 permissions:
   contents: read
+  id-token: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -14,7 +15,7 @@ on:
 jobs:
   release:
     name: Open Version Packages PR or tag versions
-    runs-on: blacksmith-2vcpu-ubuntu-2404-arm
+    runs-on: ubuntu-latest
     steps:
       # Tags and commits created by the default GITHUB_TOKEN cannot trigger
       # other workflows (e.g. release-action.yml on tag push), so we mint a
@@ -61,5 +62,3 @@ jobs:
           commit: "chore: version packages"
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
