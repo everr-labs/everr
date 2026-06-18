@@ -1,6 +1,5 @@
 import { Client, type Runtime } from "./client.js";
 import { initClient } from "./core.js";
-import { browserApiErrorsIntegration } from "./integrations/browser-api-errors.js";
 import { browserGlobalHandlersIntegration } from "./integrations/browser-globals.js";
 import type { Integration, Options } from "./types.js";
 
