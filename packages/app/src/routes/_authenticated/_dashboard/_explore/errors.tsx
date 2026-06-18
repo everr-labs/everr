@@ -58,9 +58,10 @@ function ErrorsPage() {
       environment={environment}
       hideSharedFilters
       onSearchChange={(patch) =>
+        // Push a history entry per change so Back undoes filter changes one at a
+        // time (including Clear all, which routes through this same handler).
         navigate({
           search: (prev) => ({ ...prev, ...patch }),
-          replace: true,
         })
       }
       renderIssueLink={({ fingerprint: issueFingerprint, children }) => (

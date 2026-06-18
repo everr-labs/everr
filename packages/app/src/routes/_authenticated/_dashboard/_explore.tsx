@@ -53,11 +53,12 @@ function ExploreLayout() {
     }
   }
 
+  // Each filter mutation pushes a history entry so Back steps through filter
+  // states one change at a time (matching the per-page filters and Clear all).
   const onServiceChange = (next: string[]) =>
     navigate({
       // @ts-expect-error -- route-agnostic navigation; useNavigate() can't infer search params without route context
       search: (prev: Record<string, unknown>) => ({ ...prev, service: next }),
-      replace: true,
     });
   const onEnvironmentChange = (next: string[]) =>
     navigate({
@@ -66,7 +67,6 @@ function ExploreLayout() {
         ...prev,
         environment: next,
       }),
-      replace: true,
     });
 
   const showBar = !hideExploreBar && domain !== null;

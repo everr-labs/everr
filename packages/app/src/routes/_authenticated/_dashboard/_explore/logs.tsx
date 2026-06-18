@@ -58,9 +58,10 @@ function LogsExplorerPage() {
       environment={environment}
       hideSharedFilters
       onSearchChange={({ services: _ignored, ...next }) =>
+        // Push a history entry per change so Back undoes filter changes one at a
+        // time (the time-range brush below stays on replace — it's continuous).
         navigate({
           search: (prev) => ({ ...prev, ...next }),
-          replace: true,
         })
       }
       onTimeRangeSelect={(from, to) =>
