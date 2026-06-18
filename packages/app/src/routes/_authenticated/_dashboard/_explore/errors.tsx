@@ -14,7 +14,9 @@ import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
 
 const defaultSearch = ErrorIssueSearchSchema.parse({});
 
-export const Route = createFileRoute("/_authenticated/_dashboard/errors")({
+export const Route = createFileRoute(
+  "/_authenticated/_dashboard/_explore/errors",
+)({
   staticData: { breadcrumb: "Errors", fullBleed: true },
   head: () => ({ meta: [{ title: "Everr - Errors" }] }),
   validateSearch: ErrorIssueSearchSchema,

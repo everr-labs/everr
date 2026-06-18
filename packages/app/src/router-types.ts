@@ -14,5 +14,6 @@ declare module "@tanstack/react-router" {
       | ((match: AnyRouteMatch) => string | BreadcrumbSegment[] | undefined);
     hideTimeRangePicker?: boolean;
     fullBleed?: boolean;
+    hideExploreBar?: boolean;
   }
 }

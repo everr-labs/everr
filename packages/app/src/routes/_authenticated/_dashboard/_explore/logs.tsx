@@ -20,7 +20,9 @@ const SearchSchema = TimeRangeSearchSchema.extend({
   showVolume: z.boolean().default(true),
 });
 
-export const Route = createFileRoute("/_authenticated/_dashboard/logs")({
+export const Route = createFileRoute(
+  "/_authenticated/_dashboard/_explore/logs",
+)({
   staticData: { breadcrumb: "Logs", fullBleed: true },
   head: () => ({ meta: [{ title: "Everr - Logs" }] }),
   validateSearch: SearchSchema,

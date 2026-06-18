@@ -16,7 +16,9 @@ import { remoteTracesRepo } from "@/data/traces/remote-repo";
 // back into the query string.
 const defaultSearch = TraceSearchParamsSchema.parse({});
 
-export const Route = createFileRoute("/_authenticated/_dashboard/traces")({
+export const Route = createFileRoute(
+  "/_authenticated/_dashboard/_explore/traces",
+)({
   staticData: { breadcrumb: "Traces", fullBleed: true },
   head: () => ({ meta: [{ title: "Everr - Traces" }] }),
   validateSearch: TraceSearchParamsSchema,
