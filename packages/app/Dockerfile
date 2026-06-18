@@ -6,6 +6,7 @@ WORKDIR /app
 FROM base AS deps
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages/app/package.json ./packages/app/
+COPY packages/auto-otel-errors/package.json ./packages/auto-otel-errors/
 COPY packages/datemath/package.json ./packages/datemath/
 COPY packages/ui/package.json ./packages/ui/
 COPY packages/telemetry-explorer/package.json ./packages/telemetry-explorer/
@@ -14,6 +15,7 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
 
 # Stage 2: build
 FROM deps AS build
+COPY packages/auto-otel-errors ./packages/auto-otel-errors
 COPY packages/datemath ./packages/datemath
 COPY packages/ui ./packages/ui
 COPY packages/telemetry-explorer ./packages/telemetry-explorer
