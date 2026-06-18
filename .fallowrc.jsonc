@@ -24,6 +24,9 @@
     // Static entry points reached via Vite resolve.alias in
     // packages/app/vite.config.ts (use-sync-external-store/shim).
     "packages/app/src/ssr-shims/**",
+    // Explore topbar scaffold components — wired into _explore layout in Task 4.
+    "packages/telemetry-explorer/src/filters/ui/environment-select.tsx",
+    "packages/telemetry-explorer/src/filters/ui/explore-filter-bar-view.tsx",
   ],
   // Docs content (MDX) is loaded dynamically by fumadocs via import.meta.glob
   // in packages/docs/.source/*.ts — fallow can't trace through the glob.
@@ -79,6 +82,6 @@
       // TestData query spec — schema-only module, consumers added in follow-up tasks.
       "file": "packages/app/src/data/dashboards/testdata/spec.ts",
       "exports": ["*"]
-    }
+    },
   ]
 }
