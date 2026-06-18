@@ -12,8 +12,8 @@ import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import {
   TraceDetailPage,
-  TraceDetailParamsSchema,
-  TraceSearchParamsSchema,
+  TraceDetailSearchSchema,
+  TracesListSearchSchema,
   TracesPage,
 } from "./traces-page";
 
@@ -64,13 +64,13 @@ describe("desktop traces routes", () => {
     const tracesRoute = createRoute({
       getParentRoute: () => authenticatedRoute,
       path: "/traces",
-      validateSearch: TraceSearchParamsSchema,
+      validateSearch: TracesListSearchSchema,
       component: TracesPage,
     });
     const traceDetailRoute = createRoute({
       getParentRoute: () => tracesRoute,
       path: "$traceId",
-      validateSearch: TraceDetailParamsSchema,
+      validateSearch: TraceDetailSearchSchema,
       component: TraceDetailPage,
     });
     const routeTree = rootRoute.addChildren([

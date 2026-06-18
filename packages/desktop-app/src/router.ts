@@ -3,6 +3,8 @@ import {
   createRoute,
   createRouter,
   redirect,
+  retainSearchParams,
+  stripSearchParams,
 } from "@tanstack/react-router";
 import { AuthenticatedGuard } from "./features/desktop-shell/authenticated-guard";
 import { DesktopWindow } from "./features/desktop-shell/desktop-window";
@@ -10,16 +12,17 @@ import { SettingsPage } from "./features/desktop-shell/settings-page";
 import { DeveloperPage } from "./features/developer/developer-page";
 import {
   ErrorDetailPage,
-  ErrorIssueSearchSchema,
+  ErrorsListSearchSchema,
   ErrorsPage,
 } from "./features/errors/errors-page";
+import { ExploreSearchSchema } from "./features/explore/explore-search";
 import { LogsPage, LogsSearchSchema } from "./features/logs/logs-page";
 import { NotificationsPage } from "./features/notifications/notifications-page";
 import { OnboardingPage } from "./features/onboarding/onboarding-page";
 import {
   TraceDetailPage,
-  TraceDetailParamsSchema,
-  TraceSearchParamsSchema,
+  TraceDetailSearchSchema,
+  TracesListSearchSchema,
   TracesPage,
 } from "./features/traces/traces-page";
 
@@ -36,6 +39,20 @@ const onboardingRoute = createRoute({
 const authenticatedRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: "authenticated",
+  // The Explore section's Service/Environment filters are retained HERE because
+  // the sidebar lives in this layout (AppShell): only a retain declared at this
+  // level engages on a sidebar click. strip-then-retain, paired with the
+  // default-free ExploreSearchShape, makes the filters both persistent AND
+  // clearable — a cleared `[]` is stripped to a clean URL, while an unset value
+  // arrives absent so retain copies the live selection forward. The explore page
+  // schemas include these keys so the destination route doesn't strip them.
+  validateSearch: ExploreSearchSchema,
+  search: {
+    middlewares: [
+      stripSearchParams({ service: [], environment: [] }),
+      retainSearchParams(["service", "environment"]),
+    ],
+  },
   component: AuthenticatedGuard,
 });
 
@@ -74,7 +91,7 @@ const logsRoute = createRoute({
 const tracesRoute = createRoute({
   getParentRoute: () => authenticatedRoute,
   path: "/traces",
-  validateSearch: TraceSearchParamsSchema,
+  validateSearch: TracesListSearchSchema,
   component: TracesPage,
 });
 
@@ -83,21 +100,21 @@ const tracesRoute = createRoute({
 const traceDetailRoute = createRoute({
   getParentRoute: () => tracesRoute,
   path: "$traceId",
-  validateSearch: TraceDetailParamsSchema,
+  validateSearch: TraceDetailSearchSchema,
   component: TraceDetailPage,
 });
 
 const errorsRoute = createRoute({
   getParentRoute: () => authenticatedRoute,
   path: "/errors",
-  validateSearch: ErrorIssueSearchSchema,
+  validateSearch: ErrorsListSearchSchema,
   component: ErrorsPage,
 });
 
 const errorDetailRoute = createRoute({
   getParentRoute: () => errorsRoute,
   path: "$fingerprint",
-  validateSearch: ErrorIssueSearchSchema,
+  validateSearch: ErrorsListSearchSchema,
   component: ErrorDetailPage,
 });
 
