@@ -1,15 +1,9 @@
 import type { TimeRange } from "@everr/ui/lib/time-range";
-import {
-  keepPreviousData,
-  useInfiniteQuery,
-  useQuery,
-} from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
+import { withEnvironment } from "../../filters/environment";
 import { FilterSearchBar } from "../../filters/ui/filter-search-bar";
-import {
-  errorIssuesInfiniteOptions,
-  errorServicesOptions,
-} from "../data/options";
+import { errorIssuesInfiniteOptions } from "../data/options";
 import type { ErrorsRepositoryLike } from "../data/repository";
 import type { AttributeFilter } from "../data/schemas";
 import { PAGE_SIZE } from "../data/schemas";
@@ -33,6 +27,8 @@ export type ErrorIssuesProps = {
   timeRange: TimeRange;
   refresh: string;
   search: ErrorIssuesSearchValue;
+  environment?: string[];
+  hideSharedFilters?: boolean;
   onSearchChange: (patch: Partial<ErrorIssuesSearchValue>) => void;
   renderIssueLink: RenderErrorIssueLink;
 };
@@ -42,6 +38,8 @@ export function ErrorIssues({
   timeRange,
   refresh,
   search,
+  environment = [],
+  hideSharedFilters = false,
   onSearchChange,
   renderIssueLink,
 }: ErrorIssuesProps) {
@@ -54,20 +52,13 @@ export function ErrorIssues({
       fingerprint: search.fingerprint,
       sort: search.sort,
       limit: PAGE_SIZE,
-      attributes: search.attributes,
+      attributes: withEnvironment(search.attributes, environment),
     }),
     placeholderData: keepPreviousData,
   });
   const issues = useMemo(
     () => (issuesQuery.data?.pages ?? []).flatMap((page) => page?.issues ?? []),
     [issuesQuery.data],
-  );
-  const servicesQuery = useQuery(
-    errorServicesOptions(repo, {
-      timeRange,
-      refresh,
-      attributes: search.attributes,
-    }),
   );
 
   return (
@@ -88,7 +79,7 @@ export function ErrorIssues({
             repo={repo}
             timeRange={timeRange}
             value={search}
-            services={servicesQuery.data ?? []}
+            hideSharedFilters={hideSharedFilters}
             onChange={onSearchChange}
           />
           <main className="min-h-0 min-w-0">

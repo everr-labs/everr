@@ -1,3 +1,4 @@
+import { ErrorsExploreFilters } from "@everr/telemetry-explorer/errors";
 import { LogsExploreFilters } from "@everr/telemetry-explorer/logs";
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import {
@@ -9,6 +10,7 @@ import {
   useSearch,
 } from "@tanstack/react-router";
 import { z } from "zod";
+import { remoteErrorsRepo } from "@/data/errors/remote-repo";
 import { remoteRepo } from "@/data/logs-explorer/remote-repo";
 
 const ExploreSearchSchema = z.object({
@@ -38,6 +40,7 @@ function ExploreLayout() {
   const navigate = Route.useNavigate();
   const dashSearch = useSearch({ from: "/_authenticated/_dashboard" });
   const { timeRange } = withTimeRange(dashSearch);
+  const refresh = dashSearch.refresh ?? "off";
 
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const domain = domainFromPath(pathname);
@@ -74,7 +77,17 @@ function ExploreLayout() {
               onEnvironmentChange={onEnvironmentChange}
             />
           ) : null}
-          {/* errors branch added in Task 5 */}
+          {domain === "errors" ? (
+            <ErrorsExploreFilters
+              repo={remoteErrorsRepo}
+              timeRange={timeRange}
+              refresh={refresh}
+              service={service}
+              environment={environment}
+              onServiceChange={onServiceChange}
+              onEnvironmentChange={onEnvironmentChange}
+            />
+          ) : null}
           {/* traces branch added in Task 6 */}
         </div>
       ) : null}

@@ -23,4 +23,5 @@ export {
   ErrorTracePanel,
   type RenderTraceLink,
 } from "./ui/error-trace-panel";
+export { ErrorsExploreFilters } from "./ui/errors-explore-filters";
 export { getErrorTraceWindow } from "./ui/trace-window";
