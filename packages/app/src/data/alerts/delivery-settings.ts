@@ -18,7 +18,7 @@ const EMPTY_CHANNEL_MESSAGES: Record<AlertChannel, string> = {
   slack: "Slack is enabled but has no webhooks",
 };
 
-export function emptyChannelError(
+function emptyChannelError(
   channel: AlertChannel,
   enabled: boolean,
   count: number,

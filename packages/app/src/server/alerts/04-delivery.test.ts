@@ -155,7 +155,10 @@ describe("enqueueAlertNotification", () => {
     );
 
     expect(addWorkerJob).toHaveBeenCalledTimes(1);
-    const telegram = queuedSends()[0];
+    const telegram = queuedSends()[0] as Extract<
+      DeliverySend,
+      { channel: "telegram" }
+    >;
     expect(telegram.text).toBe(
       [
         "🔥 s1 firing",
@@ -296,7 +299,7 @@ describe("enqueueAlertNotification", () => {
     );
 
     const sends = queuedSends();
-    const telegram = sends[0];
+    const telegram = sends[0] as Extract<DeliverySend, { channel: "telegram" }>;
     expect(telegram.text).toBe(
       [
         "✅ s1 resolved",
@@ -328,7 +331,7 @@ describe("enqueueAlertNotification", () => {
     );
 
     const sends = queuedSends();
-    const telegram = sends[0];
+    const telegram = sends[0] as Extract<DeliverySend, { channel: "telegram" }>;
     expect(telegram.text).toBe(
       [
         "🔥 s1 firing + resolved",
@@ -371,7 +374,10 @@ describe("enqueueAlertNotification", () => {
     );
 
     expect(addWorkerJob).toHaveBeenCalledTimes(1);
-    const telegram = queuedSends()[0];
+    const telegram = queuedSends()[0] as Extract<
+      DeliverySend,
+      { channel: "telegram" }
+    >;
     expect(telegram.text).toBe(
       [
         "✅ s1 resolved",

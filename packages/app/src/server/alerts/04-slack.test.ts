@@ -15,7 +15,9 @@ const opts = {
 };
 
 function sectionText(msg: SlackMessage): string {
-  const block = msg.attachments[0].blocks.find((b) => b.type === "section") as {
+  const block = msg.attachments[0].blocks.find(
+    (b) => b.type === "section",
+  ) as unknown as {
     text: { text: string };
   };
   return block.text.text;
@@ -36,7 +38,7 @@ describe("buildSlackMessage", () => {
     expect(sectionText(msg)).toContain("• route=/a");
     const actions = msg.attachments[0].blocks.find(
       (b) => b.type === "actions",
-    ) as {
+    ) as unknown as {
       elements: { url: string; text: { text: string } }[];
     };
     expect(actions.elements[0]).toMatchObject({

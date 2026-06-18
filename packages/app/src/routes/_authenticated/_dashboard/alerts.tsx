@@ -13,8 +13,6 @@ import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { Switch } from "@everr/ui/components/switch";
-import { TagsInput } from "@everr/ui/components/tags-input";
-import { useForm } from "@tanstack/react-form";
 import {
   queryOptions,
   useMutation,
@@ -24,12 +22,11 @@ import {
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Settings } from "lucide-react";
 import { useMemo, useState } from "react";
+import type { NormalizedAlertDeliverySettings } from "@/data/alerts/delivery-settings";
 import {
-  emptyChannelError,
-  type NormalizedAlertDeliverySettings,
-  telegramBotTokenError,
-} from "@/data/alerts/delivery-settings";
-import { validateTelegramChatId } from "@/data/alerts/recipients";
+  validateSlackWebhookUrl,
+  validateTelegramChatId,
+} from "@/data/alerts/recipients";
 import {
   type AlertSummary,
   getAlertSettings,
@@ -87,9 +84,8 @@ function AlertsPage() {
   const delivery = settings.data?.delivery;
   const hasChannel =
     !!delivery &&
-    delivery.telegram.enabled &&
-    delivery.telegram.chatIds.length > 0 &&
-    delivery.telegram.botToken.length > 0;
+    ((delivery.telegram.enabled && delivery.telegram.entries.length > 0) ||
+      (delivery.slack.enabled && delivery.slack.webhooks.length > 0));
 
   const columns = useMemo<Column<AlertSummary>[]>(
     () => [
@@ -269,50 +265,6 @@ function AlertsPage() {
   );
 }
 
-function ChannelField({
-  label,
-  recipientsLabel,
-  placeholder,
-  enabled,
-  onEnabledChange,
-  recipients,
-  onRecipientsChange,
-  validate,
-  error,
-}: {
-  label: string;
-  recipientsLabel: string;
-  placeholder: string;
-  enabled: boolean;
-  onEnabledChange: (enabled: boolean) => void;
-  recipients: string[];
-  onRecipientsChange: (recipients: string[]) => void;
-  validate: (value: string) => string | null;
-  error?: string;
-}) {
-  return (
-    <div className="flex flex-col gap-2">
-      <Label className="flex items-center gap-2">
-        <Switch checked={enabled} onCheckedChange={onEnabledChange} />
-        {label}
-      </Label>
-      <TagsInput
-        aria-label={recipientsLabel}
-        placeholder={placeholder}
-        disabled={!enabled}
-        value={recipients}
-        onValueChange={onRecipientsChange}
-        validate={validate}
-      />
-      {error && (
-        <p className="text-destructive text-xs" role="alert">
-          {error}
-        </p>
-      )}
-    </div>
-  );
-}
-
 function NotificationSettingsDialog({
   open,
   onOpenChange,
@@ -359,6 +311,31 @@ function NotificationSettingsDialog({
   );
 }
 
+type TelegramRow =
+  | { kind: "existing"; id: string; name?: string; chatId: string }
+  | { kind: "new"; name: string; botToken: string; chatId: string };
+type SlackRow =
+  | { kind: "existing"; id: string; name?: string }
+  | { kind: "new"; name: string; url: string };
+
+function toTelegramRows(
+  initial: NormalizedAlertDeliverySettings,
+): TelegramRow[] {
+  return initial.telegram.entries.map((e) => ({
+    kind: "existing",
+    id: e.id,
+    name: e.name,
+    chatId: e.chatId,
+  }));
+}
+function toSlackRows(initial: NormalizedAlertDeliverySettings): SlackRow[] {
+  return initial.slack.webhooks.map((w) => ({
+    kind: "existing",
+    id: w.id,
+    name: w.name,
+  }));
+}
+
 function NotificationSettingsForm({
   initial,
   onClose,
@@ -367,113 +344,76 @@ function NotificationSettingsForm({
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
+  const [telegramEnabled, setTelegramEnabled] = useState(
+    initial.telegram.enabled,
+  );
+  const [slackEnabled, setSlackEnabled] = useState(initial.slack.enabled);
+  const [telegramRows, setTelegramRows] = useState<TelegramRow[]>(() =>
+    toTelegramRows(initial),
+  );
+  const [slackRows, setSlackRows] = useState<SlackRow[]>(() =>
+    toSlackRows(initial),
+  );
 
   const update = useMutation({
-    mutationFn: (delivery: NormalizedAlertDeliverySettings) =>
-      updateAlertSettings({ data: { delivery } }),
+    mutationFn: () =>
+      updateAlertSettings({
+        data: {
+          delivery: {
+            telegram: {
+              enabled: telegramEnabled,
+              entries: telegramRows.map((r) =>
+                r.kind === "existing"
+                  ? { id: r.id }
+                  : {
+                      name: r.name || undefined,
+                      botToken: r.botToken,
+                      chatId: r.chatId,
+                    },
+              ),
+            },
+            slack: {
+              enabled: slackEnabled,
+              webhooks: slackRows.map((r) =>
+                r.kind === "existing"
+                  ? { id: r.id }
+                  : { name: r.name || undefined, url: r.url },
+              ),
+            },
+          },
+        },
+      }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["alerts", "settings"] });
       onClose();
     },
   });
 
-  const form = useForm({
-    defaultValues: initial,
-    // Failures stay in the mutation state and render inline.
-    onSubmit: ({ value }) => update.mutate(value),
-  });
-
   return (
     <form
-      className="flex flex-col gap-4"
+      className="flex flex-col gap-6"
       onSubmit={(event) => {
         event.preventDefault();
-        void form.handleSubmit();
+        update.mutate();
       }}
     >
-      <div className="flex flex-col gap-4">
-        <form.Field
-          name="telegram.enabled"
-          listeners={{
-            onChange: ({ fieldApi }) =>
-              void Promise.all([
-                fieldApi.form.validateField("telegram.chatIds", "change"),
-                fieldApi.form.validateField("telegram.botToken", "change"),
-              ]),
-          }}
-        >
-          {(enabledField) => (
-            <div className="flex flex-col gap-2">
-              <form.Field
-                name="telegram.chatIds"
-                validators={{
-                  onChange: ({ value, fieldApi }) =>
-                    emptyChannelError(
-                      "telegram",
-                      fieldApi.form.state.values.telegram.enabled,
-                      value,
-                    ),
-                }}
-              >
-                {(chatIdsField) => (
-                  <ChannelField
-                    label="Telegram"
-                    recipientsLabel="Telegram chat IDs"
-                    placeholder="-1001234567890"
-                    enabled={enabledField.state.value}
-                    onEnabledChange={enabledField.handleChange}
-                    recipients={chatIdsField.state.value}
-                    onRecipientsChange={chatIdsField.handleChange}
-                    validate={validateTelegramChatId}
-                    error={chatIdsField.state.meta.errors[0]}
-                  />
-                )}
-              </form.Field>
-              <form.Field
-                name="telegram.botToken"
-                validators={{
-                  onChange: ({ value, fieldApi }) =>
-                    telegramBotTokenError(
-                      fieldApi.form.state.values.telegram.enabled,
-                      value,
-                    ),
-                }}
-              >
-                {(botTokenField) => (
-                  <div className="flex flex-col gap-1">
-                    <Label htmlFor="telegram-bot-token">
-                      Telegram bot token
-                    </Label>
-                    <Input
-                      id="telegram-bot-token"
-                      type="password"
-                      autoComplete="off"
-                      disabled={!enabledField.state.value}
-                      placeholder="123456789:ABC..."
-                      value={botTokenField.state.value}
-                      onChange={(event) =>
-                        botTokenField.handleChange(event.target.value)
-                      }
-                      onBlur={botTokenField.handleBlur}
-                      aria-invalid={botTokenField.state.meta.errors.length > 0}
-                    />
-                    {botTokenField.state.meta.errors[0] && (
-                      <p className="text-destructive text-xs" role="alert">
-                        {botTokenField.state.meta.errors[0]}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </form.Field>
-            </div>
-          )}
-        </form.Field>
-        {update.error && (
-          <p className="text-destructive text-sm" role="alert">
-            {update.error.message}
-          </p>
-        )}
-      </div>
+      <TelegramChannel
+        enabled={telegramEnabled}
+        onEnabledChange={setTelegramEnabled}
+        rows={telegramRows}
+        onRowsChange={setTelegramRows}
+      />
+      <SlackChannel
+        enabled={slackEnabled}
+        onEnabledChange={setSlackEnabled}
+        rows={slackRows}
+        onRowsChange={setSlackRows}
+      />
+      {update.error && (
+        <p className="text-destructive text-sm" role="alert">
+          {update.error.message}
+        </p>
+      )}
       <DialogFooter>
         <Button
           type="button"
@@ -488,5 +428,185 @@ function NotificationSettingsForm({
         </Button>
       </DialogFooter>
     </form>
+  );
+}
+
+function TelegramChannel({
+  enabled,
+  onEnabledChange,
+  rows,
+  onRowsChange,
+}: {
+  enabled: boolean;
+  onEnabledChange: (v: boolean) => void;
+  rows: TelegramRow[];
+  onRowsChange: (rows: TelegramRow[]) => void;
+}) {
+  const [name, setName] = useState("");
+  const [chatId, setChatId] = useState("");
+  const [botToken, setBotToken] = useState("");
+  const chatIdError = chatId ? validateTelegramChatId(chatId) : null;
+  const canAdd =
+    enabled && !chatIdError && chatId.length > 0 && botToken.length > 0;
+
+  return (
+    <div className="flex flex-col gap-2">
+      <Label className="flex items-center gap-2">
+        <Switch checked={enabled} onCheckedChange={onEnabledChange} />
+        Telegram
+      </Label>
+      {enabled && (
+        <>
+          <ul className="flex flex-col gap-1">
+            {rows.map((row, i) => (
+              <li
+                key={row.kind === "existing" ? row.id : `new-${i}`}
+                className="flex items-center justify-between rounded border px-2 py-1 text-sm"
+              >
+                <span>
+                  {row.name ? `${row.name} · ` : ""}
+                  {row.chatId}
+                  {row.kind === "existing" ? " · token configured" : ""}
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onRowsChange(rows.filter((_, j) => j !== i))}
+                >
+                  Remove
+                </Button>
+              </li>
+            ))}
+          </ul>
+          <div className="flex flex-col gap-1">
+            <Input
+              placeholder="Name (optional)"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+            <Input
+              placeholder="Chat ID (e.g. -1001234567890)"
+              value={chatId}
+              onChange={(e) => setChatId(e.target.value)}
+              aria-invalid={!!chatIdError}
+            />
+            <Input
+              type="password"
+              autoComplete="off"
+              placeholder="Bot token"
+              value={botToken}
+              onChange={(e) => setBotToken(e.target.value)}
+            />
+            {chatIdError && (
+              <p className="text-destructive text-xs" role="alert">
+                {chatIdError}
+              </p>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!canAdd}
+              onClick={() => {
+                onRowsChange([
+                  ...rows,
+                  { kind: "new", name, botToken, chatId },
+                ]);
+                setName("");
+                setChatId("");
+                setBotToken("");
+              }}
+            >
+              Add Telegram chat
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function SlackChannel({
+  enabled,
+  onEnabledChange,
+  rows,
+  onRowsChange,
+}: {
+  enabled: boolean;
+  onEnabledChange: (v: boolean) => void;
+  rows: SlackRow[];
+  onRowsChange: (rows: SlackRow[]) => void;
+}) {
+  const [name, setName] = useState("");
+  const [url, setUrl] = useState("");
+  const urlError = url ? validateSlackWebhookUrl(url) : null;
+  const canAdd = enabled && !urlError && url.length > 0;
+
+  return (
+    <div className="flex flex-col gap-2">
+      <Label className="flex items-center gap-2">
+        <Switch checked={enabled} onCheckedChange={onEnabledChange} />
+        Slack
+      </Label>
+      {enabled && (
+        <>
+          <ul className="flex flex-col gap-1">
+            {rows.map((row, i) => (
+              <li
+                key={row.kind === "existing" ? row.id : `new-${i}`}
+                className="flex items-center justify-between rounded border px-2 py-1 text-sm"
+              >
+                <span>
+                  {row.name || "Webhook"}
+                  {row.kind === "existing" ? " · configured" : " · new"}
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onRowsChange(rows.filter((_, j) => j !== i))}
+                >
+                  Remove
+                </Button>
+              </li>
+            ))}
+          </ul>
+          <div className="flex flex-col gap-1">
+            <Input
+              placeholder="Name (optional)"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+            <Input
+              type="password"
+              autoComplete="off"
+              placeholder="https://hooks.slack.com/services/..."
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              aria-invalid={!!urlError}
+            />
+            {urlError && (
+              <p className="text-destructive text-xs" role="alert">
+                {urlError}
+              </p>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!canAdd}
+              onClick={() => {
+                onRowsChange([...rows, { kind: "new", name, url }]);
+                setName("");
+                setUrl("");
+              }}
+            >
+              Add Slack webhook
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
   );
 }

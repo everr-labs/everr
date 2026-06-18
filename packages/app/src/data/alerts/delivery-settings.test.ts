@@ -9,9 +9,10 @@ import {
 
 describe("migrateStoredDeliverySettings", () => {
   it("converts legacy telegram bot-token + chatIds into entries", () => {
-    const migrated = migrateStoredDeliverySettings({
+    const legacyInput = {
       telegram: { enabled: true, botToken: "bot", chatIds: ["123", "456"] },
-    });
+    } as unknown as Parameters<typeof migrateStoredDeliverySettings>[0];
+    const migrated = migrateStoredDeliverySettings(legacyInput);
     expect(migrated.telegram).toEqual({
       enabled: true,
       entries: [
