@@ -48,6 +48,22 @@ describe("core API", () => {
     expect(record.attributes.feature).toBe("billing");
   });
 
+  it("captureError uses explicit handled attributes when present", () => {
+    initClient({}, "node", []);
+    captureError(new Error("manual boom"), { "error.handled": false });
+    const [record] = otel.records();
+    expect(record.attributes["error.handled"]).toBe(false);
+    expect(record.attributes["everr.error.handled"]).toBe(false);
+  });
+
+  it("captureError options override handled attributes", () => {
+    initClient({}, "node", []);
+    captureError(new Error("manual boom"), { "error.handled": false }, { handled: true });
+    const [record] = otel.records();
+    expect(record.attributes["error.handled"]).toBe(false);
+    expect(record.attributes["everr.error.handled"]).toBe(true);
+  });
+
   it("captureError is a no-op before init", () => {
     expect(() => captureError(new Error("ignored"))).not.toThrow();
     expect(otel.records()).toHaveLength(0);

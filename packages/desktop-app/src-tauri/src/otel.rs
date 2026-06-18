@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::env;
+use std::time::Duration;
 
 use opentelemetry_otlp::{Protocol, WithExportConfig, WithHttpConfig};
 use opentelemetry_sdk::logs::SdkLoggerProvider;
@@ -19,10 +20,8 @@ const MAX_OTLP_BODY_BYTES: usize = 4 * 1024 * 1024;
 const SERVICE_NAME: &str = "everr-desktop";
 const FRONTEND_SERVICE_NAME: &str = "everr-desktop-frontend";
 
-type TelemetryInitResult = Result<
-    (TelemetryGuard, OtlpProxy, TelemetryContext),
-    Box<dyn std::error::Error + Send + Sync>,
->;
+type TelemetryInitResult =
+    Result<(TelemetryGuard, OtlpProxy, TelemetryContext), Box<dyn std::error::Error + Send + Sync>>;
 
 pub struct TelemetryGuard {
     logger_provider: Option<SdkLoggerProvider>,
@@ -98,7 +97,7 @@ pub fn init_telemetry() -> TelemetryInitResult {
         target: Some(ProxyTarget {
             endpoint: config.endpoint.clone(),
             headers: config.headers.clone(),
-            client: Client::new(),
+            client: Client::builder().timeout(Duration::from_secs(10)).build()?,
         }),
     };
 

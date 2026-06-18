@@ -6,6 +6,7 @@ import type { Integration, Options } from "./types.js";
 export { Client };
 export type { Runtime };
 export { captureError, getClient, teardown } from "./core.js";
+export type { CaptureErrorOptions } from "./core.js";
 export { nodeGlobalHandlersIntegration } from "./integrations/node-globals.js";
 export type { ErrorEvent, Integration, Mechanism, Options } from "./types.js";
 

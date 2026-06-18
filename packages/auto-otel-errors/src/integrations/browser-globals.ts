@@ -21,6 +21,10 @@ export function browserGlobalHandlersIntegration(): Integration {
       };
       onRejection = (event) => {
         const reason = (event as { reason?: unknown }).reason;
+        if (client.wasCaptured(reason)) {
+          return;
+        }
+
         client.capture({
           error: reason,
           mechanism: "unhandledrejection",

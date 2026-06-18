@@ -4,6 +4,10 @@ import type { Integration, Options } from "./types.js";
 
 let activeClient: Client | null = null;
 
+export interface CaptureErrorOptions {
+  handled?: boolean;
+}
+
 export function initClient(
   options: Options,
   runtime: Runtime,
@@ -25,8 +29,16 @@ export function getClient(): Client | null {
   return activeClient;
 }
 
-export function captureError(error: unknown, attributes?: Attributes): void {
-  activeClient?.capture({ error, mechanism: "manual", handled: true, attributes });
+export function captureError(
+  error: unknown,
+  attributes?: Attributes,
+  options?: CaptureErrorOptions,
+): void {
+  const handledAttr = attributes?.["error.handled"];
+  const handled =
+    options?.handled ?? (typeof handledAttr === "boolean" ? handledAttr : true);
+
+  activeClient?.capture({ error, mechanism: "manual", handled, attributes });
 }
 
 export function teardown(): void {

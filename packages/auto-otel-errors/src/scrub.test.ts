@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_SCRUB_PATTERNS, scrubAttributes, scrubString } from "./scrub.js";
+import {
+  DEFAULT_SCRUB_PATTERNS,
+  filterKeyValueData,
+  scrubAttributes,
+  scrubString,
+} from "./scrub.js";
 
 describe("scrubString", () => {
   it("filters bearer tokens", () => {
@@ -12,6 +17,12 @@ describe("scrubString", () => {
     expect(
       scrubString("GET /cb?token=s3cret&page=2", DEFAULT_SCRUB_PATTERNS),
     ).toBe("GET /cb?token=[Filtered]&page=2");
+  });
+
+  it("does not use lookbehind in default patterns", () => {
+    expect(DEFAULT_SCRUB_PATTERNS.map((pattern) => pattern.source)).not.toEqual(
+      expect.arrayContaining([expect.stringMatching(/\(\?<[=!]/)]),
+    );
   });
 
   it("filters card-shaped numbers and emails", () => {
@@ -34,7 +45,7 @@ describe("scrubAttributes", () => {
       DEFAULT_SCRUB_PATTERNS,
     );
     expect(result).toEqual({
-      url: "/cb?password=[Filtered]",
+      url: "/cb",
       count: 3,
       ok: true,
     });
@@ -51,6 +62,92 @@ describe("scrubAttributes", () => {
     expect(result).toEqual({
       "url.full": "https://example.com/cb",
       other: "/cb?token=[Filtered]&page=2#section",
+    });
+  });
+
+  it("strips query from url keys", () => {
+    const result = scrubAttributes(
+      {
+        url: "https://example.com/path?secret=abc",
+        "request.url": "https://example.com/path?secret=abc",
+      },
+      DEFAULT_SCRUB_PATTERNS,
+    );
+    expect(result).toEqual({
+      url: "https://example.com/path",
+      "request.url": "https://example.com/path",
+    });
+  });
+});
+
+describe("filterKeyValueData", () => {
+  it("filters sensitive keys with default denylist", () => {
+    const result = filterKeyValueData(
+      {
+        authorization: "Bearer token123",
+        "content-type": "application/json",
+        password: "secret",
+        "x-api-key": "key123",
+      },
+      true,
+    );
+    expect(result).toEqual({
+      authorization: "[Filtered]",
+      "content-type": "application/json",
+      password: "[Filtered]",
+      "x-api-key": "[Filtered]",
+    });
+  });
+
+  it("returns empty object when behavior is false", () => {
+    const result = filterKeyValueData(
+      { authorization: "Bearer token123" },
+      false,
+    );
+    expect(result).toEqual({});
+  });
+
+  it("filters with custom deny terms", () => {
+    const result = filterKeyValueData(
+      {
+        "x-custom-header": "value",
+        authorization: "Bearer token",
+      },
+      { deny: ["custom"] },
+    );
+    expect(result).toEqual({
+      "x-custom-header": "[Filtered]",
+      authorization: "[Filtered]",
+    });
+  });
+
+  it("filters with allow list", () => {
+    const result = filterKeyValueData(
+      {
+        "content-type": "application/json",
+        authorization: "Bearer token",
+        "x-request-id": "123",
+      },
+      { allow: ["content-type"] },
+    );
+    expect(result).toEqual({
+      "content-type": "application/json",
+      authorization: "[Filtered]",
+      "x-request-id": "[Filtered]",
+    });
+  });
+
+  it("always filters sensitive keys even in allow list", () => {
+    const result = filterKeyValueData(
+      {
+        authorization: "Bearer token",
+        password: "secret",
+      },
+      { allow: ["authorization", "password"] },
+    );
+    expect(result).toEqual({
+      authorization: "[Filtered]",
+      password: "[Filtered]",
     });
   });
 });

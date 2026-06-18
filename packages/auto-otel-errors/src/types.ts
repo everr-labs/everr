@@ -1,5 +1,6 @@
 import type { Attributes } from "@opentelemetry/api";
 import type { Client } from "./client.js";
+import type { CollectBehavior } from "./scrub.js";
 
 export type Mechanism =
   | "uncaughtException"
@@ -32,6 +33,7 @@ export interface Options {
   integrations?: Integration[];
   beforeSend?: (event: ErrorEvent) => ErrorEvent | null;
   scrubPatterns?: RegExp[];
+  scrubKeys?: CollectBehavior;
   rateLimit?: { count: number; windowMs: number } | false;
   onFatal?: "exit" | "continue";
 }

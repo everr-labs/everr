@@ -5,12 +5,14 @@ import { setupTestTelemetry } from "../test-utils.js";
 import { browserGlobalHandlersIntegration } from "./browser-globals.js";
 
 let otel: ReturnType<typeof setupTestTelemetry>;
+let client: Client;
 let integration: ReturnType<typeof browserGlobalHandlersIntegration>;
 
 beforeEach(() => {
   otel = setupTestTelemetry();
+  client = new Client({}, "browser", []);
   integration = browserGlobalHandlersIntegration();
-  integration.setup(new Client({}, "browser", []));
+  integration.setup(client);
 });
 
 afterEach(async () => {
@@ -44,6 +46,17 @@ describe("browserGlobalHandlersIntegration", () => {
     window.dispatchEvent(event);
     const [record] = otel.records();
     expect(record.attributes["everr.error.mechanism"]).toBe("unhandledrejection");
+  });
+
+  it("ignores unhandled rejection reasons already captured by browserApiErrors", () => {
+    const reason = new Error("already captured");
+    client.markCaptured(reason);
+
+    const event = new Event("unhandledrejection") as Event & { reason?: unknown };
+    event.reason = reason;
+    window.dispatchEvent(event);
+
+    expect(otel.records()).toHaveLength(0);
   });
 
   it("teardown removes listeners", () => {

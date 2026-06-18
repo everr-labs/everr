@@ -9,7 +9,13 @@ import {
 import { type Logger, SeverityNumber, logs } from "@opentelemetry/api-logs";
 import { type NormalizedError, normalizeError } from "./normalize.js";
 import { RateLimiter } from "./rate-limit.js";
-import { DEFAULT_SCRUB_PATTERNS, scrubAttributes, scrubString } from "./scrub.js";
+import {
+  type CollectBehavior,
+  DEFAULT_SCRUB_PATTERNS,
+  filterKeyValueData,
+  scrubAttributes,
+  scrubString,
+} from "./scrub.js";
 import type {
   ErrorEvent,
   ErrorSeverity,
@@ -39,6 +45,7 @@ export class Client {
   private readonly logger: Logger;
   private readonly rateLimiter: RateLimiter | null;
   private readonly scrubPatterns: RegExp[];
+  private readonly scrubKeys: CollectBehavior;
   private readonly capturedObjects = new WeakSet<object>();
   private processing = false;
 
@@ -55,6 +62,7 @@ export class Client {
             options.rateLimit?.windowMs ?? 5000,
           );
     this.scrubPatterns = options.scrubPatterns ?? DEFAULT_SCRUB_PATTERNS;
+    this.scrubKeys = options.scrubKeys ?? true;
   }
 
   setup(): void {
@@ -135,18 +143,23 @@ export class Client {
     }
 
     const errorId = generateErrorId();
+    const rawAttributes: Attributes = {
+      ...event.attributes,
+      "exception.type": normalized.type,
+      "exception.message": normalized.message,
+      ...(normalized.stacktrace
+        ? { "exception.stacktrace": normalized.stacktrace }
+        : {}),
+      "everr.error.handled": event.handled,
+      "everr.error.mechanism": event.mechanism,
+      "log.record.uid": errorId,
+    };
+    const filteredAttributes = filterKeyValueData(
+      rawAttributes,
+      this.scrubKeys,
+    );
     const attributes = scrubAttributes(
-      {
-        ...event.attributes,
-        "exception.type": normalized.type,
-        "exception.message": normalized.message,
-        ...(normalized.stacktrace
-          ? { "exception.stacktrace": normalized.stacktrace }
-          : {}),
-        "everr.error.handled": event.handled,
-        "everr.error.mechanism": event.mechanism,
-        "log.record.uid": errorId,
-      },
+      filteredAttributes,
       this.scrubPatterns,
     );
     const body = scrubString(event.message, this.scrubPatterns);
