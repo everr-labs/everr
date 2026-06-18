@@ -21,10 +21,12 @@ import {
 } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Settings } from "lucide-react";
-import { useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
+import { toast } from "sonner";
 import type { NormalizedAlertDeliverySettings } from "@/data/alerts/delivery-settings";
 import {
   validateSlackWebhookUrl,
+  validateTelegramBotToken,
   validateTelegramChatId,
 } from "@/data/alerts/recipients";
 import {
@@ -276,11 +278,12 @@ function NotificationSettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Notification settings</DialogTitle>
           <DialogDescription>
-            Organization-level delivery for alert notifications.{" "}
+            Choose where firing alerts are delivered for everyone in this
+            organization.{" "}
             <a
               className="underline underline-offset-4"
               href="https://everr.dev/docs/alerts/notifications"
@@ -311,12 +314,21 @@ function NotificationSettingsDialog({
   );
 }
 
+// New entries are edited inline as rows in the same array Save reads, so typed
+// input is never staged-but-unsaved: pressing Enter or Save commits exactly
+// what's on screen, and empty new rows are simply ignored.
 type TelegramRow =
   | { kind: "existing"; id: string; name?: string; chatId: string }
-  | { kind: "new"; name: string; botToken: string; chatId: string };
+  | {
+      kind: "new";
+      key: string;
+      name: string;
+      botToken: string;
+      chatId: string;
+    };
 type SlackRow =
   | { kind: "existing"; id: string; name?: string }
-  | { kind: "new"; name: string; url: string };
+  | { kind: "new"; key: string; name: string; url: string };
 
 function toTelegramRows(
   initial: NormalizedAlertDeliverySettings,
@@ -334,6 +346,49 @@ function toSlackRows(initial: NormalizedAlertDeliverySettings): SlackRow[] {
     id: w.id,
     name: w.name,
   }));
+}
+
+function newTelegramRow(): TelegramRow {
+  return {
+    kind: "new",
+    key: crypto.randomUUID(),
+    name: "",
+    botToken: "",
+    chatId: "",
+  };
+}
+function newSlackRow(): SlackRow {
+  return { kind: "new", key: crypto.randomUUID(), name: "", url: "" };
+}
+
+// A new row with nothing typed is treated as absent: never submitted, never an
+// error. Anything partially filled is a real entry that must validate.
+function isBlankTelegramRow(r: TelegramRow): boolean {
+  return r.kind === "new" && !r.name && !r.chatId && !r.botToken;
+}
+function isBlankSlackRow(r: SlackRow): boolean {
+  return r.kind === "new" && !r.name && !r.url;
+}
+
+// `immediate` errors (a filled field in a bad format) surface while typing; the
+// rest wait for a save attempt so a half-typed row isn't nagged. Returning this
+// shape lets the row derive `showError` without re-running the validator.
+type RowError = { message: string; immediate: boolean };
+
+function telegramRowError(r: TelegramRow): RowError | null {
+  if (r.kind !== "new" || isBlankTelegramRow(r)) return null;
+  if (!r.chatId) return { message: "Chat ID is required", immediate: false };
+  const chatIdError = validateTelegramChatId(r.chatId);
+  if (chatIdError) return { message: chatIdError, immediate: true };
+  const tokenError = validateTelegramBotToken(r.botToken);
+  if (tokenError) return { message: tokenError, immediate: false };
+  return null;
+}
+function slackRowError(r: SlackRow): RowError | null {
+  if (r.kind !== "new" || isBlankSlackRow(r)) return null;
+  if (!r.url) return { message: "Webhook URL is required", immediate: false };
+  const urlError = validateSlackWebhookUrl(r.url);
+  return urlError ? { message: urlError, immediate: true } : null;
 }
 
 function NotificationSettingsForm({
@@ -354,6 +409,24 @@ function NotificationSettingsForm({
   const [slackRows, setSlackRows] = useState<SlackRow[]>(() =>
     toSlackRows(initial),
   );
+  // Gate "channel is on but empty" messaging until the first save attempt so
+  // toggling a channel on doesn't immediately flash an error.
+  const [submitted, setSubmitted] = useState(false);
+
+  // A disabled channel persists only its already-saved entries — its inline
+  // editor is hidden, so in-progress rows can't be seen, validated, or fixed.
+  const telegramKept = telegramEnabled
+    ? telegramRows.filter((r) => !isBlankTelegramRow(r))
+    : telegramRows.filter((r) => r.kind === "existing");
+  const slackKept = slackEnabled
+    ? slackRows.filter((r) => !isBlankSlackRow(r))
+    : slackRows.filter((r) => r.kind === "existing");
+  const telegramEmpty = telegramEnabled && telegramKept.length === 0;
+  const slackEmpty = slackEnabled && slackKept.length === 0;
+  const hasRowErrors =
+    (telegramEnabled && telegramRows.some((r) => telegramRowError(r))) ||
+    (slackEnabled && slackRows.some((r) => slackRowError(r)));
+  const blocked = telegramEmpty || slackEmpty || hasRowErrors;
 
   const update = useMutation({
     mutationFn: () =>
@@ -362,7 +435,7 @@ function NotificationSettingsForm({
           delivery: {
             telegram: {
               enabled: telegramEnabled,
-              entries: telegramRows.map((r) =>
+              entries: telegramKept.map((r) =>
                 r.kind === "existing"
                   ? { id: r.id }
                   : {
@@ -374,7 +447,7 @@ function NotificationSettingsForm({
             },
             slack: {
               enabled: slackEnabled,
-              webhooks: slackRows.map((r) =>
+              webhooks: slackKept.map((r) =>
                 r.kind === "existing"
                   ? { id: r.id }
                   : { name: r.name || undefined, url: r.url },
@@ -385,6 +458,7 @@ function NotificationSettingsForm({
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["alerts", "settings"] });
+      toast.success("Notification settings saved");
       onClose();
     },
   });
@@ -394,6 +468,8 @@ function NotificationSettingsForm({
       className="flex flex-col gap-6"
       onSubmit={(event) => {
         event.preventDefault();
+        setSubmitted(true);
+        if (blocked || update.isPending) return;
         update.mutate();
       }}
     >
@@ -402,16 +478,20 @@ function NotificationSettingsForm({
         onEnabledChange={setTelegramEnabled}
         rows={telegramRows}
         onRowsChange={setTelegramRows}
+        submitted={submitted}
+        emptyError={submitted && telegramEmpty}
       />
       <SlackChannel
         enabled={slackEnabled}
         onEnabledChange={setSlackEnabled}
         rows={slackRows}
         onRowsChange={setSlackRows}
+        submitted={submitted}
+        emptyError={submitted && slackEmpty}
       />
       {update.error && (
         <p className="text-destructive text-sm" role="alert">
-          {update.error.message}
+          Couldn't save notification settings. {update.error.message}
         </p>
       )}
       <DialogFooter>
@@ -424,10 +504,83 @@ function NotificationSettingsForm({
           Cancel
         </Button>
         <Button type="submit" disabled={update.isPending}>
-          Save
+          {update.isPending ? "Saving…" : "Save"}
         </Button>
       </DialogFooter>
     </form>
+  );
+}
+
+function ChannelToggle({
+  label,
+  enabled,
+  onEnabledChange,
+}: {
+  label: string;
+  enabled: boolean;
+  onEnabledChange: (v: boolean) => void;
+}) {
+  return (
+    <Label className="flex items-center gap-2">
+      <Switch checked={enabled} onCheckedChange={onEnabledChange} />
+      {label}
+    </Label>
+  );
+}
+
+// Visible, persistent field label — placeholders alone vanish once the user
+// types, and these fields (chat ID vs token, name vs URL) are easy to confuse.
+function LabeledField({
+  id,
+  label,
+  children,
+}: {
+  id: string;
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <Label htmlFor={id} className="font-normal text-muted-foreground">
+        {label}
+      </Label>
+      {children}
+    </div>
+  );
+}
+
+function RemoveRowButton({
+  label,
+  onClick,
+}: {
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      aria-label={label}
+      onClick={onClick}
+    >
+      Remove
+    </Button>
+  );
+}
+
+function DisabledChannelSummary({
+  count,
+  noun,
+}: {
+  count: number;
+  noun: string;
+}) {
+  if (count === 0) return null;
+  return (
+    <p className="pl-1 text-muted-foreground text-xs">
+      {count} {count === 1 ? noun : `${noun}s`} saved · delivery off
+    </p>
   );
 }
 
@@ -436,92 +589,142 @@ function TelegramChannel({
   onEnabledChange,
   rows,
   onRowsChange,
+  submitted,
+  emptyError,
 }: {
   enabled: boolean;
   onEnabledChange: (v: boolean) => void;
   rows: TelegramRow[];
   onRowsChange: (rows: TelegramRow[]) => void;
+  submitted: boolean;
+  emptyError: boolean;
 }) {
-  const [name, setName] = useState("");
-  const [chatId, setChatId] = useState("");
-  const [botToken, setBotToken] = useState("");
-  const chatIdError = chatId ? validateTelegramChatId(chatId) : null;
-  const canAdd =
-    enabled && !chatIdError && chatId.length > 0 && botToken.length > 0;
+  const setRow = (
+    i: number,
+    patch: Partial<Extract<TelegramRow, { kind: "new" }>>,
+  ) =>
+    onRowsChange(
+      rows.map((r, j) =>
+        j === i && r.kind === "new" ? { ...r, ...patch } : r,
+      ),
+    );
+  const removeRow = (i: number) => onRowsChange(rows.filter((_, j) => j !== i));
 
   return (
     <div className="flex flex-col gap-2">
-      <Label className="flex items-center gap-2">
-        <Switch checked={enabled} onCheckedChange={onEnabledChange} />
-        Telegram
-      </Label>
-      {enabled && (
-        <>
-          <ul className="flex flex-col gap-1">
-            {rows.map((row, i) => (
-              <li
-                key={row.kind === "existing" ? row.id : `new-${i}`}
-                className="flex items-center justify-between rounded border px-2 py-1 text-sm"
-              >
-                <span>
-                  {row.name ? `${row.name} · ` : ""}
-                  {row.chatId}
-                  {row.kind === "existing" ? " · token configured" : ""}
-                </span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onRowsChange(rows.filter((_, j) => j !== i))}
+      <ChannelToggle
+        label="Telegram"
+        enabled={enabled}
+        onEnabledChange={onEnabledChange}
+      />
+      {enabled ? (
+        <div className="flex flex-col gap-2 pl-1">
+          {rows.map((row, i) => {
+            if (row.kind === "existing") {
+              return (
+                <div
+                  key={row.id}
+                  className="flex items-center justify-between gap-2 rounded border px-2 py-1 text-sm"
                 >
-                  Remove
-                </Button>
-              </li>
-            ))}
-          </ul>
+                  <span className="min-w-0 truncate">
+                    {row.name ? (
+                      <span className="font-medium">{row.name} · </span>
+                    ) : null}
+                    <span className="font-mono">{row.chatId}</span>
+                    <span className="text-muted-foreground">
+                      {" "}
+                      · token saved
+                    </span>
+                  </span>
+                  <RemoveRowButton
+                    label={`Remove Telegram chat ${row.name ?? row.chatId}`}
+                    onClick={() => removeRow(i)}
+                  />
+                </div>
+              );
+            }
+            const error = telegramRowError(row);
+            const showError = !!error && (submitted || error.immediate);
+            return (
+              <div
+                key={row.key}
+                className="flex flex-col gap-1 rounded border p-2"
+              >
+                <div className="flex items-start gap-2">
+                  <div className="flex min-w-0 flex-1 flex-col gap-2">
+                    <LabeledField
+                      id={`tg-name-${row.key}`}
+                      label="Name (optional)"
+                    >
+                      <Input
+                        id={`tg-name-${row.key}`}
+                        placeholder="e.g. On-call"
+                        value={row.name}
+                        onChange={(e) => setRow(i, { name: e.target.value })}
+                      />
+                    </LabeledField>
+                    <LabeledField id={`tg-chat-${row.key}`} label="Chat ID">
+                      <Input
+                        id={`tg-chat-${row.key}`}
+                        placeholder="-1001234567890"
+                        value={row.chatId}
+                        onChange={(e) => setRow(i, { chatId: e.target.value })}
+                        aria-invalid={showError}
+                      />
+                    </LabeledField>
+                    <LabeledField id={`tg-token-${row.key}`} label="Bot token">
+                      <Input
+                        id={`tg-token-${row.key}`}
+                        type="password"
+                        autoComplete="off"
+                        placeholder="123456:ABC-DEF…"
+                        value={row.botToken}
+                        onChange={(e) =>
+                          setRow(i, { botToken: e.target.value })
+                        }
+                      />
+                    </LabeledField>
+                  </div>
+                  <RemoveRowButton
+                    label="Remove this Telegram chat"
+                    onClick={() => removeRow(i)}
+                  />
+                </div>
+                {showError && error && (
+                  <p className="text-destructive text-xs" role="alert">
+                    {error.message}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+          {rows.length === 0 && !emptyError && (
+            <p className="text-muted-foreground text-xs">
+              No Telegram chats yet. Add one to deliver alerts here.
+            </p>
+          )}
           <div className="flex flex-col gap-1">
-            <Input
-              placeholder="Name (optional)"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-            <Input
-              placeholder="Chat ID (e.g. -1001234567890)"
-              value={chatId}
-              onChange={(e) => setChatId(e.target.value)}
-              aria-invalid={!!chatIdError}
-            />
-            <Input
-              type="password"
-              autoComplete="off"
-              placeholder="Bot token"
-              value={botToken}
-              onChange={(e) => setBotToken(e.target.value)}
-            />
-            {chatIdError && (
-              <p className="text-destructive text-xs" role="alert">
-                {chatIdError}
-              </p>
-            )}
             <Button
               type="button"
               variant="outline"
               size="sm"
-              disabled={!canAdd}
-              onClick={() => {
-                onRowsChange([
-                  ...rows,
-                  { kind: "new", name, botToken, chatId },
-                ]);
-                setName("");
-                setChatId("");
-                setBotToken("");
-              }}
+              className="self-start"
+              onClick={() => onRowsChange([...rows, newTelegramRow()])}
             >
               Add Telegram chat
             </Button>
+            {emptyError && (
+              <p className="text-destructive text-xs" role="alert">
+                Telegram is on but has no chats. Add one, or turn Telegram off.
+              </p>
+            )}
           </div>
-        </>
+        </div>
+      ) : (
+        <DisabledChannelSummary
+          count={rows.filter((r) => r.kind === "existing").length}
+          noun="chat"
+        />
       )}
     </div>
   );
@@ -532,80 +735,126 @@ function SlackChannel({
   onEnabledChange,
   rows,
   onRowsChange,
+  submitted,
+  emptyError,
 }: {
   enabled: boolean;
   onEnabledChange: (v: boolean) => void;
   rows: SlackRow[];
   onRowsChange: (rows: SlackRow[]) => void;
+  submitted: boolean;
+  emptyError: boolean;
 }) {
-  const [name, setName] = useState("");
-  const [url, setUrl] = useState("");
-  const urlError = url ? validateSlackWebhookUrl(url) : null;
-  const canAdd = enabled && !urlError && url.length > 0;
+  const setRow = (
+    i: number,
+    patch: Partial<Extract<SlackRow, { kind: "new" }>>,
+  ) =>
+    onRowsChange(
+      rows.map((r, j) =>
+        j === i && r.kind === "new" ? { ...r, ...patch } : r,
+      ),
+    );
+  const removeRow = (i: number) => onRowsChange(rows.filter((_, j) => j !== i));
 
   return (
     <div className="flex flex-col gap-2">
-      <Label className="flex items-center gap-2">
-        <Switch checked={enabled} onCheckedChange={onEnabledChange} />
-        Slack
-      </Label>
-      {enabled && (
-        <>
-          <ul className="flex flex-col gap-1">
-            {rows.map((row, i) => (
-              <li
-                key={row.kind === "existing" ? row.id : `new-${i}`}
-                className="flex items-center justify-between rounded border px-2 py-1 text-sm"
-              >
-                <span>
-                  {row.name || "Webhook"}
-                  {row.kind === "existing" ? " · configured" : " · new"}
-                </span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onRowsChange(rows.filter((_, j) => j !== i))}
+      <ChannelToggle
+        label="Slack"
+        enabled={enabled}
+        onEnabledChange={onEnabledChange}
+      />
+      {enabled ? (
+        <div className="flex flex-col gap-2 pl-1">
+          {rows.map((row, i) => {
+            if (row.kind === "existing") {
+              return (
+                <div
+                  key={row.id}
+                  className="flex items-center justify-between gap-2 rounded border px-2 py-1 text-sm"
                 >
-                  Remove
-                </Button>
-              </li>
-            ))}
-          </ul>
+                  <span className="min-w-0 truncate">
+                    <span className="font-medium">{row.name || "Webhook"}</span>
+                    <span className="text-muted-foreground"> · saved</span>
+                  </span>
+                  <RemoveRowButton
+                    label={`Remove Slack webhook ${row.name ?? ""}`.trim()}
+                    onClick={() => removeRow(i)}
+                  />
+                </div>
+              );
+            }
+            const error = slackRowError(row);
+            const showError = !!error && (submitted || error.immediate);
+            return (
+              <div
+                key={row.key}
+                className="flex flex-col gap-1 rounded border p-2"
+              >
+                <div className="flex items-start gap-2">
+                  <div className="flex min-w-0 flex-1 flex-col gap-2">
+                    <LabeledField
+                      id={`sl-name-${row.key}`}
+                      label="Name (optional)"
+                    >
+                      <Input
+                        id={`sl-name-${row.key}`}
+                        placeholder="e.g. #incidents"
+                        value={row.name}
+                        onChange={(e) => setRow(i, { name: e.target.value })}
+                      />
+                    </LabeledField>
+                    <LabeledField id={`sl-url-${row.key}`} label="Webhook URL">
+                      <Input
+                        id={`sl-url-${row.key}`}
+                        type="password"
+                        autoComplete="off"
+                        placeholder="https://hooks.slack.com/services/…"
+                        value={row.url}
+                        onChange={(e) => setRow(i, { url: e.target.value })}
+                        aria-invalid={showError}
+                      />
+                    </LabeledField>
+                  </div>
+                  <RemoveRowButton
+                    label="Remove this Slack webhook"
+                    onClick={() => removeRow(i)}
+                  />
+                </div>
+                {showError && error && (
+                  <p className="text-destructive text-xs" role="alert">
+                    {error.message}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+          {rows.length === 0 && !emptyError && (
+            <p className="text-muted-foreground text-xs">
+              No Slack webhooks yet. Add one to deliver alerts here.
+            </p>
+          )}
           <div className="flex flex-col gap-1">
-            <Input
-              placeholder="Name (optional)"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-            <Input
-              type="password"
-              autoComplete="off"
-              placeholder="https://hooks.slack.com/services/..."
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              aria-invalid={!!urlError}
-            />
-            {urlError && (
-              <p className="text-destructive text-xs" role="alert">
-                {urlError}
-              </p>
-            )}
             <Button
               type="button"
               variant="outline"
               size="sm"
-              disabled={!canAdd}
-              onClick={() => {
-                onRowsChange([...rows, { kind: "new", name, url }]);
-                setName("");
-                setUrl("");
-              }}
+              className="self-start"
+              onClick={() => onRowsChange([...rows, newSlackRow()])}
             >
               Add Slack webhook
             </Button>
+            {emptyError && (
+              <p className="text-destructive text-xs" role="alert">
+                Slack is on but has no webhooks. Add one, or turn Slack off.
+              </p>
+            )}
           </div>
-        </>
+        </div>
+      ) : (
+        <DisabledChannelSummary
+          count={rows.filter((r) => r.kind === "existing").length}
+          noun="webhook"
+        />
       )}
     </div>
   );
