@@ -15,13 +15,8 @@ import {
   TracesRepository,
 } from "@everr/telemetry-explorer/traces";
 import { buttonVariants } from "@everr/ui/components/button";
-import {
-  getRefreshIntervalMs,
-  RefreshPicker,
-} from "@everr/ui/components/refresh-picker";
-import { TimeRangePicker } from "@everr/ui/components/time-range-picker";
-import { type TimeRange, withTimeRange } from "@everr/ui/lib/time-range";
-import { useIsFetching, useQuery, useQueryClient } from "@tanstack/react-query";
+import { withTimeRange } from "@everr/ui/lib/time-range";
+import { useQuery } from "@tanstack/react-query";
 import {
   Link,
   Outlet,
@@ -30,15 +25,21 @@ import {
   useParams,
   useSearch,
 } from "@tanstack/react-router";
-import { type ReactNode, useEffect, useMemo, useRef } from "react";
 import {
   DetailRouteDialog,
   useDetailRouteDialogClose,
 } from "@/components/detail-route-dialog";
+import { ExploreSearchShape } from "../explore/explore-search";
+import { ExploreShell } from "../explore/explore-shell";
 import { LocalTelemetryGate } from "../local-telemetry/collector-status";
 import { localSqlClient } from "../logs/local-sql-client";
 
 export { ErrorIssueSearchSchema };
+
+// service/environment live in the shared Explore topbar but must also be in the
+// route schema so the leaf route's validateSearch doesn't strip them.
+export const ErrorsListSearchSchema =
+  ErrorIssueSearchSchema.extend(ExploreSearchShape);
 
 const localErrorsRepo = new ErrorsRepository(localSqlClient);
 const localTracesRepo = new TracesRepository(localSqlClient);
@@ -72,16 +73,21 @@ export function ErrorsPage() {
 }
 
 function ErrorsListView() {
-  const search = useSearch({ strict: false }) as ErrorIssueSearch;
+  const search = useSearch({ strict: false }) as ErrorIssueSearch & {
+    environment?: string[];
+  };
   const navigate = useNavigate();
   const { timeRange, q, service, fingerprint, sort, refresh, attributes } =
     withTimeRange(search);
+  const environment = search.environment ?? [];
 
   return (
-    <ErrorsPageShell
+    <ExploreShell
       title="Errors"
       timeRange={timeRange}
       refresh={refresh ?? ""}
+      service={service}
+      environment={environment}
       onTimeRangeChange={(range) =>
         navigate({
           to: "/errors",
@@ -96,6 +102,20 @@ function ErrorsListView() {
           replace: true,
         })
       }
+      onServiceChange={(values) =>
+        navigate({
+          to: "/errors",
+          search: { ...search, service: values },
+          replace: true,
+        })
+      }
+      onEnvironmentChange={(values) =>
+        navigate({
+          to: "/errors",
+          search: { ...search, environment: values },
+          replace: true,
+        })
+      }
     >
       <LocalTelemetryGate>
         <ErrorIssues
@@ -103,6 +123,8 @@ function ErrorsListView() {
           timeRange={timeRange}
           refresh={refresh ?? ""}
           search={{ q, service, fingerprint, sort, attributes }}
+          environment={environment}
+          hideSharedFilters
           onSearchChange={(patch) =>
             navigate({
               to: "/errors",
@@ -122,7 +144,7 @@ function ErrorsListView() {
           )}
         />
       </LocalTelemetryGate>
-    </ErrorsPageShell>
+    </ExploreShell>
   );
 }
 
@@ -233,72 +255,5 @@ function DesktopErrorTracePanel({
         </Link>
       )}
     />
-  );
-}
-
-function ErrorsPageShell({
-  title,
-  timeRange,
-  refresh,
-  onTimeRangeChange,
-  onRefreshChange,
-  children,
-}: {
-  title: string;
-  timeRange: TimeRange;
-  refresh: string;
-  onTimeRangeChange: (range: TimeRange) => void;
-  onRefreshChange: (value: string) => void;
-  children: ReactNode;
-}) {
-  const queryClient = useQueryClient();
-  const isFetching = useIsFetching() > 0;
-  const refreshMs = useMemo(
-    () => (refresh ? getRefreshIntervalMs(refresh) : null),
-    [refresh],
-  );
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-    if (refreshMs) {
-      intervalRef.current = setInterval(
-        () => void queryClient.invalidateQueries(),
-        refreshMs,
-      );
-    }
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [refreshMs, queryClient]);
-
-  return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <header className="relative z-10 flex h-12 shrink-0 items-center justify-between border-b border-white/[0.06] px-3">
-        <div
-          data-tauri-drag-region
-          className="flex flex-1 items-center self-stretch pl-[var(--titlebar-inset)]"
-        >
-          <span className="text-sm font-medium text-[var(--settings-text)]">
-            {title}
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <TimeRangePicker value={timeRange} onChange={onTimeRangeChange} />
-          <RefreshPicker
-            value={refresh}
-            onChange={onRefreshChange}
-            onRefresh={() => void queryClient.invalidateQueries()}
-            isFetching={isFetching}
-          />
-        </div>
-      </header>
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        {children}
-      </div>
-    </div>
   );
 }

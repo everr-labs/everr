@@ -8,13 +8,7 @@ import {
   TracesSearch,
   toTraceListSearch,
 } from "@everr/telemetry-explorer/traces";
-import {
-  getRefreshIntervalMs,
-  RefreshPicker,
-} from "@everr/ui/components/refresh-picker";
-import { TimeRangePicker } from "@everr/ui/components/time-range-picker";
-import { type TimeRange, withTimeRange } from "@everr/ui/lib/time-range";
-import { useIsFetching, useQueryClient } from "@tanstack/react-query";
+import { withTimeRange } from "@everr/ui/lib/time-range";
 import {
   Link,
   Outlet,
@@ -23,15 +17,21 @@ import {
   useParams,
   useSearch,
 } from "@tanstack/react-router";
-import { type ReactNode, useEffect, useMemo, useRef } from "react";
 import {
   DetailRouteDialog,
   useDetailRouteDialogClose,
 } from "@/components/detail-route-dialog";
+import { ExploreSearchShape } from "../explore/explore-search";
+import { ExploreShell } from "../explore/explore-shell";
 import { LocalTelemetryGate } from "../local-telemetry/collector-status";
 import { localSqlClient } from "../logs/local-sql-client";
 
-export { TraceDetailParamsSchema, TraceSearchParamsSchema };
+// service/environment live in the shared Explore topbar but must also be in the
+// route schemas so the leaf route's validateSearch doesn't strip them.
+export const TracesListSearchSchema =
+  TraceSearchParamsSchema.extend(ExploreSearchShape);
+export const TraceDetailSearchSchema =
+  TraceDetailParamsSchema.extend(ExploreSearchShape);
 
 const localTracesRepo = new TracesRepository(localSqlClient);
 
@@ -64,16 +64,23 @@ export function TracesPage() {
 }
 
 function TracesListView() {
-  const search = useSearch({ strict: false }) as TraceSearchParams;
+  const search = useSearch({ strict: false }) as TraceSearchParams & {
+    service?: string[];
+    environment?: string[];
+  };
   const navigate = useNavigate();
   const { timeRange } = withTimeRange(search);
   const refresh = search.refresh ?? "";
+  const service = search.service ?? [];
+  const environment = search.environment ?? [];
 
   return (
-    <TracePageShell
+    <ExploreShell
       title="Traces"
       timeRange={timeRange}
       refresh={refresh}
+      service={service}
+      environment={environment}
       onTimeRangeChange={(range) =>
         navigate({
           to: "/traces",
@@ -88,6 +95,20 @@ function TracesListView() {
           replace: true,
         })
       }
+      onServiceChange={(values) =>
+        navigate({
+          to: "/traces",
+          search: (prev) => ({ ...prev, service: values }),
+          replace: true,
+        })
+      }
+      onEnvironmentChange={(values) =>
+        navigate({
+          to: "/traces",
+          search: (prev) => ({ ...prev, environment: values }),
+          replace: true,
+        })
+      }
     >
       <LocalTelemetryGate>
         <TracesSearch
@@ -96,13 +117,15 @@ function TracesListView() {
           refresh={refresh}
           search={{
             namespace: search.namespace,
-            service: search.service,
+            service,
             name: search.name,
             minMs: search.minMs,
             maxMs: search.maxMs,
             status: search.status,
             attributes: search.attributes,
           }}
+          environment={environment}
+          hideSharedFilters
           onSearchChange={(patch) =>
             navigate({
               to: "/traces",
@@ -122,7 +145,7 @@ function TracesListView() {
           )}
         />
       </LocalTelemetryGate>
-    </TracePageShell>
+    </ExploreShell>
   );
 }
 
@@ -156,72 +179,5 @@ export function TraceDetailPage() {
         }
       />
     </LocalTelemetryGate>
-  );
-}
-
-function TracePageShell({
-  title,
-  timeRange,
-  refresh,
-  onTimeRangeChange,
-  onRefreshChange,
-  children,
-}: {
-  title: string;
-  timeRange: TimeRange;
-  refresh: string;
-  onTimeRangeChange: (range: TimeRange) => void;
-  onRefreshChange: (value: string) => void;
-  children: ReactNode;
-}) {
-  const queryClient = useQueryClient();
-  const isFetching = useIsFetching() > 0;
-  const refreshMs = useMemo(
-    () => (refresh ? getRefreshIntervalMs(refresh) : null),
-    [refresh],
-  );
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-    if (refreshMs) {
-      intervalRef.current = setInterval(
-        () => void queryClient.invalidateQueries(),
-        refreshMs,
-      );
-    }
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [refreshMs, queryClient]);
-
-  return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <header className="relative z-10 flex h-12 shrink-0 items-center justify-between border-b border-white/[0.06] px-3">
-        <div
-          data-tauri-drag-region
-          className="flex flex-1 items-center self-stretch pl-[var(--titlebar-inset)]"
-        >
-          <span className="text-sm font-medium text-[var(--settings-text)]">
-            {title}
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <TimeRangePicker value={timeRange} onChange={onTimeRangeChange} />
-          <RefreshPicker
-            value={refresh}
-            onChange={onRefreshChange}
-            onRefresh={() => void queryClient.invalidateQueries()}
-            isFetching={isFetching}
-          />
-        </div>
-      </header>
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        {children}
-      </div>
-    </div>
   );
 }
