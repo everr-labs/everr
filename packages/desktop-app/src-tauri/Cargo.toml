@@ -1,6 +1,6 @@
 [package]
 name = "everr-app"
-version = "0.4.3"
+version = "0.4.4"
 description = "Everr app"
 authors = [ "Everr" ]
 edition = "2021"
