@@ -1,14 +1,176 @@
 import { describe, expect, it } from "vitest";
-import { normalizeDeliverySettings } from "./delivery-settings";
+import {
+  DeliverySettingsSchema,
+  mergeDeliveryEntries,
+  migrateStoredDeliverySettings,
+  redactDeliverySecrets,
+  type StoredDeliverySettings,
+} from "./delivery-settings";
 
-describe("normalizeDeliverySettings", () => {
-  it("normalizes legacy Telegram settings without a bot token", () => {
-    expect(
-      normalizeDeliverySettings({
-        telegram: { enabled: true, chatIds: ["123"] },
-      } as never),
-    ).toEqual({
-      telegram: { enabled: true, botToken: "", chatIds: ["123"] },
+describe("migrateStoredDeliverySettings", () => {
+  it("converts legacy telegram bot-token + chatIds into entries", () => {
+    const migrated = migrateStoredDeliverySettings({
+      telegram: { enabled: true, botToken: "bot", chatIds: ["123", "456"] },
     });
+    expect(migrated.telegram).toEqual({
+      enabled: true,
+      entries: [
+        { id: "tg-123", name: undefined, botToken: "bot", chatId: "123" },
+        { id: "tg-456", name: undefined, botToken: "bot", chatId: "456" },
+      ],
+    });
+    expect(migrated.slack).toEqual({ enabled: false, webhooks: [] });
+  });
+
+  it("passes through the new entry shape unchanged", () => {
+    const stored: StoredDeliverySettings = {
+      telegram: {
+        enabled: true,
+        entries: [{ id: "a", botToken: "b", chatId: "1" }],
+      },
+      slack: {
+        enabled: true,
+        webhooks: [{ id: "w", url: "https://hooks.slack.com/services/T/B/x" }],
+      },
+    };
+    expect(migrateStoredDeliverySettings(stored)).toEqual(stored);
+  });
+
+  it("defaults missing channels", () => {
+    expect(migrateStoredDeliverySettings(null)).toEqual({
+      telegram: { enabled: false, entries: [] },
+      slack: { enabled: false, webhooks: [] },
+    });
+  });
+});
+
+describe("redactDeliverySecrets", () => {
+  it("strips bot tokens and webhook urls", () => {
+    expect(
+      redactDeliverySecrets({
+        telegram: {
+          enabled: true,
+          entries: [{ id: "a", name: "Ops", botToken: "secret", chatId: "1" }],
+        },
+        slack: {
+          enabled: true,
+          webhooks: [
+            {
+              id: "w",
+              name: "Eng",
+              url: "https://hooks.slack.com/services/T/B/x",
+            },
+          ],
+        },
+      }),
+    ).toEqual({
+      telegram: {
+        enabled: true,
+        entries: [{ id: "a", name: "Ops", chatId: "1" }],
+      },
+      slack: { enabled: true, webhooks: [{ id: "w", name: "Eng" }] },
+    });
+  });
+});
+
+describe("DeliverySettingsSchema", () => {
+  it("accepts keep-by-id and new entries", () => {
+    const parsed = DeliverySettingsSchema.parse({
+      telegram: {
+        enabled: true,
+        entries: [
+          { id: "keep-1" },
+          { botToken: "t", chatId: "123", name: "Ops" },
+        ],
+      },
+      slack: {
+        enabled: true,
+        webhooks: [{ url: "https://hooks.slack.com/services/T0/B0/abc123" }],
+      },
+    });
+    expect(parsed.telegram?.entries).toHaveLength(2);
+  });
+
+  it("rejects an enabled channel with no entries", () => {
+    expect(() =>
+      DeliverySettingsSchema.parse({
+        telegram: { enabled: true, entries: [] },
+      }),
+    ).toThrow(/no entries/);
+    expect(() =>
+      DeliverySettingsSchema.parse({ slack: { enabled: true, webhooks: [] } }),
+    ).toThrow(/no webhooks/);
+  });
+
+  it("rejects an invalid new webhook url and chat id", () => {
+    expect(() =>
+      DeliverySettingsSchema.parse({
+        slack: { enabled: true, webhooks: [{ url: "nope" }] },
+      }),
+    ).toThrow();
+    expect(() =>
+      DeliverySettingsSchema.parse({
+        telegram: {
+          enabled: true,
+          entries: [{ botToken: "t", chatId: "bad id" }],
+        },
+      }),
+    ).toThrow();
+  });
+});
+
+describe("mergeDeliveryEntries", () => {
+  const stored: StoredDeliverySettings = {
+    telegram: {
+      enabled: true,
+      entries: [{ id: "keep-1", name: "Ops", botToken: "tok", chatId: "123" }],
+    },
+    slack: {
+      enabled: true,
+      webhooks: [
+        { id: "w-1", url: "https://hooks.slack.com/services/T/B/old" },
+      ],
+    },
+  };
+
+  it("keeps an existing entry verbatim by id", () => {
+    const merged = mergeDeliveryEntries(stored, {
+      telegram: { enabled: true, entries: [{ id: "keep-1" }] },
+    });
+    expect(merged.telegram).toEqual({
+      enabled: true,
+      entries: [stored.telegram?.entries[0]],
+    });
+  });
+
+  it("adds a new entry with a generated id", () => {
+    const merged = mergeDeliveryEntries(stored, {
+      telegram: {
+        enabled: true,
+        entries: [{ botToken: "new-tok", chatId: "999", name: "New" }],
+      },
+    });
+    const entry = merged.telegram?.entries[0];
+    expect(entry?.id).toMatch(/.+/);
+    expect(entry).toMatchObject({
+      name: "New",
+      botToken: "new-tok",
+      chatId: "999",
+    });
+  });
+
+  it("drops entries whose ids are absent from the input", () => {
+    const merged = mergeDeliveryEntries(stored, {
+      telegram: { enabled: false, entries: [] },
+    });
+    expect(merged.telegram).toEqual({ enabled: false, entries: [] });
+  });
+
+  it("throws when keeping an unknown id", () => {
+    expect(() =>
+      mergeDeliveryEntries(stored, {
+        telegram: { enabled: true, entries: [{ id: "ghost" }] },
+      }),
+    ).toThrow(/Unknown Telegram entry/);
   });
 });
