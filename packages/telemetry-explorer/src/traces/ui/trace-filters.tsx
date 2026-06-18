@@ -110,10 +110,12 @@ export function TraceFilters({
 
   // "Clear all" resets the sidebar filters only. The span-name search lives in
   // the header search bar (with its own clear control), so it is not part of
-  // hasActiveFilters nor reset by onClear.
+  // hasActiveFilters nor reset by onClear. When the service filter is shared
+  // (rendered in the topbar instead — hideSharedFilters), it is likewise owned
+  // there: it must not count toward hasActiveFilters nor be reset by onClear.
   const hasActiveFilters =
     value.namespace.length > 0 ||
-    value.service.length > 0 ||
+    (!hideSharedFilters && value.service.length > 0) ||
     value.minMs !== undefined ||
     value.maxMs !== undefined ||
     value.status !== "all" ||
@@ -126,7 +128,7 @@ export function TraceFilters({
       onClear={() =>
         onChange({
           namespace: [],
-          service: [],
+          ...(hideSharedFilters ? {} : { service: [] }),
           minMs: undefined,
           maxMs: undefined,
           status: "all",

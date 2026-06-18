@@ -121,9 +121,12 @@ export function LogFiltersBar({
     onChange({ levels: nextLevels });
   };
 
+  // When the service filter is shared (rendered in the topbar —
+  // hideSharedFilters), it is owned there: it must not count toward
+  // hasActiveFilters nor be reset by "Clear all".
   const hasActiveFilters =
     levels.length > 0 ||
-    services.length > 0 ||
+    (!hideSharedFilters && services.length > 0) ||
     attributes.length > 0 ||
     traceId !== undefined;
 
@@ -134,7 +137,7 @@ export function LogFiltersBar({
       onClear={() =>
         onChange({
           levels: [],
-          services: [],
+          ...(hideSharedFilters ? {} : { services: [] }),
           attributes: [],
           traceId: undefined,
         })

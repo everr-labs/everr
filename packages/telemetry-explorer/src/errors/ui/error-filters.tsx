@@ -95,15 +95,24 @@ export function ErrorFilters({
 
   // "Clear all" resets active filters only. Sort is an ordering preference (it
   // always has a value), and q is owned by the separate search bar, so neither
-  // counts toward hasActiveFilters nor is reset by onClear.
+  // counts toward hasActiveFilters nor is reset by onClear. When the service
+  // filter is shared (rendered in the topbar — hideSharedFilters), it is owned
+  // there too: excluded from hasActiveFilters and left untouched by onClear.
   const hasActiveFilters =
-    value.service.length > 0 || value.attributes.length > 0;
+    (!hideSharedFilters && value.service.length > 0) ||
+    value.attributes.length > 0;
 
   return (
     <FilterSidebar
       label="Error filters"
       hasActiveFilters={hasActiveFilters}
-      onClear={() => onChange({ service: [], attributes: [] })}
+      onClear={() =>
+        onChange(
+          hideSharedFilters
+            ? { attributes: [] }
+            : { service: [], attributes: [] },
+        )
+      }
     >
       <div className="flex flex-col gap-1">
         <Label id={orderLabelId} className="text-muted-foreground text-xs">

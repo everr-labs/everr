@@ -132,7 +132,9 @@ export function TracesSearch({
               onClearFilters={() =>
                 onSearchChange({
                   namespace: [],
-                  service: [],
+                  // Service is owned by the shared topbar filter when
+                  // hideSharedFilters is set; clearing here must not touch it.
+                  ...(hideSharedFilters ? {} : { service: [] }),
                   name: "",
                   minMs: undefined,
                   maxMs: undefined,
