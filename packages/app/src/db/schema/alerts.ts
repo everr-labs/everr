@@ -83,9 +83,7 @@ export const alertDefinitions = pgTable(
 export const alertSettings = pgTable("alert_settings", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: text("organization_id").notNull().unique(),
-  delivery: jsonb("delivery")
-    .notNull()
-    .$type<StoredDeliverySettings>(),
+  delivery: jsonb("delivery").notNull().$type<StoredDeliverySettings>(),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

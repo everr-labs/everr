@@ -1,13 +1,13 @@
-import { renderMessage } from "@/data/alerts/template";
 import {
   type BuildOptions,
   type DeliveryInput,
   formatDuration,
   formatUtc,
-  instanceDetailText,
   instanceLine,
   KIND_STATUS,
-  type NotifiableInstance,
+  pushFiringBlock,
+  renderDescription,
+  renderTitle,
 } from "./04-format";
 
 // Plain text by choice: no parse mode means nothing to escape, nothing for
@@ -70,36 +70,4 @@ export function buildTelegramText(
 
   lines.push("", formatUtc(opts.now), opts.url);
   return lines.join("\n");
-}
-
-// Two lines per firing instance: the title (rendered from this instance's row)
-// and its labels + breaching values indented beneath.
-function pushFiringBlock(
-  lines: string[],
-  def: DeliveryInput["def"],
-  instance: NotifiableInstance,
-  now: Date,
-): void {
-  lines.push(`• ${renderTitle(def, instance)}`);
-  lines.push(`  ${instanceDetailText(instance, "firing", now)}`);
-}
-
-function renderTitle(
-  def: DeliveryInput["def"],
-  instance: NotifiableInstance,
-): string {
-  return renderMessage(def.notificationTitleTemplate, {
-    firstRow: instance.row,
-  });
-}
-
-function renderDescription(
-  def: DeliveryInput["def"],
-  instance: NotifiableInstance,
-): string {
-  return def.notificationDescriptionTemplate
-    ? renderMessage(def.notificationDescriptionTemplate, {
-        firstRow: instance.row,
-      })
-    : "";
 }

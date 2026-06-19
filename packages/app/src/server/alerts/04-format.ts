@@ -1,6 +1,7 @@
-// Shared formatting for alert notification bodies (telegram).
+// Shared formatting for alert notification bodies, across channels.
 
 import { formatLabels } from "@/data/alerts/matchers";
+import { renderMessage } from "@/data/alerts/template";
 import { isNumericValue } from "@/lib/numeric";
 
 export type DeliveryKind = "firing" | "resolved" | "mixed";
@@ -100,7 +101,7 @@ function instanceDetail(
 
 // The instance's labels with its breaching values or fired-for duration
 // appended, without a bullet, so callers can prefix or indent it themselves.
-export function instanceDetailText(
+function instanceDetailText(
   instance: NotifiableInstance,
   kind: DeliveryKind,
   now: Date,
@@ -116,4 +117,36 @@ export function instanceLine(
   bullet: string,
 ): string {
   return `${bullet} ${instanceDetailText(instance, kind, now)}`;
+}
+
+export function renderTitle(
+  def: DeliveryInput["def"],
+  instance: NotifiableInstance,
+): string {
+  return renderMessage(def.notificationTitleTemplate, {
+    firstRow: instance.row,
+  });
+}
+
+export function renderDescription(
+  def: DeliveryInput["def"],
+  instance: NotifiableInstance,
+): string {
+  return def.notificationDescriptionTemplate
+    ? renderMessage(def.notificationDescriptionTemplate, {
+        firstRow: instance.row,
+      })
+    : "";
+}
+
+// Two lines per firing instance: the title (rendered from this instance's row)
+// and its labels + breaching values indented beneath.
+export function pushFiringBlock(
+  lines: string[],
+  def: DeliveryInput["def"],
+  instance: NotifiableInstance,
+  now: Date,
+): void {
+  lines.push(`• ${renderTitle(def, instance)}`);
+  lines.push(`  ${instanceDetailText(instance, "firing", now)}`);
 }

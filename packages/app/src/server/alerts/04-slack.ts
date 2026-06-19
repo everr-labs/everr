@@ -1,12 +1,13 @@
-import { renderMessage } from "@/data/alerts/template";
 import {
   type BuildOptions,
   type DeliveryInput,
   formatDuration,
-  instanceDetailText,
+  formatUtc,
   instanceLine,
   KIND_STATUS,
-  type NotifiableInstance,
+  pushFiringBlock,
+  renderDescription,
+  renderTitle,
 } from "./04-format";
 
 export type SlackBlock = { type: string; [key: string]: unknown };
@@ -28,36 +29,6 @@ function truncate(text: string): string {
   return text.length <= MAX_SECTION_TEXT
     ? text
     : `${text.slice(0, MAX_SECTION_TEXT - 1)}…`;
-}
-
-function renderTitle(
-  def: DeliveryInput["def"],
-  instance: NotifiableInstance,
-): string {
-  return renderMessage(def.notificationTitleTemplate, {
-    firstRow: instance.row,
-  });
-}
-
-function renderDescription(
-  def: DeliveryInput["def"],
-  instance: NotifiableInstance,
-): string {
-  return def.notificationDescriptionTemplate
-    ? renderMessage(def.notificationDescriptionTemplate, {
-        firstRow: instance.row,
-      })
-    : "";
-}
-
-function pushFiringBlock(
-  lines: string[],
-  def: DeliveryInput["def"],
-  instance: NotifiableInstance,
-  now: Date,
-): void {
-  lines.push(`• ${renderTitle(def, instance)}`);
-  lines.push(`  ${instanceDetailText(instance, "firing", now)}`);
 }
 
 // Mirrors buildTelegramText's branching (single/multi firing, resolved, mixed),
@@ -128,7 +99,7 @@ export function buildSlackMessage(
             elements: [
               {
                 type: "mrkdwn",
-                text: `${opts.now.toISOString().slice(0, 16).replace("T", " ")} UTC`,
+                text: formatUtc(opts.now),
               },
             ],
           },
