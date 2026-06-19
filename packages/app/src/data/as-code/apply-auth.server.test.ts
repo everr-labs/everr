@@ -69,10 +69,10 @@ describe("resolveApplyAuth", () => {
     );
   });
 
-  it("resolves an ek_ ingest key to its org (+name)", async () => {
+  it("resolves an ek_ key with the apply scope to its org (+name)", async () => {
     verifyApiKey.mockResolvedValueOnce({
       valid: true,
-      key: { id: "k1", referenceId: "org-1" },
+      key: { id: "k1", referenceId: "org-1", permissions: { apply: ["*"] } },
     });
     orgRows = [{ name: "Acme" }];
     const result = await resolveApplyAuth(
@@ -89,10 +89,38 @@ describe("resolveApplyAuth", () => {
     expect(getSession).not.toHaveBeenCalled();
   });
 
+  it("treats an ek_ key with no permissions map as fully scoped (legacy)", async () => {
+    // Keys minted before scopes existed store `permissions: null`. They must
+    // keep working for both ingest and apply.
+    verifyApiKey.mockResolvedValueOnce({
+      valid: true,
+      key: { id: "k1", referenceId: "org-1", permissions: null },
+    });
+    orgRows = [{ name: "Acme" }];
+    const result = await resolveApplyAuth(
+      headers({ authorization: "Bearer ek_abc" }),
+    );
+    expect(result.organizationId).toBe("org-1");
+  });
+
+  it("rejects an ek_ key that only has the ingest scope", async () => {
+    verifyApiKey.mockResolvedValueOnce({
+      valid: true,
+      key: {
+        id: "k1",
+        referenceId: "org-1",
+        permissions: { ingest: ["write"] },
+      },
+    });
+    await expect(
+      resolveApplyAuth(headers({ authorization: "Bearer ek_abc" })),
+    ).rejects.toThrow(/not authorized to apply/i);
+  });
+
   it("falls back to the org id when the org row is missing", async () => {
     verifyApiKey.mockResolvedValueOnce({
       valid: true,
-      key: { id: "k1", referenceId: "org-1" },
+      key: { id: "k1", referenceId: "org-1", permissions: { apply: ["*"] } },
     });
     orgRows = [];
     const result = await resolveApplyAuth(
@@ -160,6 +188,7 @@ describe("applyAuthErrorResponse", () => {
   it.each([
     ["Missing credential", 401],
     ["Invalid API key", 401],
+    ["API key is not authorized to apply resources", 403],
     ["Unauthenticated", 401],
     ["No active organization", 403],
   ])("maps %s to an HTTP %d Response with the message", async (msg, status) => {

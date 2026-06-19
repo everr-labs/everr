@@ -9,10 +9,10 @@ This is the shortest path to a working dashboard: write one YAML file, reconcile
 
 - The CLI is installed. See [Install](/docs/getting-started/install).
 - You have telemetry in Everr to query. If not, start with [Your first trace](/docs/getting-started/first-trace).
-- **`everr apply` uses your `everr cloud login` session by default** and prints the destination organization before writing. For CI or non-interactive use, set `EVERR_API_TOKEN` to an organization ingest key:
+- **`everr apply` uses your `everr cloud login` session by default** and prints the destination organization before writing. For CI or non-interactive use, set `EVERR_API_KEY` to an organization API key with the **Manage as code** (`apply`) capability (mint one in **API keys**):
 
   ```sh
-  export EVERR_API_TOKEN="<your-org-ingest-key>"
+  export EVERR_API_KEY="<your-org-api-key>"
   ```
 
   See the [`everr apply` reference](/docs/reference/cli#dashboards-gitops).

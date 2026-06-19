@@ -3,17 +3,18 @@ title: Setup
 description: Send OpenTelemetry traces, logs, and metrics to Everr from any SDK or collector.
 ---
 
-Everr accepts standard OpenTelemetry (OTLP) traces, metrics, and logs from any SDK or collector. Telemetry is per-tenant: every request must be authenticated with an **ingest key** scoped to your organization.
+Everr accepts standard OpenTelemetry (OTLP) traces, metrics, and logs from any SDK or collector. Telemetry is per-tenant: every request must be authenticated with an **API key** scoped to your organization that has the **Send telemetry** capability.
 
 <Callout title="Browser metrics">
   Everr does not yet support gathering metrics directly from browsers in
   production. Browser metrics support is coming soon.
 </Callout>
 
-## Mint an ingest key
+## Mint an API key
 
-In the Everr dashboard, open the user menu (top-left) and click **Ingest Keys**, then **New key**.
+In the Everr dashboard, open the user menu (top-left) and click **API keys**, then **New key**.
 
+- Leave the **Send telemetry** capability enabled — it's what lets the key authenticate OTLP requests.
 - Keys are organization-scoped: any data sent with the key is attributed to the organization it belongs to.
 - The full key is shown only once, at creation time. Copy it into your secret manager; you can't retrieve it later.
 - Admins can revoke a key at any time. Revocation is effective within about 30 seconds (the collector's positive cache TTL).
@@ -27,7 +28,7 @@ In the Everr dashboard, open the user menu (top-left) and click **Ingest Keys**,
 Send the key as a bearer token in the `Authorization` header:
 
 ```
-Authorization: Bearer <your-ingest-key>
+Authorization: Bearer <your-api-key>
 ```
 
 Requests without a valid key return **401 Unauthorized**.
@@ -46,6 +47,6 @@ exporters:
 
 ## Troubleshooting
 
-- **401** — key is missing, malformed, revoked, expired, or not of kind `ingest`.
+- **401** — key is missing, malformed, revoked, expired, or lacks the **Send telemetry** (`ingest`) capability.
 - **5xx** — transient; the SDK should retry with backoff.
 - **Telemetry shows up under a different tenant than expected** — confirm you're using the right key. The tenant attribute in your SDK config is ignored; only the key determines tenancy.

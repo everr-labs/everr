@@ -7,7 +7,7 @@ description: Use when creating, editing, or applying an Everr dashboard as code 
 
 Writing dashboards is just editing files. Two things need access:
 
-- **`everr apply`** talks to your Everr host. Allow production network `https://app.everr.dev` and filesystem read of `~/Library/Application Support/everr/session.json` (and `session-dev.json`) and their parent directory. Apply uses your `everr cloud login` session, or `EVERR_API_TOKEN` for CI.
+- **`everr apply`** talks to your Everr host. Allow production network `https://app.everr.dev` and filesystem read of `~/Library/Application Support/everr/session.json` (and `session-dev.json`) and their parent directory. Apply uses your `everr cloud login` session, or `EVERR_API_KEY` for CI (the deprecated alias `EVERR_API_TOKEN` still works).
 - **Writing correct queries** means knowing your real ClickHouse columns. Discover them with `everr cloud query "DESCRIBE TABLE traces"` (or sample rows), or use the `everr-use-telemetry` skill. **Do not invent metric/label names.**
 
 # Writing Everr Dashboards
@@ -315,7 +315,7 @@ everr apply ./everr --dry-run     # always preview first; writes nothing
 everr apply ./everr               # prints the destination org, then asks to confirm
 ```
 
-Apply is **declarative and delete-by-default within the `repoid`**: new files are created, changed files updated, removed files **deleted**. This spans **all resource kinds** — the tree is the complete desired state for that repoid, so applying a dashboards-only directory also prunes notebooks previously applied under the same repoid (see the `everr-write-notebooks` skill). Never split one repoid across two apply directories. Re-applying with no changes prints `Nothing to apply.` In CI, set `EVERR_API_TOKEN` and pass `--yes`.
+Apply is **declarative and delete-by-default within the `repoid`**: new files are created, changed files updated, removed files **deleted**. This spans **all resource kinds** — the tree is the complete desired state for that repoid, so applying a dashboards-only directory also prunes notebooks previously applied under the same repoid (see the `everr-write-notebooks` skill). Never split one repoid across two apply directories. Re-applying with no changes prints `Nothing to apply.` In CI, set `EVERR_API_KEY` and pass `--yes`.
 
 ## Common mistakes
 

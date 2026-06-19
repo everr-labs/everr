@@ -73,8 +73,8 @@ Collection-style commands accept `--limit <n>` and `--offset <n>` for pagination
   - `--dry-run` compute and print the diff without writing
   - `--yes`, `-y` skip the confirmation prompt (required in non-interactive contexts such as CI or pipes)
 
-  Authentication: apply uses your `everr cloud login` session by default, and prints the destination organization. In GitHub Actions, install the CLI with `everr-action` before calling `everr apply`. For CI or non-interactive use, set `EVERR_API_TOKEN` to an organization ingest key. With changes to apply, it shows a confirmation prompt before writing; pass `--yes` (or run with `EVERR_API_TOKEN` in a non-interactive context) to skip it.
-  - `EVERR_API_TOKEN` an organization ingest key, used as a bearer token; when set it takes precedence over the session
+  Authentication: apply uses your `everr cloud login` session by default, and prints the destination organization. In GitHub Actions, install the CLI with `everr-action` before calling `everr apply`. For CI or non-interactive use, set `EVERR_API_KEY` to an organization API key with the `apply` scope. With changes to apply, it shows a confirmation prompt before writing; pass `--yes` (or run with `EVERR_API_KEY` in a non-interactive context) to skip it.
+  - `EVERR_API_KEY` an organization API key (prefix `ek_`) with the `apply` scope, used as a bearer token; when set it takes precedence over the session. The legacy `EVERR_API_TOKEN` is accepted as a deprecated alias.
   - `EVERR_API_URL` API base URL (falls back to the URL persisted by a prior `everr cloud login`)
 
 ## Other

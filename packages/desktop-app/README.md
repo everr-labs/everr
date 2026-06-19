@@ -71,6 +71,16 @@ EVERR_INGEST_KEY="..."
 
 CI requires this secret and bundles it into the release binary at build time. Runtime `EVERR_INGEST_KEY` still overrides the bundled value for local testing.
 
+The embedded CLI's `everr apply` command (for dashboards, notebooks, alerts as code) authenticates with a separate env var:
+
+```bash
+EVERR_API_KEY="..."   # preferred
+# or the legacy alias, still accepted:
+EVERR_API_TOKEN="..."
+```
+
+Both names carry an `ek_` API key, but the server enforces that the key has the `apply` scope. The same `ek_` key type is also used for ingest — the per-key Capabilities column in the **API keys** page shows what a key is allowed to do.
+
 To sign updater artifacts for the desktop app release, provide:
 
 ```bash

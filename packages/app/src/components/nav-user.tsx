@@ -162,11 +162,11 @@ export function NavUser() {
                     Users Management
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    render={<Link to="/ingest-keys" />}
+                    render={<Link to="/api-keys" />}
                     nativeButton={false}
                   >
                     <KeyRound />
-                    Ingest Keys
+                    API keys
                   </DropdownMenuItem>
                 </>
               )}

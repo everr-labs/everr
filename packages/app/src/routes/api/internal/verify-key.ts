@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { createFileRoute } from "@tanstack/react-router";
 import { env } from "@/env";
+import { hasApiKeyScope } from "@/lib/api-key-scopes";
 import { auth } from "@/lib/auth.server";
 
 const INGEST_CONFIG_ID = "ingest";
@@ -42,6 +43,13 @@ export const Route = createFileRoute("/api/internal/verify-key")({
         });
         if (!result.valid || !result.key?.referenceId) {
           return new Response(null, { status: 401 });
+        }
+
+        // Even though the key is valid and resolves to an org, it must carry
+        // the `ingest` scope. A key minted for `apply` only must not be
+        // honored here — that would let a CI token exfiltrate telemetry.
+        if (!hasApiKeyScope(result.key.permissions, "ingest", "write")) {
+          return new Response(null, { status: 403 });
         }
 
         const payload: VerifyKeyResponse = {

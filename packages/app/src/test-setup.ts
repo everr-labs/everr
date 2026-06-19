@@ -170,6 +170,8 @@ vi.mock("@/lib/auth.server", () => ({
       }),
       getFullOrganization: vi.fn(),
       getActiveMemberRole: vi.fn(),
+      createApiKey: vi.fn(),
+      deleteApiKey: vi.fn(),
       createOrganization: vi.fn(),
       deleteOrganization: vi.fn(),
       deleteUser: vi.fn(),

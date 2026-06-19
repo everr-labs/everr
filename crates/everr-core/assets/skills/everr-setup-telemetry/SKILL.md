@@ -120,7 +120,7 @@ Use these production defaults:
 - Secret environment variable: `EVERR_INGEST_KEY`
 - Service identity: a stable `service.name` hardcoded in the setup module for each service
 
-If no production ingest key exists yet, tell the user to create one in the Everr dashboard from the user menu's **Ingest Keys** page, then store it in the deployment secret manager. Do not invent credentials, print keys, hardcode keys, or commit keys.
+If no production ingest key exists yet, tell the user to create one in the Everr dashboard from the user menu's **API keys** page, then store it in the deployment secret manager. Do not invent credentials, print keys, hardcode keys, or commit keys.
 
 Implementation expectations:
 

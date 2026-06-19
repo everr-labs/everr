@@ -2,6 +2,7 @@ import { createMiddleware } from "@tanstack/react-start";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { organization } from "@/db/schema";
+import { hasApiKeyScope } from "@/lib/api-key-scopes";
 import { auth } from "@/lib/auth.server";
 import { createClickhouseQuery } from "@/lib/clickhouse";
 
@@ -25,7 +26,7 @@ export function extractBearerKey(headers: Headers): string | null {
 
 /**
  * Look up the org's display name directly from the DB. This avoids the
- * session-gated `getFullOrganization` endpoint, so it works on the ingest-key
+ * session-gated `getFullOrganization` endpoint, so it works on the API key
  * path (which has no session) too. Falls back to the id if the org isn't found.
  */
 async function organizationName(organizationId: string): Promise<string> {
@@ -39,9 +40,12 @@ async function organizationName(organizationId: string): Promise<string> {
 
 /**
  * Resolve apply auth from request headers. Accepts two credentials:
- *  - an organization-scoped ingest key (prefix `ek_`): org from the key.
+ *  - an organization-scoped API key (prefix `ek_`): org from the key.
  *  - a logged-in session bearer token: org from the session's active org.
  * The `ek_` prefix decides the path so a session token never hits verifyApiKey.
+ * API keys are additionally required to carry the `apply` scope — a key minted
+ * for telemetry ingest only must not be able to mutate dashboards, notebooks,
+ * or alerts even though both use the same `ek_` configId.
  */
 export async function resolveApplyAuth(headers: Headers): Promise<ApplyAuth> {
   const credential = extractBearerKey(headers);
@@ -53,6 +57,9 @@ export async function resolveApplyAuth(headers: Headers): Promise<ApplyAuth> {
     });
     if (!result.valid || !result.key?.referenceId) {
       throw new Error("Invalid API key");
+    }
+    if (!hasApiKeyScope(result.key.permissions, "apply")) {
+      throw new Error("API key is not authorized to apply resources");
     }
     const organizationId = result.key.referenceId;
     return {
@@ -108,6 +115,7 @@ export function buildApplyContext(apiAuth: ApplyAuth) {
 const AUTH_ERROR_STATUS: Record<string, number> = {
   "Missing credential": 401,
   "Invalid API key": 401,
+  "API key is not authorized to apply resources": 403,
   Unauthenticated: 401,
   "No active organization": 403,
 };
