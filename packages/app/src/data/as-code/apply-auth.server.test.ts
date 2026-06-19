@@ -72,7 +72,12 @@ describe("resolveApplyAuth", () => {
   it("resolves an ek_ key with the apply scope to its org (+name)", async () => {
     verifyApiKey.mockResolvedValueOnce({
       valid: true,
-      key: { id: "k1", referenceId: "org-1", permissions: { apply: ["*"] } },
+      // Real apply keys carry the concrete action set, not a wildcard.
+      key: {
+        id: "k1",
+        referenceId: "org-1",
+        permissions: { apply: ["read", "write", "delete"] },
+      },
     });
     orgRows = [{ name: "Acme" }];
     const result = await resolveApplyAuth(

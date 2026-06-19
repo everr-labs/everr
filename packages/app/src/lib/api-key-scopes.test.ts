@@ -27,9 +27,15 @@ describe("hasApiKeyScope", () => {
     );
   });
 
-  it("defaults the action to the wildcard when none is given", () => {
+  it("treats a missing action as 'holds the scope at all'", () => {
+    // A real apply key carries its concrete action set, not a wildcard — the
+    // no-action check must accept it (this is what apply-auth relies on).
+    expect(
+      hasApiKeyScope({ apply: ["read", "write", "delete"] }, "apply"),
+    ).toBe(true);
     expect(hasApiKeyScope({ apply: ["*"] }, "apply")).toBe(true);
-    expect(hasApiKeyScope({ apply: ["read"] }, "apply")).toBe(false);
+    expect(hasApiKeyScope({ apply: ["read"] }, "apply")).toBe(true);
+    expect(hasApiKeyScope({ apply: [] }, "apply")).toBe(false);
   });
 });
 

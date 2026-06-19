@@ -23,7 +23,9 @@ const CreateApiKeyInput = z
   })
   .strict();
 
-const INGEST_CONFIG_ID = "ingest";
+// The single better-auth config shared by every `ek_` key, whatever its
+// capabilities. The value stays "ingest" for backward compatibility.
+const API_KEY_CONFIG_ID = "ingest";
 
 /**
  * Resolve the user's chosen scopes into the better-auth `permissions` map.
@@ -59,7 +61,7 @@ export const createApiKey = createAuthenticatedServerFn({ method: "POST" })
     // organizationId against the DB, no session needed.
     const result = await auth.api.createApiKey({
       body: {
-        configId: INGEST_CONFIG_ID,
+        configId: API_KEY_CONFIG_ID,
         name: data.name,
         organizationId: session.session.activeOrganizationId,
         userId: session.user.id,
@@ -68,15 +70,18 @@ export const createApiKey = createAuthenticatedServerFn({ method: "POST" })
       },
     });
 
-    if (!result || typeof result !== "object" || !("key" in result)) {
+    const created = result as {
+      key?: string | null;
+      id?: string;
+      permissions?: Record<string, string[]> | null;
+    } | null;
+
+    // The full key is only ever returned at creation; a missing/null one means
+    // creation didn't actually succeed, so fail loudly rather than handing the
+    // caller a null key.
+    if (!created || typeof created.key !== "string" || !created.id) {
       throw new Error("Server did not return a key");
     }
-
-    const created = result as {
-      key: string | null;
-      id: string;
-      permissions?: Record<string, string[]> | null;
-    };
 
     return {
       key: created.key,

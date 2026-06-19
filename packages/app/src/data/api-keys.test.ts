@@ -207,4 +207,11 @@ describe("createApiKey (server fn)", () => {
       createApiKey({ data: { name: "prod", scopes: ["ingest"] } }),
     ).rejects.toThrow(/did not return a key/i);
   });
+
+  it("throws when the server returns a null key", async () => {
+    createApiKeyMock.mockResolvedValueOnce({ id: "ak_1", key: null });
+    await expect(
+      createApiKey({ data: { name: "prod", scopes: ["ingest"] } }),
+    ).rejects.toThrow(/did not return a key/i);
+  });
 });

@@ -47,21 +47,26 @@ export type ApiKeyPermissions =
 const WILDCARD = "*";
 
 /**
- * Returns true when the key is allowed to perform `action` under `scope`.
+ * Returns true when the key is allowed to act under `scope`.
  *
- * A key with no capabilities — `null`/`undefined` permissions, or a scope
- * absent from the map — grants nothing and is rejected. An empty action
- * array for a scope is likewise an explicit deny.
+ * With no `action`, the check is "does the key hold this scope at all" — true
+ * when the scope has at least one action. With an `action`, the key passes if
+ * it holds the wildcard or that specific action.
+ *
+ * A key with no capabilities — `null`/`undefined` permissions, a scope absent
+ * from the map, or an empty action array — grants nothing and is rejected.
  */
 export function hasApiKeyScope(
   permissions: ApiKeyPermissions,
   scope: ApiKeyScope,
-  action: string = WILDCARD,
+  action?: string,
 ): boolean {
   if (permissions == null) return false;
   const actions = permissions[scope];
-  if (!actions) return false;
-  if (actions.length === 0) return false;
+  if (!actions || actions.length === 0) return false;
+  // No specific action requested: holding the scope is enough.
+  if (action === undefined) return true;
+  // The wildcard grants every action under the scope.
   if (actions.includes(WILDCARD)) return true;
   return actions.includes(action);
 }
