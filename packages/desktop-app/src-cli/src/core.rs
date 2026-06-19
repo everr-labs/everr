@@ -632,19 +632,21 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
     let token_env = std::env::var("EVERR_API_KEY")
         .ok()
         .filter(|t| !t.is_empty())
+        .map(|t| ("EVERR_API_KEY", t))
         .or_else(|| {
             std::env::var("EVERR_API_TOKEN")
                 .ok()
                 .filter(|t| !t.is_empty())
+                .map(|t| ("EVERR_API_TOKEN", t))
         });
     let client = match token_env {
-        Some(token) => {
+        Some((var_name, token)) => {
             let base_url = std::env::var("EVERR_API_URL")
                 .ok()
                 .filter(|u| !u.is_empty())
                 .or_else(persisted_api_base_url)
                 .ok_or_else(|| {
-                    anyhow::anyhow!("EVERR_API_KEY is set but no base URL; set EVERR_API_URL")
+                    anyhow::anyhow!("{var_name} is set but no base URL; set EVERR_API_URL")
                 })?;
             everr_core::api::ApiClient::from_token(&base_url, &token)?
         }

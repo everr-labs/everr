@@ -120,8 +120,9 @@ impl ApiClient {
             if status == StatusCode::UNAUTHORIZED {
                 return Err(match self.auth_kind {
                     AuthKind::Token => anyhow::anyhow!(
-                        "apply was rejected (401 Unauthorized): EVERR_API_KEY is missing, \
-                         invalid, or not authorized to apply resources in this organization."
+                        "apply was rejected (401 Unauthorized): the API key (EVERR_API_KEY, \
+                         or the deprecated EVERR_API_TOKEN) is missing, invalid, or not \
+                         authorized to apply resources in this organization."
                     ),
                     AuthKind::Session => anyhow::Error::new(ReauthenticationRequired),
                 });
