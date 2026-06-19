@@ -22,7 +22,9 @@ To find a chat ID:
 
 ## Send to Slack
 
-Enable **Slack** and add one or more **Incoming Webhook** URLs. In Slack, create a webhook from your workspace's app settings (each webhook posts to one channel), copy the `https://hooks.slack.com/services/...` URL, and paste it here. Give each webhook an optional name so you can remember which channel it targets.
+Enable **Slack** and add one or more **Incoming Webhook** URLs. In Slack, open the [Slack app dashboard](https://api.slack.com/apps), select the app that should post alerts, then go to **Incoming Webhooks**. Turn on **Activate Incoming Webhooks** if needed, click **Add New Webhook to Workspace**, choose the channel, and authorize the app. Slack sends you back to the app settings page, where the URL appears under **Webhook URLs for Your Workspace**. Copy the `https://hooks.slack.com/services/...` URL and paste it the Everr alerts notification settings.
+
+Each webhook posts to one Slack channel. Give each webhook an optional name so you can remember which channel it targets.
 
 Webhook URLs are write-only: after saving, Everr never shows the URL again — to change one, delete it and add a new one. Each enabled webhook receives every alert notification for the organization.
 
