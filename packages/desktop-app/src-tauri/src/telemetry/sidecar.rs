@@ -34,6 +34,7 @@ pub enum TelemetryState {
 struct CollectorFailureException {
     exception_type: &'static str,
     exception_message: &'static str,
+    reason: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -261,6 +262,7 @@ fn log_collector_status_change(previous: Option<&TelemetryState>, next: &Telemet
                 everr.collector.status = status,
                 exception.type = exception.exception_type,
                 exception.message = exception.exception_message,
+                everr.collector.failure_reason = exception.reason.as_str(),
                 error.handled = false,
             },
             "{}",
@@ -315,6 +317,7 @@ fn collector_failure_exception(reason: &str) -> CollectorFailureException {
         return CollectorFailureException {
             exception_type: "CollectorExitError",
             exception_message: "collector exited unexpectedly",
+            reason: reason.to_owned(),
         };
     }
 
@@ -322,12 +325,14 @@ fn collector_failure_exception(reason: &str) -> CollectorFailureException {
         return CollectorFailureException {
             exception_type: "CollectorWaitError",
             exception_message: "collector process wait failed",
+            reason: reason.to_owned(),
         };
     }
 
     CollectorFailureException {
         exception_type: "CollectorStartError",
         exception_message: "collector failed to start",
+        reason: reason.to_owned(),
     }
 }
 
@@ -600,11 +605,16 @@ mod tests {
         let exit = collector_failure_exception("collector CLI terminated: exit status: 1");
         assert_eq!(exit.exception_type, "CollectorExitError");
         assert_eq!(exit.exception_message, "collector exited unexpectedly");
+        assert_eq!(exit.reason, "collector CLI terminated: exit status: 1");
 
         let spawn =
             collector_failure_exception("CLI collector spawn: /Users/alice/secret/path missing");
         assert_eq!(spawn.exception_type, "CollectorStartError");
         assert_eq!(spawn.exception_message, "collector failed to start");
         assert!(!spawn.exception_message.contains("/Users/alice"));
+        assert_eq!(
+            spawn.reason,
+            "CLI collector spawn: /Users/alice/secret/path missing"
+        );
     }
 }

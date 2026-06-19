@@ -28,6 +28,9 @@ const taskMocks = vi.hoisted(() => {
     serverLoggerError: vi.fn(() => {
       logActiveSpan.push(activeSpan);
     }),
+    serverLoggerInfo: vi.fn(() => {
+      logActiveSpan.push(activeSpan);
+    }),
     span,
     startActiveSpan: vi.fn(
       async (
@@ -63,7 +66,7 @@ vi.mock("@/telemetry/logger", () => ({
     reason instanceof Error ? reason.message : String(reason),
   serverLogger: {
     error: taskMocks.serverLoggerError,
-    info: vi.fn(),
+    info: taskMocks.serverLoggerInfo,
   },
 }));
 
@@ -133,6 +136,7 @@ beforeEach(() => {
   taskMocks.replayWebhookToCollector.mockReset().mockResolvedValue(undefined);
   taskMocks.resolveOrganizationId.mockReset().mockResolvedValue("org-1");
   taskMocks.serverLoggerError.mockClear();
+  taskMocks.serverLoggerInfo.mockClear();
   taskMocks.span.end.mockClear();
   taskMocks.span.recordException.mockClear();
   taskMocks.span.setStatus.mockClear();
@@ -221,6 +225,34 @@ describe("github events tasks", () => {
     );
     expect(taskMocks.logActiveSpan).toEqual([true]);
     expect(taskMocks.span.end).toHaveBeenCalledOnce();
+  });
+
+  it("drops stale installation terminal events without error telemetry", async () => {
+    const data = workflowRunData();
+    const error = new TerminalEventError(
+      "organization not found for installation",
+    );
+    taskMocks.resolveOrganizationId.mockRejectedValue(error);
+
+    await runTask(COLLECTOR_TASK_IDENTIFIER, data, "collector-job-1");
+    await runTask(COLLECTOR_TASK_IDENTIFIER, data, "collector-job-2");
+
+    expect(taskMocks.span.recordException).not.toHaveBeenCalled();
+    expect(taskMocks.span.setStatus).not.toHaveBeenCalled();
+    expect(taskMocks.serverLoggerError).not.toHaveBeenCalled();
+    expect(taskMocks.serverLoggerInfo).toHaveBeenCalledOnce();
+    expect(taskMocks.serverLoggerInfo).toHaveBeenCalledWith(
+      "github_events.jobs.stale_installation_dropped",
+      expect.objectContaining({
+        "error.message": "organization not found for installation",
+        "error.type": "TerminalEventError",
+        "github.event.type": "workflow_run",
+        "github.installation.id": 123,
+        "graphile_worker.job.id": "collector-job-1",
+      }),
+    );
+    expect(taskMocks.logActiveSpan).toEqual([true]);
+    expect(taskMocks.span.end).toHaveBeenCalledTimes(2);
   });
 
   it("records status terminal errors on the status span without throwing", async () => {

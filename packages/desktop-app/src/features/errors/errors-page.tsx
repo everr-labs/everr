@@ -77,8 +77,18 @@ function ErrorsListView() {
     environment?: string[];
   };
   const navigate = useNavigate();
-  const { timeRange, q, service, fingerprint, sort, refresh, attributes } =
-    withTimeRange(search);
+  const {
+    timeRange,
+    q,
+    service: searchService,
+    fingerprint,
+    sort,
+    refresh,
+    attributes,
+  } = withTimeRange(search);
+  // `service`/`environment` are default-free in the schema (so retainSearchParams
+  // can persist them), so coalesce to [] before the filters read `.length`.
+  const service = searchService ?? [];
   const environment = search.environment ?? [];
 
   return (
@@ -166,7 +176,7 @@ export function ErrorDetailPage() {
         fingerprint={fingerprint}
         timeRange={timeRange}
         refresh={refresh ?? ""}
-        service={service}
+        service={service ?? []}
         occurrence={search.occurrence}
         onClose={() => {
           if (closeDialog) {

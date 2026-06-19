@@ -1,5 +1,19 @@
 # @everr/desktop-app
 
+## 0.4.4
+
+### Patch Changes
+
+- 5a228b6: Fix a crash when opening the Errors page in the desktop app with no Service filter selected (the shared Service/Environment filters read an undefined value).
+
+## 0.4.3
+
+### Patch Changes
+
+- 28e8199: Retry release with NPM_TOKEN authentication.
+- Updated dependencies [28e8199]
+  - @everr/auto-otel-errors@0.2.3
+
 ## 0.4.2
 
 ### Patch Changes
