@@ -1,8 +1,6 @@
 kind: AlertRule
 metadata:
   name: app-fatal-errors
-  labels:
-    team: platform
 spec:
   display:
     name: App fatal errors

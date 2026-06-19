@@ -17,7 +17,7 @@ spec:
 | Key | Type | Notes |
 | --- | --- | --- |
 | `kind` | `"Dashboard"` | Selects the reconciler. Required. |
-| `metadata.name` | string | The **slug** — identity within its project, and the URL segment. Falls back to the filename if omitted. See [Slug rules](#slug-rules). |
+| `metadata.name` | string | The **slug** — identity within its project, and the URL segment. Set it explicitly; the file is named `<slug>.dashboard.yaml` to match. See [Slug rules](#slug-rules). |
 | `metadata.project` | string | Groups dashboards into a named set. Optional; defaults to `default`. Identity is `project` + `slug`, so two projects can share the same slug without colliding. |
 | `spec` | object | The dashboard contents, below. |
 
@@ -138,7 +138,7 @@ A discriminated union on `kind`. Full guide: [Variables](/docs/dashboards/variab
 
 ## Slug rules
 
-The slug (from `metadata.name`, else the filename without extension) must:
+The slug (from `metadata.name`; set it explicitly under the `<slug>.dashboard.yaml` naming convention) must:
 
 - use only lowercase letters, digits, and hyphens,
 - not start or end with a hyphen,

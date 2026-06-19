@@ -25,23 +25,23 @@ The file format mirrors [Perses](https://perses.dev), so the structure (`kind`/`
 
 ## File layout and the required manifest
 
-`everr apply <dir>` reconciles a directory. The directory **must** contain an `everr.yaml` (or `.yml`) at its root declaring a stable `repoid` — apply errors without it.
+`everr apply <dir>` reconciles a directory of declarations. By convention that directory is `everr/` at your repo root. It **must** contain an `everr.yaml` (or `.yml`) at its root declaring a stable `repoid` — apply errors without it. Name each file by its kind — dashboards are `*.dashboard.yaml`, with the slug as the stem (`<slug>.dashboard.yaml`).
 
 ```
-dashboards/
-  everr.yaml                 # REQUIRED manifest — declares the repoid (reconcile scope)
-  api-latency.yaml           # root folder
+everr/
+  everr.yaml                       # REQUIRED manifest — declares the repoid (reconcile scope)
+  api-latency.dashboard.yaml       # root folder
   platform/
-    db-health.yaml           # folder "platform" (from the directory name)
+    db-health.dashboard.yaml       # folder "platform" (from the directory name)
 ```
 
-`dashboards/everr.yaml`:
+`everr/everr.yaml`:
 
 ```yaml
 repoid: "2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1"
 ```
 
-The `repoid` is the **apply ownership boundary** — `everr apply` reconciles exactly the resources previously applied under this id and nothing else. Use one stable id per repository (a UUID is a good default); never reuse a repoid across unrelated repos, and never change it for an existing one (that orphans everything applied under the old id). It is the only key the manifest accepts. Folders in the UI come from the directory tree — there are no folder objects.
+The `repoid` is the **apply ownership boundary** — `everr apply` reconciles exactly the resources previously applied under this id and nothing else. Use one stable id per repository (a UUID is a good default); never reuse a repoid across unrelated repos, and never change it for an existing one (that orphans everything applied under the old id). It is the only key the manifest accepts. Apply routes each document by its `kind:` field, so the `.dashboard.yaml` suffix is a human-facing naming convention, not something the CLI parses — the slug always comes from `metadata.name`. Files are flat in `everr/` by convention; subdirectories are optional and become folder paths in the UI — there are no folder objects.
 
 ## Dashboard spec quick reference
 
@@ -196,13 +196,13 @@ For `allowAllValue`, "All" expands to every loaded option as a quoted list; set 
 
 ## Complete worked example
 
-`dashboards/everr.yaml`:
+`everr/everr.yaml`:
 
 ```yaml
 repoid: "2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1"
 ```
 
-`dashboards/checkout-api.yaml`:
+`everr/checkout-api.dashboard.yaml`:
 
 ```yaml
 kind: Dashboard
@@ -311,8 +311,8 @@ spec:
 ## Apply workflow
 
 ```sh
-everr apply ./dashboards --dry-run     # always preview first; writes nothing
-everr apply ./dashboards               # prints the destination org, then asks to confirm
+everr apply ./everr --dry-run     # always preview first; writes nothing
+everr apply ./everr               # prints the destination org, then asks to confirm
 ```
 
 Apply is **declarative and delete-by-default within the `repoid`**: new files are created, changed files updated, removed files **deleted**. This spans **all resource kinds** — the tree is the complete desired state for that repoid, so applying a dashboards-only directory also prunes notebooks previously applied under the same repoid (see the `everr-write-notebooks` skill). Never split one repoid across two apply directories. Re-applying with no changes prints `Nothing to apply.` In CI, set `EVERR_API_TOKEN` and pass `--yes`.
