@@ -170,11 +170,15 @@ export function CreateApiKeyDialog() {
                 <Label htmlFor="api-key-name">Name</Label>
                 <Input
                   id="api-key-name"
+                  name="api-key-name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="prod-api"
                   required
                   autoFocus
+                  autoComplete="off"
+                  data-1p-ignore
+                  data-lpignore="true"
                 />
               </div>
               <div className="space-y-1.5">
