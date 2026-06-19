@@ -68,8 +68,11 @@ export function CreateApiKeyDialog() {
 
   const handleOpenChange = (next: boolean) => {
     if (!next && create.isPending) return;
+    // Reset on open, not close: clearing `issuedKey` on close would swap the
+    // success screen back to the form mid close-out animation (a visible
+    // flash). Closing keeps whatever was shown; the next open starts fresh.
+    if (next) reset();
     setOpen(next);
-    if (!next) reset();
   };
 
   const toggleScope = (scope: ApiKeyScope) => {
