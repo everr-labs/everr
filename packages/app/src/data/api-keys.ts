@@ -1,4 +1,3 @@
-import { getRequestHeaders } from "@tanstack/react-start/server";
 import { z } from "zod";
 import {
   ALL_API_KEY_SCOPES,
@@ -46,7 +45,6 @@ export function permissionsForScopes(scopes: readonly ApiKeyScope[]): {
 export const createApiKey = createAuthenticatedServerFn({ method: "POST" })
   .inputValidator(CreateApiKeyInput)
   .handler(async ({ data, context: { session } }) => {
-    const headers = getRequestHeaders();
     const permissions = permissionsForScopes(data.scopes);
 
     const expiresIn =
@@ -54,15 +52,20 @@ export const createApiKey = createAuthenticatedServerFn({ method: "POST" })
         ? data.expiresInDays * 24 * 60 * 60
         : undefined;
 
+    // `permissions` is a server-only field: better-auth rejects it when the
+    // create call carries a request/headers (it treats that as a client
+    // request). So call without `headers` and identify the actor explicitly
+    // via `userId` — better-auth resolves the org membership from userId +
+    // organizationId against the DB, no session needed.
     const result = await auth.api.createApiKey({
       body: {
         configId: INGEST_CONFIG_ID,
         name: data.name,
         organizationId: session.session.activeOrganizationId,
+        userId: session.user.id,
         ...(expiresIn !== undefined ? { expiresIn } : {}),
         permissions,
       },
-      headers,
     });
 
     if (!result || typeof result !== "object" || !("key" in result)) {

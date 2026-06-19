@@ -136,8 +136,12 @@ describe("createApiKey (server fn)", () => {
       configId: "ingest",
       name: "prod",
       organizationId: "test_org",
+      userId: "test_user",
       permissions: { ingest: ["write"] },
     });
+    // `permissions` is server-only: the call must NOT carry request headers,
+    // or better-auth treats it as a client request and rejects it.
+    expect("headers" in call).toBe(false);
     // No expiresIn key when not provided.
     expect("expiresIn" in call.body).toBe(false);
     expect(result).toEqual({
