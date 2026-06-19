@@ -21,7 +21,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Settings } from "lucide-react";
+import { NotebookText, Settings } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 import { toast } from "sonner";
 import type { NormalizedAlertDeliverySettings } from "@/data/alerts/delivery-settings";
@@ -30,6 +30,7 @@ import {
   validateTelegramBotToken,
   validateTelegramChatId,
 } from "@/data/alerts/recipients";
+import { formatNotebookRef } from "@/data/alerts/schema";
 import {
   type AlertSummary,
   getAlertSettings,
@@ -120,9 +121,8 @@ function AlertsPage() {
             state={row.currentState}
             active={row.active}
             firingInstanceCount={row.firingInstanceCount}
-            silenced={
-              row.currentState === "firing" && row.activeSilenceCount > 0
-            }
+            activeSilenceCount={row.activeSilenceCount}
+            activeSilenceExpiresAt={row.activeSilenceExpiresAt}
           />
         ),
       },
@@ -163,6 +163,23 @@ function AlertsPage() {
       {
         header: "Interval",
         cell: (row) => formatInterval(row.evaluationIntervalSeconds),
+      },
+      {
+        header: "Notebook",
+        cell: (row) =>
+          row.notebookSlug ? (
+            <Link
+              to="/notebooks/$project/$slug"
+              params={{ project: row.notebookProject, slug: row.notebookSlug }}
+              className="inline-flex items-center text-muted-foreground hover:text-foreground"
+              title={formatNotebookRef(row.notebookProject, row.notebookSlug)}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <NotebookText className="size-4" />
+            </Link>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
       },
     ],
     [],

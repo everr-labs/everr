@@ -39,6 +39,7 @@ import {
   CircleCheck,
   CirclePlay,
   CircleStop,
+  NotebookText,
   Plus,
   X,
 } from "lucide-react";
@@ -52,6 +53,7 @@ import {
   NO_LABELS_TEXT,
   sortedLabelEntries,
 } from "@/data/alerts/matchers";
+import { formatNotebookRef } from "@/data/alerts/schema";
 import {
   type AlertInstanceSummary,
   type AlertSilenceSummary,
@@ -71,6 +73,7 @@ import {
   QueryErrorMessage,
   RelativeTime,
   stateVariant,
+  TimeUntil,
 } from "./-alerts-shared";
 
 const alertDetailQueryOptions = (alertId: string) =>
@@ -191,6 +194,26 @@ function AlertDetailPage() {
   const detail = alert.data;
   const definitionRows: [string, ReactNode][] = [
     ["Repository", detail.repoid],
+    ["Project", detail.project],
+    ...(detail.notebookSlug
+      ? ([
+          [
+            "Notebook",
+            <Link
+              key="notebook"
+              to="/notebooks/$project/$slug"
+              params={{
+                project: detail.notebookProject,
+                slug: detail.notebookSlug,
+              }}
+              className="inline-flex items-center gap-1.5 underline underline-offset-4"
+            >
+              <NotebookText className="size-4" />
+              {formatNotebookRef(detail.notebookProject, detail.notebookSlug)}
+            </Link>,
+          ],
+        ] satisfies [string, ReactNode][])
+      : []),
     ["Evaluation interval", formatInterval(detail.evaluationIntervalSeconds)],
     ["Notification title", detail.notificationTitleTemplate],
     ["Notification description", detail.notificationDescriptionTemplate || "-"],
@@ -597,7 +620,7 @@ function SilenceRow({ silence }: { silence: AlertSilenceSummary }) {
   return (
     <div className="flex flex-col gap-1 py-2 first:pt-0">
       <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-wrap items-center gap-1">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
           {silence.matchers.length === 0 ? (
             <Badge variant="secondary">all instances</Badge>
           ) : (
@@ -613,6 +636,9 @@ function SilenceRow({ silence }: { silence: AlertSilenceSummary }) {
               </Badge>
             ))
           )}
+          <span className="text-muted-foreground text-xs">
+            Expires <TimeUntil value={silence.endsAt} />
+          </span>
         </div>
         <Button
           variant="ghost"
@@ -625,10 +651,9 @@ function SilenceRow({ silence }: { silence: AlertSilenceSummary }) {
           <X />
         </Button>
       </div>
-      <span className="text-muted-foreground text-xs">
-        Until {formatDate(silence.endsAt)}
-        {silence.reason ? ` · ${silence.reason}` : ""}
-      </span>
+      {silence.reason && (
+        <span className="text-muted-foreground text-xs">{silence.reason}</span>
+      )}
       {cancel.error && (
         <span className="text-destructive text-xs" role="alert">
           Couldn't cancel silence. {cancel.error.message}

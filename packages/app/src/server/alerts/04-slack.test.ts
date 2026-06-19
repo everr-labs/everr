@@ -99,4 +99,41 @@ describe("buildSlackMessage", () => {
     );
     expect(sectionText(msg).length).toBeLessThanOrEqual(3000);
   });
+
+  it("adds a View notebook button when notebookUrl is present", () => {
+    const msg = buildSlackMessage(
+      {
+        def,
+        kind: "firing",
+        instances: [{ labels: { route: "/a" }, kind: "firing" }],
+      },
+      {
+        ...opts,
+        notebookUrl: "https://app.example.com/notebooks/default/runbook",
+      },
+    );
+    const actions = msg.attachments[0].blocks.find(
+      (b) => b.type === "actions",
+    ) as unknown as { elements: { url: string; text: { text: string } }[] };
+    expect(actions.elements).toHaveLength(2);
+    expect(actions.elements[1]).toMatchObject({
+      url: "https://app.example.com/notebooks/default/runbook",
+      text: { text: "View notebook" },
+    });
+  });
+
+  it("has only the alert button when notebookUrl is absent", () => {
+    const msg = buildSlackMessage(
+      {
+        def,
+        kind: "firing",
+        instances: [{ labels: { route: "/a" }, kind: "firing" }],
+      },
+      opts,
+    );
+    const actions = msg.attachments[0].blocks.find(
+      (b) => b.type === "actions",
+    ) as unknown as { elements: unknown[] };
+    expect(actions.elements).toHaveLength(1);
+  });
 });

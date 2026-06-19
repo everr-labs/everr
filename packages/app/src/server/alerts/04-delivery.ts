@@ -105,6 +105,13 @@ function alertUrl(alertId: string): string {
   return new URL(`/alerts/${alertId}`, env.BETTER_AUTH_URL).toString();
 }
 
+function notebookUrl(project: string, slug: string): string {
+  return new URL(
+    `/notebooks/${project}/${slug}`,
+    env.BETTER_AUTH_URL,
+  ).toString();
+}
+
 function instanceKind(instance: NotifiableInstance): NotificationKind {
   return instance.kind === "resolved" ? "resolved" : "firing";
 }
@@ -174,7 +181,13 @@ export async function enqueueAlertNotification(
 
   const messageKind = deriveMessageKind(unsilenced);
   const now = new Date();
-  const buildOptions = { url: alertUrl(def.id), now };
+  const buildOptions = {
+    url: alertUrl(def.id),
+    now,
+    notebookUrl: def.notebookSlug
+      ? notebookUrl(def.notebookProject ?? "default", def.notebookSlug)
+      : undefined,
+  };
   const deliveryInput = { def, kind: messageKind, instances: unsilenced };
 
   const telegramText = buildTelegramText(deliveryInput, buildOptions);

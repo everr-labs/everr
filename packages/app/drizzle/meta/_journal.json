@@ -43,6 +43,13 @@
       "when": 1781638555434,
       "tag": "0005_bitter_carnage",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1781882172372,
+      "tag": "0006_cloudy_deathstrike",
+      "breakpoints": true
     }
   ]
 }

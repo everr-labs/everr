@@ -80,6 +80,9 @@ export function buildTelegramText(
     }
   }
 
-  const footer = `\n\n${formatUtc(opts.now)}\n${opts.url}`;
+  const notebookLine = opts.notebookUrl
+    ? `\nNotebook: ${opts.notebookUrl}`
+    : "";
+  const footer = `\n\n${formatUtc(opts.now)}\nAlert: ${opts.url}${notebookLine}`;
   return truncate(lines.join("\n"), footer);
 }

@@ -169,7 +169,7 @@ describe("enqueueAlertNotification", () => {
         "  route=/b — error_rate: 6.3",
         "",
         "2026-06-12 12:00 UTC",
-        "https://app.example.com/alerts/a1",
+        "Alert: https://app.example.com/alerts/a1",
       ].join("\n"),
     );
     expect(result).toEqual({
@@ -308,7 +308,7 @@ describe("enqueueAlertNotification", () => {
         "• route=/a — fired for 42m",
         "",
         "2026-06-12 12:00 UTC",
-        "https://app.example.com/alerts/a1",
+        "Alert: https://app.example.com/alerts/a1",
       ].join("\n"),
     );
   });
@@ -344,7 +344,7 @@ describe("enqueueAlertNotification", () => {
         "• route=/b — fired for 42m",
         "",
         "2026-06-12 12:00 UTC",
-        "https://app.example.com/alerts/a1",
+        "Alert: https://app.example.com/alerts/a1",
       ].join("\n"),
     );
   });
@@ -386,7 +386,7 @@ describe("enqueueAlertNotification", () => {
         "• route=/b — fired for 42m",
         "",
         "2026-06-12 12:00 UTC",
-        "https://app.example.com/alerts/a1",
+        "Alert: https://app.example.com/alerts/a1",
       ].join("\n"),
     );
     expect(result).toEqual({

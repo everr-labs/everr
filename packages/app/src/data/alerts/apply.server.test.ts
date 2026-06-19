@@ -69,6 +69,9 @@ vi.mock("@/db/schema", () => ({
     scheduleJitterSeconds: "schedule_jitter_seconds",
     configFilePath: "config_file_path",
     sourceLink: "source_link",
+    project: "project",
+    notebookProject: "notebook_project",
+    notebookSlug: "notebook_slug",
     createdAt: "created_at",
     updatedAt: "updated_at",
     deletedAt: "deleted_at",
@@ -210,6 +213,7 @@ describe("applyAlertSpecs", () => {
     mockApplySelect([
       {
         slug: "high-errors",
+        project: "default",
         evaluationIntervalSeconds: 60,
         document: {},
         parsedQuery: "SELECT 1",
@@ -224,6 +228,7 @@ describe("applyAlertSpecs", () => {
       },
       {
         slug: "stale",
+        project: "default",
         evaluationIntervalSeconds: 300,
         document: {},
         parsedQuery: "SELECT 1",
@@ -265,6 +270,7 @@ describe("applyAlertSpecs", () => {
     mockApplySelect([
       {
         slug: "gone",
+        project: "default",
         evaluationIntervalSeconds: 300,
         document: {},
         parsedQuery: "SELECT 1",
@@ -296,6 +302,7 @@ describe("applyAlertSpecs", () => {
     mockApplySelect([
       {
         slug: "high-errors",
+        project: "default",
         evaluationIntervalSeconds: 300,
         document: {},
         parsedQuery: "SELECT 1",
@@ -333,7 +340,9 @@ describe("applyAlertSpecs", () => {
           { path: "b.yaml", resource: alert("same") },
         ],
       }),
-    ).rejects.toThrow(/duplicate alert "same" \(a\.yaml and b\.yaml\)/);
+    ).rejects.toThrow(
+      /duplicate alert "same" in project "default" \(a\.yaml and b\.yaml\)/,
+    );
 
     expect(mockedQuerySqlApiWithMeta).not.toHaveBeenCalled();
   });
@@ -342,6 +351,7 @@ describe("applyAlertSpecs", () => {
     mockApplySelect([
       {
         slug: "high-errors",
+        project: "default",
         evaluationIntervalSeconds: 300,
         document: {},
         parsedQuery: "SELECT 1",
@@ -378,6 +388,7 @@ describe("applyAlertSpecs", () => {
     mockApplySelect([
       {
         slug: "high-errors",
+        project: "default",
         evaluationIntervalSeconds: 300,
         document: {},
         parsedQuery: "SELECT old_service AS service",
@@ -500,6 +511,73 @@ describe("applyAlertSpecs", () => {
     ).rejects.toThrow(
       /missing-column\.yaml: \$\{service\} references column "service"/,
     );
+  });
+
+  it("stores project and the resolved notebook ref on create", async () => {
+    mockedQuerySqlApiWithMeta.mockResolvedValueOnce({
+      rows: [{ service: "api", count: 3 }],
+      columns: ["service", "count"],
+    });
+    mockApplySelect([]);
+
+    await applyAlertSpecs({
+      orgId: "org-1",
+      repoid: "repo-1",
+      resources: [
+        {
+          path: "a.yaml",
+          resource: {
+            kind: "AlertRule",
+            metadata: { name: "shared", project: "platform" },
+            spec: {
+              evaluationInterval: "5m",
+              notificationMessage: { title: "t" },
+              query:
+                "SELECT service, count() AS count FROM logs GROUP BY service",
+              notebook: "db-pool-runbook",
+            },
+          },
+        },
+      ],
+    });
+
+    const batch = insertValues[0] as Record<string, unknown>[];
+    expect(batch[0]).toMatchObject({
+      slug: "shared",
+      project: "platform",
+      notebookProject: "platform",
+      notebookSlug: "db-pool-runbook",
+    });
+  });
+
+  it("keys identity on (project, slug) so the same slug coexists across projects", async () => {
+    mockedQuerySqlApiWithMeta.mockResolvedValue({
+      rows: [],
+      columns: ["service", "count"],
+    });
+    mockApplySelect([]);
+    const mk = (project: string) => ({
+      kind: "AlertRule",
+      metadata: { name: "shared", project },
+      spec: {
+        evaluationInterval: "5m",
+        notificationMessage: { title: "t" },
+        query: "SELECT service, count() AS count FROM logs GROUP BY service",
+      },
+    });
+
+    const result = await applyAlertSpecs({
+      orgId: "org-1",
+      repoid: "repo-1",
+      resources: [
+        { path: "a.yaml", resource: mk("platform") },
+        { path: "b.yaml", resource: mk("infra") },
+      ],
+    });
+
+    expect(result.created).toEqual(["shared", "shared"]);
+    const batch = insertValues[0] as Record<string, unknown>[];
+    expect(batch.map((r) => r.project).sort()).toEqual(["infra", "platform"]);
   });
 
   it("wraps query errors as apply validation errors with path context", async () => {

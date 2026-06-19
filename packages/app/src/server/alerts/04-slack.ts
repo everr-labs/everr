@@ -124,6 +124,15 @@ export function buildSlackMessage(
                 text: { type: "plain_text", text: "View alert" },
                 url: opts.url,
               },
+              ...(opts.notebookUrl
+                ? [
+                    {
+                      type: "button",
+                      text: { type: "plain_text", text: "View notebook" },
+                      url: opts.notebookUrl,
+                    },
+                  ]
+                : []),
             ],
           },
         ],
