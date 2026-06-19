@@ -71,7 +71,9 @@ export function hasApiKeyScope(
  * scope name, suitable for display in tables. A key with no capabilities
  * yields an empty list.
  */
-export function describeApiKeyScopes(permissions: ApiKeyPermissions): string[] {
+export function describeApiKeyScopes(
+  permissions: ApiKeyPermissions,
+): ApiKeyScope[] {
   if (permissions == null) {
     return [];
   }

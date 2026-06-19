@@ -4,24 +4,30 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { createApiKey } from "@/data/api-keys";
-import type { ApiKeyScope } from "@/lib/api-key-scopes";
+import type { ApiKeyRow } from "@/db/schema/auth";
+import type { ApiKeyPermissions, ApiKeyScope } from "@/lib/api-key-scopes";
 import { authClient } from "@/lib/auth-client";
 
 // better-auth groups keys by `configId`. The value stays "ingest" so keys
 // minted before the rename keep resolving; only the UI vocabulary changed.
 const API_KEY_CONFIG_ID = "ingest";
 
-type ListResult = Awaited<ReturnType<typeof authClient.apiKey.list>>;
-type ListData = NonNullable<ListResult["data"]>;
-type RawApiKeys = ListData extends {
-  apiKeys: infer A extends readonly unknown[];
-}
-  ? A
-  : ListData extends readonly unknown[]
-    ? ListData
-    : never;
-
-export type ApiKey = RawApiKeys[number];
+/**
+ * The shape of an `ek_` key as the UI receives it. Derived from the DB row
+ * (`ApiKeyRow`) so column names stay in lock-step with the schema, but the
+ * list endpoint transforms two groups of fields on the way out: JSON
+ * serializes `timestamp` columns to ISO strings, and better-auth parses the
+ * `permissions` text column into an object. Override exactly those fields.
+ */
+export type ApiKey = Omit<
+  ApiKeyRow,
+  "createdAt" | "expiresAt" | "lastRequest" | "permissions"
+> & {
+  createdAt?: string | Date | null;
+  expiresAt?: string | Date | null;
+  lastRequest?: string | Date | null;
+  permissions?: ApiKeyPermissions;
+};
 
 const apiKeysQueryKey = ["api-keys"] as const;
 
@@ -58,9 +64,7 @@ export function apiKeysQueryOptions() {
         throw new Error(res.error.message ?? "Failed to load API keys");
       const all = unwrapKeys(res.data);
       // Defense-in-depth: if the server didn't filter by configId, do it here.
-      return all.filter(
-        (k) => (k as { configId?: string }).configId === API_KEY_CONFIG_ID,
-      );
+      return all.filter((k) => k.configId === API_KEY_CONFIG_ID);
     },
   });
 }

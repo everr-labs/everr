@@ -22,7 +22,6 @@ import { formatDate } from "@/components/users-management/format-date";
 import {
   API_KEY_SCOPES,
   type ApiKeyPermissions,
-  type ApiKeyScope,
   describeApiKeyScopes,
 } from "@/lib/api-key-scopes";
 import { type ApiKey, useRevokeApiKey } from "./queries";
@@ -61,9 +60,9 @@ function exactDate(value: string | Date) {
 }
 
 function permissionsOf(row: ApiKey): ApiKeyPermissions {
-  const raw = (row as { permissions?: unknown }).permissions;
+  const raw = row.permissions;
   if (!raw || typeof raw !== "object") return null;
-  return raw as ApiKeyPermissions;
+  return raw;
 }
 
 function ScopeBadges({ row }: { row: ApiKey }) {
@@ -74,8 +73,8 @@ function ScopeBadges({ row }: { row: ApiKey }) {
   return (
     <div className="flex flex-wrap gap-1">
       {scopes.map((scope) => {
-        const meta = API_KEY_SCOPES[scope as ApiKeyScope];
-        const Icon = SCOPE_ICONS[scope as ApiKeyScope];
+        const meta = API_KEY_SCOPES[scope];
+        const Icon = SCOPE_ICONS[scope];
         if (!meta) return null;
         return (
           <Tooltip key={scope}>
@@ -94,7 +93,7 @@ function ScopeBadges({ row }: { row: ApiKey }) {
 }
 
 function LastUsed({ row }: { row: ApiKey }) {
-  const value = (row as { lastRequest?: string | null }).lastRequest;
+  const value = row.lastRequest;
   const relative = relativeFromNow(value);
   if (!relative || !value) {
     return <span className="text-muted-foreground">Never used</span>;
@@ -110,7 +109,7 @@ function LastUsed({ row }: { row: ApiKey }) {
 }
 
 function Expiry({ row }: { row: ApiKey }) {
-  const value = (row as { expiresAt?: string | Date | null }).expiresAt;
+  const value = row.expiresAt;
   if (!value) return <span className="text-muted-foreground">Never</span>;
   const expired = new Date(value).getTime() < Date.now();
   if (expired) {
@@ -171,7 +170,7 @@ export function ApiKeysTable({ keys }: ApiKeysTableProps) {
       header: "Created",
       cell: (row) => (
         <span className="text-muted-foreground">
-          {row.createdAt ? formatDate(row.createdAt as unknown as string) : "—"}
+          {row.createdAt ? formatDate(row.createdAt) : "—"}
         </span>
       ),
     },

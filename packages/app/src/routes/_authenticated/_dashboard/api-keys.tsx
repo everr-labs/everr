@@ -7,6 +7,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@everr/ui/components/empty";
+import { RetryError } from "@everr/ui/components/retry-error";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
@@ -79,7 +80,8 @@ function ApiKeysEmpty() {
 
 function ApiKeysPage() {
   const keys = useQuery(apiKeysQueryOptions());
-  const isEmpty = !keys.isPending && (keys.data?.length ?? 0) === 0;
+  const isEmpty =
+    !keys.isPending && !keys.isError && (keys.data?.length ?? 0) === 0;
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6">
@@ -107,6 +109,16 @@ function ApiKeysPage() {
         <CardContent>
           {keys.isPending ? (
             <KeysSkeleton />
+          ) : keys.isError ? (
+            <RetryError
+              title="Couldn't load API keys"
+              message={
+                keys.error instanceof Error
+                  ? keys.error.message
+                  : "Something went wrong fetching your keys."
+              }
+              onRetry={() => keys.refetch()}
+            />
           ) : isEmpty ? (
             <ApiKeysEmpty />
           ) : (
