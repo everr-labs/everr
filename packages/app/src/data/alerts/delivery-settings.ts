@@ -69,9 +69,12 @@ const SlackWriteEntry = z.union([
   z
     .object({
       name: nameField,
-      url: z.string().refine((v) => validateSlackWebhookUrl(v) === null, {
-        message: "Invalid Slack webhook URL",
-      }),
+      url: z
+        .string()
+        .trim()
+        .refine((v) => validateSlackWebhookUrl(v) === null, {
+          message: "Invalid Slack webhook URL",
+        }),
     })
     .strict(),
 ]);

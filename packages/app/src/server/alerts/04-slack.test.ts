@@ -66,6 +66,28 @@ describe("buildSlackMessage", () => {
     expect(sectionText(msg)).toContain("fired for 42m");
   });
 
+  it("escapes Slack control characters in dynamic content", () => {
+    const msg = buildSlackMessage(
+      {
+        def: { ...def, notificationTitleTemplate: `\${title}` },
+        kind: "firing",
+        instances: [
+          {
+            labels: { route: "<!channel>" },
+            row: { title: "<@U123> & <https://evil|click>" },
+            kind: "firing",
+          },
+        ],
+      },
+      opts,
+    );
+    const text = sectionText(msg);
+    expect(text).toContain("&lt;!channel&gt;");
+    expect(text).toContain("&lt;@U123&gt; &amp; &lt;https://evil|click&gt;");
+    expect(text).not.toContain("<!channel>");
+    expect(text).not.toContain("<@U123>");
+  });
+
   it("truncates very long section text", () => {
     const msg = buildSlackMessage(
       {

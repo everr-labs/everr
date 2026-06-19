@@ -10,6 +10,18 @@ import {
   renderTitle,
 } from "./04-format";
 
+// Telegram rejects sendMessage bodies longer than this.
+const MAX_MESSAGE_LENGTH = 4096;
+
+// Truncates the rendered body so body + footer stays under Telegram's limit,
+// keeping the footer (timestamp + alert link) intact so the message always
+// links back even when a noisy evaluation overruns the cap.
+function truncate(body: string, footer: string): string {
+  const room = MAX_MESSAGE_LENGTH - footer.length;
+  if (body.length <= room) return body + footer;
+  return `${body.slice(0, room - 1)}…${footer}`;
+}
+
 // Plain text by choice: no parse mode means nothing to escape, nothing for
 // Telegram to reject, and the URL in the body needs no validation.
 export function buildTelegramText(
@@ -68,6 +80,6 @@ export function buildTelegramText(
     }
   }
 
-  lines.push("", formatUtc(opts.now), opts.url);
-  return lines.join("\n");
+  const footer = `\n\n${formatUtc(opts.now)}\n${opts.url}`;
+  return truncate(lines.join("\n"), footer);
 }

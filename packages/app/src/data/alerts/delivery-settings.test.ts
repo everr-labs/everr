@@ -97,6 +97,21 @@ describe("DeliverySettingsSchema", () => {
     ).toThrow(/no webhooks/);
   });
 
+  it("trims surrounding whitespace from a pasted webhook url", () => {
+    const parsed = DeliverySettingsSchema.parse({
+      slack: {
+        enabled: true,
+        webhooks: [
+          { url: "  https://hooks.slack.com/services/T0/B0/abc123\n" },
+        ],
+      },
+    });
+    const [webhook] = parsed.slack?.webhooks ?? [];
+    expect(webhook).toEqual({
+      url: "https://hooks.slack.com/services/T0/B0/abc123",
+    });
+  });
+
   it("rejects an invalid new webhook url and chat id", () => {
     expect(() =>
       DeliverySettingsSchema.parse({

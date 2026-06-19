@@ -25,6 +25,17 @@ const SLACK_COLORS: Record<DeliveryInput["kind"], string> = {
 // Slack rejects section text fields longer than this.
 const MAX_SECTION_TEXT = 3000;
 
+// Slack parses `&`, `<`, `>` as control characters in mrkdwn (`<!channel>`,
+// `<@U…>`, `<url|text>`), so dynamic content must escape them before it is
+// embedded — otherwise alert data could trigger mentions or distort the layout.
+// https://api.slack.com/reference/surfaces/formatting#escaping
+function escapeSlackText(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 function truncate(text: string): string {
   return text.length <= MAX_SECTION_TEXT
     ? text
@@ -36,7 +47,7 @@ function truncate(text: string): string {
 function buildBody(input: DeliveryInput, now: Date): string {
   const status = KIND_STATUS[input.kind];
   const lines: string[] = [
-    `${status.emoji} *${input.def.slug} ${status.label.toLowerCase()}*`,
+    `${status.emoji} *${escapeSlackText(input.def.slug)} ${status.label.toLowerCase()}*`,
   ];
 
   const firing = input.instances.filter((i) => i.kind !== "resolved");
@@ -44,14 +55,14 @@ function buildBody(input: DeliveryInput, now: Date): string {
 
   if (input.kind === "firing" && firing.length === 1) {
     const instance = firing[0];
-    lines.push("", renderTitle(input.def, instance));
+    lines.push("", escapeSlackText(renderTitle(input.def, instance)));
     const description = renderDescription(input.def, instance);
-    if (description) lines.push("", `> ${description}`);
-    lines.push("", instanceLine(instance, "firing", now, "•"));
+    if (description) lines.push("", `> ${escapeSlackText(description)}`);
+    lines.push("", instanceLine(instance, "firing", now, "•", escapeSlackText));
   } else if (input.kind === "firing") {
     lines.push("");
     for (const instance of firing)
-      pushFiringBlock(lines, input.def, instance, now);
+      pushFiringBlock(lines, input.def, instance, now, escapeSlackText);
   } else if (input.kind === "resolved") {
     for (const instance of resolved) {
       const duration = instance.firedAt
@@ -63,18 +74,20 @@ function buildBody(input: DeliveryInput, now: Date): string {
           ? `Instance resolved (fired for ${duration})`
           : "Instance resolved",
       );
-      lines.push(instanceLine(instance, "resolved", now, "•"));
+      lines.push(instanceLine(instance, "resolved", now, "•", escapeSlackText));
     }
   } else {
     if (firing.length > 0) {
       lines.push("", "*Firing:*");
       for (const instance of firing)
-        pushFiringBlock(lines, input.def, instance, now);
+        pushFiringBlock(lines, input.def, instance, now, escapeSlackText);
     }
     if (resolved.length > 0) {
       lines.push("", "*Resolved:*");
       for (const instance of resolved)
-        lines.push(instanceLine(instance, "resolved", now, "•"));
+        lines.push(
+          instanceLine(instance, "resolved", now, "•", escapeSlackText),
+        );
     }
   }
 
