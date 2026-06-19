@@ -194,8 +194,8 @@ function AlertDetailPage() {
   return (
     <div className="flex w-full flex-col gap-6">
       <div className="flex items-start justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <h1 className="font-mono text-xl font-bold tracking-tight">
+        <div className="flex min-w-0 flex-col gap-1">
+          <h1 className="font-mono text-xl font-bold tracking-tight break-words">
             {detail.display.name || detail.slug}
           </h1>
           {detail.display.description && (
@@ -205,7 +205,7 @@ function AlertDetailPage() {
           )}
           {setActive.error && (
             <p className="text-sm text-destructive" role="alert">
-              {setActive.error.message}
+              Couldn't update evaluation. {setActive.error.message}
             </p>
           )}
         </div>
@@ -213,22 +213,22 @@ function AlertDetailPage() {
           <Button
             variant="destructive"
             size="sm"
-            className="hidden md:inline-flex"
+            className="shrink-0"
             disabled={setActive.isPending}
             onClick={() => setActive.mutate(false)}
           >
             <CircleStop data-icon="inline-start" />
-            Pause Evaluation
+            Pause evaluation
           </Button>
         ) : (
           <Button
             size="sm"
-            className="hidden md:inline-flex"
+            className="shrink-0"
             disabled={setActive.isPending}
             onClick={() => setActive.mutate(true)}
           >
             <CirclePlay data-icon="inline-start" />
-            Resume Evaluation
+            Resume evaluation
           </Button>
         )}
       </div>
@@ -409,9 +409,8 @@ function AlertDetailPage() {
                       row.instances[0];
                     return (
                       <Button
-                        variant="ghost"
-                        size="icon"
-                        className="cursor-pointer"
+                        variant="outline"
+                        size="sm"
                         aria-label="Silence"
                         onClick={() => {
                           setSilenceTarget({
@@ -421,7 +420,8 @@ function AlertDetailPage() {
                           setNewSilenceOpen(false);
                         }}
                       >
-                        <BellOff />
+                        <BellOff data-icon="inline-start" />
+                        <span className="hidden md:inline">Silence</span>
                       </Button>
                     );
                   },
@@ -614,7 +614,7 @@ function SilenceRow({ silence }: { silence: AlertSilenceSummary }) {
       </span>
       {cancel.error && (
         <span className="text-destructive text-xs" role="alert">
-          {cancel.error.message}
+          Couldn't cancel silence. {cancel.error.message}
         </span>
       )}
     </div>
@@ -823,7 +823,7 @@ function SilenceDialog({
           </div>
           {create.error && (
             <p className="text-sm text-destructive" role="alert">
-              {create.error.message}
+              Couldn't create silence. {create.error.message}
             </p>
           )}
         </div>

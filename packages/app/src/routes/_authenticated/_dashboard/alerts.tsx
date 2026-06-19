@@ -1,3 +1,4 @@
+import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
 import { Card, CardContent } from "@everr/ui/components/card";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
@@ -133,15 +134,19 @@ function AlertsPage() {
             row.evaluationIntervalSeconds,
           );
           return (
-            <span
-              className={stale ? "text-amber-500" : undefined}
-              title={
-                stale
-                  ? "Evaluation overdue — this rule hasn't run recently"
-                  : undefined
-              }
-            >
-              <RelativeTime value={row.lastEvaluatedAt} />
+            <span className="flex items-center gap-1.5">
+              <span className={stale ? "text-amber-500" : undefined}>
+                <RelativeTime value={row.lastEvaluatedAt} />
+              </span>
+              {stale && (
+                <Badge
+                  variant="outline"
+                  className="border-amber-500/40 text-amber-500"
+                  title="Evaluation overdue — this rule hasn't run recently"
+                >
+                  overdue
+                </Badge>
+              )}
             </span>
           );
         },
