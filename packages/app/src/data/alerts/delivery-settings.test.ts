@@ -1,28 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   DeliverySettingsSchema,
-  mergeDeliveryEntries,
-  migrateStoredDeliverySettings,
+  ensureDeliveryDefaults,
   redactDeliverySecrets,
+  resolveDeliverySettings,
   type StoredDeliverySettings,
 } from "./delivery-settings";
 
-describe("migrateStoredDeliverySettings", () => {
-  it("converts legacy telegram bot-token + chatIds into entries", () => {
-    const legacyInput = {
-      telegram: { enabled: true, botToken: "bot", chatIds: ["123", "456"] },
-    } as unknown as Parameters<typeof migrateStoredDeliverySettings>[0];
-    const migrated = migrateStoredDeliverySettings(legacyInput);
-    expect(migrated.telegram).toEqual({
-      enabled: true,
-      entries: [
-        { id: "tg-123", name: undefined, botToken: "bot", chatId: "123" },
-        { id: "tg-456", name: undefined, botToken: "bot", chatId: "456" },
-      ],
-    });
-    expect(migrated.slack).toEqual({ enabled: false, webhooks: [] });
-  });
-
+describe("ensureDeliveryDefaults", () => {
   it("passes through the new entry shape unchanged", () => {
     const stored: StoredDeliverySettings = {
       telegram: {
@@ -34,14 +19,23 @@ describe("migrateStoredDeliverySettings", () => {
         webhooks: [{ id: "w", url: "https://hooks.slack.com/services/T/B/x" }],
       },
     };
-    expect(migrateStoredDeliverySettings(stored)).toEqual(stored);
+    expect(ensureDeliveryDefaults(stored)).toEqual(stored);
   });
 
   it("defaults missing channels", () => {
-    expect(migrateStoredDeliverySettings(null)).toEqual({
+    expect(ensureDeliveryDefaults(null)).toEqual({
       telegram: { enabled: false, entries: [] },
       slack: { enabled: false, webhooks: [] },
     });
+  });
+
+  it("silently strips legacy telegram shape", () => {
+    const legacy = {
+      telegram: { enabled: true, botToken: "bot", chatIds: ["123", "456"] },
+    } as unknown as StoredDeliverySettings;
+    const result = ensureDeliveryDefaults(legacy);
+    expect(result.telegram).toEqual({ enabled: false, entries: [] });
+    expect(result.slack).toEqual({ enabled: false, webhooks: [] });
   });
 });
 
@@ -120,7 +114,7 @@ describe("DeliverySettingsSchema", () => {
   });
 });
 
-describe("mergeDeliveryEntries", () => {
+describe("resolveDeliverySettings", () => {
   const stored: StoredDeliverySettings = {
     telegram: {
       enabled: true,
@@ -135,7 +129,7 @@ describe("mergeDeliveryEntries", () => {
   };
 
   it("keeps an existing entry verbatim by id", () => {
-    const merged = mergeDeliveryEntries(stored, {
+    const merged = resolveDeliverySettings(stored, {
       telegram: { enabled: true, entries: [{ id: "keep-1" }] },
     });
     expect(merged.telegram).toEqual({
@@ -145,7 +139,7 @@ describe("mergeDeliveryEntries", () => {
   });
 
   it("adds a new entry with a generated id", () => {
-    const merged = mergeDeliveryEntries(stored, {
+    const merged = resolveDeliverySettings(stored, {
       telegram: {
         enabled: true,
         entries: [{ botToken: "new-tok", chatId: "999", name: "New" }],
@@ -161,7 +155,7 @@ describe("mergeDeliveryEntries", () => {
   });
 
   it("drops entries whose ids are absent from the input", () => {
-    const merged = mergeDeliveryEntries(stored, {
+    const merged = resolveDeliverySettings(stored, {
       telegram: { enabled: false, entries: [] },
     });
     expect(merged.telegram).toEqual({ enabled: false, entries: [] });
@@ -169,7 +163,7 @@ describe("mergeDeliveryEntries", () => {
 
   it("throws when keeping an unknown id", () => {
     expect(() =>
-      mergeDeliveryEntries(stored, {
+      resolveDeliverySettings(stored, {
         telegram: { enabled: true, entries: [{ id: "ghost" }] },
       }),
     ).toThrow(/Unknown Telegram entry/);

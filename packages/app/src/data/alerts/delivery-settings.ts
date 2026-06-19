@@ -109,43 +109,18 @@ export const DeliverySettingsSchema = z
 
 export type DeliverySettingsInput = z.infer<typeof DeliverySettingsSchema>;
 
-type LegacyTelegram = {
-  enabled?: boolean;
-  botToken?: string;
-  chatIds?: string[];
-};
-
-// Reads a stored row (possibly the legacy { botToken, chatIds } telegram shape)
-// into the canonical entry shape. Legacy ids are deterministic (`tg-<chatId>`)
-// so a form loaded from one read resolves correctly when saved through another.
-export function migrateStoredDeliverySettings(
+// Ensures a stored row has the canonical shape — fills missing channels with
+// defaults.  Rows still in the legacy { botToken, chatIds } shape will lose
+// their telegram entries (the ~1-2 affected orgs reconfigure on next save).
+export function ensureDeliveryDefaults(
   raw: StoredDeliverySettings | null | undefined,
 ): StoredDeliverySettings {
-  const telegram = raw?.telegram as
-    | StoredDeliverySettings["telegram"]
-    | LegacyTelegram
-    | undefined;
-
-  let telegramOut: StoredDeliverySettings["telegram"];
-  if (telegram && "entries" in telegram) {
-    telegramOut = telegram;
-  } else if (telegram && Array.isArray((telegram as LegacyTelegram).chatIds)) {
-    const legacy = telegram as LegacyTelegram;
-    telegramOut = {
-      enabled: legacy.enabled ?? false,
-      entries: (legacy.chatIds ?? []).map((chatId) => ({
-        id: `tg-${chatId}`,
-        name: undefined,
-        botToken: legacy.botToken ?? "",
-        chatId,
-      })),
-    };
-  } else {
-    telegramOut = { enabled: false, entries: [] };
-  }
-
+  const telegram =
+    raw?.telegram && "entries" in raw.telegram
+      ? raw.telegram
+      : { enabled: false, entries: [] };
   return {
-    telegram: telegramOut,
+    telegram,
     slack: raw?.slack ?? { enabled: false, webhooks: [] },
   };
 }
@@ -172,51 +147,58 @@ export function redactDeliverySecrets(
   };
 }
 
-// Resolves a write DTO against the current stored settings: keep-by-id resolves
-// to the stored entry verbatim, a new entry gets a fresh id, and stored ids
-// absent from the input are dropped.
-export function mergeDeliveryEntries(
+// Looks up the saved entry the form asked to keep. The form only sends ids it
+// got from us, so an unknown id means something is wrong rather than a no-op.
+function keepSaved<T extends { id: string }>(
+  saved: readonly T[],
+  id: string,
+  label: string,
+): T {
+  const entry = saved.find((e) => e.id === id);
+  if (!entry) throw new Error(`Unknown ${label} id: ${id}`);
+  return entry;
+}
+
+// Resolves a write DTO against the current stored settings into the row to
+// persist: an existing entry (sent as just `{ id }`) is kept verbatim so its
+// write-only secret survives the round-trip, a new entry gets a fresh id, and
+// stored ids the form dropped are gone.
+export function resolveDeliverySettings(
   stored: StoredDeliverySettings,
   input: DeliverySettingsInput,
 ): StoredDeliverySettings {
   const result: StoredDeliverySettings = {};
 
   if (input.telegram) {
-    const existing = stored.telegram?.entries ?? [];
+    const saved = stored.telegram?.entries ?? [];
     result.telegram = {
       enabled: input.telegram.enabled,
-      entries: input.telegram.entries.map((entry): StoredTelegramEntry => {
-        if ("id" in entry) {
-          const found = existing.find((e) => e.id === entry.id);
-          if (!found) throw new Error(`Unknown Telegram entry id: ${entry.id}`);
-          return found;
-        }
-        return {
-          id: crypto.randomUUID(),
-          ...(entry.name ? { name: entry.name } : {}),
-          botToken: entry.botToken,
-          chatId: entry.chatId,
-        };
-      }),
+      entries: input.telegram.entries.map((entry) =>
+        "id" in entry
+          ? keepSaved(saved, entry.id, "Telegram entry")
+          : {
+              id: crypto.randomUUID(),
+              ...(entry.name ? { name: entry.name } : {}),
+              botToken: entry.botToken,
+              chatId: entry.chatId,
+            },
+      ),
     };
   }
 
   if (input.slack) {
-    const existing = stored.slack?.webhooks ?? [];
+    const saved = stored.slack?.webhooks ?? [];
     result.slack = {
       enabled: input.slack.enabled,
-      webhooks: input.slack.webhooks.map((entry): StoredSlackWebhook => {
-        if ("id" in entry) {
-          const found = existing.find((w) => w.id === entry.id);
-          if (!found) throw new Error(`Unknown Slack webhook id: ${entry.id}`);
-          return found;
-        }
-        return {
-          id: crypto.randomUUID(),
-          ...(entry.name ? { name: entry.name } : {}),
-          url: entry.url,
-        };
-      }),
+      webhooks: input.slack.webhooks.map((entry) =>
+        "id" in entry
+          ? keepSaved(saved, entry.id, "Slack webhook")
+          : {
+              id: crypto.randomUUID(),
+              ...(entry.name ? { name: entry.name } : {}),
+              url: entry.url,
+            },
+      ),
     };
   }
 

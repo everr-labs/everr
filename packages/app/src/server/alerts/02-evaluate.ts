@@ -23,7 +23,7 @@
 
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { migrateStoredDeliverySettings } from "@/data/alerts/delivery-settings";
+import { ensureDeliveryDefaults } from "@/data/alerts/delivery-settings";
 import { activeSilenceConditions } from "@/data/alerts/silences";
 import { db } from "@/db/client";
 import { alertDefinitions, alertSettings, alertSilences } from "@/db/schema";
@@ -93,7 +93,7 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
   ]);
   const deliveryContext: ResolvedDeliveryContext = {
     settings: settingsRow
-      ? { delivery: migrateStoredDeliverySettings(settingsRow.delivery) }
+      ? { delivery: ensureDeliveryDefaults(settingsRow.delivery) }
       : null,
     silences,
   };

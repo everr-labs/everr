@@ -16,9 +16,9 @@ import {
   ALERT_CHANNELS,
   type AlertDeliveryTargets,
   DeliverySettingsSchema,
-  mergeDeliveryEntries,
-  migrateStoredDeliverySettings,
+  ensureDeliveryDefaults,
   redactDeliverySecrets,
+  resolveDeliverySettings,
 } from "./delivery-settings";
 import {
   findSilenceForInstance,
@@ -606,9 +606,7 @@ export const getAlertSettings = createAuthenticatedServerFn({
     .limit(1);
 
   return {
-    delivery: redactDeliverySecrets(
-      migrateStoredDeliverySettings(row?.delivery),
-    ),
+    delivery: redactDeliverySecrets(ensureDeliveryDefaults(row?.delivery)),
   };
 });
 
@@ -627,18 +625,18 @@ export const updateAlertSettings = createAuthenticatedServerFn({
       .where(eq(alertSettings.organizationId, organizationId))
       .limit(1);
 
-    const stored = migrateStoredDeliverySettings(existing?.delivery);
-    const merged = mergeDeliveryEntries(stored, delivery);
+    const stored = ensureDeliveryDefaults(existing?.delivery);
+    const resolved = resolveDeliverySettings(stored, delivery);
 
     await db
       .insert(alertSettings)
-      .values({ organizationId, delivery: merged, updatedAt: now })
+      .values({ organizationId, delivery: resolved, updatedAt: now })
       .onConflictDoUpdate({
         target: alertSettings.organizationId,
-        set: { delivery: merged, updatedAt: now },
+        set: { delivery: resolved, updatedAt: now },
       });
 
-    return { delivery: redactDeliverySecrets(merged) };
+    return { delivery: redactDeliverySecrets(resolved) };
   });
 
 export const createSilence = createAuthenticatedServerFn({ method: "POST" })
