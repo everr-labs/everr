@@ -1,6 +1,7 @@
-// Shared formatting for alert notification bodies (telegram).
+// Shared formatting for alert notification bodies, across channels.
 
 import { formatLabels } from "@/data/alerts/matchers";
+import { renderMessage } from "@/data/alerts/template";
 import { isNumericValue } from "@/lib/numeric";
 
 export type DeliveryKind = "firing" | "resolved" | "mixed";
@@ -23,6 +24,13 @@ export interface BuildOptions {
   url: string;
   now: Date;
 }
+
+// Escapes dynamic content (label values, rendered templates) before it is
+// embedded in a channel's markup. Telegram sends plain text, so it leaves the
+// default identity; Slack passes an mrkdwn escaper so values like `<!channel>`
+// or `<@U…>` in alert data can't trigger mentions or distort the message.
+export type EscapeFn = (text: string) => string;
+const identity: EscapeFn = (text) => text;
 
 // One definition of how each kind presents across channels; telegram lowercases
 // the label for its headline.
@@ -100,13 +108,16 @@ function instanceDetail(
 
 // The instance's labels with its breaching values or fired-for duration
 // appended, without a bullet, so callers can prefix or indent it themselves.
-export function instanceDetailText(
+// The label and detail text are dynamic, so they pass through `escapeText`; the
+// `—` separator is ours and stays literal.
+function instanceDetailText(
   instance: NotifiableInstance,
   kind: DeliveryKind,
   now: Date,
+  escapeText: EscapeFn,
 ): string {
   const detail = instanceDetail(instance, kind, now);
-  return `${formatLabels(instance.labels)}${detail ? ` — ${detail}` : ""}`;
+  return `${escapeText(formatLabels(instance.labels))}${detail ? ` — ${escapeText(detail)}` : ""}`;
 }
 
 export function instanceLine(
@@ -114,6 +125,41 @@ export function instanceLine(
   kind: DeliveryKind,
   now: Date,
   bullet: string,
+  escapeText: EscapeFn = identity,
 ): string {
-  return `${bullet} ${instanceDetailText(instance, kind, now)}`;
+  return `${bullet} ${instanceDetailText(instance, kind, now, escapeText)}`;
+}
+
+export function renderTitle(
+  def: DeliveryInput["def"],
+  instance: NotifiableInstance,
+): string {
+  return renderMessage(def.notificationTitleTemplate, {
+    firstRow: instance.row,
+  });
+}
+
+export function renderDescription(
+  def: DeliveryInput["def"],
+  instance: NotifiableInstance,
+): string {
+  return def.notificationDescriptionTemplate
+    ? renderMessage(def.notificationDescriptionTemplate, {
+        firstRow: instance.row,
+      })
+    : "";
+}
+
+// Two lines per firing instance: the title (rendered from this instance's row)
+// and its labels + breaching values indented beneath. Both are dynamic, so they
+// pass through `escapeText`; the bullet and indentation are ours.
+export function pushFiringBlock(
+  lines: string[],
+  def: DeliveryInput["def"],
+  instance: NotifiableInstance,
+  now: Date,
+  escapeText: EscapeFn = identity,
+): void {
+  lines.push(`• ${escapeText(renderTitle(def, instance))}`);
+  lines.push(`  ${instanceDetailText(instance, "firing", now, escapeText)}`);
 }

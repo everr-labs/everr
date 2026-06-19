@@ -65,3 +65,5 @@ terraform.tfvars.json
 docs/superpowers/
 .auth
 .pnpm-store
+
+.impeccable/critique

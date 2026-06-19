@@ -11,7 +11,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import type { NormalizedAlertDeliverySettings } from "@/data/alerts/delivery-settings";
+import type { StoredDeliverySettings } from "@/data/alerts/delivery-settings";
 import type { Matcher } from "@/data/alerts/matchers";
 import type { AlertRuleYaml } from "@/data/alerts/schema";
 
@@ -83,9 +83,7 @@ export const alertDefinitions = pgTable(
 export const alertSettings = pgTable("alert_settings", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: text("organization_id").notNull().unique(),
-  delivery: jsonb("delivery")
-    .notNull()
-    .$type<NormalizedAlertDeliverySettings>(),
+  delivery: jsonb("delivery").notNull().$type<StoredDeliverySettings>(),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

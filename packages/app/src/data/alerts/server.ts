@@ -16,7 +16,9 @@ import {
   ALERT_CHANNELS,
   type AlertDeliveryTargets,
   DeliverySettingsSchema,
-  normalizeDeliverySettings,
+  ensureDeliveryDefaults,
+  redactDeliverySecrets,
+  resolveDeliverySettings,
 } from "./delivery-settings";
 import {
   findSilenceForInstance,
@@ -603,7 +605,9 @@ export const getAlertSettings = createAuthenticatedServerFn({
     )
     .limit(1);
 
-  return { delivery: normalizeDeliverySettings(row?.delivery) };
+  return {
+    delivery: redactDeliverySecrets(ensureDeliveryDefaults(row?.delivery)),
+  };
 });
 
 export const updateAlertSettings = createAuthenticatedServerFn({
@@ -613,22 +617,26 @@ export const updateAlertSettings = createAuthenticatedServerFn({
   .handler(async ({ data: { delivery }, context: { session } }) => {
     const organizationId = session.session.activeOrganizationId;
     await ensureOrgAdmin();
-    const normalized = normalizeDeliverySettings(delivery);
     const now = new Date();
+
+    const [existing] = await db
+      .select({ delivery: alertSettings.delivery })
+      .from(alertSettings)
+      .where(eq(alertSettings.organizationId, organizationId))
+      .limit(1);
+
+    const stored = ensureDeliveryDefaults(existing?.delivery);
+    const resolved = resolveDeliverySettings(stored, delivery);
 
     await db
       .insert(alertSettings)
-      .values({
-        organizationId,
-        delivery: normalized,
-        updatedAt: now,
-      })
+      .values({ organizationId, delivery: resolved, updatedAt: now })
       .onConflictDoUpdate({
         target: alertSettings.organizationId,
-        set: { delivery: normalized, updatedAt: now },
+        set: { delivery: resolved, updatedAt: now },
       });
 
-    return { delivery: normalized };
+    return { delivery: redactDeliverySecrets(resolved) };
   });
 
 export const createSilence = createAuthenticatedServerFn({ method: "POST" })

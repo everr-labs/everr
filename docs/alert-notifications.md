@@ -20,36 +20,28 @@ Open the app and go to:
 Alerts -> Notification settings
 ```
 
-The dialog contains Telegram notification settings.
+The dialog contains Telegram and Slack notification settings.
 
 ### Telegram
 
-Enable `Telegram`, then enter a Telegram bot token and one or more Telegram
-chat ids.
+Enable `Telegram`, then add one or more entries. Each entry pairs a **bot
+token** with a **chat id** and an optional **name**. Entries are immutable:
+you add or delete them, you do not edit them in place.
 
-Accepted format:
+The bot token is write-only. After saving, Everr never exposes it again. To
+change a token, delete the entry and add a new one. The chat id remains
+visible.
 
-```text
-Bot token: 123456789:ABC...
-Chat ids:
--1001234567890
-123456789
-```
+Accepted bot token format: `123456789:ABC...`
 
-or:
-
-```text
--1001234567890, 123456789
-```
+Chat ids can be user ids, group ids, or channel ids. Group and supergroup ids
+are commonly negative, and supergroup ids commonly start with `-100`.
 
 Typical setup:
 
 1. Create a Telegram bot with BotFather.
 2. Add the bot to every Telegram chat that should receive alerts.
-3. Collect each chat id and enter it in the Everr UI with the bot token.
-
-Chat ids can be user ids, group ids, or channel ids. Group and supergroup ids
-are commonly negative, and supergroup ids commonly start with `-100`.
+3. For each chat, add an entry in the Everr UI with the bot token and chat id.
 
 One practical way to discover a chat id during setup is:
 
@@ -58,9 +50,19 @@ One practical way to discover a chat id during setup is:
 3. Call Telegram `getUpdates` with the bot token.
 4. Read the `message.chat.id` value from the response.
 
-The UI accepts multiple chat ids separated by commas or new lines. If Telegram
-is disabled, if the bot token is empty, or if the chat id list is empty, Everr
-does not send Telegram notifications.
+If Telegram is disabled or has no entries, Everr does not send Telegram
+notifications.
+
+### Slack
+
+Enable `Slack`, then add one or more Incoming Webhook URLs. Each Slack webhook
+posts to one channel. Create a webhook from your workspace's app settings,
+copy the `https://hooks.slack.com/services/...` URL, and add it here with an
+optional name.
+
+Webhook URLs are write-only. After saving, Everr never exposes them again. To
+change a URL, delete the entry and add a new one. Every enabled webhook
+receives every alert notification for the organization.
 
 ## Delivery Behavior
 
@@ -100,6 +102,21 @@ Relevant log events:
 ```text
 telegram.send.failed
 alerts.delivery.telegram_failed
+```
+
+### Slack Notifications Are Not Sent
+
+Check:
+
+- At least one Incoming Webhook URL is configured in `Alerts -> Notification settings`.
+- The webhook URL is valid and the Slack app is still installed in the workspace.
+- The alert is not silenced.
+- Slack is enabled in `Alerts -> Notification settings`.
+
+Relevant log events:
+
+```text
+alerts.delivery.slack_failed
 ```
 
 ### No Notification On Repeated Evaluations

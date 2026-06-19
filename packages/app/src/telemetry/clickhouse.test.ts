@@ -7,6 +7,7 @@ const telemetryMocks = vi.hoisted(() => {
 
   return {
     captureError: vi.fn(),
+    loggerInfo: vi.fn(),
     span,
     startActiveSpan: vi.fn(
       async (
@@ -26,11 +27,20 @@ vi.mock("./node", () => ({
   SpanKind: { CLIENT: 2 },
 }));
 
+vi.mock("./logger", () => ({
+  createTelemetryLogger: () => ({ info: telemetryMocks.loggerInfo }),
+  exceptionAttributes: (error: unknown) => ({
+    "exception.message": error instanceof Error ? error.message : String(error),
+    "exception.type": error instanceof Error ? error.name : "Error",
+  }),
+}));
+
 import { instrumentClickhouseOperation } from "./clickhouse";
 
 describe("instrumentClickhouseOperation", () => {
   beforeEach(() => {
     telemetryMocks.captureError.mockClear();
+    telemetryMocks.loggerInfo.mockClear();
     telemetryMocks.span.end.mockClear();
     telemetryMocks.startActiveSpan.mockClear();
   });
@@ -54,10 +64,11 @@ describe("instrumentClickhouseOperation", () => {
       "error.handled": false,
       "error.source": "clickhouse",
     });
+    expect(telemetryMocks.loggerInfo).not.toHaveBeenCalled();
     expect(telemetryMocks.span.end).toHaveBeenCalledOnce();
   });
 
-  it("does not record expected SQL API query errors", async () => {
+  it("emits expected SQL API query errors as info instead of recording them", async () => {
     const error = Object.assign(
       new Error("Unknown table expression identifier 'alert_eventss'"),
       { code: "60", type: "UNKNOWN_TABLE" },
@@ -73,6 +84,17 @@ describe("instrumentClickhouseOperation", () => {
     ).rejects.toThrow("Unknown table");
 
     expect(telemetryMocks.captureError).not.toHaveBeenCalled();
+    expect(telemetryMocks.loggerInfo).toHaveBeenCalledWith(
+      "Expected ClickHouse SQL API query error",
+      {
+        "clickhouse.client": "sql_api",
+        "db.operation.name": "QUERY",
+        "db.system.name": "clickhouse",
+        "exception.message":
+          "Unknown table expression identifier 'alert_eventss'",
+        "exception.type": "Error",
+      },
+    );
     expect(telemetryMocks.span.end).toHaveBeenCalledOnce();
   });
 
@@ -95,5 +117,6 @@ describe("instrumentClickhouseOperation", () => {
       "error.handled": false,
       "error.source": "clickhouse",
     });
+    expect(telemetryMocks.loggerInfo).not.toHaveBeenCalled();
   });
 });

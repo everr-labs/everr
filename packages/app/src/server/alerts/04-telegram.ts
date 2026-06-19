@@ -1,14 +1,26 @@
-import { renderMessage } from "@/data/alerts/template";
 import {
   type BuildOptions,
   type DeliveryInput,
   formatDuration,
   formatUtc,
-  instanceDetailText,
   instanceLine,
   KIND_STATUS,
-  type NotifiableInstance,
+  pushFiringBlock,
+  renderDescription,
+  renderTitle,
 } from "./04-format";
+
+// Telegram rejects sendMessage bodies longer than this.
+const MAX_MESSAGE_LENGTH = 4096;
+
+// Truncates the rendered body so body + footer stays under Telegram's limit,
+// keeping the footer (timestamp + alert link) intact so the message always
+// links back even when a noisy evaluation overruns the cap.
+function truncate(body: string, footer: string): string {
+  const room = MAX_MESSAGE_LENGTH - footer.length;
+  if (body.length <= room) return body + footer;
+  return `${body.slice(0, room - 1)}…${footer}`;
+}
 
 // Plain text by choice: no parse mode means nothing to escape, nothing for
 // Telegram to reject, and the URL in the body needs no validation.
@@ -68,38 +80,6 @@ export function buildTelegramText(
     }
   }
 
-  lines.push("", formatUtc(opts.now), opts.url);
-  return lines.join("\n");
-}
-
-// Two lines per firing instance: the title (rendered from this instance's row)
-// and its labels + breaching values indented beneath.
-function pushFiringBlock(
-  lines: string[],
-  def: DeliveryInput["def"],
-  instance: NotifiableInstance,
-  now: Date,
-): void {
-  lines.push(`• ${renderTitle(def, instance)}`);
-  lines.push(`  ${instanceDetailText(instance, "firing", now)}`);
-}
-
-function renderTitle(
-  def: DeliveryInput["def"],
-  instance: NotifiableInstance,
-): string {
-  return renderMessage(def.notificationTitleTemplate, {
-    firstRow: instance.row,
-  });
-}
-
-function renderDescription(
-  def: DeliveryInput["def"],
-  instance: NotifiableInstance,
-): string {
-  return def.notificationDescriptionTemplate
-    ? renderMessage(def.notificationDescriptionTemplate, {
-        firstRow: instance.row,
-      })
-    : "";
+  const footer = `\n\n${formatUtc(opts.now)}\n${opts.url}`;
+  return truncate(lines.join("\n"), footer);
 }
