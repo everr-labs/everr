@@ -86,6 +86,36 @@ describe("/api/cli/repos", () => {
     expect(mockedListRepos).toHaveBeenCalledWith(99);
   });
 
+  it("returns empty array when the active installation is missing in GitHub", async () => {
+    mockDbInstallations(mockedDb, [{ status: "active", installationId: 99 }]);
+    mockedListRepos.mockRejectedValueOnce(
+      new Error(
+        'Failed to create installation token: status=404 body={"message":"Not Found"}',
+      ),
+    );
+
+    const response = await getHandler()({
+      request: new Request("http://localhost/api/cli/repos"),
+      context,
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual([]);
+    expect(mockedListRepos).toHaveBeenCalledWith(99);
+  });
+
+  it("rethrows unexpected GitHub repository lookup errors", async () => {
+    mockDbInstallations(mockedDb, [{ status: "active", installationId: 99 }]);
+    mockedListRepos.mockRejectedValueOnce(new Error("GitHub unavailable"));
+
+    await expect(
+      getHandler()({
+        request: new Request("http://localhost/api/cli/repos"),
+        context,
+      }),
+    ).rejects.toThrow("GitHub unavailable");
+  });
+
   it("returns empty array when tenant has no installations", async () => {
     mockDbInstallations(mockedDb, []);
 
