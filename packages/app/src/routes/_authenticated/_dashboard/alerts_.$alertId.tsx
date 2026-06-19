@@ -109,8 +109,14 @@ export const Route = createFileRoute(
   head: () => ({ meta: [{ title: "Everr - Alert detail" }] }),
   loaderDeps: ({ search }) => withTimeRange(search),
   loader: async ({ context: { queryClient }, params, deps }) => {
-    const [detail] = await Promise.all([
-      queryClient.ensureQueryData(alertDetailQueryOptions(params.alertId)),
+    await queryClient.prefetchQuery(alertDetailQueryOptions(params.alertId));
+    const detail = queryClient.getQueryData(
+      alertDetailQueryOptions(params.alertId).queryKey,
+    );
+
+    if (!detail) return {};
+
+    await Promise.all([
       queryClient.prefetchQuery(
         alertInstancesQueryOptions(params.alertId, deps.timeRange),
       ),
@@ -119,6 +125,7 @@ export const Route = createFileRoute(
         alertEventsQueryOptions(params.alertId, deps.timeRange),
       ),
     ]);
+
     return { slug: detail.slug };
   },
   component: AlertDetailPage,
@@ -136,9 +143,19 @@ function AlertDetailPage() {
   const queryClient = useQueryClient();
   const { timeRange } = useTimeRange();
   const alert = useQuery(alertDetailQueryOptions(alertId));
-  const instances = useQuery(alertInstancesQueryOptions(alertId, timeRange));
-  const silences = useQuery(alertSilencesQueryOptions(alertId));
-  const events = useQuery(alertEventsQueryOptions(alertId, timeRange));
+  const hasAlert = Boolean(alert.data);
+  const instances = useQuery({
+    ...alertInstancesQueryOptions(alertId, timeRange),
+    enabled: hasAlert,
+  });
+  const silences = useQuery({
+    ...alertSilencesQueryOptions(alertId),
+    enabled: hasAlert,
+  });
+  const events = useQuery({
+    ...alertEventsQueryOptions(alertId, timeRange),
+    enabled: hasAlert,
+  });
   const [silenceTarget, setSilenceTarget] = useState<SilenceTarget | null>(
     null,
   );

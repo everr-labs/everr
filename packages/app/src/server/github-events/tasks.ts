@@ -24,6 +24,7 @@ import type { WebhookJobData } from "./types";
 import { TerminalEventError } from "./types";
 
 const tracer = getTelemetryTracer("everr-app.github_events");
+const loggedStaleInstallationIds = new Set<number>();
 
 type ParsedQueuedEvent = ReturnType<typeof parseQueuedWorkflowEvent>;
 
@@ -62,6 +63,26 @@ function makeWebhookTask(
           await action({ body, data, organizationId, parsed });
         } catch (error) {
           const err = error instanceof Error ? error : new Error(String(error));
+          const terminalAttributes = {
+            ...(eventType ? { "github.event.type": eventType } : {}),
+            ...installationAttribute(parsed),
+            "graphile_worker.job.id": jobId,
+          };
+
+          if (isStaleInstallationTerminalError(error)) {
+            if (shouldLogStaleInstallation(parsed)) {
+              serverLogger.info(
+                "github_events.jobs.stale_installation_dropped",
+                {
+                  ...terminalAttributes,
+                  "error.message": err.message,
+                  "error.type": err.name,
+                },
+              );
+            }
+            return;
+          }
+
           span.recordException(err);
           span.setStatus({
             code: SpanStatusCode.ERROR,
@@ -70,9 +91,8 @@ function makeWebhookTask(
 
           if (error instanceof TerminalEventError) {
             serverLogger.error(terminalLogKey, {
-              ...(eventType ? { "github.event.type": eventType } : {}),
               ...exceptionAttributes(error),
-              "graphile_worker.job.id": jobId,
+              ...terminalAttributes,
             });
             return;
           }
@@ -84,6 +104,34 @@ function makeWebhookTask(
       },
     );
   };
+}
+
+function isStaleInstallationTerminalError(error: unknown): boolean {
+  return (
+    error instanceof TerminalEventError &&
+    error.message === "organization not found for installation"
+  );
+}
+
+function installationId(parsed: ParsedQueuedEvent): number | null {
+  try {
+    return installationIdFromQueuedEvent(parsed);
+  } catch {
+    return null;
+  }
+}
+
+function installationAttribute(parsed: ParsedQueuedEvent) {
+  const id = installationId(parsed);
+  return id === null ? {} : { "github.installation.id": id };
+}
+
+function shouldLogStaleInstallation(parsed: ParsedQueuedEvent): boolean {
+  const id = installationId(parsed);
+  if (id === null) return true;
+  if (loggedStaleInstallationIds.has(id)) return false;
+  loggedStaleInstallationIds.add(id);
+  return true;
 }
 
 const processCollectorTask = makeWebhookTask(

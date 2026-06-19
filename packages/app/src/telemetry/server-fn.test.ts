@@ -40,8 +40,8 @@ describe("instrumentServerFunction", () => {
     telemetryMocks.span.setAttribute.mockClear();
   });
 
-  it("records errors before TanStack serializes them into serverFn responses", async () => {
-    const error = new Error("Unauthenticated");
+  it("records unexpected errors before TanStack serializes them into serverFn responses", async () => {
+    const error = new Error("database unavailable");
 
     await expect(
       instrumentServerFunction(
@@ -55,7 +55,7 @@ describe("instrumentServerFunction", () => {
           throw error;
         },
       ),
-    ).rejects.toThrow("Unauthenticated");
+    ).rejects.toThrow("database unavailable");
 
     expect(telemetryMocks.captureError).toHaveBeenCalledWith(error, {
       "error.handled": false,
@@ -78,6 +78,29 @@ describe("instrumentServerFunction", () => {
       },
       expect.any(Function),
     );
+    expect(telemetryMocks.span.end).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    "Unauthenticated",
+    "No active organization",
+    "Alert not found",
+  ])("does not record expected serverFn control-flow errors: %s", async (message) => {
+    await expect(
+      instrumentServerFunction(
+        new Request("http://localhost/_serverFn/c4d3d0c28997f144965eeaca"),
+        {
+          filename: "src/lib/auth.server.ts",
+          id: "c4d3d0c28997f144965eeaca",
+          name: "getActiveOrganization",
+        },
+        () => {
+          throw new Error(message);
+        },
+      ),
+    ).rejects.toThrow(message);
+
+    expect(telemetryMocks.captureError).not.toHaveBeenCalled();
     expect(telemetryMocks.span.end).toHaveBeenCalledOnce();
   });
 

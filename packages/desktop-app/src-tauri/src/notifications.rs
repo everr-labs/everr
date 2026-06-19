@@ -50,6 +50,32 @@ fn notifier_span(name: &'static str, trace_id: &str) -> tracing::Span {
     tracing::info_span!(target: "notifier", "notifier_event", name, trace_id)
 }
 
+fn log_notifier_reauthentication_required(error: &anyhow::Error) {
+    tracing::event!(
+        target: "notifier",
+        tracing::Level::INFO,
+        {
+            event.name = "everr.notifier.sse.reauthentication_required",
+            error.message = %error,
+        },
+        "everr.notifier.sse.reauthentication_required"
+    );
+}
+
+fn log_notifier_sse_reconnect(error: &anyhow::Error, backoff: Duration) {
+    let backoff_ms = backoff.as_millis() as u64;
+    tracing::event!(
+        target: "notifier",
+        tracing::Level::DEBUG,
+        {
+            event.name = "everr.notifier.sse.reconnect",
+            error.message = %error,
+            everr.notifier.backoff_ms = backoff_ms,
+        },
+        "everr.notifier.sse.reconnect"
+    );
+}
+
 #[cfg(test)]
 pub(crate) fn notification_window_uses_native_panel() -> bool {
     cfg!(target_os = "macos")
@@ -74,7 +100,7 @@ pub(crate) fn start_notifier_loop(app: AppHandle, state: RuntimeState) {
                 }
                 Err(error) => {
                     if is_reauthentication_required(&error) {
-                        crate::crash_log::log_error("notifier SSE auth", &error);
+                        log_notifier_reauthentication_required(&error);
                         if let Err(reset_error) = handle_notifier_auth_failure(&app, &state) {
                             crate::crash_log::log_error("notifier auth reset", &reset_error);
                         }
@@ -82,7 +108,7 @@ pub(crate) fn start_notifier_loop(app: AppHandle, state: RuntimeState) {
                         continue;
                     }
 
-                    crate::crash_log::log_error("notifier SSE", &error);
+                    log_notifier_sse_reconnect(&error, backoff);
                     tokio::time::sleep(backoff).await;
                     backoff = (backoff * 2).min(max_backoff);
                 }
