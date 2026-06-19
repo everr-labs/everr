@@ -50,6 +50,13 @@
       "when": 1781882172372,
       "tag": "0006_cloudy_deathstrike",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1781882172373,
+      "tag": "0007_backfill_api_key_capabilities",
+      "breakpoints": true
     }
   ]
 }

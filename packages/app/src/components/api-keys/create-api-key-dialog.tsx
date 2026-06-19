@@ -10,29 +10,48 @@ import {
 } from "@everr/ui/components/dialog";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@everr/ui/components/select";
+import { Switch } from "@everr/ui/components/switch";
 import { Check, Copy, KeyRound, Loader2, Plus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useCreateApiKey } from "@/components/api-keys/queries";
+import { SCOPE_ICONS } from "@/components/api-keys/scope-meta";
 import {
   ALL_API_KEY_SCOPES,
-  useCreateApiKey,
-} from "@/components/api-keys/queries";
-import { SCOPE_ICONS } from "@/components/api-keys/scope-meta";
-import { API_KEY_SCOPES, type ApiKeyScope } from "@/lib/api-key-scopes";
+  API_KEY_SCOPES,
+  type ApiKeyScope,
+} from "@/lib/api-key-scopes";
+
+const EXPIRY_OPTIONS = [
+  { value: "never", label: "Never" },
+  { value: "7", label: "7 days" },
+  { value: "30", label: "30 days" },
+  { value: "60", label: "60 days" },
+  { value: "90", label: "90 days" },
+  { value: "365", label: "1 year" },
+] as const;
+
+type Expiry = (typeof EXPIRY_OPTIONS)[number]["value"];
 
 function defaultScopes(): Record<ApiKeyScope, boolean> {
-  // New keys get every scope by default — same as the server's
-  // `defaultPermissions` in auth.server.ts. The user can deselect any
-  // scope they don't want before creating the key.
+  // Default to no capabilities — least privilege. The user must opt into
+  // each capability the key needs, and creation requires at least one.
   return Object.fromEntries(
-    ALL_API_KEY_SCOPES.map((scope) => [scope, true]),
+    ALL_API_KEY_SCOPES.map((scope) => [scope, false]),
   ) as Record<ApiKeyScope, boolean>;
 }
 
 export function CreateApiKeyDialog() {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
-  const [expiresInDays, setExpiresInDays] = useState<string>("");
+  const [expiry, setExpiry] = useState<Expiry>("never");
   const [scopes, setScopes] =
     useState<Record<ApiKeyScope, boolean>>(defaultScopes);
   const [issuedKey, setIssuedKey] = useState<string | null>(null);
@@ -41,7 +60,7 @@ export function CreateApiKeyDialog() {
 
   const reset = () => {
     setName("");
-    setExpiresInDays("");
+    setExpiry("never");
     setScopes(defaultScopes());
     setIssuedKey(null);
     setCopied(false);
@@ -68,7 +87,7 @@ export function CreateApiKeyDialog() {
       toast.error("Pick at least one capability for the key");
       return;
     }
-    const days = expiresInDays.trim() ? Number(expiresInDays) : undefined;
+    const days = expiry === "never" ? undefined : Number(expiry);
     create.mutate(
       { name: trimmed, expiresInDays: days, scopes: selectedScopes },
       {
@@ -159,65 +178,63 @@ export function CreateApiKeyDialog() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="api-key-expiry">Expires in</Label>
-                <div className="relative">
-                  <Input
-                    id="api-key-expiry"
-                    type="number"
-                    min={1}
-                    value={expiresInDays}
-                    onChange={(e) => setExpiresInDays(e.target.value)}
-                    placeholder="never"
-                    className="pr-12"
-                  />
-                  <span className="text-muted-foreground pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs">
-                    days
-                  </span>
-                </div>
+                <Label htmlFor="api-key-expiry">Expiration</Label>
+                <Select
+                  value={expiry}
+                  onValueChange={(v) => setExpiry(v as Expiry)}
+                >
+                  <SelectTrigger id="api-key-expiry" className="w-full">
+                    <SelectValue>
+                      {EXPIRY_OPTIONS.find((o) => o.value === expiry)?.label}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EXPIRY_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
             <fieldset className="space-y-2">
               <legend className="text-sm font-medium">Capabilities</legend>
               <p className="text-muted-foreground text-xs">
-                The key is rejected for anything outside what you select.
+                Grant only what this key needs — it's rejected for anything
+                else.
               </p>
               <div className="space-y-2 pt-0.5">
                 {ALL_API_KEY_SCOPES.map((scope) => {
                   const meta = API_KEY_SCOPES[scope];
                   const Icon = SCOPE_ICONS[scope];
-                  const inputId = `api-key-scope-${scope}`;
+                  const switchId = `api-key-scope-${scope}`;
                   return (
-                    <label
+                    <div
                       key={scope}
-                      htmlFor={inputId}
-                      className="group/cap ring-offset-background has-[:checked]:border-primary has-[:checked]:bg-primary/5 has-[:focus-visible]:ring-ring relative flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-offset-1"
+                      className="has-[[data-checked]]:border-foreground/20 flex items-center gap-3 rounded-lg border p-3 transition-colors"
                     >
-                      <input
-                        id={inputId}
-                        type="checkbox"
-                        className="sr-only"
-                        checked={scopes[scope]}
-                        onChange={() => toggleScope(scope)}
-                      />
-                      <span className="bg-muted/50 text-muted-foreground group-has-[:checked]/cap:border-primary/30 group-has-[:checked]/cap:bg-primary/10 group-has-[:checked]/cap:text-primary flex size-8 shrink-0 items-center justify-center rounded-md border transition-colors">
+                      <span className="bg-muted/50 text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-md border">
                         <Icon className="size-4" />
                       </span>
-                      <span className="min-w-0 flex-1 space-y-0.5">
+                      <label
+                        htmlFor={switchId}
+                        className="min-w-0 flex-1 cursor-pointer space-y-0.5"
+                      >
                         <span className="block text-sm font-medium">
                           {meta.label}
                         </span>
                         <span className="text-muted-foreground block text-xs/relaxed">
                           {meta.description}
                         </span>
-                      </span>
-                      <span
-                        aria-hidden
-                        className="border-muted-foreground/40 group-has-[:checked]/cap:border-primary group-has-[:checked]/cap:bg-primary group-has-[:checked]/cap:text-primary-foreground mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border text-transparent transition-colors"
-                      >
-                        <Check className="size-3" strokeWidth={3} />
-                      </span>
-                    </label>
+                      </label>
+                      <Switch
+                        id={switchId}
+                        checked={scopes[scope]}
+                        onCheckedChange={() => toggleScope(scope)}
+                      />
+                    </div>
                   );
                 })}
               </div>

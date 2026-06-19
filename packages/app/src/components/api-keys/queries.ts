@@ -4,7 +4,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { createApiKey } from "@/data/api-keys";
-import { API_KEY_SCOPES, type ApiKeyScope } from "@/lib/api-key-scopes";
+import type { ApiKeyScope } from "@/lib/api-key-scopes";
 import { authClient } from "@/lib/auth-client";
 
 // better-auth groups keys by `configId`. The value stays "ingest" so keys
@@ -22,8 +22,6 @@ type RawApiKeys = ListData extends {
     : never;
 
 export type ApiKey = RawApiKeys[number];
-
-export const ALL_API_KEY_SCOPES = Object.keys(API_KEY_SCOPES) as ApiKeyScope[];
 
 const apiKeysQueryKey = ["api-keys"] as const;
 

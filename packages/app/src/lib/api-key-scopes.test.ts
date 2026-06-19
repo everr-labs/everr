@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { describeApiKeyScopes, hasApiKeyScope } from "@/lib/api-key-scopes";
 
 describe("hasApiKeyScope", () => {
-  it("treats null permissions as fully scoped (legacy keys)", () => {
-    expect(hasApiKeyScope(null, "ingest", "write")).toBe(true);
-    expect(hasApiKeyScope(undefined, "apply")).toBe(true);
+  it("rejects keys with no capabilities (null/undefined permissions)", () => {
+    expect(hasApiKeyScope(null, "ingest", "write")).toBe(false);
+    expect(hasApiKeyScope(undefined, "apply")).toBe(false);
   });
 
   it("returns false when the scope key is absent", () => {
@@ -34,8 +34,9 @@ describe("hasApiKeyScope", () => {
 });
 
 describe("describeApiKeyScopes", () => {
-  it("lists every known scope for legacy keys with no permissions", () => {
-    expect(describeApiKeyScopes(null).sort()).toEqual(["apply", "ingest"]);
+  it("returns an empty list for a key with no permissions", () => {
+    expect(describeApiKeyScopes(null)).toEqual([]);
+    expect(describeApiKeyScopes(undefined)).toEqual([]);
   });
 
   it("lists only the scopes the key actually has", () => {

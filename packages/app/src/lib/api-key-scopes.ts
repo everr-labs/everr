@@ -7,9 +7,11 @@
  * (e.g. a CI deploy token with just `apply`) even though it shares the
  * `ek_` configId with telemetry keys.
  *
- * A key whose `permissions` is `null` or `undefined` is treated as having
- * every scope with the wildcard action — that matches the behavior before
- * scopes existed, so keys minted before this change keep working.
+ * A key with no capabilities (a `null`/`undefined`/empty `permissions` map)
+ * is rejected: it grants nothing. Keys minted before scopes existed are
+ * backfilled with the full capability set by a one-time migration
+ * (`drizzle/0006_backfill_api_key_capabilities.sql`), so they keep working
+ * without relying on an implicit "null means everything" fallback.
  */
 export const API_KEY_SCOPES = {
   ingest: {
@@ -27,10 +29,18 @@ export const API_KEY_SCOPES = {
 
 export type ApiKeyScope = keyof typeof API_KEY_SCOPES;
 
+/**
+ * Every scope as a non-empty tuple. This is the one list both the client
+ * (scope pickers) and the server (zod validation, `z.enum`) derive from, so
+ * adding a capability is a single edit to `API_KEY_SCOPES`.
+ */
+export const ALL_API_KEY_SCOPES = Object.keys(API_KEY_SCOPES) as [
+  ApiKeyScope,
+  ...ApiKeyScope[],
+];
+
 export type ApiKeyPermissions =
-  | {
-      [scope: string]: readonly string[];
-    }
+  | Partial<Record<ApiKeyScope, readonly string[]>>
   | null
   | undefined;
 
@@ -39,16 +49,16 @@ const WILDCARD = "*";
 /**
  * Returns true when the key is allowed to perform `action` under `scope`.
  *
- * `null`/`undefined` permissions mean "no scope declared" — for backward
- * compatibility, we treat that as fully scoped. An empty action array for a
- * scope is an explicit deny.
+ * A key with no capabilities — `null`/`undefined` permissions, or a scope
+ * absent from the map — grants nothing and is rejected. An empty action
+ * array for a scope is likewise an explicit deny.
  */
 export function hasApiKeyScope(
   permissions: ApiKeyPermissions,
   scope: ApiKeyScope,
   action: string = WILDCARD,
 ): boolean {
-  if (permissions == null) return true;
+  if (permissions == null) return false;
   const actions = permissions[scope];
   if (!actions) return false;
   if (actions.length === 0) return false;
@@ -58,16 +68,15 @@ export function hasApiKeyScope(
 
 /**
  * Render a `permissions` map as a stable, human-readable list, sorted by
- * scope name, suitable for display in tables.
+ * scope name, suitable for display in tables. A key with no capabilities
+ * yields an empty list.
  */
 export function describeApiKeyScopes(permissions: ApiKeyPermissions): string[] {
   if (permissions == null) {
-    return Object.keys(API_KEY_SCOPES);
+    return [];
   }
-  return Object.keys(API_KEY_SCOPES)
-    .filter((scope) => {
-      const actions = permissions[scope];
-      return actions && actions.length > 0;
-    })
-    .sort();
+  return ALL_API_KEY_SCOPES.filter((scope) => {
+    const actions = permissions[scope];
+    return actions != null && actions.length > 0;
+  }).sort();
 }

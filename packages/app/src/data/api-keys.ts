@@ -1,10 +1,14 @@
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { z } from "zod";
-import { API_KEY_SCOPES, type ApiKeyScope } from "@/lib/api-key-scopes";
+import {
+  ALL_API_KEY_SCOPES,
+  API_KEY_SCOPES,
+  type ApiKeyScope,
+} from "@/lib/api-key-scopes";
 import { auth } from "@/lib/auth.server";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 
-const SCOPE_INPUT = z.enum(["ingest", "apply"] as const);
+const SCOPE_INPUT = z.enum(ALL_API_KEY_SCOPES);
 
 const CreateApiKeyInput = z
   .object({

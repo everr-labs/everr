@@ -89,18 +89,17 @@ describe("resolveApplyAuth", () => {
     expect(getSession).not.toHaveBeenCalled();
   });
 
-  it("treats an ek_ key with no permissions map as fully scoped (legacy)", async () => {
-    // Keys minted before scopes existed store `permissions: null`. They must
-    // keep working for both ingest and apply.
+  it("rejects an ek_ key with no permissions map", async () => {
+    // A key with no capabilities grants nothing. Legacy keys are backfilled
+    // with explicit capabilities by the 0006 migration, so a null map only
+    // reaches here for a key that genuinely has none.
     verifyApiKey.mockResolvedValueOnce({
       valid: true,
       key: { id: "k1", referenceId: "org-1", permissions: null },
     });
-    orgRows = [{ name: "Acme" }];
-    const result = await resolveApplyAuth(
-      headers({ authorization: "Bearer ek_abc" }),
-    );
-    expect(result.organizationId).toBe("org-1");
+    await expect(
+      resolveApplyAuth(headers({ authorization: "Bearer ek_abc" })),
+    ).rejects.toThrow(/not authorized to apply/i);
   });
 
   it("rejects an ek_ key that only has the ingest scope", async () => {
@@ -256,7 +255,7 @@ describe("requireOrgOrApiKeyMiddleware", () => {
   it("calls next with the resolved org context on success", async () => {
     verifyApiKey.mockResolvedValueOnce({
       valid: true,
-      key: { id: "k1", referenceId: "org-1" },
+      key: { id: "k1", referenceId: "org-1", permissions: { apply: ["*"] } },
     });
     orgRows = [{ name: "Acme" }];
     const next = vi.fn(async (_arg?: unknown) => "ok");

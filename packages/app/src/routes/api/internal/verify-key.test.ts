@@ -118,9 +118,11 @@ describe("/api/internal/verify-key", () => {
     });
   });
 
-  it("returns 200 for a legacy key with no permissions map", async () => {
-    // Keys minted before scopes existed store `permissions: null`. They must
-    // keep being honored for ingest.
+  it("returns 403 for a key with no permissions map", async () => {
+    // A key with no capabilities grants nothing — it is rejected rather than
+    // treated as fully scoped. Legacy keys are backfilled with explicit
+    // capabilities by the 0006 migration, so a null map only reaches here for
+    // a key that genuinely has none.
     await mockVerify({
       valid: true,
       error: null,
@@ -129,7 +131,7 @@ describe("/api/internal/verify-key", () => {
     const res = await getHandler()({
       request: makeRequest({ key: "the-key" }),
     });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(403);
   });
 
   it("returns 403 when the key only has the apply scope", async () => {

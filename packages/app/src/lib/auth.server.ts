@@ -400,21 +400,13 @@ export const auth = betterAuth({
         // keys. Rate limiting against abuse lives in the collector cache and
         // the shared-secret-guarded verify endpoint, not here.
         rateLimit: { enabled: false },
-        // Every newly minted key gets both capabilities by default — this
-        // is the fallback used when a caller doesn't pass `permissions` on
-        // create (e.g. an external API client). The API keys UI lets
-        // admins override the scope selection per key. Endpoints (collector
-        // verify, apply) still check the scope before honoring a request,
-        // so a key minted without one of these scopes can't be used for
-        // that capability. Keys minted before scopes existed carry a
-        // null/undefined permissions map and are treated as fully scoped,
-        // so they keep working without re-issuance.
-        permissions: {
-          defaultPermissions: {
-            ingest: ["write"],
-            apply: ["read", "write", "delete"],
-          },
-        },
+        // No default permissions on purpose: capability choice is explicit.
+        // A key created without a `permissions` map grants nothing — the
+        // collector verify and apply endpoints check the scope and reject a
+        // key with no capabilities. The API keys UI always sends an explicit,
+        // least-privilege scope set (at least one capability). Keys minted
+        // before scopes existed are backfilled with the full set by
+        // drizzle/0006_backfill_api_key_capabilities.sql.
       },
     ]),
     bearer(),
