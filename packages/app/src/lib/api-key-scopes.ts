@@ -72,9 +72,10 @@ export function hasApiKeyScope(
 }
 
 /**
- * Render a `permissions` map as a stable, human-readable list, sorted by
- * scope name, suitable for display in tables. A key with no capabilities
- * yields an empty list.
+ * Render a `permissions` map as a human-readable list of the scopes the key
+ * holds, in `API_KEY_SCOPES` declaration order — the same order the create
+ * dialog lists them, so table badges and the picker stay consistent. A key
+ * with no capabilities yields an empty list.
  */
 export function describeApiKeyScopes(
   permissions: ApiKeyPermissions,
@@ -85,5 +86,5 @@ export function describeApiKeyScopes(
   return ALL_API_KEY_SCOPES.filter((scope) => {
     const actions = permissions[scope];
     return actions != null && actions.length > 0;
-  }).sort();
+  });
 }

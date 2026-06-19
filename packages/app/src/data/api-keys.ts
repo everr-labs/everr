@@ -1,11 +1,31 @@
+import { getRequestHeaders } from "@tanstack/react-start/server";
 import { z } from "zod";
+import type { ApiKeyRow } from "@/db/schema/auth";
 import {
   ALL_API_KEY_SCOPES,
   API_KEY_SCOPES,
+  type ApiKeyPermissions,
   type ApiKeyScope,
 } from "@/lib/api-key-scopes";
 import { auth } from "@/lib/auth.server";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
+
+/**
+ * The shape of an `ek_` key as the UI receives it. Derived from the DB row
+ * (`ApiKeyRow`) so column names stay in lock-step with the schema, but the
+ * list endpoint transforms two groups of fields on the way out: JSON
+ * serializes `timestamp` columns to ISO strings, and better-auth parses the
+ * `permissions` text column into an object. Override exactly those fields.
+ */
+export type ApiKey = Omit<
+  ApiKeyRow,
+  "createdAt" | "expiresAt" | "lastRequest" | "permissions"
+> & {
+  createdAt?: string | Date | null;
+  expiresAt?: string | Date | null;
+  lastRequest?: string | Date | null;
+  permissions?: ApiKeyPermissions;
+};
 
 const SCOPE_INPUT = z.enum(ALL_API_KEY_SCOPES);
 
@@ -89,5 +109,23 @@ export const createApiKey = createAuthenticatedServerFn({ method: "POST" })
       permissions: created.permissions ?? permissions,
     };
   });
+
+export const listApiKeys = createAuthenticatedServerFn({
+  method: "GET",
+}).handler(async ({ context: { session } }): Promise<ApiKey[]> => {
+  // The org comes from the authenticated server-fn context — no extra
+  // client round-trip to fetch the session. better-auth's list endpoint
+  // reads the session from the request, so forward the headers.
+  const result = await auth.api.listApiKeys({
+    query: {
+      configId: API_KEY_CONFIG_ID,
+      organizationId: session.session.activeOrganizationId,
+    },
+    headers: getRequestHeaders(),
+  });
+  const keys = (result?.apiKeys ?? []) as ApiKey[];
+  // Defense-in-depth: the query already scopes to our configId, but pin it.
+  return keys.filter((k) => k.configId === API_KEY_CONFIG_ID);
+});
 
 export const ApiKeyCreateInputSchema = CreateApiKeyInput;

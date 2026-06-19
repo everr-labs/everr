@@ -19,7 +19,7 @@ import {
 } from "@everr/ui/components/select";
 import { Switch } from "@everr/ui/components/switch";
 import { Check, Copy, KeyRound, Loader2, Plus } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useCreateApiKey } from "@/components/api-keys/queries";
 import { SCOPE_ICONS } from "@/components/api-keys/scope-meta";
@@ -56,7 +56,11 @@ export function CreateApiKeyDialog() {
     useState<Record<ApiKeyScope, boolean>>(defaultScopes);
   const [issuedKey, setIssuedKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const copyResetTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const create = useCreateApiKey();
+
+  // Clear the "Copied" reset timer if the dialog unmounts mid-countdown.
+  useEffect(() => () => clearTimeout(copyResetTimer.current), []);
 
   const reset = () => {
     setName("");
@@ -94,13 +98,9 @@ export function CreateApiKeyDialog() {
     create.mutate(
       { name: trimmed, expiresInDays: days, scopes: selectedScopes },
       {
+        // The server fn guarantees a string `key` or throws, so no null guard.
         onSuccess: (data) => {
-          const key = (data as { key?: string | null } | null)?.key ?? null;
-          if (!key) {
-            toast.error("Server did not return a key");
-            return;
-          }
-          setIssuedKey(key);
+          setIssuedKey(data.key);
           toast.success("API key created");
         },
         onError: (err) => toast.error(err.message),
@@ -113,7 +113,8 @@ export function CreateApiKeyDialog() {
     try {
       await navigator.clipboard.writeText(issuedKey);
       setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      clearTimeout(copyResetTimer.current);
+      copyResetTimer.current = setTimeout(() => setCopied(false), 1500);
     } catch {
       toast.error("Could not copy to clipboard");
     }

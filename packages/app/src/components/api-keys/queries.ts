@@ -3,84 +3,39 @@ import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
-import { createApiKey } from "@/data/api-keys";
-import type { ApiKeyRow } from "@/db/schema/auth";
-import type { ApiKeyPermissions, ApiKeyScope } from "@/lib/api-key-scopes";
+import { createApiKey, listApiKeys } from "@/data/api-keys";
+import type { ApiKeyScope } from "@/lib/api-key-scopes";
 import { authClient } from "@/lib/auth-client";
+
+export type { ApiKey } from "@/data/api-keys";
 
 // better-auth groups keys by `configId`. The value stays "ingest" so keys
 // minted before the rename keep resolving; only the UI vocabulary changed.
 const API_KEY_CONFIG_ID = "ingest";
 
-/**
- * The shape of an `ek_` key as the UI receives it. Derived from the DB row
- * (`ApiKeyRow`) so column names stay in lock-step with the schema, but the
- * list endpoint transforms two groups of fields on the way out: JSON
- * serializes `timestamp` columns to ISO strings, and better-auth parses the
- * `permissions` text column into an object. Override exactly those fields.
- */
-export type ApiKey = Omit<
-  ApiKeyRow,
-  "createdAt" | "expiresAt" | "lastRequest" | "permissions"
-> & {
-  createdAt?: string | Date | null;
-  expiresAt?: string | Date | null;
-  lastRequest?: string | Date | null;
-  permissions?: ApiKeyPermissions;
-};
-
 const apiKeysQueryKey = ["api-keys"] as const;
-
-async function getActiveOrgId(): Promise<string> {
-  const res = await authClient.getSession();
-  const orgId = (
-    res?.data as { session?: { activeOrganizationId?: string | null } } | null
-  )?.session?.activeOrganizationId;
-  if (!orgId) throw new Error("No active organization");
-  return orgId;
-}
-
-function unwrapKeys(value: unknown): ApiKey[] {
-  if (Array.isArray(value)) return value as ApiKey[];
-  if (
-    value &&
-    typeof value === "object" &&
-    Array.isArray((value as { apiKeys?: unknown }).apiKeys)
-  ) {
-    return (value as { apiKeys: ApiKey[] }).apiKeys;
-  }
-  return [];
-}
 
 export function apiKeysQueryOptions() {
   return queryOptions({
     queryKey: apiKeysQueryKey,
-    queryFn: async () => {
-      const organizationId = await getActiveOrgId();
-      const res = await authClient.apiKey.list({
-        query: { configId: API_KEY_CONFIG_ID, organizationId },
-      });
-      if (res.error)
-        throw new Error(res.error.message ?? "Failed to load API keys");
-      const all = unwrapKeys(res.data);
-      // Defense-in-depth: if the server didn't filter by configId, do it here.
-      return all.filter((k) => k.configId === API_KEY_CONFIG_ID);
-    },
+    // The server fn resolves the active org from its authenticated context, so
+    // there's no separate client round-trip to fetch the session.
+    queryFn: () => listApiKeys(),
   });
 }
 
 export function useCreateApiKey() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (vars: {
+    // Permissions are server-only on the apiKey plugin, so creation routes
+    // through a server function that can set the `permissions` field. The
+    // client only picks scopes; the server decides the action set per scope.
+    mutationFn: (vars: {
       name: string;
       expiresInDays?: number;
       scopes: ApiKeyScope[];
-    }) => {
-      // Permissions are server-only on the apiKey plugin, so creation routes
-      // through a server function that can set the `permissions` field. The
-      // client only picks scopes; the server decides the action set per scope.
-      const result = await createApiKey({
+    }) =>
+      createApiKey({
         data: {
           name: vars.name,
           ...(vars.expiresInDays !== undefined
@@ -88,9 +43,7 @@ export function useCreateApiKey() {
             : {}),
           scopes: vars.scopes,
         },
-      });
-      return result as unknown as { key: string | null };
-    },
+      }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: apiKeysQueryKey });
     },
