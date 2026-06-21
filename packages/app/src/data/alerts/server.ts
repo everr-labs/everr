@@ -263,7 +263,7 @@ export const getAlert = createAuthenticatedServerFn({ method: "GET" })
       alertId,
       session.session.activeOrganizationId,
     );
-    if (!row) throw new Error("Alert not found");
+    if (!row) return null;
     return {
       ...toAlertSummary(row as AlertSummaryRow),
       display: displayFromDocument(row.document),

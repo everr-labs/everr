@@ -112,9 +112,8 @@ export const Route = createFileRoute(
   head: () => ({ meta: [{ title: "Everr - Alert detail" }] }),
   loaderDeps: ({ search }) => withTimeRange(search),
   loader: async ({ context: { queryClient }, params, deps }) => {
-    await queryClient.prefetchQuery(alertDetailQueryOptions(params.alertId));
-    const detail = queryClient.getQueryData(
-      alertDetailQueryOptions(params.alertId).queryKey,
+    const detail = await queryClient.ensureQueryData(
+      alertDetailQueryOptions(params.alertId),
     );
 
     if (!detail) return {};
@@ -140,6 +139,19 @@ type SilenceTarget = {
   fingerprint: string;
   labels: Record<string, string>;
 };
+
+function AlertNotFound() {
+  return (
+    <div className="flex flex-col items-start gap-4">
+      <p className="text-muted-foreground" role="alert">
+        Alert not found.
+      </p>
+      <Link to="/alerts" className="underline underline-offset-4">
+        Back to alerts
+      </Link>
+    </div>
+  );
+}
 
 function AlertDetailPage() {
   const { alertId } = Route.useParams();
@@ -177,19 +189,20 @@ function AlertDetailPage() {
   if (alert.isPending) {
     return <Skeleton className="h-96 w-full" />;
   }
-  if (alert.isError || !alert.data) {
-    const notFound =
-      alert.error instanceof Error && alert.error.message === "Alert not found";
+  if (alert.isError) {
     return (
       <div className="flex flex-col items-start gap-4">
         <p className="text-muted-foreground" role="alert">
-          {notFound ? "Alert not found." : "Unable to load alert."}
+          Unable to load alert.
         </p>
         <Link to="/alerts" className="underline underline-offset-4">
           Back to alerts
         </Link>
       </div>
     );
+  }
+  if (!alert.data) {
+    return <AlertNotFound />;
   }
   const detail = alert.data;
   const definitionRows: [string, ReactNode][] = [

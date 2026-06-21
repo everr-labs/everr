@@ -127,6 +127,7 @@ import {
   cancelSilence,
   createSilence,
   deactivateAlert,
+  getAlert,
   listAlertEvents,
   listAlertInstances,
   listAlerts,
@@ -185,6 +186,16 @@ beforeEach(() => {
   vi.mocked(auth.api.getActiveMemberRole).mockResolvedValue({
     role: "admin",
   } as never);
+});
+
+describe("getAlert", () => {
+  it("returns null for a missing or deleted alert", async () => {
+    mocks.selectLimit.mockResolvedValueOnce([]);
+
+    await expect(
+      getAlert({ data: { alertId: alertRow.id } }),
+    ).resolves.toBeNull();
+  });
 });
 
 describe("listAlerts", () => {
