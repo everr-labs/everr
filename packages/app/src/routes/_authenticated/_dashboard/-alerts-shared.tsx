@@ -40,6 +40,24 @@ export function RelativeTime({ value }: { value: Date | string | null }) {
   return <span title={formatDate(value)}>{formatRelativeTime(iso)}</span>;
 }
 
+// "since" suffix for firing badges. Hidden while the alert is within the
+// "just now" window so the tag doesn't read "firing · since just now".
+function FiringSince({ value }: { value: Date | string }) {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => tick((n) => n + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  const iso = value instanceof Date ? value.toISOString() : value;
+  if (formatRelativeTime(iso) === "just now") return null;
+  return (
+    <>
+      {" · since "}
+      <RelativeTime value={value} />
+    </>
+  );
+}
+
 function formatTimeUntil(value: Date | string | null) {
   if (!value) return "—";
   const date = typeof value === "string" ? new Date(value) : value;
@@ -109,10 +127,7 @@ export function AlertStateBadges({
           ? `firing · ${firingInstanceCount}`
           : state}
         {state === "firing" && lastFiredAt && (
-          <>
-            {" · since "}
-            <RelativeTime value={lastFiredAt} />
-          </>
+          <FiringSince value={lastFiredAt} />
         )}
       </Badge>
       {!active && <Badge variant="outline">inactive</Badge>}
