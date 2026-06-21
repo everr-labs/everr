@@ -208,33 +208,17 @@ function AlertDetailPage() {
   const definitionRows: [string, ReactNode][] = [
     ["Repository", detail.repoid],
     ["Project", detail.project],
-    ...(detail.notebookSlug
-      ? ([
-          [
-            "Notebook",
-            <Link
-              key="notebook"
-              to="/notebooks/$project/$slug"
-              params={{
-                project: detail.notebookProject,
-                slug: detail.notebookSlug,
-              }}
-              className="inline-flex items-center gap-1.5 underline underline-offset-4"
-            >
-              <NotebookText className="size-4" />
-              {formatNotebookRef(detail.notebookProject, detail.notebookSlug)}
-            </Link>,
-          ],
-        ] satisfies [string, ReactNode][])
-      : []),
+    ...maybeRow(detail.notebookSlug, [
+      "Notebook",
+      notebookLink(detail.notebookProject, detail.notebookSlug),
+    ]),
     ["Evaluation interval", formatInterval(detail.evaluationIntervalSeconds)],
     ["Notification title", detail.notificationTitleTemplate],
     ["Notification description", detail.notificationDescriptionTemplate || "-"],
-    ...(detail.instanceLabelColumns.length > 0
-      ? ([
-          ["Instance labels", detail.instanceLabelColumns.join(", ")],
-        ] satisfies [string, ReactNode][])
-      : []),
+    ...maybeRow(detail.instanceLabelColumns.length > 0, [
+      "Instance labels",
+      detail.instanceLabelColumns.join(", "),
+    ]),
     ["Last evaluated", formatDate(detail.lastEvaluatedAt)],
   ];
 
@@ -555,6 +539,26 @@ function KeyValueList({ values }: { values: Record<string, string> }) {
       ))}
     </span>
   );
+}
+
+function notebookLink(project: string, slug: string): ReactNode {
+  return (
+    <Link
+      to="/notebooks/$project/$slug"
+      params={{ project, slug }}
+      className="inline-flex items-center gap-1.5 underline underline-offset-4"
+    >
+      <NotebookText className="size-4" />
+      {formatNotebookRef(project, slug)}
+    </Link>
+  );
+}
+
+function maybeRow(
+  test: unknown,
+  row: [string, ReactNode],
+): Array<[string, ReactNode]> {
+  return test ? [row] : [];
 }
 
 function DefinitionTable({ rows }: { rows: [string, ReactNode][] }) {
