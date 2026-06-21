@@ -1,8 +1,6 @@
 kind: AlertRule
 metadata:
   name: worker-failures
-  labels:
-    team: platform
 spec:
   display:
     name: Worker failures

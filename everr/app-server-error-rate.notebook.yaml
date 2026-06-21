@@ -1,0 +1,276 @@
+kind: Notebook
+metadata:
+  name: app-server-error-rate
+  # no project → "default", matching the app-server-error-rate alert
+spec:
+  display:
+    name: App server error rate — runbook
+    description: Triage steps for the app-server-error-rate alert (elevated 5xx on everr-app server spans).
+  duration: 6h
+  refreshInterval: 1m
+  panels:
+    error-rate:
+      kind: Panel
+      spec:
+        display:
+          name: Server error rate
+          description: Errored server spans as a percentage of all server spans, per service.
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            unit: "%"
+            showLegend: true
+            lineWidth: 1.5
+            curveType: monotone
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT
+                      toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                      ServiceName,
+                      round(countIf(StatusCode = 'Error') / count() * 100, 2) AS error_pct
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND ServiceName IN ('everr-dev-app', 'everr-app')
+                      AND SpanKind = 'Server'
+                    GROUP BY ts, ServiceName
+                    ORDER BY ts
+    error-volume:
+      kind: Panel
+      spec:
+        display:
+          name: Errored server spans
+          description: Count of errored server spans over time, per service — separates a rate spike caused by errors from one caused by a traffic drop.
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            unit: ""
+            showLegend: true
+            lineWidth: 1.5
+            curveType: monotone
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT
+                      toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                      ServiceName,
+                      countIf(StatusCode = 'Error') AS errors
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND ServiceName IN ('everr-dev-app', 'everr-app')
+                      AND SpanKind = 'Server'
+                    GROUP BY ts, ServiceName
+                    ORDER BY ts
+    errors-by-route:
+      kind: Panel
+      spec:
+        display:
+          name: Errors by route
+          description: Which endpoints are failing, with their error share.
+        plugin:
+          kind: Table
+          spec:
+            stickyHeader: true
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT
+                      SpanAttributes['http.route'] AS route,
+                      SpanAttributes['http.request.method'] AS method,
+                      countIf(StatusCode = 'Error') AS errors,
+                      count() AS total,
+                      round(countIf(StatusCode = 'Error') / count() * 100, 2) AS error_pct
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND ServiceName IN ('everr-dev-app', 'everr-app')
+                      AND SpanKind = 'Server'
+                    GROUP BY route, method
+                    HAVING errors > 0
+                    ORDER BY errors DESC
+                    LIMIT 20
+    errors-by-status:
+      kind: Panel
+      spec:
+        display:
+          name: Errors by HTTP status
+          description: HTTP status codes of the errored server spans.
+        plugin:
+          kind: Table
+          spec:
+            stickyHeader: true
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT
+                      SpanAttributes['http.response.status_code'] AS status_code,
+                      count() AS errors
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND ServiceName IN ('everr-dev-app', 'everr-app')
+                      AND SpanKind = 'Server'
+                      AND StatusCode = 'Error'
+                    GROUP BY status_code
+                    ORDER BY errors DESC
+    recent-errors:
+      kind: Panel
+      spec:
+        display:
+          name: Recent errored spans
+          description: The most recent errored server spans — copy a TraceId to open the full trace.
+        plugin:
+          kind: Table
+          spec:
+            stickyHeader: true
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT
+                      Timestamp,
+                      ServiceName,
+                      SpanName,
+                      SpanAttributes['http.route'] AS route,
+                      SpanAttributes['http.response.status_code'] AS status_code,
+                      StatusMessage,
+                      TraceId
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND ServiceName IN ('everr-dev-app', 'everr-app')
+                      AND SpanKind = 'Server'
+                      AND StatusCode = 'Error'
+                    ORDER BY Timestamp DESC
+                    LIMIT 50
+    alert-status:
+      kind: Panel
+      spec:
+        display:
+          name: Alert service status
+          description: Recent alert service events for this alert, projected into logs.
+        plugin:
+          kind: Table
+          spec:
+            stickyHeader: true
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT
+                      TimestampTime AS event_time,
+                      LogAttributes['alert.event_type'] AS event_type,
+                      LogAttributes['alert.row_count'] AS row_count,
+                      LogAttributes['alert.silenced'] AS silenced,
+                      LogAttributes['alert.delivery_targets'] AS delivery_targets,
+                      LogAttributes['alert.instance_labels'] AS instance_labels
+                    FROM logs
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND ServiceName = 'alert'
+                      AND LogAttributes['alert.slug'] = 'app-server-error-rate'
+                    ORDER BY event_time DESC
+                    LIMIT 50
+  markdown:
+    inline: |
+      # App server error rate — runbook
+
+      The **app-server-error-rate** alert fires when an app service's server spans
+      have an error rate above **1%** over at least **100** spans in the last 15
+      minutes (`StatusCode = 'Error'` on `SpanKind = 'Server'`), for
+      `everr-app` / `everr-dev-app`. Each firing instance is one `ServiceName`.
+
+      Work top to bottom: confirm it's real, find where the errors concentrate,
+      then open a failing trace.
+
+      ## 1. Confirm it's real
+
+      Is the rate genuinely elevated and sustained, or a brief blip?
+
+      ```panel
+      ref: error-rate
+      ```
+
+      ```panel
+      ref: error-volume
+      ```
+
+      - A spike in **error rate** with flat or rising **errored-span count** is a
+        real regression. A rate spike while total traffic collapsed (errors flat,
+        rate up) points at an upstream/traffic problem, not new failures.
+      - The alert needs ≥100 spans in the window, so a handful of errors on a
+        low-traffic service won't trip it — if the count here is tiny, suspect a
+        single noisy caller rather than a broad outage.
+
+      ## 2. Localize
+
+      Concentrate on the endpoints and status codes carrying the errors.
+
+      ```panel
+      ref: errors-by-route
+      ```
+
+      ```panel
+      ref: errors-by-status
+      ```
+
+      - One route dominating → a specific handler or its dependency.
+      - Errors spread across every route → shared infra: database, auth,
+        ClickHouse, or a bad deploy/config.
+      - Mostly `5xx` → server-side failures. A surge of `4xx` surfacing as span
+        errors usually means a client/contract change, not an outage.
+
+      ## 3. Inspect a failing request
+
+      ```panel
+      ref: recent-errors
+      ```
+
+      Read `StatusMessage` for the failure reason, then copy a `TraceId` and open
+      it in the trace view to see the full span tree and where time/errors are
+      spent.
+
+      ## 4. Alert service status
+
+      This panel reads the alert service's projected logs for
+      **app-server-error-rate**. Use it to confirm recent `firing`, `resolved`,
+      `evaluation_failed`, and `delivery_failed` events, plus row counts and
+      delivery/silence metadata.
+
+      ```panel
+      ref: alert-status
+      ```
+
+      ## 5. Common causes & what to do
+
+      | Symptom | Likely cause | Action |
+      | --- | --- | --- |
+      | Step change right after a release | Bad deploy | Correlate with deploy history; roll back if the regression lines up |
+      | Errors across all routes, DB spans failing | Database/ClickHouse degraded | Check DB health and connection pools |
+      | One route, downstream span errors | Dependency outage | Check that dependency's status |
+      | Errors paired with high latency | Saturation / timeouts | Cross-check the **app-server-latency** alert; scale or shed load |
+      | Fatal/unhandled errors in logs | Unhandled exceptions | See the **app-fatal-errors** alert and the service logs |
+
+      ## 6. Related
+
+      - **app-server-latency** — elevated p95/p99 on the same server spans.
+      - **app-fatal-errors** — fatal/unhandled errors in app logs (the likely
+        root cause when this alert and that one fire together).

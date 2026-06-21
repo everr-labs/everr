@@ -39,9 +39,10 @@ Every referenced name must be a column the `query` returns; this is validated on
 
 ## Manifest
 
-Every apply directory needs an `everr.yaml` (or `everr.yml`) file at its root with exactly one key:
+The apply directory — by convention an `everr/` directory at your repo root — needs an `everr.yaml` (or `everr.yml`) file at its root with exactly one key:
 
 ```yaml
+# everr/everr.yaml
 repoid: "2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1"
 ```
 
@@ -49,7 +50,7 @@ repoid: "2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1"
 | --- | --- | --- |
 | `repoid` | string (UUID) | Stable identifier you choose once. It's the reconcile/prune boundary, apply only touches resources under this repoid. The manifest rejects any other key. |
 
-`everr apply <dir>` discovers every `kind: Dashboard` and `kind: AlertRule` document under the directory and makes the live resources for that repoid exactly match the tree: new documents are created, changed ones updated, and removed ones **deleted**. Use `--dry-run` to preview the changes without applying them. See the [`everr apply` reference](/docs/reference/cli#dashboards-gitops).
+Declarations sit flat in `everr/`, named by kind: `*.alert.yaml`, `*.dashboard.yaml`, `*.notebook.yaml`. `everr apply ./everr` discovers every `kind: Dashboard`, `kind: AlertRule`, and `kind: Notebook` document under the directory and makes the live resources for that repoid exactly match the tree: new documents are created, changed ones updated, and removed ones **deleted**. The kind suffix is a naming convention only — apply routes by the `kind:` field. Use `--dry-run` to preview the changes without applying them. See the [`everr apply` reference](/docs/reference/cli#dashboards-gitops).
 
 ## Constraints and errors
 

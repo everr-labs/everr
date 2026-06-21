@@ -31,15 +31,15 @@ The assistant inspects your data, picks the panels and queries, writes the file,
 
 ## Create a dashboard file
 
-Make a directory to hold your dashboards and add one file. The directory is the unit you'll apply.
+Make an `everr/` directory at your repo root to hold your declarations and add one file. The directory is the unit you'll apply; files sit flat inside it, named by kind (dashboards are `*.dashboard.yaml`).
 
 ```sh
-mkdir -p dashboards
+mkdir -p everr
 ```
 
-Every apply directory needs an `everr.yaml` (or `everr.yml`) at its root declaring a stable `repoid`. The repoid is the apply ownership boundary — apply reconciles exactly the resources previously applied under it.
+The `everr/` directory needs an `everr.yaml` (or `everr.yml`) at its root declaring a stable `repoid`. The repoid is the apply ownership boundary — apply reconciles exactly the resources previously applied under it.
 
-`dashboards/everr.yaml`:
+`everr/everr.yaml`:
 
 ```yaml
 repoid: "2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1"
@@ -47,7 +47,7 @@ repoid: "2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1"
 
 Use one stable id per repository (a UUID is a good default); never change it for an existing setup. Dashboards may set an optional `metadata.project` to namespace their identity and URL, but it does not appear in the manifest.
 
-`dashboards/api-latency.yaml`:
+`everr/api-latency.dashboard.yaml`:
 
 ```yaml
 kind: Dashboard
@@ -103,7 +103,7 @@ A few things worth noting:
 Always dry-run first. It computes the diff and writes nothing:
 
 ```sh
-everr apply ./dashboards --dry-run
+everr apply ./everr --dry-run
 ```
 
 ```
@@ -116,7 +116,7 @@ The project each dashboard belongs to comes from `metadata.project` in the file.
 ## Apply it
 
 ```sh
-everr apply ./dashboards
+everr apply ./everr
 ```
 
 Apply first prints a plan, then — because there are changes — asks you to confirm before writing. Answer the `Apply to «Acme Corp»?` prompt, or pass `--yes` (`-y`) to skip it (required in CI and piped contexts).
@@ -156,7 +156,7 @@ The panel renders live, driven by the global time-range picker. Adjust the time 
 Edit the file — say, add a second panel or change the query — and apply again. A changed dashboard is updated in place; the URL never changes because the slug didn't.
 
 ```sh
-everr apply ./dashboards
+everr apply ./everr
 ```
 
 ```
@@ -176,8 +176,8 @@ Dashboard: 0 created, 1 updated, 0 deleted
 And to remove a dashboard, delete its file and apply — reconciliation is delete-by-default within the project:
 
 ```sh
-rm dashboards/api-latency.yaml
-everr apply ./dashboards
+rm everr/api-latency.dashboard.yaml
+everr apply ./everr
 ```
 
 ```

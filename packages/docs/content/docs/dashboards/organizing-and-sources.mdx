@@ -7,28 +7,28 @@ As you add dashboards, two things matter: how they're grouped in the UI, and how
 
 ## Folders come from directories
 
-The dashboards index shows a folder tree. You don't define folders — they're derived from the directory each file sits in, relative to the directory you applied.
+Your declarations live in an `everr/` directory at your repo root, flat and named by kind (`*.dashboard.yaml`). The dashboards index shows a folder tree: you don't define folders — they're derived from the directory each file sits in, relative to the directory you applied. Subdirectories are optional; use them when you want folders.
 
 ```
-dashboards/
-  everr.yaml                    -> manifest (declares the repoid)
-  overview.yaml                 -> root
+everr/
+  everr.yaml                          -> manifest (declares the repoid)
+  overview.dashboard.yaml             -> root
   platform/
-    api-latency.yaml            -> folder "platform"
-    db_health.yaml              -> folder "platform"
+    api-latency.dashboard.yaml        -> folder "platform"
+    db_health.dashboard.yaml          -> folder "platform"
   team_payments/
     checkout/
-      funnel.yaml               -> folder "team payments / checkout"
+      funnel.dashboard.yaml           -> folder "team payments / checkout"
 ```
 
 Directory segments become the folder path, joined by ` / `. Underscores and hyphens in segment names are shown as spaces (`team_payments` → `team payments`). Move a file to a different directory and re-apply, and the dashboard moves folders. There are no folder objects to create, rename, or delete.
 
 ## The manifest declares what you manage
 
-Every apply directory must contain an `everr.yaml` (or `everr.yml`) at its root declaring a stable `repoid`:
+The `everr/` directory must contain an `everr.yaml` (or `everr.yml`) at its root declaring a stable `repoid`:
 
 ```yaml
-# dashboards/everr.yaml
+# everr/everr.yaml
 repoid: "2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1"
 ```
 
@@ -43,12 +43,12 @@ Independently of the repoid, every dashboard may declare a `metadata.project` (d
 Give each repo its own `repoid`, and applies never collide: `everr apply` only ever touches resources under the repoid in that repo's `everr.yaml`. It can never modify another repo's (or another organization's) dashboards.
 
 ```yaml
-# platform repo — dashboards/everr.yaml
+# platform repo — everr/everr.yaml
 repoid: "0b6c1f4e-8a21-4d3b-9f17-2c5e7a9d6b04"
 ```
 
 ```yaml
-# platform repo — dashboards/api-latency.yaml
+# platform repo — everr/api-latency.dashboard.yaml
 kind: Dashboard
 metadata:
   name: api-latency
@@ -58,12 +58,12 @@ spec:
 ```
 
 ```yaml
-# payments repo — dashboards/everr.yaml
+# payments repo — everr/everr.yaml
 repoid: "9d2a77c3-1e54-4f8a-b6d0-3a8c1f2e5b97"
 ```
 
 ```yaml
-# payments repo — dashboards/checkout-funnel.yaml
+# payments repo — everr/checkout-funnel.dashboard.yaml
 kind: Dashboard
 metadata:
   name: checkout-funnel
@@ -76,10 +76,10 @@ Apply each repo independently:
 
 ```sh
 # in the platform repo
-everr apply ./dashboards
+everr apply ./everr
 
 # in the payments repo, independently
-everr apply ./dashboards
+everr apply ./everr
 ```
 
 ## Full reconcile, scoped to the repoid
@@ -93,7 +93,7 @@ everr apply ./dashboards
 There is no separate prune step — removing a file removes the dashboard on the next apply, moving a dashboard's file within the tree relocates it (no duplicate), and emptying the tree removes its last dashboard. It's safe because reconciliation only ever applies within the repoid declared in `everr.yaml`. Always preview with `--dry-run` first:
 
 ```sh
-everr apply ./dashboards --dry-run
+everr apply ./everr --dry-run
 ```
 
 ```
@@ -114,7 +114,7 @@ name: Apply dashboards
 on:
   push:
     branches: [main]
-    paths: ["dashboards/**"]
+    paths: ["everr/**"]
 jobs:
   apply:
     runs-on: ubuntu-latest
@@ -126,7 +126,7 @@ jobs:
           install-cli: "true"
           resource-usage: "false"
 
-      - run: everr apply ./dashboards --yes
+      - run: everr apply ./everr --yes
         env:
           EVERR_API_TOKEN: ${{ secrets.EVERR_API_TOKEN }}
           EVERR_API_URL: ${{ vars.EVERR_API_URL }}
