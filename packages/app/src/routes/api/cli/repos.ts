@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { githubInstallationOrganizations } from "@/db/schema";
 import { listInstallationRepos } from "@/server/github-events/backfill";
+import { GitHubApiError } from "@/server/github-events/github-api";
 
 export const Route = createFileRoute("/api/cli/repos")({
   server: {
@@ -46,14 +47,5 @@ export const Route = createFileRoute("/api/cli/repos")({
 });
 
 function isMissingGitHubInstallation(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-
-  const message = error.message;
-  return (
-    message.startsWith("Failed to create installation token: status=404") ||
-    (message.startsWith(
-      "GitHub API error: GET https://api.github.com/installation/repositories",
-    ) &&
-      message.includes(" status=404 "))
-  );
+  return error instanceof GitHubApiError && error.status === 404;
 }

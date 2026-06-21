@@ -17,6 +17,19 @@ import { serverLogger } from "@/telemetry/logger";
 const MAX_RATE_LIMIT_RETRIES = 3;
 
 // ---------------------------------------------------------------------------
+// Typed errors
+// ---------------------------------------------------------------------------
+
+export class GitHubApiError extends Error {
+  readonly status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "GitHubApiError";
+    this.status = status;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // GitHub App auth — JWT + installation token
 // ---------------------------------------------------------------------------
 
@@ -69,7 +82,8 @@ export async function getInstallationToken(
 
   if (!resp.ok) {
     const body = await resp.text();
-    throw new Error(
+    throw new GitHubApiError(
+      resp.status,
       `Failed to create installation token: status=${resp.status} body=${body}`,
     );
   }
@@ -147,7 +161,8 @@ export async function* paginate<T>(
 
     if (!resp.ok) {
       const body = await resp.text();
-      throw new Error(
+      throw new GitHubApiError(
+        resp.status,
         `GitHub API error: GET ${nextUrl} status=${resp.status} body=${body}`,
       );
     }
