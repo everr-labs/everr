@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { AlertRuleYamlSchema, EverrConfigYamlSchema } from "./schema";
+import {
+  AlertRuleYamlSchema,
+  EverrConfigYamlSchema,
+  parseNotebookRef,
+} from "./schema";
 
 const valid = {
   kind: "AlertRule",
@@ -47,6 +51,49 @@ describe("AlertRuleYamlSchema", () => {
     ).toBe(false);
   });
 
+  it("accepts optional metadata.project and spec.notebook", () => {
+    expect(
+      AlertRuleYamlSchema.safeParse({
+        ...valid,
+        metadata: { ...valid.metadata, project: "platform" },
+        spec: { ...valid.spec, notebook: "db-pool-runbook" },
+      }).success,
+    ).toBe(true);
+    expect(
+      AlertRuleYamlSchema.safeParse({
+        ...valid,
+        spec: { ...valid.spec, notebook: "platform/db-pool-runbook" },
+      }).success,
+    ).toBe(true);
+  });
+
+  it("rejects malformed project and notebook refs", () => {
+    expect(
+      AlertRuleYamlSchema.safeParse({
+        ...valid,
+        metadata: { ...valid.metadata, project: "Bad Project" },
+      }).success,
+    ).toBe(false);
+    expect(
+      AlertRuleYamlSchema.safeParse({
+        ...valid,
+        spec: { ...valid.spec, notebook: "a/b/c" },
+      }).success,
+    ).toBe(false);
+    expect(
+      AlertRuleYamlSchema.safeParse({
+        ...valid,
+        spec: { ...valid.spec, notebook: "Bad_Slug" },
+      }).success,
+    ).toBe(false);
+    expect(
+      AlertRuleYamlSchema.safeParse({
+        ...valid,
+        spec: { ...valid.spec, notebook: "platform/" },
+      }).success,
+    ).toBe(false);
+  });
+
   it("rejects unknown keys, missing title, and empty name", () => {
     expect(AlertRuleYamlSchema.safeParse({ ...valid, extra: 1 }).success).toBe(
       false,
@@ -75,6 +122,22 @@ describe("AlertRuleYamlSchema", () => {
         metadata: { name: "" },
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("parseNotebookRef", () => {
+  it("defaults the project to the alert's project for a bare slug", () => {
+    expect(parseNotebookRef("db-pool-runbook", "platform")).toEqual({
+      project: "platform",
+      slug: "db-pool-runbook",
+    });
+  });
+
+  it("uses the explicit project for a project/slug ref", () => {
+    expect(parseNotebookRef("infra/db-pool-runbook", "platform")).toEqual({
+      project: "infra",
+      slug: "db-pool-runbook",
+    });
   });
 });
 

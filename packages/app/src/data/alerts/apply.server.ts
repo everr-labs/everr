@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import { ApplyValidationError } from "@/data/as-code/errors";
 import type { Reconciler } from "@/data/as-code/registry";
 import type { ApplyResourceEntry, ApplySource } from "@/data/as-code/schema";
@@ -7,7 +7,12 @@ import { db } from "@/db/client";
 import { alertDefinitions } from "@/db/schema";
 import { querySqlApiWithMeta, type SqlApiResult } from "@/lib/clickhouse";
 import { errorMessage } from "@/telemetry/logger";
-import { type AlertRuleYaml, AlertRuleYamlSchema } from "./schema";
+import {
+  type AlertRuleYaml,
+  AlertRuleYamlSchema,
+  identityKey,
+  parseNotebookRef,
+} from "./schema";
 import {
   validateMessageColumns,
   validateMessageTemplate,
@@ -17,6 +22,9 @@ import { parseEvaluationInterval } from "./window";
 
 interface DesiredAlert {
   slug: string;
+  project: string;
+  notebookProject: string;
+  notebookSlug: string;
   evaluationIntervalSeconds: number;
   document: AlertRuleYaml;
   parsedQuery: string;
@@ -30,7 +38,6 @@ interface DesiredAlert {
 
 interface ExistingAlert extends DesiredAlert {
   active: boolean;
-  deletedAt: Date | null;
 }
 
 interface ApplyAlertsResult {
@@ -59,12 +66,13 @@ function sourceLink(source: ApplySource | undefined, path: string): string {
 function scheduleJitterSeconds(
   orgId: string,
   repoid: string,
+  project: string,
   slug: string,
   evaluationIntervalSeconds: number,
 ): number {
   const spread = Math.min(evaluationIntervalSeconds, 5);
   const hash = createHash("sha256")
-    .update(`${orgId}\0${repoid}\0${slug}`)
+    .update(`${orgId}\0${repoid}\0${project}\0${slug}`)
     .digest();
   return hash.readUInt32BE(0) % spread;
 }
@@ -98,7 +106,12 @@ function parseAlertRule(path: string, resource: unknown) {
     throw validationError(path, error);
   }
 
-  return { rule, slug: rule.metadata.name, evaluationIntervalSeconds };
+  return {
+    rule,
+    slug: rule.metadata.name,
+    project: rule.metadata.project ?? "default",
+    evaluationIntervalSeconds,
+  };
 }
 
 // Result-dependent validation: run the rule's query against the org's data and
@@ -188,13 +201,14 @@ async function buildDesiredAlerts(opts: {
   const parsedAlerts = opts.resources.map(({ path, resource }) => {
     const parsed = parseAlertRule(path, resource);
 
-    const prior = seen.get(parsed.slug);
+    const key = identityKey(parsed.project, parsed.slug);
+    const prior = seen.get(key);
     if (prior) {
       throw new ApplyValidationError(
-        `duplicate alert "${parsed.slug}" (${prior} and ${path})`,
+        `duplicate alert "${parsed.slug}" in project "${parsed.project}" (${prior} and ${path})`,
       );
     }
-    seen.set(parsed.slug, path);
+    seen.set(key, path);
     return { ...parsed, path };
   });
 
@@ -210,8 +224,15 @@ async function buildDesiredAlerts(opts: {
     const validation = validations[index];
     if (validation.status === "rejected") throw validation.reason;
 
+    const ref = parsed.rule.spec.notebook
+      ? parseNotebookRef(parsed.rule.spec.notebook, parsed.project)
+      : { project: "", slug: "" };
+
     return {
       slug: parsed.slug,
+      project: parsed.project,
+      notebookProject: ref.project,
+      notebookSlug: ref.slug,
       evaluationIntervalSeconds: parsed.evaluationIntervalSeconds,
       document: parsed.rule,
       parsedQuery: parsed.rule.spec.query,
@@ -222,6 +243,7 @@ async function buildDesiredAlerts(opts: {
       scheduleJitterSeconds: scheduleJitterSeconds(
         opts.orgId,
         opts.repoid,
+        parsed.project,
         parsed.slug,
         parsed.evaluationIntervalSeconds,
       ),
@@ -271,7 +293,9 @@ function needsUpdate(existing: ExistingAlert, desired: DesiredAlert): boolean {
       desired.notificationDescriptionTemplate ||
     existing.scheduleJitterSeconds !== desired.scheduleJitterSeconds ||
     existing.configFilePath !== desired.configFilePath ||
-    existing.sourceLink !== desired.sourceLink
+    existing.sourceLink !== desired.sourceLink ||
+    existing.notebookProject !== desired.notebookProject ||
+    existing.notebookSlug !== desired.notebookSlug
   );
 }
 
@@ -299,8 +323,9 @@ function activeValues(
     scheduleJitterSeconds: desired.scheduleJitterSeconds,
     configFilePath: desired.configFilePath,
     sourceLink: desired.sourceLink,
+    notebookProject: desired.notebookProject,
+    notebookSlug: desired.notebookSlug,
     active: true,
-    deletedAt: null,
     updatedAt: now,
   };
 
@@ -331,9 +356,8 @@ function shouldResetRuntimeState(
 
 /**
  * Reconcile alert definitions for one repo. Alerts missing from the config are
- * soft-deleted (deletedAt set, deactivated) rather than removed, so historical
- * state and events keep pointing at the same definition row while the alert
- * disappears from listings. Re-applying a rule clears deletedAt.
+ * deleted; the FK from alert_silences cascades, so their silences go too.
+ * Re-adding a rule later creates a fresh definition row.
  */
 export const applyAlertSpecs: Reconciler = async ({
   orgId,
@@ -352,6 +376,9 @@ export const applyAlertSpecs: Reconciler = async ({
   const existing = (await db
     .select({
       slug: alertDefinitions.slug,
+      project: alertDefinitions.project,
+      notebookProject: alertDefinitions.notebookProject,
+      notebookSlug: alertDefinitions.notebookSlug,
       evaluationIntervalSeconds: alertDefinitions.evaluationIntervalSeconds,
       document: alertDefinitions.document,
       parsedQuery: alertDefinitions.parsedQuery,
@@ -363,7 +390,6 @@ export const applyAlertSpecs: Reconciler = async ({
       configFilePath: alertDefinitions.configFilePath,
       sourceLink: alertDefinitions.sourceLink,
       active: alertDefinitions.active,
-      deletedAt: alertDefinitions.deletedAt,
     })
     .from(alertDefinitions)
     .where(
@@ -373,16 +399,22 @@ export const applyAlertSpecs: Reconciler = async ({
       ),
     )) as ExistingAlert[];
 
-  const existingBySlug = new Map(existing.map((row) => [row.slug, row]));
-  const desiredBySlug = new Map(desired.map((row) => [row.slug, row]));
+  const existingByKey = new Map(
+    existing.map((row) => [identityKey(row.project, row.slug), row]),
+  );
+  const desiredByKey = new Map(
+    desired.map((row) => [identityKey(row.project, row.slug), row]),
+  );
 
-  const creates = desired.filter((row) => !existingBySlug.has(row.slug));
+  const creates = desired.filter(
+    (row) => !existingByKey.has(identityKey(row.project, row.slug)),
+  );
   const updates = desired.filter((row) => {
-    const current = existingBySlug.get(row.slug);
+    const current = existingByKey.get(identityKey(row.project, row.slug));
     return current ? needsUpdate(current, row) : false;
   });
   const deletes = existing.filter(
-    (row) => !row.deletedAt && !desiredBySlug.has(row.slug),
+    (row) => !desiredByKey.has(identityKey(row.project, row.slug)),
   );
 
   const summary: ApplyAlertsResult = {
@@ -401,6 +433,7 @@ export const applyAlertSpecs: Reconciler = async ({
           organizationId: orgId,
           repoid,
           slug: row.slug,
+          project: row.project,
           ...activeValues(row, now),
           createdAt: now,
         })),
@@ -408,7 +441,7 @@ export const applyAlertSpecs: Reconciler = async ({
     }
 
     for (const row of updates) {
-      const current = existingBySlug.get(row.slug);
+      const current = existingByKey.get(identityKey(row.project, row.slug));
       await tx
         .update(alertDefinitions)
         .set(
@@ -420,25 +453,27 @@ export const applyAlertSpecs: Reconciler = async ({
           and(
             eq(alertDefinitions.organizationId, orgId),
             eq(alertDefinitions.repoid, repoid),
+            eq(alertDefinitions.project, row.project),
             eq(alertDefinitions.slug, row.slug),
           ),
         );
     }
 
-    for (const row of deletes) {
+    if (deletes.length > 0) {
       await tx
-        .update(alertDefinitions)
-        .set({
-          active: false,
-          deletedAt: now,
-          nextEvaluationAt: null,
-          updatedAt: now,
-        })
+        .delete(alertDefinitions)
         .where(
           and(
             eq(alertDefinitions.organizationId, orgId),
             eq(alertDefinitions.repoid, repoid),
-            eq(alertDefinitions.slug, row.slug),
+            or(
+              ...deletes.map((row) =>
+                and(
+                  eq(alertDefinitions.project, row.project),
+                  eq(alertDefinitions.slug, row.slug),
+                ),
+              ),
+            ),
           ),
         );
     }

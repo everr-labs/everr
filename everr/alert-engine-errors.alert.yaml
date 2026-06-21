@@ -1,8 +1,6 @@
 kind: AlertRule
 metadata:
   name: alert-engine-errors
-  labels:
-    team: platform
 spec:
   display:
     name: Alert engine errors

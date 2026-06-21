@@ -21,7 +21,7 @@ import {
 import { handleStatusEvent } from "./status-writer";
 import { resolveOrganizationId } from "./tenant-resolver";
 import type { WebhookJobData } from "./types";
-import { TerminalEventError } from "./types";
+import { StaleInstallationError, TerminalEventError } from "./types";
 
 const tracer = getTelemetryTracer("everr-app.github_events");
 const loggedStaleInstallationIds = new Set<number>();
@@ -69,7 +69,7 @@ function makeWebhookTask(
             "graphile_worker.job.id": jobId,
           };
 
-          if (isStaleInstallationTerminalError(error)) {
+          if (error instanceof StaleInstallationError) {
             if (shouldLogStaleInstallation(parsed)) {
               serverLogger.info(
                 "github_events.jobs.stale_installation_dropped",
@@ -104,13 +104,6 @@ function makeWebhookTask(
       },
     );
   };
-}
-
-function isStaleInstallationTerminalError(error: unknown): boolean {
-  return (
-    error instanceof TerminalEventError &&
-    error.message === "organization not found for installation"
-  );
 }
 
 function installationId(parsed: ParsedQueuedEvent): number | null {

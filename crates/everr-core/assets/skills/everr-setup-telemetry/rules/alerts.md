@@ -4,13 +4,13 @@ Alerts are defined as code: `kind: AlertRule` YAML files reconciled with `everr 
 
 ## Prerequisites
 
-- An `everr.yaml` manifest at the apply directory root with a stable `repoid`.
+- An `everr/` directory at your repo root holding an `everr.yaml` manifest with a stable `repoid`.
 - Telemetry already flowing into Everr (traces, logs, or metrics).
 
-The manifest is required. Apply errors without it.
+The manifest is required. Apply errors without it. Declarations sit flat in `everr/`, named by kind: alerts are `*.alert.yaml` (dashboards `*.dashboard.yaml`, notebooks `*.notebook.yaml`).
 
 ```yaml
-# everr.yaml
+# everr/everr.yaml
 repoid: "AE89E884-0AF0-45A9-8BA1-6237A162347D"
 ```
 
@@ -22,7 +22,10 @@ Use one stable id per repository. A UUID is a good default for new repositories;
 kind: AlertRule              # required literal
 metadata:
   name: <slug>               # required; stable alert identity
+  project: <slug>            # optional; namespace, default "default"
 spec:
+  notebook: <slug>           # optional; links a notebook (runbook). "slug" =
+                             #   same project; "project/slug" = another project.
   display:                   # optional
     name: <human name>
     description: <text>
@@ -55,6 +58,71 @@ For user-facing services, start with the four golden signals:
 Keep notification rules simple. A future reader should be able to understand why the query fires, what value crossed the threshold, and what made it stop firing.
 
 When your human driver asks to suggest them alerts to create, give a response based on everr data (local and production) and on the telemetry defined in their codebase.
+
+## Link a Notebook (Runbook)
+
+Every alert should link a notebook that makes it actionable. Set `spec.notebook` to a notebook's slug (a bare `slug` resolves within the alert's own project; use `project/slug` to point at another project). `everr apply` fails if the linked notebook does not exist — apply the notebook in the same run or beforehand.
+
+The notebook should answer, for whoever the alert wakes up:
+
+- what the alert means and why it matters,
+- how to confirm it's real (the dashboards/queries to look at),
+- the usual causes and how to mitigate them.
+
+The link appears on the alert's detail page and list row, and in the Telegram and Slack notifications. See the `everr-write-notebooks` skill for authoring.
+
+Runbooks can also show the alert's own status by querying the alert service
+events projected into `logs`. Add a small Table panel that filters
+`ServiceName = 'alert'`, `LogAttributes['alert.slug'] = '<alert-slug>'`, and
+the selected time range. Useful columns are
+`LogAttributes['alert.event_type']`, `alert.row_count`, `alert.silenced`,
+`alert.delivery_targets`, and `alert.instance_labels`.
+
+```sql
+SELECT
+  TimestampTime AS event_time,
+  LogAttributes['alert.event_type'] AS event_type,
+  LogAttributes['alert.row_count'] AS row_count,
+  LogAttributes['alert.silenced'] AS silenced,
+  LogAttributes['alert.delivery_targets'] AS delivery_targets,
+  LogAttributes['alert.instance_labels'] AS instance_labels
+FROM logs
+WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+  AND ServiceName = 'alert'
+  AND LogAttributes['alert.slug'] = '<alert-slug>'
+ORDER BY event_time DESC
+LIMIT 50
+```
+
+Example — an AlertRule and its notebook applied together:
+
+```yaml
+# everr/db-pool-exhausted.alert.yaml
+kind: AlertRule
+metadata:
+  name: db-pool-exhausted
+  project: platform
+spec:
+  notebook: db-pool-runbook        # → platform/db-pool-runbook
+  evaluationInterval: 1m
+  notificationMessage:
+    title: "DB connection pool exhausted"
+  query: |
+    SELECT ...
+```
+
+```yaml
+# everr/db-pool-runbook.notebook.yaml
+kind: Notebook
+metadata:
+  name: db-pool-runbook
+  project: platform
+spec:
+  markdown:
+    inline: |
+      # DB pool exhausted — runbook
+      ...
+```
 
 ## Writing Alert Queries
 
@@ -130,14 +198,14 @@ Per-instance values come from that instance's firing row. If the query returns `
 ## Verification
 
 1. Test the query using `everr cloud query`
-2. Run `everr apply <dir> --dry-run` and confirm the plan shows the expected creates/updates.
+2. Run `everr apply ./everr --dry-run` and confirm the plan shows the expected creates/updates.
 
 ## Deploying alerts in production
 
 Only when the user is satisfied with the changes, to deploy them run:
 
 ```sh
-everr apply ./definitions --yes
+everr apply ./everr --yes
 ```
 
 Apply discovers all `.yaml`/`.yml` files under the directory, classifies them by `kind`, and reconciles creates, updates, and deletes. Alerts not in the directory are soft-deleted (history is preserved).
@@ -146,7 +214,7 @@ Apply discovers all `.yaml`/`.yml` files under the directory, classifies them by
 
 | Mistake | Fix |
 | --- | --- |
-| Missing `everr.yaml` manifest | Add `repoid: "<stable-repository-id>"` at the apply directory root |
+| Missing `everr.yaml` manifest | Add `repoid: "<stable-repository-id>"` at the `everr/` root |
 | Empty `repoid` or reusing across repos | Use one stable id per repository; a UUID is a good default for new repos |
 | `${...}` in the query | Queries are plain SQL; use `${...}` only in `notificationMessage` |
 | `instanceLabels` references a missing column | Every label must exist in the query result set |

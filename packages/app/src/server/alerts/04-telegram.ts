@@ -1,3 +1,4 @@
+import { truncateWithEllipsis } from "@/lib/truncate";
 import {
   type BuildOptions,
   type DeliveryInput,
@@ -15,11 +16,13 @@ const MAX_MESSAGE_LENGTH = 4096;
 
 // Truncates the rendered body so body + footer stays under Telegram's limit,
 // keeping the footer (timestamp + alert link) intact so the message always
-// links back even when a noisy evaluation overruns the cap.
+// links back even when a noisy evaluation overruns the cap. The ellipsis sits
+// between body and footer; truncateWithEllipsis is surrogate-aware so an
+// emoji at the boundary doesn't leave a lone surrogate.
 function truncate(body: string, footer: string): string {
   const room = MAX_MESSAGE_LENGTH - footer.length;
   if (body.length <= room) return body + footer;
-  return `${body.slice(0, room - 1)}…${footer}`;
+  return `${truncateWithEllipsis(body, room)}${footer}`;
 }
 
 // Plain text by choice: no parse mode means nothing to escape, nothing for
@@ -80,6 +83,9 @@ export function buildTelegramText(
     }
   }
 
-  const footer = `\n\n${formatUtc(opts.now)}\n${opts.url}`;
+  const notebookLine = opts.notebookUrl
+    ? `\nNotebook: ${opts.notebookUrl}`
+    : "";
+  const footer = `\n\n${formatUtc(opts.now)}\nAlert: ${opts.url}${notebookLine}`;
   return truncate(lines.join("\n"), footer);
 }

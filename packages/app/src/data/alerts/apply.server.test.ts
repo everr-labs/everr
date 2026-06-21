@@ -53,6 +53,7 @@ vi.mock("@/db/client", () => {
 vi.mock("drizzle-orm", () => ({
   and: vi.fn((...conditions: unknown[]) => ({ op: "and", conditions })),
   eq: vi.fn((left: unknown, right: unknown) => ({ op: "eq", left, right })),
+  or: vi.fn((...conditions: unknown[]) => ({ op: "or", conditions })),
 }));
 
 vi.mock("@/db/schema", () => ({
@@ -69,6 +70,9 @@ vi.mock("@/db/schema", () => ({
     scheduleJitterSeconds: "schedule_jitter_seconds",
     configFilePath: "config_file_path",
     sourceLink: "source_link",
+    project: "project",
+    notebookProject: "notebook_project",
+    notebookSlug: "notebook_slug",
     createdAt: "created_at",
     updatedAt: "updated_at",
     deletedAt: "deleted_at",
@@ -206,10 +210,11 @@ describe("applyAlertSpecs", () => {
     expect(created).not.toHaveProperty("lastEvidenceSnapshot");
   });
 
-  it("updates changed alerts and soft-deletes missing alerts", async () => {
+  it("updates changed alerts and deletes missing alerts", async () => {
     mockApplySelect([
       {
         slug: "high-errors",
+        project: "default",
         evaluationIntervalSeconds: 60,
         document: {},
         parsedQuery: "SELECT 1",
@@ -224,6 +229,7 @@ describe("applyAlertSpecs", () => {
       },
       {
         slug: "stale",
+        project: "default",
         evaluationIntervalSeconds: 300,
         document: {},
         parsedQuery: "SELECT 1",
@@ -249,53 +255,16 @@ describe("applyAlertSpecs", () => {
       updated: ["high-errors"],
       deleted: ["stale"],
     });
-    expect(updateSets).toEqual([
-      expect.objectContaining({ active: true, deletedAt: null }),
-      expect.objectContaining({
-        active: false,
-        nextEvaluationAt: null,
-        deletedAt: expect.any(Date),
-      }),
-    ]);
-    expect(deleteCalled).toBe(false);
+    expect(updateSets).toEqual([expect.objectContaining({ active: true })]);
+    expect(deleteCalled).toBe(true);
     expect(eq).toHaveBeenCalledWith("repoid", "repo-1");
   });
 
-  it("leaves already soft-deleted alerts untouched", async () => {
-    mockApplySelect([
-      {
-        slug: "gone",
-        evaluationIntervalSeconds: 300,
-        document: {},
-        parsedQuery: "SELECT 1",
-        notificationTitleTemplate: "old",
-        notificationDescriptionTemplate: "",
-        scheduleJitterSeconds: 0,
-        configFilePath: "gone.yaml",
-        sourceLink: "",
-        active: false,
-        deletedAt: new Date("2026-01-01T00:00:00Z"),
-      },
-    ]);
-
-    const result = await applyAlertSpecs({
-      orgId: "org-1",
-      repoid: "repo-1",
-      resources: [{ path: "alerts/high-errors.yaml", resource: alert() }],
-    });
-
-    expect(result).toEqual({
-      created: ["high-errors"],
-      updated: [],
-      deleted: [],
-    });
-    expect(updateSets).toEqual([]);
-  });
-
-  it("revives a soft-deleted alert when its rule is re-applied", async () => {
+  it("reactivates a deactivated alert when its rule is re-applied", async () => {
     mockApplySelect([
       {
         slug: "high-errors",
+        project: "default",
         evaluationIntervalSeconds: 300,
         document: {},
         parsedQuery: "SELECT 1",
@@ -305,7 +274,6 @@ describe("applyAlertSpecs", () => {
         configFilePath: "alerts/high-errors.yaml",
         sourceLink: "",
         active: false,
-        deletedAt: new Date("2026-01-01T00:00:00Z"),
       },
     ]);
 
@@ -316,9 +284,9 @@ describe("applyAlertSpecs", () => {
     });
 
     expect(result.updated).toEqual(["high-errors"]);
+    expect(deleteCalled).toBe(false);
     expect(updateSets[0]).toMatchObject({
       active: true,
-      deletedAt: null,
       currentState: "unknown",
     });
   });
@@ -333,7 +301,9 @@ describe("applyAlertSpecs", () => {
           { path: "b.yaml", resource: alert("same") },
         ],
       }),
-    ).rejects.toThrow(/duplicate alert "same" \(a\.yaml and b\.yaml\)/);
+    ).rejects.toThrow(
+      /duplicate alert "same" in project "default" \(a\.yaml and b\.yaml\)/,
+    );
 
     expect(mockedQuerySqlApiWithMeta).not.toHaveBeenCalled();
   });
@@ -342,6 +312,7 @@ describe("applyAlertSpecs", () => {
     mockApplySelect([
       {
         slug: "high-errors",
+        project: "default",
         evaluationIntervalSeconds: 300,
         document: {},
         parsedQuery: "SELECT 1",
@@ -378,6 +349,7 @@ describe("applyAlertSpecs", () => {
     mockApplySelect([
       {
         slug: "high-errors",
+        project: "default",
         evaluationIntervalSeconds: 300,
         document: {},
         parsedQuery: "SELECT old_service AS service",
@@ -500,6 +472,73 @@ describe("applyAlertSpecs", () => {
     ).rejects.toThrow(
       /missing-column\.yaml: \$\{service\} references column "service"/,
     );
+  });
+
+  it("stores project and the resolved notebook ref on create", async () => {
+    mockedQuerySqlApiWithMeta.mockResolvedValueOnce({
+      rows: [{ service: "api", count: 3 }],
+      columns: ["service", "count"],
+    });
+    mockApplySelect([]);
+
+    await applyAlertSpecs({
+      orgId: "org-1",
+      repoid: "repo-1",
+      resources: [
+        {
+          path: "a.yaml",
+          resource: {
+            kind: "AlertRule",
+            metadata: { name: "shared", project: "platform" },
+            spec: {
+              evaluationInterval: "5m",
+              notificationMessage: { title: "t" },
+              query:
+                "SELECT service, count() AS count FROM logs GROUP BY service",
+              notebook: "db-pool-runbook",
+            },
+          },
+        },
+      ],
+    });
+
+    const batch = insertValues[0] as Record<string, unknown>[];
+    expect(batch[0]).toMatchObject({
+      slug: "shared",
+      project: "platform",
+      notebookProject: "platform",
+      notebookSlug: "db-pool-runbook",
+    });
+  });
+
+  it("keys identity on (project, slug) so the same slug coexists across projects", async () => {
+    mockedQuerySqlApiWithMeta.mockResolvedValue({
+      rows: [],
+      columns: ["service", "count"],
+    });
+    mockApplySelect([]);
+    const mk = (project: string) => ({
+      kind: "AlertRule",
+      metadata: { name: "shared", project },
+      spec: {
+        evaluationInterval: "5m",
+        notificationMessage: { title: "t" },
+        query: "SELECT service, count() AS count FROM logs GROUP BY service",
+      },
+    });
+
+    const result = await applyAlertSpecs({
+      orgId: "org-1",
+      repoid: "repo-1",
+      resources: [
+        { path: "a.yaml", resource: mk("platform") },
+        { path: "b.yaml", resource: mk("infra") },
+      ],
+    });
+
+    expect(result.created).toEqual(["shared", "shared"]);
+    const batch = insertValues[0] as Record<string, unknown>[];
+    expect(batch.map((r) => r.project).sort()).toEqual(["infra", "platform"]);
   });
 
   it("wraps query errors as apply validation errors with path context", async () => {

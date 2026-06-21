@@ -28,6 +28,7 @@ export const alertDefinitions = pgTable(
     organizationId: text("organization_id").notNull(),
     repoid: text("repoid").notNull(),
     slug: text("slug").notNull(),
+    project: text("project").notNull().default("default"),
     evaluationIntervalSeconds: integer("evaluation_interval_seconds").notNull(),
     document: jsonb("document").notNull().$type<AlertRuleYaml>(),
     parsedQuery: text("parsed_query").notNull(),
@@ -42,15 +43,18 @@ export const alertDefinitions = pgTable(
     lastEnqueuedAt: timestamp("last_enqueued_at", { withTimezone: true }),
     configFilePath: text("config_file_path").notNull().default(""),
     sourceLink: text("source_link").notNull().default(""),
+    notebookProject: text("notebook_project").notNull().default(""),
+    notebookSlug: text("notebook_slug").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
-    // Set when `apply` removes a rule from the config: the row is kept (so
-    // history and events still resolve) but hidden from listings. Cleared when
-    // the rule is re-applied.
+    // Legacy soft-delete marker. `apply` now hard-deletes removed rules, so
+    // nothing writes this anymore; the column and the `isNull(deletedAt)` read
+    // filters are retained only to keep any rows soft-deleted before that change
+    // hidden from listings.
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     active: boolean("active").notNull().default(true),
     lastEvaluationStatus: text("last_evaluation_status").notNull().default(""),
@@ -71,9 +75,10 @@ export const alertDefinitions = pgTable(
       .$type<string[]>(),
   },
   (table) => [
-    uniqueIndex("alert_definitions_org_repo_slug_uq").on(
+    uniqueIndex("alert_definitions_org_repo_project_slug_uq").on(
       table.organizationId,
       table.repoid,
+      table.project,
       table.slug,
     ),
     index("alert_definitions_due_idx").on(table.active, table.nextEvaluationAt),

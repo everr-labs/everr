@@ -1,8 +1,6 @@
 kind: AlertRule
 metadata:
   name: app-server-latency
-  labels:
-    team: platform
 spec:
   display:
     name: App server latency

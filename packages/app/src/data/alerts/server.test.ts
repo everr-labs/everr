@@ -26,7 +26,7 @@ vi.mock("drizzle-orm", () => ({
   gt: vi.fn((left: unknown, right: unknown) => ({ type: "gt", left, right })),
   isNull: vi.fn((value: unknown) => ({ type: "isNull", value })),
   lte: vi.fn((left: unknown, right: unknown) => ({ type: "lte", left, right })),
-  sql: vi.fn(() => ({ as: vi.fn(() => "active_silence_count") })),
+  sql: vi.fn(() => ({ as: vi.fn((alias: string) => alias) })),
 }));
 
 vi.mock("@/db/schema", () => {
@@ -38,6 +38,9 @@ vi.mock("@/db/schema", () => {
     evaluationIntervalSeconds: "alert_definitions.evaluation_interval_seconds",
     sourceLink: "alert_definitions.source_link",
     configFilePath: "alert_definitions.config_file_path",
+    project: "alert_definitions.project",
+    notebookProject: "alert_definitions.notebook_project",
+    notebookSlug: "alert_definitions.notebook_slug",
     currentState: "alert_definitions.current_state",
     active: "alert_definitions.active",
     lastEvaluationStatus: "alert_definitions.last_evaluation_status",
@@ -124,8 +127,10 @@ import {
   cancelSilence,
   createSilence,
   deactivateAlert,
+  getAlert,
   listAlertEvents,
   listAlertInstances,
+  listAlerts,
   updateAlertSettings,
 } from "./server";
 
@@ -136,6 +141,9 @@ const alertRow = {
   evaluationIntervalSeconds: 300,
   sourceLink: "",
   configFilePath: ".everr/alerts.yaml",
+  project: "default",
+  notebookProject: "",
+  notebookSlug: "",
   currentState: "firing",
   active: true,
   lastEvaluationStatus: "ok",
@@ -150,6 +158,7 @@ const alertRow = {
     { route: "/a", count: 7, status: "still-degraded" },
   ],
   firingInstanceCount: 1,
+  activeSilenceExpiresAt: null,
   instanceLabelColumns: ["route"],
   activeSilenceCount: 0,
   document: {
@@ -177,6 +186,40 @@ beforeEach(() => {
   vi.mocked(auth.api.getActiveMemberRole).mockResolvedValue({
     role: "admin",
   } as never);
+});
+
+describe("getAlert", () => {
+  it("returns null for a missing or deleted alert", async () => {
+    mocks.selectLimit.mockResolvedValueOnce([]);
+
+    await expect(
+      getAlert({ data: { alertId: alertRow.id } }),
+    ).resolves.toBeNull();
+  });
+});
+
+describe("listAlerts", () => {
+  it("maps active silence metadata from computed SQL aliases", async () => {
+    const expiresAt = new Date("2026-06-20T12:00:00Z");
+    mocks.selectOrderBy.mockResolvedValueOnce([
+      {
+        ...alertRow,
+        activeSilenceCount: undefined,
+        active_silence_count: "2",
+        activeSilenceExpiresAt: undefined,
+        active_silence_expires_at: expiresAt,
+      },
+    ]);
+
+    const alerts = await listAlerts();
+
+    expect(alerts[0]).toMatchObject({
+      slug: "build-failures",
+      displayName: "Build failures",
+      activeSilenceCount: 2,
+      activeSilenceExpiresAt: expiresAt,
+    });
+  });
 });
 
 describe("updateAlertSettings", () => {

@@ -31,15 +31,15 @@ The assistant inspects your data, picks the signal, writes the rule, and validat
 
 ## Create the apply directory
 
-Make a directory to hold your alerts and add an `everr.yaml` manifest at its root. Apply discovers and reconciles everything under this directory.
+Make an `everr/` directory at your repo root to hold your declarations and add an `everr.yaml` manifest at its root. Apply discovers and reconciles everything under this directory. Files sit flat in `everr/`, named by kind — alerts are `*.alert.yaml`.
 
 ```sh
-mkdir -p alerts
+mkdir -p everr
 ```
 
 The manifest declares one stable `repoid`, a UUID you pick once and keep. It scopes what apply manages (its prune boundary).
 
-`alerts/everr.yaml`:
+`everr/everr.yaml`:
 
 ```yaml
 repoid: "2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1"
@@ -49,7 +49,7 @@ Generate your own UUID (for example with `uuidgen`) and keep it stable, changing
 
 ## Write the rule
 
-`alerts/eventloop-delay.yaml`:
+`everr/eventloop-delay.alert.yaml`:
 
 ```yaml
 kind: AlertRule
@@ -79,7 +79,7 @@ A few things worth noting:
 
 - `metadata.name` is the rule's **slug** and identity. Use lowercase letters, digits, and hyphens.
 - The query **is** the condition: one row per service over the threshold → each such service is a firing instance; nothing over the threshold → no rows → resolved. `nodejs.eventloop.delay.p99` is a Node.js runtime metric reported in seconds, so the query converts it to milliseconds. A healthy service sits around 10ms, so `HAVING p99_delay_ms > 100` stays quiet until the event loop is genuinely blocked, tune that number to your services. Averaging over the 5-minute window keeps a single momentary blip from paging.
-- `ServiceName` is a string column, so Everr uses it as each instance's identity automatically, one alert instance per service. See [Writing alert queries](/docs/alerts/writing-queries).
+- `ServiceName` is a string column, so Everr uses it as each instance's identity automatically, one alert instance per service. See [Writing good alerts](/docs/alerts/writing-queries).
 - `notificationMessage` is templated with `${ServiceName}` and `${p99_delay_ms}` from that instance's row; only columns the query returns can be referenced.
 - `evaluationInterval: 1m` runs the query once a minute (the minimum).
 
@@ -88,7 +88,7 @@ A few things worth noting:
 To validate that the queries are correct and the file is valid use dry-run
 
 ```sh
-everr apply ./alerts --dry-run
+everr apply ./everr --dry-run
 ```
 
 ```
@@ -99,7 +99,7 @@ everr apply ./alerts --dry-run
 ## Publish it
 
 ```sh
-everr apply ./alerts
+everr apply ./everr
 ```
 
 Apply first prints a plan, then, asks you to confirm before writing. 
@@ -140,8 +140,8 @@ Edit the file, say, tighten the threshold to `HAVING p99_delay_ms > 200`, and ap
 To remove a rule, delete its file and apply, reconciliation is delete-by-default within the repoid:
 
 ```sh
-rm alerts/eventloop-delay.yaml
-everr apply ./alerts
+rm everr/eventloop-delay.alert.yaml
+everr apply ./everr
 ```
 
 ```
@@ -153,5 +153,5 @@ everr apply ./alerts
 ## Next steps
 
 - Route alerts to Telegram in [Notifications](/docs/alerts/notifications).
-- Learn the query model in [Writing alert queries](/docs/alerts/writing-queries).
+- Learn the query model in [Writing good alerts](/docs/alerts/writing-queries).
 - See every field in the [AlertRule spec](/docs/alerts/alert-spec).

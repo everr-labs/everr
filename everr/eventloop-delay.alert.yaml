@@ -2,6 +2,7 @@ kind: AlertRule
 metadata:
   name: eventloop-delay
 spec:
+  notebook: eventloop-delay
   display:
     name: Node.js event loop delay
     description: Services whose Node.js event loop p99 delay is elevated over the last 5 minutes.

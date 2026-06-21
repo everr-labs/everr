@@ -12,6 +12,13 @@ vi.mock("@/data/notebooks/apply.server", () => ({
 vi.mock("@/data/alerts/apply.server", () => ({
   applyAlertSpecs: (...a: unknown[]) => alertReconciler(...a),
 }));
+// Cross-kind notebook-link validation is exercised in its own suite; mock it
+// here so the orchestration test stays focused on routing and avoids the
+// notebook-links module's transitive DB import.
+const validateNotebookLinks = vi.fn();
+vi.mock("@/data/alerts/notebook-links.server", () => ({
+  validateAlertNotebookLinks: (...a: unknown[]) => validateNotebookLinks(...a),
+}));
 
 import { ApplyValidationError } from "./errors";
 import { applyResources } from "./registry";

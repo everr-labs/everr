@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/client";
 import { listInstallationRepos } from "@/server/github-events/backfill";
+import { GitHubApiError } from "@/server/github-events/github-api";
 import {
   cliSessionContext,
   getRouteHandler,
@@ -89,7 +90,8 @@ describe("/api/cli/repos", () => {
   it("returns empty array when the active installation is missing in GitHub", async () => {
     mockDbInstallations(mockedDb, [{ status: "active", installationId: 99 }]);
     mockedListRepos.mockRejectedValueOnce(
-      new Error(
+      new GitHubApiError(
+        404,
         'Failed to create installation token: status=404 body={"message":"Not Found"}',
       ),
     );
@@ -102,6 +104,39 @@ describe("/api/cli/repos", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual([]);
     expect(mockedListRepos).toHaveBeenCalledWith(99);
+  });
+
+  it("returns empty array when the installation repositories endpoint 404s", async () => {
+    mockDbInstallations(mockedDb, [{ status: "active", installationId: 99 }]);
+    mockedListRepos.mockRejectedValueOnce(
+      new GitHubApiError(
+        404,
+        'GitHub API error: GET https://api.github.com/installation/repositories?per_page=100 status=404 body={"message":"Not Found"}',
+      ),
+    );
+
+    const response = await getHandler()({
+      request: new Request("http://localhost/api/cli/repos"),
+      context,
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual([]);
+    expect(mockedListRepos).toHaveBeenCalledWith(99);
+  });
+
+  it("rethrows GitHub API errors that are not 404", async () => {
+    mockDbInstallations(mockedDb, [{ status: "active", installationId: 99 }]);
+    mockedListRepos.mockRejectedValueOnce(
+      new GitHubApiError(500, "GitHub API error: status=500 body={}"),
+    );
+
+    await expect(
+      getHandler()({
+        request: new Request("http://localhost/api/cli/repos"),
+        context,
+      }),
+    ).rejects.toThrow("GitHub API error: status=500 body={}");
   });
 
   it("rethrows unexpected GitHub repository lookup errors", async () => {

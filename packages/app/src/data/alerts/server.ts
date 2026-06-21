@@ -52,10 +52,13 @@ export type AlertSummary = {
   id: string;
   repoid: string;
   slug: string;
+  project: string;
   displayName: string | null;
   evaluationIntervalSeconds: number;
   sourceLink: string;
   configFilePath: string;
+  notebookProject: string;
+  notebookSlug: string;
   currentState: "unknown" | "resolved" | "firing";
   active: boolean;
   lastEvaluationStatus: string;
@@ -68,6 +71,7 @@ export type AlertSummary = {
   lastEvidenceSnapshot: AlertEvidenceValue;
   firingInstanceCount: number;
   activeSilenceCount: number;
+  activeSilenceExpiresAt: Date | string | null;
 };
 
 type AlertDetail = AlertSummary & {
@@ -99,7 +103,10 @@ type AlertSummaryRow = Omit<
   AlertSummary,
   "activeSilenceCount" | "displayName"
 > & {
-  activeSilenceCount: number | string;
+  activeSilenceCount?: number | string;
+  active_silence_count?: number | string;
+  activeSilenceExpiresAt?: Date | string | null;
+  active_silence_expires_at?: Date | string | null;
   document: unknown;
 };
 
@@ -110,19 +117,35 @@ const alertIdInput = z.object({ alertId: z.string().uuid() });
 const activeSilenceCountSql = sql<number>`(
   select count(*)::int
   from alert_silences s
-  where s.alert_definition_id = ${alertDefinitions.id}
+  where s.organization_id = alert_definitions.organization_id
+    and s.alert_definition_id = alert_definitions.id
     and s.starts_at <= now()
     and s.ends_at > now()
     and s.cancelled_at is null
-)`.as("active_silence_count");
+)`.as("activeSilenceCount");
+
+// max(): with several overlapping silences the alert stays silenced until the
+// last one ends, so this is when silencing actually lifts.
+const activeSilenceExpiresAtSql = sql<Date | null>`(
+  select max(s.ends_at)
+  from alert_silences s
+  where s.organization_id = alert_definitions.organization_id
+    and s.alert_definition_id = alert_definitions.id
+    and s.starts_at <= now()
+    and s.ends_at > now()
+    and s.cancelled_at is null
+)`.as("activeSilenceExpiresAt");
 
 const alertListColumns = {
   id: alertDefinitions.id,
   repoid: alertDefinitions.repoid,
   slug: alertDefinitions.slug,
+  project: alertDefinitions.project,
   evaluationIntervalSeconds: alertDefinitions.evaluationIntervalSeconds,
   sourceLink: alertDefinitions.sourceLink,
   configFilePath: alertDefinitions.configFilePath,
+  notebookProject: alertDefinitions.notebookProject,
+  notebookSlug: alertDefinitions.notebookSlug,
   currentState: alertDefinitions.currentState,
   active: alertDefinitions.active,
   lastEvaluationStatus: alertDefinitions.lastEvaluationStatus,
@@ -135,6 +158,7 @@ const alertListColumns = {
   lastEvidenceSnapshot: alertDefinitions.lastEvidenceSnapshot,
   firingInstanceCount: alertDefinitions.firingInstanceCount,
   activeSilenceCount: activeSilenceCountSql,
+  activeSilenceExpiresAt: activeSilenceExpiresAtSql,
 } as const;
 
 // The caller's role in the active organization — every call site gates a
@@ -149,12 +173,16 @@ async function ensureOrgAdmin() {
 }
 
 function toAlertSummary(row: AlertSummaryRow): AlertSummary {
-  const { document, ...rest } = row;
+  const { active_silence_count, active_silence_expires_at, document, ...rest } =
+    row;
   return {
     ...rest,
     displayName: displayFromDocument(document).name ?? null,
     lastEvidenceSnapshot: rest.lastEvidenceSnapshot ?? [],
-    activeSilenceCount: Number(rest.activeSilenceCount) || 0,
+    activeSilenceCount:
+      Number(rest.activeSilenceCount ?? active_silence_count) || 0,
+    activeSilenceExpiresAt:
+      rest.activeSilenceExpiresAt ?? active_silence_expires_at ?? null,
   };
 }
 
@@ -235,7 +263,7 @@ export const getAlert = createAuthenticatedServerFn({ method: "GET" })
       alertId,
       session.session.activeOrganizationId,
     );
-    if (!row) throw new Error("Alert not found");
+    if (!row) return null;
     return {
       ...toAlertSummary(row as AlertSummaryRow),
       display: displayFromDocument(row.document),

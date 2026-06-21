@@ -20,7 +20,7 @@ Each ```panel fence contains a runnable panel whose query is **ClickHouse SQL**.
 ```yaml
 kind: Notebook
 metadata:
-  name: high-error-rate          # slug; the URL segment. Defaults to the filename.
+  name: high-error-rate          # slug + URL segment; set it explicitly. File stem mirrors it: high-error-rate.notebook.yaml
   project: demo                  # optional; defaults to "default"; namespaces identity + URL
 spec:
   display:
@@ -34,7 +34,7 @@ spec:
       kind: Panel
       spec: { ... }              # exactly a dashboard Panel spec
   markdown:                      # REQUIRED — the index page
-    file: ./high-error-rate.md   # path relative to this YAML; inlined by the CLI at apply time
+    file: ./high-error-rate.notebook.md  # path relative to this YAML; inlined by the CLI at apply time
     # or: inline: |              # literal markdown instead of a file
     #   # High error rate
     #   ...
@@ -99,30 +99,28 @@ height: 200
 
 ## Apply semantics
 
-Notebooks reconcile through the **same apply tree as dashboards**: one `everr.yaml` manifest at the directory root declares a stable `repoid`, and one `everr apply <dir>` reconciles **one desired state across all kinds**. Applying a directory **prunes the repoid's notebooks AND dashboards that are not present in the tree** — delete-by-default, per kind. So **never split one repoid across two apply directories**; put all of a repoid's dashboards and notebooks under a single tree.
+Notebooks reconcile through the **same apply tree as dashboards**: one `everr.yaml` manifest at the directory root declares a stable `repoid`, and one `everr apply <dir>` reconciles **one desired state across all kinds**. Applying a directory **prunes the repoid's notebooks AND dashboards that are not present in the tree** — delete-by-default, per kind. So **never split one repoid across two apply directories**; put all of a repoid's dashboards and notebooks under a single tree. By convention that tree is an `everr/` directory at your repo root with one kind-suffixed file per resource: notebooks are `*.notebook.yaml`, dashboards `*.dashboard.yaml`, alerts `*.alert.yaml`, and each notebook's `markdown.file` targets sit alongside.
 
 ```
-docs/
-  everr.yaml                 # REQUIRED manifest — declares the repoid (reconcile scope)
-  checkout-api.yaml          # a Dashboard
-  high-error-rate.yaml       # a Notebook
-  high-error-rate.md         # referenced by the notebook's `markdown.file`
-  triage/
-    index.md
-    network.md
+everr/
+  everr.yaml                       # REQUIRED manifest — declares the repoid (reconcile scope)
+  checkout-api.dashboard.yaml      # a Dashboard
+  high-error-rate.notebook.yaml    # a Notebook
+  high-error-rate.notebook.md      # referenced by the notebook's `markdown.file`
+  high-error-rate.alert.yaml       # an AlertRule (may share a stem with its notebook)
 ```
 
-`docs/everr.yaml`:
+`everr/everr.yaml`:
 
 ```yaml
 repoid: "2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1"
 ```
 
-Run it the same way as dashboards:
+The `.notebook.yaml` suffix is a human-facing convention — apply routes documents by their `kind:` field, and the slug always comes from `metadata.name`. Files are flat in `everr/` by convention; subdirectories are optional and become folder paths in the UI. Run it the same way as dashboards:
 
 ```sh
-everr apply ./docs --dry-run     # preview; writes nothing
-everr apply ./docs               # prints the destination org, then confirms
+everr apply ./everr --dry-run     # preview; writes nothing
+everr apply ./everr               # prints the destination org, then confirms
 ```
 
 Validation is **strict at apply time**, with precise messages and paths:
