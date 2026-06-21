@@ -1,3 +1,4 @@
+import { truncateWithEllipsis } from "@/lib/truncate";
 import {
   type BuildOptions,
   type DeliveryInput,
@@ -37,9 +38,7 @@ function escapeSlackText(text: string): string {
 }
 
 function truncate(text: string): string {
-  return text.length <= MAX_SECTION_TEXT
-    ? text
-    : `${text.slice(0, MAX_SECTION_TEXT - 1)}…`;
+  return truncateWithEllipsis(text, MAX_SECTION_TEXT);
 }
 
 // Mirrors buildTelegramText's branching (single/multi firing, resolved, mixed),

@@ -42,6 +42,37 @@ describe("buildTelegramText", () => {
     expect(text.endsWith(opts.url)).toBe(true);
   });
 
+  it("does not split a surrogate pair when truncating the body", () => {
+    // 😀 is U+1F600 (two UTF-16 units). Force the body to overrun so the
+    // truncation boundary falls on the emoji's high surrogate.
+    const instances = Array.from({ length: 80 }, (_, i) => ({
+      labels: { route: `/route-${i}-${"x".repeat(40)}` },
+      kind: "firing" as const,
+    }));
+    const emojiBody = `${"x".repeat(3800)}😀${"y".repeat(200)}`;
+    const text = buildTelegramText(
+      {
+        def: { ...def, notificationDescriptionTemplate: emojiBody },
+        kind: "firing",
+        instances,
+      },
+      opts,
+    );
+    expect(text.length).toBeLessThanOrEqual(4096);
+    expect(text.endsWith(opts.url)).toBe(true);
+    // No lone surrogate anywhere in the output.
+    for (let i = 0; i < text.length; i++) {
+      const u = text.charCodeAt(i);
+      if (u >= 0xd800 && u <= 0xdbff) {
+        expect(text.charCodeAt(i + 1)).toBeGreaterThanOrEqual(0xdc00);
+        expect(text.charCodeAt(i + 1)).toBeLessThanOrEqual(0xdfff);
+        i++;
+      } else {
+        expect(u < 0xd800 || u > 0xdfff).toBe(true);
+      }
+    }
+  });
+
   it("includes the notebook link when notebookUrl is present", () => {
     const text = buildTelegramText(
       {

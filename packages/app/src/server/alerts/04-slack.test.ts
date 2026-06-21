@@ -100,6 +100,37 @@ describe("buildSlackMessage", () => {
     expect(sectionText(msg).length).toBeLessThanOrEqual(3000);
   });
 
+  it("does not split a surrogate pair when truncating section text", () => {
+    // 😀 is U+1F600 (two UTF-16 units). Place it so the high surrogate lands on
+    // the last kept position; a naive slice would emit a lone surrogate.
+    const msg = buildSlackMessage(
+      {
+        def: {
+          ...def,
+          notificationDescriptionTemplate: `${"x".repeat(2998)}😀tail`,
+        },
+        kind: "firing",
+        instances: [{ labels: { route: "/a" }, kind: "firing" }],
+      },
+      opts,
+    );
+    const text = sectionText(msg);
+    expect(text.length).toBeLessThanOrEqual(3000);
+    expect(text.endsWith("…")).toBe(true);
+    expect(text).not.toContain("😀");
+    // No lone surrogate anywhere in the output.
+    for (let i = 0; i < text.length; i++) {
+      const u = text.charCodeAt(i);
+      if (u >= 0xd800 && u <= 0xdbff) {
+        expect(text.charCodeAt(i + 1)).toBeGreaterThanOrEqual(0xdc00);
+        expect(text.charCodeAt(i + 1)).toBeLessThanOrEqual(0xdfff);
+        i++;
+      } else {
+        expect(u < 0xd800 || u > 0xdfff).toBe(true);
+      }
+    }
+  });
+
   it("adds a View notebook button when notebookUrl is present", () => {
     const msg = buildSlackMessage(
       {
