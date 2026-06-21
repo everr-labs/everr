@@ -11,6 +11,30 @@ export interface ApplyAuth {
   organizationName: string;
   /** Audit principal, e.g. "apikey:<keyId>" or "user:<userId>". */
   principalId: string;
+  /**
+   * Actions the principal holds under the `apply` scope, or `null` when the
+   * request is session-authenticated (sessions have no per-action
+   * restriction). For API keys this is `permissions.apply`; the middleware's
+   * holds-scope gate guarantees a non-null value here has at least one entry
+   * (possibly the wildcard `"*"`). The handler checks `canApplyMutate` on the
+   * `dryRun: false` path so a read-only key can plan but not write.
+   */
+  applyActions: readonly string[] | null;
+}
+
+/** Sentinel that grants every action under a scope. */
+const WILDCARD = "*";
+
+/**
+ * Can the principal perform a mutative apply (`dryRun: false`)? Sessions are
+ * unrestricted. API keys must hold `write` (or the wildcard) under the
+ * `apply` scope — a `read`-only key can only run the plan pass.
+ */
+export function canApplyMutate(
+  applyActions: readonly string[] | null,
+): boolean {
+  if (applyActions === null) return true;
+  return applyActions.includes(WILDCARD) || applyActions.includes("write");
 }
 
 /** Pull a credential from `Authorization: Bearer <v>` or `x-api-key`. */
@@ -66,6 +90,7 @@ export async function resolveApplyAuth(headers: Headers): Promise<ApplyAuth> {
       organizationId,
       organizationName: await organizationName(organizationId),
       principalId: `apikey:${result.key.id}`,
+      applyActions: result.key.permissions?.apply ?? [],
     };
   }
 
@@ -81,6 +106,7 @@ export async function resolveApplyAuth(headers: Headers): Promise<ApplyAuth> {
     organizationId,
     organizationName: await organizationName(organizationId),
     principalId: `user:${session.user.id}`,
+    applyActions: null,
   };
 }
 
@@ -99,6 +125,7 @@ export function buildApplyContext(apiAuth: ApplyAuth) {
       id: apiAuth.organizationId,
       name: apiAuth.organizationName,
     },
+    applyActions: apiAuth.applyActions,
     clickhouse: { query: createClickhouseQuery(apiAuth.organizationId) },
   };
 }
