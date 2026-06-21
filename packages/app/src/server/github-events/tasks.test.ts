@@ -89,7 +89,7 @@ vi.mock("./tenant-resolver", () => ({
 }));
 
 import { githubEventsTaskList } from "./tasks";
-import { TerminalEventError } from "./types";
+import { StaleInstallationError, TerminalEventError } from "./types";
 
 function encodePayload(payload: unknown): string {
   return Buffer.from(JSON.stringify(payload), "utf8").toString("base64");
@@ -229,7 +229,7 @@ describe("github events tasks", () => {
 
   it("drops stale installation terminal events without error telemetry", async () => {
     const data = workflowRunData();
-    const error = new TerminalEventError(
+    const error = new StaleInstallationError(
       "organization not found for installation",
     );
     taskMocks.resolveOrganizationId.mockRejectedValue(error);
@@ -245,7 +245,7 @@ describe("github events tasks", () => {
       "github_events.jobs.stale_installation_dropped",
       expect.objectContaining({
         "error.message": "organization not found for installation",
-        "error.type": "TerminalEventError",
+        "error.type": "StaleInstallationError",
         "github.event.type": "workflow_run",
         "github.installation.id": 123,
         "graphile_worker.job.id": "collector-job-1",

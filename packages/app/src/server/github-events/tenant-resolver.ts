@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { githubInstallationOrganizations } from "@/db/schema";
 import { GH_EVENTS_CONFIG } from "./config";
-import { TerminalEventError } from "./types";
+import { StaleInstallationError } from "./types";
 
 const cache = new Map<number, { organizationId: string; expiresAt: number }>();
 
@@ -30,7 +30,7 @@ export async function resolveOrganizationId(
     .limit(1);
 
   if (!mapping)
-    throw new TerminalEventError("organization not found for installation");
+    throw new StaleInstallationError("organization not found for installation");
 
   cache.set(installationId, {
     organizationId: mapping.organizationId,

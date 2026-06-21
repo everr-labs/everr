@@ -203,7 +203,11 @@ function AlertsPage() {
   }, [alerts.data]);
 
   const filterOptions = useMemo<AlertFilterOption[]>(() => {
-    const options: AlertFilterOption[] = [
+    // "Unknown" only appears when there are unknown alerts (or it's the active
+    // filter, so the selected chip stays visible); placed inline to keep the
+    // chip order self-describing rather than splicing at a magic index.
+    const showUnknown = summary.unknown > 0 || alertFilter === "unknown";
+    return [
       { value: "all", label: "All", count: summary.total },
       {
         value: "firing",
@@ -219,16 +223,17 @@ function AlertsPage() {
       },
       { value: "silenced", label: "Silenced", count: summary.silenced },
       { value: "resolved", label: "Resolved", count: summary.resolved },
+      ...(showUnknown
+        ? [
+            {
+              value: "unknown" as const,
+              label: "Unknown",
+              count: summary.unknown,
+            },
+          ]
+        : []),
       { value: "inactive", label: "Inactive", count: summary.inactive },
     ];
-    if (summary.unknown > 0 || alertFilter === "unknown") {
-      options.splice(5, 0, {
-        value: "unknown",
-        label: "Unknown",
-        count: summary.unknown,
-      });
-    }
-    return options;
   }, [alertFilter, summary]);
 
   const filteredAlerts = useMemo(() => {
