@@ -99,7 +99,7 @@ height: 200
 
 ## Apply semantics
 
-Notebooks reconcile through the **same apply tree as dashboards**: one `everr.yaml` manifest at the directory root declares a stable `repoid`, and one `everr apply <dir>` reconciles **one desired state across all kinds**. Applying a directory **prunes the repoid's notebooks AND dashboards that are not present in the tree** — delete-by-default, per kind. So **never split one repoid across two apply directories**; put all of a repoid's dashboards and notebooks under a single tree. By convention that tree is an `everr/` directory at your repo root, with one flat, kind-suffixed file per resource: notebooks are `*.notebook.yaml`, dashboards `*.dashboard.yaml`, alerts `*.alert.yaml`, and each notebook's `markdown.file` targets sit alongside.
+Notebooks reconcile through the **same apply tree as dashboards**: one `everr.yaml` manifest at the directory root declares a stable `repoid`, and one `everr apply <dir>` reconciles **one desired state across all kinds**. Applying a directory **prunes the repoid's notebooks AND dashboards that are not present in the tree** — delete-by-default, per kind. So **never split one repoid across two apply directories**; put all of a repoid's dashboards and notebooks under a single tree. By convention that tree is an `everr/` directory at your repo root with one kind-suffixed file per resource: notebooks are `*.notebook.yaml`, dashboards `*.dashboard.yaml`, alerts `*.alert.yaml`, and each notebook's `markdown.file` targets sit alongside.
 
 ```
 everr/
