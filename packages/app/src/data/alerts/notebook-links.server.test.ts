@@ -14,6 +14,7 @@ vi.mock("@/db/client", () => {
 vi.mock("drizzle-orm", () => ({
   and: vi.fn((...conditions: unknown[]) => ({ op: "and", conditions })),
   eq: vi.fn((left: unknown, right: unknown) => ({ op: "eq", left, right })),
+  or: vi.fn((...conditions: unknown[]) => ({ op: "or", conditions })),
 }));
 
 vi.mock("@/db/schema", () => ({

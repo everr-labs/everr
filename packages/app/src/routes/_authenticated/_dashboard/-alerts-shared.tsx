@@ -1,5 +1,6 @@
 import { Badge } from "@everr/ui/components/badge";
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
+import { BellOff } from "lucide-react";
 import { useEffect, useState } from "react";
 
 // Centered load-failure message for a card or table body whose query errored.
@@ -88,33 +89,41 @@ export function AlertStateBadges({
   state,
   active,
   firingInstanceCount,
+  lastFiredAt,
   activeSilenceCount,
   activeSilenceExpiresAt,
 }: {
   state: "unknown" | "resolved" | "firing";
   active: boolean;
   firingInstanceCount: number;
+  lastFiredAt: Date | string | null;
   activeSilenceCount: number;
   activeSilenceExpiresAt: Date | string | null;
 }) {
   const silenceLabel = activeSilenceCount === 1 ? "silence" : "silences";
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-1.5">
       <Badge variant={stateVariant(state)}>
         {state === "firing" && firingInstanceCount > 0
           ? `firing · ${firingInstanceCount}`
           : state}
+        {state === "firing" && lastFiredAt && (
+          <>
+            {" · since "}
+            <RelativeTime value={lastFiredAt} />
+          </>
+        )}
       </Badge>
       {!active && <Badge variant="outline">inactive</Badge>}
       {activeSilenceCount > 0 && (
         <Badge
-          variant="secondary"
+          variant="outline"
+          className="border-muted-foreground/20 bg-muted/30 text-muted-foreground"
           title={`${activeSilenceCount} active ${silenceLabel}`}
         >
-          {activeSilenceCount === 1
-            ? "silence"
-            : `silences · ${activeSilenceCount}`}
+          <BellOff data-icon="inline-start" />
+          {`silenced${activeSilenceCount > 1 ? ` · ${activeSilenceCount}` : ""}`}
           {activeSilenceExpiresAt && (
             <>
               {" · expires "}

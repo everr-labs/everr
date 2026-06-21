@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import { ApplyValidationError } from "@/data/as-code/errors";
 import type { Reconciler } from "@/data/as-code/registry";
 import type { ApplyResourceEntry, ApplySource } from "@/data/as-code/schema";
@@ -38,7 +38,6 @@ interface DesiredAlert {
 
 interface ExistingAlert extends DesiredAlert {
   active: boolean;
-  deletedAt: Date | null;
 }
 
 interface ApplyAlertsResult {
@@ -327,7 +326,6 @@ function activeValues(
     notebookProject: desired.notebookProject,
     notebookSlug: desired.notebookSlug,
     active: true,
-    deletedAt: null,
     updatedAt: now,
   };
 
@@ -358,9 +356,8 @@ function shouldResetRuntimeState(
 
 /**
  * Reconcile alert definitions for one repo. Alerts missing from the config are
- * soft-deleted (deletedAt set, deactivated) rather than removed, so historical
- * state and events keep pointing at the same definition row while the alert
- * disappears from listings. Re-applying a rule clears deletedAt.
+ * deleted; the FK from alert_silences cascades, so their silences go too.
+ * Re-adding a rule later creates a fresh definition row.
  */
 export const applyAlertSpecs: Reconciler = async ({
   orgId,
@@ -393,7 +390,6 @@ export const applyAlertSpecs: Reconciler = async ({
       configFilePath: alertDefinitions.configFilePath,
       sourceLink: alertDefinitions.sourceLink,
       active: alertDefinitions.active,
-      deletedAt: alertDefinitions.deletedAt,
     })
     .from(alertDefinitions)
     .where(
@@ -418,8 +414,7 @@ export const applyAlertSpecs: Reconciler = async ({
     return current ? needsUpdate(current, row) : false;
   });
   const deletes = existing.filter(
-    (row) =>
-      !row.deletedAt && !desiredByKey.has(identityKey(row.project, row.slug)),
+    (row) => !desiredByKey.has(identityKey(row.project, row.slug)),
   );
 
   const summary: ApplyAlertsResult = {
@@ -464,21 +459,21 @@ export const applyAlertSpecs: Reconciler = async ({
         );
     }
 
-    for (const row of deletes) {
+    if (deletes.length > 0) {
       await tx
-        .update(alertDefinitions)
-        .set({
-          active: false,
-          deletedAt: now,
-          nextEvaluationAt: null,
-          updatedAt: now,
-        })
+        .delete(alertDefinitions)
         .where(
           and(
             eq(alertDefinitions.organizationId, orgId),
             eq(alertDefinitions.repoid, repoid),
-            eq(alertDefinitions.project, row.project),
-            eq(alertDefinitions.slug, row.slug),
+            or(
+              ...deletes.map((row) =>
+                and(
+                  eq(alertDefinitions.project, row.project),
+                  eq(alertDefinitions.slug, row.slug),
+                ),
+              ),
+            ),
           ),
         );
     }

@@ -14,6 +14,7 @@ import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { Switch } from "@everr/ui/components/switch";
+import { cn } from "@everr/ui/lib/utils";
 import {
   queryOptions,
   useMutation,
@@ -21,7 +22,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { NotebookText, Settings } from "lucide-react";
+import { NotebookText, SearchIcon, Settings, XIcon } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 import { toast } from "sonner";
 import type { NormalizedAlertDeliverySettings } from "@/data/alerts/delivery-settings";
@@ -54,6 +55,106 @@ const alertSettingsQueryOptions = () =>
     queryFn: () => getAlertSettings(),
   });
 
+type AlertListFilter =
+  | "all"
+  | "firing"
+  | "errored"
+  | "silenced"
+  | "resolved"
+  | "unknown"
+  | "inactive";
+
+interface AlertFilterOption {
+  value: AlertListFilter;
+  label: string;
+  count: number;
+  tone?: "destructive" | "warning";
+}
+
+function alertMatchesFilter(alert: AlertSummary, filter: AlertListFilter) {
+  switch (filter) {
+    case "all":
+      return true;
+    case "firing":
+      return alert.active && alert.currentState === "firing";
+    case "errored":
+      return alert.active && alert.lastEvaluationStatus === "error";
+    case "silenced":
+      return alert.activeSilenceCount > 0;
+    case "resolved":
+      return alert.active && alert.currentState === "resolved";
+    case "unknown":
+      return alert.active && alert.currentState === "unknown";
+    case "inactive":
+      return !alert.active;
+  }
+}
+
+function alertMatchesSearch(alert: AlertSummary, query: string) {
+  if (!query) return true;
+  return [
+    alert.displayName,
+    alert.slug,
+    alert.project,
+    alert.repoid,
+    alert.configFilePath,
+    alert.notebookProject,
+    alert.notebookSlug,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+    .includes(query);
+}
+
+function AlertFilterButton({
+  option,
+  active,
+  onSelect,
+}: {
+  option: AlertFilterOption;
+  active: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="xs"
+      aria-pressed={active}
+      onClick={onSelect}
+      className={cn(
+        "h-6 gap-1.5 rounded-md px-1.5 text-[0.6875rem] transition-colors",
+        active
+          ? "border-border bg-muted/70 text-foreground shadow-none hover:bg-muted"
+          : "border-border/60 bg-transparent text-muted-foreground hover:border-border hover:bg-muted/40 hover:text-foreground",
+        active &&
+          option.tone === "destructive" &&
+          "border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/15",
+        active &&
+          option.tone === "warning" &&
+          "border-amber-500/30 bg-amber-500/10 text-amber-600 hover:bg-amber-500/15 dark:text-amber-400",
+      )}
+    >
+      <span className="font-medium">{option.label}</span>
+      <span
+        className={cn(
+          "inline-flex min-w-4 items-center justify-center rounded-sm px-1 font-semibold tabular-nums",
+          active ? "bg-background/70" : "bg-muted/50 text-foreground",
+          active &&
+            option.tone === "destructive" &&
+            "bg-destructive/15 text-destructive",
+          active &&
+            option.tone === "warning" &&
+            "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+        )}
+      >
+        {option.count}
+      </span>
+    </Button>
+  );
+}
+
 export const Route = createFileRoute("/_authenticated/_dashboard/alerts")({
   staticData: { breadcrumb: "Alerts", hideTimeRangePicker: true },
   head: () => ({ meta: [{ title: "Everr - Alerts" }] }),
@@ -70,20 +171,80 @@ function AlertsPage() {
   const alerts = useQuery(alertsQueryOptions());
   const settings = useQuery(alertSettingsQueryOptions());
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [alertFilter, setAlertFilter] = useState<AlertListFilter>("all");
+  const [alertSearch, setAlertSearch] = useState("");
 
   const summary = useMemo(() => {
     let firing = 0;
     let errored = 0;
-    let ok = 0;
+    let resolved = 0;
+    let unknown = 0;
     let inactive = 0;
+    let silenced = 0;
     for (const a of alerts.data ?? []) {
+      if (a.activeSilenceCount > 0) silenced += 1;
       if (!a.active) inactive += 1;
-      else if (a.lastEvaluationStatus === "error") errored += 1;
-      else if (a.currentState === "firing") firing += 1;
-      else ok += 1;
+      else {
+        if (a.lastEvaluationStatus === "error") errored += 1;
+        if (a.currentState === "firing") firing += 1;
+        else if (a.currentState === "resolved") resolved += 1;
+        else unknown += 1;
+      }
     }
-    return { firing, errored, ok, inactive };
+    return {
+      total: alerts.data?.length ?? 0,
+      firing,
+      errored,
+      resolved,
+      unknown,
+      inactive,
+      silenced,
+    };
   }, [alerts.data]);
+
+  const filterOptions = useMemo<AlertFilterOption[]>(() => {
+    const options: AlertFilterOption[] = [
+      { value: "all", label: "All", count: summary.total },
+      {
+        value: "firing",
+        label: "Firing",
+        count: summary.firing,
+        tone: "destructive",
+      },
+      {
+        value: "errored",
+        label: "Errored",
+        count: summary.errored,
+        tone: "warning",
+      },
+      { value: "silenced", label: "Silenced", count: summary.silenced },
+      { value: "resolved", label: "Resolved", count: summary.resolved },
+      { value: "inactive", label: "Inactive", count: summary.inactive },
+    ];
+    if (summary.unknown > 0 || alertFilter === "unknown") {
+      options.splice(5, 0, {
+        value: "unknown",
+        label: "Unknown",
+        count: summary.unknown,
+      });
+    }
+    return options;
+  }, [alertFilter, summary]);
+
+  const filteredAlerts = useMemo(() => {
+    const query = alertSearch.trim().toLowerCase();
+    return (alerts.data ?? []).filter(
+      (alert) =>
+        alertMatchesFilter(alert, alertFilter) &&
+        alertMatchesSearch(alert, query),
+    );
+  }, [alertFilter, alertSearch, alerts.data]);
+  const hasActiveListFilters =
+    alertFilter !== "all" || alertSearch.trim().length > 0;
+  const clearAlertFilters = () => {
+    setAlertFilter("all");
+    setAlertSearch("");
+  };
 
   const delivery = settings.data?.delivery;
   const hasChannel =
@@ -121,6 +282,7 @@ function AlertsPage() {
             state={row.currentState}
             active={row.active}
             firingInstanceCount={row.firingInstanceCount}
+            lastFiredAt={row.lastFiredAt}
             activeSilenceCount={row.activeSilenceCount}
             activeSilenceExpiresAt={row.activeSilenceExpiresAt}
           />
@@ -150,15 +312,6 @@ function AlertsPage() {
             </span>
           );
         },
-      },
-      {
-        header: "Firing since",
-        cell: (row) =>
-          row.currentState === "firing" ? (
-            <RelativeTime value={row.lastFiredAt} />
-          ) : (
-            "—"
-          ),
       },
       {
         header: "Interval",
@@ -216,33 +369,48 @@ function AlertsPage() {
       )}
 
       {alerts.data && alerts.data.length > 0 && (
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-muted-foreground text-sm">
-          <span>
-            <span
-              className={`font-semibold ${summary.firing > 0 ? "text-destructive" : "text-foreground"}`}
-            >
-              {summary.firing}
-            </span>{" "}
-            firing
-          </span>
-          <span>
-            <span
-              className={`font-semibold ${summary.errored > 0 ? "text-amber-500" : "text-foreground"}`}
-            >
-              {summary.errored}
-            </span>{" "}
-            errored
-          </span>
-          <span>
-            <span className="font-semibold text-foreground">{summary.ok}</span>{" "}
-            ok
-          </span>
-          <span>
-            <span className="font-semibold text-foreground">
-              {summary.inactive}
-            </span>{" "}
-            inactive
-          </span>
+        <div className="flex flex-col gap-2.5">
+          <fieldset className="flex flex-wrap items-center gap-1.5">
+            <legend className="sr-only">Alert summary filters</legend>
+            {filterOptions.map((option) => (
+              <AlertFilterButton
+                key={option.value}
+                option={option}
+                active={alertFilter === option.value}
+                onSelect={() => setAlertFilter(option.value)}
+              />
+            ))}
+          </fieldset>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative w-full sm:max-w-sm">
+              <SearchIcon className="absolute left-2.5 top-1/2 size-3 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                aria-label="Search alerts"
+                placeholder="Search alerts..."
+                value={alertSearch}
+                onChange={(e) => setAlertSearch(e.target.value)}
+                className="h-7 rounded-lg border-border/70 bg-transparent pl-7 text-xs placeholder:text-muted-foreground/80 hover:bg-muted/20 focus-visible:bg-background"
+              />
+            </div>
+            <div className="flex items-center gap-2 text-muted-foreground text-xs">
+              <span>
+                {hasActiveListFilters
+                  ? `Showing ${filteredAlerts.length} of ${summary.total}`
+                  : `${summary.total} alert ${summary.total === 1 ? "rule" : "rules"}`}
+              </span>
+              {hasActiveListFilters && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearAlertFilters}
+                >
+                  <XIcon data-icon="inline-start" />
+                  Clear
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -258,23 +426,38 @@ function AlertsPage() {
             </div>
           ) : (
             <DataTable
-              data={alerts.data ?? []}
+              data={filteredAlerts}
               columns={columns}
               rowKey={(row) => row.id}
               emptyState={
-                <div className="px-3 py-8 text-center text-muted-foreground">
-                  <p>No alerts have been applied for this organization.</p>
-                  <p className="mt-1">
-                    <a
-                      className="underline underline-offset-4"
-                      href="https://everr.dev/docs/alerts/first-alert"
-                      target="_blank"
-                      rel="noreferrer"
+                hasActiveListFilters ? (
+                  <div className="flex flex-col items-center gap-2 px-3 py-8 text-center text-muted-foreground">
+                    <p>No alerts match these filters.</p>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearAlertFilters}
                     >
-                      Create your first alert
-                    </a>
-                  </p>
-                </div>
+                      <XIcon data-icon="inline-start" />
+                      Clear filters
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="px-3 py-8 text-center text-muted-foreground">
+                    <p>No alerts have been applied for this organization.</p>
+                    <p className="mt-1">
+                      <a
+                        className="underline underline-offset-4"
+                        href="https://everr.dev/docs/alerts/first-alert"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Create your first alert
+                      </a>
+                    </p>
+                  </div>
+                )
               }
             />
           )}

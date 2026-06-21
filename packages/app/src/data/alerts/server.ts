@@ -124,8 +124,10 @@ const activeSilenceCountSql = sql<number>`(
     and s.cancelled_at is null
 )`.as("activeSilenceCount");
 
+// max(): with several overlapping silences the alert stays silenced until the
+// last one ends, so this is when silencing actually lifts.
 const activeSilenceExpiresAtSql = sql<Date | null>`(
-  select min(s.ends_at)
+  select max(s.ends_at)
   from alert_silences s
   where s.organization_id = alert_definitions.organization_id
     and s.alert_definition_id = alert_definitions.id
