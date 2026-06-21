@@ -433,19 +433,8 @@ function AlertDetailPage() {
                 ))}
               </div>
             ) : (
-              <div className="flex items-center justify-between gap-3 rounded-md border border-dashed border-border/70 px-3 py-3 text-muted-foreground text-xs">
-                <span>No active silences.</span>
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  onClick={() => {
-                    setSilenceTarget(null);
-                    setNewSilenceOpen(true);
-                  }}
-                >
-                  <Plus data-icon="inline-start" />
-                  Add silence
-                </Button>
+              <div className="rounded-md border border-dashed border-border/70 px-3 py-3 text-muted-foreground text-xs">
+                No active silences.
               </div>
             )}
           </CardContent>
