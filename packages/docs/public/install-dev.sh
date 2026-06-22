@@ -1,5 +1,5 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/sh
+set -eu
 
 DOWNLOAD_BASE_URL="http://localhost:3000/everr-app"
 INSTALL_DIR="${HOME}/.local/bin"
