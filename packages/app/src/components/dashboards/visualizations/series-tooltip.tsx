@@ -1,4 +1,3 @@
-import { cn } from "@everr/ui/lib/utils";
 import { Fragment, type ReactNode } from "react";
 
 export interface SeriesTooltipRow {
@@ -11,9 +10,8 @@ export interface SeriesTooltipRow {
 /**
  * The shared tooltip content for chart visualizations: a title (timestamp or
  * category) over a swatch · label · value grid. Chrome-free so it can sit
- * inside `CursorTooltip` (which supplies the card and positioning, e.g. the
- * time-series chart) or inside `SeriesTooltipCard` (which supplies its own
- * card, e.g. the bar chart's recharts tooltip).
+ * inside `CursorTooltip` (which supplies the card and positioning) — shared by
+ * the time-series, bar, and other chart visualizations.
  */
 export function SeriesTooltipContent({
   title,
@@ -43,33 +41,5 @@ export function SeriesTooltipContent({
         ))}
       </div>
     </>
-  );
-}
-
-/**
- * `SeriesTooltipContent` wrapped in a self-contained card — for callers that
- * own positioning but not chrome, e.g. recharts `Tooltip` content (bar chart).
- */
-export function SeriesTooltipCard({
-  title,
-  rows,
-  className,
-  style,
-}: {
-  title: ReactNode;
-  rows: SeriesTooltipRow[];
-  className?: string;
-  style?: React.CSSProperties;
-}) {
-  return (
-    <div
-      className={cn(
-        "rounded-md border border-border bg-card px-3 py-2 text-xs shadow-md",
-        className,
-      )}
-      style={style}
-    >
-      <SeriesTooltipContent title={title} rows={rows} />
-    </div>
   );
 }

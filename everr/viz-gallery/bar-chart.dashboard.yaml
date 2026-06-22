@@ -167,6 +167,31 @@ spec:
                     - ["/api/orders", "GET", 560]
                     - ["/api/orders", "POST", 310]
                     - ["/api/search", "GET", 605]
+    bar-long-labels:
+      kind: Panel
+      spec:
+        display:
+          name: "Bar: long category labels"
+          description: "category axis with long path-like labels → ticks truncate (middle ellipsis) to their band instead of overlapping; full value on hover"
+        plugin:
+          kind: BarChart
+          spec: {}
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [route, requests]
+                  rows:
+                    - ["/[locale]/company/[companyUID]", 1240]
+                    - ["/[locale]/company/[companyUID]/jobs", 980]
+                    - ["/[locale]/company/[companyUID]/people", 870]
+                    - ["/[locale]/company/[companyUID]/settings", 605]
+                    - ["/[locale]/company/[companyUID]/people/cards/cold", 432]
+                    - ["/[locale]/company/[companyUID]/billing", 310]
+                    - ["/[locale]/company/[companyUID]/integrations", 121]
     # ── Data-shape behaviors + edge states ───────────────────────────
     bar-multi-query:
       kind: Panel
@@ -230,3 +255,4 @@ spec:
           - { x: 0,  y: 16, width: 8,  height: 8, content: { $ref: "#/spec/panels/bar-categorical-pivot" } }
           - { x: 8,  y: 16, width: 8,  height: 8, content: { $ref: "#/spec/panels/bar-multi-query" } }
           - { x: 16, y: 16, width: 8,  height: 8, content: { $ref: "#/spec/panels/bar-empty" } }
+          - { x: 0,  y: 24, width: 24, height: 8, content: { $ref: "#/spec/panels/bar-long-labels" } }
