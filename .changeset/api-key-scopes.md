@@ -1,8 +1,5 @@
 ---
-"@everr/app": patch
 "@everr/desktop-app": patch
-"@everr/docs": patch
-"@better-auth/api-key": patch
 ---
 
 Separate the capabilities of `ek_` API keys into two scopes: `ingest` (send
