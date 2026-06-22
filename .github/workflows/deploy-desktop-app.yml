@@ -235,6 +235,15 @@ jobs:
         with:
           check-run-id: ${{ job.check_run_id }}
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
@@ -243,11 +252,23 @@ jobs:
         with:
           workspaces: . -> target
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: collector/go.mod
+          cache-dependency-path: |
+            collector/**/go.sum
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
       - name: Test
         run: cargo test --manifest-path packages/desktop-app/src-cli/Cargo.toml
 
       - name: Build release binary
-        run: cargo build --release --manifest-path packages/desktop-app/src-cli/Cargo.toml
+        env:
+          EVERR_INGEST_KEY: ${{ secrets.EVERR_INGEST_KEY }}
+        run: pnpm --dir packages/desktop-app build:cli:release
 
       - name: Stage Linux CLI binary
         run: |
