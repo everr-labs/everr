@@ -1,5 +1,11 @@
 # @everr/desktop-app
 
+## 0.4.6
+
+### Patch Changes
+
+- f066c2a: Fix `everr local start` on Linux by embedding the collector and chDB assets in the published Linux CLI release (the build now fails if the assets are missing). Also make the install script configure your shell PATH automatically instead of only printing a hint.
+
 ## 0.4.5
 
 ### Patch Changes
