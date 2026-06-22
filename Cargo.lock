@@ -1359,7 +1359,7 @@ dependencies = [
 
 [[package]]
 name = "everr-app"
-version = "0.4.4"
+version = "0.4.6"
 dependencies = [
  "anyhow",
  "arboard",
