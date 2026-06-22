@@ -11,7 +11,7 @@ import {
   buildPanelQueryRequests,
   combineQueryStates,
   type SingleQueryState,
-} from "./use-panel-queries";
+} from "./use-dashboard-panel-data";
 
 const ctx = {
   definedNames: new Set(["region"]),

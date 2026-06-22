@@ -3,15 +3,13 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@everr/ui/components/tooltip";
-import { resolveTimeRange } from "@everr/ui/lib/time-range";
 import { useNavigate } from "@tanstack/react-router";
 import { TriangleAlert } from "lucide-react";
 import type { ReactNode } from "react";
 import { useCallback, useMemo } from "react";
 import type { Panel } from "@/data/dashboards/schema";
-import { useTimeRange } from "@/hooks/use-time-range";
 import { PanelShell } from "../panel-shell";
-import { usePanelQueries } from "./use-panel-queries";
+import { useDashboardPanelData } from "./use-dashboard-panel-data";
 import {
   getVisualizationInset,
   getVisualizationSpecWarnings,
@@ -60,13 +58,9 @@ export function DashboardPanel({
 }: DashboardPanelProps) {
   const { display, plugin } = panel.spec;
   const navigate = useNavigate();
-  // Effective range: explicit URL params, else the dashboard's route defaults,
-  // else the global default — resolved before first render (no flash).
-  const { timeRange } = useTimeRange();
-  const { from, to } = timeRange;
 
-  const { data, status, errorMessage } = usePanelQueries(panel, { from, to });
-  const { fromDate, toDate } = resolveTimeRange(timeRange);
+  const { data, status, errorMessage, timeRange } =
+    useDashboardPanelData(panel);
 
   const specWarnings = useMemo(
     () => getVisualizationSpecWarnings(plugin),
@@ -111,7 +105,7 @@ export function DashboardPanel({
         <PanelVisualization
           plugin={plugin}
           data={data}
-          timeRange={{ from: fromDate, to: toDate }}
+          timeRange={timeRange}
           onTimeRangeChange={handleTimeRangeChange}
         />
       </PanelShell>

@@ -1,3 +1,4 @@
+import { resolveTimeRange } from "@everr/ui/lib/time-range";
 import { useQueries } from "@tanstack/react-query";
 import { useMemo } from "react";
 import {
@@ -8,9 +9,10 @@ import {
 import { panelQueryOptions } from "@/data/dashboards/options";
 import type { Panel } from "@/data/dashboards/schema";
 import { pickByNames } from "@/data/dashboards/variable-values";
+import { useTimeRange } from "@/hooks/use-time-range";
 import { getPanelQuerySources, type PanelQuerySource } from "./query-array";
 import { useDashboardVariables } from "./use-dashboard-variables";
-import type { QueryResultRow } from "./visualizations";
+import type { QueryResultRow, ResolvedTimeRange } from "./visualizations";
 
 export interface PanelQueryRequest {
   source: PanelQuerySource;
@@ -123,17 +125,29 @@ export function combineQueryStates(
   return { status: "success", data: active.map((s) => s.rows ?? []) };
 }
 
-export interface UsePanelQueriesOptions {
-  from?: string;
-  to?: string;
-  enabled?: boolean;
-  queryEnabled?: (source: PanelQuerySource, index: number) => boolean;
+export interface DashboardPanelData extends CombinedPanelResult {
+  /**
+   * Absolute range the visualization renders against (axis domain, brush).
+   * Resolved here from the effective time range so the panel never reads it a
+   * second time.
+   */
+  timeRange: ResolvedTimeRange;
 }
 
-export function usePanelQueries(
-  panel: Panel,
-  opts: UsePanelQueriesOptions = {},
-): CombinedPanelResult {
+/**
+ * Everything a dashboard panel needs to render, behind one interface: the
+ * effective time range, variable resolution, query building, execution, and
+ * result merging. The panel hands in its `panel` spec and gets back
+ * `{ status, data, errorMessage, timeRange }` — no time-range threading, no
+ * intermediate hooks to coordinate. The variable bar still uses
+ * `useDashboardVariables` directly for its pickers.
+ */
+export function useDashboardPanelData(panel: Panel): DashboardPanelData {
+  // Effective range: explicit URL params, else the dashboard's route defaults,
+  // else the global default — resolved before first render (no flash). The
+  // variable-options queries read the same range internally.
+  const { timeRange } = useTimeRange();
+
   const { variables, values, meta, pendingAllNames, allErrors } =
     useDashboardVariables();
   const definedNames = useMemo(
@@ -154,25 +168,23 @@ export function usePanelQueries(
   );
 
   const results = useQueries({
-    queries: requests.map((r, i) => ({
+    queries: requests.map((r) => ({
       ...panelQueryOptions(
         r.source,
-        opts.from,
-        opts.to,
+        timeRange.from,
+        timeRange.to,
         r.variables,
         r.variableMeta,
       ),
       enabled:
-        (opts.enabled ?? true) &&
         sourceIsActive(r.source) &&
         r.missingName === undefined &&
         r.optionsError === undefined &&
-        !r.waitingForOptions &&
-        (opts.queryEnabled?.(r.source, i) ?? true),
+        !r.waitingForOptions,
     })),
   });
 
-  return useMemo(
+  const combined = useMemo(
     () =>
       combineQueryStates(
         requests.map((r, i) => ({
@@ -187,4 +199,12 @@ export function usePanelQueries(
       ),
     [requests, results],
   );
+
+  // Memoize on the primitive bounds: `timeRange` is a fresh object each render,
+  // so depending on it directly would never hit the cache.
+  const viz = useMemo(
+    () => resolveTimeRange(timeRange),
+    [timeRange.from, timeRange.to],
+  );
+  return { ...combined, timeRange: { from: viz.fromDate, to: viz.toDate } };
 }
