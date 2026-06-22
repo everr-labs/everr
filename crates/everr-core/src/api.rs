@@ -32,7 +32,7 @@ pub fn is_reauthentication_required(error: &anyhow::Error) -> bool {
 }
 
 /// Which credential the client authenticates with. Apply's 401 handling differs
-/// by kind: a bad `EVERR_API_TOKEN` can't be fixed by `cloud login`, while a
+/// by kind: a bad `EVERR_API_KEY` can't be fixed by `cloud login`, while a
 /// missing/expired session can.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AuthKind {
@@ -72,7 +72,7 @@ impl ApiClient {
         })
     }
 
-    /// Build a client from a raw bearer token + base URL (for CI: `EVERR_API_TOKEN`).
+    /// Build a client from a raw bearer token + base URL (for CI: `EVERR_API_KEY`).
     pub fn from_token(api_base_url: &str, token: &str) -> Result<Self> {
         let mut headers = HeaderMap::new();
         let bearer = format!("Bearer {token}");
@@ -113,15 +113,16 @@ impl ApiClient {
                 .text()
                 .await
                 .unwrap_or_else(|_| "<failed to read body>".to_string());
-            // A 401 means different things per credential: a bad EVERR_API_TOKEN
+            // A 401 means different things per credential: a bad EVERR_API_KEY
             // can't be fixed by `cloud login`, so the token path returns its own
             // message; a missing/expired session (already refresh-attempted)
             // routes through the standard reauth path that directs `cloud login`.
             if status == StatusCode::UNAUTHORIZED {
                 return Err(match self.auth_kind {
                     AuthKind::Token => anyhow::anyhow!(
-                        "apply was rejected (401 Unauthorized): EVERR_API_TOKEN is missing, \
-                         invalid, or not an organization ingest key."
+                        "apply was rejected (401 Unauthorized): the API key (EVERR_API_KEY, \
+                         or the deprecated EVERR_API_TOKEN) is missing, invalid, or not \
+                         authorized to apply resources in this organization."
                     ),
                     AuthKind::Session => anyhow::Error::new(ReauthenticationRequired),
                 });
@@ -726,7 +727,7 @@ mod api_client_tests {
         // Token path: a 401 must NOT trigger the `cloud login` reauth path.
         assert!(!is_reauthentication_required(&error));
         let message = error.to_string();
-        assert!(message.contains("EVERR_API_TOKEN"), "got: {message}");
+        assert!(message.contains("EVERR_API_KEY"), "got: {message}");
         // Must not be the session-reauth message that *directs* a `cloud login`.
         assert!(!message.contains("Session expired"), "got: {message}");
         assert!(!message.contains("re-authenticate"), "got: {message}");
@@ -752,7 +753,7 @@ mod api_client_tests {
         assert!(is_reauthentication_required(&error));
         let message = error.to_string();
         assert!(message.contains("cloud login"), "got: {message}");
-        assert!(!message.contains("EVERR_API_TOKEN"), "got: {message}");
+        assert!(!message.contains("EVERR_API_KEY"), "got: {message}");
         mock.assert_async().await;
     }
 

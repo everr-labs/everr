@@ -34,6 +34,7 @@ vi.mock("@/db/schema", () => ({
 import {
   applyAuthErrorResponse,
   buildApplyContext,
+  canApplyMutate,
   extractBearerKey,
   requireOrgOrApiKeyMiddleware,
   resolveApplyAuth,
@@ -69,10 +70,15 @@ describe("resolveApplyAuth", () => {
     );
   });
 
-  it("resolves an ek_ ingest key to its org (+name)", async () => {
+  it("resolves an ek_ key with the apply scope to its org (+name)", async () => {
     verifyApiKey.mockResolvedValueOnce({
       valid: true,
-      key: { id: "k1", referenceId: "org-1" },
+      // Real apply keys carry the concrete action set, not a wildcard.
+      key: {
+        id: "k1",
+        referenceId: "org-1",
+        permissions: { apply: ["read", "write", "delete"] },
+      },
     });
     orgRows = [{ name: "Acme" }];
     const result = await resolveApplyAuth(
@@ -82,6 +88,7 @@ describe("resolveApplyAuth", () => {
       organizationId: "org-1",
       organizationName: "Acme",
       principalId: "apikey:k1",
+      applyActions: ["read", "write", "delete"],
     });
     expect(verifyApiKey).toHaveBeenCalledWith({
       body: { key: "ek_abc", configId: "ingest" },
@@ -89,10 +96,53 @@ describe("resolveApplyAuth", () => {
     expect(getSession).not.toHaveBeenCalled();
   });
 
+  it("threads a read-only applyActions through for a read-only key", async () => {
+    verifyApiKey.mockResolvedValueOnce({
+      valid: true,
+      key: {
+        id: "k1",
+        referenceId: "org-1",
+        permissions: { apply: ["read"] },
+      },
+    });
+    orgRows = [{ name: "Acme" }];
+    const result = await resolveApplyAuth(
+      headers({ authorization: "Bearer ek_abc" }),
+    );
+    expect(result.applyActions).toEqual(["read"]);
+  });
+
+  it("rejects an ek_ key with no permissions map", async () => {
+    // A key with no capabilities grants nothing. Legacy keys are backfilled
+    // with explicit capabilities by the 0006 migration, so a null map only
+    // reaches here for a key that genuinely has none.
+    verifyApiKey.mockResolvedValueOnce({
+      valid: true,
+      key: { id: "k1", referenceId: "org-1", permissions: null },
+    });
+    await expect(
+      resolveApplyAuth(headers({ authorization: "Bearer ek_abc" })),
+    ).rejects.toThrow(/not authorized to apply/i);
+  });
+
+  it("rejects an ek_ key that only has the ingest scope", async () => {
+    verifyApiKey.mockResolvedValueOnce({
+      valid: true,
+      key: {
+        id: "k1",
+        referenceId: "org-1",
+        permissions: { ingest: ["write"] },
+      },
+    });
+    await expect(
+      resolveApplyAuth(headers({ authorization: "Bearer ek_abc" })),
+    ).rejects.toThrow(/not authorized to apply/i);
+  });
+
   it("falls back to the org id when the org row is missing", async () => {
     verifyApiKey.mockResolvedValueOnce({
       valid: true,
-      key: { id: "k1", referenceId: "org-1" },
+      key: { id: "k1", referenceId: "org-1", permissions: { apply: ["*"] } },
     });
     orgRows = [];
     const result = await resolveApplyAuth(
@@ -121,6 +171,7 @@ describe("resolveApplyAuth", () => {
       organizationId: "org-9",
       organizationName: "Globex",
       principalId: "user:u1",
+      applyActions: null,
     });
     expect(verifyApiKey).not.toHaveBeenCalled();
   });
@@ -149,10 +200,44 @@ describe("buildApplyContext", () => {
       organizationId: "org-k",
       organizationName: "Kettle",
       principalId: "apikey:1",
+      applyActions: ["read", "write", "delete"],
     });
     expect(ctx.session.session.activeOrganizationId).toBe("org-k");
     expect(ctx.session.user.id).toBe("apikey:1");
     expect(ctx.organization).toEqual({ id: "org-k", name: "Kettle" });
+    expect(ctx.applyActions).toEqual(["read", "write", "delete"]);
+  });
+
+  it("threads a null applyActions through for session auth", () => {
+    const ctx = buildApplyContext({
+      organizationId: "org-k",
+      organizationName: "Kettle",
+      principalId: "user:u1",
+      applyActions: null,
+    });
+    expect(ctx.applyActions).toBeNull();
+  });
+});
+
+describe("canApplyMutate", () => {
+  it("allows session auth (null actions) unconditionally", () => {
+    expect(canApplyMutate(null)).toBe(true);
+  });
+  it("allows a write action", () => {
+    expect(canApplyMutate(["read", "write", "delete"])).toBe(true);
+    expect(canApplyMutate(["write"])).toBe(true);
+  });
+  it("allows the wildcard action", () => {
+    expect(canApplyMutate(["*"])).toBe(true);
+  });
+  it("rejects a read-only key on a mutative apply", () => {
+    expect(canApplyMutate(["read"])).toBe(false);
+  });
+  it("rejects an empty action array (defense-in-depth)", () => {
+    expect(canApplyMutate([])).toBe(false);
+  });
+  it("rejects a delete-only key on a mutative apply", () => {
+    expect(canApplyMutate(["delete"])).toBe(false);
   });
 });
 
@@ -160,6 +245,7 @@ describe("applyAuthErrorResponse", () => {
   it.each([
     ["Missing credential", 401],
     ["Invalid API key", 401],
+    ["API key is not authorized to apply resources", 403],
     ["Unauthenticated", 401],
     ["No active organization", 403],
   ])("maps %s to an HTTP %d Response with the message", async (msg, status) => {
@@ -227,7 +313,7 @@ describe("requireOrgOrApiKeyMiddleware", () => {
   it("calls next with the resolved org context on success", async () => {
     verifyApiKey.mockResolvedValueOnce({
       valid: true,
-      key: { id: "k1", referenceId: "org-1" },
+      key: { id: "k1", referenceId: "org-1", permissions: { apply: ["*"] } },
     });
     orgRows = [{ name: "Acme" }];
     const next = vi.fn(async (_arg?: unknown) => "ok");
@@ -239,8 +325,12 @@ describe("requireOrgOrApiKeyMiddleware", () => {
     expect(result).toBe("ok");
     expect(next).toHaveBeenCalledTimes(1);
     const arg = next.mock.calls[0]?.[0] as {
-      context: { organization: { id: string; name: string } };
+      context: {
+        organization: { id: string; name: string };
+        applyActions: readonly string[];
+      };
     };
     expect(arg.context.organization).toEqual({ id: "org-1", name: "Acme" });
+    expect(arg.context.applyActions).toEqual(["*"]);
   });
 });

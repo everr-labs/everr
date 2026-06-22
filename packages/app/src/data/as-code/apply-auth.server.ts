@@ -2,6 +2,7 @@ import { createMiddleware } from "@tanstack/react-start";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { organization } from "@/db/schema";
+import { hasApiKeyScope } from "@/lib/api-key-scopes";
 import { auth } from "@/lib/auth.server";
 import { createClickhouseQuery } from "@/lib/clickhouse";
 
@@ -10,6 +11,30 @@ export interface ApplyAuth {
   organizationName: string;
   /** Audit principal, e.g. "apikey:<keyId>" or "user:<userId>". */
   principalId: string;
+  /**
+   * Actions the principal holds under the `apply` scope, or `null` when the
+   * request is session-authenticated (sessions have no per-action
+   * restriction). For API keys this is `permissions.apply`; the middleware's
+   * holds-scope gate guarantees a non-null value here has at least one entry
+   * (possibly the wildcard `"*"`). The handler checks `canApplyMutate` on the
+   * `dryRun: false` path so a read-only key can plan but not write.
+   */
+  applyActions: readonly string[] | null;
+}
+
+/** Sentinel that grants every action under a scope. */
+const WILDCARD = "*";
+
+/**
+ * Can the principal perform a mutative apply (`dryRun: false`)? Sessions are
+ * unrestricted. API keys must hold `write` (or the wildcard) under the
+ * `apply` scope — a `read`-only key can only run the plan pass.
+ */
+export function canApplyMutate(
+  applyActions: readonly string[] | null,
+): boolean {
+  if (applyActions === null) return true;
+  return applyActions.includes(WILDCARD) || applyActions.includes("write");
 }
 
 /** Pull a credential from `Authorization: Bearer <v>` or `x-api-key`. */
@@ -25,7 +50,7 @@ export function extractBearerKey(headers: Headers): string | null {
 
 /**
  * Look up the org's display name directly from the DB. This avoids the
- * session-gated `getFullOrganization` endpoint, so it works on the ingest-key
+ * session-gated `getFullOrganization` endpoint, so it works on the API key
  * path (which has no session) too. Falls back to the id if the org isn't found.
  */
 async function organizationName(organizationId: string): Promise<string> {
@@ -39,9 +64,12 @@ async function organizationName(organizationId: string): Promise<string> {
 
 /**
  * Resolve apply auth from request headers. Accepts two credentials:
- *  - an organization-scoped ingest key (prefix `ek_`): org from the key.
+ *  - an organization-scoped API key (prefix `ek_`): org from the key.
  *  - a logged-in session bearer token: org from the session's active org.
  * The `ek_` prefix decides the path so a session token never hits verifyApiKey.
+ * API keys are additionally required to carry the `apply` scope — a key minted
+ * for telemetry ingest only must not be able to mutate dashboards, notebooks,
+ * or alerts even though both use the same `ek_` configId.
  */
 export async function resolveApplyAuth(headers: Headers): Promise<ApplyAuth> {
   const credential = extractBearerKey(headers);
@@ -54,11 +82,15 @@ export async function resolveApplyAuth(headers: Headers): Promise<ApplyAuth> {
     if (!result.valid || !result.key?.referenceId) {
       throw new Error("Invalid API key");
     }
+    if (!hasApiKeyScope(result.key.permissions, "apply")) {
+      throw new Error("API key is not authorized to apply resources");
+    }
     const organizationId = result.key.referenceId;
     return {
       organizationId,
       organizationName: await organizationName(organizationId),
       principalId: `apikey:${result.key.id}`,
+      applyActions: result.key.permissions?.apply ?? [],
     };
   }
 
@@ -74,6 +106,7 @@ export async function resolveApplyAuth(headers: Headers): Promise<ApplyAuth> {
     organizationId,
     organizationName: await organizationName(organizationId),
     principalId: `user:${session.user.id}`,
+    applyActions: null,
   };
 }
 
@@ -92,6 +125,7 @@ export function buildApplyContext(apiAuth: ApplyAuth) {
       id: apiAuth.organizationId,
       name: apiAuth.organizationName,
     },
+    applyActions: apiAuth.applyActions,
     clickhouse: { query: createClickhouseQuery(apiAuth.organizationId) },
   };
 }
@@ -108,6 +142,7 @@ export function buildApplyContext(apiAuth: ApplyAuth) {
 const AUTH_ERROR_STATUS: Record<string, number> = {
   "Missing credential": 401,
   "Invalid API key": 401,
+  "API key is not authorized to apply resources": 403,
   Unauthenticated: 401,
   "No active organization": 403,
 };

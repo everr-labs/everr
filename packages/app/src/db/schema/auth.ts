@@ -182,6 +182,9 @@ export const apikey = pgTable(
   ],
 );
 
+/** DB row shape of an API key, inferred from the schema above. */
+export type ApiKeyRow = typeof apikey.$inferSelect;
+
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),

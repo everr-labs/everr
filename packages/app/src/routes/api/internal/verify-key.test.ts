@@ -95,7 +95,11 @@ describe("/api/internal/verify-key", () => {
     await mockVerify({
       valid: true,
       error: null,
-      key: { id: "ak_3", referenceId: "org_42" },
+      key: {
+        id: "ak_3",
+        referenceId: "org_42",
+        permissions: { ingest: ["write"] },
+      },
     });
     const res = await getHandler()({
       request: makeRequest({ key: "the-key" }),
@@ -112,5 +116,39 @@ describe("/api/internal/verify-key", () => {
     expect(auth.api.verifyApiKey).toHaveBeenCalledWith({
       body: { key: "the-key", configId: "ingest" },
     });
+  });
+
+  it("returns 403 for a key with no permissions map", async () => {
+    // A key with no capabilities grants nothing — it is rejected rather than
+    // treated as fully scoped. Legacy keys are backfilled with explicit
+    // capabilities by the 0006 migration, so a null map only reaches here for
+    // a key that genuinely has none.
+    await mockVerify({
+      valid: true,
+      error: null,
+      key: { id: "ak_legacy", referenceId: "org_42", permissions: null },
+    });
+    const res = await getHandler()({
+      request: makeRequest({ key: "the-key" }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 403 when the key only has the apply scope", async () => {
+    // A key minted for `everr apply` only must be rejected here, otherwise
+    // a CI deploy token would be silently granted ingest access.
+    await mockVerify({
+      valid: true,
+      error: null,
+      key: {
+        id: "ak_apply",
+        referenceId: "org_42",
+        permissions: { apply: ["*"] },
+      },
+    });
+    const res = await getHandler()({
+      request: makeRequest({ key: "the-key" }),
+    });
+    expect(res.status).toBe(403);
   });
 });

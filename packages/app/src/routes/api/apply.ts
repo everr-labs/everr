@@ -1,5 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { requireOrgOrApiKeyMiddleware } from "@/data/as-code/apply-auth.server";
+import {
+  canApplyMutate,
+  requireOrgOrApiKeyMiddleware,
+} from "@/data/as-code/apply-auth.server";
 import { ApplyValidationError } from "@/data/as-code/errors";
 import { applyResources } from "@/data/as-code/registry";
 import { applyInput } from "@/data/as-code/schema";
@@ -21,6 +24,18 @@ export const Route = createFileRoute("/api/apply")({
           return Response.json(
             { error: parsed.error.issues[0]?.message ?? "Invalid request" },
             { status: 400 },
+          );
+        }
+
+        // A read-only `apply` key may run the dry-run plan pass but must not
+        // be able to issue a mutative apply. Session auth is unrestricted.
+        if (!parsed.data.dryRun && !canApplyMutate(context.applyActions)) {
+          return Response.json(
+            {
+              error:
+                "API key is read-only: run with --dry-run or grant the apply write capability",
+            },
+            { status: 403 },
           );
         }
 

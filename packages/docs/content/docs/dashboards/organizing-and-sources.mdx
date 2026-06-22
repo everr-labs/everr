@@ -106,7 +106,7 @@ everr apply ./everr --dry-run
 
 ## Applying from CI
 
-By default `everr apply` uses your `everr cloud login` session and prints the destination organization before writing. CI runners do not include the Everr CLI by default, so install it with `everr-action` before calling `everr apply`. For CI and other non-interactive contexts, set `EVERR_API_TOKEN` to an organization ingest key instead. If `EVERR_API_URL` is not set, the base URL falls back to the one saved by a prior `everr cloud login`.
+By default `everr apply` uses your `everr cloud login` session and prints the destination organization before writing. CI runners do not include the Everr CLI by default, so install it with `everr-action` before calling `everr apply`. For CI and other non-interactive contexts, set `EVERR_API_KEY` to an organization API key with the `apply` scope (the same `ek_` keys you mint for ingest; the Capabilities column shows what each key can do). The legacy `EVERR_API_TOKEN` is still accepted. If `EVERR_API_URL` is not set, the base URL falls back to the one saved by a prior `everr cloud login`.
 
 ```yaml
 # .github/workflows/dashboards.yml
@@ -128,7 +128,7 @@ jobs:
 
       - run: everr apply ./everr --yes
         env:
-          EVERR_API_TOKEN: ${{ secrets.EVERR_API_TOKEN }}
+          EVERR_API_KEY: ${{ secrets.EVERR_API_KEY }}
           EVERR_API_URL: ${{ vars.EVERR_API_URL }}
 ```
 

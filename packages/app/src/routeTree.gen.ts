@@ -34,9 +34,9 @@ import { Route as AuthenticatedDashboardUsersManagementRouteImport } from './rou
 import { Route as AuthenticatedDashboardTestsOverviewRouteImport } from './routes/_authenticated/_dashboard/tests-overview'
 import { Route as AuthenticatedDashboardRunsRouteImport } from './routes/_authenticated/_dashboard/runs'
 import { Route as AuthenticatedDashboardReposRouteImport } from './routes/_authenticated/_dashboard/repos'
-import { Route as AuthenticatedDashboardIngestKeysRouteImport } from './routes/_authenticated/_dashboard/ingest-keys'
 import { Route as AuthenticatedDashboardCostAnalysisRouteImport } from './routes/_authenticated/_dashboard/cost-analysis'
 import { Route as AuthenticatedDashboardBillingRouteImport } from './routes/_authenticated/_dashboard/billing'
+import { Route as AuthenticatedDashboardApiKeysRouteImport } from './routes/_authenticated/_dashboard/api-keys'
 import { Route as AuthenticatedDashboardAlertsRouteImport } from './routes/_authenticated/_dashboard/alerts'
 import { Route as AuthenticatedDashboardAccountRouteImport } from './routes/_authenticated/_dashboard/account'
 import { Route as AuthenticatedDashboardExploreRouteImport } from './routes/_authenticated/_dashboard/_explore'
@@ -201,12 +201,6 @@ const AuthenticatedDashboardReposRoute =
     path: '/repos',
     getParentRoute: () => AuthenticatedDashboardRoute,
   } as any)
-const AuthenticatedDashboardIngestKeysRoute =
-  AuthenticatedDashboardIngestKeysRouteImport.update({
-    id: '/ingest-keys',
-    path: '/ingest-keys',
-    getParentRoute: () => AuthenticatedDashboardRoute,
-  } as any)
 const AuthenticatedDashboardCostAnalysisRoute =
   AuthenticatedDashboardCostAnalysisRouteImport.update({
     id: '/cost-analysis',
@@ -217,6 +211,12 @@ const AuthenticatedDashboardBillingRoute =
   AuthenticatedDashboardBillingRouteImport.update({
     id: '/billing',
     path: '/billing',
+    getParentRoute: () => AuthenticatedDashboardRoute,
+  } as any)
+const AuthenticatedDashboardApiKeysRoute =
+  AuthenticatedDashboardApiKeysRouteImport.update({
+    id: '/api-keys',
+    path: '/api-keys',
     getParentRoute: () => AuthenticatedDashboardRoute,
   } as any)
 const AuthenticatedDashboardAlertsRoute =
@@ -444,9 +444,9 @@ export interface FileRoutesByFullPath {
   '/invite/$invitationId': typeof AuthInviteInvitationIdRoute
   '/account': typeof AuthenticatedDashboardAccountRoute
   '/alerts': typeof AuthenticatedDashboardAlertsRoute
+  '/api-keys': typeof AuthenticatedDashboardApiKeysRoute
   '/billing': typeof AuthenticatedDashboardBillingRoute
   '/cost-analysis': typeof AuthenticatedDashboardCostAnalysisRoute
-  '/ingest-keys': typeof AuthenticatedDashboardIngestKeysRoute
   '/repos': typeof AuthenticatedDashboardReposRoute
   '/runs': typeof AuthenticatedDashboardRunsRouteWithChildren
   '/tests-overview': typeof AuthenticatedDashboardTestsOverviewRoute
@@ -506,9 +506,9 @@ export interface FileRoutesByTo {
   '/invite/$invitationId': typeof AuthInviteInvitationIdRoute
   '/account': typeof AuthenticatedDashboardAccountRoute
   '/alerts': typeof AuthenticatedDashboardAlertsRoute
+  '/api-keys': typeof AuthenticatedDashboardApiKeysRoute
   '/billing': typeof AuthenticatedDashboardBillingRoute
   '/cost-analysis': typeof AuthenticatedDashboardCostAnalysisRoute
-  '/ingest-keys': typeof AuthenticatedDashboardIngestKeysRoute
   '/repos': typeof AuthenticatedDashboardReposRoute
   '/tests-overview': typeof AuthenticatedDashboardTestsOverviewRoute
   '/users-management': typeof AuthenticatedDashboardUsersManagementRoute
@@ -571,9 +571,9 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/_explore': typeof AuthenticatedDashboardExploreRouteWithChildren
   '/_authenticated/_dashboard/account': typeof AuthenticatedDashboardAccountRoute
   '/_authenticated/_dashboard/alerts': typeof AuthenticatedDashboardAlertsRoute
+  '/_authenticated/_dashboard/api-keys': typeof AuthenticatedDashboardApiKeysRoute
   '/_authenticated/_dashboard/billing': typeof AuthenticatedDashboardBillingRoute
   '/_authenticated/_dashboard/cost-analysis': typeof AuthenticatedDashboardCostAnalysisRoute
-  '/_authenticated/_dashboard/ingest-keys': typeof AuthenticatedDashboardIngestKeysRoute
   '/_authenticated/_dashboard/repos': typeof AuthenticatedDashboardReposRoute
   '/_authenticated/_dashboard/runs': typeof AuthenticatedDashboardRunsRouteWithChildren
   '/_authenticated/_dashboard/tests-overview': typeof AuthenticatedDashboardTestsOverviewRoute
@@ -636,9 +636,9 @@ export interface FileRouteTypes {
     | '/invite/$invitationId'
     | '/account'
     | '/alerts'
+    | '/api-keys'
     | '/billing'
     | '/cost-analysis'
-    | '/ingest-keys'
     | '/repos'
     | '/runs'
     | '/tests-overview'
@@ -698,9 +698,9 @@ export interface FileRouteTypes {
     | '/invite/$invitationId'
     | '/account'
     | '/alerts'
+    | '/api-keys'
     | '/billing'
     | '/cost-analysis'
-    | '/ingest-keys'
     | '/repos'
     | '/tests-overview'
     | '/users-management'
@@ -762,9 +762,9 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/_explore'
     | '/_authenticated/_dashboard/account'
     | '/_authenticated/_dashboard/alerts'
+    | '/_authenticated/_dashboard/api-keys'
     | '/_authenticated/_dashboard/billing'
     | '/_authenticated/_dashboard/cost-analysis'
-    | '/_authenticated/_dashboard/ingest-keys'
     | '/_authenticated/_dashboard/repos'
     | '/_authenticated/_dashboard/runs'
     | '/_authenticated/_dashboard/tests-overview'
@@ -1006,13 +1006,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardReposRouteImport
       parentRoute: typeof AuthenticatedDashboardRoute
     }
-    '/_authenticated/_dashboard/ingest-keys': {
-      id: '/_authenticated/_dashboard/ingest-keys'
-      path: '/ingest-keys'
-      fullPath: '/ingest-keys'
-      preLoaderRoute: typeof AuthenticatedDashboardIngestKeysRouteImport
-      parentRoute: typeof AuthenticatedDashboardRoute
-    }
     '/_authenticated/_dashboard/cost-analysis': {
       id: '/_authenticated/_dashboard/cost-analysis'
       path: '/cost-analysis'
@@ -1025,6 +1018,13 @@ declare module '@tanstack/react-router' {
       path: '/billing'
       fullPath: '/billing'
       preLoaderRoute: typeof AuthenticatedDashboardBillingRouteImport
+      parentRoute: typeof AuthenticatedDashboardRoute
+    }
+    '/_authenticated/_dashboard/api-keys': {
+      id: '/_authenticated/_dashboard/api-keys'
+      path: '/api-keys'
+      fullPath: '/api-keys'
+      preLoaderRoute: typeof AuthenticatedDashboardApiKeysRouteImport
       parentRoute: typeof AuthenticatedDashboardRoute
     }
     '/_authenticated/_dashboard/alerts': {
@@ -1423,9 +1423,9 @@ interface AuthenticatedDashboardRouteChildren {
   AuthenticatedDashboardExploreRoute: typeof AuthenticatedDashboardExploreRouteWithChildren
   AuthenticatedDashboardAccountRoute: typeof AuthenticatedDashboardAccountRoute
   AuthenticatedDashboardAlertsRoute: typeof AuthenticatedDashboardAlertsRoute
+  AuthenticatedDashboardApiKeysRoute: typeof AuthenticatedDashboardApiKeysRoute
   AuthenticatedDashboardBillingRoute: typeof AuthenticatedDashboardBillingRoute
   AuthenticatedDashboardCostAnalysisRoute: typeof AuthenticatedDashboardCostAnalysisRoute
-  AuthenticatedDashboardIngestKeysRoute: typeof AuthenticatedDashboardIngestKeysRoute
   AuthenticatedDashboardReposRoute: typeof AuthenticatedDashboardReposRoute
   AuthenticatedDashboardRunsRoute: typeof AuthenticatedDashboardRunsRouteWithChildren
   AuthenticatedDashboardTestsOverviewRoute: typeof AuthenticatedDashboardTestsOverviewRoute
@@ -1448,11 +1448,10 @@ const AuthenticatedDashboardRouteChildren: AuthenticatedDashboardRouteChildren =
       AuthenticatedDashboardExploreRouteWithChildren,
     AuthenticatedDashboardAccountRoute: AuthenticatedDashboardAccountRoute,
     AuthenticatedDashboardAlertsRoute: AuthenticatedDashboardAlertsRoute,
+    AuthenticatedDashboardApiKeysRoute: AuthenticatedDashboardApiKeysRoute,
     AuthenticatedDashboardBillingRoute: AuthenticatedDashboardBillingRoute,
     AuthenticatedDashboardCostAnalysisRoute:
       AuthenticatedDashboardCostAnalysisRoute,
-    AuthenticatedDashboardIngestKeysRoute:
-      AuthenticatedDashboardIngestKeysRoute,
     AuthenticatedDashboardReposRoute: AuthenticatedDashboardReposRoute,
     AuthenticatedDashboardRunsRoute:
       AuthenticatedDashboardRunsRouteWithChildren,
