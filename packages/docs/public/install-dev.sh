@@ -60,9 +60,33 @@ echo "  Installed to ${INSTALL_PATH}"
 case ":${PATH}:" in
   *":${INSTALL_DIR}:"*) ;;
   *)
+    line="export PATH=\"${INSTALL_DIR}:\$PATH\""
+    case "$(basename "${SHELL:-sh}")" in
+      zsh) rc="${ZDOTDIR:-$HOME}/.zshrc" ;;
+      bash)
+        if [ "${os}" = "Darwin" ]; then rc="${HOME}/.bash_profile"; else rc="${HOME}/.bashrc"; fi
+        ;;
+      fish)
+        rc="${HOME}/.config/fish/config.fish"
+        line="fish_add_path ${INSTALL_DIR}"
+        ;;
+      *) rc="${HOME}/.profile" ;;
+    esac
+
     echo
-    echo "  Add ${INSTALL_DIR} to your PATH:"
-    echo "    export PATH=\"${INSTALL_DIR}:\$PATH\""
+    if [ -f "${rc}" ] && grep -qF "${INSTALL_DIR}" "${rc}" 2>/dev/null; then
+      echo "  ${INSTALL_DIR} is already configured in ${rc} but not active in this shell."
+      echo "  Restart your shell or run: ${line}"
+    else
+      mkdir -p "$(dirname "${rc}")"
+      printf '\n# Added by Everr installer\n%s\n' "${line}" >> "${rc}"
+      echo "  Added ${INSTALL_DIR} to your PATH in ${rc}"
+      echo "  Restart your shell or run: ${line}"
+    fi
+
+    # Make everr available on PATH for the guided setup below.
+    PATH="${INSTALL_DIR}:${PATH}"
+    export PATH
     ;;
 esac
 
