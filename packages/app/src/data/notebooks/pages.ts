@@ -209,8 +209,8 @@ export function resolveNotebookLink(
 
 /**
  * Adapt a notebook into a Dashboard-shaped document so the existing dashboard
- * machinery (DashboardProvider → useDashboardVariables → usePanelQueries →
- * VariableBar) works unchanged. `spec.panels` carries the notebook's shared
+ * machinery (DashboardProvider → useDashboardPanelData → VariableBar) works
+ * unchanged. `spec.panels` carries the notebook's shared
  * panels so `ref:` embeds resolve through the same context.
  */
 export function toDashboardDocument(
