@@ -14,16 +14,13 @@ import {
   decodeAttributeValueRows,
 } from "../../attribute-filter/sql/values";
 import { buildAttributeClauses } from "../../attribute-filter/sql/where";
+import { TRACES_ATTRIBUTE_SCHEMA } from "../../sql/attributes";
+import type { SqlClient } from "../../sql/client";
 import {
   resourceAttribute,
   resourceAttributeKeyExists,
 } from "../../sql/resource-attributes";
-import {
-  TRACES_ATTRIBUTE_SOURCES,
-  tracesAttributeColumn,
-} from "../sql/attribute-columns";
 import { validateTableName } from "../sql/table";
-import type { SqlClient } from "./client";
 import type {
   GetTraceInput,
   ListServiceIdentitiesInput,
@@ -103,7 +100,7 @@ export class TracesRepository {
     const attributes = input.attributes ?? [];
     const attr = buildAttributeClauses(
       attributes.filter((f) => f.op === "in" || f.op === "exists"),
-      tracesAttributeColumn,
+      TRACES_ATTRIBUTE_SCHEMA.columnFor,
     );
     spanPreds.push(...attr.clauses);
     Object.assign(params, attr.params);
@@ -119,7 +116,7 @@ export class TracesRepository {
         // Param namespace disjoint from the positive clauses above.
         const built = buildAttributeClauses(
           [positiveSense],
-          tracesAttributeColumn,
+          TRACES_ATTRIBUTE_SCHEMA.columnFor,
           attributes.length + i,
         );
         // `not_in` with no values is a no-op, matching buildAttributeClauses.
@@ -288,8 +285,8 @@ export class TracesRepository {
     validateTableName(this.tableName);
     const { sql, params } = buildAttributeKeysQuery(input, {
       tableName: this.tableName,
-      sources: TRACES_ATTRIBUTE_SOURCES,
-      columnFor: tracesAttributeColumn,
+      sources: TRACES_ATTRIBUTE_SCHEMA.sources,
+      columnFor: TRACES_ATTRIBUTE_SCHEMA.columnFor,
       timeColumn: "Timestamp",
       timeBound: tracesTimeBound,
     });
@@ -302,7 +299,7 @@ export class TracesRepository {
     validateTableName(this.tableName);
     const { sql, params } = buildAttributeValuesQuery(input, {
       tableName: this.tableName,
-      columnFor: tracesAttributeColumn,
+      columnFor: TRACES_ATTRIBUTE_SCHEMA.columnFor,
       timeColumn: "Timestamp",
       timeBound: tracesTimeBound,
     });

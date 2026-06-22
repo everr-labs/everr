@@ -13,17 +13,14 @@ import {
   buildAttributeValuesQuery,
   decodeAttributeValueRows,
 } from "../../attribute-filter/sql/values";
-import {
-  ERRORS_ATTRIBUTE_SOURCES,
-  errorsAttributeColumn,
-} from "../sql/attribute-columns";
+import { ERRORS_ATTRIBUTE_SCHEMA } from "../../sql/attributes";
+import type { SqlClient } from "../../sql/client";
 import { EXCEPTION_LOG_FILTER_SQL } from "../sql/fingerprint";
 import {
   buildOccurrencesQuery,
   buildServicesQuery,
   buildSummaryQuery,
 } from "../sql/issues";
-import type { SqlClient } from "./client";
 import type {
   GetErrorIssueInput,
   ListErrorServicesInput,
@@ -147,8 +144,8 @@ export class ErrorsRepository {
   async attributeKeys(input: AttributeKeysInput): Promise<AttributeKey[]> {
     const { sql, params } = buildAttributeKeysQuery(input, {
       tableName: this.tableName,
-      sources: ERRORS_ATTRIBUTE_SOURCES,
-      columnFor: errorsAttributeColumn,
+      sources: ERRORS_ATTRIBUTE_SCHEMA.sources,
+      columnFor: ERRORS_ATTRIBUTE_SCHEMA.columnFor,
       // Discovery must see the same rows the issue/services queries do —
       // exception logs only — so we never offer a key that yields no issues.
       rowPredicate: EXCEPTION_LOG_FILTER_SQL,
@@ -161,7 +158,7 @@ export class ErrorsRepository {
   async attributeValues(input: AttributeValuesInput): Promise<string[]> {
     const { sql, params } = buildAttributeValuesQuery(input, {
       tableName: this.tableName,
-      columnFor: errorsAttributeColumn,
+      columnFor: ERRORS_ATTRIBUTE_SCHEMA.columnFor,
       // Same exception-log scope as the issue queries (see attributeKeys).
       rowPredicate: EXCEPTION_LOG_FILTER_SQL,
     });

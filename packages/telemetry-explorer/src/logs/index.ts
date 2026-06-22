@@ -1,4 +1,4 @@
-export type { SqlClient } from "./data/client";
+export type { SqlClient } from "../sql/client";
 export * from "./data/options";
 export {
   LogsRepository,

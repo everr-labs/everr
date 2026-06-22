@@ -1,6 +1,6 @@
 import { buildAttributeClauses } from "../../attribute-filter/sql/where";
+import { LOGS_ATTRIBUTE_SCHEMA } from "../../sql/attributes";
 import type { AttributeFilter, LogLevel } from "../schemas";
-import { logsAttributeColumn } from "./attribute-columns";
 import { LOG_LEVEL_EXPR } from "./level-expr";
 
 export interface WhereInput {
@@ -36,7 +36,7 @@ export function buildWhereClause(input: WhereInput): WhereResult {
 
   const attr = buildAttributeClauses(
     input.attributes ?? [],
-    logsAttributeColumn,
+    LOGS_ATTRIBUTE_SCHEMA.columnFor,
   );
   clauses.push(...attr.clauses);
   Object.assign(params, attr.params);

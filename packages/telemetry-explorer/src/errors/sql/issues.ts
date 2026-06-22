@@ -1,9 +1,9 @@
 import { buildAttributeClauses } from "../../attribute-filter/sql/where";
+import { ERRORS_ATTRIBUTE_SCHEMA } from "../../sql/attributes";
 import type {
   GetErrorIssuesQueryInput,
   SearchErrorIssuesInput,
 } from "../data/schemas";
-import { errorsAttributeColumn } from "./attribute-columns";
 import { ERROR_FINGERPRINT_SQL, EXCEPTION_LOG_FILTER_SQL } from "./fingerprint";
 import { validateTableName } from "./table";
 
@@ -53,7 +53,7 @@ function buildExceptionLogsCte(
 
   const attr = buildAttributeClauses(
     input.attributes ?? [],
-    errorsAttributeColumn,
+    ERRORS_ATTRIBUTE_SCHEMA.columnFor,
   );
   filters.push(...attr.clauses);
   Object.assign(params, attr.params);
@@ -189,7 +189,7 @@ export function buildServicesQuery(
   const filters = [timePredicateSql(), EXCEPTION_LOG_FILTER_SQL];
   const attr = buildAttributeClauses(
     input.attributes ?? [],
-    errorsAttributeColumn,
+    ERRORS_ATTRIBUTE_SCHEMA.columnFor,
   );
   filters.push(...attr.clauses);
   Object.assign(params, attr.params);

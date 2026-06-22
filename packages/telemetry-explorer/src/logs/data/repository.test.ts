@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { SqlClient } from "./client";
+import type { SqlClient } from "../../sql/client";
 import { LogsRepository } from "./repository";
 
 const fakeClient = (rows: unknown[]): SqlClient => ({

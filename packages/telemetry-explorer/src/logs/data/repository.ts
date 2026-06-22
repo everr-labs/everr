@@ -9,6 +9,8 @@ import {
   buildAttributeValuesQuery,
   decodeAttributeValueRows,
 } from "../../attribute-filter/sql/values";
+import { LOGS_ATTRIBUTE_SCHEMA } from "../../sql/attributes";
+import type { SqlClient } from "../../sql/client";
 import type {
   LogAttributeKey,
   LogAttributeKeysInput,
@@ -23,10 +25,6 @@ import type {
   LogsTotalsInput,
   LogsTotalsResult,
 } from "../schemas";
-import {
-  LOGS_ATTRIBUTE_SOURCES,
-  logsAttributeColumn,
-} from "../sql/attribute-columns";
 import {
   buildDetailQuery,
   type DetailRowRaw,
@@ -52,7 +50,6 @@ import {
   decodeTotalsRows,
   type TotalsRowRaw,
 } from "../sql/totals";
-import type { SqlClient } from "./client";
 
 export interface LogsRepositoryOptions {
   tableName?: string;
@@ -125,8 +122,8 @@ export class LogsRepository {
   ): Promise<LogAttributeKey[]> {
     const { sql, params } = buildAttributeKeysQuery(input, {
       tableName: this.tableName,
-      sources: LOGS_ATTRIBUTE_SOURCES,
-      columnFor: logsAttributeColumn,
+      sources: LOGS_ATTRIBUTE_SCHEMA.sources,
+      columnFor: LOGS_ATTRIBUTE_SCHEMA.columnFor,
     });
     const rows = await this.client.execute<AttributeKeyRowRaw>(sql, params);
     return decodeAttributeKeyRows(rows);
@@ -135,7 +132,7 @@ export class LogsRepository {
   async attributeValues(input: LogAttributeValuesInput): Promise<string[]> {
     const { sql, params } = buildAttributeValuesQuery(input, {
       tableName: this.tableName,
-      columnFor: logsAttributeColumn,
+      columnFor: LOGS_ATTRIBUTE_SCHEMA.columnFor,
     });
     const rows = await this.client.execute<AttributeValueRowRaw>(sql, params);
     return decodeAttributeValueRows(rows);
