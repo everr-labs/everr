@@ -25,7 +25,7 @@ export const Route = createRootRoute({
         content: "width=device-width, initial-scale=1",
       },
       {
-        title: "Everr - Every second counts in CI/CD",
+        title: "Everr - Observability made simple",
       },
     ],
     links: [
