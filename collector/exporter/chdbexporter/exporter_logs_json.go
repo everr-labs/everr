@@ -67,6 +67,9 @@ func (e *logsJSONExporter) start(ctx context.Context, _ component.Host) error {
 		if createTableErr := createLogsJSONTable(ctx, e.cfg, e.db); createTableErr != nil {
 			return createTableErr
 		}
+		if migrateErr := migrateLogsTable(ctx, e.cfg, e.db); migrateErr != nil {
+			return migrateErr
+		}
 		if createViewErr := createLocalLogsView(ctx, e.cfg, e.db); createViewErr != nil {
 			return createViewErr
 		}
