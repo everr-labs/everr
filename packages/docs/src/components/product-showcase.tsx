@@ -55,6 +55,20 @@ const BEATS: Beat[] = [
     caption:
       "Our desktop app has a built-in OpenTelemetry collector. Use it to validate the telemetry you have just added, or to debug what's happening in your app. Traces work way better than console.log",
   },
+  {
+    img: "/home/as-code.png",
+    w: 2560,
+    h: 1440,
+    alt: "An Everr notebook defined as a YAML file in the editor, with ClickHouse SQL queries, tracked in git.",
+    title: (
+      <>
+        Versioned in <span className="text-primary">git</span>
+      </>
+    ),
+    caption:
+      "Your observability lives in the repo: review it, edit it, and hand it to agents like any other part of the codebase.",
+    reverse: true,
+  },
 ];
 
 export function ProductShowcase() {

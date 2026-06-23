@@ -53,7 +53,7 @@ Numbered loop (01–04), each with a real artifact where it helps:
 
 ## 3 · See the real thing  — `product-showcase.tsx`
 
-Three real screenshots, one per hero pillar. **No section header** — the screenshots speak for themselves; each beat is title + caption beside a framed shot, alternating sides, scroll-revealed (reduced-motion safe).
+Real product screenshots, **no section header**: the screenshots speak for themselves. Each beat is a title plus caption beside a framed shot, alternating sides, scroll-revealed (reduced-motion safe).
 
 **Beat 1 — Dashboards <span class="lime">as-code</span>** *(pays off "write a dashboard like you write HTML")*
 - **Image:** `/home/dashboard.png` (Node.js Runtime dashboard: event-loop delay, V8 heap by space, GC pause, worker jobs).
@@ -65,21 +65,28 @@ Three real screenshots, one per hero pillar. **No section header** — the scree
 
 **Beat 3 — Test it <span class="lime">locally</span>** *(pays off "test everything locally, before going in production")*
 - **Image:** `/home/native-app.png` (native app Traces view, a five-minute trace flagged before it shipped).
-- **Caption:** Run the app on your machine and catch the trace before it ships. Production shouldn't be your first test.
+- **Caption:** Our desktop app has a built-in OpenTelemetry collector. Use it to validate the telemetry you have just added, or to debug what's happening in your app. Traces work way better than console.log.
+
+**Beat 4 — Versioned in <span class="lime">git</span>** *(everything-as-code, reviewed in the repo)* · reversed layout
+- **Image:** `/home/as-code.png` (an Everr notebook defined as a YAML file in the editor, with ClickHouse SQL queries, tracked in git).
+- **Caption:** Your observability lives in the repo: review it, edit it, and hand it to agents like any other part of the codebase.
 
 **Treatment:** each shot framed (2px `--border` + shadow + faint lime halo on desktop) so the dark product UI separates from the page. Lazy-loaded with intrinsic dimensions (no CLS). WebP export is still a build follow-up.
 
 ---
 
-## 4 · Built on standards, part of your stack  — `tools-explainer.tsx`
+## 4 · Built on standards, no lock-in  — `tools-explainer.tsx`
 
-The one section where the agent story stays prominent, as support rather than the spine. Keeps the orbiting-tools visual. **No eyebrow kicker.**
+Centered headline + body, then three standards pillars (icon, title, blurb). No orbital visual.
 
-**Headline:** Built on standards, no lock-in
+**Headline:** Built on standards, <span class="lime">no lock-in</span>
 
-**Body:**
-- Your observability lives in the repo: review it, edit it, and hand it to agents like any other part of the codebase.
-- *(accent line)* Everr naturally becomes part of your flow.
+**Body:** Standards make the whole system easier to work with. Everr builds on the ones you and your agents already know, so nothing here is yours to be trapped in.
+
+**Pillars:**
+1. **OpenTelemetry** — the standard already supports the languages and frameworks you run. No proprietary agent, no rewrite.
+2. **SQL** — query all your telemetry with plain SQL. Agents already speak it, and it's expressive enough for real telemetry work.
+3. **Perses & Markdown** — dashboards are Perses, runbooks are Markdown. Plain files your LLM already understands
 
 ---
 
@@ -126,6 +133,7 @@ Real assets in `packages/docs/public/home/` (served from `/home/...`):
 - [x] `dashboard.png` — Node.js Runtime dashboard (§3 beat 1).
 - [x] `runbook.png` — Resource pressure runbook (§3 beat 2).
 - [x] `native-app.png` — native app Traces view, five-minute trace flagged (§3 beat 3).
+- [x] `as-code.png` — notebook YAML in the editor, under git (§3 beat 4).
 - [ ] *(build task)* export WebP versions; verify legibility / crops at mobile widths.
 
 ## Open follow-ups
