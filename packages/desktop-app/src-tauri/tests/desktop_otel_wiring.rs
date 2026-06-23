@@ -150,21 +150,24 @@ fn rust_errors_emit_exception_logs() {
 
 #[test]
 fn successful_app_updates_emit_namespaced_execution_log() {
-    let startup = include_str!("../src/startup.rs");
+    let update = include_str!("../src/update.rs");
 
     for expected in [
+        "everr.app.update.staged",
         "everr.app.update.executed",
         "everr.app.update.current_version",
         "everr.app.update.version",
         "everr.app.update.target",
-        "log_app_update_executed(&update)",
+        "everr.app.update.trigger",
+        "log_app_update_staged(&update)",
+        "log_app_update_executed(trigger)",
     ] {
         assert!(
-            startup.contains(expected),
+            update.contains(expected),
             "missing app update telemetry marker {expected}"
         );
     }
 
-    assert!(!startup.contains("\"app.update.executed\""));
-    assert!(!startup.contains("target: \"app.update\""));
+    assert!(!update.contains("\"app.update.executed\""));
+    assert!(!update.contains("target: \"app.update\""));
 }

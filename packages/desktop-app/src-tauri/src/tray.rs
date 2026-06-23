@@ -5,7 +5,7 @@ use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager};
 
 use crate::settings::open_settings_window;
-use crate::{current_app_name, QUIT_MENU_ID, SETTINGS_MENU_ID, TRAY_ICON_ID};
+use crate::{current_app_name, QUIT_MENU_ID, RESTART_UPDATE_MENU_ID, SETTINGS_MENU_ID, TRAY_ICON_ID};
 
 const OPEN_MENU_ID: &str = "open";
 
@@ -23,6 +23,54 @@ fn tray_base_icon() -> Option<Image<'static>> {
             crate::crash_log::log_error("decode tray icon", &anyhow::Error::from(error));
             None
         }
+    }
+}
+
+/// User-facing tray label for the staged-update item.
+pub(crate) fn update_menu_label(version: &str) -> String {
+    format!("Restart to update (v{version})")
+}
+
+/// Builds the tray menu. When `pending_version` is set, the menu includes the
+/// "Restart to update" item above Settings.
+fn build_tray_menu(app: &AppHandle, pending_version: Option<&str>) -> Result<Menu<tauri::Wry>> {
+    let open = MenuItem::with_id(app, OPEN_MENU_ID, "Open", true, None::<&str>)?;
+    let separator = PredefinedMenuItem::separator(app)?;
+    let settings = MenuItem::with_id(app, SETTINGS_MENU_ID, "Settings", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, QUIT_MENU_ID, "Quit", true, None::<&str>)?;
+
+    if let Some(version) = pending_version {
+        let restart = MenuItem::with_id(
+            app,
+            RESTART_UPDATE_MENU_ID,
+            update_menu_label(version),
+            true,
+            None::<&str>,
+        )?;
+        let update_separator = PredefinedMenuItem::separator(app)?;
+        Ok(Menu::with_items(
+            app,
+            &[&open, &separator, &restart, &update_separator, &settings, &quit],
+        )?)
+    } else {
+        Ok(Menu::with_items(app, &[&open, &separator, &settings, &quit])?)
+    }
+}
+
+/// Rebuilds and swaps the tray menu to reflect the staged-update state. Tauri v2
+/// has no in-place menu mutation, so the whole menu is rebuilt; the tray icon's
+/// existing `on_menu_event` handler keeps routing items by id. Best-effort — a
+/// missing tray must never crash the app.
+pub(crate) fn refresh_update_menu_item(app: &AppHandle, pending_version: Option<&str>) {
+    let result = build_tray_menu(app, pending_version).and_then(|menu| {
+        app.tray_by_id(TRAY_ICON_ID)
+            .context("tray icon not found")?
+            .set_menu(Some(menu))
+            .context("failed to set tray menu")?;
+        Ok(())
+    });
+    if let Err(error) = result {
+        crate::crash_log::log_error("refresh tray update item", &error);
     }
 }
 
@@ -75,11 +123,7 @@ pub(crate) fn build_tray(app: &AppHandle) -> Result<()> {
         );
     }
 
-    let open = MenuItem::with_id(app, OPEN_MENU_ID, "Open", true, None::<&str>)?;
-    let separator = PredefinedMenuItem::separator(app)?;
-    let settings = MenuItem::with_id(app, SETTINGS_MENU_ID, "Settings", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, QUIT_MENU_ID, "Quit", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&open, &separator, &settings, &quit])?;
+    let menu = build_tray_menu(app, None)?;
 
     let mut builder = TrayIconBuilder::with_id(TRAY_ICON_ID)
         .menu(&menu)
@@ -101,6 +145,14 @@ pub(crate) fn build_tray(app: &AppHandle) -> Result<()> {
             }
             SETTINGS_MENU_ID => {
                 let _ = open_settings_window(app);
+            }
+            RESTART_UPDATE_MENU_ID => {
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Err(error) = crate::update::apply_pending_update(app, "tray").await {
+                        crate::crash_log::log_error("apply update from tray", &error);
+                    }
+                });
             }
             QUIT_MENU_ID => app.exit(0),
             _ => {}

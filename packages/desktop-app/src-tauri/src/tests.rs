@@ -11,6 +11,7 @@ use crate::notifications::{
 };
 use crate::settings::build_wizard_status_response;
 use crate::startup::sync_installed_global_skills_from_paths;
+use crate::tray::update_menu_label;
 use crate::{
     current_app_name, current_base_url, current_state_store, should_check_for_updates,
     NotificationQueue, APP_NAME, DEV_APP_NAME,
@@ -176,6 +177,11 @@ fn current_app_name_matches_the_build_mode() {
 #[test]
 fn startup_update_checks_are_disabled_in_dev_only() {
     assert_eq!(should_check_for_updates(), !tauri::is_dev());
+}
+
+#[test]
+fn update_menu_label_formats_version_with_v_prefix() {
+    assert_eq!(update_menu_label("0.4.8"), "Restart to update (v0.4.8)");
 }
 
 #[cfg(target_os = "macos")]
