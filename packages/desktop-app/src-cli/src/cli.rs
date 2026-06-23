@@ -14,7 +14,7 @@ pub const MAX_LOG_PAGE_SIZE: u32 = 5000;
     name = "everr",
     version = VERSION_OUTPUT,
     long_version = VERSION_OUTPUT,
-    about = "CLI for CI/CD observability in Everr, designed for humans and agent skills"
+    about = "CLI for observability in Everr, designed for humans and agent skills"
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -79,7 +79,7 @@ pub enum CloudSubcommand {
     Login(LoginArgs),
     /// Log out and clear the local session
     Logout,
-    /// Run a read-only SQL query against cloud CI data
+    /// Run a read-only SQL query against cloud telemetry data
     Query(TelemetryQueryArgs),
 }
 

@@ -39,8 +39,8 @@ function BlogIndex() {
             Updates & insights
           </h1>
           <p className="mt-4 max-w-2xl text-lg text-fd-muted-foreground">
-            Product updates, engineering deep dives, and CI/CD best practices
-            from the Everr team.
+            Product updates, engineering deep dives, and observability best
+            practices from the Everr team.
           </p>
         </section>
 
