@@ -1,5 +1,13 @@
 # @everr/desktop-app
 
+## 0.4.7
+
+### Patch Changes
+
+- eed341a: Update CLI help text to reflect Everr's unified observability positioning instead of CI/CD-specific framing. The top-level `about` description now reads "CLI for observability in Everr" and the cloud `query` command describes running SQL against "cloud telemetry data" rather than "cloud CI data".
+- 48ce4e3: Fix "Failed to load logs" in the logs explorer. The embedded collector's local `otel_logs` table was missing the `TimestampTime` column that log queries filter on, so every query failed with `Unknown identifier TimestampTime`. New installs now create the column, and existing installs are migrated on startup with an idempotent `ADD COLUMN IF NOT EXISTS`.
+- 2965171: Fix the `upgrade.sh` script to run on Linux (e.g. Ubuntu) by making it POSIX `sh` compatible. It previously used `set -o pipefail`, which fails under `dash` (the default `/bin/sh` on Ubuntu), so `curl … | sh` aborted before upgrading. It now matches `install.sh` with a `#!/bin/sh` shebang and `set -eu`.
+
 ## 0.4.6
 
 ### Patch Changes
