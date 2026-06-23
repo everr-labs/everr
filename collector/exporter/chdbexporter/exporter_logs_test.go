@@ -66,7 +66,7 @@ func TestRenderCreateLogsTableSQL(t *testing.T) {
 
 		require.Contains(t, sql, "toStartOfFiveMinutes(Timestamp)")
 		require.Contains(t, sql, "`test_db`.`otel_logs`")
-		require.NotContains(t, sql, "TimestampTime")
+		require.Contains(t, sql, "`TimestampTime` DateTime DEFAULT toDateTime(Timestamp)")
 		require.Contains(t, sql, "EventName")
 		require.Contains(t, sql, "__otel_materialized_k8s.namespace.name")
 		require.Contains(t, sql, "__otel_materialized_deployment.environment.name")
@@ -84,7 +84,7 @@ func TestRenderCreateLogsTableSQL(t *testing.T) {
 
 		require.Contains(t, sql, "toStartOfFiveMinutes(Timestamp)")
 		require.Contains(t, sql, "`test_db`.`otel_logs`")
-		require.NotContains(t, sql, "TimestampTime")
+		require.Contains(t, sql, "`TimestampTime` DateTime DEFAULT toDateTime(Timestamp)")
 		require.Contains(t, sql, "EventName")
 		require.Contains(t, sql, "__otel_materialized_k8s.namespace.name")
 	})
@@ -115,6 +115,7 @@ func TestRenderCreateLogsJSONTableSQL(t *testing.T) {
 	require.Contains(t, sql, "`ResourceAttributes` JSON")
 	require.Contains(t, sql, "`ScopeAttributes` JSON")
 	require.Contains(t, sql, "`LogAttributes` JSON")
+	require.Contains(t, sql, "`TimestampTime` DateTime DEFAULT toDateTime(Timestamp)")
 
 	require.Contains(t, sql, "toStartOfFiveMinutes(Timestamp)")
 	require.Contains(t, sql, "`test_db`.`otel_logs_json`")

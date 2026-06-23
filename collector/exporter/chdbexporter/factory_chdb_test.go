@@ -109,6 +109,33 @@ func TestFactoryWithHandleCreatesProductionFacingLocalViews(t *testing.T) {
 	require.Contains(t, queries, `CREATE VIEW IF NOT EXISTS "default"."metrics_summary" AS SELECT * FROM "default"."otel_metrics_summary"`)
 }
 
+func TestFactoryRunsLogsSchemaMigrationOnStart(t *testing.T) {
+	t.Cleanup(chdb.ResetForTesting)
+	session := &fakeChDBSession{}
+	handle, err := chdb.Open(filepath.Join(t.TempDir(), "chdb"), chdb.WithSessionFactory(func(path string) (chdb.Session, error) {
+		session.path = path
+		return session, nil
+	}))
+	require.NoError(t, err)
+
+	factory := NewFactoryWithHandle(handle)
+	cfg := withDefaultConfig()
+	params := exportertest.NewNopSettings(metadata.Type)
+
+	logsExporter, err := factory.CreateLogs(t.Context(), params, cfg)
+	require.NoError(t, err)
+	require.NoError(t, logsExporter.Start(t.Context(), nil))
+	require.NoError(t, logsExporter.Shutdown(t.Context()))
+
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	queries := joinedQueries(session.queries)
+	// Existing installs created their logs table before TimestampTime existed;
+	// startup must issue an idempotent migration to add the production column.
+	require.Contains(t, queries, "ALTER TABLE `default`.`otel_logs`")
+	require.Contains(t, queries, "ADD COLUMN IF NOT EXISTS `TimestampTime` DateTime DEFAULT toDateTime(Timestamp)")
+}
+
 func TestFactoryWithHandleSkipsLocalViewsWhenRawNamesMatch(t *testing.T) {
 	t.Cleanup(chdb.ResetForTesting)
 	session := &fakeChDBSession{}
