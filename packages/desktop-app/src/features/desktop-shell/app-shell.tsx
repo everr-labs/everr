@@ -26,6 +26,7 @@ import {
   useSignOutMutation,
   useUserProfileQuery,
 } from "../auth/auth";
+import { AppUpdateButton } from "./app-update";
 
 export function AppShell() {
   useIsFullscreen();
@@ -53,7 +54,8 @@ export function AppShell() {
               <Code className="size-[18px]" />
             </SidebarLink>
           )}
-          <div className="mt-auto">
+          <div className="mt-auto flex flex-col items-center gap-1.5">
+            <AppUpdateButton />
             <AuthStatusIndicator />
           </div>
         </nav>
