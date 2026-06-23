@@ -30,27 +30,19 @@ export function ToolsExplainer() {
       </div>
 
       <div className="relative z-10 col-start-1 row-start-1 text-left md:col-start-2 md:text-right">
-        <p className="font-heading text-[11px] font-bold uppercase tracking-[0.3em] text-fd-muted-foreground/60">
-          Editor-agnostic · Agent-agnostic
-        </p>
-        <h2 className="mt-4 font-heading text-4xl leading-[1.05] sm:text-5xl md:text-6xl">
-          Your tools.
-          <br className="hidden sm:block" /> Your rules.
+        <h2 className="mt-4 text-balance font-heading text-4xl leading-[1.05] sm:text-5xl md:text-6xl">
+          Built on standards,{" "}
+          <span className="relative everr-decoration everr-decoration-primary">
+            no lock-in
+          </span>
         </h2>
         <div className="prose mt-8 space-y-5 text-base leading-relaxed text-fd-muted-foreground sm:text-lg md:ml-auto md:max-w-md">
           <p>
-            Observability shouldn't be <strong>prescriptive</strong>. We don't
-            care which editor you opened this morning, which model is in your
-            terminal, or which agent shipped that PR while you were asleep.
-          </p>
-          <p>
-            Everr meets your work where it{" "}
-            <span className="text-fd-foreground">already happens</span> — VS
-            Code, Cursor, Zed, JetBrains, Claude Code, Codex, Copilot, every CLI
-            in between.
+            Your observability lives in the repo: review it, edit it, and hand
+            it to agents like any other part of the codebase.
           </p>
           <p className="font-heading text-sm font-bold uppercase tracking-[0.2em] text-fd-foreground">
-            Everr doesn't replace your stack, it improves it.
+            Everr naturally becomes part of your flow
           </p>
         </div>
       </div>

@@ -12,7 +12,7 @@ export function Community() {
       />
 
       <div className="relative mx-auto max-w-7xl px-6 py-16 sm:py-20 md:py-28">
-        <p className="font-heading text-[11px] font-bold uppercase tracking-[0.3em] text-primary-foreground/60">
+        <p className="font-heading text-[11px] font-bold uppercase tracking-[0.3em] text-primary-foreground/80">
           Community
         </p>
 

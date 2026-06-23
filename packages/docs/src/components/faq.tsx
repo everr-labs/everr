@@ -16,11 +16,10 @@ const FAQS: FaqItem[] = [
     q: "Does Everr replace Datadog / Grafana / Honeycomb?",
     a: (
       <>
-        Not yet, but we're working on it! We are currently focused on local
-        observability. Everr lives{" "}
-        <strong className="text-fd-foreground">upstream</strong> — your laptop,
-        CI, and agent runs your existing tools never see. Production
-        observability is a natural next step.
+        Yes! Those tools are built for platform and SRE teams. Everr is built
+        for <strong className="text-fd-foreground">people like us</strong> that
+        have to move fast and don't have the time to learn a new complicated
+        tool.
       </>
     ),
   },
@@ -28,9 +27,12 @@ const FAQS: FaqItem[] = [
     q: "Where is my telemetry stored?",
     a: (
       <>
-        On the device that produced it. Local-first by default. If you want a
-        shared cluster for your team we host one — but it's never required and
-        nothing leaves your machine until you opt in.
+        Local telemetry stays{" "}
+        <strong className="text-fd-foreground">on your machine</strong>. The
+        desktop app and local collector are designed for that fast feedback
+        loop. Production and shared team telemetry goes to Everr Cloud, backed
+        by ClickHouse, so you can query it with the same SQL shape without
+        running storage yourself.
       </>
     ),
   },
@@ -38,9 +40,11 @@ const FAQS: FaqItem[] = [
     q: "Do I have to instrument my code?",
     a: (
       <>
-        If your runtime speaks OpenTelemetry, you're already done. If not, OTel
-        SDKs are already in every model's training data — point your agent at
-        the codebase and it will wire it up faster than you can read the docs.
+        Yes, because useful observability needs real spans, logs, metrics, and
+        errors from your app. We make that setup small: Everr is{" "}
+        <strong className="text-fd-foreground">OpenTelemetry-native</strong>,
+        the SDKs already exist for your stack, and the Everr agent skill can
+        wire the right instrumentation into your codebase.
       </>
     ),
   },
@@ -48,9 +52,11 @@ const FAQS: FaqItem[] = [
     q: "Does it work in CI?",
     a: (
       <>
-        Yes. Drop the same binary into a GitHub Actions step. The data model,
-        SQL surface, and APIs are identical to what you run locally — so
-        identifying a CI regression is literally one query away.
+        Yes. Install the{" "}
+        <strong className="text-fd-foreground">Everr GitHub App</strong>, run
+        Everr in your workflows, and CI becomes another telemetry source instead
+        of a black box. You can inspect slow jobs, flaky tests, failing steps,
+        and resource usage with the same SQL and dashboards you use locally.
       </>
     ),
   },
@@ -58,8 +64,10 @@ const FAQS: FaqItem[] = [
     q: "How do AI agents query Everr?",
     a: (
       <>
-        Through one structured API and plain SQL via a CLI so Claude Code,
-        Cursor, Codex, Copilot, and friends can hit it without any glue code.
+        With <strong className="text-fd-foreground">SQL through the CLI</strong>
+        . Agents are good at SQL, and SQL is very expressive for real telemetry
+        work: filtering traces, grouping logs, comparing runs, spotting
+        regressions, and drafting dashboards from the same data you see.
       </>
     ),
   },
@@ -67,8 +75,10 @@ const FAQS: FaqItem[] = [
     q: "What does it cost?",
     a: (
       <>
-        Free for local use, forever. You only pay when you want a hosted
-        cluster, premium support, or longer retention.
+        Local telemetry is <strong className="text-fd-foreground">free</strong>.
+        Everr Cloud has a generous free plan for hosted and shared telemetry,
+        then usage-based billing as you grow. You pay for cloud storage,
+        retention, and usage, not for validating telemetry on your own machine.
       </>
     ),
   },
@@ -80,7 +90,7 @@ export function FAQ() {
       <div className="mx-auto max-w-7xl px-6 py-24 md:py-32">
         <div className="grid gap-12 md:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] md:gap-20">
           <div>
-            <p className="font-heading text-[11px] font-bold uppercase tracking-[0.3em] text-fd-muted-foreground/60">
+            <p className="font-heading text-[11px] font-bold uppercase tracking-[0.3em] text-fd-muted-foreground">
               FAQ
             </p>
             <h2 className="mt-4 font-heading text-4xl leading-none sm:text-5xl md:text-6xl">

@@ -14,7 +14,7 @@ export function Footer() {
               <span className="text-2xl">Everr</span>
             </div>
             <p className="mt-4 text-sm text-fd-muted-foreground">
-              The AI-native observability platform.
+              Software delivery intelligence for developers and AI agents.
             </p>
             <div className="mt-4 flex items-center justify-center gap-6 sm:gap-4 sm:justify-start">
               <a

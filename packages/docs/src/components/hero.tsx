@@ -1,114 +1,84 @@
 import { Button } from "@everr/ui/components/button";
+import { SiGithub } from "@icons-pack/react-simple-icons";
 import { Link } from "@tanstack/react-router";
-// import { Check, Copy } from "lucide-react";
-// import { useState } from "react";
+import { GITHUB_URL } from "@/constants";
 import { HexagonPattern } from "./hexagon-pattern";
-
-// const INSTALL_COMMAND = "curl -fsSL https://everr.dev/install.sh | sh";
+import { InstallCommand } from "./install-command";
 
 export function Hero() {
-  // const [copied, setCopied] = useState(false);
-
-  // const handleCopy = async () => {
-  //   try {
-  //     await navigator.clipboard.writeText(INSTALL_COMMAND);
-  //     setCopied(true);
-  //     setTimeout(() => setCopied(false), 2000);
-  //   } catch {
-  //     // ignore
-  //   }
-  // };
-
   return (
     <div className="relative overflow-hidden md:flex md:min-h-[100svh] md:items-end">
       <div className="w-full px-6 pb-12 pt-28 sm:px-8 sm:pb-16 sm:pt-32 md:mb-24 md:px-12 md:pb-0 md:pt-0">
         <h1
           style={{ animationDelay: "0.3s" }}
-          className="animate-fade-up font-heading text-5xl leading-[1.02] sm:text-6xl sm:leading-[1.05] md:text-7xl md:leading-[1.1] lg:text-8xl/24 lg:max-w-[66%]"
+          className="animate-fade-up max-w-4xl text-balance font-heading text-4xl leading-[1.05] sm:text-5xl md:text-7xl md:leading-[1.02] lg:text-8xl lg:leading-[1]"
         >
-          Observing production systems is{" "}
+          Observability is{" "}
           <span className="relative everr-decoration everr-decoration-primary m-0">
-            too late
+            damn hard
           </span>
+          .
         </h1>
 
         <div
-          className="prose animate-fade-up mb-6 mt-6 max-w-3xl text-base text-fd-muted-foreground sm:text-lg md:mt-10 md:mb-4"
+          className="animate-fade-up mb-8 mt-7 max-w-2xl space-y-4 text-base leading-relaxed text-fd-muted-foreground sm:text-lg md:mb-10"
           style={{ animationDelay: "0.5s" }}
         >
-          <p className="hidden sm:block">
-            Observability today is trapped behind dashboards, and most "AI
-            integrations" are just legacy tooling with a ChatGPT wrapper slapped
-            on top.
+          <p>
+            After experiencing it ourselves, many times, we decided to build
+            something that makes doing observability{" "}
+            <span className="text-fd-foreground">
+              as easy as building a web app
+            </span>
+            .
           </p>
           <p>
-            Everr gives you — and your AI agents — direct access to the signals
-            that matter. Wherever your code runs: locally, in CI, inside remote
-            sandboxes.
-          </p>
-          <p className="hidden sm:block">
-            No context switching. No black boxes. Just observability built for
-            the AI-native era.
+            Write a dashboard like you write{" "}
+            <span className="text-fd-foreground">HTML</span>, and runbooks the
+            same way you write <span className="text-fd-foreground">docs</span>.
+            Test everything <span className="text-fd-foreground">locally</span>,
+            before going in production.
           </p>
         </div>
 
-        {/* CTAs — waitlist + docs. Stacks full-width on mobile, sits inline on desktop. */}
+        {/* Primary CTA: copy + run the install command. Docs / GitHub secondary. */}
         <div
-          className="flex animate-fade-up flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:gap-4"
+          className="animate-fade-up flex max-w-xl flex-col gap-3"
           style={{ animationDelay: "0.8s" }}
         >
-          <Button
-            variant="cta"
-            size="xl"
-            nativeButton={false}
-            render={<Link to="/waitlist" />}
-            className="w-full sm:w-auto"
-          >
-            Join the waitlist
-          </Button>
-          <Button
-            variant="outline"
-            size="xl"
-            nativeButton={false}
-            render={<Link to="/docs/$" params={{ _splat: "" }} />}
-            className="w-full sm:w-auto"
-          >
-            Documentation
-          </Button>
+          <InstallCommand />
+          <p className="px-1 font-mono text-xs text-fd-muted-foreground">
+            macOS &amp; Linux
+          </p>
+          <div className="mt-2 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
+            <Button
+              variant="outline"
+              size="xl"
+              nativeButton={false}
+              render={<Link to="/docs/$" params={{ _splat: "" }} />}
+              className="w-full sm:w-auto"
+            >
+              Documentation
+            </Button>
+            <Button
+              variant="ghost"
+              size="xl"
+              nativeButton={false}
+              className="w-full sm:w-auto"
+              render={
+                // biome-ignore lint/a11y/useAnchorContent: content is injected
+                <a
+                  href={GITHUB_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                />
+              }
+            >
+              <SiGithub className="size-5" />
+              GitHub
+            </Button>
+          </div>
         </div>
-
-        {/* Pre-launch: install command box is hidden until we ship.
-            Uncomment when ready to launch.
-
-        <div
-          className="hidden w-full max-w-xl animate-fade-up items-center gap-3 rounded-md border-2 border-fd-border bg-fd-card px-4 py-3.5 md:flex"
-          style={{ animationDelay: "0.8s" }}
-        >
-          <span
-            aria-hidden="true"
-            className="select-none font-mono text-sm text-primary"
-          >
-            $
-          </span>
-          <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-mono text-sm text-fd-foreground">
-            {INSTALL_COMMAND}
-          </code>
-          <button
-            type="button"
-            onClick={handleCopy}
-            aria-label="Copy install command"
-            className="flex shrink-0 items-center gap-1.5 rounded-sm px-3 py-2 font-heading text-xs font-bold uppercase tracking-[0.2em] text-fd-muted-foreground outline-2 outline-dotted outline-transparent outline-offset-2 ring-offset-background transition-colors hover:text-primary focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-[3px]"
-          >
-            {copied ? (
-              <Check className="size-4" aria-hidden="true" />
-            ) : (
-              <Copy className="size-4" aria-hidden="true" />
-            )}
-            <span>{copied ? "Copied" : "Copy"}</span>
-          </button>
-        </div>
-
-        */}
       </div>
       <HexagonPattern
         gap={6}

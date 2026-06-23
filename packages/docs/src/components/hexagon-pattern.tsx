@@ -26,8 +26,8 @@ interface HexagonPatternProps extends React.SVGProps<SVGSVGElement> {
   y?: number;
   /**
    * Controls the orientation of the hexagons.
-   * - `"horizontal"` — flat-top hexagons tiled in a horizontal honeycomb grid.
-   * - `"vertical"` — pointy-top hexagons tiled in a vertical honeycomb grid.
+   * - `"horizontal"`: flat-top hexagons tiled in a horizontal honeycomb grid.
+   * - `"vertical"`: pointy-top hexagons tiled in a vertical honeycomb grid.
    * @default "horizontal"
    */
   direction?: "horizontal" | "vertical";
@@ -38,7 +38,7 @@ interface HexagonPatternProps extends React.SVGProps<SVGSVGElement> {
   strokeDasharray?: string;
   /**
    * Array of [col, row] coordinates for hexagons that should be highlighted
-   * (filled) on top of the repeating pattern — mirrors the `squares` prop of
+   * (filled) on top of the repeating pattern, mirrors the `squares` prop of
    * GridPattern.
    */
   hexagons?: Array<[col: number, row: number]>;
