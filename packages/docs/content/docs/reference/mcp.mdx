@@ -1,0 +1,85 @@
+---
+title: MCP Server
+description: Connect an AI client to query your telemetry over the Model Context Protocol.
+---
+
+## Overview
+
+Everr exposes a read-only [MCP](https://modelcontextprotocol.io) server so AI clients (Claude, Cursor, the MCP Inspector, …) can query your organization's telemetry directly. It is intended for cases the CLI and skills don't cover — ad-hoc, model-driven exploration. It exposes a single tool, `run_sql`, and is strictly read-only.
+
+## Endpoint
+
+| | |
+| --- | --- |
+| URL | `<your-everr-host>/mcp` |
+| Transport | Streamable HTTP |
+| Auth | OAuth 2.1 (see below) |
+
+Use your Everr app URL with the `/mcp` path — for example `https://app.example.com/mcp`, or `http://127.0.0.1:5173/mcp` against a local dev server.
+
+## Authentication
+
+The endpoint is an OAuth 2.0 **resource server**; Everr itself is the authorization server. There is **no manual client ID or secret** — the client registers itself dynamically and walks the standard browser login:
+
+1. The client calls `/mcp`, receives `401` with a `WWW-Authenticate` challenge, and discovers the authorization server via `/.well-known/oauth-protected-resource`.
+2. It dynamically registers (RFC 7591) and runs authorization-code + PKCE.
+3. You log in in the browser; the client receives a short-lived access token with the `observability:read` scope.
+
+Tokens are scoped read-only. Queries run against your **last-used organization** (the one active in the Everr app), falling back to your first organization membership; membership is re-checked on every call.
+
+## Connecting a client
+
+**Claude Code**
+
+```shell
+claude mcp add --transport http everr <your-everr-host>/mcp
+```
+
+Then run `/mcp` in a session to complete the browser login.
+
+**Claude Desktop** — Settings → Connectors → Add custom connector → paste `<your-everr-host>/mcp`.
+
+**MCP Inspector**
+
+```shell
+npx @modelcontextprotocol/inspector
+```
+
+Add a Streamable HTTP server with the URL `<your-everr-host>/mcp` and connect.
+
+**Generic `mcp.json`** (Cursor, Windsurf, …)
+
+```json
+{ "mcpServers": { "everr": { "url": "<your-everr-host>/mcp" } } }
+```
+
+## Tools
+
+### `run_sql`
+
+Run a read-only ClickHouse SQL query against your organization's telemetry.
+
+| Argument | Type | Description |
+| --- | --- | --- |
+| `sql` | string | A single read-only SQL statement. |
+
+Readable tables (the per-organization, row-policy-scoped views):
+
+- `traces`
+- `logs`
+- `metrics_gauge`
+- `metrics_sum`
+- `metrics_histogram`
+- `metrics_exponential_histogram`
+- `metrics_summary`
+
+Discover a table's columns with `SELECT * FROM <table> LIMIT 1`.
+
+The result is returned as newline-delimited JSON (one object per row), or `(0 rows)` when empty.
+
+## Limits and behavior
+
+- **Read-only.** Writes and DDL are rejected by the ClickHouse role; only `SELECT` on the tables above is permitted.
+- **Tenant isolation.** Every query runs as your organization's ClickHouse user with row policies — you only ever see your own organization's data.
+- **Caps.** Queries are bounded by the SQL API limits (`max_execution_time = 30s`, `max_result_rows = 1000`, and a memory cap).
+- **Errors.** Authentication failures return `401`; query failures (syntax errors, references to non-readable tables) come back as tool errors with a sanitized message rather than leaking schema details.
