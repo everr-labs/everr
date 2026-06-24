@@ -28,14 +28,14 @@ export function FeaturedTestimonial() {
 
           <blockquote className="mt-6 font-heading text-2xl leading-[1.2] tracking-tight text-fd-foreground sm:text-3xl md:text-4xl">
             “Our first platform needed a dedicated team just to stand up. The
-            next one was easier, but we were quietly paying{" "}
+            next one was easier, but we were paying{" "}
             <span className="text-primary">$700 a month</span> for data we
-            couldn’t even account for. Everr is the first observability simple
-            enough that the whole team actually uses it —{" "}
+            couldn’t even account for. Everr is the first observability platform
+            simple enough that the whole team actually uses it —{" "}
             <span className="text-primary">
-              humans and our coding agents querying the same data
+              and every bit as powerful as the heavyweight tools we left behind
             </span>
-            , no specialist required. It just became how we work.”
+            . It just became how we work.”
           </blockquote>
 
           <figcaption className="mt-8 flex items-center gap-4">
