@@ -6,6 +6,7 @@ import { createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
 import {
   bearer,
   deviceAuthorization,
+  mcp,
   organization as organizationPlugin,
 } from "better-auth/plugins";
 import { createAccessControl } from "better-auth/plugins/access";
@@ -425,6 +426,37 @@ export const auth = betterAuth({
         }),
       ],
     }),
+    mcp({
+      loginPage: "/auth/sign-in",
+      resource: `${env.BETTER_AUTH_URL.replace(/\/$/, "")}/api/mcp`,
+      // Better Auth reads top-level `metadata` at runtime for the AS discovery
+      // doc (getMCPProviderMetadata spreads `...options.metadata`) but omits it
+      // from the MCPOptions type — hence the cast below. `oidcConfig.metadata`
+      // drives the PRM doc. Set both so both advertise `observability:read`.
+      metadata: {
+        scopes_supported: [
+          "openid",
+          "profile",
+          "email",
+          "offline_access",
+          "observability:read",
+        ],
+      },
+      oidcConfig: {
+        loginPage: "/auth/sign-in",
+        scopes: ["observability:read"],
+        defaultScope: "observability:read",
+        metadata: {
+          scopes_supported: [
+            "openid",
+            "profile",
+            "email",
+            "offline_access",
+            "observability:read",
+          ],
+        },
+      },
+    } as Parameters<typeof mcp>[0]),
     tanstackStartCookies(), // must be last
   ],
   logger: {
