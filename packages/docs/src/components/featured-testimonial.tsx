@@ -27,15 +27,13 @@ export function FeaturedTestimonial() {
           />
 
           <blockquote className="mt-6 font-heading text-2xl leading-[1.2] tracking-tight text-fd-foreground sm:text-3xl md:text-4xl">
-            “Our first platform needed a dedicated team just to stand up. The
-            next one was easier, but we were paying{" "}
-            <span className="text-primary">$700 a month</span> for data we
-            couldn’t even account for. Everr is the first observability platform
-            simple enough that the whole team actually uses it —{" "}
-            <span className="text-primary">
-              and every bit as powerful as the heavyweight tools we left behind
-            </span>
-            . It just became how we work.”
+            “The first tool we tried took a whole team just to keep running. We
+            moved to something cheaper and still ended up paying{" "}
+            <span className="text-primary">$700 a month</span> for data I
+            couldn’t really explain. Everr is the first one my whole team
+            actually uses. And it’s not the watered-down version: it does
+            everything the big platforms did, we just don’t need anyone
+            babysitting it. It’s how we work now.”
           </blockquote>
 
           <figcaption className="mt-8 flex items-center gap-4">
