@@ -7,6 +7,7 @@ import { Hero } from "@/components/hero";
 import { HowItWorks } from "@/components/how-it-works";
 import { Species } from "@/components/species";
 import { ToolsExplainer } from "@/components/tools-explainer";
+import { VideoSection } from "@/components/video-section";
 
 export const Route = createFileRoute("/")({
   component: RouteComponent,
@@ -17,6 +18,7 @@ function RouteComponent() {
     <div className="overflow-x-clip">
       <Hero />
       <Species />
+      <VideoSection />
       <ToolsExplainer />
       <HowItWorks />
       <FAQ />
