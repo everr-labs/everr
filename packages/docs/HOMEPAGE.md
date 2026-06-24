@@ -36,6 +36,24 @@ agents** can use it too.
 > — prominent, top-of-page, not buried mid-page. Going to a literal agent-first
 > H1 is a deliberate identity change, not a default; raise it with Gio first.
 
+### Lead with the wedge — demonstrably, in human words (before the pillars)
+
+Reviewers were unanimous: open with the differentiator *shown*, not asserted, and
+before any pillar list.
+- **Make the agent wedge demonstrable in the hero:** a real **agent-query
+  snippet** — the call an agent makes to Everr **and the JSON it gets back**. The
+  developer wants to see the actual request/response, not a claim. Keep it
+  human-readable (one short query → a compact JSON answer). Plain-language lead
+  first, snippet as the proof. *(Note: this is the agent wedge made concrete —
+  not the removed business "join".)*
+- **Above-the-fold proof — this is what turns a CTO's "let's meet" into a POC:**
+  - **One named design partner / reference: SkillVue**, with a **quote from their
+    CTO.** We have the quote — fill in the exact words + the CTO's name. A real
+    logo + attributed quote up top is the single biggest credibility lever here.
+  - **A consolidation-TCO number:** e.g. "replaced N tools / cut observability
+    spend ~X%." Must be real/sourced — never invent it.
+  - Plus the production number from Pillar 2.
+
 ### Three pillars — everything else is *proof* under these
 
 **Pillar 1 — Agent-native (the wedge). Lead with this.**
@@ -161,20 +179,23 @@ Status legend: ✅ implemented · 🟧 placeholder stub (in `placeholder-section
 H1 "Observability made simple. For Real." (identity) + subcopy + primary CTA, with
 the animated `HoleBackground` and a tilted product screenshot (`/screenshot.png`).
 **Scope:**
-- Subhead leads with the **agent wedge** (Pillar 1) — it's the lead
-  differentiator, prominent at the top, not mid-page.
-- **Put one real production number above the fold** (Pillar 2) — a stat chip near
-  the hero (active-series ceiling / p99 at cardinality / cost-vs-Datadog). Must
-  be real; leave a clearly-marked placeholder if not yet sourced.
+- Subhead leads with the **agent wedge** (Pillar 1) in human words, made
+  **demonstrable** with an **agent-query snippet** (the call + the JSON back) —
+  prominent at the top, not mid-page.
+- **Above the fold, add the proof that converts a meeting into a POC:** the
+  **SkillVue** design-partner logo + **CTO quote** (fill in the real words), a
+  **consolidation-TCO number** ("replaced N tools / ~X% spend cut"), and **one
+  real production number** (active-series ceiling / p99 at cardinality /
+  cost-vs-Datadog). All must be real; mark any placeholder clearly.
 - Define the category in plain language; don't lead with AI-as-feature.
 - ⚠️ CTA currently points at the waitlist — drop the pre-launch framing
   (→ "Get started" / "Docs").
 
 ### Logo cloud / social proof — 🟧 `LogoCloud`
 Adopter logos + an open-source proof signal (GitHub stars badge, "Open source"
-pill) directly under the hero.
+pill) directly under the hero. Anchor with the **SkillVue** design-partner logo.
 **Why:** social proof is table stakes; OSS is the #4 buying criterion (25%).
-**Scope:** real adopters/logos only. No placeholder brands at launch.
+**Scope:** real adopters/logos only (SkillVue is real). No placeholder brands.
 
 ### Species (value-prop statement) — ✅ `species.tsx`
 Big typographic thesis line.
@@ -243,7 +264,9 @@ bills"). Keep consistent with the FAQ pricing answer; don't invent tiers.
 
 ### Testimonials — 🟧 `Testimonials`
 2–4 real, attributable quote cards reinforcing consolidation, simplicity, and time
-saved. Leave the stub until real quotes exist.
+saved. **Anchor with the SkillVue CTO quote** (we have it — fill in exact words +
+name); the same quote also runs above the fold (see Hero). Leave the other slots
+until real quotes exist.
 
 ### FAQ — ✅ `faq.tsx`
 **Scope:** ⚠️ the "Does Everr replace Datadog…? — Not yet…" answer contradicts §1.

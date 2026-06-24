@@ -89,14 +89,15 @@ export function LogoCloud() {
   return (
     <PlaceholderSection
       title="Logo cloud / social proof"
-      purpose="Establish instant credibility under the hero with adopter logos and an open-source proof signal (GitHub stars)."
+      purpose="Establish instant credibility under the hero — anchor with the SkillVue design-partner logo, plus an open-source proof signal (GitHub stars)."
       todos={[
+        "Anchor with the SkillVue design-partner logo (named reference)",
         "Grayscale logo strip (6–10 logos), responsive wrap on mobile",
-        '"Trusted by teams at…" / "Used in production by…" eyebrow',
+        '"Trusted by teams at…" / "Design partner" eyebrow',
         "Add a live GitHub stars badge + 'Open source' pill — OSS is itself a trust + buying signal",
-        "Use real adopters / notable OSS users only — no placeholder logos at launch",
+        "Use real adopters only (SkillVue is real) — no placeholder logos",
       ]}
-      evidence="Social proof is table stakes, and Grafana 2026 shows open source is the #4 selection criterion (25%) with 77% saying open standards matter — so OSS credibility belongs in the trust strip, not buried."
+      evidence="A named design partner + CTO quote is what converts a CTO's 'let's meet' into a POC. Grafana 2026: open source is the #4 selection criterion (25%), 77% value open standards — OSS credibility belongs in the trust strip."
     />
   );
 }
@@ -210,14 +211,15 @@ export function Testimonials() {
   return (
     <PlaceholderSection
       title="Testimonials"
-      purpose="Back the claims with the voices of real practitioners — quotes that speak to simplicity and time saved."
+      purpose="Back the claims with the voices of real practitioners — anchored by the SkillVue CTO quote (also runs above the fold)."
       todos={[
+        "ANCHOR: SkillVue CTO quote — FILL IN the exact words + CTO name (we have it)",
+        '   → "[SkillVue CTO quote — paste here]" — [Name], CTO, SkillVue',
         "2–4 quote cards: name, role, company, avatar",
-        "Pick quotes that reinforce complexity reduction & fast time to value",
-        "Optional: pull a standout metric ('cut our tools from 8 to 1')",
-        "Only use real, attributable quotes at launch",
+        "Pick quotes that reinforce consolidation, simplicity & fast time to value",
+        "Only use real, attributable quotes — no invented testimonials",
       ]}
-      evidence="Peer validation is a core trust signal; quotes that echo the page's complexity/ease/openness thesis reinforce the GTM message."
+      evidence="A named reference + CTO quote is the single biggest credibility lever (converts a meeting into a POC). Peer validation echoing the page's consolidation/simplicity thesis reinforces the GTM message."
     />
   );
 }
