@@ -9,7 +9,6 @@ import { HowItWorks } from "@/components/how-it-works";
 import {
   AIAssistant,
   Features,
-  LogoCloud,
   OpenStandards,
   PricingTeaser,
   ProblemToolSprawl,
@@ -27,7 +26,6 @@ function RouteComponent() {
   return (
     <div className="overflow-x-clip">
       <Hero />
-      <LogoCloud />
       <Species />
       <ProblemToolSprawl />
       <OpenStandards />

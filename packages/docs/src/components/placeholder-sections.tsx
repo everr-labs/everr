@@ -123,7 +123,11 @@ function PlaceholderSection({
   );
 }
 
-/** Trust strip under the hero — named design partner + open-source traction. */
+/**
+ * Trust strip under the hero — named design partner + open-source traction.
+ * @expected-unused Pulled from the homepage while we only have one logo; kept
+ * in source to drop back in once we have enough partners to fill the strip.
+ */
 export function LogoCloud() {
   return (
     <div>
