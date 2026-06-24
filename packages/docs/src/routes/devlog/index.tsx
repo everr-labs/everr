@@ -62,13 +62,6 @@ function DevlogIndex() {
           </h1>
           <div className="mt-6 max-w-2xl space-y-4 text-fd-muted-foreground">
             <p>
-              We're building an observability platform for developers and AI
-              agents, because understanding what your code is doing is still
-              harder than it should be, whether you're a person staring at a
-              failed run or an agent trying to validate the code it just
-              shipped.
-            </p>
-            <p>
               With Everr we want to bring AI into the software development
               lifecycle, making observability a natural part of your stack
               instead of a separate discipline, and guiding your team toward the
