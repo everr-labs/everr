@@ -19,7 +19,10 @@ import { Route as ApiApplyRouteImport } from './routes/api/apply'
 import { Route as AuthenticatedDeviceRouteImport } from './routes/_authenticated/device'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/_dashboard'
 import { Route as AuthGuestRouteImport } from './routes/_auth/_guest'
+import { Route as DotwellKnownOauthProtectedResourceRouteImport } from './routes/[.]well-known/oauth-protected-resource'
+import { Route as DotwellKnownOauthAuthorizationServerRouteImport } from './routes/[.]well-known/oauth-authorization-server'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/_dashboard/index'
+import { Route as ApiMcpSplatRouteImport } from './routes/api/mcp/$'
 import { Route as ApiInternalVerifyKeyRouteImport } from './routes/api/internal/verify-key'
 import { Route as ApiEventsStreamRouteImport } from './routes/api/events/stream'
 import { Route as ApiCliSqlRouteImport } from './routes/api/cli/sql'
@@ -121,12 +124,29 @@ const AuthGuestRoute = AuthGuestRouteImport.update({
   id: '/_guest',
   getParentRoute: () => AuthRoute,
 } as any)
+const DotwellKnownOauthProtectedResourceRoute =
+  DotwellKnownOauthProtectedResourceRouteImport.update({
+    id: '/.well-known/oauth-protected-resource',
+    path: '/.well-known/oauth-protected-resource',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const DotwellKnownOauthAuthorizationServerRoute =
+  DotwellKnownOauthAuthorizationServerRouteImport.update({
+    id: '/.well-known/oauth-authorization-server',
+    path: '/.well-known/oauth-authorization-server',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AuthenticatedDashboardIndexRoute =
   AuthenticatedDashboardIndexRouteImport.update({
     id: '/',
     path: '/',
     getParentRoute: () => AuthenticatedDashboardRoute,
   } as any)
+const ApiMcpSplatRoute = ApiMcpSplatRouteImport.update({
+  id: '/api/mcp/$',
+  path: '/api/mcp/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiInternalVerifyKeyRoute = ApiInternalVerifyKeyRouteImport.update({
   id: '/api/internal/verify-key',
   path: '/api/internal/verify-key',
@@ -435,6 +455,8 @@ const AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRoute =
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedDashboardIndexRoute
   '/onboarding': typeof OnboardingRoute
+  '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
+  '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
   '/device': typeof AuthenticatedDeviceRoute
   '/api/apply': typeof ApiApplyRoute
   '/api/cli': typeof ApiCliRouteWithChildren
@@ -461,6 +483,7 @@ export interface FileRoutesByFullPath {
   '/api/cli/sql': typeof ApiCliSqlRoute
   '/api/events/stream': typeof ApiEventsStreamRoute
   '/api/internal/verify-key': typeof ApiInternalVerifyKeyRoute
+  '/api/mcp/$': typeof ApiMcpSplatRoute
   '/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren
   '/auth/forgot-password': typeof AuthGuestAuthForgotPasswordRoute
   '/auth/reset-password': typeof AuthGuestAuthResetPasswordRoute
@@ -497,6 +520,8 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof AuthenticatedDashboardIndexRoute
   '/onboarding': typeof OnboardingRoute
+  '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
+  '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
   '/device': typeof AuthenticatedDeviceRoute
   '/api/apply': typeof ApiApplyRoute
   '/api/cli': typeof ApiCliRouteWithChildren
@@ -522,6 +547,7 @@ export interface FileRoutesByTo {
   '/api/cli/sql': typeof ApiCliSqlRoute
   '/api/events/stream': typeof ApiEventsStreamRoute
   '/api/internal/verify-key': typeof ApiInternalVerifyKeyRoute
+  '/api/mcp/$': typeof ApiMcpSplatRoute
   '/auth/forgot-password': typeof AuthGuestAuthForgotPasswordRoute
   '/auth/reset-password': typeof AuthGuestAuthResetPasswordRoute
   '/auth/sign-in': typeof AuthGuestAuthSignInRoute
@@ -559,6 +585,8 @@ export interface FileRoutesById {
   '/_auth': typeof AuthRouteWithChildren
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/onboarding': typeof OnboardingRoute
+  '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
+  '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
   '/_auth/_guest': typeof AuthGuestRouteWithChildren
   '/_authenticated/_dashboard': typeof AuthenticatedDashboardRouteWithChildren
   '/_authenticated/device': typeof AuthenticatedDeviceRoute
@@ -588,6 +616,7 @@ export interface FileRoutesById {
   '/api/cli/sql': typeof ApiCliSqlRoute
   '/api/events/stream': typeof ApiEventsStreamRoute
   '/api/internal/verify-key': typeof ApiInternalVerifyKeyRoute
+  '/api/mcp/$': typeof ApiMcpSplatRoute
   '/_authenticated/_dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/_authenticated/_dashboard/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren
   '/_auth/_guest/auth/forgot-password': typeof AuthGuestAuthForgotPasswordRoute
@@ -627,6 +656,8 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/onboarding'
+    | '/.well-known/oauth-authorization-server'
+    | '/.well-known/oauth-protected-resource'
     | '/device'
     | '/api/apply'
     | '/api/cli'
@@ -653,6 +684,7 @@ export interface FileRouteTypes {
     | '/api/cli/sql'
     | '/api/events/stream'
     | '/api/internal/verify-key'
+    | '/api/mcp/$'
     | '/runs/$traceId'
     | '/auth/forgot-password'
     | '/auth/reset-password'
@@ -689,6 +721,8 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/onboarding'
+    | '/.well-known/oauth-authorization-server'
+    | '/.well-known/oauth-protected-resource'
     | '/device'
     | '/api/apply'
     | '/api/cli'
@@ -714,6 +748,7 @@ export interface FileRouteTypes {
     | '/api/cli/sql'
     | '/api/events/stream'
     | '/api/internal/verify-key'
+    | '/api/mcp/$'
     | '/auth/forgot-password'
     | '/auth/reset-password'
     | '/auth/sign-in'
@@ -750,6 +785,8 @@ export interface FileRouteTypes {
     | '/_auth'
     | '/_authenticated'
     | '/onboarding'
+    | '/.well-known/oauth-authorization-server'
+    | '/.well-known/oauth-protected-resource'
     | '/_auth/_guest'
     | '/_authenticated/_dashboard'
     | '/_authenticated/device'
@@ -779,6 +816,7 @@ export interface FileRouteTypes {
     | '/api/cli/sql'
     | '/api/events/stream'
     | '/api/internal/verify-key'
+    | '/api/mcp/$'
     | '/_authenticated/_dashboard/'
     | '/_authenticated/_dashboard/runs/$traceId'
     | '/_auth/_guest/auth/forgot-password'
@@ -818,6 +856,8 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRouteWithChildren
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   OnboardingRoute: typeof OnboardingRoute
+  DotwellKnownOauthAuthorizationServerRoute: typeof DotwellKnownOauthAuthorizationServerRoute
+  DotwellKnownOauthProtectedResourceRoute: typeof DotwellKnownOauthProtectedResourceRoute
   ApiApplyRoute: typeof ApiApplyRoute
   ApiCliRoute: typeof ApiCliRouteWithChildren
   ApiHealthRoute: typeof ApiHealthRoute
@@ -825,6 +865,7 @@ export interface RootRouteChildren {
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiEventsStreamRoute: typeof ApiEventsStreamRoute
   ApiInternalVerifyKeyRoute: typeof ApiInternalVerifyKeyRoute
+  ApiMcpSplatRoute: typeof ApiMcpSplatRoute
   ApiGithubInstallCallbackRoute: typeof ApiGithubInstallCallbackRoute
   ApiGithubInstallStartRoute: typeof ApiGithubInstallStartRoute
 }
@@ -901,12 +942,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthGuestRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/.well-known/oauth-protected-resource': {
+      id: '/.well-known/oauth-protected-resource'
+      path: '/.well-known/oauth-protected-resource'
+      fullPath: '/.well-known/oauth-protected-resource'
+      preLoaderRoute: typeof DotwellKnownOauthProtectedResourceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/.well-known/oauth-authorization-server': {
+      id: '/.well-known/oauth-authorization-server'
+      path: '/.well-known/oauth-authorization-server'
+      fullPath: '/.well-known/oauth-authorization-server'
+      preLoaderRoute: typeof DotwellKnownOauthAuthorizationServerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/_dashboard/': {
       id: '/_authenticated/_dashboard/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedDashboardIndexRouteImport
       parentRoute: typeof AuthenticatedDashboardRoute
+    }
+    '/api/mcp/$': {
+      id: '/api/mcp/$'
+      path: '/api/mcp/$'
+      fullPath: '/api/mcp/$'
+      preLoaderRoute: typeof ApiMcpSplatRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/internal/verify-key': {
       id: '/api/internal/verify-key'
@@ -1563,6 +1625,10 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRouteWithChildren,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   OnboardingRoute: OnboardingRoute,
+  DotwellKnownOauthAuthorizationServerRoute:
+    DotwellKnownOauthAuthorizationServerRoute,
+  DotwellKnownOauthProtectedResourceRoute:
+    DotwellKnownOauthProtectedResourceRoute,
   ApiApplyRoute: ApiApplyRoute,
   ApiCliRoute: ApiCliRouteWithChildren,
   ApiHealthRoute: ApiHealthRoute,
@@ -1570,6 +1636,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiEventsStreamRoute: ApiEventsStreamRoute,
   ApiInternalVerifyKeyRoute: ApiInternalVerifyKeyRoute,
+  ApiMcpSplatRoute: ApiMcpSplatRoute,
   ApiGithubInstallCallbackRoute: ApiGithubInstallCallbackRoute,
   ApiGithubInstallStartRoute: ApiGithubInstallStartRoute,
 }
