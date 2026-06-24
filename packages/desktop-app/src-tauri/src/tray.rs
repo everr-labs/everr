@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager};
@@ -7,6 +8,23 @@ use crate::settings::open_settings_window;
 use crate::{current_app_name, QUIT_MENU_ID, SETTINGS_MENU_ID, TRAY_ICON_ID};
 
 const OPEN_MENU_ID: &str = "open";
+
+/// Dedicated tray icon asset (transparent background). The tray must not reuse
+/// the app/Dock icon: on macOS the tray renders it as a template (alpha-only),
+/// so the Dock icon's opaque background would fill the whole menu-bar slot.
+const TRAY_ICON_BYTES: &[u8] = include_bytes!("../icons/tray.png");
+
+/// Decodes the embedded transparent tray icon. Returns `None` (and logs) on the
+/// theoretically-impossible decode failure so a broken asset can't crash the app.
+fn tray_base_icon() -> Option<Image<'static>> {
+    match Image::from_bytes(TRAY_ICON_BYTES) {
+        Ok(icon) => Some(icon),
+        Err(error) => {
+            crate::crash_log::log_error("decode tray icon", &anyhow::Error::from(error));
+            None
+        }
+    }
+}
 
 /// On Linux the tray backend (`libappindicator-sys`) `dlopen`s the appindicator
 /// library when the tray is built and **panics** if it is missing. Probe for it
@@ -66,7 +84,7 @@ pub(crate) fn build_tray(app: &AppHandle) -> Result<()> {
     let mut builder = TrayIconBuilder::with_id(TRAY_ICON_ID)
         .menu(&menu)
         .tooltip(current_app_name());
-    if let Some(icon) = app.default_window_icon().cloned() {
+    if let Some(icon) = tray_base_icon() {
         builder = builder.icon(icon);
         #[cfg(target_os = "macos")]
         {

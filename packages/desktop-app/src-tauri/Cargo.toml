@@ -66,7 +66,7 @@ features = [ "derive" ]
 
 [dependencies.tauri]
 version = "2"
-features = [ "tray-icon", "macos-private-api" ]
+features = [ "tray-icon", "macos-private-api", "image-png" ]
 
 [dependencies.time]
 version = "0.3"
