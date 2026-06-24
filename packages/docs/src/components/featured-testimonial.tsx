@@ -20,19 +20,25 @@ export function FeaturedTestimonial() {
             Why teams switch
           </p>
 
+          <img
+            src="/logos/skillvue.svg"
+            alt="SkillVue"
+            className="mt-6 h-8 w-auto"
+          />
+
           <blockquote className="mt-6 font-heading text-2xl leading-[1.2] tracking-tight text-fd-foreground sm:text-3xl md:text-4xl">
-            “We evaluated one of the big platforms and it took a whole team on our
-            side just to set it up. We switched to another and were paying{" "}
-            <span className="text-primary">$700 a month</span> without even knowing
-            what was flowing through it. Everr made observability easy enough that
-            we follow best practices{" "}
+            “We evaluated one of the big platforms and it took a whole team on
+            our side just to set it up. We switched to another and were paying{" "}
+            <span className="text-primary">$700 a month</span> without even
+            knowing what was flowing through it. Everr made observability easy
+            enough that we follow best practices{" "}
             <span className="text-primary">without a dedicated team</span> — and
             everyone actually does it.”
           </blockquote>
 
           <figcaption className="mt-8 flex items-center gap-4">
             <img
-              src="/marcello.jpeg"
+              src="/testimonials/marcello.jpeg"
               alt="Marcello Roherssen"
               className="size-12 rounded-full object-cover"
             />
