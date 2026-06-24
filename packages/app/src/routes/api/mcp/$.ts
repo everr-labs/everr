@@ -6,11 +6,11 @@ import { withMcpAuth } from "better-auth/plugins";
 import { createMcpHandler } from "mcp-handler";
 import { z } from "zod";
 import { auth } from "@/lib/auth.server";
+import { SQL_API_TENANT_TABLES } from "@/lib/clickhouse";
 import { runSqlForConnection } from "@/lib/mcp-run-sql";
 
-const READABLE_TABLES =
-  "traces, logs, metrics_gauge, metrics_sum, metrics_histogram, " +
-  "metrics_exponential_histogram, metrics_summary";
+// Single source of truth: the tables the per-org ClickHouse role can read.
+const READABLE_TABLES = SQL_API_TENANT_TABLES.join(", ");
 const REQUIRED_SCOPE = "observability:read";
 
 const userStore = new AsyncLocalStorage<{ userId: string }>();
@@ -78,6 +78,8 @@ const CORS_HEADERS: Record<string, string> = {
 // column is nullable) rather than letting it pass.
 const authed = withMcpAuth(auth, async (req, session) => {
   const scopes = (session.scopes ?? "").split(/\s+/).filter(Boolean);
+  // better-auth types accessTokenExpiresAt as a non-null Date, but the underlying
+  // column is nullable — so distrust the type and fail closed (see `expired`).
   const expiresAt = new Date(
     session.accessTokenExpiresAt as unknown as string | Date,
   );

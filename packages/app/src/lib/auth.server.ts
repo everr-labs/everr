@@ -147,6 +147,17 @@ const googleSocialProviders =
       }
     : undefined;
 
+// Read-only scope the MCP resource server requires, plus the full set the OAuth
+// discovery docs advertise.
+const MCP_READ_SCOPE = "observability:read";
+const MCP_SCOPES_SUPPORTED = [
+  "openid",
+  "profile",
+  "email",
+  "offline_access",
+  MCP_READ_SCOPE,
+];
+
 export const auth = betterAuth({
   baseURL: env.BETTER_AUTH_URL,
   secret: env.BETTER_AUTH_SECRET,
@@ -433,28 +444,12 @@ export const auth = betterAuth({
       // doc (getMCPProviderMetadata spreads `...options.metadata`) but omits it
       // from the MCPOptions type — hence the cast below. `oidcConfig.metadata`
       // drives the PRM doc. Set both so both advertise `observability:read`.
-      metadata: {
-        scopes_supported: [
-          "openid",
-          "profile",
-          "email",
-          "offline_access",
-          "observability:read",
-        ],
-      },
+      metadata: { scopes_supported: MCP_SCOPES_SUPPORTED },
       oidcConfig: {
         loginPage: "/auth/sign-in",
-        scopes: ["observability:read"],
-        defaultScope: "observability:read",
-        metadata: {
-          scopes_supported: [
-            "openid",
-            "profile",
-            "email",
-            "offline_access",
-            "observability:read",
-          ],
-        },
+        scopes: [MCP_READ_SCOPE],
+        defaultScope: MCP_READ_SCOPE,
+        metadata: { scopes_supported: MCP_SCOPES_SUPPORTED },
       },
     } as Parameters<typeof mcp>[0]),
     tanstackStartCookies(), // must be last

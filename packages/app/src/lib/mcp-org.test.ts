@@ -10,8 +10,20 @@ vi.mock("@/db/client", () => ({
 
 import { McpOrgError, resolveMcpOrg } from "./mcp-org";
 
-// session query chain: from().where().orderBy().limit()
-function sessionReturning(rows: unknown[]) {
+// last-used (join) chain: from().innerJoin().where().orderBy().limit()
+function lastUsedReturning(rows: unknown[]) {
+  return {
+    from: () => ({
+      innerJoin: () => ({
+        where: () => ({
+          orderBy: () => ({ limit: () => Promise.resolve(rows) }),
+        }),
+      }),
+    }),
+  };
+}
+// first-membership chain: from().where().orderBy().limit()
+function firstReturning(rows: unknown[]) {
   return {
     from: () => ({
       where: () => ({
@@ -20,43 +32,30 @@ function sessionReturning(rows: unknown[]) {
     }),
   };
 }
-// membership check chain: from().where().limit()
-function memberReturning(rows: unknown[]) {
-  return {
-    from: () => ({ where: () => ({ limit: () => Promise.resolve(rows) }) }),
-  };
-}
-// first-membership chain: from().where().orderBy().limit()
-const firstReturning = sessionReturning;
 
 beforeEach(() => selectMock.mockReset());
 
 describe("resolveMcpOrg", () => {
   it("returns the last-used org when still a member", async () => {
-    selectMock
-      .mockReturnValueOnce(sessionReturning([{ organizationId: "org-last" }]))
-      .mockReturnValueOnce(memberReturning([{ id: "m-1" }]));
+    selectMock.mockReturnValueOnce(
+      lastUsedReturning([{ organizationId: "org-last" }]),
+    );
     await expect(resolveMcpOrg("user-1")).resolves.toBe("org-last");
+    expect(selectMock).toHaveBeenCalledTimes(1); // happy path = one round-trip
   });
 
-  it("falls back to first membership when no session org", async () => {
+  it("falls back to first membership when there is no usable last-used org", async () => {
+    // The join returns nothing when the active org is missing OR no longer a
+    // membership — both cases land here.
     selectMock
-      .mockReturnValueOnce(sessionReturning([])) // no last-used
-      .mockReturnValueOnce(firstReturning([{ organizationId: "org-first" }]));
-    await expect(resolveMcpOrg("user-1")).resolves.toBe("org-first");
-  });
-
-  it("falls back to first membership when last-used org is no longer a membership", async () => {
-    selectMock
-      .mockReturnValueOnce(sessionReturning([{ organizationId: "org-stale" }]))
-      .mockReturnValueOnce(memberReturning([])) // not a member anymore
+      .mockReturnValueOnce(lastUsedReturning([]))
       .mockReturnValueOnce(firstReturning([{ organizationId: "org-first" }]));
     await expect(resolveMcpOrg("user-1")).resolves.toBe("org-first");
   });
 
   it("throws when the user has no org at all", async () => {
     selectMock
-      .mockReturnValueOnce(sessionReturning([]))
+      .mockReturnValueOnce(lastUsedReturning([]))
       .mockReturnValueOnce(firstReturning([]));
     await expect(resolveMcpOrg("user-1")).rejects.toBeInstanceOf(McpOrgError);
   });

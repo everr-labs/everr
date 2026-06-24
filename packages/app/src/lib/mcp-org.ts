@@ -4,40 +4,36 @@ import { member, session } from "@/db/schema";
 
 export class McpOrgError extends Error {}
 
-async function isCurrentMember(
-  userId: string,
-  organizationId: string,
-): Promise<boolean> {
-  const rows = await db
-    .select({ id: member.id })
-    .from(member)
-    .where(
-      and(eq(member.userId, userId), eq(member.organizationId, organizationId)),
-    )
-    .limit(1);
-  return rows.length > 0;
-}
-
 /**
  * Resolve the organization an MCP query runs against:
- *   1. the user's last-used org (most-recent session's activeOrganizationId),
- *      if they are still a member of it; otherwise
+ *   1. the user's last-used org — the most-recent session's activeOrganizationId
+ *      that they are STILL a member of (validated inline by the join); else
  *   2. their first organization membership (earliest joined).
- * Throws McpOrgError if the user belongs to no organization.
+ * Throws McpOrgError if the user belongs to no organization. Membership is read
+ * live, so a revoked user never resolves to that org.
  */
 export async function resolveMcpOrg(userId: string): Promise<string> {
-  const recent = await db
-    .select({ organizationId: session.activeOrganizationId })
+  // One round-trip on the happy path: joining session→member returns the active
+  // org only when it is a current membership. A stale or missing active org
+  // yields no row and falls through to the first-membership query below.
+  const lastUsed = await db
+    .select({ organizationId: member.organizationId })
     .from(session)
+    .innerJoin(
+      member,
+      and(
+        eq(member.userId, session.userId),
+        eq(member.organizationId, session.activeOrganizationId),
+      ),
+    )
     .where(
       and(eq(session.userId, userId), isNotNull(session.activeOrganizationId)),
     )
     .orderBy(desc(session.updatedAt), desc(session.id))
     .limit(1);
 
-  const lastUsed = recent[0]?.organizationId;
-  if (lastUsed && (await isCurrentMember(userId, lastUsed))) {
-    return lastUsed;
+  if (lastUsed[0]?.organizationId) {
+    return lastUsed[0].organizationId;
   }
 
   const first = await db

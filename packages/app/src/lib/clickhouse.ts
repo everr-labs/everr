@@ -47,8 +47,10 @@ export async function query<T>(
 }
 
 // Tables that get a per-org row policy provisioned. Must match the read tables
-// granted to sql_api_role in clickhouse/init/15-create-sql-api-role.sql.
-const SQL_API_TENANT_TABLES = [
+// granted to sql_api_role in clickhouse/init/15-create-sql-api-role.sql. The
+// canonical readable-table list — exported so callers (e.g. the MCP tool
+// description) advertise exactly these instead of hand-syncing copies.
+export const SQL_API_TENANT_TABLES = [
   "traces",
   "logs",
   "metrics_gauge",
