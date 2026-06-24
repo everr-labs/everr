@@ -1,45 +1,41 @@
+import { cn } from "@everr/ui/lib/utils";
+
 /**
  * Homepage placeholder sections.
  *
- * These are scaffolding stubs — NOT final components. Each documents what the
- * real section should contain and why, grounded in the 2026 market evidence:
+ * These are scaffolding stubs — NOT final components. Each captures the INTENT of
+ * the real section (its intended lead copy, what it must include, what to avoid,
+ * and why) so an implementer can build it without drifting. Full positioning lives
+ * in HOMEPAGE.md; this file is the on-page projection of it.
  *
- *  - CNCF observability microsurvey: tool sprawl is the norm (72% use 1–9
- *    tools, 23% use 10–15). Top challenges: complexity, lack of documentation,
- *    lack of skills, lack of strategy.
- *  - Grafana 2026 (core): cost and ease of use are the top buying criteria.
- *    Full-stack observability and SLOs are rising. (Business observability is
- *    rising in the survey too, but it's NOT shipped for Everr — kept off the page.)
- *  - Grafana 2026 (open source): 77% say open source/open standards matter
- *    (61% "very important/essential"); OSS is the #4 selection criterion (25%),
- *    interoperability #2 (26%), and 58% select on at least one open-standards
- *    criterion. OpenTelemetry adopted to avoid vendor lock-in (37%) and for
- *    ease of adoption (41%).
- *  - Grafana 2026 (AI): AI is broadly valued in-product (dashboards/queries
- *    92%, anomaly detection 92%, forecasting 91%, root cause 91%, onboarding
- *    89%) BUT only 15% pick a tool based on AI, and 95% demand AI that explains
- *    its reasoning. Trust drops for autonomous action (77%). Biggest blocker:
- *    26% "too much manual input of context."
+ * Market grounding (2026):
+ *  - CNCF microsurvey: tool sprawl is the norm (72% use 1–9 tools, 23% use 10–15);
+ *    top challenges are complexity, docs, skills, strategy.
+ *  - Grafana 2026 (core): cost + ease of use are the top buying criteria;
+ *    full-stack + SLOs rising. (Business observability is rising in the survey but
+ *    is NOT shipped for Everr — kept off the page entirely.)
+ *  - Grafana 2026 (open source): 77% value open source/open standards (61%
+ *    essential); OSS is the #4 selection criterion (25%); 37% adopt OTel to avoid
+ *    lock-in.
+ *  - Grafana 2026 (AI): valued in-product (92% dashboards/queries, 91% root cause)
+ *    but only 15% buy on AI; 95% demand explainable reasoning; trust drops for
+ *    autonomy (77%).
  *
  * GTM thesis: identity stays "observability made simple"; lead with the AGENT
- * WEDGE and fold everything else into proof under three
- * pillars (see HOMEPAGE.md §1 for the full version):
+ * WEDGE and fold everything else into proof under three pillars (HOMEPAGE.md §1):
  *   1. Agent-native — coding agents query ground truth (the wedge/HOOK, lead).
- *      MOAT is NOT "hard-to-copy store" (it's open by design — contradiction).
- *      Stance: openness = adoption wedge (easy to leave); the moat is the unified
- *      semantic contract + workflow — "leaving is easy, staying is better."
- *      Also: own a CATEGORY NOUN in the H1 region (e.g. "lifecycle observability",
- *      Gio to confirm) so the wedge isn't read as a bolt-on feature.
+ *      The moat is NOT a "hard-to-copy store" (it's open by design). Stance:
+ *      openness = adoption wedge (easy to leave); the moat is the unified semantic
+ *      contract + workflow — "leaving is easy, staying is better." Own a CATEGORY
+ *      NOUN in the H1 region (e.g. "lifecycle observability", Gio to confirm).
  *   2. One system, full lifecycle — SUBSTANTIATE: SHOW the tiering (retention/
- *      sampling/cardinality per tier), not "different design centers" hand-wave;
- *      engine (ClickHouse) is table stakes not a moat; one REAL production number
- *      above the fold (DOESN'T EXIST YET — top blocker).
+ *      sampling/cardinality per tier); ClickHouse is table stakes, not a moat; one
+ *      REAL production number above the fold (DOESN'T EXIST YET — top blocker).
  *   3. Open & portable — one plain sentence, acronyms behind a disclosure; state
  *      which signals are portable; add a compat matrix + migration note.
  * Guardrails: numbers over adjectives; "portable" only per named open format;
  * define jargon at every layer; no maximal "replace Datadog" claim beside a hedge;
- * never invent figures. NOTE: business observability / business-KPI joins are NOT
- * shipped and buyers are skeptical — keep them off the page entirely.
+ * never invent figures; insider words ("wedge", "agent-native") stay off the page.
  *
  * Replace each <PlaceholderSection> with a purpose-built component, then delete
  * its stub here.
@@ -50,16 +46,25 @@ type PlaceholderSectionProps = {
   title: string;
   /** One-line statement of what this section must accomplish. */
   purpose: string;
-  /** Concrete things the real section should include. */
+  /** Intended on-page lead — the headline/copy direction (placeholder values ok). */
+  draft: string;
+  /** Render the draft in monospace (for code/query snippets). */
+  draftMono?: boolean;
+  /** Concrete things the real section MUST include. */
   todos: string[];
-  /** Why this section earns its place — tie back to the market evidence. */
+  /** Guardrails / anti-patterns to avoid. */
+  avoid?: string[];
+  /** Why this section earns its place — tie back to evidence/review. */
   evidence: string;
 };
 
 function PlaceholderSection({
   title,
   purpose,
+  draft,
+  draftMono,
   todos,
+  avoid,
   evidence,
 }: PlaceholderSectionProps) {
   return (
@@ -73,13 +78,40 @@ function PlaceholderSection({
           <p className="mt-2 max-w-3xl text-fd-muted-foreground">{purpose}</p>
 
           <p className="mt-6 font-mono text-xs uppercase tracking-widest text-fd-muted-foreground">
-            TODO
+            Intended lead
+          </p>
+          <div
+            className={cn(
+              "mt-2 max-w-3xl whitespace-pre-line border-l-2 border-primary pl-4 text-fd-foreground",
+              draftMono
+                ? "font-mono text-sm leading-relaxed"
+                : "font-heading text-xl leading-snug",
+            )}
+          >
+            {draft}
+          </div>
+
+          <p className="mt-6 font-mono text-xs uppercase tracking-widest text-fd-muted-foreground">
+            Must include
           </p>
           <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-fd-muted-foreground">
             {todos.map((todo) => (
               <li key={todo}>{todo}</li>
             ))}
           </ul>
+
+          {avoid && avoid.length > 0 ? (
+            <>
+              <p className="mt-6 font-mono text-xs uppercase tracking-widest text-fd-muted-foreground">
+                Avoid
+              </p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-fd-muted-foreground">
+                {avoid.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </>
+          ) : null}
 
           <p className="mt-6 max-w-3xl rounded-md bg-fd-muted/50 p-3 text-xs text-fd-muted-foreground">
             <span className="font-semibold text-fd-foreground">Why: </span>
@@ -91,143 +123,203 @@ function PlaceholderSection({
   );
 }
 
-/** Social proof immediately below the hero — logos + open-source credibility. */
+/** Trust strip under the hero — named design partner + open-source traction. */
 export function LogoCloud() {
   return (
     <PlaceholderSection
-      title="Logo cloud / social proof"
-      purpose="Establish instant credibility under the hero — anchor with the SkillVue design-partner logo, plus an open-source proof signal (GitHub stars)."
+      title="Trust strip / social proof"
+      purpose="Instant credibility under the hero: a named design partner plus independent community traction."
+      draft={
+        "Design partner: SkillVue   ·   ⭐ {GitHub stars} on GitHub   ·   Open source"
+      }
+      draftMono
       todos={[
         "Anchor with the SkillVue design-partner logo (named reference)",
-        "Second proof leg (one partner reads as pre-traction): live GitHub stars / downloads / contributors — community traction alongside the named partner",
-        "Grayscale logo strip (6–10 logos), responsive wrap on mobile",
-        '"Trusted by teams at…" / "Design partner" eyebrow + "Open source" pill',
-        "Use real adopters only (SkillVue is real) — no placeholder logos",
+        "Second proof leg: live GitHub stars / downloads / contributors",
+        "Logo strip (6–10 logos), responsive wrap on mobile; 'Design partner' eyebrow + 'Open source' pill",
       ]}
-      evidence="CTO: one design partner reads as pre-traction — pair the named SkillVue reference with OSS adoption (GitHub stars) as a second, independent proof leg. Grafana 2026: open source is the #4 selection criterion (25%)."
+      avoid={[
+        "Placeholder/invented logos",
+        "Relying on a single partner — one reference reads as pre-traction",
+      ]}
+      evidence="CTO: one design partner reads as pre-traction — pair the named SkillVue reference with OSS adoption as a second, independent proof leg. OSS is the #4 selection criterion (25%)."
     />
   );
 }
 
-/** Names the pain: tool sprawl and complexity. Sets up Everr as the consolidation. */
+/** Names the pain — tool sprawl — and sets up the consolidation story. */
 export function ProblemToolSprawl() {
   return (
     <PlaceholderSection
       title="The problem: tool sprawl & complexity"
-      purpose="Name the buyer's pain before pitching the cure — too many disconnected tools, too much glue, too little insight."
+      purpose="Name the buyer's pain before the cure, and set up consolidation as the credible version of 'replace the stack'."
+      draft={
+        "Answering one question shouldn't take seven tools.\n72% of teams run 1–9 observability tools. 23% run 10–15."
+      }
       todos={[
-        "Lead stat: most teams juggle many tools (72% use 1–9, 23% use 10–15)",
-        "Call out the real costs: complexity, onboarding/skills gap, no unified strategy",
-        "Contrast 'wall of dashboards' vs. one unified pipeline (laptop → CI → agents → prod)",
-        "Transition line into how Everr collapses the stack",
+        "Lead with the sprawl stat (72% use 1–9, 23% use 10–15)",
+        "Name the real costs: complexity, onboarding/skills gap, no unified strategy",
+        "Contrast 'wall of dashboards' vs. one pipeline (dev → agents → CI → prod)",
+        "Transition into consolidation onto one system",
       ]}
-      evidence="CNCF microsurvey: tool sprawl is the norm and the top challenges are complexity, lack of documentation, lack of skills, and lack of strategy — so the page must lead with complexity reduction."
+      avoid={[
+        "A maximal 'replace Datadog today' claim here (or anywhere beside a hedge)",
+        "Jargon without a plain-language gloss",
+      ]}
+      evidence="CNCF: tool sprawl is the norm and complexity is the #1 challenge — the page must lead with complexity reduction."
     />
   );
 }
 
-/** Open standards / OTel-native / no lock-in — elevated near the top. */
+/** Open by default — openness as the adoption wedge, honest per-signal scope. */
 export function OpenStandards() {
   return (
     <PlaceholderSection
       title="Open by default — open standards, low lock-in"
-      purpose="Lead with ONE plain sentence — 'your data stays in standard formats, so you're never locked in' — and put the acronyms behind a 'for experts' disclosure."
+      purpose="Openness is the adoption wedge (easy to enter and leave); say it plainly, scope portability per signal, and take the explicit stance."
+      draft={
+        "Your data stays in standard formats. You're never locked in.\nWe'd rather you stay because leaving is easy — and staying is better."
+      }
       todos={[
-        "Plain-language lead first; acronym wall (OTLP, PromQL, Perses, Prometheus rules) behind a 'for the experts' disclosure",
-        "State per-signal portability: metrics + alerts + dashboards in open formats (PromQL / Prometheus rules / Perses); traces + logs via OTLP export (raw-export only)",
-        "Don't overstate: PromQL ingest ≠ identical recording-rule/histogram_quantile/subquery semantics; Perses ≠ Grafana's ecosystem",
-        "Grid of languages/frameworks/exporters; dev / agent / CI / prod paths; link to repo",
+        "Plain-language lead; acronyms (OTLP, PromQL, Perses) behind a 'for experts' disclosure",
+        "Per-signal portability: metrics + alerts + dashboards in open formats (PromQL / Prometheus rules / Perses); traces + logs via OTLP export (raw-export only)",
+        "Containment: a PromQL/Perses compatibility matrix + a Perses↔Grafana migration note (documented boundary, not hidden risk)",
+        "Voice the stance: openness = on-ramp; the unified semantic contract + workflow is why staying is better",
       ]}
-      evidence="Grafana 2026: 77% value open standards. Reviewers: 'portable' floats unless scoped per-signal — state which signals are fully portable (metrics/alerts/dashboards) vs. raw-export only (traces/logs)."
+      avoid={[
+        "Letting 'portable' float across all signals",
+        "An acronym wall up top",
+        "Claiming the open store itself is the moat — it's open by design (contradiction); don't overstate PromQL/Perses parity",
+      ]}
+      evidence="77% value open standards; experts call out vague 'portable'. The openness↔moat stance dissolves the contradiction instead of hiding it."
     />
   );
 }
 
-/** Core capabilities grid — the 'what you get' section. */
+/** Full-stack capabilities + the production substantiation Pillar 2 needs. */
 export function Features() {
   return (
     <PlaceholderSection
-      title="Features / capabilities grid"
-      purpose="Outcome-framed cards — and the home for the substantiation Pillar 2 needs (architecture + production numbers)."
+      title="Features / capabilities — and the production proof"
+      purpose="Outcome-framed cards, and the home for the substantiation Pillar 2 needs: shown tiering, real production numbers, and operator depth behind a disclosure."
+      draft={
+        "Logs, traces, metrics, errors — one store, one query surface,\nfrom your laptop to production."
+      }
       todos={[
-        "Full-stack observability (logs, traces, metrics, errors in one place)",
-        "Production with NUMBERS not adjectives: cardinality, retention/downsampling, SLO depth (multi-window burn-rate), alert routing (dedup/escalation/on-call), HA",
-        "SHOW the tiering (retention/sampling/cardinality knobs per tier) — that's how 'one store, dev→CI→prod' stops being an assertion",
-        "Architecture for experts (behind disclosure): ClickHouse-backed (table stakes, NOT the moat — SigNoz/Uptrace do it too), query surface, multitenancy/RBAC, PromQL-compat matrix, cost-at-scale curve",
-        "No business-observability / business-KPI cards — not shipped, buyers skeptical",
+        "Full-stack cards (logs, traces, metrics, errors in one place)",
+        "Production in NUMBERS: cardinality, retention/downsampling, SLO depth (multi-window burn-rate), alert routing (dedup/escalation/on-call), HA",
+        "SHOW the tiering (retention/sampling/cardinality knobs per tier) — turns 'one store, dev→prod' from assertion into demonstration",
+        "Operator depth behind a 'for experts' disclosure: ClickHouse-backed, query surface, multitenancy/RBAC, PromQL-compat matrix, cost-at-scale curve",
         "Define 'SLO' in plain words on first use; link each card to docs",
       ]}
-      evidence="Reviewers: 'one system, full lifecycle' is least substantiated — SHOW the tiering, not 'different design centers' hand-wave. ClickHouse alone isn't a differentiator. The SRE rates production on specifics; the production number is still empty (top blocker)."
+      avoid={[
+        "Adjectives without numbers ('first-class', 'enterprise-grade')",
+        "Selling ClickHouse as the moat — it's table stakes (SigNoz/Uptrace too)",
+        "Business-observability / business-KPI cards (not shipped, buyers skeptical)",
+        "Forcing operator jargon on newcomers",
+      ]}
+      evidence="Reviewers: 'one system, full lifecycle' is the least-substantiated, load-bearing claim — SHOW the tiering. The production number is still empty (TOP blocker); the SRE rates production on specifics."
     />
   );
 }
 
-/** Agents as first-class consumers — the wedge, mid-page. Never the headline. */
+/** Agents as first-class consumers — the wedge, made demonstrable. */
 export function AIAssistant() {
   return (
     <PlaceholderSection
-      title="Agents as first-class consumers (the wedge / hook)"
-      purpose="Frame AI as a category wedge, not a feature: your coding agents query observability for ground truth instead of guessing — but anchor defensibility to the unified store, not the agent endpoint."
+      title="Agents as first-class consumers (the wedge)"
+      purpose="Make the wedge demonstrable: an agent queries Everr for ground truth and acts on it. Anchor defensibility to the unified store, not the endpoint."
+      draftMono
+      draft={
+        '> agent asks Everr:  { service: "checkout", since: "15m", where: "status >= 500" }\n' +
+        '< Everr returns:     { errors: 37, p99_ms: 1840, top_trace: "…", deploy: "v812" }\n\n' +
+        "Your agents query what your software actually did — and stop guessing."
+      }
       todos={[
-        "Lead with the hook: agents query Everr (one query surface) for real error rates, latencies, the spans that actually fired",
-        "Anchor the MOAT correctly: the durable moat is the unified open store humans+CI+agents all query — the agent endpoint is its expression, not the defensibility (an MCP/query endpoint is a quarter of an incumbent's roadmap)",
-        "Position assistive in-product uses (query/dashboard gen, anomaly, root-cause) as supporting detail, not the headline",
+        "Show the agent-query snippet: the call + the JSON back (the dev wants request/response, not a claim)",
+        "Anchor the MOAT: the unified semantic contract + workflow that humans + CI + agents share — the endpoint is its expression, not the defensibility",
+        "Position assistive uses (query/dashboard gen, anomaly, root-cause) as supporting detail",
         "Keep reasoning transparent (sources, query logic, confidence); address the 'manual context' blocker; assist, not autopilot",
-        "Plain-language on the page — 'wedge/agent-native/first-class consumers' are internal words, not page copy",
       ]}
-      evidence="Grafana 2026 AI: only 15% buy on AI, 95% demand explainable reasoning, trust drops for autonomy (77%) — agent-as-consumer satisfies the survey + seniority split. Architect's catch: the agent surface alone is cloneable; the unified store is the moat — re-anchor the causality."
+      avoid={[
+        "Framing this as a chatbot 'AI assistant', or AI-as-feature in the hero headline",
+        "Insider words on the page ('wedge', 'agent-native', 'first-class consumers') — say it plainly",
+        "Claiming the agent endpoint is the moat — it's a quarter of an incumbent's roadmap",
+      ]}
+      evidence="Grafana 2026 AI: only 15% buy on AI, 95% demand explainable reasoning, trust drops for autonomy (77%). Architect: the agent surface alone is cloneable — the unified store is the moat."
     />
   );
 }
 
-/** Time-to-value / ease-of-use proof — quick start. */
+/** Time to value — fast path to first insight. */
 export function TimeToValue() {
   return (
     <PlaceholderSection
       title="Time to value / quick start"
-      purpose="Prove how fast a team goes from zero to first insight — the single strongest counter to 'observability is hard'."
+      purpose="Prove how fast a team goes from zero to first insight — the strongest counter to 'observability is hard'."
+      draft={
+        "From install to first trace in ~{N} minutes.\nOne command. Sensible defaults. No yak-shaving."
+      }
       todos={[
-        "Copy-paste install snippet (one command) with a tabbed language/runtime switcher",
-        "'From install to first trace in N minutes' claim with a real number",
-        "Minimal config story — sensible defaults, auto-instrumentation",
+        "One-command install snippet with a tabbed language/runtime switcher",
+        "'First trace in N minutes' with a REAL number",
+        "Minimal-config story — sensible defaults, auto-instrumentation",
         "Link to the full quickstart in docs",
       ]}
-      evidence="CNCF lists lack of skills/strategy and complexity as top blockers; Grafana ranks ease of use as a top buying criterion — a visible fast path to value directly addresses both."
+      avoid={[
+        "Waitlist / pre-launch hedging",
+        "Inventing the 'N minutes' figure",
+        "Proving 'simple' with raw SQL/PromQL (that's power-user depth)",
+      ]}
+      evidence="CNCF: skills/complexity are top blockers; Grafana: ease of use is a top buying criterion — a visible fast path to value addresses both."
     />
   );
 }
 
-/** Pricing transparency / cost-efficiency. */
+/** Pricing / cost — open-source core, transparent, sane at scale. */
 export function PricingTeaser() {
   return (
     <PlaceholderSection
       title="Pricing / cost transparency"
-      purpose="Address the buying criterion head-on — open-source core, transparent pricing, and an explicit answer on cost at scale."
+      purpose="Address cost head-on: open-source core, transparent pricing, and an explicit, credible answer on cost at scale."
+      draft={
+        "Open-source core. Transparent pricing that stays sane at scale.\n{N} tools → 1, ~{X}% cut — here's the math."
+      }
       todos={[
-        "Clear, simple pricing tiers or a 'free & open-source core' lead",
-        "Self-host vs. managed comparison",
-        "Explicitly address COST AT SCALE — the SRE rated this low; show the model, don't just say 'no surprise bills'",
-        "Primary CTA to pricing page / get started",
+        "Lead with the open-source core (free local); self-host vs. managed comparison",
+        "Show the cost-at-scale MODEL — not just 'no surprise bills'",
+        "A consolidation-TCO before/after artifact a buyer can paste into a budget deck",
+        "Primary CTA to pricing / get started",
       ]}
-      evidence="Grafana 2026: cost is a top buying criterion and the SRE rated cost-at-scale low — transparent pricing plus a concrete at-scale cost model (not vague 'no surprise bills') is the lever."
+      avoid={[
+        "Inventing tiers/prices that don't exist",
+        "Vague 'no surprise bills' with no model",
+        "Pre-launch hedging",
+      ]}
+      evidence="Cost is a top buying criterion and the SRE rated cost-at-scale low; the CTO wants a pasteable TCO artifact. Transparent pricing + a real at-scale model is the lever."
     />
   );
 }
 
-/** Testimonials / quotes from real users. */
+/** Testimonials — anchored by the SkillVue CTO quote. */
 export function Testimonials() {
   return (
     <PlaceholderSection
       title="Testimonials"
-      purpose="Back the claims with the voices of real practitioners — anchored by the SkillVue CTO quote (also runs above the fold)."
+      purpose="Back the claims with real practitioner voices, anchored by the SkillVue CTO quote (which also runs above the fold)."
+      draft={
+        '"[SkillVue CTO quote — paste the exact words]"\n— [Name], CTO, SkillVue'
+      }
       todos={[
-        "ANCHOR: SkillVue CTO quote — FILL IN the exact words + CTO name (we have it)",
-        '   → "[SkillVue CTO quote — paste here]" — [Name], CTO, SkillVue',
+        "ANCHOR: the SkillVue CTO quote — fill in exact words + name (we have it)",
         "2–4 quote cards: name, role, company, avatar",
-        "Pick quotes that reinforce consolidation, simplicity & fast time to value",
-        "Only use real, attributable quotes — no invented testimonials",
+        "Choose quotes that reinforce consolidation, simplicity & fast time to value",
       ]}
-      evidence="A named reference + CTO quote is the single biggest credibility lever (converts a meeting into a POC). Peer validation echoing the page's consolidation/simplicity thesis reinforces the GTM message."
+      avoid={[
+        "Invented or unattributable testimonials",
+        "Off-thesis quotes that don't echo consolidation/simplicity",
+      ]}
+      evidence="A named reference + CTO quote is the single biggest credibility lever — it converts a CTO's 'let's meet' into a POC."
     />
   );
 }
