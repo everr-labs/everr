@@ -15,11 +15,16 @@ each with a real component and delete its stub.
 ## 1. Positioning (the spine — keep all copy consistent)
 
 ### Identity (does not change)
-Brand voice leads with **"observability made simple"** and covers **business +
-technical** data; AI/agents are the enabler. That stays. What changes per review:
-stop listing many pillars (a backlog isn't positioning), lead with the one
-**un-cloned** story, and **prove** every claim with a real number, a real
-architecture, and an honest portability boundary.
+Brand voice leads with **"observability made simple"**; AI/agents are the
+enabler. That stays. What changes per review: stop listing many pillars (a
+backlog isn't positioning), lead with the one **un-cloned** story, and **prove**
+every claim with a real number, a real architecture, and an honest portability
+boundary.
+
+> **Not on the page (deliberate):** business observability / the
+> business↔technical "join" is **not shipped** and buyers are skeptical of it —
+> keep it **off** the homepage entirely. Don't claim "business + technical data,"
+> revenue-by-deploy joins, or business KPIs as a differentiator until it ships.
 
 ### One-liner
 Simple, open observability across the whole lifecycle — built so your **coding
@@ -48,8 +53,8 @@ Dev → agents → CI → production, one store, one query surface. Senior infra
 push hardest here, so back it with architecture, not adjectives:
 - **Name the engine:** the telemetry store is **ClickHouse-backed** (that's what
   carries the high-cardinality / high-volume story). Say it.
-- **Name the query surface:** what speaks **PromQL** (metrics), what queries
-  traces/logs, and what runs the join — don't leave "one query surface" abstract.
+- **Name the query surface:** what speaks **PromQL** (metrics) and what queries
+  traces/logs — don't leave "one query surface" abstract.
 - **Platform basics, stated:** a **multitenancy / RBAC / quota** line. Tenant
   isolation exists (row-level policies); surface the access/quota story too.
   Platform buyers fear *hidden* tradeoffs, not stated ones — don't ship "a
@@ -72,24 +77,13 @@ opposite of simple.
   raw-export only for the second. Note honestly: PromQL-compatible ingest ≠
   identical recording-rule / `histogram_quantile` / subquery semantics, and
   Perses ≠ Grafana's ecosystem — don't overstate.
-- **Name the limit (trust signal, not weakness):** the business↔technical join
-  works inside Everr's store + shared-context model; OTLP export returns raw
-  spans, not the joined "revenue-by-deploy" view — so *that* query is portable to
-  another Everr, not to any backend. Saying this out loud converts the
-  Pillar 2/3 tension into credibility instead of leaking it.
 
 ### Supporting proof (sits *under* the pillars, never as a peer list)
 
-- **The join — a visual, not a sentence.** Show it: *"12 signups failed → click →
-  the exact error and the deploy that caused it."* The mechanism is shared
-  context in one store linking a business event to the technical spans. Lead with
-  the screenshot/interaction; the prose version loses newcomers. Carry the
-  portability caveat from Pillar 3.
 - **Plain-language category, at every layer.** Define "observability" and "SLO"
   in plain words — then don't bury the reader in the *second* layer. "Spans,"
   "trace context," "cardinality," "resource attributes" each need a gloss or
-  progressive disclosure (especially in the join story). One layer explained
-  isn't enough.
+  progressive disclosure. One layer explained isn't enough.
 - **Local-first = verify-before-ship on-ramp.** Agents instrument an app and
   verify both the instrumentation and the code locally, before production. One
   chapter; never "only local."
@@ -101,12 +95,10 @@ opposite of simple.
 - **Do** lead with the agent wedge; fold everything else into proof under the 3
   pillars. A long pillar list is a backlog, not positioning.
 - **Do** put one real production number above the fold — and **never invent it.**
-- **Do** render the join as a visual, with its portability limit stated.
 - **Do** name which signals are portable, name the storage engine, and include a
   multitenancy/RBAC line.
 - **Do** define jargon at every layer, not just the first.
-- **Do** keep the "simple" brand voice and business+technical coverage — identity
-  stays.
+- **Do** keep the "simple" brand voice — identity stays.
 - **Don't** make a maximal "replace Datadog today" claim — and never beside a
   hedge, "coming soon," or a waitlist.
 - **Don't** frame AI as a vague "AI assistant" feature, or let "portable" float
@@ -125,8 +117,9 @@ opposite of simple.
   tools, 23% use 10–15). Top challenges: complexity, lack of documentation,
   lack of skills, lack of strategy.
 - **Grafana 2026 (core)** — cost and ease of use are the top buying criteria;
-  ~50% track business-related metrics; full-stack, SLOs, and business
-  observability are rising.
+  full-stack observability and SLOs are rising. (Business observability is also
+  rising in the survey, but it's **not shipped** for Everr — intentionally not a
+  homepage angle; see §1.)
 - **Grafana 2026 (open source)** — 77% say open source/open standards matter
   (61% "very important/essential"); OSS is the #4 selection criterion (25%),
   interoperability #2 (26%); 58% select on ≥1 open-standards criterion;
@@ -201,8 +194,6 @@ an acronym wall to newcomers otherwise).
 - **Per-signal portability:** metrics + alerts + dashboards in open formats
   (PromQL / Prometheus rules / Perses); traces + logs via OTLP export. State which
   is fully portable vs. raw-export; don't overstate PromQL/Perses parity.
-- **Name the join limit** (the deepest catch): the business↔technical join lives
-  in Everr's store/model and isn't reproducible from OTLP export alone — say so.
 **Why:** 77% value open standards; vague "portable" gets called out by experts.
 
 ### Video demo — ✅ `video-section.tsx`
@@ -216,11 +207,9 @@ Outcome-framed cards — and the home for the **substantiation** that Pillar 2 n
   SLO depth (multi-window burn-rate), alert routing (dedup/escalation/on-call), HA.
 - **Architecture line:** ClickHouse-backed store; query surface; a
   multitenancy/RBAC/quota mention.
-- **The business↔technical JOIN as a concrete visual** ("12 signups failed →
-  click → exact error + deploy"), not a sentence — with the portability caveat.
 - Define "SLO" in plain words; link each card to docs.
-**Why:** the SRE rates production on specifics; "business + technical" is a cliché
-unless you *show* the join.
+**Why:** the SRE rates production on specifics, not adjectives.
+**Scope:** no business-observability / business-KPI cards — it isn't shipped (§1).
 
 ### Agents as first-class consumers — 🟧 `AIAssistant`
 The wedge in long form (seeded in the hero, deep-dived here). Coding agents pull
@@ -281,8 +270,8 @@ Site footer (nav, links). Update links as pages get added.
 2. Swap the import + usage in `src/routes/index.tsx`.
 3. Delete the corresponding stub from `placeholder-sections.tsx`.
 4. Verify against §3 conventions and the §1 pillars — especially: lead with the
-   agent wedge, one real production number above the fold, the join as a visual
-   with its limit stated, per-signal portability, architecture named (engine +
-   multitenancy), jargon defined at every layer, and no maximal claim beside a
+   agent wedge, one real production number above the fold, per-signal portability,
+   architecture named (engine + multitenancy), jargon defined at every layer, no
+   business-observability claims (not shipped), and no maximal claim beside a
    hedge.
 5. Keep this file in sync — flip the status and trim notes that no longer apply.

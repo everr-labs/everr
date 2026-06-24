@@ -8,8 +8,8 @@
  *    tools, 23% use 10–15). Top challenges: complexity, lack of documentation,
  *    lack of skills, lack of strategy.
  *  - Grafana 2026 (core): cost and ease of use are the top buying criteria.
- *    ~50% track business-related metrics. Full-stack, SLOs, and business
- *    observability are rising.
+ *    Full-stack observability and SLOs are rising. (Business observability is
+ *    rising in the survey too, but it's NOT shipped for Everr — kept off the page.)
  *  - Grafana 2026 (open source): 77% say open source/open standards matter
  *    (61% "very important/essential"); OSS is the #4 selection criterion (25%),
  *    interoperability #2 (26%), and 58% select on at least one open-standards
@@ -21,17 +21,18 @@
  *    its reasoning. Trust drops for autonomous action (77%). Biggest blocker:
  *    26% "too much manual input of context."
  *
- * GTM thesis: identity stays "observability made simple" + business/technical;
- * lead with the AGENT WEDGE and fold everything else into proof under three
+ * GTM thesis: identity stays "observability made simple"; lead with the AGENT
+ * WEDGE and fold everything else into proof under three
  * pillars (see HOMEPAGE.md §1 for the full version):
  *   1. Agent-native — coding agents are first-class consumers (the wedge, lead).
  *   2. One system, full lifecycle — SUBSTANTIATE: name the engine (ClickHouse),
  *      query surface, multitenancy/RBAC; one REAL production number above the fold.
  *   3. Open & portable — one plain sentence, acronyms behind a disclosure; state
- *      which signals are portable; name the join's portability limit.
+ *      which signals are portable (per-signal scope).
  * Guardrails: numbers over adjectives; "portable" only per named open format;
- * the business↔technical join is a VISUAL, not a sentence; define jargon at every
- * layer; no maximal "replace Datadog" claim beside a hedge; never invent figures.
+ * define jargon at every layer; no maximal "replace Datadog" claim beside a hedge;
+ * never invent figures. NOTE: business observability / business-KPI joins are NOT
+ * shipped and buyers are skeptical — keep them off the page entirely.
  *
  * Replace each <PlaceholderSection> with a purpose-built component, then delete
  * its stub here.
@@ -127,10 +128,9 @@ export function OpenStandards() {
         "Plain-language lead first; acronym wall (OTLP, PromQL, Perses, Prometheus rules) behind a 'for the experts' disclosure",
         "State per-signal portability: metrics + alerts + dashboards in open formats (PromQL / Prometheus rules / Perses); traces + logs via OTLP export (raw-export only)",
         "Don't overstate: PromQL ingest ≠ identical recording-rule/histogram_quantile/subquery semantics; Perses ≠ Grafana's ecosystem",
-        "Name the join limit out loud: the business↔technical join lives in Everr's store/model and isn't reproducible from OTLP export alone (portable to another Everr, not any backend)",
         "Grid of languages/frameworks/exporters; dev / agent / CI / prod paths; link to repo",
       ]}
-      evidence="Grafana 2026: 77% value open standards. Reviewers: 'portable' floats unless scoped per-signal, and the join quietly contradicts the openness story — naming that limit converts the contradiction into a trust signal."
+      evidence="Grafana 2026: 77% value open standards. Reviewers: 'portable' floats unless scoped per-signal — state which signals are fully portable (metrics/alerts/dashboards) vs. raw-export only (traces/logs)."
     />
   );
 }
@@ -140,15 +140,15 @@ export function Features() {
   return (
     <PlaceholderSection
       title="Features / capabilities grid"
-      purpose="Outcome-framed cards — and the home for the substantiation Pillar 2 needs (architecture + numbers + the join visual)."
+      purpose="Outcome-framed cards — and the home for the substantiation Pillar 2 needs (architecture + production numbers)."
       todos={[
         "Full-stack observability (logs, traces, metrics, errors in one place)",
         "Production with NUMBERS not adjectives: cardinality, retention/downsampling, SLO depth (multi-window burn-rate), alert routing (dedup/escalation/on-call), HA",
         "Architecture line: ClickHouse-backed store, the query surface, and a multitenancy/RBAC/quota mention (platform buyers fear hidden tradeoffs)",
-        "The business↔technical JOIN as a concrete VISUAL ('12 signups failed → click → exact error + deploy'), not a sentence — carry the portability caveat",
+        "No business-observability / business-KPI cards — not shipped, buyers skeptical",
         "Define 'SLO' in plain words on first use; link each card to docs",
       ]}
-      evidence="Reviewers: the load-bearing 'one system, full lifecycle' claim is least substantiated — name the engine, query surface, multitenancy and one real number. The SRE rates production on specifics; 'business + technical' is a cliché unless you SHOW the join."
+      evidence="Reviewers: the load-bearing 'one system, full lifecycle' claim is least substantiated — name the engine, query surface, multitenancy and one real number. The SRE rates production on specifics."
     />
   );
 }
