@@ -69,18 +69,15 @@ function DevlogIndex() {
               shipped.
             </p>
             <p>
-              A growing share of code is written by AI, but the tools we use to
-              understand running code weren't built for agents. Dashboards live
-              behind clicks in a web UI, the data sits behind query languages
-              and APIs an agent has to learn first, and the knowledge of how to
-              investigate something lives in someone's head. Everr puts all of
-              that in your codebase, as code, so both humans and agents can read
-              it, write it, and improve it the same way they work on everything
-              else.
+              With Everr we want to bring AI into the software development
+              lifecycle, making observability a natural part of your stack
+              instead of a separate discipline, and guiding your team toward the
+              best practices that have always been too complicated to apply
+              everywhere.
             </p>
             <p>
-              We use Everr on our own code every day, and when something slows
-              us down, it becomes a fix the same week.
+              We use Everr on our own systems every day, and honestly we don't
+              know how we used to live without it.
             </p>
           </div>
         </section>
