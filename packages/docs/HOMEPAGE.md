@@ -2,8 +2,9 @@
 
 Grounding doc for anyone (human or agent) filling in or implementing homepage
 sections. **Read this before touching a section** and keep changes within the
-scope described here. The goal is a coherent page, not a pile of independently
-"optimized" blocks.
+scope described here. The goal is a coherent, *convincing* page — not a pile of
+independently "optimized" blocks, and not slogans a skeptical SRE will bounce
+off.
 
 Page route: `src/routes/index.tsx` (controls section order).
 Section components: `src/components/*.tsx`.
@@ -12,67 +13,97 @@ each with a real component and delete its stub.
 
 ---
 
-## 1. Product truth & guardrails (do not contradict)
+## 1. Positioning (the spine — keep all copy consistent)
 
-Everr's positioning — keep all copy consistent with this:
+### North star vs. what we prove on the page
 
-- **Full-lifecycle observability.** One OpenTelemetry pipeline across the whole
-  lifecycle: dev machines, AI coding agents, CI runs, **and production**. This
-  is **not** a pre-prod-only / "upstream" tool — production is fully in scope.
-  Don't use "pre-prod vs prod" as a framing axis.
-- **We aim to replace the incumbents.** Everr is positioned to replace the
-  Datadog / Grafana / Honeycomb-class stack across that lifecycle — same
-  primitives, same data model, same answers everywhere. State this ambition;
-  just keep specific feature claims honest about current maturity.
-- **Open standards everywhere, low lock-in by design.** This goes far beyond
-  telemetry. OpenTelemetry-native is the baseline (if your runtime speaks OTel,
-  you're done), but the same principle applies to **dashboards, notebooks,
-  alerts — and everything that comes next**: build on an open standard where one
-  exists, and where it doesn't, minimize lock-in. The default escape hatch is
-  **as-code** — dashboards, notebooks, alerts, etc. live in *your* codebase
-  (versioned, portable, yours), so you're never trapped in a proprietary UI's
-  database. Frame lock-in avoidance as a product-wide promise, not an
-  ingestion-only feature.
-- **AI-agent-native.** Agents query Everr via one structured API + plain SQL
-  (Claude Code, Cursor, Codex, Copilot, …). Telemetry is the ground truth that
-  stops agents from guessing. Agents are a prominent co-thesis, **not** the
-  headline.
-- **Local-first is one chapter, not the whole story.** It's a real
-  differentiator, but it's a means to an end: it lets agents (and humans)
-  **instrument an app and verify both the instrumentation and the code they
-  wrote — locally, before shipping to production.** That verify-before-you-ship
-  loop is the point; data staying on the device and the optional hosted/shared
-  cluster are how it works. Never frame Everr as "only local" or position
-  local-first as the headline — it's the on-ramp to the same observability that
-  runs all the way through production.
-- **Covers business AND technical data.** Lead with simple, frictionless
-  observability spanning both; AI is the enabler.
-- **Pricing:** open-source core, free for local use; paid for hosted clusters,
-  scale/retention, premium support. Keep tiers consistent with reality.
-- **Pre-launch:** the primary CTA is the **waitlist** (`/waitlist`); install
-  commands are intentionally hidden until launch (see commented blocks in
-  `final-cta.tsx`). Don't surface install snippets as the main CTA yet.
+- **North star (the direction, not a headline claim):** Everr becomes the single
+  system teams consolidate their observability onto across the whole lifecycle —
+  dev machines, AI agents, CI, and production — collapsing the fragmented
+  Datadog/Grafana/Honeycomb-era stack into one.
+- **How we earn it: proof, not slogans.** Do **not** put a maximal "replace
+  Datadog" claim on the page, and *never* next to maturity hedges or a waitlist.
+  Every buyer persona flagged that combination as the single biggest
+  trust-killer — a grand claim beside "not fully shipped" nukes credibility on
+  *everything else*. Lead with the wedge we can defend; let the trajectory imply
+  the destination.
+- **The defensible wedge today:** one OTel-native pipeline, **agents as
+  first-class consumers** of telemetry, verify-before-ship, open and low-lock-in.
+  Sell the wedge; don't oversell the endgame.
 
-**Honesty vs. ambition:** state the full-lifecycle, replace-the-incumbents
-vision confidently. Where a specific capability (e.g. a particular production
-feature, SLO depth, tiered pricing) isn't fully shipped, describe it truthfully
-— but **do not** disclaim production as out of scope. The vision is the frame;
-maturity nuance lives in the details.
+### Core pillars
 
-> ⚠️ `faq.tsx` currently answers "Does Everr replace Datadog/Grafana/Honeycomb?"
-> with "Not yet… currently focused on local observability." That copy
-> contradicts this positioning and should be revised — see the FAQ note in §4.
+1. **One system, full lifecycle.** Dev → agents → CI → production, same data
+   model and query surface everywhere. Production is fully in scope (not
+   pre-prod-only; don't use "pre-prod vs prod" as a framing axis).
+   - **Production must be credible to an SRE — use numbers, not adjectives.**
+     Words like "first-class" or "enterprise-grade" read as empty to this buyer.
+     Where production is claimed, address the things they actually evaluate:
+     **cardinality** handling, **retention/downsampling**, **SLO depth**
+     (multi-window burn-rate, not just a gauge), **alert routing** (dedup,
+     grouping, escalation, on-call integrations), **HA/replication**, and
+     **cost at scale**. If we don't have the concrete number/capability yet, get
+     it or omit the claim — do not paper over it with an adjective.
+2. **Agents as first-class consumers (the wedge — not an "AI feature").** Frame
+   AI as: your coding agents are now a primary *consumer* of observability data,
+   and Everr is built for that — one structured API + query surface an agent can
+   drive to get ground truth instead of guessing. This is a category wedge, and
+   it resolves the seniority split: it's the newcomer's hook *and* survives the
+   senior's "AI is a gimmick" shrug because it's an integration/data argument,
+   not a chatbot. Keep the literal hero headline off "AI" (only 15% buy on AI),
+   but agents-as-consumer is a strong co-thesis through the back half.
+3. **Open standards + low lock-in, product-wide — name the formats.** This spans
+   telemetry *and* dashboards, notebooks, alerts, and whatever comes next.
+   - Be precise: **as-code ≠ portable.** Perses, Grafana-as-code, and Terraform
+     already do as-code; a dashboard bound to Everr's query semantics is only
+     "portable to another Everr." Credible portability means **open formats**:
+     **OTLP in/out**, **PromQL** / **Prometheus alerting rules**, **Perses**
+     dashboards — formats another tool can actually read. Claim "portable" only
+     where you can name such a format; otherwise say "as-code / versioned in your
+     repo," which is a real (different) benefit.
+4. **Business + technical data — show the join, don't assert it.** "Covers
+   business and technical data" is a cliché every vendor with a dashboard makes;
+   on its own it's worthless. The differentiator is the **join**: one store +
+   shared OpenTelemetry context means a business event (signup, purchase) carries
+   the same trace/resource attributes as the technical spans — so you can join
+   revenue/conversion to the exact request, deploy, or agent run. Always lead
+   with a concrete join example, never the bare claim.
+5. **Simple on the surface, powerful underneath — and define the category.**
+   "Made simple" breaks the moment we lead with jargon. Newcomers don't know what
+   "observability" or "SLO" even mean. Define them in plain language on first use
+   (observability ≈ "see what your software is actually doing, from the outside
+   in"; SLO ≈ "the reliability target you promise — e.g. 99.9% of requests
+   succeed"). **Do not prove "simple" with "plain SQL"** — SQL/PromQL is
+   power-user depth, mentioned *after* the simple promise lands, not as the
+   simplicity proof.
+6. **Local-first is the on-ramp (one chapter).** Its job: let agents (and humans)
+   instrument an app and verify both the instrumentation and the code they wrote
+   — locally, before shipping to production. Verify-before-ship is the point; not
+   the headline, never "only local."
+7. **Pricing: open-source core + honest cost.** Open-source core, transparent
+   pricing, and explicitly address **cost at scale** (the SRE rated this low —
+   don't dodge it). Keep tiers consistent with reality.
 
 ### Global do / don't
 
-- **Don't** put AI in the hero or headline. Only ~15% pick a tool because of AI.
-  AI is an _enabler_, shown mid-page, framed around transparency.
-- **Don't** invent logos, customer quotes, or statistics. Use real,
-  attributable assets only — or leave the stub until they exist.
-- **Do** lead the page with complexity reduction, cost/ease, and openness.
-- **Do** keep business + technical framing (Everr covers both), per the
-  marketing thesis.
-- **Do** reuse existing section conventions (see §3).
+- **Don't** make a maximal "replace Datadog/Grafana today" claim — and never
+  place ambition next to hedges, "coming soon," or a waitlist.
+- **Don't** frame AI as a vague "AI assistant" feature; frame **agents as
+  consumers**. Keep AI out of the literal hero headline.
+- **Don't** say "portable" without naming an open format (OTLP, PromQL, Perses…).
+- **Don't** use adjectives where the buyer wants numbers — especially for
+  production/SRE claims.
+- **Don't** assert "business + technical" without a concrete join example.
+- **Don't** lead with jargon; define observability/SLO in plain words once.
+- **Don't** invent logos, customer quotes, or statistics.
+- **Do** lead with simplicity + openness + consolidation, and **prove each with
+  specifics**.
+
+> ⚠️ Live-copy follow-ups (not yet done): `faq.tsx` ("Does Everr replace
+> Datadog…? — Not yet, currently focused on local observability") and the
+> waitlist-as-primary-CTA framing in `hero.tsx` / `final-cta.tsx` both predate
+> this positioning. They need reconciling — affirm full-lifecycle without a
+> maximal claim, and drop the pre-launch hedging — see §4 notes.
 
 ---
 
@@ -92,7 +123,8 @@ maturity nuance lives in the details.
   92%, anomaly detection 92%, forecasting 91%, root cause 91%, onboarding 89%)
   but only 15% choose a tool _because_ of AI; 95% demand AI that explains its
   reasoning; trust drops for autonomous action (77%); biggest blocker is "too
-  much manual input of context" (26%).
+  much manual input of context" (26%). → favors **agent-as-consumer**, not
+  "AI assistant."
 
 Sources:
 - https://grafana.com/blog/observability-survey-AI-2026/
@@ -121,10 +153,14 @@ Sources:
 Status legend: ✅ implemented · 🟧 placeholder stub (in `placeholder-sections.tsx`).
 
 ### Hero — ✅ `hero.tsx`
-Headline "Observability made simple. For Real." + subcopy + waitlist CTA, with
-the animated `HoleBackground` and a tilted product screenshot (`/screenshot.png`).
+Headline "Observability made simple. For Real." + subcopy + primary CTA, with the
+animated `HoleBackground` and a tilted product screenshot (`/screenshot.png`).
 Responsive: stacks on mobile, two-column tilt on `md+`.
-**Scope:** lead with simplicity/openness — never AI. Keep the screenshot honest.
+**Scope:** lead with simplicity + openness + consolidation ("one system"). Never
+lead with AI; agents-as-consumer is a co-thesis, not the headline. Define the
+category in plain language (don't assume the reader knows "observability"). ⚠️ CTA
+currently points at the waitlist — drop the pre-launch framing (→ "Get started" /
+"Docs") per §1.
 
 ### Logo cloud / social proof — 🟧 `LogoCloud`
 Adopter logos + an open-source proof signal (GitHub stars badge, "Open source"
@@ -133,32 +169,35 @@ pill) directly under the hero.
 **Scope:** real adopters/logos only. No placeholder brands at launch.
 
 ### Species (value-prop statement) — ✅ `species.tsx`
-Big typographic statement: "A new kind of observability. Built where the work
-actually happens. Your laptop, CI, and the agents shipping alongside you."
-**Scope:** this is the thesis line. The current copy reads pre-prod-leaning —
-it should also land **production** as part of "where the work happens" so it
-matches the full-lifecycle positioning (§1).
+Big typographic statement ("A new kind of observability. Built where the work
+actually happens…").
+**Scope:** the thesis line. Current copy reads pre-prod-leaning — it should land
+**production** as part of "where the work happens" to match the one-system,
+full-lifecycle positioning (§1, pillar 1).
 
 ### The problem: tool sprawl & complexity — 🟧 `ProblemToolSprawl`
 Name the pain before the cure: too many disconnected tools, too much glue.
 Lead stat: 72% use 1–9 tools, 23% use 10–15. Costs: complexity, skills gap, no
-strategy. Contrast "wall of dashboards" vs. one unified pipeline.
-**Why:** CNCF — complexity is the #1 challenge, so the page leads with it.
+strategy. Contrast "wall of dashboards" vs. one unified pipeline (dev → agents →
+CI → prod).
+**Why:** CNCF — complexity is the #1 challenge, so the page leads with it. This
+section also sets up the **consolidation** story (the credible version of
+"replace the stack").
 
 ### Open by default (open standards, low lock-in) — 🟧 `OpenStandards`
-Top-tier openness promise spanning the **whole product**, not just ingestion:
-- **Telemetry:** OTel-native, Prometheus-compatible, freedom to switch backends,
-  self-host.
-- **Dashboards, notebooks, alerts — and whatever comes next:** built on open
-  standards where they exist; where they don't, lock-in is minimized via
-  **as-code** — these artifacts live in *your* codebase (versioned, portable,
-  reviewable), not locked inside a proprietary UI.
-Include the ingestion grid (languages/frameworks/exporters; CI / agent / dev /
-prod paths) and link to the repo. The headline is "your observability is yours —
-your data, your dashboards, your alerts, all portable."
+Top-tier openness promise spanning the **whole product**, with **named formats**:
+- **Telemetry:** OTel-native, **OTLP in/out**, **PromQL** / Prometheus
+  compatibility, freedom to switch backends, self-host.
+- **Dashboards, notebooks, alerts — and what's next:** open formats where they
+  exist (**Perses** dashboards, **Prometheus alerting rules**); otherwise
+  **as-code in your repo** (versioned, reviewable).
+**Be precise:** claim "portable" only when naming an open format another tool can
+read; as-code alone is "versioned & yours," not portability. Include the
+ingestion grid (languages/frameworks/exporters; dev / agent / CI / prod paths)
+and link to the repo.
 **Why:** 77% value open standards; 58% select on them; 37% adopt OTel to avoid
-lock-in — and product-wide openness (not just telemetry) is core to Everr's
-identity. Keep it high on the page.
+lock-in. The expert's catch: vague "portable" claims get called out — name
+formats or don't claim it.
 
 ### Video demo — ✅ `video-section.tsx`
 Autoplaying (muted, looped, in-view) product video framed in an `aspect-video`
@@ -167,71 +206,80 @@ card. Source: `public/demo.mp4` (placeholder file — replace).
 
 ### Features / capabilities grid — 🟧 `Features`
 3–6 outcome-framed cards: full-stack (logs, traces, metrics, errors in one
-place), SLOs/alerting as first-class, complexity reduction, time to value.
-Thread transparency/explainability through the cards. Link each to docs.
-**Why:** full-stack + SLOs rising; ease of use is top; 95% want the "why".
-**Scope:** outcomes, not a spec sheet. Cover the full lifecycle including
-production (alerting, SLOs, retention all matter); keep maturity claims honest.
+place), SLOs/alerting, the **business↔technical join**, complexity reduction.
+**Use numbers for production claims** (cardinality, retention, SLO depth, alert
+routing, HA) — not adjectives. Define "SLO" in plain words on first use. Link
+each card to docs.
+**Why:** full-stack + SLOs rising; ease of use is top; the SRE rates production
+on specifics, not "first-class."
+**Scope:** outcomes, not a spec sheet; honest maturity. There's no standalone
+business-observability section anymore, so the **business↔technical join story**
+(pillar 4) should live here as a concrete card — or be split into its own section
+later.
 
-### AI assistant (enabler, not headline) — 🟧 `AIAssistant`
-Mid-page. AI as a transparent assistant: query/dashboard generation, anomaly
-detection, forecasting, root-cause, onboarding — reasoning always visible
-(sources, query logic, confidence). Address the "manual context" blocker (AI
-already has your telemetry context). Assist, not autopilot.
+### Agents as first-class consumers — 🟧 `AIAssistant`
+(Reframed from "AI assistant.") Mid-page. The wedge: coding agents are now a
+primary *consumer* of observability — Everr gives them one structured API + query
+surface to pull ground truth (real error rates, latencies, the spans that
+actually fired) instead of guessing. Assistive in-product uses (query/dashboard
+generation, anomaly surfacing, root-cause) are supporting detail; keep reasoning
+transparent (sources, query logic, confidence). Address the "manual context"
+blocker (the agent already has your telemetry context). Assist, not autopilot.
 **Why:** AI valued in-product but only 15% buy on it; 95% want explainability;
-trust drops for autonomy (77%). **Never move this into the hero.**
+trust drops for autonomy (77%). Agent-as-consumer satisfies both the survey data
+and the seniority split. **Never move this into the hero headline.**
 
 ### Tools explainer — ✅ `tools-explainer.tsx`
-"Your tools. Your rules." — editor/agent-agnostic, orbiting tool icons
-(VS Code, Cursor, Zed, JetBrains, Claude Code, Codex, Copilot, …).
+"Your tools. Your rules." — editor/agent-agnostic, orbiting tool icons.
 "Everr doesn't replace your stack, it improves it."
-**Scope:** keep the agnostic, non-prescriptive message.
+**Scope:** keep the agnostic, non-prescriptive message. (Note the gentle tension
+with the consolidation story — this is about *editors/agents*, not observability
+vendors; keep that distinction clear.)
 
 ### Time to value / quick start — 🟧 `TimeToValue`
 Fast path to first insight: one-command install (tabbed by runtime), "first
 trace in N minutes" with a real number, sensible defaults / auto-instrumentation,
 link to quickstart.
 **Why:** counters the skills/complexity blockers; ease of use is a top criterion.
-**Scope:** pre-launch the headline CTA stays the waitlist; an install snippet
-here is fine as illustration but coordinate with launch state.
+**Scope:** an install snippet here is fine as illustration; no waitlist hedging.
 
 ### How it works — ✅ `how-it-works.tsx`
 "Your agent shouldn't have to guess." Reading the codebase tells half the story;
 Everr captures what the code actually does at runtime, behind a query the agent
-already knows. (Note: a 3-step grid + SVG illustrations are commented out for
-later — see the file.)
-**Scope:** keep the ground-truth-for-agents narrative.
+already knows. (A 3-step grid + SVG illustrations are commented out for later.)
+**Scope:** this is the agent-as-consumer narrative in long form — keep it.
 
 ### Pricing / cost transparency — 🟧 `PricingTeaser`
-Address the #1 buying criterion: lead with "free & open-source / local forever",
-self-host vs. managed, no surprise-bill anxiety, CTA. Keep consistent with the
-FAQ pricing answer.
-**Why:** cost is the top buying criterion; OSS/self-host is a direct lever.
-**Scope:** don't invent tiers/prices that don't exist — match shipped pricing.
+Address the buying criterion head-on: open-source core, transparent pricing,
+self-host vs. managed, and explicitly **cost at scale** (the SRE rated this low).
+Keep consistent with the FAQ pricing answer.
+**Why:** cost is a top buying criterion; OSS/self-host is a direct lever, but
+vague "no surprise bills" isn't enough — show the model.
+**Scope:** don't invent tiers/prices that don't exist — match reality.
 
 ### Testimonials — 🟧 `Testimonials`
-2–4 quote cards (name, role, company, avatar) reinforcing complexity reduction
-and time saved; optionally a standout metric.
+2–4 quote cards (name, role, company, avatar) reinforcing complexity reduction,
+consolidation, and time saved; optionally a standout metric.
 **Why:** peer validation; quotes should echo the page thesis.
 **Scope:** real, attributable quotes only. Leave the stub until they exist.
 
 ### FAQ — ✅ `faq.tsx`
-Collapsible Q&A covering: replaces incumbents?, storage (local-first),
-instrumentation (OTel), CI, how agents query, cost. Links to Discord.
-**Scope:** ⚠️ the "Does Everr replace Datadog/Grafana/Honeycomb? — Not yet…
-currently focused on local observability" answer now **contradicts** the
-full-lifecycle, replace-the-incumbents positioning in §1 and should be rewritten
-to affirm production is in scope (with honest maturity nuance). Keep the rest of
-the FAQ as the source of truth for honest answers.
+Collapsible Q&A: replaces incumbents?, storage (local-first), instrumentation
+(OTel), CI, how agents query, cost. Links to Discord.
+**Scope:** ⚠️ the "Does Everr replace Datadog/Grafana/Honeycomb? — Not yet,
+currently focused on local observability" answer contradicts §1. Rewrite to the
+credible version: full-lifecycle / one-system / production in scope, *without* a
+maximal "we replace Datadog today" claim — affirm the direction, be honest about
+maturity. Keep the rest of the FAQ as the source of truth for honest answers.
 
 ### Community — ✅ `community.tsx`
-Discord CTA band on a `primary` background. "Talk to the team. Shape what ships
-next." Links to `DISCORD_URL`.
+Discord CTA band on `primary`. "Talk to the team. Shape what ships next."
 
 ### Final CTA — ✅ `final-cta.tsx`
-"Stop guessing. Start observing." Waitlist + Documentation buttons. (Install
-command box is commented out until launch.)
-**Scope:** keep waitlist primary pre-launch.
+"Stop guessing. Start observing." Primary + Documentation buttons. (Install
+command box is commented out.)
+**Scope:** ⚠️ currently waitlist-primary — drop the pre-launch framing per §1
+(→ "Get started" / "Docs").
 
 ### Footer — ✅ `footer.tsx`
 Site footer (nav, links). Update links as pages get added.
@@ -243,5 +291,7 @@ Site footer (nav, links). Update links as pages get added.
 1. Build a real component in its own `src/components/<name>.tsx`.
 2. Swap the import + usage in `src/routes/index.tsx`.
 3. Delete the corresponding stub from `placeholder-sections.tsx`.
-4. Verify against the conventions in §3 and the guardrails in §1.
+4. Verify against the conventions in §3 and the pillars/guardrails in §1 —
+   especially: numbers over adjectives, named formats over "portable," a join
+   example over "business + technical," and no maximal claim beside a hedge.
 5. Keep this file in sync — flip the status and trim notes that no longer apply.

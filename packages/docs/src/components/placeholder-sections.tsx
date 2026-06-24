@@ -21,8 +21,16 @@
  *    its reasoning. Trust drops for autonomous action (77%). Biggest blocker:
  *    26% "too much manual input of context."
  *
- * GTM thesis: lead with complexity reduction, cost/ease, and openness. AI is an
- * enabler shown mid-page, never the headline.
+ * GTM thesis: lead with simplicity, openness, and consolidation ("one system,
+ * full lifecycle") — and PROVE each with specifics. Guardrails (see HOMEPAGE.md
+ * §1 for the full version):
+ *   - No maximal "replace Datadog today" claim, and never next to a hedge.
+ *   - Numbers over adjectives for production/SRE claims.
+ *   - "Portable" only when naming an open format (OTLP, PromQL, Perses…).
+ *   - Show the business↔technical JOIN, never assert it.
+ *   - Define "observability"/"SLO" in plain words; don't prove "simple" with SQL.
+ *   - Frame AI as agents-as-consumer (a wedge), not an "AI assistant" feature;
+ *     keep it out of the hero headline.
  *
  * Replace each <PlaceholderSection> with a purpose-built component, then delete
  * its stub here.
@@ -113,15 +121,15 @@ export function OpenStandards() {
   return (
     <PlaceholderSection
       title="Open by default — open standards, low lock-in everywhere"
-      purpose="Make openness a product-wide promise, not just ingestion: open standards where they exist, and as-code (everything in your codebase) where they don't — so your data, dashboards, notebooks, and alerts stay yours and portable."
+      purpose="Make openness a product-wide promise, not just ingestion — and name the formats: open standards where they exist, as-code in your repo where they don't."
       todos={[
-        "Telemetry baseline: OTel-native + Prometheus-compatible, freedom to switch backends, self-host",
-        "Go beyond telemetry: dashboards, notebooks, alerts — and whatever comes next — built on open standards or made portable via as-code (lives in your repo)",
-        "Headline 'your observability is yours': your data, your dashboards, your alerts, all versioned and portable — no proprietary-UI lock-in",
-        "Grid of supported languages, frameworks, exporters; CI / agent / dev / prod ingestion paths",
+        "Telemetry baseline: OTel-native, OTLP in/out, PromQL / Prometheus compatibility, switch backends, self-host",
+        "Beyond telemetry: dashboards, notebooks, alerts — open formats where they exist (Perses dashboards, Prometheus alerting rules); otherwise as-code in your repo",
+        "Be precise: as-code ≠ portable. Claim 'portable' only when naming an open format another tool can read; otherwise say 'versioned & yours'",
+        "Grid of supported languages, frameworks, exporters; dev / agent / CI / prod ingestion paths",
         "Reinforce the open-source angle (link to repo); link to integrations catalog",
       ]}
-      evidence="Grafana 2026: 77% value open source/open standards (61% essential), 58% select on an open-standards criterion, and 37% adopt OpenTelemetry specifically to avoid lock-in — and Everr's anti-lock-in promise spans the whole product (telemetry, dashboards, notebooks, alerts), not just ingestion."
+      evidence="Grafana 2026: 77% value open source/open standards (61% essential), 58% select on an open-standards criterion, 37% adopt OTel to avoid lock-in. The expert catch: vague 'portable' gets called out — as-code alone is portable only to another Everr, so name real open formats (OTLP, PromQL, Perses) or don't claim it."
     />
   );
 }
@@ -131,33 +139,33 @@ export function Features() {
   return (
     <PlaceholderSection
       title="Features / capabilities grid"
-      purpose="Show the breadth (full-stack: logs, traces, metrics, errors) without overwhelming — organized around outcomes, not plumbing."
+      purpose="Show the breadth (full-stack: logs, traces, metrics, errors) as outcomes — and back production claims with NUMBERS, not adjectives."
       todos={[
-        "3–6 feature cards with icon + headline + one-line benefit",
-        "Cover full-stack observability (logs, traces, metrics, errors in one place)",
-        "Highlight SLOs / alerting as first-class (rising in demand)",
-        "Thread transparency/explainability through the cards (95% want to see the 'why')",
-        "Frame each around complexity reduction & time to value; link each to docs",
+        "3–6 outcome-framed cards with icon + headline + one-line benefit",
+        "Full-stack observability (logs, traces, metrics, errors in one place)",
+        "Production must read credible to an SRE: cite real numbers for cardinality, retention/downsampling, SLO depth (multi-window burn-rate), alert routing (dedup/escalation/on-call), HA — avoid 'first-class' with nothing behind it",
+        "Include the business↔technical JOIN as a concrete card (join revenue/conversion to the exact request/deploy/agent run via shared OTel context) — show it, don't assert it",
+        "Define 'SLO' in plain words on first use; link each card to docs",
       ]}
-      evidence="Grafana 2026: full-stack observability and SLOs are rising, ease of use is a top buying criterion, and 95% want tools to explain their reasoning — features should read as transparent outcomes, not a spec sheet."
+      evidence="Grafana 2026: full-stack + SLOs rising and ease of use is top — but the SRE (toughest buyer) rates production on specifics (cardinality, retention, SLO depth, alert routing, HA), not adjectives. 'Business + technical' is a cliché unless you show the join."
     />
   );
 }
 
-/** AI as an assistant — enabler, mid-page, transparent. Never the headline. */
+/** Agents as first-class consumers — the wedge, mid-page. Never the headline. */
 export function AIAssistant() {
   return (
     <PlaceholderSection
-      title="AI assistant (enabler, not headline)"
-      purpose="Show AI as a transparent assistant that removes toil — generating queries/dashboards, surfacing anomalies, accelerating root cause — with its reasoning always visible."
+      title="Agents as first-class consumers (the wedge)"
+      purpose="Frame AI as a category wedge, not a feature: your coding agents are now a primary consumer of observability, and Everr gives them ground truth on demand instead of letting them guess."
       todos={[
-        "Lead with the valued, assistive use cases: query/dashboard generation, anomaly detection, forecasting, root-cause, onboarding",
-        "Make transparency the hero of the section: show sources, query logic, confidence — never a black box",
-        "Address the 'manual context' blocker — AI that already has your telemetry context",
-        "Frame as assist, not autopilot; avoid over-promising autonomous remediation",
-        "Keep it mid-page and supporting — do NOT move AI into the hero",
+        "Lead with the wedge: agents query Everr (one structured API + query surface) for real error rates, latencies, the spans that actually fired",
+        "Position assistive in-product uses (query/dashboard generation, anomaly surfacing, root-cause) as supporting detail, not the headline",
+        "Keep reasoning transparent: sources, query logic, confidence — never a black box",
+        "Address the 'manual context' blocker — the agent already has your telemetry context",
+        "Assist, not autopilot; keep it mid-page — do NOT move AI into the hero headline",
       ]}
-      evidence="Grafana 2026 AI: AI is broadly valued in-product (92% dashboards/queries, 92% anomalies, 91% root cause) but only 15% choose a tool because of AI, 95% demand explainable reasoning, and trust drops for autonomous action (77%) — so AI belongs mid-page, transparent, and assistive."
+      evidence="Grafana 2026 AI: valued in-product (92% dashboards/queries, 91% root cause) but only 15% buy on AI; 95% demand explainable reasoning; trust drops for autonomy (77%). Agent-as-consumer (a data/integration wedge) satisfies both the survey data and the seniority split — newcomer's hook, senior's credibility — where a generic 'AI assistant' gets a shrug."
     />
   );
 }
@@ -184,14 +192,14 @@ export function PricingTeaser() {
   return (
     <PlaceholderSection
       title="Pricing / cost transparency"
-      purpose="Address the #1 buying criterion head-on — predictable, transparent cost (and the open-source/self-host story)."
+      purpose="Address the buying criterion head-on — open-source core, transparent pricing, and an explicit answer on cost at scale."
       todos={[
-        "Clear, simple pricing tiers or a 'free & open-source' lead",
+        "Clear, simple pricing tiers or a 'free & open-source core' lead",
         "Self-host vs. managed comparison",
-        "Avoid usage-based surprise-bill anxiety — state the model plainly",
+        "Explicitly address COST AT SCALE — the SRE rated this low; show the model, don't just say 'no surprise bills'",
         "Primary CTA to pricing page / get started",
       ]}
-      evidence="Grafana 2026: cost is the top buying criterion — transparent pricing and the OSS/self-host angle are direct levers on the purchase decision."
+      evidence="Grafana 2026: cost is a top buying criterion and the SRE rated cost-at-scale low — transparent pricing plus a concrete at-scale cost model (not vague 'no surprise bills') is the lever."
     />
   );
 }
