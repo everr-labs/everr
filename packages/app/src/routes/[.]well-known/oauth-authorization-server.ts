@@ -4,6 +4,8 @@ import { auth } from "@/lib/auth.server";
 
 const handler = oAuthDiscoveryMetadata(auth);
 
-export const Route = createFileRoute("/.well-known/oauth-authorization-server")({
-  server: { handlers: { GET: ({ request }) => handler(request) } },
-});
+export const Route = createFileRoute("/.well-known/oauth-authorization-server")(
+  {
+    server: { handlers: { GET: ({ request }) => handler(request) } },
+  },
+);
