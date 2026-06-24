@@ -26,6 +26,8 @@ We've adopted [Perses](https://perses.dev/), a standard definition language for 
 
 That way your LLMs already know how to write an Everr dashboard, and since the dashboards live in your codebase, you can build them with your code as the knowledge base.
 
+This is the part we're most excited about. An agent can build a dashboard right next to you, in the same repo, with the same context it already has from your code. No jumping out to an external tool, no clicking through a UI it can't see, no stitching together calls to a pile of different observability APIs it had to learn first. It just writes a YAML file with an SQL query, the same way it writes the rest of your code, and you review it in a PR like anything else. The dashboard becomes part of the project, not a thing that lives in someone else's system and slowly drifts out of date.
+
 Deployment is pretty limited for now, but the plan is to let you test dashboards against your local data and preview them right on your PRs.
 
 ## Notebooks for operational context
@@ -33,6 +35,12 @@ Deployment is pretty limited for now, but the plan is to let you test dashboards
 Sometimes dashboards aren't enough, say, to document what to do during a specific incident, or just to explain a given area of your business metrics.
 
 For that we've built notebooks, which are, in practice, dashboards embedded inside markdown.
+
+But the idea we're most excited about is what notebooks mean for agents. A notebook is, in effect, a skill: a documented, repeatable process for handling an incident or understanding a part of your system, written in plain markdown with the real dashboards sitting right next to the words.
+
+Because they're grounded in processes that have actually been used and proven, an agent can follow one the way a teammate would, instead of improvising from scratch every time. And it works both ways. When an agent runs a notebook and hits a gap, or something that's out of date, or a step that doesn't quite hold anymore, that's a signal to go fix the notebook itself.
+
+Over time we think this becomes one of the cornerstones of automating investigations and making them better: your runbooks turn into living skills that both you and your agents keep sharpening.
 
 We think they are pretty cool, and can't wait to see the wonderful things you are going to do with them.
 
