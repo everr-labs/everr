@@ -74,6 +74,87 @@ pub(crate) fn refresh_update_menu_item(app: &AppHandle, pending_version: Option<
     }
 }
 
+/// Status-dot color, emerald-500 — matches the in-app "update available" accent.
+const BADGE_RGB: (u8, u8, u8) = (16, 185, 129);
+
+/// Whether the *unbadged* base tray icon should render as a macOS template
+/// (system-tinted monochrome). Off-macOS and in dev this is false. The single
+/// definition of the rule, shared by `build_tray` and `refresh_tray_icon`.
+fn base_icon_is_template() -> bool {
+    cfg!(target_os = "macos") && !tauri::is_dev()
+}
+
+/// Returns a copy of `base` with a green status dot composited onto its
+/// bottom-right corner. The dot is sized relative to the icon (so it scales with
+/// @2x assets), anti-aliased, and alpha-blended over the icon so it reads cleanly
+/// at menu-bar sizes.
+pub(crate) fn badge_icon(base: &Image) -> Image<'static> {
+    let width = base.width();
+    let height = base.height();
+    let mut rgba = base.rgba().to_vec();
+
+    let min_dim = (width.min(height)) as f32;
+    let radius = (min_dim * 0.22).max(3.0);
+    // Smaller horizontal margin pushes the dot closer to the right edge.
+    let margin_x = min_dim * 0.01;
+    let margin_y = min_dim * 0.05;
+    let cx = width as f32 - radius - margin_x;
+    let cy = height as f32 - radius - margin_y;
+
+    for y in 0..height {
+        for x in 0..width {
+            let dx = x as f32 + 0.5 - cx;
+            let dy = y as f32 + 0.5 - cy;
+            let dist = (dx * dx + dy * dy).sqrt();
+            // Full coverage inside the radius, fading over a 1px anti-aliased edge.
+            let coverage = (radius + 0.5 - dist).clamp(0.0, 1.0);
+            if coverage <= 0.0 {
+                continue;
+            }
+            let idx = ((y * width + x) * 4) as usize;
+            let blend = |src: u8, dst: u8| {
+                (src as f32 * coverage + dst as f32 * (1.0 - coverage)).round() as u8
+            };
+            rgba[idx] = blend(BADGE_RGB.0, rgba[idx]);
+            rgba[idx + 1] = blend(BADGE_RGB.1, rgba[idx + 1]);
+            rgba[idx + 2] = blend(BADGE_RGB.2, rgba[idx + 2]);
+            // Make the dot opaque even over fully-transparent icon pixels.
+            let dst_a = rgba[idx + 3] as f32 / 255.0;
+            rgba[idx + 3] = ((coverage + dst_a * (1.0 - coverage)) * 255.0).round() as u8;
+        }
+    }
+
+    Image::new_owned(rgba, width, height)
+}
+
+/// Reflects the staged-update state on the tray *icon* by overlaying a green
+/// status dot. Paired with [`refresh_update_menu_item`], which updates the menu.
+/// Best-effort — a missing tray must never crash the app.
+pub(crate) fn refresh_tray_icon(app: &AppHandle, has_update: bool) {
+    let Some(base) = tray_base_icon() else {
+        return;
+    };
+
+    // The base icon is a macOS template (monochrome) in release builds; a colored
+    // badge can't show through a template, so the badged icon is set non-template.
+    let (icon, is_template) = if has_update {
+        (badge_icon(&base), false)
+    } else {
+        (base, base_icon_is_template())
+    };
+
+    let result = app
+        .tray_by_id(TRAY_ICON_ID)
+        .context("tray icon not found")
+        .and_then(|tray| {
+            tray.set_icon_with_as_template(Some(icon), is_template)
+                .context("failed to set tray icon")
+        });
+    if let Err(error) = result {
+        crate::crash_log::log_error("refresh tray icon", &error);
+    }
+}
+
 /// On Linux the tray backend (`libappindicator-sys`) `dlopen`s the appindicator
 /// library when the tray is built and **panics** if it is missing. Probe for it
 /// first so a missing library degrades into a recoverable error instead of
@@ -129,13 +210,7 @@ pub(crate) fn build_tray(app: &AppHandle) -> Result<()> {
         .menu(&menu)
         .tooltip(current_app_name());
     if let Some(icon) = tray_base_icon() {
-        builder = builder.icon(icon);
-        #[cfg(target_os = "macos")]
-        {
-            if !tauri::is_dev() {
-                builder = builder.icon_as_template(true);
-            }
-        }
+        builder = builder.icon(icon).icon_as_template(base_icon_is_template());
     }
 
     builder

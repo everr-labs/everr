@@ -191,6 +191,14 @@ pub(crate) async fn install_pending_update(app: AppHandle) -> CommandResult<()> 
         .into_command_result()
 }
 
+/// Dev-only: simulate or clear a staged update so the update UI can be exercised
+/// without a real release. `version: None` clears it. No-op in release builds.
+#[tauri::command]
+pub(crate) fn set_simulated_update(app: AppHandle, version: Option<String>) -> CommandResult<()> {
+    crate::update::set_simulated_update(&app, version);
+    Ok(())
+}
+
 #[tauri::command]
 pub(crate) fn get_collector_status(
     sidecar: State<'_, Sidecar>,

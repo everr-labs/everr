@@ -35,6 +35,7 @@ use commands::{
     get_active_notification, get_auth_status, get_build_info, get_collector_status,
     get_notification_emails, get_org, get_pending_sign_in, get_runs_list, get_user_profile,
     get_pending_update, get_wizard_status, install_pending_update, open_notification_target,
+    set_simulated_update,
     open_run_in_browser, open_sign_in_browser, poll_sign_in, reset_dev_onboarding,
     restart_collector, set_notification_emails, sign_out, start_sign_in, trigger_test_notification,
 };
@@ -336,6 +337,7 @@ pub fn run() {
             get_build_info,
             get_pending_update,
             install_pending_update,
+            set_simulated_update,
             get_collector_status,
             restart_collector,
             get_user_profile,

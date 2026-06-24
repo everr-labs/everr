@@ -11,7 +11,7 @@ use crate::notifications::{
 };
 use crate::settings::build_wizard_status_response;
 use crate::startup::sync_installed_global_skills_from_paths;
-use crate::tray::update_menu_label;
+use crate::tray::{badge_icon, update_menu_label};
 use crate::{
     current_app_name, current_base_url, current_state_store, should_check_for_updates,
     NotificationQueue, APP_NAME, DEV_APP_NAME,
@@ -182,6 +182,33 @@ fn startup_update_checks_are_disabled_in_dev_only() {
 #[test]
 fn update_menu_label_formats_version_with_v_prefix() {
     assert_eq!(update_menu_label("0.4.8"), "Restart to update (v0.4.8)");
+}
+
+#[test]
+fn badge_icon_draws_green_dot_in_bottom_right_only() {
+    use tauri::image::Image;
+
+    let size = 32u32;
+    let base = vec![255u8; (size * size * 4) as usize]; // opaque white
+    let badged = badge_icon(&Image::new(&base, size, size));
+
+    assert_eq!(badged.width(), size);
+    assert_eq!(badged.height(), size);
+
+    let pixel = |x: u32, y: u32| {
+        let i = ((y * size + x) * 4) as usize;
+        let rgba = badged.rgba();
+        (rgba[i], rgba[i + 1], rgba[i + 2], rgba[i + 3])
+    };
+
+    // Top-left is far from the badge and must be untouched.
+    assert_eq!(pixel(0, 0), (255, 255, 255, 255));
+
+    // The bottom-right carries the emerald dot: green dominant, opaque.
+    let (r, g, b, a) = pixel(24, 24);
+    assert!(g > r && g > b, "expected green-dominant dot, got {r},{g},{b}");
+    assert!(r < 120, "dot should not read as white, got r={r}");
+    assert_eq!(a, 255);
 }
 
 #[cfg(target_os = "macos")]

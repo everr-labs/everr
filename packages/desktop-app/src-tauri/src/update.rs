@@ -8,7 +8,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_updater::{Update, UpdaterExt};
 use tempfile::NamedTempFile;
 
-use crate::tray::refresh_update_menu_item;
+use crate::tray::{refresh_tray_icon, refresh_update_menu_item};
 use crate::{should_check_for_updates, UPDATE_AVAILABLE_EVENT, UPDATE_CHECK_INTERVAL_SECONDS};
 
 /// A downloaded-but-not-yet-installed update. The verified artifact bytes live
@@ -21,14 +21,29 @@ struct PendingUpdate {
 }
 
 #[derive(Default)]
-pub(crate) struct PendingUpdateState(Mutex<Option<PendingUpdate>>);
+pub(crate) struct PendingUpdateState {
+    staged: Mutex<Option<PendingUpdate>>,
+    /// Dev-only: a simulated staged version set from the Developer page. Lets the
+    /// update UI (sidebar control, tray badge + menu item) be exercised without a
+    /// real release. Never installable — [`apply_pending_update`] only reads
+    /// `staged`.
+    simulated: Mutex<Option<String>>,
+}
 
 impl PendingUpdateState {
+    /// The real staged version, if any. Used for idempotent re-staging.
     fn staged_version(&self) -> Option<String> {
-        self.0
+        self.staged
             .lock()
             .ok()
             .and_then(|guard| guard.as_ref().map(|pending| pending.version.clone()))
+    }
+
+    /// The version the update UI should reflect: a real staged update, falling
+    /// back to the dev-simulated one.
+    fn display_version(&self) -> Option<String> {
+        self.staged_version()
+            .or_else(|| self.simulated.lock().ok().and_then(|guard| guard.as_ref().cloned()))
     }
 }
 
@@ -40,7 +55,41 @@ struct UpdateAvailablePayload {
 /// The version currently staged, if any. Used by the `get_pending_update` command
 /// so a window opened *after* an update was staged renders the control.
 pub(crate) fn pending_update_version(app: &AppHandle) -> Option<String> {
-    app.state::<PendingUpdateState>().staged_version()
+    app.state::<PendingUpdateState>().display_version()
+}
+
+/// Reflect the current update state on every surface: the tray menu item, the
+/// tray icon badge, and the main window (via [`UPDATE_AVAILABLE_EVENT`]). The
+/// single definition of "which surfaces show update state", so the real-staging
+/// and dev-simulate paths can't drift. Reads the authoritative display version
+/// itself, so callers don't have to pass it.
+fn refresh_update_surfaces(app: &AppHandle) {
+    let display = pending_update_version(app);
+    refresh_update_menu_item(app, display.as_deref());
+    refresh_tray_icon(app, display.is_some());
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.emit(
+            UPDATE_AVAILABLE_EVENT,
+            UpdateAvailablePayload {
+                version: display.unwrap_or_default(),
+            },
+        );
+    }
+}
+
+/// Dev-only: set or clear a simulated staged update, then refresh every surface
+/// that reflects update state. No-op in release builds — the simulated state must
+/// never appear to real users.
+pub(crate) fn set_simulated_update(app: &AppHandle, version: Option<String>) {
+    if !tauri::is_dev() {
+        return;
+    }
+
+    if let Ok(mut guard) = app.state::<PendingUpdateState>().simulated.lock() {
+        *guard = version;
+    }
+
+    refresh_update_surfaces(app);
 }
 
 pub(crate) fn start_update_check_loop(app: AppHandle) {
@@ -81,27 +130,23 @@ async fn stage_update_if_available(app: &AppHandle) -> Result<()> {
         .context("failed to write update artifact")?;
     artifact.flush().context("failed to flush update artifact")?;
 
-    let version = update.version.clone();
     log_app_update_staged(&update);
 
     {
         let state = app.state::<PendingUpdateState>();
         let mut guard = state
-            .0
+            .staged
             .lock()
             .map_err(|_| anyhow!("pending update state poisoned"))?;
         // Replacing an older staged update drops its temp file (deleting it).
         *guard = Some(PendingUpdate {
-            version: version.clone(),
+            version: update.version.clone(),
             update,
             artifact,
         });
     }
 
-    refresh_update_menu_item(app, Some(&version));
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.emit(UPDATE_AVAILABLE_EVENT, UpdateAvailablePayload { version });
-    }
+    refresh_update_surfaces(app);
 
     Ok(())
 }
@@ -123,7 +168,7 @@ pub(crate) async fn apply_pending_update(app: AppHandle, trigger: &'static str) 
     let (update, bytes) = {
         let state = app.state::<PendingUpdateState>();
         let guard = state
-            .0
+            .staged
             .lock()
             .map_err(|_| anyhow!("pending update state poisoned"))?;
         let Some(pending) = guard.as_ref() else {
@@ -141,7 +186,7 @@ pub(crate) async fn apply_pending_update(app: AppHandle, trigger: &'static str) 
 
     {
         let state = app.state::<PendingUpdateState>();
-        let guard = state.0.lock();
+        let guard = state.staged.lock();
         if let Ok(mut guard) = guard {
             *guard = None;
         }

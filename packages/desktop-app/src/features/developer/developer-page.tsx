@@ -1,3 +1,4 @@
+import { DeveloperUpdateSection } from "../desktop-shell/app-update";
 import { DeveloperNotificationSection } from "../notifications/notification-window";
 import { ErrorTrackingSection } from "./error-tracking-section";
 
@@ -16,6 +17,7 @@ export function DeveloperPage() {
       </div>
       <div className="grid divide-y divide-white/[0.06]">
         <DeveloperNotificationSection />
+        <DeveloperUpdateSection />
         <ErrorTrackingSection />
       </div>
     </div>
