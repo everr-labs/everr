@@ -14,13 +14,17 @@ import { McpOrgError, resolveMcpOrg } from "./mcp-org";
 function sessionReturning(rows: unknown[]) {
   return {
     from: () => ({
-      where: () => ({ orderBy: () => ({ limit: () => Promise.resolve(rows) }) }),
+      where: () => ({
+        orderBy: () => ({ limit: () => Promise.resolve(rows) }),
+      }),
     }),
   };
 }
 // membership check chain: from().where().limit()
 function memberReturning(rows: unknown[]) {
-  return { from: () => ({ where: () => ({ limit: () => Promise.resolve(rows) }) }) };
+  return {
+    from: () => ({ where: () => ({ limit: () => Promise.resolve(rows) }) }),
+  };
 }
 // first-membership chain: from().where().orderBy().limit()
 const firstReturning = sessionReturning;
