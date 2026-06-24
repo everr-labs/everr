@@ -27,13 +27,15 @@ export function FeaturedTestimonial() {
           />
 
           <blockquote className="mt-6 font-heading text-2xl leading-[1.2] tracking-tight text-fd-foreground sm:text-3xl md:text-4xl">
-            “We evaluated one of the big platforms and it took a whole team on
-            our side just to set it up. We switched to another and were paying{" "}
-            <span className="text-primary">$700 a month</span> without even
-            knowing what was flowing through it. Everr made observability easy
-            enough that we follow best practices{" "}
-            <span className="text-primary">without a dedicated team</span> — and
-            everyone actually does it.”
+            “Our first platform needed a dedicated team just to stand up. The
+            next one was easier, but we were quietly paying{" "}
+            <span className="text-primary">$700 a month</span> for data we
+            couldn’t even account for. Everr is the first observability simple
+            enough that the whole team actually uses it —{" "}
+            <span className="text-primary">
+              humans and our coding agents querying the same data
+            </span>
+            , no specialist required. It just became how we work.”
           </blockquote>
 
           <figcaption className="mt-8 flex items-center gap-4">
