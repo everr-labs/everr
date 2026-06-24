@@ -30,10 +30,12 @@ export function FeaturedTestimonial() {
             “The first tool we tried took a whole team just to keep running. We
             moved to something cheaper and still ended up paying{" "}
             <span className="text-primary">$700 a month</span> for data I
-            couldn’t really explain. Everr is the first one my whole team
-            actually uses. And it’s not the watered-down version: it does
+            couldn’t really explain. Everr is the first one the whole team
+            actually uses. And it’s not a watered-down version, it does
             everything the big platforms did, we just don’t need anyone
-            babysitting it. It’s how we work now.”
+            babysitting it.
+            <br />
+            <span className="text-primary">It’s how we work now</span>.”
           </blockquote>
 
           <figcaption className="mt-8 flex items-center gap-4">
@@ -50,6 +52,38 @@ export function FeaturedTestimonial() {
             </div>
           </figcaption>
         </motion.figure>
+
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={inView ? { opacity: 1, y: 0 } : undefined}
+          transition={{ duration: 0.8, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
+          className="mt-16 grid gap-4 md:grid-cols-3"
+        >
+          {[1, 2, 3].map((i) => (
+            <figure
+              key={i}
+              className="flex flex-col rounded-xl border border-fd-border bg-fd-card/30 p-6"
+            >
+              <blockquote className="text-sm leading-relaxed text-fd-muted-foreground">
+                “[Short quote — fill in]”
+              </blockquote>
+              <figcaption className="mt-5 flex items-center gap-3">
+                <div
+                  aria-hidden
+                  className="size-9 shrink-0 rounded-full bg-fd-muted"
+                />
+                <div className="text-xs leading-tight">
+                  <div className="font-heading font-bold text-fd-foreground">
+                    [Name]
+                  </div>
+                  <div className="text-fd-muted-foreground">
+                    [Role · Company]
+                  </div>
+                </div>
+              </figcaption>
+            </figure>
+          ))}
+        </motion.div>
       </div>
     </section>
   );
