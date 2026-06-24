@@ -1,5 +1,6 @@
 import { motion, useInView } from "motion/react";
 import { useRef } from "react";
+import { GravityStarsBackground } from "./animate-ui/components/backgrounds/gravity-stars";
 
 export function FeaturedTestimonial() {
   const ref = useRef<HTMLDivElement>(null);
@@ -10,7 +11,8 @@ export function FeaturedTestimonial() {
       ref={ref}
       className="relative overflow-hidden border-y-2 border-fd-border bg-fd-background"
     >
-      <div className="mx-auto max-w-5xl px-6 py-24 md:py-36">
+      <GravityStarsBackground className="absolute inset-0 text-fd-foreground/70" />
+      <div className="relative z-10 mx-auto max-w-5xl px-6 py-24 md:py-36">
         <motion.figure
           initial={{ opacity: 0, y: 24 }}
           animate={inView ? { opacity: 1, y: 0 } : undefined}
@@ -52,38 +54,6 @@ export function FeaturedTestimonial() {
             </div>
           </figcaption>
         </motion.figure>
-
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={inView ? { opacity: 1, y: 0 } : undefined}
-          transition={{ duration: 0.8, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
-          className="mt-16 grid gap-4 md:grid-cols-3"
-        >
-          {[1, 2, 3].map((i) => (
-            <figure
-              key={i}
-              className="flex flex-col rounded-xl border border-fd-border bg-fd-card/30 p-6"
-            >
-              <blockquote className="text-sm leading-relaxed text-fd-muted-foreground">
-                “[Short quote — fill in]”
-              </blockquote>
-              <figcaption className="mt-5 flex items-center gap-3">
-                <div
-                  aria-hidden
-                  className="size-9 shrink-0 rounded-full bg-fd-muted"
-                />
-                <div className="text-xs leading-tight">
-                  <div className="font-heading font-bold text-fd-foreground">
-                    [Name]
-                  </div>
-                  <div className="text-fd-muted-foreground">
-                    [Role · Company]
-                  </div>
-                </div>
-              </figcaption>
-            </figure>
-          ))}
-        </motion.div>
       </div>
     </section>
   );
