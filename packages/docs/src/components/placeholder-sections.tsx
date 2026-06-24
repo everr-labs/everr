@@ -25,8 +25,11 @@
  * WEDGE and fold everything else into proof under three
  * pillars (see HOMEPAGE.md §1 for the full version):
  *   1. Agent-native — coding agents query ground truth (the wedge/HOOK, lead).
- *      But the MOAT is the unified open store humans+CI+agents all query; the
- *      agent endpoint is its expression, not the defensibility (easily cloned).
+ *      MOAT is NOT "hard-to-copy store" (it's open by design — contradiction).
+ *      Stance: openness = adoption wedge (easy to leave); the moat is the unified
+ *      semantic contract + workflow — "leaving is easy, staying is better."
+ *      Also: own a CATEGORY NOUN in the H1 region (e.g. "lifecycle observability",
+ *      Gio to confirm) so the wedge isn't read as a bolt-on feature.
  *   2. One system, full lifecycle — SUBSTANTIATE: SHOW the tiering (retention/
  *      sampling/cardinality per tier), not "different design centers" hand-wave;
  *      engine (ClickHouse) is table stakes not a moat; one REAL production number

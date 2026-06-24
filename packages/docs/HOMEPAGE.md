@@ -36,6 +36,21 @@ agents** can use it too.
 > — prominent, top-of-page, not buried mid-page. Going to a literal agent-first
 > H1 is a deliberate identity change, not a default; raise it with Gio first.
 
+### Own a category noun (not just a tagline)
+
+"Observability made simple" is a *tagline*, not a *category* (Architect). Without
+a named category, the agent wedge reads as a feature competitors bolt on and the
+comparison collapses to "Datadog/SigNoz + an MCP endpoint." Declare a **category
+noun in the H1 region** (eyebrow/subhead) to force the comparison onto **our** axis
+(whole lifecycle) instead of theirs (best dashboards).
+- Candidates: **"lifecycle observability"** (our axis — *recommended*),
+  "agent-native observability" (leans on the wedge), "the observability data
+  plane" (platform framing).
+- ⚠️ Final name is a **brand decision — Gio to confirm.** Once chosen, use it
+  consistently (hero eyebrow, meta/SEO, FAQ).
+- Keep "Observability made simple. For Real." as the emotional H1; the category
+  noun rides alongside in the eyebrow/subhead, not as a replacement.
+
 ### Lead with the wedge — demonstrably, in human words (before the pillars)
 
 Reviewers were unanimous: open with the differentiator *shown*, not asserted, and
@@ -67,13 +82,13 @@ story and what newcomers connect with, so lead with it. Frame it as a
 data/integration shift, **not** a chatbot "AI assistant" (keeps the "only 15% buy
 on AI" nuance honest: "your agents can finally see runtime truth," not "we added
 AI features").
-- **Anchor the causality correctly (Architect's catch — the moat is backwards as
-  written).** The agent *endpoint* is **not** the moat — an MCP/query endpoint is
-  a quarter of an incumbent's roadmap, easily cloned. The durable moat is the
-  **unified, open store that humans, CI, and agents all query the same way**; the
-  agent surface is the most differentiated *expression* of that store, not the
-  source of defensibility. Lead with the agent hook, but make the unified store
-  the thing that's hard to copy.
+- **Anchor the moat correctly — and DON'T claim the store is "hard to copy" (it's
+  open by design; that's the contradiction).** The agent endpoint is the *hook*,
+  not the moat (an MCP/query endpoint is a quarter of an incumbent's roadmap). But
+  the *open store* isn't hard to copy either — anyone can stand up OTLP-in /
+  PromQL-out. The real moat is the **unified semantic contract + workflow** that
+  humans, CI, and agents all share, and the fact that **staying is better, not
+  that leaving is hard.** See "Openness vs. moat" below.
 
 **Pillar 2 — One system, full lifecycle. SUBSTANTIATE it — load-bearing and the
 least believed.**
@@ -118,6 +133,22 @@ opposite of simple.
   alone expose risk without managing it. Convert "hidden risk" → "documented
   boundary": ship a **PromQL/Perses compatibility matrix** and a brief
   **Perses-vs-Grafana migration note** (what transfers, what doesn't, the path).
+
+### Openness vs. moat — the explicit stance (resolves the contradiction)
+
+Pillar 3 ("you're never locked in") collides with any "the store is our moat"
+framing: if it's OTLP-in / PromQL-out / portable by design, a competitor can stand
+up the same store and surface. Don't hide the tension — take a stance (Architect):
+- **Openness is the adoption wedge** — deliberately cheap to enter *and* cheap to
+  leave (open formats, OTLP export, self-host). Low friction is the point.
+- **Retention is the unified semantic contract + workflow** — one data model and
+  one query surface that humans, CI, and agents share, where investigations and
+  as-code artifacts compound. That's what makes *staying better*, and it's far
+  harder to clone than an endpoint or a DB choice.
+- **Say it out loud:** *"We'd rather you stay because leaving is easy and staying
+  is better."* That dissolves the contradiction into the most credible version of
+  "no lock-in." It's a voice/stance to thread through Pillars 1–3, not its own
+  page section.
 
 ### Supporting proof (sits *under* the pillars, never as a peer list)
 
@@ -234,6 +265,8 @@ Status legend: ✅ implemented · 🟧 placeholder stub (in `placeholder-section
 H1 "Observability made simple. For Real." (identity) + subcopy + primary CTA, with
 the animated `HoleBackground` and a tilted product screenshot (`/screenshot.png`).
 **Scope:**
+- **Declare the category noun** in the eyebrow/subhead (e.g. "lifecycle
+  observability" — pending Gio's confirmation) so the comparison lands on our axis.
 - Subhead leads with the **agent wedge** (Pillar 1) in human words, made
   **demonstrable** with an **agent-query snippet** (the call + the JSON back) —
   prominent at the top, not mid-page.
