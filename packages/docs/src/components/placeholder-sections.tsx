@@ -21,16 +21,17 @@
  *    its reasoning. Trust drops for autonomous action (77%). Biggest blocker:
  *    26% "too much manual input of context."
  *
- * GTM thesis: lead with simplicity, openness, and consolidation ("one system,
- * full lifecycle") — and PROVE each with specifics. Guardrails (see HOMEPAGE.md
- * §1 for the full version):
- *   - No maximal "replace Datadog today" claim, and never next to a hedge.
- *   - Numbers over adjectives for production/SRE claims.
- *   - "Portable" only when naming an open format (OTLP, PromQL, Perses…).
- *   - Show the business↔technical JOIN, never assert it.
- *   - Define "observability"/"SLO" in plain words; don't prove "simple" with SQL.
- *   - Frame AI as agents-as-consumer (a wedge), not an "AI assistant" feature;
- *     keep it out of the hero headline.
+ * GTM thesis: identity stays "observability made simple" + business/technical;
+ * lead with the AGENT WEDGE and fold everything else into proof under three
+ * pillars (see HOMEPAGE.md §1 for the full version):
+ *   1. Agent-native — coding agents are first-class consumers (the wedge, lead).
+ *   2. One system, full lifecycle — SUBSTANTIATE: name the engine (ClickHouse),
+ *      query surface, multitenancy/RBAC; one REAL production number above the fold.
+ *   3. Open & portable — one plain sentence, acronyms behind a disclosure; state
+ *      which signals are portable; name the join's portability limit.
+ * Guardrails: numbers over adjectives; "portable" only per named open format;
+ * the business↔technical join is a VISUAL, not a sentence; define jargon at every
+ * layer; no maximal "replace Datadog" claim beside a hedge; never invent figures.
  *
  * Replace each <PlaceholderSection> with a purpose-built component, then delete
  * its stub here.
@@ -120,16 +121,16 @@ export function ProblemToolSprawl() {
 export function OpenStandards() {
   return (
     <PlaceholderSection
-      title="Open by default — open standards, low lock-in everywhere"
-      purpose="Make openness a product-wide promise, not just ingestion — and name the formats: open standards where they exist, as-code in your repo where they don't."
+      title="Open by default — open standards, low lock-in"
+      purpose="Lead with ONE plain sentence — 'your data stays in standard formats, so you're never locked in' — and put the acronyms behind a 'for experts' disclosure."
       todos={[
-        "Telemetry baseline: OTel-native, OTLP in/out, PromQL / Prometheus compatibility, switch backends, self-host",
-        "Beyond telemetry: dashboards, notebooks, alerts — open formats where they exist (Perses dashboards, Prometheus alerting rules); otherwise as-code in your repo",
-        "Be precise: as-code ≠ portable. Claim 'portable' only when naming an open format another tool can read; otherwise say 'versioned & yours'",
-        "Grid of supported languages, frameworks, exporters; dev / agent / CI / prod ingestion paths",
-        "Reinforce the open-source angle (link to repo); link to integrations catalog",
+        "Plain-language lead first; acronym wall (OTLP, PromQL, Perses, Prometheus rules) behind a 'for the experts' disclosure",
+        "State per-signal portability: metrics + alerts + dashboards in open formats (PromQL / Prometheus rules / Perses); traces + logs via OTLP export (raw-export only)",
+        "Don't overstate: PromQL ingest ≠ identical recording-rule/histogram_quantile/subquery semantics; Perses ≠ Grafana's ecosystem",
+        "Name the join limit out loud: the business↔technical join lives in Everr's store/model and isn't reproducible from OTLP export alone (portable to another Everr, not any backend)",
+        "Grid of languages/frameworks/exporters; dev / agent / CI / prod paths; link to repo",
       ]}
-      evidence="Grafana 2026: 77% value open source/open standards (61% essential), 58% select on an open-standards criterion, 37% adopt OTel to avoid lock-in. The expert catch: vague 'portable' gets called out — as-code alone is portable only to another Everr, so name real open formats (OTLP, PromQL, Perses) or don't claim it."
+      evidence="Grafana 2026: 77% value open standards. Reviewers: 'portable' floats unless scoped per-signal, and the join quietly contradicts the openness story — naming that limit converts the contradiction into a trust signal."
     />
   );
 }
@@ -139,15 +140,15 @@ export function Features() {
   return (
     <PlaceholderSection
       title="Features / capabilities grid"
-      purpose="Show the breadth (full-stack: logs, traces, metrics, errors) as outcomes — and back production claims with NUMBERS, not adjectives."
+      purpose="Outcome-framed cards — and the home for the substantiation Pillar 2 needs (architecture + numbers + the join visual)."
       todos={[
-        "3–6 outcome-framed cards with icon + headline + one-line benefit",
         "Full-stack observability (logs, traces, metrics, errors in one place)",
-        "Production must read credible to an SRE: cite real numbers for cardinality, retention/downsampling, SLO depth (multi-window burn-rate), alert routing (dedup/escalation/on-call), HA — avoid 'first-class' with nothing behind it",
-        "Include the business↔technical JOIN as a concrete card (join revenue/conversion to the exact request/deploy/agent run via shared OTel context) — show it, don't assert it",
+        "Production with NUMBERS not adjectives: cardinality, retention/downsampling, SLO depth (multi-window burn-rate), alert routing (dedup/escalation/on-call), HA",
+        "Architecture line: ClickHouse-backed store, the query surface, and a multitenancy/RBAC/quota mention (platform buyers fear hidden tradeoffs)",
+        "The business↔technical JOIN as a concrete VISUAL ('12 signups failed → click → exact error + deploy'), not a sentence — carry the portability caveat",
         "Define 'SLO' in plain words on first use; link each card to docs",
       ]}
-      evidence="Grafana 2026: full-stack + SLOs rising and ease of use is top — but the SRE (toughest buyer) rates production on specifics (cardinality, retention, SLO depth, alert routing, HA), not adjectives. 'Business + technical' is a cliché unless you show the join."
+      evidence="Reviewers: the load-bearing 'one system, full lifecycle' claim is least substantiated — name the engine, query surface, multitenancy and one real number. The SRE rates production on specifics; 'business + technical' is a cliché unless you SHOW the join."
     />
   );
 }
