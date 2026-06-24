@@ -29,10 +29,14 @@ Everr's positioning — keep all copy consistent with this:
   (Claude Code, Cursor, Codex, Copilot, …). Telemetry is the ground truth that
   stops agents from guessing. Agents are a prominent co-thesis, **not** the
   headline.
-- **Local-first as a strength, not a limit.** Everr works locally and
-  local-first storage is a real differentiator (data stays on the device that
-  produced it; a hosted/shared cluster is optional). Frame this as "works
-  everywhere, including your laptop" — never as "only your laptop."
+- **Local-first is one chapter, not the whole story.** It's a real
+  differentiator, but it's a means to an end: it lets agents (and humans)
+  **instrument an app and verify both the instrumentation and the code they
+  wrote — locally, before shipping to production.** That verify-before-you-ship
+  loop is the point; data staying on the device and the optional hosted/shared
+  cluster are how it works. Never frame Everr as "only local" or position
+  local-first as the headline — it's the on-ramp to the same observability that
+  runs all the way through production.
 - **Covers business AND technical data.** Lead with simple, frictionless
   observability spanning both; AI is the enabler.
 - **Pricing:** open-source core, free for local use; paid for hosted clusters,
