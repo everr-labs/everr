@@ -47,42 +47,61 @@ before any pillar list.
   first, snippet as the proof. *(Note: this is the agent wedge made concrete —
   not the removed business "join".)*
 - **Above-the-fold proof — this is what turns a CTO's "let's meet" into a POC:**
-  - **One named design partner / reference: SkillVue**, with a **quote from their
-    CTO.** We have the quote — fill in the exact words + the CTO's name. A real
-    logo + attributed quote up top is the single biggest credibility lever here.
-  - **A consolidation-TCO number:** e.g. "replaced N tools / cut observability
-    spend ~X%." Must be real/sourced — never invent it.
-  - Plus the production number from Pillar 2.
+  - **Named design partner: SkillVue**, with a **quote from their CTO.** We have
+    the quote — fill in the exact words + the CTO's name.
+  - **A second proof leg (CTO: one partner reads as pre-traction):** OSS adoption
+    — live **GitHub stars** / downloads / contributors. Two independent legs
+    (a named partner *and* community traction) beat one.
+  - **A consolidation-TCO before/after artifact, not just a number** — something a
+    buyer can paste into a budget deck: *"6 tools → 1, ~X% cut — here's the math,"*
+    with the line items. Must be real/sourced — never invent it.
+  - Plus the production number from Pillar 2 (currently a blocker — see below).
 
 ### Three pillars — everything else is *proof* under these
 
-**Pillar 1 — Agent-native (the wedge). Lead with this.**
-Your coding agents are now first-class *consumers* of observability. Everr gives
-them one API + query surface to pull ground truth — real error rates, latencies,
-the spans that actually fired — instead of guessing. It's the only story
-competitors haven't cloned and the one newcomers connect with. Frame it as a
-data/integration/category shift, **not** a chatbot "AI assistant" (that keeps the
-"only 15% buy on AI" nuance honest: this is "your agents can finally see runtime
-truth," not "we added AI features").
+**Pillar 1 — Agent-native (the wedge — the hook). Lead with this.**
+Your coding agents become a first-class *consumer* of observability: one query
+surface that returns ground truth — real error rates, latencies, the spans that
+actually fired — so an agent stops guessing. It's the freshest, most resonant
+story and what newcomers connect with, so lead with it. Frame it as a
+data/integration shift, **not** a chatbot "AI assistant" (keeps the "only 15% buy
+on AI" nuance honest: "your agents can finally see runtime truth," not "we added
+AI features").
+- **Anchor the causality correctly (Architect's catch — the moat is backwards as
+  written).** The agent *endpoint* is **not** the moat — an MCP/query endpoint is
+  a quarter of an incumbent's roadmap, easily cloned. The durable moat is the
+  **unified, open store that humans, CI, and agents all query the same way**; the
+  agent surface is the most differentiated *expression* of that store, not the
+  source of defensibility. Lead with the agent hook, but make the unified store
+  the thing that's hard to copy.
 
-**Pillar 2 — One system, full lifecycle. SUBSTANTIATE it — this is load-bearing
-and the least believed.**
-Dev → agents → CI → production, one store, one query surface. Senior infra buyers
-push hardest here, so back it with architecture, not adjectives:
-- **Name the engine:** the telemetry store is **ClickHouse-backed** (that's what
-  carries the high-cardinality / high-volume story). Say it.
-- **Name the query surface:** what speaks **PromQL** (metrics) and what queries
-  traces/logs — don't leave "one query surface" abstract.
-- **Platform basics, stated:** a **multitenancy / RBAC / quota** line. Tenant
-  isolation exists (row-level policies); surface the access/quota story too.
-  Platform buyers fear *hidden* tradeoffs, not stated ones — don't ship "a
-  single-team tool in a platform costume."
-- **⚠️ One real production number above the fold (top priority).** Active-series
-  ceiling, p99 at a stated cardinality, or a concrete cost-vs-Datadog scenario.
-  ONE real figure outweighs the entire "no adjectives" pledge as a credibility
-  signal. It **must be real and sourced — never invent it.**
-- Dev/CI and prod telemetry have different design centers; say how one model
-  serves both rather than hand-waving "same everywhere."
+**Pillar 2 — One system, full lifecycle. SUBSTANTIATE it — load-bearing and the
+least believed.**
+Dev → agents → CI → production, one open store, one query surface. Senior infra
+buyers push hardest here, so **demonstrate, don't assert**:
+- **Show the tiering — don't hand-wave it (the #2 universal weak point).** Dev/CI
+  and prod telemetry have opposite design centers; the page must *show* how one
+  store serves both — the **retention / sampling / cardinality / downsampling
+  knobs per tier**. "Different design centers, handled like this →" converts the
+  biggest technical risk into a managed one. Asserting "one system" without the
+  tiering reads as naïve to the people who'd operate it.
+- **Engine is table stakes, not the differentiator.** Name it (ClickHouse-backed)
+  *for the experts*, but don't sell it as the moat — SigNoz/Uptrace are
+  ClickHouse-backed too. The differentiator is the unified store + one query
+  surface across the lifecycle (Pillar 1's moat), not the DB brand.
+- **Query surface:** what speaks **PromQL** (metrics) and what queries traces/logs.
+- **Platform basics, stated:** **multitenancy / RBAC / quota** (tenant isolation
+  via row-level policies exists; surface access/quota too). Platform buyers fear
+  *hidden* tradeoffs, not stated ones — don't ship "a single-team tool in a
+  platform costume."
+- **For experts (progressive disclosure — give operators MORE, not less):** behind
+  a disclosure, provide the depth the SRE/Architect want — a **PromQL-compatibility
+  matrix**, **ClickHouse schema/partitioning** notes, a **cost-at-scale curve**.
+  Don't force this on newcomers; don't withhold it from operators.
+- **⚠️ One real production number above the fold — and it DOESN'T EXIST YET (TOP
+  BLOCKER).** Until it's real (active-series ceiling / p99 at a stated cardinality
+  / cost-vs-Datadog), Pillar 2 is a **promissory note, not evidence** — and it's
+  the box that matters most. Get the number; never invent it. See "Proof blockers."
 
 **Pillar 3 — Open & portable. One plain sentence; honest, per-signal scope.**
 Lead in plain language: *"Your data stays in standard formats, so you're never
@@ -95,13 +114,28 @@ opposite of simple.
   raw-export only for the second. Note honestly: PromQL-compatible ingest ≠
   identical recording-rule / `histogram_quantile` / subquery semantics, and
   Perses ≠ Grafana's ecosystem — don't overstate.
+- **Contain the migration risk you just surfaced (SRE/Architect).** Honest caveats
+  alone expose risk without managing it. Convert "hidden risk" → "documented
+  boundary": ship a **PromQL/Perses compatibility matrix** and a brief
+  **Perses-vs-Grafana migration note** (what transfers, what doesn't, the path).
 
 ### Supporting proof (sits *under* the pillars, never as a peer list)
 
-- **Plain-language category, at every layer.** Define "observability" and "SLO"
-  in plain words — then don't bury the reader in the *second* layer. "Spans,"
-  "trace context," "cardinality," "resource attributes" each need a gloss or
-  progressive disclosure. One layer explained isn't enough.
+- **Plain-language category, at every layer — make it a GUARANTEE, not a promise
+  (three reviewers flagged it's still just a promise).** Define "observability"
+  and "SLO" in plain words, then don't bury the reader in the *second* layer:
+  "spans," "trace context," "cardinality," "resource attributes" each get an
+  inline gloss or a tooltip/disclosure. Concretely: any term beyond a small base
+  vocabulary MUST carry inline plain language or a glossary affordance — that's
+  the mechanism the bottom half of the audience relies on.
+- **Pillar 2's vocabulary gets the same "for experts" disclosure as Pillar 3.**
+  "ClickHouse," "PromQL," "active-series ceiling," "RBAC" make newcomers feel the
+  tool is for senior ops and undercut "simple." Plain surface up top; the operator
+  depth behind a disclosure.
+- **Insider words are INTERNAL doc vocabulary, never page copy.** "Wedge,"
+  "agent-native," "first-class consumers" belong in this doc, not on the site —
+  on the page say it in plain language ("your coding agents can query what your
+  software actually did").
 - **Local-first = verify-before-ship on-ramp.** Agents instrument an app and
   verify both the instrumentation and the code locally, before production. One
   chapter; never "only local."
@@ -109,9 +143,34 @@ opposite of simple.
   mentioned *after* the simple promise lands — not as the proof of simplicity.
 - **Open-source core + honest cost,** including cost at scale.
 
+### Proof blockers (the page currently describes proof; THESE are the proof — fill them)
+
+The latest review scored the positioning ~6.7/10 with one root cause: *"a page
+about having proof rather than the proof itself."* Closing these moves every
+persona +1.5–2. Until each is real, mark it clearly as a gap — never fake it.
+1. **Production number (TOP).** Active-series ceiling / p99 at a stated cardinality
+   / cost-vs-Datadog. Without it, Pillar 2 is a promissory note. Source it.
+2. **Tiering architecture artifact.** The retention/sampling/cardinality knobs per
+   tier that show one store serves dev→CI→prod. Without it, "one system" is asserted.
+3. **TCO before/after artifact.** "6 tools → 1, ~X% cut, here's the math."
+4. **Second proof leg.** OSS adoption / GitHub stars alongside SkillVue.
+5. **Compatibility matrix + Perses↔Grafana migration note.** Converts conceded
+   caveats into a documented boundary.
+
+### Kill all pre-launch signals (unanimous)
+
+Waitlist CTAs and the FAQ "Does Everr replace Datadog? — Not yet" directly
+contradict "production in scope" — a CTO files a waitlist under "revisit in 12
+months" and a developer bounces. **Remove pre-launch framing from the page:**
+CTA → "Get started" / "Docs"; rewrite the FAQ answer to the credible
+full-lifecycle version (no maximal claim). Affected live copy: `hero.tsx`,
+`final-cta.tsx`, `faq.tsx` (see §4).
+
 ### Global do / don't
-- **Do** lead with the agent wedge; fold everything else into proof under the 3
-  pillars. A long pillar list is a backlog, not positioning.
+- **Do** lead with the agent wedge (the hook), but anchor defensibility to the
+  unified open store (the moat) — not the agent endpoint.
+- **Do** fold everything else into proof under the 3 pillars. A long pillar list
+  is a backlog, not positioning.
 - **Do** put one real production number above the fold — and **never invent it.**
 - **Do** name which signals are portable, name the storage engine, and include a
   multitenancy/RBAC line.
@@ -122,10 +181,6 @@ opposite of simple.
 - **Don't** frame AI as a vague "AI assistant" feature, or let "portable" float
   across all signals, or use adjectives where the buyer wants numbers.
 - **Don't** invent logos, customer quotes, or statistics.
-
-> ⚠️ Live-copy follow-ups (not yet done): `faq.tsx` ("Does Everr replace
-> Datadog…? — Not yet…") and the waitlist-as-primary-CTA framing in `hero.tsx` /
-> `final-cta.tsx` predate this positioning — reconcile per §4 notes.
 
 ---
 
@@ -215,6 +270,8 @@ an acronym wall to newcomers otherwise).
 - **Per-signal portability:** metrics + alerts + dashboards in open formats
   (PromQL / Prometheus rules / Perses); traces + logs via OTLP export. State which
   is fully portable vs. raw-export; don't overstate PromQL/Perses parity.
+- **Contain the risk:** ship a PromQL/Perses **compatibility matrix** + a
+  **Perses↔Grafana migration note** (documented boundary, not hidden risk).
 **Why:** 77% value open standards; vague "portable" gets called out by experts.
 
 ### Video demo — ✅ `video-section.tsx`
@@ -226,10 +283,14 @@ Outcome-framed cards — and the home for the **substantiation** that Pillar 2 n
 - Full-stack (logs, traces, metrics, errors in one place).
 - **Production with numbers, not adjectives:** cardinality, retention/downsampling,
   SLO depth (multi-window burn-rate), alert routing (dedup/escalation/on-call), HA.
-- **Architecture line:** ClickHouse-backed store; query surface; a
-  multitenancy/RBAC/quota mention.
+- **Show the tiering** (retention/sampling/cardinality knobs per tier) — this is
+  how "one store serves dev→CI→prod" stops being an assertion.
+- **Architecture line:** name ClickHouse-backed *for experts* (table stakes, not
+  the differentiator); query surface; multitenancy/RBAC/quota. Operator depth
+  (PromQL-compat matrix, schema/partitioning, cost-at-scale curve) behind a "for
+  experts" disclosure.
 - Define "SLO" in plain words; link each card to docs.
-**Why:** the SRE rates production on specifics, not adjectives.
+**Why:** the SRE rates production on specifics; ClickHouse alone isn't a moat.
 **Scope:** no business-observability / business-KPI cards — it isn't shipped (§1).
 
 ### Agents as first-class consumers — 🟧 `AIAssistant`

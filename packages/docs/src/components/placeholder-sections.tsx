@@ -24,11 +24,15 @@
  * GTM thesis: identity stays "observability made simple"; lead with the AGENT
  * WEDGE and fold everything else into proof under three
  * pillars (see HOMEPAGE.md §1 for the full version):
- *   1. Agent-native — coding agents are first-class consumers (the wedge, lead).
- *   2. One system, full lifecycle — SUBSTANTIATE: name the engine (ClickHouse),
- *      query surface, multitenancy/RBAC; one REAL production number above the fold.
+ *   1. Agent-native — coding agents query ground truth (the wedge/HOOK, lead).
+ *      But the MOAT is the unified open store humans+CI+agents all query; the
+ *      agent endpoint is its expression, not the defensibility (easily cloned).
+ *   2. One system, full lifecycle — SUBSTANTIATE: SHOW the tiering (retention/
+ *      sampling/cardinality per tier), not "different design centers" hand-wave;
+ *      engine (ClickHouse) is table stakes not a moat; one REAL production number
+ *      above the fold (DOESN'T EXIST YET — top blocker).
  *   3. Open & portable — one plain sentence, acronyms behind a disclosure; state
- *      which signals are portable (per-signal scope).
+ *      which signals are portable; add a compat matrix + migration note.
  * Guardrails: numbers over adjectives; "portable" only per named open format;
  * define jargon at every layer; no maximal "replace Datadog" claim beside a hedge;
  * never invent figures. NOTE: business observability / business-KPI joins are NOT
@@ -92,12 +96,12 @@ export function LogoCloud() {
       purpose="Establish instant credibility under the hero — anchor with the SkillVue design-partner logo, plus an open-source proof signal (GitHub stars)."
       todos={[
         "Anchor with the SkillVue design-partner logo (named reference)",
+        "Second proof leg (one partner reads as pre-traction): live GitHub stars / downloads / contributors — community traction alongside the named partner",
         "Grayscale logo strip (6–10 logos), responsive wrap on mobile",
-        '"Trusted by teams at…" / "Design partner" eyebrow',
-        "Add a live GitHub stars badge + 'Open source' pill — OSS is itself a trust + buying signal",
+        '"Trusted by teams at…" / "Design partner" eyebrow + "Open source" pill',
         "Use real adopters only (SkillVue is real) — no placeholder logos",
       ]}
-      evidence="A named design partner + CTO quote is what converts a CTO's 'let's meet' into a POC. Grafana 2026: open source is the #4 selection criterion (25%), 77% value open standards — OSS credibility belongs in the trust strip."
+      evidence="CTO: one design partner reads as pre-traction — pair the named SkillVue reference with OSS adoption (GitHub stars) as a second, independent proof leg. Grafana 2026: open source is the #4 selection criterion (25%)."
     />
   );
 }
@@ -145,11 +149,12 @@ export function Features() {
       todos={[
         "Full-stack observability (logs, traces, metrics, errors in one place)",
         "Production with NUMBERS not adjectives: cardinality, retention/downsampling, SLO depth (multi-window burn-rate), alert routing (dedup/escalation/on-call), HA",
-        "Architecture line: ClickHouse-backed store, the query surface, and a multitenancy/RBAC/quota mention (platform buyers fear hidden tradeoffs)",
+        "SHOW the tiering (retention/sampling/cardinality knobs per tier) — that's how 'one store, dev→CI→prod' stops being an assertion",
+        "Architecture for experts (behind disclosure): ClickHouse-backed (table stakes, NOT the moat — SigNoz/Uptrace do it too), query surface, multitenancy/RBAC, PromQL-compat matrix, cost-at-scale curve",
         "No business-observability / business-KPI cards — not shipped, buyers skeptical",
         "Define 'SLO' in plain words on first use; link each card to docs",
       ]}
-      evidence="Reviewers: the load-bearing 'one system, full lifecycle' claim is least substantiated — name the engine, query surface, multitenancy and one real number. The SRE rates production on specifics."
+      evidence="Reviewers: 'one system, full lifecycle' is least substantiated — SHOW the tiering, not 'different design centers' hand-wave. ClickHouse alone isn't a differentiator. The SRE rates production on specifics; the production number is still empty (top blocker)."
     />
   );
 }
@@ -158,16 +163,16 @@ export function Features() {
 export function AIAssistant() {
   return (
     <PlaceholderSection
-      title="Agents as first-class consumers (the wedge)"
-      purpose="Frame AI as a category wedge, not a feature: your coding agents are now a primary consumer of observability, and Everr gives them ground truth on demand instead of letting them guess."
+      title="Agents as first-class consumers (the wedge / hook)"
+      purpose="Frame AI as a category wedge, not a feature: your coding agents query observability for ground truth instead of guessing — but anchor defensibility to the unified store, not the agent endpoint."
       todos={[
-        "Lead with the wedge: agents query Everr (one structured API + query surface) for real error rates, latencies, the spans that actually fired",
-        "Position assistive in-product uses (query/dashboard generation, anomaly surfacing, root-cause) as supporting detail, not the headline",
-        "Keep reasoning transparent: sources, query logic, confidence — never a black box",
-        "Address the 'manual context' blocker — the agent already has your telemetry context",
-        "Assist, not autopilot; keep it mid-page — do NOT move AI into the hero headline",
+        "Lead with the hook: agents query Everr (one query surface) for real error rates, latencies, the spans that actually fired",
+        "Anchor the MOAT correctly: the durable moat is the unified open store humans+CI+agents all query — the agent endpoint is its expression, not the defensibility (an MCP/query endpoint is a quarter of an incumbent's roadmap)",
+        "Position assistive in-product uses (query/dashboard gen, anomaly, root-cause) as supporting detail, not the headline",
+        "Keep reasoning transparent (sources, query logic, confidence); address the 'manual context' blocker; assist, not autopilot",
+        "Plain-language on the page — 'wedge/agent-native/first-class consumers' are internal words, not page copy",
       ]}
-      evidence="Grafana 2026 AI: valued in-product (92% dashboards/queries, 91% root cause) but only 15% buy on AI; 95% demand explainable reasoning; trust drops for autonomy (77%). Agent-as-consumer (a data/integration wedge) satisfies both the survey data and the seniority split — newcomer's hook, senior's credibility — where a generic 'AI assistant' gets a shrug."
+      evidence="Grafana 2026 AI: only 15% buy on AI, 95% demand explainable reasoning, trust drops for autonomy (77%) — agent-as-consumer satisfies the survey + seniority split. Architect's catch: the agent surface alone is cloneable; the unified store is the moat — re-anchor the causality."
     />
   );
 }
