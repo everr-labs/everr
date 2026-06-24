@@ -18,7 +18,6 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "lucide-react": "catalog:",
-    "motion": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-resizable-panels": "^4.11.0",

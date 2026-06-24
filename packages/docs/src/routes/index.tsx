@@ -13,7 +13,6 @@ import {
   OpenStandards,
   PricingTeaser,
   ProblemToolSprawl,
-  // Testimonials,
   TimeToValue,
 } from "@/components/placeholder-sections";
 import { Species } from "@/components/species";
@@ -39,7 +38,6 @@ function RouteComponent() {
       <TimeToValue />
       <HowItWorks />
       <PricingTeaser />
-      {/*<Testimonials />*/}
       <FeaturedTestimonial />
       <FAQ />
       <Community />

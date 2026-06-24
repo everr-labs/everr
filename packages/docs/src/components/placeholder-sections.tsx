@@ -302,26 +302,3 @@ export function PricingTeaser() {
     />
   );
 }
-
-/** Testimonials — anchored by the SkillVue CTO quote. */
-export function Testimonials() {
-  return (
-    <PlaceholderSection
-      title="Testimonials"
-      purpose="Back the claims with real practitioner voices, anchored by the SkillVue CTO quote (which also runs above the fold)."
-      draft={
-        '"[SkillVue CTO quote — paste the exact words]"\n— [Name], CTO, SkillVue'
-      }
-      todos={[
-        "ANCHOR: the SkillVue CTO quote — fill in exact words + name (we have it)",
-        "2–4 quote cards: name, role, company, avatar",
-        "Choose quotes that reinforce consolidation, simplicity & fast time to value",
-      ]}
-      avoid={[
-        "Invented or unattributable testimonials",
-        "Off-thesis quotes that don't echo consolidation/simplicity",
-      ]}
-      evidence="A named reference + CTO quote is the single biggest credibility lever — it converts a CTO's 'let's meet' into a POC."
-    />
-  );
-}

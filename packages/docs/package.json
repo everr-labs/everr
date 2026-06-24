@@ -31,8 +31,7 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "resend": "^6.12.3",
-    "zod": "catalog:",
-    "tailwind-merge": "^3.6.0"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@tailwindcss/vite": "catalog:",

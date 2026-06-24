@@ -12,7 +12,7 @@ export interface FetchRepositoryInfoOptions {
   fetchOptions?: RequestInit;
 }
 
-export interface RepositoryInfo {
+interface RepositoryInfo {
   stars: number;
 }
 
@@ -22,7 +22,7 @@ export interface GithubInfoProps
   locale?: Intl.LocalesArgument;
 }
 
-export async function fetchRepositoryInfo({
+async function fetchRepositoryInfo({
   owner,
   repo,
   token,
@@ -85,9 +85,9 @@ export function GithubInfo({
     baseUrl,
     fetchOptions,
   };
-  const { stars } = use(
-    (promises[JSON.stringify(options)] ??= fetchRepositoryInfo(options)),
-  );
+  const cacheKey = JSON.stringify(options);
+  promises[cacheKey] ??= fetchRepositoryInfo(options);
+  const { stars } = use(promises[cacheKey]);
   const formatter = locale
     ? new Intl.NumberFormat(locale, formatterOptions)
     : defaultFormatter;
