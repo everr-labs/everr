@@ -44,7 +44,7 @@ const mcpHandler = createMcpHandler(
     );
   },
   {},
-  { basePath: "/api", maxDuration: 60 },
+  { basePath: "", maxDuration: 60 },
 );
 
 function unauthorized(request: Request): Response {
@@ -115,7 +115,7 @@ function preflight(): Response {
   });
 }
 
-export const Route = createFileRoute("/api/mcp/$")({
+export const Route = createFileRoute("/mcp/$")({
   server: {
     handlers: {
       GET: ({ request }) => handler(request),

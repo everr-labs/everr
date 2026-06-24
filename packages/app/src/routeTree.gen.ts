@@ -13,6 +13,7 @@ import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as WebhookGithubRouteImport } from './routes/webhook/github'
+import { Route as McpSplatRouteImport } from './routes/mcp/$'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiCliRouteImport } from './routes/api/cli'
 import { Route as ApiApplyRouteImport } from './routes/api/apply'
@@ -22,7 +23,6 @@ import { Route as AuthGuestRouteImport } from './routes/_auth/_guest'
 import { Route as DotwellKnownOauthProtectedResourceRouteImport } from './routes/[.]well-known/oauth-protected-resource'
 import { Route as DotwellKnownOauthAuthorizationServerRouteImport } from './routes/[.]well-known/oauth-authorization-server'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/_dashboard/index'
-import { Route as ApiMcpSplatRouteImport } from './routes/api/mcp/$'
 import { Route as ApiInternalVerifyKeyRouteImport } from './routes/api/internal/verify-key'
 import { Route as ApiEventsStreamRouteImport } from './routes/api/events/stream'
 import { Route as ApiCliSqlRouteImport } from './routes/api/cli/sql'
@@ -96,6 +96,11 @@ const WebhookGithubRoute = WebhookGithubRouteImport.update({
   path: '/webhook/github',
   getParentRoute: () => rootRouteImport,
 } as any)
+const McpSplatRoute = McpSplatRouteImport.update({
+  id: '/mcp/$',
+  path: '/mcp/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
@@ -142,11 +147,6 @@ const AuthenticatedDashboardIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedDashboardRoute,
   } as any)
-const ApiMcpSplatRoute = ApiMcpSplatRouteImport.update({
-  id: '/api/mcp/$',
-  path: '/api/mcp/$',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiInternalVerifyKeyRoute = ApiInternalVerifyKeyRouteImport.update({
   id: '/api/internal/verify-key',
   path: '/api/internal/verify-key',
@@ -461,6 +461,7 @@ export interface FileRoutesByFullPath {
   '/api/apply': typeof ApiApplyRoute
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
+  '/mcp/$': typeof McpSplatRoute
   '/webhook/github': typeof WebhookGithubRoute
   '/auth/error': typeof AuthAuthErrorRoute
   '/invite/$invitationId': typeof AuthInviteInvitationIdRoute
@@ -483,7 +484,6 @@ export interface FileRoutesByFullPath {
   '/api/cli/sql': typeof ApiCliSqlRoute
   '/api/events/stream': typeof ApiEventsStreamRoute
   '/api/internal/verify-key': typeof ApiInternalVerifyKeyRoute
-  '/api/mcp/$': typeof ApiMcpSplatRoute
   '/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren
   '/auth/forgot-password': typeof AuthGuestAuthForgotPasswordRoute
   '/auth/reset-password': typeof AuthGuestAuthResetPasswordRoute
@@ -526,6 +526,7 @@ export interface FileRoutesByTo {
   '/api/apply': typeof ApiApplyRoute
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
+  '/mcp/$': typeof McpSplatRoute
   '/webhook/github': typeof WebhookGithubRoute
   '/auth/error': typeof AuthAuthErrorRoute
   '/invite/$invitationId': typeof AuthInviteInvitationIdRoute
@@ -547,7 +548,6 @@ export interface FileRoutesByTo {
   '/api/cli/sql': typeof ApiCliSqlRoute
   '/api/events/stream': typeof ApiEventsStreamRoute
   '/api/internal/verify-key': typeof ApiInternalVerifyKeyRoute
-  '/api/mcp/$': typeof ApiMcpSplatRoute
   '/auth/forgot-password': typeof AuthGuestAuthForgotPasswordRoute
   '/auth/reset-password': typeof AuthGuestAuthResetPasswordRoute
   '/auth/sign-in': typeof AuthGuestAuthSignInRoute
@@ -593,6 +593,7 @@ export interface FileRoutesById {
   '/api/apply': typeof ApiApplyRoute
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
+  '/mcp/$': typeof McpSplatRoute
   '/webhook/github': typeof WebhookGithubRoute
   '/_auth/auth/error': typeof AuthAuthErrorRoute
   '/_auth/invite/$invitationId': typeof AuthInviteInvitationIdRoute
@@ -616,7 +617,6 @@ export interface FileRoutesById {
   '/api/cli/sql': typeof ApiCliSqlRoute
   '/api/events/stream': typeof ApiEventsStreamRoute
   '/api/internal/verify-key': typeof ApiInternalVerifyKeyRoute
-  '/api/mcp/$': typeof ApiMcpSplatRoute
   '/_authenticated/_dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/_authenticated/_dashboard/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren
   '/_auth/_guest/auth/forgot-password': typeof AuthGuestAuthForgotPasswordRoute
@@ -662,6 +662,7 @@ export interface FileRouteTypes {
     | '/api/apply'
     | '/api/cli'
     | '/api/health'
+    | '/mcp/$'
     | '/webhook/github'
     | '/auth/error'
     | '/invite/$invitationId'
@@ -684,7 +685,6 @@ export interface FileRouteTypes {
     | '/api/cli/sql'
     | '/api/events/stream'
     | '/api/internal/verify-key'
-    | '/api/mcp/$'
     | '/runs/$traceId'
     | '/auth/forgot-password'
     | '/auth/reset-password'
@@ -727,6 +727,7 @@ export interface FileRouteTypes {
     | '/api/apply'
     | '/api/cli'
     | '/api/health'
+    | '/mcp/$'
     | '/webhook/github'
     | '/auth/error'
     | '/invite/$invitationId'
@@ -748,7 +749,6 @@ export interface FileRouteTypes {
     | '/api/cli/sql'
     | '/api/events/stream'
     | '/api/internal/verify-key'
-    | '/api/mcp/$'
     | '/auth/forgot-password'
     | '/auth/reset-password'
     | '/auth/sign-in'
@@ -793,6 +793,7 @@ export interface FileRouteTypes {
     | '/api/apply'
     | '/api/cli'
     | '/api/health'
+    | '/mcp/$'
     | '/webhook/github'
     | '/_auth/auth/error'
     | '/_auth/invite/$invitationId'
@@ -816,7 +817,6 @@ export interface FileRouteTypes {
     | '/api/cli/sql'
     | '/api/events/stream'
     | '/api/internal/verify-key'
-    | '/api/mcp/$'
     | '/_authenticated/_dashboard/'
     | '/_authenticated/_dashboard/runs/$traceId'
     | '/_auth/_guest/auth/forgot-password'
@@ -861,11 +861,11 @@ export interface RootRouteChildren {
   ApiApplyRoute: typeof ApiApplyRoute
   ApiCliRoute: typeof ApiCliRouteWithChildren
   ApiHealthRoute: typeof ApiHealthRoute
+  McpSplatRoute: typeof McpSplatRoute
   WebhookGithubRoute: typeof WebhookGithubRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiEventsStreamRoute: typeof ApiEventsStreamRoute
   ApiInternalVerifyKeyRoute: typeof ApiInternalVerifyKeyRoute
-  ApiMcpSplatRoute: typeof ApiMcpSplatRoute
   ApiGithubInstallCallbackRoute: typeof ApiGithubInstallCallbackRoute
   ApiGithubInstallStartRoute: typeof ApiGithubInstallStartRoute
 }
@@ -898,6 +898,13 @@ declare module '@tanstack/react-router' {
       path: '/webhook/github'
       fullPath: '/webhook/github'
       preLoaderRoute: typeof WebhookGithubRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mcp/$': {
+      id: '/mcp/$'
+      path: '/mcp/$'
+      fullPath: '/mcp/$'
+      preLoaderRoute: typeof McpSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/health': {
@@ -962,13 +969,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedDashboardIndexRouteImport
       parentRoute: typeof AuthenticatedDashboardRoute
-    }
-    '/api/mcp/$': {
-      id: '/api/mcp/$'
-      path: '/api/mcp/$'
-      fullPath: '/api/mcp/$'
-      preLoaderRoute: typeof ApiMcpSplatRouteImport
-      parentRoute: typeof rootRouteImport
     }
     '/api/internal/verify-key': {
       id: '/api/internal/verify-key'
@@ -1632,11 +1632,11 @@ const rootRouteChildren: RootRouteChildren = {
   ApiApplyRoute: ApiApplyRoute,
   ApiCliRoute: ApiCliRouteWithChildren,
   ApiHealthRoute: ApiHealthRoute,
+  McpSplatRoute: McpSplatRoute,
   WebhookGithubRoute: WebhookGithubRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiEventsStreamRoute: ApiEventsStreamRoute,
   ApiInternalVerifyKeyRoute: ApiInternalVerifyKeyRoute,
-  ApiMcpSplatRoute: ApiMcpSplatRoute,
   ApiGithubInstallCallbackRoute: ApiGithubInstallCallbackRoute,
   ApiGithubInstallStartRoute: ApiGithubInstallStartRoute,
 }

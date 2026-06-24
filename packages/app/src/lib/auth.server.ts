@@ -439,7 +439,7 @@ export const auth = betterAuth({
     }),
     mcp({
       loginPage: "/auth/sign-in",
-      resource: `${env.BETTER_AUTH_URL.replace(/\/$/, "")}/api/mcp`,
+      resource: `${env.BETTER_AUTH_URL.replace(/\/$/, "")}/mcp`,
       // Better Auth reads top-level `metadata` at runtime for the AS discovery
       // doc (getMCPProviderMetadata spreads `...options.metadata`) but omits it
       // from the MCPOptions type — hence the cast below. `oidcConfig.metadata`
