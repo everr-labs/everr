@@ -202,7 +202,12 @@ export function OpenStandards() {
   );
 }
 
-/** Full-stack capabilities + the production substantiation Pillar 2 needs. */
+/**
+ * Full-stack capabilities + the production substantiation Pillar 2 needs.
+ * @expected-unused Replaced on the homepage by candidate layout components
+ * (features-*.tsx) while we pick one; kept as the intent/spec reference until
+ * the winning variant is finalized with real copy and proof.
+ */
 export function Features() {
   return (
     <PlaceholderSection

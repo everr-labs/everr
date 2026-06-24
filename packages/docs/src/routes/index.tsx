@@ -2,13 +2,19 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Community } from "@/components/community";
 import { FAQ } from "@/components/faq";
 import { FeaturedTestimonial } from "@/components/featured-testimonial";
+import { FeaturesAccordion } from "@/components/features-accordion";
+import { FeaturesBento } from "@/components/features-bento";
+import { FeaturesCarousel } from "@/components/features-carousel";
+import { FeaturesScrolly } from "@/components/features-scrolly";
+import { FeaturesStack } from "@/components/features-stack";
+import { FeaturesTabs } from "@/components/features-tabs";
+import { FeaturesZigzag } from "@/components/features-zigzag";
 import { FinalCTA } from "@/components/final-cta";
 import { Footer } from "@/components/footer";
 import { Hero } from "@/components/hero";
 import { HowItWorks } from "@/components/how-it-works";
 import {
   AIAssistant,
-  Features,
   OpenStandards,
   PricingTeaser,
   ProblemToolSprawl,
@@ -30,7 +36,14 @@ function RouteComponent() {
       <ProblemToolSprawl />
       <OpenStandards />
       <VideoSection />
-      <Features />
+      {/* Features section — layout candidates, pick one then delete the rest. */}
+      <FeaturesBento />
+      <FeaturesTabs />
+      <FeaturesScrolly />
+      <FeaturesZigzag />
+      <FeaturesCarousel />
+      <FeaturesStack />
+      <FeaturesAccordion />
       <AIAssistant />
       <ToolsExplainer />
       <TimeToValue />
