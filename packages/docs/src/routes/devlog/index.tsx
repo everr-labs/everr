@@ -62,10 +62,10 @@ function DevlogIndex() {
           </h1>
           <div className="mt-6 max-w-2xl space-y-4 text-fd-muted-foreground">
             <p>
-              With Everr we want to bring AI into the software development
-              lifecycle, making observability a natural part of your stack
-              instead of a separate discipline, and guiding your team toward the
-              best practices that have always been too complicated to apply
+              We want to bring AI into the software development lifecycle,
+              making observability a natural part of your stack instead of a
+              separate discipline, and guiding your team toward the best
+              practices that have always been too complicated to apply
               everywhere.
             </p>
             <p>
