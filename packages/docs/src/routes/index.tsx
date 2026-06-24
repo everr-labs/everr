@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Community } from "@/components/community";
 import { FAQ } from "@/components/faq";
+import { FeaturedTestimonial } from "@/components/featured-testimonial";
 import { FinalCTA } from "@/components/final-cta";
 import { Footer } from "@/components/footer";
 import { Hero } from "@/components/hero";
@@ -39,6 +40,7 @@ function RouteComponent() {
       <HowItWorks />
       <PricingTeaser />
       <Testimonials />
+      <FeaturedTestimonial />
       <FAQ />
       <Community />
       <FinalCTA />
