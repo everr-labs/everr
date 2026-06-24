@@ -30,16 +30,18 @@ export function FeaturedTestimonial() {
             everyone actually does it.”
           </blockquote>
 
-          <figcaption className="mt-8 flex items-center gap-3 text-sm text-fd-muted-foreground">
-            <span
-              aria-hidden
-              className="inline-block h-px w-8 bg-fd-border"
+          <figcaption className="mt-8 flex items-center gap-4">
+            <img
+              src="/marcello.jpeg"
+              alt="Marcello Roherssen"
+              className="size-12 rounded-full object-cover"
             />
-            <span className="font-heading font-bold text-fd-foreground">
-              CTO
-            </span>
-            <span aria-hidden>·</span>
-            <span>SkillVue</span>
+            <div className="text-sm">
+              <div className="font-heading font-bold text-fd-foreground">
+                Marcello Roherssen
+              </div>
+              <div className="text-fd-muted-foreground">CTO · SkillVue</div>
+            </div>
           </figcaption>
         </motion.figure>
       </div>
