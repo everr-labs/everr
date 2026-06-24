@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Community } from "@/components/community";
-import { Examples } from "@/components/examples";
 import { FAQ } from "@/components/faq";
 import { FinalCTA } from "@/components/final-cta";
 import { Footer } from "@/components/footer";
@@ -20,7 +19,6 @@ function RouteComponent() {
       <Species />
       <ToolsExplainer />
       <HowItWorks />
-      <Examples />
       <FAQ />
       <Community />
       <FinalCTA />
