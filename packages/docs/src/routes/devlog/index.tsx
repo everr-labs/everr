@@ -62,22 +62,15 @@ function DevlogIndex() {
           </h1>
           <div className="mt-6 max-w-2xl space-y-4 text-fd-muted-foreground">
             <p>
-              We're building an observability platform for developers and AI
-              agents, because understanding what your code is doing is still
-              harder than it should be, whether you're a person staring at a
-              failed run or an agent trying to validate the code it just
-              shipped.
+              We want to bring AI into the software development lifecycle,
+              making observability a natural part of your stack instead of a
+              separate discipline, and guiding your team toward the best
+              practices that have always been too complicated to apply
+              everywhere.
             </p>
             <p>
-              A growing share of code is written by AI. But when that code
-              breaks in CI, the feedback loop is slow and lossy. Agents don't
-              have good access to pipeline data, log structure, or test history.
-              Everr gives both humans and agents a fast, structured way to
-              understand what happened, why it failed, and what to do about it.
-            </p>
-            <p>
-              We use Everr on our own CI every day, and when something slows us
-              down, it becomes a fix the same week.
+              We use Everr on our own systems every day, and honestly we don't
+              know how we used to live without it.
             </p>
           </div>
         </section>
