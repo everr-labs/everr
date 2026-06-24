@@ -14,30 +14,42 @@ each with a real component and delete its stub.
 
 ## 1. Product truth & guardrails (do not contradict)
 
-Everr's **current, shipped** positioning — keep all copy consistent with this:
+Everr's positioning — keep all copy consistent with this:
 
-- **Local-first / upstream of production.** Everr lives where the work happens:
-  your laptop, CI, and the AI agents shipping alongside you. It sits _upstream_
-  of the tools that watch prod.
-- **Not (yet) a Datadog/Grafana/Honeycomb replacement.** Production observability
-  is roadmap, "a natural next step" — not a current claim. See `faq.tsx`.
+- **Full-lifecycle observability.** One OpenTelemetry pipeline across the whole
+  lifecycle: dev machines, AI coding agents, CI runs, **and production**. This
+  is **not** a pre-prod-only / "upstream" tool — production is fully in scope.
+  Don't use "pre-prod vs prod" as a framing axis.
+- **We aim to replace the incumbents.** Everr is positioned to replace the
+  Datadog / Grafana / Honeycomb-class stack across that lifecycle — same
+  primitives, same data model, same answers everywhere. State this ambition;
+  just keep specific feature claims honest about current maturity.
 - **OpenTelemetry-native.** If your runtime speaks OTel, you're done. No lock-in.
 - **AI-agent-native.** Agents query Everr via one structured API + plain SQL
   (Claude Code, Cursor, Codex, Copilot, …). Telemetry is the ground truth that
-  stops agents from guessing.
-- **Local-first storage.** Data stays on the device that produced it; a hosted
-  shared cluster is optional, never required.
-- **Pricing:** free for local use, forever. You pay only for a hosted cluster,
-  premium support, or longer retention.
+  stops agents from guessing. Agents are a prominent co-thesis, **not** the
+  headline.
+- **Local-first as a strength, not a limit.** Everr works locally and
+  local-first storage is a real differentiator (data stays on the device that
+  produced it; a hosted/shared cluster is optional). Frame this as "works
+  everywhere, including your laptop" — never as "only your laptop."
+- **Covers business AND technical data.** Lead with simple, frictionless
+  observability spanning both; AI is the enabler.
+- **Pricing:** open-source core, free for local use; paid for hosted clusters,
+  scale/retention, premium support. Keep tiers consistent with reality.
 - **Pre-launch:** the primary CTA is the **waitlist** (`/waitlist`); install
   commands are intentionally hidden until launch (see commented blocks in
   `final-cta.tsx`). Don't surface install snippets as the main CTA yet.
 
-**Roadmap vs. shipped:** some market-study-driven sections below (business
-observability, full production observability, tiered pricing) are partly
-**aspirational**. When writing them, frame future capability honestly — lead
-with what ships today; mark what's coming as roadmap. Never imply prod parity
-with incumbents.
+**Honesty vs. ambition:** state the full-lifecycle, replace-the-incumbents
+vision confidently. Where a specific capability (e.g. a particular production
+feature, SLO depth, tiered pricing) isn't fully shipped, describe it truthfully
+— but **do not** disclaim production as out of scope. The vision is the frame;
+maturity nuance lives in the details.
+
+> ⚠️ `faq.tsx` currently answers "Does Everr replace Datadog/Grafana/Honeycomb?"
+> with "Not yet… currently focused on local observability." That copy
+> contradicts this positioning and should be revised — see the FAQ note in §4.
 
 ### Global do / don't
 
@@ -111,7 +123,9 @@ pill) directly under the hero.
 ### Species (value-prop statement) — ✅ `species.tsx`
 Big typographic statement: "A new kind of observability. Built where the work
 actually happens. Your laptop, CI, and the agents shipping alongside you."
-**Scope:** this is the thesis line — keep it the dev/CI/agent framing.
+**Scope:** this is the thesis line. The current copy reads pre-prod-leaning —
+it should also land **production** as part of "where the work happens" so it
+matches the full-lifecycle positioning (§1).
 
 ### The problem: tool sprawl & complexity — 🟧 `ProblemToolSprawl`
 Name the pain before the cure: too many disconnected tools, too much glue.
@@ -136,7 +150,8 @@ card. Source: `public/demo.mp4` (placeholder file — replace).
 place), SLOs/alerting as first-class, complexity reduction, time to value.
 Thread transparency/explainability through the cards. Link each to docs.
 **Why:** full-stack + SLOs rising; ease of use is top; 95% want the "why".
-**Scope:** outcomes, not a spec sheet. Don't claim prod-only features.
+**Scope:** outcomes, not a spec sheet. Cover the full lifecycle including
+production (alerting, SLOs, retention all matter); keep maturity claims honest.
 
 ### AI assistant (enabler, not headline) — 🟧 `AIAssistant`
 Mid-page. AI as a transparent assistant: query/dashboard generation, anomaly
@@ -181,9 +196,13 @@ and time saved; optionally a standout metric.
 **Scope:** real, attributable quotes only. Leave the stub until they exist.
 
 ### FAQ — ✅ `faq.tsx`
-Collapsible Q&A covering: replaces incumbents? (not yet), storage (local-first),
+Collapsible Q&A covering: replaces incumbents?, storage (local-first),
 instrumentation (OTel), CI, how agents query, cost. Links to Discord.
-**Scope:** this is the source of truth for honest answers — align other copy to it.
+**Scope:** ⚠️ the "Does Everr replace Datadog/Grafana/Honeycomb? — Not yet…
+currently focused on local observability" answer now **contradicts** the
+full-lifecycle, replace-the-incumbents positioning in §1 and should be rewritten
+to affirm production is in scope (with honest maturity nuance). Keep the rest of
+the FAQ as the source of truth for honest answers.
 
 ### Community — ✅ `community.tsx`
 Discord CTA band on a `primary` background. "Talk to the team. Shape what ships
