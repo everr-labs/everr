@@ -25,6 +25,7 @@ mod settings;
 mod startup;
 pub mod telemetry;
 mod tray;
+mod update;
 
 #[cfg(test)]
 mod tests;
@@ -33,14 +34,16 @@ use commands::{
     copy_notification_auto_fix_prompt, copy_run_auto_fix_prompt, dismiss_active_notification,
     get_active_notification, get_auth_status, get_build_info, get_collector_status,
     get_notification_emails, get_org, get_pending_sign_in, get_runs_list, get_user_profile,
-    get_wizard_status, open_notification_target, open_run_in_browser, open_sign_in_browser,
-    poll_sign_in, reset_dev_onboarding, restart_collector, set_notification_emails, sign_out,
-    start_sign_in, trigger_test_notification,
+    get_pending_update, get_wizard_status, install_pending_update, open_notification_target,
+    set_simulated_update,
+    open_run_in_browser, open_sign_in_browser, poll_sign_in, reset_dev_onboarding,
+    restart_collector, set_notification_emails, sign_out, start_sign_in, trigger_test_notification,
 };
 use notifications::{dismiss_active_notification_inner, start_notifier_loop};
 use settings::{open_settings_window, wizard_incomplete};
-use startup::{run_local_startup_maintenance, start_state_change_loop, start_update_check_loop};
+use startup::{run_local_startup_maintenance, start_state_change_loop};
 use tray::build_tray;
+use update::{start_update_check_loop, PendingUpdateState};
 
 const UPDATE_CHECK_INTERVAL_SECONDS: u64 = 15 * 60;
 const AUTH_CHANGED_EVENT: &str = "everr://auth-changed";
@@ -56,6 +59,8 @@ const NOTIFICATION_WINDOW_INSET: f64 = 12.0;
 const TRAY_ICON_ID: &str = "everr-app";
 const SETTINGS_MENU_ID: &str = "settings";
 const QUIT_MENU_ID: &str = "quit";
+const UPDATE_AVAILABLE_EVENT: &str = "everr://update-available";
+const RESTART_UPDATE_MENU_ID: &str = "restart-update";
 const APP_NAME: &str = "Everr";
 const DEV_APP_NAME: &str = "Everr_Dev";
 
@@ -309,6 +314,7 @@ pub fn run() {
             }
             start_notifier_loop(app.handle().clone(), runtime.clone());
             start_state_change_loop(app.handle().clone(), runtime);
+            app.manage(PendingUpdateState::default());
             start_update_check_loop(app.handle().clone());
             Ok(())
         })
@@ -329,6 +335,9 @@ pub fn run() {
             get_notification_emails,
             set_notification_emails,
             get_build_info,
+            get_pending_update,
+            install_pending_update,
+            set_simulated_update,
             get_collector_status,
             restart_collector,
             get_user_profile,

@@ -1,12 +1,10 @@
 use std::path::Path;
-use std::time::Duration;
 
 use anyhow::{Context, Result};
 use everr_core::skills::{self as core_skills, SkillOperationOptions, SkillProvider, SkillScope};
 use everr_core::state_watcher::StateChange;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 use tauri_plugin_autostart::ManagerExt as AutostartManagerExt;
-use tauri_plugin_updater::{Update, UpdaterExt};
 use tokio::sync::broadcast;
 
 use crate::cli::sync_installed_cli;
@@ -14,7 +12,7 @@ use crate::notifications::reset_notification_state;
 use crate::settings::{
     current_app_state, emit_auth_changed, emit_settings_changed, update_settings,
 };
-use crate::{should_check_for_updates, RuntimeState, UPDATE_CHECK_INTERVAL_SECONDS};
+use crate::RuntimeState;
 
 pub(crate) fn run_local_startup_maintenance(app: &AppHandle) {
     if let Err(error) = sync_installed_cli(app) {
@@ -140,61 +138,4 @@ fn handle_state_change(app: &AppHandle, state: &RuntimeState, change: StateChang
             // Handled by notifier loop's own subscriber
         }
     }
-}
-
-pub(crate) fn start_update_check_loop(app: AppHandle) {
-    tauri::async_runtime::spawn(async move {
-        loop {
-            let settings_open = app
-                .get_webview_window("main")
-                .and_then(|window| window.is_visible().ok())
-                .unwrap_or(false);
-
-            if !settings_open {
-                let update_installed = match install_update_if_available(&app).await {
-                    Ok(installed) => installed,
-                    Err(error) => {
-                        crate::crash_log::log_error("update check", &error);
-                        false
-                    }
-                };
-
-                if update_installed {
-                    app.request_restart();
-                }
-            }
-
-            tokio::time::sleep(Duration::from_secs(UPDATE_CHECK_INTERVAL_SECONDS)).await;
-        }
-    });
-}
-
-async fn install_update_if_available(app: &AppHandle) -> Result<bool> {
-    if !should_check_for_updates() {
-        return Ok(false);
-    }
-
-    let updater = app.updater()?;
-
-    let Some(update) = updater.check().await? else {
-        return Ok(false);
-    };
-
-    update.download_and_install(|_, _| {}, || {}).await?;
-    log_app_update_executed(&update);
-    Ok(true)
-}
-
-fn log_app_update_executed(update: &Update) {
-    tracing::event!(
-        target: "everr.app.update",
-        tracing::Level::INFO,
-        {
-            event.name = "everr.app.update.executed",
-            everr.app.update.current_version = update.current_version.as_str(),
-            everr.app.update.version = update.version.as_str(),
-            everr.app.update.target = update.target.as_str(),
-        },
-        "everr.app.update.executed"
-    );
 }

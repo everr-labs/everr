@@ -18,6 +18,7 @@ use crate::settings::{
     update_persisted_state, update_settings, wizard_status_response,
 };
 use crate::telemetry::sidecar::{CollectorStatusResponse, Sidecar};
+use crate::update::{apply_pending_update, pending_update_version};
 use crate::{
     current_base_url, AuthStatusResponse, CommandResult, DevResetResponse, IntoCommandResult,
     PendingAuthResponse, RuntimeState, SignInResponse, TestNotificationResponse,
@@ -168,6 +169,34 @@ pub(crate) fn get_build_info() -> CommandResult<BuildInfoResponse> {
         release_sha: env!("EVERR_RELEASE_SHA"),
         release_short_sha: env!("EVERR_RELEASE_SHORT_SHA"),
     })
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) struct PendingUpdateResponse {
+    pub version: String,
+}
+
+#[tauri::command]
+pub(crate) fn get_pending_update(
+    app: AppHandle,
+) -> CommandResult<Option<PendingUpdateResponse>> {
+    Ok(pending_update_version(&app).map(|version| PendingUpdateResponse { version }))
+}
+
+#[tauri::command]
+pub(crate) async fn install_pending_update(app: AppHandle) -> CommandResult<()> {
+    apply_pending_update(app, "sidebar")
+        .await
+        .into_command_result()
+}
+
+/// Dev-only: simulate or clear a staged update so the update UI can be exercised
+/// without a real release. `version: None` clears it. No-op in release builds.
+#[tauri::command]
+pub(crate) fn set_simulated_update(app: AppHandle, version: Option<String>) -> CommandResult<()> {
+    crate::update::set_simulated_update(&app, version);
+    Ok(())
 }
 
 #[tauri::command]
