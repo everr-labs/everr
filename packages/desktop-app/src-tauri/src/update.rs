@@ -158,14 +158,16 @@ async fn stage_update_if_available(app: &AppHandle) -> Result<()> {
 /// an admin-prompt AppleScript onto the **main thread** and blocks until it
 /// finishes. It must therefore run off the main thread (via `spawn_blocking`) or
 /// it would deadlock when triggered from the tray menu handler (which runs on
-/// the main thread). The staged state is cleared only on success, so a failed
-/// install never loses the download.
+/// the main thread). A failed *install* never loses the download — the staged
+/// state is cleared only on success. The exception is a vanished artifact (e.g.
+/// the OS temp cleaner removed the temp file): that entry is dropped and a fresh
+/// download is kicked off in the background so the user can retry.
 ///
 /// Benign race: if the check loop restages a newer version between the snapshot
 /// below and the install, the user simply gets the newer (or a one-cycle-stale)
 /// build. Not worth holding the lock across the blocking install to prevent.
 pub(crate) async fn apply_pending_update(app: AppHandle, trigger: &'static str) -> Result<()> {
-    let (update, bytes) = {
+    let read = {
         let state = app.state::<PendingUpdateState>();
         let guard = state
             .staged
@@ -174,9 +176,29 @@ pub(crate) async fn apply_pending_update(app: AppHandle, trigger: &'static str) 
         let Some(pending) = guard.as_ref() else {
             return Ok(());
         };
-        let bytes = std::fs::read(pending.artifact.path())
-            .context("failed to read staged update artifact")?;
-        (pending.update.clone(), bytes)
+        std::fs::read(pending.artifact.path()).map(|bytes| (pending.update.clone(), bytes))
+    };
+
+    let (update, bytes) = match read {
+        Ok(staged) => staged,
+        Err(error) => {
+            // The staged artifact is gone (most likely the OS temp cleaner
+            // removed it during a long wait). Drop the now-unusable entry and
+            // refresh surfaces so the stale "update available" indicator clears,
+            // then re-download in the background so the user can retry without
+            // waiting for the next check cycle.
+            log_app_update_artifact_missing(trigger, &error);
+            clear_staged(&app);
+            refresh_update_surfaces(&app);
+            let restage_app = app.clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(error) = stage_update_if_available(&restage_app).await {
+                    crate::crash_log::log_error("re-stage after missing artifact", &error);
+                }
+            });
+            return Err(anyhow::Error::new(error)
+                .context("staged update artifact missing; re-downloading, please retry shortly"));
+        }
     };
 
     tauri::async_runtime::spawn_blocking(move || update.install(bytes))
@@ -184,17 +206,18 @@ pub(crate) async fn apply_pending_update(app: AppHandle, trigger: &'static str) 
         .context("install task panicked")?
         .context("failed to install update")?;
 
-    {
-        let state = app.state::<PendingUpdateState>();
-        let guard = state.staged.lock();
-        if let Ok(mut guard) = guard {
-            *guard = None;
-        }
-    }
+    clear_staged(&app);
 
     log_app_update_executed(trigger);
     app.request_restart();
     Ok(())
+}
+
+/// Drops the staged update, if any. Best-effort — a poisoned lock is ignored.
+fn clear_staged(app: &AppHandle) {
+    if let Ok(mut guard) = app.state::<PendingUpdateState>().staged.lock() {
+        *guard = None;
+    }
 }
 
 fn log_app_update_staged(update: &Update) {
@@ -220,5 +243,20 @@ fn log_app_update_executed(trigger: &str) {
             everr.app.update.trigger = trigger,
         },
         "everr.app.update.executed"
+    );
+}
+
+/// The staged artifact vanished from disk (e.g. OS temp cleanup) when the user
+/// triggered an install; the entry was dropped and a fresh download kicked off.
+fn log_app_update_artifact_missing(trigger: &str, error: &std::io::Error) {
+    tracing::event!(
+        target: "everr.app.update",
+        tracing::Level::WARN,
+        {
+            event.name = "everr.app.update.artifact_missing",
+            everr.app.update.trigger = trigger,
+            everr.app.update.error = %error,
+        },
+        "everr.app.update.artifact_missing"
     );
 }
