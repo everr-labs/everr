@@ -126,24 +126,26 @@ function PlaceholderSection({
 /** Trust strip under the hero — named design partner + open-source traction. */
 export function LogoCloud() {
   return (
-    <PlaceholderSection
-      title="Trust strip / social proof"
-      purpose="Instant credibility under the hero: a named design partner plus independent community traction."
-      draft={
-        "Design partner: SkillVue   ·   ⭐ {GitHub stars} on GitHub   ·   Open source"
-      }
-      draftMono
-      todos={[
-        "Anchor with the SkillVue design-partner logo (named reference)",
-        "Second proof leg: live GitHub stars / downloads / contributors",
-        "Logo strip (6–10 logos), responsive wrap on mobile; 'Design partner' eyebrow + 'Open source' pill",
-      ]}
-      avoid={[
-        "Placeholder/invented logos",
-        "Relying on a single partner — one reference reads as pre-traction",
-      ]}
-      evidence="CTO: one design partner reads as pre-traction — pair the named SkillVue reference with OSS adoption as a second, independent proof leg. OSS is the #4 selection criterion (25%)."
-    />
+    <div>
+      <PlaceholderSection
+        title="Trust strip / social proof"
+        purpose="Instant credibility under the hero: a named design partner plus independent community traction."
+        draft={
+          "Design partner: SkillVue   ·   ⭐ {GitHub stars} on GitHub   ·   Open source"
+        }
+        draftMono
+        todos={[
+          "Anchor with the SkillVue design-partner logo (named reference)",
+          "Second proof leg: live GitHub stars / downloads / contributors",
+          "Logo strip (6–10 logos), responsive wrap on mobile; 'Design partner' eyebrow + 'Open source' pill",
+        ]}
+        avoid={[
+          "Placeholder/invented logos",
+          "Relying on a single partner — one reference reads as pre-traction",
+        ]}
+        evidence="CTO: one design partner reads as pre-traction — pair the named SkillVue reference with OSS adoption as a second, independent proof leg. OSS is the #4 selection criterion (25%)."
+      />
+    </div>
   );
 }
 

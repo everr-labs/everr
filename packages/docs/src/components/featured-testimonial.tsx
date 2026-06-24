@@ -12,7 +12,7 @@ export function FeaturedTestimonial() {
       className="relative overflow-hidden border-y-2 border-fd-border bg-fd-background"
     >
       <GravityStarsBackground className="absolute inset-0" starsCount={1600} />
-      <div className="pointer-events-none relative z-10 mx-auto max-w-5xl px-6 py-24 md:py-36">
+      <div className="relative z-10 mx-auto max-w-5xl px-6 py-24 md:py-36">
         <motion.figure
           initial={{ opacity: 0, y: 24 }}
           animate={inView ? { opacity: 1, y: 0 } : undefined}
@@ -25,7 +25,7 @@ export function FeaturedTestimonial() {
           <img
             src="/logos/skillvue.svg"
             alt="SkillVue"
-            className="pointer-events-auto mt-6 h-8 w-auto"
+            className="mt-6 h-8 w-auto"
           />
 
           <blockquote className="mt-6 font-heading text-2xl leading-[1.2] tracking-tight text-fd-foreground sm:text-3xl md:text-4xl">
@@ -40,7 +40,7 @@ export function FeaturedTestimonial() {
             <span className="text-primary">It’s how we work now</span>.”
           </blockquote>
 
-          <figcaption className="pointer-events-auto mt-8 flex items-center gap-4">
+          <figcaption className="mt-8 flex items-center gap-4">
             <img
               src="/testimonials/marcello.jpeg"
               alt="Marcello Roherssen"
