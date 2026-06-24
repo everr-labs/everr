@@ -38,7 +38,6 @@ function RouteComponent() {
       <ToolsExplainer />
       <TimeToValue />
       <HowItWorks />
-      <BusinessObservability />
       <PricingTeaser />
       <Testimonials />
       <FAQ />

@@ -15,12 +15,15 @@ export function Hero() {
             <span className="text-primary">For Real.</span>
           </h1>
           <p className="max-w-prose">
-            Everr is an open-source observability platform that makes it easy to
-            monitor and debug your production systems.
+            Setting up Observability shouldn't take days. Get started in
+            minutes.
           </p>
-          <Button variant="cta" size="xl" className="self-start">
-            Get Started
-          </Button>
+          <div>COMANDO DI TERMINAL</div>
+          <div>
+            <Button variant="secondary" size="xl" className="self-start">
+              Read the docs
+            </Button>
+          </div>
         </div>
         <div className="perspective-[1600px] perspective-origin-left">
           <div className="bg-card aspect-[3/2] w-full overflow-hidden rounded-md border border-card shadow-2xl md:aspect-auto md:h-[400px] md:w-[600px] md:-rotate-y-25">

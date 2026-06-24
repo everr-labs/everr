@@ -178,23 +178,6 @@ export function TimeToValue() {
   );
 }
 
-/** Business observability spotlight — beyond infra metrics. */
-export function BusinessObservability() {
-  return (
-    <PlaceholderSection
-      title="Business observability spotlight"
-      purpose="Show that Everr connects technical telemetry to business outcomes (revenue, conversions, usage), not just infra health."
-      todos={[
-        "Concrete examples: track business KPIs alongside technical metrics on one timeline",
-        "Show a business-metric dashboard mock or example query",
-        "Speak to both engineers and the business stakeholders who fund tooling",
-        "Tie into the marketing thesis: business AND technical data, simply",
-      ]}
-      evidence="Grafana 2026: ~50% of respondents already track business-related metrics with observability and business observability is rising — a real differentiator to feature prominently."
-    />
-  );
-}
-
 /** Pricing transparency / cost-efficiency. */
 export function PricingTeaser() {
   return (

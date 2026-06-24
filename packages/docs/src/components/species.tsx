@@ -11,7 +11,6 @@ export function Species() {
       className="relative overflow-hidden border-y-2 border-fd-border bg-fd-background"
     >
       <div className="mx-auto max-w-7xl px-6 py-24 md:py-36">
-        {/* Two-tone headline */}
         <motion.h2
           initial={{ opacity: 0, y: 24 }}
           animate={inView ? { opacity: 1, y: 0 } : undefined}
@@ -20,10 +19,8 @@ export function Species() {
         >
           <span className="text-primary">A new kind of observability.</span>{" "}
           <span className="text-fd-foreground">
-            Built where the work actually happens - your laptop, CI, and the
+            Built where the work actually happens. Your laptop, CI, and the
             agents shipping alongside you.
-            <br />
-            Not after-the-fact graphs.
           </span>
         </motion.h2>
       </div>
