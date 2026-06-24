@@ -1,0 +1,75 @@
+---
+title: "Devlog #4: Alerts, notebooks, and dashboards as code"
+description: "Everr finally becomes an as-code platform"
+date: "2026-06-24"
+author: Everr Team
+commits: 1075
+prs: 126
+additions: 280939
+deletions: 158729
+---
+
+Five and a half weeks since the last devlog, and we've shipped a lot!
+
+## Dashboards as code
+
+We come from years of using traditional observability tools, where you configure dashboards by clicking around a web interface.
+
+The problems there:
+- you have to know what you want before you start
+- your telemetry already has to be live in some "deployed" environment
+- and you need the query languages that observability people love but mere mortals don't have the time to learn
+
+So with Everr we wanted dashboards to be super easy to write and iterate on.
+
+We've adopted [Perses](https://perses.dev/), a standard definition language for dashboards, and kept SQL as the primary query language.
+
+That way your LLMs already know how to write an Everr dashboard, and since the dashboards live in your codebase, you can build them with your code as the knowledge base.
+
+This is the part we're most excited about. An agent can build a dashboard right next to you, in the same repo, with the same context it already has from your code. No jumping out to an external tool, no clicking through a UI it can't see, no stitching together calls to a pile of different observability APIs it had to learn first. It just writes a YAML file with an SQL query, the same way it writes the rest of your code, and you review it in a PR like anything else. The dashboard becomes part of the project, not a thing that lives in someone else's system and slowly drifts out of date.
+
+Deployment is pretty limited for now, but the plan is to let you test dashboards against your local data and preview them right on your PRs.
+
+## Notebooks for operational context
+
+Sometimes dashboards aren't enough, say, to document what to do during a specific incident, or just to explain a given area of your business metrics.
+
+For that we've built notebooks, which are, in practice, dashboards embedded inside markdown.
+
+But the idea we're most excited about is what notebooks mean for agents. A notebook is, in effect, a skill: a documented, repeatable process for handling an incident or understanding a part of your system, written in plain markdown with the real dashboards sitting right next to the words.
+
+Because they're grounded in processes that have actually been used and proven, an agent can follow one the way a teammate would, instead of improvising from scratch every time. And it works both ways. When an agent runs a notebook and hits a gap, or something that's out of date, or a step that doesn't quite hold anymore, that's a signal to go fix the notebook itself.
+
+Over time we think this becomes one of the cornerstones of automating investigations and making them better: your runbooks turn into living skills that both you and your agents keep sharpening.
+
+We think they are pretty cool, and can't wait to see the wonderful things you are going to do with them.
+
+## Alerts
+
+Our goal is to make observability simple for dev teams, so we designed alerts that are simple to set up and structured in a way that nudges you toward best practices.
+
+An alert definition is a YAML file with an SQL query inside. If the query returns rows, the alert fires; otherwise everything's fine.
+
+To keep alerts actionable, we've baked it into our skill that every alert must link to a notebook, aka a runbook. That makes it much easier to tell whether an alert is something you can actually act on.
+
+Notifications can go to Telegram or Slack. Let us know if you need another channel.
+
+Bonus: since an alert is just an SQL query, you can alert on basically anything. And because it's so easy to pull CI into Everr, you can fire an alert when an important pipeline fails, or when CI gets slow enough to start hurting your delivery.
+
+## Errors tracking
+
+One of the hard parts of setting up telemetry is tracking errors correctly.
+
+We've been hitting this ourselves while building Everr, so it's one of the things we wanted to make easier for everyone.
+
+We've added a dedicated section to our setup-telemetry skill on doing error tracking correctly with OpenTelemetry, plus a section in the app to actually look at them.
+
+We've also built `@everr/auto-otel-errors` to make error tracking easier in the JS ecosystem. It's generally usable and not tied to Everr.
+
+Down the line we want to give error tracking a sort of memory, so you (or your agent) can keep track of the errors you've already triaged or fixed.
+
+## What's next
+
+We have so many ideas for making observability a pleasure to work with. Branch previews for dashboards and notebooks are one, and better error tracking is another.
+
+We also want to start supporting frontend telemetry, while keeping our high standards on DX.
