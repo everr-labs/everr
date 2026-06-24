@@ -6,10 +6,11 @@ import { Footer } from "@/components/footer";
 import { Hero } from "@/components/hero";
 import { HowItWorks } from "@/components/how-it-works";
 import {
+  AIAssistant,
   BusinessObservability,
   Features,
-  Integrations,
   LogoCloud,
+  OpenStandards,
   PricingTeaser,
   ProblemToolSprawl,
   Testimonials,
@@ -30,13 +31,14 @@ function RouteComponent() {
       <LogoCloud />
       <Species />
       <ProblemToolSprawl />
+      <OpenStandards />
       <VideoSection />
       <Features />
+      <AIAssistant />
       <ToolsExplainer />
       <TimeToValue />
       <HowItWorks />
       <BusinessObservability />
-      <Integrations />
       <PricingTeaser />
       <Testimonials />
       <FAQ />

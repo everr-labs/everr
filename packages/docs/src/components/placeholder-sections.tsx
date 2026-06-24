@@ -1,17 +1,28 @@
 /**
  * Homepage placeholder sections.
  *
- * These are scaffolding stubs — NOT final components. Each one documents what
- * the real section should contain and why, grounded in the market study:
+ * These are scaffolding stubs — NOT final components. Each documents what the
+ * real section should contain and why, grounded in the 2026 market evidence:
  *
  *  - CNCF observability microsurvey: tool sprawl is the norm (72% use 1–9
  *    tools, 23% use 10–15). Top challenges: complexity, lack of documentation,
  *    lack of skills, lack of strategy.
- *  - Grafana 2026 survey: cost and ease of use are the top buying criteria.
- *    ~50% track business-related metrics via observability. Full-stack
- *    observability, SLOs, and business observability are all rising.
+ *  - Grafana 2026 (core): cost and ease of use are the top buying criteria.
+ *    ~50% track business-related metrics. Full-stack, SLOs, and business
+ *    observability are rising.
+ *  - Grafana 2026 (open source): 77% say open source/open standards matter
+ *    (61% "very important/essential"); OSS is the #4 selection criterion (25%),
+ *    interoperability #2 (26%), and 58% select on at least one open-standards
+ *    criterion. OpenTelemetry adopted to avoid vendor lock-in (37%) and for
+ *    ease of adoption (41%).
+ *  - Grafana 2026 (AI): AI is broadly valued in-product (dashboards/queries
+ *    92%, anomaly detection 92%, forecasting 91%, root cause 91%, onboarding
+ *    89%) BUT only 15% pick a tool based on AI, and 95% demand AI that explains
+ *    its reasoning. Trust drops for autonomous action (77%). Biggest blocker:
+ *    26% "too much manual input of context."
  *
- * GTM thesis for the page: lead with complexity reduction + time to value.
+ * GTM thesis: lead with complexity reduction, cost/ease, and openness. AI is an
+ * enabler shown mid-page, never the headline.
  *
  * Replace each <PlaceholderSection> with a purpose-built component, then delete
  * its stub here.
@@ -63,19 +74,19 @@ function PlaceholderSection({
   );
 }
 
-/** Social proof immediately below the hero — logos of users/adopters. */
+/** Social proof immediately below the hero — logos + open-source credibility. */
 export function LogoCloud() {
   return (
     <PlaceholderSection
       title="Logo cloud / social proof"
-      purpose="Establish instant credibility with a row of recognizable company or project logos right under the hero."
+      purpose="Establish instant credibility under the hero with adopter logos and an open-source proof signal (GitHub stars)."
       todos={[
         "Grayscale logo strip (6–10 logos), responsive wrap on mobile",
-        '"Trusted by teams at…" or "Used in production by…" eyebrow',
-        "Use real adopters / GitHub stars / notable OSS users — no placeholder logos at launch",
-        "Optional: link to a case studies or users page",
+        '"Trusted by teams at…" / "Used in production by…" eyebrow',
+        "Add a live GitHub stars badge + 'Open source' pill — OSS is itself a trust + buying signal",
+        "Use real adopters / notable OSS users only — no placeholder logos at launch",
       ]}
-      evidence="Buyers de-risk new tools with proof others rely on them; social proof is table stakes for a modern observability homepage."
+      evidence="Social proof is table stakes, and Grafana 2026 shows open source is the #4 selection criterion (25%) with 77% saying open standards matter — so OSS credibility belongs in the trust strip, not buried."
     />
   );
 }
@@ -97,6 +108,23 @@ export function ProblemToolSprawl() {
   );
 }
 
+/** Open standards / OTel-native / no lock-in — elevated near the top. */
+export function OpenStandards() {
+  return (
+    <PlaceholderSection
+      title="Open by default — OpenTelemetry-native, no lock-in"
+      purpose="Make openness a top-tier promise: OTel-native ingestion, Prometheus-compatible, and freedom to switch backends — no rip-and-replace, no lock-in."
+      todos={[
+        "Headline the OTel-native + Prometheus-compatible story (drop-in for existing pipelines)",
+        "Explicit 'no vendor lock-in' message + self-host option",
+        "Grid of supported languages, frameworks, exporters; CI / agent / dev-machine ingestion paths",
+        "Reinforce the open-source angle (link to repo); link to integrations catalog",
+      ]}
+      evidence="Grafana 2026: 77% value open source/open standards (61% essential), 58% select on an open-standards criterion, and 37% adopt OpenTelemetry specifically to avoid lock-in — openness is a top differentiator and must sit high, not as a footnote."
+    />
+  );
+}
+
 /** Core capabilities grid — the 'what you get' section. */
 export function Features() {
   return (
@@ -107,27 +135,28 @@ export function Features() {
         "3–6 feature cards with icon + headline + one-line benefit",
         "Cover full-stack observability (logs, traces, metrics, errors in one place)",
         "Highlight SLOs / alerting as first-class (rising in demand)",
-        "Frame each around complexity reduction & time to value, not raw features",
-        "Each card links to the relevant docs page",
+        "Thread transparency/explainability through the cards (95% want to see the 'why')",
+        "Frame each around complexity reduction & time to value; link each to docs",
       ]}
-      evidence="Grafana 2026: full-stack observability and SLOs are rising; ease of use is a top buying criterion — features should read as outcomes, not a spec sheet."
+      evidence="Grafana 2026: full-stack observability and SLOs are rising, ease of use is a top buying criterion, and 95% want tools to explain their reasoning — features should read as transparent outcomes, not a spec sheet."
     />
   );
 }
 
-/** Business observability spotlight — beyond infra metrics. */
-export function BusinessObservability() {
+/** AI as an assistant — enabler, mid-page, transparent. Never the headline. */
+export function AIAssistant() {
   return (
     <PlaceholderSection
-      title="Business observability spotlight"
-      purpose="Show that Everr connects technical telemetry to business outcomes (revenue, conversions, usage), not just infra health."
+      title="AI assistant (enabler, not headline)"
+      purpose="Show AI as a transparent assistant that removes toil — generating queries/dashboards, surfacing anomalies, accelerating root cause — with its reasoning always visible."
       todos={[
-        "Concrete examples: track business KPIs alongside technical metrics on one timeline",
-        "Show a business-metric dashboard mock or example query",
-        "Speak to both engineers and the business stakeholders who fund tooling",
-        "Tie into the marketing thesis: business AND technical data, simply",
+        "Lead with the valued, assistive use cases: query/dashboard generation, anomaly detection, forecasting, root-cause, onboarding",
+        "Make transparency the hero of the section: show sources, query logic, confidence — never a black box",
+        "Address the 'manual context' blocker — AI that already has your telemetry context",
+        "Frame as assist, not autopilot; avoid over-promising autonomous remediation",
+        "Keep it mid-page and supporting — do NOT move AI into the hero",
       ]}
-      evidence="Grafana 2026: ~50% of respondents already track business-related metrics with observability and business observability is rising — a real differentiator to feature prominently."
+      evidence="Grafana 2026 AI: AI is broadly valued in-product (92% dashboards/queries, 92% anomalies, 91% root cause) but only 15% choose a tool because of AI, 95% demand explainable reasoning, and trust drops for autonomous action (77%) — so AI belongs mid-page, transparent, and assistive."
     />
   );
 }
@@ -149,19 +178,19 @@ export function TimeToValue() {
   );
 }
 
-/** Integrations — works with the stack you already have. */
-export function Integrations() {
+/** Business observability spotlight — beyond infra metrics. */
+export function BusinessObservability() {
   return (
     <PlaceholderSection
-      title="Integrations / works with your stack"
-      purpose="Reassure buyers Everr fits their existing tooling (OpenTelemetry-native) so adoption isn't a rip-and-replace."
+      title="Business observability spotlight"
+      purpose="Show that Everr connects technical telemetry to business outcomes (revenue, conversions, usage), not just infra health."
       todos={[
-        "Emphasize OpenTelemetry-native ingestion (no vendor lock-in)",
-        "Grid of supported languages, frameworks, and exporters",
-        "Show CI / agent / dev-machine ingestion paths",
-        "Link to integrations catalog in docs",
+        "Concrete examples: track business KPIs alongside technical metrics on one timeline",
+        "Show a business-metric dashboard mock or example query",
+        "Speak to both engineers and the business stakeholders who fund tooling",
+        "Tie into the marketing thesis: business AND technical data, simply",
       ]}
-      evidence="Tool sprawl means buyers won't replace everything at once; OTel-native compatibility lowers the switching cost and counters lock-in fears."
+      evidence="Grafana 2026: ~50% of respondents already track business-related metrics with observability and business observability is rising — a real differentiator to feature prominently."
     />
   );
 }
@@ -178,7 +207,7 @@ export function PricingTeaser() {
         "Avoid usage-based surprise-bill anxiety — state the model plainly",
         "Primary CTA to pricing page / get started",
       ]}
-      evidence="Grafana 2026: cost is a top buying criterion — transparent pricing and the OSS angle are direct levers on the purchase decision."
+      evidence="Grafana 2026: cost is the top buying criterion — transparent pricing and the OSS/self-host angle are direct levers on the purchase decision."
     />
   );
 }
@@ -195,7 +224,7 @@ export function Testimonials() {
         "Optional: pull a standout metric ('cut our tools from 8 to 1')",
         "Only use real, attributable quotes at launch",
       ]}
-      evidence="Peer validation is a core trust signal; quotes that echo the page's complexity/ease thesis reinforce the GTM message."
+      evidence="Peer validation is a core trust signal; quotes that echo the page's complexity/ease/openness thesis reinforce the GTM message."
     />
   );
 }
