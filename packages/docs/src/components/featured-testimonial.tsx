@@ -25,7 +25,7 @@ export function FeaturedTestimonial() {
           <img
             src="/logos/skillvue.svg"
             alt="SkillVue"
-            className="mt-6 h-8 w-auto"
+            className="pointer-events-auto mt-6 h-8 w-auto"
           />
 
           <blockquote className="mt-6 font-heading text-2xl leading-[1.2] tracking-tight text-fd-foreground sm:text-3xl md:text-4xl">
@@ -40,7 +40,7 @@ export function FeaturedTestimonial() {
             <span className="text-primary">It’s how we work now</span>.”
           </blockquote>
 
-          <figcaption className="mt-8 flex items-center gap-4">
+          <figcaption className="pointer-events-auto mt-8 flex items-center gap-4">
             <img
               src="/testimonials/marcello.jpeg"
               alt="Marcello Roherssen"
