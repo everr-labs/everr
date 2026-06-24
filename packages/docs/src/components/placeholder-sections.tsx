@@ -112,15 +112,16 @@ export function ProblemToolSprawl() {
 export function OpenStandards() {
   return (
     <PlaceholderSection
-      title="Open by default — OpenTelemetry-native, no lock-in"
-      purpose="Make openness a top-tier promise: OTel-native ingestion, Prometheus-compatible, and freedom to switch backends — no rip-and-replace, no lock-in."
+      title="Open by default — open standards, low lock-in everywhere"
+      purpose="Make openness a product-wide promise, not just ingestion: open standards where they exist, and as-code (everything in your codebase) where they don't — so your data, dashboards, notebooks, and alerts stay yours and portable."
       todos={[
-        "Headline the OTel-native + Prometheus-compatible story (drop-in for existing pipelines)",
-        "Explicit 'no vendor lock-in' message + self-host option",
-        "Grid of supported languages, frameworks, exporters; CI / agent / dev-machine ingestion paths",
+        "Telemetry baseline: OTel-native + Prometheus-compatible, freedom to switch backends, self-host",
+        "Go beyond telemetry: dashboards, notebooks, alerts — and whatever comes next — built on open standards or made portable via as-code (lives in your repo)",
+        "Headline 'your observability is yours': your data, your dashboards, your alerts, all versioned and portable — no proprietary-UI lock-in",
+        "Grid of supported languages, frameworks, exporters; CI / agent / dev / prod ingestion paths",
         "Reinforce the open-source angle (link to repo); link to integrations catalog",
       ]}
-      evidence="Grafana 2026: 77% value open source/open standards (61% essential), 58% select on an open-standards criterion, and 37% adopt OpenTelemetry specifically to avoid lock-in — openness is a top differentiator and must sit high, not as a footnote."
+      evidence="Grafana 2026: 77% value open source/open standards (61% essential), 58% select on an open-standards criterion, and 37% adopt OpenTelemetry specifically to avoid lock-in — and Everr's anti-lock-in promise spans the whole product (telemetry, dashboards, notebooks, alerts), not just ingestion."
     />
   );
 }

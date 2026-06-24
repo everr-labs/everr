@@ -24,7 +24,15 @@ Everr's positioning — keep all copy consistent with this:
   Datadog / Grafana / Honeycomb-class stack across that lifecycle — same
   primitives, same data model, same answers everywhere. State this ambition;
   just keep specific feature claims honest about current maturity.
-- **OpenTelemetry-native.** If your runtime speaks OTel, you're done. No lock-in.
+- **Open standards everywhere, low lock-in by design.** This goes far beyond
+  telemetry. OpenTelemetry-native is the baseline (if your runtime speaks OTel,
+  you're done), but the same principle applies to **dashboards, notebooks,
+  alerts — and everything that comes next**: build on an open standard where one
+  exists, and where it doesn't, minimize lock-in. The default escape hatch is
+  **as-code** — dashboards, notebooks, alerts, etc. live in *your* codebase
+  (versioned, portable, yours), so you're never trapped in a proprietary UI's
+  database. Frame lock-in avoidance as a product-wide promise, not an
+  ingestion-only feature.
 - **AI-agent-native.** Agents query Everr via one structured API + plain SQL
   (Claude Code, Cursor, Codex, Copilot, …). Telemetry is the ground truth that
   stops agents from guessing. Agents are a prominent co-thesis, **not** the
@@ -137,12 +145,20 @@ Lead stat: 72% use 1–9 tools, 23% use 10–15. Costs: complexity, skills gap, 
 strategy. Contrast "wall of dashboards" vs. one unified pipeline.
 **Why:** CNCF — complexity is the #1 challenge, so the page leads with it.
 
-### Open by default (OTel-native, no lock-in) — 🟧 `OpenStandards`
-Top-tier openness promise: OTel-native ingestion, Prometheus-compatible, freedom
-to switch backends, self-host. Grid of languages/frameworks/exporters and
-ingestion paths (CI / agent / dev machine). Link to the repo.
+### Open by default (open standards, low lock-in) — 🟧 `OpenStandards`
+Top-tier openness promise spanning the **whole product**, not just ingestion:
+- **Telemetry:** OTel-native, Prometheus-compatible, freedom to switch backends,
+  self-host.
+- **Dashboards, notebooks, alerts — and whatever comes next:** built on open
+  standards where they exist; where they don't, lock-in is minimized via
+  **as-code** — these artifacts live in *your* codebase (versioned, portable,
+  reviewable), not locked inside a proprietary UI.
+Include the ingestion grid (languages/frameworks/exporters; CI / agent / dev /
+prod paths) and link to the repo. The headline is "your observability is yours —
+your data, your dashboards, your alerts, all portable."
 **Why:** 77% value open standards; 58% select on them; 37% adopt OTel to avoid
-lock-in — and it's core to Everr's identity. Keep it high on the page.
+lock-in — and product-wide openness (not just telemetry) is core to Everr's
+identity. Keep it high on the page.
 
 ### Video demo — ✅ `video-section.tsx`
 Autoplaying (muted, looped, in-view) product video framed in an `aspect-video`
