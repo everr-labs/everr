@@ -62,6 +62,10 @@ pub async fn login_with_device_authorization(
     let authorization = start_device_authorization(&client, config).await?;
     show_device_sign_in_note(&authorization.verification_url, &authorization.user_code)?;
 
+    // Open the approval page so the user doesn't have to copy the URL. The note
+    // above stays as a fallback if the browser can't be opened.
+    let _ = webbrowser::open(&authorization.verification_url);
+
     complete_setup_device_authorization(config, store, &client, authorization).await
 }
 
@@ -82,24 +86,42 @@ async fn complete_setup_device_authorization(
     let deadline = Instant::now() + Duration::from_secs(authorization.expires_in);
     let mut poll_interval = authorization.interval;
 
+    let spinner = cliclack::spinner();
+    spinner.start("Waiting for you to approve the sign-in in your browser…");
+
     loop {
         if Instant::now() >= deadline {
+            spinner.error("Sign-in timed out before it was approved.");
             bail!("device authentication expired before completion");
         }
 
         sleep(Duration::from_secs(poll_interval)).await;
-        match poll_device_authorization(client, config, &authorization).await? {
+        let status = match poll_device_authorization(client, config, &authorization).await {
+            Ok(status) => status,
+            Err(err) => {
+                spinner.error("Sign-in failed.");
+                return Err(err);
+            }
+        };
+        match status {
             DevicePollStatus::Authorized(token) => {
                 let session = session_from_device_token(config, token)?;
                 store.save_session(&session)?;
+                spinner.stop("Signed in.");
                 return Ok(session);
             }
             DevicePollStatus::Pending => {}
             DevicePollStatus::SlowDown => {
                 poll_interval += 5;
             }
-            DevicePollStatus::Denied => bail!("device authentication was denied"),
-            DevicePollStatus::Expired => bail!("device authentication token expired"),
+            DevicePollStatus::Denied => {
+                spinner.error("Sign-in was denied.");
+                bail!("device authentication was denied");
+            }
+            DevicePollStatus::Expired => {
+                spinner.error("Sign-in token expired.");
+                bail!("device authentication token expired");
+            }
         }
     }
 }
