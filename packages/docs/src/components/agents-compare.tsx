@@ -1,5 +1,5 @@
 import { cn } from "@everr/ui/lib/utils";
-import { ArrowRight, Bot, Check, TriangleAlert, X } from "lucide-react";
+import { ArrowRight, Bot, Check, TriangleAlert } from "lucide-react";
 import { motion, useInView } from "motion/react";
 import { useRef } from "react";
 
@@ -366,8 +366,7 @@ function VersusMarker({ inView }: { inView: boolean }) {
       className="pointer-events-none absolute left-1/2 top-1/2 z-10 hidden -translate-x-1/2 -translate-y-1/2 md:block"
     >
       <span className="flex size-12 items-center justify-center rounded-full border border-fd-border bg-fd-background font-heading text-[11px] font-bold uppercase tracking-[0.1em] text-fd-muted-foreground shadow-lg">
-        <X className="size-3 text-fd-muted-foreground/40" />
-        <span className="-ml-0.5">vs</span>
+        vs
       </span>
     </motion.div>
   );

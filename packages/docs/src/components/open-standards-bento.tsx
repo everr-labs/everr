@@ -89,14 +89,9 @@ export function OpenStandardsBento() {
           transition={{ duration: 0.8, ease: EASE }}
           className="max-w-3xl"
         >
-          <div className="flex flex-wrap items-center gap-3">
-            <p className="font-heading text-[11px] font-bold uppercase tracking-[0.3em] text-fd-muted-foreground/60">
-              Open by default
-            </p>
-            <span className="inline-flex items-center rounded-full border border-fd-border bg-fd-card px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-fd-muted-foreground/70">
-              variant · bento
-            </span>
-          </div>
+          <p className="font-heading text-[11px] font-bold uppercase tracking-[0.3em] text-fd-muted-foreground/60">
+            Open by default
+          </p>
 
           <h2 className="mt-4 text-balance font-heading text-3xl leading-[1.1] tracking-tight sm:text-4xl md:text-5xl lg:text-6xl">
             Your data stays in standard formats.{" "}
@@ -361,8 +356,8 @@ function BoundaryTile({ inView, index }: { inView: boolean; index: number }) {
           Compatibility matrix
         </p>
         <p className="mt-2 text-[13px] leading-snug text-fd-muted-foreground">
-          The exact boundaries, in the open — including the Perses ↔ Grafana
-          migration notes. Honest, because hiding them would be the lock-in.
+          The exact boundaries, in the open — what&rsquo;s fully portable and
+          what isn&rsquo;t. Honest, because hiding them would be the lock-in.
         </p>
       </div>
 

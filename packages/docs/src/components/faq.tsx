@@ -13,18 +13,6 @@ type FaqItem = {
 
 const FAQS: FaqItem[] = [
   {
-    q: "Does Everr replace Datadog / Grafana / Honeycomb?",
-    a: (
-      <>
-        Not yet, but we're working on it! We are currently focused on local
-        observability. Everr lives{" "}
-        <strong className="text-fd-foreground">upstream</strong> — your laptop,
-        CI, and agent runs your existing tools never see. Production
-        observability is a natural next step.
-      </>
-    ),
-  },
-  {
     q: "Where is my telemetry stored?",
     a: (
       <>
