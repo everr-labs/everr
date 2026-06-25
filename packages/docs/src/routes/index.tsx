@@ -20,6 +20,13 @@ import {
   ProblemToolSprawl,
   TimeToValue,
 } from "@/components/placeholder-sections";
+import { PricingCalculator } from "@/components/pricing-calculator";
+import { PricingMatrix } from "@/components/pricing-matrix";
+import { PricingNarrative } from "@/components/pricing-narrative";
+import { PricingSingle } from "@/components/pricing-single";
+import { PricingTco } from "@/components/pricing-tco";
+import { PricingTiers } from "@/components/pricing-tiers";
+import { PricingToggle } from "@/components/pricing-toggle";
 import { Species } from "@/components/species";
 import { ToolsExplainer } from "@/components/tools-explainer";
 import { VideoSection } from "@/components/video-section";
@@ -49,6 +56,14 @@ function RouteComponent() {
       <TimeToValue />
       <HowItWorks />
       <PricingTeaser />
+      {/* Pricing section — layout candidates, pick one then delete the rest. */}
+      <PricingTiers />
+      <PricingMatrix />
+      <PricingCalculator />
+      <PricingTco />
+      <PricingSingle />
+      <PricingToggle />
+      <PricingNarrative />
       <FeaturedTestimonial />
       <FAQ />
       <Community />
