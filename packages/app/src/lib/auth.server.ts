@@ -156,11 +156,11 @@ const googleSocialProviders =
 export const auth = betterAuth({
   baseURL: env.BETTER_AUTH_URL,
   secret: env.BETTER_AUTH_SECRET,
-  // Trust both loopback forms of the base URL. trustedOrigins otherwise defaults
-  // to just baseURL; in dev the MCP OAuth flow can run on 127.0.0.1 while
-  // BETTER_AUTH_URL is localhost (or vice-versa), and origin-checked endpoints
-  // (e.g. organization/set-active in the org picker) would 403 INVALID_ORIGIN.
-  // In production BETTER_AUTH_URL is a real host, so the replaces are no-ops.
+  // Trust both loopback forms of the base URL: in dev the app may be reached on
+  // 127.0.0.1 while BETTER_AUTH_URL is localhost (or vice-versa). In production
+  // BETTER_AUTH_URL is a real host, so the replaces are no-ops. (The MCP org
+  // picker/consent avoid this check entirely by running set-active/continue/
+  // consent server-side via auth.api — see data/mcp-oauth.ts.)
   trustedOrigins: Array.from(
     new Set([
       env.BETTER_AUTH_URL,

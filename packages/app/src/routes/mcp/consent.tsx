@@ -7,9 +7,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@everr/ui/components/card";
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { authClient } from "@/lib/auth-client";
+import { submitMcpConsent } from "@/data/mcp-oauth";
 
 export const Route = createFileRoute("/mcp/consent")({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -22,7 +22,6 @@ export const Route = createFileRoute("/mcp/consent")({
 
 function Consent() {
   const { client_id, scope, oauth_query } = Route.useSearch();
-  const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,24 +29,17 @@ function Consent() {
     setBusy(true);
     setError(null);
 
-    // The provider returns { redirect, url } and does not auto-follow; navigate
-    // to the returned URL (the client's redirect_uri on accept) ourselves.
-    const result = await authClient.oauth2.consent({
-      accept,
-      scope,
-      oauth_query,
-    });
-    if (result.error) {
-      setError(result.error.message ?? "Failed to record consent");
+    try {
+      const result = await submitMcpConsent({
+        data: { accept, scope, oauth_query },
+      });
+      window.location.href = result.url;
+    } catch (error) {
+      setError(
+        error instanceof Error ? error.message : "Failed to record consent",
+      );
       setBusy(false);
-      return;
     }
-    if (result.data?.url) {
-      window.location.href = result.data.url;
-      return;
-    }
-    // No redirect returned (e.g. denied without a redirect): fall back home.
-    router.navigate({ to: "/" });
   }
 
   return (

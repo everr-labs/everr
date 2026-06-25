@@ -9,6 +9,7 @@ import {
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
+import { selectMcpOrganization } from "@/data/mcp-oauth";
 
 export const Route = createFileRoute("/mcp/select-org")({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -31,27 +32,19 @@ function SelectOrg() {
     setBusy(true);
     setError(null);
 
-    // Bind the chosen org to the session before resuming. Separate requests,
-    // so await the write before continuing.
-    const active = await authClient.organization.setActive({ organizationId });
-    if (active.error) {
-      setError(active.error.message ?? "Failed to select organization");
+    try {
+      const resumed = await selectMcpOrganization({
+        data: { organizationId, oauth_query },
+      });
+      window.location.href = resumed.url;
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Failed to select organization",
+      );
       setBusy(false);
-      return;
     }
-
-    // Resume the OAuth flow. The provider returns { redirect, url }; it does
-    // not auto-follow, so navigate to the returned URL ourselves.
-    const resumed = await authClient.oauth2.continue({
-      postLogin: true,
-      oauth_query,
-    });
-    if (resumed.error || !resumed.data?.url) {
-      setError(resumed.error?.message ?? "Failed to resume authorization");
-      setBusy(false);
-      return;
-    }
-    window.location.href = resumed.data.url;
   }
 
   return (
