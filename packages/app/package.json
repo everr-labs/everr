@@ -17,7 +17,8 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
-    "@better-auth/api-key": "^1.6.10",
+    "@better-auth/api-key": "^1.6.20",
+    "@better-auth/oauth-provider": "1.6.20",
     "@clickhouse/client": "^1.18.4",
     "@everr/auto-otel-errors": "workspace:*",
     "@everr/datemath": "workspace:*",
@@ -44,11 +45,12 @@
     "@tanstack/react-router": "1.169.2",
     "@tanstack/react-start": "1.167.65",
     "ansi-to-react": "^6.2.6",
-    "better-auth": "^1.6.10",
+    "better-auth": "^1.6.20",
     "d3-geo": "^3.1.1",
     "drizzle-orm": "^0.45.2",
     "graphile-worker": "^0.16.6",
     "lucide-react": "catalog:",
+    "mcp-handler": "^1.1.0",
     "mdast-util-from-markdown": "^2.0.3",
     "motion": "catalog:",
     "nodemailer": "^8.0.7",

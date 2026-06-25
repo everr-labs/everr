@@ -1,11 +1,17 @@
 import { apiKey } from "@better-auth/api-key";
+import { oauthProvider } from "@better-auth/oauth-provider";
 import { polar, webhooks } from "@polar-sh/better-auth";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
+import {
+  APIError,
+  createAuthMiddleware,
+  getSessionFromCtx,
+} from "better-auth/api";
 import {
   bearer,
   deviceAuthorization,
+  jwt,
   organization as organizationPlugin,
 } from "better-auth/plugins";
 import { createAccessControl } from "better-auth/plugins/access";
@@ -41,6 +47,7 @@ import {
   sendPasswordResetEmail,
   sendVerificationEmail,
 } from "@/lib/email.server";
+import { MCP_RESOURCE } from "@/lib/mcp-resource";
 import { deletePostgresOrganizationData } from "@/lib/organization-data-cleanup.server";
 import { ensurePolarCustomerForOrg, polarClient } from "@/lib/polar.server";
 import { resolveRetention } from "@/lib/retention";
@@ -146,9 +153,29 @@ const googleSocialProviders =
       }
     : undefined;
 
+// The selected organization id, or undefined if none is active yet. Shared by
+// the MCP postLogin hooks so "is an org selected?" is decided one way (treating
+// an empty string as unselected).
+const selectedOrgId = (activeOrganizationId: unknown): string | undefined =>
+  typeof activeOrganizationId === "string" && activeOrganizationId.length > 0
+    ? activeOrganizationId
+    : undefined;
+
 export const auth = betterAuth({
   baseURL: env.BETTER_AUTH_URL,
   secret: env.BETTER_AUTH_SECRET,
+  // Trust both loopback forms of the base URL: in dev the app may be reached on
+  // 127.0.0.1 while BETTER_AUTH_URL is localhost (or vice-versa). In production
+  // BETTER_AUTH_URL is a real host, so the replaces are no-ops. (The MCP org
+  // picker/consent avoid this check entirely by running set-active/continue/
+  // consent server-side via auth.api — see data/mcp/oauth.ts.)
+  trustedOrigins: Array.from(
+    new Set([
+      env.BETTER_AUTH_URL,
+      env.BETTER_AUTH_URL.replace("localhost", "127.0.0.1"),
+      env.BETTER_AUTH_URL.replace("127.0.0.1", "localhost"),
+    ]),
+  ),
   database: drizzleAdapter(db, {
     provider: "pg",
   }),
@@ -173,6 +200,14 @@ export const auth = betterAuth({
     },
     sendOnSignUp: true,
     autoSignInAfterVerification: true,
+  },
+  account: {
+    // Preserve pre-1.6.11 behavior: allow implicit OAuth account linking even
+    // when the local account's email is unverified. 1.6.11 flipped the default
+    // (`requireLocalEmailVerified`) to true.
+    accountLinking: {
+      requireLocalEmailVerified: false,
+    },
   },
   databaseHooks: {
     session: {
@@ -308,6 +343,9 @@ export const auth = betterAuth({
     organizationPlugin({
       ac: orgAc,
       roles: orgRoles,
+      // Preserve pre-1.6.11 behavior: don't require the recipient's email to be
+      // verified to view/accept an invitation. 1.6.11 flipped this default to true.
+      requireEmailVerificationOnInvitation: false,
       sendInvitationEmail: async (data) => {
         sendInvitationEmail({
           to: data.email,
@@ -424,6 +462,42 @@ export const auth = betterAuth({
           onSubscriptionRevoked: syncSubscription,
         }),
       ],
+    }),
+    jwt({ disableSettingJwtHeader: true, disabledPaths: ["/token"] }),
+    oauthProvider({
+      loginPage: "/auth/sign-in",
+      consentPage: "/mcp/consent",
+      allowDynamicClientRegistration: true,
+      allowUnauthenticatedClientRegistration: true,
+      validAudiences: [MCP_RESOURCE],
+      scopes: [
+        "openid",
+        "profile",
+        "email",
+        "offline_access",
+        "observability:read",
+      ],
+      postLogin: {
+        // `page` + `shouldRedirect` are required by the type, but we never
+        // divert to a separate picker: the active org is shown and switchable on
+        // the consent screen (see routes/mcp/consent.tsx), and it's bound here.
+        // `page` is therefore unused; kept as a real route to avoid a dangling ref.
+        page: "/mcp/consent",
+        shouldRedirect: async () => false,
+        consentReferenceId: async ({ session, scopes }) => {
+          const orgId = selectedOrgId(session.activeOrganizationId);
+          if (scopes.includes("observability:read") && !orgId) {
+            throw new APIError("BAD_REQUEST", {
+              message:
+                "No active organization to authorize. Create one in Everr, then reconnect.",
+            });
+          }
+          return orgId;
+        },
+      },
+      customAccessTokenClaims: async ({ referenceId }) => ({
+        org_id: referenceId,
+      }),
     }),
     tanstackStartCookies(), // must be last
   ],

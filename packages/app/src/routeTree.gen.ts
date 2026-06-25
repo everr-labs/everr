@@ -13,12 +13,16 @@ import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as WebhookGithubRouteImport } from './routes/webhook/github'
+import { Route as McpConsentRouteImport } from './routes/mcp/consent'
+import { Route as McpSplatRouteImport } from './routes/mcp/$'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiCliRouteImport } from './routes/api/cli'
 import { Route as ApiApplyRouteImport } from './routes/api/apply'
 import { Route as AuthenticatedDeviceRouteImport } from './routes/_authenticated/device'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/_dashboard'
 import { Route as AuthGuestRouteImport } from './routes/_auth/_guest'
+import { Route as DotwellKnownOauthProtectedResourceRouteImport } from './routes/[.]well-known/oauth-protected-resource'
+import { Route as DotwellKnownOauthAuthorizationServerRouteImport } from './routes/[.]well-known/oauth-authorization-server'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/_dashboard/index'
 import { Route as ApiInternalVerifyKeyRouteImport } from './routes/api/internal/verify-key'
 import { Route as ApiEventsStreamRouteImport } from './routes/api/events/stream'
@@ -93,6 +97,16 @@ const WebhookGithubRoute = WebhookGithubRouteImport.update({
   path: '/webhook/github',
   getParentRoute: () => rootRouteImport,
 } as any)
+const McpConsentRoute = McpConsentRouteImport.update({
+  id: '/mcp/consent',
+  path: '/mcp/consent',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const McpSplatRoute = McpSplatRouteImport.update({
+  id: '/mcp/$',
+  path: '/mcp/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
@@ -121,6 +135,18 @@ const AuthGuestRoute = AuthGuestRouteImport.update({
   id: '/_guest',
   getParentRoute: () => AuthRoute,
 } as any)
+const DotwellKnownOauthProtectedResourceRoute =
+  DotwellKnownOauthProtectedResourceRouteImport.update({
+    id: '/.well-known/oauth-protected-resource',
+    path: '/.well-known/oauth-protected-resource',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const DotwellKnownOauthAuthorizationServerRoute =
+  DotwellKnownOauthAuthorizationServerRouteImport.update({
+    id: '/.well-known/oauth-authorization-server',
+    path: '/.well-known/oauth-authorization-server',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AuthenticatedDashboardIndexRoute =
   AuthenticatedDashboardIndexRouteImport.update({
     id: '/',
@@ -435,10 +461,14 @@ const AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRoute =
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedDashboardIndexRoute
   '/onboarding': typeof OnboardingRoute
+  '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
+  '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
   '/device': typeof AuthenticatedDeviceRoute
   '/api/apply': typeof ApiApplyRoute
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
+  '/mcp/$': typeof McpSplatRoute
+  '/mcp/consent': typeof McpConsentRoute
   '/webhook/github': typeof WebhookGithubRoute
   '/auth/error': typeof AuthAuthErrorRoute
   '/invite/$invitationId': typeof AuthInviteInvitationIdRoute
@@ -497,10 +527,14 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof AuthenticatedDashboardIndexRoute
   '/onboarding': typeof OnboardingRoute
+  '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
+  '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
   '/device': typeof AuthenticatedDeviceRoute
   '/api/apply': typeof ApiApplyRoute
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
+  '/mcp/$': typeof McpSplatRoute
+  '/mcp/consent': typeof McpConsentRoute
   '/webhook/github': typeof WebhookGithubRoute
   '/auth/error': typeof AuthAuthErrorRoute
   '/invite/$invitationId': typeof AuthInviteInvitationIdRoute
@@ -559,12 +593,16 @@ export interface FileRoutesById {
   '/_auth': typeof AuthRouteWithChildren
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/onboarding': typeof OnboardingRoute
+  '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
+  '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
   '/_auth/_guest': typeof AuthGuestRouteWithChildren
   '/_authenticated/_dashboard': typeof AuthenticatedDashboardRouteWithChildren
   '/_authenticated/device': typeof AuthenticatedDeviceRoute
   '/api/apply': typeof ApiApplyRoute
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
+  '/mcp/$': typeof McpSplatRoute
+  '/mcp/consent': typeof McpConsentRoute
   '/webhook/github': typeof WebhookGithubRoute
   '/_auth/auth/error': typeof AuthAuthErrorRoute
   '/_auth/invite/$invitationId': typeof AuthInviteInvitationIdRoute
@@ -627,10 +665,14 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/onboarding'
+    | '/.well-known/oauth-authorization-server'
+    | '/.well-known/oauth-protected-resource'
     | '/device'
     | '/api/apply'
     | '/api/cli'
     | '/api/health'
+    | '/mcp/$'
+    | '/mcp/consent'
     | '/webhook/github'
     | '/auth/error'
     | '/invite/$invitationId'
@@ -689,10 +731,14 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/onboarding'
+    | '/.well-known/oauth-authorization-server'
+    | '/.well-known/oauth-protected-resource'
     | '/device'
     | '/api/apply'
     | '/api/cli'
     | '/api/health'
+    | '/mcp/$'
+    | '/mcp/consent'
     | '/webhook/github'
     | '/auth/error'
     | '/invite/$invitationId'
@@ -750,12 +796,16 @@ export interface FileRouteTypes {
     | '/_auth'
     | '/_authenticated'
     | '/onboarding'
+    | '/.well-known/oauth-authorization-server'
+    | '/.well-known/oauth-protected-resource'
     | '/_auth/_guest'
     | '/_authenticated/_dashboard'
     | '/_authenticated/device'
     | '/api/apply'
     | '/api/cli'
     | '/api/health'
+    | '/mcp/$'
+    | '/mcp/consent'
     | '/webhook/github'
     | '/_auth/auth/error'
     | '/_auth/invite/$invitationId'
@@ -818,9 +868,13 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRouteWithChildren
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   OnboardingRoute: typeof OnboardingRoute
+  DotwellKnownOauthAuthorizationServerRoute: typeof DotwellKnownOauthAuthorizationServerRoute
+  DotwellKnownOauthProtectedResourceRoute: typeof DotwellKnownOauthProtectedResourceRoute
   ApiApplyRoute: typeof ApiApplyRoute
   ApiCliRoute: typeof ApiCliRouteWithChildren
   ApiHealthRoute: typeof ApiHealthRoute
+  McpSplatRoute: typeof McpSplatRoute
+  McpConsentRoute: typeof McpConsentRoute
   WebhookGithubRoute: typeof WebhookGithubRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiEventsStreamRoute: typeof ApiEventsStreamRoute
@@ -857,6 +911,20 @@ declare module '@tanstack/react-router' {
       path: '/webhook/github'
       fullPath: '/webhook/github'
       preLoaderRoute: typeof WebhookGithubRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mcp/consent': {
+      id: '/mcp/consent'
+      path: '/mcp/consent'
+      fullPath: '/mcp/consent'
+      preLoaderRoute: typeof McpConsentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mcp/$': {
+      id: '/mcp/$'
+      path: '/mcp/$'
+      fullPath: '/mcp/$'
+      preLoaderRoute: typeof McpSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/health': {
@@ -900,6 +968,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof AuthGuestRouteImport
       parentRoute: typeof AuthRoute
+    }
+    '/.well-known/oauth-protected-resource': {
+      id: '/.well-known/oauth-protected-resource'
+      path: '/.well-known/oauth-protected-resource'
+      fullPath: '/.well-known/oauth-protected-resource'
+      preLoaderRoute: typeof DotwellKnownOauthProtectedResourceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/.well-known/oauth-authorization-server': {
+      id: '/.well-known/oauth-authorization-server'
+      path: '/.well-known/oauth-authorization-server'
+      fullPath: '/.well-known/oauth-authorization-server'
+      preLoaderRoute: typeof DotwellKnownOauthAuthorizationServerRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/_dashboard/': {
       id: '/_authenticated/_dashboard/'
@@ -1563,9 +1645,15 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRouteWithChildren,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   OnboardingRoute: OnboardingRoute,
+  DotwellKnownOauthAuthorizationServerRoute:
+    DotwellKnownOauthAuthorizationServerRoute,
+  DotwellKnownOauthProtectedResourceRoute:
+    DotwellKnownOauthProtectedResourceRoute,
   ApiApplyRoute: ApiApplyRoute,
   ApiCliRoute: ApiCliRouteWithChildren,
   ApiHealthRoute: ApiHealthRoute,
+  McpSplatRoute: McpSplatRoute,
+  McpConsentRoute: McpConsentRoute,
   WebhookGithubRoute: WebhookGithubRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiEventsStreamRoute: ApiEventsStreamRoute,

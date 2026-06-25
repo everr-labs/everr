@@ -57,6 +57,13 @@
       "when": 1782121350541,
       "tag": "0007_backfill-api-keys",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1782383269126,
+      "tag": "0008_faulty_wolfpack",
+      "breakpoints": true
     }
   ]
 }
