@@ -23,25 +23,48 @@ function oauthFlowError(error: unknown, fallback: string): string {
   return fallback;
 }
 
-function serverAuthContext(incoming: Headers, endpointPath: string) {
+// Forward the caller's session cookie but present the app's own (trusted)
+// origin instead of the webview's opaque `null`, so Better Auth's origin/CSRF
+// check passes. `accept: application/json` makes the redirecting endpoints
+// (continue/consent) return `{ url }` JSON instead of a raw 302.
+function trustedHeaders(incoming: Headers): Headers {
   const headers = new Headers();
   const cookie = incoming.get("cookie");
   if (cookie) headers.set("cookie", cookie);
-  // A trusted origin (not the webview's opaque `null`) so the origin check
-  // passes; `accept: application/json` so continue/consent return `{ url }`
-  // JSON instead of a raw 302 redirect we can't follow from here.
   headers.set("origin", AUTH_BASE);
   headers.set("accept", "application/json");
   headers.set("sec-fetch-mode", "cors");
+  return headers;
+}
 
+function serverAuthContext(incoming: Headers, endpointPath: string) {
+  const headers = trustedHeaders(incoming);
   // The oauth-provider endpoints also read ctx.request; build it from the same
   // single Headers so the two can't drift.
   const request = new Request(`${AUTH_ISSUER}${endpointPath}`, {
     method: "POST",
     headers,
   });
-
   return { headers, request };
+}
+
+/**
+ * Set the caller's active organization server-side. Used by the consent screen's
+ * org switcher: the chosen org is what `consentReferenceId` binds into the token
+ * when the user approves, so switching is just set-active before Approve.
+ */
+export async function setActiveOrg(
+  incoming: Headers,
+  organizationId: string,
+): Promise<void> {
+  try {
+    await auth.api.setActiveOrganization({
+      headers: trustedHeaders(incoming),
+      body: { organizationId },
+    });
+  } catch (error) {
+    throw new Error(oauthFlowError(error, "Failed to switch organization"));
+  }
 }
 
 export async function selectOrgAndContinue(
