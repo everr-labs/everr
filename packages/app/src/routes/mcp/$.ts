@@ -1,22 +1,23 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createFileRoute } from "@tanstack/react-router";
-import { withMcpAuth } from "better-auth/plugins";
-// Use the export name Task 0 confirmed. mcp-handler@1.1.0 exports
-// `createMcpRouteHandler`; older docs/`@vercel/mcp-adapter` use `createMcpHandler`.
 import { createMcpHandler } from "mcp-handler";
 import { z } from "zod";
-import { auth } from "@/lib/auth.server";
+import { env } from "@/env";
 import { SQL_API_TENANT_TABLES } from "@/lib/clickhouse";
+import { assertCurrentMember, McpMembershipError } from "@/lib/mcp-membership";
+import { MCP_RESOURCE } from "@/lib/mcp-resource";
+import { mcpResourceClient } from "@/lib/mcp-resource-client";
 import { runSqlForConnection } from "@/lib/mcp-run-sql";
 
 // Single source of truth: the tables the per-org ClickHouse role can read.
 const READABLE_TABLES = SQL_API_TENANT_TABLES.join(", ");
-const REQUIRED_SCOPE = "observability:read";
 
-const userStore = new AsyncLocalStorage<{ userId: string }>();
+// Per-request org context, taken from the verified `org_id` token claim.
+const orgStore = new AsyncLocalStorage<{ orgId: string }>();
 
-// Built ONCE at module load (Task 0 proved ALS propagates through mcp-handler).
-const mcpHandler = createMcpHandler(
+// Built ONCE at module load (ALS propagates through mcp-handler). Named
+// `mcpTransport` to avoid clashing with the oauth-provider `mcpHandler` export.
+const mcpTransport = createMcpHandler(
   (server) => {
     server.registerTool(
       "run_sql",
@@ -28,14 +29,14 @@ const mcpHandler = createMcpHandler(
         inputSchema: { sql: z.string() },
       },
       async ({ sql }) => {
-        const ctx = userStore.getStore();
+        const ctx = orgStore.getStore();
         if (!ctx) {
           return {
             isError: true,
-            content: [{ type: "text", text: "No user context." }],
+            content: [{ type: "text", text: "No org context." }],
           };
         }
-        const result = await runSqlForConnection({ userId: ctx.userId, sql });
+        const result = await runSqlForConnection({ orgId: ctx.orgId, sql });
         return {
           isError: result.isError,
           content: [{ type: "text", text: result.text }],
@@ -46,6 +47,11 @@ const mcpHandler = createMcpHandler(
   {},
   { basePath: "", maxDuration: 60 },
 );
+
+const CORS_HEADERS: Record<string, string> = {
+  "access-control-allow-origin": "*",
+  "access-control-expose-headers": "WWW-Authenticate, mcp-session-id",
+};
 
 function unauthorized(request: Request): Response {
   const base = new URL(request.url).origin;
@@ -60,42 +66,45 @@ function unauthorized(request: Request): Response {
       headers: {
         "content-type": "application/json",
         "WWW-Authenticate": `Bearer resource_metadata="${base}/.well-known/oauth-protected-resource"`,
-        "access-control-allow-origin": "*",
-        "access-control-expose-headers": "WWW-Authenticate",
+        ...CORS_HEADERS,
       },
     },
   );
 }
 
-const CORS_HEADERS: Record<string, string> = {
-  "access-control-allow-origin": "*",
-  "access-control-expose-headers": "WWW-Authenticate, mcp-session-id",
-};
-
-// withMcpAuth returns its own 401 (with WWW-Authenticate) when there is no token.
-// When a token IS present, our callback runs; getMcpSession checks neither scope
-// nor expiry, so we do it here. Treat a missing/invalid expiry as expired (the
-// column is nullable) rather than letting it pass.
-const authed = withMcpAuth(auth, async (req, session) => {
-  const scopes = (session.scopes ?? "").split(/\s+/).filter(Boolean);
-  // better-auth types accessTokenExpiresAt as a non-null Date, but the underlying
-  // column is nullable — so distrust the type and fail closed (see `expired`).
-  const expiresAt = new Date(
-    session.accessTokenExpiresAt as unknown as string | Date,
-  );
-  const expired =
-    !Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= Date.now();
-  if (expired || !scopes.includes(REQUIRED_SCOPE) || !session.userId) {
-    return unauthorized(req);
-  }
-  return userStore.run({ userId: session.userId }, () => mcpHandler(req));
-});
-
-// Add CORS to EVERY response — withMcpAuth's own no-token 401 and successful
-// tool responses don't set it, and browser-based clients (e.g. the Inspector)
-// need it for discovery + tool calls.
 async function handler(request: Request): Promise<Response> {
-  const res = await authed(request);
+  const auth = request.headers.get("authorization");
+  const token = auth?.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7)
+    : undefined;
+  if (!token) return unauthorized(request);
+
+  // Verify signature, audience, issuer, scope and expiry. Throws on any failure.
+  let payload: Record<string, unknown>;
+  try {
+    payload = (await mcpResourceClient().verifyAccessToken(token, {
+      verifyOptions: { audience: MCP_RESOURCE, issuer: env.BETTER_AUTH_URL },
+      scopes: ["observability:read"],
+    })) as Record<string, unknown>;
+  } catch {
+    return unauthorized(request); // bad sig/aud/iss/scope/expiry
+  }
+
+  // Read the consent-time org and the subject from the verified claims. Fail
+  // closed (401) if either is missing rather than trusting a malformed token.
+  const orgId = typeof payload.org_id === "string" ? payload.org_id : undefined;
+  const userId = typeof payload.sub === "string" ? payload.sub : undefined;
+  if (!orgId || !userId) return unauthorized(request);
+
+  // Re-check membership at request time (revocation / removal after consent).
+  try {
+    await assertCurrentMember(userId, orgId);
+  } catch (e) {
+    if (e instanceof McpMembershipError) return unauthorized(request);
+    throw e;
+  }
+
+  const res = await orgStore.run({ orgId }, () => mcpTransport(request));
   const out = new Response(res.body, res);
   for (const [k, v] of Object.entries(CORS_HEADERS)) {
     if (!out.headers.has(k)) out.headers.set(k, v);
