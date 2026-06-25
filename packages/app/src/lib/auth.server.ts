@@ -156,6 +156,18 @@ const googleSocialProviders =
 export const auth = betterAuth({
   baseURL: env.BETTER_AUTH_URL,
   secret: env.BETTER_AUTH_SECRET,
+  // Trust both loopback forms of the base URL. trustedOrigins otherwise defaults
+  // to just baseURL; in dev the MCP OAuth flow can run on 127.0.0.1 while
+  // BETTER_AUTH_URL is localhost (or vice-versa), and origin-checked endpoints
+  // (e.g. organization/set-active in the org picker) would 403 INVALID_ORIGIN.
+  // In production BETTER_AUTH_URL is a real host, so the replaces are no-ops.
+  trustedOrigins: Array.from(
+    new Set([
+      env.BETTER_AUTH_URL,
+      env.BETTER_AUTH_URL.replace("localhost", "127.0.0.1"),
+      env.BETTER_AUTH_URL.replace("127.0.0.1", "localhost"),
+    ]),
+  ),
   database: drizzleAdapter(db, {
     provider: "pg",
   }),
