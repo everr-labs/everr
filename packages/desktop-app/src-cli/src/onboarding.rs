@@ -17,36 +17,50 @@ use crate::skills as cli_skills;
 
 #[derive(Default)]
 struct SetupOutcome {
-    local_demo_ran: bool,
+    collector_running: bool,
     skills_installed: bool,
     repos_imported: bool,
 }
 
-fn next_steps_lines(cmd: &str, outcome: &SetupOutcome) -> Vec<String> {
-    let mut lines = Vec::new();
-    if outcome.local_demo_ran {
-        lines.push(format!(
-            "{cmd} local query \"SELECT FROM logs where body=hello, everr\"   explore locally"
-        ));
+struct NextStep {
+    label: &'static str,
+    command: String,
+}
+
+fn next_steps(cmd: &str, outcome: &SetupOutcome) -> Vec<NextStep> {
+    let mut steps = Vec::new();
+    if outcome.collector_running {
+        steps.push(NextStep {
+            label: "Explore your telemetry",
+            command: format!("{cmd} local query \"SELECT * FROM logs LIMIT 20\""),
+        });
     }
     if outcome.repos_imported {
-        lines.push(format!("{cmd} ci runs   view imported runs"));
+        steps.push(NextStep {
+            label: "View your imported CI runs",
+            command: format!("{cmd} ci runs"),
+        });
     }
     if outcome.skills_installed {
-        lines.push(
-            "/everr-setup-telemetry   on your agent to configure OpenTelemetry on your repo"
-                .to_string(),
-        );
+        steps.push(NextStep {
+            label: "Instrument your repo (ask your agent)",
+            command: "/everr-setup-telemetry".to_string(),
+        });
     }
-    lines
+    steps
 }
 
 fn print_summary(outcome: &SetupOutcome) -> Result<()> {
-    let lines = next_steps_lines(build::command_name(), outcome);
-    if lines.is_empty() {
+    let steps = next_steps(build::command_name(), outcome);
+    if steps.is_empty() {
         return Ok(());
     }
-    cliclack::note("You're set.", lines.join("\n"))?;
+    let body = steps
+        .iter()
+        .map(|step| format!("{}\n{}", step.label, step.command))
+        .collect::<Vec<_>>()
+        .join("\n\n");
+    cliclack::note("You're all set", body)?;
     Ok(())
 }
 
@@ -66,9 +80,14 @@ pub async fn run() -> Result<()> {
     #[cfg(target_os = "macos")]
     {
         local_observability_intro()?;
-        let installed = step_install_desktop_app().await?;
-        if installed && verify_collector().await? {
-            outcome.local_demo_ran = run_first_telemetry_demo().await;
+        let app = step_install_desktop_app().await?;
+        if app != DesktopApp::Skipped && verify_collector().await? {
+            outcome.collector_running = true;
+            // Only first-timers get walked through the demo; returning users
+            // (app already installed) skip straight past it.
+            if app == DesktopApp::Installed {
+                run_first_telemetry_demo().await;
+            }
         }
     }
 
@@ -212,9 +231,21 @@ async fn step_import_repos(session: &Session) -> Result<bool> {
     }
 }
 
+fn existing_cloud_session() -> Option<Session> {
+    let store = auth::state_store();
+    let config = auth::resolve_auth_config().ok()?;
+    store.load_session_for_api_base_url(&config.api_base_url).ok()
+}
+
 async fn step_connect_cloud(outcome: &mut SetupOutcome) -> Result<()> {
     let interactive = std::io::stdin().is_terminal();
     if !interactive {
+        return Ok(());
+    }
+
+    // Already connected from a previous run — no need to ask again.
+    if existing_cloud_session().is_some() {
+        cliclack::log::success("Already connected to Everr Cloud.")?;
         return Ok(());
     }
 
@@ -448,7 +479,18 @@ async fn run_first_telemetry_demo() -> bool {
 }
 
 #[cfg(target_os = "macos")]
-async fn step_install_desktop_app() -> Result<bool> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DesktopApp {
+    /// Freshly installed during this run.
+    Installed,
+    /// Already installed or running before setup.
+    AlreadyPresent,
+    /// Not installed (declined or non-interactive).
+    Skipped,
+}
+
+#[cfg(target_os = "macos")]
+async fn step_install_desktop_app() -> Result<DesktopApp> {
     let interactive = std::io::stdin().is_terminal();
     let app_path = Path::new("/Applications/Everr.app");
     let already_installed = app_path.exists();
@@ -461,18 +503,18 @@ async fn step_install_desktop_app() -> Result<bool> {
 
     if running {
         cliclack::log::success("Desktop app is already running in the menu bar.")?;
-        return Ok(true);
+        return Ok(DesktopApp::AlreadyPresent);
     }
 
     if already_installed {
         let _ = ProcessCommand::new("open").args(["-a", "Everr"]).status();
         cliclack::log::success("Desktop app is now running in the menu bar.")?;
-        return Ok(true);
+        return Ok(DesktopApp::AlreadyPresent);
     }
 
     if !interactive {
         cliclack::log::remark("Install the desktop app from https://everr.dev")?;
-        return Ok(false);
+        return Ok(DesktopApp::Skipped);
     }
 
     let install: bool = cliclack::confirm("Do you want to install the Everr desktop app?\n\nThe desktop app runs in the menu bar and notifies you\nwhen your CI/CD pipelines fail or need attention.")
@@ -481,7 +523,7 @@ async fn step_install_desktop_app() -> Result<bool> {
 
     if !install {
         cliclack::log::remark("You can install it later from https://everr.dev")?;
-        return Ok(false);
+        return Ok(DesktopApp::Skipped);
     }
 
     {
@@ -551,7 +593,7 @@ async fn step_install_desktop_app() -> Result<bool> {
     let _ = ProcessCommand::new("open").args(["-a", "Everr"]).status();
     cliclack::log::success("Desktop app is now running in the menu bar.")?;
 
-    Ok(true)
+    Ok(DesktopApp::Installed)
 }
 
 #[cfg(test)]
@@ -626,68 +668,67 @@ mod tests {
     }
 
     #[test]
-    fn next_steps_includes_local_query_when_demo_ran() {
+    fn next_steps_includes_local_query_when_collector_running() {
         let outcome = super::SetupOutcome {
-            local_demo_ran: true,
+            collector_running: true,
             skills_installed: false,
             repos_imported: false,
         };
-        let lines = super::next_steps_lines("everr", &outcome);
-        assert_eq!(lines.len(), 1);
-        assert!(lines[0].contains("local query"));
-        assert!(lines[0].contains("hello, everr"));
+        let steps = super::next_steps("everr", &outcome);
+        assert_eq!(steps.len(), 1);
+        assert_eq!(steps[0].command, "everr local query \"SELECT * FROM logs LIMIT 20\"");
     }
 
     #[test]
     fn next_steps_includes_ci_runs_only_when_imported() {
         let imported = super::SetupOutcome {
-            local_demo_ran: false,
+            collector_running: false,
             skills_installed: false,
             repos_imported: true,
         };
-        assert!(super::next_steps_lines("everr", &imported)
+        assert!(super::next_steps("everr", &imported)
             .iter()
-            .any(|line| line.contains("ci runs")));
+            .any(|step| step.command.contains("ci runs")));
 
         let not_imported = super::SetupOutcome::default();
-        assert!(!super::next_steps_lines("everr", &not_imported)
+        assert!(!super::next_steps("everr", &not_imported)
             .iter()
-            .any(|line| line.contains("ci runs")));
+            .any(|step| step.command.contains("ci runs")));
     }
 
     #[test]
     fn next_steps_includes_telemetry_skill_only_when_skills_installed() {
         let with_skills = super::SetupOutcome {
-            local_demo_ran: false,
+            collector_running: false,
             skills_installed: true,
             repos_imported: false,
         };
-        assert!(super::next_steps_lines("everr", &with_skills)
+        assert!(super::next_steps("everr", &with_skills)
             .iter()
-            .any(|line| line.contains("/everr-setup-telemetry")));
+            .any(|step| step.command.contains("/everr-setup-telemetry")));
 
         let without = super::SetupOutcome::default();
-        assert!(!super::next_steps_lines("everr", &without)
+        assert!(!super::next_steps("everr", &without)
             .iter()
-            .any(|line| line.contains("/everr-setup-telemetry")));
+            .any(|step| step.command.contains("/everr-setup-telemetry")));
     }
 
     #[test]
     fn next_steps_empty_when_nothing_done() {
-        assert!(super::next_steps_lines("everr", &super::SetupOutcome::default()).is_empty());
+        assert!(super::next_steps("everr", &super::SetupOutcome::default()).is_empty());
     }
 
     #[test]
-    fn next_steps_prefixes_cli_lines_with_command_name() {
+    fn next_steps_prefixes_cli_commands_with_command_name() {
         let outcome = super::SetupOutcome {
-            local_demo_ran: true,
+            collector_running: true,
             skills_installed: true,
             repos_imported: true,
         };
-        let lines = super::next_steps_lines("everr-dev", &outcome);
-        assert!(lines
+        let steps = super::next_steps("everr-dev", &outcome);
+        assert!(steps
             .iter()
-            .all(|line| line.starts_with("everr-dev") || line.starts_with('/')));
+            .all(|step| step.command.starts_with("everr-dev") || step.command.starts_with('/')));
     }
 
     #[test]
