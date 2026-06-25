@@ -10,12 +10,10 @@ export function OAuthShell({
   title,
   description,
   children,
-  footer,
 }: {
   title: string;
   description: string;
   children: ReactNode;
-  footer?: ReactNode;
 }) {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-12">
@@ -35,12 +33,6 @@ export function OAuthShell({
         <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
           {children}
         </div>
-
-        {footer ? (
-          <p className="mx-auto mt-5 max-w-xs text-center text-xs leading-relaxed text-muted-foreground">
-            {footer}
-          </p>
-        ) : null}
       </div>
     </main>
   );

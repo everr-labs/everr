@@ -39,8 +39,9 @@ const SCOPE_LABELS: Record<
 };
 
 export const Route = createFileRoute("/mcp/consent")({
-  // Pass through every search param untouched (see select-org): the full signed
-  // query string is replayed to /oauth2/consent as oauth_query.
+  // Pass through every search param untouched: the authorize redirect lands here
+  // with all the signed OAuth params inline, and the whole query string is
+  // replayed to /oauth2/consent as oauth_query.
   validateSearch: (s: Record<string, unknown>) => s,
   loader: async () => {
     const [orgs, session] = await Promise.all([
@@ -120,7 +121,6 @@ function Consent() {
     <OAuthShell
       title="Authorize access"
       description="Review what this client can do before you approve."
-      footer="Read-only access. Revoke it anytime from your Everr settings."
     >
       <div className="flex items-center gap-3 rounded-lg bg-accent/60 px-3 py-2.5">
         <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/15 text-primary">

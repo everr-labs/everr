@@ -478,17 +478,18 @@ export const auth = betterAuth({
         "observability:read",
       ],
       postLogin: {
-        page: "/mcp/select-org",
-        // Only divert to the org picker until an org is actually selected.
-        // After set-active, the resumed authorize must fall through to consent
-        // instead of looping back here.
-        shouldRedirect: async ({ session }) =>
-          !selectedOrgId(session.activeOrganizationId),
+        // `page` + `shouldRedirect` are required by the type, but we never
+        // divert to a separate picker: the active org is shown and switchable on
+        // the consent screen (see routes/mcp/consent.tsx), and it's bound here.
+        // `page` is therefore unused; kept as a real route to avoid a dangling ref.
+        page: "/mcp/consent",
+        shouldRedirect: async () => false,
         consentReferenceId: async ({ session, scopes }) => {
           const orgId = selectedOrgId(session.activeOrganizationId);
           if (scopes.includes("observability:read") && !orgId) {
             throw new APIError("BAD_REQUEST", {
-              message: "Select an organization before authorizing.",
+              message:
+                "No active organization to authorize. Create one in Everr, then reconnect.",
             });
           }
           return orgId;

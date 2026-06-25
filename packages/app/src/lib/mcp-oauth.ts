@@ -67,34 +67,6 @@ export async function setActiveOrg(
   }
 }
 
-export async function selectOrgAndContinue(
-  incoming: Headers,
-  input: { organizationId: string; oauth_query: string },
-): Promise<{ url: string }> {
-  const { headers, request } = serverAuthContext(incoming, "/oauth2/continue");
-
-  try {
-    await auth.api.setActiveOrganization({
-      headers,
-      body: { organizationId: input.organizationId },
-    });
-
-    const result = await auth.api.oauth2Continue({
-      headers,
-      request,
-      asResponse: false,
-      body: { postLogin: true, oauth_query: input.oauth_query },
-    });
-
-    if (!result?.url) {
-      throw new Error("OAuth continue did not return a redirect URL");
-    }
-    return { url: result.url };
-  } catch (error) {
-    throw new Error(oauthFlowError(error, "Failed to select organization"));
-  }
-}
-
 export async function submitConsent(
   incoming: Headers,
   input: { accept: boolean; scope?: string; oauth_query: string },
