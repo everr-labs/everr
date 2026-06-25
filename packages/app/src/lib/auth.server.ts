@@ -1,12 +1,17 @@
 import { apiKey } from "@better-auth/api-key";
+import { oauthProvider } from "@better-auth/oauth-provider";
 import { polar, webhooks } from "@polar-sh/better-auth";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
+import {
+  APIError,
+  createAuthMiddleware,
+  getSessionFromCtx,
+} from "better-auth/api";
 import {
   bearer,
   deviceAuthorization,
-  mcp,
+  jwt,
   organization as organizationPlugin,
 } from "better-auth/plugins";
 import { createAccessControl } from "better-auth/plugins/access";
@@ -42,6 +47,7 @@ import {
   sendPasswordResetEmail,
   sendVerificationEmail,
 } from "@/lib/email.server";
+import { MCP_RESOURCE } from "@/lib/mcp-resource";
 import { deletePostgresOrganizationData } from "@/lib/organization-data-cleanup.server";
 import { ensurePolarCustomerForOrg, polarClient } from "@/lib/polar.server";
 import { resolveRetention } from "@/lib/retention";
@@ -146,17 +152,6 @@ const googleSocialProviders =
         },
       }
     : undefined;
-
-// Read-only scope the MCP resource server requires, plus the full set the OAuth
-// discovery docs advertise.
-const MCP_READ_SCOPE = "observability:read";
-const MCP_SCOPES_SUPPORTED = [
-  "openid",
-  "profile",
-  "email",
-  "offline_access",
-  MCP_READ_SCOPE,
-];
 
 export const auth = betterAuth({
   baseURL: env.BETTER_AUTH_URL,
@@ -448,21 +443,40 @@ export const auth = betterAuth({
         }),
       ],
     }),
-    mcp({
+    jwt({ disableSettingJwtHeader: true, disabledPaths: ["/token"] }),
+    oauthProvider({
       loginPage: "/auth/sign-in",
-      resource: `${env.BETTER_AUTH_URL.replace(/\/$/, "")}/mcp`,
-      // Better Auth reads top-level `metadata` at runtime for the AS discovery
-      // doc (getMCPProviderMetadata spreads `...options.metadata`) but omits it
-      // from the MCPOptions type — hence the cast below. `oidcConfig.metadata`
-      // drives the PRM doc. Set both so both advertise `observability:read`.
-      metadata: { scopes_supported: MCP_SCOPES_SUPPORTED },
-      oidcConfig: {
-        loginPage: "/auth/sign-in",
-        scopes: [MCP_READ_SCOPE],
-        defaultScope: MCP_READ_SCOPE,
-        metadata: { scopes_supported: MCP_SCOPES_SUPPORTED },
+      consentPage: "/mcp/consent",
+      allowDynamicClientRegistration: true,
+      allowUnauthenticatedClientRegistration: true,
+      validAudiences: [MCP_RESOURCE],
+      scopes: [
+        "openid",
+        "profile",
+        "email",
+        "offline_access",
+        "observability:read",
+      ],
+      postLogin: {
+        page: "/mcp/select-org",
+        shouldRedirect: async () => true,
+        consentReferenceId: async ({ session, scopes }) => {
+          const orgId =
+            typeof session.activeOrganizationId === "string"
+              ? session.activeOrganizationId
+              : undefined;
+          if (scopes.includes("observability:read") && !orgId) {
+            throw new APIError("BAD_REQUEST", {
+              message: "Select an organization before authorizing.",
+            });
+          }
+          return orgId;
+        },
       },
-    } as Parameters<typeof mcp>[0]),
+      customAccessTokenClaims: async ({ referenceId }) => ({
+        org_id: referenceId,
+      }),
+    }),
     tanstackStartCookies(), // must be last
   ],
   logger: {
