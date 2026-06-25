@@ -234,6 +234,19 @@ async fn step_connect_cloud(outcome: &mut SetupOutcome) -> Result<()> {
         return Ok(());
     }
 
+    // Soft-fail: once setup has done its local work, a cloud failure (auth
+    // timeout, cancelled prompt, API error) must not abort the wizard before
+    // it marks setup complete and prints the summary.
+    if let Err(err) = connect_cloud(outcome).await {
+        cliclack::log::warning(format!(
+            "Couldn't finish connecting to Everr Cloud: {err}\nRun `{} cloud login` to try again.",
+            build::command_name()
+        ))?;
+    }
+    Ok(())
+}
+
+async fn connect_cloud(outcome: &mut SetupOutcome) -> Result<()> {
     let session = step_authenticate().await?;
     let context = load_setup_context(&session).await;
     print_setup_identity(&context)?;
@@ -324,10 +337,12 @@ fn step_install_skills() -> Result<bool> {
         return Ok(true);
     }
 
-    cliclack::note(
-        "Skills",
-        "Everr skills teach your coding agent to instrument code and\nquery your telemetry while it works.",
-    )?;
+    if interactive {
+        cliclack::note(
+            "Skills",
+            "Everr skills teach your coding agent to instrument code and\nquery your telemetry while it works.",
+        )?;
+    }
 
     let providers = if interactive {
         let defaults = default_targets(&provider_statuses);
