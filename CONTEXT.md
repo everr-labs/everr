@@ -14,6 +14,14 @@ _Avoid_: workspace, account, tenant (see Tenant)
 The data-isolation dimension that keeps one Organization's telemetry separate from another's. Conceptually one-to-one with Organization, but named separately because isolation is enforced along this axis.
 _Avoid_: using Tenant as a plain synonym for Organization
 
+**Active organization**:
+The single Organization a session — or a connected client — is currently acting as; its telemetry is what queries read. For an MCP connection it is chosen when access is authorized and stays fixed for that connection.
+_Avoid_: last-used organization, current org, default org
+
+**Member**:
+A User's belonging to an Organization, which grants access to its telemetry and resources. Access is decided by current Membership, not by membership at the time access was granted.
+_Avoid_: collaborator, seat
+
 **Project**:
 A namespace within an Organization for dashboards, alerts, and notebooks, so different teams can reuse the same name without colliding. Defaults to `default`.
 _Avoid_: namespace, team
@@ -125,12 +133,16 @@ The `everr.yaml` file that declares a directory's Repoid (its ownership boundary
 ### Agent integration
 
 **Agent**:
-An AI coding assistant — Claude Code, Cursor, Codex, and the like — that consumes Everr Skills. Not the Collector.
+An AI coding assistant — Claude Code, Cursor, Codex, and the like — that integrates with Everr through Skills or the MCP server. Not the Collector.
 _Avoid_: assistant, bot
 
 **Skill**:
 A bundled set of instructions that teaches an Agent how and when to use Everr.
 _Avoid_: plugin, extension
+
+**MCP server**:
+Everr's surface for Agents to query telemetry over the Model Context Protocol, exposing read-only SQL and identity as tools. An MCP client is just an Agent connected to this surface — the protocol counterpart to a Skill, which instead teaches an Agent to use the CLI.
+_Avoid_: MCP endpoint, tool server, MCP client (an Agent, named by how it connects)
 
 **Wrap**:
 Running a command through `everr wrap` so its stdout, stderr, and exit code are captured as Logs.
