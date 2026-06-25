@@ -15,7 +15,40 @@ use everr_core::state::Session;
 use crate::auth;
 use crate::skills as cli_skills;
 
-const NOTIFICATION_EMAILS_NOTE: &str = "These emails are used to detect your own runs.";
+#[derive(Default)]
+struct SetupOutcome {
+    local_demo_ran: bool,
+    skills_installed: bool,
+    repos_imported: bool,
+}
+
+fn next_steps_lines(cmd: &str, outcome: &SetupOutcome) -> Vec<String> {
+    let mut lines = Vec::new();
+    if outcome.local_demo_ran {
+        lines.push(format!(
+            "{cmd} local query \"SELECT FROM logs where body=hello, everr\"   explore locally"
+        ));
+    }
+    if outcome.repos_imported {
+        lines.push(format!("{cmd} ci runs   view imported runs"));
+    }
+    if outcome.skills_installed {
+        lines.push(
+            "/everr-setup-telemetry   on your agent to configure OpenTelemetry on your repo"
+                .to_string(),
+        );
+    }
+    lines
+}
+
+fn print_summary(outcome: &SetupOutcome) -> Result<()> {
+    let lines = next_steps_lines(build::command_name(), outcome);
+    if lines.is_empty() {
+        return Ok(());
+    }
+    cliclack::note("You're set.", lines.join("\n"))?;
+    Ok(())
+}
 
 #[derive(Default)]
 struct SetupContext {
@@ -28,21 +61,20 @@ pub async fn run() -> Result<()> {
 
     cliclack::intro("Setup")?;
 
-    let session = step_authenticate().await?;
-    let setup_context = load_setup_context(&session).await;
-    print_setup_identity(&setup_context)?;
+    let mut outcome = SetupOutcome::default();
 
-    if !should_skip_org_setup_steps(setup_context.org.as_ref()) {
-        step_rename_org(&session, setup_context.org.as_ref()).await?;
-        if OrgResponse::can_manage_runs_import_or_default(setup_context.org.as_ref()) {
-            step_import_repos(&session).await?;
+    #[cfg(target_os = "macos")]
+    {
+        local_observability_intro()?;
+        let installed = step_install_desktop_app().await?;
+        if installed && verify_collector().await? {
+            outcome.local_demo_ran = run_first_telemetry_demo().await;
         }
     }
 
-    step_configure_notification_emails(setup_context.me.as_ref()).await?;
-    let skills_installed = step_install_skills()?;
-    step_install_desktop_app().await?;
-    step_mark_cloud_onboarding_complete(&session, setup_context.org.as_ref()).await?;
+    outcome.skills_installed = step_install_skills()?;
+
+    step_connect_cloud(&mut outcome).await?;
 
     auth::state_store().update_state(|state| {
         state
@@ -50,8 +82,8 @@ pub async fn run() -> Result<()> {
             .mark_setup_complete(build::default_api_base_url());
     })?;
 
-    print_next_steps()?;
-    cliclack::outro(outro_message(skills_installed))?;
+    print_summary(&outcome)?;
+    cliclack::outro("Observability, simplified.")?;
     Ok(())
 }
 
@@ -132,20 +164,20 @@ async fn step_rename_org(session: &Session, org: Option<&OrgResponse>) -> Result
     Ok(())
 }
 
-async fn step_import_repos(session: &Session) -> Result<()> {
+async fn step_import_repos(session: &Session) -> Result<bool> {
     let interactive = std::io::stdin().is_terminal();
     if !interactive {
-        return Ok(());
+        return Ok(false);
     }
 
     let client = ApiClient::from_session(session)?;
     let repos = match client.get_repos().await {
         Ok(r) => r,
-        Err(_) => return Ok(()),
+        Err(_) => return Ok(false),
     };
 
     if repos.is_empty() {
-        return Ok(());
+        return Ok(false);
     }
 
     const MAX_REPOS: usize = 3;
@@ -161,34 +193,53 @@ async fn step_import_repos(session: &Session) -> Result<()> {
 
     if selected.is_empty() {
         cliclack::log::remark("No repositories selected, skipping import.")?;
-        return Ok(());
+        return Ok(false);
     }
 
     let to_import: Vec<String> = selected.into_iter().take(MAX_REPOS).collect();
 
     match client.start_import_repos(&to_import).await {
-        Ok(_) => cliclack::log::remark(
-            "Import started - your data will appear gradually on the CLI results.",
-        )?,
-        Err(_) => cliclack::log::warning("Could not start import, skipping.")?,
+        Ok(_) => {
+            cliclack::log::remark(
+                "Import started - your data will appear gradually on the CLI results.",
+            )?;
+            Ok(true)
+        }
+        Err(_) => {
+            cliclack::log::warning("Could not start import, skipping.")?;
+            Ok(false)
+        }
     }
-
-    Ok(())
 }
 
-const ADD_EMAIL_SENTINEL: &str = "__add_email__";
+async fn step_connect_cloud(outcome: &mut SetupOutcome) -> Result<()> {
+    let interactive = std::io::stdin().is_terminal();
+    if !interactive {
+        return Ok(());
+    }
 
-async fn step_configure_notification_emails(me: Option<&MeResponse>) -> Result<()> {
-    let store = auth::state_store();
-    let saved: Vec<String> = store
-        .load_state()
-        .map(|s| s.settings.notification_emails)
-        .unwrap_or_default();
-    let mut detected: Vec<String> = Vec::new();
+    cliclack::note(
+        "② Connect Everr Cloud",
+        "Query your cloud Telemetry, and track the status\nof your CI",
+    )?;
 
-    if let Some(me) = me {
-        detected.push(me.email.clone());
-        store.update_state(|state| {
+    let connect = cliclack::confirm("Connect now?")
+        .initial_value(true)
+        .interact()?;
+    if !connect {
+        cliclack::log::remark(format!(
+            "Run `{} cloud login` whenever you want to connect.",
+            build::command_name()
+        ))?;
+        return Ok(());
+    }
+
+    let session = step_authenticate().await?;
+    let context = load_setup_context(&session).await;
+    print_setup_identity(&context)?;
+
+    if let Some(me) = context.me.as_ref() {
+        auth::state_store().update_state(|state| {
             state.settings.user_profile = Some(everr_core::state::UserProfile {
                 email: me.email.clone(),
                 name: me.name.clone(),
@@ -197,71 +248,14 @@ async fn step_configure_notification_emails(me: Option<&MeResponse>) -> Result<(
         })?;
     }
 
-    if let Ok(cwd) = std::env::current_dir() {
-        let git = everr_core::git::resolve_git_context(&cwd);
-        if let Some(git_email) = git.email {
-            if !detected.contains(&git_email) {
-                detected.push(git_email);
-            }
+    if !should_skip_org_setup_steps(context.org.as_ref()) {
+        step_rename_org(&session, context.org.as_ref()).await?;
+        if OrgResponse::can_manage_runs_import_or_default(context.org.as_ref()) {
+            outcome.repos_imported = step_import_repos(&session).await?;
         }
     }
 
-    let mut all_emails = saved.clone();
-    for email in &detected {
-        if !all_emails.contains(email) {
-            all_emails.push(email.clone());
-        }
-    }
-
-    let initial: Vec<String> = if saved.is_empty() {
-        detected.clone()
-    } else {
-        saved.clone()
-    };
-
-    let interactive = std::io::stdin().is_terminal();
-
-    if !interactive {
-        if !all_emails.is_empty() {
-            store.update_state(|state| {
-                state.settings.notification_emails = all_emails;
-            })?;
-        }
-        return Ok(());
-    }
-
-    cliclack::note("Notification emails", NOTIFICATION_EMAILS_NOTE)?;
-
-    let mut prompt = cliclack::multiselect("Select notification emails");
-    for email in &all_emails {
-        prompt = prompt.item(email.clone(), email.clone(), "");
-    }
-    prompt = prompt.item(ADD_EMAIL_SENTINEL.to_string(), "Add email…", "");
-
-    let mut selected: Vec<String> = prompt.initial_values(initial).interact()?;
-
-    let add_requested = selected.contains(&ADD_EMAIL_SENTINEL.to_string());
-    selected.retain(|e| e != ADD_EMAIL_SENTINEL);
-
-    if add_requested {
-        let custom: String = cliclack::input("Email address").interact()?;
-        let custom = custom.trim().to_string();
-        if !custom.is_empty() && !selected.contains(&custom) {
-            selected.push(custom);
-        }
-    }
-
-    let notification_emails = if selected.is_empty() {
-        detected
-    } else {
-        selected
-    };
-
-    store.update_state(|state| {
-        state.settings.notification_emails = notification_emails;
-    })?;
-
-    cliclack::log::success("Notification emails configured")?;
+    step_mark_cloud_onboarding_complete(&session, context.org.as_ref()).await?;
     Ok(())
 }
 
@@ -371,47 +365,70 @@ fn has_global_bundled_skills_installed(home_dir: &Path) -> Result<bool> {
     core_skills::has_installed_bundled_skill(&options)
 }
 
-fn print_next_steps() -> Result<()> {
-    let Some(home_dir) = dirs::home_dir() else {
-        return Ok(());
-    };
-
-    let detected_agents: Vec<&'static str> = core_skills::provider_statuses(&home_dir)
-        .into_iter()
-        .filter(|status| status.detected)
-        .map(|status| status.provider.display_name())
-        .collect();
-
-    cliclack::note("Try it out", next_steps_message(&detected_agents))?;
+#[cfg(target_os = "macos")]
+fn local_observability_intro() -> Result<()> {
+    cliclack::note(
+        "① Local observability",
+        "The Everr desktop app comes with a local collector\nand a way to look at the telemetry you collect locally.\n\nWhen authenticated it notifies you when one of your pipelines fails.",
+    )?;
     Ok(())
 }
 
-fn next_steps_message(detected_agents: &[&str]) -> String {
-    let cmd = build::command_name();
-    if detected_agents.is_empty() {
-        format!("From an imported repo, run `{cmd} ci runs` to view your imported runs.")
-    } else {
-        format!(
-            "From an imported repo, run `{cmd} ci runs` to view your imported runs.\nOr ask {} to summarize them.",
-            format_agent_list(detected_agents),
-        )
+#[cfg(target_os = "macos")]
+async fn verify_collector() -> Result<bool> {
+    use std::time::Duration;
+
+    let spinner = cliclack::spinner();
+    spinner.start("Starting the local collector…");
+
+    let endpoint = format!(
+        "{}/",
+        everr_core::build::healthcheck_origin().trim_end_matches('/')
+    );
+    let result =
+        everr_core::collector::wait_healthcheck_result(&endpoint, Duration::from_secs(15)).await;
+
+    match result {
+        everr_core::collector::HealthcheckResult::Running => {
+            spinner.stop(format!(
+                "Collector running — {}",
+                everr_core::build::otlp_http_origin()
+            ));
+            Ok(true)
+        }
+        _ => {
+            spinner.stop("The collector is still starting — it'll come online shortly.");
+            Ok(false)
+        }
     }
 }
 
-fn format_agent_list(agents: &[&str]) -> String {
-    match agents {
-        [] => String::new(),
-        [a] => (*a).to_string(),
-        [a, b] => format!("{a} or {b}"),
-        [head @ .., last] => format!("{}, or {last}", head.join(", ")),
-    }
-}
+#[cfg(target_os = "macos")]
+async fn run_first_telemetry_demo() -> bool {
+    let spinner = cliclack::spinner();
+    spinner.start("Capturing your first telemetry…");
 
-fn outro_message(skills_installed: bool) -> &'static str {
-    if skills_installed {
-        "Completed"
-    } else {
-        "Run `everr skills install --all` in a repo to install Everr skills later."
+    let Ok(exe) = std::env::current_exe() else {
+        spinner.stop("Skipped the first-telemetry demo.");
+        return false;
+    };
+
+    let status = tokio::process::Command::new(exe)
+        .args(["wrap", "--", "echo", "hello, everr"])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .await;
+
+    match status {
+        Ok(status) if status.success() => {
+            spinner.stop("First telemetry captured: \"hello, everr\"");
+            true
+        }
+        _ => {
+            spinner.stop("Couldn't capture demo telemetry — skipping.");
+            false
+        }
     }
 }
 
@@ -522,11 +539,6 @@ async fn step_install_desktop_app() -> Result<bool> {
     Ok(true)
 }
 
-#[cfg(not(target_os = "macos"))]
-async fn step_install_desktop_app() -> Result<bool> {
-    Ok(false)
-}
-
 #[cfg(test)]
 mod tests {
     #[test]
@@ -537,42 +549,6 @@ mod tests {
     #[test]
     fn clean_org_name_preserves_inner_spaces() {
         assert_eq!(super::clean_org_name("Acme Corp"), "Acme Corp");
-    }
-
-    #[test]
-    fn outro_message_with_skills_installed() {
-        assert_eq!(super::outro_message(true), "Completed");
-    }
-
-    #[test]
-    fn outro_message_without_skills_installed() {
-        assert!(super::outro_message(false).contains("everr skills install --all"));
-    }
-
-    #[test]
-    fn next_steps_without_agents_only_suggests_cli_command() {
-        let msg = super::next_steps_message(&[]);
-        assert!(msg.contains("ci runs"));
-        assert!(!msg.contains("ask "));
-    }
-
-    #[test]
-    fn next_steps_with_one_agent_names_it() {
-        let msg = super::next_steps_message(&["Claude Code"]);
-        assert!(msg.contains("ci runs"));
-        assert!(msg.contains("ask Claude Code"));
-    }
-
-    #[test]
-    fn next_steps_with_two_agents_joins_with_or() {
-        let msg = super::next_steps_message(&["Claude Code", "Codex"]);
-        assert!(msg.contains("ask Claude Code or Codex"));
-    }
-
-    #[test]
-    fn next_steps_with_three_agents_uses_oxford_comma() {
-        let msg = super::next_steps_message(&["Codex", "Claude Code", "Cursor"]);
-        assert!(msg.contains("ask Codex, Claude Code, or Cursor"));
     }
 
     #[test]
@@ -635,11 +611,68 @@ mod tests {
     }
 
     #[test]
-    fn email_note_says_emails_detect_own_runs() {
-        assert_eq!(
-            super::NOTIFICATION_EMAILS_NOTE,
-            "These emails are used to detect your own runs."
-        );
+    fn next_steps_includes_local_query_when_demo_ran() {
+        let outcome = super::SetupOutcome {
+            local_demo_ran: true,
+            skills_installed: false,
+            repos_imported: false,
+        };
+        let lines = super::next_steps_lines("everr", &outcome);
+        assert_eq!(lines.len(), 1);
+        assert!(lines[0].contains("local query"));
+        assert!(lines[0].contains("hello, everr"));
+    }
+
+    #[test]
+    fn next_steps_includes_ci_runs_only_when_imported() {
+        let imported = super::SetupOutcome {
+            local_demo_ran: false,
+            skills_installed: false,
+            repos_imported: true,
+        };
+        assert!(super::next_steps_lines("everr", &imported)
+            .iter()
+            .any(|line| line.contains("ci runs")));
+
+        let not_imported = super::SetupOutcome::default();
+        assert!(!super::next_steps_lines("everr", &not_imported)
+            .iter()
+            .any(|line| line.contains("ci runs")));
+    }
+
+    #[test]
+    fn next_steps_includes_telemetry_skill_only_when_skills_installed() {
+        let with_skills = super::SetupOutcome {
+            local_demo_ran: false,
+            skills_installed: true,
+            repos_imported: false,
+        };
+        assert!(super::next_steps_lines("everr", &with_skills)
+            .iter()
+            .any(|line| line.contains("/everr-setup-telemetry")));
+
+        let without = super::SetupOutcome::default();
+        assert!(!super::next_steps_lines("everr", &without)
+            .iter()
+            .any(|line| line.contains("/everr-setup-telemetry")));
+    }
+
+    #[test]
+    fn next_steps_empty_when_nothing_done() {
+        assert!(super::next_steps_lines("everr", &super::SetupOutcome::default()).is_empty());
+    }
+
+    #[test]
+    fn next_steps_prefixes_cli_lines_with_command_name() {
+        let outcome = super::SetupOutcome {
+            local_demo_ran: true,
+            skills_installed: true,
+            repos_imported: true,
+        };
+        let lines = super::next_steps_lines("everr-dev", &outcome);
+        assert!(lines
+            .iter()
+            .all(|line| line.starts_with("everr-dev") || line.starts_with('/')));
     }
 
     #[test]
