@@ -1,4 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { AgentsCompare } from "@/components/agents-compare";
+import { AgentsEditor } from "@/components/agents-editor";
+import { AgentsPr } from "@/components/agents-pr";
+import { AgentsScrolly } from "@/components/agents-scrolly";
+import { AgentsTimeline } from "@/components/agents-timeline";
+import { AgentsTranscript } from "@/components/agents-transcript";
+import { AgentsUsecases } from "@/components/agents-usecases";
 import { Community } from "@/components/community";
 import { FAQ } from "@/components/faq";
 import { FeaturedTestimonial } from "@/components/featured-testimonial";
@@ -52,6 +59,14 @@ function RouteComponent() {
       <FeaturesStack />
       <FeaturesAccordion />
       <AIAssistant />
+      {/* Agents section — layout candidates, pick one then delete the rest. */}
+      <AgentsCompare />
+      <AgentsTimeline />
+      <AgentsPr />
+      <AgentsScrolly />
+      <AgentsTranscript />
+      <AgentsUsecases />
+      <AgentsEditor />
       <ToolsExplainer />
       <TimeToValue />
       <HowItWorks />
