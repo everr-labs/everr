@@ -234,7 +234,11 @@ export function Features() {
   );
 }
 
-/** Agents as first-class consumers — the wedge, made demonstrable. */
+/**
+ * Agents as first-class consumers — the wedge, made demonstrable.
+ * @expected-unused Shipped on the homepage as the `agents-compare` variant;
+ * kept as the intent/spec reference.
+ */
 export function AIAssistant() {
   return (
     <PlaceholderSection
@@ -262,7 +266,11 @@ export function AIAssistant() {
   );
 }
 
-/** Time to value — fast path to first insight. */
+/**
+ * Time to value — fast path to first insight.
+ * @expected-unused Shipped on the homepage as the `quickstart-friction`
+ * variant; kept as the intent/spec reference.
+ */
 export function TimeToValue() {
   return (
     <PlaceholderSection
@@ -287,7 +295,11 @@ export function TimeToValue() {
   );
 }
 
-/** Pricing / cost — open-source core, transparent, sane at scale. */
+/**
+ * Pricing / cost — open-source core, transparent, sane at scale.
+ * @expected-unused Shipped on the homepage as the `pricing-toggle` variant;
+ * the detailed `pricing-matrix` lives at /pricing. Kept as the spec reference.
+ */
 export function PricingTeaser() {
   return (
     <PlaceholderSection

@@ -1,4 +1,5 @@
 import { cn } from "@everr/ui/lib/utils";
+import { Link } from "@tanstack/react-router";
 import {
   ArrowRight,
   Check,
@@ -72,10 +73,6 @@ export function PricingToggle() {
       ref={ref}
       className="relative overflow-x-clip border-y-2 border-fd-border bg-fd-background"
     >
-      <span className="pointer-events-none absolute right-6 top-6 z-20 rounded-full border border-primary/40 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-primary">
-        variant · toggle
-      </span>
-
       <div className="mx-auto max-w-7xl px-6 py-24 md:py-36">
         <motion.div
           initial={{ opacity: 0, y: 24 }}
@@ -166,6 +163,25 @@ export function PricingToggle() {
               <CloudPanel key="cloud" tablistId={tablistId} />
             )}
           </AnimatePresence>
+        </motion.div>
+
+        {/* Link to the detailed plan-comparison page */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={inView ? { opacity: 1 } : undefined}
+          transition={{ duration: 0.6, delay: 0.4, ease: EASE }}
+          className="mt-10 flex justify-center"
+        >
+          <Link
+            to="/pricing"
+            className="group inline-flex items-center gap-1.5 font-heading text-sm font-bold text-fd-muted-foreground outline-none transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-fd-background"
+          >
+            Compare all plans, feature by feature
+            <ArrowRight
+              className="size-4 transition-transform group-hover:translate-x-0.5"
+              aria-hidden
+            />
+          </Link>
         </motion.div>
       </div>
     </section>

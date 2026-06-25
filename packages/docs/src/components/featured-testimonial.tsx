@@ -11,7 +11,7 @@ export function FeaturedTestimonial() {
       ref={ref}
       className="relative overflow-hidden border-y-2 border-fd-border bg-fd-background"
     >
-      <GravityStarsBackground className="absolute inset-0" starsCount={1600} />
+      <GravityStarsBackground className="absolute inset-0" starsCount={300} />
       <div className="relative z-10 mx-auto max-w-5xl px-6 py-24 md:py-36">
         <motion.figure
           initial={{ opacity: 0, y: 24 }}

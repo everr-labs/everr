@@ -34,10 +34,6 @@ export function AgentsCompare() {
       ref={ref}
       className="relative overflow-x-clip border-y-2 border-fd-border bg-fd-background"
     >
-      <span className="pointer-events-none absolute right-6 top-6 z-20 rounded-full border border-primary/40 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-primary">
-        variant · compare
-      </span>
-
       <div className="mx-auto max-w-7xl px-6 py-24 md:py-36">
         {/* Header */}
         <motion.div
