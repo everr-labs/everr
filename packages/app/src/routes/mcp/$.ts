@@ -12,6 +12,10 @@ import { runSqlForConnection } from "@/lib/mcp-run-sql";
 // Single source of truth: the tables the per-org ClickHouse role can read.
 const READABLE_TABLES = SQL_API_TENANT_TABLES.join(", ");
 
+// Better Auth is mounted at /api/auth, so the OAuth issuer (and the JWT `iss`)
+// is BETTER_AUTH_URL + /api/auth — matching the AS discovery metadata.
+const AUTH_ISSUER = `${env.BETTER_AUTH_URL.replace(/\/$/, "")}/api/auth`;
+
 // Per-request org context, taken from the verified `org_id` token claim.
 const orgStore = new AsyncLocalStorage<{ orgId: string }>();
 
@@ -20,7 +24,7 @@ const orgStore = new AsyncLocalStorage<{ orgId: string }>();
 const mcpTransport = createMcpHandler(
   (server) => {
     server.registerTool(
-      "run_sql",
+      "query",
       {
         description:
           `Run a read-only ClickHouse SQL query against your organization's ` +
@@ -83,7 +87,13 @@ async function handler(request: Request): Promise<Response> {
   let payload: Record<string, unknown>;
   try {
     payload = (await mcpResourceClient().verifyAccessToken(token, {
-      verifyOptions: { audience: MCP_RESOURCE, issuer: env.BETTER_AUTH_URL },
+      // The issuer is Better Auth's mount path (BETTER_AUTH_URL + /api/auth),
+      // which is what the AS metadata advertises and the JWT `iss` carries.
+      // jwksUrl must be passed explicitly: the resource client derives it from
+      // baseURL + basePath, but basePath isn't set in the options literal, so it
+      // would otherwise resolve to BETTER_AUTH_URL/jwks (404).
+      jwksUrl: `${AUTH_ISSUER}/jwks`,
+      verifyOptions: { audience: MCP_RESOURCE, issuer: AUTH_ISSUER },
       scopes: ["observability:read"],
     })) as Record<string, unknown>;
   } catch {
