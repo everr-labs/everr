@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@better-auth/api-key": "^1.6.20",
+    "@better-auth/oauth-provider": "1.6.20",
     "@clickhouse/client": "^1.18.4",
     "@everr/auto-otel-errors": "workspace:*",
     "@everr/datemath": "workspace:*",
