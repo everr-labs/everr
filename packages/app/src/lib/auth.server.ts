@@ -186,6 +186,14 @@ export const auth = betterAuth({
     sendOnSignUp: true,
     autoSignInAfterVerification: true,
   },
+  account: {
+    // Preserve pre-1.6.11 behavior: allow implicit OAuth account linking even
+    // when the local account's email is unverified. 1.6.11 flipped the default
+    // (`requireLocalEmailVerified`) to true.
+    accountLinking: {
+      requireLocalEmailVerified: false,
+    },
+  },
   databaseHooks: {
     session: {
       create: {
@@ -320,6 +328,9 @@ export const auth = betterAuth({
     organizationPlugin({
       ac: orgAc,
       roles: orgRoles,
+      // Preserve pre-1.6.11 behavior: don't require the recipient's email to be
+      // verified to view/accept an invitation. 1.6.11 flipped this default to true.
+      requireEmailVerificationOnInvitation: false,
       sendInvitationEmail: async (data) => {
         sendInvitationEmail({
           to: data.email,
