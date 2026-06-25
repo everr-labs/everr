@@ -11,7 +11,6 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WaitlistRouteImport } from './routes/waitlist'
 import { Route as PricingRouteImport } from './routes/pricing'
-import { Route as PreviewRouteImport } from './routes/preview'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DevlogIndexRouteImport } from './routes/devlog/index'
 import { Route as BlogIndexRouteImport } from './routes/blog/index'
@@ -31,11 +30,6 @@ const WaitlistRoute = WaitlistRouteImport.update({
 const PricingRoute = PricingRouteImport.update({
   id: '/pricing',
   path: '/pricing',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PreviewRoute = PreviewRouteImport.update({
-  id: '/preview',
-  path: '/preview',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -91,7 +85,6 @@ const ApiOgDevlogSlugRoute = ApiOgDevlogSlugRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/preview': typeof PreviewRoute
   '/pricing': typeof PricingRoute
   '/waitlist': typeof WaitlistRoute
   '/api/search': typeof ApiSearchRoute
@@ -106,7 +99,6 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/preview': typeof PreviewRoute
   '/pricing': typeof PricingRoute
   '/waitlist': typeof WaitlistRoute
   '/api/search': typeof ApiSearchRoute
@@ -122,7 +114,6 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/preview': typeof PreviewRoute
   '/pricing': typeof PricingRoute
   '/waitlist': typeof WaitlistRoute
   '/api/search': typeof ApiSearchRoute
@@ -139,7 +130,6 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/preview'
     | '/pricing'
     | '/waitlist'
     | '/api/search'
@@ -154,7 +144,6 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/preview'
     | '/pricing'
     | '/waitlist'
     | '/api/search'
@@ -169,7 +158,6 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
-    | '/preview'
     | '/pricing'
     | '/waitlist'
     | '/api/search'
@@ -185,7 +173,6 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  PreviewRoute: typeof PreviewRoute
   PricingRoute: typeof PricingRoute
   WaitlistRoute: typeof WaitlistRoute
   ApiSearchRoute: typeof ApiSearchRoute
@@ -213,13 +200,6 @@ declare module '@tanstack/react-router' {
       path: '/pricing'
       fullPath: '/pricing'
       preLoaderRoute: typeof PricingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/preview': {
-      id: '/preview'
-      path: '/preview'
-      fullPath: '/preview'
-      preLoaderRoute: typeof PreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -297,7 +277,6 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  PreviewRoute: PreviewRoute,
   PricingRoute: PricingRoute,
   WaitlistRoute: WaitlistRoute,
   ApiSearchRoute: ApiSearchRoute,

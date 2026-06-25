@@ -7,16 +7,12 @@ import { FeaturesZigzag } from "@/components/features-zigzag";
 import { FinalCTA } from "@/components/final-cta";
 import { Footer } from "@/components/footer";
 import { Hero } from "@/components/hero";
-import { HowItWorks } from "@/components/how-it-works";
-import {
-  OpenStandards,
-  ProblemToolSprawl,
-} from "@/components/placeholder-sections";
+import { OpenStandardsBento } from "@/components/open-standards-bento";
 import { PricingToggle } from "@/components/pricing-toggle";
+import { ProblemSprawlReceipt } from "@/components/problem-sprawl-receipt";
 import { QuickstartFriction } from "@/components/quickstart-friction";
 import { Species } from "@/components/species";
 import { ToolsExplainer } from "@/components/tools-explainer";
-import { VideoSection } from "@/components/video-section";
 
 export const Route = createFileRoute("/")({
   component: RouteComponent,
@@ -27,14 +23,12 @@ function RouteComponent() {
     <div className="overflow-x-clip">
       <Hero />
       <Species />
-      <ProblemToolSprawl />
-      <OpenStandards />
-      <VideoSection />
+      <ProblemSprawlReceipt />
       <FeaturesZigzag />
+      <QuickstartFriction />
       <AgentsCompare />
       <ToolsExplainer />
-      <QuickstartFriction />
-      <HowItWorks />
+      <OpenStandardsBento />
       <PricingToggle />
       <FeaturedTestimonial />
       <FAQ />
