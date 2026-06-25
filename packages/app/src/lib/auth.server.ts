@@ -471,7 +471,12 @@ export const auth = betterAuth({
       ],
       postLogin: {
         page: "/mcp/select-org",
-        shouldRedirect: async () => true,
+        // Only divert to the org picker until an org is actually selected.
+        // After set-active, the resumed authorize must fall through to consent
+        // instead of looping back here.
+        shouldRedirect: async ({ session }) =>
+          typeof session.activeOrganizationId !== "string" ||
+          session.activeOrganizationId.length === 0,
         consentReferenceId: async ({ session, scopes }) => {
           const orgId =
             typeof session.activeOrganizationId === "string"

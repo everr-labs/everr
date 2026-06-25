@@ -12,16 +12,16 @@ import { useState } from "react";
 import { submitMcpConsent } from "@/data/mcp-oauth";
 
 export const Route = createFileRoute("/mcp/consent")({
-  validateSearch: (s: Record<string, unknown>) => ({
-    client_id: String(s.client_id ?? ""),
-    scope: String(s.scope ?? ""),
-    oauth_query: typeof s.oauth_query === "string" ? s.oauth_query : "",
-  }),
+  // Pass through every search param untouched (see select-org): the full signed
+  // query string is replayed to /oauth2/consent as oauth_query.
+  validateSearch: (s: Record<string, unknown>) => s,
   component: Consent,
 });
 
 function Consent() {
-  const { client_id, scope, oauth_query } = Route.useSearch();
+  const search = Route.useSearch() as { client_id?: string; scope?: string };
+  const client_id = search.client_id ?? "";
+  const scope = search.scope ?? "";
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,11 +29,13 @@ function Consent() {
     setBusy(true);
     setError(null);
 
+    // The signed OAuth params arrived as this page's query string; replay them.
+    const oauth_query = window.location.search.replace(/^\?/, "");
     try {
-      const result = await submitMcpConsent({
+      const { url } = await submitMcpConsent({
         data: { accept, scope, oauth_query },
       });
-      window.location.href = result.url;
+      window.location.href = url;
     } catch (error) {
       setError(
         error instanceof Error ? error.message : "Failed to record consent",

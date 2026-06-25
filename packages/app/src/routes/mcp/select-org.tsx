@@ -8,13 +8,14 @@ import {
 } from "@everr/ui/components/card";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { authClient } from "@/lib/auth-client";
 import { selectMcpOrganization } from "@/data/mcp-oauth";
+import { authClient } from "@/lib/auth-client";
 
 export const Route = createFileRoute("/mcp/select-org")({
-  validateSearch: (s: Record<string, unknown>) => ({
-    oauth_query: typeof s.oauth_query === "string" ? s.oauth_query : "",
-  }),
+  // Pass through every search param untouched: the authorize redirect lands here
+  // with all the signed OAuth params (client_id, code_challenge, sig, ...) inline,
+  // and we forward that whole query string back to /oauth2/continue as oauth_query.
+  validateSearch: (s: Record<string, unknown>) => s,
   loader: async () => {
     const { data } = await authClient.organization.list();
     return { organizations: data ?? [] };
@@ -24,7 +25,6 @@ export const Route = createFileRoute("/mcp/select-org")({
 
 function SelectOrg() {
   const { organizations } = Route.useLoaderData();
-  const { oauth_query } = Route.useSearch();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,11 +32,13 @@ function SelectOrg() {
     setBusy(true);
     setError(null);
 
+    // The signed OAuth params arrived as this page's query string; replay them.
+    const oauth_query = window.location.search.replace(/^\?/, "");
     try {
-      const resumed = await selectMcpOrganization({
+      const { url } = await selectMcpOrganization({
         data: { organizationId, oauth_query },
       });
-      window.location.href = resumed.url;
+      window.location.href = url;
     } catch (error) {
       setError(
         error instanceof Error
