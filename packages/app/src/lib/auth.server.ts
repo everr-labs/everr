@@ -153,6 +153,14 @@ const googleSocialProviders =
       }
     : undefined;
 
+// The selected organization id, or undefined if none is active yet. Shared by
+// the MCP postLogin hooks so "is an org selected?" is decided one way (treating
+// an empty string as unselected).
+const selectedOrgId = (activeOrganizationId: unknown): string | undefined =>
+  typeof activeOrganizationId === "string" && activeOrganizationId.length > 0
+    ? activeOrganizationId
+    : undefined;
+
 export const auth = betterAuth({
   baseURL: env.BETTER_AUTH_URL,
   secret: env.BETTER_AUTH_SECRET,
@@ -475,13 +483,9 @@ export const auth = betterAuth({
         // After set-active, the resumed authorize must fall through to consent
         // instead of looping back here.
         shouldRedirect: async ({ session }) =>
-          typeof session.activeOrganizationId !== "string" ||
-          session.activeOrganizationId.length === 0,
+          !selectedOrgId(session.activeOrganizationId),
         consentReferenceId: async ({ session, scopes }) => {
-          const orgId =
-            typeof session.activeOrganizationId === "string"
-              ? session.activeOrganizationId
-              : undefined;
+          const orgId = selectedOrgId(session.activeOrganizationId);
           if (scopes.includes("observability:read") && !orgId) {
             throw new APIError("BAD_REQUEST", {
               message: "Select an organization before authorizing.",
