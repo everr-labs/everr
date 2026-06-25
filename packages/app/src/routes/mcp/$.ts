@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createMcpHandler } from "mcp-handler";
 import { z } from "zod";
 import { SQL_API_TENANT_TABLES } from "@/lib/clickhouse";
+import { getMcpIdentity } from "@/lib/mcp-identity";
 import { assertCurrentMember, McpMembershipError } from "@/lib/mcp-membership";
 import { AUTH_ISSUER, MCP_RESOURCE } from "@/lib/mcp-resource";
 import { mcpResourceClient } from "@/lib/mcp-resource-client";
@@ -11,8 +12,8 @@ import { runSqlForConnection } from "@/lib/mcp-run-sql";
 // Single source of truth: the tables the per-org ClickHouse role can read.
 const READABLE_TABLES = SQL_API_TENANT_TABLES.join(", ");
 
-// Per-request org context, taken from the verified `org_id` token claim.
-const orgStore = new AsyncLocalStorage<{ orgId: string }>();
+// Per-request identity, taken from the verified `org_id`/`sub` token claims.
+const orgStore = new AsyncLocalStorage<{ orgId: string; userId: string }>();
 
 // Built ONCE at module load (ALS propagates through mcp-handler). Named
 // `mcpTransport` to avoid clashing with the oauth-provider `mcpHandler` export.
@@ -39,6 +40,35 @@ const mcpTransport = createMcpHandler(
         return {
           isError: result.isError,
           content: [{ type: "text", text: result.text }],
+        };
+      },
+    );
+
+    server.registerTool(
+      "whoami",
+      {
+        description:
+          "Return the authenticated user and the organization this connection " +
+          "is scoped to (its telemetry is what `query` reads).",
+        inputSchema: {},
+      },
+      async () => {
+        const ctx = orgStore.getStore();
+        if (!ctx) {
+          return {
+            isError: true,
+            content: [{ type: "text", text: "No identity context." }],
+          };
+        }
+        const identity = await getMcpIdentity(ctx.userId, ctx.orgId);
+        if (!identity) {
+          return {
+            isError: true,
+            content: [{ type: "text", text: "Identity not found." }],
+          };
+        }
+        return {
+          content: [{ type: "text", text: JSON.stringify(identity, null, 2) }],
         };
       },
     );
@@ -108,7 +138,9 @@ async function handler(request: Request): Promise<Response> {
     throw e;
   }
 
-  const res = await orgStore.run({ orgId }, () => mcpTransport(request));
+  const res = await orgStore.run({ orgId, userId }, () =>
+    mcpTransport(request),
+  );
   const out = new Response(res.body, res);
   for (const [k, v] of Object.entries(CORS_HEADERS)) {
     if (!out.headers.has(k)) out.headers.set(k, v);
