@@ -15,7 +15,6 @@ use everr_core::state::Session;
 use crate::auth;
 use crate::skills as cli_skills;
 
-const INSTALL_SKILLS_DEFAULT: bool = true;
 const NOTIFICATION_EMAILS_NOTE: &str = "These emails are used to detect your own runs.";
 
 #[derive(Default)]
@@ -283,6 +282,43 @@ async fn step_mark_cloud_onboarding_complete(
     Ok(())
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+enum SkillTarget {
+    #[default]
+    Claude,
+    Agents,
+}
+
+fn skill_target_providers(targets: &[SkillTarget]) -> Vec<SkillProvider> {
+    let mut providers = Vec::new();
+    for target in targets {
+        match target {
+            SkillTarget::Claude => providers.push(SkillProvider::ClaudeCode),
+            SkillTarget::Agents => {
+                providers.push(SkillProvider::Codex);
+                providers.push(SkillProvider::Cursor);
+            }
+        }
+    }
+    providers
+}
+
+fn default_targets(statuses: &[core_skills::SkillProviderStatus]) -> Vec<SkillTarget> {
+    let detected = |provider: SkillProvider| {
+        statuses
+            .iter()
+            .any(|status| status.provider == provider && status.detected)
+    };
+    let mut targets = Vec::new();
+    if detected(SkillProvider::ClaudeCode) {
+        targets.push(SkillTarget::Claude);
+    }
+    if detected(SkillProvider::Codex) || detected(SkillProvider::Cursor) {
+        targets.push(SkillTarget::Agents);
+    }
+    targets
+}
+
 fn step_install_skills() -> Result<bool> {
     let interactive = std::io::stdin().is_terminal();
     let home_dir = dirs::home_dir().context("failed to resolve home directory")?;
@@ -294,82 +330,31 @@ fn step_install_skills() -> Result<bool> {
         return Ok(true);
     }
 
-    if interactive {
-        cliclack::note(
-            "Everr skills",
-            "Everr can install skills that teach compatible agents how to work with CI, set up telemetry, and use real telemetry data during investigations.",
-        )?;
+    cliclack::note(
+        "Skills",
+        "Everr skills teach your coding agent to instrument code and\nquery your telemetry while it works.",
+    )?;
 
-        let install: bool = cliclack::confirm("Install Everr skills?")
-            .initial_value(INSTALL_SKILLS_DEFAULT)
+    let providers = if interactive {
+        let defaults = default_targets(&provider_statuses);
+        let selected: Vec<SkillTarget> = cliclack::multiselect("Install skills for")
+            .required(false)
+            .item(SkillTarget::Claude, "Claude", "")
+            .item(SkillTarget::Agents, "Agents (Codex, etc.)", "")
+            .initial_values(defaults)
             .interact()?;
-        if !install {
-            cliclack::log::remark("Skipping Everr skills.")?;
-            return Ok(false);
-        }
-    }
-
-    let scope = if interactive {
-        let global: bool = cliclack::confirm("Install skills globally instead of in this project?")
-            .initial_value(cli_skills::GLOBAL_SKILL_SCOPE_DEFAULT)
-            .interact()?;
-        if global {
-            SkillScope::Global
-        } else {
-            SkillScope::Project
-        }
+        skill_target_providers(&selected)
     } else {
-        SkillScope::Project
+        skill_target_providers(&default_targets(&provider_statuses))
     };
 
-    let selected_providers: Vec<SkillProvider> = if interactive {
-        let mut prompt = cliclack::multiselect("Select providers").required(false);
-        for (i, status) in provider_statuses.iter().enumerate() {
-            let label = status.provider.display_name();
-            let hint = if status.detected {
-                "detected"
-            } else {
-                "not detected"
-            };
-            prompt = prompt.item(i, label, hint);
-        }
-        let mut defaults: Vec<usize> = provider_statuses
-            .iter()
-            .enumerate()
-            .filter(|(_, status)| status.detected)
-            .map(|(i, _)| i)
-            .collect();
-        if defaults.is_empty() {
-            defaults = (0..provider_statuses.len()).collect();
-        }
-        prompt = prompt.initial_values(defaults);
-
-        let selected_indices: Vec<usize> = prompt.interact()?;
-        selected_indices
-            .iter()
-            .map(|&i| provider_statuses[i].provider)
-            .collect()
-    } else {
-        let detected: Vec<SkillProvider> = provider_statuses
-            .iter()
-            .filter(|status| status.detected)
-            .map(|status| status.provider)
-            .collect();
-        if detected.is_empty() {
-            SkillProvider::ALL.to_vec()
-        } else {
-            detected
-        }
-    };
-
-    if selected_providers.is_empty() {
-        cliclack::log::remark("No providers selected.")?;
+    if providers.is_empty() {
+        cliclack::log::remark("Skipping Everr skills.")?;
         return Ok(false);
     }
 
-    cli_skills::install_all_for_setup(scope, selected_providers)?;
-    cliclack::log::success("Everr skills installed")?;
-
+    cli_skills::install_all_for_setup(SkillScope::Global, providers)?;
+    cliclack::log::success("Everr skills installed (global)")?;
     Ok(true)
 }
 
@@ -591,13 +576,62 @@ mod tests {
     }
 
     #[test]
-    fn setup_defaults_to_installing_skills() {
-        assert!(super::INSTALL_SKILLS_DEFAULT);
+    fn claude_target_maps_to_claude_code() {
+        use everr_core::skills::SkillProvider;
+        assert_eq!(
+            super::skill_target_providers(&[super::SkillTarget::Claude]),
+            vec![SkillProvider::ClaudeCode]
+        );
     }
 
     #[test]
-    fn setup_defaults_to_global_skill_scope() {
-        assert!(super::cli_skills::GLOBAL_SKILL_SCOPE_DEFAULT);
+    fn agents_target_maps_to_codex_and_cursor() {
+        use everr_core::skills::SkillProvider;
+        assert_eq!(
+            super::skill_target_providers(&[super::SkillTarget::Agents]),
+            vec![SkillProvider::Codex, SkillProvider::Cursor]
+        );
+    }
+
+    #[test]
+    fn both_targets_map_to_all_providers() {
+        use everr_core::skills::SkillProvider;
+        assert_eq!(
+            super::skill_target_providers(&[super::SkillTarget::Claude, super::SkillTarget::Agents]),
+            vec![
+                SkillProvider::ClaudeCode,
+                SkillProvider::Codex,
+                SkillProvider::Cursor
+            ]
+        );
+    }
+
+    #[test]
+    fn no_targets_map_to_empty() {
+        assert!(super::skill_target_providers(&[]).is_empty());
+    }
+
+    #[test]
+    fn default_targets_selects_only_detected_groups() {
+        use everr_core::skills::{SkillProvider, SkillProviderStatus};
+        let statuses = vec![
+            SkillProviderStatus {
+                provider: SkillProvider::ClaudeCode,
+                detected: true,
+                path: String::new(),
+            },
+            SkillProviderStatus {
+                provider: SkillProvider::Codex,
+                detected: false,
+                path: String::new(),
+            },
+            SkillProviderStatus {
+                provider: SkillProvider::Cursor,
+                detected: false,
+                path: String::new(),
+            },
+        ];
+        assert_eq!(super::default_targets(&statuses), vec![super::SkillTarget::Claude]);
     }
 
     #[test]

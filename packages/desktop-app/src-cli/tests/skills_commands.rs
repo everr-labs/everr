@@ -249,7 +249,7 @@ fn skills_update_replaces_legacy_global_skill_names() {
 }
 
 #[test]
-fn setup_installs_project_skills_when_noninteractive_and_authenticated() {
+fn setup_skips_skills_when_noninteractive_and_no_agents_detected() {
     let env = CliTestEnv::new();
     let repo = env.home_dir.join("repo");
     fs::create_dir_all(&repo).expect("create repo");
@@ -263,20 +263,17 @@ fn setup_installs_project_skills_when_noninteractive_and_authenticated() {
         .success()
         .stderr(contains("Already logged in"));
 
+    // With no agents detected in non-interactive mode, skills are skipped.
     assert!(
-        repo.join(".agents/skills/everr-working-with-ci/SKILL.md")
-            .is_file()
+        !repo
+            .join(".agents/skills/everr-working-with-ci/SKILL.md")
+            .exists()
     );
     assert!(
-        repo.join(".agents/skills/everr-setup-telemetry/SKILL.md")
-            .is_file()
+        !env.home_dir
+            .join(".agents/skills/everr-working-with-ci/SKILL.md")
+            .exists()
     );
-    assert!(
-        repo.join(".agents/skills/everr-use-telemetry/SKILL.md")
-            .is_file()
-    );
-    #[cfg(unix)]
-    assert_symlink(&repo.join(".claude/skills/everr-working-with-ci"));
 }
 
 #[test]
