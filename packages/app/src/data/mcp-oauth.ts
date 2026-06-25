@@ -20,9 +20,7 @@ export const selectMcpOrganization = createPartiallyAuthenticatedServerFn({
   method: "POST",
 })
   .inputValidator(SelectOrganizationInput)
-  .handler(async ({ data }) =>
-    selectOrgAndContinue(getRequestHeaders(), data),
-  );
+  .handler(async ({ data }) => selectOrgAndContinue(getRequestHeaders(), data));
 
 export const submitMcpConsent = createPartiallyAuthenticatedServerFn({
   method: "POST",

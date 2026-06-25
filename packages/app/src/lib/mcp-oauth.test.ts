@@ -26,7 +26,8 @@ describe("mcp-oauth server helpers", () => {
     });
 
     expect(res).toEqual({ url: "/mcp/consent?x=1" });
-    const headers = api.setActiveOrganization.mock.calls[0][0].headers as Headers;
+    const headers = api.setActiveOrganization.mock.calls[0][0]
+      .headers as Headers;
     expect(headers.get("origin")).toBe("http://localhost:5173");
     expect(headers.get("cookie")).toBe("session=abc");
     expect(api.oauth2Continue.mock.calls[0][0].body).toMatchObject({
@@ -45,7 +46,9 @@ describe("mcp-oauth server helpers", () => {
 
     expect(res).toEqual({ url: "https://cb?code=1" });
     const arg = api.oauth2Consent.mock.calls[0][0];
-    expect((arg.headers as Headers).get("origin")).toBe("http://localhost:5173");
+    expect((arg.headers as Headers).get("origin")).toBe(
+      "http://localhost:5173",
+    );
     expect(arg.body).toMatchObject({
       accept: true,
       oauth_query: "client_id=c&sig=s",
