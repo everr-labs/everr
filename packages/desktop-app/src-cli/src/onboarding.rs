@@ -509,7 +509,7 @@ async fn step_install_desktop_app() -> Result<bool> {
         let mount_point = stdout
             .lines()
             .last()
-            .and_then(|line| line.split('\t').last())
+            .and_then(|line| line.split('\t').next_back())
             .map(|s| s.trim().to_string())
             .context("failed to find mount point")?;
 
