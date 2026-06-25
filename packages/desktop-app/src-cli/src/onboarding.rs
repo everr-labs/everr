@@ -1,4 +1,3 @@
-use std::fmt::Write as _;
 use std::io::IsTerminal;
 use std::path::Path;
 
@@ -16,17 +15,6 @@ use everr_core::state::Session;
 use crate::auth;
 use crate::skills as cli_skills;
 
-const LOGO_LINES: &[&str] = &["⢠⡾⢻⣦⡀", "⣿⠁⣾⣉⣻⣦⡀", "⣿ ⣿⣉⣽⢿⡿⣦⡀", "⠘⣧⡈⠻⣧⣼⣧⡼⠿⣦", " ⠈⠛⠶⣤⣤⣤⣴⠾⠋"];
-const WORDMARK_LINES: &[&str] = &[
-    "░████████ ░██    ░██  ░███████  ░██░████ ░██░████",
-    "░██       ░██    ░██ ░██    ░██ ░███     ░███",
-    "░███████   ░██  ░██  ░█████████ ░██      ░██",
-    "░██         ░██░██   ░██        ░██      ░██",
-    "░████████    ░███     ░███████  ░██      ░██",
-];
-const LOGO_COLUMN_WIDTH: usize = 10;
-const BANNER_COLOR: &str = "\x1b[38;2;223;255;0m";
-const ANSI_RESET: &str = "\x1b[0m";
 const INSTALL_SKILLS_DEFAULT: bool = true;
 const NOTIFICATION_EMAILS_NOTE: &str = "These emails are used to detect your own runs.";
 
@@ -37,8 +25,7 @@ struct SetupContext {
 }
 
 pub async fn run() -> Result<()> {
-    println!();
-    print_banner();
+    crate::banner::print_banner();
 
     cliclack::intro("Setup")?;
 
@@ -553,44 +540,6 @@ async fn step_install_desktop_app() -> Result<bool> {
 #[cfg(not(target_os = "macos"))]
 async fn step_install_desktop_app() -> Result<bool> {
     Ok(false)
-}
-
-fn print_banner() {
-    let banner = render_banner();
-    if should_use_color() {
-        print!("{BANNER_COLOR}{banner}{ANSI_RESET}");
-    } else {
-        print!("{banner}");
-    }
-    println!();
-}
-
-fn render_banner() -> String {
-    let mut banner = String::new();
-    let total_lines = LOGO_LINES.len().max(WORDMARK_LINES.len());
-    for line_index in 0..total_lines {
-        let logo = LOGO_LINES.get(line_index).copied().unwrap_or("");
-        let wordmark = WORDMARK_LINES.get(line_index).copied().unwrap_or("");
-        if wordmark.is_empty() {
-            writeln!(&mut banner, "{logo}").expect("banner line");
-        } else {
-            writeln!(
-                &mut banner,
-                "{logo:<width$}   {wordmark}",
-                width = LOGO_COLUMN_WIDTH
-            )
-            .expect("banner line");
-        }
-    }
-    banner
-}
-
-fn should_use_color() -> bool {
-    std::io::stdout().is_terminal()
-        && std::env::var_os("NO_COLOR").is_none()
-        && std::env::var("TERM")
-            .map(|term| term != "dumb")
-            .unwrap_or(true)
 }
 
 #[cfg(test)]

@@ -33,7 +33,7 @@ tokio = { version = "1.44.2", features = ["io-std", "io-util", "macros", "proces
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "registry"] }
 webbrowser = "1.0.6"
-viuer = "0.11.0"
+viuer = { version = "0.11.0", features = ["print-file"] }
 
 [dependencies.nix]
 version = "0.29"
