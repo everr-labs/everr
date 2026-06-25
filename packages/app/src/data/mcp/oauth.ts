@@ -1,7 +1,7 @@
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { z } from "zod";
-import { setActiveOrg, submitConsent } from "@/lib/mcp-oauth";
 import { createPartiallyAuthenticatedServerFn } from "@/lib/serverFn";
+import { setActiveOrg, submitConsent } from "./oauth-server";
 
 const ConsentInput = z.object({
   accept: z.boolean(),

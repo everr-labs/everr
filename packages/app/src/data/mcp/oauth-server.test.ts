@@ -6,7 +6,7 @@ vi.mock("@/env", () => ({
 vi.mock("@/lib/auth.server", () => ({ auth: { api: {} } }));
 
 import { auth } from "@/lib/auth.server";
-import { setActiveOrg, submitConsent } from "./mcp-oauth";
+import { setActiveOrg, submitConsent } from "./oauth-server";
 
 const api = auth.api as unknown as Record<string, ReturnType<typeof vi.fn>>;
 

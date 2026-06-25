@@ -168,7 +168,7 @@ export const auth = betterAuth({
   // 127.0.0.1 while BETTER_AUTH_URL is localhost (or vice-versa). In production
   // BETTER_AUTH_URL is a real host, so the replaces are no-ops. (The MCP org
   // picker/consent avoid this check entirely by running set-active/continue/
-  // consent server-side via auth.api — see data/mcp-oauth.ts.)
+  // consent server-side via auth.api — see data/mcp/oauth.ts.)
   trustedOrigins: Array.from(
     new Set([
       env.BETTER_AUTH_URL,

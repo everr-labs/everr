@@ -7,7 +7,7 @@ vi.mock("@/lib/clickhouse", () => ({
   querySqlApi: (...a: unknown[]) => querySqlApi(...a),
 }));
 
-import { runSqlForConnection } from "./mcp-run-sql";
+import { runSqlForConnection } from "./run-sql";
 
 beforeEach(() => querySqlApi.mockReset());
 

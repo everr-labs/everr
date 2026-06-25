@@ -1,12 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import { z } from "zod";
+import { getMcpIdentity } from "@/data/mcp/identity";
+import { assertCurrentMember } from "@/data/mcp/membership";
+import { runSqlForConnection } from "@/data/mcp/run-sql";
 import { SQL_API_TENANT_TABLES } from "@/lib/clickhouse";
-import { getMcpIdentity } from "@/lib/mcp-identity";
-import { assertCurrentMember } from "@/lib/mcp-membership";
 import { AUTH_ISSUER, MCP_RESOURCE } from "@/lib/mcp-resource";
 import { mcpResourceClient } from "@/lib/mcp-resource-client";
-import { runSqlForConnection } from "@/lib/mcp-run-sql";
 
 // Single source of truth: the tables the per-org ClickHouse role can read.
 const READABLE_TABLES = SQL_API_TENANT_TABLES.join(", ");
@@ -30,8 +30,7 @@ const mcpTransport = createMcpHandler(
       {
         description:
           `Run a read-only ClickHouse SQL query against your organization's ` +
-          `telemetry. Readable tables: ${READABLE_TABLES}. Discover columns with ` +
-          `"SELECT * FROM <table> LIMIT 1". Read-only; results are capped.`,
+          `telemetry. Readable tables: ${READABLE_TABLES}. OpenTelemetry. Results are capped.`,
         inputSchema: { sql: z.string() },
       },
       async ({ sql }, extra) => {
@@ -54,8 +53,7 @@ const mcpTransport = createMcpHandler(
       "whoami",
       {
         description:
-          "Return the authenticated user and the organization this connection " +
-          "is scoped to (its telemetry is what `query` reads).",
+          "Return the Everr user name and the organization connected to this authenticated session",
         inputSchema: {},
       },
       async (_args, extra) => {

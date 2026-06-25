@@ -5,7 +5,7 @@ vi.mock("@/db/client", () => ({
   db: { select: (...a: unknown[]) => selectMock(...a) },
 }));
 
-import { assertCurrentMember, McpMembershipError } from "./mcp-membership";
+import { assertCurrentMember, McpMembershipError } from "./membership";
 
 function returning(rows: unknown[]) {
   return {

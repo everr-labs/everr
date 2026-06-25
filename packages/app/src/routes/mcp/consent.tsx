@@ -15,7 +15,7 @@ import {
   Terminal,
 } from "lucide-react";
 import { useState } from "react";
-import { setActiveMcpOrganization, submitMcpConsent } from "@/data/mcp-oauth";
+import { setActiveMcpOrganization, submitMcpConsent } from "@/data/mcp/oauth";
 import { authClient } from "@/lib/auth-client";
 import { OAuthShell } from "./-components/oauth-shell";
 
