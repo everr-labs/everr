@@ -289,38 +289,15 @@ function Figure({
 /*  Receipt — the hero artifact                                       */
 /*                                                                    */
 /*  Dark "thermal receipt": a slightly lighter surface than the       */
-/*  background, monospace throughout, dotted perforation rules, and   */
-/*  torn top/bottom edges drawn with a repeating-gradient mask so the */
-/*  paper appears ripped from a printer roll.                         */
+/*  background, monospace throughout, dotted perforation rules, and a */
+/*  rounded, bordered card so it reads clearly as one slip.           */
 /* ------------------------------------------------------------------ */
-
-/* Zigzag torn edge, applied via mask so the card's own bg shows through.
-   12px teeth; the gradient cuts triangular notches along the edge. */
-const TORN_MASK: React.CSSProperties = {
-  WebkitMaskImage:
-    "linear-gradient(135deg, transparent 0 6px, #000 6px), linear-gradient(225deg, transparent 0 6px, #000 6px)",
-  WebkitMaskSize: "12px 12px",
-  WebkitMaskRepeat: "repeat-x",
-  WebkitMaskPosition: "bottom left",
-  maskImage:
-    "linear-gradient(135deg, transparent 0 6px, #000 6px), linear-gradient(225deg, transparent 0 6px, #000 6px)",
-  maskSize: "12px 12px",
-  maskRepeat: "repeat-x",
-  maskPosition: "bottom left",
-};
 
 function Receipt_({ inView }: { inView: boolean }) {
   return (
     <div className="relative">
       {/* The paper. Shadow + faint vertical sheen of a thermal slip. */}
-      <div className="relative rounded-[2px] border border-fd-border bg-fd-card shadow-2xl shadow-black/40">
-        {/* Torn top edge — a strip masked into zigzag teeth, sitting above the card */}
-        <div
-          aria-hidden
-          className="absolute inset-x-0 -top-2 h-2 rotate-180 bg-fd-card"
-          style={TORN_MASK}
-        />
-
+      <div className="relative overflow-hidden rounded-xl border border-fd-border bg-fd-card shadow-2xl shadow-black/40">
         <div className="relative px-6 py-7 sm:px-8">
           {/* --- Header --- */}
           <header className="flex flex-col items-center text-center">
@@ -445,13 +422,6 @@ function Receipt_({ inView }: { inView: boolean }) {
             </p>
           </footer>
         </div>
-
-        {/* Torn bottom edge */}
-        <div
-          aria-hidden
-          className="absolute inset-x-0 -bottom-2 h-2 bg-fd-card"
-          style={TORN_MASK}
-        />
       </div>
     </div>
   );
