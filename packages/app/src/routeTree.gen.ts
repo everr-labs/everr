@@ -13,6 +13,8 @@ import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as WebhookGithubRouteImport } from './routes/webhook/github'
+import { Route as McpSelectOrgRouteImport } from './routes/mcp/select-org'
+import { Route as McpConsentRouteImport } from './routes/mcp/consent'
 import { Route as McpSplatRouteImport } from './routes/mcp/$'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiCliRouteImport } from './routes/api/cli'
@@ -94,6 +96,16 @@ const AuthRoute = AuthRouteImport.update({
 const WebhookGithubRoute = WebhookGithubRouteImport.update({
   id: '/webhook/github',
   path: '/webhook/github',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const McpSelectOrgRoute = McpSelectOrgRouteImport.update({
+  id: '/mcp/select-org',
+  path: '/mcp/select-org',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const McpConsentRoute = McpConsentRouteImport.update({
+  id: '/mcp/consent',
+  path: '/mcp/consent',
   getParentRoute: () => rootRouteImport,
 } as any)
 const McpSplatRoute = McpSplatRouteImport.update({
@@ -462,6 +474,8 @@ export interface FileRoutesByFullPath {
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/mcp/$': typeof McpSplatRoute
+  '/mcp/consent': typeof McpConsentRoute
+  '/mcp/select-org': typeof McpSelectOrgRoute
   '/webhook/github': typeof WebhookGithubRoute
   '/auth/error': typeof AuthAuthErrorRoute
   '/invite/$invitationId': typeof AuthInviteInvitationIdRoute
@@ -527,6 +541,8 @@ export interface FileRoutesByTo {
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/mcp/$': typeof McpSplatRoute
+  '/mcp/consent': typeof McpConsentRoute
+  '/mcp/select-org': typeof McpSelectOrgRoute
   '/webhook/github': typeof WebhookGithubRoute
   '/auth/error': typeof AuthAuthErrorRoute
   '/invite/$invitationId': typeof AuthInviteInvitationIdRoute
@@ -594,6 +610,8 @@ export interface FileRoutesById {
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/mcp/$': typeof McpSplatRoute
+  '/mcp/consent': typeof McpConsentRoute
+  '/mcp/select-org': typeof McpSelectOrgRoute
   '/webhook/github': typeof WebhookGithubRoute
   '/_auth/auth/error': typeof AuthAuthErrorRoute
   '/_auth/invite/$invitationId': typeof AuthInviteInvitationIdRoute
@@ -663,6 +681,8 @@ export interface FileRouteTypes {
     | '/api/cli'
     | '/api/health'
     | '/mcp/$'
+    | '/mcp/consent'
+    | '/mcp/select-org'
     | '/webhook/github'
     | '/auth/error'
     | '/invite/$invitationId'
@@ -728,6 +748,8 @@ export interface FileRouteTypes {
     | '/api/cli'
     | '/api/health'
     | '/mcp/$'
+    | '/mcp/consent'
+    | '/mcp/select-org'
     | '/webhook/github'
     | '/auth/error'
     | '/invite/$invitationId'
@@ -794,6 +816,8 @@ export interface FileRouteTypes {
     | '/api/cli'
     | '/api/health'
     | '/mcp/$'
+    | '/mcp/consent'
+    | '/mcp/select-org'
     | '/webhook/github'
     | '/_auth/auth/error'
     | '/_auth/invite/$invitationId'
@@ -862,6 +886,8 @@ export interface RootRouteChildren {
   ApiCliRoute: typeof ApiCliRouteWithChildren
   ApiHealthRoute: typeof ApiHealthRoute
   McpSplatRoute: typeof McpSplatRoute
+  McpConsentRoute: typeof McpConsentRoute
+  McpSelectOrgRoute: typeof McpSelectOrgRoute
   WebhookGithubRoute: typeof WebhookGithubRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiEventsStreamRoute: typeof ApiEventsStreamRoute
@@ -898,6 +924,20 @@ declare module '@tanstack/react-router' {
       path: '/webhook/github'
       fullPath: '/webhook/github'
       preLoaderRoute: typeof WebhookGithubRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mcp/select-org': {
+      id: '/mcp/select-org'
+      path: '/mcp/select-org'
+      fullPath: '/mcp/select-org'
+      preLoaderRoute: typeof McpSelectOrgRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mcp/consent': {
+      id: '/mcp/consent'
+      path: '/mcp/consent'
+      fullPath: '/mcp/consent'
+      preLoaderRoute: typeof McpConsentRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mcp/$': {
@@ -1633,6 +1673,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCliRoute: ApiCliRouteWithChildren,
   ApiHealthRoute: ApiHealthRoute,
   McpSplatRoute: McpSplatRoute,
+  McpConsentRoute: McpConsentRoute,
+  McpSelectOrgRoute: McpSelectOrgRoute,
   WebhookGithubRoute: WebhookGithubRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiEventsStreamRoute: ApiEventsStreamRoute,
