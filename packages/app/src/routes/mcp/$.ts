@@ -2,19 +2,14 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { createFileRoute } from "@tanstack/react-router";
 import { createMcpHandler } from "mcp-handler";
 import { z } from "zod";
-import { env } from "@/env";
 import { SQL_API_TENANT_TABLES } from "@/lib/clickhouse";
 import { assertCurrentMember, McpMembershipError } from "@/lib/mcp-membership";
-import { MCP_RESOURCE } from "@/lib/mcp-resource";
+import { AUTH_ISSUER, MCP_RESOURCE } from "@/lib/mcp-resource";
 import { mcpResourceClient } from "@/lib/mcp-resource-client";
 import { runSqlForConnection } from "@/lib/mcp-run-sql";
 
 // Single source of truth: the tables the per-org ClickHouse role can read.
 const READABLE_TABLES = SQL_API_TENANT_TABLES.join(", ");
-
-// Better Auth is mounted at /api/auth, so the OAuth issuer (and the JWT `iss`)
-// is BETTER_AUTH_URL + /api/auth — matching the AS discovery metadata.
-const AUTH_ISSUER = `${env.BETTER_AUTH_URL.replace(/\/$/, "")}/api/auth`;
 
 // Per-request org context, taken from the verified `org_id` token claim.
 const orgStore = new AsyncLocalStorage<{ orgId: string }>();
@@ -87,11 +82,10 @@ async function handler(request: Request): Promise<Response> {
   let payload: Record<string, unknown>;
   try {
     payload = (await mcpResourceClient().verifyAccessToken(token, {
-      // The issuer is Better Auth's mount path (BETTER_AUTH_URL + /api/auth),
-      // which is what the AS metadata advertises and the JWT `iss` carries.
-      // jwksUrl must be passed explicitly: the resource client derives it from
-      // baseURL + basePath, but basePath isn't set in the options literal, so it
-      // would otherwise resolve to BETTER_AUTH_URL/jwks (404).
+      // issuer/jwksUrl must be passed explicitly: the resource client derives
+      // them from auth.options.baseURL, which omits the /api/auth mount path, so
+      // it would otherwise check the wrong issuer and fetch BETTER_AUTH_URL/jwks
+      // (404). AUTH_ISSUER is the real issuer the AS metadata + JWT `iss` use.
       jwksUrl: `${AUTH_ISSUER}/jwks`,
       verifyOptions: { audience: MCP_RESOURCE, issuer: AUTH_ISSUER },
       scopes: ["observability:read"],

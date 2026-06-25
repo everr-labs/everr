@@ -1,5 +1,5 @@
-import { env } from "@/env";
 import { auth } from "@/lib/auth.server";
+import { AUTH_BASE, AUTH_ISSUER } from "@/lib/mcp-resource";
 
 // The MCP OAuth flow runs inside the client's embedded webview, whose document
 // has an opaque origin — so its fetches carry `Origin: null`, which Better
@@ -8,7 +8,6 @@ import { auth } from "@/lib/auth.server";
 // server-side and present the app's own (trusted) origin instead of forwarding
 // the browser's null one, so the check passes. The session still comes from the
 // caller's cookie, and the oauth-provider endpoints enforce it.
-const AUTH_BASE = env.BETTER_AUTH_URL.replace(/\/$/, "");
 
 // Better Auth throws APIError with the useful detail under `.body`
 // (error_description for OAuth errors); surface that instead of an empty string.
@@ -33,12 +32,13 @@ function serverAuthContext(incoming: Headers, endpointPath: string) {
   // JSON instead of a raw 302 redirect we can't follow from here.
   headers.set("origin", AUTH_BASE);
   headers.set("accept", "application/json");
+  headers.set("sec-fetch-mode", "cors");
 
-  const proxyHeaders = new Headers(headers);
-  proxyHeaders.set("sec-fetch-mode", "cors");
-  const request = new Request(`${AUTH_BASE}${endpointPath}`, {
+  // The oauth-provider endpoints also read ctx.request; build it from the same
+  // single Headers so the two can't drift.
+  const request = new Request(`${AUTH_ISSUER}${endpointPath}`, {
     method: "POST",
-    headers: proxyHeaders,
+    headers,
   });
 
   return { headers, request };
@@ -48,10 +48,7 @@ export async function selectOrgAndContinue(
   incoming: Headers,
   input: { organizationId: string; oauth_query: string },
 ): Promise<{ url: string }> {
-  const { headers, request } = serverAuthContext(
-    incoming,
-    "/api/auth/oauth2/continue",
-  );
+  const { headers, request } = serverAuthContext(incoming, "/oauth2/continue");
 
   try {
     await auth.api.setActiveOrganization({
@@ -79,10 +76,7 @@ export async function submitConsent(
   incoming: Headers,
   input: { accept: boolean; scope?: string; oauth_query: string },
 ): Promise<{ url: string }> {
-  const { headers, request } = serverAuthContext(
-    incoming,
-    "/api/auth/oauth2/consent",
-  );
+  const { headers, request } = serverAuthContext(incoming, "/oauth2/consent");
 
   try {
     const result = await auth.api.oauth2Consent({
