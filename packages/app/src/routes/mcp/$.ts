@@ -1,10 +1,9 @@
-import { AsyncLocalStorage } from "node:async_hooks";
 import { createFileRoute } from "@tanstack/react-router";
-import { createMcpHandler } from "mcp-handler";
+import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import { z } from "zod";
 import { SQL_API_TENANT_TABLES } from "@/lib/clickhouse";
 import { getMcpIdentity } from "@/lib/mcp-identity";
-import { assertCurrentMember, McpMembershipError } from "@/lib/mcp-membership";
+import { assertCurrentMember } from "@/lib/mcp-membership";
 import { AUTH_ISSUER, MCP_RESOURCE } from "@/lib/mcp-resource";
 import { mcpResourceClient } from "@/lib/mcp-resource-client";
 import { runSqlForConnection } from "@/lib/mcp-run-sql";
@@ -12,11 +11,18 @@ import { runSqlForConnection } from "@/lib/mcp-run-sql";
 // Single source of truth: the tables the per-org ClickHouse role can read.
 const READABLE_TABLES = SQL_API_TENANT_TABLES.join(", ");
 
-// Per-request identity, taken from the verified `org_id`/`sub` token claims.
-const orgStore = new AsyncLocalStorage<{ orgId: string; userId: string }>();
+// Per-request identity, carried on the verified token's AuthInfo.extra. The MCP
+// SDK threads AuthInfo into every tool call's `extra`, so there's no need to
+// thread it through the handler or stash it in AsyncLocalStorage ourselves.
+type McpContext = { orgId: string; userId: string };
 
-// Built ONCE at module load (ALS propagates through mcp-handler). Named
-// `mcpTransport` to avoid clashing with the oauth-provider `mcpHandler` export.
+function contextOf(extra: { authInfo?: { extra?: Record<string, unknown> } }) {
+  const ctx = extra.authInfo?.extra as McpContext | undefined;
+  return ctx?.orgId && ctx?.userId ? ctx : undefined;
+}
+
+// Built ONCE at module load. Named `mcpTransport` to avoid clashing with the
+// oauth-provider `mcpHandler` export.
 const mcpTransport = createMcpHandler(
   (server) => {
     server.registerTool(
@@ -28,8 +34,8 @@ const mcpTransport = createMcpHandler(
           `"SELECT * FROM <table> LIMIT 1". Read-only; results are capped.`,
         inputSchema: { sql: z.string() },
       },
-      async ({ sql }) => {
-        const ctx = orgStore.getStore();
+      async ({ sql }, extra) => {
+        const ctx = contextOf(extra);
         if (!ctx) {
           return {
             isError: true,
@@ -52,8 +58,8 @@ const mcpTransport = createMcpHandler(
           "is scoped to (its telemetry is what `query` reads).",
         inputSchema: {},
       },
-      async () => {
-        const ctx = orgStore.getStore();
+      async (_args, extra) => {
+        const ctx = contextOf(extra);
         if (!ctx) {
           return {
             isError: true,
@@ -77,70 +83,63 @@ const mcpTransport = createMcpHandler(
   { basePath: "", maxDuration: 60 },
 );
 
-const CORS_HEADERS: Record<string, string> = {
-  "access-control-allow-origin": "*",
-  "access-control-expose-headers": "WWW-Authenticate, mcp-session-id",
-};
+// Verify the bearer token and surface the org/user to tools via AuthInfo.extra.
+// Returning undefined (or throwing) makes withMcpAuth answer 401 with the
+// resource-metadata challenge.
+async function verifyToken(_req: Request, bearerToken?: string) {
+  if (!bearerToken) return undefined;
 
-function unauthorized(request: Request): Response {
-  const base = new URL(request.url).origin;
-  return new Response(
-    JSON.stringify({
-      jsonrpc: "2.0",
-      id: null,
-      error: { code: -32001, message: "Unauthorized" },
-    }),
-    {
-      status: 401,
-      headers: {
-        "content-type": "application/json",
-        "WWW-Authenticate": `Bearer resource_metadata="${base}/.well-known/oauth-protected-resource"`,
-        ...CORS_HEADERS,
-      },
-    },
-  );
-}
-
-async function handler(request: Request): Promise<Response> {
-  const auth = request.headers.get("authorization");
-  const token = auth?.toLowerCase().startsWith("bearer ")
-    ? auth.slice(7)
-    : undefined;
-  if (!token) return unauthorized(request);
-
-  // Verify signature, audience, issuer, scope and expiry. Throws on any failure.
   let payload: Record<string, unknown>;
   try {
-    payload = (await mcpResourceClient().verifyAccessToken(token, {
-      // issuer/jwksUrl must be passed explicitly: the resource client derives
-      // them from auth.options.baseURL, which omits the /api/auth mount path, so
-      // it would otherwise check the wrong issuer and fetch BETTER_AUTH_URL/jwks
-      // (404). AUTH_ISSUER is the real issuer the AS metadata + JWT `iss` use.
+    // issuer/jwksUrl must be passed explicitly: the resource client derives them
+    // from auth.options.baseURL, which omits the /api/auth mount path, so it
+    // would otherwise check the wrong issuer and fetch BETTER_AUTH_URL/jwks (404).
+    payload = (await mcpResourceClient().verifyAccessToken(bearerToken, {
       jwksUrl: `${AUTH_ISSUER}/jwks`,
       verifyOptions: { audience: MCP_RESOURCE, issuer: AUTH_ISSUER },
       scopes: ["observability:read"],
     })) as Record<string, unknown>;
   } catch {
-    return unauthorized(request); // bad sig/aud/iss/scope/expiry
+    return undefined; // bad sig/aud/iss/scope/expiry
   }
 
-  // Read the consent-time org and the subject from the verified claims. Fail
-  // closed (401) if either is missing rather than trusting a malformed token.
   const orgId = typeof payload.org_id === "string" ? payload.org_id : undefined;
   const userId = typeof payload.sub === "string" ? payload.sub : undefined;
-  if (!orgId || !userId) return unauthorized(request);
+  if (!orgId || !userId) return undefined;
 
   // Re-check membership at request time (revocation / removal after consent).
-  try {
-    await assertCurrentMember(userId, orgId);
-  } catch (e) {
-    if (e instanceof McpMembershipError) return unauthorized(request);
-    throw e;
-  }
+  // A non-member throws McpMembershipError -> withMcpAuth answers 401.
+  await assertCurrentMember(userId, orgId);
 
-  const res = await orgStore.run({ orgId, userId }, () =>
-    mcpTransport(request),
-  );
+  return {
+    token: bearerToken,
+    clientId: typeof payload.azp === "string" ? payload.azp : "",
+    scopes:
+      typeof payload.scope === "string"
+        ? payload.scope.split(" ")
+        : ["observability:read"],
+    expiresAt: typeof payload.exp === "number" ? payload.exp : undefined,
+    extra: { orgId, userId } satisfies McpContext,
+  };
+}
+
+const authedTransport = withMcpAuth(mcpTransport, verifyToken, {
+  required: true,
+  requiredScopes: ["observability:read"],
+  resourceMetadataPath: "/.well-known/oauth-protected-resource",
+});
+
+// Browser-based MCP clients (e.g. the MCP Inspector) hit /mcp cross-origin, so
+// every response — including withMcpAuth's 401 challenge — needs CORS, and the
+// WWW-Authenticate / mcp-session-id headers must be exposed for the client to
+// read the auth challenge and track its session. Native clients ignore this.
+const CORS_HEADERS: Record<string, string> = {
+  "access-control-allow-origin": "*",
+  "access-control-expose-headers": "WWW-Authenticate, mcp-session-id",
+};
+
+async function handler(request: Request): Promise<Response> {
+  const res = await authedTransport(request);
   const out = new Response(res.body, res);
   for (const [k, v] of Object.entries(CORS_HEADERS)) {
     if (!out.headers.has(k)) out.headers.set(k, v);
