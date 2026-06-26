@@ -211,7 +211,12 @@ pub fn uninstall_bundled_skills(options: &SkillOperationOptions) -> Result<Skill
         let canonical_dir = canonical_skill_dir(options, skill_name);
         for provider in &providers {
             let provider_dir = provider_skill_dir(options, *provider, skill_name);
-            if same_path(&provider_dir, &canonical_dir) {
+            // Compare literally, not via `same_path`: that canonicalizes, which
+            // resolves a provider symlink to the canonical dir and would wrongly
+            // skip it, leaving a dangling link after the canonical dir is removed
+            // below. Only skip when the provider dir *is* the canonical agents
+            // dir (e.g. Codex/Cursor in project scope share it directly).
+            if provider_dir == canonical_dir {
                 continue;
             }
             remove_path(
