@@ -9,7 +9,6 @@ import { Footer } from "@/components/footer";
 import { Hero } from "@/components/hero";
 import { OpenStandardsBento } from "@/components/open-standards-bento";
 import { PricingToggle } from "@/components/pricing-toggle";
-import { ProblemSprawlReceipt } from "@/components/problem-sprawl-receipt";
 import { QuickstartFriction } from "@/components/quickstart-friction";
 
 export const Route = createFileRoute("/")({
@@ -20,7 +19,6 @@ function RouteComponent() {
   return (
     <div className="overflow-x-clip">
       <Hero />
-      <ProblemSprawlReceipt />
       <FeaturesZigzag />
       <QuickstartFriction />
       <AgentsCompare />
