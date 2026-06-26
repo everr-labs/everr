@@ -363,8 +363,8 @@ fn step_install_skills() -> Result<bool> {
     let provider_statuses = core_skills::provider_statuses(&home_dir);
 
     if has_global_bundled_skills_installed(&home_dir)? {
-        cli_skills::install_all_for_setup(SkillScope::Global, Vec::new())?;
-        cliclack::log::success("Everr skills installed")?;
+        let summary = cli_skills::install_all_for_setup(SkillScope::Global, Vec::new())?;
+        cliclack::note("Everr skills installed", summary.skills.join("\n"))?;
         return Ok(true);
     }
 
@@ -393,8 +393,8 @@ fn step_install_skills() -> Result<bool> {
         return Ok(false);
     }
 
-    cli_skills::install_all_for_setup(SkillScope::Global, providers)?;
-    cliclack::log::success("Everr skills installed (global)")?;
+    let summary = cli_skills::install_all_for_setup(SkillScope::Global, providers)?;
+    cliclack::note("Everr skills installed", summary.skills.join("\n"))?;
     Ok(true)
 }
 

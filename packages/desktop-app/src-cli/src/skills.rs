@@ -213,10 +213,13 @@ fn run_uninstall(args: SkillsUninstallArgs) -> Result<()> {
     Ok(())
 }
 
+/// Install all bundled skills for the setup wizard. Stays quiet (no stdout) so
+/// the caller reports results through cliclack; returns the summary instead of
+/// printing it (a raw print would break the wizard's gutter rendering).
 pub(crate) fn install_all_for_setup(
     scope: SkillScope,
     providers: Vec<SkillProvider>,
-) -> Result<()> {
+) -> Result<SkillOperationSummary> {
     let cwd = std::env::current_dir().context("could not determine current directory")?;
     let home_dir = resolve_home_dir()?;
     let options = SkillOperationOptions {
@@ -228,9 +231,7 @@ pub(crate) fn install_all_for_setup(
         all: true,
         dry_run: false,
     };
-    let summary = install_bundled_skills(&options)?;
-    print_summary("Installed", "Would install", &summary);
-    Ok(())
+    install_bundled_skills(&options)
 }
 
 /// Remove every globally installed bundled skill for all providers. Used by the
