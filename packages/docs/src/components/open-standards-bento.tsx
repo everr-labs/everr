@@ -8,8 +8,6 @@ import { cn } from "@everr/ui/lib/utils";
 import { SiClickhouse } from "@icons-pack/react-simple-icons";
 import {
   ArrowRight,
-  Boxes,
-  Cloud,
   GitCommitVertical,
   LineChart,
   type LucideIcon,
@@ -165,29 +163,7 @@ function BentoItem({
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Placeholder — stands in until each tile illustration is designed  */
-/* ------------------------------------------------------------------ */
-
-function Placeholder() {
-  return (
-    <div
-      className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-fd-border bg-fd-background/40"
-      style={{
-        backgroundImage:
-          "radial-gradient(circle, var(--color-fd-border) 1px, transparent 1px)",
-        backgroundSize: "22px 22px",
-        backgroundPosition: "-1px -1px",
-      }}
-    >
-      <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-fd-muted-foreground/40">
-        placeholder
-      </span>
-    </div>
-  );
-}
-
-/** Panel that frames a real brand mark, matching the placeholder backdrop. */
+/** Panel that frames a real brand mark, matching the dotted-grid backdrop. */
 function LogoHeader({ children }: { children: ReactNode }) {
   return (
     <div
@@ -1080,23 +1056,7 @@ const ITEMS: Item[] = [
     header: <SemanticConventions />,
     icon: Tags,
     bleed: true,
-    className: "md:col-span-8",
-  },
-  {
-    title: "Standard OTLP ingest",
-    description:
-      "Send with any OpenTelemetry SDK over OTLP. No proprietary agent — point it at one endpoint.",
-    header: <Placeholder />,
-    icon: Cloud,
-    className: "md:col-span-4",
-  },
-  {
-    title: "One model, everywhere",
-    description:
-      "The same semantic model follows your code from local to CI to production.",
-    header: <Placeholder />,
-    icon: Boxes,
-    className: "md:col-span-4",
+    className: "md:col-span-6",
   },
   {
     title: "Dashboards, alerts & runbooks as code",
@@ -1105,6 +1065,6 @@ const ITEMS: Item[] = [
     header: <AsCodeFeed />,
     icon: GitCommitVertical,
     bleed: true,
-    className: "md:col-span-8",
+    className: "md:col-span-6",
   },
 ];
