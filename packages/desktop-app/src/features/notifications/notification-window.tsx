@@ -109,7 +109,7 @@ function useResetDevOnboardingMutation() {
     onSuccess(data) {
       queryClient.setQueryData(authStatusQueryKey, data.auth_status);
       toast.success("Developer session reset.");
-      void navigate({ to: "/onboarding" });
+      void navigate({ to: "/ci" });
     },
   });
 }

@@ -1,22 +1,5 @@
-import { Card, CardContent } from "@everr/ui/components/card";
 import { cn } from "@everr/ui/lib/utils";
 import type { ReactNode } from "react";
-
-export function DesktopLoadingState({ text }: { text: string }) {
-  return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.06),transparent_30%),linear-gradient(180deg,var(--settings-shell)_0%,var(--settings-shell-bottom)_100%)] text-[var(--settings-text)]">
-      <section className="flex min-h-screen items-center justify-center px-6 py-14">
-        <Card className="w-full max-w-[420px] border-[color:var(--settings-border)] bg-[var(--settings-panel)] text-[var(--settings-text)] shadow-[var(--settings-panel-shadow)]">
-          <CardContent className="grid place-items-center px-6 py-12">
-            <p className="m-0 text-sm text-[var(--settings-text-muted)]">
-              {text}
-            </p>
-          </CardContent>
-        </Card>
-      </section>
-    </main>
-  );
-}
 
 interface SettingsSectionProps {
   title: string;

@@ -222,7 +222,7 @@ export function useSignOutMutation() {
       queryClient.setQueryData(authStatusQueryKey, data);
       queryClient.setQueryData(pendingSignInQueryKey, null);
       toast.success("Logged out.");
-      void navigate({ to: "/onboarding" });
+      void navigate({ to: "/logs" });
     },
     onError(error) {
       toast.error(toErrorMessageText(error));
@@ -414,10 +414,6 @@ function AuthContent({ layout }: { layout: "settings" | "standalone" }) {
       {content}
     </SettingsSection>
   );
-}
-
-export function AuthStandalone() {
-  return <AuthContent layout="standalone" />;
 }
 
 export function AuthSettingsSection() {

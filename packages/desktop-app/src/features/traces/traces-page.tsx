@@ -37,7 +37,7 @@ const localTracesRepo = new TracesRepository(localSqlClient);
 
 export function TracesPage() {
   const traceDetailMatch = useMatch({
-    from: "/authenticated/traces/$traceId",
+    from: "/shell/traces/$traceId",
     shouldThrow: false,
   });
   const search = useSearch({ strict: false }) as TraceDetailParams;

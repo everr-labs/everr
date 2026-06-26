@@ -392,7 +392,7 @@ describe("desktop window", () => {
     });
 
     await act(async () => {
-      await router.navigate({ to: "/onboarding" });
+      await router.navigate({ to: "/settings" });
     });
 
     expect(

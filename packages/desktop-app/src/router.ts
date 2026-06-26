@@ -6,7 +6,7 @@ import {
   retainSearchParams,
   stripSearchParams,
 } from "@tanstack/react-router";
-import { AuthenticatedGuard } from "./features/desktop-shell/authenticated-guard";
+import { AppShell } from "./features/desktop-shell/app-shell";
 import { DesktopWindow } from "./features/desktop-shell/desktop-window";
 import { SettingsPage } from "./features/desktop-shell/settings-page";
 import { DeveloperPage } from "./features/developer/developer-page";
@@ -18,7 +18,6 @@ import {
 import { ExploreSearchSchema } from "./features/explore/explore-search";
 import { LogsPage, LogsSearchSchema } from "./features/logs/logs-page";
 import { NotificationsPage } from "./features/notifications/notifications-page";
-import { OnboardingPage } from "./features/onboarding/onboarding-page";
 import {
   TraceDetailPage,
   TraceDetailSearchSchema,
@@ -30,22 +29,12 @@ const rootRoute = createRootRoute({
   component: DesktopWindow,
 });
 
-const onboardingRoute = createRoute({
+// Pathless layout: renders the app shell for every route regardless of auth.
+// Carries the explore search-param schema/middlewares that logs/traces/errors
+// rely on (previously on the now-removed authenticated route).
+const shellRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "/onboarding",
-  component: OnboardingPage,
-});
-
-const authenticatedRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  id: "authenticated",
-  // The Explore section's Service/Environment filters are retained HERE because
-  // the sidebar lives in this layout (AppShell): only a retain declared at this
-  // level engages on a sidebar click. strip-then-retain, paired with the
-  // default-free ExploreSearchShape, makes the filters both persistent AND
-  // clearable — a cleared `[]` is stripped to a clean URL, while an unset value
-  // arrives absent so retain copies the live selection forward. The explore page
-  // schemas include these keys so the destination route doesn't strip them.
+  id: "shell",
   validateSearch: ExploreSearchSchema,
   search: {
     middlewares: [
@@ -53,28 +42,36 @@ const authenticatedRoute = createRoute({
       retainSearchParams(["service", "environment"]),
     ],
   },
-  component: AuthenticatedGuard,
+  component: AppShell,
+});
+
+const indexRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: "/",
+  beforeLoad: () => {
+    throw redirect({ to: "/logs" });
+  },
 });
 
 const notificationsRoute = createRoute({
-  getParentRoute: () => authenticatedRoute,
-  path: "/",
+  getParentRoute: () => shellRoute,
+  path: "/ci",
   component: NotificationsPage,
 });
 
 const settingsRoute = createRoute({
-  getParentRoute: () => authenticatedRoute,
+  getParentRoute: () => shellRoute,
   path: "/settings",
   component: SettingsPage,
 });
 
 const developerRoute = createRoute({
-  getParentRoute: () => authenticatedRoute,
+  getParentRoute: () => shellRoute,
   path: "/developer",
   ...(!import.meta.env.DEV
     ? {
         beforeLoad: () => {
-          throw redirect({ to: "/" });
+          throw redirect({ to: "/logs" });
         },
       }
     : {}),
@@ -82,21 +79,19 @@ const developerRoute = createRoute({
 });
 
 const logsRoute = createRoute({
-  getParentRoute: () => authenticatedRoute,
+  getParentRoute: () => shellRoute,
   path: "/logs",
   validateSearch: LogsSearchSchema,
   component: LogsPage,
 });
 
 const tracesRoute = createRoute({
-  getParentRoute: () => authenticatedRoute,
+  getParentRoute: () => shellRoute,
   path: "/traces",
   validateSearch: TracesListSearchSchema,
   component: TracesPage,
 });
 
-// Nested under the list route so desktop detail pages only render through the
-// parent dialog route.
 const traceDetailRoute = createRoute({
   getParentRoute: () => tracesRoute,
   path: "$traceId",
@@ -105,7 +100,7 @@ const traceDetailRoute = createRoute({
 });
 
 const errorsRoute = createRoute({
-  getParentRoute: () => authenticatedRoute,
+  getParentRoute: () => shellRoute,
   path: "/errors",
   validateSearch: ErrorsListSearchSchema,
   component: ErrorsPage,
@@ -119,8 +114,8 @@ const errorDetailRoute = createRoute({
 });
 
 const routeTree = rootRoute.addChildren([
-  onboardingRoute,
-  authenticatedRoute.addChildren([
+  shellRoute.addChildren([
+    indexRoute,
     notificationsRoute,
     settingsRoute,
     developerRoute,
