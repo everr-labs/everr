@@ -304,7 +304,10 @@ function OnboardingWizard() {
                       {i + 1}
                     </span>
                   )}
-                  <span className="tracking-wide">
+                  {/* The step name also appears as the <h1> below, so on
+                      narrow screens we keep just the numbered badges and the
+                      progress bar — four labels can't fit in one row. */}
+                  <span className="hidden tracking-wide sm:inline">
                     {step === "app" && deviceUserCode
                       ? "Authorize"
                       : STEP_LABELS[step]}
@@ -555,7 +558,7 @@ function GitHubStep({
     <StepContainer title="Connect your repos" index={2}>
       <motion.section
         variants={staggerItem}
-        className="mt-8 border border-border bg-card p-6 sm:p-10  rounded-md"
+        className="mt-8 border border-border bg-card p-6 sm:p-10 rounded-md"
       >
         <GithubInstallStep
           installed={installed}
