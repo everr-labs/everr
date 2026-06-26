@@ -99,11 +99,10 @@ export function OpenStandardsBento() {
 type Item = {
   title: string;
   description: string;
+  /** Artifact fills the whole card edge-to-edge; the text floats over it. */
   header: ReactNode;
   icon: LucideIcon;
   className?: string;
-  /** Artifact fills the whole card edge-to-edge, text overlaid on top. */
-  bleed?: boolean;
 };
 
 function BentoItem({
@@ -140,43 +139,60 @@ function BentoItem({
       animate={inView ? { opacity: 1, y: 0 } : undefined}
       transition={{ duration: 0.7, delay: 0.1 + index * 0.08, ease: EASE }}
       className={cn(
-        "group/bento relative row-span-1 flex min-h-[18rem] flex-col overflow-hidden rounded-xl border border-fd-border bg-fd-card/40 p-5 transition-colors duration-300 hover:border-primary/40 md:min-h-0",
-        item.bleed ? "justify-start" : "justify-between gap-4",
+        "group/bento relative row-span-1 flex min-h-[18rem] flex-col justify-start overflow-hidden rounded-xl border border-fd-border bg-fd-card/40 p-5 md:min-h-0",
         item.className,
       )}
     >
-      {item.bleed ? (
-        <>
-          {/* artifact fills the whole card; text floats over it, kept legible
-              by a scrim sized to the heading rather than the full height */}
-          <div className="absolute inset-0">{item.header}</div>
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-fd-card/85 via-fd-card/30 to-transparent" />
-          <div className="relative z-10">{text}</div>
-        </>
-      ) : (
-        <>
-          {item.header}
-          {text}
-        </>
-      )}
+      {/* artifact fills the whole card; text floats over it, kept legible by a
+          scrim sized to the heading rather than the full height */}
+      <div className="absolute inset-0">{item.header}</div>
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-fd-card/85 via-fd-card/30 to-transparent" />
+      <div className="relative z-10">{text}</div>
     </motion.div>
   );
 }
 
-/** Panel that frames a real brand mark, matching the dotted-grid backdrop. */
-function LogoHeader({ children }: { children: ReactNode }) {
+/** Full-bleed tile: a space backdrop with a single brand mark centered on top,
+ *  matching the Perses hero so every card in the grid shares one language. */
+function LogoShowcase({ src, children }: { src: string; children: ReactNode }) {
   return (
-    <div
-      className="flex flex-1 items-center justify-center rounded-lg border border-fd-border bg-fd-background/40"
-      style={{
-        backgroundImage:
-          "radial-gradient(circle, var(--color-fd-border) 1px, transparent 1px)",
-        backgroundSize: "22px 22px",
-        backgroundPosition: "-1px -1px",
-      }}
-    >
-      {children}
+    <div className="relative size-full overflow-hidden">
+      <img
+        src={src}
+        alt=""
+        aria-hidden
+        loading="lazy"
+        className="absolute inset-0 size-full scale-110 object-cover transition-transform duration-500 ease-out group-hover/bento:scale-100 motion-reduce:scale-100 motion-reduce:transition-none"
+      />
+      <div className="absolute inset-0 bg-gradient-to-b from-fd-background/40 via-fd-background/10 to-fd-background/70" />
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(ellipse 58% 50% at 50% 56%, rgba(0,0,0,0.5), transparent 72%)",
+          }}
+        />
+        {children}
+      </div>
     </div>
+  );
+}
+
+/** Space wallpaper for the busier illustration cards, muted by a dark scrim so
+ *  the foreground (tag cloud / commit feed) stays legible on top. */
+function SpaceBackdrop({ src, dim }: { src: string; dim: string }) {
+  return (
+    <>
+      <img
+        src={src}
+        alt=""
+        aria-hidden
+        loading="lazy"
+        className="absolute inset-0 size-full scale-110 object-cover transition-transform duration-500 ease-out group-hover/bento:scale-100 motion-reduce:scale-100 motion-reduce:transition-none"
+      />
+      <div className={cn("absolute inset-0", dim)} />
+    </>
   );
 }
 
@@ -492,18 +508,15 @@ function SemanticConventions() {
 
   return (
     <div
-      className="pointer-events-none relative size-full select-none overflow-hidden bg-fd-background/40"
+      className="pointer-events-none relative size-full select-none overflow-hidden"
       style={{
-        backgroundImage:
-          "radial-gradient(circle, var(--color-fd-border) 1px, transparent 1px)",
-        backgroundSize: "22px 22px",
-        backgroundPosition: "-1px -1px",
         maskImage:
           "radial-gradient(108% 108% at 50% 45%, #000 60%, transparent 100%)",
         WebkitMaskImage:
           "radial-gradient(108% 108% at 50% 45%, #000 60%, transparent 100%)",
       }}
     >
+      <SpaceBackdrop src="/space/3.webp" dim="bg-fd-background/72" />
       <div className="absolute inset-x-0 bottom-0 top-24">
         {/* threads — light up between attributes that are both present */}
         <svg
@@ -530,7 +543,7 @@ function SemanticConventions() {
                 x2={b.x}
                 y2={b.y}
                 className={cn(
-                  "stroke-primary",
+                  "stroke-white",
                   bothMobile
                     ? undefined
                     : reduce
@@ -722,10 +735,10 @@ function PersesShowcase() {
   return (
     <div className="relative size-full overflow-hidden">
       <img
-        src="/space/pexels-frank-cone-140140-3607542.jpg"
+        src="/space/4.webp"
         alt=""
         aria-hidden
-        className="absolute inset-0 size-full object-cover"
+        className="absolute inset-0 size-full scale-110 object-cover transition-transform duration-500 ease-out group-hover/bento:scale-100 motion-reduce:scale-100 motion-reduce:transition-none"
       />
       <div className="absolute inset-0 bg-gradient-to-b from-fd-background/20 via-transparent to-fd-background/80" />
       {/* the dashboard-as-code editor, bleeding off the bottom + right */}
@@ -899,7 +912,7 @@ function authorLabel(author: Author) {
   return `${author.agent.name} + ${author.human.name}`;
 }
 
-const FEED_VISIBLE = 5;
+const FEED_VISIBLE = 4;
 const FEED_INTERVAL = 2600;
 
 /** Full-bleed commit feed: a fixed window of commits that rises one row at a
@@ -939,25 +952,10 @@ function AsCodeFeed() {
   }, [live]);
 
   return (
-    <div
-      className="pointer-events-none relative size-full select-none overflow-hidden bg-fd-background/30"
-      style={{
-        backgroundImage:
-          "radial-gradient(circle, var(--color-fd-border) 1px, transparent 1px)",
-        backgroundSize: "22px 22px",
-        backgroundPosition: "-1px -1px",
-      }}
-    >
-      <div
-        className="absolute inset-x-0 bottom-0 top-24 px-5"
-        style={{
-          maskImage:
-            "linear-gradient(to bottom, transparent 0%, #000 9%, #000 84%, transparent 100%)",
-          WebkitMaskImage:
-            "linear-gradient(to bottom, transparent 0%, #000 9%, #000 84%, transparent 100%)",
-        }}
-      >
-        <div className="flex h-full flex-col">
+    <div className="pointer-events-none relative size-full select-none overflow-hidden">
+      <SpaceBackdrop src="/space/11.webp" dim="bg-fd-background/78" />
+      <div className="absolute inset-x-0 bottom-0 top-24 px-5">
+        <div className="flex h-full flex-col justify-center gap-2.5">
           <AnimatePresence initial={false} mode="popLayout">
             {rows.map((row) => {
               const c = COMMITS[row.idx];
@@ -974,7 +972,7 @@ function AsCodeFeed() {
                     damping: 40,
                     mass: 0.9,
                   }}
-                  className="flex flex-1 items-center gap-3"
+                  className="flex items-center gap-3 rounded-lg border border-fd-border bg-fd-card px-3 py-2.5 shadow-sm shadow-black/20"
                 >
                   <CommitAvatar author={c.author} />
                   <div className="min-w-0 flex-1">
@@ -1012,18 +1010,16 @@ const ITEMS: Item[] = [
   {
     title: "Standard OpenTelemetry",
     description:
-      "Traces, logs, and metrics in one model — the same on your laptop, in CI, and in production.",
+      "Traces, logs and metrics in one open model — the same signal from your laptop to CI to production.",
     header: (
-      <LogoHeader>
+      <LogoShowcase src="/space/6.webp">
         <img
           src="/logos/otel.svg"
           alt="OpenTelemetry"
-          width={64}
-          height={64}
-          className="size-16"
           loading="lazy"
+          className="relative h-16 w-auto drop-shadow-2xl sm:h-20"
         />
-      </LogoHeader>
+      </LogoShowcase>
     ),
     icon: Network,
     className: "md:col-span-3",
@@ -1034,17 +1030,19 @@ const ITEMS: Item[] = [
       "The open CNCF dashboard spec, versioned as plain files — not locked in a UI.",
     header: <PersesShowcase />,
     icon: LineChart,
-    bleed: true,
     className: "md:col-span-9 md:row-span-2",
   },
   {
     title: "Query with SQL",
     description:
-      "One SQL surface across every signal. The same query runs locally and in the cloud.",
+      "One read-only SQL surface over every signal — no query language to learn, the same locally and in the cloud.",
     header: (
-      <LogoHeader>
-        <SiClickhouse className="size-14" color="default" />
-      </LogoHeader>
+      <LogoShowcase src="/space/9.webp">
+        <SiClickhouse
+          className="relative size-16 drop-shadow-2xl sm:size-20"
+          color="default"
+        />
+      </LogoShowcase>
     ),
     icon: Terminal,
     className: "md:col-span-3",
@@ -1055,7 +1053,6 @@ const ITEMS: Item[] = [
       "Everr reads the OpenTelemetry attributes your code already emits, so traces, logs, and metrics correlate on their own.",
     header: <SemanticConventions />,
     icon: Tags,
-    bleed: true,
     className: "md:col-span-6",
   },
   {
@@ -1064,7 +1061,6 @@ const ITEMS: Item[] = [
       "Open, inspectable files in Git — people and agents edit them side by side, reviewed and versioned like the rest of your code.",
     header: <AsCodeFeed />,
     icon: GitCommitVertical,
-    bleed: true,
     className: "md:col-span-6",
   },
 ];
