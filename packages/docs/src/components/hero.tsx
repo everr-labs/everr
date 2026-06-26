@@ -1,4 +1,5 @@
 import { Button } from "@everr/ui/components/button";
+import { Link } from "@tanstack/react-router";
 import { HoleBackground } from "./animate-ui/components/backgrounds/hole";
 
 export function Hero() {
@@ -15,12 +16,34 @@ export function Hero() {
             <span className="text-primary">For Real.</span>
           </h1>
           <p className="max-w-prose">
-            Setting up Observability shouldn't take days. Get started in
-            minutes.
+            One OpenTelemetry pipeline across your laptop, CI, and production —
+            and your coding assistant can read all of it. Setup takes minutes,
+            not days.
           </p>
-          <div>COMANDO DI TERMINAL</div>
+          <div className="flex flex-col gap-2">
+            <div className="flex w-full max-w-md items-center gap-3 rounded-md border border-fd-border bg-fd-card/70 px-4 py-3 backdrop-blur-sm">
+              <span
+                aria-hidden
+                className="select-none font-mono text-sm text-primary"
+              >
+                $
+              </span>
+              <code className="flex-1 overflow-x-auto whitespace-nowrap font-mono text-sm text-fd-foreground [scrollbar-width:thin]">
+                curl -fsSL https://everr.dev/install.sh | sh
+              </code>
+            </div>
+            <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-fd-muted-foreground/60">
+              macOS · Apple Silicon
+            </p>
+          </div>
           <div>
-            <Button variant="secondary" size="xl" className="self-start">
+            <Button
+              variant="secondary"
+              size="xl"
+              className="self-start"
+              nativeButton={false}
+              render={<Link to="/docs/$" params={{ _splat: "" }} />}
+            >
               Read the docs
             </Button>
           </div>

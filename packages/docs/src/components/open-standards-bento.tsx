@@ -22,10 +22,9 @@ import { useRef } from "react";
 const EASE = [0.22, 1, 0.36, 1] as const;
 
 /**
- * Per-signal portability is the honest core of this section: openness is
- * scoped deliberately and differently for each signal, never as a blanket
- * "portable" claim. Each tile names the exact open format and, where a format
- * is an acronym, glosses it inline rather than in a wall up top.
+ * Each tile names the open standard a signal actually uses — OpenTelemetry for
+ * the signals themselves, Perses for dashboards, version-controlled YAML for
+ * alerts. Where a format is an acronym, it's glossed inline.
  */
 type Signal = {
   icon: LucideIcon;
@@ -38,35 +37,34 @@ type Signal = {
 
 const SIGNALS: Signal[] = [
   {
-    icon: Gauge,
-    signal: "Metrics",
-    format: "PromQL",
-    gloss: "Prometheus Query Language — the dialect you already write.",
+    icon: Network,
+    signal: "Traces",
+    format: "OpenTelemetry",
+    gloss: "Standard OTLP spans — the same model on your laptop and in prod.",
   },
   {
-    icon: Bell,
-    signal: "Alerts",
-    format: "Prometheus rules",
-    gloss: "Standard alerting rules. Lift the YAML, drop it elsewhere.",
+    icon: ScrollText,
+    signal: "Logs",
+    format: "OpenTelemetry",
+    gloss: "Structured OTel logs over the same pipeline — nothing re-encoded.",
+  },
+  {
+    icon: Gauge,
+    signal: "Metrics",
+    format: "OpenTelemetry",
+    gloss: "OTel gauges, counters, and histograms over OTLP.",
   },
   {
     icon: LineChart,
     signal: "Dashboards",
     format: "Perses",
-    gloss: "The open, CNCF dashboard spec — versioned as plain files.",
+    gloss: "The open CNCF dashboard spec — versioned as plain files.",
   },
   {
-    icon: Network,
-    signal: "Traces",
-    format: "OTLP export",
-    gloss:
-      "Raw OpenTelemetry Protocol — the standard wire format, streamed out.",
-  },
-  {
-    icon: ScrollText,
-    signal: "Logs",
-    format: "OTLP export",
-    gloss: "Same raw OTLP pipe. Nothing re-encoded into a private shape.",
+    icon: Bell,
+    signal: "Alerts",
+    format: "As code (YAML)",
+    gloss: "Query-driven alerts in version control, applied with everr apply.",
   },
 ];
 
@@ -90,17 +88,18 @@ export function OpenStandardsBento() {
           className="max-w-3xl"
         >
           <p className="font-heading text-[11px] font-bold uppercase tracking-[0.3em] text-fd-muted-foreground/60">
-            Open by default
+            Built on open standards
           </p>
 
           <h2 className="mt-4 text-balance font-heading text-3xl leading-[1.1] tracking-tight sm:text-4xl md:text-5xl lg:text-6xl">
-            Your data stays in standard formats.{" "}
-            <span className="text-primary">You&apos;re never locked in.</span>
+            Open standards, top to bottom.{" "}
+            <span className="text-primary">Nothing proprietary to learn.</span>
           </h2>
 
           <p className="mt-6 max-w-xl text-base leading-relaxed text-fd-muted-foreground md:text-lg">
-            Openness is the on-ramp, not the moat. We&apos;d rather you stay
-            because leaving is easy — and staying is better.
+            Everr doesn&apos;t invent a private model. Your telemetry is
+            OpenTelemetry, your dashboards and alerts are plain files, and you
+            query all of it with SQL.
           </p>
         </motion.div>
 
@@ -202,24 +201,24 @@ function HeroTile({
       <div className="relative">
         <span className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-primary">
           <LockOpen className="size-3" strokeWidth={2.25} aria-hidden />
-          no exit tax
+          open formats
         </span>
 
         <h3 className="mt-5 max-w-md text-balance font-heading text-2xl leading-[1.12] tracking-tight text-fd-foreground sm:text-3xl">
-          Built on open standards, top to bottom.
+          One standard model for every signal.
         </h3>
 
         <p className="mt-4 max-w-md text-sm leading-relaxed text-fd-muted-foreground sm:text-base">
-          Every signal lands in a format the ecosystem already speaks — no
-          proprietary store, no re-ingest tax, no hostage data. Walk in on your
-          terms; walk out the same way.
+          Traces, logs, and metrics are all OpenTelemetry. Dashboards follow the
+          Perses spec, dashboards and alerts live in version control, and every
+          query is plain SQL — formats the ecosystem already speaks.
         </p>
       </div>
 
       <p className="relative mt-8 max-w-md border-t border-fd-border pt-5 font-heading text-sm leading-snug text-fd-foreground/90">
-        The door&apos;s unlocked on purpose.{" "}
+        Nothing proprietary to learn.{" "}
         <span className="text-fd-muted-foreground">
-          Most teams just stop looking for it.
+          The formats are ones you already know.
         </span>
       </p>
     </Tile>
@@ -253,35 +252,31 @@ function StanceTile({
             aria-hidden
           />
           <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-fd-muted-foreground/60">
-            why staying is better
+            one model, every signal
           </span>
         </div>
 
         <h3 className="mt-5 max-w-md text-balance font-heading text-xl leading-snug tracking-tight text-fd-foreground sm:text-2xl">
-          Leaving is easy. Staying is the obvious call.
+          One model across every signal.
         </h3>
 
         <p className="mt-4 max-w-lg text-sm leading-relaxed text-fd-muted-foreground sm:text-base">
-          What the open formats can&apos;t carry out the door is the part that
-          matters: one unified semantic contract across every signal, and a
-          single workflow that humans, CI, and coding agents all run against the
-          same store. That&apos;s not exported — it&apos;s how the system
-          thinks.
+          The real win isn&apos;t any single format — it&apos;s that humans, CI,
+          and coding assistants all query the same store, the same way. One
+          semantic model and one SQL surface, from your laptop to production.
         </p>
       </div>
 
       <div className="mt-7 flex flex-wrap gap-2">
-        {["unified semantic contract", "one shared workflow", "one store"].map(
-          (chip) => (
-            <span
-              key={chip}
-              className="inline-flex items-center gap-1.5 rounded-full border border-fd-border bg-fd-muted/40 px-3 py-1 font-mono text-[11px] tracking-tight text-fd-foreground/85"
-            >
-              <span className="size-1 rounded-full bg-primary" aria-hidden />
-              {chip}
-            </span>
-          ),
-        )}
+        {["one semantic model", "one SQL surface", "one store"].map((chip) => (
+          <span
+            key={chip}
+            className="inline-flex items-center gap-1.5 rounded-full border border-fd-border bg-fd-muted/40 px-3 py-1 font-mono text-[11px] tracking-tight text-fd-foreground/85"
+          >
+            <span className="size-1 rounded-full bg-primary" aria-hidden />
+            {chip}
+          </span>
+        ))}
       </div>
     </Tile>
   );
@@ -335,7 +330,7 @@ function SignalTile({
 function BoundaryTile({ inView, index }: { inView: boolean; index: number }) {
   return (
     <motion.a
-      href="/docs/reference/portability"
+      href="/docs/overview"
       initial={{ opacity: 0, y: 24 }}
       animate={inView ? { opacity: 1, y: 0 } : undefined}
       transition={{ duration: 0.7, delay: 0.08 + index * 0.07, ease: EASE }}
@@ -353,16 +348,16 @@ function BoundaryTile({ inView, index }: { inView: boolean; index: number }) {
 
       <div className="mt-6">
         <p className="font-heading text-sm font-bold tracking-tight text-fd-foreground">
-          Compatibility matrix
+          How it fits together
         </p>
         <p className="mt-2 text-[13px] leading-snug text-fd-muted-foreground">
-          The exact boundaries, in the open — what&rsquo;s fully portable and
-          what isn&rsquo;t. Honest, because hiding them would be the lock-in.
+          One OpenTelemetry pipeline across local, CI, and production — and how
+          the same model follows your code everywhere.
         </p>
       </div>
 
       <span className="mt-5 inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.16em] text-fd-muted-foreground/70 transition-colors group-hover:text-primary">
-        Read the matrix
+        Read the overview
         <ArrowRight className="size-3 transition-transform group-hover:translate-x-0.5" />
       </span>
     </motion.a>

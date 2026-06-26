@@ -78,7 +78,7 @@ export function AgentsCompare() {
             </span>
           </p>
           <a
-            href="/docs/agents"
+            href="/docs/reference/skills"
             className="group inline-flex shrink-0 items-center gap-2 self-start rounded-full bg-primary px-6 py-3 font-heading text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-fd-background"
           >
             Wire it into your agent
@@ -163,24 +163,26 @@ function GroundedColumn({ inView }: { inView: boolean }) {
 
       <TaskLine />
 
-      {/* The query the agent runs */}
+      {/* The query the agent runs — plain SQL via the CLI */}
       <div className="mt-6 overflow-hidden rounded-lg border border-fd-border bg-fd-background">
         <div className="flex items-center gap-2 border-b border-fd-border px-3 py-2">
           <span className="size-1.5 rounded-full bg-primary" />
           <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-fd-muted-foreground">
-            everr.query
+            everr cloud query
           </span>
         </div>
         <pre className="overflow-x-auto px-3 py-3 font-mono text-[12.5px] leading-relaxed text-fd-foreground sm:text-[13px]">
           <code>
-            <span className="text-fd-muted-foreground">everr.</span>query({"{"}
-            {"\n  "}service:{" "}
-            <span className="text-primary">&quot;checkout&quot;</span>,{"\n  "}
-            since: <span className="text-primary">&quot;15m&quot;</span>,
-            {"\n  "}where:{" "}
-            <span className="text-primary">&quot;status &gt;= 500&quot;</span>,
-            {"\n"}
-            {"}"})
+            <span className="select-none text-primary" aria-hidden>
+              ${" "}
+            </span>
+            {
+              'everr cloud query\n  "SELECT count() AS errors,\n         max(duration_ms) AS p99\n   FROM spans\n   WHERE service = '
+            }
+            <span className="text-primary">&apos;checkout&apos;</span>
+            {"\n     AND status >= "}
+            <span className="text-primary">500</span>
+            {'\n     AND ts > now() - INTERVAL 15 MINUTE"'}
           </code>
         </pre>
       </div>
@@ -215,18 +217,80 @@ function GroundedColumn({ inView }: { inView: boolean }) {
         </ul>
       </div>
 
-      {/* The correct fix */}
-      <div className="mt-6 rounded-lg border border-primary/40 bg-primary/5 p-4">
+      {/* The correct fix — shown as an editor diff */}
+      <div className="mt-6">
         <p className="font-heading text-[10px] font-bold uppercase tracking-[0.2em] text-primary">
           Correct fix
         </p>
-        <pre className="mt-2 overflow-x-auto font-mono text-[13px] leading-relaxed text-fd-foreground">
-          <code>{`- pool: { max: 10 }\n+ pool: { max: 50 }  // saturated at v812`}</code>
-        </pre>
+        <div className="mt-2 overflow-hidden rounded-lg border border-fd-border bg-fd-background shadow-lg shadow-black/20">
+          {/* editor chrome: traffic lights, filename, diff stat */}
+          <div className="flex items-center gap-2 border-b border-fd-border bg-fd-card/60 px-3 py-2">
+            <span className="size-2.5 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
+            <span className="size-2.5 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
+            <span className="size-2.5 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
+            <span className="ml-2 font-mono text-[11px] text-fd-muted-foreground">
+              db.ts
+            </span>
+            <span className="ml-auto flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.12em]">
+              <span className="text-green-400">+1</span>
+              <span className="text-red-400/80">-1</span>
+            </span>
+          </div>
+          {/* diff body with a line-number gutter */}
+          <div className="font-mono text-[13px] leading-relaxed">
+            {/* removed line */}
+            <div className="flex items-stretch bg-red-500/10">
+              <span
+                aria-hidden
+                className="w-9 shrink-0 select-none border-r border-fd-border/60 px-2 py-1 text-right text-fd-muted-foreground/40"
+              >
+                12
+              </span>
+              <span
+                aria-hidden
+                className="select-none px-2 py-1 text-red-400/70"
+              >
+                -
+              </span>
+              <code className="py-1 pr-3 text-fd-muted-foreground">
+                {"pool: { max: "}
+                <span className="rounded-sm bg-red-500/25 px-1 text-red-300">
+                  10
+                </span>
+                {" }"}
+              </code>
+            </div>
+            {/* added line */}
+            <div className="flex items-stretch bg-green-500/10">
+              <span
+                aria-hidden
+                className="w-9 shrink-0 select-none border-r border-fd-border/60 px-2 py-1 text-right text-fd-muted-foreground/40"
+              >
+                12
+              </span>
+              <span
+                aria-hidden
+                className="select-none px-2 py-1 text-green-400"
+              >
+                +
+              </span>
+              <code className="py-1 pr-3 text-fd-foreground">
+                {"pool: { max: "}
+                <span className="rounded-sm bg-green-500/25 px-1 font-semibold text-green-300">
+                  50
+                </span>
+                {" }"}
+                <span className="text-fd-muted-foreground/50">
+                  {"  // saturated at v812"}
+                </span>
+              </code>
+            </div>
+          </div>
+        </div>
         <div className="mt-3 flex items-center gap-2 text-fd-muted-foreground">
           <Check className="size-3.5 shrink-0 text-primary" />
           <span className="font-mono text-[11px] uppercase tracking-[0.12em]">
-            sources: 2.1M spans · confidence: high
+            grounded in what actually ran
           </span>
         </div>
       </div>

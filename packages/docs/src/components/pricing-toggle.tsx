@@ -1,3 +1,6 @@
+// Pricing is intentionally off the homepage until launch pricing is finalized;
+// this component is retained for reuse. Dead-code is silenced via the fallow
+// override for this file in .fallowrc.jsonc.
 import { cn } from "@everr/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import {

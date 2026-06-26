@@ -1,11 +1,11 @@
 import { cn } from "@everr/ui/lib/utils";
 import {
-  Bell,
   Bot,
+  FileCode2,
+  FlaskConical,
   Layers,
   type LucideIcon,
-  Search,
-  Timer,
+  Terminal,
 } from "lucide-react";
 import { motion, useInView } from "motion/react";
 import { useRef } from "react";
@@ -24,60 +24,60 @@ const FEATURES: Feature[] = [
     index: "01",
     icon: Layers,
     label: "Signals",
-    title: "Unified logs, traces & metrics",
-    body: "Every signal lands in one place, correlated by default. Jump from a spiking metric to the exact trace to the log line that explains it — no context switching, no copy-pasting IDs between four tabs.",
+    title: "Logs, traces & metrics — all OpenTelemetry",
+    body: "Every signal is standard OpenTelemetry, so one model covers your laptop, CI, and production. Even GitHub Actions runs and test results land as the same kind of signal — one set of tools works everywhere.",
     points: [
-      "OpenTelemetry-native ingest",
-      "Auto-correlated by trace ID",
-      "No agents to babysit",
+      "Standard OpenTelemetry, end to end",
+      "One model for local, CI & prod",
+      "CI runs & tests are signals too",
     ],
   },
   {
     index: "02",
-    icon: Search,
+    icon: Terminal,
     label: "Query",
-    title: "One query surface",
-    body: "A single expressive language across all your telemetry. Write it once, run it against logs, traces, and metrics alike — the same syntax your agents already know how to generate.",
+    title: "One SQL surface, from the CLI",
+    body: "Query what actually ran with plain SQL — `everr local query` against your machine, `everr cloud query` against the shared workspace. Same read-only surface locally and in the cloud.",
     points: [
-      "Same grammar everywhere",
-      "Sub-second over billions of rows",
-      "Save, share, schedule",
+      "Plain SQL, local and cloud",
+      "Read-only by default",
+      "The query your agent can write",
     ],
   },
   {
     index: "03",
-    icon: Timer,
-    label: "Retention",
-    title: "Tiered retention",
-    body: "Keep hot data fast and cold data cheap. Recent windows stay instant; older data tiers down automatically so your bill tracks value, not volume — without ever losing the history you might need.",
+    icon: FileCode2,
+    label: "As code",
+    title: "Dashboards & alerts as code",
+    body: "Define dashboards and alerts as version-controlled files and reconcile them with `everr apply`. Perses-compatible panels and query-driven alerts — Git is the source of truth, not a dashboard editor.",
     points: [
-      "Hot / warm / cold tiers",
-      "Per-stream policies",
-      "Predictable spend",
+      "Perses-compatible, applied with everr apply",
+      "Query-driven alerts on your data",
+      "Git is the source of truth",
     ],
   },
   {
     index: "04",
-    icon: Bell,
-    label: "Reliability",
-    title: "Alerting & SLOs",
-    body: "Define what good looks like, then let Everr watch it for you. Burn-rate alerts, error budgets, and multi-window SLOs that page the right human — or the right agent — before users notice.",
+    icon: FlaskConical,
+    label: "CI & tests",
+    title: "CI you can query",
+    body: "The GitHub App turns every Actions run into structured data — workflows, jobs, steps, and logs. Verbose test output becomes per-test spans, so flaky tests, slow steps, and runner cost are all just queries.",
     points: [
-      "Multi-window burn rates",
-      "Error-budget tracking",
-      "Route to humans or agents",
+      "GitHub Actions as structured data",
+      "Per-test spans & flaky-test trends",
+      "Per-job resource & cost analysis",
     ],
   },
   {
     index: "05",
     icon: Bot,
     label: "Agents",
-    title: "Built for agents",
-    body: "Your coding agents query Everr the way you do. Ground their decisions in real runtime behavior instead of guesses, and let every investigation compound into shared, reusable context.",
+    title: "Built for coding assistants",
+    body: "Everr assumes your coding assistant is a primary user. Bundled skills teach it when to reach for telemetry and how to query it, working from your repo so it connects runtime signal back to the code that caused it.",
     points: [
-      "Machine-readable query API",
-      "Grounded in real behavior",
-      "Shared session memory",
+      "Bundled skills, installed once",
+      "Works from your repository",
+      "Grounds fixes in what actually ran",
     ],
   },
 ];
@@ -105,8 +105,8 @@ export function FeaturesZigzag() {
             Everything you need to see what your code actually does.
           </h2>
           <p className="mt-6 max-w-xl text-base leading-relaxed text-fd-muted-foreground md:text-lg">
-            One pipeline, one query surface, one bill — from the laptop to the
-            cluster. A guided tour of the surface.
+            One pipeline and one query surface, from your laptop to production.
+            A guided tour of what&rsquo;s inside.
           </p>
         </motion.div>
 

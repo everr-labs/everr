@@ -8,7 +8,6 @@ import { FinalCTA } from "@/components/final-cta";
 import { Footer } from "@/components/footer";
 import { Hero } from "@/components/hero";
 import { OpenStandardsBento } from "@/components/open-standards-bento";
-import { PricingToggle } from "@/components/pricing-toggle";
 import { QuickstartFriction } from "@/components/quickstart-friction";
 
 export const Route = createFileRoute("/")({
@@ -23,7 +22,6 @@ function RouteComponent() {
       <QuickstartFriction />
       <AgentsCompare />
       <OpenStandardsBento />
-      <PricingToggle />
       <FeaturedTestimonial />
       <FAQ />
       <Community />

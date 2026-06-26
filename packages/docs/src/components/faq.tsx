@@ -16,9 +16,9 @@ const FAQS: FaqItem[] = [
     q: "Where is my telemetry stored?",
     a: (
       <>
-        On the device that produced it. Local-first by default. If you want a
-        shared cluster for your team we host one — but it's never required and
-        nothing leaves your machine until you opt in.
+        While you develop, a collector runs on your machine and the data stays
+        local. In production, your services send OpenTelemetry to the Everr
+        cloud over OTLP, into a shared workspace scoped to your organization.
       </>
     ),
   },
@@ -26,9 +26,9 @@ const FAQS: FaqItem[] = [
     q: "Do I have to instrument my code?",
     a: (
       <>
-        If your runtime speaks OpenTelemetry, you're already done. If not, OTel
-        SDKs are already in every model's training data — point your agent at
-        the codebase and it will wire it up faster than you can read the docs.
+        If your runtime already speaks OpenTelemetry, you're most of the way
+        there. Everr's bundled skills also help your coding assistant add the
+        right instrumentation, working straight from your repository.
       </>
     ),
   },
@@ -36,18 +36,26 @@ const FAQS: FaqItem[] = [
     q: "Does it work in CI?",
     a: (
       <>
-        Yes. Drop the same binary into a GitHub Actions step. The data model,
-        SQL surface, and APIs are identical to what you run locally — so
-        identifying a CI regression is literally one query away.
+        Yes. The GitHub App ingests your GitHub Actions runs — workflows, jobs,
+        steps, and logs — as structured data, and verbose test output becomes
+        per-test spans. You query it with the same SQL you use locally.
       </>
     ),
   },
   {
-    q: "How do AI agents query Everr?",
+    q: "How do coding assistants query Everr?",
     a: (
       <>
-        Through one structured API and plain SQL via a CLI so Claude Code,
-        Cursor, Codex, Copilot, and friends can hit it without any glue code.
+        Through bundled skills plus plain SQL via the CLI —{" "}
+        <code className="font-mono text-[0.95em] text-fd-foreground">
+          everr local query
+        </code>{" "}
+        and{" "}
+        <code className="font-mono text-[0.95em] text-fd-foreground">
+          everr cloud query
+        </code>
+        . Assistants like Claude Code, Cursor, and Copilot read your telemetry
+        directly, no glue code.
       </>
     ),
   },
@@ -55,8 +63,9 @@ const FAQS: FaqItem[] = [
     q: "What does it cost?",
     a: (
       <>
-        Free for local use, forever. You only pay when you want a hosted
-        cluster, premium support, or longer retention.
+        Everr has Free and Pro tiers. They differ mainly on retention — 30 days
+        on Free; on Pro, 90 days for traces and logs and 13 months for metrics.
+        Full pricing is shared as we approach launch.
       </>
     ),
   },

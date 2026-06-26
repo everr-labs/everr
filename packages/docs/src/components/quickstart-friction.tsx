@@ -20,13 +20,13 @@ const OLD_WAY_STEPS = [
 ] as const;
 
 const EVERR_STEPS = [
-  "Collector? handled",
-  "Auto-instrumentation? on",
-  "Dashboards? preloaded",
-  "First trace? ~2 min",
+  "Installs the everr CLI",
+  "Runs guided setup",
+  "Local collector ready",
+  "First trace in minutes",
 ] as const;
 
-const COMMAND = "npx everr init";
+const COMMAND = "curl -fsSL https://everr.dev/install.sh | sh";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -77,9 +77,9 @@ export function QuickstartFriction() {
             Days of setup, or one command.
           </h2>
           <p className="mt-6 max-w-xl text-balance text-base leading-relaxed text-fd-muted-foreground sm:text-lg">
-            The usual path to observability is a week of yak-shaving. Everr is a
-            single line — sensible defaults, auto-instrumentation, first trace
-            in minutes.
+            The usual path to observability is a week of yak-shaving. Everr is
+            one line: install the CLI, run guided setup, and you&rsquo;re
+            sending telemetry in minutes.
           </p>
         </motion.div>
 
@@ -213,8 +213,11 @@ export function QuickstartFriction() {
             </div>
 
             <p className="mt-4 text-sm leading-relaxed text-fd-muted-foreground">
-              Sensible defaults plus auto-instrumentation — nothing else to
-              wire.
+              One installer sets up the CLI and a local collector — nothing else
+              to wire.{" "}
+              <span className="text-fd-muted-foreground/60">
+                macOS · Apple Silicon.
+              </span>
             </p>
 
             {/* Short, crisp lime checklist */}
@@ -253,7 +256,7 @@ export function QuickstartFriction() {
                 aria-hidden
               />
               <span className="font-mono text-4xl font-bold leading-none tracking-tight text-fd-foreground sm:text-5xl">
-                ~2 min
+                minutes
               </span>
               <span className="ml-auto font-heading text-[11px] font-bold uppercase tracking-[0.2em] text-primary">
                 to first trace
@@ -274,7 +277,7 @@ export function QuickstartFriction() {
             straight to the data.
           </p>
           <a
-            href="/docs"
+            href="/docs/getting-started/install"
             className="group inline-flex shrink-0 items-center gap-2 rounded-full border border-fd-border bg-fd-card/40 px-6 py-3 font-heading text-sm font-bold tracking-tight text-fd-foreground outline-none transition-colors hover:border-primary/50 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-fd-background"
           >
             Read the quickstart

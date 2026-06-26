@@ -38,6 +38,13 @@
       // does not exist during CI's pre-build dead-code scan.
       "files": ["packages/auto-otel-errors/test/fixtures/*.mjs"],
       "rules": { "unresolved-imports": "off" }
+    },
+    {
+      // PricingToggle is intentionally kept but not rendered anywhere right now:
+      // pricing was pulled from the homepage until launch pricing is finalized.
+      // Retained for reuse when it returns.
+      "files": ["packages/docs/src/components/pricing-toggle.tsx"],
+      "rules": { "unused-files": "off", "unused-exports": "off" }
     }
   ],
   // Internal workspace libraries whose exported API surface is intentional —
