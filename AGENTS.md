@@ -4,6 +4,8 @@ Never use `tsx`
 
 Never add tests for YAML files that only check their text content.
 
+NEVER use a useEffect to react to props change to update an internal state. That's the worst thing you can do in a React app.
+
 # CONSTITUTION
 
 When working on the web app, always test changes manually, use the credentials from .auth (look for this on the main worktree)
