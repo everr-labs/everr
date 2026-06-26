@@ -36,16 +36,16 @@ export function AppShell() {
       <div data-tauri-drag-region className="fixed inset-x-0 top-0 h-9" />
       <Card className="flex flex-row gap-0 h-screen w-full overflow-hidden border-[color:var(--settings-border)] bg-[var(--settings-panel)] text-[var(--settings-text)] shadow-[var(--settings-panel-shadow)] py-0">
         <nav className="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-white/[0.06] pt-[var(--titlebar-top)] pb-3">
-          <NotificationsLink />
           <SidebarLink to="/logs" label="Logs">
             <ScrollText className="size-[18px]" />
-          </SidebarLink>
-          <SidebarLink to="/errors" label="Errors">
-            <Bug className="size-[18px]" />
           </SidebarLink>
           <SidebarLink to="/traces" label="Traces">
             <Workflow className="size-[18px]" />
           </SidebarLink>
+          <SidebarLink to="/errors" label="Errors">
+            <Bug className="size-[18px]" />
+          </SidebarLink>
+          <NotificationsLink />
           <SidebarLink to="/settings" label="Settings">
             <Settings className="size-[18px]" />
           </SidebarLink>
@@ -90,7 +90,7 @@ function SidebarLink({
 function NotificationsLink() {
   return (
     <Link
-      to="/"
+      to="/ci"
       aria-label="Your CI runs"
       className="relative flex size-9 items-center justify-center rounded-md text-[var(--settings-text-muted)] transition-colors hover:bg-white/[0.06] hover:text-[var(--settings-text)] [&.active]:bg-white/[0.08] [&.active]:text-[var(--settings-text)]"
     >
