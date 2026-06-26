@@ -38,6 +38,7 @@ use commands::{
     set_simulated_update,
     open_run_in_browser, open_sign_in_browser, poll_sign_in, reset_dev_onboarding,
     restart_collector, set_notification_emails, sign_out, start_sign_in, trigger_test_notification,
+    get_skills_status, install_skills,
 };
 use notifications::{dismiss_active_notification_inner, start_notifier_loop};
 use settings::{open_settings_window, wizard_incomplete};
@@ -347,7 +348,9 @@ pub fn run() {
             copy_run_auto_fix_prompt,
             otel::get_telemetry_context,
             otel::proxy_otlp,
-            telemetry::query::telemetry_sql_query
+            telemetry::query::telemetry_sql_query,
+            get_skills_status,
+            install_skills
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

@@ -8,7 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@everr/ui/components/dropdown-menu";
-import { Link, Outlet } from "@tanstack/react-router";
+import { Link, Outlet, useNavigate } from "@tanstack/react-router";
 import {
   Bug,
   CircleUser,
@@ -24,6 +24,7 @@ import { useIsFullscreen } from "../../lib/tauri-events";
 import {
   useAuthStatusQuery,
   useOrgQuery,
+  useSignInMutation,
   useSignOutMutation,
   useUserProfileQuery,
 } from "../auth/auth";
@@ -101,7 +102,9 @@ function NotificationsLink() {
 }
 
 function AuthStatusIndicator() {
+  const navigate = useNavigate();
   const authStatusQuery = useAuthStatusQuery();
+  const signInMutation = useSignInMutation();
   const signOutMutation = useSignOutMutation();
   const signedIn = authStatusQuery.data?.status === "signed_in";
   const profileQuery = useUserProfileQuery(signedIn);
@@ -162,11 +165,19 @@ function AuthStatusIndicator() {
           />
         ) : (
           <DropdownMenuItem
+            disabled={signInMutation.isPending}
             render={
-              <Link to="/settings" className="w-full">
+              <button
+                type="button"
+                className="w-full"
+                onClick={() => {
+                  void signInMutation.mutateAsync();
+                  void navigate({ to: "/settings" });
+                }}
+              >
                 <LogIn className="mr-2 size-4" />
                 Sign in
-              </Link>
+              </button>
             }
           />
         )}

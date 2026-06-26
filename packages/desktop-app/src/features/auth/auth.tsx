@@ -170,7 +170,7 @@ function usePendingSignInQuery(enabled: boolean) {
   });
 }
 
-function useSignInMutation() {
+export function useSignInMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({

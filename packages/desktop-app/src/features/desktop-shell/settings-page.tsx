@@ -6,6 +6,7 @@ import {
   useRestartCollectorMutation,
 } from "../local-telemetry/collector-status";
 import { NotificationEmailsSection } from "../notifications/notification-emails-section";
+import { SkillsSection } from "../skills/skills-section";
 import { SettingsSection } from "./ui";
 
 function LocalTelemetrySection() {
@@ -82,6 +83,7 @@ export function SettingsPage() {
             <AuthSettingsSection />
           </div>
           <NotificationEmailsSection />
+          <SkillsSection />
           <LocalTelemetrySection />
         </div>
       </div>

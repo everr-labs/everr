@@ -83,7 +83,9 @@ type MainCommand =
   | "restart_collector"
   | "get_runs_list"
   | "open_run_in_browser"
-  | "copy_run_auto_fix_prompt";
+  | "copy_run_auto_fix_prompt"
+  | "get_skills_status"
+  | "install_skills";
 
 type RenderMainOptions = {
   signedIn?: boolean;
@@ -231,6 +233,10 @@ function renderMainApp(options: RenderMainOptions = {}) {
           return collectorStatus;
         case "telemetry_sql_query":
           return [];
+        case "get_skills_status":
+          return [];
+        case "install_skills":
+          return null;
         case "restart_collector":
           return restartCollectorSpy();
         case "get_runs_list":

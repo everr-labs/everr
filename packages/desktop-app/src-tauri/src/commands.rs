@@ -1,5 +1,6 @@
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use everr_core::api::{ApiClient, FailureNotification};
+use everr_core::skills::{self as core_skills, SkillOperationOptions, SkillProvider, SkillScope};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
 
@@ -140,6 +141,72 @@ pub(crate) async fn set_notification_emails(
         update_settings(&runtime, |settings| {
             settings.notification_emails = emails;
         })
+    })
+    .await?;
+    emit_settings_changed(&app);
+    Ok(())
+}
+
+#[derive(Serialize)]
+pub(crate) struct SkillProviderState {
+    pub provider: String,
+    pub detected: bool,
+    pub installed: bool,
+}
+
+fn parse_skill_provider(value: &str) -> Result<SkillProvider> {
+    match value {
+        "codex" => Ok(SkillProvider::Codex),
+        "claude-code" => Ok(SkillProvider::ClaudeCode),
+        "cursor" => Ok(SkillProvider::Cursor),
+        other => bail!("unknown skill provider: {other}"),
+    }
+}
+
+#[tauri::command]
+pub(crate) async fn get_skills_status() -> CommandResult<Vec<SkillProviderState>> {
+    run_blocking_command(move || {
+        let home_dir = dirs::home_dir().context("failed to resolve home directory")?;
+        let bundled = core_skills::bundled_skills()?;
+        let states = core_skills::provider_statuses(&home_dir)
+            .into_iter()
+            .map(|status| {
+                let provider_dir = std::path::PathBuf::from(&status.path);
+                let installed = bundled
+                    .iter()
+                    .any(|skill| provider_dir.join(&skill.name).join("SKILL.md").is_file());
+                SkillProviderState {
+                    provider: status.provider.as_str().to_string(),
+                    detected: status.detected,
+                    installed,
+                }
+            })
+            .collect();
+        Ok(states)
+    })
+    .await
+}
+
+#[tauri::command]
+pub(crate) async fn install_skills(app: AppHandle, providers: Vec<String>) -> CommandResult<()> {
+    run_blocking_command(move || {
+        let home_dir = dirs::home_dir().context("failed to resolve home directory")?;
+        let cwd = std::env::current_dir().context("could not determine current directory")?;
+        let providers = providers
+            .iter()
+            .map(|value| parse_skill_provider(value))
+            .collect::<Result<Vec<_>>>()?;
+        let options = SkillOperationOptions {
+            scope: SkillScope::Global,
+            cwd,
+            home_dir,
+            providers,
+            skill_names: Vec::new(),
+            all: true,
+            dry_run: false,
+        };
+        core_skills::install_bundled_skills(&options)?;
+        Ok(())
     })
     .await?;
     emit_settings_changed(&app);
