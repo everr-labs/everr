@@ -79,6 +79,7 @@ type MainCommand =
   | "reset_dev_onboarding"
   | "trigger_test_notification"
   | "get_collector_status"
+  | "telemetry_sql_query"
   | "restart_collector"
   | "get_runs_list"
   | "open_run_in_browser"
@@ -228,6 +229,8 @@ function renderMainApp(options: RenderMainOptions = {}) {
           return triggerTestNotificationSpy();
         case "get_collector_status":
           return collectorStatus;
+        case "telemetry_sql_query":
+          return [];
         case "restart_collector":
           return restartCollectorSpy();
         case "get_runs_list":
@@ -374,31 +377,53 @@ afterEach(async () => {
 });
 
 describe("desktop window", () => {
-  it("renders the notifications view as the default for completed users", async () => {
+  it("renders the CI runs view at /ci when signed in", async () => {
     renderMainApp();
+
+    await act(async () => {
+      await router.load();
+      await router.navigate({ to: "/ci" });
+    });
 
     expect(
       await screen.findByRole("heading", { name: "Your CI runs" }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByText("Authenticate your Everr account"),
+      screen.queryByText("Sign in to view your CI runs"),
     ).not.toBeInTheDocument();
     expect(screen.queryByText("Background tasks")).not.toBeInTheDocument();
   });
 
-  it("renders the sign-in screen when not authenticated", async () => {
+  it("shows the inline CI sign-in when not authenticated", async () => {
     renderMainApp({
       signedIn: false,
     });
 
     await act(async () => {
-      await router.navigate({ to: "/settings" });
+      await router.navigate({ to: "/ci" });
     });
 
     expect(
-      await screen.findByText("Authenticate your Everr account"),
+      await screen.findByText("Sign in to view your CI runs"),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
+  });
+
+  it("renders local pages without an auth wall when signed out", async () => {
+    renderMainApp({
+      signedIn: false,
+    });
+
+    await act(async () => {
+      await router.navigate({ to: "/logs" });
+    });
+
+    expect(
+      screen.queryByText("Sign in to view your CI runs"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Sign in" }),
+    ).not.toBeInTheDocument();
   });
 
   it("triggers a test notification from the settings view", async () => {
@@ -424,7 +449,7 @@ describe("desktop window", () => {
     ).toBeInTheDocument();
   });
 
-  it("resets the dev session and reopens onboarding from the developer view", async () => {
+  it("resets the dev session and surfaces the CI sign-in", async () => {
     const { resetDevOnboardingSpy } = renderMainApp();
 
     await act(async () => {
@@ -438,8 +463,10 @@ describe("desktop window", () => {
     await waitFor(() => {
       expect(resetDevOnboardingSpy).toHaveBeenCalledTimes(1);
     });
+
+    // Dev-reset now navigates to /ci, which shows the inline sign-in.
     expect(
-      await screen.findByText("Authenticate your Everr account"),
+      await screen.findByText("Sign in to view your CI runs"),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
   });
@@ -599,6 +626,10 @@ describe("runs list", () => {
   it("shows an empty state when there are no runs", async () => {
     renderMainApp({ runs: [] });
 
+    await act(async () => {
+      await router.navigate({ to: "/ci" });
+    });
+
     expect(await screen.findByText("No runs found")).toBeInTheDocument();
   });
 
@@ -620,6 +651,10 @@ describe("runs list", () => {
           conclusion: "success",
         }),
       ],
+    });
+
+    await act(async () => {
+      await router.navigate({ to: "/ci" });
     });
 
     expect(await screen.findByText("Build")).toBeInTheDocument();
