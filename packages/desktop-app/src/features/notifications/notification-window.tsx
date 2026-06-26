@@ -129,7 +129,7 @@ export function DeveloperNotificationSection() {
 
   return (
     <SettingsSection
-      title="Developer"
+      title="Notifications & onboarding"
       description="Preview the notification surface and reset the local dev app state."
       compact
     >
