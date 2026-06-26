@@ -1,5 +1,5 @@
-import { HoleBackground } from "./animate-ui/components/backgrounds/hole";
 import { Button } from "@everr/ui/components/button";
+import { HoleBackground } from "./animate-ui/components/backgrounds/hole";
 
 export function Hero() {
   return (
