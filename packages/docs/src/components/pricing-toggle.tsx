@@ -11,7 +11,7 @@ import {
   Terminal,
   Zap,
 } from "lucide-react";
-import { AnimatePresence, motion, useInView } from "motion/react";
+import { motion, useInView } from "motion/react";
 import { useCallback, useId, useRef, useState } from "react";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -149,20 +149,44 @@ export function PricingToggle() {
           </div>
         </motion.div>
 
-        {/* Panel */}
+        {/* Panel — both variants are always rendered, stacked in the same grid
+            cell, so the section height stays constant (sized to the taller
+            panel) no matter which tab is active. Each slides in from its own
+            side (self-host from the left, cloud from the right). `x`/opacity
+            animate via transforms, which don't affect layout, so the stack keeps
+            reserving the taller panel's height throughout the transition. */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={inView ? { opacity: 1, y: 0 } : undefined}
           transition={{ duration: 0.7, delay: 0.25, ease: EASE }}
-          className="relative mt-8 min-h-[28rem]"
+          className="mt-8 grid"
         >
-          <AnimatePresence mode="wait" initial={false}>
-            {mode === "self-host" ? (
-              <SelfHostPanel key="self-host" tablistId={tablistId} />
-            ) : (
-              <CloudPanel key="cloud" tablistId={tablistId} />
-            )}
-          </AnimatePresence>
+          <motion.div
+            inert={mode !== "self-host"}
+            aria-hidden={mode !== "self-host"}
+            initial={false}
+            animate={
+              mode === "self-host"
+                ? { opacity: 1, x: 0 }
+                : { opacity: 0, x: -28 }
+            }
+            transition={{ duration: 0.45, ease: EASE }}
+            className="col-start-1 row-start-1"
+          >
+            <SelfHostPanel tablistId={tablistId} />
+          </motion.div>
+          <motion.div
+            inert={mode !== "cloud"}
+            aria-hidden={mode !== "cloud"}
+            initial={false}
+            animate={
+              mode === "cloud" ? { opacity: 1, x: 0 } : { opacity: 0, x: 28 }
+            }
+            transition={{ duration: 0.45, ease: EASE }}
+            className="col-start-1 row-start-1"
+          >
+            <CloudPanel tablistId={tablistId} />
+          </motion.div>
         </motion.div>
 
         {/* Link to the detailed plan-comparison page */}
@@ -194,14 +218,10 @@ export function PricingToggle() {
 
 function SelfHostPanel({ tablistId }: { tablistId: string }) {
   return (
-    <motion.div
+    <div
       role="tabpanel"
       id={`${tablistId}-self-host-panel`}
       aria-labelledby={`${tablistId}-self-host-tab`}
-      initial={{ opacity: 0, x: -28 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -28 }}
-      transition={{ duration: 0.45, ease: EASE }}
       className="grid items-stretch gap-6 lg:grid-cols-[1.1fr_1fr]"
     >
       {/* Left: the offer */}
@@ -313,7 +333,7 @@ function SelfHostPanel({ tablistId }: { tablistId: string }) {
           })}
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }
 
@@ -323,14 +343,10 @@ function SelfHostPanel({ tablistId }: { tablistId: string }) {
 
 function CloudPanel({ tablistId }: { tablistId: string }) {
   return (
-    <motion.div
+    <div
       role="tabpanel"
       id={`${tablistId}-cloud-panel`}
       aria-labelledby={`${tablistId}-cloud-tab`}
-      initial={{ opacity: 0, x: 28 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: 28 }}
-      transition={{ duration: 0.45, ease: EASE }}
       className="grid items-stretch gap-6 lg:grid-cols-[1fr_1.1fr]"
     >
       {/* Left: usage meters — distinct presentation */}
@@ -442,6 +458,6 @@ function CloudPanel({ tablistId }: { tablistId: string }) {
           />
         </button>
       </div>
-    </motion.div>
+    </div>
   );
 }

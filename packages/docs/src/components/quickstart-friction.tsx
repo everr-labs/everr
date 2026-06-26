@@ -90,7 +90,7 @@ export function QuickstartFriction() {
             initial={{ opacity: 0, y: 28 }}
             animate={inView ? { opacity: 1, y: 0 } : undefined}
             transition={{ duration: 0.85, delay: 0.15, ease: EASE }}
-            className="flex flex-col rounded-2xl border border-dashed border-fd-border/70 bg-fd-card/20 p-6 sm:p-8 md:rounded-r-none md:border-r-0"
+            className="flex flex-col rounded-2xl border border-dashed border-fd-border bg-fd-card/40 p-6 sm:p-8 md:rounded-r-none md:border-r-0"
           >
             <div className="flex items-baseline justify-between gap-4">
               <h3 className="font-heading text-xs font-bold uppercase tracking-[0.25em] text-fd-muted-foreground/70">

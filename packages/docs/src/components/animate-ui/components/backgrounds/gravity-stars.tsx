@@ -1,5 +1,3 @@
-"use client";
-
 import { cn } from "@everr/ui/lib/utils";
 import * as React from "react";
 
@@ -343,6 +341,7 @@ function GravityStarsBackground({
   }, [animate]);
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: just presentationals
     <div
       ref={containerRef}
       data-slot="gravity-stars-background"

@@ -101,7 +101,7 @@ function GuessingColumn({ inView }: { inView: boolean }) {
       initial={{ opacity: 0, y: 24 }}
       animate={inView ? { opacity: 0.78, y: 0 } : undefined}
       transition={{ ...REVEAL.transition, delay: 0.15 }}
-      className="flex flex-col rounded-2xl border border-dashed border-fd-border bg-fd-card/20 p-6 md:rounded-r-none md:border-r-0 md:p-8"
+      className="flex flex-col rounded-2xl border border-dashed border-fd-border bg-fd-card/40 p-6 sm:p-8 md:rounded-r-none md:border-r-0"
     >
       <ColumnHeader
         label="Without Everr"
@@ -153,7 +153,7 @@ function GroundedColumn({ inView }: { inView: boolean }) {
       initial={{ opacity: 0, y: 24 }}
       animate={inView ? { opacity: 1, y: 0 } : undefined}
       transition={{ ...REVEAL.transition, delay: 0.3 }}
-      className="relative flex flex-col rounded-2xl border-2 border-primary/60 bg-fd-card p-6 ring-1 ring-inset ring-primary/10 md:rounded-l-none md:p-8"
+      className="relative flex flex-col rounded-2xl border border-fd-border bg-fd-card p-6 shadow-2xl shadow-black/40 sm:p-8 md:rounded-l-none"
     >
       <ColumnHeader
         label="With Everr"

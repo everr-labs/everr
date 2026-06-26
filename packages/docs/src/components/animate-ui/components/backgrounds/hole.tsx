@@ -1,5 +1,3 @@
-"use client";
-
 import { cn } from "@everr/ui/lib/utils";
 import { motion } from "motion/react";
 import * as React from "react";
