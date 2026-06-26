@@ -1,18 +1,33 @@
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarGroup,
+  AvatarImage,
+} from "@everr/ui/components/avatar";
 import { cn } from "@everr/ui/lib/utils";
-import { SiClickhouse, SiGit } from "@icons-pack/react-simple-icons";
+import { SiClickhouse } from "@icons-pack/react-simple-icons";
 import {
   ArrowRight,
   Boxes,
   Cloud,
-  FileCode2,
+  GitCommitVertical,
   LineChart,
   type LucideIcon,
   Network,
   Tags,
   Terminal,
 } from "lucide-react";
-import { motion, useInView, useReducedMotion } from "motion/react";
+import {
+  AnimatePresence,
+  motion,
+  useInView,
+  useReducedMotion,
+} from "motion/react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import claudeMark from "./icons/claudecode.svg";
+import codexMark from "./icons/codex.svg";
+import opencodeMark from "./icons/opencode.svg";
+import piMark from "./icons/pi.svg";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -761,6 +776,259 @@ function PersesShowcase() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  As code — a live commit feed of dashboards, alerts & runbooks      */
+/* ------------------------------------------------------------------ */
+
+/** A real teammate — avatar pulled live from their GitHub profile, initials as
+ *  the fallback while it loads (and for SSR). */
+type Human = {
+  login: string;
+  name: string;
+  initials: string;
+  tone: string;
+};
+/** A coding agent — its brand mark sits in the avatar. */
+type Agent = { name: string; mark: string };
+
+type Author =
+  | { kind: "agent"; agent: Agent }
+  | { kind: "human"; human: Human }
+  | { kind: "pair"; human: Human; agent: Agent };
+
+// Muted, cool fallback tones for the initials, distinct from one another.
+const ELFO: Human = {
+  login: "Elfo404",
+  name: "Gio",
+  initials: "GR",
+  tone: "bg-sky-500/20 text-sky-200",
+};
+const GDORSI: Human = {
+  login: "gdorsi",
+  name: "Guido",
+  initials: "GD",
+  tone: "bg-violet-500/20 text-violet-200",
+};
+
+const CLAUDE: Agent = { name: "Claude", mark: claudeMark };
+const CODEX: Agent = { name: "Codex", mark: codexMark };
+const PI: Agent = { name: "Pi", mark: piMark };
+const OPENCODE: Agent = { name: "opencode", mark: opencodeMark };
+
+type Commit = { hash: string; msg: string; file: string; author: Author };
+
+/**
+ * A plausible history of the as-code artifacts: dashboards, alerts, and
+ * runbooks, edited by a mix of people, agents, and the two together. The
+ * messages lean on the narrative — files that adapt with the codebase
+ * (renames, post-incident tuning) and travel between projects.
+ */
+const COMMITS: Commit[] = [
+  {
+    hash: "3f9a2c1",
+    msg: "Add p99 latency panel to checkout",
+    file: "overview.dashboard.yaml",
+    author: { kind: "agent", agent: CLAUDE },
+  },
+  {
+    hash: "b7e10d4",
+    msg: "Lower checkout error-rate alert to 2%",
+    file: "checkout-errors.alert.yaml",
+    author: { kind: "pair", human: ELFO, agent: CLAUDE },
+  },
+  {
+    hash: "5c81a9f",
+    msg: "Write payments-timeout runbook",
+    file: "payments-timeout.runbook.md",
+    author: { kind: "human", human: ELFO },
+  },
+  {
+    hash: "a204e6b",
+    msg: "Rename cart-api panels after refactor",
+    file: "cart-api.dashboard.yaml",
+    author: { kind: "agent", agent: CODEX },
+  },
+  {
+    hash: "e96f3d2",
+    msg: "Add Postgres saturation row",
+    file: "postgres.dashboard.yaml",
+    author: { kind: "human", human: GDORSI },
+  },
+  {
+    hash: "1d7b8c0",
+    msg: "Tune latency alert after incident 482",
+    file: "latency.alert.yaml",
+    author: { kind: "pair", human: GDORSI, agent: CODEX },
+  },
+  {
+    hash: "c40a17e",
+    msg: "Link runbooks from alert annotations",
+    file: "payments.alert.yaml",
+    author: { kind: "agent", agent: OPENCODE },
+  },
+  {
+    hash: "8b3e5a9",
+    msg: "Port dashboards to staging project",
+    file: "staging/overview.dashboard.yaml",
+    author: { kind: "agent", agent: PI },
+  },
+];
+
+function AgentAvatar({ agent }: { agent: Agent }) {
+  return (
+    <Avatar size="sm">
+      <AvatarFallback className="bg-fd-card p-1">
+        <img
+          src={agent.mark}
+          alt=""
+          aria-hidden
+          className="size-full object-contain"
+        />
+      </AvatarFallback>
+    </Avatar>
+  );
+}
+
+function HumanAvatar({ human }: { human: Human }) {
+  return (
+    <Avatar size="sm">
+      <AvatarImage
+        src={`https://github.com/${human.login}.png?size=48`}
+        alt={human.name}
+      />
+      <AvatarFallback
+        className={cn("font-heading text-[10px] font-bold", human.tone)}
+      >
+        {human.initials}
+      </AvatarFallback>
+    </Avatar>
+  );
+}
+
+/** Avatar(s) for a commit — a pair stacks the human and agent to read as
+ *  "edited together", the whole point of an open, inspectable format. */
+function CommitAvatar({ author }: { author: Author }) {
+  if (author.kind === "agent") return <AgentAvatar agent={author.agent} />;
+  if (author.kind === "human") return <HumanAvatar human={author.human} />;
+  return (
+    <AvatarGroup>
+      <HumanAvatar human={author.human} />
+      <AgentAvatar agent={author.agent} />
+    </AvatarGroup>
+  );
+}
+
+function authorLabel(author: Author) {
+  if (author.kind === "agent") return author.agent.name;
+  if (author.kind === "human") return author.human.name;
+  return `${author.agent.name} + ${author.human.name}`;
+}
+
+const FEED_VISIBLE = 5;
+const FEED_INTERVAL = 2600;
+
+/** Full-bleed commit feed: a fixed window of commits that rises one row at a
+ *  time, newest entering at the bottom, oldest leaving under the heading. */
+function AsCodeFeed() {
+  const reduce = useReducedMotion();
+  const [isMobile, setIsMobile] = useState(false);
+  // The feed advances only where there's room and motion is welcome; otherwise
+  // the opening window stands in as a calm, static history.
+  const live = !reduce && !isMobile;
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)");
+    const sync = () => setIsMobile(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  // Each row carries a monotonic seq so React keeps identity stable as the
+  // window slides and the underlying commit pool loops.
+  const [rows, setRows] = useState(() =>
+    Array.from({ length: FEED_VISIBLE }, (_, i) => ({ seq: i, idx: i })),
+  );
+
+  useEffect(() => {
+    if (!live) return;
+    let seq = FEED_VISIBLE;
+    let idx = FEED_VISIBLE % COMMITS.length;
+    const id = setInterval(() => {
+      const entry = { seq, idx };
+      setRows((prev) => [...prev.slice(1), entry]);
+      seq += 1;
+      idx = (idx + 1) % COMMITS.length;
+    }, FEED_INTERVAL);
+    return () => clearInterval(id);
+  }, [live]);
+
+  return (
+    <div
+      className="pointer-events-none relative size-full select-none overflow-hidden bg-fd-background/30"
+      style={{
+        backgroundImage:
+          "radial-gradient(circle, var(--color-fd-border) 1px, transparent 1px)",
+        backgroundSize: "22px 22px",
+        backgroundPosition: "-1px -1px",
+      }}
+    >
+      <div
+        className="absolute inset-x-0 bottom-0 top-24 px-5"
+        style={{
+          maskImage:
+            "linear-gradient(to bottom, transparent 0%, #000 9%, #000 84%, transparent 100%)",
+          WebkitMaskImage:
+            "linear-gradient(to bottom, transparent 0%, #000 9%, #000 84%, transparent 100%)",
+        }}
+      >
+        <div className="flex h-full flex-col">
+          <AnimatePresence initial={false} mode="popLayout">
+            {rows.map((row) => {
+              const c = COMMITS[row.idx];
+              return (
+                <motion.div
+                  key={row.seq}
+                  layout
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -12 }}
+                  transition={{
+                    type: "spring",
+                    stiffness: 520,
+                    damping: 40,
+                    mass: 0.9,
+                  }}
+                  className="flex flex-1 items-center gap-3"
+                >
+                  <CommitAvatar author={c.author} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] font-medium leading-tight text-fd-foreground">
+                      {c.msg}
+                    </p>
+                    <p className="mt-1 flex items-center gap-1.5 truncate font-mono text-[10.5px] leading-none">
+                      <span className="shrink-0 text-fd-foreground/65">
+                        {authorLabel(c.author)}
+                      </span>
+                      <span className="text-fd-muted-foreground/35">·</span>
+                      <span className="truncate text-fd-muted-foreground/80">
+                        {c.file}
+                      </span>
+                    </p>
+                  </div>
+                  <span className="shrink-0 font-mono text-[10.5px] text-fd-muted-foreground/45">
+                    {c.hash}
+                  </span>
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Content                                                           */
 /* ------------------------------------------------------------------ */
 
@@ -831,15 +1099,12 @@ const ITEMS: Item[] = [
     className: "md:col-span-4",
   },
   {
-    title: "Dashboards & alerts as code",
+    title: "Dashboards, alerts & runbooks as code",
     description:
-      "Defined as files and reconciled with everr apply. Git is the source of truth, not a dashboard editor.",
-    header: (
-      <LogoHeader>
-        <SiGit className="size-14" color="default" />
-      </LogoHeader>
-    ),
-    icon: FileCode2,
+      "Open, inspectable files in Git — people and agents edit them side by side, reviewed and versioned like the rest of your code.",
+    header: <AsCodeFeed />,
+    icon: GitCommitVertical,
+    bleed: true,
     className: "md:col-span-8",
   },
 ];
