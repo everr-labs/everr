@@ -23,6 +23,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { z } from "zod";
 import { INSTALL_COMMAND } from "@/common/install-command";
 import { OrgMetadataSchema } from "@/common/org-metadata";
 import {
@@ -100,7 +101,10 @@ const staggerItem = {
 };
 
 export const Route = createFileRoute("/onboarding")({
-  async beforeLoad({ context: { queryClient, session } }) {
+  // `redirect` lets a caller (e.g. CLI device sign-up) resume a destination
+  // after onboarding completes, instead of always landing on the dashboard.
+  validateSearch: z.object({ redirect: z.string().optional() }),
+  async beforeLoad({ context: { queryClient, session }, search }) {
     const organization = await queryClient.ensureQueryData(
       activeOrganizationOptions(),
     );
@@ -113,7 +117,7 @@ export const Route = createFileRoute("/onboarding")({
 
     const metadata = OrgMetadataSchema.parse(organization.metadata);
     if (metadata.onboardingCompleted === true) {
-      throw redirect({ to: "/" });
+      throw redirect({ to: search.redirect ?? "/" });
     }
 
     return { session, organization };
@@ -140,6 +144,7 @@ function OnboardingWizard() {
   const { data: sessionData, isPending: authLoading } = authClient.useSession();
   const user = sessionData?.user;
   const navigate = useNavigate();
+  const { redirect: redirectTo } = Route.useSearch();
   const { data: organization } = useQuery({
     ...activeOrganizationOptions(),
     initialData: initialOrganization,
@@ -346,7 +351,7 @@ function OnboardingWizard() {
                       }
                       onFinish={async () => {
                         await markOnboardingComplete();
-                        await navigate({ to: "/" });
+                        await navigate({ to: redirectTo ?? "/" });
                       }}
                     />
                   )}
