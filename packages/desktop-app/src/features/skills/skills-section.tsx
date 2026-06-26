@@ -96,7 +96,7 @@ export function SkillsSection() {
 
   return (
     <SettingsSection title="Agent skills" description={SECTION_DESCRIPTION}>
-      <ul className="grid max-w-[680px] gap-2">
+      <ul className="grid gap-3">
         {providers.map((provider) => (
           <li
             key={provider.provider}
