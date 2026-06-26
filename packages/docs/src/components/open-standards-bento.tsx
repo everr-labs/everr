@@ -1,4 +1,5 @@
 import { cn } from "@everr/ui/lib/utils";
+import { SiClickhouse, SiGit } from "@icons-pack/react-simple-icons";
 import {
   ArrowRight,
   Boxes,
@@ -7,11 +8,11 @@ import {
   LineChart,
   type LucideIcon,
   Network,
+  Tags,
   Terminal,
-  Workflow,
 } from "lucide-react";
-import { motion, useInView } from "motion/react";
-import { type ReactNode, useRef } from "react";
+import { motion, useInView, useReducedMotion } from "motion/react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -49,7 +50,7 @@ export function OpenStandardsBento() {
         </motion.div>
 
         {/* Bento */}
-        <div className="mt-14 grid grid-cols-1 gap-4 md:mt-20 md:auto-rows-[18rem] md:grid-cols-3">
+        <div className="mt-14 grid grid-cols-1 gap-4 md:mt-20 md:auto-rows-[22rem] md:grid-cols-12">
           {ITEMS.map((item, i) => (
             <BentoItem key={item.title} item={item} index={i} inView={inView} />
           ))}
@@ -88,6 +89,8 @@ type Item = {
   header: ReactNode;
   icon: LucideIcon;
   className?: string;
+  /** Artifact fills the whole card edge-to-edge, text overlaid on top. */
+  bleed?: boolean;
 };
 
 function BentoItem({
@@ -100,32 +103,49 @@ function BentoItem({
   inView: boolean;
 }) {
   const Icon = item.icon;
+  const text = (
+    <div className="transition-transform duration-300 group-hover/bento:translate-x-1.5">
+      <div className="flex items-center gap-2">
+        <Icon
+          className="size-4 shrink-0 text-primary"
+          strokeWidth={2}
+          aria-hidden
+        />
+        <h3 className="font-heading text-base font-bold tracking-tight text-fd-foreground">
+          {item.title}
+        </h3>
+      </div>
+      <p className="mt-1.5 text-sm leading-snug text-fd-muted-foreground">
+        {item.description}
+      </p>
+    </div>
+  );
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 24 }}
       animate={inView ? { opacity: 1, y: 0 } : undefined}
       transition={{ duration: 0.7, delay: 0.1 + index * 0.08, ease: EASE }}
       className={cn(
-        "group/bento row-span-1 flex min-h-[15rem] flex-col justify-between gap-4 overflow-hidden rounded-xl border border-fd-border bg-fd-card/40 p-5 transition-colors duration-300 hover:border-primary/40 md:min-h-0",
+        "group/bento relative row-span-1 flex min-h-[18rem] flex-col overflow-hidden rounded-xl border border-fd-border bg-fd-card/40 p-5 transition-colors duration-300 hover:border-primary/40 md:min-h-0",
+        item.bleed ? "justify-start" : "justify-between gap-4",
         item.className,
       )}
     >
-      {item.header}
-      <div className="transition-transform duration-300 group-hover/bento:translate-x-1.5">
-        <div className="flex items-center gap-2">
-          <Icon
-            className="size-4 shrink-0 text-primary"
-            strokeWidth={2}
-            aria-hidden
-          />
-          <h3 className="font-heading text-base font-bold tracking-tight text-fd-foreground">
-            {item.title}
-          </h3>
-        </div>
-        <p className="mt-1.5 text-sm leading-snug text-fd-muted-foreground">
-          {item.description}
-        </p>
-      </div>
+      {item.bleed ? (
+        <>
+          {/* artifact fills the whole card; text floats over it, kept legible
+              by a scrim sized to the heading rather than the full height */}
+          <div className="absolute inset-0">{item.header}</div>
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-fd-card/85 via-fd-card/30 to-transparent" />
+          <div className="relative z-10">{text}</div>
+        </>
+      ) : (
+        <>
+          {item.header}
+          {text}
+        </>
+      )}
     </motion.div>
   );
 }
@@ -152,6 +172,594 @@ function Placeholder() {
   );
 }
 
+/** Panel that frames a real brand mark, matching the placeholder backdrop. */
+function LogoHeader({ children }: { children: ReactNode }) {
+  return (
+    <div
+      className="flex flex-1 items-center justify-center rounded-lg border border-fd-border bg-fd-background/40"
+      style={{
+        backgroundImage:
+          "radial-gradient(circle, var(--color-fd-border) 1px, transparent 1px)",
+        backgroundSize: "22px 22px",
+        backgroundPosition: "-1px -1px",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Semantic conventions — a live cloud of shared attribute tags       */
+/* ------------------------------------------------------------------ */
+
+type Tag = {
+  ns: string;
+  rest: string;
+  /** Example values; the chip cycles to the next one each time it reappears. */
+  vals: string[];
+  /** Home position in the cloud, as a percentage of the panel. */
+  x: number;
+  y: number;
+  /** Shared correlation key — marked with a dot. */
+  hub?: boolean;
+  /** Kept in the static fallback (mobile / reduced motion). */
+  mobile?: boolean;
+};
+
+/**
+ * Standard OpenTelemetry attributes the code already emits, each with a few
+ * short example values from one coherent scenario (a checkout app in prod).
+ * Home positions are pre-spaced; a chip only hops to a nearby spot while it's
+ * hidden, so the cloud stays legible.
+ */
+const TAGS: Record<string, Tag> = {
+  service: {
+    ns: "service",
+    rest: ".name",
+    vals: ["checkout", "payments", "cart-api", "web"],
+    x: 52,
+    y: 54,
+    hub: true,
+    mobile: true,
+  },
+  trace: {
+    ns: "trace",
+    rest: "_id",
+    vals: ["a3f9…c1", "b1e7…4d", "6c20…9f"],
+    x: 30,
+    y: 38,
+    hub: true,
+    mobile: true,
+  },
+  kind: {
+    ns: "span",
+    rest: ".kind",
+    vals: ["server", "client", "internal"],
+    x: 72,
+    y: 34,
+    mobile: true,
+  },
+  route: {
+    ns: "http",
+    rest: ".route",
+    vals: ["/cart", "/checkout", "/pay"],
+    x: 22,
+    y: 72,
+    mobile: true,
+  },
+  db: {
+    ns: "db",
+    rest: ".system",
+    vals: ["postgres", "redis", "mysql"],
+    x: 56,
+    y: 84,
+    mobile: true,
+  },
+  url: {
+    ns: "url",
+    rest: ".path",
+    vals: ["/orders", "/cart/items", "/healthz"],
+    x: 82,
+    y: 66,
+    mobile: true,
+  },
+  method: {
+    ns: "http",
+    rest: ".request.method",
+    vals: ["GET", "POST", "PUT", "DELETE"],
+    x: 38,
+    y: 76,
+  },
+  status: {
+    ns: "http",
+    rest: ".response.status_code",
+    vals: ["200", "201", "404", "500"],
+    x: 50,
+    y: 90,
+  },
+  dbop: {
+    ns: "db",
+    rest: ".operation",
+    vals: ["SELECT", "INSERT", "UPDATE"],
+    x: 88,
+    y: 80,
+  },
+  env: {
+    ns: "deployment",
+    rest: ".environment",
+    vals: ["prod", "staging", "dev"],
+    x: 90,
+    y: 46,
+  },
+  peer: {
+    ns: "server",
+    rest: ".address",
+    vals: ["10.0.1.4", "db-primary", "cache-01"],
+    x: 80,
+    y: 26,
+  },
+  msg: {
+    ns: "messaging",
+    rest: ".system",
+    vals: ["kafka", "rabbitmq", "sqs"],
+    x: 60,
+    y: 24,
+  },
+  rpc: {
+    ns: "rpc",
+    rest: ".method",
+    vals: ["Charge", "GetCart", "ListOrders"],
+    x: 42,
+    y: 22,
+  },
+  err: {
+    ns: "error",
+    rest: ".type",
+    vals: ["timeout", "ECONNRESET", "5xx"],
+    x: 16,
+    y: 52,
+  },
+};
+
+const clamp = (v: number, lo: number, hi: number) =>
+  Math.min(hi, Math.max(lo, v));
+
+/** Candidate offsets a chip can occupy; placement picks whichever overlaps the
+ *  fewest visible neighbours, so chips move around without landing on top. */
+const HOPS: [number, number][] = [
+  [0, 0],
+  [8, -5],
+  [-8, 5],
+  [6, 7],
+  [-6, -7],
+  [11, 3],
+  [-11, -3],
+  [3, -9],
+  [-3, 9],
+];
+
+/** Distance (panel %) within which two nodes draw a connecting thread. */
+const CONNECT_DIST = 34;
+
+type NodeRuntime = { visible: boolean; valIdx: number; posIdx: number };
+
+// Rough chip box (estimated against the desktop tile) used only to keep tags
+// from landing on top of one another. Bump SEP if they still crowd.
+const CLOUD_W = 820; // active-area width, px
+const CLOUD_H = 224; // active-area height (14rem), px
+const CHIP_H = 26; // chip height, px
+const SEP = 1.5; // extra breathing room between chips, in %
+
+function chipExtent(t: Tag) {
+  const chars =
+    t.ns.length + t.rest.length + 1 + Math.max(...t.vals.map((v) => v.length));
+  return {
+    hw: ((chars * 6.6 + 26) / CLOUD_W) * 50, // half-width, % of width
+    hh: (CHIP_H / CLOUD_H) * 50, // half-height, % of height
+  };
+}
+
+function chipPos(t: Tag, i: number, posIdx: number) {
+  const [dx, dy] = HOPS[(posIdx + i) % HOPS.length];
+  return { x: clamp(t.x + dx, 6, 94), y: clamp(t.y + dy, 8, 92) };
+}
+
+function chipsOverlap(
+  ti: Tag,
+  i: number,
+  pi: number,
+  tj: Tag,
+  j: number,
+  pj: number,
+) {
+  const a = chipPos(ti, i, pi);
+  const b = chipPos(tj, j, pj);
+  const ea = chipExtent(ti);
+  const eb = chipExtent(tj);
+  return (
+    Math.abs(a.x - b.x) < ea.hw + eb.hw + SEP &&
+    Math.abs(a.y - b.y) < ea.hh + eb.hh + SEP
+  );
+}
+
+/** Pick the hop (from startIdx onward) overlapping the fewest visible neighbours.
+ *  `maxIndex` bounds which neighbours count, so the initial pass can place chips
+ *  one at a time against the ones already settled. */
+function bestPosIdx(
+  ids: string[],
+  k: number,
+  startIdx: number,
+  states: NodeRuntime[],
+  maxIndex: number,
+) {
+  const tk = TAGS[ids[k]];
+  let best = startIdx;
+  let bestScore = Number.POSITIVE_INFINITY;
+  for (let h = 0; h < HOPS.length; h++) {
+    const cand = startIdx + h;
+    let score = 0;
+    for (let m = 0; m < maxIndex; m++) {
+      if (m === k || !states[m].visible) continue;
+      if (chipsOverlap(tk, k, cand, TAGS[ids[m]], m, states[m].posIdx)) score++;
+    }
+    if (score < bestScore) {
+      bestScore = score;
+      best = cand;
+      if (score === 0) break;
+    }
+  }
+  return best;
+}
+
+function initialNodes(ids: string[]): NodeRuntime[] {
+  const placed: NodeRuntime[] = ids.map(() => ({
+    visible: true,
+    valIdx: 0,
+    posIdx: 0,
+  }));
+  for (let k = 0; k < ids.length; k++) {
+    placed[k].posIdx = bestPosIdx(ids, k, 0, placed, k);
+  }
+  return placed;
+}
+
+function SemanticConventions() {
+  const reduce = useReducedMotion();
+  const [isMobile, setIsMobile] = useState(false);
+  // Run the live cloud only where there's room and motion is welcome; otherwise
+  // the home layout stands in as a calm, static graph.
+  const live = !reduce && !isMobile;
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)");
+    const sync = () => setIsMobile(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  const ids = useMemo(() => Object.keys(TAGS), []);
+  const [nodes, setNodes] = useState<NodeRuntime[]>(() => initialNodes(ids));
+
+  // Threads only between nodes that start near each other — a sparse, local mesh.
+  const pairs = useMemo(() => {
+    const out: [number, number][] = [];
+    for (let i = 0; i < ids.length; i++) {
+      for (let j = i + 1; j < ids.length; j++) {
+        const a = TAGS[ids[i]];
+        const b = TAGS[ids[j]];
+        if (Math.hypot(a.x - b.x, a.y - b.y) <= CONNECT_DIST) out.push([i, j]);
+      }
+    }
+    return out;
+  }, [ids]);
+
+  // One chip at a time pops out, hops + cycles its value, then springs back in.
+  useEffect(() => {
+    if (!live) return;
+    const timers = new Set<ReturnType<typeof setTimeout>>();
+    let tick = 0;
+    const advance = setInterval(() => {
+      const k = tick % ids.length;
+      tick += 1;
+      setNodes((prev) => {
+        const next = prev.slice();
+        next[k] = { ...next[k], visible: false };
+        return next;
+      });
+      const back = setTimeout(() => {
+        setNodes((prev) => {
+          const next = prev.slice();
+          const cur = next[k];
+          next[k] = {
+            visible: true,
+            valIdx: (cur.valIdx + 1) % TAGS[ids[k]].vals.length,
+            posIdx: bestPosIdx(ids, k, cur.posIdx + 1, prev, ids.length),
+          };
+          return next;
+        });
+        timers.delete(back);
+      }, 2300);
+      timers.add(back);
+    }, 1700);
+    return () => {
+      clearInterval(advance);
+      for (const t of timers) clearTimeout(t);
+    };
+  }, [live, ids]);
+
+  // Going static (resize / reduced motion) must never strand a hidden chip.
+  useEffect(() => {
+    if (live) return;
+    setNodes((prev) =>
+      prev.map((n) => (n.visible ? n : { ...n, visible: true })),
+    );
+  }, [live]);
+
+  const posOf = (i: number) => chipPos(TAGS[ids[i]], i, nodes[i].posIdx);
+
+  return (
+    <div
+      className="pointer-events-none relative size-full select-none overflow-hidden bg-fd-background/40"
+      style={{
+        backgroundImage:
+          "radial-gradient(circle, var(--color-fd-border) 1px, transparent 1px)",
+        backgroundSize: "22px 22px",
+        backgroundPosition: "-1px -1px",
+        maskImage:
+          "radial-gradient(108% 108% at 50% 45%, #000 60%, transparent 100%)",
+        WebkitMaskImage:
+          "radial-gradient(108% 108% at 50% 45%, #000 60%, transparent 100%)",
+      }}
+    >
+      <div className="absolute inset-x-0 bottom-0 top-24">
+        {/* threads — light up between attributes that are both present */}
+        <svg
+          className="absolute inset-0 size-full"
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          aria-hidden
+        >
+          <title>Connections between shared attributes</title>
+          {pairs.map(([i, j]) => {
+            const a = posOf(i);
+            const b = posOf(j);
+            const d = Math.hypot(a.x - b.x, a.y - b.y);
+            const target =
+              nodes[i].visible && nodes[j].visible && d <= CONNECT_DIST
+                ? (1 - d / CONNECT_DIST) * 0.45
+                : 0;
+            const bothMobile = TAGS[ids[i]].mobile && TAGS[ids[j]].mobile;
+            return (
+              <motion.line
+                key={`${ids[i]}-${ids[j]}`}
+                x1={a.x}
+                y1={a.y}
+                x2={b.x}
+                y2={b.y}
+                className={cn(
+                  "stroke-primary",
+                  bothMobile
+                    ? undefined
+                    : reduce
+                      ? "hidden"
+                      : "hidden sm:block",
+                )}
+                strokeWidth={1}
+                strokeLinecap="round"
+                vectorEffect="non-scaling-stroke"
+                initial={false}
+                animate={{ opacity: target }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+              />
+            );
+          })}
+        </svg>
+
+        {/* attribute chips — each pops in and out on its own */}
+        {ids.map((id, i) => {
+          const t = TAGS[id];
+          const n = nodes[i];
+          const p = posOf(i);
+          return (
+            <motion.div
+              key={id}
+              style={{ left: `${p.x}%`, top: `${p.y}%` }}
+              className={cn(
+                "absolute -translate-x-1/2 -translate-y-1/2",
+                t.mobile ? "block" : reduce ? "hidden" : "hidden sm:block",
+              )}
+              initial={false}
+              animate={{
+                opacity: n.visible ? 1 : 0,
+                scale: n.visible ? 1 : 0.4,
+              }}
+              transition={
+                n.visible
+                  ? { type: "spring", stiffness: 460, damping: 17, mass: 0.8 }
+                  : { duration: 0.18, ease: "easeIn" }
+              }
+            >
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-fd-border px-2.5 py-1 font-mono text-[11px] leading-none shadow-sm shadow-black/20",
+                  t.hub ? "bg-fd-card text-fd-foreground" : "bg-fd-card/80",
+                )}
+              >
+                {t.hub && (
+                  <span
+                    className="size-1.5 shrink-0 rounded-full bg-primary/80"
+                    aria-hidden
+                  />
+                )}
+                <span>
+                  <span
+                    className={
+                      t.hub ? "text-fd-foreground" : "text-fd-foreground/70"
+                    }
+                  >
+                    {t.ns}
+                  </span>
+                  <span className="text-fd-muted-foreground">{t.rest}</span>
+                  <span className="text-fd-muted-foreground/40">=</span>
+                  <span className="text-fd-foreground/80">
+                    {t.vals[n.valIdx]}
+                  </span>
+                </span>
+              </span>
+            </motion.div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Perses editor — a fake editor showing a dashboard-as-code spec    */
+/* ------------------------------------------------------------------ */
+
+type YamlLine = {
+  indent: number;
+  list?: boolean;
+  k?: string;
+  v?: string;
+  /** Render the value in the accent colour (Perses `kind:` discriminators). */
+  kind?: boolean;
+  /** A raw line of SQL (no key/value), rendered as plain text. */
+  raw?: string;
+};
+
+const PERSES_LINES: YamlLine[] = [
+  { indent: 0, k: "kind", v: "Dashboard", kind: true },
+  { indent: 0, k: "metadata" },
+  { indent: 1, k: "name", v: "overview" },
+  { indent: 1, k: "project", v: "demo" },
+  { indent: 0, k: "spec" },
+  { indent: 1, k: "panels" },
+  { indent: 2, k: "requests" },
+  { indent: 3, k: "kind", v: "Panel", kind: true },
+  { indent: 3, k: "spec" },
+  { indent: 4, k: "display" },
+  { indent: 5, k: "name", v: "Requests / sec" },
+  { indent: 4, k: "plugin" },
+  { indent: 5, k: "kind", v: "TimeSeriesChart", kind: true },
+  { indent: 4, k: "queries" },
+  { indent: 4, list: true, k: "kind", v: "ClickHouseSQL", kind: true },
+  { indent: 5, k: "spec" },
+  { indent: 6, k: "plugin" },
+  { indent: 7, k: "kind", v: "ClickHouseSQL", kind: true },
+  { indent: 7, k: "spec" },
+  { indent: 8, k: "query", v: "|" },
+  { indent: 9, raw: "SELECT" },
+  { indent: 10, raw: "toStartOfInterval(Timestamp," },
+  { indent: 11, raw: "INTERVAL {step:UInt32} SECOND) AS ts," },
+  { indent: 10, raw: "count() AS value" },
+  { indent: 9, raw: "FROM traces" },
+  { indent: 9, raw: "WHERE Timestamp >= {from:String}" },
+  { indent: 10, raw: "AND Timestamp <= {to:String}" },
+  { indent: 9, raw: "GROUP BY ts" },
+  { indent: 9, raw: "ORDER BY ts" },
+  { indent: 1, k: "layouts" },
+  { indent: 1, list: true, k: "kind", v: "Grid", kind: true },
+  { indent: 2, k: "spec" },
+  { indent: 3, k: "items" },
+  { indent: 3, list: true, k: "width", v: "24" },
+  { indent: 4, k: "height", v: "8" },
+  { indent: 4, k: "content" },
+  { indent: 5, k: "$ref", v: '"#/spec/panels/requests"' },
+];
+
+function PersesEditor() {
+  return (
+    <div className="overflow-hidden rounded-t-lg border border-fd-border bg-fd-background shadow-2xl shadow-black/40">
+      {/* editor chrome */}
+      <div className="flex items-center gap-2 border-b border-fd-border bg-fd-card/60 px-3 py-2">
+        <span className="size-2.5 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
+        <span className="size-2.5 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
+        <span className="size-2.5 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
+        <span className="ml-2 font-mono text-[11px] text-fd-muted-foreground">
+          overview.dashboard.yaml
+        </span>
+      </div>
+      {/* the spec */}
+      <div className="px-3 py-3 font-mono text-[12.5px] leading-relaxed">
+        {PERSES_LINES.map((line, i) => (
+          <div key={`${line.k ?? line.raw}-${i}`} className="flex">
+            <span className="w-7 shrink-0 select-none pr-3 text-right text-fd-muted-foreground/25">
+              {i + 1}
+            </span>
+            <span
+              className="min-w-0"
+              style={{ paddingLeft: `${line.indent * 0.7}rem` }}
+            >
+              {line.raw ? (
+                <span className="text-fd-foreground/75">{line.raw}</span>
+              ) : (
+                <>
+                  {line.list && (
+                    <span className="text-fd-muted-foreground/40">- </span>
+                  )}
+                  <span className="text-fd-muted-foreground">{line.k}</span>
+                  {line.v ? (
+                    <>
+                      <span className="text-fd-muted-foreground/70">: </span>
+                      <span
+                        className={
+                          line.kind ? "text-primary" : "text-fd-foreground/75"
+                        }
+                      >
+                        {line.v}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-fd-muted-foreground/70">:</span>
+                  )}
+                </>
+              )}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Full-bleed Perses artifact: nebula wallpaper, the spec editor, big logo. */
+function PersesShowcase() {
+  return (
+    <div className="relative size-full overflow-hidden">
+      <img
+        src="/space/pexels-frank-cone-140140-3607542.jpg"
+        alt=""
+        aria-hidden
+        className="absolute inset-0 size-full object-cover"
+      />
+      <div className="absolute inset-0 bg-gradient-to-b from-fd-background/20 via-transparent to-fd-background/80" />
+      {/* the dashboard-as-code editor, bleeding off the bottom + right */}
+      <div className="pointer-events-none absolute left-5 right-[-1.25rem] top-32">
+        <PersesEditor />
+      </div>
+      {/* big Perses logo, centered on top */}
+      <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(ellipse 55% 45% at 50% 52%, rgba(0,0,0,0.45), transparent 72%)",
+          }}
+        />
+        <img
+          src="/logos/perses.svg"
+          alt="Perses"
+          className="relative h-24 w-auto drop-shadow-2xl sm:h-32"
+        />
+      </div>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /*  Content                                                           */
 /* ------------------------------------------------------------------ */
@@ -161,30 +769,50 @@ const ITEMS: Item[] = [
     title: "Standard OpenTelemetry",
     description:
       "Traces, logs, and metrics in one model — the same on your laptop, in CI, and in production.",
-    header: <Placeholder />,
+    header: (
+      <LogoHeader>
+        <img
+          src="/logos/otel.svg"
+          alt="OpenTelemetry"
+          width={64}
+          height={64}
+          className="size-16"
+          loading="lazy"
+        />
+      </LogoHeader>
+    ),
     icon: Network,
-  },
-  {
-    title: "CI & tests as signals",
-    description:
-      "GitHub Actions runs and test output become the same OpenTelemetry signals — structured data, not pasted screenshots.",
-    header: <Placeholder />,
-    icon: Workflow,
-    className: "md:col-span-2",
-  },
-  {
-    title: "Query with SQL",
-    description:
-      "One SQL surface across every signal. The same query runs locally and in the cloud.",
-    header: <Placeholder />,
-    icon: Terminal,
+    className: "md:col-span-3",
   },
   {
     title: "Perses dashboards",
     description:
       "The open CNCF dashboard spec, versioned as plain files — not locked in a UI.",
-    header: <Placeholder />,
+    header: <PersesShowcase />,
     icon: LineChart,
+    bleed: true,
+    className: "md:col-span-9 md:row-span-2",
+  },
+  {
+    title: "Query with SQL",
+    description:
+      "One SQL surface across every signal. The same query runs locally and in the cloud.",
+    header: (
+      <LogoHeader>
+        <SiClickhouse className="size-14" color="default" />
+      </LogoHeader>
+    ),
+    icon: Terminal,
+    className: "md:col-span-3",
+  },
+  {
+    title: "Semantic conventions",
+    description:
+      "Everr reads the OpenTelemetry attributes your code already emits, so traces, logs, and metrics correlate on their own.",
+    header: <SemanticConventions />,
+    icon: Tags,
+    bleed: true,
+    className: "md:col-span-8",
   },
   {
     title: "Standard OTLP ingest",
@@ -192,14 +820,7 @@ const ITEMS: Item[] = [
       "Send with any OpenTelemetry SDK over OTLP. No proprietary agent — point it at one endpoint.",
     header: <Placeholder />,
     icon: Cloud,
-  },
-  {
-    title: "Dashboards & alerts as code",
-    description:
-      "Defined as files and reconciled with everr apply. Git is the source of truth, not a dashboard editor.",
-    header: <Placeholder />,
-    icon: FileCode2,
-    className: "md:col-span-2",
+    className: "md:col-span-4",
   },
   {
     title: "One model, everywhere",
@@ -207,5 +828,18 @@ const ITEMS: Item[] = [
       "The same semantic model follows your code from local to CI to production.",
     header: <Placeholder />,
     icon: Boxes,
+    className: "md:col-span-4",
+  },
+  {
+    title: "Dashboards & alerts as code",
+    description:
+      "Defined as files and reconciled with everr apply. Git is the source of truth, not a dashboard editor.",
+    header: (
+      <LogoHeader>
+        <SiGit className="size-14" color="default" />
+      </LogoHeader>
+    ),
+    icon: FileCode2,
+    className: "md:col-span-8",
   },
 ];
