@@ -14,6 +14,11 @@ pub fn run_uninstall() -> Result<()> {
 
     auth::state_store().wipe()?;
 
+    // Best-effort: removing skills must not block wiping the rest of the state.
+    if let Err(err) = crate::skills::uninstall_all_global() {
+        eprintln!("Warning: could not remove Everr skills: {err}");
+    }
+
     println!();
     println!("To remove the CLI binary, run:");
     println!("  rm \"{}\"", cli_path.display());
@@ -23,7 +28,8 @@ pub fn run_uninstall() -> Result<()> {
 
 fn print_uninstall_effects(cli_path: &Path) {
     println!("The uninstall command will:");
-    println!("- Removes all local Everr state (session, settings, notification emails).");
+    println!("- Removes all local Everr state.");
+    println!("- Removes globally installed Everr skills.");
     println!(
         "- Does not remove the CLI binary automatically: {}",
         cli_path.display()

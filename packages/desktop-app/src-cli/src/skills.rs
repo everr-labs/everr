@@ -233,6 +233,25 @@ pub(crate) fn install_all_for_setup(
     Ok(())
 }
 
+/// Remove every globally installed bundled skill for all providers. Used by the
+/// top-level `uninstall` command to clean up the skills `setup` installs.
+pub(crate) fn uninstall_all_global() -> Result<()> {
+    let cwd = std::env::current_dir().context("could not determine current directory")?;
+    let home_dir = resolve_home_dir()?;
+    let options = SkillOperationOptions {
+        scope: SkillScope::Global,
+        cwd,
+        home_dir,
+        providers: SkillProvider::ALL.to_vec(),
+        skill_names: Vec::new(),
+        all: true,
+        dry_run: false,
+    };
+    let summary = uninstall_bundled_skills(&options)?;
+    print_summary("Uninstalled", "Would uninstall", &summary);
+    Ok(())
+}
+
 fn operation_options(
     scope: SkillScope,
     home_dir: PathBuf,
