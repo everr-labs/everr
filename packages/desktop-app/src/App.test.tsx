@@ -76,7 +76,6 @@ type MainCommand =
   | "sign_out"
   | "get_notification_emails"
   | "set_notification_emails"
-  | "reset_dev_onboarding"
   | "trigger_test_notification"
   | "get_collector_status"
   | "telemetry_sql_query"
@@ -150,15 +149,6 @@ function renderMainApp(options: RenderMainOptions = {}) {
   let notificationEmails = options.notificationEmails ?? ["user@example.com"];
   let pendingSignIn: PendingSignIn | null = options.pendingSignIn ?? null;
   const openSignInBrowserSpy = vi.fn(() => null);
-  const resetDevOnboardingSpy = vi.fn(() => {
-    authStatus = {
-      ...authStatus,
-      status: "signed_out",
-    };
-    return {
-      auth_status: authStatus,
-    };
-  });
   const triggerTestNotificationSpy = vi.fn(
     () => options.testNotification ?? { status: "shown" },
   );
@@ -225,8 +215,6 @@ function renderMainApp(options: RenderMainOptions = {}) {
         case "set_notification_emails":
           notificationEmails = payload.emails ?? [];
           return null;
-        case "reset_dev_onboarding":
-          return resetDevOnboardingSpy();
         case "trigger_test_notification":
           return triggerTestNotificationSpy();
         case "get_collector_status":
@@ -256,7 +244,6 @@ function renderMainApp(options: RenderMainOptions = {}) {
 
   return {
     openSignInBrowserSpy,
-    resetDevOnboardingSpy,
     triggerTestNotificationSpy,
     restartCollectorSpy,
     setRuns(next: RunListItem[]) {
@@ -453,28 +440,6 @@ describe("desktop window", () => {
         "Test notification queued behind the active notification.",
       ),
     ).toBeInTheDocument();
-  });
-
-  it("resets the dev session and surfaces the CI sign-in", async () => {
-    const { resetDevOnboardingSpy } = renderMainApp();
-
-    await act(async () => {
-      await router.navigate({ to: "/developer" });
-    });
-
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Reset onboarding" }),
-    );
-
-    await waitFor(() => {
-      expect(resetDevOnboardingSpy).toHaveBeenCalledTimes(1);
-    });
-
-    // Dev-reset now navigates to /ci, which shows the inline sign-in.
-    expect(
-      await screen.findByText("Sign in to view your CI runs"),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
   });
 });
 

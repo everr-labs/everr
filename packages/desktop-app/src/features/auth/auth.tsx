@@ -60,7 +60,7 @@ type SignInResponse =
       status: "denied" | "expired";
     };
 
-export const authStatusQueryKey = ["desktop-app", "auth-status"] as const;
+const authStatusQueryKey = ["desktop-app", "auth-status"] as const;
 const pendingSignInQueryKey = ["desktop-app", "pending-sign-in"] as const;
 
 function getAuthStatus() {

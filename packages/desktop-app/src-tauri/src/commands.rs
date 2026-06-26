@@ -15,13 +15,13 @@ use crate::notifications::{
     reset_notification_state,
 };
 use crate::settings::{
-    current_app_state, emit_auth_changed, emit_settings_changed, reset_dev_onboarding_inner,
-    update_persisted_state, update_settings, wizard_status_response,
+    current_app_state, emit_auth_changed, emit_settings_changed, update_persisted_state,
+    update_settings, wizard_status_response,
 };
 use crate::telemetry::sidecar::{CollectorStatusResponse, Sidecar};
 use crate::update::{apply_pending_update, pending_update_version};
 use crate::{
-    current_base_url, AuthStatusResponse, CommandResult, DevResetResponse, IntoCommandResult,
+    current_base_url, AuthStatusResponse, CommandResult, IntoCommandResult,
     PendingAuthResponse, RuntimeState, SignInResponse, TestNotificationResponse,
     WizardStatusResponse,
 };
@@ -99,25 +99,6 @@ pub(crate) async fn sign_out(
 
     reset_notification_state(&app, state.inner()).into_command_result()?;
     emit_auth_changed(&app);
-
-    Ok(response)
-}
-
-#[tauri::command]
-pub(crate) async fn reset_dev_onboarding(
-    app: AppHandle,
-    state: State<'_, RuntimeState>,
-) -> CommandResult<DevResetResponse> {
-    if !tauri::is_dev() {
-        return Err("developer reset is only available in dev builds".to_string());
-    }
-
-    let runtime = state.inner().clone();
-    let response = run_blocking_command(move || reset_dev_onboarding_inner(&runtime)).await?;
-
-    reset_notification_state(&app, state.inner()).into_command_result()?;
-    emit_auth_changed(&app);
-    emit_settings_changed(&app);
 
     Ok(response)
 }

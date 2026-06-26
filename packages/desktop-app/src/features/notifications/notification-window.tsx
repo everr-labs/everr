@@ -1,7 +1,6 @@
 import { Button } from "@everr/ui/components/button";
 import type { FailureNotification } from "@everr/ui/lib/notification";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useEffectEvent, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -18,20 +17,12 @@ import {
   formatNotificationAbsoluteTime,
   formatNotificationRelativeTime,
 } from "../../notification-time";
-import { authStatusQueryKey } from "../auth/auth";
 import { SettingsSection } from "../desktop-shell/ui";
 
 const AUTO_DISMISS_MS = 40_000;
 
 type TestNotificationResponse = {
   status: "shown" | "queued";
-};
-
-type DevResetResponse = {
-  auth_status: {
-    status: "signed_in" | "signed_out";
-    session_path: string;
-  };
 };
 
 export const activeNotificationQueryKey = [
@@ -57,10 +48,6 @@ function copyNotificationAutoFixPrompt() {
 
 function triggerTestNotification() {
   return invokeCommand<TestNotificationResponse>("trigger_test_notification");
-}
-
-function resetDevOnboarding() {
-  return invokeCommand<DevResetResponse>("reset_dev_onboarding");
 }
 
 function useActiveNotificationQuery() {
@@ -100,23 +87,8 @@ function useTriggerTestNotificationMutation() {
   });
 }
 
-function useResetDevOnboardingMutation() {
-  const queryClient = useQueryClient();
-  const navigate = useNavigate();
-
-  return useMutation({
-    mutationFn: resetDevOnboarding,
-    onSuccess(data) {
-      queryClient.setQueryData(authStatusQueryKey, data.auth_status);
-      toast.success("Developer session reset.");
-      void navigate({ to: "/ci" });
-    },
-  });
-}
-
 export function DeveloperNotificationSection() {
   const triggerNotificationMutation = useTriggerTestNotificationMutation();
-  const resetOnboardingMutation = useResetDevOnboardingMutation();
 
   async function handleTriggerNotification() {
     const result = await triggerNotificationMutation.mutateAsync();
@@ -129,8 +101,8 @@ export function DeveloperNotificationSection() {
 
   return (
     <SettingsSection
-      title="Notifications & onboarding"
-      description="Preview the notification surface and reset the local dev app state."
+      title="Notifications"
+      description="Preview the notification surface."
       compact
     >
       <div className="flex flex-wrap gap-2">
@@ -144,17 +116,6 @@ export function DeveloperNotificationSection() {
           {triggerNotificationMutation.isPending
             ? "Triggering..."
             : "Test notification"}
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="min-w-[136px] max-[620px]:w-full"
-          disabled={resetOnboardingMutation.isPending}
-          onClick={() => void resetOnboardingMutation.mutateAsync()}
-        >
-          {resetOnboardingMutation.isPending
-            ? "Resetting..."
-            : "Reset onboarding"}
         </Button>
       </div>
     </SettingsSection>
