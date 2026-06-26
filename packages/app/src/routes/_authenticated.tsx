@@ -55,14 +55,8 @@ export const Route = createFileRoute("/_authenticated")({
       // CLI device approval is reached by people setting up a fresh machine, who
       // most often don't have an account yet — send them to sign-up (the page
       // toggles to sign-in and back, preserving this redirect).
-      if (pathname === "/device") {
-        throw redirect({
-          to: "/auth/sign-up",
-          search: { redirect: redirectTo },
-        });
-      }
-
-      throw redirect({ to: "/auth/sign-in", search: { redirect: redirectTo } });
+      const to = pathname === "/device" ? "/auth/sign-up" : "/auth/sign-in";
+      throw redirect({ to, search: { redirect: redirectTo } });
     }
 
     const { activeOrganizationId } = await verifyActiveOrg();

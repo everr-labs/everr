@@ -11,6 +11,7 @@ import {
   AuthPageHeader,
   AuthProviderSeparator,
   buildAuthErrorCallbackURL,
+  buildOnboardingCallbackURL,
   GoogleAuthButton,
 } from "../-components/auth-page";
 
@@ -31,9 +32,7 @@ function SignUp() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   // New accounts always run onboarding first (org + GitHub setup); any caller
   // redirect (e.g. CLI device approval) is forwarded once onboarding completes.
-  const callbackURL = redirectTo
-    ? `/onboarding?redirect=${encodeURIComponent(redirectTo)}`
-    : "/onboarding";
+  const callbackURL = buildOnboardingCallbackURL(redirectTo);
   const errorCallbackURL = buildAuthErrorCallbackURL("/auth/sign-up", {
     redirect: redirectTo,
     email: prefillEmail,

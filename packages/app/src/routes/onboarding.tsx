@@ -218,6 +218,9 @@ function OnboardingWizard() {
     if (currentStepIndex < STEPS.length - 1) goTo(STEPS[currentStepIndex + 1]);
   }
 
+  // The final step backs out to the last relevant setup screen.
+  const goToPriorStep = () => goTo(isGithubInstalled ? "workflows" : "github");
+
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-16 ">
       <motion.div
@@ -368,17 +371,13 @@ function OnboardingWizard() {
                     (deviceUserCode ? (
                       <DeviceAuthorizeStep
                         userCode={deviceUserCode}
-                        onBack={() =>
-                          goTo(isGithubInstalled ? "workflows" : "github")
-                        }
+                        onBack={goToPriorStep}
                         onApproved={() => markOnboardingComplete()}
                         onGoToDashboard={() => void navigate({ to: "/" })}
                       />
                     ) : (
                       <AppStep
-                        onBack={() =>
-                          goTo(isGithubInstalled ? "workflows" : "github")
-                        }
+                        onBack={goToPriorStep}
                         onFinish={async () => {
                           await markOnboardingComplete();
                           await navigate({ to: redirectTo ?? "/" });

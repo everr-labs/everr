@@ -22,6 +22,16 @@ export function AuthPageHeader({
   );
 }
 
+// New accounts always run onboarding first; `redirect` (e.g. a CLI device
+// approval path) is forwarded and resumed once onboarding completes. Keep the
+// onboarding search-param name here so the OAuth callbackURL stays in sync with
+// the onboarding route's `validateSearch`.
+export function buildOnboardingCallbackURL(redirect?: string) {
+  return redirect
+    ? `/onboarding?${new URLSearchParams({ redirect }).toString()}`
+    : "/onboarding";
+}
+
 export function buildAuthErrorCallbackURL(
   path: "/auth/sign-in" | "/auth/sign-up",
   search: { redirect?: string; email?: string },
