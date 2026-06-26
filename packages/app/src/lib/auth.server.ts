@@ -293,11 +293,6 @@ export const auth = betterAuth({
             matcher: (context) => context.path === "/device/approve",
             handler: createAuthMiddleware(async (context) => {
               const userCode = getDeviceApprovalUserCode(context);
-
-              serverLogger.debug("cli_device_organization.start", {
-                userCode: userCode ?? "",
-              });
-
               if (!userCode) {
                 return { context };
               }
@@ -475,6 +470,10 @@ export const auth = betterAuth({
       allowDynamicClientRegistration: true,
       allowUnauthenticatedClientRegistration: true,
       validAudiences: [MCP_RESOURCE],
+      // The RFC 8414 authorization-server metadata is served at
+      // "/.well-known/oauth-authorization-server/api/auth" (see the route of the
+      // same path); silence better-auth's startup check now that it exists.
+      silenceWarnings: { oauthAuthServerConfig: true },
       scopes: [
         "openid",
         "profile",
