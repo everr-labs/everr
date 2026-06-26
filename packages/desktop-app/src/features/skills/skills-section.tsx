@@ -1,5 +1,6 @@
 import { Button } from "@everr/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Check } from "lucide-react";
 import { toast } from "sonner";
 import {
   invokeCommand,
@@ -27,6 +28,10 @@ const PROVIDER_LABELS: Record<SkillProvider, string> = {
   cursor: "Cursor",
 };
 
+// Stable, friendly display order (Claude Code first), independent of the order
+// the backend enumerates providers in.
+const PROVIDER_ORDER: SkillProvider[] = ["claude-code", "codex", "cursor"];
+
 const skillsStatusQueryKey = ["desktop-app", "skills-status"] as const;
 
 function getSkillsStatus() {
@@ -38,7 +43,7 @@ function installSkills(providers: SkillProvider[]) {
 }
 
 const SECTION_DESCRIPTION =
-  "Skills teach your coding agents to work with CI and your telemetry.";
+  "Skills teach your coding agents to work with CI and use your telemetry.";
 
 export function SkillsSection() {
   const queryClient = useQueryClient();
@@ -52,7 +57,7 @@ export function SkillsSection() {
     queryFn: getSkillsStatus,
   });
 
-  const mutation = useMutation({
+  const installMutation = useMutation({
     mutationFn: installSkills,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: skillsStatusQueryKey });
@@ -78,40 +83,52 @@ export function SkillsSection() {
     );
   }
 
-  const providers = statusQuery.data ?? [];
+  // Scope the loading state to the agent actually being installed, so clicking
+  // "Install" on one row doesn't put every other row into a loading state.
+  const installingProvider = installMutation.isPending
+    ? installMutation.variables?.[0]
+    : undefined;
+
+  const providers = [...(statusQuery.data ?? [])].sort(
+    (a, b) =>
+      PROVIDER_ORDER.indexOf(a.provider) - PROVIDER_ORDER.indexOf(b.provider),
+  );
 
   return (
     <SettingsSection title="Agent skills" description={SECTION_DESCRIPTION}>
-      <div className="grid max-w-[680px] gap-2">
+      <ul className="grid max-w-[680px] gap-2">
         {providers.map((provider) => (
-          <div
+          <li
             key={provider.provider}
-            className="flex items-center justify-between gap-3 text-sm"
+            className="flex min-h-8 items-center justify-between gap-4"
           >
-            <span className="text-[var(--settings-text)]">
+            <span className="text-sm text-[var(--settings-text)]">
               {PROVIDER_LABELS[provider.provider]}
             </span>
             {provider.installed ? (
-              <span className="text-[var(--settings-text-muted)]">
+              <span className="inline-flex items-center gap-1.5 text-sm text-emerald-400">
+                <Check className="size-3.5" aria-hidden="true" />
                 Installed
               </span>
             ) : provider.detected ? (
               <Button
                 variant="outline"
                 size="sm"
-                disabled={mutation.isPending}
-                onClick={() => mutation.mutate([provider.provider])}
+                disabled={installMutation.isPending}
+                onClick={() => installMutation.mutate([provider.provider])}
               >
-                {mutation.isPending ? "Installing..." : "Install"}
+                {installingProvider === provider.provider
+                  ? "Installing..."
+                  : "Install"}
               </Button>
             ) : (
-              <span className="text-[var(--settings-text-muted)]">
-                Agent not detected
+              <span className="text-sm text-[var(--settings-text-muted)]">
+                Not detected
               </span>
             )}
-          </div>
+          </li>
         ))}
-      </div>
+      </ul>
     </SettingsSection>
   );
 }
