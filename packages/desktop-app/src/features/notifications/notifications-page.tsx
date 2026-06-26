@@ -1,4 +1,5 @@
 import { resolve } from "@everr/datemath";
+import { Card, CardContent } from "@everr/ui/components/card";
 import {
   Empty,
   EmptyDescription,
@@ -19,9 +20,11 @@ import {
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Check, Clipboard, Workflow } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { APP_DISPLAY_NAME } from "@/lib/app-name";
 import { invokeCommand, NOTIFIER_CHECKED_EVENT } from "@/lib/tauri";
 import { useInvalidateOnTauriEvent } from "@/lib/tauri-events";
 import { formatNotificationRelativeTime } from "../../notification-time";
+import { AuthStandalone, useAuthStatusQuery } from "../auth/auth";
 import { runsListQueryKey } from "./query-keys";
 
 type RunListItem = {
@@ -60,6 +63,39 @@ function useNow(tickMs: number) {
 }
 
 export function NotificationsPage() {
+  const authStatusQuery = useAuthStatusQuery();
+
+  if (authStatusQuery.isPending) {
+    return (
+      <div className="flex h-full items-center justify-center text-sm text-[var(--settings-text-muted)]">
+        Loading {APP_DISPLAY_NAME}…
+      </div>
+    );
+  }
+
+  if (authStatusQuery.data?.status !== "signed_in") {
+    return <CiSignInPrompt />;
+  }
+
+  return <NotificationsContent />;
+}
+
+function CiSignInPrompt() {
+  return (
+    <div className="flex h-full items-center justify-center px-6 py-14">
+      <Card className="w-full max-w-[420px] border-[color:var(--settings-border)] bg-[var(--settings-panel)] text-[var(--settings-text)] shadow-[var(--settings-panel-shadow)]">
+        <CardContent className="px-6 py-8">
+          <AuthStandalone
+            title="Sign in to view your CI runs"
+            description="Connect Everr Cloud to monitor your pipelines."
+          />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function NotificationsContent() {
   const [timeRange, setTimeRange] = useState<TimeRange>({
     from: "now-1h",
     to: "now",

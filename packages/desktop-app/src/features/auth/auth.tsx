@@ -230,7 +230,15 @@ export function useSignOutMutation() {
   });
 }
 
-function AuthContent({ layout }: { layout: "settings" | "standalone" }) {
+function AuthContent({
+  layout,
+  title = "Authenticate your Everr account",
+  description = "Reconnect this desktop app or complete a pending sign-in without leaving Settings.",
+}: {
+  layout: "settings" | "standalone";
+  title?: string;
+  description?: string;
+}) {
   const queryClient = useQueryClient();
   const authStatusQuery = useAuthStatusQuery();
   const signInMutation = useSignInMutation();
@@ -288,9 +296,6 @@ function AuthContent({ layout }: { layout: "settings" | "standalone" }) {
   }, [pollQuery.data, queryClient]);
 
   const pendingError = pendingQuery.error ?? pollQuery.error;
-  const title = "Authenticate your Everr account";
-  const description =
-    "Reconnect this desktop app or complete a pending sign-in without leaving Settings.";
   const showAction = signedIn || !pendingSignIn || isExpired;
   const action = showAction ? (
     <Button
@@ -413,6 +418,18 @@ function AuthContent({ layout }: { layout: "settings" | "standalone" }) {
     <SettingsSection title={title} description={description} action={action}>
       {content}
     </SettingsSection>
+  );
+}
+
+export function AuthStandalone({
+  title,
+  description,
+}: {
+  title?: string;
+  description?: string;
+} = {}) {
+  return (
+    <AuthContent layout="standalone" title={title} description={description} />
   );
 }
 
