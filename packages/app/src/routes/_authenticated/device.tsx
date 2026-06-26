@@ -50,6 +50,17 @@ function CliDeviceApprovalPage() {
     setIsSubmitting(true);
 
     try {
+      // better-auth requires the code to be verified/claimed by this session
+      // before it can be approved or denied.
+      // https://better-auth.com/docs/plugins/device-authorization
+      const verification = await authClient.device({
+        query: { user_code: deviceCode },
+      });
+      if (verification.error) {
+        setStatus("error");
+        return;
+      }
+
       const result =
         action === "approve"
           ? await authClient.device.approve({
