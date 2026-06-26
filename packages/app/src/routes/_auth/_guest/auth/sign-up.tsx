@@ -168,6 +168,7 @@ function SignUp() {
         Already have an account?{" "}
         <Link
           to="/auth/sign-in"
+          search={{ redirect: redirectTo, email: prefillEmail }}
           className="font-medium text-foreground hover:underline"
         >
           Sign in
