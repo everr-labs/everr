@@ -17,8 +17,8 @@ export function SettingsSection({
 }: SettingsSectionProps) {
   return (
     <section className={cn("px-6 py-7 max-[620px]:px-5", compact && "py-5")}>
-      {/* Constrain content to a centered reading column so sections stay aligned
-          and don't sprawl across a wide window; the dividers stay full-bleed. */}
+      {/* Constrain content to a left-aligned reading column so sections stay
+          aligned and don't sprawl across a wide window; dividers stay full-bleed. */}
       <div
         className={cn("grid w-full max-w-[52rem] gap-4", compact && "gap-3")}
       >
