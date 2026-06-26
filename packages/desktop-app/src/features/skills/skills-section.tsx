@@ -18,14 +18,9 @@ type SkillProvider = "codex" | "claude-code" | "cursor";
 
 type SkillProviderState = {
   provider: SkillProvider;
+  display_name: string;
   detected: boolean;
   installed: boolean;
-};
-
-const PROVIDER_LABELS: Record<SkillProvider, string> = {
-  "claude-code": "Claude Code",
-  codex: "Codex",
-  cursor: "Cursor",
 };
 
 // Stable, friendly display order (Claude Code first), independent of the order
@@ -103,7 +98,7 @@ export function SkillsSection() {
             className="flex min-h-8 items-center justify-between gap-4"
           >
             <span className="text-sm text-[var(--settings-text)]">
-              {PROVIDER_LABELS[provider.provider]}
+              {provider.display_name}
             </span>
             {provider.installed ? (
               <span className="inline-flex items-center gap-1.5 text-sm text-emerald-400">

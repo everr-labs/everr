@@ -328,17 +328,13 @@ enum SkillTarget {
 }
 
 fn skill_target_providers(targets: &[SkillTarget]) -> Vec<SkillProvider> {
-    let mut providers = Vec::new();
-    for target in targets {
-        match target {
-            SkillTarget::Claude => providers.push(SkillProvider::ClaudeCode),
-            SkillTarget::Agents => {
-                providers.push(SkillProvider::Codex);
-                providers.push(SkillProvider::Cursor);
-            }
-        }
-    }
-    providers
+    targets
+        .iter()
+        .flat_map(|target| match target {
+            SkillTarget::Claude => vec![SkillProvider::ClaudeCode],
+            SkillTarget::Agents => vec![SkillProvider::Codex, SkillProvider::Cursor],
+        })
+        .collect()
 }
 
 fn default_targets(statuses: &[core_skills::SkillProviderStatus]) -> Vec<SkillTarget> {

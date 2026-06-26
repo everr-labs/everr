@@ -43,6 +43,7 @@ import {
   importRepos,
 } from "@/data/onboarding";
 import { authClient } from "@/lib/auth-client";
+import { approveDevice } from "@/lib/device-auth";
 
 const STEPS = ["organization", "github", "workflows", "app"] as const;
 type Step = (typeof STEPS)[number];
@@ -160,7 +161,6 @@ function OnboardingWizard() {
   const navigate = useNavigate();
   const { redirect: redirectTo } = Route.useSearch();
   const deviceUserCode = parseDeviceUserCode(redirectTo);
-  const isDeviceFlow = deviceUserCode !== null;
   const { data: organization } = useQuery({
     ...activeOrganizationOptions(),
     initialData: initialOrganization,
@@ -302,7 +302,7 @@ function OnboardingWizard() {
                     </span>
                   )}
                   <span className="tracking-wide">
-                    {step === "app" && isDeviceFlow
+                    {step === "app" && deviceUserCode
                       ? "Authorize"
                       : STEP_LABELS[step]}
                   </span>
@@ -365,7 +365,7 @@ function OnboardingWizard() {
                     />
                   )}
                   {currentStep === "app" &&
-                    (isDeviceFlow && deviceUserCode ? (
+                    (deviceUserCode ? (
                       <DeviceAuthorizeStep
                         userCode={deviceUserCode}
                         onBack={() =>
@@ -944,25 +944,9 @@ function DeviceAuthorizeStep({
     setStatus("approving");
     setErrorMessage(null);
     try {
-      // Same two calls the web /device page makes: claim the code for this
-      // session, then approve it. The CLI's poll completes sign-in.
-      const verification = await authClient.device({
-        query: { user_code: userCode },
-      });
-      if (verification.error) {
-        setErrorMessage(
-          verification.error.error_description ??
-            "Could not verify the device code.",
-        );
-        setStatus("error");
-        return;
-      }
-
-      const result = await authClient.device.approve({ userCode });
-      if (result.error || !result.data?.success) {
-        setErrorMessage(
-          result.error?.error_description ?? "Could not authorize the device.",
-        );
+      const result = await approveDevice(userCode);
+      if (!result.ok) {
+        setErrorMessage(result.message);
         setStatus("error");
         return;
       }

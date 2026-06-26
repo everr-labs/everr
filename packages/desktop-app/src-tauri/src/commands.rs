@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result};
 use everr_core::api::{ApiClient, FailureNotification};
 use everr_core::skills::{self as core_skills, SkillOperationOptions, SkillProvider, SkillScope};
 use serde::{Deserialize, Serialize};
@@ -131,17 +131,16 @@ pub(crate) async fn set_notification_emails(
 #[derive(Serialize)]
 pub(crate) struct SkillProviderState {
     pub provider: String,
+    pub display_name: String,
     pub detected: bool,
     pub installed: bool,
 }
 
 fn parse_skill_provider(value: &str) -> Result<SkillProvider> {
-    match value {
-        "codex" => Ok(SkillProvider::Codex),
-        "claude-code" => Ok(SkillProvider::ClaudeCode),
-        "cursor" => Ok(SkillProvider::Cursor),
-        other => bail!("unknown skill provider: {other}"),
-    }
+    SkillProvider::ALL
+        .into_iter()
+        .find(|provider| provider.as_str() == value)
+        .with_context(|| format!("unknown skill provider: {value}"))
 }
 
 #[tauri::command]
@@ -158,6 +157,7 @@ pub(crate) async fn get_skills_status() -> CommandResult<Vec<SkillProviderState>
                     .any(|skill| provider_dir.join(&skill.name).join("SKILL.md").is_file());
                 SkillProviderState {
                     provider: status.provider.as_str().to_string(),
+                    display_name: status.provider.display_name().to_string(),
                     detected: status.detected,
                     installed,
                 }
