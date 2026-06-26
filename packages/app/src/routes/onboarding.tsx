@@ -54,6 +54,20 @@ const STEP_LABELS: Record<Step, string> = {
   app: "Install",
 };
 
+// Parse the CLI device code out of a `/device?user_code=…` onboarding redirect.
+// A fixed base is used only to parse the relative path; the host is irrelevant.
+function parseDeviceUserCode(redirectTo: string | undefined): string | null {
+  if (!redirectTo) return null;
+  try {
+    const url = new URL(redirectTo, "http://localhost");
+    return url.pathname === "/device"
+      ? url.searchParams.get("user_code")
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 const SLIDE_OFFSET = 60;
 const SPRING = { type: "spring" as const, stiffness: 300, damping: 30 };
 
@@ -145,6 +159,8 @@ function OnboardingWizard() {
   const user = sessionData?.user;
   const navigate = useNavigate();
   const { redirect: redirectTo } = Route.useSearch();
+  const deviceUserCode = parseDeviceUserCode(redirectTo);
+  const isDeviceFlow = deviceUserCode !== null;
   const { data: organization } = useQuery({
     ...activeOrganizationOptions(),
     initialData: initialOrganization,
@@ -285,7 +301,11 @@ function OnboardingWizard() {
                       {i + 1}
                     </span>
                   )}
-                  <span className="tracking-wide">{STEP_LABELS[step]}</span>
+                  <span className="tracking-wide">
+                    {step === "app" && isDeviceFlow
+                      ? "Authorize"
+                      : STEP_LABELS[step]}
+                  </span>
                 </button>
               );
             })}
@@ -344,17 +364,27 @@ function OnboardingWizard() {
                       onSkip={goForward}
                     />
                   )}
-                  {currentStep === "app" && (
-                    <AppStep
-                      onBack={() =>
-                        goTo(isGithubInstalled ? "workflows" : "github")
-                      }
-                      onFinish={async () => {
-                        await markOnboardingComplete();
-                        await navigate({ to: redirectTo ?? "/" });
-                      }}
-                    />
-                  )}
+                  {currentStep === "app" &&
+                    (isDeviceFlow && deviceUserCode ? (
+                      <DeviceAuthorizeStep
+                        userCode={deviceUserCode}
+                        onBack={() =>
+                          goTo(isGithubInstalled ? "workflows" : "github")
+                        }
+                        onApproved={() => markOnboardingComplete()}
+                        onGoToDashboard={() => void navigate({ to: "/" })}
+                      />
+                    ) : (
+                      <AppStep
+                        onBack={() =>
+                          goTo(isGithubInstalled ? "workflows" : "github")
+                        }
+                        onFinish={async () => {
+                          await markOnboardingComplete();
+                          await navigate({ to: redirectTo ?? "/" });
+                        }}
+                      />
+                    ))}
                 </motion.div>
               </AnimatePresence>
             </div>
@@ -887,6 +917,150 @@ function AppStep({
           <Button type="button" size="lg" onClick={onFinish}>
             Go to dashboard
             <ArrowRight className="ml-2 size-3.5" />
+          </Button>
+        </div>
+      </motion.section>
+    </StepContainer>
+  );
+}
+
+function DeviceAuthorizeStep({
+  userCode,
+  onBack,
+  onApproved,
+  onGoToDashboard,
+}: {
+  userCode: string;
+  onBack: () => void;
+  onApproved: () => Promise<unknown>;
+  onGoToDashboard: () => void;
+}) {
+  const [status, setStatus] = useState<
+    "idle" | "approving" | "approved" | "error"
+  >("idle");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  async function approve() {
+    setStatus("approving");
+    setErrorMessage(null);
+    try {
+      // Same two calls the web /device page makes: claim the code for this
+      // session, then approve it. The CLI's poll completes sign-in.
+      const verification = await authClient.device({
+        query: { user_code: userCode },
+      });
+      if (verification.error) {
+        setErrorMessage(
+          verification.error.error_description ??
+            "Could not verify the device code.",
+        );
+        setStatus("error");
+        return;
+      }
+
+      const result = await authClient.device.approve({ userCode });
+      if (result.error || !result.data?.success) {
+        setErrorMessage(
+          result.error?.error_description ?? "Could not authorize the device.",
+        );
+        setStatus("error");
+        return;
+      }
+
+      await onApproved();
+      setStatus("approved");
+    } catch {
+      setErrorMessage("An unexpected error occurred. Please try again.");
+      setStatus("error");
+    }
+  }
+
+  if (status === "approved") {
+    return (
+      <StepContainer title="Authorize device" index={4}>
+        <motion.section
+          variants={staggerItem}
+          className="mt-8 flex flex-col items-center border border-border bg-card p-6 text-center sm:p-10 rounded-md"
+        >
+          <motion.div
+            className="flex size-12 items-center justify-center text-green-400"
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", stiffness: 400, damping: 15 }}
+          >
+            <Check className="size-8" strokeWidth={2.5} />
+          </motion.div>
+          <h2 className="mt-4 text-lg font-semibold">Device authorized</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            You can return to your terminal — the Everr CLI is now signed in.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className="mt-6"
+            onClick={onGoToDashboard}
+          >
+            Go to dashboard
+            <ArrowRight className="ml-2 size-3.5" />
+          </Button>
+        </motion.section>
+      </StepContainer>
+    );
+  }
+
+  return (
+    <StepContainer title="Authorize device" index={4}>
+      <motion.section
+        variants={staggerItem}
+        className="mt-8 border border-border bg-card p-6 sm:p-10 rounded-md"
+      >
+        <h2 className="text-lg font-semibold">Authorize the Everr CLI</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Confirm this matches the code shown in your terminal, then approve to
+          finish signing the CLI in.
+        </p>
+
+        <div className="mt-6 border border-border bg-muted/40 px-5 py-4 rounded-md">
+          <p className="text-xs font-medium tracking-wide text-muted-foreground">
+            Device code
+          </p>
+          <p className="mt-1 font-mono text-2xl font-semibold tracking-[0.18em]">
+            {userCode}
+          </p>
+        </div>
+
+        {status === "error" && errorMessage ? (
+          <p className="mt-4 text-xs text-destructive" role="alert">
+            {errorMessage}
+          </p>
+        ) : null}
+
+        <div className="mt-8 flex items-center justify-between border-t border-border pt-6">
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            onClick={onBack}
+            disabled={status === "approving"}
+          >
+            <ArrowLeft className="mr-2 size-3.5" />
+            Back
+          </Button>
+          <Button
+            type="button"
+            size="lg"
+            onClick={() => void approve()}
+            disabled={status === "approving"}
+          >
+            {status === "approving" ? (
+              <>
+                <Loader2 className="mr-2 size-4 animate-spin" />
+                Authorizing...
+              </>
+            ) : (
+              "Approve"
+            )}
           </Button>
         </div>
       </motion.section>
