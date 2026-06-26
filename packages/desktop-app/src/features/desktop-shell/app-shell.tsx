@@ -14,6 +14,7 @@ import {
   CircleUser,
   Code,
   GitPullRequestArrow,
+  LogIn,
   LogOut,
   ScrollText,
   Settings,
@@ -145,19 +146,30 @@ function AuthStatusIndicator() {
             <DropdownMenuSeparator />
           </>
         ) : null}
-        <DropdownMenuItem
-          disabled={signOutMutation.isPending}
-          render={
-            <button
-              type="button"
-              className="w-full"
-              onClick={() => void signOutMutation.mutateAsync()}
-            >
-              <LogOut className="mr-2 size-4" />
-              Sign out
-            </button>
-          }
-        />
+        {signedIn ? (
+          <DropdownMenuItem
+            disabled={signOutMutation.isPending}
+            render={
+              <button
+                type="button"
+                className="w-full"
+                onClick={() => void signOutMutation.mutateAsync()}
+              >
+                <LogOut className="mr-2 size-4" />
+                Sign out
+              </button>
+            }
+          />
+        ) : (
+          <DropdownMenuItem
+            render={
+              <Link to="/settings" className="w-full">
+                <LogIn className="mr-2 size-4" />
+                Sign in
+              </Link>
+            }
+          />
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
