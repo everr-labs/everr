@@ -11,6 +11,7 @@ import errorShot from "../assets/error.webp?url";
 import notebookShot from "../assets/notebook.webp?url";
 import telemetryBackdrop from "../assets/telemetry-backdrop.webp?url";
 import traceShot from "../assets/trace.webp?url";
+import { Code } from "./ui/code";
 import { WindowChrome } from "./ui/window-chrome";
 
 type Feature = {
@@ -18,18 +19,9 @@ type Feature = {
   title: string;
   body: ReactNode;
   points: string[];
-  /** The visual for this row. Omit to show the screenshot placeholder. */
-  visual?: ReactNode;
+  /** The illustration shown beside this row's copy. */
+  visual: ReactNode;
 };
-
-/** Inline monospace chip for a CLI command or identifier in feature prose. */
-function Code({ children }: { children: ReactNode }) {
-  return (
-    <code className="rounded bg-fd-muted px-1.5 py-0.5 font-mono text-[0.85em] text-fd-foreground">
-      {children}
-    </code>
-  );
-}
 
 const FEATURES: Feature[] = [
   {
@@ -189,9 +181,9 @@ function FeatureRow({ feature, flip }: { feature: Feature; flip: boolean }) {
 
   // Slide direction matches the side the text sits on: default rows have text
   // on the left (slide in from left → x:-32); flipped rows have text on the
-  // right (slide in from right → x:32). The Shot mirrors the opposite side.
+  // right (slide in from right → x:32). The visual mirrors the opposite side.
   const textFrom = flip ? 32 : -32;
-  const shotFrom = flip ? -32 : 32;
+  const visualFrom = flip ? -32 : 32;
 
   return (
     <div
@@ -240,9 +232,9 @@ function FeatureRow({ feature, flip }: { feature: Feature; flip: boolean }) {
         </ul>
       </motion.div>
 
-      {/* SHOT — order-2 on mobile (after text), positioned by flip on desktop */}
+      {/* VISUAL — order-2 on mobile (after text), positioned by flip on desktop */}
       <motion.div
-        initial={{ opacity: 0, y: 24, x: shotFrom }}
+        initial={{ opacity: 0, y: 24, x: visualFrom }}
         animate={inView ? { opacity: 1, y: 0, x: 0 } : undefined}
         transition={{ duration: 0.8, delay: 0.1, ease: EASE }}
         className={cn(
@@ -250,7 +242,7 @@ function FeatureRow({ feature, flip }: { feature: Feature; flip: boolean }) {
           flip ? "md:order-1 md:col-start-1" : "md:order-2 md:col-start-2",
         )}
       >
-        {feature.visual ?? <Shot label={feature.title} />}
+        {feature.visual}
       </motion.div>
     </div>
   );
@@ -724,29 +716,6 @@ function SkillPreview() {
             </span>
           </div>
         ))}
-      </div>
-    </div>
-  );
-}
-
-function Shot({ label }: { label: string }) {
-  return (
-    <div className="overflow-hidden rounded-xl border border-fd-border bg-fd-card shadow-2xl shadow-black/30">
-      <WindowChrome title={`everr · ${label.toLowerCase()}`} />
-
-      {/* Body — empty but intentional: dot-grid + label */}
-      <div
-        className="relative flex aspect-video items-center justify-center"
-        style={{
-          backgroundImage:
-            "radial-gradient(circle, var(--color-fd-border) 1px, transparent 1px)",
-          backgroundSize: "22px 22px",
-          backgroundPosition: "-1px -1px",
-        }}
-      >
-        <span className="font-mono text-xs text-fd-muted-foreground/40">
-          screenshot
-        </span>
       </div>
     </div>
   );

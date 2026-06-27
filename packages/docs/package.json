@@ -30,7 +30,6 @@
     "posthog-js": "^1.372.10",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "resend": "^6.12.3",
     "zod": "catalog:"
   },
   "devDependencies": {

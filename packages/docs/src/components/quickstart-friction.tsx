@@ -1,8 +1,10 @@
 import { cn } from "@everr/ui/lib/utils";
 import { ArrowRight, Check, Copy } from "lucide-react";
 import { motion, useInView } from "motion/react";
-import type { ReactNode } from "react";
-import { useRef, useState } from "react";
+import { useRef } from "react";
+import { useCopyToClipboard } from "../lib/use-copy";
+import { Code } from "./ui/code";
+import { INSTALL_COMMAND } from "./ui/install-command";
 
 /* ------------------------------------------------------------------ */
 /*  Content                                                            */
@@ -26,8 +28,6 @@ const INSTALL_OUTPUT = [
   "first trace received",
 ] as const;
 
-const COMMAND = "curl -fsSL https://everr.dev/install.sh | sh";
-
 const EASE = [0.22, 1, 0.36, 1] as const;
 
 const REVEAL = {
@@ -43,19 +43,7 @@ export function QuickstartFriction() {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, margin: "-15% 0px" });
 
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = async () => {
-    try {
-      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(COMMAND);
-        setCopied(true);
-        window.setTimeout(() => setCopied(false), 1800);
-      }
-    } catch {
-      // Clipboard unavailable (insecure context / denied permission); no-op.
-    }
-  };
+  const { copied, copy } = useCopyToClipboard(INSTALL_COMMAND);
 
   return (
     <section className="relative overflow-x-clip border-y-2 border-fd-border bg-fd-background">
@@ -154,7 +142,7 @@ export function QuickstartFriction() {
               <div className="flex items-center justify-end border-b border-fd-border px-3 py-2">
                 <button
                   type="button"
-                  onClick={handleCopy}
+                  onClick={copy}
                   aria-label={copied ? "Copied" : "Copy command"}
                   className={cn(
                     "group inline-flex items-center gap-2 rounded-md border px-3 py-1.5 font-heading text-xs font-bold tracking-tight outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-fd-background",
@@ -181,7 +169,7 @@ export function QuickstartFriction() {
                   >
                     $
                   </span>{" "}
-                  <span className="text-fd-foreground">{COMMAND}</span>
+                  <span className="text-fd-foreground">{INSTALL_COMMAND}</span>
                 </code>
               </div>
 
@@ -293,14 +281,5 @@ function ColumnTag({
     >
       {label}
     </h3>
-  );
-}
-
-/** Inline monospace chip for an identifier such as the CLI name. */
-function Code({ children }: { children: ReactNode }) {
-  return (
-    <code className="rounded bg-fd-muted px-1.5 py-0.5 font-mono text-[0.85em] text-fd-foreground">
-      {children}
-    </code>
   );
 }
