@@ -116,7 +116,7 @@ function BentoItem({
 }) {
   const Icon = item.icon;
   const text = (
-    <div className="transition-transform duration-300 group-hover/bento:translate-x-1.5">
+    <div>
       <div className="flex items-center gap-2">
         <Icon
           className="size-4 shrink-0 text-primary"

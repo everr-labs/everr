@@ -31,7 +31,7 @@ export function Hero() {
           <h1 className="font-heading text-4xl md:text-6xl">
             Observability made simple.
             <br />
-            <span className="text-primary">For Real.</span>
+            <span className="text-primary font-medium">For real.</span>
           </h1>
           <p className="max-w-prose">
             Setting up observability shouldn&rsquo;t take days. Get started in
