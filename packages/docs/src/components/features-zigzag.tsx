@@ -19,7 +19,7 @@ type Feature = {
   body: ReactNode;
   points: string[];
   /** Optional bespoke visual in place of the screenshot placeholder. */
-  preview?: "skill";
+  preview?: "skill" | "ci";
 };
 
 /** Inline monospace chip for a CLI command or identifier in feature prose. */
@@ -101,12 +101,13 @@ const FEATURES: Feature[] = [
     icon: FlaskConical,
     label: "CI & tests",
     title: "CI you can query",
-    body: "A GitHub App turns every Actions run into structured, queryable data: workflows, jobs, steps, and step logs. Test output from Go, Vitest, and Rust becomes per-test spans, so flaky tests, slow steps, and runner cost are all just queries.",
+    body: "A GitHub App turns every Actions run into structured, queryable data: workflows, jobs, steps, and per-test spans. Every run is a trace and every job carries its cost, so you can optimize for performance, cost, or both.",
     points: [
       "Workflows, jobs, and steps as queryable traces",
-      "Per-test spans and flaky detection for Go, Vitest, and Rust",
-      "Estimated runner cost by job, workflow, and runner type",
+      "Per-test spans for slow and flaky tests",
+      "Estimated cost attributed by job, workflow, and runner",
     ],
+    preview: "ci",
   },
   {
     index: "06",
@@ -242,12 +243,165 @@ function FeatureRow({ feature, flip }: { feature: Feature; flip: boolean }) {
           flip ? "md:order-1 md:col-start-1" : "md:order-2 md:col-start-2",
         )}
       >
-        {feature.preview === "skill" ? (
-          <SkillPreview />
-        ) : (
-          <Shot label={feature.label} />
-        )}
+        <FeaturePreview feature={feature} />
       </motion.div>
+    </div>
+  );
+}
+
+/** Picks a feature's bespoke visual, falling back to the screenshot placeholder. */
+function FeaturePreview({ feature }: { feature: Feature }) {
+  if (feature.preview === "skill") return <SkillPreview />;
+  if (feature.preview === "ci") return <CiShot />;
+  return <Shot label={feature.label} />;
+}
+
+/** Shared faux window title bar: traffic lights plus a file or run label. */
+function WindowChrome({
+  title,
+  trailing,
+}: {
+  title: string;
+  trailing?: string;
+}) {
+  return (
+    <div className="flex items-center gap-2 border-b border-fd-border bg-fd-card/60 px-3 py-2">
+      <span className="size-2 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
+      <span className="size-2 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
+      <span className="size-2 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
+      <span className="ml-2 truncate font-mono text-[9px] tracking-[0.05em] text-fd-muted-foreground/50 sm:text-[10px]">
+        {title}
+      </span>
+      {trailing ? (
+        <span className="ml-auto shrink-0 font-mono text-[9px] tabular-nums text-fd-muted-foreground/50 sm:text-[10px]">
+          {trailing}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+/** Two staggered windows for the CI card: one run rendered as a trace waterfall
+ *  (back) and a flaky-test history panel (front). The `test` span ties them
+ *  together, mirroring what the GitHub App ingests, runs and per-test spans. */
+function CiShot() {
+  const spans = [
+    {
+      name: "build",
+      depth: 0,
+      start: 0,
+      width: 50,
+      dur: "2m04",
+      accent: false,
+    },
+    {
+      name: "checkout",
+      depth: 1,
+      start: 0,
+      width: 6,
+      dur: "14s",
+      accent: false,
+    },
+    {
+      name: "install",
+      depth: 1,
+      start: 6,
+      width: 20,
+      dur: "48s",
+      accent: false,
+    },
+    { name: "test", depth: 1, start: 26, width: 24, dur: "1m02", accent: true },
+    { name: "lint", depth: 0, start: 0, width: 16, dur: "38s", accent: false },
+    {
+      name: "deploy",
+      depth: 0,
+      start: 74,
+      width: 26,
+      dur: "1m00",
+      accent: false,
+    },
+  ];
+
+  const runs = [
+    { name: "auth.login", passes: [1, 1, 0, 1, 1, 0, 1, 1], flakes: 2 },
+    { name: "pool.acquire", passes: [1, 1, 1, 0, 1, 1, 1, 1], flakes: 1 },
+    { name: "cart.checkout", passes: [1, 1, 1, 1, 1, 1, 1, 1], flakes: 0 },
+    { name: "upload.large", passes: [1, 0, 1, 0, 1, 1, 0, 1], flakes: 3 },
+  ].map((t) => ({
+    ...t,
+    cells: t.passes.map((p, i) => ({ id: `${t.name}-${i}`, pass: p === 1 })),
+  }));
+
+  return (
+    <div className="relative pb-24">
+      {/* Back window: one run as a trace waterfall */}
+      <div className="w-[88%] overflow-hidden rounded-xl border border-fd-border bg-fd-card/60 shadow-xl shadow-black/20">
+        <WindowChrome title="ci.yml · run #1842" trailing="4m 18s" />
+        <div className="space-y-1.5 px-3 py-3">
+          {spans.map((s) => (
+            <div
+              key={s.name}
+              className="flex items-center gap-2 font-mono text-[10px] sm:text-[11px]"
+            >
+              <span
+                className={cn(
+                  "w-14 shrink-0 truncate text-fd-muted-foreground",
+                  s.depth === 1 && "pl-2 text-fd-muted-foreground/70",
+                )}
+              >
+                {s.name}
+              </span>
+              <span className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-fd-muted-foreground/10">
+                <span
+                  className={cn(
+                    "absolute inset-y-0 rounded-full",
+                    s.accent ? "bg-primary/80" : "bg-fd-muted-foreground/40",
+                  )}
+                  style={{ left: `${s.start}%`, width: `${s.width}%` }}
+                />
+              </span>
+              <span className="w-10 shrink-0 text-right tabular-nums text-fd-muted-foreground/55">
+                {s.dur}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Front window: flaky-test history, staggered down and to the right */}
+      <div className="absolute bottom-0 right-0 w-[74%] overflow-hidden rounded-xl border border-fd-border bg-fd-card shadow-2xl shadow-black/40">
+        <WindowChrome title="flaky tests · 30d" />
+        <div className="space-y-2 px-3 py-3">
+          {runs.map((t) => (
+            <div
+              key={t.name}
+              className="flex items-center gap-2 font-mono text-[10px] sm:text-[11px]"
+            >
+              <span className="w-[4.5rem] shrink-0 truncate text-fd-muted-foreground">
+                {t.name}
+              </span>
+              <span className="flex flex-1 gap-0.5">
+                {t.cells.map((c) => (
+                  <span
+                    key={c.id}
+                    className={cn(
+                      "h-2.5 flex-1 rounded-[1px]",
+                      c.pass ? "bg-fd-muted-foreground/20" : "bg-primary",
+                    )}
+                  />
+                ))}
+              </span>
+              <span className="w-12 shrink-0 text-right tabular-nums">
+                {t.flakes > 0 ? (
+                  <span className="text-fd-foreground">{t.flakes} flaky</span>
+                ) : (
+                  <span className="text-fd-muted-foreground/50">stable</span>
+                )}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
