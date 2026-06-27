@@ -22,8 +22,16 @@ import {
   useReducedMotion,
 } from "motion/react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import otelLogo from "../assets/logos/otel.svg?url";
+import persesLogo from "../assets/logos/perses.svg?url";
+import space3 from "../assets/space/3.webp?url";
+import space4 from "../assets/space/4.webp?url";
+import space6 from "../assets/space/6.webp?url";
+import space9 from "../assets/space/9.webp?url";
+import space11 from "../assets/space/11.webp?url";
 import claudeMark from "./icons/claudecode.svg";
 import codexMark from "./icons/codex.svg";
+import knoticMark from "./icons/knotic.svg";
 import opencodeMark from "./icons/opencode.svg";
 import piMark from "./icons/pi.svg";
 
@@ -516,7 +524,7 @@ function SemanticConventions() {
           "radial-gradient(108% 108% at 50% 45%, #000 60%, transparent 100%)",
       }}
     >
-      <SpaceBackdrop src="/space/3.webp" dim="bg-fd-background/72" />
+      <SpaceBackdrop src={space3} dim="bg-fd-background/72" />
       <div className="absolute inset-x-0 bottom-0 top-24">
         {/* threads — light up between attributes that are both present */}
         <svg
@@ -735,7 +743,7 @@ function PersesShowcase() {
   return (
     <div className="relative size-full overflow-hidden">
       <img
-        src="/space/4.webp"
+        src={space4}
         alt=""
         aria-hidden
         className="absolute inset-0 size-full scale-110 object-cover transition-transform duration-500 ease-out group-hover/bento:scale-100 motion-reduce:scale-100 motion-reduce:transition-none"
@@ -755,7 +763,7 @@ function PersesShowcase() {
           }}
         />
         <img
-          src="/logos/perses.svg"
+          src={persesLogo}
           alt="Perses"
           className="relative h-24 w-auto drop-shadow-2xl sm:h-32"
         />
@@ -802,6 +810,7 @@ const CLAUDE: Agent = { name: "Claude", mark: claudeMark };
 const CODEX: Agent = { name: "Codex", mark: codexMark };
 const PI: Agent = { name: "Pi", mark: piMark };
 const OPENCODE: Agent = { name: "opencode", mark: opencodeMark };
+const KNOTIC: Agent = { name: "Knotic", mark: knoticMark };
 
 type Commit = { hash: string; msg: string; file: string; author: Author };
 
@@ -835,6 +844,12 @@ const COMMITS: Commit[] = [
     msg: "Rename cart-api panels after refactor",
     file: "cart-api.dashboard.yaml",
     author: { kind: "agent", agent: CODEX },
+  },
+  {
+    hash: "6d4e8b2",
+    msg: "Add SLO burn-rate alert for payments",
+    file: "payments-slo.alert.yaml",
+    author: { kind: "agent", agent: KNOTIC },
   },
   {
     hash: "e96f3d2",
@@ -953,7 +968,7 @@ function AsCodeFeed() {
 
   return (
     <div className="pointer-events-none relative size-full select-none overflow-hidden">
-      <SpaceBackdrop src="/space/11.webp" dim="bg-fd-background/78" />
+      <SpaceBackdrop src={space11} dim="bg-fd-background/78" />
       <div className="absolute inset-x-0 bottom-0 top-24 px-5">
         <div className="flex h-full flex-col justify-center gap-2.5">
           <AnimatePresence initial={false} mode="popLayout">
@@ -1012,9 +1027,9 @@ const ITEMS: Item[] = [
     description:
       "Traces, logs and metrics in one open model — the same signal from your laptop to CI to production.",
     header: (
-      <LogoShowcase src="/space/6.webp">
+      <LogoShowcase src={space6}>
         <img
-          src="/logos/otel.svg"
+          src={otelLogo}
           alt="OpenTelemetry"
           loading="lazy"
           className="relative h-16 w-auto drop-shadow-2xl sm:h-20"
@@ -1037,7 +1052,7 @@ const ITEMS: Item[] = [
     description:
       "One read-only SQL surface over every signal — no query language to learn, the same locally and in the cloud.",
     header: (
-      <LogoShowcase src="/space/9.webp">
+      <LogoShowcase src={space9}>
         <SiClickhouse
           className="relative size-16 drop-shadow-2xl sm:size-20"
           color="default"

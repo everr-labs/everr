@@ -1,5 +1,7 @@
 import { motion, useInView } from "motion/react";
 import { useRef } from "react";
+import skillvueLogo from "../assets/logos/skillvue.svg?url";
+import marcelloPhoto from "../assets/testimonials/marcello.jpeg?url";
 import { GravityStarsBackground } from "./animate-ui/components/backgrounds/gravity-stars";
 
 export function FeaturedTestimonial() {
@@ -22,11 +24,7 @@ export function FeaturedTestimonial() {
             Why teams switch
           </p>
 
-          <img
-            src="/logos/skillvue.svg"
-            alt="SkillVue"
-            className="mt-6 h-8 w-auto"
-          />
+          <img src={skillvueLogo} alt="SkillVue" className="mt-6 h-8 w-auto" />
 
           <blockquote className="mt-6 font-heading text-2xl leading-[1.2] tracking-tight text-fd-foreground sm:text-3xl md:text-4xl">
             “The first tool we tried took a whole team just to keep running. We
@@ -42,7 +40,7 @@ export function FeaturedTestimonial() {
 
           <figcaption className="mt-8 flex items-center gap-4">
             <img
-              src="/testimonials/marcello.jpeg"
+              src={marcelloPhoto}
               alt="Marcello Roherssen"
               className="size-12 rounded-full object-cover"
             />
