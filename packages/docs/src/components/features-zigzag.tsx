@@ -1,5 +1,6 @@
 import { cn } from "@everr/ui/lib/utils";
 import {
+  AppWindow,
   Bot,
   FileCode2,
   FlaskConical,
@@ -8,77 +9,117 @@ import {
   Terminal,
 } from "lucide-react";
 import { motion, useInView } from "motion/react";
-import { useRef } from "react";
+import { type ReactNode, useRef } from "react";
 
 type Feature = {
   index: string;
   icon: LucideIcon;
   label: string;
   title: string;
-  body: string;
+  body: ReactNode;
   points: string[];
+  /** Optional bespoke visual in place of the screenshot placeholder. */
+  preview?: "skill";
 };
+
+/** Inline monospace chip for a CLI command or identifier in feature prose. */
+function Code({ children }: { children: ReactNode }) {
+  return (
+    <code className="rounded bg-fd-muted px-1.5 py-0.5 font-mono text-[0.85em] text-fd-foreground">
+      {children}
+    </code>
+  );
+}
 
 const FEATURES: Feature[] = [
   {
     index: "01",
     icon: Layers,
     label: "Signals",
-    title: "Logs, traces & metrics — all OpenTelemetry",
-    body: "Every signal is standard OpenTelemetry, so one model covers your laptop, CI, and production. Even GitHub Actions runs and test results land as the same kind of signal — one set of tools works everywhere.",
+    title: "Logs, traces, metrics, and errors. All OpenTelemetry.",
+    body: "Every signal is standard OpenTelemetry, so one model covers your laptop, CI, and production. Uncaught exceptions are captured for you, grouped into issues by fingerprint, and linked back to the trace they came from.",
     points: [
-      "Standard OpenTelemetry, end to end",
-      "One model for local, CI & prod",
-      "CI runs & tests are signals too",
+      "Logs, traces, metrics, and errors, all OpenTelemetry",
+      "Exceptions captured automatically and grouped into issues",
+      "Every error links back to its trace",
     ],
   },
   {
     index: "02",
     icon: Terminal,
     label: "Query",
-    title: "One SQL surface, from the CLI",
-    body: "Query what actually ran with plain SQL — `everr local query` against your machine, `everr cloud query` against the shared workspace. Same read-only surface locally and in the cloud.",
+    title: "Plain SQL from the CLI, local or cloud",
+    body: (
+      <>
+        Read what actually ran without learning a query language. Run{" "}
+        <Code>everr local query</Code> against your own machine or{" "}
+        <Code>everr cloud query</Code> against the shared workspace, the same
+        SQL and the same tables whether the data is on your laptop or in
+        production.
+      </>
+    ),
     points: [
-      "Plain SQL, local and cloud",
-      "Read-only by default",
-      "The query your agent can write",
+      "Plain SQL over ClickHouse, local and cloud",
+      "Cloud queries are read-only, capped at 1000 rows and 30 seconds",
+      "The same query your coding agent runs",
     ],
   },
   {
     index: "03",
-    icon: FileCode2,
-    label: "As code",
-    title: "Dashboards & alerts as code",
-    body: "Define dashboards and alerts as version-controlled files and reconcile them with `everr apply`. Perses-compatible panels and query-driven alerts — Git is the source of truth, not a dashboard editor.",
+    icon: AppWindow,
+    label: "Desktop app",
+    title: "Your telemetry in a native window",
+    body: "A macOS app that runs the local collector for you and opens your logs, traces, and errors in the same explorer you use in the browser, reading straight from your machine. It lives in the menu bar, starts on login, and keeps itself up to date.",
     points: [
-      "Perses-compatible, applied with everr apply",
-      "Query-driven alerts on your data",
-      "Git is the source of truth",
+      "Runs an embedded OpenTelemetry collector on launch, no cloud account needed",
+      "Explore local logs, traces, and errors, then query them with SQL",
+      "Watch your CI runs and get a notification when one fails",
     ],
   },
   {
     index: "04",
-    icon: FlaskConical,
-    label: "CI & tests",
-    title: "CI you can query",
-    body: "The GitHub App turns every Actions run into structured data — workflows, jobs, steps, and logs. Verbose test output becomes per-test spans, so flaky tests, slow steps, and runner cost are all just queries.",
+    icon: FileCode2,
+    label: "As code",
+    title: "Dashboards, alerts, and runbooks as code",
+    body: (
+      <>
+        Define dashboards in Perses-format YAML, alerts as query files, and
+        runbooks alongside them, then run <Code>everr apply</Code> to reconcile
+        the whole directory against your workspace. Git is the source of truth:
+        apply creates what is new, updates what changed, and prunes what you
+        deleted.
+      </>
+    ),
     points: [
-      "GitHub Actions as structured data",
-      "Per-test spans & flaky-test trends",
-      "Per-job resource & cost analysis",
+      "Perses-format dashboards and query-driven alerts",
+      "Alert queries are plain SQL, and every row they return is a firing instance",
+      "everr apply reconciles a directory to match Git, pruning what you remove",
     ],
   },
   {
     index: "05",
+    icon: FlaskConical,
+    label: "CI & tests",
+    title: "CI you can query",
+    body: "A GitHub App turns every Actions run into structured, queryable data: workflows, jobs, steps, and step logs. Test output from Go, Vitest, and Rust becomes per-test spans, so flaky tests, slow steps, and runner cost are all just queries.",
+    points: [
+      "Workflows, jobs, and steps as queryable traces",
+      "Per-test spans and flaky detection for Go, Vitest, and Rust",
+      "Estimated runner cost by job, workflow, and runner type",
+    ],
+  },
+  {
+    index: "06",
     icon: Bot,
     label: "Agents",
     title: "Built for coding assistants",
-    body: "Everr assumes your coding assistant is a primary user. Bundled skills teach it when to reach for telemetry and how to query it, working from your repo so it connects runtime signal back to the code that caused it.",
+    body: "Everr treats your coding assistant as a primary user. Bundled skills teach it when to reach for telemetry and how to query it, working from your repo so it ties a failing trace or log back to the code that caused it.",
     points: [
-      "Bundled skills, installed once",
-      "Works from your repository",
-      "Grounds fixes in what actually ran",
+      "Crafted skills to help your assistant work with telemetry",
+      "One install, available in every assistant you use",
+      "Fixes grounded in real traces and logs, not guesses",
     ],
+    preview: "skill",
   },
 ];
 
@@ -105,8 +146,8 @@ export function FeaturesZigzag() {
             Everything you need to see what your code actually does.
           </h2>
           <p className="mt-6 max-w-xl text-base leading-relaxed text-fd-muted-foreground md:text-lg">
-            One pipeline and one query surface, from your laptop to production.
-            A guided tour of what&rsquo;s inside.
+            One OpenTelemetry pipeline and plain SQL, from your laptop to
+            production. Here&rsquo;s what&rsquo;s inside.
           </p>
         </motion.div>
 
@@ -201,8 +242,160 @@ function FeatureRow({ feature, flip }: { feature: Feature; flip: boolean }) {
           flip ? "md:order-1 md:col-start-1" : "md:order-2 md:col-start-2",
         )}
       >
-        <Shot label={feature.label} />
+        {feature.preview === "skill" ? (
+          <SkillPreview />
+        ) : (
+          <Shot label={feature.label} />
+        )}
       </motion.div>
+    </div>
+  );
+}
+
+/** A faux editor window previewing a bundled skill as Markdown source. The
+ *  content mirrors crates/everr-core/assets/skills/everr-use-telemetry/SKILL.md
+ *  so the preview stays honest about what a skill looks like. */
+function SkillPreview() {
+  const cPunct = "text-fd-muted-foreground/40";
+  const cKey = "text-fd-foreground/70";
+  const cVal = "text-fd-muted-foreground";
+  const cHead = "font-semibold text-fd-foreground";
+  const cCmd = "text-primary";
+  const tick = <span className={cPunct}>{"`"}</span>;
+
+  const lines: { id: string; content: ReactNode }[] = [
+    { id: "fm-open", content: <span className={cPunct}>---</span> },
+    {
+      id: "name",
+      content: (
+        <>
+          <span className={cKey}>name:</span>{" "}
+          <span className={cVal}>everr-use-telemetry</span>
+        </>
+      ),
+    },
+    {
+      id: "desc",
+      content: (
+        <>
+          <span className={cKey}>description:</span>{" "}
+          <span className={cVal}>
+            Use when investigating logs, traces, metrics, errors.
+          </span>
+        </>
+      ),
+    },
+    { id: "fm-close", content: <span className={cPunct}>---</span> },
+    { id: "gap-1", content: " " },
+    {
+      id: "h1",
+      content: (
+        <>
+          <span className={cPunct}># </span>
+          <span className={cHead}>Use Telemetry With Everr</span>
+        </>
+      ),
+    },
+    {
+      id: "p1",
+      content: (
+        <span className={cVal}>
+          Use Everr telemetry before guessing at runtime behavior.
+        </span>
+      ),
+    },
+    { id: "gap-3", content: " " },
+    {
+      id: "h2",
+      content: (
+        <>
+          <span className={cPunct}>## </span>
+          <span className={cHead}>Only Raw SQL</span>
+        </>
+      ),
+    },
+    {
+      id: "p3",
+      content: <span className={cVal}>The only query command is raw SQL:</span>,
+    },
+    {
+      id: "cmd-cloud",
+      content: (
+        <>
+          {tick}
+          <span className={cCmd}>{'everr cloud query "<SQL>"'}</span>
+          {tick}
+          <span className={cVal}> or</span>
+        </>
+      ),
+    },
+    {
+      id: "cmd-local",
+      content: (
+        <>
+          {tick}
+          <span className={cCmd}>{'everr local query "<SQL>"'}</span>
+          {tick}
+          <span className={cVal}>.</span>
+        </>
+      ),
+    },
+    { id: "gap-5", content: " " },
+    {
+      id: "h3",
+      content: (
+        <>
+          <span className={cPunct}>## </span>
+          <span className={cHead}>Choose The Source</span>
+        </>
+      ),
+    },
+    {
+      id: "tbl-1",
+      content: <span className={cVal}>| Question | Use |</span>,
+    },
+    {
+      id: "tbl-2",
+      content: (
+        <span className={cVal}>| Production, customer reports | cloud |</span>
+      ),
+    },
+  ];
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-fd-border bg-fd-card/40 shadow-2xl shadow-black/30">
+      {/* Faux window chrome with the file path */}
+      <div className="flex items-center gap-2 border-b border-fd-border bg-fd-card/60 px-4 py-3">
+        <span className="size-2.5 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
+        <span className="size-2.5 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
+        <span className="size-2.5 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
+        <span className="ml-3 font-mono text-[10px] tracking-[0.05em] text-fd-muted-foreground/50">
+          everr-use-telemetry / SKILL.md
+        </span>
+      </div>
+
+      {/* Editor body: line-number gutter + Markdown source. The bottom lines
+          fade out to hint the file continues past the preview. */}
+      <div
+        className="overflow-hidden py-4 font-mono text-[11px] leading-[1.7] sm:text-xs"
+        style={{
+          maskImage:
+            "linear-gradient(to bottom, black calc(100% - 64px), transparent)",
+          WebkitMaskImage:
+            "linear-gradient(to bottom, black calc(100% - 64px), transparent)",
+        }}
+      >
+        {lines.map((line, i) => (
+          <div key={line.id} className="flex">
+            <span className="w-10 shrink-0 select-none border-r border-fd-border/60 pr-3 text-right text-fd-muted-foreground/25">
+              {i + 1}
+            </span>
+            <span className="overflow-hidden whitespace-pre pl-4 pr-6">
+              {line.content}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
