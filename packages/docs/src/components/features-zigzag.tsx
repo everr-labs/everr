@@ -1,25 +1,17 @@
 import { cn } from "@everr/ui/lib/utils";
-import {
-  AppWindow,
-  Bot,
-  FileCode2,
-  FlaskConical,
-  Layers,
-  type LucideIcon,
-  Terminal,
-} from "lucide-react";
 import { motion, useInView } from "motion/react";
 import { type ReactNode, useRef } from "react";
+import agentsBackdrop from "../assets/agents-backdrop.webp?url";
+import ciBackdrop from "../assets/ci-backdrop.webp?url";
+import desktopApp from "../assets/desktop-app.webp?url";
 
 type Feature = {
   index: string;
-  icon: LucideIcon;
-  label: string;
   title: string;
   body: ReactNode;
   points: string[];
-  /** Optional bespoke visual in place of the screenshot placeholder. */
-  preview?: "skill" | "ci";
+  /** The visual for this row. Omit to show the screenshot placeholder. */
+  visual?: ReactNode;
 };
 
 /** Inline monospace chip for a CLI command or identifier in feature prose. */
@@ -34,8 +26,6 @@ function Code({ children }: { children: ReactNode }) {
 const FEATURES: Feature[] = [
   {
     index: "01",
-    icon: Layers,
-    label: "Signals",
     title: "Logs, traces, metrics, and errors. All OpenTelemetry.",
     body: "Every signal is standard OpenTelemetry, so one model covers your laptop, CI, and production. Uncaught exceptions are captured for you, grouped into issues by fingerprint, and linked back to the trace they came from.",
     points: [
@@ -46,8 +36,6 @@ const FEATURES: Feature[] = [
   },
   {
     index: "02",
-    icon: Terminal,
-    label: "Query",
     title: "Plain SQL from the CLI, local or cloud",
     body: (
       <>
@@ -66,20 +54,24 @@ const FEATURES: Feature[] = [
   },
   {
     index: "03",
-    icon: AppWindow,
-    label: "Desktop app",
     title: "Your telemetry in a native window",
-    body: "A macOS app that runs the local collector for you and opens your logs, traces, and errors in the same explorer you use in the browser, reading straight from your machine. It lives in the menu bar, starts on login, and keeps itself up to date.",
+    body: "A desktop companion app runs a local OpenTelemetry collector and allows you to explore, query, and verify your telemetry locally, without the need for tedious deployment loops.",
     points: [
       "Runs an embedded OpenTelemetry collector on launch, no cloud account needed",
       "Explore local logs, traces, and errors, then query them with SQL",
-      "Watch your CI runs and get a notification when one fails",
+      "Available for macOS and Linux",
     ],
+    visual: (
+      <img
+        src={desktopApp}
+        alt="The Everr desktop app exploring local telemetry"
+        loading="lazy"
+        className="w-full rounded-xl border border-fd-border shadow-2xl shadow-black/30"
+      />
+    ),
   },
   {
     index: "04",
-    icon: FileCode2,
-    label: "As code",
     title: "Dashboards, alerts, and runbooks as code",
     body: (
       <>
@@ -98,8 +90,6 @@ const FEATURES: Feature[] = [
   },
   {
     index: "05",
-    icon: FlaskConical,
-    label: "CI & tests",
     title: "CI you can query",
     body: "A GitHub App turns every Actions run into structured, queryable data: workflows, jobs, steps, and per-test spans. Every run is a trace and every job carries its cost, so you can optimize for performance, cost, or both.",
     points: [
@@ -107,12 +97,14 @@ const FEATURES: Feature[] = [
       "Per-test spans for slow and flaky tests",
       "Estimated cost attributed by job, workflow, and runner",
     ],
-    preview: "ci",
+    visual: (
+      <Backdrop src={ciBackdrop}>
+        <CiShot />
+      </Backdrop>
+    ),
   },
   {
     index: "06",
-    icon: Bot,
-    label: "Agents",
     title: "Built for coding assistants",
     body: "Everr treats your coding assistant as a primary user. Bundled skills teach it when to reach for telemetry and how to query it, working from your repo so it ties a failing trace or log back to the code that caused it.",
     points: [
@@ -120,7 +112,11 @@ const FEATURES: Feature[] = [
       "One install, available in every assistant you use",
       "Fixes grounded in real traces and logs, not guesses",
     ],
-    preview: "skill",
+    visual: (
+      <Backdrop src={agentsBackdrop}>
+        <SkillPreview />
+      </Backdrop>
+    ),
   },
 ];
 
@@ -176,8 +172,6 @@ function FeatureRow({ feature, flip }: { feature: Feature; flip: boolean }) {
   const textFrom = flip ? 32 : -32;
   const shotFrom = flip ? -32 : 32;
 
-  const Icon = feature.icon;
-
   return (
     <div
       ref={ref}
@@ -196,14 +190,6 @@ function FeatureRow({ feature, flip }: { feature: Feature; flip: boolean }) {
         <div className="flex items-baseline gap-4">
           <span className="font-heading text-5xl font-bold leading-none tracking-tight text-fd-muted-foreground/15 tabular-nums sm:text-6xl md:text-7xl">
             {feature.index}
-          </span>
-          <span className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.25em] text-fd-muted-foreground/60">
-            <Icon
-              className="size-3.5 text-primary"
-              strokeWidth={2}
-              aria-hidden
-            />
-            {feature.label}
           </span>
         </div>
 
@@ -243,17 +229,25 @@ function FeatureRow({ feature, flip }: { feature: Feature; flip: boolean }) {
           flip ? "md:order-1 md:col-start-1" : "md:order-2 md:col-start-2",
         )}
       >
-        <FeaturePreview feature={feature} />
+        {feature.visual ?? <Shot label={feature.title} />}
       </motion.div>
     </div>
   );
 }
 
-/** Picks a feature's bespoke visual, falling back to the screenshot placeholder. */
-function FeaturePreview({ feature }: { feature: Feature }) {
-  if (feature.preview === "skill") return <SkillPreview />;
-  if (feature.preview === "ci") return <CiShot />;
-  return <Shot label={feature.label} />;
+function Backdrop({ src, children }: { src: string; children: ReactNode }) {
+  return (
+    <div className="relative overflow-hidden rounded-xl">
+      <img
+        src={src}
+        alt=""
+        aria-hidden
+        loading="lazy"
+        className="absolute inset-0 size-full object-cover object-center"
+      />
+      <div className="relative pb-9 px-9 pt-4">{children}</div>
+    </div>
+  );
 }
 
 /** Shared faux window title bar: traffic lights plus a file or run label. */
@@ -265,7 +259,7 @@ function WindowChrome({
   trailing?: string;
 }) {
   return (
-    <div className="flex items-center gap-2 border-b border-fd-border bg-fd-card/60 px-3 py-2">
+    <div className="flex items-center gap-2 border-b border-fd-border bg-fd-card px-3 py-2">
       <span className="size-2 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
       <span className="size-2 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
       <span className="size-2 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
@@ -335,7 +329,7 @@ function CiShot() {
   return (
     <div className="relative pb-24">
       {/* Back window: one run as a trace waterfall */}
-      <div className="w-[88%] overflow-hidden rounded-xl border border-fd-border bg-fd-card/60 shadow-xl shadow-black/20">
+      <div className="w-[88%] overflow-hidden rounded-xl border border-fd-border bg-fd-card shadow-xl shadow-black/20">
         <WindowChrome title="ci.yml · run #1842" trailing="4m 18s" />
         <div className="space-y-1.5 px-3 py-3">
           {spans.map((s) => (
@@ -517,9 +511,9 @@ function SkillPreview() {
   ];
 
   return (
-    <div className="overflow-hidden rounded-xl border border-fd-border bg-fd-card/40 shadow-2xl shadow-black/30">
+    <div className="overflow-hidden rounded-xl border border-fd-border bg-fd-card shadow-2xl shadow-black/30">
       {/* Faux window chrome with the file path */}
-      <div className="flex items-center gap-2 border-b border-fd-border bg-fd-card/60 px-4 py-3">
+      <div className="flex items-center gap-2 border-b border-fd-border bg-fd-card px-4 py-3">
         <span className="size-2.5 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
         <span className="size-2.5 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
         <span className="size-2.5 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
@@ -556,9 +550,9 @@ function SkillPreview() {
 
 function Shot({ label }: { label: string }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-fd-border bg-fd-card/40 shadow-2xl shadow-black/30">
+    <div className="overflow-hidden rounded-xl border border-fd-border bg-fd-card shadow-2xl shadow-black/30">
       {/* Faux window chrome */}
-      <div className="flex items-center gap-2 border-b border-fd-border bg-fd-card/60 px-4 py-3">
+      <div className="flex items-center gap-2 border-b border-fd-border bg-fd-card px-4 py-3">
         <span className="size-2.5 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
         <span className="size-2.5 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
         <span className="size-2.5 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
