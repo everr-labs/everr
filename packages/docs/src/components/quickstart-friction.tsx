@@ -1,29 +1,29 @@
 import { cn } from "@everr/ui/lib/utils";
-import { ArrowRight, Check, Clock, Copy, Terminal, X } from "lucide-react";
+import { ArrowRight, Check, Copy } from "lucide-react";
 import { motion, useInView } from "motion/react";
+import type { ReactNode } from "react";
 import { useRef, useState } from "react";
 
 /* ------------------------------------------------------------------ */
-/*  Placeholder content                                                */
+/*  Content                                                            */
 /* ------------------------------------------------------------------ */
 
 const OLD_WAY_STEPS = [
-  "Pick a backend",
-  "Stand up a collector",
-  "Wire exporters per service",
-  "Configure sampling",
-  "Build dashboards from scratch",
-  "Set up alert routing",
+  "Hand-instrument every service",
+  "Settle on attribute names",
+  "Get trace context to propagate",
   "Stitch logs to traces by hand",
-  "Reconcile a dozen YAML files",
+  "Build dashboards from scratch",
+  "Decide what to alert on",
   "Debug why no data shows up",
 ] as const;
 
-const EVERR_STEPS = [
-  "Installs the everr CLI",
-  "Runs guided setup",
-  "Local collector ready",
-  "First trace in minutes",
+/** What the installer prints as it runs. The last line is the payoff. */
+const INSTALL_OUTPUT = [
+  "everr CLI installed",
+  "agent skills installed",
+  "local collector listening on :4317",
+  "first trace received",
 ] as const;
 
 const COMMAND = "curl -fsSL https://everr.dev/install.sh | sh";
@@ -53,7 +53,7 @@ export function QuickstartFriction() {
         window.setTimeout(() => setCopied(false), 1800);
       }
     } catch {
-      // Clipboard unavailable (insecure context / denied permission) — no-op.
+      // Clipboard unavailable (insecure context / denied permission); no-op.
     }
   };
 
@@ -85,24 +85,17 @@ export function QuickstartFriction() {
 
         {/* ---- Friction collapse: two columns + center "vs" ---- */}
         <div className="relative mt-16 grid grid-cols-1 gap-6 md:mt-20 md:grid-cols-2 md:gap-0">
-          {/* LEFT — the old way (dimmed, heavy, draining) */}
+          {/* LEFT — the old way (dimmed, draining) */}
           <motion.div
             initial={{ opacity: 0, y: 28 }}
             animate={inView ? { opacity: 1, y: 0 } : undefined}
             transition={{ duration: 0.85, delay: 0.15, ease: EASE }}
             className="flex flex-col rounded-2xl border border-dashed border-fd-border bg-fd-card/40 p-6 sm:p-8 md:rounded-r-none md:border-r-0"
           >
-            <div className="flex items-baseline justify-between gap-4">
-              <h3 className="font-heading text-xs font-bold uppercase tracking-[0.25em] text-fd-muted-foreground/70">
-                The old way
-              </h3>
-              <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-fd-muted-foreground/40">
-                manual
-              </span>
-            </div>
+            <ColumnTag label="The old way" tone="muted" />
 
             {/* The wall of yak-shaving */}
-            <ol className="mt-6 flex-1 space-y-px">
+            <ol className="mt-7 flex-1 space-y-2">
               {OLD_WAY_STEPS.map((step, i) => (
                 <motion.li
                   key={step}
@@ -113,30 +106,20 @@ export function QuickstartFriction() {
                     delay: 0.3 + i * 0.05,
                     ease: EASE,
                   }}
-                  className="flex items-center gap-3 border-b border-dashed border-fd-border/40 py-2.5 last:border-b-0"
+                  className="flex items-baseline gap-3"
                 >
-                  <X
-                    className="h-3.5 w-3.5 shrink-0 text-fd-muted-foreground/40"
-                    strokeWidth={2}
-                    aria-hidden
-                  />
                   <span className="font-mono text-[10px] tabular-nums text-fd-muted-foreground/30">
                     {String(i + 1).padStart(2, "0")}
                   </span>
-                  <span className="text-sm leading-tight text-fd-muted-foreground/60 line-through decoration-fd-muted-foreground/25">
+                  <span className="text-sm leading-snug text-fd-muted-foreground/55 line-through decoration-fd-muted-foreground/25">
                     {step}
                   </span>
                 </motion.li>
               ))}
             </ol>
 
-            {/* Big, muted time tag */}
-            <div className="mt-8 flex items-center gap-3 border-t border-dashed border-fd-border/50 pt-6">
-              <Clock
-                className="h-5 w-5 text-fd-muted-foreground/40"
-                strokeWidth={1.75}
-                aria-hidden
-              />
+            {/* Time tag */}
+            <div className="mt-8 flex items-baseline gap-3 border-t border-dashed border-fd-border/50 pt-6">
               <span className="font-mono text-4xl font-bold leading-none tracking-tight text-fd-muted-foreground/50 sm:text-5xl">
                 ~3 days
               </span>
@@ -151,110 +134,108 @@ export function QuickstartFriction() {
             aria-hidden
             className="pointer-events-none z-10 flex items-center justify-center md:absolute md:inset-y-0 md:left-1/2 md:-translate-x-1/2"
           >
-            <span className="flex h-12 w-12 items-center justify-center rounded-full border border-fd-border bg-fd-background font-heading text-xs font-bold uppercase tracking-[0.15em] text-fd-muted-foreground shadow-lg shadow-black/30">
+            <span className="flex h-12 w-12 items-center justify-center rounded-full border border-fd-border bg-fd-background font-heading text-xs font-bold uppercase tracking-[0.15em] text-fd-muted-foreground shadow-lg">
               vs
             </span>
           </div>
 
-          {/* RIGHT — with Everr (full contrast, lime, light, fast) */}
+          {/* RIGHT — with Everr (light, fast) */}
           <motion.div
             initial={{ opacity: 0, y: 28 }}
             animate={inView ? { opacity: 1, y: 0 } : undefined}
             transition={{ duration: 0.85, delay: 0.3, ease: EASE }}
-            className="flex flex-col rounded-2xl border border-fd-border bg-fd-card p-6 shadow-2xl shadow-black/40 sm:p-8 md:rounded-l-none"
+            className="flex flex-col rounded-2xl border border-fd-border bg-fd-card p-6 shadow-lg shadow-black/20 sm:p-8 md:rounded-l-none"
           >
-            <div className="flex items-baseline justify-between gap-4">
-              <h3 className="font-heading text-xs font-bold uppercase tracking-[0.25em] text-fd-foreground">
-                With Everr
-              </h3>
-              <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-primary">
-                one command
-              </span>
-            </div>
+            <ColumnTag label="With Everr" tone="plain" />
 
-            {/* The single command */}
-            <div className="mt-6 overflow-hidden rounded-xl border border-fd-border bg-fd-background">
-              <div className="flex items-center gap-2 border-b border-fd-border px-4 py-2.5 text-fd-muted-foreground/70">
-                <Terminal className="h-3.5 w-3.5" aria-hidden />
-                <span className="font-mono text-[11px] tracking-tight">
-                  terminal
-                </span>
-              </div>
-              <div className="flex items-stretch gap-3 px-4 py-5">
-                <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:thin]">
-                  <code className="flex items-center gap-2 whitespace-nowrap font-mono text-sm sm:text-base md:text-lg">
-                    <span className="select-none text-primary" aria-hidden>
-                      $
-                    </span>
-                    <span className="text-fd-foreground">{COMMAND}</span>
-                  </code>
-                </div>
+            {/* The command, then the installer running */}
+            <div className="mt-7 overflow-hidden rounded-xl border border-fd-border bg-fd-background">
+              {/* titlebar — the try-it-out action, right-aligned */}
+              <div className="flex items-center justify-end border-b border-fd-border px-3 py-2">
                 <button
                   type="button"
                   onClick={handleCopy}
                   aria-label={copied ? "Copied" : "Copy command"}
                   className={cn(
-                    "group inline-flex shrink-0 items-center gap-2 self-center rounded-lg border px-3 py-2 font-heading text-xs font-bold uppercase tracking-[0.15em] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-fd-background",
+                    "group inline-flex items-center gap-2 rounded-md border px-3 py-1.5 font-heading text-xs font-bold tracking-tight outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-fd-background",
                     copied
                       ? "border-primary/50 bg-primary/10 text-primary"
-                      : "border-fd-border bg-fd-card text-fd-muted-foreground hover:border-primary/50 hover:text-fd-foreground",
+                      : "border-fd-border bg-fd-card text-fd-muted-foreground hover:border-fd-border/80 hover:text-fd-foreground",
                   )}
                 >
                   {copied ? (
-                    <Check className="h-4 w-4" aria-hidden />
+                    <Check className="size-3.5" aria-hidden />
                   ) : (
-                    <Copy className="h-4 w-4" aria-hidden />
+                    <Copy className="size-3.5" aria-hidden />
                   )}
-                  <span className="hidden sm:inline">
-                    {copied ? "Copied" : "Copy"}
-                  </span>
+                  {copied ? "Copied" : "Try it out"}
                 </button>
+              </div>
+
+              {/* command — one line */}
+              <div className="overflow-x-auto px-5 py-5 [scrollbar-width:thin]">
+                <code className="whitespace-nowrap font-mono text-base sm:text-lg">
+                  <span
+                    className="select-none text-fd-muted-foreground/40"
+                    aria-hidden
+                  >
+                    $
+                  </span>{" "}
+                  <span className="text-fd-foreground">{COMMAND}</span>
+                </code>
+              </div>
+
+              {/* installer output */}
+              <div className="space-y-1.5 border-t border-fd-border/60 px-5 py-4">
+                {INSTALL_OUTPUT.map((line, i) => {
+                  const done = i === INSTALL_OUTPUT.length - 1;
+                  return (
+                    <motion.div
+                      key={line}
+                      initial={{ opacity: 0 }}
+                      animate={inView ? { opacity: 1 } : undefined}
+                      transition={{
+                        duration: 0.4,
+                        delay: 0.6 + i * 0.12,
+                        ease: EASE,
+                      }}
+                      className="flex items-baseline gap-2 font-mono text-[12.5px] leading-relaxed"
+                    >
+                      <span
+                        aria-hidden
+                        className={cn(
+                          "select-none",
+                          done ? "text-primary" : "text-fd-muted-foreground/40",
+                        )}
+                      >
+                        {done ? "→" : "✓"}
+                      </span>
+                      <span
+                        className={
+                          done
+                            ? "text-fd-foreground"
+                            : "text-fd-muted-foreground"
+                        }
+                      >
+                        {line}
+                      </span>
+                    </motion.div>
+                  );
+                })}
               </div>
             </div>
 
             <p className="mt-4 text-sm leading-relaxed text-fd-muted-foreground">
-              One installer sets up the CLI and a local collector — nothing else
-              to wire.{" "}
-              <span className="text-fd-muted-foreground/60">
-                macOS · Apple Silicon.
-              </span>
+              The <Code>everr</Code> installer sets up the CLI, agent skills,
+              and a local collector. The collector lets you build and validate
+              telemetry locally; the skills let your coding agent instrument the
+              codebase and take it to production.
             </p>
 
-            {/* Short, crisp lime checklist */}
-            <ul className="mt-6 flex-1 space-y-3">
-              {EVERR_STEPS.map((step, i) => (
-                <motion.li
-                  key={step}
-                  initial={{ opacity: 0, x: 8 }}
-                  animate={inView ? { opacity: 1, x: 0 } : undefined}
-                  transition={{
-                    duration: 0.5,
-                    delay: 0.5 + i * 0.08,
-                    ease: EASE,
-                  }}
-                  className="flex items-center gap-3"
-                >
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-primary/50 bg-primary/10">
-                    <Check
-                      className="h-3 w-3 text-primary"
-                      strokeWidth={2.5}
-                      aria-hidden
-                    />
-                  </span>
-                  <span className="text-sm leading-tight text-fd-foreground">
-                    {step}
-                  </span>
-                </motion.li>
-              ))}
-            </ul>
+            <div className="flex-1" />
 
-            {/* Big, lime-accented time tag */}
-            <div className="mt-8 flex items-center gap-3 border-t border-fd-border pt-6">
-              <Clock
-                className="h-5 w-5 text-primary"
-                strokeWidth={1.75}
-                aria-hidden
-              />
+            {/* Time tag */}
+            <div className="mt-8 flex items-baseline gap-3 border-t border-fd-border pt-6">
               <span className="font-mono text-4xl font-bold leading-none tracking-tight text-fd-foreground sm:text-5xl">
                 minutes
               </span>
@@ -278,16 +259,48 @@ export function QuickstartFriction() {
           </p>
           <a
             href="/docs/getting-started/install"
-            className="group inline-flex shrink-0 items-center gap-2 rounded-full border border-fd-border bg-fd-card/40 px-6 py-3 font-heading text-sm font-bold tracking-tight text-fd-foreground outline-none transition-colors hover:border-primary/50 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-fd-background"
+            className="group inline-flex shrink-0 items-center gap-2 rounded-full border border-fd-border bg-fd-card/40 px-6 py-3 font-heading text-sm font-bold tracking-tight text-fd-foreground outline-none transition-colors hover:border-fd-border/80 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-fd-background"
           >
             Read the quickstart
             <ArrowRight
-              className="h-4 w-4 text-primary transition-transform group-hover:translate-x-0.5"
+              className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
               aria-hidden
             />
           </a>
         </motion.div>
       </div>
     </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Shared pieces                                                      */
+/* ------------------------------------------------------------------ */
+
+function ColumnTag({
+  label,
+  tone,
+}: {
+  label: string;
+  tone: "muted" | "plain";
+}) {
+  return (
+    <h3
+      className={cn(
+        "font-heading text-xs font-bold uppercase tracking-[0.25em]",
+        tone === "plain" ? "text-fd-foreground" : "text-fd-muted-foreground/70",
+      )}
+    >
+      {label}
+    </h3>
+  );
+}
+
+/** Inline monospace chip for an identifier such as the CLI name. */
+function Code({ children }: { children: ReactNode }) {
+  return (
+    <code className="rounded bg-fd-muted px-1.5 py-0.5 font-mono text-[0.85em] text-fd-foreground">
+      {children}
+    </code>
   );
 }
