@@ -1,7 +1,8 @@
+import { Button } from "@everr/ui/components/button";
 import { SiDiscord } from "@icons-pack/react-simple-icons";
 import type { DocsLayoutProps } from "fumadocs-ui/layouts/docs";
 import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared";
-import { Citrus } from "lucide-react";
+import { ArrowRight, Citrus } from "lucide-react";
 import type { ComponentProps, CSSProperties } from "react";
 import { GithubInfo } from "@/components/github-info";
 
@@ -51,6 +52,22 @@ export function baseOptions(): BaseLayoutProps {
         external: true,
         on: "nav",
         secondary: true,
+      },
+      {
+        on: "nav",
+        secondary: true,
+        type: "custom",
+        children: (
+          <Button
+            className="rounded-full"
+            render={
+              // biome-ignore lint/a11y/useAnchorContent: content is injected
+              <a href="https://app.everr.dev" />
+            }
+          >
+            Sign In <ArrowRight />
+          </Button>
+        ),
       },
     ],
   };

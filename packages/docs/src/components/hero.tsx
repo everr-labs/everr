@@ -11,7 +11,7 @@ export function Hero() {
       <div className="relative z-10 mx-auto flex max-w-7xl flex-col gap-8 px-6 py-16 md:grid md:h-full md:grid-cols-2 md:items-center md:py-0 md:px-8">
         <div className="flex flex-col gap-8">
           <h1 className="font-heading text-4xl md:text-6xl">
-            Observability finally made simple.
+            Observability made simple.
             <br />
             <span className="text-primary">For Real.</span>
           </h1>
@@ -28,19 +28,15 @@ export function Hero() {
               >
                 $
               </span>
-              <code className="flex-1 overflow-x-auto whitespace-nowrap font-mono text-sm text-fd-foreground [scrollbar-width:thin]">
+              <code className="flex-1 overflow-x-auto whitespace-nowrap font-mono text-sm text-fd-foreground">
                 curl -fsSL https://everr.dev/install.sh | sh
               </code>
             </div>
-            <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-fd-muted-foreground/60">
-              macOS · Apple Silicon
-            </p>
           </div>
           <div>
             <Button
               variant="secondary"
               size="xl"
-              className="self-start"
               nativeButton={false}
               render={<Link to="/docs/$" params={{ _splat: "" }} />}
             >
