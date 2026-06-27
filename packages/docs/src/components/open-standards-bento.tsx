@@ -34,6 +34,7 @@ import codexMark from "./icons/codex.svg";
 import knoticMark from "./icons/knotic.svg";
 import opencodeMark from "./icons/opencode.svg";
 import piMark from "./icons/pi.svg";
+import { WindowChrome } from "./ui/window-chrome";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -686,15 +687,7 @@ const PERSES_LINES: YamlLine[] = [
 function PersesEditor() {
   return (
     <div className="overflow-hidden rounded-t-lg border border-fd-border bg-fd-background shadow-2xl shadow-black/40">
-      {/* editor chrome */}
-      <div className="flex items-center gap-2 border-b border-fd-border bg-fd-card/60 px-3 py-2">
-        <span className="size-2.5 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
-        <span className="size-2.5 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
-        <span className="size-2.5 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
-        <span className="ml-2 font-mono text-[11px] text-fd-muted-foreground">
-          overview.dashboard.yaml
-        </span>
-      </div>
+      <WindowChrome title="overview.dashboard.yaml" className="bg-fd-card/60" />
       {/* the spec */}
       <div className="px-3 py-3 font-mono text-[12.5px] leading-relaxed">
         {PERSES_LINES.map((line, i) => (

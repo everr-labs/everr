@@ -2,6 +2,7 @@ import { Button } from "@everr/ui/components/button";
 import { Link } from "@tanstack/react-router";
 import { Check, Copy } from "lucide-react";
 import { useState } from "react";
+import screenshot from "../assets/screenshot.webp?url";
 import { HoleBackground } from "./animate-ui/components/backgrounds/hole";
 
 const INSTALL_COMMAND = "curl -fsSL https://everr.dev/install.sh | sh";
@@ -76,8 +77,8 @@ export function Hero() {
         <div className="perspective-[1600px] perspective-origin-left">
           <div className="bg-card aspect-3/2 w-full overflow-hidden rounded-md border border-card shadow-2xl md:aspect-auto md:h-100 md:w-150 md:-rotate-y-25">
             <img
-              src="/screenshot.png"
-              alt="Screenshot"
+              src={screenshot}
+              alt="The Everr app showing a Kubernetes infrastructure dashboard with CPU, memory, and pod metrics"
               className="h-full w-full object-cover"
             />
           </div>

@@ -2,8 +2,16 @@ import { cn } from "@everr/ui/lib/utils";
 import { motion, useInView } from "motion/react";
 import { type ReactNode, useRef } from "react";
 import agentsBackdrop from "../assets/agents-backdrop.webp?url";
+import asCodeBackdrop from "../assets/as-code-backdrop.webp?url";
 import ciBackdrop from "../assets/ci-backdrop.webp?url";
+import cliBackdrop from "../assets/cli-backdrop.webp?url";
+import dashboardShot from "../assets/dashboard.webp?url";
 import desktopApp from "../assets/desktop-app.webp?url";
+import errorShot from "../assets/error.webp?url";
+import notebookShot from "../assets/notebook.webp?url";
+import telemetryBackdrop from "../assets/telemetry-backdrop.webp?url";
+import traceShot from "../assets/trace.webp?url";
+import { WindowChrome } from "./ui/window-chrome";
 
 type Feature = {
   index: string;
@@ -27,12 +35,17 @@ const FEATURES: Feature[] = [
   {
     index: "01",
     title: "Logs, traces, metrics, and errors. All OpenTelemetry.",
-    body: "Every signal is standard OpenTelemetry, so one model covers your laptop, CI, and production. Uncaught exceptions are captured for you, grouped into issues by fingerprint, and linked back to the trace they came from.",
+    body: "Every signal is standard OpenTelemetry, so one model covers your laptop, CI, and production. Uncaught exceptions are captured, grouped into issues by fingerprint, and linked back to the trace they belong to.",
     points: [
-      "Logs, traces, metrics, and errors, all OpenTelemetry",
-      "Exceptions captured automatically and grouped into issues",
-      "Every error links back to its trace",
+      "Dashboards, Alerts, Error tracking; All you expect from a modern observability platform.",
+      "Runbooks for incident response, automated remediation, and root cause analysis",
+      "Correlation all the way from logs to traces to metrics",
     ],
+    visual: (
+      <Backdrop src={telemetryBackdrop}>
+        <TelemetryShot />
+      </Backdrop>
+    ),
   },
   {
     index: "02",
@@ -48,9 +61,13 @@ const FEATURES: Feature[] = [
     ),
     points: [
       "Plain SQL over ClickHouse, local and cloud",
-      "Cloud queries are read-only, capped at 1000 rows and 30 seconds",
       "The same query your coding agent runs",
     ],
+    visual: (
+      <Backdrop src={cliBackdrop}>
+        <QueryShot />
+      </Backdrop>
+    ),
   },
   {
     index: "03",
@@ -58,7 +75,6 @@ const FEATURES: Feature[] = [
     body: "A desktop companion app runs a local OpenTelemetry collector and allows you to explore, query, and verify your telemetry locally, without the need for tedious deployment loops.",
     points: [
       "Runs an embedded OpenTelemetry collector on launch, no cloud account needed",
-      "Explore local logs, traces, and errors, then query them with SQL",
       "Available for macOS and Linux",
     ],
     visual: (
@@ -87,6 +103,11 @@ const FEATURES: Feature[] = [
       "Alert queries are plain SQL, and every row they return is a firing instance",
       "everr apply reconciles a directory to match Git, pruning what you remove",
     ],
+    visual: (
+      <Backdrop src={asCodeBackdrop}>
+        <RunbookShot />
+      </Backdrop>
+    ),
   },
   {
     index: "05",
@@ -250,27 +271,195 @@ function Backdrop({ src, children }: { src: string; children: ReactNode }) {
   );
 }
 
-/** Shared faux window title bar: traffic lights plus a file or run label. */
-function WindowChrome({
-  title,
-  trailing,
-}: {
-  title: string;
-  trailing?: string;
-}) {
+/** Three product screenshots cascaded as overlapping windows: an error detail
+ *  (back), a metrics dashboard (middle), and a trace waterfall (front). One
+ *  illustration covering the OpenTelemetry signals this section names. */
+function TelemetryShot() {
   return (
-    <div className="flex items-center gap-2 border-b border-fd-border bg-fd-card px-3 py-2">
-      <span className="size-2 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
-      <span className="size-2 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
-      <span className="size-2 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
-      <span className="ml-2 truncate font-mono text-[9px] tracking-[0.05em] text-fd-muted-foreground/50 sm:text-[10px]">
-        {title}
-      </span>
-      {trailing ? (
-        <span className="ml-auto shrink-0 font-mono text-[9px] tabular-nums text-fd-muted-foreground/50 sm:text-[10px]">
-          {trailing}
-        </span>
-      ) : null}
+    <div className="relative aspect-3/2">
+      <img
+        src={errorShot}
+        alt="An uncaught exception grouped into an issue and linked to its trace"
+        loading="lazy"
+        className="absolute left-0 top-0 w-[75%] rounded-xl border border-fd-border shadow-xl shadow-black/40"
+      />
+      <img
+        src={traceShot}
+        alt="A request rendered as a trace waterfall of spans"
+        loading="lazy"
+        className="absolute -right-16 -bottom-24 w-[75%] rounded-xl border border-fd-border shadow-2xl shadow-black/60"
+      />
+      <img
+        src={dashboardShot}
+        alt="A metrics dashboard built from OpenTelemetry data"
+        loading="lazy"
+        className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 w-[75%] rounded-xl border border-fd-border shadow-2xl shadow-black/50"
+      />
+    </div>
+  );
+}
+
+/** A faux terminal session for the CLI card: an `everr cloud query` and the
+ *  ClickHouse Pretty table it prints back, so the SQL story shows, not tells.
+ *  The result frame is generated so the columns can't drift out of alignment. */
+function QueryShot() {
+  const kw = "text-primary";
+  const fg = "text-fd-foreground/90";
+
+  const cols = [
+    { name: "service", w: 8, align: "l" as const },
+    { name: "p50", w: 3, align: "r" as const },
+    { name: "p95", w: 3, align: "r" as const },
+  ];
+  const data = [
+    ["payments", "120", "610"],
+    ["checkout", "84", "470"],
+    ["search", "22", "90"],
+    ["auth", "9", "38"],
+  ];
+  const cell = (s: string, c: (typeof cols)[number]) =>
+    c.align === "l" ? s.padEnd(c.w) : s.padStart(c.w);
+  const top = `┌${cols
+    .map((c) => `─${c.name}${"─".repeat(c.w + 1 - c.name.length)}`)
+    .join("┬")}┐`;
+  const bottom = `└${cols.map((c) => "─".repeat(c.w + 2)).join("┴")}┘`;
+  const rows = data.map(
+    (r) => `│ ${cols.map((c, i) => cell(r[i], c)).join(" │ ")} │`,
+  );
+  const table = [top, ...rows, bottom].join("\n");
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-fd-border bg-fd-card shadow-2xl shadow-black/50">
+      <WindowChrome size="sm" title="~/checkout-service · zsh" />
+      <div className="overflow-x-auto px-4 py-3.5 font-mono text-[10px] leading-[1.75] sm:text-[11px]">
+        <pre className="whitespace-pre text-fd-muted-foreground">
+          <span className={kw}>$</span>{" "}
+          <span className={fg}>everr cloud query</span>
+          {' "\n'}
+          {"  "}
+          <span className={kw}>SELECT</span>
+          {"\n    service,\n    "}
+          <span className={kw}>round</span>(<span className={kw}>quantile</span>
+          (0.5)(value)){"  "}
+          <span className={kw}>AS</span> p50,
+          {"\n    "}
+          <span className={kw}>round</span>(<span className={kw}>quantile</span>
+          (0.95)(value)) <span className={kw}>AS</span> p95
+          {"\n  "}
+          <span className={kw}>FROM</span> metrics
+          {"\n  "}
+          <span className={kw}>WHERE</span> name ={" "}
+          <span className={fg}>'http.server.duration'</span>
+          {"\n  "}
+          <span className={kw}>GROUP BY</span> service
+          {"\n  "}
+          <span className={kw}>ORDER BY</span> p95{" "}
+          <span className={kw}>DESC</span>
+          {'"\n\n'}
+          {table}
+          {"\n\n"}
+          <span className={kw}>$</span> <span className={kw}>▋</span>
+        </pre>
+      </div>
+    </div>
+  );
+}
+
+/** Runbook card for the as-code section: the Notebook YAML spec flows from the
+ *  top-left and the same notebook rendered in the app fills the top-right, over
+ *  the source along the diagonal. One artifact, shown as code and live. */
+function RunbookShot() {
+  const cKey = "text-fd-foreground/80";
+  const cVal = "text-fd-muted-foreground";
+  const cStr = "text-primary";
+  const cPunct = "text-fd-muted-foreground/40";
+
+  const yaml = `kind: Notebook
+metadata:
+  name: infra-health
+  project: default
+spec:
+  display:
+    name: "Infrastructure & Internal Collector Health"
+    description: "Triage runbook for the internal kubelet-stats collector."
+  duration: 1h
+  refreshInterval: 30s
+  panels:
+    freshness:
+      kind: Panel
+      spec:
+        display: { name: Metrics lag (seconds since last datapoint) }
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last
+            unit: "s"
+            colorMode: background
+            thresholds:
+              defaultColor: "#22c55e"
+              steps:
+                - { value: 120, color: "#f59e0b" }
+                - { value: 300, color: "#ef4444" }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT dateDiff('second', max(TimeUnix), now()) AS lag_seconds
+                    FROM metrics_gauge
+                    WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
+                      AND MetricName = 'k8s.node.cpu.usage'`;
+
+  const lines = yaml.split("\n").map((text, i) => ({ id: `y${i}`, text }));
+
+  // Lightweight YAML highlight: brighten the key, dim the colon, and tint
+  // quoted/hex values. Non key-value lines (SQL, list maps) stay muted.
+  const render = (text: string): ReactNode => {
+    const m = text.match(/^(\s*(?:- )?)([A-Za-z0-9_.-]+)(:)(.*)$/);
+    if (!m) {
+      return <span className={cVal}>{text || "\u00A0"}</span>;
+    }
+    const [, indent, key, colon, rest] = m;
+    const valClass = /^\s*["'#]/.test(rest) ? cStr : cVal;
+    return (
+      <>
+        {indent}
+        <span className={cKey}>{key}</span>
+        <span className={cPunct}>{colon}</span>
+        {rest ? <span className={valClass}>{rest}</span> : null}
+      </>
+    );
+  };
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-fd-border bg-fd-card shadow-2xl shadow-black/30">
+      <WindowChrome size="sm" title="notebooks/infra-health.yaml" />
+      <div className="relative aspect-[4/3]">
+        {/* YAML source, flowing from the top */}
+        <div className="absolute inset-0 overflow-hidden p-5 font-mono text-[10px] leading-[1.6] sm:text-[11px]">
+          {lines.map((line) => (
+            <div key={line.id} className="whitespace-pre">
+              {render(line.text)}
+            </div>
+          ))}
+        </div>
+        {/* The rendered notebook, over the source, filling the top-right triangle */}
+        <img
+          src={notebookShot}
+          alt="The notebook rendered from the spec"
+          loading="lazy"
+          className="absolute inset-0 size-full object-cover"
+          style={{
+            clipPath: "polygon(0 0, 100% 0, 100% 100%)",
+            // First shadow is a 0-blur border that hugs the diagonal edge; the
+            // second lifts the window off the backdrop.
+            filter:
+              "drop-shadow(-1px 1px 0 var(--color-fd-border)) drop-shadow(-5px 5px 6px rgba(0, 0, 0, 0.45))",
+          }}
+        />
+      </div>
     </div>
   );
 }
@@ -330,7 +519,7 @@ function CiShot() {
     <div className="relative pb-24">
       {/* Back window: one run as a trace waterfall */}
       <div className="w-[88%] overflow-hidden rounded-xl border border-fd-border bg-fd-card shadow-xl shadow-black/20">
-        <WindowChrome title="ci.yml · run #1842" trailing="4m 18s" />
+        <WindowChrome size="sm" title="ci.yml · run #1842" trailing="4m 18s" />
         <div className="space-y-1.5 px-3 py-3">
           {spans.map((s) => (
             <div
@@ -364,7 +553,7 @@ function CiShot() {
 
       {/* Front window: flaky-test history, staggered down and to the right */}
       <div className="absolute bottom-0 right-0 w-[74%] overflow-hidden rounded-xl border border-fd-border bg-fd-card shadow-2xl shadow-black/40">
-        <WindowChrome title="flaky tests · 30d" />
+        <WindowChrome size="sm" title="flaky tests · 30d" />
         <div className="space-y-2 px-3 py-3">
           {runs.map((t) => (
             <div
@@ -488,7 +677,7 @@ function SkillPreview() {
         </>
       ),
     },
-    { id: "gap-5", content: " " },
+    { id: "gap-5", content: " " },
     {
       id: "h3",
       content: (
@@ -512,15 +701,7 @@ function SkillPreview() {
 
   return (
     <div className="overflow-hidden rounded-xl border border-fd-border bg-fd-card shadow-2xl shadow-black/30">
-      {/* Faux window chrome with the file path */}
-      <div className="flex items-center gap-2 border-b border-fd-border bg-fd-card px-4 py-3">
-        <span className="size-2.5 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
-        <span className="size-2.5 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
-        <span className="size-2.5 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
-        <span className="ml-3 font-mono text-[10px] tracking-[0.05em] text-fd-muted-foreground/50">
-          everr-use-telemetry / SKILL.md
-        </span>
-      </div>
+      <WindowChrome title="everr-use-telemetry / SKILL.md" />
 
       {/* Editor body: line-number gutter + Markdown source. The bottom lines
           fade out to hint the file continues past the preview. */}
@@ -551,15 +732,7 @@ function SkillPreview() {
 function Shot({ label }: { label: string }) {
   return (
     <div className="overflow-hidden rounded-xl border border-fd-border bg-fd-card shadow-2xl shadow-black/30">
-      {/* Faux window chrome */}
-      <div className="flex items-center gap-2 border-b border-fd-border bg-fd-card px-4 py-3">
-        <span className="size-2.5 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
-        <span className="size-2.5 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
-        <span className="size-2.5 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
-        <span className="ml-3 font-mono text-[10px] uppercase tracking-[0.2em] text-fd-muted-foreground/40">
-          everr · {label.toLowerCase()}
-        </span>
-      </div>
+      <WindowChrome title={`everr · ${label.toLowerCase()}`} />
 
       {/* Body — empty but intentional: dot-grid + label */}
       <div

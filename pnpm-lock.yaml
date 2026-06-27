@@ -563,9 +563,6 @@ importers:
       react-dom:
         specifier: 'catalog:'
         version: 19.2.6(react@19.2.6)
-      resend:
-        specifier: ^6.12.3
-        version: 6.12.3
       zod:
         specifier: 'catalog:'
         version: 4.4.3

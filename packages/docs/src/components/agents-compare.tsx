@@ -3,6 +3,7 @@ import { ArrowRight, Bot, Check, TriangleAlert, User } from "lucide-react";
 import { motion, useInView } from "motion/react";
 import type { ReactNode } from "react";
 import { useRef } from "react";
+import { WindowChrome } from "./ui/window-chrome";
 
 const REVEAL = {
   initial: { opacity: 0, y: 24 },
@@ -203,19 +204,17 @@ function GroundedColumn({ inView }: { inView: boolean }) {
           timeout, and 500. I'll raise the cap to match the workers.
         </p>
         <div className="overflow-hidden rounded-lg border border-fd-border bg-fd-background shadow-lg shadow-black/20">
-          {/* editor chrome: traffic lights, filename, diff stat */}
-          <div className="flex items-center gap-2 border-b border-fd-border bg-fd-card/60 px-3 py-2">
-            <span className="size-2.5 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
-            <span className="size-2.5 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
-            <span className="size-2.5 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
-            <span className="ml-2 font-mono text-[11px] text-fd-muted-foreground">
-              db.ts
-            </span>
-            <span className="ml-auto flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.12em]">
-              <span className="text-green-400">+1</span>
-              <span className="text-red-400/80">-1</span>
-            </span>
-          </div>
+          <WindowChrome
+            title="db.ts"
+            dots={false}
+            className="bg-fd-card/60"
+            trailing={
+              <span className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.12em]">
+                <span className="text-green-400">+1</span>
+                <span className="text-red-400/80">-1</span>
+              </span>
+            }
+          />
           {/* diff body with a line-number gutter */}
           <div className="font-mono text-[13px] leading-relaxed">
             {/* removed line */}
