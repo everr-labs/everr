@@ -40,10 +40,14 @@
       "rules": { "unresolved-imports": "off" }
     },
     {
-      // PricingToggle is intentionally kept but not rendered anywhere right now:
-      // pricing was pulled from the homepage until launch pricing is finalized.
-      // Retained for reuse when it returns.
-      "files": ["packages/docs/src/components/pricing-toggle.tsx"],
+      // Pricing is shelved until launch pricing is finalized: the route is
+      // excluded via its "-" prefix and these components stay in-tree for reuse
+      // when it returns, but nothing renders them right now.
+      "files": [
+        "packages/docs/src/routes/-pricing.tsx",
+        "packages/docs/src/components/pricing-matrix.tsx",
+        "packages/docs/src/components/pricing-toggle.tsx"
+      ],
       "rules": { "unused-files": "off", "unused-exports": "off" }
     }
   ],

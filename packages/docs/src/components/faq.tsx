@@ -46,7 +46,7 @@ const FAQS: FaqItem[] = [
     q: "How do coding assistants query Everr?",
     a: (
       <>
-        Through bundled skills plus plain SQL via the CLI —{" "}
+        Through bundled skills plus plain SQL via the CLI:{" "}
         <code className="font-mono text-[0.95em] text-fd-foreground">
           everr local query
         </code>{" "}
@@ -54,8 +54,7 @@ const FAQS: FaqItem[] = [
         <code className="font-mono text-[0.95em] text-fd-foreground">
           everr cloud query
         </code>
-        . Assistants like Claude Code, Cursor, and Copilot read your telemetry
-        directly, no glue code.
+        . Your coding assistant reads your telemetry directly, no glue code.
       </>
     ),
   },
@@ -70,6 +69,8 @@ const FAQS: FaqItem[] = [
       </>
     ),
   },
+  // Pricing isn't finalized yet; keep this answer ready but hidden.
+  /*
   {
     q: "What does it cost?",
     a: (
@@ -86,6 +87,7 @@ const FAQS: FaqItem[] = [
       </>
     ),
   },
+  */
 ];
 
 export function FAQ() {
