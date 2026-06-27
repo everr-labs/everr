@@ -23,22 +23,22 @@ const FAQS: FaqItem[] = [
     ),
   },
   {
+    q: "What can I send to Everr?",
+    a: (
+      <>
+        Traces, logs, and metrics in one OpenTelemetry model, the same signal
+        from your laptop to CI to production. Business events ride the same
+        pipeline, so product and engineering query the same data.
+      </>
+    ),
+  },
+  {
     q: "Do I have to instrument my code?",
     a: (
       <>
         If your runtime already speaks OpenTelemetry, you're most of the way
         there. Everr's bundled skills also help your coding assistant add the
         right instrumentation, working straight from your repository.
-      </>
-    ),
-  },
-  {
-    q: "Does it work in CI?",
-    a: (
-      <>
-        Yes. The GitHub App ingests your GitHub Actions runs — workflows, jobs,
-        steps, and logs — as structured data, and verbose test output becomes
-        per-test spans. You query it with the same SQL you use locally.
       </>
     ),
   },
@@ -60,12 +60,29 @@ const FAQS: FaqItem[] = [
     ),
   },
   {
+    q: "Am I locked in?",
+    a: (
+      <>
+        No. Everr uses OpenTelemetry for ingest, the Perses spec for dashboards,
+        and a ClickHouse SQL surface for queries, all open standards. Your data,
+        dashboards, and alerts are portable files, not trapped behind a
+        proprietary agent or query language.
+      </>
+    ),
+  },
+  {
     q: "What does it cost?",
     a: (
       <>
-        Everr has Free and Pro tiers. They differ mainly on retention — 30 days
-        on Free; on Pro, 90 days for traces and logs and 13 months for metrics.
-        Full pricing is shared as we approach launch.
+        Everr is open source and free to self-host. The managed Cloud plan is
+        usage-based, with an Enterprise tier for compliance and scale. See the{" "}
+        <a
+          href="/pricing"
+          className="text-fd-foreground underline decoration-primary decoration-2 underline-offset-4 hover:text-primary"
+        >
+          pricing page
+        </a>{" "}
+        for the full comparison.
       </>
     ),
   },
