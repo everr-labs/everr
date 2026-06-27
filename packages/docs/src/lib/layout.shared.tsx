@@ -1,8 +1,10 @@
+import { Button } from "@everr/ui/components/button";
 import { SiDiscord } from "@icons-pack/react-simple-icons";
 import type { DocsLayoutProps } from "fumadocs-ui/layouts/docs";
 import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared";
-import { Citrus } from "lucide-react";
+import { ArrowRight, Citrus } from "lucide-react";
 import type { ComponentProps, CSSProperties } from "react";
+import { GithubInfo } from "@/components/github-info";
 
 type DocsLayoutOptions = BaseLayoutProps &
   Pick<DocsLayoutProps, "containerProps" | "sidebar">;
@@ -20,7 +22,6 @@ export function baseOptions(): BaseLayoutProps {
       ),
       url: "/",
     },
-    githubUrl: "https://github.com/everr-labs/everr",
     themeSwitch: {
       enabled: false,
     },
@@ -28,18 +29,19 @@ export function baseOptions(): BaseLayoutProps {
       {
         text: "Docs",
         url: "/docs",
+        on: "nav",
       },
-      // {
-      //   text: "Blog",
-      //   url: "/blog",
-      //   on: "nav",
-      //   active: "nested-url",
-      // },
       {
         text: "Devlog",
         url: "/devlog",
         on: "nav",
         active: "nested-url",
+      },
+      {
+        type: "custom",
+        children: <GithubInfo owner="everr-labs" repo="everr" />,
+        secondary: true,
+        on: "nav",
       },
       {
         type: "icon",
@@ -48,6 +50,25 @@ export function baseOptions(): BaseLayoutProps {
         icon: <SiDiscord />,
         url: "https://discord.gg/hd6yYDjAuw",
         external: true,
+        on: "nav",
+        secondary: true,
+      },
+      {
+        on: "nav",
+        secondary: true,
+        type: "custom",
+        children: (
+          <Button
+            className="rounded-full"
+            nativeButton={false}
+            render={
+              // biome-ignore lint/a11y/useAnchorContent: content is injected
+              <a href="https://app.everr.dev" />
+            }
+          >
+            Sign In <ArrowRight />
+          </Button>
+        ),
       },
     ],
   };
@@ -58,10 +79,6 @@ export function docsOptions(): DocsLayoutOptions {
 
   return {
     ...options,
-    githubUrl: undefined,
-    links: options.links?.filter(
-      (link) => !isDocsLink(link) && !isIconLink(link),
-    ),
     searchToggle: {
       ...options.searchToggle,
       enabled: false,
@@ -79,14 +96,6 @@ export function docsOptions(): DocsLayoutOptions {
       navTitle: DocsSidebarNavTitle,
     },
   };
-}
-
-function isDocsLink(link: NonNullable<BaseLayoutProps["links"]>[number]) {
-  return "text" in link && link.text === "Docs";
-}
-
-function isIconLink(link: NonNullable<BaseLayoutProps["links"]>[number]) {
-  return "type" in link && link.type === "icon";
 }
 
 function DocsSidebarNavTitle(_props: ComponentProps<"a">) {

@@ -38,6 +38,17 @@
       // does not exist during CI's pre-build dead-code scan.
       "files": ["packages/auto-otel-errors/test/fixtures/*.mjs"],
       "rules": { "unresolved-imports": "off" }
+    },
+    {
+      // Pricing is shelved until launch pricing is finalized: the route is
+      // excluded via its "-" prefix and these components stay in-tree for reuse
+      // when it returns, but nothing renders them right now.
+      "files": [
+        "packages/docs/src/routes/-pricing.tsx",
+        "packages/docs/src/components/pricing-matrix.tsx",
+        "packages/docs/src/components/pricing-toggle.tsx"
+      ],
+      "rules": { "unused-files": "off", "unused-exports": "off" }
     }
   ],
   // Internal workspace libraries whose exported API surface is intentional —

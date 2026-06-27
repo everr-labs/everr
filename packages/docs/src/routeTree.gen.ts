@@ -9,7 +9,6 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as WaitlistRouteImport } from './routes/waitlist'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DevlogIndexRouteImport } from './routes/devlog/index'
 import { Route as BlogIndexRouteImport } from './routes/blog/index'
@@ -17,15 +16,9 @@ import { Route as EverrAppSplatRouteImport } from './routes/everr-app/$'
 import { Route as DocsSplatRouteImport } from './routes/docs/$'
 import { Route as DevlogSlugRouteImport } from './routes/devlog/$slug'
 import { Route as BlogSlugRouteImport } from './routes/blog/$slug'
-import { Route as ApiWaitlistRouteImport } from './routes/api/waitlist'
 import { Route as ApiSearchRouteImport } from './routes/api/search'
 import { Route as ApiOgDevlogSlugRouteImport } from './routes/api/og/devlog.$slug'
 
-const WaitlistRoute = WaitlistRouteImport.update({
-  id: '/waitlist',
-  path: '/waitlist',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -61,11 +54,6 @@ const BlogSlugRoute = BlogSlugRouteImport.update({
   path: '/blog/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiWaitlistRoute = ApiWaitlistRouteImport.update({
-  id: '/api/waitlist',
-  path: '/api/waitlist',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiSearchRoute = ApiSearchRouteImport.update({
   id: '/api/search',
   path: '/api/search',
@@ -79,9 +67,7 @@ const ApiOgDevlogSlugRoute = ApiOgDevlogSlugRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/waitlist': typeof WaitlistRoute
   '/api/search': typeof ApiSearchRoute
-  '/api/waitlist': typeof ApiWaitlistRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/devlog/$slug': typeof DevlogSlugRoute
   '/docs/$': typeof DocsSplatRoute
@@ -92,9 +78,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/waitlist': typeof WaitlistRoute
   '/api/search': typeof ApiSearchRoute
-  '/api/waitlist': typeof ApiWaitlistRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/devlog/$slug': typeof DevlogSlugRoute
   '/docs/$': typeof DocsSplatRoute
@@ -106,9 +90,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/waitlist': typeof WaitlistRoute
   '/api/search': typeof ApiSearchRoute
-  '/api/waitlist': typeof ApiWaitlistRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/devlog/$slug': typeof DevlogSlugRoute
   '/docs/$': typeof DocsSplatRoute
@@ -121,9 +103,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/waitlist'
     | '/api/search'
-    | '/api/waitlist'
     | '/blog/$slug'
     | '/devlog/$slug'
     | '/docs/$'
@@ -134,9 +114,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/waitlist'
     | '/api/search'
-    | '/api/waitlist'
     | '/blog/$slug'
     | '/devlog/$slug'
     | '/docs/$'
@@ -147,9 +125,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
-    | '/waitlist'
     | '/api/search'
-    | '/api/waitlist'
     | '/blog/$slug'
     | '/devlog/$slug'
     | '/docs/$'
@@ -161,9 +137,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  WaitlistRoute: typeof WaitlistRoute
   ApiSearchRoute: typeof ApiSearchRoute
-  ApiWaitlistRoute: typeof ApiWaitlistRoute
   BlogSlugRoute: typeof BlogSlugRoute
   DevlogSlugRoute: typeof DevlogSlugRoute
   DocsSplatRoute: typeof DocsSplatRoute
@@ -175,13 +149,6 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/waitlist': {
-      id: '/waitlist'
-      path: '/waitlist'
-      fullPath: '/waitlist'
-      preLoaderRoute: typeof WaitlistRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
@@ -231,13 +198,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BlogSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/waitlist': {
-      id: '/api/waitlist'
-      path: '/api/waitlist'
-      fullPath: '/api/waitlist'
-      preLoaderRoute: typeof ApiWaitlistRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/search': {
       id: '/api/search'
       path: '/api/search'
@@ -257,9 +217,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  WaitlistRoute: WaitlistRoute,
   ApiSearchRoute: ApiSearchRoute,
-  ApiWaitlistRoute: ApiWaitlistRoute,
   BlogSlugRoute: BlogSlugRoute,
   DevlogSlugRoute: DevlogSlugRoute,
   DocsSplatRoute: DocsSplatRoute,
