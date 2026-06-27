@@ -60,6 +60,7 @@ export function baseOptions(): BaseLayoutProps {
         children: (
           <Button
             className="rounded-full"
+            nativeButton={false}
             render={
               // biome-ignore lint/a11y/useAnchorContent: content is injected
               <a href="https://app.everr.dev" />
