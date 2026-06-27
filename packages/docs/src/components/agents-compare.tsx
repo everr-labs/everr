@@ -1,6 +1,7 @@
 import { cn } from "@everr/ui/lib/utils";
-import { ArrowRight, Bot, Check, TriangleAlert } from "lucide-react";
+import { ArrowRight, Bot, Check, TriangleAlert, User } from "lucide-react";
 import { motion, useInView } from "motion/react";
+import type { ReactNode } from "react";
 import { useRef } from "react";
 
 const REVEAL = {
@@ -13,16 +14,9 @@ type ReasonLine = { text: string; muted?: boolean };
 
 const GUESSING_REASONING: ReasonLine[] = [
   { text: "Reading checkout.ts …", muted: true },
-  { text: "This loop hits the DB on every item." },
-  { text: "Probably a slow query under load.", muted: true },
-  { text: "I'll add an index and hope it sticks." },
-];
-
-const GROUNDED_REASONING: ReasonLine[] = [
-  { text: "Asking Everr what actually ran …", muted: true },
-  { text: "37 errors in the last 15m, all 5xx." },
-  { text: "Spike starts exactly at deploy v812." },
-  { text: "DB pool exhausted — not the query." },
+  { text: "The order-items query has no index." },
+  { text: "Under load, that's the bottleneck.", muted: true },
+  { text: "Adding an index on order_id." },
 ];
 
 export function AgentsCompare() {
@@ -49,7 +43,7 @@ export function AgentsCompare() {
             Same task. One side is guessing.
           </h2>
           <p className="mt-6 max-w-2xl text-base leading-relaxed text-fd-muted-foreground md:text-lg">
-            Hand your coding agent a bug and it reasons from the code alone —
+            Hand your coding agent a bug and it reasons from the code alone:
             plausible, confident, and often wrong. Give it a query into what
             your software actually did, and the guess becomes a fact.
           </p>
@@ -111,10 +105,9 @@ function GuessingColumn({ inView }: { inView: boolean }) {
 
       <TaskLine />
 
-      {/* Agent transcript */}
-      <div className="mt-6 flex-1">
-        <SpeakerTag tone="muted" />
-        <ul className="mt-3 space-y-2.5">
+      {/* Agent reasoning */}
+      <AgentMessage className="mt-5">
+        <ul className="space-y-2.5">
           {GUESSING_REASONING.map((line, i) => (
             <ReasonRow
               key={line.text}
@@ -125,35 +118,40 @@ function GuessingColumn({ inView }: { inView: boolean }) {
             />
           ))}
         </ul>
-      </div>
+      </AgentMessage>
 
-      {/* The fix — struck through, uncertain */}
-      <div className="mt-6 rounded-lg border border-dashed border-fd-border/70 bg-fd-card/30 p-4">
-        <p className="font-heading text-[10px] font-bold uppercase tracking-[0.2em] text-fd-muted-foreground/50">
-          Proposed fix
-        </p>
-        <pre className="mt-2 overflow-x-auto font-mono text-[13px] leading-relaxed text-fd-muted-foreground line-through decoration-fd-muted-foreground/50">
-          <code>{`+ CREATE INDEX idx_items_order\n+   ON order_items (order_id);`}</code>
-        </pre>
-        <div className="mt-3 flex items-center gap-2 text-fd-muted-foreground/80">
-          <TriangleAlert className="size-3.5 shrink-0 text-amber-500/70" />
-          <span className="font-mono text-[11px] uppercase tracking-[0.12em]">
-            no evidence · didn&apos;t fix the outage
-          </span>
+      <div className="flex-1" />
+
+      {/* The proposed fix — struck through, aligned with the message text */}
+      <div className="mt-5 flex items-start gap-2.5">
+        <div className="w-5 shrink-0" aria-hidden />
+        <div className="min-w-0 flex-1 rounded-lg border border-dashed border-fd-border/70 bg-fd-card/30 p-4">
+          <p className="font-heading text-[10px] font-bold uppercase tracking-[0.2em] text-fd-muted-foreground/50">
+            Proposed fix
+          </p>
+          <pre className="mt-2 overflow-x-auto font-mono text-[13px] leading-relaxed text-fd-muted-foreground line-through decoration-fd-muted-foreground/50">
+            <code>{`+ CREATE INDEX idx_items_order\n+   ON order_items (order_id);`}</code>
+          </pre>
+          <div className="mt-3 flex items-center gap-2 text-fd-muted-foreground/80">
+            <TriangleAlert className="size-3.5 shrink-0 text-amber-500/70" />
+            <span className="font-mono text-[11px] uppercase tracking-[0.12em]">
+              no evidence · didn&apos;t fix the outage
+            </span>
+          </div>
         </div>
       </div>
     </motion.div>
   );
 }
 
-/** RIGHT — the agent grounded by a real query. Bright, sharp, lime-accented. */
+/** RIGHT — the agent grounded by real telemetry. Calm, factual, evidence-led. */
 function GroundedColumn({ inView }: { inView: boolean }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 24 }}
       animate={inView ? { opacity: 1, y: 0 } : undefined}
       transition={{ ...REVEAL.transition, delay: 0.3 }}
-      className="relative flex flex-col rounded-2xl border border-fd-border bg-fd-card p-6 shadow-2xl shadow-black/40 sm:p-8 md:rounded-l-none"
+      className="relative flex flex-col rounded-2xl border border-fd-border bg-fd-card p-6 shadow-lg shadow-black/20 sm:p-8 md:rounded-l-none"
     >
       <ColumnHeader
         label="With Everr"
@@ -163,66 +161,48 @@ function GroundedColumn({ inView }: { inView: boolean }) {
 
       <TaskLine />
 
-      {/* The query the agent runs — plain SQL via the CLI */}
-      <div className="mt-6 overflow-hidden rounded-lg border border-fd-border bg-fd-background">
-        <div className="flex items-center gap-2 border-b border-fd-border px-3 py-2">
-          <span className="size-1.5 rounded-full bg-primary" />
-          <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-fd-muted-foreground">
-            everr cloud query
-          </span>
-        </div>
-        <pre className="overflow-x-auto px-3 py-3 font-mono text-[12.5px] leading-relaxed text-fd-foreground sm:text-[13px]">
-          <code>
-            <span className="select-none text-primary" aria-hidden>
-              ${" "}
-            </span>
-            {
-              'everr cloud query\n  "SELECT count() AS errors,\n         max(duration_ms) AS p99\n   FROM spans\n   WHERE service = '
-            }
-            <span className="text-primary">&apos;checkout&apos;</span>
-            {"\n     AND status >= "}
-            <span className="text-primary">500</span>
-            {'\n     AND ts > now() - INTERVAL 15 MINUTE"'}
-          </code>
-        </pre>
-      </div>
-
-      {/* JSON evidence back */}
-      <div className="mt-3 overflow-hidden rounded-lg border border-fd-border bg-fd-background">
-        <pre className="overflow-x-auto px-3 py-3 font-mono text-[12.5px] leading-relaxed sm:text-[13px]">
-          <code className="text-fd-muted-foreground">
-            {"{ "}errors: <span className="text-fd-foreground">37</span>,
-            p99_ms: <span className="text-fd-foreground">1840</span>,{"\n  "}
-            deploy: <span className="text-fd-foreground">&quot;v812&quot;</span>
-            ,{"\n  "}suspect:{" "}
-            <span className="text-primary">&quot;db pool exhausted&quot;</span>{" "}
-            {"}"}
-          </code>
-        </pre>
-      </div>
-
-      {/* Grounded reasoning */}
-      <div className="mt-6 flex-1">
-        <SpeakerTag tone="primary" />
-        <ul className="mt-3 space-y-2.5">
-          {GROUNDED_REASONING.map((line, i) => (
-            <ReasonRow
-              key={line.text}
-              line={line}
-              index={i}
-              inView={inView}
-              tone="primary"
-            />
-          ))}
-        </ul>
-      </div>
-
-      {/* The correct fix — shown as an editor diff */}
-      <div className="mt-6">
-        <p className="font-heading text-[10px] font-bold uppercase tracking-[0.2em] text-primary">
-          Correct fix
+      {/* 1 — acknowledge, then read what actually ran in prod */}
+      <AgentMessage className="mt-5">
+        <p className="text-[13.5px] leading-relaxed text-fd-foreground">
+          On it. Let me check what actually ran in prod first.
         </p>
-        <div className="mt-2 overflow-hidden rounded-lg border border-fd-border bg-fd-background shadow-lg shadow-black/20">
+        <div className="divide-y divide-fd-border/50 overflow-hidden rounded-lg border border-fd-border bg-fd-background/60">
+          <QueryRow
+            verb="everr cloud query"
+            sql="SELECT ResourceAttributes['service.version'] AS version, count() FROM traces WHERE ServiceName = 'checkout' AND StatusCode = 'Error' GROUP BY version"
+            result={
+              <>
+                37 errors ·{" "}
+                <span className="font-medium text-fd-foreground">
+                  all on a1f3c9d
+                </span>
+              </>
+            }
+          />
+          <QueryRow
+            verb="everr cloud query"
+            sql="SELECT Body, count() FROM logs WHERE ServiceName = 'checkout' AND SeverityText = 'ERROR' GROUP BY Body"
+            result={
+              <>
+                37×{" "}
+                <span className="font-medium text-fd-foreground">
+                  “DB pool exhausted: 10/10 in use”
+                </span>
+              </>
+            }
+          />
+        </div>
+      </AgentMessage>
+
+      {/* 2 — synthesis, then the fix as a diff (kept intact) */}
+      <AgentMessage className="mt-5">
+        <p className="text-[13.5px] leading-relaxed text-fd-foreground">
+          All ten connections are in use, so the pool is my bottleneck. Commit{" "}
+          <Code>a1f3c9d</Code> scaled checkout out to more workers but left the
+          pool at 10, so requests queue for a connection, hit the acquire
+          timeout, and 500. I'll raise the cap to match the workers.
+        </p>
+        <div className="overflow-hidden rounded-lg border border-fd-border bg-fd-background shadow-lg shadow-black/20">
           {/* editor chrome: traffic lights, filename, diff stat */}
           <div className="flex items-center gap-2 border-b border-fd-border bg-fd-card/60 px-3 py-2">
             <span className="size-2.5 rounded-full border border-fd-border bg-fd-muted-foreground/20" />
@@ -281,19 +261,36 @@ function GroundedColumn({ inView }: { inView: boolean }) {
                 </span>
                 {" }"}
                 <span className="text-fd-muted-foreground/50">
-                  {"  // saturated at v812"}
+                  {"  // saturated since a1f3c9d"}
                 </span>
               </code>
             </div>
           </div>
         </div>
-        <div className="mt-3 flex items-center gap-2 text-fd-muted-foreground">
+      </AgentMessage>
+
+      {/* 3 — reproduce locally, then confirm */}
+      <AgentMessage className="mt-5">
+        <p className="text-[13.5px] leading-relaxed text-fd-foreground">
+          Before I ship, I'll reproduce it locally, replaying the load against
+          the patched pool and checking again with <Code>everr</Code>.
+        </p>
+        <div className="overflow-hidden rounded-lg border border-fd-border bg-fd-background/60">
+          <QueryRow
+            verb="everr local query"
+            sql="SELECT count() FROM traces WHERE ServiceName = 'checkout' AND StatusCode = 'Error'"
+            result={
+              <span className="font-medium text-fd-foreground">0 errors</span>
+            }
+          />
+        </div>
+        <div className="flex items-center gap-2 text-fd-muted-foreground">
           <Check className="size-3.5 shrink-0 text-primary" />
           <span className="font-mono text-[11px] uppercase tracking-[0.12em]">
-            grounded in what actually ran
+            fix confirmed
           </span>
         </div>
-      </div>
+      </AgentMessage>
     </motion.div>
   );
 }
@@ -313,59 +310,100 @@ function ColumnHeader({
 }) {
   const primary = tone === "primary";
   return (
-    <div className="flex items-center justify-between gap-3">
-      <div>
-        <h3
-          className={cn(
-            "font-heading text-lg font-bold tracking-tight",
-            primary ? "text-fd-foreground" : "text-fd-muted-foreground",
-          )}
-        >
-          {label}
-        </h3>
-        <p className="mt-1 font-mono text-[11px] uppercase tracking-[0.14em] text-fd-muted-foreground/60">
-          {sub}
-        </p>
-      </div>
-      <span
+    <div>
+      <h3
         className={cn(
-          "flex size-8 shrink-0 items-center justify-center rounded-full border",
-          primary
-            ? "border-primary/50 text-primary"
-            : "border-dashed border-fd-border text-fd-muted-foreground/60",
+          "font-heading text-lg font-bold tracking-tight",
+          primary ? "text-fd-foreground" : "text-fd-muted-foreground",
         )}
       >
-        <Bot className="size-4" />
-      </span>
-    </div>
-  );
-}
-
-/** The shared task, identical on both sides — the constant being controlled for. */
-function TaskLine() {
-  return (
-    <div className="mt-6 flex items-start gap-2.5 border-l-2 border-fd-border/70 pl-3">
-      <span className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.18em] text-fd-muted-foreground/50">
-        task
-      </span>
-      <p className="font-mono text-[12.5px] leading-snug text-fd-muted-foreground">
-        &quot;checkout is throwing 500s — find it and fix it.&quot;
+        {label}
+      </h3>
+      <p className="mt-1 font-mono text-[11px] uppercase tracking-[0.14em] text-fd-muted-foreground/60">
+        {sub}
       </p>
     </div>
   );
 }
 
-function SpeakerTag({ tone }: { tone: "muted" | "primary" }) {
-  const primary = tone === "primary";
+/** One query in the agent's investigation: the command run, then the fact it returned. */
+function QueryRow({
+  verb,
+  sql,
+  result,
+}: {
+  verb: string;
+  sql: string;
+  result: ReactNode;
+}) {
+  return (
+    <div className="px-3.5 py-3">
+      <code className="block whitespace-pre-wrap break-words font-mono text-[12.5px] leading-relaxed">
+        <span className="select-none text-fd-muted-foreground/35">$ </span>
+        <span className="text-fd-foreground/70">{verb} </span>
+        <span className="text-fd-muted-foreground/70">{`"${sql}"`}</span>
+      </code>
+      <div className="mt-1.5 flex items-start gap-2 font-mono text-[12.5px] leading-relaxed">
+        <span aria-hidden className="select-none text-fd-muted-foreground/35">
+          →
+        </span>
+        <p className="min-w-0 flex-1 text-fd-foreground/90">{result}</p>
+      </div>
+    </div>
+  );
+}
+
+/** The shared task — the human's opening message, identical on both sides. */
+function TaskLine() {
+  return (
+    <div className="mt-6 flex items-start gap-2.5">
+      <span
+        aria-hidden
+        className="mt-px flex size-5 shrink-0 items-center justify-center rounded-full border border-fd-border bg-fd-muted text-fd-muted-foreground"
+      >
+        <User className="size-3" />
+      </span>
+      <p className="min-w-0 flex-1 text-[13.5px] leading-relaxed text-fd-foreground">
+        checkout is throwing 500s, investigate and fix it.
+      </p>
+    </div>
+  );
+}
+
+/** Small, subtle robot avatar that marks a turn as coming from the agent. */
+function AgentAvatar() {
   return (
     <span
-      className={cn(
-        "font-heading text-[10px] font-bold uppercase tracking-[0.2em]",
-        primary ? "text-primary" : "text-fd-muted-foreground/50",
-      )}
+      aria-hidden
+      className="mt-px flex size-5 shrink-0 items-center justify-center rounded-full border border-fd-border bg-fd-background text-fd-muted-foreground"
     >
-      Agent reasoning
+      <Bot className="size-3" />
     </span>
+  );
+}
+
+/** A spoken message from the agent: avatar in the gutter, prose alongside. */
+function AgentMessage({
+  className,
+  children,
+}: {
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={cn("flex items-start gap-2.5", className)}>
+      <AgentAvatar />
+      <div className="min-w-0 flex-1 space-y-3">{children}</div>
+    </div>
+  );
+}
+
+/** Inline monospace chip for an identifier such as a commit sha or the CLI name. */
+function Code({ children }: { children: ReactNode }) {
+  return (
+    <code className="rounded bg-fd-muted px-1.5 py-0.5 font-mono text-[0.85em] text-fd-foreground">
+      {children}
+    </code>
   );
 }
 
