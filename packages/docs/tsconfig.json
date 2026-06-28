@@ -1,5 +1,15 @@
 {
   "include": ["**/*.ts", "**/*.tsx"],
+  // Pricing is shelved while plans are undecided: the route is excluded via
+  // its "-" prefix, and its components stay in-tree but out of typecheck so
+  // their links to the removed /pricing route don't break the build.
+  // "node_modules" restores the default that an explicit exclude would drop.
+  "exclude": [
+    "node_modules",
+    "src/routes/-pricing.tsx",
+    "src/components/pricing-toggle.tsx",
+    "src/components/pricing-matrix.tsx"
+  ],
   "compilerOptions": {
     "strict": true,
     "esModuleInterop": true,

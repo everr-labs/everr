@@ -13,24 +13,22 @@ type FaqItem = {
 
 const FAQS: FaqItem[] = [
   {
-    q: "Does Everr replace Datadog / Grafana / Honeycomb?",
+    q: "Where is my telemetry stored?",
     a: (
       <>
-        Not yet, but we're working on it! We are currently focused on local
-        observability. Everr lives{" "}
-        <strong className="text-fd-foreground">upstream</strong> — your laptop,
-        CI, and agent runs your existing tools never see. Production
-        observability is a natural next step.
+        While you develop, a collector runs on your machine and the data stays
+        local. In production, your services send OpenTelemetry to the Everr
+        cloud over OTLP, into a shared workspace scoped to your organization.
       </>
     ),
   },
   {
-    q: "Where is my telemetry stored?",
+    q: "What can I send to Everr?",
     a: (
       <>
-        On the device that produced it. Local-first by default. If you want a
-        shared cluster for your team we host one — but it's never required and
-        nothing leaves your machine until you opt in.
+        Traces, logs, and metrics in one OpenTelemetry model, the same signal
+        from your laptop to CI to production. Business events ride the same
+        pipeline, so product and engineering query the same data.
       </>
     ),
   },
@@ -38,40 +36,58 @@ const FAQS: FaqItem[] = [
     q: "Do I have to instrument my code?",
     a: (
       <>
-        If your runtime speaks OpenTelemetry, you're already done. If not, OTel
-        SDKs are already in every model's training data — point your agent at
-        the codebase and it will wire it up faster than you can read the docs.
+        If your runtime already speaks OpenTelemetry, you're most of the way
+        there. Everr's bundled skills also help your coding assistant add the
+        right instrumentation, working straight from your repository.
       </>
     ),
   },
   {
-    q: "Does it work in CI?",
+    q: "How do coding assistants query Everr?",
     a: (
       <>
-        Yes. Drop the same binary into a GitHub Actions step. The data model,
-        SQL surface, and APIs are identical to what you run locally — so
-        identifying a CI regression is literally one query away.
+        Through bundled skills plus plain SQL via the CLI:{" "}
+        <code className="font-mono text-[0.95em] text-fd-foreground">
+          everr local query
+        </code>{" "}
+        and{" "}
+        <code className="font-mono text-[0.95em] text-fd-foreground">
+          everr cloud query
+        </code>
+        . Your coding assistant reads your telemetry directly, no glue code.
       </>
     ),
   },
   {
-    q: "How do AI agents query Everr?",
+    q: "Am I locked in?",
     a: (
       <>
-        Through one structured API and plain SQL via a CLI so Claude Code,
-        Cursor, Codex, Copilot, and friends can hit it without any glue code.
+        No. Everr uses OpenTelemetry for ingest, the Perses spec for dashboards,
+        and a ClickHouse SQL surface for queries, all open standards. Your data,
+        dashboards, and alerts are portable files, not trapped behind a
+        proprietary agent or query language.
       </>
     ),
   },
+  // Pricing isn't finalized yet; keep this answer ready but hidden.
+  /*
   {
     q: "What does it cost?",
     a: (
       <>
-        Free for local use, forever. You only pay when you want a hosted
-        cluster, premium support, or longer retention.
+        Everr is open source and free to self-host. The managed Cloud plan is
+        usage-based, with an Enterprise tier for compliance and scale. See the{" "}
+        <a
+          href="/pricing"
+          className="text-fd-foreground underline decoration-primary decoration-2 underline-offset-4 hover:text-primary"
+        >
+          pricing page
+        </a>{" "}
+        for the full comparison.
       </>
     ),
   },
+  */
 ];
 
 export function FAQ() {

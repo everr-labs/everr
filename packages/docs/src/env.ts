@@ -4,7 +4,6 @@ import * as z from "zod";
 export const env = createEnv({
   server: {
     NODE_ENV: z.enum(["development", "production", "test"]),
-    RESEND_API_KEY: z.string(),
   },
 
   clientPrefix: "VITE_",
@@ -16,7 +15,6 @@ export const env = createEnv({
 
   runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
-    RESEND_API_KEY: process.env.RESEND_API_KEY,
     VITE_POSTHOG_PROJECT_TOKEN: import.meta.env.VITE_POSTHOG_PROJECT_TOKEN,
     VITE_POSTHOG_HOST: import.meta.env.VITE_POSTHOG_HOST,
   },
