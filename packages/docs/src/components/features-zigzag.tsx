@@ -27,7 +27,7 @@ const FEATURES: Feature[] = [
   {
     index: "01",
     title: "Logs, traces, metrics, and errors. All OpenTelemetry.",
-    body: "Every signal is standard OpenTelemetry, so one model covers your laptop, CI, and production. Uncaught exceptions are captured, grouped into issues by fingerprint, and linked back to the trace they belong to.",
+    body: "Every signal is standard OpenTelemetry, so one model covers your laptop, CI, and production.",
     points: [
       "Dashboards, Alerts, Error tracking; All you expect from a modern observability platform.",
       "Runbooks for incident response, automated remediation, and root cause analysis",
@@ -83,17 +83,17 @@ const FEATURES: Feature[] = [
     title: "Dashboards, alerts, and runbooks as code",
     body: (
       <>
-        Define dashboards in Perses-format YAML, alerts as query files, and
-        runbooks alongside them, then run <Code>everr apply</Code> to reconcile
-        the whole directory against your workspace. Git is the source of truth:
-        apply creates what is new, updates what changed, and prunes what you
-        deleted.
+        Define your dashboards, alerts, and runbooks as files in your repo, so
+        you and your coding agent know where to look before you even open Everr.
+        The config doubles as documentation &mdash; and as memory your agent
+        reads to find what matters.
       </>
     ),
     points: [
       "Perses-format dashboards and query-driven alerts",
       "Alert queries are plain SQL, and every row they return is a firing instance",
-      "everr apply reconciles a directory to match Git, pruning what you remove",
+      "Runbooks are Markdown, living next to the alert they belong to",
+      "Alerts route to the notification channels you already use",
     ],
     visual: (
       <Backdrop src={asCodeBackdrop}>
@@ -109,6 +109,7 @@ const FEATURES: Feature[] = [
       "Workflows, jobs, and steps as queryable traces",
       "Per-test spans for slow and flaky tests",
       "Estimated cost attributed by job, workflow, and runner",
+      "Get notified when a workflow run fails",
     ],
     visual: (
       <Backdrop src={ciBackdrop}>
@@ -119,7 +120,7 @@ const FEATURES: Feature[] = [
   {
     index: "06",
     title: "Built for coding assistants",
-    body: "Everr treats your coding assistant as a primary user. Bundled skills teach it when to reach for telemetry and how to query it, working from your repo so it ties a failing trace or log back to the code that caused it.",
+    body: "Everr is built for your coding assistant as much as for you. Bundled skills teach it when to reach for telemetry and how to query it, working from your repo so it ties a failing trace or log back to the code that caused it.",
     points: [
       "Crafted skills to help your assistant work with telemetry",
       "One install, available in every assistant you use",
@@ -153,11 +154,12 @@ export function FeaturesZigzag() {
             Capabilities
           </p>
           <h2 className="mt-4 text-balance font-heading text-3xl leading-[1.1] tracking-tight sm:text-4xl md:text-5xl lg:text-6xl">
-            Everything you need to see what your code actually does.
+            See what your code actually does.
           </h2>
           <p className="mt-6 max-w-xl text-base leading-relaxed text-fd-muted-foreground md:text-lg">
-            One OpenTelemetry pipeline and plain SQL, from your laptop to
-            production. Here&rsquo;s what&rsquo;s inside.
+            Everything you need to go from a fast local feedback loop to
+            production observability &mdash; one OpenTelemetry pipeline, end to
+            end.
           </p>
         </motion.div>
 
