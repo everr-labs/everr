@@ -67,6 +67,27 @@ describe("AlertRuleYamlSchema", () => {
     ).toBe(true);
   });
 
+  it("accepts the legacy spec.notebook alias and folds it into runbook", () => {
+    const parsed = AlertRuleYamlSchema.safeParse({
+      ...valid,
+      spec: { ...valid.spec, notebook: "platform/db-pool-runbook" },
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.spec.runbook).toBe("platform/db-pool-runbook");
+      expect("notebook" in parsed.data.spec).toBe(false);
+    }
+  });
+
+  it("rejects setting both spec.runbook and the legacy spec.notebook", () => {
+    expect(
+      AlertRuleYamlSchema.safeParse({
+        ...valid,
+        spec: { ...valid.spec, runbook: "a", notebook: "b" },
+      }).success,
+    ).toBe(false);
+  });
+
   it("rejects malformed project and runbook refs", () => {
     expect(
       AlertRuleYamlSchema.safeParse({

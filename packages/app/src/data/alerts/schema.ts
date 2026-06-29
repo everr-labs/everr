@@ -111,12 +111,29 @@ export const AlertRuleYamlSchema = z
       .object({
         display: alertDisplaySchema.optional(),
         runbook: runbookRefSchema.optional(),
+        // `notebook` is the legacy alias for `runbook` (ADR 0002); accepted in
+        // config for back-compat and folded into `runbook` by the transform.
+        notebook: runbookRefSchema.optional(),
         evaluationInterval: nonEmptyString,
         notificationMessage: notificationMessageSchema,
         query: nonEmptyString,
         instanceLabels: z.array(nonEmptyString).min(1).optional(),
       })
-      .strict(),
+      .strict()
+      .superRefine((spec, ctx) => {
+        if (spec.notebook !== undefined && spec.runbook !== undefined) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message:
+              'set only one of "runbook" or the legacy "notebook" field, not both',
+            path: ["runbook"],
+          });
+        }
+      })
+      .transform(({ notebook, ...spec }) => ({
+        ...spec,
+        runbook: spec.runbook ?? notebook,
+      })),
   })
   .strict();
 
