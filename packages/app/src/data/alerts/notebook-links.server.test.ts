@@ -18,7 +18,7 @@ vi.mock("drizzle-orm", () => ({
 }));
 
 vi.mock("@/db/schema", () => ({
-  notebooks: {
+  runbooks: {
     organizationId: "organization_id",
     repoid: "repoid",
     project: "project",

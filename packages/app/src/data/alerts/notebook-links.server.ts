@@ -6,7 +6,7 @@ import {
   slugFromDocument,
 } from "@/data/dashboards/desired";
 import { db } from "@/db/client";
-import { notebooks } from "@/db/schema";
+import { runbooks } from "@/db/schema";
 import { AlertRuleYamlSchema, identityKey, parseNotebookRef } from "./schema";
 
 /**
@@ -57,17 +57,17 @@ export async function validateAlertNotebookLinks(opts: {
   if (missing.size > 0) {
     const refs = [...missing.values()];
     const dbRows = await db
-      .select({ project: notebooks.project, slug: notebooks.slug })
-      .from(notebooks)
+      .select({ project: runbooks.project, slug: runbooks.slug })
+      .from(runbooks)
       .where(
         and(
-          eq(notebooks.organizationId, opts.orgId),
-          eq(notebooks.repoid, opts.repoid),
+          eq(runbooks.organizationId, opts.orgId),
+          eq(runbooks.repoid, opts.repoid),
           or(
             ...refs.map((ref) =>
               and(
-                eq(notebooks.project, ref.project),
-                eq(notebooks.slug, ref.slug),
+                eq(runbooks.project, ref.project),
+                eq(runbooks.slug, ref.slug),
               ),
             ),
           ),

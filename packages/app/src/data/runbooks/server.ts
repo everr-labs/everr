@@ -2,7 +2,7 @@ import { notFound } from "@tanstack/react-router";
 import { and, eq, sql } from "drizzle-orm";
 import * as z from "zod";
 import { db } from "@/db/client";
-import { notebooks } from "@/db/schema";
+import { runbooks } from "@/db/schema";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import type { Runbook } from "./schema";
 import { runbookSpecSchema } from "./schema";
@@ -13,13 +13,13 @@ export const getRunbook = createAuthenticatedServerFn({ method: "GET" })
     const orgId = context.session.session.activeOrganizationId;
 
     const [row] = await db
-      .select({ document: notebooks.document })
-      .from(notebooks)
+      .select({ document: runbooks.document })
+      .from(runbooks)
       .where(
         and(
-          eq(notebooks.organizationId, orgId),
-          eq(notebooks.project, project),
-          eq(notebooks.slug, slug),
+          eq(runbooks.organizationId, orgId),
+          eq(runbooks.project, project),
+          eq(runbooks.slug, slug),
         ),
       )
       .limit(1);
@@ -45,13 +45,13 @@ export const listRunbooks = createAuthenticatedServerFn({
 
   const rows = await db
     .select({
-      slug: notebooks.slug,
-      project: notebooks.project,
-      folderPath: notebooks.folderPath,
+      slug: runbooks.slug,
+      project: runbooks.project,
+      folderPath: runbooks.folderPath,
       displayName: sql<string>`document->'spec'->'display'->>'name'`,
     })
-    .from(notebooks)
-    .where(eq(notebooks.organizationId, orgId));
+    .from(runbooks)
+    .where(eq(runbooks.organizationId, orgId));
 
   return rows.map((r) => ({
     slug: r.slug,

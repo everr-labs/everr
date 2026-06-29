@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { reconcile } from "@/data/as-code/reconcile";
 import type { Reconciler } from "@/data/as-code/registry";
 import { db } from "@/db/client";
-import { notebooks } from "@/db/schema";
+import { runbooks } from "@/db/schema";
 import { buildDesiredRunbookSet } from "./desired";
 import type { Runbook } from "./schema";
 
@@ -35,14 +35,14 @@ export const applyRunbookSpecs: Reconciler = async ({
 
   const existing = await db
     .select({
-      project: notebooks.project,
-      slug: notebooks.slug,
-      folderPath: notebooks.folderPath,
-      document: notebooks.document,
+      project: runbooks.project,
+      slug: runbooks.slug,
+      folderPath: runbooks.folderPath,
+      document: runbooks.document,
     })
-    .from(notebooks)
+    .from(runbooks)
     .where(
-      and(eq(notebooks.organizationId, orgId), eq(notebooks.repoid, repoid)),
+      and(eq(runbooks.organizationId, orgId), eq(runbooks.repoid, repoid)),
     );
 
   const diff = reconcile({ existing, desired });
@@ -57,7 +57,7 @@ export const applyRunbookSpecs: Reconciler = async ({
 
   await db.transaction(async (tx) => {
     for (const d of diff.creates) {
-      await tx.insert(notebooks).values({
+      await tx.insert(runbooks).values({
         organizationId: orgId,
         repoid,
         project: d.project,
@@ -68,7 +68,7 @@ export const applyRunbookSpecs: Reconciler = async ({
     }
     for (const d of diff.updates) {
       await tx
-        .update(notebooks)
+        .update(runbooks)
         .set({
           document: d.document as Runbook,
           folderPath: d.folderPath,
@@ -76,22 +76,22 @@ export const applyRunbookSpecs: Reconciler = async ({
         })
         .where(
           and(
-            eq(notebooks.organizationId, orgId),
-            eq(notebooks.repoid, repoid),
-            eq(notebooks.project, d.project),
-            eq(notebooks.slug, d.slug),
+            eq(runbooks.organizationId, orgId),
+            eq(runbooks.repoid, repoid),
+            eq(runbooks.project, d.project),
+            eq(runbooks.slug, d.slug),
           ),
         );
     }
     for (const d of diff.deletes) {
       await tx
-        .delete(notebooks)
+        .delete(runbooks)
         .where(
           and(
-            eq(notebooks.organizationId, orgId),
-            eq(notebooks.repoid, repoid),
-            eq(notebooks.project, d.project),
-            eq(notebooks.slug, d.slug),
+            eq(runbooks.organizationId, orgId),
+            eq(runbooks.repoid, repoid),
+            eq(runbooks.project, d.project),
+            eq(runbooks.slug, d.slug),
           ),
         );
     }

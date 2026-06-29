@@ -43,8 +43,8 @@ export const alertDefinitions = pgTable(
     lastEnqueuedAt: timestamp("last_enqueued_at", { withTimezone: true }),
     configFilePath: text("config_file_path").notNull().default(""),
     sourceLink: text("source_link").notNull().default(""),
-    notebookProject: text("notebook_project").notNull().default(""),
-    notebookSlug: text("notebook_slug").notNull().default(""),
+    runbookProject: text("runbook_project").notNull().default(""),
+    runbookSlug: text("runbook_slug").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

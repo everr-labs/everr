@@ -12,7 +12,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import type { Dashboard } from "@/data/dashboards/schema";
-import type { Notebook } from "@/data/notebooks/schema";
+import type { Runbook } from "@/data/runbooks/schema";
 
 export const githubInstallationStatusEnum = pgEnum("installation_status", [
   "active",
@@ -216,23 +216,23 @@ export const dashboards = pgTable(
   ],
 );
 
-export const notebooks = pgTable(
-  "notebooks",
+export const runbooks = pgTable(
+  "runbooks",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     organizationId: text("organization_id").notNull(),
     // Stable repository identifier from everr.yaml — the apply ownership and
-    // prune boundary, like dashboards. Notebooks from other repoids are never
+    // prune boundary, like dashboards. Runbooks from other repoids are never
     // touched on apply.
     repoid: text("repoid").notNull().default(""),
-    // Perses project namespace that owns this notebook (identity), denormalized
+    // Perses project namespace that owns this runbook (identity), denormalized
     // from metadata.project like dashboards.
     project: text("project").notNull(),
     slug: text("slug").notNull(),
     folderPath: text("folder_path").notNull().default(""),
     // The whole document, stored verbatim so unknown fields survive a
     // read/apply round-trip. Markdown is always inlined by the CLI.
-    document: jsonb("document").notNull().$type<Notebook>(),
+    document: jsonb("document").notNull().$type<Runbook>(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -243,13 +243,13 @@ export const notebooks = pgTable(
   (table) => [
     // Identity is (org, repoid, project, slug); project is only the Perses
     // namespace inside the repository, not the prune boundary.
-    uniqueIndex("notebooks_tenant_repo_project_slug_uq").on(
+    uniqueIndex("runbooks_tenant_repo_project_slug_uq").on(
       table.organizationId,
       table.repoid,
       table.project,
       table.slug,
     ),
-    index("notebooks_tenant_updated_idx").on(
+    index("runbooks_tenant_updated_idx").on(
       table.organizationId,
       sql`updated_at DESC`,
     ),
