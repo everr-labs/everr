@@ -195,4 +195,22 @@ describe("applyResources", () => {
       }),
     );
   });
+
+  it("honors the Notebook alias only for runbooks — rejects it under dashboards", async () => {
+    await expect(
+      applyResources({
+        orgId: "org-1",
+        repoid: "repo-1",
+        state: {
+          dashboards: [{ path: "nb.yaml", resource: { kind: "Notebook" } }],
+          runbooks: [],
+          alerts: [],
+        },
+      }),
+    ).rejects.toThrow('nb.yaml: expected kind "Dashboard"');
+
+    expect(dashboardReconciler).not.toHaveBeenCalled();
+    expect(runbookReconciler).not.toHaveBeenCalled();
+    expect(alertReconciler).not.toHaveBeenCalled();
+  });
 });
