@@ -30,6 +30,11 @@ export const navMain: NavItem[] = [
     icon: NotebookText,
   },
   {
+    title: "Alerts",
+    url: "/alerts",
+    icon: Bell,
+  },
+  {
     title: "CI/CD",
     url: "/runs",
     icon: GitBranch,
@@ -59,10 +64,5 @@ export const navMain: NavItem[] = [
       { title: "Errors", url: "/errors" },
       { title: "Traces", url: "/traces" },
     ],
-  },
-  {
-    title: "Alerts",
-    url: "/alerts",
-    icon: Bell,
   },
 ];

@@ -1,6 +1,6 @@
 import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { Empty, EmptyDescription } from "@everr/ui/components/empty";
-import { Link } from "@tanstack/react-router";
+import { WorkflowLink } from "@/components/workflow-link";
 import type { CostByWorkflow } from "@/data/cost-analysis/schemas";
 import { formatCost } from "@/lib/runner-pricing";
 
@@ -15,15 +15,7 @@ const columns: Column<CostByWorkflow>[] = [
   },
   {
     header: "Workflow",
-    cell: (row) => (
-      <Link
-        to="/workflows/$repo/$workflowName"
-        params={{ repo: row.repo, workflowName: row.workflow }}
-        className="font-medium hover:underline"
-      >
-        {row.workflow}
-      </Link>
-    ),
+    cell: (row) => <WorkflowLink repo={row.repo} workflowName={row.workflow} />,
   },
   {
     header: "Jobs",

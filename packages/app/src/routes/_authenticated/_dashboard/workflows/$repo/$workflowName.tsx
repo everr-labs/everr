@@ -364,7 +364,7 @@ function WorkflowDetailPage() {
           </Link>
         }
       >
-        {(runs) => <RunsTable data={runs} />}
+        {(runs) => <RunsTable data={runs} linkWorkflow={false} />}
       </TimeRangePanel>
     </div>
   );
