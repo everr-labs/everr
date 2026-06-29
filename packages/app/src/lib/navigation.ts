@@ -35,6 +35,17 @@ export const navMain: NavItem[] = [
     icon: Bell,
   },
   {
+    title: "Explore",
+    url: "/logs",
+    icon: Telescope,
+    isActive: true,
+    items: [
+      { title: "Logs", url: "/logs" },
+      { title: "Errors", url: "/errors" },
+      { title: "Traces", url: "/traces" },
+    ],
+  },
+  {
     title: "CI/CD",
     url: "/runs",
     icon: GitBranch,
@@ -52,17 +63,6 @@ export const navMain: NavItem[] = [
         title: "Tests Overview",
         url: "/tests-overview",
       },
-    ],
-  },
-  {
-    title: "Explore",
-    url: "/logs",
-    icon: Telescope,
-    isActive: true,
-    items: [
-      { title: "Logs", url: "/logs" },
-      { title: "Errors", url: "/errors" },
-      { title: "Traces", url: "/traces" },
     ],
   },
 ];
