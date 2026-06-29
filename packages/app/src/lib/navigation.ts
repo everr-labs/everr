@@ -45,12 +45,12 @@ export const navMain: NavItem[] = [
         url: "/runs",
       },
       {
-        title: "Tests Overview",
-        url: "/tests-overview",
-      },
-      {
         title: "Cost Analysis",
         url: "/cost-analysis",
+      },
+      {
+        title: "Tests Overview",
+        url: "/tests-overview",
       },
     ],
   },
