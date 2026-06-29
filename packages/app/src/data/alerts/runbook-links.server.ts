@@ -28,9 +28,7 @@ export async function validateAlertRunbookLinks(opts: {
     const parsed = AlertRuleYamlSchema.safeParse(resource);
     if (!parsed.success || !parsed.data.spec.runbook) return [];
     const project = parsed.data.metadata.project ?? "default";
-    return [
-      { path, ref: parseRunbookRef(parsed.data.spec.runbook, project) },
-    ];
+    return [{ path, ref: parseRunbookRef(parsed.data.spec.runbook, project) }];
   });
   if (links.length === 0) return;
 

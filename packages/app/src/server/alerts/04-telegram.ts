@@ -83,9 +83,7 @@ export function buildTelegramText(
     }
   }
 
-  const runbookLine = opts.runbookUrl
-    ? `\nRunbook: ${opts.runbookUrl}`
-    : "";
+  const runbookLine = opts.runbookUrl ? `\nRunbook: ${opts.runbookUrl}` : "";
   const footer = `\n\n${formatUtc(opts.now)}\nAlert: ${opts.url}${runbookLine}`;
   return truncate(lines.join("\n"), footer);
 }
