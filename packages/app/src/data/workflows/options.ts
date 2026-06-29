@@ -3,11 +3,9 @@ import type { WorkflowDetailInput } from "./schemas";
 import {
   getWorkflowCost,
   getWorkflowDurationTrend,
-  getWorkflowFailureReasons,
   getWorkflowRecentRuns,
   getWorkflowStats,
   getWorkflowSuccessRateTrend,
-  getWorkflowTopFailingJobs,
 } from "./server";
 
 export const workflowStatsOptions = (input: WorkflowDetailInput) =>
@@ -26,18 +24,6 @@ export const workflowDurationTrendOptions = (input: WorkflowDetailInput) =>
   queryOptions({
     queryKey: ["workflows", "durationTrend", input],
     queryFn: () => getWorkflowDurationTrend({ data: input }),
-  });
-
-export const workflowTopFailingJobsOptions = (input: WorkflowDetailInput) =>
-  queryOptions({
-    queryKey: ["workflows", "topFailingJobs", input],
-    queryFn: () => getWorkflowTopFailingJobs({ data: input }),
-  });
-
-export const workflowFailureReasonsOptions = (input: WorkflowDetailInput) =>
-  queryOptions({
-    queryKey: ["workflows", "failureReasons", input],
-    queryFn: () => getWorkflowFailureReasons({ data: input }),
   });
 
 export const workflowCostOptions = (input: WorkflowDetailInput) =>

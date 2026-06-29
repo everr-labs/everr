@@ -27,19 +27,6 @@ export interface WorkflowDurationTrendPoint {
   p95Duration: number;
 }
 
-export interface WorkflowFailingJob {
-  jobName: string;
-  failureCount: number;
-  totalRuns: number;
-  successRate: number;
-}
-
-export interface WorkflowFailureReason {
-  pattern: string;
-  count: number;
-  lastOccurrence: string;
-}
-
 export interface WorkflowCost {
   totalCost: number;
   totalMinutes: number;

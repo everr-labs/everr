@@ -10,8 +10,6 @@ import {
   type WorkflowCost,
   WorkflowDetailInputSchema,
   type WorkflowDurationTrendPoint,
-  type WorkflowFailingJob,
-  type WorkflowFailureReason,
   type WorkflowStats,
   type WorkflowTrendPoint,
 } from "./schemas";
@@ -193,94 +191,6 @@ export const getWorkflowDurationTrend = createAuthenticatedServerFn({
       avgDuration: Number(row.avgDuration),
       p95Duration: Number(row.p95Duration),
     })) satisfies WorkflowDurationTrendPoint[];
-  });
-
-export const getWorkflowTopFailingJobs = createAuthenticatedServerFn({
-  method: "GET",
-})
-  .inputValidator(WorkflowDetailInputSchema)
-  .handler(async ({ data, context: { clickhouse } }) => {
-    const { fromISO, toISO } = resolveTimeRange(data.timeRange);
-
-    const sql = `
-			SELECT
-				ResourceAttributes['cicd.pipeline.task.name'] as jobName,
-				countIf(ResourceAttributes['cicd.pipeline.task.run.result'] = 'failure') as failureCount,
-				count(*) as totalRuns,
-				round(countIf(ResourceAttributes['cicd.pipeline.task.run.result'] = 'success') * 100.0
-					/ nullIf(count(*), 0), 1) as successRate
-			FROM traces
-			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
-				AND ResourceAttributes['cicd.pipeline.name'] = {workflowName:String}
-				AND ResourceAttributes['vcs.repository.name'] = {repo:String}
-				AND ResourceAttributes['cicd.pipeline.task.name'] != ''
-				AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
-				AND SpanAttributes['everr.test.name'] = ''
-			GROUP BY jobName
-			ORDER BY failureCount DESC
-			LIMIT 10
-		`;
-
-    const result = await clickhouse.query<{
-      jobName: string;
-      failureCount: string;
-      totalRuns: string;
-      successRate: string;
-    }>(sql, {
-      fromTime: fromISO,
-      toTime: toISO,
-      workflowName: data.workflowName,
-      repo: data.repo,
-    });
-
-    return result.map((row) => ({
-      jobName: row.jobName,
-      failureCount: Number(row.failureCount),
-      totalRuns: Number(row.totalRuns),
-      successRate: Number(row.successRate) || 0,
-    })) satisfies WorkflowFailingJob[];
-  });
-
-export const getWorkflowFailureReasons = createAuthenticatedServerFn({
-  method: "GET",
-})
-  .inputValidator(WorkflowDetailInputSchema)
-  .handler(async ({ data, context: { clickhouse } }) => {
-    const { fromISO, toISO } = resolveTimeRange(data.timeRange);
-
-    const sql = `
-			SELECT
-				lower(trim(substring(StatusMessage, 1, 200))) as pattern,
-				count(*) as count,
-				max(Timestamp) as lastOccurrence
-			FROM traces
-			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
-				AND ResourceAttributes['cicd.pipeline.name'] = {workflowName:String}
-				AND ResourceAttributes['vcs.repository.name'] = {repo:String}
-				AND ResourceAttributes['cicd.pipeline.task.run.result'] = 'failure'
-				AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
-				AND StatusMessage != ''
-			GROUP BY pattern
-			ORDER BY count DESC
-			LIMIT 10
-		`;
-
-    const result = await clickhouse.query<{
-      pattern: string;
-      count: string;
-      lastOccurrence: string;
-    }>(sql, {
-      fromTime: fromISO,
-      toTime: toISO,
-      workflowName: data.workflowName,
-      repo: data.repo,
-    });
-
-    return result.map((row) => ({
-      pattern: row.pattern,
-      count: Number(row.count),
-      lastOccurrence: row.lastOccurrence,
-    })) satisfies WorkflowFailureReason[];
   });
 
 export const getWorkflowCost = createAuthenticatedServerFn({

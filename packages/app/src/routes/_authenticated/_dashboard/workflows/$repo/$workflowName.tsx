@@ -1,4 +1,3 @@
-import { Badge } from "@everr/ui/components/badge";
 import {
   type ChartConfig,
   ChartContainer,
@@ -13,7 +12,6 @@ import {
 } from "@everr/ui/components/chart-helpers";
 import { Sparkline } from "@everr/ui/components/sparkline";
 import { formatDuration } from "@everr/ui/lib/formatting";
-import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Activity, Clock, DollarSign, TrendingUp } from "lucide-react";
 import { ComposedChart, Line, XAxis, YAxis } from "recharts";
@@ -25,13 +23,10 @@ import type { TimeRangeInput } from "@/data/analytics/schemas";
 import {
   workflowCostOptions,
   workflowDurationTrendOptions,
-  workflowFailureReasonsOptions,
   workflowRecentRunsOptions,
   workflowStatsOptions,
   workflowSuccessRateTrendOptions,
-  workflowTopFailingJobsOptions,
 } from "@/data/workflows/options";
-import { getSuccessRateVariant } from "@/lib/formatting";
 import { formatCost } from "@/lib/runner-pricing";
 import { TimeRangeSearchSchema } from "@/lib/time-range";
 
@@ -73,10 +68,6 @@ function WorkflowDetailPage() {
     workflowDurationTrendOptions({ ...tr, workflowName, repo });
   const wfCost = (tr: TimeRangeInput) =>
     workflowCostOptions({ ...tr, workflowName, repo });
-  const wfFailingJobs = (tr: TimeRangeInput) =>
-    workflowTopFailingJobsOptions({ ...tr, workflowName, repo });
-  const wfFailureReasons = (tr: TimeRangeInput) =>
-    workflowFailureReasonsOptions({ ...tr, workflowName, repo });
   const wfRecentRuns = (tr: TimeRangeInput) =>
     workflowRecentRunsOptions({ ...tr, workflowName, repo });
 
@@ -271,72 +262,6 @@ function WorkflowDetailPage() {
               </ChartContainer>
             ) : (
               <ChartEmptyState message="No duration data available" />
-            )
-          }
-        </TimeRangePanel>
-      </div>
-
-      {/* Detail panels */}
-      <div className="grid gap-3 md:grid-cols-2">
-        <TimeRangePanel title="Top Failing Jobs" queries={[wfFailingJobs]}>
-          {(jobs) =>
-            jobs.length > 0 ? (
-              <div className="space-y-3">
-                {jobs.map((job) => (
-                  <div
-                    key={job.jobName}
-                    className="flex items-center justify-between"
-                  >
-                    <div className="flex flex-col min-w-0 flex-1 mr-2">
-                      <span className="text-sm font-medium truncate">
-                        {job.jobName}
-                      </span>
-                      <span className="text-muted-foreground text-xs">
-                        {job.totalRuns} runs
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <Badge variant={getSuccessRateVariant(job.successRate)}>
-                        {job.successRate}%
-                      </Badge>
-                      <Badge variant="destructive">{job.failureCount}x</Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-muted-foreground text-sm">
-                No failing jobs found
-              </p>
-            )
-          }
-        </TimeRangePanel>
-
-        <TimeRangePanel title="Failure Reasons" queries={[wfFailureReasons]}>
-          {(reasons) =>
-            reasons.length > 0 ? (
-              <div className="space-y-3">
-                {reasons.map((reason) => (
-                  <div
-                    key={reason.pattern}
-                    className="flex items-center justify-between"
-                  >
-                    <div className="flex flex-col min-w-0 flex-1 mr-2">
-                      <span className="text-sm font-medium truncate">
-                        {reason.pattern}
-                      </span>
-                      <span className="text-muted-foreground text-xs">
-                        {formatRelativeTime(reason.lastOccurrence)}
-                      </span>
-                    </div>
-                    <Badge variant="secondary">{reason.count}x</Badge>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-muted-foreground text-sm">
-                No failure reasons found
-              </p>
             )
           }
         </TimeRangePanel>
