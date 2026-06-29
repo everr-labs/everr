@@ -106,8 +106,10 @@ function alertUrl(alertId: string): string {
 }
 
 function runbookUrl(project: string, slug: string): string {
+  // The in-app route is still `/notebooks/...`; Task 7 renames the route and
+  // all `/notebooks/` URL references (in-app links + this one) together.
   return new URL(
-    `/runbooks/${project}/${slug}`,
+    `/notebooks/${project}/${slug}`,
     env.BETTER_AUTH_URL,
   ).toString();
 }
