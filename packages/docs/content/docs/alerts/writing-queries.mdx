@@ -10,14 +10,14 @@ An alert's `spec.query` is plain ClickHouse SQL, and the rule is simple: every r
 Before writing the query, decide whether the condition is worth alerting on at all. Google's [SRE practice](https://sre.google/sre-book/monitoring-distributed-systems/) is a good guide:
 
 - **Alert on symptoms, not causes.** Notify on what users actually feel, elevated errors, slow responses, a backlog that isn't draining, not on every underlying cause like one machine's CPU or a single restart. Causes belong on [dashboards](/docs/dashboards) for debugging; symptoms are what warrant a notification. For user-facing systems the four golden signals, latency, traffic, errors, and saturation, are a sound starting point.
-- **Every alert must be actionable.** If no one would do anything when it fires, it shouldn't fire. Link a notebook runbook that gives responders the visuals, context, and next steps they need to debug the problem.
+- **Every alert must be actionable.** If no one would do anything when it fires, it shouldn't fire. Link a runbook that gives responders the visuals, context, and next steps they need to debug the problem.
 - **Tune for signal, not noise.** A rule that fires on a single error or a momentary blip trains people to ignore it. Pick a threshold and window so the query stays quiet under normal conditions and returns rows only when a human should step in.
 
 The rest of this page is how to express that condition in SQL.
 
 ## Link a runbook
 
-Set `spec.notebook` to the notebook slug. A bare slug resolves in the alert's own project; use `project/slug` to link across projects.
+Set `spec.runbook` to the runbook slug (the legacy `spec.notebook` field is still accepted as an alias). A bare slug resolves in the alert's own project; use `project/slug` to link across projects.
 
 ```yaml
 kind: AlertRule
@@ -25,7 +25,7 @@ metadata:
   name: api-error-rate
   project: platform
 spec:
-  notebook: api-error-rate-runbook   # platform/api-error-rate-runbook
+  runbook: api-error-rate-runbook   # platform/api-error-rate-runbook
   evaluationInterval: 1m
   notificationMessage:
     title: "${ServiceName} error rate is high"
@@ -33,7 +33,7 @@ spec:
     SELECT ...
 ```
 
-`everr apply` fails if the linked notebook does not exist in the same apply batch or already in Everr.
+`everr apply` fails if the linked runbook does not exist in the same apply batch or already in Everr.
 
 ## Express a threshold
 

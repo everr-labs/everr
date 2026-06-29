@@ -71,7 +71,7 @@ EVERR_INGEST_KEY="..."
 
 CI requires this secret and bundles it into the release binary at build time. Runtime `EVERR_INGEST_KEY` still overrides the bundled value for local testing.
 
-The embedded CLI's `everr apply` command (for dashboards, notebooks, alerts as code) authenticates with a separate env var:
+The embedded CLI's `everr apply` command (for dashboards, runbooks, alerts as code) authenticates with a separate env var:
 
 ```bash
 EVERR_API_KEY="..."   # preferred

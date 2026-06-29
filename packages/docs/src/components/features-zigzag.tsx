@@ -8,7 +8,7 @@ import cliBackdrop from "../assets/cli-backdrop.webp?url";
 import dashboardShot from "../assets/dashboard.webp?url";
 import desktopApp from "../assets/desktop-app.webp?url";
 import errorShot from "../assets/error.webp?url";
-import notebookShot from "../assets/notebook.webp?url";
+import runbookShot from "../assets/notebook.webp?url";
 import telemetryBackdrop from "../assets/telemetry-backdrop.webp?url";
 import traceShot from "../assets/trace.webp?url";
 import { Code } from "./ui/code";
@@ -359,8 +359,8 @@ function QueryShot() {
   );
 }
 
-/** Runbook card for the as-code section: the Notebook YAML spec flows from the
- *  top-left and the same notebook rendered in the app fills the top-right, over
+/** Runbook card for the as-code section: the Runbook YAML spec flows from the
+ *  top-left and the same runbook rendered in the app fills the top-right, over
  *  the source along the diagonal. One artifact, shown as code and live. */
 function RunbookShot() {
   const cKey = "text-fd-foreground/80";
@@ -368,7 +368,7 @@ function RunbookShot() {
   const cStr = "text-primary";
   const cPunct = "text-fd-muted-foreground/40";
 
-  const yaml = `kind: Notebook
+  const yaml = `kind: Runbook
 metadata:
   name: infra-health
   project: default
@@ -429,7 +429,7 @@ spec:
 
   return (
     <div className="overflow-hidden rounded-xl border border-fd-border bg-fd-card shadow-2xl shadow-black/30">
-      <WindowChrome size="sm" title="notebooks/infra-health.yaml" />
+      <WindowChrome size="sm" title="runbooks/infra-health.yaml" />
       <div className="relative aspect-[4/3]">
         {/* YAML source, flowing from the top */}
         <div className="absolute inset-0 overflow-hidden p-5 font-mono text-[10px] leading-[1.6] sm:text-[11px]">
@@ -439,10 +439,10 @@ spec:
             </div>
           ))}
         </div>
-        {/* The rendered notebook, over the source, filling the top-right triangle */}
+        {/* The rendered runbook, over the source, filling the top-right triangle */}
         <img
-          src={notebookShot}
-          alt="The notebook rendered from the spec"
+          src={runbookShot}
+          alt="The runbook rendered from the spec"
           loading="lazy"
           className="absolute inset-0 size-full object-cover"
           style={{
