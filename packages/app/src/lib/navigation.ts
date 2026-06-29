@@ -1,6 +1,5 @@
 import {
   Bell,
-  FlaskConical,
   GitBranch,
   LayoutDashboard,
   type LucideIcon,
@@ -41,8 +40,8 @@ export const navMain: NavItem[] = [
         url: "/runs",
       },
       {
-        title: "Workflows",
-        url: "/workflows",
+        title: "Tests Overview",
+        url: "/tests-overview",
       },
       {
         title: "Cost Analysis",
@@ -65,10 +64,5 @@ export const navMain: NavItem[] = [
     title: "Alerts",
     url: "/alerts",
     icon: Bell,
-  },
-  {
-    title: "Tests Overview",
-    url: "/tests-overview",
-    icon: FlaskConical,
   },
 ];

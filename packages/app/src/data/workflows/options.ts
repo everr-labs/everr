@@ -1,9 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import type {
-  WorkflowDetailInput,
-  WorkflowsListInput,
-  WorkflowsSparklineInput,
-} from "./schemas";
+import type { WorkflowDetailInput } from "./schemas";
 import {
   getWorkflowCost,
   getWorkflowDurationTrend,
@@ -11,23 +7,8 @@ import {
   getWorkflowRecentRuns,
   getWorkflowStats,
   getWorkflowSuccessRateTrend,
-  getWorkflowsList,
-  getWorkflowsSparklines,
   getWorkflowTopFailingJobs,
 } from "./server";
-
-export const workflowsListOptions = (input: WorkflowsListInput) =>
-  queryOptions({
-    queryKey: ["workflows", "list", input],
-    queryFn: () => getWorkflowsList({ data: input }),
-  });
-
-export const workflowsSparklineOptions = (input: WorkflowsSparklineInput) =>
-  queryOptions({
-    queryKey: ["workflows", "sparklines", input],
-    queryFn: () => getWorkflowsSparklines({ data: input }),
-    enabled: input.workflows.length > 0,
-  });
 
 export const workflowStatsOptions = (input: WorkflowDetailInput) =>
   queryOptions({

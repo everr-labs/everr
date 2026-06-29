@@ -3,36 +3,6 @@ import { z } from "zod";
 
 // ── Types ───────────────────────────────────────────────────────────────
 
-export interface WorkflowListItem {
-  workflowName: string;
-  repo: string;
-  totalRuns: number;
-  successRate: number;
-  avgDuration: number;
-  lastRunAt: string;
-  prevTotalRuns: number;
-  prevSuccessRate: number;
-  prevAvgDuration: number;
-}
-
-export interface WorkflowsListResult {
-  workflows: WorkflowListItem[];
-  totalCount: number;
-}
-
-export interface WorkflowSparklineBucket {
-  date: string;
-  totalRuns: number;
-  successRate: number;
-  avgDuration: number;
-}
-
-export interface WorkflowSparklineData {
-  workflowName: string;
-  repo: string;
-  buckets: WorkflowSparklineBucket[];
-}
-
 export interface WorkflowStats {
   totalRuns: number;
   successRate: number;
@@ -78,23 +48,6 @@ export interface WorkflowCost {
 }
 
 // ── Input Schemas ───────────────────────────────────────────────────────
-
-export const WorkflowsListInputSchema = z.object({
-  timeRange: TimeRangeSchema,
-  page: z.coerce.number().int().min(1),
-  pageSize: z.coerce.number().int().min(1).max(100).optional(),
-  repos: z.array(z.string()).optional(),
-  search: z.string().optional(),
-});
-export type WorkflowsListInput = z.infer<typeof WorkflowsListInputSchema>;
-
-export const WorkflowsSparklineInputSchema = z.object({
-  timeRange: TimeRangeSchema,
-  workflows: z.array(z.object({ workflowName: z.string(), repo: z.string() })),
-});
-export type WorkflowsSparklineInput = z.infer<
-  typeof WorkflowsSparklineInputSchema
->;
 
 export const WorkflowDetailInputSchema = z.object({
   timeRange: TimeRangeSchema,

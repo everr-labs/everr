@@ -41,9 +41,14 @@ const columns: Column<RunListItem>[] = [
     className: "pb-2 pr-4 w-full",
     cellClassName: "py-2 pr-4 w-full max-w-0",
     cell: (run) => (
-      <div className="truncate" title={run.workflowName}>
+      <Link
+        to="/workflows/$repo/$workflowName"
+        params={{ repo: run.repo, workflowName: run.workflowName }}
+        className="block truncate font-medium hover:underline"
+        title={run.workflowName}
+      >
         {run.workflowName}
-      </div>
+      </Link>
     ),
   },
   {

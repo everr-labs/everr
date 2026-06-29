@@ -1,5 +1,6 @@
 import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { Empty, EmptyDescription } from "@everr/ui/components/empty";
+import { Link } from "@tanstack/react-router";
 import type { CostByWorkflow } from "@/data/cost-analysis/schemas";
 import { formatCost } from "@/lib/runner-pricing";
 
@@ -14,7 +15,15 @@ const columns: Column<CostByWorkflow>[] = [
   },
   {
     header: "Workflow",
-    cell: (row) => <span className="font-medium">{row.workflow}</span>,
+    cell: (row) => (
+      <Link
+        to="/workflows/$repo/$workflowName"
+        params={{ repo: row.repo, workflowName: row.workflow }}
+        className="font-medium hover:underline"
+      >
+        {row.workflow}
+      </Link>
+    ),
   },
   {
     header: "Jobs",
