@@ -62,7 +62,7 @@ export function OpenStandardsBento() {
           </p>
           <h2 className="mt-4 text-balance font-heading text-3xl leading-[1.1] tracking-tight sm:text-4xl md:text-5xl lg:text-6xl">
             Open standards, top to bottom.{" "}
-            <span className="text-primary">Nothing proprietary to learn.</span>
+            <span className="text-primary">No lock-in by design.</span>
           </h2>
           <p className="mt-6 max-w-xl text-base leading-relaxed text-fd-muted-foreground md:text-lg">
             Everr doesn&apos;t invent a private model. Your telemetry is

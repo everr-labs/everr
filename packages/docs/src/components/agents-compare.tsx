@@ -45,8 +45,7 @@ export function AgentsCompare() {
           </h2>
           <p className="mt-6 max-w-2xl text-base leading-relaxed text-fd-muted-foreground md:text-lg">
             Hand your coding agent a bug and it reasons from the code alone:
-            plausible, confident, and often wrong. Give it a query into what
-            your software actually did, and the guess becomes a fact.
+            plausible, confident, and often wrong.
           </p>
         </motion.div>
 
@@ -67,9 +66,9 @@ export function AgentsCompare() {
           className="mt-16 flex flex-col gap-8 border-t-2 border-fd-border pt-10 md:mt-20 md:flex-row md:items-end md:justify-between"
         >
           <p className="max-w-xl text-balance font-heading text-xl leading-snug text-fd-foreground md:text-2xl">
-            Reading the code tells half the story.{" "}
+            Reading code tells half the story.{" "}
             <span className="text-fd-muted-foreground">
-              Everr tells the half that actually ran.
+              Everr gives you the half you are missing.
             </span>
           </p>
           <a

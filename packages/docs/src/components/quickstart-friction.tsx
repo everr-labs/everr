@@ -66,9 +66,7 @@ export function QuickstartFriction() {
           </h2>
           <p className="mt-6 max-w-xl text-balance text-base leading-relaxed text-fd-muted-foreground sm:text-lg">
             Setting up observability usually means a long detour full of context
-            switches. With Everr the feedback loop is immediate &mdash; one
-            command installs the CLI, your agent skills, and a local collector,
-            so you and your coding agent get straight to the data.
+            switches. With Everr the feedback loop is immediate.
           </p>
         </motion.div>
 
