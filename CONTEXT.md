@@ -7,7 +7,7 @@ Software delivery intelligence for developers and AI agents: the same OpenTeleme
 ### Tenancy & access
 
 **Organization**:
-The top-level account that owns telemetry, dashboards, alerts, notebooks, members, and API keys. The unit of billing and access control.
+The top-level account that owns telemetry, dashboards, alerts, runbooks, members, and API keys. The unit of billing and access control.
 _Avoid_: workspace, account, tenant (see Tenant)
 
 **Tenant**:
@@ -23,7 +23,7 @@ A User's belonging to an Organization, which grants access to its telemetry and 
 _Avoid_: collaborator, seat
 
 **Project**:
-A namespace within an Organization for dashboards, alerts, and notebooks, so different teams can reuse the same name without colliding. Defaults to `default`.
+A namespace within an Organization for dashboards, alerts, and runbooks, so different teams can reuse the same name without colliding. Defaults to `default`.
 _Avoid_: namespace, team
 
 **API Key**:
@@ -109,18 +109,19 @@ _Avoid_: intermittent failure
 A grid of Panels for visualizing telemetry, defined as code and reconciled with apply.
 
 **Panel**:
-A single visualization — chart, table, stat, gauge — within a Dashboard or Notebook, backed by a query.
+A single visualization — chart, table, stat, gauge — within a Dashboard or Runbook, backed by a query.
 _Avoid_: widget, chart, visualization (a chart is one kind of Panel; the Panel is the config)
 
-**Notebook**:
-A multi-page Markdown document with embedded Panels and shared variables.
+**Runbook**:
+A multi-page Markdown document with embedded Panels and shared variables — the umbrella concept for any such as-code document, whether used for incident response, an agent skill, or an investigation doc.
+_Avoid_: Notebook (former name — renamed June 2026; see ADR 0002). Still accepted in config for back-compat: `kind: Notebook` ≡ `kind: Runbook` and `.notebook.yaml` is recognized, but `Runbook` is canonical everywhere new.
 
 **Alert**:
 A rule that runs a query on a schedule and notifies when it returns rows; an empty result means resolved.
 _Avoid_: monitor
 
 **Apply**:
-The idempotent operation (`everr apply`) that reconciles the Dashboards, Alerts, and Notebooks in a directory to match their as-code definitions.
+The idempotent operation (`everr apply`) that reconciles the Dashboards, Alerts, and Runbooks in a directory to match their as-code definitions.
 _Avoid_: deploy, sync, push
 
 **Repoid**:
