@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   AlertRuleYamlSchema,
   EverrConfigYamlSchema,
-  parseNotebookRef,
+  parseRunbookRef,
 } from "./schema";
 
 const valid = {
@@ -51,23 +51,23 @@ describe("AlertRuleYamlSchema", () => {
     ).toBe(false);
   });
 
-  it("accepts optional metadata.project and spec.notebook", () => {
+  it("accepts optional metadata.project and spec.runbook", () => {
     expect(
       AlertRuleYamlSchema.safeParse({
         ...valid,
         metadata: { ...valid.metadata, project: "platform" },
-        spec: { ...valid.spec, notebook: "db-pool-runbook" },
+        spec: { ...valid.spec, runbook: "db-pool-runbook" },
       }).success,
     ).toBe(true);
     expect(
       AlertRuleYamlSchema.safeParse({
         ...valid,
-        spec: { ...valid.spec, notebook: "platform/db-pool-runbook" },
+        spec: { ...valid.spec, runbook: "platform/db-pool-runbook" },
       }).success,
     ).toBe(true);
   });
 
-  it("rejects malformed project and notebook refs", () => {
+  it("rejects malformed project and runbook refs", () => {
     expect(
       AlertRuleYamlSchema.safeParse({
         ...valid,
@@ -77,19 +77,19 @@ describe("AlertRuleYamlSchema", () => {
     expect(
       AlertRuleYamlSchema.safeParse({
         ...valid,
-        spec: { ...valid.spec, notebook: "a/b/c" },
+        spec: { ...valid.spec, runbook: "a/b/c" },
       }).success,
     ).toBe(false);
     expect(
       AlertRuleYamlSchema.safeParse({
         ...valid,
-        spec: { ...valid.spec, notebook: "Bad_Slug" },
+        spec: { ...valid.spec, runbook: "Bad_Slug" },
       }).success,
     ).toBe(false);
     expect(
       AlertRuleYamlSchema.safeParse({
         ...valid,
-        spec: { ...valid.spec, notebook: "platform/" },
+        spec: { ...valid.spec, runbook: "platform/" },
       }).success,
     ).toBe(false);
   });
@@ -125,16 +125,16 @@ describe("AlertRuleYamlSchema", () => {
   });
 });
 
-describe("parseNotebookRef", () => {
+describe("parseRunbookRef", () => {
   it("defaults the project to the alert's project for a bare slug", () => {
-    expect(parseNotebookRef("db-pool-runbook", "platform")).toEqual({
+    expect(parseRunbookRef("db-pool-runbook", "platform")).toEqual({
       project: "platform",
       slug: "db-pool-runbook",
     });
   });
 
   it("uses the explicit project for a project/slug ref", () => {
-    expect(parseNotebookRef("infra/db-pool-runbook", "platform")).toEqual({
+    expect(parseRunbookRef("infra/db-pool-runbook", "platform")).toEqual({
       project: "infra",
       slug: "db-pool-runbook",
     });

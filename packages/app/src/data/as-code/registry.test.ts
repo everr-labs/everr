@@ -12,12 +12,12 @@ vi.mock("@/data/runbooks/apply.server", () => ({
 vi.mock("@/data/alerts/apply.server", () => ({
   applyAlertSpecs: (...a: unknown[]) => alertReconciler(...a),
 }));
-// Cross-kind notebook-link validation is exercised in its own suite; mock it
+// Cross-kind runbook-link validation is exercised in its own suite; mock it
 // here so the orchestration test stays focused on routing and avoids the
-// notebook-links module's transitive DB import.
-const validateNotebookLinks = vi.fn();
-vi.mock("@/data/alerts/notebook-links.server", () => ({
-  validateAlertNotebookLinks: (...a: unknown[]) => validateNotebookLinks(...a),
+// runbook-links module's transitive DB import.
+const validateRunbookLinks = vi.fn();
+vi.mock("@/data/alerts/runbook-links.server", () => ({
+  validateAlertRunbookLinks: (...a: unknown[]) => validateRunbookLinks(...a),
 }));
 
 import { ApplyValidationError } from "./errors";

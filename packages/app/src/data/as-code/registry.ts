@@ -1,5 +1,5 @@
 import { applyAlertSpecs } from "@/data/alerts/apply.server";
-import { validateAlertNotebookLinks } from "@/data/alerts/notebook-links.server";
+import { validateAlertRunbookLinks } from "@/data/alerts/runbook-links.server";
 import { applyDashboardSpecs } from "@/data/dashboards/apply.server";
 import { applyRunbookSpecs } from "@/data/runbooks/apply.server";
 import { ApplyValidationError } from "./errors";
@@ -112,13 +112,11 @@ export async function applyResources(opts: {
 
   // Cross-kind: a linked runbook must exist in this batch or already in the
   // DB. Runs after every kind validated, before any kind writes.
-  await validateAlertNotebookLinks({
+  await validateAlertRunbookLinks({
     orgId,
     repoid,
     alerts: state.alerts,
-    // `validateAlertNotebookLinks` still names its param `notebooks` (renamed
-    // in a later task); feed it the renamed `runbooks` state key.
-    notebooks: state.runbooks,
+    runbooks: state.runbooks,
   });
 
   if (dryRun) return { dryRun: true, results: validated };

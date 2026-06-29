@@ -71,8 +71,8 @@ vi.mock("@/db/schema", () => ({
     configFilePath: "config_file_path",
     sourceLink: "source_link",
     project: "project",
-    notebookProject: "notebook_project",
-    notebookSlug: "notebook_slug",
+    runbookProject: "runbook_project",
+    runbookSlug: "runbook_slug",
     createdAt: "created_at",
     updatedAt: "updated_at",
     deletedAt: "deleted_at",
@@ -474,7 +474,7 @@ describe("applyAlertSpecs", () => {
     );
   });
 
-  it("stores project and the resolved notebook ref on create", async () => {
+  it("stores project and the resolved runbook ref on create", async () => {
     mockedQuerySqlApiWithMeta.mockResolvedValueOnce({
       rows: [{ service: "api", count: 3 }],
       columns: ["service", "count"],
@@ -495,7 +495,7 @@ describe("applyAlertSpecs", () => {
               notificationMessage: { title: "t" },
               query:
                 "SELECT service, count() AS count FROM logs GROUP BY service",
-              notebook: "db-pool-runbook",
+              runbook: "db-pool-runbook",
             },
           },
         },
@@ -506,8 +506,8 @@ describe("applyAlertSpecs", () => {
     expect(batch[0]).toMatchObject({
       slug: "shared",
       project: "platform",
-      notebookProject: "platform",
-      notebookSlug: "db-pool-runbook",
+      runbookProject: "platform",
+      runbookSlug: "db-pool-runbook",
     });
   });
 

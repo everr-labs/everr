@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApplyValidationError } from "@/data/as-code/errors";
 
-let dbNotebooks: { project: string; slug: string }[] = [];
+let dbRunbooks: { project: string; slug: string }[] = [];
 
 vi.mock("@/db/client", () => {
   const selectChain = {
     from: vi.fn(() => selectChain),
-    where: vi.fn(() => Promise.resolve(dbNotebooks)),
+    where: vi.fn(() => Promise.resolve(dbRunbooks)),
   };
   return { db: { select: vi.fn(() => selectChain) } };
 });
@@ -26,12 +26,12 @@ vi.mock("@/db/schema", () => ({
   },
 }));
 
-import { validateAlertNotebookLinks } from "./notebook-links.server";
+import { validateAlertRunbookLinks } from "./runbook-links.server";
 
 const orgId = "org-nb-links";
 const repoid = "repo-nb-links";
 
-const alertEntry = (path: string, name: string, notebook?: string) => ({
+const alertEntry = (path: string, name: string, runbook?: string) => ({
   path,
   resource: {
     kind: "AlertRule",
@@ -40,66 +40,66 @@ const alertEntry = (path: string, name: string, notebook?: string) => ({
       evaluationInterval: "1m",
       notificationMessage: { title: "t" },
       query: "SELECT 1",
-      ...(notebook ? { notebook } : {}),
+      ...(runbook ? { runbook } : {}),
     },
   },
 });
 
-const notebookEntry = (name: string) => ({
+const runbookEntry = (name: string) => ({
   path: `${name}.yaml`,
   resource: {
-    kind: "Notebook",
+    kind: "Runbook",
     metadata: { name, project: "default" },
     spec: { markdown: { inline: "# hi" } },
   },
 });
 
-describe("validateAlertNotebookLinks", () => {
+describe("validateAlertRunbookLinks", () => {
   beforeEach(() => {
-    dbNotebooks = [];
+    dbRunbooks = [];
   });
 
-  it("passes when the notebook is in the same apply batch", async () => {
+  it("passes when the runbook is in the same apply batch", async () => {
     await expect(
-      validateAlertNotebookLinks({
+      validateAlertRunbookLinks({
         orgId,
         repoid,
         alerts: [alertEntry("a.yaml", "a", "runbook")],
-        notebooks: [notebookEntry("runbook")],
+        runbooks: [runbookEntry("runbook")],
       }),
     ).resolves.toBeUndefined();
   });
 
-  it("passes when the notebook already exists in the DB", async () => {
-    dbNotebooks = [{ project: "default", slug: "runbook" }];
+  it("passes when the runbook already exists in the DB", async () => {
+    dbRunbooks = [{ project: "default", slug: "runbook" }];
     await expect(
-      validateAlertNotebookLinks({
+      validateAlertRunbookLinks({
         orgId,
         repoid,
         alerts: [alertEntry("a.yaml", "a", "runbook")],
-        notebooks: [],
+        runbooks: [],
       }),
     ).resolves.toBeUndefined();
   });
 
-  it("throws when the linked notebook does not exist", async () => {
+  it("throws when the linked runbook does not exist", async () => {
     await expect(
-      validateAlertNotebookLinks({
+      validateAlertRunbookLinks({
         orgId,
         repoid,
         alerts: [alertEntry("a.yaml", "a", "missing")],
-        notebooks: [],
+        runbooks: [],
       }),
     ).rejects.toBeInstanceOf(ApplyValidationError);
   });
 
-  it("ignores alerts with no notebook", async () => {
+  it("ignores alerts with no runbook", async () => {
     await expect(
-      validateAlertNotebookLinks({
+      validateAlertRunbookLinks({
         orgId,
         repoid,
         alerts: [alertEntry("a.yaml", "a")],
-        notebooks: [],
+        runbooks: [],
       }),
     ).resolves.toBeUndefined();
   });

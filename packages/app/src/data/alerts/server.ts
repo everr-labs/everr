@@ -57,8 +57,8 @@ export type AlertSummary = {
   evaluationIntervalSeconds: number;
   sourceLink: string;
   configFilePath: string;
-  notebookProject: string;
-  notebookSlug: string;
+  runbookProject: string;
+  runbookSlug: string;
   currentState: "unknown" | "resolved" | "firing";
   active: boolean;
   lastEvaluationStatus: string;
@@ -144,8 +144,8 @@ const alertListColumns = {
   evaluationIntervalSeconds: alertDefinitions.evaluationIntervalSeconds,
   sourceLink: alertDefinitions.sourceLink,
   configFilePath: alertDefinitions.configFilePath,
-  notebookProject: alertDefinitions.notebookProject,
-  notebookSlug: alertDefinitions.notebookSlug,
+  runbookProject: alertDefinitions.runbookProject,
+  runbookSlug: alertDefinitions.runbookSlug,
   currentState: alertDefinitions.currentState,
   active: alertDefinitions.active,
   lastEvaluationStatus: alertDefinitions.lastEvaluationStatus,

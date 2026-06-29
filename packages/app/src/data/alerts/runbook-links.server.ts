@@ -7,36 +7,36 @@ import {
 } from "@/data/dashboards/desired";
 import { db } from "@/db/client";
 import { runbooks } from "@/db/schema";
-import { AlertRuleYamlSchema, identityKey, parseNotebookRef } from "./schema";
+import { AlertRuleYamlSchema, identityKey, parseRunbookRef } from "./schema";
 
 /**
- * Validate that every alert's `spec.notebook` resolves to a notebook that
+ * Validate that every alert's `spec.runbook` resolves to a runbook that
  * either ships in this same apply batch or already exists in the DB for the
  * repo. Cross-kind, so it runs from the apply orchestration rather than the
- * single-kind alert reconciler. Notebook identity is `(project, slug)`, scoped
+ * single-kind alert reconciler. Runbook identity is `(project, slug)`, scoped
  * to (org, repoid).
  */
-export async function validateAlertNotebookLinks(opts: {
+export async function validateAlertRunbookLinks(opts: {
   orgId: string;
   repoid: string;
   alerts: ApplyResourceEntry[];
-  notebooks: ApplyResourceEntry[];
+  runbooks: ApplyResourceEntry[];
 }): Promise<void> {
-  // Resolve the notebook ref for each alert that has one. Skip schema-invalid
+  // Resolve the runbook ref for each alert that has one. Skip schema-invalid
   // alerts — the alert reconciler's own validation reports those.
   const links = opts.alerts.flatMap(({ path, resource }) => {
     const parsed = AlertRuleYamlSchema.safeParse(resource);
-    if (!parsed.success || !parsed.data.spec.notebook) return [];
+    if (!parsed.success || !parsed.data.spec.runbook) return [];
     const project = parsed.data.metadata.project ?? "default";
     return [
-      { path, ref: parseNotebookRef(parsed.data.spec.notebook, project) },
+      { path, ref: parseRunbookRef(parsed.data.spec.runbook, project) },
     ];
   });
   if (links.length === 0) return;
 
-  // Identities satisfied by a notebook shipping in this same apply batch.
+  // Identities satisfied by a runbook shipping in this same apply batch.
   const identities = new Set<string>();
-  for (const { path, resource } of opts.notebooks) {
+  for (const { path, resource } of opts.runbooks) {
     identities.add(
       identityKey(
         projectFromDocument(path, resource),
@@ -47,7 +47,7 @@ export async function validateAlertNotebookLinks(opts: {
 
   // Only the refs the batch doesn't already cover need a DB lookup. Dedupe so
   // the query checks each distinct (project, slug) once — bounded by the number
-  // of linked notebooks, not the repo's notebook count.
+  // of linked runbooks, not the repo's runbook count.
   const missing = new Map<string, { project: string; slug: string }>();
   for (const { ref } of links) {
     const key = identityKey(ref.project, ref.slug);
@@ -80,7 +80,7 @@ export async function validateAlertNotebookLinks(opts: {
   for (const { path, ref } of links) {
     if (!identities.has(identityKey(ref.project, ref.slug))) {
       throw new ApplyValidationError(
-        `${path}: linked notebook "${ref.project}/${ref.slug}" does not exist (not in this apply and not already applied)`,
+        `${path}: linked runbook "${ref.project}/${ref.slug}" does not exist (not in this apply and not already applied)`,
       );
     }
   }

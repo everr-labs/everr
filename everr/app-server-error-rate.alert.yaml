@@ -2,7 +2,7 @@ kind: AlertRule
 metadata:
   name: app-server-error-rate
 spec:
-  notebook: app-server-error-rate
+  runbook: app-server-error-rate
   display:
     name: App server error rate
     description: App server spans with an elevated error rate over the last 15 minutes.

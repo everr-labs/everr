@@ -2,7 +2,7 @@ kind: AlertRule
 metadata:
   name: even-minute-firing
 spec:
-  notebook: even-minute-firing
+  runbook: even-minute-firing
   display:
     name: Even minute firing test
     description: Synthetic alert that fires on even minutes with a fresh instance id.

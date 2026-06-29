@@ -11,7 +11,7 @@ import {
   type AlertRuleYaml,
   AlertRuleYamlSchema,
   identityKey,
-  parseNotebookRef,
+  parseRunbookRef,
 } from "./schema";
 import {
   validateMessageColumns,
@@ -23,8 +23,8 @@ import { parseEvaluationInterval } from "./window";
 interface DesiredAlert {
   slug: string;
   project: string;
-  notebookProject: string;
-  notebookSlug: string;
+  runbookProject: string;
+  runbookSlug: string;
   evaluationIntervalSeconds: number;
   document: AlertRuleYaml;
   parsedQuery: string;
@@ -224,15 +224,15 @@ async function buildDesiredAlerts(opts: {
     const validation = validations[index];
     if (validation.status === "rejected") throw validation.reason;
 
-    const ref = parsed.rule.spec.notebook
-      ? parseNotebookRef(parsed.rule.spec.notebook, parsed.project)
+    const ref = parsed.rule.spec.runbook
+      ? parseRunbookRef(parsed.rule.spec.runbook, parsed.project)
       : { project: "", slug: "" };
 
     return {
       slug: parsed.slug,
       project: parsed.project,
-      notebookProject: ref.project,
-      notebookSlug: ref.slug,
+      runbookProject: ref.project,
+      runbookSlug: ref.slug,
       evaluationIntervalSeconds: parsed.evaluationIntervalSeconds,
       document: parsed.rule,
       parsedQuery: parsed.rule.spec.query,
@@ -294,8 +294,8 @@ function needsUpdate(existing: ExistingAlert, desired: DesiredAlert): boolean {
     existing.scheduleJitterSeconds !== desired.scheduleJitterSeconds ||
     existing.configFilePath !== desired.configFilePath ||
     existing.sourceLink !== desired.sourceLink ||
-    existing.notebookProject !== desired.notebookProject ||
-    existing.notebookSlug !== desired.notebookSlug
+    existing.runbookProject !== desired.runbookProject ||
+    existing.runbookSlug !== desired.runbookSlug
   );
 }
 
@@ -323,8 +323,8 @@ function activeValues(
     scheduleJitterSeconds: desired.scheduleJitterSeconds,
     configFilePath: desired.configFilePath,
     sourceLink: desired.sourceLink,
-    notebookProject: desired.notebookProject,
-    notebookSlug: desired.notebookSlug,
+    runbookProject: desired.runbookProject,
+    runbookSlug: desired.runbookSlug,
     active: true,
     updatedAt: now,
   };
@@ -377,8 +377,8 @@ export const applyAlertSpecs: Reconciler = async ({
     .select({
       slug: alertDefinitions.slug,
       project: alertDefinitions.project,
-      notebookProject: alertDefinitions.notebookProject,
-      notebookSlug: alertDefinitions.notebookSlug,
+      runbookProject: alertDefinitions.runbookProject,
+      runbookSlug: alertDefinitions.runbookSlug,
       evaluationIntervalSeconds: alertDefinitions.evaluationIntervalSeconds,
       document: alertDefinitions.document,
       parsedQuery: alertDefinitions.parsedQuery,

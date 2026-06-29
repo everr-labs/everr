@@ -14,8 +14,8 @@ export interface DeliveryInput {
     slug: string;
     notificationTitleTemplate: string;
     notificationDescriptionTemplate?: string;
-    notebookProject?: string;
-    notebookSlug?: string;
+    runbookProject?: string;
+    runbookSlug?: string;
   };
   kind: DeliveryKind;
   instances: NotifiableInstance[];
@@ -25,7 +25,7 @@ export interface DeliveryInput {
 export interface BuildOptions {
   url: string;
   now: Date;
-  notebookUrl?: string;
+  runbookUrl?: string;
 }
 
 // Escapes dynamic content (label values, rendered templates) before it is
