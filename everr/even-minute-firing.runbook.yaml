@@ -1,11 +1,11 @@
-kind: Notebook
+kind: Runbook
 metadata:
   name: even-minute-firing
   # no project -> "default", matching the even-minute-firing alert
 spec:
   display:
     name: Even minute firing test — runbook
-    description: Runbook for testing alert notebook links in notifications and the alerts UI.
+    description: Runbook for testing alert runbook links in notifications and the alerts UI.
   duration: 1h
   refreshInterval: 1m
   panels:
@@ -66,7 +66,7 @@ spec:
       # Even minute firing test — runbook
 
       This runbook is attached to the **even-minute-firing** synthetic alert. It
-      exists to test the alerts UI and notification notebook links.
+      exists to test the alerts UI and notification runbook links.
 
       The alert evaluates every minute:
 
@@ -93,6 +93,6 @@ spec:
       ## Test checklist
 
       1. Wait for the next even minute and confirm the alert fires.
-      2. Confirm Slack and Telegram notifications include a notebook link.
-      3. Open the alert detail page and confirm the Notebook row links here.
+      2. Confirm Slack and Telegram notifications include a runbook link.
+      3. Open the alert detail page and confirm the Runbook row links here.
       4. Wait for the next odd minute and confirm the alert resolves.

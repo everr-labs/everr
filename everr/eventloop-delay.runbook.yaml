@@ -1,4 +1,4 @@
-kind: Notebook
+kind: Runbook
 metadata:
   name: eventloop-delay
   # no project → "default", matching the eventloop-delay alert

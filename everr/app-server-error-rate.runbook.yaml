@@ -1,4 +1,4 @@
-kind: Notebook
+kind: Runbook
 metadata:
   name: app-server-error-rate
   # no project → "default", matching the app-server-error-rate alert

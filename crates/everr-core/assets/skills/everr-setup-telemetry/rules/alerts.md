@@ -7,7 +7,7 @@ Alerts are defined as code: `kind: AlertRule` YAML files reconciled with `everr 
 - An `everr/` directory at your repo root holding an `everr.yaml` manifest with a stable `repoid`.
 - Telemetry already flowing into Everr (traces, logs, or metrics).
 
-The manifest is required. Apply errors without it. Declarations sit flat in `everr/`, named by kind: alerts are `*.alert.yaml` (dashboards `*.dashboard.yaml`, notebooks `*.notebook.yaml`).
+The manifest is required. Apply errors without it. Declarations sit flat in `everr/`, named by kind: alerts are `*.alert.yaml` (dashboards `*.dashboard.yaml`, runbooks `*.runbook.yaml`).
 
 ```yaml
 # everr/everr.yaml
@@ -24,8 +24,9 @@ metadata:
   name: <slug>               # required; stable alert identity
   project: <slug>            # optional; namespace, default "default"
 spec:
-  notebook: <slug>           # optional; links a notebook (runbook). "slug" =
-                             #   same project; "project/slug" = another project.
+  runbook: <slug>            # optional; links a runbook. "slug" = same
+                             #   project; "project/slug" = another project.
+                             #   (legacy `notebook:` still accepted.)
   display:                   # optional
     name: <human name>
     description: <text>
@@ -59,17 +60,17 @@ Keep notification rules simple. A future reader should be able to understand why
 
 When your human driver asks to suggest them alerts to create, give a response based on everr data (local and production) and on the telemetry defined in their codebase.
 
-## Link a Notebook (Runbook)
+## Link a Runbook
 
-Every alert should link a notebook that makes it actionable. Set `spec.notebook` to a notebook's slug (a bare `slug` resolves within the alert's own project; use `project/slug` to point at another project). `everr apply` fails if the linked notebook does not exist — apply the notebook in the same run or beforehand.
+Every alert should link a runbook that makes it actionable. Set `spec.runbook` to a runbook's slug (a bare `slug` resolves within the alert's own project; use `project/slug` to point at another project). `everr apply` fails if the linked runbook does not exist — apply the runbook in the same run or beforehand. (The legacy `spec.notebook` field is still accepted as an alias.)
 
-The notebook should answer, for whoever the alert wakes up:
+The runbook should answer, for whoever the alert wakes up:
 
 - what the alert means and why it matters,
 - how to confirm it's real (the dashboards/queries to look at),
 - the usual causes and how to mitigate them.
 
-The link appears on the alert's detail page and list row, and in the Telegram and Slack notifications. See the `everr-write-notebooks` skill for authoring.
+The link appears on the alert's detail page and list row, and in the Telegram and Slack notifications. See the `everr-write-runbooks` skill for authoring.
 
 Runbooks can also show the alert's own status by querying the alert service
 events projected into `logs`. Add a small Table panel that filters
@@ -94,7 +95,7 @@ ORDER BY event_time DESC
 LIMIT 50
 ```
 
-Example — an AlertRule and its notebook applied together:
+Example — an AlertRule and its runbook applied together:
 
 ```yaml
 # everr/db-pool-exhausted.alert.yaml
@@ -103,7 +104,7 @@ metadata:
   name: db-pool-exhausted
   project: platform
 spec:
-  notebook: db-pool-runbook        # → platform/db-pool-runbook
+  runbook: db-pool-runbook         # → platform/db-pool-runbook
   evaluationInterval: 1m
   notificationMessage:
     title: "DB connection pool exhausted"
@@ -112,8 +113,8 @@ spec:
 ```
 
 ```yaml
-# everr/db-pool-runbook.notebook.yaml
-kind: Notebook
+# everr/db-pool-runbook.runbook.yaml
+kind: Runbook
 metadata:
   name: db-pool-runbook
   project: platform

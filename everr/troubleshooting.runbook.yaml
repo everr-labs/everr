@@ -1,4 +1,4 @@
-kind: Notebook
+kind: Runbook
 metadata:
   name: troubleshooting
   project: demo
@@ -141,9 +141,9 @@ spec:
 
       ## Common Links
 
-      - [Error Investigation](/notebooks/demo/troubleshooting/errors) — spike in error counts
-      - [Latency Spikes](/notebooks/demo/troubleshooting/latency) — elevated response times
-      - [Resource Saturation](/notebooks/demo/troubleshooting/resources) — CPU/memory pressure
+      - [Error Investigation](/runbooks/demo/troubleshooting/errors) — spike in error counts
+      - [Latency Spikes](/runbooks/demo/troubleshooting/latency) — elevated response times
+      - [Resource Saturation](/runbooks/demo/troubleshooting/resources) — CPU/memory pressure
   pages:
     - name: errors
       display:
@@ -174,7 +174,7 @@ spec:
           - Correlate with deploy history
           - Check downstream dependencies
           - Review recent configuration changes
-          - Escalate to [resource saturation](/notebooks/demo/troubleshooting/resources) if CPU/memory is involved
+          - Escalate to [resource saturation](/runbooks/demo/troubleshooting/resources) if CPU/memory is involved
     - name: latency
       display:
         name: Latency Spikes
