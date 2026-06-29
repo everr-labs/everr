@@ -8,7 +8,7 @@ import cliBackdrop from "../assets/cli-backdrop.webp?url";
 import dashboardShot from "../assets/dashboard.webp?url";
 import desktopApp from "../assets/desktop-app.webp?url";
 import errorShot from "../assets/error.webp?url";
-import runbookShot from "../assets/notebook.webp?url";
+import runbookShot from "../assets/runbook.webp?url";
 import telemetryBackdrop from "../assets/telemetry-backdrop.webp?url";
 import traceShot from "../assets/trace.webp?url";
 import { Code } from "./ui/code";
