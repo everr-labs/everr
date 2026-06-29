@@ -131,7 +131,7 @@ describe("buildSlackMessage", () => {
     }
   });
 
-  it("adds a View notebook button when notebookUrl is present", () => {
+  it("adds a View runbook button when runbookUrl is present", () => {
     const msg = buildSlackMessage(
       {
         def,
@@ -140,7 +140,7 @@ describe("buildSlackMessage", () => {
       },
       {
         ...opts,
-        notebookUrl: "https://app.example.com/notebooks/default/runbook",
+        runbookUrl: "https://app.example.com/runbooks/default/runbook",
       },
     );
     const actions = msg.attachments[0].blocks.find(
@@ -148,12 +148,12 @@ describe("buildSlackMessage", () => {
     ) as unknown as { elements: { url: string; text: { text: string } }[] };
     expect(actions.elements).toHaveLength(2);
     expect(actions.elements[1]).toMatchObject({
-      url: "https://app.example.com/notebooks/default/runbook",
-      text: { text: "View notebook" },
+      url: "https://app.example.com/runbooks/default/runbook",
+      text: { text: "View runbook" },
     });
   });
 
-  it("has only the alert button when notebookUrl is absent", () => {
+  it("has only the alert button when runbookUrl is absent", () => {
     const msg = buildSlackMessage(
       {
         def,

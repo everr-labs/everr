@@ -53,7 +53,7 @@ import {
   NO_LABELS_TEXT,
   sortedLabelEntries,
 } from "@/data/alerts/matchers";
-import { formatNotebookRef } from "@/data/alerts/schema";
+import { formatRunbookRef } from "@/data/alerts/schema";
 import {
   type AlertInstanceSummary,
   type AlertSilenceSummary,
@@ -208,9 +208,9 @@ function AlertDetailPage() {
   const definitionRows: [string, ReactNode][] = [
     ["Repository", detail.repoid],
     ["Project", detail.project],
-    ...maybeRow(detail.notebookSlug, [
-      "Notebook",
-      notebookLink(detail.notebookProject, detail.notebookSlug),
+    ...maybeRow(detail.runbookSlug, [
+      "Runbook",
+      runbookLink(detail.runbookProject, detail.runbookSlug),
     ]),
     ["Evaluation interval", formatInterval(detail.evaluationIntervalSeconds)],
     ["Notification title", detail.notificationTitleTemplate],
@@ -541,15 +541,15 @@ function KeyValueList({ values }: { values: Record<string, string> }) {
   );
 }
 
-function notebookLink(project: string, slug: string): ReactNode {
+function runbookLink(project: string, slug: string): ReactNode {
   return (
     <Link
-      to="/notebooks/$project/$slug"
+      to="/runbooks/$project/$slug"
       params={{ project, slug }}
       className="inline-flex items-center gap-1.5 underline underline-offset-4"
     >
       <NotebookText className="size-4" />
-      {formatNotebookRef(project, slug)}
+      {formatRunbookRef(project, slug)}
     </Link>
   );
 }

@@ -1,23 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const dashboardReconciler = vi.fn();
-const notebookReconciler = vi.fn();
+const runbookReconciler = vi.fn();
 const alertReconciler = vi.fn();
 vi.mock("@/data/dashboards/apply.server", () => ({
   applyDashboardSpecs: (...a: unknown[]) => dashboardReconciler(...a),
 }));
-vi.mock("@/data/notebooks/apply.server", () => ({
-  applyNotebookSpecs: (...a: unknown[]) => notebookReconciler(...a),
+vi.mock("@/data/runbooks/apply.server", () => ({
+  applyRunbookSpecs: (...a: unknown[]) => runbookReconciler(...a),
 }));
 vi.mock("@/data/alerts/apply.server", () => ({
   applyAlertSpecs: (...a: unknown[]) => alertReconciler(...a),
 }));
-// Cross-kind notebook-link validation is exercised in its own suite; mock it
+// Cross-kind runbook-link validation is exercised in its own suite; mock it
 // here so the orchestration test stays focused on routing and avoids the
-// notebook-links module's transitive DB import.
-const validateNotebookLinks = vi.fn();
-vi.mock("@/data/alerts/notebook-links.server", () => ({
-  validateAlertNotebookLinks: (...a: unknown[]) => validateNotebookLinks(...a),
+// runbook-links module's transitive DB import.
+const validateRunbookLinks = vi.fn();
+vi.mock("@/data/alerts/runbook-links.server", () => ({
+  validateAlertRunbookLinks: (...a: unknown[]) => validateRunbookLinks(...a),
 }));
 
 import { ApplyValidationError } from "./errors";
@@ -28,21 +28,21 @@ const empty = { created: [], updated: [], deleted: [] };
 beforeEach(() => {
   vi.clearAllMocks();
   dashboardReconciler.mockResolvedValue(empty);
-  notebookReconciler.mockResolvedValue(empty);
+  runbookReconciler.mockResolvedValue(empty);
   alertReconciler.mockResolvedValue(empty);
 });
 
 describe("applyResources", () => {
   it("routes each state key to its reconciler with repoid and returns a per-kind summary", async () => {
     const dash = { path: "d.yaml", resource: { kind: "Dashboard" } };
-    const notebook = { path: "n.yaml", resource: { kind: "Notebook" } };
+    const runbook = { path: "n.yaml", resource: { kind: "Runbook" } };
     const alert = { path: "a.yaml", resource: { kind: "AlertRule" } };
     dashboardReconciler.mockResolvedValue({
       created: ["cpu"],
       updated: [],
       deleted: [],
     });
-    notebookReconciler.mockResolvedValue({
+    runbookReconciler.mockResolvedValue({
       created: ["runbook"],
       updated: [],
       deleted: [],
@@ -50,7 +50,7 @@ describe("applyResources", () => {
     const out = await applyResources({
       orgId: "org-1",
       repoid: "repo-1",
-      state: { dashboards: [dash], notebooks: [notebook], alerts: [alert] },
+      state: { dashboards: [dash], runbooks: [runbook], alerts: [alert] },
       dryRun: false,
     });
     expect(dashboardReconciler).toHaveBeenCalledWith(
@@ -60,11 +60,11 @@ describe("applyResources", () => {
         resources: [dash],
       }),
     );
-    expect(notebookReconciler).toHaveBeenCalledWith(
+    expect(runbookReconciler).toHaveBeenCalledWith(
       expect.objectContaining({
         orgId: "org-1",
         repoid: "repo-1",
-        resources: [notebook],
+        resources: [runbook],
       }),
     );
     expect(alertReconciler).toHaveBeenCalledWith(
@@ -78,17 +78,17 @@ describe("applyResources", () => {
       dryRun: false,
       results: [
         { kind: "Dashboard", created: ["cpu"], updated: [], deleted: [] },
-        { kind: "Notebook", created: ["runbook"], updated: [], deleted: [] },
+        { kind: "Runbook", created: ["runbook"], updated: [], deleted: [] },
         { kind: "AlertRule", created: [], updated: [], deleted: [] },
       ],
     });
   });
 
-  it("validates every kind before any kind writes (an invalid Notebook blocks Dashboard's real apply)", async () => {
-    // A Notebook that fails validation: it throws on the no-write dry-run pass,
-    // exactly as buildDesiredNotebookSet would for a malformed document.
-    notebookReconciler.mockRejectedValue(
-      new ApplyValidationError("bad notebook"),
+  it("validates every kind before any kind writes (an invalid Runbook blocks Dashboard's real apply)", async () => {
+    // A Runbook that fails validation: it throws on the no-write dry-run pass,
+    // exactly as buildDesiredRunbookSet would for a malformed document.
+    runbookReconciler.mockRejectedValue(
+      new ApplyValidationError("bad runbook"),
     );
 
     await expect(
@@ -97,15 +97,15 @@ describe("applyResources", () => {
         repoid: "repo-1",
         state: {
           dashboards: [{ path: "d.yaml", resource: { kind: "Dashboard" } }],
-          notebooks: [{ path: "n.yaml", resource: { kind: "Notebook" } }],
+          runbooks: [{ path: "n.yaml", resource: { kind: "Runbook" } }],
           alerts: [],
         },
         dryRun: false,
       }),
-    ).rejects.toThrow(/bad notebook/);
+    ).rejects.toThrow(/bad runbook/);
 
     // Dashboard was only ever validated (dryRun: true) — never applied for real,
-    // so it cannot have pruned the repo before Notebook validation threw.
+    // so it cannot have pruned the repo before Runbook validation threw.
     expect(dashboardReconciler).not.toHaveBeenCalledWith(
       expect.objectContaining({ dryRun: false }),
     );
@@ -120,7 +120,7 @@ describe("applyResources", () => {
     const out = await applyResources({
       orgId: "org-1",
       repoid: "repo-1",
-      state: { dashboards: [], notebooks: [], alerts: [] },
+      state: { dashboards: [], runbooks: [], alerts: [] },
       dryRun: true,
     });
     expect(dashboardReconciler).toHaveBeenCalledTimes(1);
@@ -140,12 +140,12 @@ describe("applyResources", () => {
     await applyResources({
       orgId: "org-1",
       repoid: "repo-1",
-      state: { dashboards: [], notebooks: [], alerts: [] },
+      state: { dashboards: [], runbooks: [], alerts: [] },
     });
     expect(dashboardReconciler).toHaveBeenCalledWith(
       expect.objectContaining({ dryRun: false }),
     );
-    expect(notebookReconciler).toHaveBeenCalledWith(
+    expect(runbookReconciler).toHaveBeenCalledWith(
       expect.objectContaining({ dryRun: false }),
     );
     expect(alertReconciler).toHaveBeenCalledWith(
@@ -160,14 +160,57 @@ describe("applyResources", () => {
         repoid: "repo-1",
         state: {
           dashboards: [{ path: "alert.yaml", resource: { kind: "AlertRule" } }],
-          notebooks: [],
+          runbooks: [],
           alerts: [],
         },
       }),
     ).rejects.toThrow('alert.yaml: expected kind "Dashboard"');
 
     expect(dashboardReconciler).not.toHaveBeenCalled();
-    expect(notebookReconciler).not.toHaveBeenCalled();
+    expect(runbookReconciler).not.toHaveBeenCalled();
+    expect(alertReconciler).not.toHaveBeenCalled();
+  });
+
+  // Kind validation is the only back-compat surface in the rename: `Runbook`
+  // is canonical and the legacy `Notebook` kind stays accepted (ADR 0002).
+  it.each([
+    "Runbook",
+    "Notebook",
+  ])("accepts kind %s under the runbooks state key (Notebook is the legacy alias)", async (kind) => {
+    await expect(
+      applyResources({
+        orgId: "org-1",
+        repoid: "repo-1",
+        state: {
+          dashboards: [],
+          runbooks: [{ path: "rb.yaml", resource: { kind } }],
+          alerts: [],
+        },
+        dryRun: true,
+      }),
+    ).resolves.toMatchObject({ dryRun: true });
+    expect(runbookReconciler).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resources: [{ path: "rb.yaml", resource: { kind } }],
+      }),
+    );
+  });
+
+  it("honors the Notebook alias only for runbooks — rejects it under dashboards", async () => {
+    await expect(
+      applyResources({
+        orgId: "org-1",
+        repoid: "repo-1",
+        state: {
+          dashboards: [{ path: "nb.yaml", resource: { kind: "Notebook" } }],
+          runbooks: [],
+          alerts: [],
+        },
+      }),
+    ).rejects.toThrow('nb.yaml: expected kind "Dashboard"');
+
+    expect(dashboardReconciler).not.toHaveBeenCalled();
+    expect(runbookReconciler).not.toHaveBeenCalled();
     expect(alertReconciler).not.toHaveBeenCalled();
   });
 });

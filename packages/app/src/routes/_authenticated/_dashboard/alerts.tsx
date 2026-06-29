@@ -31,7 +31,7 @@ import {
   validateTelegramBotToken,
   validateTelegramChatId,
 } from "@/data/alerts/recipients";
-import { formatNotebookRef } from "@/data/alerts/schema";
+import { formatRunbookRef } from "@/data/alerts/schema";
 import {
   type AlertSummary,
   getAlertSettings,
@@ -98,8 +98,8 @@ function alertMatchesSearch(alert: AlertSummary, query: string) {
     alert.project,
     alert.repoid,
     alert.configFilePath,
-    alert.notebookProject,
-    alert.notebookSlug,
+    alert.runbookProject,
+    alert.runbookSlug,
   ]
     .filter(Boolean)
     .join(" ")
@@ -323,14 +323,14 @@ function AlertsPage() {
         cell: (row) => formatInterval(row.evaluationIntervalSeconds),
       },
       {
-        header: "Notebook",
+        header: "Runbook",
         cell: (row) =>
-          row.notebookSlug ? (
+          row.runbookSlug ? (
             <Link
-              to="/notebooks/$project/$slug"
-              params={{ project: row.notebookProject, slug: row.notebookSlug }}
+              to="/runbooks/$project/$slug"
+              params={{ project: row.runbookProject, slug: row.runbookSlug }}
               className="inline-flex items-center text-muted-foreground hover:text-foreground"
-              title={formatNotebookRef(row.notebookProject, row.notebookSlug)}
+              title={formatRunbookRef(row.runbookProject, row.runbookSlug)}
               onClick={(e) => e.stopPropagation()}
             >
               <NotebookText className="size-4" />

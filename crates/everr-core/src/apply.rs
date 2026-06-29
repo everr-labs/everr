@@ -78,7 +78,7 @@ pub fn load_resource_documents(dir: &Path) -> Result<Vec<ResourceDocument>> {
             std::fs::read_to_string(path).with_context(|| format!("{rel}: failed to read file"))?;
         let mut document =
             parse_document(path, &contents).with_context(|| format!("{rel}: failed to parse"))?;
-        inline_notebook_markdown(dir, &rel, &mut document)?;
+        inline_runbook_markdown(dir, &rel, &mut document)?;
         out.push(ResourceDocument {
             path: rel,
             document,
@@ -87,20 +87,26 @@ pub fn load_resource_documents(dir: &Path) -> Result<Vec<ResourceDocument>> {
     Ok(out)
 }
 
-/// Resolve `markdown: { file: ... }` pointers in a Notebook document to
+/// `Notebook` is the legacy alias for `Runbook` (ADR 0002); both kinds are
+/// accepted in config and treated identically.
+fn is_runbook_kind(kind: Option<&str>) -> bool {
+    matches!(kind, Some("Runbook") | Some("Notebook"))
+}
+
+/// Resolve `markdown: { file: ... }` pointers in a Runbook document to
 /// `markdown: { inline: ... }`, reading files relative to the document's own
 /// location under the apply root. The server only accepts the inline form, so
 /// this is the authoring convenience that keeps `.md` files first-class on
-/// disk. Non-Notebook documents are untouched.
-fn inline_notebook_markdown(root: &Path, doc_rel_path: &str, document: &mut Value) -> Result<()> {
-    if document.get("kind").and_then(Value::as_str) != Some("Notebook") {
+/// disk. Non-Runbook documents are untouched.
+fn inline_runbook_markdown(root: &Path, doc_rel_path: &str, document: &mut Value) -> Result<()> {
+    if !is_runbook_kind(document.get("kind").and_then(Value::as_str)) {
         return Ok(());
     }
     let doc_dir = Path::new(doc_rel_path)
         .parent()
         .map(Path::to_path_buf)
         .unwrap_or_default();
-    // Canonicalize the apply root once per notebook; every page's markdown file
+    // Canonicalize the apply root once per runbook; every page's markdown file
     // is checked against this same trust boundary, so there's no need to redo
     // the syscall per page.
     let canonical_root = root
@@ -217,7 +223,7 @@ impl From<ResourceDocument> for ResourceEntry {
 #[derive(Debug, Clone, Default, Serialize, PartialEq)]
 pub struct ApplyState {
     pub dashboards: Vec<ResourceEntry>,
-    pub notebooks: Vec<ResourceEntry>,
+    pub runbooks: Vec<ResourceEntry>,
     pub alerts: Vec<ResourceEntry>,
 }
 
@@ -226,7 +232,7 @@ pub struct ApplyState {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ApplyStateDocs {
     pub dashboards: Vec<ResourceDocument>,
-    pub notebooks: Vec<ResourceDocument>,
+    pub runbooks: Vec<ResourceDocument>,
     pub alerts: Vec<ResourceDocument>,
 }
 
@@ -234,7 +240,7 @@ impl ApplyStateDocs {
     pub fn into_wire(self) -> ApplyState {
         ApplyState {
             dashboards: self.dashboards.into_iter().map(Into::into).collect(),
-            notebooks: self.notebooks.into_iter().map(Into::into).collect(),
+            runbooks: self.runbooks.into_iter().map(Into::into).collect(),
             alerts: self.alerts.into_iter().map(Into::into).collect(),
         }
     }
@@ -246,15 +252,16 @@ impl ApplyStateDocs {
 /// packages/app/src/data/as-code/registry.ts.
 pub fn classify_documents(docs: Vec<ResourceDocument>) -> Result<ApplyStateDocs> {
     let mut dashboards = Vec::new();
-    let mut notebooks = Vec::new();
+    let mut runbooks = Vec::new();
     let mut alerts = Vec::new();
     for doc in docs {
         match doc.document.get("kind").and_then(|k| k.as_str()) {
             Some("Dashboard") => dashboards.push(doc),
-            Some("Notebook") => notebooks.push(doc),
+            // `Notebook` is the legacy alias for `Runbook` (ADR 0002).
+            Some("Runbook") | Some("Notebook") => runbooks.push(doc),
             Some("AlertRule") => alerts.push(doc),
             Some(other) => anyhow::bail!(
-                "{}: unsupported kind \"{other}\" (supported: Dashboard, Notebook, AlertRule)",
+                "{}: unsupported kind \"{other}\" (supported: Dashboard, Runbook, AlertRule)",
                 doc.path
             ),
             None => anyhow::bail!("{}: document is missing a string \"kind\"", doc.path),
@@ -262,7 +269,7 @@ pub fn classify_documents(docs: Vec<ResourceDocument>) -> Result<ApplyStateDocs>
     }
     Ok(ApplyStateDocs {
         dashboards,
-        notebooks,
+        runbooks,
         alerts,
     })
 }
@@ -474,23 +481,23 @@ mod tests {
     }
 
     #[test]
-    fn classify_splits_dashboards_notebooks_and_alerts_and_rejects_unknown_kinds() {
+    fn classify_splits_dashboards_runbooks_and_alerts_and_rejects_unknown_kinds() {
         let dash = ResourceDocument {
             path: "d.yaml".into(),
             document: serde_json::json!({"kind": "Dashboard"}),
         };
-        let notebook = ResourceDocument {
+        let runbook = ResourceDocument {
             path: "n.yaml".into(),
-            document: serde_json::json!({"kind": "Notebook"}),
+            document: serde_json::json!({"kind": "Runbook"}),
         };
         let alert = ResourceDocument {
             path: "a.yaml".into(),
             document: serde_json::json!({"kind": "AlertRule"}),
         };
         let state =
-            classify_documents(vec![dash.clone(), notebook.clone(), alert.clone()]).unwrap();
+            classify_documents(vec![dash.clone(), runbook.clone(), alert.clone()]).unwrap();
         assert_eq!(state.dashboards, vec![dash]);
-        assert_eq!(state.notebooks, vec![notebook]);
+        assert_eq!(state.runbooks, vec![runbook]);
         assert_eq!(state.alerts, vec![alert]);
 
         let settings = ResourceDocument {
@@ -502,6 +509,20 @@ mod tests {
     }
 
     #[test]
+    fn classify_accepts_runbook_and_notebook_alias() {
+        let runbook = ResourceDocument {
+            path: "a.yaml".into(),
+            document: serde_json::json!({"kind": "Runbook"}),
+        };
+        let legacy = ResourceDocument {
+            path: "b.yaml".into(),
+            document: serde_json::json!({"kind": "Notebook"}),
+        };
+        let state = classify_documents(vec![runbook.clone(), legacy.clone()]).unwrap();
+        assert_eq!(state.runbooks, vec![runbook, legacy]);
+    }
+
+    #[test]
     fn apply_request_serializes_repo_scoped_state() {
         let req = ApplyRequest {
             repoid: "repo-1".into(),
@@ -510,9 +531,9 @@ mod tests {
                     path: "cpu.yaml".into(),
                     resource: serde_json::json!({"kind": "Dashboard"}),
                 }],
-                notebooks: vec![ResourceEntry {
+                runbooks: vec![ResourceEntry {
                     path: "runbooks/triage.yaml".into(),
-                    resource: serde_json::json!({"kind": "Notebook"}),
+                    resource: serde_json::json!({"kind": "Runbook"}),
                 }],
                 alerts: vec![ResourceEntry {
                     path: "alerts/error-rate.yaml".into(),
@@ -534,13 +555,13 @@ mod tests {
             v["state"]["dashboards"][0]["resource"],
             serde_json::json!({"kind": "Dashboard"})
         );
-        assert_eq!(v["state"]["notebooks"][0]["path"], "runbooks/triage.yaml");
+        assert_eq!(v["state"]["runbooks"][0]["path"], "runbooks/triage.yaml");
         assert_eq!(v["state"]["alerts"][0]["path"], "alerts/error-rate.yaml");
         assert_eq!(v["source"]["commitSha"], "abc");
     }
 
     #[test]
-    fn inlines_notebook_markdown_files_recursively() {
+    fn inlines_runbook_markdown_files_recursively() {
         let dir = tempfile::tempdir().unwrap();
         fs::create_dir_all(dir.path().join("runbooks/triage")).unwrap();
         fs::write(dir.path().join("runbooks/index.md"), "# Index\n").unwrap();
@@ -548,7 +569,7 @@ mod tests {
         fs::write(
             dir.path().join("runbooks/rb.yaml"),
             concat!(
-                "kind: Notebook\n",
+                "kind: Runbook\n",
                 "metadata:\n  name: rb\n",
                 "spec:\n",
                 "  markdown:\n    file: ./index.md\n",
@@ -581,7 +602,7 @@ mod tests {
     }
 
     #[test]
-    fn notebook_markdown_missing_file_errors_with_both_paths() {
+    fn runbook_markdown_missing_file_errors_with_both_paths() {
         let dir = tempfile::tempdir().unwrap();
         fs::write(
             dir.path().join("rb.yaml"),
@@ -595,7 +616,7 @@ mod tests {
     }
 
     #[test]
-    fn notebook_markdown_outside_apply_dir_is_rejected() {
+    fn runbook_markdown_outside_apply_dir_is_rejected() {
         let dir = tempfile::tempdir().unwrap();
         let outside = tempfile::tempdir().unwrap();
         fs::write(outside.path().join("secret.md"), "secret").unwrap();
@@ -612,7 +633,7 @@ mod tests {
     }
 
     #[test]
-    fn non_notebook_documents_are_untouched_by_inlining() {
+    fn non_runbook_documents_are_untouched_by_inlining() {
         let dir = tempfile::tempdir().unwrap();
         fs::write(
             dir.path().join("d.yaml"),

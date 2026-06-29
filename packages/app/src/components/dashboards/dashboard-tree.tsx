@@ -14,7 +14,7 @@ import {
   searchItems,
 } from "@/data/dashboards/tree";
 
-type TreeResource = "dashboard" | "notebook";
+type TreeResource = "dashboard" | "runbook";
 
 interface DashboardTreeProps {
   dashboards: DashboardSummary[];
@@ -165,7 +165,7 @@ function DashboardRow({
   path?: string;
   resource: TreeResource;
 }) {
-  const Icon = resource === "notebook" ? NotebookText : LayoutDashboard;
+  const Icon = resource === "runbook" ? NotebookText : LayoutDashboard;
   return (
     <div
       className="flex items-center gap-1 rounded-md py-1 pr-1 hover:bg-accent/50"
@@ -173,8 +173,8 @@ function DashboardRow({
     >
       <Link
         to={
-          resource === "notebook"
-            ? "/notebooks/$project/$slug"
+          resource === "runbook"
+            ? "/runbooks/$project/$slug"
             : "/dashboards/$project/$slug"
         }
         params={{ project: dashboard.project, slug: dashboard.slug }}

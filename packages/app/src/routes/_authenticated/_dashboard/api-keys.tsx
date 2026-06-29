@@ -68,7 +68,7 @@ function ApiKeysEmpty() {
         <EmptyTitle>No API keys yet</EmptyTitle>
         <EmptyDescription>
           Create a key to send OpenTelemetry data to Everr or to manage
-          dashboards, notebooks, and alerts with <code>everr apply</code>.
+          dashboards, runbooks, and alerts with <code>everr apply</code>.
         </EmptyDescription>
       </EmptyHeader>
       <EmptyContent>

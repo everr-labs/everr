@@ -123,12 +123,12 @@ export function buildSlackMessage(
                 text: { type: "plain_text", text: "View alert" },
                 url: opts.url,
               },
-              ...(opts.notebookUrl
+              ...(opts.runbookUrl
                 ? [
                     {
                       type: "button",
-                      text: { type: "plain_text", text: "View notebook" },
-                      url: opts.notebookUrl,
+                      text: { type: "plain_text", text: "View runbook" },
+                      url: opts.runbookUrl,
                     },
                   ]
                 : []),

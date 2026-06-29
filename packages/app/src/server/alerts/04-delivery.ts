@@ -105,9 +105,9 @@ function alertUrl(alertId: string): string {
   return new URL(`/alerts/${alertId}`, env.BETTER_AUTH_URL).toString();
 }
 
-function notebookUrl(project: string, slug: string): string {
+function runbookUrl(project: string, slug: string): string {
   return new URL(
-    `/notebooks/${project}/${slug}`,
+    `/runbooks/${project}/${slug}`,
     env.BETTER_AUTH_URL,
   ).toString();
 }
@@ -184,8 +184,8 @@ export async function enqueueAlertNotification(
   const buildOptions = {
     url: alertUrl(def.id),
     now,
-    notebookUrl: def.notebookSlug
-      ? notebookUrl(def.notebookProject ?? "default", def.notebookSlug)
+    runbookUrl: def.runbookSlug
+      ? runbookUrl(def.runbookProject ?? "default", def.runbookSlug)
       : undefined,
   };
   const deliveryInput = { def, kind: messageKind, instances: unsilenced };

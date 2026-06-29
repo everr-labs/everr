@@ -22,7 +22,7 @@ export const API_KEY_SCOPES = {
   apply: {
     label: "Manage as code",
     description:
-      "Create and update dashboards, notebooks, and alerts with everr apply.",
+      "Create and update dashboards, runbooks, and alerts with everr apply.",
     actions: ["read", "write", "delete"] as const,
   },
 } as const;

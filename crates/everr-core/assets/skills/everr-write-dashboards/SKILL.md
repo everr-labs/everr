@@ -315,7 +315,7 @@ everr apply ./everr --dry-run     # always preview first; writes nothing
 everr apply ./everr               # prints the destination org, then asks to confirm
 ```
 
-Apply is **declarative and delete-by-default within the `repoid`**: new files are created, changed files updated, removed files **deleted**. This spans **all resource kinds** — the tree is the complete desired state for that repoid, so applying a dashboards-only directory also prunes notebooks previously applied under the same repoid (see the `everr-write-notebooks` skill). Never split one repoid across two apply directories. Re-applying with no changes prints `Nothing to apply.` In CI, set `EVERR_API_KEY` and pass `--yes`.
+Apply is **declarative and delete-by-default within the `repoid`**: new files are created, changed files updated, removed files **deleted**. This spans **all resource kinds** — the tree is the complete desired state for that repoid, so applying a dashboards-only directory also prunes runbooks previously applied under the same repoid (see the `everr-write-runbooks` skill). Never split one repoid across two apply directories. Re-applying with no changes prints `Nothing to apply.` In CI, set `EVERR_API_KEY` and pass `--yes`.
 
 ## Common mistakes
 

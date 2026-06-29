@@ -83,9 +83,7 @@ export function buildTelegramText(
     }
   }
 
-  const notebookLine = opts.notebookUrl
-    ? `\nNotebook: ${opts.notebookUrl}`
-    : "";
-  const footer = `\n\n${formatUtc(opts.now)}\nAlert: ${opts.url}${notebookLine}`;
+  const runbookLine = opts.runbookUrl ? `\nRunbook: ${opts.runbookUrl}` : "";
+  const footer = `\n\n${formatUtc(opts.now)}\nAlert: ${opts.url}${runbookLine}`;
   return truncate(lines.join("\n"), footer);
 }

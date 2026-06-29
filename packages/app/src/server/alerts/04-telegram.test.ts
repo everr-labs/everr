@@ -73,7 +73,7 @@ describe("buildTelegramText", () => {
     }
   });
 
-  it("includes the notebook link when notebookUrl is present", () => {
+  it("includes the runbook link when runbookUrl is present", () => {
     const text = buildTelegramText(
       {
         def,
@@ -82,15 +82,15 @@ describe("buildTelegramText", () => {
       },
       {
         ...opts,
-        notebookUrl: "https://app.example.com/notebooks/default/runbook",
+        runbookUrl: "https://app.example.com/runbooks/default/runbook",
       },
     );
     expect(text).toContain(
-      "Notebook: https://app.example.com/notebooks/default/runbook",
+      "Runbook: https://app.example.com/runbooks/default/runbook",
     );
   });
 
-  it("omits the notebook line when notebookUrl is absent", () => {
+  it("omits the runbook line when runbookUrl is absent", () => {
     const text = buildTelegramText(
       {
         def,
@@ -99,6 +99,6 @@ describe("buildTelegramText", () => {
       },
       opts,
     );
-    expect(text).not.toContain("Notebook:");
+    expect(text).not.toContain("Runbook:");
   });
 });

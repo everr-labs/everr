@@ -82,7 +82,7 @@ describe("POST /api/apply", () => {
               },
             },
           ],
-          notebooks: [],
+          runbooks: [],
           alerts: [],
         },
       }),
@@ -110,7 +110,7 @@ describe("POST /api/apply", () => {
             },
           },
         ],
-        notebooks: [],
+        runbooks: [],
         alerts: [],
       },
       source: {
@@ -137,7 +137,7 @@ describe("POST /api/apply", () => {
         repoid: "repo-1",
         state: {
           dashboards: [{ path: "bad.yaml", resource: { kind: "Dashboard" } }],
-          notebooks: [],
+          runbooks: [],
           alerts: [],
         },
       }),
@@ -165,7 +165,7 @@ describe("POST /api/apply", () => {
               },
             },
           ],
-          notebooks: [],
+          runbooks: [],
           alerts: [],
         },
       }),
@@ -183,7 +183,7 @@ describe("POST /api/apply", () => {
   // dryRun flag and the key's applyActions without restating a full body.
   const minimalState = {
     repoid: "repo-1",
-    state: { dashboards: [], notebooks: [], alerts: [] },
+    state: { dashboards: [], runbooks: [], alerts: [] },
   };
 
   describe("apply action gate (read-only keys)", () => {

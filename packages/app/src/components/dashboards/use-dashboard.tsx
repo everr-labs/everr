@@ -6,8 +6,8 @@ const DashboardContext = createContext<Dashboard | null>(null);
 /**
  * Provides the Dashboard-shaped document that drives the panel machinery
  * (variables, panel queries, the variable bar). The dashboard route provides
- * the fetched dashboard; the notebook viewer provides an adapted document
- * (see data/notebooks/pages.ts toDashboardDocument).
+ * the fetched dashboard; the runbook viewer provides an adapted document
+ * (see data/runbooks/pages.ts toDashboardDocument).
  *
  * The document is immutable (gitops, read-only): the route reads it from the
  * react-query cache as the single source of truth and passes it down here, so

@@ -21,14 +21,14 @@ const notificationMessageSchema = z
   })
   .strict();
 
-// A notebook reference: bare `slug` (resolved against the alert's own project)
+// A runbook reference: bare `slug` (resolved against the alert's own project)
 // or `project/slug`. Each segment must be a valid project/slug name; more than
 // one "/" or an empty segment is rejected. Existence is checked at apply time,
 // not here.
-// Split a `spec.notebook` ref into its parts. Returns null when it has more
+// Split a `spec.runbook` ref into its parts. Returns null when it has more
 // than one "/"; `project` is undefined for a bare slug. Shared by the schema
-// (validation) and parseNotebookRef (resolution) so the format lives once.
-function notebookRefParts(
+// (validation) and parseRunbookRef (resolution) so the format lives once.
+function runbookRefParts(
   raw: string,
 ): { project?: string; slug: string } | null {
   const parts = raw.split("/");
@@ -38,22 +38,22 @@ function notebookRefParts(
     : { slug: parts[0] };
 }
 
-const notebookRefSchema = z
+const runbookRefSchema = z
   .string()
   .min(1)
   .superRefine((value, ctx) => {
-    const ref = notebookRefParts(value);
+    const ref = runbookRefParts(value);
     if (!ref) {
       ctx.addIssue({
         code: "custom",
-        message: 'notebook ref must be "slug" or "project/slug"',
+        message: 'runbook ref must be "slug" or "project/slug"',
       });
       return;
     }
     if (!dashboardSlugSchema.safeParse(ref.slug).success) {
       ctx.addIssue({
         code: "custom",
-        message: `invalid notebook slug "${ref.slug}"`,
+        message: `invalid runbook slug "${ref.slug}"`,
       });
     }
     if (
@@ -62,23 +62,23 @@ const notebookRefSchema = z
     ) {
       ctx.addIssue({
         code: "custom",
-        message: `invalid notebook project "${ref.project}"`,
+        message: `invalid runbook project "${ref.project}"`,
       });
     }
   });
 
-/** Resolve a `spec.notebook` ref against the alert's own project. */
-export function parseNotebookRef(
+/** Resolve a `spec.runbook` ref against the alert's own project. */
+export function parseRunbookRef(
   raw: string,
   alertProject: string,
 ): { project: string; slug: string } {
-  // Called after notebookRefSchema validation, so the ref is well-formed.
-  const ref = notebookRefParts(raw) ?? { slug: raw };
+  // Called after runbookRefSchema validation, so the ref is well-formed.
+  const ref = runbookRefParts(raw) ?? { slug: raw };
   return { project: ref.project ?? alertProject, slug: ref.slug };
 }
 
 /**
- * Stable identity key for an alert or notebook within a repo: (project, slug).
+ * Stable identity key for an alert or runbook within a repo: (project, slug).
  * NUL-separated so neither segment can forge a collision. For internal Map
  * keying only.
  */
@@ -86,8 +86,8 @@ export function identityKey(project: string, slug: string): string {
   return `${project}\0${slug}`;
 }
 
-/** Display form of a notebook ref: bare slug for the default project. */
-export function formatNotebookRef(project: string, slug: string): string {
+/** Display form of a runbook ref: bare slug for the default project. */
+export function formatRunbookRef(project: string, slug: string): string {
   return project === "default" ? slug : `${project}/${slug}`;
 }
 
@@ -110,13 +110,30 @@ export const AlertRuleYamlSchema = z
     spec: z
       .object({
         display: alertDisplaySchema.optional(),
-        notebook: notebookRefSchema.optional(),
+        runbook: runbookRefSchema.optional(),
+        // `notebook` is the legacy alias for `runbook` (ADR 0002); accepted in
+        // config for back-compat and folded into `runbook` by the transform.
+        notebook: runbookRefSchema.optional(),
         evaluationInterval: nonEmptyString,
         notificationMessage: notificationMessageSchema,
         query: nonEmptyString,
         instanceLabels: z.array(nonEmptyString).min(1).optional(),
       })
-      .strict(),
+      .strict()
+      .superRefine((spec, ctx) => {
+        if (spec.notebook !== undefined && spec.runbook !== undefined) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message:
+              'set only one of "runbook" or the legacy "notebook" field, not both',
+            path: ["runbook"],
+          });
+        }
+      })
+      .transform(({ notebook, ...spec }) => ({
+        ...spec,
+        runbook: spec.runbook ?? notebook,
+      })),
   })
   .strict();
 
