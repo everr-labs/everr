@@ -76,13 +76,15 @@ type MainCommand =
   | "sign_out"
   | "get_notification_emails"
   | "set_notification_emails"
-  | "reset_dev_onboarding"
   | "trigger_test_notification"
   | "get_collector_status"
+  | "telemetry_sql_query"
   | "restart_collector"
   | "get_runs_list"
   | "open_run_in_browser"
-  | "copy_run_auto_fix_prompt";
+  | "copy_run_auto_fix_prompt"
+  | "get_skills_status"
+  | "install_skills";
 
 type RenderMainOptions = {
   signedIn?: boolean;
@@ -147,15 +149,6 @@ function renderMainApp(options: RenderMainOptions = {}) {
   let notificationEmails = options.notificationEmails ?? ["user@example.com"];
   let pendingSignIn: PendingSignIn | null = options.pendingSignIn ?? null;
   const openSignInBrowserSpy = vi.fn(() => null);
-  const resetDevOnboardingSpy = vi.fn(() => {
-    authStatus = {
-      ...authStatus,
-      status: "signed_out",
-    };
-    return {
-      auth_status: authStatus,
-    };
-  });
   const triggerTestNotificationSpy = vi.fn(
     () => options.testNotification ?? { status: "shown" },
   );
@@ -222,12 +215,16 @@ function renderMainApp(options: RenderMainOptions = {}) {
         case "set_notification_emails":
           notificationEmails = payload.emails ?? [];
           return null;
-        case "reset_dev_onboarding":
-          return resetDevOnboardingSpy();
         case "trigger_test_notification":
           return triggerTestNotificationSpy();
         case "get_collector_status":
           return collectorStatus;
+        case "telemetry_sql_query":
+          return [];
+        case "get_skills_status":
+          return [];
+        case "install_skills":
+          return null;
         case "restart_collector":
           return restartCollectorSpy();
         case "get_runs_list":
@@ -247,7 +244,6 @@ function renderMainApp(options: RenderMainOptions = {}) {
 
   return {
     openSignInBrowserSpy,
-    resetDevOnboardingSpy,
     triggerTestNotificationSpy,
     restartCollectorSpy,
     setRuns(next: RunListItem[]) {
@@ -374,31 +370,53 @@ afterEach(async () => {
 });
 
 describe("desktop window", () => {
-  it("renders the notifications view as the default for completed users", async () => {
+  it("renders the CI runs view at /ci when signed in", async () => {
     renderMainApp();
+
+    await act(async () => {
+      await router.load();
+      await router.navigate({ to: "/ci" });
+    });
 
     expect(
       await screen.findByRole("heading", { name: "Your CI runs" }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByText("Authenticate your Everr account"),
+      screen.queryByText("Sign in to view your CI runs"),
     ).not.toBeInTheDocument();
     expect(screen.queryByText("Background tasks")).not.toBeInTheDocument();
   });
 
-  it("renders the sign-in screen when not authenticated", async () => {
+  it("shows the inline CI sign-in when not authenticated", async () => {
     renderMainApp({
       signedIn: false,
     });
 
     await act(async () => {
-      await router.navigate({ to: "/onboarding" });
+      await router.navigate({ to: "/ci" });
     });
 
     expect(
-      await screen.findByText("Authenticate your Everr account"),
+      await screen.findByText("Sign in to view your CI runs"),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
+  });
+
+  it("renders local pages without an auth wall when signed out", async () => {
+    renderMainApp({
+      signedIn: false,
+    });
+
+    await act(async () => {
+      await router.navigate({ to: "/logs" });
+    });
+
+    expect(
+      screen.queryByText("Sign in to view your CI runs"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Sign in" }),
+    ).not.toBeInTheDocument();
   });
 
   it("triggers a test notification from the settings view", async () => {
@@ -422,26 +440,6 @@ describe("desktop window", () => {
         "Test notification queued behind the active notification.",
       ),
     ).toBeInTheDocument();
-  });
-
-  it("resets the dev session and reopens onboarding from the developer view", async () => {
-    const { resetDevOnboardingSpy } = renderMainApp();
-
-    await act(async () => {
-      await router.navigate({ to: "/developer" });
-    });
-
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Reset onboarding" }),
-    );
-
-    await waitFor(() => {
-      expect(resetDevOnboardingSpy).toHaveBeenCalledTimes(1);
-    });
-    expect(
-      await screen.findByText("Authenticate your Everr account"),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
   });
 });
 
@@ -599,6 +597,10 @@ describe("runs list", () => {
   it("shows an empty state when there are no runs", async () => {
     renderMainApp({ runs: [] });
 
+    await act(async () => {
+      await router.navigate({ to: "/ci" });
+    });
+
     expect(await screen.findByText("No runs found")).toBeInTheDocument();
   });
 
@@ -620,6 +622,10 @@ describe("runs list", () => {
           conclusion: "success",
         }),
       ],
+    });
+
+    await act(async () => {
+      await router.navigate({ to: "/ci" });
     });
 
     expect(await screen.findByText("Build")).toBeInTheDocument();

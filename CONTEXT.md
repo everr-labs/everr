@@ -133,8 +133,8 @@ The `everr.yaml` file that declares a directory's Repoid (its ownership boundary
 ### Agent integration
 
 **Agent**:
-An AI coding assistant — Claude Code, Cursor, Codex, and the like — that integrates with Everr through Skills or the MCP server. Not the Collector.
-_Avoid_: assistant, bot
+An AI coding assistant — Claude Code, Cursor, Codex, and the like — that integrates with Everr through Skills or the MCP server. Not the Collector. An Agent is also the target a Skill is installed for.
+_Avoid_: assistant, bot, provider
 
 **Skill**:
 A bundled set of instructions that teaches an Agent how and when to use Everr.
@@ -146,3 +146,17 @@ _Avoid_: MCP endpoint, tool server, MCP client (an Agent, named by how it connec
 
 **Wrap**:
 Running a command through `everr wrap` so its stdout, stderr, and exit code are captured as Logs.
+
+### Onboarding & authentication
+
+**Onboarding**:
+The first-run flow that takes a new User and Organization from sign-up to a usable state — naming the Organization, connecting GitHub, importing CI runs, installing Skills, and authorizing the CLI. The web wizard and the CLI's `everr setup` are its two surfaces.
+_Avoid_: wizard, setup (a generic synonym; `everr setup` is the command name)
+
+**Device authorization**:
+How a client without a browser — the CLI or the desktop app — signs in: Everr shows a short Device code, the User approves it in the browser, and the client becomes authenticated for an Organization.
+_Avoid_: device flow, device sign-in, login
+
+**Device code**:
+The short, human-readable code a client shows during Device authorization for the User to confirm in the browser.
+_Avoid_: user code, OTP, token

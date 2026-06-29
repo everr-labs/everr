@@ -88,10 +88,11 @@ export function GithubInstallStep({
 
   return (
     <>
-      <h2 className="text-lg font-semibold">Install the Everr GitHub App</h2>
+      <h2 className="text-lg font-semibold">See your CI in Everr</h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        Sync workflow runs and logs from your repositories. You can skip this
-        and do it later from your settings.
+        Connect the Everr GitHub App to watch your GitHub Actions runs, catch
+        failures, and read logs without leaving Everr. You choose the repos, and
+        access is read-only. You can skip and connect later from Settings.
       </p>
 
       <div className="mt-8 space-y-4">

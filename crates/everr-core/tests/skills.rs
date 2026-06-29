@@ -342,6 +342,46 @@ fn installs_global_skills_to_agents_dir_and_symlinks_providers() {
 }
 
 #[test]
+fn uninstall_global_skills_removes_provider_symlinks() {
+    let repo = tempdir().expect("repo tempdir");
+    let home = tempdir().expect("home tempdir");
+    let options = SkillOperationOptions {
+        scope: SkillScope::Global,
+        cwd: repo.path().to_path_buf(),
+        home_dir: home.path().to_path_buf(),
+        providers: vec![
+            SkillProvider::Codex,
+            SkillProvider::ClaudeCode,
+            SkillProvider::Cursor,
+        ],
+        skill_names: vec!["everr-use-telemetry".to_string()],
+        all: false,
+        dry_run: false,
+    };
+
+    install_bundled_skills(&options).expect("install global skill");
+    uninstall_bundled_skills(&options).expect("uninstall global skill");
+
+    // Regression: provider symlinks point at the canonical agents dir, so an
+    // uninstall that canonicalized paths skipped them and left dangling links.
+    // The canonical content and every provider symlink must be gone.
+    // `symlink_metadata` does not follow links, so a dangling symlink still
+    // reports as existing here — exactly what we must not leave behind.
+    for dir in [".agents", ".codex", ".claude", ".cursor"] {
+        let path = home
+            .path()
+            .join(dir)
+            .join("skills")
+            .join("everr-use-telemetry");
+        assert!(
+            fs::symlink_metadata(&path).is_err(),
+            "{} should not exist after uninstall",
+            path.display()
+        );
+    }
+}
+
+#[test]
 fn dry_run_reports_changes_without_writing_files() {
     let repo = tempdir().expect("repo tempdir");
     let home = tempdir().expect("home tempdir");

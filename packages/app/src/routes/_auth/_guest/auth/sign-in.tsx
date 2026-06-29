@@ -157,6 +157,7 @@ function SignIn() {
         Don't have an account?{" "}
         <Link
           to="/auth/sign-up"
+          search={{ redirect: redirectTo, email: prefillEmail }}
           className="font-medium text-foreground hover:underline"
         >
           Sign up

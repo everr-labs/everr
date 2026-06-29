@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { z } from "zod";
 import { getActiveOrganization } from "@/data/auth";
-import { authClient } from "@/lib/auth-client";
+import { approveDevice, denyDevice } from "@/lib/device-auth";
 
 export const Route = createFileRoute("/_authenticated/device")({
   validateSearch: z.object({
@@ -52,14 +52,10 @@ function CliDeviceApprovalPage() {
     try {
       const result =
         action === "approve"
-          ? await authClient.device.approve({
-              userCode: deviceCode,
-            })
-          : await authClient.device.deny({
-              userCode: deviceCode,
-            });
+          ? await approveDevice(deviceCode)
+          : await denyDevice(deviceCode);
 
-      if (result.error || !result.data?.success) {
+      if (!result.ok) {
         setStatus("error");
         return;
       }

@@ -2,9 +2,8 @@ use anyhow::{anyhow, Result};
 use everr_core::state::{AppSettings, AppState, WizardState};
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::auth::{auth_status_response, clear_pending_auth};
 use crate::{
-    current_base_url, DevResetResponse, RuntimeState, WizardStatusResponse, AUTH_CHANGED_EVENT,
+    current_base_url, RuntimeState, WizardStatusResponse, AUTH_CHANGED_EVENT,
     SETTINGS_CHANGED_EVENT,
 };
 
@@ -43,11 +42,6 @@ where
     update_persisted_state(state, |persisted| mutate(&mut persisted.settings))
 }
 
-pub(crate) fn replace_persisted_state(state: &RuntimeState, next: AppState) -> Result<()> {
-    state.store.save_state(&next)?;
-    Ok(())
-}
-
 pub(crate) fn has_active_session_for_current_base_url(state: &RuntimeState) -> Result<bool> {
     Ok(current_app_state(state)?.session.is_some_and(|session| {
         session.api_base_url.trim_end_matches('/') == current_base_url().trim_end_matches('/')
@@ -68,16 +62,6 @@ pub(crate) fn emit_auth_changed(app: &AppHandle) {
 
 pub(crate) fn wizard_incomplete(state: &RuntimeState) -> Result<bool> {
     Ok(!current_settings(state)?.wizard_state.wizard_completed)
-}
-
-pub(crate) fn reset_dev_onboarding_inner(state: &RuntimeState) -> Result<DevResetResponse> {
-    clear_pending_auth(state)?;
-    replace_persisted_state(state, AppState::default())?;
-
-    Ok(DevResetResponse {
-        auth_status: auth_status_response(state)?,
-        wizard_status: wizard_status_response(state)?,
-    })
 }
 
 pub(crate) fn open_settings_window(app: &AppHandle) -> Result<()> {

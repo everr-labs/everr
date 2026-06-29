@@ -1,4 +1,3 @@
-use std::fmt::Write as _;
 use std::io::IsTerminal;
 use std::path::Path;
 
@@ -16,19 +15,54 @@ use everr_core::state::Session;
 use crate::auth;
 use crate::skills as cli_skills;
 
-const LOGO_LINES: &[&str] = &["⢠⡾⢻⣦⡀", "⣿⠁⣾⣉⣻⣦⡀", "⣿ ⣿⣉⣽⢿⡿⣦⡀", "⠘⣧⡈⠻⣧⣼⣧⡼⠿⣦", " ⠈⠛⠶⣤⣤⣤⣴⠾⠋"];
-const WORDMARK_LINES: &[&str] = &[
-    "░████████ ░██    ░██  ░███████  ░██░████ ░██░████",
-    "░██       ░██    ░██ ░██    ░██ ░███     ░███",
-    "░███████   ░██  ░██  ░█████████ ░██      ░██",
-    "░██         ░██░██   ░██        ░██      ░██",
-    "░████████    ░███     ░███████  ░██      ░██",
-];
-const LOGO_COLUMN_WIDTH: usize = 10;
-const BANNER_COLOR: &str = "\x1b[38;2;223;255;0m";
-const ANSI_RESET: &str = "\x1b[0m";
-const INSTALL_SKILLS_DEFAULT: bool = true;
-const NOTIFICATION_EMAILS_NOTE: &str = "These emails are used to detect your own runs.";
+#[derive(Default)]
+struct SetupOutcome {
+    collector_running: bool,
+    skills_installed: bool,
+    repos_imported: bool,
+}
+
+struct NextStep {
+    label: &'static str,
+    command: String,
+}
+
+fn next_steps(cmd: &str, outcome: &SetupOutcome) -> Vec<NextStep> {
+    let mut steps = Vec::new();
+    if outcome.collector_running {
+        steps.push(NextStep {
+            label: "Explore your telemetry",
+            command: format!("{cmd} local query \"SELECT * FROM logs LIMIT 20\""),
+        });
+    }
+    if outcome.repos_imported {
+        steps.push(NextStep {
+            label: "View your imported CI runs",
+            command: format!("{cmd} ci runs"),
+        });
+    }
+    if outcome.skills_installed {
+        steps.push(NextStep {
+            label: "Instrument your repo (ask your agent)",
+            command: "/everr-setup-telemetry".to_string(),
+        });
+    }
+    steps
+}
+
+fn print_summary(outcome: &SetupOutcome) -> Result<()> {
+    let steps = next_steps(build::command_name(), outcome);
+    if steps.is_empty() {
+        return Ok(());
+    }
+    let body = steps
+        .iter()
+        .map(|step| format!("{}\n{}", step.label, step.command))
+        .collect::<Vec<_>>()
+        .join("\n\n");
+    cliclack::note("You're all set", body)?;
+    Ok(())
+}
 
 #[derive(Default)]
 struct SetupContext {
@@ -37,26 +71,29 @@ struct SetupContext {
 }
 
 pub async fn run() -> Result<()> {
-    println!();
-    print_banner();
+    crate::banner::print_banner();
 
     cliclack::intro("Setup")?;
 
-    let session = step_authenticate().await?;
-    let setup_context = load_setup_context(&session).await;
-    print_setup_identity(&setup_context)?;
+    let mut outcome = SetupOutcome::default();
 
-    if !should_skip_org_setup_steps(setup_context.org.as_ref()) {
-        step_rename_org(&session, setup_context.org.as_ref()).await?;
-        if OrgResponse::can_manage_runs_import_or_default(setup_context.org.as_ref()) {
-            step_import_repos(&session).await?;
+    #[cfg(target_os = "macos")]
+    {
+        local_observability_intro()?;
+        let app = step_install_desktop_app().await?;
+        if app != DesktopApp::Skipped && verify_collector().await? {
+            outcome.collector_running = true;
+            // Only first-timers get walked through the demo; returning users
+            // (app already installed) skip straight past it.
+            if app == DesktopApp::Installed {
+                run_first_telemetry_demo().await;
+            }
         }
     }
 
-    step_configure_notification_emails(setup_context.me.as_ref()).await?;
-    let skills_installed = step_install_skills()?;
-    step_install_desktop_app().await?;
-    step_mark_cloud_onboarding_complete(&session, setup_context.org.as_ref()).await?;
+    outcome.skills_installed = step_install_skills()?;
+
+    step_connect_cloud(&mut outcome).await?;
 
     auth::state_store().update_state(|state| {
         state
@@ -64,8 +101,8 @@ pub async fn run() -> Result<()> {
             .mark_setup_complete(build::default_api_base_url());
     })?;
 
-    print_next_steps()?;
-    cliclack::outro(outro_message(skills_installed))?;
+    print_summary(&outcome)?;
+    cliclack::outro("Observability, simplified.")?;
     Ok(())
 }
 
@@ -146,20 +183,20 @@ async fn step_rename_org(session: &Session, org: Option<&OrgResponse>) -> Result
     Ok(())
 }
 
-async fn step_import_repos(session: &Session) -> Result<()> {
+async fn step_import_repos(session: &Session) -> Result<bool> {
     let interactive = std::io::stdin().is_terminal();
     if !interactive {
-        return Ok(());
+        return Ok(false);
     }
 
     let client = ApiClient::from_session(session)?;
     let repos = match client.get_repos().await {
         Ok(r) => r,
-        Err(_) => return Ok(()),
+        Err(_) => return Ok(false),
     };
 
     if repos.is_empty() {
-        return Ok(());
+        return Ok(false);
     }
 
     const MAX_REPOS: usize = 3;
@@ -175,34 +212,78 @@ async fn step_import_repos(session: &Session) -> Result<()> {
 
     if selected.is_empty() {
         cliclack::log::remark("No repositories selected, skipping import.")?;
-        return Ok(());
+        return Ok(false);
     }
 
     let to_import: Vec<String> = selected.into_iter().take(MAX_REPOS).collect();
 
     match client.start_import_repos(&to_import).await {
-        Ok(_) => cliclack::log::remark(
-            "Import started - your data will appear gradually on the CLI results.",
-        )?,
-        Err(_) => cliclack::log::warning("Could not start import, skipping.")?,
+        Ok(_) => {
+            cliclack::log::remark(
+                "Import started - your data will appear gradually on the CLI results.",
+            )?;
+            Ok(true)
+        }
+        Err(_) => {
+            cliclack::log::warning("Could not start import, skipping.")?;
+            Ok(false)
+        }
+    }
+}
+
+fn existing_cloud_session() -> Option<Session> {
+    let store = auth::state_store();
+    let config = auth::resolve_auth_config().ok()?;
+    store.load_session_for_api_base_url(&config.api_base_url).ok()
+}
+
+async fn step_connect_cloud(outcome: &mut SetupOutcome) -> Result<()> {
+    let interactive = std::io::stdin().is_terminal();
+    if !interactive {
+        return Ok(());
     }
 
+    // Already connected from a previous run — no need to ask again.
+    if existing_cloud_session().is_some() {
+        cliclack::log::success("Already connected to Everr Cloud.")?;
+        return Ok(());
+    }
+
+    cliclack::note(
+        "② Connect Everr Cloud",
+        "Query your cloud Telemetry, and track the status\nof your CI",
+    )?;
+
+    let connect = cliclack::confirm("Connect now?")
+        .initial_value(true)
+        .interact()?;
+    if !connect {
+        cliclack::log::remark(format!(
+            "Run `{} cloud login` whenever you want to connect.",
+            build::command_name()
+        ))?;
+        return Ok(());
+    }
+
+    // Soft-fail: once setup has done its local work, a cloud failure (auth
+    // timeout, cancelled prompt, API error) must not abort the wizard before
+    // it marks setup complete and prints the summary.
+    if let Err(err) = connect_cloud(outcome).await {
+        cliclack::log::warning(format!(
+            "Couldn't finish connecting to Everr Cloud: {err}\nRun `{} cloud login` to try again.",
+            build::command_name()
+        ))?;
+    }
     Ok(())
 }
 
-const ADD_EMAIL_SENTINEL: &str = "__add_email__";
+async fn connect_cloud(outcome: &mut SetupOutcome) -> Result<()> {
+    let session = step_authenticate().await?;
+    let context = load_setup_context(&session).await;
+    print_setup_identity(&context)?;
 
-async fn step_configure_notification_emails(me: Option<&MeResponse>) -> Result<()> {
-    let store = auth::state_store();
-    let saved: Vec<String> = store
-        .load_state()
-        .map(|s| s.settings.notification_emails)
-        .unwrap_or_default();
-    let mut detected: Vec<String> = Vec::new();
-
-    if let Some(me) = me {
-        detected.push(me.email.clone());
-        store.update_state(|state| {
+    if let Some(me) = context.me.as_ref() {
+        auth::state_store().update_state(|state| {
             state.settings.user_profile = Some(everr_core::state::UserProfile {
                 email: me.email.clone(),
                 name: me.name.clone(),
@@ -211,71 +292,14 @@ async fn step_configure_notification_emails(me: Option<&MeResponse>) -> Result<(
         })?;
     }
 
-    if let Ok(cwd) = std::env::current_dir() {
-        let git = everr_core::git::resolve_git_context(&cwd);
-        if let Some(git_email) = git.email {
-            if !detected.contains(&git_email) {
-                detected.push(git_email);
-            }
+    if !should_skip_org_setup_steps(context.org.as_ref()) {
+        step_rename_org(&session, context.org.as_ref()).await?;
+        if OrgResponse::can_manage_runs_import_or_default(context.org.as_ref()) {
+            outcome.repos_imported = step_import_repos(&session).await?;
         }
     }
 
-    let mut all_emails = saved.clone();
-    for email in &detected {
-        if !all_emails.contains(email) {
-            all_emails.push(email.clone());
-        }
-    }
-
-    let initial: Vec<String> = if saved.is_empty() {
-        detected.clone()
-    } else {
-        saved.clone()
-    };
-
-    let interactive = std::io::stdin().is_terminal();
-
-    if !interactive {
-        if !all_emails.is_empty() {
-            store.update_state(|state| {
-                state.settings.notification_emails = all_emails;
-            })?;
-        }
-        return Ok(());
-    }
-
-    cliclack::note("Notification emails", NOTIFICATION_EMAILS_NOTE)?;
-
-    let mut prompt = cliclack::multiselect("Select notification emails");
-    for email in &all_emails {
-        prompt = prompt.item(email.clone(), email.clone(), "");
-    }
-    prompt = prompt.item(ADD_EMAIL_SENTINEL.to_string(), "Add email…", "");
-
-    let mut selected: Vec<String> = prompt.initial_values(initial).interact()?;
-
-    let add_requested = selected.contains(&ADD_EMAIL_SENTINEL.to_string());
-    selected.retain(|e| e != ADD_EMAIL_SENTINEL);
-
-    if add_requested {
-        let custom: String = cliclack::input("Email address").interact()?;
-        let custom = custom.trim().to_string();
-        if !custom.is_empty() && !selected.contains(&custom) {
-            selected.push(custom);
-        }
-    }
-
-    let notification_emails = if selected.is_empty() {
-        detected
-    } else {
-        selected
-    };
-
-    store.update_state(|state| {
-        state.settings.notification_emails = notification_emails;
-    })?;
-
-    cliclack::log::success("Notification emails configured")?;
+    step_mark_cloud_onboarding_complete(&session, context.org.as_ref()).await?;
     Ok(())
 }
 
@@ -296,93 +320,77 @@ async fn step_mark_cloud_onboarding_complete(
     Ok(())
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+enum SkillTarget {
+    #[default]
+    Claude,
+    Agents,
+}
+
+fn skill_target_providers(targets: &[SkillTarget]) -> Vec<SkillProvider> {
+    targets
+        .iter()
+        .flat_map(|target| match target {
+            SkillTarget::Claude => vec![SkillProvider::ClaudeCode],
+            SkillTarget::Agents => vec![SkillProvider::Codex, SkillProvider::Cursor],
+        })
+        .collect()
+}
+
+fn default_targets(statuses: &[core_skills::SkillProviderStatus]) -> Vec<SkillTarget> {
+    let detected = |provider: SkillProvider| {
+        statuses
+            .iter()
+            .any(|status| status.provider == provider && status.detected)
+    };
+    let mut targets = Vec::new();
+    if detected(SkillProvider::ClaudeCode) {
+        targets.push(SkillTarget::Claude);
+    }
+    if detected(SkillProvider::Codex) || detected(SkillProvider::Cursor) {
+        targets.push(SkillTarget::Agents);
+    }
+    targets
+}
+
 fn step_install_skills() -> Result<bool> {
     let interactive = std::io::stdin().is_terminal();
     let home_dir = dirs::home_dir().context("failed to resolve home directory")?;
     let provider_statuses = core_skills::provider_statuses(&home_dir);
 
     if has_global_bundled_skills_installed(&home_dir)? {
-        cli_skills::install_all_for_setup(SkillScope::Global, Vec::new())?;
-        cliclack::log::success("Everr skills installed")?;
+        let summary = cli_skills::install_all_for_setup(SkillScope::Global, Vec::new())?;
+        cliclack::note("Everr skills installed", summary.skills.join("\n"))?;
         return Ok(true);
     }
 
     if interactive {
         cliclack::note(
-            "Everr skills",
-            "Everr can install skills that teach compatible agents how to work with CI, set up telemetry, and use real telemetry data during investigations.",
+            "Skills",
+            "Everr skills teach your coding agent to instrument code and\nquery your telemetry while it works.",
         )?;
-
-        let install: bool = cliclack::confirm("Install Everr skills?")
-            .initial_value(INSTALL_SKILLS_DEFAULT)
-            .interact()?;
-        if !install {
-            cliclack::log::remark("Skipping Everr skills.")?;
-            return Ok(false);
-        }
     }
 
-    let scope = if interactive {
-        let global: bool = cliclack::confirm("Install skills globally instead of in this project?")
-            .initial_value(cli_skills::GLOBAL_SKILL_SCOPE_DEFAULT)
+    let providers = if interactive {
+        let defaults = default_targets(&provider_statuses);
+        let selected: Vec<SkillTarget> = cliclack::multiselect("Install skills for")
+            .required(false)
+            .item(SkillTarget::Claude, "Claude", "")
+            .item(SkillTarget::Agents, "Agents (Codex, etc.)", "")
+            .initial_values(defaults)
             .interact()?;
-        if global {
-            SkillScope::Global
-        } else {
-            SkillScope::Project
-        }
+        skill_target_providers(&selected)
     } else {
-        SkillScope::Project
+        skill_target_providers(&default_targets(&provider_statuses))
     };
 
-    let selected_providers: Vec<SkillProvider> = if interactive {
-        let mut prompt = cliclack::multiselect("Select providers").required(false);
-        for (i, status) in provider_statuses.iter().enumerate() {
-            let label = status.provider.display_name();
-            let hint = if status.detected {
-                "detected"
-            } else {
-                "not detected"
-            };
-            prompt = prompt.item(i, label, hint);
-        }
-        let mut defaults: Vec<usize> = provider_statuses
-            .iter()
-            .enumerate()
-            .filter(|(_, status)| status.detected)
-            .map(|(i, _)| i)
-            .collect();
-        if defaults.is_empty() {
-            defaults = (0..provider_statuses.len()).collect();
-        }
-        prompt = prompt.initial_values(defaults);
-
-        let selected_indices: Vec<usize> = prompt.interact()?;
-        selected_indices
-            .iter()
-            .map(|&i| provider_statuses[i].provider)
-            .collect()
-    } else {
-        let detected: Vec<SkillProvider> = provider_statuses
-            .iter()
-            .filter(|status| status.detected)
-            .map(|status| status.provider)
-            .collect();
-        if detected.is_empty() {
-            SkillProvider::ALL.to_vec()
-        } else {
-            detected
-        }
-    };
-
-    if selected_providers.is_empty() {
-        cliclack::log::remark("No providers selected.")?;
+    if providers.is_empty() {
+        cliclack::log::remark("Skipping Everr skills.")?;
         return Ok(false);
     }
 
-    cli_skills::install_all_for_setup(scope, selected_providers)?;
-    cliclack::log::success("Everr skills installed")?;
-
+    let summary = cli_skills::install_all_for_setup(SkillScope::Global, providers)?;
+    cliclack::note("Everr skills installed", summary.skills.join("\n"))?;
     Ok(true)
 }
 
@@ -399,52 +407,86 @@ fn has_global_bundled_skills_installed(home_dir: &Path) -> Result<bool> {
     core_skills::has_installed_bundled_skill(&options)
 }
 
-fn print_next_steps() -> Result<()> {
-    let Some(home_dir) = dirs::home_dir() else {
-        return Ok(());
-    };
-
-    let detected_agents: Vec<&'static str> = core_skills::provider_statuses(&home_dir)
-        .into_iter()
-        .filter(|status| status.detected)
-        .map(|status| status.provider.display_name())
-        .collect();
-
-    cliclack::note("Try it out", next_steps_message(&detected_agents))?;
+#[cfg(target_os = "macos")]
+fn local_observability_intro() -> Result<()> {
+    cliclack::note(
+        "① Local observability",
+        "The Everr desktop app comes with a local collector\nand a way to look at the telemetry you collect locally.\n\nWhen authenticated it notifies you when one of your pipelines fails.",
+    )?;
     Ok(())
 }
 
-fn next_steps_message(detected_agents: &[&str]) -> String {
-    let cmd = build::command_name();
-    if detected_agents.is_empty() {
-        format!("From an imported repo, run `{cmd} ci runs` to view your imported runs.")
-    } else {
-        format!(
-            "From an imported repo, run `{cmd} ci runs` to view your imported runs.\nOr ask {} to summarize them.",
-            format_agent_list(detected_agents),
-        )
-    }
-}
+#[cfg(target_os = "macos")]
+async fn verify_collector() -> Result<bool> {
+    use std::time::Duration;
 
-fn format_agent_list(agents: &[&str]) -> String {
-    match agents {
-        [] => String::new(),
-        [a] => (*a).to_string(),
-        [a, b] => format!("{a} or {b}"),
-        [head @ .., last] => format!("{}, or {last}", head.join(", ")),
-    }
-}
+    let spinner = cliclack::spinner();
+    spinner.start("Starting the local collector…");
 
-fn outro_message(skills_installed: bool) -> &'static str {
-    if skills_installed {
-        "Completed"
-    } else {
-        "Run `everr skills install --all` in a repo to install Everr skills later."
+    let endpoint = format!(
+        "{}/",
+        everr_core::build::healthcheck_origin().trim_end_matches('/')
+    );
+    let result =
+        everr_core::collector::wait_healthcheck_result(&endpoint, Duration::from_secs(15)).await;
+
+    match result {
+        everr_core::collector::HealthcheckResult::Running => {
+            spinner.stop(format!(
+                "Collector running — {}",
+                everr_core::build::otlp_http_origin()
+            ));
+            Ok(true)
+        }
+        _ => {
+            spinner.stop("The collector is still starting — it'll come online shortly.");
+            Ok(false)
+        }
     }
 }
 
 #[cfg(target_os = "macos")]
-async fn step_install_desktop_app() -> Result<bool> {
+async fn run_first_telemetry_demo() -> bool {
+    let spinner = cliclack::spinner();
+    spinner.start("Capturing your first telemetry…");
+
+    let Ok(exe) = std::env::current_exe() else {
+        spinner.stop("Skipped the first-telemetry demo.");
+        return false;
+    };
+
+    let status = tokio::process::Command::new(exe)
+        .args(["wrap", "--", "echo", "hello, everr"])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .await;
+
+    match status {
+        Ok(status) if status.success() => {
+            spinner.stop("First telemetry captured: \"hello, everr\"");
+            true
+        }
+        _ => {
+            spinner.stop("Couldn't capture demo telemetry — skipping.");
+            false
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DesktopApp {
+    /// Freshly installed during this run.
+    Installed,
+    /// Already installed or running before setup.
+    AlreadyPresent,
+    /// Not installed (declined or non-interactive).
+    Skipped,
+}
+
+#[cfg(target_os = "macos")]
+async fn step_install_desktop_app() -> Result<DesktopApp> {
     let interactive = std::io::stdin().is_terminal();
     let app_path = Path::new("/Applications/Everr.app");
     let already_installed = app_path.exists();
@@ -457,18 +499,18 @@ async fn step_install_desktop_app() -> Result<bool> {
 
     if running {
         cliclack::log::success("Desktop app is already running in the menu bar.")?;
-        return Ok(true);
+        return Ok(DesktopApp::AlreadyPresent);
     }
 
     if already_installed {
         let _ = ProcessCommand::new("open").args(["-a", "Everr"]).status();
         cliclack::log::success("Desktop app is now running in the menu bar.")?;
-        return Ok(true);
+        return Ok(DesktopApp::AlreadyPresent);
     }
 
     if !interactive {
         cliclack::log::remark("Install the desktop app from https://everr.dev")?;
-        return Ok(false);
+        return Ok(DesktopApp::Skipped);
     }
 
     let install: bool = cliclack::confirm("Do you want to install the Everr desktop app?\n\nThe desktop app runs in the menu bar and notifies you\nwhen your CI/CD pipelines fail or need attention.")
@@ -477,7 +519,7 @@ async fn step_install_desktop_app() -> Result<bool> {
 
     if !install {
         cliclack::log::remark("You can install it later from https://everr.dev")?;
-        return Ok(false);
+        return Ok(DesktopApp::Skipped);
     }
 
     {
@@ -520,7 +562,7 @@ async fn step_install_desktop_app() -> Result<bool> {
         let mount_point = stdout
             .lines()
             .last()
-            .and_then(|line| line.split('\t').last())
+            .and_then(|line| line.split('\t').next_back())
             .map(|s| s.trim().to_string())
             .context("failed to find mount point")?;
 
@@ -547,50 +589,7 @@ async fn step_install_desktop_app() -> Result<bool> {
     let _ = ProcessCommand::new("open").args(["-a", "Everr"]).status();
     cliclack::log::success("Desktop app is now running in the menu bar.")?;
 
-    Ok(true)
-}
-
-#[cfg(not(target_os = "macos"))]
-async fn step_install_desktop_app() -> Result<bool> {
-    Ok(false)
-}
-
-fn print_banner() {
-    let banner = render_banner();
-    if should_use_color() {
-        print!("{BANNER_COLOR}{banner}{ANSI_RESET}");
-    } else {
-        print!("{banner}");
-    }
-    println!();
-}
-
-fn render_banner() -> String {
-    let mut banner = String::new();
-    let total_lines = LOGO_LINES.len().max(WORDMARK_LINES.len());
-    for line_index in 0..total_lines {
-        let logo = LOGO_LINES.get(line_index).copied().unwrap_or("");
-        let wordmark = WORDMARK_LINES.get(line_index).copied().unwrap_or("");
-        if wordmark.is_empty() {
-            writeln!(&mut banner, "{logo}").expect("banner line");
-        } else {
-            writeln!(
-                &mut banner,
-                "{logo:<width$}   {wordmark}",
-                width = LOGO_COLUMN_WIDTH
-            )
-            .expect("banner line");
-        }
-    }
-    banner
-}
-
-fn should_use_color() -> bool {
-    std::io::stdout().is_terminal()
-        && std::env::var_os("NO_COLOR").is_none()
-        && std::env::var("TERM")
-            .map(|term| term != "dumb")
-            .unwrap_or(true)
+    Ok(DesktopApp::Installed)
 }
 
 #[cfg(test)]
@@ -606,57 +605,126 @@ mod tests {
     }
 
     #[test]
-    fn outro_message_with_skills_installed() {
-        assert_eq!(super::outro_message(true), "Completed");
-    }
-
-    #[test]
-    fn outro_message_without_skills_installed() {
-        assert!(super::outro_message(false).contains("everr skills install --all"));
-    }
-
-    #[test]
-    fn next_steps_without_agents_only_suggests_cli_command() {
-        let msg = super::next_steps_message(&[]);
-        assert!(msg.contains("ci runs"));
-        assert!(!msg.contains("ask "));
-    }
-
-    #[test]
-    fn next_steps_with_one_agent_names_it() {
-        let msg = super::next_steps_message(&["Claude Code"]);
-        assert!(msg.contains("ci runs"));
-        assert!(msg.contains("ask Claude Code"));
-    }
-
-    #[test]
-    fn next_steps_with_two_agents_joins_with_or() {
-        let msg = super::next_steps_message(&["Claude Code", "Codex"]);
-        assert!(msg.contains("ask Claude Code or Codex"));
-    }
-
-    #[test]
-    fn next_steps_with_three_agents_uses_oxford_comma() {
-        let msg = super::next_steps_message(&["Codex", "Claude Code", "Cursor"]);
-        assert!(msg.contains("ask Codex, Claude Code, or Cursor"));
-    }
-
-    #[test]
-    fn setup_defaults_to_installing_skills() {
-        assert!(super::INSTALL_SKILLS_DEFAULT);
-    }
-
-    #[test]
-    fn setup_defaults_to_global_skill_scope() {
-        assert!(super::cli_skills::GLOBAL_SKILL_SCOPE_DEFAULT);
-    }
-
-    #[test]
-    fn email_note_says_emails_detect_own_runs() {
+    fn claude_target_maps_to_claude_code() {
+        use everr_core::skills::SkillProvider;
         assert_eq!(
-            super::NOTIFICATION_EMAILS_NOTE,
-            "These emails are used to detect your own runs."
+            super::skill_target_providers(&[super::SkillTarget::Claude]),
+            vec![SkillProvider::ClaudeCode]
         );
+    }
+
+    #[test]
+    fn agents_target_maps_to_codex_and_cursor() {
+        use everr_core::skills::SkillProvider;
+        assert_eq!(
+            super::skill_target_providers(&[super::SkillTarget::Agents]),
+            vec![SkillProvider::Codex, SkillProvider::Cursor]
+        );
+    }
+
+    #[test]
+    fn both_targets_map_to_all_providers() {
+        use everr_core::skills::SkillProvider;
+        assert_eq!(
+            super::skill_target_providers(&[super::SkillTarget::Claude, super::SkillTarget::Agents]),
+            vec![
+                SkillProvider::ClaudeCode,
+                SkillProvider::Codex,
+                SkillProvider::Cursor
+            ]
+        );
+    }
+
+    #[test]
+    fn no_targets_map_to_empty() {
+        assert!(super::skill_target_providers(&[]).is_empty());
+    }
+
+    #[test]
+    fn default_targets_selects_only_detected_groups() {
+        use everr_core::skills::{SkillProvider, SkillProviderStatus};
+        let statuses = vec![
+            SkillProviderStatus {
+                provider: SkillProvider::ClaudeCode,
+                detected: true,
+                path: String::new(),
+            },
+            SkillProviderStatus {
+                provider: SkillProvider::Codex,
+                detected: false,
+                path: String::new(),
+            },
+            SkillProviderStatus {
+                provider: SkillProvider::Cursor,
+                detected: false,
+                path: String::new(),
+            },
+        ];
+        assert_eq!(super::default_targets(&statuses), vec![super::SkillTarget::Claude]);
+    }
+
+    #[test]
+    fn next_steps_includes_local_query_when_collector_running() {
+        let outcome = super::SetupOutcome {
+            collector_running: true,
+            skills_installed: false,
+            repos_imported: false,
+        };
+        let steps = super::next_steps("everr", &outcome);
+        assert_eq!(steps.len(), 1);
+        assert_eq!(steps[0].command, "everr local query \"SELECT * FROM logs LIMIT 20\"");
+    }
+
+    #[test]
+    fn next_steps_includes_ci_runs_only_when_imported() {
+        let imported = super::SetupOutcome {
+            collector_running: false,
+            skills_installed: false,
+            repos_imported: true,
+        };
+        assert!(super::next_steps("everr", &imported)
+            .iter()
+            .any(|step| step.command.contains("ci runs")));
+
+        let not_imported = super::SetupOutcome::default();
+        assert!(!super::next_steps("everr", &not_imported)
+            .iter()
+            .any(|step| step.command.contains("ci runs")));
+    }
+
+    #[test]
+    fn next_steps_includes_telemetry_skill_only_when_skills_installed() {
+        let with_skills = super::SetupOutcome {
+            collector_running: false,
+            skills_installed: true,
+            repos_imported: false,
+        };
+        assert!(super::next_steps("everr", &with_skills)
+            .iter()
+            .any(|step| step.command.contains("/everr-setup-telemetry")));
+
+        let without = super::SetupOutcome::default();
+        assert!(!super::next_steps("everr", &without)
+            .iter()
+            .any(|step| step.command.contains("/everr-setup-telemetry")));
+    }
+
+    #[test]
+    fn next_steps_empty_when_nothing_done() {
+        assert!(super::next_steps("everr", &super::SetupOutcome::default()).is_empty());
+    }
+
+    #[test]
+    fn next_steps_prefixes_cli_commands_with_command_name() {
+        let outcome = super::SetupOutcome {
+            collector_running: true,
+            skills_installed: true,
+            repos_imported: true,
+        };
+        let steps = super::next_steps("everr-dev", &outcome);
+        assert!(steps
+            .iter()
+            .all(|step| step.command.starts_with("everr-dev") || step.command.starts_with('/')));
     }
 
     #[test]

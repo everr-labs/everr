@@ -46,7 +46,7 @@ const localTracesRepo = new TracesRepository(localSqlClient);
 
 export function ErrorsPage() {
   const errorDetailMatch = useMatch({
-    from: "/authenticated/errors/$fingerprint",
+    from: "/shell/errors/$fingerprint",
     shouldThrow: false,
   });
   const search = useSearch({ strict: false }) as ErrorIssueSearch;

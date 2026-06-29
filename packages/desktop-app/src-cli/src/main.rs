@@ -1,5 +1,6 @@
 mod api;
 mod auth;
+mod banner;
 mod cli;
 mod command_telemetry;
 mod core;

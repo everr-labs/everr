@@ -6,6 +6,7 @@ import {
   useRestartCollectorMutation,
 } from "../local-telemetry/collector-status";
 import { NotificationEmailsSection } from "../notifications/notification-emails-section";
+import { SkillsSection } from "../skills/skills-section";
 import { SettingsSection } from "./ui";
 
 function LocalTelemetrySection() {
@@ -29,15 +30,25 @@ function LocalTelemetrySection() {
         </Button>
       }
     >
-      <dl className="grid max-w-[680px] grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+      <dl className="grid grid-cols-[4.5rem_1fr] items-center gap-x-6 gap-y-2.5 text-sm">
         <dt className="text-[var(--settings-text-muted)]">Status</dt>
-        <dd className="m-0 font-mono text-[var(--settings-text)]">
-          {status?.status ?? (statusQuery.isPending ? "loading" : "unknown")}
+        <dd className="m-0 flex items-center gap-2 text-[var(--settings-text)]">
+          <span
+            className={`size-1.5 shrink-0 rounded-full ${
+              status?.status === "running" ? "bg-emerald-500" : "bg-amber-400"
+            }`}
+            aria-hidden="true"
+          />
+          <span className="font-mono">
+            {status?.status ?? (statusQuery.isPending ? "loading" : "unknown")}
+          </span>
         </dd>
         {status?.reason ? (
           <>
-            <dt className="text-[var(--settings-text-muted)]">Reason</dt>
-            <dd className="m-0 min-w-0 truncate font-mono text-[var(--settings-text)]">
+            <dt className="self-start text-[var(--settings-text-muted)]">
+              Reason
+            </dt>
+            <dd className="m-0 min-w-0 font-mono text-[var(--settings-text)]">
               {status.reason}
             </dd>
           </>
@@ -54,8 +65,8 @@ function LocalTelemetrySection() {
         <dd className="m-0 min-w-0 truncate font-mono text-[var(--settings-text)]">
           {status?.healthEndpoint ?? "unknown"}
         </dd>
-        <dt className="text-[var(--settings-text-muted)]">Data</dt>
-        <dd className="m-0 min-w-0 truncate font-mono text-[var(--settings-text)]">
+        <dt className="self-start text-[var(--settings-text-muted)]">Data</dt>
+        <dd className="m-0 min-w-0 break-all font-mono text-[var(--settings-text)]">
           {status?.telemetryDir ?? "unknown"}
         </dd>
       </dl>
@@ -77,11 +88,10 @@ export function SettingsPage() {
         </div>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="grid divide-y divide-white/[0.06]">
-          <div className="pt-0">
-            <AuthSettingsSection />
-          </div>
+        <div className="grid divide-y divide-white/[0.08]">
+          <AuthSettingsSection />
           <NotificationEmailsSection />
+          <SkillsSection />
           <LocalTelemetrySection />
         </div>
       </div>

@@ -36,8 +36,9 @@ use commands::{
     get_notification_emails, get_org, get_pending_sign_in, get_runs_list, get_user_profile,
     get_pending_update, get_wizard_status, install_pending_update, open_notification_target,
     set_simulated_update,
-    open_run_in_browser, open_sign_in_browser, poll_sign_in, reset_dev_onboarding,
+    open_run_in_browser, open_sign_in_browser, poll_sign_in,
     restart_collector, set_notification_emails, sign_out, start_sign_in, trigger_test_notification,
+    get_skills_status, install_skills,
 };
 use notifications::{dismiss_active_notification_inner, start_notifier_loop};
 use settings::{open_settings_window, wizard_incomplete};
@@ -138,13 +139,6 @@ impl From<PendingAuthResponse> for SignInResponse {
 #[serde(rename_all = "snake_case")]
 struct WizardStatusResponse {
     wizard_completed: bool,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "snake_case")]
-struct DevResetResponse {
-    auth_status: AuthStatusResponse,
-    wizard_status: WizardStatusResponse,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -327,7 +321,6 @@ pub fn run() {
             poll_sign_in,
             open_sign_in_browser,
             sign_out,
-            reset_dev_onboarding,
             dismiss_active_notification,
             open_notification_target,
             copy_notification_auto_fix_prompt,
@@ -347,7 +340,9 @@ pub fn run() {
             copy_run_auto_fix_prompt,
             otel::get_telemetry_context,
             otel::proxy_otlp,
-            telemetry::query::telemetry_sql_query
+            telemetry::query::telemetry_sql_query,
+            get_skills_status,
+            install_skills
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

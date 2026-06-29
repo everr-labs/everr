@@ -60,7 +60,7 @@ type SignInResponse =
       status: "denied" | "expired";
     };
 
-export const authStatusQueryKey = ["desktop-app", "auth-status"] as const;
+const authStatusQueryKey = ["desktop-app", "auth-status"] as const;
 const pendingSignInQueryKey = ["desktop-app", "pending-sign-in"] as const;
 
 function getAuthStatus() {
@@ -170,7 +170,7 @@ function usePendingSignInQuery(enabled: boolean) {
   });
 }
 
-function useSignInMutation() {
+export function useSignInMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -222,7 +222,7 @@ export function useSignOutMutation() {
       queryClient.setQueryData(authStatusQueryKey, data);
       queryClient.setQueryData(pendingSignInQueryKey, null);
       toast.success("Logged out.");
-      void navigate({ to: "/onboarding" });
+      void navigate({ to: "/logs" });
     },
     onError(error) {
       toast.error(toErrorMessageText(error));
@@ -230,7 +230,15 @@ export function useSignOutMutation() {
   });
 }
 
-function AuthContent({ layout }: { layout: "settings" | "standalone" }) {
+function AuthContent({
+  layout,
+  title = "Authenticate your Everr account",
+  description = "Reconnect this desktop app or complete a pending sign-in without leaving Settings.",
+}: {
+  layout: "settings" | "standalone";
+  title?: string;
+  description?: string;
+}) {
   const queryClient = useQueryClient();
   const authStatusQuery = useAuthStatusQuery();
   const signInMutation = useSignInMutation();
@@ -288,9 +296,6 @@ function AuthContent({ layout }: { layout: "settings" | "standalone" }) {
   }, [pollQuery.data, queryClient]);
 
   const pendingError = pendingQuery.error ?? pollQuery.error;
-  const title = "Authenticate your Everr account";
-  const description =
-    "Reconnect this desktop app or complete a pending sign-in without leaving Settings.";
   const showAction = signedIn || !pendingSignIn || isExpired;
   const action = showAction ? (
     <Button
@@ -416,8 +421,16 @@ function AuthContent({ layout }: { layout: "settings" | "standalone" }) {
   );
 }
 
-export function AuthStandalone() {
-  return <AuthContent layout="standalone" />;
+export function AuthStandalone({
+  title,
+  description,
+}: {
+  title?: string;
+  description?: string;
+} = {}) {
+  return (
+    <AuthContent layout="standalone" title={title} description={description} />
+  );
 }
 
 export function AuthSettingsSection() {

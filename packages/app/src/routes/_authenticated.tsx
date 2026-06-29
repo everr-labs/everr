@@ -48,14 +48,15 @@ export const Route = createFileRoute("/_authenticated")({
     search,
   }) => {
     if (!session?.user) {
-      throw redirect({
-        to: "/auth/sign-in",
-        search: {
-          redirect: `${pathname}?${Object.entries(search)
-            .map(([key, value]) => `${key}=${value}`)
-            .join("&")}${hash ? `#${hash}` : ""}`,
-        },
-      });
+      const redirectTo = `${pathname}?${Object.entries(search)
+        .map(([key, value]) => `${key}=${value}`)
+        .join("&")}${hash ? `#${hash}` : ""}`;
+
+      // CLI device approval is reached by people setting up a fresh machine, who
+      // most often don't have an account yet — send them to sign-up (the page
+      // toggles to sign-in and back, preserving this redirect).
+      const to = pathname === "/device" ? "/auth/sign-up" : "/auth/sign-in";
+      throw redirect({ to, search: { redirect: redirectTo } });
     }
 
     const { activeOrganizationId } = await verifyActiveOrg();

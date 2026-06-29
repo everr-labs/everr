@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use everr_core::api::{ApiClient, FailureNotification};
+use everr_core::skills::{self as core_skills, SkillOperationOptions, SkillProvider, SkillScope};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
 
@@ -14,13 +15,13 @@ use crate::notifications::{
     reset_notification_state,
 };
 use crate::settings::{
-    current_app_state, emit_auth_changed, emit_settings_changed, reset_dev_onboarding_inner,
-    update_persisted_state, update_settings, wizard_status_response,
+    current_app_state, emit_auth_changed, emit_settings_changed, update_persisted_state,
+    update_settings, wizard_status_response,
 };
 use crate::telemetry::sidecar::{CollectorStatusResponse, Sidecar};
 use crate::update::{apply_pending_update, pending_update_version};
 use crate::{
-    current_base_url, AuthStatusResponse, CommandResult, DevResetResponse, IntoCommandResult,
+    current_base_url, AuthStatusResponse, CommandResult, IntoCommandResult,
     PendingAuthResponse, RuntimeState, SignInResponse, TestNotificationResponse,
     WizardStatusResponse,
 };
@@ -103,25 +104,6 @@ pub(crate) async fn sign_out(
 }
 
 #[tauri::command]
-pub(crate) async fn reset_dev_onboarding(
-    app: AppHandle,
-    state: State<'_, RuntimeState>,
-) -> CommandResult<DevResetResponse> {
-    if !tauri::is_dev() {
-        return Err("developer reset is only available in dev builds".to_string());
-    }
-
-    let runtime = state.inner().clone();
-    let response = run_blocking_command(move || reset_dev_onboarding_inner(&runtime)).await?;
-
-    reset_notification_state(&app, state.inner()).into_command_result()?;
-    emit_auth_changed(&app);
-    emit_settings_changed(&app);
-
-    Ok(response)
-}
-
-#[tauri::command]
 pub(crate) async fn get_notification_emails(
     state: State<'_, RuntimeState>,
 ) -> CommandResult<Vec<String>> {
@@ -140,6 +122,72 @@ pub(crate) async fn set_notification_emails(
         update_settings(&runtime, |settings| {
             settings.notification_emails = emails;
         })
+    })
+    .await?;
+    emit_settings_changed(&app);
+    Ok(())
+}
+
+#[derive(Serialize)]
+pub(crate) struct SkillProviderState {
+    pub provider: String,
+    pub display_name: String,
+    pub detected: bool,
+    pub installed: bool,
+}
+
+fn parse_skill_provider(value: &str) -> Result<SkillProvider> {
+    SkillProvider::ALL
+        .into_iter()
+        .find(|provider| provider.as_str() == value)
+        .with_context(|| format!("unknown skill provider: {value}"))
+}
+
+#[tauri::command]
+pub(crate) async fn get_skills_status() -> CommandResult<Vec<SkillProviderState>> {
+    run_blocking_command(move || {
+        let home_dir = dirs::home_dir().context("failed to resolve home directory")?;
+        let bundled = core_skills::bundled_skills()?;
+        let states = core_skills::provider_statuses(&home_dir)
+            .into_iter()
+            .map(|status| {
+                let provider_dir = std::path::PathBuf::from(&status.path);
+                let installed = bundled
+                    .iter()
+                    .any(|skill| provider_dir.join(&skill.name).join("SKILL.md").is_file());
+                SkillProviderState {
+                    provider: status.provider.as_str().to_string(),
+                    display_name: status.provider.display_name().to_string(),
+                    detected: status.detected,
+                    installed,
+                }
+            })
+            .collect();
+        Ok(states)
+    })
+    .await
+}
+
+#[tauri::command]
+pub(crate) async fn install_skills(app: AppHandle, providers: Vec<String>) -> CommandResult<()> {
+    run_blocking_command(move || {
+        let home_dir = dirs::home_dir().context("failed to resolve home directory")?;
+        let cwd = std::env::current_dir().context("could not determine current directory")?;
+        let providers = providers
+            .iter()
+            .map(|value| parse_skill_provider(value))
+            .collect::<Result<Vec<_>>>()?;
+        let options = SkillOperationOptions {
+            scope: SkillScope::Global,
+            cwd,
+            home_dir,
+            providers,
+            skill_names: Vec::new(),
+            all: true,
+            dry_run: false,
+        };
+        core_skills::install_bundled_skills(&options)?;
+        Ok(())
     })
     .await?;
     emit_settings_changed(&app);

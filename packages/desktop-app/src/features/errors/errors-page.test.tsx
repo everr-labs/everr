@@ -65,13 +65,13 @@ vi.mock("@everr/telemetry-explorer/traces", async (importOriginal) => {
 describe("desktop errors routes", () => {
   function renderErrorsRoute(initialEntries: string[]) {
     const rootRoute = createRootRoute({ component: Outlet });
-    const authenticatedRoute = createRoute({
+    const shellRoute = createRoute({
       getParentRoute: () => rootRoute,
-      id: "authenticated",
+      id: "shell",
       component: Outlet,
     });
     const errorsRoute = createRoute({
-      getParentRoute: () => authenticatedRoute,
+      getParentRoute: () => shellRoute,
       path: "/errors",
       validateSearch: ErrorIssueSearchSchema,
       component: ErrorsPage,
@@ -83,9 +83,7 @@ describe("desktop errors routes", () => {
       component: ErrorDetailPage,
     });
     const routeTree = rootRoute.addChildren([
-      authenticatedRoute.addChildren([
-        errorsRoute.addChildren([errorDetailRoute]),
-      ]),
+      shellRoute.addChildren([errorsRoute.addChildren([errorDetailRoute])]),
     ]);
     const router = createRouter({
       routeTree,
