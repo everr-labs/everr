@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { buildDesiredNotebookSet } from "./desired";
+import { buildDesiredRunbookSet } from "./desired";
 
 const doc = (over: Record<string, unknown> = {}) => ({
-  kind: "Notebook",
+  kind: "Runbook",
   metadata: { name: "rb", project: "demo" },
   spec: { markdown: { inline: "# Hi" } },
   ...over,
 });
 
-describe("buildDesiredNotebookSet", () => {
+describe("buildDesiredRunbookSet", () => {
   it("builds a desired resource with project, slug and folderPath", () => {
-    const out = buildDesiredNotebookSet([
+    const out = buildDesiredRunbookSet([
       { path: "runbooks/rb.yaml", document: doc() },
     ]);
     expect(out).toEqual([
@@ -25,7 +25,7 @@ describe("buildDesiredNotebookSet", () => {
 
   it("slug falls back to the filename", () => {
     const d = doc({ metadata: { project: "demo" } });
-    const out = buildDesiredNotebookSet([
+    const out = buildDesiredRunbookSet([
       { path: "incidents.yaml", document: d },
     ]);
     expect(out[0]?.slug).toBe("incidents");
@@ -33,16 +33,16 @@ describe("buildDesiredNotebookSet", () => {
 
   it("rejects duplicate (project, slug)", () => {
     expect(() =>
-      buildDesiredNotebookSet([
+      buildDesiredRunbookSet([
         { path: "a.yaml", document: doc() },
         { path: "b/rb.yaml", document: doc() },
       ]),
-    ).toThrow(/duplicate notebook/);
+    ).toThrow(/duplicate runbook/);
   });
 
   it("rejects an invalid spec naming the file", () => {
     expect(() =>
-      buildDesiredNotebookSet([
+      buildDesiredRunbookSet([
         { path: "bad.yaml", document: doc({ spec: {} }) },
       ]),
     ).toThrow(/bad\.yaml/);
@@ -50,7 +50,7 @@ describe("buildDesiredNotebookSet", () => {
 
   it("rejects an unresolved markdown file pointer", () => {
     expect(() =>
-      buildDesiredNotebookSet([
+      buildDesiredRunbookSet([
         {
           path: "bad.yaml",
           document: doc({ spec: { markdown: { file: "./x.md" } } }),
@@ -64,7 +64,7 @@ describe("buildDesiredNotebookSet", () => {
       spec: { markdown: { inline: "```panel\nfoo: bar\n```" } },
     });
     expect(() =>
-      buildDesiredNotebookSet([{ path: "rb.yaml", document: d }]),
+      buildDesiredRunbookSet([{ path: "rb.yaml", document: d }]),
     ).toThrow(/panel block/);
   });
 
@@ -73,7 +73,7 @@ describe("buildDesiredNotebookSet", () => {
       spec: { markdown: { inline: "```panel\nref: nope\n```" } },
     });
     expect(() =>
-      buildDesiredNotebookSet([{ path: "rb.yaml", document: d }]),
+      buildDesiredRunbookSet([{ path: "rb.yaml", document: d }]),
     ).toThrow(/unknown panel "nope"/);
   });
 
@@ -87,7 +87,7 @@ describe("buildDesiredNotebookSet", () => {
     ].join("\n");
     const d = doc({ spec: { markdown: { inline: md } } });
     expect(() =>
-      buildDesiredNotebookSet([{ path: "rb.yaml", document: d }]),
+      buildDesiredRunbookSet([{ path: "rb.yaml", document: d }]),
     ).toThrow(/rb\.yaml/);
   });
 
@@ -110,7 +110,7 @@ describe("buildDesiredNotebookSet", () => {
       },
     });
     expect(() =>
-      buildDesiredNotebookSet([{ path: "rb.yaml", document: d }]),
+      buildDesiredRunbookSet([{ path: "rb.yaml", document: d }]),
     ).toThrow(/triage\/net/);
   });
 
@@ -137,7 +137,7 @@ describe("buildDesiredNotebookSet", () => {
       },
     });
     expect(
-      buildDesiredNotebookSet([{ path: "rb.yaml", document: d }]),
+      buildDesiredRunbookSet([{ path: "rb.yaml", document: d }]),
     ).toHaveLength(1);
   });
 });

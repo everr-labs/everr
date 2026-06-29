@@ -4,12 +4,12 @@ import {
   findPage,
   hrefHash,
   pageNavTree,
-  resolveNotebookLink,
+  resolveRunbookLink,
   toDashboardDocument,
 } from "./pages";
-import type { NotebookSpec } from "./schema";
+import type { RunbookSpec } from "./schema";
 
-const spec: NotebookSpec = {
+const spec: RunbookSpec = {
   display: { name: "Runbook" },
   markdown: { inline: "# Index" },
   pages: [
@@ -67,7 +67,7 @@ describe("pageNavTree", () => {
 });
 
 // Post-CLI spec: pages carry both `inline` contents and the original `file`.
-const fileSpec: NotebookSpec = {
+const fileSpec: RunbookSpec = {
   markdown: { inline: "# Index", file: "./book/index.md" },
   pages: [
     {
@@ -121,37 +121,35 @@ describe("buildFileToPageMap", () => {
   });
 });
 
-describe("resolveNotebookLink", () => {
+describe("resolveRunbookLink", () => {
   it("returns null for external / absolute / hash links", () => {
-    expect(resolveNotebookLink("http://x", undefined, fileSpec)).toBeNull();
-    expect(resolveNotebookLink("https://x", undefined, fileSpec)).toBeNull();
-    expect(resolveNotebookLink("mailto:a@b", undefined, fileSpec)).toBeNull();
-    expect(resolveNotebookLink("#anchor", undefined, fileSpec)).toBeNull();
-    expect(
-      resolveNotebookLink("/dashboards/x", undefined, fileSpec),
-    ).toBeNull();
+    expect(resolveRunbookLink("http://x", undefined, fileSpec)).toBeNull();
+    expect(resolveRunbookLink("https://x", undefined, fileSpec)).toBeNull();
+    expect(resolveRunbookLink("mailto:a@b", undefined, fileSpec)).toBeNull();
+    expect(resolveRunbookLink("#anchor", undefined, fileSpec)).toBeNull();
+    expect(resolveRunbookLink("/dashboards/x", undefined, fileSpec)).toBeNull();
   });
 
   it("resolves direct page paths", () => {
-    expect(resolveNotebookLink("traffic", undefined, fileSpec)).toBe("traffic");
-    expect(resolveNotebookLink("timeline/deploys", undefined, fileSpec)).toBe(
+    expect(resolveRunbookLink("traffic", undefined, fileSpec)).toBe("traffic");
+    expect(resolveRunbookLink("timeline/deploys", undefined, fileSpec)).toBe(
       "timeline/deploys",
     );
   });
 
   it("returns null for unknown direct paths with no file context", () => {
-    expect(resolveNotebookLink("unknown", undefined, fileSpec)).toBeNull();
+    expect(resolveRunbookLink("unknown", undefined, fileSpec)).toBeNull();
   });
 
   it("resolves a relative file link from the index", () => {
     expect(
-      resolveNotebookLink("./traffic.md", "./book/index.md", fileSpec),
+      resolveRunbookLink("./traffic.md", "./book/index.md", fileSpec),
     ).toBe("traffic");
   });
 
   it("resolves a relative file link from a nested page", () => {
     expect(
-      resolveNotebookLink(
+      resolveRunbookLink(
         "./timeline-deploys.md",
         "./book/timeline.md",
         fileSpec,
@@ -161,20 +159,20 @@ describe("resolveNotebookLink", () => {
 
   it("resolves `..` traversal back to the index", () => {
     expect(
-      resolveNotebookLink("../index.md", "./book/sub/page.md", fileSpec),
+      resolveRunbookLink("../index.md", "./book/sub/page.md", fileSpec),
     ).toBe("");
   });
 
   it("returns null for a .md link with no file context", () => {
     // No currentFile → no file-map lookup; "traffic.md" is not a page path.
-    expect(resolveNotebookLink("traffic.md", undefined, fileSpec)).toBeNull();
+    expect(resolveRunbookLink("traffic.md", undefined, fileSpec)).toBeNull();
   });
 
   it("ignores fragment and query suffixes when matching page paths", () => {
-    expect(resolveNotebookLink("traffic#section", undefined, fileSpec)).toBe(
+    expect(resolveRunbookLink("traffic#section", undefined, fileSpec)).toBe(
       "traffic",
     );
-    expect(resolveNotebookLink("traffic?x=1", undefined, fileSpec)).toBe(
+    expect(resolveRunbookLink("traffic?x=1", undefined, fileSpec)).toBe(
       "traffic",
     );
   });
@@ -198,9 +196,9 @@ describe("hrefHash", () => {
 });
 
 describe("toDashboardDocument", () => {
-  it("adapts a notebook into a Dashboard-shaped document for the panel machinery", () => {
+  it("adapts a runbook into a Dashboard-shaped document for the panel machinery", () => {
     const doc = toDashboardDocument(
-      { kind: "Notebook", metadata: { name: "rb", project: "demo" }, spec },
+      { kind: "Runbook", metadata: { name: "rb", project: "demo" }, spec },
       "demo",
       "rb",
     );
@@ -212,7 +210,7 @@ describe("toDashboardDocument", () => {
   });
 
   it("passes through variables and shared panels", () => {
-    const withVars: NotebookSpec = {
+    const withVars: RunbookSpec = {
       ...spec,
       variables: [
         { kind: "TextVariable", spec: { name: "svc", value: "api" } },
@@ -222,7 +220,7 @@ describe("toDashboardDocument", () => {
       },
     };
     const doc = toDashboardDocument(
-      { kind: "Notebook", metadata: { name: "rb" }, spec: withVars },
+      { kind: "Runbook", metadata: { name: "rb" }, spec: withVars },
       "demo",
       "rb",
     );

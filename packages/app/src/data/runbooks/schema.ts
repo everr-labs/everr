@@ -9,7 +9,7 @@ import {
 
 /**
  * A markdown body: authored as either inline content or a `file:` pointer
- * relative to the notebook YAML. The CLI resolves `file:` to `inline` at apply
+ * relative to the runbook YAML. The CLI resolves `file:` to `inline` at apply
  * time, so the server only ever accepts/stores the inline form.
  */
 export interface MarkdownSource {
@@ -34,29 +34,29 @@ const markdownSource: z.ZodType<MarkdownSource> = z
     });
   });
 
-export interface NotebookPage {
+export interface RunbookPage {
   name: string;
   display?: z.infer<typeof dashboardDisplay>;
   markdown: MarkdownSource;
-  pages?: NotebookPage[];
+  pages?: RunbookPage[];
 }
 
 // strictObject: page fields are our own spec, not Perses, so an unknown key is
 // always an authoring typo (e.g. `pagse:`). z.object would silently strip it,
 // and since apply stores the raw document, the misspelled field would survive
 // in storage but be ignored by the viewer — content vanishing with no error.
-const notebookPage: z.ZodType<NotebookPage> = z.lazy(() =>
+const runbookPage: z.ZodType<RunbookPage> = z.lazy(() =>
   z.strictObject({
     name: dashboardSlugSchema,
     display: dashboardDisplay.optional(),
     markdown: markdownSource,
-    pages: z.array(notebookPage).optional(),
+    pages: z.array(runbookPage).optional(),
   }),
 );
 
 /** Reject duplicate page names among siblings, recursively. */
 function addDuplicatePageIssues(
-  pages: NotebookPage[] | undefined,
+  pages: RunbookPage[] | undefined,
   ctx: z.RefinementCtx,
   basePath: (string | number)[],
 ): void {
@@ -76,19 +76,19 @@ function addDuplicatePageIssues(
   });
 }
 
-// strictObject for the same reason as notebookPage: these top-level keys are
+// strictObject for the same reason as runbookPage: these top-level keys are
 // our own spec, so an unknown one is a typo to reject, not a field to drop.
 // Leniency toward Perses lives inside the imported `panel`/`variable`/`display`
 // schemas, which are unchanged — only this wrapper's own keys are constrained.
-export const notebookSpecSchema = z
+export const runbookSpecSchema = z
   .strictObject({
     display: dashboardDisplay.optional(),
     variables: z.array(variable).optional(),
     /** Shared panels referenced from markdown via `ref:` blocks. */
     panels: z.record(z.string(), panel).optional(),
-    /** REQUIRED index page (and the whole notebook when there are no pages). */
+    /** REQUIRED index page (and the whole runbook when there are no pages). */
     markdown: markdownSource,
-    pages: z.array(notebookPage).optional(),
+    pages: z.array(runbookPage).optional(),
     duration: z.string().optional(),
     refreshInterval: z.string().optional(),
   })
@@ -99,12 +99,12 @@ export const notebookSpecSchema = z
 /**
  * Strict variant for the write path (`everr apply`): additionally validates
  * each shared panel's plugin spec, mirroring dashboards. The read path stays
- * lenient about *plugin options* so stored notebooks with unknown ones still
+ * lenient about *plugin options* so stored runbooks with unknown ones still
  * load (the structural wrapper above is strict on both paths). Query plugin
  * specs are only validated for registered query kinds (currently TestData);
  * unlisted kinds stay loose — never stricter than Perses.
  */
-export const notebookSpecSchemaStrict = notebookSpecSchema.superRefine(
+export const runbookSpecSchemaStrict = runbookSpecSchema.superRefine(
   (spec, ctx) => {
     for (const [key, p] of Object.entries(spec.panels ?? {})) {
       for (const issue of collectPanelStrictIssues(p)) {
@@ -118,16 +118,17 @@ export const notebookSpecSchemaStrict = notebookSpecSchema.superRefine(
   },
 );
 
-export type NotebookSpec = z.infer<typeof notebookSpecSchema>;
+export type RunbookSpec = z.infer<typeof runbookSpecSchema>;
 
-export interface NotebookMetadata {
+export interface RunbookMetadata {
   name: string;
   /** Perses project namespace. Optional in files; defaults to "default". */
   project?: string;
 }
 
-export interface Notebook {
-  kind: "Notebook";
-  metadata: NotebookMetadata;
-  spec: NotebookSpec;
+export interface Runbook {
+  // Runbook is canonical; "Notebook" stays accepted for back-compat (ADR 0002).
+  kind: "Runbook" | "Notebook";
+  metadata: RunbookMetadata;
+  spec: RunbookSpec;
 }

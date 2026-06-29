@@ -4,7 +4,7 @@ import { db } from "@/db/client";
 
 // ---------------------------------------------------------------------------
 // Mock the db client with a chainable fluent builder.
-// applyNotebookSpecs ends the read chain at .where() (not .limit()), so tests
+// applyRunbookSpecs ends the read chain at .where() (not .limit()), so tests
 // override db.select per-case via `mockApplySelect`.
 // ---------------------------------------------------------------------------
 
@@ -64,7 +64,7 @@ vi.mock("@/db/schema", () => ({
   },
 }));
 
-import { applyNotebookSpecs } from "./apply.server";
+import { applyRunbookSpecs } from "./apply.server";
 
 const mockedDb = vi.mocked(db);
 
@@ -87,15 +87,15 @@ function mockApplySelect(rows: unknown[]) {
 }
 
 const nb = (name: string, project?: string, inline = "# x") => ({
-  kind: "Notebook",
+  kind: "Runbook",
   metadata: { name, ...(project ? { project } : {}) },
   spec: { markdown: { inline } },
 });
 
-describe("applyNotebookSpecs", () => {
+describe("applyRunbookSpecs", () => {
   it("accepts a defaulted doc under the repo scope", async () => {
     mockApplySelect([]);
-    const result = await applyNotebookSpecs({
+    const result = await applyRunbookSpecs({
       orgId: "org-1",
       repoid: "repo-1",
       dryRun: true,
@@ -104,7 +104,7 @@ describe("applyNotebookSpecs", () => {
     expect(result.created).toEqual(["a"]);
   });
 
-  it("updates a notebook whose document changed", async () => {
+  it("updates a runbook whose document changed", async () => {
     mockApplySelect([
       {
         project: "team",
@@ -113,7 +113,7 @@ describe("applyNotebookSpecs", () => {
         document: nb("a", "team", "# old"),
       },
     ]);
-    const result = await applyNotebookSpecs({
+    const result = await applyRunbookSpecs({
       orgId: "org-1",
       repoid: "repo-1",
       resources: [{ path: "a.yaml", resource: nb("a", "team", "# new") }],
@@ -125,7 +125,7 @@ describe("applyNotebookSpecs", () => {
     });
   });
 
-  it("prunes the last notebook of a repo with no files", async () => {
+  it("prunes the last runbook of a repo with no files", async () => {
     mockApplySelect([
       {
         project: "team",
@@ -134,7 +134,7 @@ describe("applyNotebookSpecs", () => {
         document: nb("old", "team"),
       },
     ]);
-    const result = await applyNotebookSpecs({
+    const result = await applyRunbookSpecs({
       orgId: "org-1",
       repoid: "repo-1",
       dryRun: true,
@@ -156,7 +156,7 @@ describe("applyNotebookSpecs", () => {
         document: nb("a"),
       },
     ]);
-    const first = await applyNotebookSpecs({
+    const first = await applyRunbookSpecs({
       orgId: "org-1",
       repoid: "repo-1",
       dryRun: true,
@@ -164,7 +164,7 @@ describe("applyNotebookSpecs", () => {
     });
 
     mockApplySelect([]);
-    const second = await applyNotebookSpecs({
+    const second = await applyRunbookSpecs({
       orgId: "org-1",
       repoid: "repo-2",
       dryRun: true,
@@ -180,7 +180,7 @@ describe("applyNotebookSpecs", () => {
 
   it("applies the diff inside a transaction when not a dry run", async () => {
     mockApplySelect([]);
-    const result = await applyNotebookSpecs({
+    const result = await applyRunbookSpecs({
       orgId: "org-1",
       repoid: "repo-1",
       resources: [{ path: "a.yaml", resource: nb("a", "team") }],
@@ -191,7 +191,7 @@ describe("applyNotebookSpecs", () => {
 
   it("dryRun makes no writes", async () => {
     mockApplySelect([]);
-    const result = await applyNotebookSpecs({
+    const result = await applyRunbookSpecs({
       orgId: "org-1",
       repoid: "repo-1",
       dryRun: true,
@@ -203,11 +203,11 @@ describe("applyNotebookSpecs", () => {
 
   it("rejects the apply when a document is invalid", async () => {
     await expect(
-      applyNotebookSpecs({
+      applyRunbookSpecs({
         orgId: "org-1",
         repoid: "repo-1",
         resources: [
-          { path: "bad.yaml", resource: { kind: "Notebook", spec: {} } },
+          { path: "bad.yaml", resource: { kind: "Runbook", spec: {} } },
         ],
       }),
     ).rejects.toThrow(/bad\.yaml/);

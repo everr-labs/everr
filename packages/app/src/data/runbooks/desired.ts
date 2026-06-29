@@ -13,18 +13,18 @@ import {
 } from "@/data/dashboards/schema";
 import type { PanelEmbed } from "./embed";
 import { extractPanelFences, parsePanelEmbed } from "./embed";
-import type { NotebookPage, NotebookSpec } from "./schema";
-import { notebookSpecSchemaStrict } from "./schema";
+import type { RunbookPage, RunbookSpec } from "./schema";
+import { runbookSpecSchemaStrict } from "./schema";
 
 export type { InputDocument };
 
 /**
- * Validate every ```panel fence in the notebook's markdown (index page and all
+ * Validate every ```panel fence in the runbook's markdown (index page and all
  * nested pages): the YAML must parse into one of the two embed forms, `ref:`
  * targets must exist in spec.panels, and inline panels must pass the strict
  * plugin validation — same fail-early contract as dashboard panels.
  */
-function validateFences(path: string, spec: NotebookSpec): void {
+function validateFences(path: string, spec: RunbookSpec): void {
   const check = (markdown: string | undefined, where: string) => {
     for (const fence of extractPanelFences(markdown ?? "")) {
       let embed: PanelEmbed;
@@ -60,7 +60,7 @@ function validateFences(path: string, spec: NotebookSpec): void {
   };
 
   check(spec.markdown.inline, "index markdown");
-  const walk = (pages: NotebookPage[] | undefined, prefix: string) => {
+  const walk = (pages: RunbookPage[] | undefined, prefix: string) => {
     for (const page of pages ?? []) {
       const pagePath = prefix ? `${prefix}/${page.name}` : page.name;
       check(page.markdown.inline, `page "${pagePath}" markdown`);
@@ -71,11 +71,11 @@ function validateFences(path: string, spec: NotebookSpec): void {
 }
 
 /**
- * Validate and normalize parsed Notebook documents into a desired set for
+ * Validate and normalize parsed Runbook documents into a desired set for
  * `reconcile`. Mirrors the dashboard builder: throws ApplyValidationError
  * naming the file on any failure.
  */
-export function buildDesiredNotebookSet(
+export function buildDesiredRunbookSet(
   inputs: InputDocument[],
 ): DesiredResource[] {
   const out: DesiredResource[] = [];
@@ -88,12 +88,12 @@ export function buildDesiredNotebookSet(
     const slugResult = dashboardSlugSchema.safeParse(slug);
     if (!slugResult.success) {
       throw new ApplyValidationError(
-        `${path}: invalid notebook name "${slug}": ${slugResult.error.issues[0]?.message}`,
+        `${path}: invalid runbook name "${slug}": ${slugResult.error.issues[0]?.message}`,
       );
     }
 
     const rawSpec = (document as { spec?: unknown }).spec;
-    const specResult = notebookSpecSchemaStrict.safeParse(rawSpec);
+    const specResult = runbookSpecSchemaStrict.safeParse(rawSpec);
     if (!specResult.success) {
       const issue = specResult.error.issues[0];
       const where =
@@ -101,7 +101,7 @@ export function buildDesiredNotebookSet(
           ? ` at ${issue.path.map(String).join(".")}`
           : "";
       throw new ApplyValidationError(
-        `${path}: invalid notebook spec${where}: ${issue?.message}`,
+        `${path}: invalid runbook spec${where}: ${issue?.message}`,
       );
     }
 
@@ -111,7 +111,7 @@ export function buildDesiredNotebookSet(
     const prior = seen.get(key);
     if (prior) {
       throw new ApplyValidationError(
-        `duplicate notebook "${slug}" in project "${project}" (${prior} and ${path})`,
+        `duplicate runbook "${slug}" in project "${project}" (${prior} and ${path})`,
       );
     }
     seen.set(key, path);

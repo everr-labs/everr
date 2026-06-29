@@ -4,10 +4,10 @@ import * as z from "zod";
 import { db } from "@/db/client";
 import { notebooks } from "@/db/schema";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
-import type { Notebook } from "./schema";
-import { notebookSpecSchema } from "./schema";
+import type { Runbook } from "./schema";
+import { runbookSpecSchema } from "./schema";
 
-export const getNotebook = createAuthenticatedServerFn({ method: "GET" })
+export const getRunbook = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(z.object({ project: z.string(), slug: z.string() }))
   .handler(async ({ data: { project, slug }, context }) => {
     const orgId = context.session.session.activeOrganizationId;
@@ -25,7 +25,7 @@ export const getNotebook = createAuthenticatedServerFn({ method: "GET" })
       .limit(1);
 
     if (!row) {
-      // Throw a framework notFound so only a genuinely-missing notebook shows
+      // Throw a framework notFound so only a genuinely-missing runbook shows
       // the not-found UI; real errors (auth, server, invalid spec) surface as
       // errors instead.
       throw notFound();
@@ -33,12 +33,12 @@ export const getNotebook = createAuthenticatedServerFn({ method: "GET" })
 
     // Validate the spec shape on read; return the stored document verbatim so
     // unknown fields survive (same lenient-read contract as dashboards).
-    notebookSpecSchema.parse(row.document.spec);
+    runbookSpecSchema.parse(row.document.spec);
 
-    return row.document satisfies Notebook;
+    return row.document satisfies Runbook;
   });
 
-export const listNotebooks = createAuthenticatedServerFn({
+export const listRunbooks = createAuthenticatedServerFn({
   method: "GET",
 }).handler(async ({ context }) => {
   const orgId = context.session.session.activeOrganizationId;

@@ -24,7 +24,7 @@ function firstIssue(error: z.ZodError): string {
 
 /**
  * Parse the YAML body of a ```panel fence into one of the two embed forms: an
- * inline `kind: Panel` object, or a `ref:` to the notebook's shared panels.
+ * inline `kind: Panel` object, or a `ref:` to the runbook's shared panels.
  * Throws with a human-readable message — render and apply paths both surface it.
  */
 export function parsePanelEmbed(source: string): PanelEmbed {
@@ -67,7 +67,7 @@ export function parsePanelEmbed(source: string): PanelEmbed {
   }
 
   throw new Error(
-    'panel block must be an inline panel (kind: Panel) or a "ref:" to a notebook panel',
+    'panel block must be an inline panel (kind: Panel) or a "ref:" to a runbook panel',
   );
 }
 

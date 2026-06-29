@@ -1,5 +1,5 @@
 import type { Dashboard } from "@/data/dashboards/schema";
-import type { Notebook, NotebookPage, NotebookSpec } from "./schema";
+import type { Runbook, RunbookPage, RunbookSpec } from "./schema";
 
 export interface ResolvedPage {
   title: string;
@@ -8,17 +8,17 @@ export interface ResolvedPage {
   file?: string;
 }
 
-function pageTitle(page: NotebookPage): string {
+function pageTitle(page: RunbookPage): string {
   return page.display?.name ?? page.name;
 }
 
 /**
  * Resolve a page path ("" = index, "a/b" = nested) to its title and markdown.
  * Returns null when any segment doesn't match — the viewer shows page-not-found
- * inline (the notebook itself exists).
+ * inline (the runbook itself exists).
  */
 export function findPage(
-  spec: NotebookSpec,
+  spec: RunbookSpec,
   pagePath: string,
 ): ResolvedPage | null {
   const segments = pagePath.split("/").filter(Boolean);
@@ -30,7 +30,7 @@ export function findPage(
     };
   }
   let pages = spec.pages ?? [];
-  let resolved: NotebookPage | null = null;
+  let resolved: RunbookPage | null = null;
   for (const segment of segments) {
     const found = pages.find((p) => p.name === segment);
     if (!found) return null;
@@ -54,9 +54,9 @@ export interface PageNavNode {
   children: PageNavNode[];
 }
 
-export function pageNavTree(spec: NotebookSpec): PageNavNode[] {
+export function pageNavTree(spec: RunbookSpec): PageNavNode[] {
   const build = (
-    pages: NotebookPage[] | undefined,
+    pages: RunbookPage[] | undefined,
     prefix: string,
   ): PageNavNode[] =>
     (pages ?? []).map((page) => {
@@ -86,16 +86,16 @@ function normalizePath(path: string): string {
 }
 
 /**
- * Map each page's source markdown file (normalized, relative to the notebook
+ * Map each page's source markdown file (normalized, relative to the runbook
  * YAML) to its page path. Pages authored with `inline:` only don't appear.
  * Includes the index page ("" path) when spec.markdown.file is present.
  */
-export function buildFileToPageMap(spec: NotebookSpec): Map<string, string> {
+export function buildFileToPageMap(spec: RunbookSpec): Map<string, string> {
   const map = new Map<string, string>();
   if (spec.markdown.file !== undefined) {
     map.set(normalizePath(spec.markdown.file), "");
   }
-  const walk = (pages: NotebookPage[] | undefined, prefix: string): void => {
+  const walk = (pages: RunbookPage[] | undefined, prefix: string): void => {
     for (const page of pages ?? []) {
       const path = prefix ? `${prefix}/${page.name}` : page.name;
       if (page.markdown.file !== undefined) {
@@ -123,7 +123,7 @@ function stripHrefSuffix(href: string): string {
  * is none. The resolver strips the fragment to match a page path, so the link
  * consumer re-applies it to the router <Link> (via its `hash` prop) — otherwise
  * `traffic.md#errors` would navigate to the top of the page, not the heading.
- * (Query strings are intentionally not carried: notebook routes have a typed
+ * (Query strings are intentionally not carried: runbook routes have a typed
  * search schema, so arbitrary markdown query params aren't part of it.)
  */
 export function hrefHash(href: string): string | undefined {
@@ -132,14 +132,14 @@ export function hrefHash(href: string): string | undefined {
   return href.slice(i + 1) || undefined;
 }
 
-/** Resolve one markdown href against a notebook to a page path, or null. */
-export type NotebookLinkResolver = (
+/** Resolve one markdown href against a runbook to a page path, or null. */
+export type RunbookLinkResolver = (
   href: string,
   currentFile: string | undefined,
 ) => string | null;
 
 /**
- * Build a resolver that maps a markdown href to a notebook page path, or null
+ * Build a resolver that maps a markdown href to a runbook page path, or null
  * when the link is external/unresolvable and should render as a plain anchor.
  * The spec-derived lookups (page-path set, file→page map) are computed once and
  * captured, so resolving many links on a page doesn't re-walk the tree per link.
@@ -152,9 +152,9 @@ export type NotebookLinkResolver = (
  *     page's markdown.file) matches an entry in buildFileToPageMap → that page
  *  4. otherwise null
  */
-export function makeNotebookLinkResolver(
-  spec: NotebookSpec,
-): NotebookLinkResolver {
+export function makeRunbookLinkResolver(
+  spec: RunbookSpec,
+): RunbookLinkResolver {
   const pagePaths = new Set<string>([""]);
   const collect = (nodes: PageNavNode[]): void => {
     for (const node of nodes) {
@@ -166,7 +166,7 @@ export function makeNotebookLinkResolver(
   const fileMap = buildFileToPageMap(spec);
 
   return (href, currentFile) => {
-    // 1. external / absolute / hash-only links are not notebook navigation.
+    // 1. external / absolute / hash-only links are not runbook navigation.
     if (
       href === "" ||
       href.startsWith("#") ||
@@ -196,37 +196,37 @@ export function makeNotebookLinkResolver(
 }
 
 /**
- * Convenience wrapper around {@link makeNotebookLinkResolver} for a single href
+ * Convenience wrapper around {@link makeRunbookLinkResolver} for a single href
  * — builds a throwaway resolver, so prefer the factory when resolving many.
  */
-export function resolveNotebookLink(
+export function resolveRunbookLink(
   href: string,
   currentFile: string | undefined,
-  spec: NotebookSpec,
+  spec: RunbookSpec,
 ): string | null {
-  return makeNotebookLinkResolver(spec)(href, currentFile);
+  return makeRunbookLinkResolver(spec)(href, currentFile);
 }
 
 /**
- * Adapt a notebook into a Dashboard-shaped document so the existing dashboard
+ * Adapt a runbook into a Dashboard-shaped document so the existing dashboard
  * machinery (DashboardProvider → useDashboardPanelData → VariableBar) works
- * unchanged. `spec.panels` carries the notebook's shared
+ * unchanged. `spec.panels` carries the runbook's shared
  * panels so `ref:` embeds resolve through the same context.
  */
 export function toDashboardDocument(
-  notebook: Notebook,
+  runbook: Runbook,
   project: string,
   slug: string,
 ): Dashboard {
   const spec: Dashboard["spec"] = {
-    display: notebook.spec.display,
-    panels: notebook.spec.panels ?? {},
+    display: runbook.spec.display,
+    panels: runbook.spec.panels ?? {},
     layouts: [],
-    duration: notebook.spec.duration,
-    refreshInterval: notebook.spec.refreshInterval,
+    duration: runbook.spec.duration,
+    refreshInterval: runbook.spec.refreshInterval,
   };
-  if (notebook.spec.variables !== undefined) {
-    spec.variables = notebook.spec.variables;
+  if (runbook.spec.variables !== undefined) {
+    spec.variables = runbook.spec.variables;
   }
   return {
     kind: "Dashboard",

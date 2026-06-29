@@ -1,28 +1,28 @@
 import { describe, expect, it } from "vitest";
-import { notebookSpecSchema, notebookSpecSchemaStrict } from "./schema";
+import { runbookSpecSchema, runbookSpecSchemaStrict } from "./schema";
 
 const md = { inline: "# Hello" };
 
-describe("notebookSpecSchema", () => {
-  it("accepts a minimal single-document notebook", () => {
-    expect(notebookSpecSchema.safeParse({ markdown: md }).success).toBe(true);
+describe("runbookSpecSchema", () => {
+  it("accepts a minimal single-document runbook", () => {
+    expect(runbookSpecSchema.safeParse({ markdown: md }).success).toBe(true);
   });
 
   it("requires markdown (the index page)", () => {
-    const r = notebookSpecSchema.safeParse({
+    const r = runbookSpecSchema.safeParse({
       pages: [{ name: "a", markdown: md }],
     });
     expect(r.success).toBe(false);
   });
 
   it("rejects markdown with an unresolved file pointer", () => {
-    const r = notebookSpecSchema.safeParse({ markdown: { file: "./x.md" } });
+    const r = runbookSpecSchema.safeParse({ markdown: { file: "./x.md" } });
     expect(r.success).toBe(false);
     expect(JSON.stringify(r.error?.issues)).toContain("everr CLI");
   });
 
   it("accepts recursive pages", () => {
-    const r = notebookSpecSchema.safeParse({
+    const r = runbookSpecSchema.safeParse({
       markdown: md,
       pages: [
         {
@@ -37,7 +37,7 @@ describe("notebookSpecSchema", () => {
   });
 
   it("rejects duplicate sibling page names (but allows same name in different branches)", () => {
-    const dup = notebookSpecSchema.safeParse({
+    const dup = runbookSpecSchema.safeParse({
       markdown: md,
       pages: [
         { name: "a", markdown: md },
@@ -46,7 +46,7 @@ describe("notebookSpecSchema", () => {
     });
     expect(dup.success).toBe(false);
 
-    const ok = notebookSpecSchema.safeParse({
+    const ok = runbookSpecSchema.safeParse({
       markdown: md,
       pages: [
         { name: "x", markdown: md, pages: [{ name: "a", markdown: md }] },
@@ -57,7 +57,7 @@ describe("notebookSpecSchema", () => {
   });
 
   it("rejects invalid page names", () => {
-    const r = notebookSpecSchema.safeParse({
+    const r = runbookSpecSchema.safeParse({
       markdown: md,
       pages: [{ name: "Not A Slug!", markdown: md }],
     });
@@ -65,14 +65,14 @@ describe("notebookSpecSchema", () => {
   });
 
   it("rejects unknown keys in markdown (catches typos like 'flie')", () => {
-    const r = notebookSpecSchema.safeParse({
+    const r = runbookSpecSchema.safeParse({
       markdown: { inline: "x", flie: "y" },
     });
     expect(r.success).toBe(false);
   });
 
   it("rejects unknown keys on a page (catches typos like 'pagse')", () => {
-    const r = notebookSpecSchema.safeParse({
+    const r = runbookSpecSchema.safeParse({
       markdown: md,
       pages: [
         { name: "a", markdown: md, pagse: [{ name: "b", markdown: md }] },
@@ -82,7 +82,7 @@ describe("notebookSpecSchema", () => {
   });
 
   it("rejects unknown top-level spec keys (catches typos like 'varaibles')", () => {
-    const r = notebookSpecSchema.safeParse({
+    const r = runbookSpecSchema.safeParse({
       markdown: md,
       varaibles: [{ kind: "TextVariable", spec: { name: "s", value: "v" } }],
     });
@@ -90,7 +90,7 @@ describe("notebookSpecSchema", () => {
   });
 
   it("accepts shared panels and variables (dashboard schemas)", () => {
-    const r = notebookSpecSchema.safeParse({
+    const r = runbookSpecSchema.safeParse({
       markdown: md,
       variables: [
         { kind: "TextVariable", spec: { name: "svc", value: "api" } },
@@ -106,9 +106,9 @@ describe("notebookSpecSchema", () => {
   });
 });
 
-describe("notebookSpecSchemaStrict", () => {
+describe("runbookSpecSchemaStrict", () => {
   it("rejects a bad query plugin spec with path through collectPanelStrictIssues", () => {
-    const r = notebookSpecSchemaStrict.safeParse({
+    const r = runbookSpecSchemaStrict.safeParse({
       markdown: md,
       panels: {
         bad: {
@@ -144,7 +144,7 @@ describe("notebookSpecSchemaStrict", () => {
   });
 
   it("rejects an invalid panel plugin option with a precise path", () => {
-    const r = notebookSpecSchemaStrict.safeParse({
+    const r = runbookSpecSchemaStrict.safeParse({
       markdown: md,
       panels: {
         bad: {

@@ -1,7 +1,7 @@
 import { applyAlertSpecs } from "@/data/alerts/apply.server";
 import { validateAlertNotebookLinks } from "@/data/alerts/notebook-links.server";
 import { applyDashboardSpecs } from "@/data/dashboards/apply.server";
-import { applyNotebookSpecs } from "@/data/notebooks/apply.server";
+import { applyRunbookSpecs } from "@/data/runbooks/apply.server";
 import { ApplyValidationError } from "./errors";
 import type { ApplyInput, ApplyResourceEntry, ApplySource } from "./schema";
 
@@ -40,7 +40,7 @@ const REGISTRY: {
   reconcile: Reconciler;
 }[] = [
   { key: "dashboards", kind: "Dashboard", reconcile: applyDashboardSpecs },
-  { key: "notebooks", kind: "Notebook", reconcile: applyNotebookSpecs },
+  { key: "runbooks", kind: "Runbook", reconcile: applyRunbookSpecs },
   { key: "alerts", kind: "AlertRule", reconcile: applyAlertSpecs },
 ];
 
@@ -50,7 +50,11 @@ function validateResourceKind(
 ): void {
   for (const resource of resources) {
     const value = resource.resource as { kind?: unknown } | null | undefined;
-    if (value?.kind !== expectedKind) {
+    const ok =
+      value?.kind === expectedKind ||
+      // `Notebook` is the legacy alias for `Runbook` (ADR 0002).
+      (expectedKind === "Runbook" && value?.kind === "Notebook");
+    if (!ok) {
       throw new ApplyValidationError(
         `${resource.path}: expected kind "${expectedKind}"`,
       );
@@ -67,8 +71,8 @@ function validateResourceKind(
  * therefore reconcile in two passes: a dry-run pass that validates every kind
  * (each reconciler runs its full document validation but performs no writes),
  * then — only if all kinds validated — the real apply pass. Without this, an
- * apply carrying a single invalid Notebook would let the Dashboard reconciler
- * prune the repo before Notebook validation threw.
+ * apply carrying a single invalid Runbook would let the Dashboard reconciler
+ * prune the repo before Runbook validation threw.
  */
 export async function applyResources(opts: {
   orgId: string;
@@ -106,13 +110,15 @@ export async function applyResources(opts: {
     validated.push(summarize(kind, r));
   }
 
-  // Cross-kind: a linked notebook must exist in this batch or already in the
+  // Cross-kind: a linked runbook must exist in this batch or already in the
   // DB. Runs after every kind validated, before any kind writes.
   await validateAlertNotebookLinks({
     orgId,
     repoid,
     alerts: state.alerts,
-    notebooks: state.notebooks,
+    // `validateAlertNotebookLinks` still names its param `notebooks` (renamed
+    // in a later task); feed it the renamed `runbooks` state key.
+    notebooks: state.runbooks,
   });
 
   if (dryRun) return { dryRun: true, results: validated };
