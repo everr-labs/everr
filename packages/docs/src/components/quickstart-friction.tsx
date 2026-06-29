@@ -24,7 +24,7 @@ const OLD_WAY_STEPS = [
 const INSTALL_OUTPUT = [
   "everr CLI installed",
   "agent skills installed",
-  "local collector listening on :4317",
+  "local collector ready",
   "first trace received",
 ] as const;
 
@@ -65,9 +65,10 @@ export function QuickstartFriction() {
             Days of setup, or one command.
           </h2>
           <p className="mt-6 max-w-xl text-balance text-base leading-relaxed text-fd-muted-foreground sm:text-lg">
-            The usual path to observability is a week of yak-shaving. Everr is
-            one line: install the CLI, run guided setup, and you&rsquo;re
-            sending telemetry in minutes.
+            Setting up observability usually means a long detour full of context
+            switches. With Everr the feedback loop is immediate &mdash; one
+            command installs the CLI, your agent skills, and a local collector,
+            so you and your coding agent get straight to the data.
           </p>
         </motion.div>
 
@@ -112,7 +113,7 @@ export function QuickstartFriction() {
                 ~3 days
               </span>
               <span className="ml-auto font-heading text-[11px] font-bold uppercase tracking-[0.2em] text-fd-muted-foreground/40">
-                to first trace
+                to first signal
               </span>
             </div>
           </motion.div>
@@ -228,7 +229,7 @@ export function QuickstartFriction() {
                 minutes
               </span>
               <span className="ml-auto font-heading text-[11px] font-bold uppercase tracking-[0.2em] text-primary">
-                to first trace
+                to first signal
               </span>
             </div>
           </motion.div>
@@ -242,8 +243,8 @@ export function QuickstartFriction() {
           className="mt-14 flex flex-col items-start gap-6 sm:flex-row sm:items-center sm:justify-between"
         >
           <p className="max-w-md text-balance font-mono text-xs leading-relaxed text-fd-muted-foreground sm:text-sm">
-            Same pipeline, none of the setup. Skip the week of plumbing and go
-            straight to the data.
+            Same pipeline, none of the setup. Skip the plumbing and go straight
+            to the data.
           </p>
           <a
             href="/docs/getting-started/install"

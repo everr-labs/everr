@@ -304,8 +304,8 @@ function SelfHostPanel({ tablistId }: { tablistId: string }) {
             <p className="text-fd-muted-foreground/70">↳ pulling collector…</p>
             <p className="text-fd-muted-foreground/70">↳ starting pipeline…</p>
             <p className="text-fd-foreground">
-              <span className="text-primary">✓</span> everr live on{" "}
-              <span className="text-fd-foreground">:4317</span>
+              <span className="text-primary">✓</span> everr live,{" "}
+              <span className="text-fd-foreground">collector ready</span>
             </p>
           </div>
         </div>
