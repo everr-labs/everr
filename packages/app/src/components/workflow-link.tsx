@@ -32,7 +32,7 @@ export function WorkflowLink({
       to="/workflows/$repo/$workflowName"
       params={{ repo, workflowName }}
       className={cn("font-medium hover:underline", className)}
-      title={`Open ${workflowName} detail`}
+      title={`Open ${workflowName} workflow detail`}
     >
       {workflowName}
     </Link>
