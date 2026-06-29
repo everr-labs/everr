@@ -68,7 +68,7 @@ async function organizationName(organizationId: string): Promise<string> {
  *  - a logged-in session bearer token: org from the session's active org.
  * The `ek_` prefix decides the path so a session token never hits verifyApiKey.
  * API keys are additionally required to carry the `apply` scope — a key minted
- * for telemetry ingest only must not be able to mutate dashboards, notebooks,
+ * for telemetry ingest only must not be able to mutate dashboards, runbooks,
  * or alerts even though both use the same `ek_` configId.
  */
 export async function resolveApplyAuth(headers: Headers): Promise<ApplyAuth> {

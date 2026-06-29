@@ -2,7 +2,7 @@ import { AlertCircle } from "lucide-react";
 import { type ReactNode, useMemo } from "react";
 import { DashboardPanel } from "@/components/dashboards/dashboard-panel";
 import { useDashboard } from "@/components/dashboards/use-dashboard";
-import { type PanelEmbed, parsePanelEmbed } from "@/data/notebooks/embed";
+import { type PanelEmbed, parsePanelEmbed } from "@/data/runbooks/embed";
 
 const DEFAULT_HEIGHT = 350;
 
@@ -64,13 +64,13 @@ export function PanelEmbedBlock({ source }: { source: string }) {
 }
 
 function RefEmbed({ embed }: { embed: Extract<PanelEmbed, { kind: "ref" }> }) {
-  // The notebook's shared panels travel through the dashboard context (see
+  // The runbook's shared panels travel through the dashboard context (see
   // toDashboardDocument), so ref lookup and query execution share one path.
   const panel = useDashboard().spec.panels[embed.ref];
   if (!panel) {
     return (
       <EmbedError
-        message={`Panel "${embed.ref}" is not defined in this notebook's spec.panels`}
+        message={`Panel "${embed.ref}" is not defined in this runbook's spec.panels`}
       />
     );
   }

@@ -1,8 +1,8 @@
 import { cn } from "@everr/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
-import type { PageNavNode } from "@/data/notebooks/pages";
+import type { PageNavNode } from "@/data/runbooks/pages";
 
-interface NotebookPageNavProps {
+interface RunbookPageNavProps {
   project: string;
   slug: string;
   indexTitle: string;
@@ -11,19 +11,19 @@ interface NotebookPageNavProps {
   activePath: string;
 }
 
-export function NotebookPageNav({
+export function RunbookPageNav({
   project,
   slug,
   indexTitle,
   tree,
   activePath,
-}: NotebookPageNavProps) {
+}: RunbookPageNavProps) {
   return (
-    <nav className="w-56 shrink-0" aria-label="Notebook pages">
+    <nav className="w-56 shrink-0" aria-label="Runbook pages">
       <ul className="flex flex-col gap-0.5 text-sm">
         <li>
           <Link
-            to="/notebooks/$project/$slug"
+            to="/runbooks/$project/$slug"
             params={{ project, slug }}
             className={cn(
               "block rounded-md px-2 py-1 hover:bg-accent/50",
@@ -64,7 +64,7 @@ function PageNavRow({
   return (
     <li>
       <Link
-        to="/notebooks/$project/$slug/$"
+        to="/runbooks/$project/$slug/$"
         params={{ project, slug, _splat: node.path }}
         style={{ paddingLeft: `${depth * 12 + 8}px` }}
         className={cn(

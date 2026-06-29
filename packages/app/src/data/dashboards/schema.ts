@@ -176,7 +176,7 @@ export const dashboardSpecSchema = z
 
 /**
  * Strict plugin/query spec issues for one panel, paths relative to the panel
- * object. Shared by the dashboard and notebook write-path validation.
+ * object. Shared by the dashboard and runbook write-path validation.
  */
 export function collectPanelStrictIssues(
   p: Panel,

@@ -209,7 +209,7 @@ function AlertDetailPage() {
     ["Repository", detail.repoid],
     ["Project", detail.project],
     ...maybeRow(detail.runbookSlug, [
-      "Notebook",
+      "Runbook",
       runbookLink(detail.runbookProject, detail.runbookSlug),
     ]),
     ["Evaluation interval", formatInterval(detail.evaluationIntervalSeconds)],
@@ -544,7 +544,7 @@ function KeyValueList({ values }: { values: Record<string, string> }) {
 function runbookLink(project: string, slug: string): ReactNode {
   return (
     <Link
-      to="/notebooks/$project/$slug"
+      to="/runbooks/$project/$slug"
       params={{ project, slug }}
       className="inline-flex items-center gap-1.5 underline underline-offset-4"
     >

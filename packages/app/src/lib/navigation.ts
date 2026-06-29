@@ -25,8 +25,8 @@ export const navMain: NavItem[] = [
     icon: LayoutDashboard,
   },
   {
-    title: "Notebooks",
-    url: "/notebooks",
+    title: "Runbooks",
+    url: "/runbooks",
     icon: NotebookText,
   },
   {

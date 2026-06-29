@@ -323,11 +323,11 @@ function AlertsPage() {
         cell: (row) => formatInterval(row.evaluationIntervalSeconds),
       },
       {
-        header: "Notebook",
+        header: "Runbook",
         cell: (row) =>
           row.runbookSlug ? (
             <Link
-              to="/notebooks/$project/$slug"
+              to="/runbooks/$project/$slug"
               params={{ project: row.runbookProject, slug: row.runbookSlug }}
               className="inline-flex items-center text-muted-foreground hover:text-foreground"
               title={formatRunbookRef(row.runbookProject, row.runbookSlug)}

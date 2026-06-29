@@ -10,8 +10,8 @@ import {
 } from "react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { hrefHash } from "@/data/notebooks/pages";
-import { PanelEmbedBlock } from "./notebook-panel-embed";
+import { hrefHash } from "@/data/runbooks/pages";
+import { PanelEmbedBlock } from "./runbook-panel-embed";
 
 /** Flatten react-markdown code children to the raw fence text. */
 function codeText(children: ReactNode): string {
@@ -49,14 +49,14 @@ type AnchorOrBlockProps<T extends "a" | "pre"> = ComponentPropsWithoutRef<T> & {
   node?: unknown;
 };
 
-interface NotebookLinkContextValue {
-  /** Resolve an href to a notebook page path ("" = index); null → plain anchor. */
+interface RunbookLinkContextValue {
+  /** Resolve an href to a runbook page path ("" = index); null → plain anchor. */
   resolveLink?: (href: string) => string | null;
   project?: string;
   slug?: string;
 }
 
-const NotebookLinkContext = createContext<NotebookLinkContextValue>({});
+const RunbookLinkContext = createContext<RunbookLinkContextValue>({});
 
 /** True for hrefs that leave the app (scheme like http:/mailto:, or //host). */
 function isExternalHref(href: string): boolean {
@@ -64,19 +64,19 @@ function isExternalHref(href: string): boolean {
 }
 
 /**
- * Anchor renderer for notebook markdown. Defined at module scope (not inside
- * NotebookMarkdown) and reading its inputs from context, so react-markdown sees
+ * Anchor renderer for runbook markdown. Defined at module scope (not inside
+ * RunbookMarkdown) and reading its inputs from context, so react-markdown sees
  * one stable component type and never unmounts/remounts the links on re-render.
- * In-notebook links become router <Link>s; external/unresolved ones stay plain
+ * In-runbook links become router <Link>s; external/unresolved ones stay plain
  * anchors, with external targets opened safely in a new tab.
  */
-function NotebookAnchor({
+function RunbookAnchor({
   node: _node,
   href,
   children,
   ...props
 }: AnchorOrBlockProps<"a">) {
-  const { resolveLink, project, slug } = useContext(NotebookLinkContext);
+  const { resolveLink, project, slug } = useContext(RunbookLinkContext);
 
   if (
     resolveLink &&
@@ -94,7 +94,7 @@ function NotebookAnchor({
       // external ones.
       return resolved === "" ? (
         <Link
-          to="/notebooks/$project/$slug"
+          to="/runbooks/$project/$slug"
           params={{ project, slug }}
           hash={hash}
           {...props}
@@ -103,7 +103,7 @@ function NotebookAnchor({
         </Link>
       ) : (
         <Link
-          to="/notebooks/$project/$slug/$"
+          to="/runbooks/$project/$slug/$"
           params={{ project, slug, _splat: resolved }}
           hash={hash}
           {...props}
@@ -130,24 +130,24 @@ function NotebookAnchor({
 
 // Stable references: react-markdown re-parses/re-renders when these change
 // identity, so they live at module scope rather than inline.
-const MARKDOWN_COMPONENTS: Components = { pre: PreBlock, a: NotebookAnchor };
+const MARKDOWN_COMPONENTS: Components = { pre: PreBlock, a: RunbookAnchor };
 const REMARK_PLUGINS = [remarkGfm];
 
-interface NotebookMarkdownProps {
+interface RunbookMarkdownProps {
   markdown: string;
-  /** Resolve an href to a notebook page path ("" = index); null → plain anchor. */
+  /** Resolve an href to a runbook page path ("" = index); null → plain anchor. */
   resolveLink?: (href: string) => string | null;
-  /** Required (with slug) to render in-notebook links as router <Link>s. */
+  /** Required (with slug) to render in-runbook links as router <Link>s. */
   project?: string;
   slug?: string;
 }
 
-export function NotebookMarkdown({
+export function RunbookMarkdown({
   markdown,
   resolveLink,
   project,
   slug,
-}: NotebookMarkdownProps) {
+}: RunbookMarkdownProps) {
   const linkContext = useMemo(
     () => ({ resolveLink, project, slug }),
     [resolveLink, project, slug],
@@ -156,7 +156,7 @@ export function NotebookMarkdown({
   // The app runs dark-only (see styles/global.css — :root is the dark theme),
   // so prose-invert is applied unconditionally for readable text.
   return (
-    <NotebookLinkContext.Provider value={linkContext}>
+    <RunbookLinkContext.Provider value={linkContext}>
       <div className="prose prose-invert max-w-none">
         <Markdown
           remarkPlugins={REMARK_PLUGINS}
@@ -165,6 +165,6 @@ export function NotebookMarkdown({
           {markdown}
         </Markdown>
       </div>
-    </NotebookLinkContext.Provider>
+    </RunbookLinkContext.Provider>
   );
 }
