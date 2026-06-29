@@ -13,7 +13,6 @@ import {
   Download,
   FileText,
   FlaskConical,
-  GitBranch,
 } from "lucide-react";
 import type { ComponentType } from "react";
 import { INSTALL_COMMAND } from "@/common/install-command";
@@ -56,13 +55,6 @@ function HomePage() {
             title="Runs"
             description="Browse every workflow run"
             icon={Activity}
-          />
-        </Link>
-        <Link to="/workflows" className="block h-full">
-          <SectionCard
-            title="Workflows"
-            description="Drill into workflows by repo"
-            icon={GitBranch}
           />
         </Link>
         <Link to="/logs" className="block h-full">

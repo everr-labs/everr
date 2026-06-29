@@ -181,13 +181,13 @@ describe("DashboardBreadcrumb", () => {
 
   it("renders parent and leaf breadcrumbs correctly", () => {
     mockUseMatches.mockReturnValue([
-      makeMatch("/workflows", "Workflows"),
+      makeMatch("/cost-analysis", "Cost Analysis"),
       makeMatch("/tests-overview", "Tests Overview"),
     ]);
     render(<DashboardBreadcrumb />);
 
-    const parentLink = screen.getByText("Workflows").closest("a");
-    expect(parentLink).toHaveAttribute("href", "/workflows");
+    const parentLink = screen.getByText("Cost Analysis").closest("a");
+    expect(parentLink).toHaveAttribute("href", "/cost-analysis");
 
     expect(
       screen

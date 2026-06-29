@@ -46,7 +46,6 @@ import { Route as AuthenticatedDashboardAccountRouteImport } from './routes/_aut
 import { Route as AuthenticatedDashboardExploreRouteImport } from './routes/_authenticated/_dashboard/_explore'
 import { Route as AuthInviteInvitationIdRouteImport } from './routes/_auth/invite.$invitationId'
 import { Route as AuthAuthErrorRouteImport } from './routes/_auth/auth/error'
-import { Route as AuthenticatedDashboardWorkflowsIndexRouteImport } from './routes/_authenticated/_dashboard/workflows/index'
 import { Route as AuthenticatedDashboardRunsIndexRouteImport } from './routes/_authenticated/_dashboard/runs/index'
 import { Route as AuthenticatedDashboardNotebooksIndexRouteImport } from './routes/_authenticated/_dashboard/notebooks/index'
 import { Route as AuthenticatedDashboardDashboardsIndexRouteImport } from './routes/_authenticated/_dashboard/dashboards/index'
@@ -273,12 +272,6 @@ const AuthAuthErrorRoute = AuthAuthErrorRouteImport.update({
   path: '/auth/error',
   getParentRoute: () => AuthRoute,
 } as any)
-const AuthenticatedDashboardWorkflowsIndexRoute =
-  AuthenticatedDashboardWorkflowsIndexRouteImport.update({
-    id: '/workflows/',
-    path: '/workflows/',
-    getParentRoute: () => AuthenticatedDashboardRoute,
-  } as any)
 const AuthenticatedDashboardRunsIndexRoute =
   AuthenticatedDashboardRunsIndexRouteImport.update({
     id: '/',
@@ -517,7 +510,6 @@ export interface FileRoutesByFullPath {
   '/dashboards/': typeof AuthenticatedDashboardDashboardsIndexRoute
   '/notebooks/': typeof AuthenticatedDashboardNotebooksIndexRoute
   '/runs/': typeof AuthenticatedDashboardRunsIndexRoute
-  '/workflows/': typeof AuthenticatedDashboardWorkflowsIndexRoute
   '/errors/$fingerprint': typeof AuthenticatedDashboardExploreErrorsFingerprintRoute
   '/traces/$traceId': typeof AuthenticatedDashboardExploreTracesTraceIdRoute
   '/dashboards/$project/$slug': typeof AuthenticatedDashboardDashboardsProjectSlugRoute
@@ -582,7 +574,6 @@ export interface FileRoutesByTo {
   '/dashboards': typeof AuthenticatedDashboardDashboardsIndexRoute
   '/notebooks': typeof AuthenticatedDashboardNotebooksIndexRoute
   '/runs': typeof AuthenticatedDashboardRunsIndexRoute
-  '/workflows': typeof AuthenticatedDashboardWorkflowsIndexRoute
   '/errors/$fingerprint': typeof AuthenticatedDashboardExploreErrorsFingerprintRoute
   '/traces/$traceId': typeof AuthenticatedDashboardExploreTracesTraceIdRoute
   '/dashboards/$project/$slug': typeof AuthenticatedDashboardDashboardsProjectSlugRoute
@@ -655,7 +646,6 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/dashboards/': typeof AuthenticatedDashboardDashboardsIndexRoute
   '/_authenticated/_dashboard/notebooks/': typeof AuthenticatedDashboardNotebooksIndexRoute
   '/_authenticated/_dashboard/runs/': typeof AuthenticatedDashboardRunsIndexRoute
-  '/_authenticated/_dashboard/workflows/': typeof AuthenticatedDashboardWorkflowsIndexRoute
   '/_authenticated/_dashboard/_explore/errors_/$fingerprint': typeof AuthenticatedDashboardExploreErrorsFingerprintRoute
   '/_authenticated/_dashboard/_explore/traces_/$traceId': typeof AuthenticatedDashboardExploreTracesTraceIdRoute
   '/_authenticated/_dashboard/dashboards/$project/$slug': typeof AuthenticatedDashboardDashboardsProjectSlugRoute
@@ -724,7 +714,6 @@ export interface FileRouteTypes {
     | '/dashboards/'
     | '/notebooks/'
     | '/runs/'
-    | '/workflows/'
     | '/errors/$fingerprint'
     | '/traces/$traceId'
     | '/dashboards/$project/$slug'
@@ -789,7 +778,6 @@ export interface FileRouteTypes {
     | '/dashboards'
     | '/notebooks'
     | '/runs'
-    | '/workflows'
     | '/errors/$fingerprint'
     | '/traces/$traceId'
     | '/dashboards/$project/$slug'
@@ -861,7 +849,6 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/dashboards/'
     | '/_authenticated/_dashboard/notebooks/'
     | '/_authenticated/_dashboard/runs/'
-    | '/_authenticated/_dashboard/workflows/'
     | '/_authenticated/_dashboard/_explore/errors_/$fingerprint'
     | '/_authenticated/_dashboard/_explore/traces_/$traceId'
     | '/_authenticated/_dashboard/dashboards/$project/$slug'
@@ -1156,13 +1143,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/auth/error'
       preLoaderRoute: typeof AuthAuthErrorRouteImport
       parentRoute: typeof AuthRoute
-    }
-    '/_authenticated/_dashboard/workflows/': {
-      id: '/_authenticated/_dashboard/workflows/'
-      path: '/workflows'
-      fullPath: '/workflows/'
-      preLoaderRoute: typeof AuthenticatedDashboardWorkflowsIndexRouteImport
-      parentRoute: typeof AuthenticatedDashboardRoute
     }
     '/_authenticated/_dashboard/runs/': {
       id: '/_authenticated/_dashboard/runs/'
@@ -1537,7 +1517,6 @@ interface AuthenticatedDashboardRouteChildren {
   AuthenticatedDashboardCheckoutSuccessRoute: typeof AuthenticatedDashboardCheckoutSuccessRoute
   AuthenticatedDashboardDashboardsIndexRoute: typeof AuthenticatedDashboardDashboardsIndexRoute
   AuthenticatedDashboardNotebooksIndexRoute: typeof AuthenticatedDashboardNotebooksIndexRoute
-  AuthenticatedDashboardWorkflowsIndexRoute: typeof AuthenticatedDashboardWorkflowsIndexRoute
   AuthenticatedDashboardDashboardsProjectSlugRoute: typeof AuthenticatedDashboardDashboardsProjectSlugRoute
   AuthenticatedDashboardWorkflowsRepoWorkflowNameRoute: typeof AuthenticatedDashboardWorkflowsRepoWorkflowNameRoute
   AuthenticatedDashboardNotebooksProjectSlugSplatRoute: typeof AuthenticatedDashboardNotebooksProjectSlugSplatRoute
@@ -1570,8 +1549,6 @@ const AuthenticatedDashboardRouteChildren: AuthenticatedDashboardRouteChildren =
       AuthenticatedDashboardDashboardsIndexRoute,
     AuthenticatedDashboardNotebooksIndexRoute:
       AuthenticatedDashboardNotebooksIndexRoute,
-    AuthenticatedDashboardWorkflowsIndexRoute:
-      AuthenticatedDashboardWorkflowsIndexRoute,
     AuthenticatedDashboardDashboardsProjectSlugRoute:
       AuthenticatedDashboardDashboardsProjectSlugRoute,
     AuthenticatedDashboardWorkflowsRepoWorkflowNameRoute:
