@@ -1,6 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import type { PanelQuerySource } from "@/components/dashboards/query-array";
 import type { QueryResultRow } from "@/components/dashboards/visualizations";
+import { createLimiter } from "@/lib/limiter";
 import type { VariableMeta, VariableValues } from "./interpolate";
 import {
   getDashboard,
@@ -10,6 +11,12 @@ import {
 } from "./server";
 
 const dashboardsQueryKey = ["dashboards"] as const;
+
+// Cap how many panel queries run at once so a dashboard (or a grid of card
+// previews) doesn't fire every panel's query simultaneously. Shared across all
+// panels on the page; the rest queue and start in waves as slots free.
+const MAX_CONCURRENT_PANEL_QUERIES = 4;
+const panelLimiter = createLimiter(MAX_CONCURRENT_PANEL_QUERIES);
 
 export const dashboardOptions = (project: string, slug: string) =>
   queryOptions({
@@ -43,12 +50,14 @@ export const panelQueryOptions = (
       variables ?? null,
       variableMeta ?? null,
     ],
-    queryFn: async (): Promise<{ rows: QueryResultRow[] }> => {
+    queryFn: async ({ signal }): Promise<{ rows: QueryResultRow[] }> => {
       // `none` is never enabled, but the queryFn must still type-check.
       if (source.kind === "none") return { rows: [] };
-      return runPanelQuery({
-        data: { source, from, to, variables, variableMeta },
-      });
+      return panelLimiter(signal, () =>
+        runPanelQuery({
+          data: { source, from, to, variables, variableMeta },
+        }),
+      );
     },
     enabled:
       source.kind === "ClickHouseSQL"
