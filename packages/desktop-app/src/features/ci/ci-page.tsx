@@ -28,6 +28,7 @@ import { APP_DISPLAY_NAME } from "@/lib/app-name";
 import { invokeCommand, NOTIFIER_CHECKED_EVENT } from "@/lib/tauri";
 import { useInvalidateOnTauriEvent } from "@/lib/tauri-events";
 import { AuthStandalone, useAuthStatusQuery } from "../auth/auth";
+import { PageTitleBar } from "../desktop-shell/title-bar";
 import { ciRunsRepository } from "./ci-runs-repository";
 
 export const CiSearchSchema = z.object({
@@ -131,40 +132,39 @@ function CiContent() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <header className="relative z-10 flex h-12 shrink-0 items-center justify-between border-b border-white/[0.06] px-3">
-        <div
-          data-tauri-drag-region
-          className="flex flex-1 items-center self-stretch pl-[var(--titlebar-inset)]"
-        >
-          <span className="text-sm font-medium text-[var(--settings-text)]">
-            CI runs
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <TimeRangePicker
-            value={timeRange}
-            onChange={(range) =>
-              navigate({
-                to: "/ci",
-                search: (prev) => ({ ...prev, from: range.from, to: range.to }),
-                replace: true,
-              })
-            }
-          />
-          <RefreshPicker
-            value={refresh}
-            onChange={(value) =>
-              navigate({
-                to: "/ci",
-                search: (prev) => ({ ...prev, refresh: value || undefined }),
-                replace: true,
-              })
-            }
-            onRefresh={() => void queryClient.invalidateQueries()}
-            isFetching={isFetching}
-          />
-        </div>
-      </header>
+      <PageTitleBar
+        title="CI runs"
+        actions={
+          <>
+            <TimeRangePicker
+              value={timeRange}
+              onChange={(range) =>
+                navigate({
+                  to: "/ci",
+                  search: (prev) => ({
+                    ...prev,
+                    from: range.from,
+                    to: range.to,
+                  }),
+                  replace: true,
+                })
+              }
+            />
+            <RefreshPicker
+              value={refresh}
+              onChange={(value) =>
+                navigate({
+                  to: "/ci",
+                  search: (prev) => ({ ...prev, refresh: value || undefined }),
+                  replace: true,
+                })
+              }
+              onRefresh={() => void queryClient.invalidateQueries()}
+              isFetching={isFetching}
+            />
+          </>
+        }
+      />
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <RunsExplorer
           repo={ciRunsRepository}

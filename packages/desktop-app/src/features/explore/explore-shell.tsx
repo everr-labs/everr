@@ -9,6 +9,7 @@ import { TimeRangePicker } from "@everr/ui/components/time-range-picker";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { useIsFetching, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useEffect, useMemo, useRef } from "react";
+import { PageTitleBar } from "../desktop-shell/title-bar";
 import { localSqlClient } from "../logs/local-sql-client";
 
 // The Explore topbar's Service/Environment option lists are the UNION across
@@ -70,28 +71,21 @@ export function ExploreShell({
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <header className="relative z-10 flex h-12 shrink-0 items-center justify-between border-b border-white/[0.06] px-3">
-        {/* flex-1 so the empty space stays a window drag handle (Tauri). */}
-        <div
-          data-tauri-drag-region
-          className="flex flex-1 items-center self-stretch pl-[var(--titlebar-inset)]"
-        >
-          <span className="text-sm font-medium text-[var(--settings-text)]">
-            {title}
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <TimeRangePicker value={timeRange} onChange={onTimeRangeChange} />
-          <RefreshPicker
-            value={refresh}
-            onChange={onRefreshChange}
-            onRefresh={() => void queryClient.invalidateQueries()}
-            isFetching={isFetching}
-          />
-        </div>
-      </header>
-      {/* Service/Environment get their own toolbar so the header keeps its full
-          drag region. The trailing filler stays draggable too. */}
+      <PageTitleBar
+        title={title}
+        actions={
+          <>
+            <TimeRangePicker value={timeRange} onChange={onTimeRangeChange} />
+            <RefreshPicker
+              value={refresh}
+              onChange={onRefreshChange}
+              onRefresh={() => void queryClient.invalidateQueries()}
+              isFetching={isFetching}
+            />
+          </>
+        }
+      />
+      {/* Service/Environment filters live in their own toolbar below the title bar. */}
       <div className="relative z-10 flex h-11 shrink-0 items-center gap-2 border-b border-white/[0.06] px-3">
         <ExploreGlobalFilters
           logsRepo={filterLogsRepo}
@@ -102,7 +96,6 @@ export function ExploreShell({
           onServiceChange={onServiceChange}
           onEnvironmentChange={onEnvironmentChange}
         />
-        <div data-tauri-drag-region className="h-full flex-1" />
       </div>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {children}

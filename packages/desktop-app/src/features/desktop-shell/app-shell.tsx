@@ -20,7 +20,9 @@ import {
   Settings,
   Workflow,
 } from "lucide-react";
-import { useIsFullscreen } from "../../lib/tauri-events";
+import { useState } from "react";
+import { OPEN_SETTINGS_EVENT } from "../../lib/tauri";
+import { useIsFullscreen, useTauriEvent } from "../../lib/tauri-events";
 import {
   useAuthStatusQuery,
   useOrgQuery,
@@ -29,41 +31,73 @@ import {
   useUserProfileQuery,
 } from "../auth/auth";
 import { AppUpdateButton } from "./app-update";
+import { TitleBarSlotsContext } from "./title-bar";
 
 export function AppShell() {
   useIsFullscreen();
+  const navigate = useNavigate();
+  // Tray "Settings" item emits this after showing the window; route to /settings.
+  useTauriEvent(OPEN_SETTINGS_EVENT, () => {
+    void navigate({ to: "/settings" });
+  });
+
+  // Portal targets for the single top title bar. Pages render their title +
+  // controls into these via PageTitleBar, so the bar spans the whole window
+  // top and the nav below it keeps a fixed position in fullscreen and not.
+  const [titleLeft, setTitleLeft] = useState<HTMLElement | null>(null);
+  const [titleRight, setTitleRight] = useState<HTMLElement | null>(null);
 
   return (
     <main className="h-screen overflow-hidden bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.06),transparent_30%),linear-gradient(180deg,var(--settings-shell)_0%,var(--settings-shell-bottom)_100%)] text-[var(--settings-text)]">
-      <div data-tauri-drag-region className="fixed inset-x-0 top-0 h-9" />
-      <Card className="flex flex-row gap-0 h-screen w-full overflow-hidden border-[color:var(--settings-border)] bg-[var(--settings-panel)] text-[var(--settings-text)] shadow-[var(--settings-panel-shadow)] py-0">
-        <nav className="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-white/[0.06] pt-[var(--titlebar-top)] pb-3">
-          <SidebarLink to="/logs" label="Logs">
-            <ScrollText className="size-[18px]" />
-          </SidebarLink>
-          <SidebarLink to="/traces" label="Traces">
-            <Workflow className="size-[18px]" />
-          </SidebarLink>
-          <SidebarLink to="/errors" label="Errors">
-            <Bug className="size-[18px]" />
-          </SidebarLink>
-          <NotificationsLink />
-          <SidebarLink to="/settings" label="Settings">
-            <Settings className="size-[18px]" />
-          </SidebarLink>
-          {import.meta.env.DEV && (
-            <SidebarLink to="/developer" label="Developer">
-              <Code className="size-[18px]" />
-            </SidebarLink>
-          )}
-          <div className="mt-auto flex flex-col items-center gap-1.5">
-            <AppUpdateButton />
-            <AuthStatusIndicator />
+      <Card className="flex h-screen w-full flex-col gap-0 overflow-hidden border-[color:var(--settings-border)] bg-[var(--settings-panel)] py-0 text-[var(--settings-text)] shadow-[var(--settings-panel-shadow)]">
+        <header className="relative z-10 flex h-12 shrink-0 items-center gap-2 border-b border-white/[0.06]">
+          {/* Left: traffic-light clearance + page title; the empty space stays a
+              window drag handle. The inset collapses to 0 in fullscreen. */}
+          <div
+            ref={setTitleLeft}
+            data-tauri-drag-region
+            className="flex min-w-0 flex-1 items-center self-stretch gap-2 pl-[var(--titlebar-inset)] pr-2"
+          />
+          {/* Right: page controls (time range, refresh) — interactive, not a drag region. */}
+          <div
+            ref={setTitleRight}
+            className="flex shrink-0 items-center gap-1.5 pr-3"
+          />
+        </header>
+
+        <TitleBarSlotsContext.Provider
+          value={{ left: titleLeft, right: titleRight }}
+        >
+          <div className="flex min-h-0 flex-1 flex-row">
+            <nav className="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-white/[0.06] pt-2 pb-3">
+              <SidebarLink to="/logs" label="Logs">
+                <ScrollText className="size-[18px]" />
+              </SidebarLink>
+              <SidebarLink to="/traces" label="Traces">
+                <Workflow className="size-[18px]" />
+              </SidebarLink>
+              <SidebarLink to="/errors" label="Errors">
+                <Bug className="size-[18px]" />
+              </SidebarLink>
+              <NotificationsLink />
+              <SidebarLink to="/settings" label="Settings">
+                <Settings className="size-[18px]" />
+              </SidebarLink>
+              {import.meta.env.DEV && (
+                <SidebarLink to="/developer" label="Developer">
+                  <Code className="size-[18px]" />
+                </SidebarLink>
+              )}
+              <div className="mt-auto flex flex-col items-center gap-1.5">
+                <AppUpdateButton />
+                <AuthStatusIndicator />
+              </div>
+            </nav>
+            <CardContent className="min-w-0 flex-1 overflow-y-auto overscroll-none p-0">
+              <Outlet />
+            </CardContent>
           </div>
-        </nav>
-        <CardContent className="min-w-0 flex-1 overflow-y-auto overscroll-none p-0">
-          <Outlet />
-        </CardContent>
+        </TitleBarSlotsContext.Provider>
       </Card>
     </main>
   );

@@ -49,6 +49,7 @@ use update::{start_update_check_loop, PendingUpdateState};
 const UPDATE_CHECK_INTERVAL_SECONDS: u64 = 15 * 60;
 const AUTH_CHANGED_EVENT: &str = "everr://auth-changed";
 const SETTINGS_CHANGED_EVENT: &str = "everr://settings-changed";
+const OPEN_SETTINGS_EVENT: &str = "everr://open-settings";
 const NOTIFICATION_CHANGED_EVENT: &str = "everr://notification-changed";
 const NOTIFICATION_HOVER_EVENT: &str = "everr://notification-hover";
 const NOTIFICATION_EXIT_EVENT: &str = "everr://notification-exit";

@@ -7,6 +7,7 @@ import {
 } from "../local-telemetry/collector-status";
 import { NotificationEmailsSection } from "../notifications/notification-emails-section";
 import { SkillsSection } from "../skills/skills-section";
+import { PageTitleBar } from "./title-bar";
 import { SettingsSection } from "./ui";
 
 function LocalTelemetrySection() {
@@ -77,16 +78,7 @@ function LocalTelemetrySection() {
 export function SettingsPage() {
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <header className="relative z-10 flex h-12 shrink-0 items-center justify-between border-b border-white/[0.06] px-3">
-        <div
-          data-tauri-drag-region
-          className="flex flex-1 items-center self-stretch pl-[var(--titlebar-inset)]"
-        >
-          <span className="text-sm font-medium text-[var(--settings-text)]">
-            Settings
-          </span>
-        </div>
-      </header>
+      <PageTitleBar title="Settings" />
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="grid divide-y divide-white/[0.08]">
           <AuthSettingsSection />
