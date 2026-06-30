@@ -1,6 +1,10 @@
 import { resolveTimeRange } from "@everr/ui/lib/time-range";
 import * as z from "zod";
 import { TimeRangeInputSchema } from "@/data/analytics/schemas";
+import {
+  nonEmptyResourceAttribute,
+  resourceAttribute,
+} from "@/data/run-query-helpers";
 import { calculateCost } from "@/lib/runner-pricing";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { type BucketGranularity, getBucketGranularity } from "@/lib/time-range";
@@ -42,14 +46,6 @@ const RESOURCE_ATTRIBUTE_KEYS = {
   repo: "vcs.repository.name",
   workflow: "cicd.pipeline.name",
 } as const;
-
-function resourceAttribute(key: string): string {
-  return `ResourceAttributes['${key}']`;
-}
-
-function nonEmptyResourceAttribute(key: string): string {
-  return `mapContains(ResourceAttributes, '${key}') AND ${resourceAttribute(key)} != ''`;
-}
 
 export const getCostOverview = createAuthenticatedServerFn({
   method: "GET",

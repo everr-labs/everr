@@ -105,11 +105,8 @@ function WorkflowCostDetailPage() {
           variant="stat"
           icon={DollarSign}
           background={(s) =>
-            s.overTime.some((p) => p.spend > 0) ? (
-              <Sparkline
-                data={s.overTime.map((p) => p.spend)}
-                className="h-full w-full"
-              />
+            s.overTime.some((v) => v > 0) ? (
+              <Sparkline data={s.overTime} className="h-full w-full" />
             ) : null
           }
         >
@@ -188,17 +185,7 @@ function WorkflowCostDetailPage() {
           queries={[wfRecentRuns]}
           inset="flush-content"
         >
-          {(runs) => (
-            <RunsTable
-              data={runs}
-              hideWorkflow
-              hideRepository
-              hideSender
-              costByTraceId={Object.fromEntries(
-                runs.map((r) => [r.traceId, r.estimatedCost]),
-              )}
-            />
-          )}
+          {(runs) => <RunsTable data={runs} showCost />}
         </TimeRangePanel>
       </div>
     </div>

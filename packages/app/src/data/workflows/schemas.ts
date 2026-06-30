@@ -4,35 +4,22 @@ import type { RunListItem } from "../runs-list/schemas";
 
 // ── Types ───────────────────────────────────────────────────────────────
 
-/** One bucket of the cost-over-time series (spend in USD, compute minutes). */
-export interface WorkflowCostOverTimePoint {
-  date: string;
-  spend: number;
-  minutes: number;
-}
-
 /**
  * Cost-first summary for a single workflow over the selected range, plus the
- * previous period for deltas. Distinguishes three minute measures:
- *  - billedMinutes  — what GitHub charges (per-job duration ceil'd to the minute)
- *  - computeMinutes — actual elapsed runner time, summed across all jobs
- *  - wallClockMinutes — real elapsed time per run, summed (jobs run in parallel,
- *    so this is ≤ computeMinutes; the ratio is the parallelization factor)
+ * previous period for deltas.
+ *  - billedMinutes — what GitHub charges (per-job duration ceil'd to the minute)
+ *  - avgWallClockMs — real elapsed time per run (jobs run in parallel)
+ *  - overTime — daily estimated spend, oldest→newest, for the sparkline
  */
 export interface WorkflowCostSummary {
   totalCost: number;
   prevTotalCost: number;
   avgCostPerRun: number;
   totalRuns: number;
-  prevTotalRuns: number;
   billedMinutes: number;
-  computeMinutes: number;
-  wallClockMinutes: number;
   avgWallClockMs: number;
   prevAvgWallClockMs: number;
-  avgJobsPerRun: number;
-  selfHostedMinutes: number;
-  overTime: WorkflowCostOverTimePoint[];
+  overTime: number[];
 }
 
 /** Cost attributed to one job (across all of its runs in the range). */
@@ -55,7 +42,7 @@ export interface WorkflowRunGanttJob {
   estimatedCost: number;
 }
 
-/** The most recent run, with its jobs laid out for a parallelization Gantt. */
+/** A run with its jobs laid out for a parallelization Gantt. */
 export interface WorkflowRunGantt {
   runId: string;
   traceId: string;
@@ -63,9 +50,7 @@ export interface WorkflowRunGantt {
   conclusion: string;
   timestamp: string;
   startMs: number;
-  endMs: number;
   wallClockMs: number;
-  computeMs: number;
   estimatedCost: number;
   jobs: WorkflowRunGanttJob[];
 }

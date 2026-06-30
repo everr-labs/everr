@@ -2,31 +2,44 @@ import {
   resolveTimeRange,
   toClickHouseDateTime,
 } from "@everr/ui/lib/time-range";
-import { calculateCost, getRunnerPricing } from "@/lib/runner-pricing";
+import { calculateCost } from "@/lib/runner-pricing";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
-import { CONCLUSION_EXPR, runSummarySubquery } from "../run-query-helpers";
+import {
+  CONCLUSION_EXPR,
+  nonEmptyResourceAttribute,
+  resourceAttribute,
+  resourceAttributeEquals,
+  runSummarySubquery,
+} from "../run-query-helpers";
 import type { RunListItem } from "../runs-list/schemas";
 import {
   type WorkflowCostByJob,
-  type WorkflowCostOverTimePoint,
   type WorkflowCostSummary,
   WorkflowDetailInputSchema,
   type WorkflowRunGantt,
   type WorkflowRunListItem,
 } from "./schemas";
 
+const AND = "\n\t\t\t\tAND ";
+
+// This workflow's runs (the pipeline-run span level).
+const RUN_FILTER = [
+  nonEmptyResourceAttribute("cicd.pipeline.run.id"),
+  resourceAttributeEquals("cicd.pipeline.name", "workflowName"),
+  resourceAttributeEquals("vcs.repository.name", "repo"),
+].join(AND);
+
 // Job-level rows only: exclude step and test spans, drop skipped jobs, and
 // require a runner-labels attribute so pricing can be resolved.
-const JOB_COST_FILTER = `
-	ResourceAttributes['cicd.pipeline.name'] = {workflowName:String}
-	AND ResourceAttributes['vcs.repository.name'] = {repo:String}
-	AND ResourceAttributes['cicd.pipeline.worker.labels'] != ''
-	AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
-	AND lowerUTF8(ResourceAttributes['cicd.pipeline.task.run.result']) != 'skip'
-	AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
-	AND SpanAttributes['everr.test.name'] = ''`;
-
-const MS_PER_MINUTE = 60_000;
+const JOB_COST_FILTER = [
+  resourceAttributeEquals("cicd.pipeline.name", "workflowName"),
+  resourceAttributeEquals("vcs.repository.name", "repo"),
+  nonEmptyResourceAttribute("cicd.pipeline.worker.labels"),
+  nonEmptyResourceAttribute("cicd.pipeline.task.run.id"),
+  `lowerUTF8(${resourceAttribute("cicd.pipeline.task.run.result")}) != 'skip'`,
+  "SpanAttributes['everr.github.workflow_job_step.number'] = ''",
+  "SpanAttributes['everr.test.name'] = ''",
+].join(AND);
 
 export const getWorkflowCostSummary = createAuthenticatedServerFn({
   method: "GET",
@@ -50,12 +63,11 @@ export const getWorkflowCostSummary = createAuthenticatedServerFn({
     };
 
     const [costRows, runRows, dailyRows] = await Promise.all([
-      // Job-level cost & minutes by runner labels, current vs previous period.
+      // Job-level cost & billed minutes by runner labels, current vs previous.
       clickhouse.query<{
         labels: string;
         currentDurationMs: string;
         currentRoundedMinutes: string;
-        currentJobCount: string;
         prevDurationMs: string;
         prevRoundedMinutes: string;
       }>(
@@ -64,7 +76,6 @@ export const getWorkflowCostSummary = createAuthenticatedServerFn({
 					ResourceAttributes['cicd.pipeline.worker.labels'] as labels,
 					sumIf(Duration, Timestamp >= {fromTime:String}) / 1000000 as currentDurationMs,
 					sumIf(ceil(Duration / 60000000000.0), Timestamp >= {fromTime:String}) as currentRoundedMinutes,
-					countIf(Timestamp >= {fromTime:String}) as currentJobCount,
 					sumIf(Duration, Timestamp < {fromTime:String}) / 1000000 as prevDurationMs,
 					sumIf(ceil(Duration / 60000000000.0), Timestamp < {fromTime:String}) as prevRoundedMinutes
 				FROM traces
@@ -77,35 +88,28 @@ export const getWorkflowCostSummary = createAuthenticatedServerFn({
       // Run-level wall-clock: the pipeline-run span is the longest span per run,
       // so max(Duration) per run is its real elapsed time.
       clickhouse.query<{
-        wallMsCurrent: string;
         runsCurrent: string;
         avgWallCurrent: string;
-        runsPrev: string;
         avgWallPrev: string;
       }>(
         `
 				SELECT
-					sumIf(wall, ts >= {fromTime:String}) as wallMsCurrent,
 					countIf(ts >= {fromTime:String}) as runsCurrent,
 					avgIf(wall, ts >= {fromTime:String}) as avgWallCurrent,
-					countIf(ts < {fromTime:String}) as runsPrev,
 					avgIf(wall, ts < {fromTime:String}) as avgWallPrev
 				FROM (
 					SELECT
-						ResourceAttributes['cicd.pipeline.run.id'] as run_id,
 						max(Duration) / 1000000 as wall,
 						max(Timestamp) as ts
 					FROM traces
 					WHERE Timestamp >= {prevFromTime:String} AND Timestamp <= {toTime:String}
-						AND ResourceAttributes['cicd.pipeline.run.id'] != ''
-						AND ResourceAttributes['cicd.pipeline.name'] = {workflowName:String}
-						AND ResourceAttributes['vcs.repository.name'] = {repo:String}
-					GROUP BY run_id
+						AND ${RUN_FILTER}
+					GROUP BY ResourceAttributes['cicd.pipeline.run.id']
 				)
 			`,
         params,
       ),
-      // Daily cost & compute minutes for the over-time chart (current period).
+      // Daily cost for the spend sparkline (current period).
       clickhouse.query<{
         date: string;
         labels: string;
@@ -131,23 +135,13 @@ export const getWorkflowCostSummary = createAuthenticatedServerFn({
     let totalCost = 0;
     let prevTotalCost = 0;
     let billedMinutes = 0;
-    let computeMinutes = 0;
-    let selfHostedMinutes = 0;
-    let jobExecutions = 0;
-
     for (const row of costRows) {
-      const current = calculateCost(
+      totalCost += calculateCost(
         row.labels,
         Number(row.currentDurationMs),
         Number(row.currentRoundedMinutes),
-      );
-      totalCost += current.estimatedCost;
+      ).estimatedCost;
       billedMinutes += Number(row.currentRoundedMinutes);
-      computeMinutes += current.actualMinutes;
-      jobExecutions += Number(row.currentJobCount);
-      if (getRunnerPricing(row.labels).isSelfHosted) {
-        selfHostedMinutes += current.actualMinutes;
-      }
       prevTotalCost += calculateCost(
         row.labels,
         Number(row.prevDurationMs),
@@ -157,36 +151,25 @@ export const getWorkflowCostSummary = createAuthenticatedServerFn({
 
     const run = runRows[0];
     const totalRuns = run ? Number(run.runsCurrent) : 0;
-    const wallClockMinutes = run
-      ? Number(run.wallMsCurrent) / MS_PER_MINUTE
-      : 0;
 
-    // Daily aggregation, then fill gaps so the chart has one point per day.
-    const dailyMap = new Map<string, { spend: number; minutes: number }>();
+    // Sum spend per day, then fill gaps so the sparkline has one point per day.
+    const dailySpend = new Map<string, number>();
     for (const row of dailyRows) {
-      const entry = dailyMap.get(row.date) ?? { spend: 0, minutes: 0 };
-      entry.spend += calculateCost(
+      const spend = calculateCost(
         row.labels,
         Number(row.durationMs),
         Number(row.roundedMinutes),
       ).estimatedCost;
-      entry.minutes += Number(row.durationMs) / MS_PER_MINUTE;
-      dailyMap.set(row.date, entry);
+      dailySpend.set(row.date, (dailySpend.get(row.date) ?? 0) + spend);
     }
 
-    const overTime: WorkflowCostOverTimePoint[] = [];
+    const overTime: number[] = [];
     for (
       const d = new Date(fromDate);
       d <= toDate;
       d.setDate(d.getDate() + 1)
     ) {
-      const date = d.toISOString().slice(0, 10);
-      const entry = dailyMap.get(date);
-      overTime.push({
-        date,
-        spend: entry?.spend ?? 0,
-        minutes: entry?.minutes ?? 0,
-      });
+      overTime.push(dailySpend.get(d.toISOString().slice(0, 10)) ?? 0);
     }
 
     return {
@@ -194,14 +177,9 @@ export const getWorkflowCostSummary = createAuthenticatedServerFn({
       prevTotalCost,
       avgCostPerRun: totalRuns > 0 ? totalCost / totalRuns : 0,
       totalRuns,
-      prevTotalRuns: run ? Number(run.runsPrev) : 0,
       billedMinutes,
-      computeMinutes,
-      wallClockMinutes,
       avgWallClockMs: run ? Number(run.avgWallCurrent) : 0,
       prevAvgWallClockMs: run ? Number(run.avgWallPrev) : 0,
-      avgJobsPerRun: totalRuns > 0 ? jobExecutions / totalRuns : 0,
-      selfHostedMinutes,
       overTime,
     } satisfies WorkflowCostSummary;
   });
@@ -230,7 +208,7 @@ export const getWorkflowCostByJob = createAuthenticatedServerFn({
 			FROM traces
 			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 				AND ${JOB_COST_FILTER}
-				AND ResourceAttributes['cicd.pipeline.task.name'] != ''
+				AND ${nonEmptyResourceAttribute("cicd.pipeline.task.name")}
 			GROUP BY job, labels
 		`,
       {
@@ -299,9 +277,7 @@ export const getWorkflowRunTimelines = createAuthenticatedServerFn({
 				max(Timestamp) as timestamp
 			FROM traces
 			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
-				AND ResourceAttributes['cicd.pipeline.run.id'] != ''
-				AND ResourceAttributes['cicd.pipeline.name'] = {workflowName:String}
-				AND ResourceAttributes['vcs.repository.name'] = {repo:String}
+				AND ${RUN_FILTER}
 			GROUP BY TraceId
 			HAVING max(Duration) > 0
 			ORDER BY timestamp DESC
@@ -341,7 +317,7 @@ export const getWorkflowRunTimelines = createAuthenticatedServerFn({
 				max(Duration) / 1000000 as durationMs
 			FROM traces
 			WHERE TraceId IN {traceIds:Array(String)}
-				AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
+				AND ${nonEmptyResourceAttribute("cicd.pipeline.task.run.id")}
 				AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
 				AND SpanAttributes['everr.test.name'] = ''
 			GROUP BY trace_id, jobId
@@ -370,8 +346,14 @@ export const getWorkflowRunTimelines = createAuthenticatedServerFn({
     for (const runMeta of runRows) {
       const jobs = jobsByTrace.get(runMeta.trace_id);
       if (!jobs || jobs.length === 0) continue;
-      const startMs = Math.min(...jobs.map((j) => j.startMs));
-      const endMs = Math.max(...jobs.map((j) => j.endMs));
+      let startMs = Number.POSITIVE_INFINITY;
+      let endMs = Number.NEGATIVE_INFINITY;
+      let estimatedCost = 0;
+      for (const j of jobs) {
+        if (j.startMs < startMs) startMs = j.startMs;
+        if (j.endMs > endMs) endMs = j.endMs;
+        estimatedCost += j.estimatedCost;
+      }
       timelines.push({
         runId: runMeta.run_id,
         traceId: runMeta.trace_id,
@@ -379,10 +361,8 @@ export const getWorkflowRunTimelines = createAuthenticatedServerFn({
         conclusion: runMeta.conclusion || "unknown",
         timestamp: runMeta.timestamp,
         startMs,
-        endMs,
         wallClockMs: endMs - startMs,
-        computeMs: jobs.reduce((sum, j) => sum + j.durationMs, 0),
-        estimatedCost: jobs.reduce((sum, j) => sum + j.estimatedCost, 0),
+        estimatedCost,
         jobs,
       });
     }
@@ -405,10 +385,8 @@ export const getWorkflowRecentRuns = createAuthenticatedServerFn({
 
     const runSummarySql = runSummarySubquery({
       whereClause: `Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
-					AND ResourceAttributes['cicd.pipeline.run.id'] != ''
-					AND ResourceAttributes['cicd.pipeline.name'] = {workflowName:String}
-					AND ResourceAttributes['vcs.repository.name'] = {repo:String}
-					AND ResourceAttributes['cicd.pipeline.task.run.result'] != ''
+					AND ${RUN_FILTER}
+					AND ${nonEmptyResourceAttribute("cicd.pipeline.task.run.result")}
 					AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
 					AND SpanAttributes['everr.test.name'] = ''`,
       groupByExpr: "TraceId",
