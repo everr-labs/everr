@@ -10,6 +10,7 @@ import {
   runsHistogramOptions,
   runsListInfiniteOptions,
 } from "@/data/runs-list/options";
+import type { RunListItem } from "@/data/runs-list/schemas";
 import type { RunStatusFilter } from "./run-conclusion-meta";
 import { RunsFilters } from "./runs-filters";
 import { RunsHistogram } from "./runs-histogram";
@@ -77,10 +78,20 @@ export function RunsExplorer({
     placeholderData: keepPreviousData,
   });
 
-  const runs = useMemo(
-    () => (data?.pages ?? []).flatMap((page) => page?.runs ?? []),
-    [data],
-  );
+  // Offset pages can overlap when a realtime event reorders the list between
+  // fetches, so dedupe by traceId to avoid duplicate Virtuoso keys.
+  const runs = useMemo(() => {
+    const seen = new Set<string>();
+    const flattened: RunListItem[] = [];
+    for (const page of data?.pages ?? []) {
+      for (const run of page?.runs ?? []) {
+        if (seen.has(run.traceId)) continue;
+        seen.add(run.traceId);
+        flattened.push(run);
+      }
+    }
+    return flattened;
+  }, [data]);
   const totalCount = data?.pages?.[0]?.totalCount;
 
   const clearFilters = () =>

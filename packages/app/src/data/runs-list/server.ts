@@ -364,8 +364,10 @@ function mapWorkflowRunRow(row: WorkflowRunRow): RunListItem {
       !isCompleted || conclusion === "skip" || conclusion === "skipped"
         ? 0
         : Math.max(0, endedAt.getTime() - startedAt.getTime()),
+    // Only an actively-running build ticks; queued/waiting runs (which may
+    // still carry a start time) and completed runs use the static duration.
     runningSince:
-      !isCompleted && row.startedAt
+      row.status === "in_progress" && row.startedAt
         ? toDateValue(row.startedAt).toISOString()
         : null,
     timestamp: endedAt.toISOString(),

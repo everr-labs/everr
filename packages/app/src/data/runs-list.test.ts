@@ -205,6 +205,42 @@ describe("getRunsList", () => {
     });
   });
 
+  it("does not tick (runningSince null) for a queued run with a start time", async () => {
+    mockedQuery
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            traceId: "trace-4",
+            runId: "run-4",
+            runAttempt: 1,
+            workflowName: "CI",
+            repo: "everr-labs/everr",
+            branch: "main",
+            status: "queued",
+            conclusion: null,
+            startedAt: "2026-03-11T10:00:00Z",
+            completedAt: null,
+            lastEventAt: "2026-03-11T10:00:05Z",
+            sender: "octocat",
+            displayTitle: null,
+            headSha: "abc1234",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [{ count: "1" }],
+      });
+
+    const result = await getRunsList({
+      data: { timeRange: { from: "now-7d", to: "now" } },
+    });
+
+    expect(result.runs[0]).toMatchObject({
+      conclusion: "queued",
+      runningSince: null,
+    });
+  });
+
   it("keeps searchRuns on the previous ClickHouse query", async () => {
     mockedClickhouseQuery.mockResolvedValueOnce([
       {

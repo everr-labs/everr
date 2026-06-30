@@ -31,7 +31,7 @@ export const runsListInfiniteOptions = (
       }),
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
-      if (lastPage.runs.length < input.limit) return undefined;
+      if (!lastPage || lastPage.runs.length < input.limit) return undefined;
       return allPages.reduce((count, page) => count + page.runs.length, 0);
     },
   });

@@ -231,7 +231,7 @@ export function RunsHistogram({
         <div className="px-3 pb-2">
           {isPending ? (
             <Skeleton className="h-[104px] w-full" />
-          ) : buckets.length ? (
+          ) : buckets.some((bucket) => bucket.total > 0) ? (
             <RunsHistogramChart
               data={buckets}
               onSelectRange={(range) =>

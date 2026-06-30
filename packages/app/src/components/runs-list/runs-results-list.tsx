@@ -89,7 +89,10 @@ export function RunsResultsList({
 
   const showSkeleton = useDelayedFlag(isPending, SKELETON_DELAY_MS);
   if (isPending) return showSkeleton ? <ResultsSkeleton /> : null;
-  if (isError) {
+  // Only blank the view when there's nothing to show. A failed `fetchNextPage`
+  // flips `isError` while keeping the already-loaded pages, so we keep the list
+  // mounted and let the user retry by scrolling rather than wiping it.
+  if (isError && runs.length === 0) {
     return (
       <RetryError
         title="Failed to load runs"
