@@ -6,6 +6,7 @@ import { z } from "zod";
 import { DashboardBrowser } from "@/components/dashboards/dashboard-browser";
 import { InstallCommandBlock } from "@/components/install-command-block";
 import { dashboardListOptions } from "@/data/dashboards/options";
+import { breadcrumbSegments } from "@/data/dashboards/tree";
 
 const BrowseSearchSchema = z.object({
   folder: z.string().optional().catch(undefined),
@@ -16,7 +17,24 @@ const BrowseSearchSchema = z.object({
 
 export const Route = createFileRoute("/_authenticated/_dashboard/dashboards/")({
   validateSearch: BrowseSearchSchema,
-  staticData: { breadcrumb: "Dashboards" },
+  staticData: {
+    // Folder drill-path flows into the navbar breadcrumb: each segment links
+    // back to its folder via the `folder` search param (clearing `q`).
+    breadcrumb: (match: { search?: { folder?: string } }) => [
+      {
+        label: "Dashboards",
+        to: "/dashboards",
+        search: { folder: undefined, q: undefined },
+      },
+      ...breadcrumbSegments(
+        typeof match.search?.folder === "string" ? match.search.folder : "",
+      ).map((seg) => ({
+        label: seg.name,
+        to: "/dashboards",
+        search: { folder: seg.path, q: undefined },
+      })),
+    ],
+  },
   head: () => ({ meta: [{ title: "Everr - Dashboards" }] }),
   component: DashboardsIndexPage,
 });

@@ -5,6 +5,7 @@ import { AlertCircle, NotebookText } from "lucide-react";
 import { z } from "zod";
 import { DashboardBrowser } from "@/components/dashboards/dashboard-browser";
 import { InstallCommandBlock } from "@/components/install-command-block";
+import { breadcrumbSegments } from "@/data/dashboards/tree";
 import { runbookListOptions } from "@/data/runbooks/options";
 
 const BrowseSearchSchema = z.object({
@@ -16,7 +17,22 @@ const BrowseSearchSchema = z.object({
 
 export const Route = createFileRoute("/_authenticated/_dashboard/runbooks/")({
   validateSearch: BrowseSearchSchema,
-  staticData: { breadcrumb: "Runbooks" },
+  staticData: {
+    breadcrumb: (match: { search?: { folder?: string } }) => [
+      {
+        label: "Runbooks",
+        to: "/runbooks",
+        search: { folder: undefined, q: undefined },
+      },
+      ...breadcrumbSegments(
+        typeof match.search?.folder === "string" ? match.search.folder : "",
+      ).map((seg) => ({
+        label: seg.name,
+        to: "/runbooks",
+        search: { folder: seg.path, q: undefined },
+      })),
+    ],
+  },
   head: () => ({ meta: [{ title: "Everr - Runbooks" }] }),
   component: RunbooksIndexPage,
 });

@@ -10,10 +10,9 @@ import {
   ToggleGroupItem,
 } from "@everr/ui/components/toggle-group";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { ChevronRight, LayoutGrid, List, SearchIcon } from "lucide-react";
+import { LayoutGrid, List, SearchIcon } from "lucide-react";
 import { useMemo } from "react";
 import {
-  breadcrumbSegments,
   buildTree,
   type DashboardSort,
   type DashboardSummary,
@@ -88,35 +87,12 @@ export function DashboardBrowser({
 
   const folderMissing =
     !searching && folder.length > 0 && nodeAtPath(tree, folder) === null;
-  const crumbs = breadcrumbSegments(folder);
+  // The folder drill-path is shown in the navbar breadcrumb (DashboardBreadcrumb),
+  // driven by each route's staticData.breadcrumb — not duplicated here.
   const rootLabel = resource === "runbook" ? "Runbooks" : "Dashboards";
 
   return (
     <div className="flex flex-col gap-3">
-      {(folder || searching) && (
-        <nav className="flex items-center gap-1 text-sm text-muted-foreground">
-          <Link
-            to="."
-            search={(p) => ({ ...p, folder: undefined, q: undefined })}
-            className="hover:text-foreground"
-          >
-            {rootLabel}
-          </Link>
-          {crumbs.map((c) => (
-            <span key={c.path} className="flex items-center gap-1">
-              <ChevronRight className="size-3.5" />
-              <Link
-                to="."
-                search={(p) => ({ ...p, folder: c.path, q: undefined })}
-                className="hover:text-foreground"
-              >
-                {c.name}
-              </Link>
-            </span>
-          ))}
-        </nav>
-      )}
-
       <div className="flex items-center gap-2">
         <div className="relative max-w-sm flex-1">
           <SearchIcon className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
