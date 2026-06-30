@@ -9,7 +9,7 @@ import { VariableBar } from "./variable-bar";
 const GRID_COLS = 24;
 const ROW_HEIGHT = 30;
 
-export function DashboardGrid() {
+export function DashboardGrid({ preview = false }: { preview?: boolean }) {
   const dashboard = useDashboard();
   const { width, containerRef } = useContainerWidth({
     measureBeforeMount: true,
@@ -23,7 +23,7 @@ export function DashboardGrid() {
 
   return (
     <div>
-      <VariableBar />
+      {!preview && <VariableBar />}
       <div ref={containerRef}>
         <GridLayout
           width={width}

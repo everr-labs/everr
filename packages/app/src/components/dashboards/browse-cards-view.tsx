@@ -3,6 +3,7 @@ import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { Link } from "@tanstack/react-router";
 import { Folder, LayoutDashboard, NotebookText } from "lucide-react";
 import type { BrowseContents, BrowseResource } from "./dashboard-browser";
+import { DashboardCardPreview } from "./dashboard-card-preview";
 
 export function BrowseCardsView({
   contents,
@@ -51,7 +52,11 @@ export function BrowseCardsView({
           className="group flex flex-col overflow-hidden rounded-lg border border-border hover:border-foreground/20"
         >
           <div className="aspect-[16/10] border-b border-border bg-muted/30">
-            <Skeleton className="size-full rounded-none" />
+            {resource === "dashboard" ? (
+              <DashboardCardPreview project={item.project} slug={item.slug} />
+            ) : (
+              <Skeleton className="size-full rounded-none" />
+            )}
           </div>
           <div className="flex items-center gap-2 px-3 py-2">
             <Icon className="size-4 shrink-0 text-muted-foreground" />
