@@ -1,9 +1,11 @@
 import { Input } from "@everr/ui/components/input";
+import { Skeleton } from "@everr/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { AlertCircle, NotebookText, SearchIcon } from "lucide-react";
 import { useState } from "react";
 import { DashboardTree } from "@/components/dashboards/dashboard-tree";
+import { InstallCommandBlock } from "@/components/install-command-block";
 import { runbookListOptions } from "@/data/runbooks/options";
 
 export const Route = createFileRoute("/_authenticated/_dashboard/runbooks/")({
@@ -39,7 +41,16 @@ function RunbooksIndexPage() {
         />
       </div>
 
-      {isLoading && <p className="text-sm text-muted-foreground">Loading...</p>}
+      {isLoading && (
+        <div className="flex flex-col gap-2">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-2 py-1.5 pl-[26px]">
+              <Skeleton className="size-4 shrink-0 rounded" />
+              <Skeleton className="h-4 w-48" />
+            </div>
+          ))}
+        </div>
+      )}
 
       {!isLoading && isError && (
         <div className="flex flex-col items-center justify-center gap-3 py-16 text-muted-foreground">
@@ -51,11 +62,16 @@ function RunbooksIndexPage() {
       )}
 
       {isEmpty && (
-        <div className="flex flex-col items-center justify-center gap-3 py-16 text-muted-foreground">
-          <NotebookText className="size-10" />
-          <p className="text-sm">
-            No runbooks yet — apply some with the everr CLI
+        <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+          <NotebookText className="size-10 text-muted-foreground" />
+          <h2 className="text-sm font-medium">No runbooks yet</h2>
+          <p className="max-w-sm text-sm text-muted-foreground">
+            Runbooks turn investigations into repeatable, shareable docs. Define
+            them as code and apply them with the everr CLI.
           </p>
+          <div className="w-full max-w-sm">
+            <InstallCommandBlock command="everr apply ./runbooks" />
+          </div>
         </div>
       )}
 
