@@ -1,9 +1,9 @@
-import { Skeleton } from "@everr/ui/components/skeleton";
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { Link } from "@tanstack/react-router";
 import { Folder, LayoutDashboard, NotebookText } from "lucide-react";
 import type { BrowseContents, BrowseResource } from "./dashboard-browser";
 import { DashboardCardPreview } from "./dashboard-card-preview";
+import { RunbookCardPreview } from "./runbook-card-preview";
 
 export function BrowseCardsView({
   contents,
@@ -55,7 +55,7 @@ export function BrowseCardsView({
             {resource === "dashboard" ? (
               <DashboardCardPreview project={item.project} slug={item.slug} />
             ) : (
-              <Skeleton className="size-full rounded-none" />
+              <RunbookCardPreview project={item.project} slug={item.slug} />
             )}
           </div>
           <div className="flex items-center gap-2 px-3 py-2">
