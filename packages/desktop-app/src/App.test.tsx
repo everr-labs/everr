@@ -626,6 +626,37 @@ describe("runs list", () => {
     expect(await screen.findByText("Your runs")).toBeInTheDocument();
     expect(screen.getByText("All repositories")).toBeInTheDocument();
   });
+
+  it("warns to add a notification email when none is set", async () => {
+    renderMainApp({
+      runs: [createRun({ traceId: "trace-a", workflowName: "Build" })],
+      notificationEmails: [],
+    });
+
+    await act(async () => {
+      await router.navigate({ to: "/ci" });
+    });
+
+    expect(
+      await screen.findByRole("button", { name: /add notification email/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("does not warn when a notification email is set", async () => {
+    renderMainApp({
+      runs: [createRun({ traceId: "trace-a", workflowName: "Build" })],
+      notificationEmails: ["me@example.com"],
+    });
+
+    await act(async () => {
+      await router.navigate({ to: "/ci" });
+    });
+
+    expect(await screen.findByText("Your runs")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /add notification email/i }),
+    ).not.toBeInTheDocument();
+  });
 });
 
 describe("local telemetry collector", () => {

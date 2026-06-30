@@ -5,6 +5,7 @@ import {
   RunsExplorer,
   type RunsExplorerSearch,
 } from "@everr/telemetry-explorer/runs";
+import { Button } from "@everr/ui/components/button";
 import { Card, CardContent } from "@everr/ui/components/card";
 import {
   getRefreshIntervalMs,
@@ -21,17 +22,23 @@ import { DEFAULT_TIME_RANGE, type TimeRange } from "@everr/ui/lib/time-range";
 import {
   useIsFetching,
   useMutation,
+  useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { Check, Clipboard } from "lucide-react";
+import { Check, Clipboard, Mail, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { z } from "zod";
 import { APP_DISPLAY_NAME } from "@/lib/app-name";
-import { invokeCommand, NOTIFIER_CHECKED_EVENT } from "@/lib/tauri";
+import {
+  invokeCommand,
+  NOTIFIER_CHECKED_EVENT,
+  SETTINGS_CHANGED_EVENT,
+} from "@/lib/tauri";
 import { useInvalidateOnTauriEvent } from "@/lib/tauri-events";
 import { AuthStandalone, useAuthStatusQuery } from "../auth/auth";
 import { PageTitleBar } from "../desktop-shell/title-bar";
+import { notificationEmailsQueryKey } from "../notifications/query-keys";
 import { ciRunsRepository } from "./ci-runs-repository";
 
 export const CiSearchSchema = z.object({
@@ -117,6 +124,18 @@ function CiContent() {
     void qc.invalidateQueries({ queryKey: ["runs"] });
   });
 
+  // Without a notification email, "Your runs" can't match CI events to the
+  // signed-in user, so warn and point at where to set one.
+  const notificationEmailsQuery = useQuery({
+    queryKey: notificationEmailsQueryKey,
+    queryFn: () => invokeCommand<string[]>("get_notification_emails"),
+  });
+  useInvalidateOnTauriEvent(SETTINGS_CHANGED_EVENT, (qc) => {
+    void qc.invalidateQueries({ queryKey: notificationEmailsQueryKey });
+  });
+  const showNoEmailNotice =
+    search.onlyMine && notificationEmailsQuery.data?.length === 0;
+
   const timeRange: TimeRange = {
     from: search.from ?? DEFAULT_TIME_RANGE.from,
     to: search.to ?? DEFAULT_TIME_RANGE.to,
@@ -193,6 +212,25 @@ function CiContent() {
           </>
         }
       />
+      {showNoEmailNotice ? (
+        <div className="flex shrink-0 items-center gap-3 border-b border-amber-500/20 bg-amber-500/[0.08] px-4 py-2.5">
+          <TriangleAlert className="size-4 shrink-0 text-amber-400" />
+          <p className="min-w-0 flex-1 text-sm text-foreground">
+            No notification email set — add one so{" "}
+            <span className="font-medium">Your runs</span> can match your CI
+            runs.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="shrink-0"
+            onClick={() => navigate({ to: "/settings" })}
+          >
+            <Mail className="size-3.5" />
+            Add notification email
+          </Button>
+        </div>
+      ) : null}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <RunsExplorer
           repo={ciRunsRepository}
