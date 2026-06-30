@@ -22,9 +22,9 @@ import {
   ownerAc,
 } from "better-auth/plugins/organization/access";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { db } from "@/db/client";
-import { deviceCode, member, user } from "@/db/schema";
+import { deviceCode, member, session as sessionTable, user } from "@/db/schema";
 import { env } from "@/env";
 import {
   getDeviceApprovalUserCode,
@@ -91,6 +91,43 @@ async function getMarkedDeviceOrganizationId(
       and(
         eq(member.userId, session.userId),
         eq(member.organizationId, organizationId),
+      ),
+    )
+    .limit(1);
+
+  return membership[0]?.organizationId ?? null;
+}
+
+// The org the user most recently had active, read off their latest session.
+// A new login (notably CLI/device login) should land on the same org the user
+// was last using instead of an arbitrary membership. `session.updatedAt` bumps
+// whenever the active org changes, so the freshest session holds the current org.
+async function getLastUsedOrganizationId(session: { userId: string }) {
+  const recentSession = await db
+    .select({ organizationId: sessionTable.activeOrganizationId })
+    .from(sessionTable)
+    .where(
+      and(
+        eq(sessionTable.userId, session.userId),
+        isNotNull(sessionTable.activeOrganizationId),
+      ),
+    )
+    .orderBy(desc(sessionTable.updatedAt))
+    .limit(1);
+
+  const candidateOrgId = recentSession[0]?.organizationId ?? null;
+  if (!candidateOrgId) {
+    return null;
+  }
+
+  // Reuse it only if the user is still a member of that org.
+  const membership = await db
+    .select({ organizationId: member.organizationId })
+    .from(member)
+    .where(
+      and(
+        eq(member.userId, session.userId),
+        eq(member.organizationId, candidateOrgId),
       ),
     )
     .limit(1);
@@ -217,6 +254,12 @@ export const auth = betterAuth({
             session,
             context,
           );
+
+          // Prefer the org the user most recently had active (their "current"
+          // org) so a fresh login reuses it instead of picking the first one.
+          if (!activeOrganizationId) {
+            activeOrganizationId = await getLastUsedOrganizationId(session);
+          }
 
           // Look for an existing membership to set as active org.
           if (!activeOrganizationId) {

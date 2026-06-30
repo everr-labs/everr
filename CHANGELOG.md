@@ -1,17 +1,27 @@
-## Unreleased
 
-### Breaking changes - CLI command groups
+### MCP server
 
-- Moved commands under grouped namespaces: `everr cloud login/logout`, `everr ci status/watch/runs/show/logs`, and `everr local start/status/query`.
-- Removed the retired CLI commands `everr test-history`, `everr slowest-tests`, `everr slowest-jobs`, `everr workflows`, and `everr ci grep`, along with their `/api/cli/*` backend routes.
+Introduced a new [MCP server](/docs/reference/mcp) at `/mcp` with a `query` tool that runs SQL against your telemetry from AI agents, plus a `whoami` introspection tool.
 
-### Breaking changes - `everr local`
+### Notebooks → Runbooks
 
-- Removed `everr local traces` and `everr local logs`, along with the filter flags `--service`, `--level`, `--trace-id`, `--from`, `--to`, `--attr`, `--name`, `--egrep`, and `--target`.
-- New `everr local query "<SQL>"` passes SQL to the collector's `/sql` endpoint.
-- Migration: previous invocations map to SQL queries. Example:
-  - `local logs --level ERROR --from now-1h` -> `local query "SELECT Timestamp, ServiceName, SeverityText, Body FROM otel_logs WHERE SeverityNumber >= 17 AND Timestamp > now() - INTERVAL 1 HOUR ORDER BY Timestamp DESC LIMIT 200"`
-  - `local traces --service X --trace-id abc` -> `local query "SELECT * FROM otel_traces WHERE ServiceName='X' AND TraceId='abc' LIMIT 50"`
-- Existing shell aliases and scripts must be updated. The local telemetry directory's on-disk format has changed; previous `otlp-*.json` files are ignored.
-- `--telemetry-dir` was removed. The CLI now targets its own build's collector sidecar by HTTP, so a path on disk is no longer meaningful.
-- Installer size increases by about 120 MB for the shipped universal macOS collector binary because of the bundled `libchdb`.
+- Renamed across the entire product — UI, docs, routes, navigation, and [alert definitions](/docs/alerts).
+- Backwards-compatible aliases: `notebook` field in legacy alert specs and the `Notebook` kind still work.
+
+### CI Runs Explorer
+
+- Runs page rebuilt as a filter-driven [explorer](/docs/ci-insights/debug-ci) with infinite scroll. Repository filter in the topbar with a "Your runs" toggle.
+- Runs explorer is now a shared component used in both the web app and desktop app.
+- Workflows list page removed; workflow names link directly to their detail views.
+
+### Dashboard Performance
+
+- [Dashboard](/docs/dashboards) panel queries are deferred until the panel scrolls into view.
+- In-flight panel queries are staggered so dashboards don't flood the database.
+
+### Desktop App
+
+- CI page with the shared runs explorer; auth required only on the CI page (rest of the app is freely accessible).
+- Unified top title bar with consistent fullscreen/windowed spacing.
+- Nav reordered to Logs / Traces / Errors / CI / Settings; default route is now `/logs`.
+- Skills install/status in Settings; Sign In available from the account menu.
