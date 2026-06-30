@@ -13,7 +13,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@everr/ui/components/tooltip";
-import { formatDuration } from "@everr/ui/lib/formatting";
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import {
   type ReactNode,
@@ -29,6 +28,17 @@ import { SenderCell } from "./sender-cell";
 
 const VIRTUOSO_OVERSCAN = 600;
 const SKELETON_DELAY_MS = 600;
+
+// Runs are timed to the second (and the live timer ticks every second), so
+// render whole seconds — `Xs` under a minute, `Ym Zs` above — rather than the
+// sub-second tenths the shared formatDuration shows.
+function formatRunDuration(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}m ${seconds}s`;
+}
 
 /** Wraps the run's workflow name; its stretched overlay makes the row activate. */
 export type RenderRunLink = (ctx: {
@@ -212,7 +222,7 @@ function RunRow({
         {run.runningSince ? (
           <LiveDuration startedAt={run.runningSince} />
         ) : run.duration > 0 ? (
-          formatDuration(run.duration, "ms")
+          formatRunDuration(run.duration)
         ) : (
           "—"
         )}
@@ -254,7 +264,7 @@ function LiveDuration({ startedAt }: { startedAt: string }) {
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
-  return <>{formatDuration(Math.max(0, now - startMs), "ms")}</>;
+  return <>{formatRunDuration(Math.max(0, now - startMs))}</>;
 }
 
 function ResultsFooter({
