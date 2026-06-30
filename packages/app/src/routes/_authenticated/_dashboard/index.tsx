@@ -42,7 +42,6 @@ function HomePage() {
         <Link
           to="/runs"
           search={{
-            page: 1,
             repos: [],
             branches: [],
             conclusions: [],

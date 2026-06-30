@@ -80,15 +80,9 @@ function mapHistogramRow(
   const timestamp = normalizeTimestampToUtc(row.bucket);
   const date = new Date(timestamp);
   const endDate = new Date(date.getTime() + row.intervalSeconds * 1000);
-  const opts = {
-    hour: "2-digit",
-    minute: "2-digit",
-  } satisfies Intl.DateTimeFormatOptions;
   return {
     timestamp,
     endTimestamp: endDate.toISOString(),
-    timeLabel: date.toLocaleTimeString([], opts),
-    rangeLabel: `${date.toLocaleTimeString([], opts)} - ${endDate.toLocaleTimeString([], opts)}`,
     total: Number(row.total),
     error: Number(row.error),
     warning: Number(row.warning),

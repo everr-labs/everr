@@ -276,7 +276,6 @@ function WorkflowDetailPage() {
           <Link
             to="/runs"
             search={{
-              page: 1,
               workflowNames: [workflowName],
               repos: [repo],
               branches: [],

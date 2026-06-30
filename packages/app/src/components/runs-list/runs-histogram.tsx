@@ -9,56 +9,34 @@ import { cn } from "@everr/ui/lib/utils";
 import { ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { Bar, BarChart, ReferenceArea, XAxis } from "recharts";
-import type { LogHistogramBucket, LogLevel } from "../schemas";
-import { LOG_LEVEL_META } from "./log-level-meta";
+import type { RunHistogramBucket } from "@/data/runs-list/schemas";
+import {
+  RUN_CONCLUSION_META,
+  RUN_HISTOGRAM_KEYS,
+  type RunHistogramKey,
+} from "./run-conclusion-meta";
 
-export interface LogHistogramProps {
-  buckets: LogHistogramBucket[];
+export interface RunsHistogramProps {
+  buckets: RunHistogramBucket[];
   isPending: boolean;
   showVolume: boolean;
   onRangeSelect: (from: Date, to: Date) => void;
   onShowVolumeChange: (show: boolean) => void;
 }
 
-const chartConfig = {
-  unknown: {
-    label: LOG_LEVEL_META.unknown.label,
-    color: LOG_LEVEL_META.unknown.chartColor,
-  },
-  trace: {
-    label: LOG_LEVEL_META.trace.label,
-    color: LOG_LEVEL_META.trace.chartColor,
-  },
-  debug: {
-    label: LOG_LEVEL_META.debug.label,
-    color: LOG_LEVEL_META.debug.chartColor,
-  },
-  info: {
-    label: LOG_LEVEL_META.info.label,
-    color: LOG_LEVEL_META.info.chartColor,
-  },
-  warning: {
-    label: LOG_LEVEL_META.warning.label,
-    color: LOG_LEVEL_META.warning.chartColor,
-  },
-  error: {
-    label: LOG_LEVEL_META.error.label,
-    color: LOG_LEVEL_META.error.chartColor,
-  },
-} satisfies ChartConfig;
-
-const histogramStack = [
-  "unknown",
-  "trace",
-  "debug",
-  "info",
-  "warning",
-  "error",
-] as const satisfies readonly LogLevel[];
+const chartConfig = Object.fromEntries(
+  RUN_HISTOGRAM_KEYS.map((key) => [
+    key,
+    {
+      label: RUN_CONCLUSION_META[key].label,
+      color: RUN_CONCLUSION_META[key].chartColor,
+    },
+  ]),
+) satisfies ChartConfig;
 
 // Tooltip heading: date + local time range, computed from the bucket's
 // timestamps so it always reflects the viewer's timezone.
-function formatBucketLabel(bucket: LogHistogramBucket | undefined) {
+function formatBucketLabel(bucket: RunHistogramBucket | undefined) {
   if (!bucket) return "";
   const start = new Date(bucket.timestamp);
   const end = new Date(bucket.endTimestamp);
@@ -74,7 +52,7 @@ type HistogramMouseEvent = {
 
 function histogramEventIndex(
   event: unknown,
-  data: LogHistogramBucket[],
+  data: RunHistogramBucket[],
 ): number | null {
   const index = (event as HistogramMouseEvent | undefined)?.activeTooltipIndex;
   if (typeof index !== "number" || index < 0 || index >= data.length) {
@@ -83,11 +61,11 @@ function histogramEventIndex(
   return index;
 }
 
-function LogHistogramChart({
+function RunsHistogramChart({
   data,
   onSelectRange,
 }: {
-  data: LogHistogramBucket[];
+  data: RunHistogramBucket[];
   onSelectRange: (range: { from: string; to: string }) => void;
 }) {
   const [dragRange, setDragRange] = useState<{
@@ -134,12 +112,9 @@ function LogHistogramChart({
         committedRange.startIndex,
         committedRange.endIndex,
       );
-      const startBucket = data[startIndex];
-      const endBucket = data[endIndex];
-
       onSelectRange({
-        from: startBucket.timestamp,
-        to: endBucket.endTimestamp,
+        from: data[startIndex].timestamp,
+        to: data[endIndex].endTimestamp,
       });
     }
     setDragRange(null);
@@ -189,7 +164,7 @@ function LogHistogramChart({
                     style={{ backgroundColor: `var(--color-${name})` }}
                   />
                   <span className="text-muted-foreground">
-                    {chartConfig[name as keyof typeof chartConfig]?.label}
+                    {chartConfig[name as RunHistogramKey]?.label}
                   </span>
                   <span className="ml-auto font-mono font-medium tabular-nums">
                     {(value as number).toLocaleString()}
@@ -199,12 +174,12 @@ function LogHistogramChart({
             />
           }
         />
-        {histogramStack.map((level) => (
+        {RUN_HISTOGRAM_KEYS.map((key) => (
           <Bar
-            key={level}
-            dataKey={level}
-            stackId="logs"
-            fill={`var(--color-${level})`}
+            key={key}
+            dataKey={key}
+            stackId="runs"
+            fill={`var(--color-${key})`}
             radius={[2, 2, 0, 0]}
             isAnimationActive={false}
           />
@@ -226,17 +201,13 @@ function LogHistogramChart({
   );
 }
 
-export function LogHistogram({
+export function RunsHistogram({
   buckets,
   isPending,
   showVolume,
   onRangeSelect,
   onShowVolumeChange,
-}: LogHistogramProps) {
-  const handleSelectRange = (range: { from: string; to: string }) => {
-    onRangeSelect(new Date(range.from), new Date(range.to));
-  };
-
+}: RunsHistogramProps) {
   return (
     <section className="relative z-10 border-b bg-background">
       <button
@@ -252,7 +223,7 @@ export function LogHistogram({
               showVolume && "rotate-90",
             )}
           />
-          <span>Log volume</span>
+          <span>Run volume</span>
         </span>
       </button>
 
@@ -260,14 +231,16 @@ export function LogHistogram({
         <div className="px-3 pb-2">
           {isPending ? (
             <Skeleton className="h-[104px] w-full" />
-          ) : buckets.length ? (
-            <LogHistogramChart
+          ) : buckets.some((bucket) => bucket.total > 0) ? (
+            <RunsHistogramChart
               data={buckets}
-              onSelectRange={handleSelectRange}
+              onSelectRange={(range) =>
+                onRangeSelect(new Date(range.from), new Date(range.to))
+              }
             />
           ) : (
             <div className="text-muted-foreground flex h-[104px] items-center justify-center rounded-md border border-dashed text-sm">
-              No log volume in this range
+              No runs in this range
             </div>
           )}
         </div>

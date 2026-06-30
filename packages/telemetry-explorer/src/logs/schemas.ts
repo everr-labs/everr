@@ -107,8 +107,6 @@ export interface LogDetail {
 export interface LogHistogramBucket {
   timestamp: string;
   endTimestamp: string;
-  timeLabel: string;
-  rangeLabel: string;
   total: number;
   error: number;
   warning: number;

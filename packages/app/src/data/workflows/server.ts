@@ -380,6 +380,7 @@ export const getWorkflowRecentRuns = createAuthenticatedServerFn({
       branch: row.branch,
       conclusion: row.conclusion,
       duration: Number(row.duration),
+      runningSince: null,
       timestamp: row.timestamp,
       sender: row.sender,
       jobCount: Number(row.jobCount),
