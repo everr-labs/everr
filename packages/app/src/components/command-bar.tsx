@@ -1,3 +1,4 @@
+import { ConclusionIcon } from "@everr/telemetry-explorer/runs";
 import { Button } from "@everr/ui/components/button";
 import {
   Command,
@@ -17,7 +18,6 @@ import { useNavigate } from "@tanstack/react-router";
 import { LayoutDashboard, SearchIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { flushSync } from "react-dom";
-import { ConclusionIcon } from "@/components/run-detail/conclusion-icon";
 import { dashboardListOptions } from "@/data/dashboards/options";
 import { searchRunsOptions } from "@/data/runs-list/options";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";

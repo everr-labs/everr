@@ -1,3 +1,4 @@
+import { ConclusionIcon, SenderCell } from "@everr/telemetry-explorer/runs";
 import { Badge } from "@everr/ui/components/badge";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { Empty, EmptyDescription } from "@everr/ui/components/empty";
@@ -5,8 +6,6 @@ import { formatDuration } from "@everr/ui/lib/formatting";
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { Link } from "@tanstack/react-router";
 import { useMemo } from "react";
-import { ConclusionIcon } from "@/components/run-detail/conclusion-icon";
-import { SenderCell } from "@/components/sender-cell";
 import { WorkflowLink } from "@/components/workflow-link";
 import type { RunListItem } from "@/data/runs-list/schemas";
 
