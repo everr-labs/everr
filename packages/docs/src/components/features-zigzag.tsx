@@ -63,7 +63,7 @@ const FEATURES: Feature[] = [
   },
   {
     index: "03",
-    title: "Your telemetry in a native window",
+    title: "Your telemetry right where the work happens",
     body: "A desktop companion app runs a local OpenTelemetry collector and allows you to explore, query, and verify your telemetry locally, without the need for tedious deployment loops.",
     points: [
       "Runs an embedded OpenTelemetry collector on launch, no cloud account needed",
@@ -91,9 +91,7 @@ const FEATURES: Feature[] = [
     ),
     points: [
       "Perses-format dashboards and query-driven alerts",
-      "Alert queries are plain SQL, and every row they return is a firing instance",
-      "Runbooks are Markdown, living next to the alert they belong to",
-      "Alerts route to the notification channels you already use",
+      "Runbooks are Markdown, living next to the alert they belong to, so configuration becomes your knowledge base",
     ],
     visual: (
       <Backdrop src={asCodeBackdrop}>
