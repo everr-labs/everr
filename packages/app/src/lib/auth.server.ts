@@ -40,6 +40,8 @@ import {
 import {
   getActiveOrganizationIdFromAuthSession,
   getDeviceOrgIdFromScope,
+  getMarkedDeviceOrgIdFromContext,
+  markDeviceOrgContext,
   withDeviceOrgScope,
 } from "@/lib/device-org-scope";
 import {
@@ -68,18 +70,10 @@ async function getMarkedDeviceOrganizationId(
   session: { userId: string },
   context: unknown,
 ) {
-  const deviceCodeValue = getDeviceTokenCode(context);
-  if (!deviceCodeValue) {
-    return null;
-  }
-
-  const deviceCodeRecord = await db
-    .select({ scope: deviceCode.scope })
-    .from(deviceCode)
-    .where(eq(deviceCode.deviceCode, deviceCodeValue))
-    .limit(1);
-
-  const organizationId = getDeviceOrgIdFromScope(deviceCodeRecord[0]?.scope);
+  // The org is read off the device code in the `/device/token` before-hook and
+  // stashed on the context, because better-auth consumes (deletes) the device
+  // code before this session hook runs (see the cli-device-organization plugin).
+  const organizationId = getMarkedDeviceOrgIdFromContext(context);
   if (!organizationId) {
     return null;
   }
@@ -378,6 +372,43 @@ export const auth = betterAuth({
               }
 
               return { context };
+            }),
+          },
+          {
+            // better-auth consumes (deletes) the device code while exchanging
+            // the token, before the session.create hook runs. Capture the
+            // marked org here — while the row still exists — and stash it on the
+            // context so getMarkedDeviceOrganizationId can read it back.
+            matcher: (context) => context.path === "/device/token",
+            handler: createAuthMiddleware(async (context) => {
+              const deviceCodeValue = getDeviceTokenCode(context);
+              if (!deviceCodeValue) {
+                return;
+              }
+
+              try {
+                const deviceCodeRecord = await db
+                  .select({ scope: deviceCode.scope })
+                  .from(deviceCode)
+                  .where(eq(deviceCode.deviceCode, deviceCodeValue))
+                  .limit(1);
+
+                const organizationId = getDeviceOrgIdFromScope(
+                  deviceCodeRecord[0]?.scope,
+                );
+                if (organizationId) {
+                  return { context: markDeviceOrgContext(organizationId) };
+                }
+              } catch (error) {
+                // Carrying the org across is an enhancement; never let a DB
+                // failure break the token exchange.
+                serverLogger.error(
+                  "cli_device_organization.capture.failed",
+                  exceptionAttributes(error),
+                );
+              }
+
+              return;
             }),
           },
         ],
