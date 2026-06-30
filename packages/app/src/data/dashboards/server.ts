@@ -8,7 +8,6 @@ import { dashboards } from "@/db/schema";
 import { querySqlApi } from "@/lib/clickhouse";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { interpolateVariables } from "./interpolate";
-import type { Dashboard } from "./schema";
 import { dashboardSpecSchema } from "./schema";
 import { generateTestData } from "./testdata/generate";
 import { testDataSpec } from "./testdata/spec";
@@ -43,7 +42,10 @@ export const getDashboard = createAuthenticatedServerFn({ method: "GET" })
     const orgId = context.session.session.activeOrganizationId;
 
     const [row] = await db
-      .select({ document: dashboards.document })
+      .select({
+        document: dashboards.document,
+        folderPath: dashboards.folderPath,
+      })
       .from(dashboards)
       .where(
         and(
@@ -65,7 +67,7 @@ export const getDashboard = createAuthenticatedServerFn({ method: "GET" })
     // unknown Perses fields survive.
     dashboardSpecSchema.parse(row.document.spec);
 
-    return row.document satisfies Dashboard;
+    return { ...row.document, folderPath: row.folderPath };
   });
 
 export const listDashboards = createAuthenticatedServerFn({

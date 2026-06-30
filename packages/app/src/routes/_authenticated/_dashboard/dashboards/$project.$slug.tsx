@@ -5,13 +5,21 @@ import { DashboardNotFound } from "@/components/dashboards/dashboard-not-found";
 import { DashboardProvider } from "@/components/dashboards/use-dashboard";
 import { dashboardOptions } from "@/data/dashboards/options";
 import { dashboardTimeDefaults } from "@/data/dashboards/time-defaults";
+import { breadcrumbSegments } from "@/data/dashboards/tree";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/dashboards/$project/$slug",
 )({
   staticData: {
-    breadcrumb: (match: { loaderData?: { name: string } }) => [
-      { label: "Dashboards", to: "/dashboards" },
+    breadcrumb: (match: {
+      loaderData?: { name: string; folderPath?: string };
+    }) => [
+      { label: "Dashboards", to: "/dashboards" as const },
+      ...breadcrumbSegments(match.loaderData?.folderPath ?? "").map((seg) => ({
+        label: seg.name,
+        to: "/dashboards" as const,
+        search: { folder: seg.path },
+      })),
       { label: match.loaderData?.name ?? "Dashboard" },
     ],
   },
@@ -30,6 +38,7 @@ export const Route = createFileRoute(
     // no post-mount URL write, so panels never query the wrong window first.
     return {
       name: dashboard.spec.display?.name ?? slug,
+      folderPath: dashboard.folderPath,
       timeDefaults: dashboardTimeDefaults(dashboard.spec),
     };
   },

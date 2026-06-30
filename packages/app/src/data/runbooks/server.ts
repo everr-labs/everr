@@ -4,7 +4,6 @@ import * as z from "zod";
 import { db } from "@/db/client";
 import { runbooks } from "@/db/schema";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
-import type { Runbook } from "./schema";
 import { runbookSpecSchema } from "./schema";
 
 export const getRunbook = createAuthenticatedServerFn({ method: "GET" })
@@ -13,7 +12,10 @@ export const getRunbook = createAuthenticatedServerFn({ method: "GET" })
     const orgId = context.session.session.activeOrganizationId;
 
     const [row] = await db
-      .select({ document: runbooks.document })
+      .select({
+        document: runbooks.document,
+        folderPath: runbooks.folderPath,
+      })
       .from(runbooks)
       .where(
         and(
@@ -35,7 +37,7 @@ export const getRunbook = createAuthenticatedServerFn({ method: "GET" })
     // unknown fields survive (same lenient-read contract as dashboards).
     runbookSpecSchema.parse(row.document.spec);
 
-    return row.document satisfies Runbook;
+    return { ...row.document, folderPath: row.folderPath };
   });
 
 export const listRunbooks = createAuthenticatedServerFn({

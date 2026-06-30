@@ -258,11 +258,11 @@ describe("getDashboard (project/slug)", () => {
       spec: { panels: {}, layouts: [] },
       apiVersion: "perses.dev/v1",
     };
-    selectImpl = () => [{ document }];
+    selectImpl = () => [{ document, folderPath: "Platform / API" }];
     const result = await getDashboard({
       data: { project: "team", slug: "cpu" },
     });
-    expect(result).toEqual(document);
+    expect(result).toEqual({ ...document, folderPath: "Platform / API" });
   });
 
   it("throws a notFound when the dashboard is missing", async () => {
