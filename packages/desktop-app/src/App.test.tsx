@@ -81,6 +81,8 @@ type MainCommand =
   | "telemetry_sql_query"
   | "restart_collector"
   | "get_runs_list"
+  | "get_runs_histogram"
+  | "get_run_filter_options"
   | "open_run_in_browser"
   | "copy_run_auto_fix_prompt"
   | "get_skills_status"
@@ -228,7 +230,11 @@ function renderMainApp(options: RenderMainOptions = {}) {
         case "restart_collector":
           return restartCollectorSpy();
         case "get_runs_list":
-          return runs;
+          return { runs, totalCount: runs.length };
+        case "get_runs_histogram":
+          return [];
+        case "get_run_filter_options":
+          return { repos: [], branches: [], workflowNames: [] };
         case "open_run_in_browser":
           return null;
         case "copy_run_auto_fix_prompt":
@@ -378,9 +384,7 @@ describe("desktop window", () => {
       await router.navigate({ to: "/ci" });
     });
 
-    expect(
-      await screen.findByRole("heading", { name: "Your CI runs" }),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("CI runs")).toBeInTheDocument();
     expect(
       screen.queryByText("Sign in to view your CI runs"),
     ).not.toBeInTheDocument();
@@ -601,26 +605,17 @@ describe("runs list", () => {
       await router.navigate({ to: "/ci" });
     });
 
-    expect(await screen.findByText("No runs found")).toBeInTheDocument();
+    expect(await screen.findByText("No runs")).toBeInTheDocument();
   });
 
-  it("renders runs in a table with workflow, repo, branch, and conclusion", async () => {
+  it("mounts the runs explorer (with the Your-runs filter) when there are runs", async () => {
+    // Row rendering is virtualized (react-virtuoso) and covered by the web app
+    // tests; here we just assert the desktop CI page mounts the shared explorer
+    // — including the desktop-only "Your runs" filter — without erroring.
     renderMainApp({
       runs: [
-        createRun({
-          traceId: "trace-a",
-          workflowName: "Build",
-          repo: "everr-labs/everr",
-          branch: "main",
-          conclusion: "failure",
-        }),
-        createRun({
-          traceId: "trace-b",
-          workflowName: "Deploy",
-          repo: "everr-labs/api",
-          branch: "release/v2",
-          conclusion: "success",
-        }),
+        createRun({ traceId: "trace-a", workflowName: "Build" }),
+        createRun({ traceId: "trace-b", workflowName: "Deploy" }),
       ],
     });
 
@@ -628,14 +623,39 @@ describe("runs list", () => {
       await router.navigate({ to: "/ci" });
     });
 
-    expect(await screen.findByText("Build")).toBeInTheDocument();
-    expect(screen.getByText("Deploy")).toBeInTheDocument();
-    expect(screen.getByText("everr-labs/everr")).toBeInTheDocument();
-    expect(screen.getByText("everr-labs/api")).toBeInTheDocument();
-    expect(screen.getByText("main")).toBeInTheDocument();
-    expect(screen.getByText("release/v2")).toBeInTheDocument();
-    expect(screen.getByText("failure")).toBeInTheDocument();
-    expect(screen.getByText("success")).toBeInTheDocument();
+    expect(await screen.findByText("Your runs")).toBeInTheDocument();
+    expect(screen.getByText("All repositories")).toBeInTheDocument();
+  });
+
+  it("warns to add a notification email when none is set", async () => {
+    renderMainApp({
+      runs: [createRun({ traceId: "trace-a", workflowName: "Build" })],
+      notificationEmails: [],
+    });
+
+    await act(async () => {
+      await router.navigate({ to: "/ci" });
+    });
+
+    expect(
+      await screen.findByRole("button", { name: /add notification email/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("does not warn when a notification email is set", async () => {
+    renderMainApp({
+      runs: [createRun({ traceId: "trace-a", workflowName: "Build" })],
+      notificationEmails: ["me@example.com"],
+    });
+
+    await act(async () => {
+      await router.navigate({ to: "/ci" });
+    });
+
+    expect(await screen.findByText("Your runs")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /add notification email/i }),
+    ).not.toBeInTheDocument();
   });
 });
 

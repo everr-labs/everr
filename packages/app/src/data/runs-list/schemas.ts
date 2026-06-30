@@ -1,3 +1,4 @@
+import { RUN_STATUS_FILTERS } from "@everr/telemetry-explorer/runs";
 import { TimeRangeSchema } from "@everr/ui/lib/time-range";
 import { z } from "zod";
 
@@ -35,9 +36,7 @@ const RunsFilterShape = {
   timeRange: TimeRangeSchema,
   repos: z.array(z.string()).optional(),
   branches: z.array(z.string()).optional(),
-  conclusions: z
-    .array(z.enum(["success", "failure", "cancellation"]))
-    .optional(),
+  conclusions: z.array(z.enum(RUN_STATUS_FILTERS)).optional(),
   workflowNames: z.array(z.string()).optional(),
   runId: z.string().optional(),
   authorEmails: z.array(z.string()).optional(),
@@ -56,7 +55,6 @@ export const RunsHistogramInputSchema = z.object({
   ...RunsFilterShape,
   histogramBuckets: z.number().int().min(12).max(240).default(80),
 });
-export type RunsHistogramInput = z.infer<typeof RunsHistogramInputSchema>;
 
 export interface RunHistogramBucket {
   timestamp: string;

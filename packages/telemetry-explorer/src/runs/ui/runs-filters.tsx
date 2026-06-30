@@ -1,35 +1,40 @@
-import { FilterSidebar } from "@everr/telemetry-explorer/filters";
 import { FilterCombobox } from "@everr/ui/components/filter-combobox";
 import { Separator } from "@everr/ui/components/separator";
+import { Switch } from "@everr/ui/components/switch";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
-import { ConclusionIcon } from "@/components/run-detail/conclusion-icon";
-import {
-  runBranchFilterOptions,
-  runRepoFilterOptions,
-  runWorkflowNameFilterOptions,
-} from "@/data/runs-list/options";
-import {
-  RUN_CONCLUSION_META,
-  RUN_STATUS_FILTERS,
-  type RunStatusFilter,
-} from "./run-conclusion-meta";
+import { User } from "lucide-react";
+import { FilterSidebar } from "../../filters/ui/filter-sidebar";
+import { runsFilterOptions } from "../data/options";
+import type { RunsRepositoryLike } from "../data/repository";
+import { RUN_STATUS_FILTERS, type RunStatusFilter } from "../schemas";
+import { ConclusionIcon } from "./conclusion-icon";
+import { RUN_CONCLUSION_META } from "./run-conclusion-meta";
 
 export interface RunsFiltersValue {
-  repos: string[];
   branches: string[];
   conclusions: RunStatusFilter[];
   workflowNames: string[];
+  onlyMine: boolean;
 }
 
 export interface RunsFiltersProps {
+  repo: RunsRepositoryLike;
   timeRange: TimeRange;
   value: RunsFiltersValue;
+  /** Render the "Your runs" switch (the desktop CI page scopes to the user). */
+  showMineFilter?: boolean;
   onChange: (patch: Partial<RunsFiltersValue>) => void;
 }
 
-export function RunsFilters({ timeRange, value, onChange }: RunsFiltersProps) {
-  const { repos, branches, conclusions, workflowNames } = value;
+export function RunsFilters({
+  repo,
+  timeRange,
+  value,
+  showMineFilter = false,
+  onChange,
+}: RunsFiltersProps) {
+  const { branches, conclusions, workflowNames, onlyMine } = value;
 
   const toggleStatus = (status: RunStatusFilter) => {
     onChange({
@@ -39,11 +44,12 @@ export function RunsFilters({ timeRange, value, onChange }: RunsFiltersProps) {
     });
   };
 
+  const baseOptions = runsFilterOptions(repo, { timeRange });
+
+  // "Your runs" is owned by its dedicated switch, so it doesn't count toward
+  // hasActiveFilters nor get reset by "Clear all".
   const hasActiveFilters =
-    repos.length > 0 ||
-    branches.length > 0 ||
-    conclusions.length > 0 ||
-    workflowNames.length > 0;
+    branches.length > 0 || conclusions.length > 0 || workflowNames.length > 0;
 
   return (
     <FilterSidebar
@@ -51,13 +57,29 @@ export function RunsFilters({ timeRange, value, onChange }: RunsFiltersProps) {
       hasActiveFilters={hasActiveFilters}
       onClear={() =>
         onChange({
-          repos: [],
           branches: [],
           conclusions: [],
           workflowNames: [],
         })
       }
     >
+      {showMineFilter ? (
+        <>
+          <div className="flex h-8 w-full items-center justify-between gap-2 px-2 text-xs">
+            <span className="flex min-w-0 items-center gap-2">
+              <User className="text-muted-foreground size-3.5 shrink-0" />
+              <span className="truncate">Your runs</span>
+            </span>
+            <Switch
+              aria-label="Your runs"
+              checked={onlyMine}
+              onCheckedChange={(checked) => onChange({ onlyMine: checked })}
+            />
+          </div>
+          <Separator />
+        </>
+      ) : null}
+
       <div className="space-y-1">
         {RUN_STATUS_FILTERS.map((status) => (
           <button
@@ -82,20 +104,10 @@ export function RunsFilters({ timeRange, value, onChange }: RunsFiltersProps) {
       <Separator />
 
       <FilterCombobox
-        label="Repository"
-        values={repos}
-        onChange={(next) => onChange({ repos: next })}
-        options={runRepoFilterOptions({ timeRange })}
-        placeholder="All repositories"
-        searchPlaceholder="Search repos..."
-        className="w-full"
-      />
-
-      <FilterCombobox
         label="Branch"
         values={branches}
         onChange={(next) => onChange({ branches: next })}
-        options={runBranchFilterOptions({ timeRange })}
+        options={{ ...baseOptions, select: (data) => data.branches }}
         placeholder="All branches"
         searchPlaceholder="Search branches..."
         className="w-full"
@@ -105,7 +117,7 @@ export function RunsFilters({ timeRange, value, onChange }: RunsFiltersProps) {
         label="Workflow"
         values={workflowNames}
         onChange={(next) => onChange({ workflowNames: next })}
-        options={runWorkflowNameFilterOptions({ timeRange })}
+        options={{ ...baseOptions, select: (data) => data.workflowNames }}
         placeholder="All workflows"
         searchPlaceholder="Search workflows..."
         className="w-full"

@@ -1,9 +1,8 @@
+import { ConclusionIcon, SenderCell } from "@everr/telemetry-explorer/runs";
 import { Empty, EmptyDescription } from "@everr/ui/components/empty";
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
-import { ConclusionIcon } from "@/components/run-detail/conclusion-icon";
-import { SenderCell } from "@/components/sender-cell";
 import type { RepoRecentRun } from "@/data/repo-detail/schemas";
 
 interface RepoRecentRunsProps {

@@ -1,3 +1,4 @@
+import { ConclusionIcon } from "@everr/telemetry-explorer/runs";
 import { Badge } from "@everr/ui/components/badge";
 import { buttonVariants } from "@everr/ui/components/button";
 import { Input } from "@everr/ui/components/input";
@@ -19,7 +20,6 @@ import {
 import { Fragment, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Span } from "@/data/runs/schemas";
 import { parseDuration } from "@/lib/formatting";
-import { ConclusionIcon } from "./conclusion-icon";
 import { FrameworkIcon } from "./framework-icon";
 import { SpanDetailPanel } from "./span-detail-panel";
 import {

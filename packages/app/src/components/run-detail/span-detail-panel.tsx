@@ -1,9 +1,9 @@
+import { SenderCell } from "@everr/telemetry-explorer/runs";
 import { buttonVariants } from "@everr/ui/components/button";
 import { formatDuration } from "@everr/ui/lib/formatting";
 import { cn } from "@everr/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import { Copy, ExternalLink, GitBranch } from "lucide-react";
-import { SenderCell } from "@/components/sender-cell";
 import type { SpanNode } from "./trace-waterfall-utils";
 import { stringToColor } from "./trace-waterfall-utils";
 

@@ -1,3 +1,4 @@
+import { ConclusionIcon } from "@everr/telemetry-explorer/runs";
 import {
   Collapsible,
   CollapsibleContent,
@@ -9,7 +10,6 @@ import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 import type { Job, Step } from "@/data/runs/schemas";
 import { isInProgressConclusion } from "@/data/runs/schemas";
-import { ConclusionIcon } from "./conclusion-icon";
 
 interface JobTreeNavProps {
   jobs: Job[];

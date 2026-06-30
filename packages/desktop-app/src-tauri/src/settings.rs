@@ -4,7 +4,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use crate::{
     current_base_url, RuntimeState, WizardStatusResponse, AUTH_CHANGED_EVENT,
-    SETTINGS_CHANGED_EVENT,
+    OPEN_SETTINGS_EVENT, SETTINGS_CHANGED_EVENT,
 };
 
 pub(crate) fn wizard_status_response(state: &RuntimeState) -> Result<WizardStatusResponse> {
@@ -74,6 +74,10 @@ pub(crate) fn open_settings_window(app: &AppHandle) -> Result<()> {
 
     window.show()?;
     window.set_focus()?;
+
+    // Tell the running SPA to navigate to /settings. The main window stays
+    // mounted while hidden, so AppShell's listener routes it client-side.
+    let _ = window.emit(OPEN_SETTINGS_EVENT, ());
 
     Ok(())
 }

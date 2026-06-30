@@ -21,9 +21,8 @@ use crate::settings::{
 use crate::telemetry::sidecar::{CollectorStatusResponse, Sidecar};
 use crate::update::{apply_pending_update, pending_update_version};
 use crate::{
-    current_base_url, AuthStatusResponse, CommandResult, IntoCommandResult,
-    PendingAuthResponse, RuntimeState, SignInResponse, TestNotificationResponse,
-    WizardStatusResponse,
+    current_base_url, AuthStatusResponse, CommandResult, IntoCommandResult, PendingAuthResponse,
+    RuntimeState, SignInResponse, TestNotificationResponse, WizardStatusResponse,
 };
 
 #[tauri::command]
@@ -226,9 +225,7 @@ pub(crate) struct PendingUpdateResponse {
 }
 
 #[tauri::command]
-pub(crate) fn get_pending_update(
-    app: AppHandle,
-) -> CommandResult<Option<PendingUpdateResponse>> {
+pub(crate) fn get_pending_update(app: AppHandle) -> CommandResult<Option<PendingUpdateResponse>> {
     Ok(pending_update_version(&app).map(|version| PendingUpdateResponse { version }))
 }
 
@@ -347,47 +344,141 @@ pub(crate) struct RunListItem {
     pub sender: String,
     pub display_title: Option<String>,
     pub head_sha: Option<String>,
+    pub running_since: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RunsListApiResponse {
     runs: Vec<RunListItem>,
-    #[allow(dead_code)]
-    total_count: u64,
+    #[serde(default)]
+    total_count: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct RunsListResponse {
+    pub runs: Vec<RunListItem>,
+    pub total_count: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct RunHistogramBucket {
+    pub timestamp: String,
+    pub end_timestamp: String,
+    pub total: u64,
+    pub success: u64,
+    pub failure: u64,
+    pub cancellation: u64,
+    pub other: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct RunFilterOptions {
+    pub repos: Vec<String>,
+    pub branches: Vec<String>,
+    pub workflow_names: Vec<String>,
+}
+
+/// Resolve the author emails used to scope runs to the signed-in user.
+/// Reuses the notification-emails / profile-email preference order.
+fn author_emails_from_settings(settings: &everr_core::state::AppSettings) -> Vec<String> {
+    if !settings.notification_emails.is_empty() {
+        settings.notification_emails.clone()
+    } else if let Some(profile) = &settings.user_profile {
+        vec![profile.email.clone()]
+    } else {
+        vec![]
+    }
+}
+
+/// A value no real `author_email` can equal. Sent when scoping to the current
+/// user but no email resolves, so the query fails closed (returns no runs)
+/// instead of silently degrading "your runs" to all of the org's runs.
+const NO_MATCHING_AUTHOR: &str = "__everr_no_matching_author__";
+
+/// Append `authorEmails` query pairs only when scoping to the current user.
+fn push_author_filter(
+    query: &mut Vec<(&'static str, String)>,
+    settings: &everr_core::state::AppSettings,
+    only_mine: bool,
+) {
+    if !only_mine {
+        return;
+    }
+    let emails = author_emails_from_settings(settings);
+    if emails.is_empty() {
+        query.push(("authorEmails", NO_MATCHING_AUTHOR.to_string()));
+        return;
+    }
+    for email in emails {
+        query.push(("authorEmails", email));
+    }
+}
+
+/// Append one query pair per value for a repeated plural filter.
+fn push_repeated(
+    query: &mut Vec<(&'static str, String)>,
+    key: &'static str,
+    values: &Option<Vec<String>>,
+) {
+    if let Some(values) = values {
+        for value in values {
+            query.push((key, value.clone()));
+        }
+    }
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn get_runs_list(
     state: State<'_, RuntimeState>,
     from: String,
     to: String,
-) -> CommandResult<Vec<RunListItem>> {
+    limit: Option<u32>,
+    offset: Option<u32>,
+    repos: Option<Vec<String>>,
+    branches: Option<Vec<String>>,
+    conclusions: Option<Vec<String>>,
+    workflow_names: Option<Vec<String>>,
+    run_id: Option<String>,
+    only_mine: bool,
+    include_total_count: Option<bool>,
+) -> CommandResult<RunsListResponse> {
     let state = state.inner().clone();
     let app_state = current_app_state(&state).into_command_result()?;
     let session = app_state
         .session
+        .clone()
         .ok_or_else(|| "not signed in".to_string())?;
     let client = ApiClient::from_session(&session).into_command_result()?;
 
-    let emails: Vec<String> = {
-        let settings = app_state.settings;
-        if !settings.notification_emails.is_empty() {
-            settings.notification_emails
-        } else if let Some(profile) = settings.user_profile {
-            vec![profile.email]
-        } else {
-            vec![]
-        }
-    };
-
-    let mut query: Vec<(&str, String)> = emails
-        .iter()
-        .map(|email| ("authorEmails", email.clone()))
-        .collect();
+    let mut query: Vec<(&'static str, String)> = Vec::new();
     query.push(("from", from));
     if !to.is_empty() {
         query.push(("to", to));
+    }
+    push_author_filter(&mut query, &app_state.settings, only_mine);
+    if let Some(limit) = limit {
+        query.push(("limit", limit.to_string()));
+    }
+    if let Some(offset) = offset {
+        query.push(("offset", offset.to_string()));
+    }
+    push_repeated(&mut query, "repos", &repos);
+    push_repeated(&mut query, "branches", &branches);
+    push_repeated(&mut query, "conclusions", &conclusions);
+    push_repeated(&mut query, "workflowNames", &workflow_names);
+    if let Some(run_id) = run_id {
+        query.push(("runId", run_id));
+    }
+    if let Some(include_total_count) = include_total_count {
+        query.push((
+            "includeTotalCount",
+            if include_total_count { "true" } else { "false" }.to_string(),
+        ));
     }
 
     let value = client.get_runs_list(&query).await.into_command_result()?;
@@ -395,7 +486,91 @@ pub(crate) async fn get_runs_list(
         .context("failed to parse runs list response")
         .into_command_result()?;
 
-    Ok(response.runs)
+    Ok(RunsListResponse {
+        runs: response.runs,
+        total_count: response.total_count,
+    })
+}
+
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn get_runs_histogram(
+    state: State<'_, RuntimeState>,
+    from: String,
+    to: String,
+    repos: Option<Vec<String>>,
+    branches: Option<Vec<String>>,
+    conclusions: Option<Vec<String>>,
+    workflow_names: Option<Vec<String>>,
+    run_id: Option<String>,
+    only_mine: bool,
+    histogram_buckets: Option<u32>,
+) -> CommandResult<Vec<RunHistogramBucket>> {
+    let state = state.inner().clone();
+    let app_state = current_app_state(&state).into_command_result()?;
+    let session = app_state
+        .session
+        .clone()
+        .ok_or_else(|| "not signed in".to_string())?;
+    let client = ApiClient::from_session(&session).into_command_result()?;
+
+    let mut query: Vec<(&'static str, String)> = Vec::new();
+    query.push(("from", from));
+    if !to.is_empty() {
+        query.push(("to", to));
+    }
+    push_author_filter(&mut query, &app_state.settings, only_mine);
+    push_repeated(&mut query, "repos", &repos);
+    push_repeated(&mut query, "branches", &branches);
+    push_repeated(&mut query, "conclusions", &conclusions);
+    push_repeated(&mut query, "workflowNames", &workflow_names);
+    if let Some(run_id) = run_id {
+        query.push(("runId", run_id));
+    }
+    if let Some(histogram_buckets) = histogram_buckets {
+        query.push(("histogramBuckets", histogram_buckets.to_string()));
+    }
+
+    let value = client
+        .get_runs_histogram(&query)
+        .await
+        .into_command_result()?;
+    let buckets: Vec<RunHistogramBucket> = serde_json::from_value(value)
+        .context("failed to parse runs histogram response")
+        .into_command_result()?;
+
+    Ok(buckets)
+}
+
+#[tauri::command]
+pub(crate) async fn get_run_filter_options(
+    state: State<'_, RuntimeState>,
+    from: String,
+    to: String,
+) -> CommandResult<RunFilterOptions> {
+    let state = state.inner().clone();
+    let app_state = current_app_state(&state).into_command_result()?;
+    let session = app_state
+        .session
+        .clone()
+        .ok_or_else(|| "not signed in".to_string())?;
+    let client = ApiClient::from_session(&session).into_command_result()?;
+
+    let mut query: Vec<(&'static str, String)> = Vec::new();
+    query.push(("from", from));
+    if !to.is_empty() {
+        query.push(("to", to));
+    }
+
+    let value = client
+        .get_run_filter_options(&query)
+        .await
+        .into_command_result()?;
+    let options: RunFilterOptions = serde_json::from_value(value)
+        .context("failed to parse run filter options response")
+        .into_command_result()?;
+
+    Ok(options)
 }
 
 #[tauri::command]

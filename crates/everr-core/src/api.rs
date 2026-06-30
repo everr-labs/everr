@@ -140,6 +140,14 @@ impl ApiClient {
         self.get_json("/runs", query).await
     }
 
+    pub async fn get_runs_histogram(&self, query: &[(&str, String)]) -> Result<Value> {
+        self.get_json("/runs/histogram", query).await
+    }
+
+    pub async fn get_run_filter_options(&self, query: &[(&str, String)]) -> Result<Value> {
+        self.get_json("/runs/filter-options", query).await
+    }
+
     pub async fn get_status(&self, query: &[(&str, String)]) -> Result<WatchResponse> {
         self.get("/runs/status", query).await
     }

@@ -24,7 +24,6 @@
   },
   "dependencies": {
     "@everr/auto-otel-errors": "workspace:*",
-    "@everr/datemath": "workspace:*",
     "@everr/telemetry-explorer": "workspace:*",
     "@everr/ui": "workspace:*",
     "@opentelemetry/api": "^1.9.1",

@@ -9,7 +9,7 @@ import { cn } from "@everr/ui/lib/utils";
 import { ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { Bar, BarChart, ReferenceArea, XAxis } from "recharts";
-import type { RunHistogramBucket } from "@/data/runs-list/schemas";
+import type { RunHistogramBucket } from "../schemas";
 import {
   RUN_CONCLUSION_META,
   RUN_HISTOGRAM_KEYS,
