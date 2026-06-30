@@ -6,10 +6,11 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import { TriangleAlert } from "lucide-react";
 import type { ReactNode } from "react";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import type { Panel } from "@/data/dashboards/schema";
 import { PanelShell } from "../panel-shell";
 import { useDashboardPanelData } from "./use-dashboard-panel-data";
+import { useInView } from "./use-in-view";
 import {
   getVisualizationInset,
   getVisualizationSpecWarnings,
@@ -59,8 +60,13 @@ export function DashboardPanel({
   const { display, plugin } = panel.spec;
   const navigate = useNavigate();
 
-  const { data, status, errorMessage, timeRange } =
-    useDashboardPanelData(panel);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inView = useInView(containerRef);
+
+  const { data, status, errorMessage, timeRange } = useDashboardPanelData(
+    panel,
+    { enabled: inView },
+  );
 
   const specWarnings = useMemo(
     () => getVisualizationSpecWarnings(plugin),
@@ -83,7 +89,7 @@ export function DashboardPanel({
   );
 
   return (
-    <div className="group/panel relative h-full">
+    <div ref={containerRef} className="group/panel relative h-full">
       <PanelShell
         title={display?.name ?? panelKey}
         description={display?.description}

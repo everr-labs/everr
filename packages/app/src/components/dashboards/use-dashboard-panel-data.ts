@@ -142,7 +142,11 @@ export interface DashboardPanelData extends CombinedPanelResult {
  * intermediate hooks to coordinate. The variable bar still uses
  * `useDashboardVariables` directly for its pickers.
  */
-export function useDashboardPanelData(panel: Panel): DashboardPanelData {
+export function useDashboardPanelData(
+  panel: Panel,
+  options?: { enabled?: boolean },
+): DashboardPanelData {
+  const active = options?.enabled ?? true;
   // Effective range: explicit URL params, else the dashboard's route defaults,
   // else the global default — resolved before first render (no flash). The
   // variable-options queries read the same range internally.
@@ -177,6 +181,7 @@ export function useDashboardPanelData(panel: Panel): DashboardPanelData {
         r.variableMeta,
       ),
       enabled:
+        active &&
         sourceIsActive(r.source) &&
         r.missingName === undefined &&
         r.optionsError === undefined &&
