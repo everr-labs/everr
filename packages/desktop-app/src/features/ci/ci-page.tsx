@@ -1,4 +1,7 @@
 import {
+  type RenderRunLink,
+  type RenderRunRowActions,
+  RUN_STATUS_FILTERS,
   RunsExplorer,
   type RunsExplorerSearch,
 } from "@everr/telemetry-explorer/runs";
@@ -22,7 +25,7 @@ import {
 } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { Check, Clipboard } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { z } from "zod";
 import { APP_DISPLAY_NAME } from "@/lib/app-name";
 import { invokeCommand, NOTIFIER_CHECKED_EVENT } from "@/lib/tauri";
@@ -39,10 +42,7 @@ export const CiSearchSchema = z.object({
   repos: z.array(z.string()).default([]).catch([]),
   branches: z.array(z.string()).default([]).catch([]),
   workflowNames: z.array(z.string()).default([]).catch([]),
-  conclusions: z
-    .array(z.enum(["success", "failure", "cancellation"]))
-    .default([])
-    .catch([]),
+  conclusions: z.array(z.enum(RUN_STATUS_FILTERS)).default([]).catch([]),
   onlyMine: z.boolean().default(true).catch(true),
   showVolume: z.boolean().default(true).catch(true),
 });
@@ -86,7 +86,9 @@ function CiContent() {
   const search = useSearch({ strict: false }) as CiSearch;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const isFetching = useIsFetching() > 0;
+  // Scope to the runs queries so the indicator + refresh don't react to / refetch
+  // unrelated queries (auth, profile, collector status, …).
+  const isFetching = useIsFetching({ queryKey: ["runs"] }) > 0;
 
   const refresh = search.refresh ?? "";
   const refreshMs = useMemo(
@@ -102,7 +104,7 @@ function CiContent() {
     }
     if (refreshMs) {
       intervalRef.current = setInterval(
-        () => void queryClient.invalidateQueries(),
+        () => void queryClient.invalidateQueries({ queryKey: ["runs"] }),
         refreshMs,
       );
     }
@@ -129,6 +131,30 @@ function CiContent() {
     onlyMine: search.onlyMine,
     showVolume: search.showVolume,
   };
+
+  // Stable identities so the explorer's row itemContent (and thus Virtuoso)
+  // doesn't re-render every row whenever this component re-renders.
+  const renderRunLink: RenderRunLink = useCallback(
+    ({ run, className, children }) => (
+      <button
+        type="button"
+        className={className}
+        onClick={() =>
+          void invokeCommand("open_run_in_browser", { traceId: run.traceId })
+        }
+      >
+        {children}
+      </button>
+    ),
+    [],
+  );
+  const renderRowActions: RenderRunRowActions = useCallback(
+    (run) =>
+      run.conclusion === "failure" ? (
+        <CopyFixPromptButton traceId={run.traceId} />
+      ) : null,
+    [],
+  );
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -159,7 +185,9 @@ function CiContent() {
                   replace: true,
                 })
               }
-              onRefresh={() => void queryClient.invalidateQueries()}
+              onRefresh={() =>
+                void queryClient.invalidateQueries({ queryKey: ["runs"] })
+              }
               isFetching={isFetching}
             />
           </>
@@ -189,24 +217,8 @@ function CiContent() {
               replace: true,
             })
           }
-          renderRunLink={({ run, className, children }) => (
-            <button
-              type="button"
-              className={className}
-              onClick={() =>
-                void invokeCommand("open_run_in_browser", {
-                  traceId: run.traceId,
-                })
-              }
-            >
-              {children}
-            </button>
-          )}
-          renderRowActions={(run) =>
-            run.conclusion === "failure" ? (
-              <CopyFixPromptButton traceId={run.traceId} />
-            ) : null
-          }
+          renderRunLink={renderRunLink}
+          renderRowActions={renderRowActions}
         />
       </div>
     </div>

@@ -537,7 +537,6 @@ pub(crate) async fn get_run_filter_options(
     state: State<'_, RuntimeState>,
     from: String,
     to: String,
-    #[allow(unused_variables)] only_mine: bool,
 ) -> CommandResult<RunFilterOptions> {
     let state = state.inner().clone();
     let app_state = current_app_state(&state).into_command_result()?;

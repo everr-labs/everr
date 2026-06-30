@@ -43,7 +43,7 @@ export function runsHistogramOptions(
 // while keeping `queryFn` required — the FilterCombobox needs that exact shape.
 export function runsFilterOptions(
   repo: RunsRepositoryLike,
-  input: Pick<RunsFilter, "timeRange" | "onlyMine">,
+  input: Pick<RunsFilter, "timeRange">,
 ) {
   return {
     queryKey: ["runs", "filterOptions", input] as const,

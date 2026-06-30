@@ -144,7 +144,7 @@ export function RunsExplorer({
             values={repos}
             onChange={(next) => onSearchChange({ repos: next })}
             options={{
-              ...runsFilterOptions(repo, { timeRange, onlyMine }),
+              ...runsFilterOptions(repo, { timeRange }),
               select: (data) => data.repos,
             }}
             placeholder="All repositories"

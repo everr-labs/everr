@@ -1,4 +1,7 @@
-import { RunsExplorer } from "@everr/telemetry-explorer/runs";
+import {
+  RUN_STATUS_FILTERS,
+  RunsExplorer,
+} from "@everr/telemetry-explorer/runs";
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { z } from "zod";
@@ -13,10 +16,7 @@ const SearchSchema = TimeRangeSearchSchema.extend({
   runId: z.string().optional().catch(undefined),
   repos: z.array(z.string()).default([]).catch([]),
   branches: z.array(z.string()).default([]).catch([]),
-  conclusions: z
-    .array(z.enum(["success", "failure", "cancellation"]))
-    .default([])
-    .catch([]),
+  conclusions: z.array(z.enum(RUN_STATUS_FILTERS)).default([]).catch([]),
   workflowNames: z.array(z.string()).default([]).catch([]),
   showVolume: z.boolean().default(true).catch(true),
 });

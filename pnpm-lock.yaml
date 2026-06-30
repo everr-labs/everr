@@ -412,9 +412,6 @@ importers:
       '@everr/auto-otel-errors':
         specifier: workspace:*
         version: link:../auto-otel-errors
-      '@everr/datemath':
-        specifier: workspace:*
-        version: link:../datemath
       '@everr/telemetry-explorer':
         specifier: workspace:*
         version: link:../telemetry-explorer

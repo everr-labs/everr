@@ -44,9 +44,7 @@ export function RunsFilters({
     });
   };
 
-  // The available branches/workflows depend on whether we're scoped to the
-  // user's runs, so the option query is keyed on `onlyMine` too.
-  const baseOptions = runsFilterOptions(repo, { timeRange, onlyMine });
+  const baseOptions = runsFilterOptions(repo, { timeRange });
 
   // "Your runs" is owned by its dedicated switch, so it doesn't count toward
   // hasActiveFilters nor get reset by "Clear all".

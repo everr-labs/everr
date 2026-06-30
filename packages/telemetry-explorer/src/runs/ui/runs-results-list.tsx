@@ -22,6 +22,7 @@ import {
   useState,
 } from "react";
 import { Virtuoso } from "react-virtuoso";
+import { useDelayedFlag } from "../../traces/util/use-delayed-flag";
 import type { RunListItem } from "../schemas";
 import { ConclusionIcon } from "./conclusion-icon";
 import { SenderCell } from "./sender-cell";
@@ -63,20 +64,6 @@ interface RunsResultsListProps {
   onClearFilters: () => void;
   renderRunLink: RenderRunLink;
   renderRowActions?: RenderRunRowActions;
-}
-
-// Defers the skeleton briefly so a fast query doesn't flash one.
-function useDelayedFlag(active: boolean, delayMs: number) {
-  const [shown, setShown] = useState(false);
-  useEffect(() => {
-    if (!active) {
-      setShown(false);
-      return;
-    }
-    const id = setTimeout(() => setShown(true), delayMs);
-    return () => clearTimeout(id);
-  }, [active, delayMs]);
-  return shown;
 }
 
 export function RunsResultsList({
