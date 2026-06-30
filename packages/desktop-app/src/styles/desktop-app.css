@@ -13,13 +13,16 @@
   }
 
   /*
-   * Left inset for the title-bar's page title. It clears the macOS traffic
-   * lights (the "semaphore") when windowed, and is kept constant in fullscreen
-   * — even though the lights are hidden — so the title stays in exactly the
-   * same place across both modes (matching the nav, which also never shifts).
+   * Left inset for the title-bar's page title. Windowed, it clears the macOS
+   * traffic lights (the "semaphore"). In native fullscreen the lights are
+   * hidden, so it shrinks to a small gutter.
    */
   :root {
-    --titlebar-inset: 5rem;
+    --titlebar-inset: 6rem;
+  }
+
+  [data-fullscreen="true"] {
+    --titlebar-inset: 1rem;
   }
 }
 
