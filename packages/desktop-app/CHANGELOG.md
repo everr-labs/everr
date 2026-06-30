@@ -1,5 +1,12 @@
 # @everr/desktop-app
 
+## 0.5.0
+
+### Minor Changes
+
+- e2ff9f5: Rebuild the CI page as a full runs explorer: a filter sidebar (status, branch, workflow) with the Repository filter in the topbar and a "Your runs" toggle on by default, a runs-over-time volume histogram, infinite scroll, live-ticking durations for in-progress runs, and the copy auto-fix prompt on failed runs. The window now has a single full-width title bar so the left nav stays in the same place whether windowed or fullscreen.
+- f533a74: Surface app updates and gate installs behind user action: a sidebar update button, a green status badge on the tray icon, and a "Restart to update" tray menu item now appear when an update is staged, and the update installs only when the user triggers it. A vanished staged artifact (e.g. removed by OS temp cleanup) now self-heals by re-downloading instead of getting stuck.
+
 ## 0.4.7
 
 ### Patch Changes
