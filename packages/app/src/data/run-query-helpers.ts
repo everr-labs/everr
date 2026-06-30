@@ -9,7 +9,7 @@ interface RunSummarySubqueryOptions {
   includeJobCount?: boolean;
 }
 
-const CONCLUSION_EXPR =
+export const CONCLUSION_EXPR =
   "coalesce(nullIf(argMaxIf(ResourceAttributes['cicd.pipeline.result'], Timestamp, ResourceAttributes['cicd.pipeline.result'] != ''), ''), argMaxIf(ResourceAttributes['cicd.pipeline.task.run.result'], Timestamp, ResourceAttributes['cicd.pipeline.task.run.result'] != ''))";
 
 /**

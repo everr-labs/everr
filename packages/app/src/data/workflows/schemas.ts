@@ -1,37 +1,78 @@
 import { TimeRangeSchema } from "@everr/ui/lib/time-range";
 import { z } from "zod";
+import type { RunListItem } from "../runs-list/schemas";
 
 // ── Types ───────────────────────────────────────────────────────────────
 
-export interface WorkflowStats {
-  totalRuns: number;
-  successRate: number;
-  avgDuration: number;
-  p95Duration: number;
-  prevTotalRuns: number;
-  prevSuccessRate: number;
-  prevAvgDuration: number;
-}
-
-export interface WorkflowTrendPoint {
+/** One bucket of the cost-over-time series (spend in USD, compute minutes). */
+export interface WorkflowCostOverTimePoint {
   date: string;
-  totalRuns: number;
-  successRate: number;
-  successCount: number;
-  failureCount: number;
+  spend: number;
+  minutes: number;
 }
 
-export interface WorkflowDurationTrendPoint {
-  date: string;
-  avgDuration: number;
-  p95Duration: number;
-}
-
-export interface WorkflowCost {
+/**
+ * Cost-first summary for a single workflow over the selected range, plus the
+ * previous period for deltas. Distinguishes three minute measures:
+ *  - billedMinutes  — what GitHub charges (per-job duration ceil'd to the minute)
+ *  - computeMinutes — actual elapsed runner time, summed across all jobs
+ *  - wallClockMinutes — real elapsed time per run, summed (jobs run in parallel,
+ *    so this is ≤ computeMinutes; the ratio is the parallelization factor)
+ */
+export interface WorkflowCostSummary {
   totalCost: number;
-  totalMinutes: number;
   prevTotalCost: number;
-  overTime: number[];
+  avgCostPerRun: number;
+  totalRuns: number;
+  prevTotalRuns: number;
+  billedMinutes: number;
+  computeMinutes: number;
+  wallClockMinutes: number;
+  avgWallClockMs: number;
+  prevAvgWallClockMs: number;
+  avgJobsPerRun: number;
+  selfHostedMinutes: number;
+  overTime: WorkflowCostOverTimePoint[];
+}
+
+/** Cost attributed to one job (across all of its runs in the range). */
+export interface WorkflowCostByJob {
+  job: string;
+  runs: number;
+  computeMinutes: number;
+  billedMinutes: number;
+  estimatedCost: number;
+}
+
+/** A single job span positioned within its run's wall-clock window. */
+export interface WorkflowRunGanttJob {
+  jobId: string;
+  name: string;
+  conclusion: string;
+  startMs: number;
+  endMs: number;
+  durationMs: number;
+  estimatedCost: number;
+}
+
+/** The most recent run, with its jobs laid out for a parallelization Gantt. */
+export interface WorkflowRunGantt {
+  runId: string;
+  traceId: string;
+  runAttempt: number;
+  conclusion: string;
+  timestamp: string;
+  startMs: number;
+  endMs: number;
+  wallClockMs: number;
+  computeMs: number;
+  estimatedCost: number;
+  jobs: WorkflowRunGanttJob[];
+}
+
+/** A recent run with its estimated cost attached. */
+export interface WorkflowRunListItem extends RunListItem {
+  estimatedCost: number;
 }
 
 // ── Input Schemas ───────────────────────────────────────────────────────

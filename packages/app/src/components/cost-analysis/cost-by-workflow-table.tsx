@@ -1,5 +1,6 @@
 import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { Empty, EmptyDescription } from "@everr/ui/components/empty";
+import { useNavigate } from "@tanstack/react-router";
 import { WorkflowLink } from "@/components/workflow-link";
 import type { CostByWorkflow } from "@/data/cost-analysis/schemas";
 import { formatCost } from "@/lib/runner-pricing";
@@ -15,7 +16,15 @@ const columns: Column<CostByWorkflow>[] = [
   },
   {
     header: "Workflow",
-    cell: (row) => <WorkflowLink repo={row.repo} workflowName={row.workflow} />,
+    cell: (row) => (
+      // Real anchor: the keyboard/screen-reader target. The whole row is also
+      // clickable (mouse) via onRowClick below; both open the cost detail.
+      <WorkflowLink
+        repo={row.repo}
+        workflowName={row.workflow}
+        className="rounded-sm group-hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      />
+    ),
   },
   {
     header: "Jobs",
@@ -48,11 +57,23 @@ const columns: Column<CostByWorkflow>[] = [
 ];
 
 export function CostByWorkflowTable({ data }: CostByWorkflowTableProps) {
+  const navigate = useNavigate();
+
   return (
     <DataTable
       data={data}
       columns={columns}
       rowKey={(row) => `${row.repo}:${row.workflow}`}
+      rowClassName={() => "group cursor-pointer"}
+      onRowClick={(row, event) => {
+        // The workflow-name anchor handles its own click + keyboard activation.
+        if ((event.target as HTMLElement).closest("a")) return;
+        // Time range carries via the dashboard's retainSearchParams.
+        navigate({
+          to: "/workflows/$repo/$workflowName",
+          params: { repo: row.repo, workflowName: row.workflow },
+        });
+      }}
       emptyState={
         <Empty>
           <EmptyDescription>No workflow cost data available</EmptyDescription>
