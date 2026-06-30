@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildTree, type DashboardSummary } from "./tree";
+import {
+  breadcrumbSegments,
+  buildTree,
+  type DashboardSummary,
+  nodeAtPath,
+} from "./tree";
 
 const d = (
   slug: string,
@@ -65,6 +70,42 @@ describe("buildTree (sorting)", () => {
     expect(tree.folders[0]?.dashboards.map((x) => x.name)).toEqual([
       "Beta",
       "Alpha",
+    ]);
+  });
+});
+
+describe("nodeAtPath", () => {
+  const tree = buildTree([
+    d("cpu", "team", "CPU", "Infra / Compute"),
+    d("mem", "team", "Mem", "Infra"),
+  ]);
+
+  it("returns null for an empty path", () => {
+    expect(nodeAtPath(tree, "")).toBeNull();
+  });
+
+  it("finds a top-level folder", () => {
+    expect(nodeAtPath(tree, "Infra")?.name).toBe("Infra");
+  });
+
+  it("finds a nested folder", () => {
+    expect(nodeAtPath(tree, "Infra / Compute")?.name).toBe("Compute");
+  });
+
+  it("returns null for a missing path", () => {
+    expect(nodeAtPath(tree, "Infra / Nope")).toBeNull();
+  });
+});
+
+describe("breadcrumbSegments", () => {
+  it("returns [] for an empty path", () => {
+    expect(breadcrumbSegments("")).toEqual([]);
+  });
+
+  it("builds cumulative segments", () => {
+    expect(breadcrumbSegments("Infra / Compute")).toEqual([
+      { name: "Infra", path: "Infra" },
+      { name: "Compute", path: "Infra / Compute" },
     ]);
   });
 });

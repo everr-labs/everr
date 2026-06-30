@@ -115,3 +115,38 @@ export function searchItems(
       .map((dashboard) => ({ dashboard, path: dashboard.folderPath })),
   };
 }
+
+function splitFolderPath(folderPath: string): string[] {
+  return folderPath
+    .split("/")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/** Walk the tree to the folder named by `folderPath` ("A / B"); null if absent. */
+export function nodeAtPath(
+  tree: DashboardTree,
+  folderPath: string,
+): FolderNode | null {
+  const segments = splitFolderPath(folderPath);
+  if (segments.length === 0) return null;
+  let nodes = tree.folders;
+  let found: FolderNode | null = null;
+  for (const segment of segments) {
+    found = nodes.find((n) => n.name === segment) ?? null;
+    if (!found) return null;
+    nodes = found.subfolders;
+  }
+  return found;
+}
+
+/** Cumulative breadcrumb segments for a folder path, root-first. */
+export function breadcrumbSegments(
+  folderPath: string,
+): { name: string; path: string }[] {
+  const acc: string[] = [];
+  return splitFolderPath(folderPath).map((name) => {
+    acc.push(name);
+    return { name, path: acc.join(" / ") };
+  });
+}
