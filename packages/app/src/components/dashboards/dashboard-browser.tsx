@@ -5,8 +5,12 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@everr/ui/components/select";
+import {
+  ToggleGroup,
+  ToggleGroupItem,
+} from "@everr/ui/components/toggle-group";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { ChevronRight, SearchIcon } from "lucide-react";
+import { ChevronRight, LayoutGrid, List, SearchIcon } from "lucide-react";
 import { useMemo } from "react";
 import {
   breadcrumbSegments,
@@ -16,6 +20,7 @@ import {
   nodeAtPath,
   searchItems,
 } from "@/data/dashboards/tree";
+import { BrowseCardsView } from "./browse-cards-view";
 import { BrowseListView } from "./browse-list-view";
 
 export type BrowseResource = "dashboard" | "runbook";
@@ -52,6 +57,7 @@ export function DashboardBrowser({
   const folder = search.folder ?? "";
   const sort: DashboardSort = search.sort ?? "updated";
   const q = search.q ?? "";
+  const view: "list" | "cards" = search.view ?? "list";
   const searching = q.trim().length > 0;
 
   const tree = useMemo(() => buildTree(items, sort), [items, sort]);
@@ -141,6 +147,20 @@ export function DashboardBrowser({
             <SelectItem value="name">Name</SelectItem>
           </SelectContent>
         </Select>
+        <ToggleGroup
+          value={[view]}
+          onValueChange={(values) => {
+            const v = values[0] as "list" | "cards" | undefined;
+            if (v) navigate({ to: ".", search: (p) => ({ ...p, view: v }) });
+          }}
+        >
+          <ToggleGroupItem value="list" aria-label="List view">
+            <List className="size-4" />
+          </ToggleGroupItem>
+          <ToggleGroupItem value="cards" aria-label="Cards view">
+            <LayoutGrid className="size-4" />
+          </ToggleGroupItem>
+        </ToggleGroup>
       </div>
 
       {folderMissing ? (
@@ -154,6 +174,8 @@ export function DashboardBrowser({
             Back to {rootLabel}
           </Link>
         </p>
+      ) : view === "cards" ? (
+        <BrowseCardsView contents={contents} resource={resource} />
       ) : (
         <BrowseListView contents={contents} resource={resource} />
       )}
