@@ -282,7 +282,7 @@ describe("getDashboard (project/slug)", () => {
 // ---------------------------------------------------------------------------
 
 describe("listDashboards (with project + folderPath)", () => {
-  it("returns slug, project, name, folderPath, description, updatedAt and panelCount", async () => {
+  it("returns slug, project, name, folderPath and updatedAt", async () => {
     const updatedAt = new Date("2026-01-15T10:00:00.000Z");
     mockedDb.select.mockImplementationOnce(
       () =>
@@ -295,9 +295,7 @@ describe("listDashboards (with project + folderPath)", () => {
                   project: "team",
                   folderPath: "Infra",
                   displayName: "CPU",
-                  description: "CPU usage metrics",
                   updatedAt,
-                  panelCount: 3,
                 },
               ]),
           }),
@@ -310,9 +308,7 @@ describe("listDashboards (with project + folderPath)", () => {
         project: "team",
         name: "CPU",
         folderPath: "Infra",
-        description: "CPU usage metrics",
         updatedAt: "2026-01-15T10:00:00.000Z",
-        panelCount: 3,
       },
     ]);
   });

@@ -208,26 +208,16 @@ function DashboardRow({
             : "/dashboards/$project/$slug"
         }
         params={{ project: dashboard.project, slug: dashboard.slug }}
-        className="flex min-w-0 flex-col gap-0.5"
+        className="flex min-w-0 items-center gap-2"
       >
-        <div className="flex min-w-0 items-center gap-2">
-          <Icon className="size-4 shrink-0 text-muted-foreground" />
-          <span className="truncate text-sm font-medium">{dashboard.name}</span>
-          {path && (
-            <span className="truncate text-xs text-muted-foreground">
-              {path}
-            </span>
-          )}
-          <span className="ml-auto shrink-0 whitespace-nowrap text-xs text-muted-foreground">
-            {dashboard.panelCount > 0 && `${dashboard.panelCount} panels · `}
-            {formatRelativeTime(dashboard.updatedAt)}
-          </span>
-        </div>
-        {dashboard.description && (
-          <span className="truncate pl-6 text-xs text-muted-foreground">
-            {dashboard.description}
-          </span>
+        <Icon className="size-4 shrink-0 text-muted-foreground" />
+        <span className="truncate text-sm font-medium">{dashboard.name}</span>
+        {path && (
+          <span className="truncate text-xs text-muted-foreground">{path}</span>
         )}
+        <span className="ml-auto shrink-0 whitespace-nowrap text-xs text-muted-foreground">
+          {formatRelativeTime(dashboard.updatedAt)}
+        </span>
       </Link>
     </div>
   );

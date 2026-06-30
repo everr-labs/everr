@@ -7,15 +7,7 @@ const d = (
   name: string,
   folderPath: string,
   updatedAt = "2026-01-01T00:00:00.000Z",
-  panelCount = 0,
-): DashboardSummary => ({
-  slug,
-  project,
-  name,
-  folderPath,
-  updatedAt,
-  panelCount,
-});
+): DashboardSummary => ({ slug, project, name, folderPath, updatedAt });
 
 describe("buildTree (folder paths)", () => {
   it("nests dashboards by their folderPath segments", () => {

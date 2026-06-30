@@ -3,12 +3,8 @@ export interface DashboardSummary {
   project: string;
   name: string;
   folderPath: string;
-  /** From document.spec.display.description; omitted when absent. */
-  description?: string;
-  /** ISO timestamp of the row's updated_at. */
+  /** ISO timestamp of the row's updated_at; drives the "recently updated" sort. */
   updatedAt: string;
-  /** Number of keys in document.spec.panels (0 for prose-only runbooks). */
-  panelCount: number;
 }
 
 export interface FolderNode {
