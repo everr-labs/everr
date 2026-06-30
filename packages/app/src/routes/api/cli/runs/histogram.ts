@@ -1,15 +1,13 @@
 import { DEFAULT_TIME_RANGE } from "@everr/ui/lib/time-range";
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { getRunsList } from "@/data/runs-list/server";
+import { getRunsHistogram } from "@/data/runs-list/server";
 
 const ConclusionEnum = z.enum(["success", "failure", "cancellation"]);
 
-const RunsListQuerySchema = z.strictObject({
+const RunsHistogramQuerySchema = z.strictObject({
   from: z.string().optional(),
   to: z.string().optional(),
-  limit: z.coerce.number().int().min(1).max(100).optional(),
-  offset: z.coerce.number().int().min(0).optional(),
   repo: z.string().optional(),
   branch: z.string().optional(),
   conclusion: ConclusionEnum.optional(),
@@ -22,10 +20,7 @@ const RunsListQuerySchema = z.strictObject({
   workflowNames: z.array(z.string()).optional(),
   runId: z.string().optional(),
   authorEmails: z.array(z.string()).optional(),
-  includeTotalCount: z
-    .enum(["true", "false"])
-    .transform((value) => value === "true")
-    .optional(),
+  histogramBuckets: z.coerce.number().int().optional(),
 });
 
 // Combine repeated plural params with the legacy singular one into a single
@@ -38,7 +33,7 @@ function mergeFilter<T extends string>(
   return merged.length > 0 ? merged : undefined;
 }
 
-export const Route = createFileRoute("/api/cli/runs")({
+export const Route = createFileRoute("/api/cli/runs/histogram")({
   server: {
     handlers: {
       GET: async ({ request }) => {
@@ -48,7 +43,7 @@ export const Route = createFileRoute("/api/cli/runs")({
         const branches = url.searchParams.getAll("branches");
         const conclusions = url.searchParams.getAll("conclusions");
         const workflowNames = url.searchParams.getAll("workflowNames");
-        const parsed = RunsListQuerySchema.safeParse({
+        const parsed = RunsHistogramQuerySchema.safeParse({
           ...Object.fromEntries(url.searchParams.entries()),
           repos: repos.length > 0 ? repos : undefined,
           branches: branches.length > 0 ? branches : undefined,
@@ -61,7 +56,7 @@ export const Route = createFileRoute("/api/cli/runs")({
           return Response.json(
             {
               error:
-                "Invalid query parameters for runs listing. Check limit, offset, and filter values.",
+                "Invalid query parameters for runs histogram. Check filter and bucket values.",
             },
             { status: 400 },
           );
@@ -72,11 +67,9 @@ export const Route = createFileRoute("/api/cli/runs")({
           to: parsed.data.to ?? DEFAULT_TIME_RANGE.to,
         };
 
-        const result = await getRunsList({
+        const buckets = await getRunsHistogram({
           data: {
             timeRange,
-            limit: parsed.data.limit,
-            offset: parsed.data.offset,
             repos: mergeFilter(parsed.data.repos, parsed.data.repo),
             branches: mergeFilter(parsed.data.branches, parsed.data.branch),
             conclusions: mergeFilter(
@@ -89,25 +82,11 @@ export const Route = createFileRoute("/api/cli/runs")({
             ),
             runId: parsed.data.runId,
             authorEmails: parsed.data.authorEmails,
-            includeTotalCount: parsed.data.includeTotalCount,
+            histogramBuckets: parsed.data.histogramBuckets,
           },
         });
 
-        return Response.json({
-          ...result,
-          filters: {
-            from: timeRange.from,
-            to: timeRange.to,
-            repo: parsed.data.repo ?? undefined,
-            branch: parsed.data.branch ?? undefined,
-            conclusion: parsed.data.conclusion ?? undefined,
-            workflowName: parsed.data.workflowName ?? undefined,
-            runId: parsed.data.runId ?? undefined,
-            authorEmails: parsed.data.authorEmails,
-            limit: parsed.data.limit ?? 20,
-            offset: parsed.data.offset ?? 0,
-          },
-        });
+        return Response.json(buckets);
       },
     },
   },

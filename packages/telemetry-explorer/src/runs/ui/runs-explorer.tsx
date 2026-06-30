@@ -1,4 +1,3 @@
-import { FilterSearchBar } from "@everr/telemetry-explorer/filters";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import {
   keepPreviousData,
@@ -6,20 +5,25 @@ import {
   useQuery,
 } from "@tanstack/react-query";
 import { useMemo } from "react";
+import { FilterSearchBar } from "../../filters/ui/filter-search-bar";
 import {
+  runsExplorerInfiniteOptions,
   runsHistogramOptions,
-  runsListInfiniteOptions,
-} from "@/data/runs-list/options";
-import type { RunListItem } from "@/data/runs-list/schemas";
-import type { RunStatusFilter } from "./run-conclusion-meta";
+} from "../data/options";
+import type { RunsRepositoryLike } from "../data/repository";
+import {
+  DEFAULT_RUNS_HISTOGRAM_BUCKETS,
+  DEFAULT_RUNS_PAGE_SIZE,
+  type RunListItem,
+  type RunStatusFilter,
+} from "../schemas";
 import { RunsFilters } from "./runs-filters";
 import { RunsHistogram } from "./runs-histogram";
-import { RunsResultsList } from "./runs-results-list";
-
-// How many runs each infinite page fetches, and how many histogram buckets to
-// request. Not user-tunable, so they live here rather than in the URL.
-const PAGE_SIZE = 50;
-const HISTOGRAM_BUCKETS = 80;
+import {
+  type RenderRunLink,
+  type RenderRunRowActions,
+  RunsResultsList,
+} from "./runs-results-list";
 
 export interface RunsExplorerSearch {
   runId?: string;
@@ -27,24 +31,41 @@ export interface RunsExplorerSearch {
   branches: string[];
   conclusions: RunStatusFilter[];
   workflowNames: string[];
+  onlyMine: boolean;
   showVolume: boolean;
 }
 
 export interface RunsExplorerProps {
+  repo: RunsRepositoryLike;
   timeRange: TimeRange;
   search: RunsExplorerSearch;
   onSearchChange: (patch: Partial<RunsExplorerSearch>) => void;
   onTimeRangeSelect: (from: Date, to: Date) => void;
+  /** Render the "Your runs" toggle in the sidebar. */
+  showMineFilter?: boolean;
+  renderRunLink: RenderRunLink;
+  renderRowActions?: RenderRunRowActions;
 }
 
 export function RunsExplorer({
+  repo,
   timeRange,
   search,
   onSearchChange,
   onTimeRangeSelect,
+  showMineFilter = false,
+  renderRunLink,
+  renderRowActions,
 }: RunsExplorerProps) {
-  const { runId, repos, branches, conclusions, workflowNames, showVolume } =
-    search;
+  const {
+    runId,
+    repos,
+    branches,
+    conclusions,
+    workflowNames,
+    onlyMine,
+    showVolume,
+  } = search;
 
   const filterInput = {
     timeRange,
@@ -53,6 +74,7 @@ export function RunsExplorer({
     conclusions,
     workflowNames,
     runId: runId || undefined,
+    onlyMine,
   };
 
   const {
@@ -65,14 +87,17 @@ export function RunsExplorer({
     error,
     refetch,
   } = useInfiniteQuery({
-    ...runsListInfiniteOptions({ ...filterInput, limit: PAGE_SIZE }),
+    ...runsExplorerInfiniteOptions(repo, {
+      ...filterInput,
+      limit: DEFAULT_RUNS_PAGE_SIZE,
+    }),
     placeholderData: keepPreviousData,
   });
 
   const { data: histogram = [], isPending: isHistogramPending } = useQuery({
-    ...runsHistogramOptions({
+    ...runsHistogramOptions(repo, {
       ...filterInput,
-      histogramBuckets: HISTOGRAM_BUCKETS,
+      histogramBuckets: DEFAULT_RUNS_HISTOGRAM_BUCKETS,
     }),
     enabled: showVolume,
     placeholderData: keepPreviousData,
@@ -118,8 +143,10 @@ export function RunsExplorer({
 
         <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[260px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]">
           <RunsFilters
+            repo={repo}
             timeRange={timeRange}
-            value={{ repos, branches, conclusions, workflowNames }}
+            value={{ repos, branches, conclusions, workflowNames, onlyMine }}
+            showMineFilter={showMineFilter}
             onChange={onSearchChange}
           />
 
@@ -147,6 +174,8 @@ export function RunsExplorer({
                   isLoadingMore={isFetchingNextPage}
                   onLoadMore={fetchNextPage}
                   onClearFilters={clearFilters}
+                  renderRunLink={renderRunLink}
+                  renderRowActions={renderRowActions}
                 />
               </div>
             </div>

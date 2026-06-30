@@ -1,0 +1,253 @@
+import {
+  RunsExplorer,
+  type RunsExplorerSearch,
+} from "@everr/telemetry-explorer/runs";
+import { Card, CardContent } from "@everr/ui/components/card";
+import {
+  getRefreshIntervalMs,
+  RefreshPicker,
+} from "@everr/ui/components/refresh-picker";
+import { TimeRangePicker } from "@everr/ui/components/time-range-picker";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@everr/ui/components/tooltip";
+import { DEFAULT_TIME_RANGE, type TimeRange } from "@everr/ui/lib/time-range";
+import {
+  useIsFetching,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { useNavigate, useSearch } from "@tanstack/react-router";
+import { Check, Clipboard } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { z } from "zod";
+import { APP_DISPLAY_NAME } from "@/lib/app-name";
+import { invokeCommand, NOTIFIER_CHECKED_EVENT } from "@/lib/tauri";
+import { useInvalidateOnTauriEvent } from "@/lib/tauri-events";
+import { AuthStandalone, useAuthStatusQuery } from "../auth/auth";
+import { ciRunsRepository } from "./ci-runs-repository";
+
+export const CiSearchSchema = z.object({
+  from: z.string().optional(),
+  to: z.string().optional(),
+  refresh: z.string().optional(),
+  runId: z.string().optional(),
+  repos: z.array(z.string()).default([]).catch([]),
+  branches: z.array(z.string()).default([]).catch([]),
+  workflowNames: z.array(z.string()).default([]).catch([]),
+  conclusions: z
+    .array(z.enum(["success", "failure", "cancellation"]))
+    .default([])
+    .catch([]),
+  onlyMine: z.boolean().default(true).catch(true),
+  showVolume: z.boolean().default(true).catch(true),
+});
+
+type CiSearch = z.infer<typeof CiSearchSchema>;
+
+export function CiPage() {
+  const authStatusQuery = useAuthStatusQuery();
+
+  if (authStatusQuery.isPending) {
+    return (
+      <div className="flex h-full items-center justify-center text-sm text-[var(--settings-text-muted)]">
+        Loading {APP_DISPLAY_NAME}…
+      </div>
+    );
+  }
+
+  if (authStatusQuery.data?.status !== "signed_in") {
+    return <CiSignInPrompt />;
+  }
+
+  return <CiContent />;
+}
+
+function CiSignInPrompt() {
+  return (
+    <div className="flex h-full items-center justify-center px-6 py-14">
+      <Card className="w-full max-w-[420px] border-[color:var(--settings-border)] bg-[var(--settings-panel)] text-[var(--settings-text)] shadow-[var(--settings-panel-shadow)]">
+        <CardContent className="px-6 py-8">
+          <AuthStandalone
+            title="Sign in to view your CI runs"
+            description="Connect Everr Cloud to monitor your pipelines."
+          />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function CiContent() {
+  const search = useSearch({ strict: false }) as CiSearch;
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const isFetching = useIsFetching() > 0;
+
+  const refresh = search.refresh ?? "";
+  const refreshMs = useMemo(
+    () => (refresh ? getRefreshIntervalMs(refresh) : null),
+    [refresh],
+  );
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    if (refreshMs) {
+      intervalRef.current = setInterval(
+        () => void queryClient.invalidateQueries(),
+        refreshMs,
+      );
+    }
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [refreshMs, queryClient]);
+
+  useInvalidateOnTauriEvent(NOTIFIER_CHECKED_EVENT, (qc) => {
+    void qc.invalidateQueries({ queryKey: ["runs"] });
+  });
+
+  const timeRange: TimeRange = {
+    from: search.from ?? DEFAULT_TIME_RANGE.from,
+    to: search.to ?? DEFAULT_TIME_RANGE.to,
+  };
+
+  const explorerSearch: RunsExplorerSearch = {
+    runId: search.runId,
+    repos: search.repos,
+    branches: search.branches,
+    conclusions: search.conclusions,
+    workflowNames: search.workflowNames,
+    onlyMine: search.onlyMine,
+    showVolume: search.showVolume,
+  };
+
+  return (
+    <div className="flex h-full flex-col overflow-hidden">
+      <header className="relative z-10 flex h-12 shrink-0 items-center justify-between border-b border-white/[0.06] px-3">
+        <div
+          data-tauri-drag-region
+          className="flex flex-1 items-center self-stretch pl-[var(--titlebar-inset)]"
+        >
+          <span className="text-sm font-medium text-[var(--settings-text)]">
+            CI runs
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <TimeRangePicker
+            value={timeRange}
+            onChange={(range) =>
+              navigate({
+                to: "/ci",
+                search: (prev) => ({ ...prev, from: range.from, to: range.to }),
+                replace: true,
+              })
+            }
+          />
+          <RefreshPicker
+            value={refresh}
+            onChange={(value) =>
+              navigate({
+                to: "/ci",
+                search: (prev) => ({ ...prev, refresh: value || undefined }),
+                replace: true,
+              })
+            }
+            onRefresh={() => void queryClient.invalidateQueries()}
+            isFetching={isFetching}
+          />
+        </div>
+      </header>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <RunsExplorer
+          repo={ciRunsRepository}
+          timeRange={timeRange}
+          search={explorerSearch}
+          showMineFilter
+          onSearchChange={(patch) =>
+            navigate({
+              to: "/ci",
+              search: (prev) => ({ ...prev, ...patch }),
+              replace: true,
+            })
+          }
+          onTimeRangeSelect={(from, to) =>
+            navigate({
+              to: "/ci",
+              search: (prev) => ({
+                ...prev,
+                from: from.toISOString(),
+                to: to.toISOString(),
+              }),
+              replace: true,
+            })
+          }
+          renderRunLink={({ run, className, children }) => (
+            <button
+              type="button"
+              className={className}
+              onClick={() =>
+                void invokeCommand("open_run_in_browser", {
+                  traceId: run.traceId,
+                })
+              }
+            >
+              {children}
+            </button>
+          )}
+          renderRowActions={(run) =>
+            run.conclusion === "failure" ? (
+              <CopyFixPromptButton traceId={run.traceId} />
+            ) : null
+          }
+        />
+      </div>
+    </div>
+  );
+}
+
+function CopyFixPromptButton({ traceId }: { traceId: string }) {
+  const [copied, setCopied] = useState(false);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const copyMutation = useMutation({
+    mutationFn: () =>
+      invokeCommand<void>("copy_run_auto_fix_prompt", { traceId }),
+    onSuccess() {
+      clearTimeout(copyTimerRef.current);
+      setCopied(true);
+      copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
+    },
+  });
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger
+          className="flex size-6 cursor-pointer items-center justify-center rounded text-[var(--settings-text-muted)] transition-colors hover:bg-white/[0.08] hover:text-[var(--settings-text)] disabled:pointer-events-none disabled:opacity-50"
+          disabled={copyMutation.isPending}
+          onClick={() => void copyMutation.mutateAsync()}
+        >
+          <span className="relative grid size-3.5 place-items-center">
+            <Clipboard
+              className={`col-start-1 row-start-1 size-3.5 transition-all duration-200 ${copied ? "scale-0 opacity-0" : "scale-100 opacity-100"}`}
+            />
+            <Check
+              className={`col-start-1 row-start-1 size-3.5 text-emerald-400 transition-all duration-200 ${copied ? "scale-100 opacity-100" : "scale-0 opacity-0"}`}
+            />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top">
+          {copied ? "Copied!" : "Copy auto-fix prompt"}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}

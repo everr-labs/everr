@@ -6,6 +6,7 @@ import {
   retainSearchParams,
   stripSearchParams,
 } from "@tanstack/react-router";
+import { CiPage, CiSearchSchema } from "./features/ci/ci-page";
 import { AppShell } from "./features/desktop-shell/app-shell";
 import { DesktopWindow } from "./features/desktop-shell/desktop-window";
 import { SettingsPage } from "./features/desktop-shell/settings-page";
@@ -17,7 +18,6 @@ import {
 } from "./features/errors/errors-page";
 import { ExploreSearchSchema } from "./features/explore/explore-search";
 import { LogsPage, LogsSearchSchema } from "./features/logs/logs-page";
-import { NotificationsPage } from "./features/notifications/notifications-page";
 import {
   TraceDetailPage,
   TraceDetailSearchSchema,
@@ -56,7 +56,8 @@ const indexRoute = createRoute({
 const notificationsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/ci",
-  component: NotificationsPage,
+  validateSearch: CiSearchSchema,
+  component: CiPage,
 });
 
 const settingsRoute = createRoute({

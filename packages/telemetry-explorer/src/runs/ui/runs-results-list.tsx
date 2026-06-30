@@ -15,15 +15,30 @@ import {
 } from "@everr/ui/components/tooltip";
 import { formatDuration } from "@everr/ui/lib/formatting";
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
-import { Link } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { Virtuoso } from "react-virtuoso";
-import { ConclusionIcon } from "@/components/run-detail/conclusion-icon";
-import { SenderCell } from "@/components/sender-cell";
-import type { RunListItem } from "@/data/runs-list/schemas";
+import type { RunListItem } from "../schemas";
+import { ConclusionIcon } from "./conclusion-icon";
+import { SenderCell } from "./sender-cell";
 
 const VIRTUOSO_OVERSCAN = 600;
 const SKELETON_DELAY_MS = 600;
+
+/** Wraps the run's workflow name; its stretched overlay makes the row activate. */
+export type RenderRunLink = (ctx: {
+  run: RunListItem;
+  className: string;
+  children: ReactNode;
+}) => ReactNode;
+
+/** Optional trailing actions per row (e.g. copy auto-fix prompt). */
+export type RenderRunRowActions = (run: RunListItem) => ReactNode;
 
 interface RunsResultsListProps {
   runs: RunListItem[];
@@ -36,6 +51,8 @@ interface RunsResultsListProps {
   isLoadingMore: boolean;
   onLoadMore: () => void;
   onClearFilters: () => void;
+  renderRunLink: RenderRunLink;
+  renderRowActions?: RenderRunRowActions;
 }
 
 // Defers the skeleton briefly so a fast query doesn't flash one.
@@ -63,14 +80,22 @@ export function RunsResultsList({
   isLoadingMore,
   onLoadMore,
   onClearFilters,
+  renderRunLink,
+  renderRowActions,
 }: RunsResultsListProps) {
   const endReached = useCallback(() => {
     if (hasMore && !isLoadingMore) onLoadMore();
   }, [hasMore, isLoadingMore, onLoadMore]);
 
   const itemContent = useCallback(
-    (_index: number, run: RunListItem) => <RunRow run={run} />,
-    [],
+    (_index: number, run: RunListItem) => (
+      <RunRow
+        run={run}
+        renderRunLink={renderRunLink}
+        renderRowActions={renderRowActions}
+      />
+    ),
+    [renderRunLink, renderRowActions],
   );
 
   const components = useMemo(
@@ -107,7 +132,7 @@ export function RunsResultsList({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <ResultsHeader />
+      <ResultsHeader hasActions={Boolean(renderRowActions)} />
       <Virtuoso
         className="min-h-0 flex-1"
         data={runs}
@@ -121,32 +146,38 @@ export function RunsResultsList({
   );
 }
 
-function ResultsHeader() {
+function ResultsHeader({ hasActions }: { hasActions: boolean }) {
   return (
     <div className="text-muted-foreground bg-background flex items-center gap-3 border-b px-3 py-1.5 text-xs font-medium">
       <span className="size-4 shrink-0" />
       <span className="min-w-0 flex-1">Run</span>
       <span className="w-20 text-right">Duration</span>
       <span className="w-24 text-right">When</span>
+      {hasActions ? <span className="w-7 shrink-0" /> : null}
     </div>
   );
 }
 
-function RunRow({ run }: { run: RunListItem }) {
+function RunRow({
+  run,
+  renderRunLink,
+  renderRowActions,
+}: {
+  run: RunListItem;
+  renderRunLink: RenderRunLink;
+  renderRowActions?: RenderRunRowActions;
+}) {
   return (
     <div className="hover:bg-muted/50 relative flex items-center gap-3 border-b px-3 py-2 text-sm leading-tight">
       <ConclusionIcon conclusion={run.conclusion} className="size-4 shrink-0" />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 leading-tight">
-          {/* The link wraps only the name, but its stretched `after` overlay
-              makes the whole row navigate to the run detail. */}
-          <Link
-            to="/runs/$traceId"
-            params={{ traceId: run.traceId }}
-            className="min-w-0 truncate font-medium after:absolute after:inset-0 after:content-['']"
-          >
-            {run.workflowName}
-          </Link>
+          {renderRunLink({
+            run,
+            className:
+              "min-w-0 truncate font-medium after:absolute after:inset-0 after:content-['']",
+            children: run.workflowName,
+          })}
           {run.runAttempt > 1 ? (
             <span className="text-muted-foreground shrink-0 font-mono text-xs">
               attempt #{run.runAttempt}
@@ -154,8 +185,8 @@ function RunRow({ run }: { run: RunListItem }) {
           ) : null}
         </div>
         {/* min-w-0 + overflow-hidden keeps a long branch/sender from bleeding
-            into the Duration/When columns; the densest fields drop off first as
-            the row narrows. */}
+            into the trailing columns; the densest fields drop off first as the
+            row narrows. */}
         <div className="text-muted-foreground mt-0.5 flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap text-xs leading-tight">
           <span className="shrink-0 font-mono">#{run.runId}</span>
           <Separator />
@@ -198,6 +229,11 @@ function RunRow({ run }: { run: RunListItem }) {
           {new Date(run.timestamp).toLocaleString()}
         </TooltipContent>
       </Tooltip>
+      {renderRowActions ? (
+        <div className="relative z-10 flex w-7 shrink-0 items-center justify-end">
+          {renderRowActions(run)}
+        </div>
+      ) : null}
     </div>
   );
 }

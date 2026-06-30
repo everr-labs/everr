@@ -1,7 +1,8 @@
+import { RunsExplorer } from "@everr/telemetry-explorer/runs";
 import { withTimeRange } from "@everr/ui/lib/time-range";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { z } from "zod";
-import { RunsExplorer } from "@/components/runs-list/runs-explorer";
+import { runsRepository } from "@/data/runs-list/repository";
 import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
 import { TimeRangeSearchSchema } from "@/lib/time-range";
 
@@ -34,13 +35,18 @@ function RunsListPage() {
 
   return (
     <RunsExplorer
+      repo={runsRepository}
       timeRange={timeRange}
+      // The web shows all org runs and doesn't expose the "mine" filter, so
+      // `onlyMine` is a constant and isn't part of the URL schema.
+      showMineFilter={false}
       search={{
         runId: search.runId,
         repos: search.repos,
         branches: search.branches,
         conclusions: search.conclusions,
         workflowNames: search.workflowNames,
+        onlyMine: false,
         showVolume: search.showVolume,
       }}
       // Each filter mutation pushes a history entry so Back undoes one change at
@@ -58,6 +64,15 @@ function RunsListPage() {
           replace: true,
         })
       }
+      renderRunLink={({ run, className, children }) => (
+        <Link
+          to="/runs/$traceId"
+          params={{ traceId: run.traceId }}
+          className={className}
+        >
+          {children}
+        </Link>
+      )}
     />
   );
 }

@@ -52,6 +52,8 @@ import { Route as AuthenticatedDashboardDashboardsIndexRouteImport } from './rou
 import { Route as ApiGithubInstallStartRouteImport } from './routes/api/github/install/start'
 import { Route as ApiGithubInstallCallbackRouteImport } from './routes/api/github/install/callback'
 import { Route as ApiCliRunsStatusRouteImport } from './routes/api/cli/runs/status'
+import { Route as ApiCliRunsHistogramRouteImport } from './routes/api/cli/runs/histogram'
+import { Route as ApiCliRunsFilterOptionsRouteImport } from './routes/api/cli/runs/filter-options'
 import { Route as ApiCliRunsTraceIdRouteImport } from './routes/api/cli/runs/$traceId'
 import { Route as ApiCliOrgNameRouteImport } from './routes/api/cli/org/name'
 import { Route as AuthenticatedDashboardCheckoutSuccessRouteImport } from './routes/_authenticated/_dashboard/checkout.success'
@@ -306,6 +308,16 @@ const ApiCliRunsStatusRoute = ApiCliRunsStatusRouteImport.update({
   path: '/status',
   getParentRoute: () => ApiCliRunsRoute,
 } as any)
+const ApiCliRunsHistogramRoute = ApiCliRunsHistogramRouteImport.update({
+  id: '/histogram',
+  path: '/histogram',
+  getParentRoute: () => ApiCliRunsRoute,
+} as any)
+const ApiCliRunsFilterOptionsRoute = ApiCliRunsFilterOptionsRouteImport.update({
+  id: '/filter-options',
+  path: '/filter-options',
+  getParentRoute: () => ApiCliRunsRoute,
+} as any)
 const ApiCliRunsTraceIdRoute = ApiCliRunsTraceIdRouteImport.update({
   id: '/$traceId',
   path: '/$traceId',
@@ -504,6 +516,8 @@ export interface FileRoutesByFullPath {
   '/checkout/success': typeof AuthenticatedDashboardCheckoutSuccessRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
+  '/api/cli/runs/filter-options': typeof ApiCliRunsFilterOptionsRoute
+  '/api/cli/runs/histogram': typeof ApiCliRunsHistogramRoute
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
@@ -568,6 +582,8 @@ export interface FileRoutesByTo {
   '/checkout/success': typeof AuthenticatedDashboardCheckoutSuccessRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
+  '/api/cli/runs/filter-options': typeof ApiCliRunsFilterOptionsRoute
+  '/api/cli/runs/histogram': typeof ApiCliRunsHistogramRoute
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
@@ -640,6 +656,8 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/checkout/success': typeof AuthenticatedDashboardCheckoutSuccessRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
+  '/api/cli/runs/filter-options': typeof ApiCliRunsFilterOptionsRoute
+  '/api/cli/runs/histogram': typeof ApiCliRunsHistogramRoute
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
@@ -708,6 +726,8 @@ export interface FileRouteTypes {
     | '/checkout/success'
     | '/api/cli/org/name'
     | '/api/cli/runs/$traceId'
+    | '/api/cli/runs/filter-options'
+    | '/api/cli/runs/histogram'
     | '/api/cli/runs/status'
     | '/api/github/install/callback'
     | '/api/github/install/start'
@@ -772,6 +792,8 @@ export interface FileRouteTypes {
     | '/checkout/success'
     | '/api/cli/org/name'
     | '/api/cli/runs/$traceId'
+    | '/api/cli/runs/filter-options'
+    | '/api/cli/runs/histogram'
     | '/api/cli/runs/status'
     | '/api/github/install/callback'
     | '/api/github/install/start'
@@ -843,6 +865,8 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/checkout/success'
     | '/api/cli/org/name'
     | '/api/cli/runs/$traceId'
+    | '/api/cli/runs/filter-options'
+    | '/api/cli/runs/histogram'
     | '/api/cli/runs/status'
     | '/api/github/install/callback'
     | '/api/github/install/start'
@@ -1184,6 +1208,20 @@ declare module '@tanstack/react-router' {
       path: '/status'
       fullPath: '/api/cli/runs/status'
       preLoaderRoute: typeof ApiCliRunsStatusRouteImport
+      parentRoute: typeof ApiCliRunsRoute
+    }
+    '/api/cli/runs/histogram': {
+      id: '/api/cli/runs/histogram'
+      path: '/histogram'
+      fullPath: '/api/cli/runs/histogram'
+      preLoaderRoute: typeof ApiCliRunsHistogramRouteImport
+      parentRoute: typeof ApiCliRunsRoute
+    }
+    '/api/cli/runs/filter-options': {
+      id: '/api/cli/runs/filter-options'
+      path: '/filter-options'
+      fullPath: '/api/cli/runs/filter-options'
+      preLoaderRoute: typeof ApiCliRunsFilterOptionsRouteImport
       parentRoute: typeof ApiCliRunsRoute
     }
     '/api/cli/runs/$traceId': {
@@ -1618,11 +1656,15 @@ const ApiCliRunsTraceIdRouteWithChildren =
 
 interface ApiCliRunsRouteChildren {
   ApiCliRunsTraceIdRoute: typeof ApiCliRunsTraceIdRouteWithChildren
+  ApiCliRunsFilterOptionsRoute: typeof ApiCliRunsFilterOptionsRoute
+  ApiCliRunsHistogramRoute: typeof ApiCliRunsHistogramRoute
   ApiCliRunsStatusRoute: typeof ApiCliRunsStatusRoute
 }
 
 const ApiCliRunsRouteChildren: ApiCliRunsRouteChildren = {
   ApiCliRunsTraceIdRoute: ApiCliRunsTraceIdRouteWithChildren,
+  ApiCliRunsFilterOptionsRoute: ApiCliRunsFilterOptionsRoute,
+  ApiCliRunsHistogramRoute: ApiCliRunsHistogramRoute,
   ApiCliRunsStatusRoute: ApiCliRunsStatusRoute,
 }
 

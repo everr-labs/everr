@@ -33,12 +33,12 @@ mod tests;
 use commands::{
     copy_notification_auto_fix_prompt, copy_run_auto_fix_prompt, dismiss_active_notification,
     get_active_notification, get_auth_status, get_build_info, get_collector_status,
-    get_notification_emails, get_org, get_pending_sign_in, get_runs_list, get_user_profile,
-    get_pending_update, get_wizard_status, install_pending_update, open_notification_target,
-    set_simulated_update,
-    open_run_in_browser, open_sign_in_browser, poll_sign_in,
-    restart_collector, set_notification_emails, sign_out, start_sign_in, trigger_test_notification,
-    get_skills_status, install_skills,
+    get_notification_emails, get_org, get_pending_sign_in, get_pending_update,
+    get_run_filter_options, get_runs_histogram, get_runs_list, get_skills_status, get_user_profile,
+    get_wizard_status, install_pending_update, install_skills, open_notification_target,
+    open_run_in_browser, open_sign_in_browser, poll_sign_in, restart_collector,
+    set_notification_emails, set_simulated_update, sign_out, start_sign_in,
+    trigger_test_notification,
 };
 use notifications::{dismiss_active_notification_inner, start_notifier_loop};
 use settings::{open_settings_window, wizard_incomplete};
@@ -238,8 +238,7 @@ pub fn run() {
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
             #[cfg_attr(not(target_os = "macos"), allow(unused_mut))]
-            let mut autostart =
-                tauri_plugin_autostart::Builder::new().app_name(current_app_name());
+            let mut autostart = tauri_plugin_autostart::Builder::new().app_name(current_app_name());
             #[cfg(target_os = "macos")]
             {
                 autostart = autostart.macos_launcher(MacosLauncher::LaunchAgent);
@@ -336,6 +335,8 @@ pub fn run() {
             get_user_profile,
             get_org,
             get_runs_list,
+            get_runs_histogram,
+            get_run_filter_options,
             open_run_in_browser,
             copy_run_auto_fix_prompt,
             otel::get_telemetry_context,

@@ -56,7 +56,6 @@ export const RunsHistogramInputSchema = z.object({
   ...RunsFilterShape,
   histogramBuckets: z.number().int().min(12).max(240).default(80),
 });
-export type RunsHistogramInput = z.infer<typeof RunsHistogramInputSchema>;
 
 export interface RunHistogramBucket {
   timestamp: string;
