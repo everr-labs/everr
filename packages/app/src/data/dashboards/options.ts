@@ -15,6 +15,10 @@ export const dashboardOptions = (project: string, slug: string) =>
   queryOptions({
     queryKey: [...dashboardsQueryKey, project, slug],
     queryFn: () => getDashboard({ data: { project, slug } }),
+    // The dashboard document is immutable (gitops); never auto-refetch it (e.g.
+    // when a card preview re-enters the viewport). A manual refresh still
+    // invalidates it.
+    staleTime: Number.POSITIVE_INFINITY,
   });
 
 export const dashboardListOptions = () =>
@@ -50,6 +54,11 @@ export const panelQueryOptions = (
       source.kind === "ClickHouseSQL"
         ? source.sql.trim().length > 0
         : source.kind === "TestData",
+    // Data for a given (source, range, variables) key never goes stale on its
+    // own: a panel that scrolls out of view and back must not refetch. Only an
+    // explicit refresh (invalidateQueries, which overrides staleTime) or a key
+    // change (range/variables) triggers a new fetch.
+    staleTime: Number.POSITIVE_INFINITY,
   });
 
 export const variableOptionsQueryOptions = (

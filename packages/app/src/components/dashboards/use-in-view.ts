@@ -1,11 +1,14 @@
 import { type RefObject, useEffect, useState } from "react";
 
 /**
- * Latches `true` the first time the referenced element nears the viewport, and
- * stays true (so content loaded once is not torn down on scroll-away). Used to
- * defer expensive work — panel queries, preview embeds — until visible. The
- * effect only sets up the observer on mount; it does not react to a prop to set
- * state.
+ * Tracks whether the referenced element is currently near the viewport. Used to
+ * gate expensive work — panel queries, preview embeds — to what's on screen:
+ * `enabled: inView` defers it until visible and, with `staleTime: Infinity` on
+ * the gated query, an off-screen element goes idle (keeping its cached data)
+ * without ever refetching on scroll-back. A refresh (`invalidateQueries`) then
+ * only re-runs what's currently visible; off-screen content revalidates when it
+ * scrolls back in. The effect only sets up the observer on mount; it does not
+ * react to a prop to set state.
  */
 export function useInView(
   ref: RefObject<Element | null>,
@@ -17,7 +20,8 @@ export function useInView(
     if (!el) return;
     const io = new IntersectionObserver(
       (entries) => {
-        if (entries.some((e) => e.isIntersecting)) setInView(true);
+        const entry = entries[0];
+        if (entry) setInView(entry.isIntersecting);
       },
       { rootMargin },
     );

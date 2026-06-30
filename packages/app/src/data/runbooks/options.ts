@@ -7,6 +7,8 @@ export const runbookOptions = (project: string, slug: string) =>
   queryOptions({
     queryKey: [...runbooksQueryKey, project, slug],
     queryFn: () => getRunbook({ data: { project, slug } }),
+    // Immutable (gitops); never auto-refetch on scroll-back of a card preview.
+    staleTime: Number.POSITIVE_INFINITY,
   });
 
 export const runbookListOptions = () =>

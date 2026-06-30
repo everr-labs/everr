@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useInView } from "./use-in-view";
 
 /**
- * For a lazily-mounted, width-scaled preview: `inView` latches true near the
- * viewport (via the shared useInView), and `width` tracks the element's
+ * For a lazily-mounted, width-scaled preview: `inView` tracks current viewport
+ * visibility (via the shared useInView), and `width` tracks the element's
  * rendered width to compute the preview scale. The ResizeObserver effect only
  * sets up on mount — it does not react to a prop to set state.
  */
