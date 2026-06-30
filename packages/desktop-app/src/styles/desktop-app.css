@@ -13,19 +13,13 @@
   }
 
   /*
-   * Left inset for the title-bar's page title. Windowed, it clears the macOS
-   * traffic-light buttons (the "semaphore"). In native fullscreen the buttons
-   * are hidden, so it drops to the content gutter — nav width (3rem) + the
-   * content's own padding (0.75rem) — so the title lines up with the page body
-   * below it instead of hugging the window edge. Only this left padding
-   * changes between modes; the title-bar height and nav position never move.
+   * Left inset for the title-bar's page title. It clears the macOS traffic
+   * lights (the "semaphore") when windowed, and is kept constant in fullscreen
+   * — even though the lights are hidden — so the title stays in exactly the
+   * same place across both modes (matching the nav, which also never shifts).
    */
   :root {
     --titlebar-inset: 5rem;
-  }
-
-  [data-fullscreen="true"] {
-    --titlebar-inset: 3.75rem;
   }
 }
 
