@@ -88,6 +88,7 @@ describe("getRunsList", () => {
           branch: "main",
           conclusion: "success",
           duration: 120000,
+          runningSince: null,
           timestamp: "2026-03-09T12:00:00.000Z",
           sender: "octocat",
           displayTitle: null,
@@ -144,6 +145,7 @@ describe("getRunsList", () => {
           branch: "release",
           conclusion: "cancellation",
           duration: 30000,
+          runningSince: null,
           timestamp: "2026-03-10T08:00:30.000Z",
           sender: "",
           displayTitle: "fix: something",
@@ -159,6 +161,48 @@ describe("getRunsList", () => {
       20,
       0,
     ]);
+  });
+
+  it("exposes runningSince (and no duration) for an in-progress run", async () => {
+    mockedQuery
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            traceId: "trace-3",
+            runId: "run-3",
+            runAttempt: 1,
+            workflowName: "CI",
+            repo: "everr-labs/everr",
+            branch: "main",
+            status: "in_progress",
+            conclusion: null,
+            startedAt: "2026-03-11T10:00:00Z",
+            completedAt: null,
+            lastEventAt: "2026-03-11T10:01:00Z",
+            sender: "octocat",
+            displayTitle: null,
+            headSha: "abc1234",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [{ count: "1" }],
+      });
+
+    const result = await getRunsList({
+      data: {
+        timeRange: {
+          from: "now-7d",
+          to: "now",
+        },
+      },
+    });
+
+    expect(result.runs[0]).toMatchObject({
+      conclusion: "in_progress",
+      duration: 0,
+      runningSince: "2026-03-11T10:00:00.000Z",
+    });
   });
 
   it("keeps searchRuns on the previous ClickHouse query", async () => {
