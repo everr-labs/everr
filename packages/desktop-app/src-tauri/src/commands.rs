@@ -394,6 +394,11 @@ fn author_emails_from_settings(settings: &everr_core::state::AppSettings) -> Vec
     }
 }
 
+/// A value no real `author_email` can equal. Sent when scoping to the current
+/// user but no email resolves, so the query fails closed (returns no runs)
+/// instead of silently degrading "your runs" to all of the org's runs.
+const NO_MATCHING_AUTHOR: &str = "__everr_no_matching_author__";
+
 /// Append `authorEmails` query pairs only when scoping to the current user.
 fn push_author_filter(
     query: &mut Vec<(&'static str, String)>,
@@ -403,7 +408,12 @@ fn push_author_filter(
     if !only_mine {
         return;
     }
-    for email in author_emails_from_settings(settings) {
+    let emails = author_emails_from_settings(settings);
+    if emails.is_empty() {
+        query.push(("authorEmails", NO_MATCHING_AUTHOR.to_string()));
+        return;
+    }
+    for email in emails {
         query.push(("authorEmails", email));
     }
 }
