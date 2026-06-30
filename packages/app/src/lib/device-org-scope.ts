@@ -34,11 +34,8 @@ export function getDeviceOrgIdFromScope(scope: string | null | undefined) {
   }
 }
 
-// Key under which the device-login org is carried across the better-auth
-// request. better-auth consumes (deletes) the device code while exchanging the
-// token, before the `session.create.before` hook runs — so a `/device/token`
-// before-hook reads the marked org off the still-present device code and stashes
-// it on the endpoint context, where the session hook can still read it.
+// Context key for the device-login org, stashed by the /device/token
+// before-hook (see the cli-device-organization plugin in auth.server.ts).
 const DEVICE_ORG_CONTEXT_KEY = "everrDeviceOrgId";
 
 export function markDeviceOrgContext(organizationId: string) {

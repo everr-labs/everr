@@ -70,9 +70,7 @@ async function getMarkedDeviceOrganizationId(
   session: { userId: string },
   context: unknown,
 ) {
-  // The org is read off the device code in the `/device/token` before-hook and
-  // stashed on the context, because better-auth consumes (deletes) the device
-  // code before this session hook runs (see the cli-device-organization plugin).
+  // Stashed by the /device/token before-hook (see cli-device-organization).
   const organizationId = getMarkedDeviceOrgIdFromContext(context);
   if (!organizationId) {
     return null;
@@ -407,8 +405,6 @@ export const auth = betterAuth({
                   exceptionAttributes(error),
                 );
               }
-
-              return;
             }),
           },
         ],
