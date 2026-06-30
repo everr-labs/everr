@@ -213,12 +213,18 @@ function CiContent() {
         }
       />
       {showNoEmailNotice ? (
-        <div className="flex shrink-0 items-center gap-3 border-b border-amber-500/20 bg-amber-500/[0.08] px-4 py-2.5">
-          <TriangleAlert className="size-4 shrink-0 text-amber-400" />
-          <p className="min-w-0 flex-1 text-sm text-foreground">
+        <div
+          role="status"
+          className="flex shrink-0 items-center gap-3 border-b border-amber-500/20 bg-amber-500/[0.08] px-3 py-2.5 animate-in fade-in-0 slide-in-from-top-1 duration-200"
+        >
+          <TriangleAlert
+            aria-hidden
+            className="size-4 shrink-0 text-amber-400"
+          />
+          <p className="min-w-0 flex-1 text-pretty text-sm text-foreground">
             No notification email set — add one so{" "}
             <span className="font-medium">Your runs</span> can match your CI
-            runs.
+            activity.
           </p>
           <Button
             variant="outline"
