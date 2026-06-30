@@ -9,8 +9,27 @@ interface RunSummarySubqueryOptions {
   includeJobCount?: boolean;
 }
 
-const CONCLUSION_EXPR =
+export const CONCLUSION_EXPR =
   "coalesce(nullIf(argMaxIf(ResourceAttributes['cicd.pipeline.result'], Timestamp, ResourceAttributes['cicd.pipeline.result'] != ''), ''), argMaxIf(ResourceAttributes['cicd.pipeline.task.run.result'], Timestamp, ResourceAttributes['cicd.pipeline.task.run.result'] != ''))";
+
+/** `ResourceAttributes['key']` accessor. */
+export function resourceAttribute(key: string): string {
+  return `ResourceAttributes['${key}']`;
+}
+
+/**
+ * Presence + non-empty check for a resource attribute. The `mapContains` term
+ * lets the `idx_res_attr_key` bloom skip index prune granules that lack the key
+ * before the value is read.
+ */
+export function nonEmptyResourceAttribute(key: string): string {
+  return `mapContains(ResourceAttributes, '${key}') AND ${resourceAttribute(key)} != ''`;
+}
+
+/** Equality on a resource attribute, key-index-prunable via `mapContains`. */
+export function resourceAttributeEquals(key: string, param: string): string {
+  return `mapContains(ResourceAttributes, '${key}') AND ${resourceAttribute(key)} = {${param}:String}`;
+}
 
 /**
  * Builds a run-level deduplication subquery over traces.

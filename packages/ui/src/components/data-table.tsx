@@ -1,5 +1,5 @@
 import { cn } from "@everr/ui/lib/utils";
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 
 export interface Column<T> {
   header: ReactNode;
@@ -17,6 +17,12 @@ interface DataTableProps<T> {
   stickyHeader?: boolean;
   bordered?: boolean;
   containerClassName?: string;
+  /**
+   * Makes rows clickable (mouse convenience). Keep a real link inside a cell as
+   * the keyboard/screen-reader target; this handler should no-op when the click
+   * originates on that link so it doesn't double-navigate.
+   */
+  onRowClick?: (row: T, event: MouseEvent) => void;
 }
 
 export function DataTable<T>({
@@ -28,6 +34,7 @@ export function DataTable<T>({
   stickyHeader,
   bordered,
   containerClassName,
+  onRowClick,
 }: DataTableProps<T>) {
   if (data.length === 0 && emptyState) {
     return <>{emptyState}</>;
@@ -71,6 +78,9 @@ export function DataTable<T>({
           {data.map((row, rowIndex) => (
             <tr
               key={rowKey(row, rowIndex)}
+              onClick={
+                onRowClick ? (event) => onRowClick(row, event) : undefined
+              }
               className={cn(
                 "hover:bg-muted/50",
                 !bordered && "border-b last:border-0",

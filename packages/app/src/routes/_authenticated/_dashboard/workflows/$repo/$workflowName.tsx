@@ -1,31 +1,26 @@
-import {
-  type ChartConfig,
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@everr/ui/components/chart";
-import {
-  ChartEmptyState,
-  chartTooltipLabelFormatter,
-  createChartTooltipFormatter,
-  formatChartDate,
-} from "@everr/ui/components/chart-helpers";
+import { buttonVariants } from "@everr/ui/components/button";
 import { Sparkline } from "@everr/ui/components/sparkline";
 import { formatDuration } from "@everr/ui/lib/formatting";
+import { cn } from "@everr/ui/lib/utils";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Activity, Clock, DollarSign, TrendingUp } from "lucide-react";
-import { ComposedChart, Line, XAxis, YAxis } from "recharts";
-import { SuccessRateMiniChart } from "@/components/dashboard/success-rate-mini-chart";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Clock,
+  Coins,
+  DollarSign,
+  Receipt,
+} from "lucide-react";
 import { DeltaIndicator } from "@/components/delta-indicator";
 import { RunsTable } from "@/components/runs-list/runs-table";
 import { TimeRangePanel } from "@/components/time-range-panel";
+import { CostByJobTable } from "@/components/workflows/cost-by-job-table";
+import { WorkflowJobTimeline } from "@/components/workflows/run-gantt";
 import type { TimeRangeInput } from "@/data/analytics/schemas";
 import {
-  workflowCostOptions,
-  workflowDurationTrendOptions,
+  workflowCostByJobOptions,
+  workflowCostSummaryOptions,
   workflowRecentRunsOptions,
-  workflowStatsOptions,
-  workflowSuccessRateTrendOptions,
 } from "@/data/workflows/options";
 import { formatCost } from "@/lib/runner-pricing";
 import { TimeRangeSearchSchema } from "@/lib/time-range";
@@ -33,263 +28,166 @@ import { TimeRangeSearchSchema } from "@/lib/time-range";
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/workflows/$repo/$workflowName",
 )({
+  staticData: {
+    breadcrumb: (match: { params?: { workflowName?: string } }) => [
+      { label: "Cost Analysis", to: "/cost-analysis" },
+      {
+        label: match.params?.workflowName
+          ? decodeURIComponent(match.params.workflowName)
+          : "Workflow",
+      },
+    ],
+  },
   head: ({ params }) => ({
     meta: [{ title: `Everr - ${decodeURIComponent(params.workflowName)}` }],
   }),
-  component: WorkflowDetailPage,
+  component: WorkflowCostDetailPage,
   validateSearch: TimeRangeSearchSchema,
 });
 
-// ── Helpers ──────────────────────────────────────────────────────────────
-
-const durationChartConfig = {
-  avgDuration: { label: "Avg Duration", color: "hsl(217, 91%, 60%)" },
-  p95Duration: { label: "p95 Duration", color: "hsl(var(--muted))" },
-} satisfies ChartConfig;
-
-const durationTooltipFormatter = createChartTooltipFormatter(
-  durationChartConfig,
-  (v) => formatDuration(Number(v), "ms"),
-);
-
-// ── Page Component ───────────────────────────────────────────────────────
-
-function WorkflowDetailPage() {
+function WorkflowCostDetailPage() {
   const { workflowName: rawName, repo: rawRepo } = Route.useParams();
   const workflowName = decodeURIComponent(rawName);
   const repo = decodeURIComponent(rawRepo);
 
-  // Closures that bind workflowName + repo so Panel can pass just { timeRange }
-  const wfStats = (tr: TimeRangeInput) =>
-    workflowStatsOptions({ ...tr, workflowName, repo });
-  const wfSuccessTrend = (tr: TimeRangeInput) =>
-    workflowSuccessRateTrendOptions({ ...tr, workflowName, repo });
-  const wfDurationTrend = (tr: TimeRangeInput) =>
-    workflowDurationTrendOptions({ ...tr, workflowName, repo });
-  const wfCost = (tr: TimeRangeInput) =>
-    workflowCostOptions({ ...tr, workflowName, repo });
+  // Closures bind workflowName + repo so the panel passes only { timeRange }.
+  const wfSummary = (tr: TimeRangeInput) =>
+    workflowCostSummaryOptions({ ...tr, workflowName, repo });
+  const wfByJob = (tr: TimeRangeInput) =>
+    workflowCostByJobOptions({ ...tr, workflowName, repo });
   const wfRecentRuns = (tr: TimeRangeInput) =>
     workflowRecentRunsOptions({ ...tr, workflowName, repo });
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-xl font-bold tracking-tight">{workflowName}</h1>
-        <p className="text-muted-foreground">{repo}</p>
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-2">
+          <Link
+            to="/cost-analysis"
+            aria-label="Back to Cost Analysis"
+            className={cn(
+              buttonVariants({ variant: "ghost", size: "icon-sm" }),
+              "mt-1 shrink-0 text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <ArrowLeft />
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">
+              {workflowName}
+            </h1>
+            <p className="text-muted-foreground">{repo}</p>
+          </div>
+        </div>
+        <Link
+          to="/runs"
+          search={{
+            workflowNames: [workflowName],
+            repos: [repo],
+            branches: [],
+            conclusions: [],
+            runId: undefined,
+          }}
+          className="inline-flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+        >
+          View runs
+          <ArrowRight className="size-4" />
+        </Link>
       </div>
 
       {/* KPI stat cards */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <TimeRangePanel
-          title="Total Runs"
-          queries={[wfStats, wfSuccessTrend]}
-          variant="stat"
-          icon={Activity}
-          background={(_stats, trends) => (
-            <Sparkline
-              data={trends.map((t) => t.totalRuns)}
-              className="h-full w-full"
-            />
-          )}
-        >
-          {(stats) => (
-            <>
-              {stats.totalRuns.toLocaleString()}{" "}
-              <DeltaIndicator
-                current={stats.totalRuns}
-                previous={stats.prevTotalRuns}
-              />
-            </>
-          )}
-        </TimeRangePanel>
-
-        <TimeRangePanel
-          title="Success Rate"
-          queries={[wfStats, wfSuccessTrend]}
-          variant="stat"
-          icon={TrendingUp}
-          background={(_stats, trends) => (
-            <Sparkline
-              data={trends.map((t) => t.successRate)}
-              maxValue={100}
-              className="h-full w-full"
-            />
-          )}
-        >
-          {(stats) => (
-            <>
-              <span
-                className={
-                  stats.successRate >= 80
-                    ? "text-green-600"
-                    : stats.successRate >= 50
-                      ? "text-yellow-600"
-                      : "text-red-600"
-                }
-              >
-                {stats.successRate}%
-              </span>{" "}
-              <DeltaIndicator
-                current={stats.successRate}
-                previous={stats.prevSuccessRate}
-              />
-            </>
-          )}
-        </TimeRangePanel>
-
-        <TimeRangePanel
-          title="Avg Duration"
-          queries={[wfStats, wfDurationTrend]}
-          variant="stat"
-          icon={Clock}
-          background={(_stats, trends) => (
-            <Sparkline
-              data={trends.map((t) => t.avgDuration)}
-              className="h-full w-full"
-            />
-          )}
-        >
-          {(stats) => (
-            <>
-              {formatDuration(stats.avgDuration, "ms")}{" "}
-              <DeltaIndicator
-                current={stats.avgDuration}
-                previous={stats.prevAvgDuration}
-                invertColors
-              />
-            </>
-          )}
-        </TimeRangePanel>
-
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <TimeRangePanel
           title="Est. Cost"
-          queries={[wfCost]}
+          titleHint="Estimated from runner minutes. GitHub bills each job rounded up to the next whole minute; self-hosted runners are counted as $0."
+          queries={[wfSummary]}
           variant="stat"
           icon={DollarSign}
-          background={(cost) =>
-            cost.overTime.length > 0 ? (
-              <Sparkline data={cost.overTime} className="h-full w-full" />
+          background={(s) =>
+            s.overTime.some((v) => v > 0) ? (
+              <Sparkline data={s.overTime} className="h-full w-full" />
             ) : null
           }
         >
-          {(cost) => (
+          {(s) => (
             <>
-              {formatCost(cost.totalCost)}{" "}
+              {formatCost(s.totalCost)}{" "}
               <DeltaIndicator
-                current={cost.totalCost}
-                previous={cost.prevTotalCost}
+                current={s.totalCost}
+                previous={s.prevTotalCost}
                 invertColors
               />
               <p className="text-muted-foreground text-xs font-normal">
-                {Math.round(cost.totalMinutes)} min
+                {s.totalRuns.toLocaleString()} runs
               </p>
             </>
           )}
         </TimeRangePanel>
-      </div>
 
-      {/* Trend charts */}
-      <div className="grid gap-3 md:grid-cols-2">
         <TimeRangePanel
-          title="Success Rate Trend"
-          queries={[wfSuccessTrend]}
-          skeleton={<div className="h-40" />}
+          title="Avg $ / Run"
+          queries={[wfSummary]}
+          variant="stat"
+          icon={Coins}
         >
-          {(data) =>
-            data.length > 0 ? (
-              <SuccessRateMiniChart data={data} />
-            ) : (
-              <ChartEmptyState message="No success rate data available" />
-            )
-          }
+          {(s) => formatCost(s.avgCostPerRun)}
         </TimeRangePanel>
 
         <TimeRangePanel
-          title="Duration Trend"
-          queries={[wfDurationTrend]}
-          skeleton={<div className="h-40" />}
+          title="Billed Minutes"
+          titleHint="What GitHub charges for: each job's duration rounded up to the next whole minute, then summed. Always ≥ compute minutes."
+          queries={[wfSummary]}
+          variant="stat"
+          icon={Receipt}
         >
-          {(data) =>
-            data.length > 0 ? (
-              <ChartContainer
-                config={durationChartConfig}
-                className="h-40 w-full"
-              >
-                <ComposedChart data={data} margin={{ left: -20, right: 4 }}>
-                  <XAxis
-                    dataKey="date"
-                    tickLine={false}
-                    axisLine={false}
-                    tickMargin={4}
-                    tickFormatter={formatChartDate}
-                    fontSize={10}
-                  />
-                  <YAxis
-                    tickLine={false}
-                    axisLine={false}
-                    tickMargin={4}
-                    tickFormatter={(v) => formatDuration(v, "ms")}
-                    fontSize={10}
-                    width={50}
-                  />
-                  <ChartTooltip
-                    content={
-                      <ChartTooltipContent
-                        labelFormatter={chartTooltipLabelFormatter}
-                        formatter={durationTooltipFormatter}
-                      />
-                    }
-                  />
-                  <Line
-                    dataKey="avgDuration"
-                    type="monotone"
-                    stroke="var(--color-avgDuration)"
-                    strokeWidth={2}
-                    dot={false}
-                    isAnimationActive={false}
-                  />
-                  <Line
-                    dataKey="p95Duration"
-                    type="monotone"
-                    stroke="var(--color-p95Duration)"
-                    strokeWidth={1}
-                    strokeDasharray="4 4"
-                    dot={false}
-                    isAnimationActive={false}
-                  />
-                </ComposedChart>
-              </ChartContainer>
-            ) : (
-              <ChartEmptyState message="No duration data available" />
-            )
-          }
+          {(s) => s.billedMinutes.toLocaleString()}
+        </TimeRangePanel>
+
+        <TimeRangePanel
+          title="Avg Wall-clock / Run"
+          titleHint="Real elapsed time per run — what developers wait for. Jobs run in parallel, so this is below total compute minutes."
+          queries={[wfSummary]}
+          variant="stat"
+          icon={Clock}
+        >
+          {(s) => (
+            <>
+              {s.avgWallClockMs > 0
+                ? formatDuration(s.avgWallClockMs, "ms")
+                : "—"}{" "}
+              <DeltaIndicator
+                current={s.avgWallClockMs}
+                previous={s.prevAvgWallClockMs}
+                invertColors
+              />
+            </>
+          )}
         </TimeRangePanel>
       </div>
 
-      {/* Recent Runs */}
-      <TimeRangePanel
-        title="Recent Runs"
-        queries={[wfRecentRuns]}
-        inset="flush-content"
-        action={
-          <Link
-            to="/runs"
-            search={{
-              workflowNames: [workflowName],
-              repos: [repo],
-              branches: [],
-              conclusions: [],
-              runId: undefined,
-            }}
-            className="text-muted-foreground hover:text-foreground text-xs"
-          >
-            View all
-          </Link>
-        }
-      >
-        {(runs) => <RunsTable data={runs} linkWorkflow={false} />}
-      </TimeRangePanel>
+      {/* Job timeline (Gantt) — the hero: how parallel does this workflow run? */}
+      <WorkflowJobTimeline workflowName={workflowName} repo={repo} />
+
+      {/* Breakdown row */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <TimeRangePanel
+          title="Cost by job"
+          description="Where this workflow's budget goes"
+          queries={[wfByJob]}
+          inset="flush-content"
+        >
+          {(jobs) => <CostByJobTable data={jobs} />}
+        </TimeRangePanel>
+
+        <TimeRangePanel
+          title="Recent runs"
+          queries={[wfRecentRuns]}
+          inset="flush-content"
+        >
+          {(runs) => <RunsTable data={runs} showCost />}
+        </TimeRangePanel>
+      </div>
     </div>
   );
 }

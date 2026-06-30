@@ -1,35 +1,28 @@
 import { queryOptions } from "@tanstack/react-query";
 import type { WorkflowDetailInput } from "./schemas";
 import {
-  getWorkflowCost,
-  getWorkflowDurationTrend,
+  getWorkflowCostByJob,
+  getWorkflowCostSummary,
   getWorkflowRecentRuns,
-  getWorkflowStats,
-  getWorkflowSuccessRateTrend,
+  getWorkflowRunTimelines,
 } from "./server";
 
-export const workflowStatsOptions = (input: WorkflowDetailInput) =>
+export const workflowCostSummaryOptions = (input: WorkflowDetailInput) =>
   queryOptions({
-    queryKey: ["workflows", "stats", input],
-    queryFn: () => getWorkflowStats({ data: input }),
+    queryKey: ["workflows", "costSummary", input],
+    queryFn: () => getWorkflowCostSummary({ data: input }),
   });
 
-export const workflowSuccessRateTrendOptions = (input: WorkflowDetailInput) =>
+export const workflowCostByJobOptions = (input: WorkflowDetailInput) =>
   queryOptions({
-    queryKey: ["workflows", "successRateTrend", input],
-    queryFn: () => getWorkflowSuccessRateTrend({ data: input }),
+    queryKey: ["workflows", "costByJob", input],
+    queryFn: () => getWorkflowCostByJob({ data: input }),
   });
 
-export const workflowDurationTrendOptions = (input: WorkflowDetailInput) =>
+export const workflowRunTimelinesOptions = (input: WorkflowDetailInput) =>
   queryOptions({
-    queryKey: ["workflows", "durationTrend", input],
-    queryFn: () => getWorkflowDurationTrend({ data: input }),
-  });
-
-export const workflowCostOptions = (input: WorkflowDetailInput) =>
-  queryOptions({
-    queryKey: ["workflows", "cost", input],
-    queryFn: () => getWorkflowCost({ data: input }),
+    queryKey: ["workflows", "runTimelines", input],
+    queryFn: () => getWorkflowRunTimelines({ data: input }),
   });
 
 export const workflowRecentRunsOptions = (input: WorkflowDetailInput) =>
