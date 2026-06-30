@@ -1,14 +1,21 @@
-import { Input } from "@everr/ui/components/input";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { AlertCircle, LayoutDashboard, SearchIcon } from "lucide-react";
-import { useState } from "react";
-import { DashboardTree } from "@/components/dashboards/dashboard-tree";
+import { AlertCircle, LayoutDashboard } from "lucide-react";
+import { z } from "zod";
+import { DashboardBrowser } from "@/components/dashboards/dashboard-browser";
 import { InstallCommandBlock } from "@/components/install-command-block";
 import { dashboardListOptions } from "@/data/dashboards/options";
 
+const BrowseSearchSchema = z.object({
+  folder: z.string().optional().catch(undefined),
+  view: z.enum(["list", "cards"]).optional().catch(undefined),
+  sort: z.enum(["updated", "name"]).optional().catch(undefined),
+  q: z.string().optional().catch(undefined),
+});
+
 export const Route = createFileRoute("/_authenticated/_dashboard/dashboards/")({
+  validateSearch: BrowseSearchSchema,
   staticData: { breadcrumb: "Dashboards" },
   head: () => ({ meta: [{ title: "Everr - Dashboards" }] }),
   component: DashboardsIndexPage,
@@ -21,7 +28,6 @@ function DashboardsIndexPage() {
     isError,
     error,
   } = useQuery(dashboardListOptions());
-  const [search, setSearch] = useState("");
   const isEmpty = !isLoading && !isError && (dashboards?.length ?? 0) === 0;
 
   return (
@@ -29,16 +35,6 @@ function DashboardsIndexPage() {
       <div className="mb-6 flex items-center gap-2">
         <LayoutDashboard className="size-5 text-muted-foreground" />
         <h1 className="text-lg font-semibold">Dashboards</h1>
-      </div>
-
-      <div className="relative mb-4 max-w-sm">
-        <SearchIcon className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Search dashboards..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-8"
-        />
       </div>
 
       {isLoading && (
@@ -78,7 +74,7 @@ function DashboardsIndexPage() {
       )}
 
       {!isLoading && !isError && !isEmpty && (
-        <DashboardTree dashboards={dashboards ?? []} search={search} />
+        <DashboardBrowser items={dashboards ?? []} resource="dashboard" />
       )}
     </div>
   );
