@@ -225,7 +225,9 @@ function RunRow({
         >
           {formatRelativeTime(run.timestamp)}
         </TooltipTrigger>
-        <TooltipContent side="left">
+        {/* Anchor above and to the end so it sits over the right-aligned value
+            instead of floating across the wide cell into the Duration column. */}
+        <TooltipContent side="top" align="end">
           {new Date(run.timestamp).toLocaleString()}
         </TooltipContent>
       </Tooltip>
