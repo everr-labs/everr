@@ -3,7 +3,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@everr/ui/components/select";
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { Link } from "@tanstack/react-router";
@@ -22,6 +21,11 @@ import {
   type FolderNode,
   searchItems,
 } from "@/data/dashboards/tree";
+
+const SORT_LABELS: Record<DashboardSort, string> = {
+  updated: "Recently updated",
+  name: "Name",
+};
 
 type TreeResource = "dashboard" | "runbook";
 
@@ -61,8 +65,8 @@ export function DashboardTree({
     <div className="flex flex-col">
       <div className="mb-1 flex justify-end">
         <Select value={sort} onValueChange={(v) => setSort(v as DashboardSort)}>
-          <SelectTrigger className="h-8 w-[160px] text-xs">
-            <SelectValue />
+          <SelectTrigger className="h-8 w-[160px] text-xs" aria-label="Sort">
+            {SORT_LABELS[sort]}
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="updated">Recently updated</SelectItem>
@@ -147,9 +151,11 @@ function FolderRows({
           )}
           <Folder className="size-4 shrink-0 text-muted-foreground" />
           <span className="truncate text-sm font-medium">{node.name}</span>
-          <span className="ml-1 shrink-0 text-xs text-muted-foreground">
-            {node.dashboards.length}
-          </span>
+          {node.dashboards.length > 0 && (
+            <span className="ml-1 shrink-0 text-xs text-muted-foreground">
+              {node.dashboards.length}
+            </span>
+          )}
         </button>
       </div>
       {isExpanded && (

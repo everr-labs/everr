@@ -44,9 +44,12 @@ function RunbooksIndexPage() {
       {isLoading && (
         <div className="flex flex-col gap-2">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-2 py-1.5 pl-[26px]">
-              <Skeleton className="size-4 shrink-0 rounded" />
-              <Skeleton className="h-4 w-48" />
+            <div key={i} className="flex gap-2 py-1.5 pl-[26px]">
+              <Skeleton className="mt-0.5 size-4 shrink-0 rounded" />
+              <div className="flex flex-col gap-1.5">
+                <Skeleton className="h-4 w-48" />
+                <Skeleton className="h-3 w-72" />
+              </div>
             </div>
           ))}
         </div>
