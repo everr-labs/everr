@@ -6,7 +6,16 @@ const d = (
   project: string,
   name: string,
   folderPath: string,
-): DashboardSummary => ({ slug, project, name, folderPath });
+  updatedAt = "2026-01-01T00:00:00.000Z",
+  panelCount = 0,
+): DashboardSummary => ({
+  slug,
+  project,
+  name,
+  folderPath,
+  updatedAt,
+  panelCount,
+});
 
 describe("buildTree (folder paths)", () => {
   it("nests dashboards by their folderPath segments", () => {
@@ -29,6 +38,41 @@ describe("buildTree (folder paths)", () => {
     expect(tree.folders[0]?.dashboards.map((x) => x.slug).sort()).toEqual([
       "a",
       "b",
+    ]);
+  });
+});
+
+describe("buildTree (sorting)", () => {
+  it("sorts root items by name by default", () => {
+    const tree = buildTree([
+      d("b", "t", "Beta", "", "2026-01-01T00:00:00.000Z"),
+      d("a", "t", "Alpha", "", "2026-06-01T00:00:00.000Z"),
+    ]);
+    expect(tree.dashboards.map((x) => x.name)).toEqual(["Alpha", "Beta"]);
+  });
+
+  it("sorts items by most-recently-updated when sort='updated'", () => {
+    const tree = buildTree(
+      [
+        d("a", "t", "Alpha", "", "2026-01-01T00:00:00.000Z"),
+        d("b", "t", "Beta", "", "2026-06-01T00:00:00.000Z"),
+      ],
+      "updated",
+    );
+    expect(tree.dashboards.map((x) => x.name)).toEqual(["Beta", "Alpha"]);
+  });
+
+  it("sorts items inside folders by the chosen key", () => {
+    const tree = buildTree(
+      [
+        d("a", "t", "Alpha", "Infra", "2026-01-01T00:00:00.000Z"),
+        d("b", "t", "Beta", "Infra", "2026-06-01T00:00:00.000Z"),
+      ],
+      "updated",
+    );
+    expect(tree.folders[0]?.dashboards.map((x) => x.name)).toEqual([
+      "Beta",
+      "Alpha",
     ]);
   });
 });

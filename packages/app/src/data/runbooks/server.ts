@@ -49,6 +49,11 @@ export const listRunbooks = createAuthenticatedServerFn({
       project: runbooks.project,
       folderPath: runbooks.folderPath,
       displayName: sql<string>`document->'spec'->'display'->>'name'`,
+      description: sql<
+        string | null
+      >`document->'spec'->'display'->>'description'`,
+      updatedAt: runbooks.updatedAt,
+      panelCount: sql<number>`case when jsonb_typeof(document->'spec'->'panels') = 'object' then (select count(*)::int from jsonb_object_keys(document->'spec'->'panels')) else 0 end`,
     })
     .from(runbooks)
     .where(eq(runbooks.organizationId, orgId));
@@ -58,5 +63,8 @@ export const listRunbooks = createAuthenticatedServerFn({
     project: r.project,
     name: r.displayName ?? r.slug,
     folderPath: r.folderPath,
+    description: r.description ?? undefined,
+    updatedAt: r.updatedAt.toISOString(),
+    panelCount: r.panelCount,
   }));
 });

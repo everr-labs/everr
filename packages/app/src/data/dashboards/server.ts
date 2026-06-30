@@ -79,6 +79,13 @@ export const listDashboards = createAuthenticatedServerFn({
       project: dashboards.project,
       folderPath: dashboards.folderPath,
       displayName: sql<string>`document->'spec'->'display'->>'name'`,
+      description: sql<
+        string | null
+      >`document->'spec'->'display'->>'description'`,
+      updatedAt: dashboards.updatedAt,
+      // Postgres has no jsonb_object_length; count keys via a guarded subquery
+      // so a malformed/missing panels object yields 0 instead of erroring.
+      panelCount: sql<number>`case when jsonb_typeof(document->'spec'->'panels') = 'object' then (select count(*)::int from jsonb_object_keys(document->'spec'->'panels')) else 0 end`,
     })
     .from(dashboards)
     .where(eq(dashboards.organizationId, orgId));
@@ -88,6 +95,9 @@ export const listDashboards = createAuthenticatedServerFn({
     project: r.project,
     name: r.displayName ?? r.slug,
     folderPath: r.folderPath,
+    description: r.description ?? undefined,
+    updatedAt: r.updatedAt.toISOString(),
+    panelCount: r.panelCount,
   }));
 });
 
