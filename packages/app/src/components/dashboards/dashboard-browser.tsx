@@ -16,6 +16,7 @@ import {
   buildTree,
   type DashboardSort,
   type DashboardSummary,
+  type FolderNode,
   nodeAtPath,
   searchItems,
 } from "@/data/dashboards/tree";
@@ -61,27 +62,33 @@ export function DashboardBrowser({
 
   const tree = useMemo(() => buildTree(items, sort), [items, sort]);
 
-  const contents = useMemo<BrowseContents>(() => {
+  const { listFolders, listItems, searchResults, contents } = useMemo(() => {
     if (searching) {
-      const r = searchItems(items, q, sort);
+      const results: BrowseEntry[] = searchItems(items, q, sort).dashboards.map(
+        ({ dashboard, path }) => ({ item: dashboard, path }),
+      );
       return {
-        folders: [],
-        items: r.dashboards.map(({ dashboard, path }) => ({
-          item: dashboard,
-          path,
-        })),
+        listFolders: [] as FolderNode[],
+        listItems: [] as DashboardSummary[],
+        searchResults: results,
+        contents: { folders: [], items: results } as BrowseContents,
       };
     }
     const node = folder ? nodeAtPath(tree, folder) : null;
-    const folders = folder ? (node?.subfolders ?? []) : tree.folders;
-    const dashboards = folder ? (node?.dashboards ?? []) : tree.dashboards;
+    const listFolders = folder ? (node?.subfolders ?? []) : tree.folders;
+    const listItems = folder ? (node?.dashboards ?? []) : tree.dashboards;
     return {
-      folders: folders.map((f) => ({
-        name: f.name,
-        path: f.path,
-        count: f.dashboards.length,
-      })),
-      items: dashboards.map((item) => ({ item })),
+      listFolders,
+      listItems,
+      searchResults: null as BrowseEntry[] | null,
+      contents: {
+        folders: listFolders.map((f) => ({
+          name: f.name,
+          path: f.path,
+          count: f.dashboards.length,
+        })),
+        items: listItems.map((item) => ({ item })),
+      } as BrowseContents,
     };
   }, [searching, items, q, sort, folder, tree]);
 
@@ -153,7 +160,12 @@ export function DashboardBrowser({
       ) : view === "cards" ? (
         <BrowseCardsView contents={contents} resource={resource} />
       ) : (
-        <BrowseListView contents={contents} resource={resource} />
+        <BrowseListView
+          folders={listFolders}
+          items={listItems}
+          searchResults={searchResults}
+          resource={resource}
+        />
       )}
     </div>
   );
