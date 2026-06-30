@@ -15,7 +15,7 @@ const RunsHistogramQuerySchema = z.strictObject({
   workflowNames: z.array(z.string()).optional(),
   runId: z.string().optional(),
   authorEmails: z.array(z.string()).optional(),
-  histogramBuckets: z.coerce.number().int().optional(),
+  histogramBuckets: z.coerce.number().int().min(12).max(240).optional(),
 });
 
 export const Route = createFileRoute("/api/cli/runs/histogram")({
