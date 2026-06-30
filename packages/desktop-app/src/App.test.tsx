@@ -624,7 +624,7 @@ describe("runs list", () => {
     });
 
     expect(await screen.findByText("Your runs")).toBeInTheDocument();
-    expect(screen.getByText("Repository")).toBeInTheDocument();
+    expect(screen.getByText("All repositories")).toBeInTheDocument();
   });
 });
 

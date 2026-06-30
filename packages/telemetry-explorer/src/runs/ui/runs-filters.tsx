@@ -1,5 +1,6 @@
 import { FilterCombobox } from "@everr/ui/components/filter-combobox";
 import { Separator } from "@everr/ui/components/separator";
+import { Switch } from "@everr/ui/components/switch";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import { User } from "lucide-react";
@@ -11,7 +12,6 @@ import { ConclusionIcon } from "./conclusion-icon";
 import { RUN_CONCLUSION_META } from "./run-conclusion-meta";
 
 export interface RunsFiltersValue {
-  repos: string[];
   branches: string[];
   conclusions: RunStatusFilter[];
   workflowNames: string[];
@@ -22,7 +22,7 @@ export interface RunsFiltersProps {
   repo: RunsRepositoryLike;
   timeRange: TimeRange;
   value: RunsFiltersValue;
-  /** Render the "Your runs" toggle (the desktop CI page scopes to the user). */
+  /** Render the "Your runs" switch (the desktop CI page scopes to the user). */
   showMineFilter?: boolean;
   onChange: (patch: Partial<RunsFiltersValue>) => void;
 }
@@ -34,7 +34,7 @@ export function RunsFilters({
   showMineFilter = false,
   onChange,
 }: RunsFiltersProps) {
-  const { repos, branches, conclusions, workflowNames, onlyMine } = value;
+  const { branches, conclusions, workflowNames, onlyMine } = value;
 
   const toggleStatus = (status: RunStatusFilter) => {
     onChange({
@@ -44,17 +44,14 @@ export function RunsFilters({
     });
   };
 
-  // The available repos/branches/workflows depend on whether we're scoped to
-  // the user's runs, so the option query is keyed on `onlyMine` too.
+  // The available branches/workflows depend on whether we're scoped to the
+  // user's runs, so the option query is keyed on `onlyMine` too.
   const baseOptions = runsFilterOptions(repo, { timeRange, onlyMine });
 
-  // "Your runs" is owned by its dedicated toggle, so it doesn't count toward
+  // "Your runs" is owned by its dedicated switch, so it doesn't count toward
   // hasActiveFilters nor get reset by "Clear all".
   const hasActiveFilters =
-    repos.length > 0 ||
-    branches.length > 0 ||
-    conclusions.length > 0 ||
-    workflowNames.length > 0;
+    branches.length > 0 || conclusions.length > 0 || workflowNames.length > 0;
 
   return (
     <FilterSidebar
@@ -62,7 +59,6 @@ export function RunsFilters({
       hasActiveFilters={hasActiveFilters}
       onClear={() =>
         onChange({
-          repos: [],
           branches: [],
           conclusions: [],
           workflowNames: [],
@@ -71,19 +67,17 @@ export function RunsFilters({
     >
       {showMineFilter ? (
         <>
-          <button
-            type="button"
-            aria-pressed={onlyMine}
-            className={cn(
-              "flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-xs transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30",
-              onlyMine &&
-                "bg-background font-medium shadow-xs ring-1 ring-border",
-            )}
-            onClick={() => onChange({ onlyMine: !onlyMine })}
-          >
-            <User className="size-3.5" />
-            <span className="truncate">Your runs</span>
-          </button>
+          <div className="flex h-8 w-full items-center justify-between gap-2 px-2 text-xs">
+            <span className="flex min-w-0 items-center gap-2">
+              <User className="text-muted-foreground size-3.5 shrink-0" />
+              <span className="truncate">Your runs</span>
+            </span>
+            <Switch
+              aria-label="Your runs"
+              checked={onlyMine}
+              onCheckedChange={(checked) => onChange({ onlyMine: checked })}
+            />
+          </div>
           <Separator />
         </>
       ) : null}
@@ -110,16 +104,6 @@ export function RunsFilters({
       </div>
 
       <Separator />
-
-      <FilterCombobox
-        label="Repository"
-        values={repos}
-        onChange={(next) => onChange({ repos: next })}
-        options={{ ...baseOptions, select: (data) => data.repos }}
-        placeholder="All repositories"
-        searchPlaceholder="Search repos..."
-        className="w-full"
-      />
 
       <FilterCombobox
         label="Branch"

@@ -4,10 +4,13 @@ import {
   useInfiniteQuery,
   useQuery,
 } from "@tanstack/react-query";
+import { FolderGit2 } from "lucide-react";
 import { useMemo } from "react";
+import { ExploreFilterPill } from "../../filters/ui/explore-filter-pill";
 import { FilterSearchBar } from "../../filters/ui/filter-search-bar";
 import {
   runsExplorerInfiniteOptions,
+  runsFilterOptions,
   runsHistogramOptions,
 } from "../data/options";
 import type { RunsRepositoryLike } from "../data/repository";
@@ -131,6 +134,25 @@ export function RunsExplorer({
   return (
     <div className="min-h-0 flex-1 overflow-hidden">
       <section className="bg-background text-foreground flex h-full min-h-0 flex-col overflow-hidden">
+        {/* Repository sits in the topbar — same slot (and h-11 height) as the
+            Service/Environment filter bar on the logs/traces/errors explorers —
+            rather than the sidebar. */}
+        <div className="flex h-11 shrink-0 items-center gap-1.5 border-b bg-muted/10 px-3">
+          <ExploreFilterPill
+            label="Repository"
+            icon={FolderGit2}
+            values={repos}
+            onChange={(next) => onSearchChange({ repos: next })}
+            options={{
+              ...runsFilterOptions(repo, { timeRange, onlyMine }),
+              select: (data) => data.repos,
+            }}
+            placeholder="All repositories"
+            searchPlaceholder="Search repositories..."
+            countNoun="repositories"
+          />
+        </div>
+
         <div className="border-b bg-muted/10 px-3 py-2">
           <FilterSearchBar
             id="runs-search"
@@ -145,7 +167,7 @@ export function RunsExplorer({
           <RunsFilters
             repo={repo}
             timeRange={timeRange}
-            value={{ repos, branches, conclusions, workflowNames, onlyMine }}
+            value={{ branches, conclusions, workflowNames, onlyMine }}
             showMineFilter={showMineFilter}
             onChange={onSearchChange}
           />
