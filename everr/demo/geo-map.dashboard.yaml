@@ -1,10 +1,10 @@
 kind: Dashboard
 metadata:
-  name: viz-gallery-geo-map
+  name: demo-geo-map
   project: demo
 spec:
   display:
-    name: Visualization Gallery — GeoMap
+    name: GeoMap
     description: >-
       GeoMap regression sheet — both modes (points, choropleth), every
       colorScheme enum, every aggregation (sum/avg/max/last), every scaleType

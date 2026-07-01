@@ -1,10 +1,10 @@
 kind: Dashboard
 metadata:
-  name: viz-gallery-bar-chart
+  name: demo-bar-chart
   project: demo
 spec:
   display:
-    name: Visualization Gallery — Bar Chart
+    name: Bar Chart
     description: >-
       BarChart regression sheet — every option (unit, showLegend, stacking
       none/stacked/percent, orientation vertical/horizontal, showValues) and
