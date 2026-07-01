@@ -1,10 +1,10 @@
 kind: Dashboard
 metadata:
-  name: viz-gallery-heatmap
+  name: demo-heatmap
   project: demo
 spec:
   display:
-    name: Visualization Gallery — Heatmap
+    name: Heatmap
     description: >-
       Heatmap regression sheet — every option (yColumn/valueColumn selection,
       unit, showValues, showLegend, all six colorScheme values, all scaleType
