@@ -2,6 +2,7 @@ package chdbexporter
 
 import (
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -30,6 +31,11 @@ func (s *fakeChDBSession) Query(query string, _ ...string) (chdb.Result, error) 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.queries = append(s.queries, query)
+	// Engine lookups against system.tables see a legacy view occupying every
+	// name, which steers cloud-named configs onto the adoption path.
+	if strings.Contains(query, "system.tables") {
+		return fakeChDBResult{buf: []byte(`{"name":"View"}` + "\n")}, nil
+	}
 	return fakeChDBResult{buf: []byte(`{"name":"EventName","type":"String"}` + "\n")}, nil
 }
 

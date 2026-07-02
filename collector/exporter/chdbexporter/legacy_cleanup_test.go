@@ -144,3 +144,61 @@ func TestAdoptLegacyLocalTableNoopWhenNamesMatch(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, exists)
 }
+
+func TestAdoptLegacyTraceTablesFinishesInterruptedAdoption(t *testing.T) {
+	db := newRealChDBConn(t)
+	ctx := t.Context()
+	// A first boot that died between the two renames: the traces view was
+	// dropped and otel_traces renamed, but the legacy MV and companion table
+	// were left behind. The next boot must finish the job instead of
+	// stranding the companion's data forever.
+	mustExec(t, ctx, db,
+		`CREATE TABLE "default"."otel_traces" (Timestamp DateTime64(9), TraceId String) ENGINE = MergeTree ORDER BY Timestamp`)
+	mustExec(t, ctx, db,
+		`CREATE TABLE "default"."otel_traces_trace_id_ts" (TraceId String, Start DateTime64(9)) ENGINE = MergeTree ORDER BY TraceId`)
+	mustExec(t, ctx, db,
+		`INSERT INTO "default"."otel_traces_trace_id_ts" VALUES ('trace-1', now64(9))`)
+	mustExec(t, ctx, db,
+		`CREATE MATERIALIZED VIEW "default"."otel_traces_trace_id_ts_mv" TO "default"."otel_traces_trace_id_ts"
+		 AS SELECT TraceId, Timestamp AS Start FROM "default"."otel_traces"`)
+	mustExec(t, ctx, db,
+		`RENAME TABLE "default"."otel_traces" TO "default"."traces"`)
+
+	require.NoError(t, adoptLegacyTraceTables(ctx, cloudNamedConfig(), db))
+
+	for _, gone := range []string{"otel_traces_trace_id_ts", "otel_traces_trace_id_ts_mv"} {
+		exists, err := tableExists(ctx, db, "default", gone)
+		require.NoError(t, err)
+		require.False(t, exists, gone)
+	}
+	rows, err := db.Query(ctx, `SELECT TraceId AS name FROM "default"."traces_trace_id_ts"`)
+	require.NoError(t, err)
+	defer func() { _ = rows.Close() }()
+	require.True(t, rows.Next(), "companion data must survive the finished adoption")
+}
+
+func TestAdoptLegacyLocalTableNeverDropsRealTableUnderCurrentName(t *testing.T) {
+	db := newRealChDBConn(t)
+	ctx := t.Context()
+	// A downgraded collector can recreate the legacy table next to an
+	// already-adopted real one. Re-upgrading must keep the real table's data
+	// rather than dropping it to make room for the rename.
+	mustExec(t, ctx, db,
+		`CREATE TABLE "default"."otel_logs" (Timestamp DateTime64(9), Body String) ENGINE = MergeTree ORDER BY Timestamp`)
+	mustExec(t, ctx, db, `INSERT INTO "default"."otel_logs" VALUES (now64(9), 'downgrade-era row')`)
+	mustExec(t, ctx, db,
+		`CREATE TABLE "default"."logs" (Timestamp DateTime64(9), Body String) ENGINE = MergeTree ORDER BY Timestamp`)
+	mustExec(t, ctx, db, `INSERT INTO "default"."logs" VALUES (now64(9), 'adopted row')`)
+
+	adopted, err := adoptLegacyLocalTable(ctx, db, "default", "otel_logs", "logs")
+	require.NoError(t, err)
+	require.False(t, adopted)
+
+	rows, err := db.Query(ctx, `SELECT Body AS name FROM "default"."logs"`)
+	require.NoError(t, err)
+	defer func() { _ = rows.Close() }()
+	require.True(t, rows.Next())
+	var body string
+	require.NoError(t, rows.Scan(&body))
+	require.Equal(t, "adopted row", body)
+}
