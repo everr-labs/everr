@@ -1,0 +1,126 @@
+// Copyright The OpenTelemetry Authors
+// SPDX-License-Identifier: Apache-2.0
+
+package chdbexporter
+
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+)
+
+// Table names used by the schema layout that predates naming local tables
+// after the cloud ones: raw otel_* tables exposed through plain views under
+// the cloud-facing names.
+const (
+	legacyLogsTableName   = "otel_logs"
+	legacyTracesTableName = "otel_traces"
+)
+
+// adoptLegacyLocalTable moves a pre-rename raw table under the cloud-facing
+// name it used to be exposed as. The old layout wrote to legacyName and
+// queried it through a plain view named currentName; the view holds no data
+// and blocks the name, so it is dropped and the raw table renamed into its
+// place, preserving the collected telemetry. The legacy table's existence is
+// the marker, which makes this a one-shot: after the first startup on the
+// new layout there is nothing left to adopt. Returns whether an adoption
+// happened so callers can apply legacy-only schema fixups.
+func adoptLegacyLocalTable(ctx context.Context, db driver.Conn, database, legacyName, currentName string) (bool, error) {
+	if legacyName == currentName {
+		return false, nil
+	}
+
+	exists, err := tableExists(ctx, db, database, legacyName)
+	if err != nil {
+		return false, fmt.Errorf("check legacy table %q: %w", legacyName, err)
+	}
+	if !exists {
+		return false, nil
+	}
+
+	// Whatever occupies the target name is the legacy view; DROP TABLE also
+	// drops views.
+	drop := fmt.Sprintf(`DROP TABLE IF EXISTS %q.%q`, database, currentName)
+	if err := db.Exec(ctx, drop); err != nil {
+		return false, fmt.Errorf("drop legacy local view %q: %w", currentName, err)
+	}
+
+	rename := fmt.Sprintf(`RENAME TABLE %q.%q TO %q.%q`, database, legacyName, database, currentName)
+	if err := db.Exec(ctx, rename); err != nil {
+		return false, fmt.Errorf("rename legacy local table %q to %q: %w", legacyName, currentName, err)
+	}
+
+	return true, nil
+}
+
+// adoptLegacyLogsTable renames the legacy logs table under the cloud-facing
+// name and brings it up to the column set the explorer queries filter on:
+// legacy tables predate TimestampTime, which is the reason the old view
+// layout broke.
+func adoptLegacyLogsTable(ctx context.Context, cfg *Config, db driver.Conn) error {
+	adopted, err := adoptLegacyLocalTable(ctx, db, cfg.database(), legacyLogsTableName, cfg.LogsTableName)
+	if err != nil || !adopted {
+		return err
+	}
+
+	addColumn := fmt.Sprintf(
+		"ALTER TABLE %q.%q ADD COLUMN IF NOT EXISTS `TimestampTime` DateTime DEFAULT toDateTime(Timestamp)",
+		cfg.database(),
+		cfg.LogsTableName,
+	)
+	if err := db.Exec(ctx, addColumn); err != nil {
+		return fmt.Errorf("add TimestampTime to adopted logs table: %w", err)
+	}
+
+	return nil
+}
+
+// adoptLegacyTraceTables renames the legacy traces table and its trace-id
+// lookup companion under the cloud-facing names. The legacy lookup MV stores
+// a query referencing the old table names and holds no data of its own, so
+// it is dropped; the create path recreates it against the renamed tables.
+func adoptLegacyTraceTables(ctx context.Context, cfg *Config, db driver.Conn) error {
+	adopted, err := adoptLegacyLocalTable(ctx, db, cfg.database(), legacyTracesTableName, cfg.TracesTableName)
+	if err != nil || !adopted {
+		return err
+	}
+
+	dropMV := fmt.Sprintf(`DROP TABLE IF EXISTS %q.%q`, cfg.database(), legacyTracesTableName+"_trace_id_ts_mv")
+	if err := db.Exec(ctx, dropMV); err != nil {
+		return fmt.Errorf("drop legacy trace-id lookup mv: %w", err)
+	}
+
+	_, err = adoptLegacyLocalTable(ctx, db, cfg.database(),
+		legacyTracesTableName+"_trace_id_ts", cfg.TracesTableName+"_trace_id_ts")
+	return err
+}
+
+// tableExists reports whether a table or view with the given name exists. The
+// result column is aliased to `name` because the chdb rows shim scans by the
+// fixed DESC TABLE column list, whose first entry is `name` — and the WHERE
+// columns are qualified with `t.` because ClickHouse resolves unqualified
+// WHERE identifiers against SELECT aliases first, which would capture `name`.
+func tableExists(ctx context.Context, db driver.Conn, database, tableName string) (bool, error) {
+	query := fmt.Sprintf(
+		`SELECT t.name AS name FROM system.tables AS t WHERE t.database = '%s' AND t.name = '%s'`,
+		escapeStringLiteral(database),
+		escapeStringLiteral(tableName),
+	)
+	rows, err := db.Query(ctx, query)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	if !rows.Next() {
+		return false, rows.Err()
+	}
+
+	return true, rows.Err()
+}
+
+func escapeStringLiteral(s string) string {
+	return strings.NewReplacer(`\`, `\\`, `'`, `''`).Replace(s)
+}

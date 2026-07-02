@@ -58,14 +58,11 @@ func (e *logsExporter) start(ctx context.Context, _ component.Host) error {
 			return createDBErr
 		}
 
+		if adoptErr := adoptLegacyLogsTable(ctx, e.cfg, e.db); adoptErr != nil {
+			return adoptErr
+		}
 		if createTableErr := createLogsTable(ctx, e.cfg, e.db, e.logger); createTableErr != nil {
 			return createTableErr
-		}
-		if migrateErr := migrateLogsTable(ctx, e.cfg, e.db); migrateErr != nil {
-			return migrateErr
-		}
-		if createViewErr := createLocalLogsView(ctx, e.cfg, e.db); createViewErr != nil {
-			return createViewErr
 		}
 	}
 
@@ -270,43 +267,6 @@ func createLogsTable(ctx context.Context, cfg *Config, db driver.Conn, logger *z
 
 	if err := db.Exec(ctx, sql); err != nil {
 		return fmt.Errorf("exec create logs table sql: %w", err)
-	}
-
-	return nil
-}
-
-// logsColumnMigrations lists columns that logs tables created by older collector
-// versions may be missing. New installs already get them from the create-table
-// template; this brings existing tables up to the current column set.
-var logsColumnMigrations = []struct {
-	name       string
-	definition string
-}{
-	// TimestampTime mirrors the production schema, which partitions and queries
-	// logs on this column. Older chDB tables lack it, breaking the logs explorer.
-	{name: "TimestampTime", definition: "DateTime DEFAULT toDateTime(Timestamp)"},
-}
-
-// migrateLogsTable applies logsColumnMigrations to an existing logs table. It is
-// safe to run on every startup because each ALTER uses ADD COLUMN IF NOT EXISTS,
-// a cheap metadata no-op once the column is present.
-func migrateLogsTable(ctx context.Context, cfg *Config, db driver.Conn) error {
-	for _, col := range logsColumnMigrations {
-		data := sqltemplates.AddColumnData{
-			Database:         cfg.database(),
-			TableName:        cfg.LogsTableName,
-			ClusterString:    cfg.clusterString(),
-			ColumnName:       col.name,
-			ColumnDefinition: col.definition,
-		}
-
-		var buf bytes.Buffer
-		if err := sqltemplates.LogsAddColumnTmpl.Execute(&buf, data); err != nil {
-			return fmt.Errorf("execute logs add column template: %w", err)
-		}
-		if err := db.Exec(ctx, buf.String()); err != nil {
-			return fmt.Errorf("exec logs table migration %q: %w", col.name, err)
-		}
 	}
 
 	return nil
