@@ -13,18 +13,32 @@ vi.mock("@/server/worker/jobs", () => ({
   addWorkerJob: (...args: unknown[]) => addWorkerJob(...args),
 }));
 
+const mockEnv = vi.hoisted(() => ({
+  EVERR_PREVIEW_ALERTS: "on" as "on" | "off",
+}));
+vi.mock("@/env", () => ({ env: mockEnv }));
+
 import { scanDueAlerts } from "./01-scanner";
 
 function drizzleSqlText(value: unknown): string {
   const chunks =
-    (value as { queryChunks?: { value?: string[] }[] } | undefined)
-      ?.queryChunks ?? [];
-  return chunks.flatMap((chunk) => chunk.value ?? []).join("");
+    (value as { queryChunks?: unknown[] } | undefined)?.queryChunks ?? [];
+  return chunks
+    .flatMap((chunk) => {
+      const c = chunk as { value?: string[]; queryChunks?: unknown[] };
+      if (c.value) return c.value;
+      // Nested `sql` fragments (e.g. conditional AND clauses) are their own
+      // SQL objects, not flattened into `value` — recurse into those too.
+      if (c.queryChunks) return [drizzleSqlText(c)];
+      return [];
+    })
+    .join("");
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
   addWorkerJob.mockResolvedValue(undefined);
+  mockEnv.EVERR_PREVIEW_ALERTS = "on";
 });
 
 describe("scanDueAlerts", () => {
@@ -81,5 +95,24 @@ describe("scanDueAlerts", () => {
 
     expect(dbExecute).toHaveBeenCalledTimes(1);
     expect(addWorkerJob).not.toHaveBeenCalled();
+  });
+
+  it("does not filter out preview rows when the kill-switch is on (default)", async () => {
+    dbExecute.mockResolvedValueOnce({ rows: [] });
+
+    await scanDueAlerts({ batchSize: 100 });
+
+    const claimSql = drizzleSqlText(dbExecute.mock.calls[0]?.[0]);
+    expect(claimSql).not.toContain("AND preview = ''");
+  });
+
+  it("excludes preview rows from the due set when the kill-switch is off", async () => {
+    mockEnv.EVERR_PREVIEW_ALERTS = "off";
+    dbExecute.mockResolvedValueOnce({ rows: [] });
+
+    await scanDueAlerts({ batchSize: 100 });
+
+    const claimSql = drizzleSqlText(dbExecute.mock.calls[0]?.[0]);
+    expect(claimSql).toContain("AND preview = ''");
   });
 });

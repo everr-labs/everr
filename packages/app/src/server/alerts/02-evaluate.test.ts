@@ -83,6 +83,7 @@ const baseDef = {
   currentState: "resolved",
   instanceLabelColumns: [],
   firingInstanceCount: 0,
+  preview: "",
 };
 
 const fp = (route: string) => instanceFingerprint({ route });
@@ -446,6 +447,26 @@ describe("evaluateAlert", () => {
     });
 
     expect(sqlApi).not.toHaveBeenCalled();
+  });
+
+  it("evaluates a preview alert but never dispatches notifications", async () => {
+    definitionRows.mockReturnValue([{ ...baseDef, preview: "gio/x" }]);
+    sqlApi.mockResolvedValue({ rows: [{ route: "/x" }], columns: ["route"] });
+
+    await evaluateAlert({
+      alertDefinitionId,
+      scheduledFor: "2026-06-10T12:00:00.000Z",
+    });
+
+    // State bookkeeping still persisted…
+    expect(updates.length).toBeGreaterThan(0);
+    expect(
+      updates.some(
+        (u) => (u as { currentState?: string }).currentState === "firing",
+      ),
+    ).toBe(true);
+    // …but nothing was enqueued for delivery.
+    expect(deliver).not.toHaveBeenCalled();
   });
 
   it("drops malformed stale jobs before querying Postgres", async () => {

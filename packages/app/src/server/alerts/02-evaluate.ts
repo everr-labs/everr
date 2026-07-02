@@ -161,8 +161,10 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
   // already firing and skip the re-enqueue, dropping the notification. On
   // failure we throw without recording, letting the job retry re-derive and
   // re-enqueue (delivery jobKeys replace, so re-enqueuing is idempotent).
+  // Preview alerts evaluate silently: the state bookkeeping above still runs
+  // so the UI shows firing/ok, but notifications never leave the building.
   let delivery: NotificationOutcome | null = null;
-  if (transition.actions.length > 0) {
+  if (transition.actions.length > 0 && def.preview === "") {
     delivery = await enqueueAlertNotification(
       {
         def,
