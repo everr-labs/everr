@@ -1,22 +1,32 @@
+import {
+  Banner,
+  BannerActions,
+  BannerContent,
+} from "@everr/ui/components/banner";
 import { Button } from "@everr/ui/components/button";
 import { useNavigate } from "@tanstack/react-router";
 import { GitBranch, X } from "lucide-react";
+import type * as React from "react";
 import type { PreviewStatus } from "@/data/previews/overlay";
 
-// One tint per status, echoing the diff badges: amber = "not live", emerald =
-// new under the preview, red = gone under it. Unchanged stays neutral — the
-// resource is identical, the banner is only reminding you of the active context.
-const TONE: Record<PreviewStatus, string> = {
-  unchanged: "border-border bg-muted/40 text-muted-foreground",
-  added: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
-  changed: "border-amber-500/30 bg-amber-500/10 text-amber-300",
-  removed: "border-red-500/30 bg-red-500/10 text-red-300",
-};
+// One Banner tone per status, echoing the diff badges: amber ("warning") = "not
+// live", emerald ("success") = new under the preview, red ("danger") = gone
+// under it. Unchanged stays neutral — the resource is identical, the banner is
+// only reminding you of the active context.
+const TONE = {
+  unchanged: "neutral",
+  added: "success",
+  changed: "warning",
+  removed: "danger",
+} as const satisfies Record<
+  PreviewStatus,
+  React.ComponentProps<typeof Banner>["tone"]
+>;
 
 // No per-resource status (the list pages, or a detail whose repoid the preview
 // doesn't cover): fall back to the amber "not live" hue the header indicator
 // wears, so the whole app speaks one preview color.
-const GENERIC_TONE = "border-amber-500/30 bg-amber-500/10 text-amber-300";
+const GENERIC_TONE = "warning";
 
 function message(preview: string, status?: PreviewStatus): string {
   switch (status) {
@@ -61,25 +71,25 @@ export function PreviewBanner({
   const exitPreview = () =>
     navigate({ to: ".", search: (prev) => ({ ...prev, preview: undefined }) });
 
+  // Sticky within whichever ancestor scrolls — on every page that mounts this,
+  // that's the single `overflow-auto` content column in the `_dashboard`
+  // layout, so the banner pins under the header while the list/detail scrolls
+  // beneath it. The opaque `bg-background` (the Banner's own tint is
+  // translucent) hides that content as it slides under, and `pb-3` gives a
+  // clean opaque buffer below the pinned band. `z-20` sits above page content
+  // and dragged dashboard panels but below popovers/modals.
   return (
-    <div
-      role="status"
-      className={`mb-4 flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${
-        status ? TONE[status] : GENERIC_TONE
-      }`}
-    >
-      <GitBranch className="size-4 shrink-0" />
-      <span className="min-w-0 flex-1">{message(name, status)}</span>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={exitPreview}
-        className="-mr-1 shrink-0"
-      >
-        <X data-icon="inline-start" />
-        Exit preview
-      </Button>
+    <div className="sticky top-0 z-20 bg-background pb-3">
+      <Banner tone={status ? TONE[status] : GENERIC_TONE}>
+        <GitBranch className="size-4 shrink-0" />
+        <BannerContent>{message(name, status)}</BannerContent>
+        <BannerActions className="-mr-1">
+          <Button type="button" variant="ghost" size="sm" onClick={exitPreview}>
+            <X data-icon="inline-start" />
+            Exit preview
+          </Button>
+        </BannerActions>
+      </Banner>
     </div>
   );
 }

@@ -38,6 +38,14 @@ describe("PreviewBanner", () => {
     ).toBeInTheDocument();
   });
 
+  it("pins the banner via a sticky, opaque wrapper so content scrolls under it", () => {
+    render(<PreviewBanner preview="gio/apply-previews" />);
+    // The status band sits inside a sticky wrapper; the opaque background is what
+    // keeps content readable as it slides beneath the pinned banner.
+    const wrapper = screen.getByRole("status").parentElement;
+    expect(wrapper).toHaveClass("sticky", "top-0", "bg-background");
+  });
+
   it("shows per-status copy on detail routes", () => {
     render(<PreviewBanner preview="gio/apply-previews" status="changed" />);
     expect(screen.getByRole("status")).toHaveTextContent(
