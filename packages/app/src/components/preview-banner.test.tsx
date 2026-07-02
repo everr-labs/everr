@@ -11,7 +11,11 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 import { PreviewBanner } from "./preview-banner";
-import { __resetPreviewDismissals } from "./preview-dismissals";
+import {
+  __resetPreviewDismissals,
+  hasEntrancePlayed,
+  markEntrancePlayed,
+} from "./preview-dismissals";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -166,6 +170,19 @@ describe("PreviewBanner", () => {
     // the dismissed set, so it renders.
     rerender(<PreviewBanner preview="gio/other-preview" />);
     expect(screen.getByRole("status")).toHaveTextContent("gio/other-preview");
+  });
+
+  it("plays the entrance once per preview name, so navigation doesn't replay it", () => {
+    // Every page mounts its own banner; the module-level flag is what makes the
+    // pill read as one persistent element across client-side navigations.
+    expect(hasEntrancePlayed("gio/apply-previews")).toBe(false);
+    markEntrancePlayed("gio/apply-previews");
+    expect(hasEntrancePlayed("gio/apply-previews")).toBe(true);
+    // A different preview is a fresh appearance.
+    expect(hasEntrancePlayed("gio/other-preview")).toBe(false);
+    // The test-reset helper clears it (full-reload semantics).
+    __resetPreviewDismissals();
+    expect(hasEntrancePlayed("gio/apply-previews")).toBe(false);
   });
 
   it("respects reduced motion: still renders and dismisses instantly", async () => {

@@ -44,8 +44,29 @@ export function useIsPreviewDismissed(name: string | undefined): boolean {
   return name ? set.has(name) : false;
 }
 
-/** Test-only: clears dismissals so cases don't leak module state into each other. */
+// Entrance bookkeeping: every page mounts its own PreviewBanner, so without
+// this the enter animation would replay on each client-side navigation. The
+// pill should read as ONE persistent element that animated in once — so the
+// entrance plays on the first appearance per preview name (page load, or
+// switching previews) and later mounts render already in place. Same lifetime
+// as dismissals: module state, resets on full reload. Not reactive on purpose:
+// it's read once per mount to pick the animation's initial state, never to
+// trigger a re-render.
+const entrancePlayed = new Set<string>();
+
+/** True once the pill's enter animation has played for `name` this session. */
+export function hasEntrancePlayed(name: string): boolean {
+  return entrancePlayed.has(name);
+}
+
+/** Record that the enter animation ran for `name` (idempotent). */
+export function markEntrancePlayed(name: string): void {
+  entrancePlayed.add(name);
+}
+
+/** Test-only: clears dismissals and entrance bookkeeping between cases. */
 export function __resetPreviewDismissals(): void {
+  entrancePlayed.clear();
   if (dismissed.size === 0) return;
   dismissed = new Set<string>();
   for (const listener of listeners) listener();

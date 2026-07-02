@@ -9,7 +9,12 @@ import { GitBranch, LogOut, X } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import type * as React from "react";
 import type { PreviewStatus } from "@/data/previews/overlay";
-import { dismissPreview, useIsPreviewDismissed } from "./preview-dismissals";
+import {
+  dismissPreview,
+  hasEntrancePlayed,
+  markEntrancePlayed,
+  useIsPreviewDismissed,
+} from "./preview-dismissals";
 
 // Map each preview status onto one of the Banner primitive's generic tones —
 // the primitive knows nothing about previews; this consumer attributes the
@@ -121,13 +126,17 @@ export function PreviewBanner({
       {!dismissed && (
         <motion.div
           className="pointer-events-none sticky top-1 z-30 -mt-2 -mb-1 flex h-0 items-start justify-center"
-          initial={reduceMotion ? false : hidden}
+          // Every page mounts its own banner, but the pill should read as one
+          // persistent element: the entrance only plays the first time this
+          // preview appears (per reload); later mounts start already in place.
+          initial={reduceMotion || hasEntrancePlayed(name) ? false : hidden}
           animate={enter}
           exit={hidden}
           transition={{
             duration: reduceMotion ? 0 : 0.22,
             ease: [0.16, 1, 0.3, 1],
           }}
+          onAnimationComplete={() => markEntrancePlayed(name)}
         >
           <Banner
             shape="pill"
