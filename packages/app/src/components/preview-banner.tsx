@@ -9,12 +9,14 @@ import { GitBranch, X } from "lucide-react";
 import type * as React from "react";
 import type { PreviewStatus } from "@/data/previews/overlay";
 
-// One Banner tone per status, echoing the diff badges: amber ("warning") = "not
-// live", emerald ("success") = new under the preview, red ("danger") = gone
-// under it. Unchanged stays neutral — the resource is identical, the banner is
-// only reminding you of the active context.
-const TONE = {
-  unchanged: "neutral",
+// Map each preview status onto one of the Banner primitive's generic tones —
+// the primitive knows nothing about previews; this consumer attributes the
+// meaning. Echoes the diff badges: emerald ("success") = new under the preview,
+// amber ("warning") = differs from live, red ("danger") = gone under it. An
+// unchanged resource carries no change, so it reads as info ("sky") — a calm
+// "you're in a preview" reminder, not a change signal.
+const STATUS_TONE = {
+  unchanged: "info",
   added: "success",
   changed: "warning",
   removed: "danger",
@@ -24,9 +26,9 @@ const TONE = {
 >;
 
 // No per-resource status (the list pages, or a detail whose repoid the preview
-// doesn't cover): fall back to the amber "not live" hue the header indicator
-// wears, so the whole app speaks one preview color.
-const GENERIC_TONE = "warning";
+// doesn't cover): the banner is a neutral context reminder, not a diff, so it
+// wears the same info ("sky") tone as an unchanged resource.
+const GENERIC_TONE = "info" as const;
 
 function message(preview: string, status?: PreviewStatus): string {
   switch (status) {
@@ -71,16 +73,18 @@ export function PreviewBanner({
   const exitPreview = () =>
     navigate({ to: ".", search: (prev) => ({ ...prev, preview: undefined }) });
 
-  // Sticky within whichever ancestor scrolls — on every page that mounts this,
-  // that's the single `overflow-auto` content column in the `_dashboard`
-  // layout, so the banner pins under the header while the list/detail scrolls
-  // beneath it. The opaque `bg-background` (the Banner's own tint is
-  // translucent) hides that content as it slides under, and `pb-3` gives a
-  // clean opaque buffer below the pinned band. `z-20` sits above page content
-  // and dragged dashboard panels but below popovers/modals.
+  // A full-bleed announcement bar. In the `_dashboard` layout the scroll box has
+  // no padding of its own — the `p-3` lives on an inner wrapper — so the negative
+  // `-mx-3`/`-mt-3` cancel that inset and the band reaches the scroll box's own
+  // edges: edge-to-edge horizontally and flush against its top under the header.
+  // Sticky relative to that scroll box (no transform in the chain), so it pins
+  // while the list/detail scrolls beneath it. The opaque `bg-background` (the
+  // Banner's own tint is translucent) hides content as it slides under; the
+  // Banner's own bottom divider is the seam. `z-20` sits above page content and
+  // dragged dashboard panels but below popovers/modals.
   return (
-    <div className="sticky top-0 z-20 bg-background pb-3">
-      <Banner tone={status ? TONE[status] : GENERIC_TONE}>
+    <div className="sticky top-0 z-20 -mx-3 -mt-3 bg-background">
+      <Banner tone={status ? STATUS_TONE[status] : GENERIC_TONE}>
         <GitBranch className="size-4 shrink-0" />
         <BannerContent>{message(name, status)}</BannerContent>
         <BannerActions className="-mr-1">

@@ -144,24 +144,31 @@ function RouteComponent() {
             </div>
           </div>
         </header>
-        <div
-          className={cn(
-            "flex min-h-0 flex-1 flex-col overflow-auto",
-            fullBleed ? "gap-0 p-0" : "gap-3 p-3",
-          )}
-        >
-          {search.github_install === "linked" ? (
-            <div className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
-              GitHub installation linked successfully.
-            </div>
-          ) : null}
-          {search.github_install === "error" ? (
-            <div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900">
-              Failed to link GitHub installation
-              {search.reason ? ` (${search.reason})` : ""}.
-            </div>
-          ) : null}
-          <Outlet />
+        {/* Scroll owner: no padding of its own, so a full-bleed page banner can
+            pin flush against its top edge. All content padding lives on the
+            inner wrapper below — keeping it off the scroll box is what lets the
+            sticky PreviewBanner escape the inset (via negative margins) and span
+            edge-to-edge while everything else stays comfortably padded. */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+          <div
+            className={cn(
+              "flex min-h-0 flex-1 flex-col",
+              fullBleed ? "gap-0 p-0" : "gap-3 p-3",
+            )}
+          >
+            {search.github_install === "linked" ? (
+              <div className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+                GitHub installation linked successfully.
+              </div>
+            ) : null}
+            {search.github_install === "error" ? (
+              <div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900">
+                Failed to link GitHub installation
+                {search.reason ? ` (${search.reason})` : ""}.
+              </div>
+            ) : null}
+            <Outlet />
+          </div>
         </div>
       </SidebarInset>
     </SidebarProvider>

@@ -38,12 +38,44 @@ describe("PreviewBanner", () => {
     ).toBeInTheDocument();
   });
 
-  it("pins the banner via a sticky, opaque wrapper so content scrolls under it", () => {
+  it("pins the banner via a sticky, opaque, full-bleed wrapper so content scrolls under it", () => {
     render(<PreviewBanner preview="gio/apply-previews" />);
-    // The status band sits inside a sticky wrapper; the opaque background is what
-    // keeps content readable as it slides beneath the pinned banner.
+    // The status band sits inside a sticky wrapper; the opaque background keeps
+    // content readable as it slides beneath the pinned banner, and the negative
+    // margins cancel the `_dashboard` column's `p-3` so the band spans edge-to-
+    // edge and sits flush under the header.
     const wrapper = screen.getByRole("status").parentElement;
-    expect(wrapper).toHaveClass("sticky", "top-0", "bg-background");
+    expect(wrapper).toHaveClass(
+      "sticky",
+      "top-0",
+      "bg-background",
+      "-mx-3",
+      "-mt-3",
+    );
+  });
+
+  it("maps preview statuses onto the primitive's generic tones", () => {
+    // added → success (emerald), changed → warning (amber), removed → danger
+    // (red), unchanged → info (sky); the primitive stays domain-agnostic and the
+    // consumer attributes the meaning.
+    const cases = [
+      ["added", "bg-emerald-500/10"],
+      ["changed", "bg-amber-500/10"],
+      ["removed", "bg-red-500/10"],
+      ["unchanged", "bg-sky-500/10"],
+    ] as const;
+    for (const [status, toneClass] of cases) {
+      const { unmount } = render(
+        <PreviewBanner preview="gio/apply-previews" status={status} />,
+      );
+      expect(screen.getByRole("status")).toHaveClass(toneClass);
+      unmount();
+    }
+  });
+
+  it("falls back to the info tone with no per-resource status", () => {
+    render(<PreviewBanner preview="gio/apply-previews" />);
+    expect(screen.getByRole("status")).toHaveClass("bg-sky-500/10");
   });
 
   it("shows per-status copy on detail routes", () => {

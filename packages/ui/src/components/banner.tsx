@@ -2,12 +2,16 @@ import { cn } from "@everr/ui/lib/utils";
 import { cva, type VariantProps } from "class-variance-authority";
 import type * as React from "react";
 
-// Tinted status band for contextual, page-level messages (active preview, a
-// degraded environment, a pending migration). Purposefully translucent so it
-// blends over an opaque surface; when a caller makes it sticky, that caller is
-// responsible for an opaque backdrop so scrolled content stays hidden behind it.
+// Full-bleed announcement band for contextual, page-level messages (active
+// preview, a degraded environment, a pending migration). Square and edge-to-edge
+// by design — no rounding, no outer inset — carrying only its own internal
+// content padding and a tone-tinted bottom divider that separates it from the
+// content below. Purposefully translucent so it blends over an opaque surface;
+// when a caller makes it sticky, that caller is responsible for an opaque
+// backdrop so scrolled content stays hidden behind it. Tones are generic and
+// domain-agnostic: the consumer maps its own semantics onto them.
 const bannerVariants = cva(
-  "flex items-center gap-2 rounded-md border px-3 py-2 text-sm",
+  "flex items-center gap-2 border-b px-3 py-2 text-sm",
   {
     variants: {
       tone: {

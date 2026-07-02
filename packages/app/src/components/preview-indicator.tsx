@@ -24,7 +24,7 @@ export function PreviewIndicator() {
       // Match the header's outline buttons (CommandBar, time-range/refresh
       // pickers): h-8, rounded-md, px-2, text-xs/relaxed — so the pill shares
       // their vertical rhythm and only the amber tone sets it apart.
-      className="flex h-8 items-center gap-1.5 rounded-md bg-amber-500/10 px-2 text-xs/relaxed font-medium text-amber-300 ring-1 ring-inset ring-amber-500/25"
+      className="flex h-8 items-center gap-1 rounded-md bg-amber-500/10 px-2 text-xs/relaxed font-medium text-amber-300 ring-1 ring-inset ring-amber-500/25"
     >
       <GitBranch className="size-3.5 shrink-0 text-amber-400" />
       <span className="sr-only">Previewing </span>
