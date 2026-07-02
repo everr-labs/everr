@@ -6,7 +6,7 @@ import { InstallCommand } from "./ui/install-command";
 
 export function Hero() {
   return (
-    <div className="relative overflow-x-clip md:aspect-video md:max-h-svh md:overflow-hidden">
+    <div className="relative overflow-x-clip md:h-[min(56.25vw,100svh)] md:overflow-hidden">
       <div className="@container-size absolute inset-0 overflow-hidden">
         <HoleBackground className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 aspect-video h-auto w-[max(100cqw,177.78cqh)]" />
       </div>
