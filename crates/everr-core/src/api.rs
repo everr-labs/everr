@@ -48,6 +48,10 @@ pub struct ApiClient {
 }
 
 impl ApiClient {
+    pub fn base_url(&self) -> &str {
+        &self.base_url
+    }
+
     pub fn from_session(session: &Session) -> Result<Self> {
         let mut headers = HeaderMap::new();
         let bearer = format!("Bearer {}", session.token);
@@ -570,6 +574,7 @@ mod api_client_tests {
             repoid: "repo-1".to_string(),
             state: crate::apply::ApplyState::default(),
             source: None,
+            preview: None,
             dry_run: false,
         }
     }

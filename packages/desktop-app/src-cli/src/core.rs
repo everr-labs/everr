@@ -601,7 +601,7 @@ fn push_pagination(query: &mut Vec<(&str, String)>, limit: u32, offset: u32) {
 pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
     use everr_core::apply::{
         ApplyRequest, classify_documents, detect_git_source, load_apply_manifest,
-        load_resource_documents,
+        load_resource_documents, resolve_preview_name,
     };
 
     let dir = std::path::Path::new(&args.dir);
@@ -622,6 +622,10 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
 
     let state = classify_documents(documents)?.into_wire();
     let source = detect_git_source(dir);
+    let preview = match args.preview.as_deref() {
+        Some(flag) => Some(resolve_preview_name(dir, flag)?),
+        None => None,
+    };
 
     // Credential precedence: an API key in EVERR_API_KEY (CI) wins;
     // otherwise fall back to the logged-in session (`cloud login`).
@@ -662,6 +666,7 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
             repoid: repoid.clone(),
             state: state.clone(),
             source: source.clone(),
+            preview: preview.clone(),
             dry_run: true,
         })
         .await?;
@@ -681,19 +686,19 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
     }
 
     // Confirm the (destructive) change before writing.
+    let target = match &preview {
+        Some(name) => format!("preview «{name}» in «{}»", plan.organization.name),
+        None => format!("«{}»", plan.organization.name),
+    };
     if !args.yes {
         if std::io::stdin().is_terminal() && std::io::stdout().is_terminal() {
-            let proceed =
-                cliclack::confirm(format!("Apply to «{}»?", plan.organization.name)).interact()?;
+            let proceed = cliclack::confirm(format!("Apply to {target}?")).interact()?;
             if !proceed {
                 println!("Aborted.");
                 return Ok(());
             }
         } else {
-            anyhow::bail!(
-                "refusing to apply to «{}» without confirmation; re-run with --yes",
-                plan.organization.name
-            );
+            anyhow::bail!("refusing to apply to {target} without confirmation; re-run with --yes");
         }
     }
 
@@ -702,11 +707,31 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
             repoid,
             state,
             source,
+            preview: preview.clone(),
             dry_run: false,
         })
         .await?;
     print_apply_summary(&summary, false);
+    if let Some(name) = &preview {
+        println!(
+            "Preview: {}/dashboards?preview={}",
+            client.base_url(),
+            percent_encode(name)
+        );
+    }
     Ok(())
+}
+
+/// Minimal RFC 3986 query-component encoding for the preview deep link.
+fn percent_encode(s: &str) -> String {
+    s.bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                (b as char).to_string()
+            }
+            _ => format!("%{b:02X}"),
+        })
+        .collect()
 }
 
 fn print_apply_summary(summary: &everr_core::apply::ApplySummary, plan: bool) {

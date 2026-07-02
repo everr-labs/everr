@@ -258,6 +258,11 @@ pub struct ApplyArgs {
     /// Skip the confirmation prompt (required in non-interactive contexts)
     #[arg(long, short = 'y')]
     pub yes: bool,
+    /// Apply into a preview namespace instead of the live state. With no
+    /// value the current git branch is used; pass a name where no branch is
+    /// available (CI, detached HEAD).
+    #[arg(long, value_name = "NAME", num_args = 0..=1, default_missing_value = "")]
+    pub preview: Option<String>,
 }
 
 #[derive(Args, Debug, Default)]
