@@ -1,6 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
@@ -11,9 +11,15 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 import { PreviewBanner } from "./preview-banner";
+import { __resetPreviewDismissals } from "./preview-dismissals";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  __resetPreviewDismissals();
+});
+
+afterEach(() => {
+  __resetPreviewDismissals();
 });
 
 describe("PreviewBanner", () => {
@@ -118,5 +124,72 @@ describe("PreviewBanner", () => {
       preview: undefined,
       from: "now-1h",
     });
+  });
+
+  it("offers a Dismiss action distinct from Exit that never navigates", async () => {
+    render(<PreviewBanner preview="gio/apply-previews" />);
+    const dismiss = screen.getByRole("button", { name: /dismiss/i });
+    const exit = screen.getByRole("button", { name: /exit preview/i });
+    // Two separate affordances — dismiss is not the exit button.
+    expect(dismiss).not.toBe(exit);
+
+    await userEvent.click(dismiss);
+    // Dismissing hides the pill without touching the URL (stays in preview mode).
+    await waitFor(() =>
+      expect(screen.queryByRole("status")).not.toBeInTheDocument(),
+    );
+    expect(mocks.navigate).not.toHaveBeenCalled();
+  });
+
+  it("keeps the pill hidden after a re-render (dismissal survives navigation)", async () => {
+    const { rerender } = render(<PreviewBanner preview="gio/apply-previews" />);
+    await userEvent.click(screen.getByRole("button", { name: /dismiss/i }));
+    await waitFor(() =>
+      expect(screen.queryByRole("status")).not.toBeInTheDocument(),
+    );
+
+    // A client-side navigation re-renders the same still-active preview; the
+    // in-memory dismissal keeps the pill hidden (no reappearance without a full
+    // reload).
+    rerender(<PreviewBanner preview="gio/apply-previews" status="changed" />);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("keys dismissal by preview name — a different preview shows the pill again", async () => {
+    const { rerender } = render(<PreviewBanner preview="gio/apply-previews" />);
+    await userEvent.click(screen.getByRole("button", { name: /dismiss/i }));
+    await waitFor(() =>
+      expect(screen.queryByRole("status")).not.toBeInTheDocument(),
+    );
+
+    // Switching to a different preview name is a fresh pill: its name isn't in
+    // the dismissed set, so it renders.
+    rerender(<PreviewBanner preview="gio/other-preview" />);
+    expect(screen.getByRole("status")).toHaveTextContent("gio/other-preview");
+  });
+
+  it("respects reduced motion: still renders and dismisses instantly", async () => {
+    const original = window.matchMedia;
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: query.includes("prefers-reduced-motion"),
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+    try {
+      render(<PreviewBanner preview="gio/apply-previews" />);
+      // Visible on load under reduced motion (no gated-on-transition blank).
+      expect(screen.getByRole("status")).toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: /dismiss/i }));
+      await waitFor(() =>
+        expect(screen.queryByRole("status")).not.toBeInTheDocument(),
+      );
+    } finally {
+      window.matchMedia = original;
+    }
   });
 });
