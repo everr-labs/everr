@@ -28,7 +28,12 @@ import { listPreviews } from "@/data/previews/server";
  * the icon-only rail where only the branch glyph shows.
  */
 export function PreviewSwitcher() {
-  const { preview } = useSearch({ from: "/_authenticated/_dashboard" });
+  const { preview: rawPreview } = useSearch({
+    from: "/_authenticated/_dashboard",
+  });
+  // Reads already treat "" as live; normalize here too so an empty/whitespace
+  // `?preview=` doesn't render a blank trigger label instead of "Live".
+  const preview = rawPreview?.trim() || undefined;
   const navigate = useNavigate();
   const { data: previews } = useQuery({
     queryKey: ["previews"],

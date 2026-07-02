@@ -57,11 +57,7 @@ export function RunbookViewer({
 
   return (
     <DashboardProvider document={dashboardDocument}>
-      {previewStatus ? (
-        <div className="mb-4">
-          <PreviewBanner preview={preview} status={previewStatus} />
-        </div>
-      ) : null}
+      <PreviewBanner preview={preview} status={previewStatus} />
       <div className="flex gap-6">
         {tree.length > 0 && (
           <RunbookPageNav

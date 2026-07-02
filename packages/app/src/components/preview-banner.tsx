@@ -42,7 +42,7 @@ export function PreviewBanner({
   return (
     <div
       role="status"
-      className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${TONE[status]}`}
+      className={`mb-4 flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${TONE[status]}`}
     >
       <GitBranch className="size-4 shrink-0" />
       <span>{message(preview, status)}</span>

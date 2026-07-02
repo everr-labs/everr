@@ -109,7 +109,18 @@ export const listDashboards = createAuthenticatedServerFn({ method: "GET" })
     const orgId = context.session.session.activeOrganizationId;
     const preview = data?.preview ?? "";
 
-    const select = {
+    // Live path never diffs against anything, so it only needs the scalar
+    // columns `toItem` returns — no `document` (expensive JSONB) fetch. The
+    // preview path feeds `overlayPreview`, which diffs `document` and keys off
+    // `repoid`/`preview`, so it keeps those.
+    const liveSelect = {
+      slug: dashboards.slug,
+      project: dashboards.project,
+      folderPath: dashboards.folderPath,
+      displayName: sql<string>`document->'spec'->'display'->>'name'`,
+    };
+
+    const previewSelect = {
       repoid: dashboards.repoid,
       preview: dashboards.preview,
       slug: dashboards.slug,
@@ -135,7 +146,7 @@ export const listDashboards = createAuthenticatedServerFn({ method: "GET" })
 
     if (preview === "") {
       const rows = await db
-        .select(select)
+        .select(liveSelect)
         .from(dashboards)
         .where(
           and(eq(dashboards.organizationId, orgId), eq(dashboards.preview, "")),
@@ -148,7 +159,7 @@ export const listDashboards = createAuthenticatedServerFn({ method: "GET" })
     const [covered, rows] = await Promise.all([
       getCoveredRepoids(orgId, preview),
       db
-        .select(select)
+        .select(previewSelect)
         .from(dashboards)
         .where(
           and(

@@ -79,7 +79,18 @@ export const listRunbooks = createAuthenticatedServerFn({ method: "GET" })
     const orgId = context.session.session.activeOrganizationId;
     const preview = data?.preview ?? "";
 
-    const select = {
+    // Live path never diffs against anything, so it only needs the scalar
+    // columns `toItem` returns — no `document` (expensive JSONB) fetch. The
+    // preview path feeds `overlayPreview`, which diffs `document` and keys off
+    // `repoid`/`preview`, so it keeps those.
+    const liveSelect = {
+      slug: runbooks.slug,
+      project: runbooks.project,
+      folderPath: runbooks.folderPath,
+      displayName: sql<string>`document->'spec'->'display'->>'name'`,
+    };
+
+    const previewSelect = {
       repoid: runbooks.repoid,
       preview: runbooks.preview,
       slug: runbooks.slug,
@@ -105,7 +116,7 @@ export const listRunbooks = createAuthenticatedServerFn({ method: "GET" })
 
     if (preview === "") {
       const rows = await db
-        .select(select)
+        .select(liveSelect)
         .from(runbooks)
         .where(
           and(eq(runbooks.organizationId, orgId), eq(runbooks.preview, "")),
@@ -118,7 +129,7 @@ export const listRunbooks = createAuthenticatedServerFn({ method: "GET" })
     const [covered, rows] = await Promise.all([
       getCoveredRepoids(orgId, preview),
       db
-        .select(select)
+        .select(previewSelect)
         .from(runbooks)
         .where(
           and(
