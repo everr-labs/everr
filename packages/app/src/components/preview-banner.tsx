@@ -1,4 +1,6 @@
-import { GitBranch } from "lucide-react";
+import { Button } from "@everr/ui/components/button";
+import { useNavigate } from "@tanstack/react-router";
+import { GitBranch, X } from "lucide-react";
 import type { PreviewStatus } from "@/data/previews/overlay";
 
 // One tint per status, echoing the diff badges: amber = "not live", emerald =
@@ -11,7 +13,12 @@ const TONE: Record<PreviewStatus, string> = {
   removed: "border-red-500/30 bg-red-500/10 text-red-300",
 };
 
-function message(preview: string, status: PreviewStatus): string {
+// No per-resource status (the list pages, or a detail whose repoid the preview
+// doesn't cover): fall back to the amber "not live" hue the header indicator
+// wears, so the whole app speaks one preview color.
+const GENERIC_TONE = "border-amber-500/30 bg-amber-500/10 text-amber-300";
+
+function message(preview: string, status?: PreviewStatus): string {
   switch (status) {
     case "removed":
       // The live document is what's actually on screen — say so plainly rather
@@ -23,13 +30,20 @@ function message(preview: string, status: PreviewStatus): string {
       return `Changed in preview "${preview}" — this differs from live.`;
     case "unchanged":
       return `Viewing preview "${preview}". This resource is unchanged from live.`;
+    default:
+      // Generic list/overview copy: name the preview and say what it does,
+      // without claiming anything about a specific resource.
+      return `Previewing "${preview}" — applied resources are overlaid on live.`;
   }
 }
 
 /**
- * Context banner shown above a dashboard or runbook when a preview is active.
- * Names the preview and how this resource differs under it. Renders nothing on
- * Live (no status), so detail routes can mount it unconditionally.
+ * Context banner for an active preview. Names the preview and — on detail routes
+ * that pass a `status` — how this resource differs under it; lists pass no status
+ * and get generic copy. Either way it carries the single exit affordance: the
+ * "Exit preview" button clears the `preview` search param (preserving all other
+ * params) to return to live. Renders nothing on live, so callers can mount it
+ * unconditionally.
  */
 export function PreviewBanner({
   preview,
@@ -38,14 +52,34 @@ export function PreviewBanner({
   preview?: string;
   status?: PreviewStatus;
 }) {
-  if (!preview || !status) return null;
+  const navigate = useNavigate();
+  // Reads treat "" / whitespace as live; mirror that so a stray `?preview=`
+  // doesn't render an empty banner.
+  const name = preview?.trim();
+  if (!name) return null;
+
+  const exitPreview = () =>
+    navigate({ to: ".", search: (prev) => ({ ...prev, preview: undefined }) });
+
   return (
     <div
       role="status"
-      className={`mb-4 flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${TONE[status]}`}
+      className={`mb-4 flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${
+        status ? TONE[status] : GENERIC_TONE
+      }`}
     >
       <GitBranch className="size-4 shrink-0" />
-      <span>{message(preview, status)}</span>
+      <span className="min-w-0 flex-1">{message(name, status)}</span>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={exitPreview}
+        className="-mr-1 shrink-0"
+      >
+        <X data-icon="inline-start" />
+        Exit preview
+      </Button>
     </div>
   );
 }

@@ -6,10 +6,8 @@ import { previews } from "@/db/schema";
  * Repoids a preview covers — the overlay replacement boundary.
  *
  * Server-only: this touches `db` at the top level, so it must NOT live in a
- * module a client component imports. It sits apart from `server.ts` (the
- * `listPreviews` server fn, which the sidebar switcher imports) precisely so
- * that client import can't drag the Postgres driver into the browser bundle —
- * see the server-fn client-bundle gotcha.
+ * module a client component imports — see the server-fn client-bundle gotcha.
+ * Called by the dashboard/runbook/alert read server fns to bound the overlay.
  */
 export async function getCoveredRepoids(
   orgId: string,

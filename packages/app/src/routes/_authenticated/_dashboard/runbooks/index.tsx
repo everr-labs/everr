@@ -4,6 +4,7 @@ import { createFileRoute, useSearch } from "@tanstack/react-router";
 import { AlertCircle, NotebookText, SearchIcon } from "lucide-react";
 import { useState } from "react";
 import { DashboardTree } from "@/components/dashboards/dashboard-tree";
+import { PreviewBanner } from "@/components/preview-banner";
 import { runbookListOptions } from "@/data/runbooks/options";
 
 export const Route = createFileRoute("/_authenticated/_dashboard/runbooks/")({
@@ -25,6 +26,7 @@ function RunbooksIndexPage() {
 
   return (
     <div>
+      <PreviewBanner preview={preview} />
       <div className="mb-6 flex items-center gap-2">
         <NotebookText className="size-5 text-muted-foreground" />
         <h1 className="text-lg font-semibold">Runbooks</h1>

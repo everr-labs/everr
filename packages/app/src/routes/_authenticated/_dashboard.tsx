@@ -22,6 +22,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { CommandBar } from "@/components/command-bar";
 import { DashboardBreadcrumb } from "@/components/dashboard-breadcrumb";
 import gridLayoutOverridesCSS from "@/components/dashboards/dashboard-grid.css?url";
+import { PreviewIndicator } from "@/components/preview-indicator";
 import { ExploreSearchRetainShape } from "@/lib/explore-search";
 import {
   ResolvedTimeRangeSearchSchema,
@@ -131,6 +132,7 @@ function RouteComponent() {
               <DashboardBreadcrumb />
             </div>
             <div className="flex items-center gap-1.5">
+              <PreviewIndicator />
               <CommandBar />
 
               {!hideTimeRangePicker && (
