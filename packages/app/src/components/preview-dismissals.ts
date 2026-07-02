@@ -44,9 +44,11 @@ export function useIsPreviewDismissed(name: string | undefined): boolean {
   return name ? set.has(name) : false;
 }
 
-// Entrance bookkeeping: every page mounts its own PreviewBanner, so without
-// this the enter animation would replay on each client-side navigation. The
-// pill should read as ONE persistent element that animated in once — so the
+// Entrance bookkeeping: the pill lives in the shared `_previewable` layout, so
+// it persists across navigation *within* that subtree — but the layout (and its
+// banner) still unmounts when you leave to a non-previewable page (e.g. /traces)
+// and remounts on return, which without this would replay the enter animation.
+// The pill should read as ONE persistent element that animated in once — so the
 // entrance plays on the first appearance per preview name (page load, or
 // switching previews) and later mounts render already in place. Same lifetime
 // as dismissals: module state, resets on full reload. Not reactive on purpose:

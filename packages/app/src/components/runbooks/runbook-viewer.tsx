@@ -4,7 +4,6 @@ import { FileQuestion } from "lucide-react";
 import { useMemo } from "react";
 import { DashboardProvider } from "@/components/dashboards/use-dashboard";
 import { VariableBar } from "@/components/dashboards/variable-bar";
-import { PreviewBanner } from "@/components/preview-banner";
 import { runbookOptions } from "@/data/runbooks/options";
 import {
   findPage,
@@ -29,7 +28,7 @@ export function RunbookViewer({
   // The runbook is immutable (gitops, read-only), so the query cache is the
   // single source of truth; the route loader has already ensured the data.
   const {
-    data: { document: runbook, previewStatus },
+    data: { document: runbook },
   } = useSuspenseQuery(runbookOptions(project, slug, preview));
   const page = findPage(runbook.spec, pagePath);
   const tree = pageNavTree(runbook.spec);
@@ -57,7 +56,6 @@ export function RunbookViewer({
 
   return (
     <DashboardProvider document={dashboardDocument}>
-      <PreviewBanner preview={preview} status={previewStatus} />
       <div className="flex gap-6">
         {tree.length > 0 && (
           <RunbookPageNav

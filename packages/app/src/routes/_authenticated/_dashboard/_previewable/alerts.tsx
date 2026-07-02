@@ -25,7 +25,6 @@ import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
 import { NotebookText, SearchIcon, Settings, XIcon } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { PreviewBanner } from "@/components/preview-banner";
 import { PreviewStatusBadge } from "@/components/preview-status-badge";
 import type { NormalizedAlertDeliverySettings } from "@/data/alerts/delivery-settings";
 import {
@@ -160,7 +159,9 @@ function AlertFilterButton({
   );
 }
 
-export const Route = createFileRoute("/_authenticated/_dashboard/alerts")({
+export const Route = createFileRoute(
+  "/_authenticated/_dashboard/_previewable/alerts",
+)({
   staticData: { breadcrumb: "Alerts", hideTimeRangePicker: true },
   head: () => ({ meta: [{ title: "Everr - Alerts" }] }),
   loaderDeps: ({ search: { preview } }) => ({ preview }),
@@ -354,142 +355,139 @@ function AlertsPage() {
   );
 
   return (
-    <>
-      <PreviewBanner preview={preview} />
-      <div className="flex w-full flex-col gap-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-xl font-bold tracking-tight">Alerts</h1>
-            <p className="text-muted-foreground">
-              Alert rules applied for this organization.
-            </p>
-          </div>
-          <Button variant="outline" onClick={() => setSettingsOpen(true)}>
-            <Settings data-icon="inline-start" />
-            Notification settings
-          </Button>
+    <div className="flex w-full flex-col gap-6">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight">Alerts</h1>
+          <p className="text-muted-foreground">
+            Alert rules applied for this organization.
+          </p>
         </div>
+        <Button variant="outline" onClick={() => setSettingsOpen(true)}>
+          <Settings data-icon="inline-start" />
+          Notification settings
+        </Button>
+      </div>
 
-        {settings.data && !hasChannel && (
-          <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
-            No notification channels are configured, so firing alerts won't
-            reach anyone.{" "}
-            <button
-              type="button"
-              className="font-medium underline underline-offset-4"
-              onClick={() => setSettingsOpen(true)}
-            >
-              Configure notifications
-            </button>
-            .
-          </div>
-        )}
+      {settings.data && !hasChannel && (
+        <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
+          No notification channels are configured, so firing alerts won't reach
+          anyone.{" "}
+          <button
+            type="button"
+            className="font-medium underline underline-offset-4"
+            onClick={() => setSettingsOpen(true)}
+          >
+            Configure notifications
+          </button>
+          .
+        </div>
+      )}
 
-        {alerts.data && alerts.data.length > 0 && (
-          <div className="flex flex-col gap-2.5">
-            <fieldset className="flex flex-wrap items-center gap-1.5">
-              <legend className="sr-only">Alert summary filters</legend>
-              {filterOptions.map((option) => (
-                <AlertFilterButton
-                  key={option.value}
-                  option={option}
-                  active={alertFilter === option.value}
-                  onSelect={() => setAlertFilter(option.value)}
-                />
-              ))}
-            </fieldset>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="relative w-full sm:max-w-sm">
-                <SearchIcon className="absolute left-2.5 top-1/2 size-3 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  aria-label="Search alerts"
-                  placeholder="Search alerts..."
-                  value={alertSearch}
-                  onChange={(e) => setAlertSearch(e.target.value)}
-                  className="h-7 rounded-lg border-border/70 bg-transparent pl-7 text-xs placeholder:text-muted-foreground/80 hover:bg-muted/20 focus-visible:bg-background"
-                />
-              </div>
-              <div className="flex items-center gap-2 text-muted-foreground text-xs">
-                <span>
-                  {hasActiveListFilters
-                    ? `Showing ${filteredAlerts.length} of ${summary.total}`
-                    : `${summary.total} alert ${summary.total === 1 ? "rule" : "rules"}`}
-                </span>
-                {hasActiveListFilters && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={clearAlertFilters}
-                  >
-                    <XIcon data-icon="inline-start" />
-                    Clear
-                  </Button>
-                )}
-              </div>
+      {alerts.data && alerts.data.length > 0 && (
+        <div className="flex flex-col gap-2.5">
+          <fieldset className="flex flex-wrap items-center gap-1.5">
+            <legend className="sr-only">Alert summary filters</legend>
+            {filterOptions.map((option) => (
+              <AlertFilterButton
+                key={option.value}
+                option={option}
+                active={alertFilter === option.value}
+                onSelect={() => setAlertFilter(option.value)}
+              />
+            ))}
+          </fieldset>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative w-full sm:max-w-sm">
+              <SearchIcon className="absolute left-2.5 top-1/2 size-3 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                aria-label="Search alerts"
+                placeholder="Search alerts..."
+                value={alertSearch}
+                onChange={(e) => setAlertSearch(e.target.value)}
+                className="h-7 rounded-lg border-border/70 bg-transparent pl-7 text-xs placeholder:text-muted-foreground/80 hover:bg-muted/20 focus-visible:bg-background"
+              />
+            </div>
+            <div className="flex items-center gap-2 text-muted-foreground text-xs">
+              <span>
+                {hasActiveListFilters
+                  ? `Showing ${filteredAlerts.length} of ${summary.total}`
+                  : `${summary.total} alert ${summary.total === 1 ? "rule" : "rules"}`}
+              </span>
+              {hasActiveListFilters && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearAlertFilters}
+                >
+                  <XIcon data-icon="inline-start" />
+                  Clear
+                </Button>
+              )}
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        <Card inset="flush-content">
-          <CardContent>
-            {alerts.isError ? (
-              <QueryErrorMessage message="Unable to load alerts." />
-            ) : alerts.isPending ? (
-              <div className="flex flex-col gap-2 px-3 py-2">
-                {Array.from({ length: 5 }).map((_, index) => (
-                  <Skeleton key={index} className="h-8 w-full" />
-                ))}
-              </div>
-            ) : (
-              <DataTable
-                data={filteredAlerts}
-                columns={columns}
-                rowKey={(row) => row.id}
-                rowClassName={(row) =>
-                  row.previewStatus === "removed" ? "opacity-50" : undefined
-                }
-                emptyState={
-                  hasActiveListFilters ? (
-                    <div className="flex flex-col items-center gap-2 px-3 py-8 text-center text-muted-foreground">
-                      <p>No alerts match these filters.</p>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={clearAlertFilters}
+      <Card inset="flush-content">
+        <CardContent>
+          {alerts.isError ? (
+            <QueryErrorMessage message="Unable to load alerts." />
+          ) : alerts.isPending ? (
+            <div className="flex flex-col gap-2 px-3 py-2">
+              {Array.from({ length: 5 }).map((_, index) => (
+                <Skeleton key={index} className="h-8 w-full" />
+              ))}
+            </div>
+          ) : (
+            <DataTable
+              data={filteredAlerts}
+              columns={columns}
+              rowKey={(row) => row.id}
+              rowClassName={(row) =>
+                row.previewStatus === "removed" ? "opacity-50" : undefined
+              }
+              emptyState={
+                hasActiveListFilters ? (
+                  <div className="flex flex-col items-center gap-2 px-3 py-8 text-center text-muted-foreground">
+                    <p>No alerts match these filters.</p>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearAlertFilters}
+                    >
+                      <XIcon data-icon="inline-start" />
+                      Clear filters
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="px-3 py-8 text-center text-muted-foreground">
+                    <p>No alerts have been applied for this organization.</p>
+                    <p className="mt-1">
+                      <a
+                        className="underline underline-offset-4"
+                        href="https://everr.dev/docs/alerts/first-alert"
+                        target="_blank"
+                        rel="noreferrer"
                       >
-                        <XIcon data-icon="inline-start" />
-                        Clear filters
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="px-3 py-8 text-center text-muted-foreground">
-                      <p>No alerts have been applied for this organization.</p>
-                      <p className="mt-1">
-                        <a
-                          className="underline underline-offset-4"
-                          href="https://everr.dev/docs/alerts/first-alert"
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Create your first alert
-                        </a>
-                      </p>
-                    </div>
-                  )
-                }
-              />
-            )}
-          </CardContent>
-        </Card>
+                        Create your first alert
+                      </a>
+                    </p>
+                  </div>
+                )
+              }
+            />
+          )}
+        </CardContent>
+      </Card>
 
-        <NotificationSettingsDialog
-          open={settingsOpen}
-          onOpenChange={setSettingsOpen}
-        />
-      </div>
-    </>
+      <NotificationSettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+      />
+    </div>
   );
 }
 

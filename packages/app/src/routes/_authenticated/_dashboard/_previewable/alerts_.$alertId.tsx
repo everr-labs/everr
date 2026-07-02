@@ -33,7 +33,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   BellOff,
   CircleCheck,
@@ -44,7 +44,6 @@ import {
   X,
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
-import { PreviewBanner } from "@/components/preview-banner";
 import {
   ALERT_CHANNELS,
   type AlertDeliveryTargets,
@@ -102,7 +101,7 @@ const alertEventsQueryOptions = (alertId: string, timeRange: TimeRange) =>
   });
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/alerts_/$alertId",
+  "/_authenticated/_dashboard/_previewable/alerts_/$alertId",
 )({
   staticData: {
     breadcrumb: (match: { loaderData?: { slug?: string } }) => [
@@ -156,7 +155,6 @@ function AlertNotFound() {
 
 function AlertDetailPage() {
   const { alertId } = Route.useParams();
-  const { preview } = useSearch({ from: "/_authenticated/_dashboard" });
   const queryClient = useQueryClient();
   const { timeRange } = useTimeRange();
   const alert = useQuery(alertDetailQueryOptions(alertId));
@@ -231,283 +229,278 @@ function AlertDetailPage() {
   const silenceCount = silences.data?.length ?? 0;
 
   return (
-    <>
-      <PreviewBanner preview={preview} />
-      <div className="flex w-full flex-col gap-6">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex min-w-0 flex-col gap-1">
-            <h1 className="font-mono text-xl font-bold tracking-tight break-words">
-              {detail.display.name || detail.slug}
-            </h1>
-            {detail.display.description && (
-              <p className="max-w-3xl text-muted-foreground">
-                {detail.display.description}
-              </p>
-            )}
-            {setActive.error && (
-              <p className="text-sm text-destructive" role="alert">
-                Couldn't update evaluation. {setActive.error.message}
-              </p>
-            )}
-          </div>
-          {detail.active ? (
-            <Button
-              variant="destructive"
-              size="sm"
-              className="shrink-0"
-              disabled={setActive.isPending}
-              onClick={() => setActive.mutate(false)}
-            >
-              <CircleStop data-icon="inline-start" />
-              Pause evaluation
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              className="shrink-0"
-              disabled={setActive.isPending}
-              onClick={() => setActive.mutate(true)}
-            >
-              <CirclePlay data-icon="inline-start" />
-              Resume evaluation
-            </Button>
+    <div className="flex w-full flex-col gap-6">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex min-w-0 flex-col gap-1">
+          <h1 className="font-mono text-xl font-bold tracking-tight break-words">
+            {detail.display.name || detail.slug}
+          </h1>
+          {detail.display.description && (
+            <p className="max-w-3xl text-muted-foreground">
+              {detail.display.description}
+            </p>
+          )}
+          {setActive.error && (
+            <p className="text-sm text-destructive" role="alert">
+              Couldn't update evaluation. {setActive.error.message}
+            </p>
           )}
         </div>
-
-        {showFiringSuccess ? (
-          <Card className="border-emerald-500/30 bg-emerald-500/5 py-3">
-            <CardContent className="flex items-center gap-3">
-              <CircleCheck className="size-5 shrink-0 text-emerald-500" />
-              <p className="text-sm">
-                <span className="font-medium text-foreground">
-                  You're all good.
-                </span>{" "}
-                <span className="text-muted-foreground">
-                  Nothing's firing right now.
-                </span>
-              </p>
-            </CardContent>
-          </Card>
+        {detail.active ? (
+          <Button
+            variant="destructive"
+            size="sm"
+            className="shrink-0"
+            disabled={setActive.isPending}
+            onClick={() => setActive.mutate(false)}
+          >
+            <CircleStop data-icon="inline-start" />
+            Pause evaluation
+          </Button>
         ) : (
-          <Card inset="flush-content">
-            <CardHeader>
-              <CardTitle>Firing instances</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {instances.isError ? (
-                <QueryErrorMessage message="Unable to load alert instances." />
-              ) : instances.isPending ? (
-                <Skeleton className="m-3 h-36 w-full" />
-              ) : (
-                <DataTable
-                  stickyHeader
-                  data={firingInstances}
-                  rowClassName={(row) =>
-                    row.silenced ? "opacity-50" : undefined
-                  }
-                  columns={
-                    [
-                      {
-                        header: "Labels",
-                        cell: (row) => (
-                          <div className="flex items-center gap-2">
-                            <span
-                              className="size-1.5 shrink-0 rounded-full bg-destructive"
-                              aria-hidden
-                            />
-                            <KeyValueList values={row.labels} />
-                            {row.silenced && (
-                              <Badge variant="secondary">silenced</Badge>
-                            )}
-                          </div>
-                        ),
-                      },
-                      {
-                        header: "Matched values",
-                        // Column className replaces the DataTable defaults, so the
-                        // middle-column padding is restated alongside the
-                        // responsive hiding.
-                        className: "hidden pb-2 pr-4 md:table-cell",
-                        cellClassName: "hidden py-2 pr-4 md:table-cell",
-                        cell: (row) => <LastEvaluationResult instance={row} />,
-                      },
-                      {
-                        header: "Firing since",
-                        cell: (row) => <RelativeTime value={row.lastFiredAt} />,
-                      },
-                      {
-                        header: "",
-                        cell: (row) => (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            aria-label="Silence"
-                            onClick={() => {
-                              setSilenceTarget(row);
-                              setNewSilenceOpen(false);
-                            }}
-                          >
-                            <BellOff data-icon="inline-start" />
-                            <span className="hidden md:inline">Silence</span>
-                          </Button>
-                        ),
-                      },
-                    ] satisfies Column<AlertInstanceSummary>[]
-                  }
-                  rowKey={(row) => row.fingerprint}
-                />
-              )}
-            </CardContent>
-          </Card>
+          <Button
+            size="sm"
+            className="shrink-0"
+            disabled={setActive.isPending}
+            onClick={() => setActive.mutate(true)}
+          >
+            <CirclePlay data-icon="inline-start" />
+            Resume evaluation
+          </Button>
         )}
-        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.72fr)]">
-          <Card>
-            <CardHeader>
-              <CardTitle>Definition</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col gap-4">
-                <DefinitionTable rows={definitionRows} />
-                {detail.lastEvaluationError && (
-                  <pre className="max-h-32 overflow-auto rounded bg-muted/30 p-2 text-xs text-destructive">
-                    {detail.lastEvaluationError}
-                  </pre>
-                )}
+      </div>
 
-                <div className="flex flex-col gap-1.5">
-                  <span className="font-medium text-muted-foreground text-xs">
-                    Query
-                  </span>
-                  <pre className="max-h-72 overflow-auto rounded-md border border-border/60 bg-muted/20 p-3 text-xs leading-relaxed">
-                    {detail.parsedQuery}
-                  </pre>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-3">
-              <CardTitle className="flex items-center gap-2">
-                Silences
-                {silenceCount > 0 && (
-                  <span className="font-normal text-muted-foreground text-xs">
-                    {silenceCount} active
-                  </span>
-                )}
-              </CardTitle>
-              <Button
-                size="sm"
-                variant="outline"
-                className="shrink-0"
-                onClick={() => {
-                  setSilenceTarget(null);
-                  setNewSilenceOpen(true);
-                }}
-              >
-                <Plus data-icon="inline-start" />
-                Add
-              </Button>
-            </CardHeader>
-            <CardContent>
-              {silences.isError ? (
-                <QueryErrorMessage message="Unable to load silences." />
-              ) : silences.isPending ? (
-                <Skeleton className="h-20 w-full" />
-              ) : silenceCount > 0 ? (
-                <div className="divide-y divide-border/60">
-                  {silences.data?.map((silence) => (
-                    <SilenceRow key={silence.id} silence={silence} />
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-md border border-dashed border-border/70 px-3 py-3 text-muted-foreground text-xs">
-                  No active silences.
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
+      {showFiringSuccess ? (
+        <Card className="border-emerald-500/30 bg-emerald-500/5 py-3">
+          <CardContent className="flex items-center gap-3">
+            <CircleCheck className="size-5 shrink-0 text-emerald-500" />
+            <p className="text-sm">
+              <span className="font-medium text-foreground">
+                You're all good.
+              </span>{" "}
+              <span className="text-muted-foreground">
+                Nothing's firing right now.
+              </span>
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
         <Card inset="flush-content">
           <CardHeader>
-            <CardTitle>History</CardTitle>
+            <CardTitle>Firing instances</CardTitle>
           </CardHeader>
           <CardContent>
-            {events.isError ? (
-              <QueryErrorMessage message="Unable to load alert history." />
-            ) : events.isPending ? (
+            {instances.isError ? (
+              <QueryErrorMessage message="Unable to load alert instances." />
+            ) : instances.isPending ? (
               <Skeleton className="m-3 h-36 w-full" />
             ) : (
               <DataTable
                 stickyHeader
-                data={events.data ?? []}
-                columns={[
-                  { header: "Time", cell: (row) => formatDate(row.eventTime) },
-                  {
-                    header: "State",
-                    cell: (row) => (
-                      <HistoryInstanceState instances={row.instances} />
-                    ),
-                  },
-                  {
-                    header: "Instance",
-                    cell: (row) => (
-                      <HistoryInstances instances={row.instances} />
-                    ),
-                  },
-                  {
-                    header: "Delivery",
-                    cell: (row) => formatDeliveryTargets(row),
-                  },
-                  {
-                    header: "",
-                    cell: (row) => {
-                      const instance =
-                        row.instances.find((i) => i.state === "firing") ??
-                        row.instances[0];
-                      return (
+                data={firingInstances}
+                rowClassName={(row) =>
+                  row.silenced ? "opacity-50" : undefined
+                }
+                columns={
+                  [
+                    {
+                      header: "Labels",
+                      cell: (row) => (
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="size-1.5 shrink-0 rounded-full bg-destructive"
+                            aria-hidden
+                          />
+                          <KeyValueList values={row.labels} />
+                          {row.silenced && (
+                            <Badge variant="secondary">silenced</Badge>
+                          )}
+                        </div>
+                      ),
+                    },
+                    {
+                      header: "Matched values",
+                      // Column className replaces the DataTable defaults, so the
+                      // middle-column padding is restated alongside the
+                      // responsive hiding.
+                      className: "hidden pb-2 pr-4 md:table-cell",
+                      cellClassName: "hidden py-2 pr-4 md:table-cell",
+                      cell: (row) => <LastEvaluationResult instance={row} />,
+                    },
+                    {
+                      header: "Firing since",
+                      cell: (row) => <RelativeTime value={row.lastFiredAt} />,
+                    },
+                    {
+                      header: "",
+                      cell: (row) => (
                         <Button
                           variant="outline"
                           size="sm"
                           aria-label="Silence"
                           onClick={() => {
-                            setSilenceTarget({
-                              fingerprint: row.eventId,
-                              labels: instance?.labels ?? {},
-                            });
+                            setSilenceTarget(row);
                             setNewSilenceOpen(false);
                           }}
                         >
                           <BellOff data-icon="inline-start" />
                           <span className="hidden md:inline">Silence</span>
                         </Button>
-                      );
+                      ),
                     },
-                  },
-                ]}
-                rowKey={(row) => row.eventId}
-                emptyState={
-                  <div className="px-3 py-6 text-center text-muted-foreground">
-                    No alert events yet.
-                  </div>
+                  ] satisfies Column<AlertInstanceSummary>[]
                 }
+                rowKey={(row) => row.fingerprint}
               />
             )}
           </CardContent>
         </Card>
+      )}
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.72fr)]">
+        <Card>
+          <CardHeader>
+            <CardTitle>Definition</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col gap-4">
+              <DefinitionTable rows={definitionRows} />
+              {detail.lastEvaluationError && (
+                <pre className="max-h-32 overflow-auto rounded bg-muted/30 p-2 text-xs text-destructive">
+                  {detail.lastEvaluationError}
+                </pre>
+              )}
 
-        <SilenceDialog
-          alertId={alertId}
-          instance={silenceTarget}
-          open={newSilenceOpen}
-          onClose={() => {
-            setSilenceTarget(null);
-            setNewSilenceOpen(false);
-          }}
-        />
+              <div className="flex flex-col gap-1.5">
+                <span className="font-medium text-muted-foreground text-xs">
+                  Query
+                </span>
+                <pre className="max-h-72 overflow-auto rounded-md border border-border/60 bg-muted/20 p-3 text-xs leading-relaxed">
+                  {detail.parsedQuery}
+                </pre>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-3">
+            <CardTitle className="flex items-center gap-2">
+              Silences
+              {silenceCount > 0 && (
+                <span className="font-normal text-muted-foreground text-xs">
+                  {silenceCount} active
+                </span>
+              )}
+            </CardTitle>
+            <Button
+              size="sm"
+              variant="outline"
+              className="shrink-0"
+              onClick={() => {
+                setSilenceTarget(null);
+                setNewSilenceOpen(true);
+              }}
+            >
+              <Plus data-icon="inline-start" />
+              Add
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {silences.isError ? (
+              <QueryErrorMessage message="Unable to load silences." />
+            ) : silences.isPending ? (
+              <Skeleton className="h-20 w-full" />
+            ) : silenceCount > 0 ? (
+              <div className="divide-y divide-border/60">
+                {silences.data?.map((silence) => (
+                  <SilenceRow key={silence.id} silence={silence} />
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-md border border-dashed border-border/70 px-3 py-3 text-muted-foreground text-xs">
+                No active silences.
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
-    </>
+
+      <Card inset="flush-content">
+        <CardHeader>
+          <CardTitle>History</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {events.isError ? (
+            <QueryErrorMessage message="Unable to load alert history." />
+          ) : events.isPending ? (
+            <Skeleton className="m-3 h-36 w-full" />
+          ) : (
+            <DataTable
+              stickyHeader
+              data={events.data ?? []}
+              columns={[
+                { header: "Time", cell: (row) => formatDate(row.eventTime) },
+                {
+                  header: "State",
+                  cell: (row) => (
+                    <HistoryInstanceState instances={row.instances} />
+                  ),
+                },
+                {
+                  header: "Instance",
+                  cell: (row) => <HistoryInstances instances={row.instances} />,
+                },
+                {
+                  header: "Delivery",
+                  cell: (row) => formatDeliveryTargets(row),
+                },
+                {
+                  header: "",
+                  cell: (row) => {
+                    const instance =
+                      row.instances.find((i) => i.state === "firing") ??
+                      row.instances[0];
+                    return (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        aria-label="Silence"
+                        onClick={() => {
+                          setSilenceTarget({
+                            fingerprint: row.eventId,
+                            labels: instance?.labels ?? {},
+                          });
+                          setNewSilenceOpen(false);
+                        }}
+                      >
+                        <BellOff data-icon="inline-start" />
+                        <span className="hidden md:inline">Silence</span>
+                      </Button>
+                    );
+                  },
+                },
+              ]}
+              rowKey={(row) => row.eventId}
+              emptyState={
+                <div className="px-3 py-6 text-center text-muted-foreground">
+                  No alert events yet.
+                </div>
+              }
+            />
+          )}
+        </CardContent>
+      </Card>
+
+      <SilenceDialog
+        alertId={alertId}
+        instance={silenceTarget}
+        open={newSilenceOpen}
+        onClose={() => {
+          setSilenceTarget(null);
+          setNewSilenceOpen(false);
+        }}
+      />
+    </div>
   );
 }
 

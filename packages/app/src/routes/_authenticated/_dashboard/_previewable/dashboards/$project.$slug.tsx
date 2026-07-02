@@ -3,12 +3,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { DashboardGrid } from "@/components/dashboards/dashboard-grid";
 import { DashboardNotFound } from "@/components/dashboards/dashboard-not-found";
 import { DashboardProvider } from "@/components/dashboards/use-dashboard";
-import { PreviewBanner } from "@/components/preview-banner";
 import { dashboardOptions } from "@/data/dashboards/options";
 import { dashboardTimeDefaults } from "@/data/dashboards/time-defaults";
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/dashboards/$project/$slug",
+  "/_authenticated/_dashboard/_previewable/dashboards/$project/$slug",
 )({
   staticData: {
     breadcrumb: (match: { loaderData?: { name: string } }) => [
@@ -31,14 +30,17 @@ export const Route = createFileRoute(
     // A missing dashboard throws notFound() from the server fn (→ notFound UI);
     // any other failure propagates to the error boundary instead of being
     // masked as not-found.
-    const { document } = await queryClient.ensureQueryData(
+    const { document, previewStatus } = await queryClient.ensureQueryData(
       dashboardOptions(project, slug, preview),
     );
     // Expose the dashboard's duration/refreshInterval as route time defaults so
     // the time-range hooks seed the picker and panels from the first render —
     // no post-mount URL write, so panels never query the wrong window first.
+    // `previewStatus` rides the loaderData up to the `_previewable` layout, which
+    // reads the deepest match carrying it to tone the shared preview pill.
     return {
       name: document.spec.display?.name ?? slug,
+      previewStatus,
       timeDefaults: dashboardTimeDefaults(document.spec),
     };
   },
@@ -50,14 +52,11 @@ function DashboardPage() {
   // The dashboard is immutable (gitops, read-only), so the query cache is the
   // single source of truth; the loader has already ensured the data.
   const {
-    data: { document, previewStatus },
+    data: { document },
   } = useSuspenseQuery(dashboardOptions(project, slug, preview));
   return (
-    <>
-      <PreviewBanner preview={preview} status={previewStatus} />
-      <DashboardProvider document={document}>
-        <DashboardGrid />
-      </DashboardProvider>
-    </>
+    <DashboardProvider document={document}>
+      <DashboardGrid />
+    </DashboardProvider>
   );
 }

@@ -4,7 +4,7 @@ import { RunbookViewer } from "@/components/runbooks/runbook-viewer";
 import { loadRunbook, runbookBreadcrumb, runbookHead } from "./-runbook-route";
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/runbooks/$project/$slug/$",
+  "/_authenticated/_dashboard/_previewable/runbooks/$project/$slug/$",
 )({
   staticData: { breadcrumb: runbookBreadcrumb },
   head: runbookHead,
