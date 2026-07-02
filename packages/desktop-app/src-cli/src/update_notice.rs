@@ -132,7 +132,7 @@ async fn fetch_latest_version() -> Result<String> {
     Ok(metadata.version)
 }
 
-fn release_metadata_url() -> String {
+pub(crate) fn release_metadata_url() -> String {
     #[cfg(debug_assertions)]
     if let Ok(url) = std::env::var(RELEASE_METADATA_URL_OVERRIDE_ENV) {
         if !url.trim().is_empty() {
