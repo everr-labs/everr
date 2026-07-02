@@ -9,6 +9,7 @@ mod onboarding;
 mod skills;
 mod telemetry;
 mod uninstall;
+mod upgrade;
 mod update_notice;
 mod wrap;
 
@@ -27,10 +28,13 @@ async fn main() -> Result<()> {
     let cli = Cli::parse_from(argv.clone());
     let telemetry = command_telemetry::init();
     command_telemetry::record_invocation(&cli, argv);
-    update_notice::maybe_print(&cli).await;
+    if !matches!(cli.command, Commands::Upgrade) {
+        update_notice::maybe_print(&cli).await;
+    }
 
     match cli.command {
         Commands::Uninstall => uninstall::run_uninstall()?,
+        Commands::Upgrade => upgrade::run().await?,
         Commands::Cloud(args) => match args.command {
             CloudSubcommand::Login(login) => auth::login(login).await?,
             CloudSubcommand::Logout => auth::logout()?,

@@ -25,6 +25,8 @@ pub struct Cli {
 pub enum Commands {
     /// Remove local Everr setup artifacts
     Uninstall,
+    /// Upgrade the Everr CLI to the latest version
+    Upgrade,
     /// Manage Everr Cloud authentication
     Cloud(CloudArgs),
     /// Inspect GitHub Actions CI runs
@@ -55,6 +57,7 @@ impl Commands {
     fn prints_human_stdout(&self, stdout_is_terminal: bool) -> bool {
         match self {
             Commands::Uninstall => true,
+            Commands::Upgrade => true,
             Commands::Cloud(args) => args.command.prints_human_stdout(stdout_is_terminal),
             Commands::Ci(args) => args.command.prints_human_stdout(stdout_is_terminal),
             Commands::Local(args) => args.command.prints_human_stdout(stdout_is_terminal),
@@ -1065,6 +1068,13 @@ mod tests {
         };
 
         assert_eq!(args.egrep.as_deref(), Some("Error.*timeout"));
+    }
+
+    #[test]
+    fn upgrade_parses_without_arguments() {
+        let cli = Cli::try_parse_from(["everr", "upgrade"]).expect("upgrade command");
+        assert!(matches!(cli.command, Commands::Upgrade));
+        assert!(cli.prints_human_stdout(false));
     }
 
     #[test]
