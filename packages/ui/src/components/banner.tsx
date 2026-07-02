@@ -2,35 +2,69 @@ import { cn } from "@everr/ui/lib/utils";
 import { cva, type VariantProps } from "class-variance-authority";
 import type * as React from "react";
 
-// Full-bleed announcement band for contextual, page-level messages (active
-// preview, a degraded environment, a pending migration). Square and edge-to-edge
-// by design — no rounding, no outer inset — carrying only its own internal
-// content padding and a tone-tinted bottom divider that separates it from the
-// content below. Purposefully translucent so it blends over an opaque surface;
-// when a caller makes it sticky, that caller is responsible for an opaque
-// backdrop so scrolled content stays hidden behind it. Tones are generic and
+// Contextual, page-level messaging surface (an active preview, a degraded
+// environment, a pending migration) in two presentations. Tones are generic and
 // domain-agnostic: the consumer maps its own semantics onto them.
-const bannerVariants = cva(
-  "flex items-center gap-2 border-b px-3 py-2 text-sm",
-  {
-    variants: {
-      tone: {
-        neutral: "border-border bg-muted/40 text-muted-foreground",
-        info: "border-sky-500/30 bg-sky-500/10 text-sky-300",
-        success: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
-        warning: "border-amber-500/30 bg-amber-500/10 text-amber-300",
-        danger: "border-red-500/30 bg-red-500/10 text-red-300",
-      },
+//
+//   shape="bar"  — a square, edge-to-edge announcement band: no rounding, no
+//     outer inset, a tone-tinted bottom divider separating it from the content
+//     below. Purposefully translucent so it blends over an opaque surface; a
+//     caller that makes it sticky owns the opaque backdrop that hides scrolled
+//     content behind it.
+//   shape="pill" — a compact, rounded-full chip that FLOATS over content rather
+//     than reserving a row: an opaque, blurred, elevated surface (the caller
+//     pins/positions it) so it stays legible over whatever it overlaps, with the
+//     tone carried by a colored border and the text/icon color.
+const bannerVariants = cva("flex items-center gap-2 text-sm", {
+  variants: {
+    tone: {
+      neutral: "text-muted-foreground",
+      info: "text-sky-300",
+      success: "text-emerald-300",
+      warning: "text-amber-300",
+      danger: "text-red-300",
     },
-    defaultVariants: {
-      tone: "neutral",
+    shape: {
+      bar: "border-b px-3 py-2",
+      pill:
+        "rounded-full border px-3.5 py-1.5 shadow-lg shadow-black/20 " +
+        "bg-background/80 backdrop-blur-md",
     },
   },
-);
+  compoundVariants: [
+    // bar: a translucent tone tint plus a tone-tinted border, meant to blend
+    // over the opaque backdrop the caller provides.
+    { shape: "bar", tone: "neutral", class: "border-border bg-muted/40" },
+    { shape: "bar", tone: "info", class: "border-sky-500/30 bg-sky-500/10" },
+    {
+      shape: "bar",
+      tone: "success",
+      class: "border-emerald-500/30 bg-emerald-500/10",
+    },
+    {
+      shape: "bar",
+      tone: "warning",
+      class: "border-amber-500/30 bg-amber-500/10",
+    },
+    { shape: "bar", tone: "danger", class: "border-red-500/30 bg-red-500/10" },
+    // pill: tone rides on the border alone; the surface stays the neutral glass
+    // so the chip is readable over any content it floats above.
+    { shape: "pill", tone: "neutral", class: "border-border" },
+    { shape: "pill", tone: "info", class: "border-sky-500/40" },
+    { shape: "pill", tone: "success", class: "border-emerald-500/40" },
+    { shape: "pill", tone: "warning", class: "border-amber-500/40" },
+    { shape: "pill", tone: "danger", class: "border-red-500/40" },
+  ],
+  defaultVariants: {
+    tone: "neutral",
+    shape: "bar",
+  },
+});
 
 function Banner({
   className,
   tone,
+  shape,
   role = "status",
   ...props
 }: React.ComponentProps<"div"> & VariantProps<typeof bannerVariants>) {
@@ -38,14 +72,15 @@ function Banner({
     <div
       data-slot="banner"
       role={role}
-      className={cn(bannerVariants({ tone, className }))}
+      className={cn(bannerVariants({ tone, shape, className }))}
       {...props}
     />
   );
 }
 
 // The message. Takes the free space and clamps its own overflow so a long body
-// never shoves the action slot off the row.
+// never shoves the action slot off the row. In a pill a caller can drop the
+// grow (`flex-initial`) so the chip hugs its text instead of spanning its cap.
 function BannerContent({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div

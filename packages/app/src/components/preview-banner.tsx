@@ -73,22 +73,43 @@ export function PreviewBanner({
   const exitPreview = () =>
     navigate({ to: ".", search: (prev) => ({ ...prev, preview: undefined }) });
 
-  // A full-bleed announcement bar. In the `_dashboard` layout the scroll box has
-  // no padding of its own — the `p-3` lives on an inner wrapper — so the negative
-  // `-mx-3`/`-mt-3` cancel that inset and the band reaches the scroll box's own
-  // edges: edge-to-edge horizontally and flush against its top under the header.
-  // Sticky relative to that scroll box (no transform in the chain), so it pins
-  // while the list/detail scrolls beneath it. The opaque `bg-background` (the
-  // Banner's own tint is translucent) hides content as it slides under; the
-  // Banner's own bottom divider is the seam. `z-20` sits above page content and
-  // dragged dashboard panels but below popovers/modals.
+  // A centered floating pill (think Vercel/Next.js preview mode). The wrapper is
+  // a zero-height, sticky, full-width lane centered on the padded content column
+  // (not the viewport — it lives inside the `_dashboard` scroll box, so it
+  // already clears the sidebar). `top-3` matches the column's own `p-3` inset so
+  // the chip holds a constant gap under the header whether the page is at rest or
+  // scrolled — no jump as sticky engages. `h-0` + `-mb-3` cancel the flex `gap-3`
+  // this element would otherwise add, so the pill overlays the content instead of
+  // pushing it down; `items-start` stops the h-0 lane from stretch-squashing the
+  // pill to zero height. `pointer-events-none` on the empty lane lets clicks fall
+  // through to the content it floats over; the pill re-enables its own. `z-30`
+  // clears sticky table headers and dragged panels (z-10/z-20) but stays under
+  // popovers/modals (z-50). The Banner's `pill` shape brings the opaque, blurred,
+  // elevated surface that keeps it legible over whatever scrolls beneath.
   return (
-    <div className="sticky top-0 z-20 -mx-3 -mt-3 bg-background">
-      <Banner tone={status ? STATUS_TONE[status] : GENERIC_TONE}>
+    <div className="pointer-events-none sticky top-3 z-30 -mb-3 flex h-0 items-start justify-center">
+      <Banner
+        shape="pill"
+        tone={status ? STATUS_TONE[status] : GENERIC_TONE}
+        // The 48rem cap only bites on very long preview names/copy; `100%` is
+        // what keeps the pill inside the column on narrow viewports.
+        className="pointer-events-auto max-w-[min(100%,48rem)] pl-3.5 pr-1.5"
+      >
         <GitBranch className="size-4 shrink-0" />
-        <BannerContent>{message(name, status)}</BannerContent>
-        <BannerActions className="-mr-1">
-          <Button type="button" variant="ghost" size="sm" onClick={exitPreview}>
+        {/* Hug the text and truncate it (drop the primitive's `flex-1` grow) so a
+            long preview name shortens the pill instead of colliding with the
+            content underneath. */}
+        <BannerContent className="flex-initial truncate">
+          {message(name, status)}
+        </BannerContent>
+        <BannerActions>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 rounded-full px-2"
+            onClick={exitPreview}
+          >
             <X data-icon="inline-start" />
             Exit preview
           </Button>

@@ -38,31 +38,42 @@ describe("PreviewBanner", () => {
     ).toBeInTheDocument();
   });
 
-  it("pins the banner via a sticky, opaque, full-bleed wrapper so content scrolls under it", () => {
+  it("floats the pill via a centered, zero-height, sticky lane so content scrolls under it", () => {
     render(<PreviewBanner preview="gio/apply-previews" />);
-    // The status band sits inside a sticky wrapper; the opaque background keeps
-    // content readable as it slides beneath the pinned banner, and the negative
-    // margins cancel the `_dashboard` column's `p-3` so the band spans edge-to-
-    // edge and sits flush under the header.
+    // The pill sits in a sticky, centered lane that reserves no height (`h-0`)
+    // and swallows its own flex gap (`-mb-3`), so it floats over the content
+    // rather than pushing it down; `items-start` keeps the h-0 lane from
+    // stretch-squashing the pill; `pointer-events-none` lets clicks reach the
+    // content beneath. It centers within the padded column, not the viewport —
+    // so no edge-to-edge negative margins.
     const wrapper = screen.getByRole("status").parentElement;
     expect(wrapper).toHaveClass(
       "sticky",
-      "top-0",
-      "bg-background",
-      "-mx-3",
-      "-mt-3",
+      "top-3",
+      "flex",
+      "items-start",
+      "justify-center",
+      "h-0",
+      "-mb-3",
+      "pointer-events-none",
     );
+    expect(wrapper).not.toHaveClass("-mx-3");
+  });
+
+  it("wears the rounded-full pill shape", () => {
+    render(<PreviewBanner preview="gio/apply-previews" />);
+    expect(screen.getByRole("status")).toHaveClass("rounded-full");
   });
 
   it("maps preview statuses onto the primitive's generic tones", () => {
     // added → success (emerald), changed → warning (amber), removed → danger
     // (red), unchanged → info (sky); the primitive stays domain-agnostic and the
-    // consumer attributes the meaning.
+    // consumer attributes the meaning. On the pill the tone rides on the border.
     const cases = [
-      ["added", "bg-emerald-500/10"],
-      ["changed", "bg-amber-500/10"],
-      ["removed", "bg-red-500/10"],
-      ["unchanged", "bg-sky-500/10"],
+      ["added", "border-emerald-500/40"],
+      ["changed", "border-amber-500/40"],
+      ["removed", "border-red-500/40"],
+      ["unchanged", "border-sky-500/40"],
     ] as const;
     for (const [status, toneClass] of cases) {
       const { unmount } = render(
@@ -75,7 +86,7 @@ describe("PreviewBanner", () => {
 
   it("falls back to the info tone with no per-resource status", () => {
     render(<PreviewBanner preview="gio/apply-previews" />);
-    expect(screen.getByRole("status")).toHaveClass("bg-sky-500/10");
+    expect(screen.getByRole("status")).toHaveClass("border-sky-500/40");
   });
 
   it("shows per-status copy on detail routes", () => {
