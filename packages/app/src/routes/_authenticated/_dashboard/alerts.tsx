@@ -21,10 +21,11 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
 import { NotebookText, SearchIcon, Settings, XIcon } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { PreviewStatusBadge } from "@/components/preview-status-badge";
 import type { NormalizedAlertDeliverySettings } from "@/data/alerts/delivery-settings";
 import {
   validateSlackWebhookUrl,
@@ -46,8 +47,11 @@ import {
   RelativeTime,
 } from "./-alerts-shared";
 
-const alertsQueryOptions = () =>
-  queryOptions({ queryKey: ["alerts"], queryFn: () => listAlerts() });
+const alertsQueryOptions = (preview?: string) =>
+  queryOptions({
+    queryKey: ["alerts", preview ?? ""],
+    queryFn: () => listAlerts({ data: { preview } }),
+  });
 
 const alertSettingsQueryOptions = () =>
   queryOptions({
@@ -158,9 +162,10 @@ function AlertFilterButton({
 export const Route = createFileRoute("/_authenticated/_dashboard/alerts")({
   staticData: { breadcrumb: "Alerts", hideTimeRangePicker: true },
   head: () => ({ meta: [{ title: "Everr - Alerts" }] }),
-  loader: async ({ context: { queryClient } }) => {
+  loaderDeps: ({ search: { preview } }) => ({ preview }),
+  loader: async ({ context: { queryClient }, deps: { preview } }) => {
     await Promise.all([
-      queryClient.prefetchQuery(alertsQueryOptions()),
+      queryClient.prefetchQuery(alertsQueryOptions(preview)),
       queryClient.prefetchQuery(alertSettingsQueryOptions()),
     ]);
   },
@@ -168,7 +173,8 @@ export const Route = createFileRoute("/_authenticated/_dashboard/alerts")({
 });
 
 function AlertsPage() {
-  const alerts = useQuery(alertsQueryOptions());
+  const { preview } = useSearch({ from: "/_authenticated/_dashboard" });
+  const alerts = useQuery(alertsQueryOptions(preview));
   const settings = useQuery(alertSettingsQueryOptions());
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [alertFilter, setAlertFilter] = useState<AlertListFilter>("all");
@@ -262,22 +268,25 @@ function AlertsPage() {
       {
         header: "Alert",
         cell: (row) => (
-          <Link
-            to="/alerts/$alertId"
-            params={{ alertId: row.id }}
-            className="block underline-offset-4 hover:underline"
-          >
-            {row.displayName ? (
-              <span className="flex items-baseline gap-2">
-                <span className="font-medium">{row.displayName}</span>
-                <span className="font-mono text-muted-foreground text-xs">
-                  {row.slug}
+          <span className="flex items-center gap-2">
+            <Link
+              to="/alerts/$alertId"
+              params={{ alertId: row.id }}
+              className="min-w-0 underline-offset-4 hover:underline"
+            >
+              {row.displayName ? (
+                <span className="flex items-baseline gap-2">
+                  <span className="font-medium">{row.displayName}</span>
+                  <span className="font-mono text-muted-foreground text-xs">
+                    {row.slug}
+                  </span>
                 </span>
-              </span>
-            ) : (
-              <span className="font-mono">{row.slug}</span>
-            )}
-          </Link>
+              ) : (
+                <span className="font-mono">{row.slug}</span>
+              )}
+            </Link>
+            <PreviewStatusBadge status={row.previewStatus} />
+          </span>
         ),
       },
       {
@@ -434,6 +443,9 @@ function AlertsPage() {
               data={filteredAlerts}
               columns={columns}
               rowKey={(row) => row.id}
+              rowClassName={(row) =>
+                row.previewStatus === "removed" ? "opacity-50" : undefined
+              }
               emptyState={
                 hasActiveListFilters ? (
                   <div className="flex flex-col items-center gap-2 px-3 py-8 text-center text-muted-foreground">

@@ -1,8 +1,10 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
+import { useSearch } from "@tanstack/react-router";
 import { FileQuestion } from "lucide-react";
 import { useMemo } from "react";
 import { DashboardProvider } from "@/components/dashboards/use-dashboard";
 import { VariableBar } from "@/components/dashboards/variable-bar";
+import { PreviewBanner } from "@/components/preview-banner";
 import { runbookOptions } from "@/data/runbooks/options";
 import {
   findPage,
@@ -23,11 +25,12 @@ export function RunbookViewer({
   /** "" = index page; "a/b" = nested page path from the splat. */
   pagePath: string;
 }) {
+  const { preview } = useSearch({ from: "/_authenticated/_dashboard" });
   // The runbook is immutable (gitops, read-only), so the query cache is the
   // single source of truth; the route loader has already ensured the data.
   const {
-    data: { document: runbook },
-  } = useSuspenseQuery(runbookOptions(project, slug));
+    data: { document: runbook, previewStatus },
+  } = useSuspenseQuery(runbookOptions(project, slug, preview));
   const page = findPage(runbook.spec, pagePath);
   const tree = pageNavTree(runbook.spec);
   const indexTitle = runbook.spec.display?.name ?? slug;
@@ -54,6 +57,11 @@ export function RunbookViewer({
 
   return (
     <DashboardProvider document={dashboardDocument}>
+      {previewStatus ? (
+        <div className="mb-4">
+          <PreviewBanner preview={preview} status={previewStatus} />
+        </div>
+      ) : null}
       <div className="flex gap-6">
         {tree.length > 0 && (
           <RunbookPageNav

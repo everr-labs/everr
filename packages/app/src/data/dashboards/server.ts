@@ -4,7 +4,7 @@ import { notFound } from "@tanstack/react-router";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import * as z from "zod";
 import { overlayPreview, type PreviewStatus } from "@/data/previews/overlay";
-import { getCoveredRepoids } from "@/data/previews/server";
+import { getCoveredRepoids } from "@/data/previews/repoids";
 import { db } from "@/db/client";
 import { dashboards } from "@/db/schema";
 import { querySqlApi } from "@/lib/clickhouse";

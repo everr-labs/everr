@@ -1,6 +1,6 @@
 import { Input } from "@everr/ui/components/input";
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useSearch } from "@tanstack/react-router";
 import { AlertCircle, LayoutDashboard, SearchIcon } from "lucide-react";
 import { useState } from "react";
 import { DashboardTree } from "@/components/dashboards/dashboard-tree";
@@ -13,12 +13,13 @@ export const Route = createFileRoute("/_authenticated/_dashboard/dashboards/")({
 });
 
 function DashboardsIndexPage() {
+  const { preview } = useSearch({ from: "/_authenticated/_dashboard" });
   const {
     data: dashboards,
     isLoading,
     isError,
     error,
-  } = useQuery(dashboardListOptions());
+  } = useQuery(dashboardListOptions(preview));
   const [search, setSearch] = useState("");
   const isEmpty = !isLoading && !isError && (dashboards?.length ?? 0) === 0;
 

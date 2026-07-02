@@ -111,12 +111,5 @@
       "file": "packages/app/src/data/dashboards/testdata/spec.ts",
       "exports": ["*"]
     },
-    {
-      // Preview switcher server fn — wired up by the web UI task that follows
-      // this one (list/get overlay reads landed first). Remove once that
-      // task adds a consumer.
-      "file": "packages/app/src/data/previews/server.ts",
-      "exports": ["listPreviews"]
-    },
   ]
 }

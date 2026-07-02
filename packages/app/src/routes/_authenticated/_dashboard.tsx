@@ -35,6 +35,10 @@ const DashboardSearchSchema = TimeRangeSearchSchema.extend({
   ...ExploreSearchRetainShape,
   github_install: z.string().optional(),
   reason: z.string().optional(),
+  // Active preview (a preview/branch name). App-wide context: retained across
+  // navigation (below) so the whole app stays in the same preview until the
+  // user switches back to Live. Absent = Live.
+  preview: z.string().optional(),
   // Dashboard variable values, e.g. ?vars={"env":"prod","svc":["a","b"]}.
   // Deliberately NOT retained across navigation — different dashboards have
   // different variables. Malformed values fall back to spec defaults.
@@ -64,7 +68,14 @@ export const Route = createFileRoute("/_authenticated/_dashboard")({
     // See ExploreSearchShape for why the schemas must stay optional.
     middlewares: [
       stripSearchParams({ service: [], environment: [] }),
-      retainSearchParams(["from", "to", "refresh", "service", "environment"]),
+      retainSearchParams([
+        "from",
+        "to",
+        "refresh",
+        "service",
+        "environment",
+        "preview",
+      ]),
     ],
   },
   beforeLoad({ search }) {

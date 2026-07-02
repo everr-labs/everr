@@ -3,7 +3,7 @@ import { getRequestHeaders } from "@tanstack/react-start/server";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { overlayPreview, type PreviewStatus } from "@/data/previews/overlay";
-import { getCoveredRepoids } from "@/data/previews/server";
+import { getCoveredRepoids } from "@/data/previews/repoids";
 import { db } from "@/db/client";
 import { alertDefinitions, alertSettings, alertSilences } from "@/db/schema";
 import { auth } from "@/lib/auth.server";

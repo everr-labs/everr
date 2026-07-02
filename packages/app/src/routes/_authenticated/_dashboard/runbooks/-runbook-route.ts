@@ -18,12 +18,13 @@ export async function loadRunbook(
   queryClient: QueryClient,
   project: string,
   slug: string,
+  preview?: string,
 ) {
   // A missing runbook throws notFound() from the server fn (→ notFound UI);
   // any other failure propagates to the error boundary instead of being
   // masked as not-found.
   const { document } = await queryClient.ensureQueryData(
-    runbookOptions(project, slug),
+    runbookOptions(project, slug, preview),
   );
   // Expose the runbook's duration/refreshInterval as route time defaults so
   // the time-range hooks seed the picker and panels from the first render —

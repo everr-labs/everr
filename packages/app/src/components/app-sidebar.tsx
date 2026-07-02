@@ -12,6 +12,7 @@ import { Link } from "@tanstack/react-router";
 import { Citrus } from "lucide-react";
 import { NavMain } from "@/components/nav-main";
 import { NavUser } from "@/components/nav-user";
+import { PreviewSwitcher } from "@/components/preview-switcher";
 import { navMain } from "@/lib/navigation";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -35,6 +36,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
+        <PreviewSwitcher />
         <NavMain items={navMain} />
       </SidebarContent>
       <SidebarFooter>

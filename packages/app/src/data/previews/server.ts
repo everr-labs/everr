@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { previews } from "@/db/schema";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
@@ -23,15 +23,3 @@ export const listPreviews = createAuthenticatedServerFn({
     return true;
   });
 });
-
-/** Repoids a preview covers — the overlay replacement boundary. */
-export async function getCoveredRepoids(
-  orgId: string,
-  preview: string,
-): Promise<Set<string>> {
-  const rows = await db
-    .select({ repoid: previews.repoid })
-    .from(previews)
-    .where(and(eq(previews.organizationId, orgId), eq(previews.name, preview)));
-  return new Set(rows.map((row) => row.repoid));
-}
