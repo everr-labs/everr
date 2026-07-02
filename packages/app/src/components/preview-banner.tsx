@@ -76,18 +76,21 @@ export function PreviewBanner({
   // A centered floating pill (think Vercel/Next.js preview mode). The wrapper is
   // a zero-height, sticky, full-width lane centered on the padded content column
   // (not the viewport — it lives inside the `_dashboard` scroll box, so it
-  // already clears the sidebar). `top-3` matches the column's own `p-3` inset so
-  // the chip holds a constant gap under the header whether the page is at rest or
-  // scrolled — no jump as sticky engages. `h-0` + `-mb-3` cancel the flex `gap-3`
-  // this element would otherwise add, so the pill overlays the content instead of
+  // already clears the sidebar). `-mt-2` pulls the lane 8px into the column's
+  // `p-3` inset and `top-1` pins at that same 4px offset, so the chip holds a
+  // constant, tight gap under the header whether the page is at rest or scrolled
+  // — no jump as sticky engages. `h-0` + margins summing to -12px (`-mt-2` +
+  // `-mb-1`) cancel the flex `gap-3` this element would otherwise add, so the
+  // pill overlays the content instead of
   // pushing it down; `items-start` stops the h-0 lane from stretch-squashing the
   // pill to zero height. `pointer-events-none` on the empty lane lets clicks fall
   // through to the content it floats over; the pill re-enables its own. `z-30`
-  // clears sticky table headers and dragged panels (z-10/z-20) but stays under
+  // clears sticky table headers (z-10) and react-grid-layout dragged panels
+  // (raw z-index: 3) but stays under
   // popovers/modals (z-50). The Banner's `pill` shape brings the opaque, blurred,
   // elevated surface that keeps it legible over whatever scrolls beneath.
   return (
-    <div className="pointer-events-none sticky top-3 z-30 -mb-3 flex h-0 items-start justify-center">
+    <div className="pointer-events-none sticky top-1 z-30 -mt-2 -mb-1 flex h-0 items-start justify-center">
       <Banner
         shape="pill"
         tone={status ? STATUS_TONE[status] : GENERIC_TONE}
