@@ -41,6 +41,14 @@ impl CliTestEnv {
         cmd
     }
 
+    pub fn command_for_binary(&self, binary: &Path) -> Command {
+        let mut cmd = Command::new(binary);
+        cmd.env("HOME", &self.home_dir);
+        cmd.env("XDG_CONFIG_HOME", &self.config_dir);
+        cmd.env("XDG_DATA_HOME", self.home_dir.join(".local").join("share"));
+        cmd
+    }
+
     pub fn command_with_api_base_url(&self, api_base_url: &str) -> Command {
         let mut cmd = self.command();
         cmd.env(API_BASE_URL_OVERRIDE_ENV, api_base_url);
