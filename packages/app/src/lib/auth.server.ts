@@ -3,11 +3,7 @@ import { oauthProvider } from "@better-auth/oauth-provider";
 import { polar, webhooks } from "@polar-sh/better-auth";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import {
-  APIError,
-  createAuthMiddleware,
-  getSessionFromCtx,
-} from "better-auth/api";
+import { APIError } from "better-auth/api";
 import {
   bearer,
   deviceAuthorization,
@@ -24,24 +20,19 @@ import {
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { db } from "@/db/client";
-import { deviceCode, member, session as sessionTable, user } from "@/db/schema";
+import { member, session as sessionTable, user } from "@/db/schema";
 import { env } from "@/env";
-import {
-  getDeviceApprovalUserCode,
-  getDeviceTokenCode,
-} from "@/lib/auth-context-body";
 import { deriveOrgName, generateOrgSlug } from "@/lib/auto-org";
 import { upsertOrgSubscription } from "@/lib/billing-data.server";
+import {
+  cliDeviceOrganizationPlugin,
+  getCapturedDeviceOrganizationId,
+} from "@/lib/cli-device-organization";
 import {
   deprovisionSqlApiOrgUser,
   provisionSqlApiOrgUser,
   upsertTenantRetention,
 } from "@/lib/clickhouse";
-import {
-  getActiveOrganizationIdFromAuthSession,
-  getDeviceOrgIdFromScope,
-  withDeviceOrgScope,
-} from "@/lib/device-org-scope";
 import {
   sendInvitationEmail,
   sendPasswordResetEmail,
@@ -64,22 +55,9 @@ type PolarSubscriptionPayload = {
   customer: { externalId?: string | null };
 };
 
-async function getMarkedDeviceOrganizationId(
-  session: { userId: string },
-  context: unknown,
-) {
-  const deviceCodeValue = getDeviceTokenCode(context);
-  if (!deviceCodeValue) {
-    return null;
-  }
-
-  const deviceCodeRecord = await db
-    .select({ scope: deviceCode.scope })
-    .from(deviceCode)
-    .where(eq(deviceCode.deviceCode, deviceCodeValue))
-    .limit(1);
-
-  const organizationId = getDeviceOrgIdFromScope(deviceCodeRecord[0]?.scope);
+async function getMarkedDeviceOrganizationId(session: { userId: string }) {
+  // Captured by the /device/token before-hook (see cli-device-organization).
+  const organizationId = getCapturedDeviceOrganizationId();
   if (!organizationId) {
     return null;
   }
@@ -249,11 +227,9 @@ export const auth = betterAuth({
   databaseHooks: {
     session: {
       create: {
-        before: async (session, context) => {
-          let activeOrganizationId = await getMarkedDeviceOrganizationId(
-            session,
-            context,
-          );
+        before: async (session) => {
+          let activeOrganizationId =
+            await getMarkedDeviceOrganizationId(session);
 
           // Prefer the org the user most recently had active (their "current"
           // org) so a fresh login reuses it instead of picking the first one.
@@ -328,61 +304,14 @@ export const auth = betterAuth({
     },
   },
   plugins: [
-    {
-      id: "cli-device-organization",
-      hooks: {
-        before: [
-          {
-            matcher: (context) => context.path === "/device/approve",
-            handler: createAuthMiddleware(async (context) => {
-              const userCode = getDeviceApprovalUserCode(context);
-              if (!userCode) {
-                return { context };
-              }
-
-              const browserSession = await getSessionFromCtx(context);
-              const activeOrganizationId =
-                getActiveOrganizationIdFromAuthSession(browserSession);
-              if (!activeOrganizationId) {
-                return { context };
-              }
-
-              try {
-                const deviceCodeRecord = await db
-                  .select({ id: deviceCode.id, scope: deviceCode.scope })
-                  .from(deviceCode)
-                  .where(eq(deviceCode.userCode, userCode))
-                  .limit(1);
-
-                const record = deviceCodeRecord[0];
-                if (!record) {
-                  return { context };
-                }
-
-                await db
-                  .update(deviceCode)
-                  .set({
-                    scope: withDeviceOrgScope(
-                      record.scope,
-                      activeOrganizationId,
-                    ),
-                  })
-                  .where(eq(deviceCode.id, record.id));
-              } catch (error) {
-                // Marking the device code with the active org is purely an
-                // enhancement; never let a DB failure break /device/approve.
-                serverLogger.error(
-                  "cli_device_organization.mark.failed",
-                  exceptionAttributes(error),
-                );
-              }
-
-              return { context };
-            }),
-          },
-        ],
+    cliDeviceOrganizationPlugin({
+      onError: (stage, error) => {
+        serverLogger.error(
+          `cli_device_organization.${stage}.failed`,
+          exceptionAttributes(error),
+        );
       },
-    },
+    }),
     organizationPlugin({
       ac: orgAc,
       roles: orgRoles,
