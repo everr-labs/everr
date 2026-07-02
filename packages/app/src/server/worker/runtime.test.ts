@@ -21,6 +21,8 @@ const runtimeMocks = vi.hoisted(() => {
       "github-events/status": vi.fn(),
     },
     pool: { query: vi.fn() },
+    previewsCronItems: [{ task: "previews/retention" }],
+    previewsTaskList: { "previews/retention": vi.fn() },
     run: vi.fn(async (options: MockRunOptions) => {
       runOptions.push(options);
       return {
@@ -46,6 +48,11 @@ vi.mock("@/server/alerts/00-runtime", () => ({
 
 vi.mock("@/server/github-events/tasks", () => ({
   githubEventsTaskList: runtimeMocks.githubEventsTaskList,
+}));
+
+vi.mock("@/server/previews/00-runtime", () => ({
+  previewsCronItems: runtimeMocks.previewsCronItems,
+  previewsTaskList: runtimeMocks.previewsTaskList,
 }));
 
 vi.mock("@/db/client", () => ({
@@ -99,13 +106,17 @@ describe("worker runtime", () => {
       concurrency: 2,
       noHandleSignals: true,
       pgPool: runtimeMocks.pool,
-      parsedCronItems: runtimeMocks.alertCronItems,
+      parsedCronItems: [
+        ...runtimeMocks.alertCronItems,
+        ...runtimeMocks.previewsCronItems,
+      ],
     });
     expect(Object.keys(runtimeMocks.runOptions[0].taskList).sort()).toEqual([
       "alerts/evaluate",
       "alerts/scan",
       "github-events/collector",
       "github-events/status",
+      "previews/retention",
     ]);
   });
 
