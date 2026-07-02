@@ -56,7 +56,7 @@ func setWorkflowRunEventAttributes(attrs pcommon.Map, e *github.WorkflowRunEvent
 	}
 
 	attrs.PutInt(semconv.EverrGitHubWorkflowRunRunAttempt, int64(e.GetWorkflowRun().GetRunAttempt()))
-	attrs.PutStr(semconv.EverrGitHubWorkflowRunStartedAt, e.GetWorkflowRun().RunStartedAt.Format(time.RFC3339))
+	attrs.PutStr(semconv.EverrGitHubWorkflowRunStartedAt, e.GetWorkflowRun().GetRunStartedAt().Format(time.RFC3339))
 	attrs.PutStr(semconv.EverrGitHubWorkflowRunStatus, e.GetWorkflowRun().GetStatus())
 	attrs.PutStr(semconv.CICDPipelineRunSenderLogin, e.GetSender().GetLogin())
 	attrs.PutStr(semconv.EverrGitHubWorkflowRunTriggeringActorLogin, e.GetWorkflowRun().GetTriggeringActor().GetLogin())
