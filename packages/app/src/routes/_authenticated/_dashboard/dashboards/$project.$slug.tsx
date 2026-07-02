@@ -22,15 +22,15 @@ export const Route = createFileRoute(
     // A missing dashboard throws notFound() from the server fn (→ notFound UI);
     // any other failure propagates to the error boundary instead of being
     // masked as not-found.
-    const dashboard = await queryClient.ensureQueryData(
+    const { document } = await queryClient.ensureQueryData(
       dashboardOptions(project, slug),
     );
     // Expose the dashboard's duration/refreshInterval as route time defaults so
     // the time-range hooks seed the picker and panels from the first render —
     // no post-mount URL write, so panels never query the wrong window first.
     return {
-      name: dashboard.spec.display?.name ?? slug,
-      timeDefaults: dashboardTimeDefaults(dashboard.spec),
+      name: document.spec.display?.name ?? slug,
+      timeDefaults: dashboardTimeDefaults(document.spec),
     };
   },
 });
@@ -39,9 +39,11 @@ function DashboardPage() {
   const { project, slug } = Route.useParams();
   // The dashboard is immutable (gitops, read-only), so the query cache is the
   // single source of truth; the loader has already ensured the data.
-  const { data: dashboard } = useSuspenseQuery(dashboardOptions(project, slug));
+  const {
+    data: { document },
+  } = useSuspenseQuery(dashboardOptions(project, slug));
   return (
-    <DashboardProvider document={dashboard}>
+    <DashboardProvider document={document}>
       <DashboardGrid />
     </DashboardProvider>
   );

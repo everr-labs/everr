@@ -1,8 +1,10 @@
 import { bucketSeconds } from "@everr/ui/lib/bucket";
 import { DEFAULT_TIME_RANGE, resolveTimeRange } from "@everr/ui/lib/time-range";
 import { notFound } from "@tanstack/react-router";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import * as z from "zod";
+import { overlayPreview, type PreviewStatus } from "@/data/previews/overlay";
+import { getCoveredRepoids } from "@/data/previews/server";
 import { db } from "@/db/client";
 import { dashboards } from "@/db/schema";
 import { querySqlApi } from "@/lib/clickhouse";
@@ -38,58 +40,129 @@ function dashboardQueryParams(range: { from?: string; to?: string }) {
 }
 
 export const getDashboard = createAuthenticatedServerFn({ method: "GET" })
-  .inputValidator(z.object({ project: z.string(), slug: z.string() }))
-  .handler(async ({ data: { project, slug }, context }) => {
+  .inputValidator(
+    z.object({
+      project: z.string(),
+      slug: z.string(),
+      preview: z.string().optional(),
+    }),
+  )
+  .handler(async ({ data: { project, slug, ...rest }, context }) => {
     const orgId = context.session.session.activeOrganizationId;
+    const preview = rest.preview ?? "";
 
-    const [row] = await db
-      .select({ document: dashboards.document })
-      .from(dashboards)
-      .where(
-        and(
-          eq(dashboards.organizationId, orgId),
-          eq(dashboards.project, project),
-          eq(dashboards.slug, slug),
-        ),
-      )
-      .limit(1);
+    const identity = and(
+      eq(dashboards.organizationId, orgId),
+      eq(dashboards.project, project),
+      eq(dashboards.slug, slug),
+    );
 
-    if (!row) {
-      // Throw a framework notFound so only a genuinely-missing dashboard shows
-      // the not-found UI; real errors (auth, server, invalid spec) surface as
-      // errors instead.
-      throw notFound();
+    if (preview === "") {
+      const [row] = await db
+        .select({ document: dashboards.document })
+        .from(dashboards)
+        .where(and(identity, eq(dashboards.preview, "")))
+        .limit(1);
+      if (!row) throw notFound();
+      dashboardSpecSchema.parse(row.document.spec);
+      return {
+        document: row.document satisfies Dashboard,
+        previewStatus: undefined as PreviewStatus | undefined,
+      };
     }
 
-    // Validate the spec shape on read; return the stored document verbatim so
-    // unknown Perses fields survive.
+    const [covered, rows] = await Promise.all([
+      getCoveredRepoids(orgId, preview),
+      db
+        .select({
+          repoid: dashboards.repoid,
+          preview: dashboards.preview,
+          project: dashboards.project,
+          slug: dashboards.slug,
+          folderPath: dashboards.folderPath,
+          document: dashboards.document,
+        })
+        .from(dashboards)
+        .where(and(identity, inArray(dashboards.preview, ["", preview]))),
+    ]);
+    const overlaid = overlayPreview({
+      live: rows.filter((row) => row.preview === ""),
+      previewRows: rows.filter((row) => row.preview !== ""),
+      coveredRepoids: covered,
+    });
+    // Prefer a surviving row; a shadowed-by-deletion live row still renders,
+    // marked "removed", instead of 404ing mid-review.
+    const row =
+      overlaid.find((r) => r.previewStatus !== "removed") ??
+      overlaid.find((r) => r.previewStatus === "removed");
+    if (!row) throw notFound();
     dashboardSpecSchema.parse(row.document.spec);
-
-    return row.document satisfies Dashboard;
+    return {
+      document: row.document satisfies Dashboard,
+      previewStatus: row.previewStatus,
+    };
   });
 
-export const listDashboards = createAuthenticatedServerFn({
-  method: "GET",
-}).handler(async ({ context }) => {
-  const orgId = context.session.session.activeOrganizationId;
+export const listDashboards = createAuthenticatedServerFn({ method: "GET" })
+  .inputValidator(z.object({ preview: z.string().optional() }).optional())
+  .handler(async ({ data, context }) => {
+    const orgId = context.session.session.activeOrganizationId;
+    const preview = data?.preview ?? "";
 
-  const rows = await db
-    .select({
+    const select = {
+      repoid: dashboards.repoid,
+      preview: dashboards.preview,
       slug: dashboards.slug,
       project: dashboards.project,
       folderPath: dashboards.folderPath,
+      document: dashboards.document,
       displayName: sql<string>`document->'spec'->'display'->>'name'`,
-    })
-    .from(dashboards)
-    .where(eq(dashboards.organizationId, orgId));
+    };
 
-  return rows.map((r) => ({
-    slug: r.slug,
-    project: r.project,
-    name: r.displayName ?? r.slug,
-    folderPath: r.folderPath,
-  }));
-});
+    const toItem = (row: {
+      slug: string;
+      project: string;
+      folderPath: string;
+      displayName: string | null;
+      previewStatus?: PreviewStatus;
+    }) => ({
+      slug: row.slug,
+      project: row.project,
+      name: row.displayName ?? row.slug,
+      folderPath: row.folderPath,
+      previewStatus: row.previewStatus,
+    });
+
+    if (preview === "") {
+      const rows = await db
+        .select(select)
+        .from(dashboards)
+        .where(
+          and(eq(dashboards.organizationId, orgId), eq(dashboards.preview, "")),
+        );
+      return rows.map(toItem);
+    }
+
+    // Preview mode: the end result of the apply — preview rows replace live
+    // rows for covered repoids; everything else shows as-is, diff-tagged.
+    const [covered, rows] = await Promise.all([
+      getCoveredRepoids(orgId, preview),
+      db
+        .select(select)
+        .from(dashboards)
+        .where(
+          and(
+            eq(dashboards.organizationId, orgId),
+            inArray(dashboards.preview, ["", preview]),
+          ),
+        ),
+    ]);
+    return overlayPreview({
+      live: rows.filter((row) => row.preview === ""),
+      previewRows: rows.filter((row) => row.preview !== ""),
+      coveredRepoids: covered,
+    }).map(toItem);
+  });
 
 type QueryRow = Record<string, string | number | boolean | null>;
 

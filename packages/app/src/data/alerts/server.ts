@@ -1,7 +1,9 @@
 import { resolveTimeRange, TimeRangeSchema } from "@everr/ui/lib/time-range";
 import { getRequestHeaders } from "@tanstack/react-start/server";
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
+import { overlayPreview, type PreviewStatus } from "@/data/previews/overlay";
+import { getCoveredRepoids } from "@/data/previews/server";
 import { db } from "@/db/client";
 import { alertDefinitions, alertSettings, alertSilences } from "@/db/schema";
 import { auth } from "@/lib/auth.server";
@@ -72,6 +74,7 @@ export type AlertSummary = {
   firingInstanceCount: number;
   activeSilenceCount: number;
   activeSilenceExpiresAt: Date | string | null;
+  previewStatus?: PreviewStatus;
 };
 
 type AlertDetail = AlertSummary & {
@@ -233,28 +236,70 @@ async function getAlertRow(alertId: string, organizationId: string) {
   return row;
 }
 
-export const listAlerts = createAuthenticatedServerFn({
-  method: "GET",
-}).handler(async ({ context: { session } }) => {
-  const organizationId = session.session.activeOrganizationId;
-  const rows = await db
-    .select({ ...alertListColumns, document: alertDefinitions.document })
-    .from(alertDefinitions)
-    .where(
-      and(
-        eq(alertDefinitions.organizationId, organizationId),
-        isNull(alertDefinitions.deletedAt),
-      ),
-    )
-    .orderBy(
+export const listAlerts = createAuthenticatedServerFn({ method: "GET" })
+  .inputValidator(z.object({ preview: z.string().optional() }).optional())
+  .handler(async ({ data, context: { session } }) => {
+    const organizationId = session.session.activeOrganizationId;
+    const preview = data?.preview ?? "";
+
+    const orderBy = [
       desc(alertDefinitions.active),
       desc(alertDefinitions.lastEvaluatedAt),
       alertDefinitions.repoid,
       alertDefinitions.slug,
-    );
+    ] as const;
 
-  return rows.map((row) => toAlertSummary(row as AlertSummaryRow));
-});
+    if (preview === "") {
+      const rows = await db
+        .select({ ...alertListColumns, document: alertDefinitions.document })
+        .from(alertDefinitions)
+        .where(
+          and(
+            eq(alertDefinitions.organizationId, organizationId),
+            isNull(alertDefinitions.deletedAt),
+            eq(alertDefinitions.preview, ""),
+          ),
+        )
+        .orderBy(...orderBy);
+
+      return rows.map((row) => toAlertSummary(row as AlertSummaryRow));
+    }
+
+    // Preview mode: the end result of the apply — preview rows replace live
+    // rows for covered repoids; everything else shows as-is, diff-tagged.
+    const query = db
+      .select({
+        ...alertListColumns,
+        document: alertDefinitions.document,
+        preview: alertDefinitions.preview,
+        // Alert rows have no folderPath; the constant satisfies
+        // `OverlayResource` and never differs, so it never drives a "changed".
+        folderPath: sql<string>`''`,
+      })
+      .from(alertDefinitions)
+      .where(
+        and(
+          eq(alertDefinitions.organizationId, organizationId),
+          isNull(alertDefinitions.deletedAt),
+          inArray(alertDefinitions.preview, ["", preview]),
+        ),
+      )
+      .orderBy(...orderBy);
+
+    const [covered, rows] = await Promise.all([
+      getCoveredRepoids(organizationId, preview),
+      query,
+    ]);
+    const overlaid = overlayPreview({
+      live: rows.filter((row) => row.preview === ""),
+      previewRows: rows.filter((row) => row.preview !== ""),
+      coveredRepoids: covered,
+    });
+    return overlaid.map((row) => ({
+      ...toAlertSummary(row as AlertSummaryRow),
+      previewStatus: row.previewStatus,
+    }));
+  });
 
 export const getAlert = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(alertIdInput)

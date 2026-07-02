@@ -25,7 +25,9 @@ export function RunbookViewer({
 }) {
   // The runbook is immutable (gitops, read-only), so the query cache is the
   // single source of truth; the route loader has already ensured the data.
-  const { data: runbook } = useSuspenseQuery(runbookOptions(project, slug));
+  const {
+    data: { document: runbook },
+  } = useSuspenseQuery(runbookOptions(project, slug));
   const page = findPage(runbook.spec, pagePath);
   const tree = pageNavTree(runbook.spec);
   const indexTitle = runbook.spec.display?.name ?? slug;

@@ -3,6 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/client";
 import { querySqlApi } from "@/lib/clickhouse";
 
+// Spy on `eq` while keeping every other drizzle-orm export real, so the
+// live-mode filter (`eq(dashboards.preview, "")`) is assertable without
+// hand-rolling a fake SQL builder for the rest of the query.
+vi.mock("drizzle-orm", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("drizzle-orm")>();
+  return { ...actual, eq: vi.fn(actual.eq) };
+});
+
 // ---------------------------------------------------------------------------
 // Mock the db client with a chainable fluent builder.
 // Individual tests configure `selectImpl` / `updateImpl` / `insertImpl` /
@@ -52,11 +60,19 @@ vi.mock("@/db/schema", () => ({
   dashboards: {
     id: "id",
     organizationId: "organization_id",
+    repoid: "repoid",
+    preview: "preview",
     slug: "slug",
     project: "project",
     folderPath: "folder_path",
     updatedAt: "updated_at",
     document: "document",
+  },
+  previews: {
+    organizationId: "organization_id",
+    repoid: "repoid",
+    name: "name",
+    lastAppliedAt: "last_applied_at",
   },
 }));
 
@@ -262,7 +278,7 @@ describe("getDashboard (project/slug)", () => {
     const result = await getDashboard({
       data: { project: "team", slug: "cpu" },
     });
-    expect(result).toEqual(document);
+    expect(result).toEqual({ document, previewStatus: undefined });
   });
 
   it("throws a notFound when the dashboard is missing", async () => {
@@ -274,6 +290,83 @@ describe("getDashboard (project/slug)", () => {
       (e) => e,
     );
     expect(isNotFound(error)).toBe(true);
+  });
+
+  it("in live mode, only reads rows with preview = ''", async () => {
+    const document = {
+      kind: "Dashboard",
+      metadata: { name: "cpu" },
+      spec: { panels: {}, layouts: [] },
+      apiVersion: "perses.dev/v1",
+    };
+    selectImpl = () => [{ document }];
+    const { eq } = await import("drizzle-orm");
+    await getDashboard({ data: { project: "team", slug: "cpu" } });
+
+    expect(eq).toHaveBeenCalledWith("preview", "");
+  });
+
+  it("in preview mode, overlays preview rows and tags a 'changed' result", async () => {
+    mockedDb.select
+      // getCoveredRepoids
+      .mockImplementationOnce(
+        () =>
+          ({
+            from: () => ({
+              where: () => Promise.resolve([{ repoid: "repo-1" }]),
+            }),
+          }) as unknown as ReturnType<typeof mockedDb.select>,
+      )
+      // dashboards rows (live + preview)
+      .mockImplementationOnce(
+        () =>
+          ({
+            from: () => ({
+              where: () =>
+                Promise.resolve([
+                  {
+                    repoid: "repo-1",
+                    preview: "",
+                    project: "team",
+                    slug: "cpu",
+                    folderPath: "",
+                    document: {
+                      kind: "Dashboard",
+                      metadata: { name: "cpu" },
+                      spec: {
+                        panels: {},
+                        layouts: [],
+                        display: { name: "v1" },
+                      },
+                    },
+                  },
+                  {
+                    repoid: "repo-1",
+                    preview: "gio/branch",
+                    project: "team",
+                    slug: "cpu",
+                    folderPath: "",
+                    document: {
+                      kind: "Dashboard",
+                      metadata: { name: "cpu" },
+                      spec: {
+                        panels: {},
+                        layouts: [],
+                        display: { name: "v2" },
+                      },
+                    },
+                  },
+                ]),
+            }),
+          }) as unknown as ReturnType<typeof mockedDb.select>,
+      );
+
+    const result = await getDashboard({
+      data: { project: "team", slug: "cpu", preview: "gio/branch" },
+    });
+
+    expect(result.previewStatus).toBe("changed");
+    expect(result.document.spec.display?.name).toBe("v2");
   });
 });
 
@@ -303,6 +396,70 @@ describe("listDashboards (with project + folderPath)", () => {
     expect(rows).toEqual([
       { slug: "cpu", project: "team", name: "CPU", folderPath: "Infra" },
     ]);
+  });
+
+  it("in live mode, only reads rows with preview = ''", async () => {
+    mockedDb.select.mockImplementationOnce(
+      () =>
+        ({
+          from: () => ({ where: () => Promise.resolve([]) }),
+        }) as unknown as ReturnType<typeof mockedDb.select>,
+    );
+    const { eq } = await import("drizzle-orm");
+    await listDashboards();
+
+    expect(eq).toHaveBeenCalledWith("preview", "");
+  });
+
+  it("in preview mode, overlays preview rows: added/changed/unchanged tagged, uncovered rows pass through", async () => {
+    mockedDb.select
+      // getCoveredRepoids
+      .mockImplementationOnce(
+        () =>
+          ({
+            from: () => ({
+              where: () => Promise.resolve([{ repoid: "repo-1" }]),
+            }),
+          }) as unknown as ReturnType<typeof mockedDb.select>,
+      )
+      // dashboards rows (live + preview, plus an uncovered live row)
+      .mockImplementationOnce(
+        () =>
+          ({
+            from: () => ({
+              where: () =>
+                Promise.resolve([
+                  {
+                    repoid: "repo-1",
+                    preview: "gio/branch",
+                    project: "team",
+                    slug: "new-panel",
+                    folderPath: "",
+                    document: { spec: {} },
+                    displayName: "New panel",
+                  },
+                  {
+                    repoid: "repo-2",
+                    preview: "",
+                    project: "team",
+                    slug: "other",
+                    folderPath: "",
+                    document: { spec: {} },
+                    displayName: "Other",
+                  },
+                ]),
+            }),
+          }) as unknown as ReturnType<typeof mockedDb.select>,
+      );
+
+    const rows = await listDashboards({ data: { preview: "gio/branch" } });
+    const bySlug = Object.fromEntries(
+      rows.map((r) => [r.slug, r.previewStatus]),
+    );
+    expect(bySlug).toEqual({
+      "new-panel": "added",
+      other: undefined,
+    });
   });
 });
 

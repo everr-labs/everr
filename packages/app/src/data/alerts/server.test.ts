@@ -10,6 +10,9 @@ const mocks = vi.hoisted(() => ({
   updateReturning: vi.fn(),
   selectLimit: vi.fn(),
   selectOrderBy: vi.fn(),
+  // Resolves a select chain that ends at a bare `.where(...)`, with no
+  // `.orderBy()`/`.limit()` — the shape `getCoveredRepoids` queries in.
+  selectWhere: vi.fn(),
   insertValues: vi.fn(),
   updateSet: vi.fn(),
   updateWhere: vi.fn(),
@@ -24,6 +27,11 @@ vi.mock("drizzle-orm", () => ({
   desc: vi.fn((value: unknown) => ({ type: "desc", value })),
   eq: vi.fn((left: unknown, right: unknown) => ({ type: "eq", left, right })),
   gt: vi.fn((left: unknown, right: unknown) => ({ type: "gt", left, right })),
+  inArray: vi.fn((column: unknown, values: unknown) => ({
+    type: "inArray",
+    column,
+    values,
+  })),
   isNull: vi.fn((value: unknown) => ({ type: "isNull", value })),
   lte: vi.fn((left: unknown, right: unknown) => ({ type: "lte", left, right })),
   sql: vi.fn(() => ({ as: vi.fn((alias: string) => alias) })),
@@ -34,6 +42,7 @@ vi.mock("@/db/schema", () => {
     id: "alert_definitions.id",
     organizationId: "alert_definitions.organization_id",
     repoid: "alert_definitions.repoid",
+    preview: "alert_definitions.preview",
     slug: "alert_definitions.slug",
     evaluationIntervalSeconds: "alert_definitions.evaluation_interval_seconds",
     sourceLink: "alert_definitions.source_link",
@@ -77,7 +86,13 @@ vi.mock("@/db/schema", () => {
     cancelledByUserId: "alert_silences.cancelled_by_user_id",
     updatedAt: "alert_silences.updated_at",
   };
-  return { alertDefinitions, alertSettings, alertSilences };
+  const previews = {
+    organizationId: "previews.organization_id",
+    repoid: "previews.repoid",
+    name: "previews.name",
+    lastAppliedAt: "previews.last_applied_at",
+  };
+  return { alertDefinitions, alertSettings, alertSilences, previews };
 });
 
 vi.mock("@/db/client", () => {
@@ -87,8 +102,17 @@ vi.mock("@/db/client", () => {
     where: vi.fn(() => selectChain),
     orderBy: (...args: unknown[]) => mocks.selectOrderBy(...args),
     limit: (...args: unknown[]) => mocks.selectLimit(...args),
+    // A query that stops at `.where(...)` (e.g. `getCoveredRepoids`) is
+    // awaited directly rather than chained further — make the chain
+    // thenable so `await` resolves it via `selectWhere`.
+    // biome-ignore lint/suspicious/noThenProperty: intentional thenable mock for a bare `.where(...)` query chain.
+    then: (
+      resolve: (value: unknown) => void,
+      reject: (reason: unknown) => void,
+    ) => Promise.resolve(mocks.selectWhere()).then(resolve, reject),
   };
   mocks.selectOrderBy.mockImplementation(() => []);
+  mocks.selectWhere.mockImplementation(() => []);
 
   const insertChain = {
     values: (...args: unknown[]) => {
@@ -180,6 +204,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.selectLimit.mockResolvedValue([]);
   mocks.selectOrderBy.mockResolvedValue([]);
+  mocks.selectWhere.mockResolvedValue([]);
   mocks.returning.mockResolvedValue([]);
   mocks.updateReturning.mockResolvedValue([]);
   mocks.onConflictDoUpdate.mockResolvedValue(undefined);
@@ -218,6 +243,55 @@ describe("listAlerts", () => {
       displayName: "Build failures",
       activeSilenceCount: 2,
       activeSilenceExpiresAt: expiresAt,
+    });
+  });
+
+  it("in live mode (no preview), filters to preview = ''", async () => {
+    mocks.selectOrderBy.mockResolvedValueOnce([]);
+    const { eq } = await import("drizzle-orm");
+
+    await listAlerts();
+
+    expect(eq).toHaveBeenCalledWith("alert_definitions.preview", "");
+    // getCoveredRepoids must not run in live mode.
+    expect(mocks.selectWhere).not.toHaveBeenCalled();
+  });
+
+  it("in preview mode, tags rows via the overlay and skips deleted-alert-only reads", async () => {
+    // getCoveredRepoids: the preview covers this alert's repoid.
+    mocks.selectWhere.mockResolvedValueOnce([{ repoid: "owner/repo" }]);
+    // Live + preview rows for the covered repoid, plus a live row for an
+    // uncovered repoid that must pass through untagged.
+    mocks.selectOrderBy.mockResolvedValueOnce([
+      {
+        ...alertRow,
+        preview: "",
+        folderPath: "",
+      },
+      {
+        ...alertRow,
+        slug: "new-rule",
+        preview: "gio/branch",
+        folderPath: "",
+      },
+      {
+        ...alertRow,
+        repoid: "owner/other-repo",
+        slug: "untouched",
+        preview: "",
+        folderPath: "",
+      },
+    ]);
+
+    const alerts = await listAlerts({ data: { preview: "gio/branch" } });
+    const byStatus = Object.fromEntries(
+      alerts.map((a) => [a.slug, a.previewStatus]),
+    );
+
+    expect(byStatus).toEqual({
+      "new-rule": "added",
+      "build-failures": "removed",
+      untouched: undefined,
     });
   });
 });
