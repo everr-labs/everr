@@ -66,7 +66,7 @@ export function reconcile(input: {
 }
 
 /** Deterministic JSON with object keys sorted recursively. */
-function stableStringify(value: unknown): string {
+export function stableStringify(value: unknown): string {
   return JSON.stringify(sortKeys(value));
 }
 
