@@ -94,6 +94,7 @@ describe("POST /api/apply", () => {
       results: [
         { kind: "Dashboard", created: ["cpu"], updated: [], deleted: [] },
       ],
+      preview: "",
       organization: { id: "org-1", name: "Acme" },
     });
     expect(applyResources).toHaveBeenCalledWith({
@@ -258,5 +259,34 @@ describe("POST /api/apply", () => {
       });
       expect(res.status).toBe(200);
     });
+  });
+
+  it("forwards preview to applyResources and echoes it", async () => {
+    applyResources.mockResolvedValue({ dryRun: false, results: [] });
+    const res = await POST({
+      request: req({
+        repoid: "repo-1",
+        state: { dashboards: [], runbooks: [], alerts: [] },
+        preview: "gio/x",
+      }),
+      context: ctx,
+    });
+    expect(res.status).toBe(200);
+    expect(applyResources).toHaveBeenCalledWith(
+      expect.objectContaining({ preview: "gio/x" }),
+    );
+    expect(await res.json()).toMatchObject({ preview: "gio/x" });
+  });
+
+  it("rejects an empty preview name", async () => {
+    const res = await POST({
+      request: req({
+        repoid: "repo-1",
+        state: { dashboards: [], runbooks: [], alerts: [] },
+        preview: "",
+      }),
+      context: ctx,
+    });
+    expect(res.status).toBe(400);
   });
 });
