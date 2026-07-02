@@ -131,7 +131,16 @@ export function PreviewBanner({
           // preview appears (per reload); later mounts start already in place.
           initial={reduceMotion || hasEntrancePlayed(name) ? false : hidden}
           animate={enter}
-          exit={hidden}
+          // The exit carries its own transition: the top-level `transition`
+          // only governs `animate`, so without this the dismissal would run at
+          // the enter's 220ms instead of the quicker 160ms it's meant to have.
+          exit={{
+            ...hidden,
+            transition: {
+              duration: reduceMotion ? 0 : 0.16,
+              ease: [0.16, 1, 0.3, 1],
+            },
+          }}
           transition={{
             duration: reduceMotion ? 0 : 0.22,
             ease: [0.16, 1, 0.3, 1],

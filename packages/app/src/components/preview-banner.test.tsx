@@ -4,11 +4,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
+  reduceMotion: false,
 }));
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mocks.navigate,
 }));
+
+// framer-motion's real useReducedMotion probes matchMedia once per module
+// lifetime and caches the answer, so a per-test matchMedia mock installed after
+// the first render can never flip it. Mock the hook itself so the component's
+// reduced-motion branch actually executes when a test asks for it.
+vi.mock("motion/react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("motion/react")>();
+  return { ...actual, useReducedMotion: () => mocks.reduceMotion };
+});
 
 import { PreviewBanner } from "./preview-banner";
 import {
@@ -19,6 +29,7 @@ import {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.reduceMotion = false;
   __resetPreviewDismissals();
 });
 
@@ -186,27 +197,16 @@ describe("PreviewBanner", () => {
   });
 
   it("respects reduced motion: still renders and dismisses instantly", async () => {
-    const original = window.matchMedia;
-    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
-      matches: query.includes("prefers-reduced-motion"),
-      media: query,
-      onchange: null,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    }));
-    try {
-      render(<PreviewBanner preview="gio/apply-previews" />);
-      // Visible on load under reduced motion (no gated-on-transition blank).
-      expect(screen.getByRole("status")).toBeInTheDocument();
-      await userEvent.click(screen.getByRole("button", { name: /dismiss/i }));
-      await waitFor(() =>
-        expect(screen.queryByRole("status")).not.toBeInTheDocument(),
-      );
-    } finally {
-      window.matchMedia = original;
-    }
+    // Drives the component's actual reduceMotion branch (initial=false,
+    // opacity-only targets, zero duration) via the mocked hook above — the
+    // real hook's module-level matchMedia cache makes it unmockable per-test.
+    mocks.reduceMotion = true;
+    render(<PreviewBanner preview="gio/apply-previews" />);
+    // Visible on load under reduced motion (no gated-on-transition blank).
+    expect(screen.getByRole("status")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /dismiss/i }));
+    await waitFor(() =>
+      expect(screen.queryByRole("status")).not.toBeInTheDocument(),
+    );
   });
 });
