@@ -79,4 +79,14 @@ describe("overlayPreview", () => {
       out.find((row) => row.repoid === "repo-2")?.previewStatus,
     ).toBeUndefined();
   });
+
+  it("ignores orphan preview rows whose repoid is not covered", () => {
+    const out = overlayPreview({
+      live: [r("repo-3", "dup")],
+      previewRows: [r("repo-3", "dup")],
+      coveredRepoids: new Set<string>(),
+    });
+    expect(out).toEqual([r("repo-3", "dup")]);
+    expect(out[0].previewStatus).toBeUndefined();
+  });
 });

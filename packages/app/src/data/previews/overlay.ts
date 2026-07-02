@@ -16,6 +16,8 @@ export interface OverlayResource {
  * rows wholesale — a live row with no preview counterpart is "removed", a
  * preview row with no live counterpart is "added". Live rows of uncovered
  * repoids pass through with no status: the preview says nothing about them.
+ * Preview rows whose repoid is not in `coveredRepoids` are orphans and are
+ * ignored entirely.
  */
 export function overlayPreview<T extends OverlayResource>(opts: {
   live: T[];
@@ -31,6 +33,10 @@ export function overlayPreview<T extends OverlayResource>(opts: {
 
   const out: (T & { previewStatus?: PreviewStatus })[] = [];
   for (const row of opts.previewRows) {
+    // A preview row outside the covered set is an orphan (its registry row
+    // never landed); the registry defines the overlay boundary, so skip it
+    // rather than emit a duplicate of the live identity.
+    if (!opts.coveredRepoids.has(row.repoid)) continue;
     const liveRow = liveByKey.get(key(row));
     if (!liveRow) {
       out.push({ ...row, previewStatus: "added" });
