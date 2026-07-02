@@ -2,8 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   getActiveOrganizationIdFromAuthSession,
   getDeviceOrgIdFromScope,
-  getMarkedDeviceOrgIdFromContext,
-  markDeviceOrgContext,
   withDeviceOrgScope,
 } from "@/lib/device-org-scope";
 
@@ -40,20 +38,5 @@ describe("device org scope helpers", () => {
   it("returns null when the browser auth session has no active org", () => {
     expect(getActiveOrganizationIdFromAuthSession({ session: {} })).toBeNull();
     expect(getActiveOrganizationIdFromAuthSession(null)).toBeNull();
-  });
-
-  it("round-trips the marked org through the request context", () => {
-    const context = {
-      path: "/device/token",
-      ...markDeviceOrgContext("org_99"),
-    };
-    expect(getMarkedDeviceOrgIdFromContext(context)).toBe("org_99");
-  });
-
-  it("returns null when the context has no marked org", () => {
-    expect(
-      getMarkedDeviceOrgIdFromContext({ path: "/device/token" }),
-    ).toBeNull();
-    expect(getMarkedDeviceOrgIdFromContext(null)).toBeNull();
   });
 });

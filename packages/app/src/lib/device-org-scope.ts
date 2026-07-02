@@ -34,22 +34,6 @@ export function getDeviceOrgIdFromScope(scope: string | null | undefined) {
   }
 }
 
-// Context key for the device-login org, stashed by the /device/token
-// before-hook (see the cli-device-organization plugin in auth.server.ts).
-const DEVICE_ORG_CONTEXT_KEY = "everrDeviceOrgId";
-
-export function markDeviceOrgContext(organizationId: string) {
-  return { [DEVICE_ORG_CONTEXT_KEY]: organizationId };
-}
-
-export function getMarkedDeviceOrgIdFromContext(context: unknown) {
-  const value = (context as Record<string, unknown> | null | undefined)?.[
-    DEVICE_ORG_CONTEXT_KEY
-  ];
-
-  return typeof value === "string" && value ? value : null;
-}
-
 export function getActiveOrganizationIdFromAuthSession(session: unknown) {
   const activeOrganizationId = (
     session as {
