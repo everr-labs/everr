@@ -54,14 +54,24 @@ func createLocalQueryView(ctx context.Context, db driver.Conn, database, viewNam
 		return nil
 	}
 
-	sql := fmt.Sprintf(
-		`CREATE VIEW IF NOT EXISTS %q.%q AS SELECT * FROM %q.%q`,
+	// A view freezes the source table's column set at creation time, so a view
+	// created before a column migration keeps rejecting the new columns with
+	// UNKNOWN_IDENTIFIER even after the underlying table is migrated. Views are
+	// metadata-only, so drop and recreate on every startup to pick up the
+	// current column set.
+	drop := fmt.Sprintf(`DROP VIEW IF EXISTS %q.%q`, database, viewName)
+	if err := db.Exec(ctx, drop); err != nil {
+		return fmt.Errorf("drop local query view %q: %w", viewName, err)
+	}
+
+	create := fmt.Sprintf(
+		`CREATE VIEW %q.%q AS SELECT * FROM %q.%q`,
 		database,
 		viewName,
 		database,
 		rawName,
 	)
-	if err := db.Exec(ctx, sql); err != nil {
+	if err := db.Exec(ctx, create); err != nil {
 		return fmt.Errorf("create local query view %q: %w", viewName, err)
 	}
 

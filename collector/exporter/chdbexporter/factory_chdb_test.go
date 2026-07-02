@@ -100,13 +100,17 @@ func TestFactoryWithHandleCreatesProductionFacingLocalViews(t *testing.T) {
 	session.mu.Lock()
 	defer session.mu.Unlock()
 	queries := joinedQueries(session.queries)
-	require.Contains(t, queries, `CREATE VIEW IF NOT EXISTS "default"."logs" AS SELECT * FROM "default"."otel_logs"`)
-	require.Contains(t, queries, `CREATE VIEW IF NOT EXISTS "default"."traces" AS SELECT * FROM "default"."otel_traces"`)
-	require.Contains(t, queries, `CREATE VIEW IF NOT EXISTS "default"."metrics_gauge" AS SELECT * FROM "default"."otel_metrics_gauge"`)
-	require.Contains(t, queries, `CREATE VIEW IF NOT EXISTS "default"."metrics_sum" AS SELECT * FROM "default"."otel_metrics_sum"`)
-	require.Contains(t, queries, `CREATE VIEW IF NOT EXISTS "default"."metrics_histogram" AS SELECT * FROM "default"."otel_metrics_histogram"`)
-	require.Contains(t, queries, `CREATE VIEW IF NOT EXISTS "default"."metrics_exponential_histogram" AS SELECT * FROM "default"."otel_metrics_exponential_histogram"`)
-	require.Contains(t, queries, `CREATE VIEW IF NOT EXISTS "default"."metrics_summary" AS SELECT * FROM "default"."otel_metrics_summary"`)
+	// Views freeze the source table's columns at creation, so startup must drop
+	// and recreate them to expose columns added by table migrations.
+	require.Contains(t, queries, `DROP VIEW IF EXISTS "default"."logs"`)
+	require.Contains(t, queries, `CREATE VIEW "default"."logs" AS SELECT * FROM "default"."otel_logs"`)
+	require.Contains(t, queries, `DROP VIEW IF EXISTS "default"."traces"`)
+	require.Contains(t, queries, `CREATE VIEW "default"."traces" AS SELECT * FROM "default"."otel_traces"`)
+	require.Contains(t, queries, `CREATE VIEW "default"."metrics_gauge" AS SELECT * FROM "default"."otel_metrics_gauge"`)
+	require.Contains(t, queries, `CREATE VIEW "default"."metrics_sum" AS SELECT * FROM "default"."otel_metrics_sum"`)
+	require.Contains(t, queries, `CREATE VIEW "default"."metrics_histogram" AS SELECT * FROM "default"."otel_metrics_histogram"`)
+	require.Contains(t, queries, `CREATE VIEW "default"."metrics_exponential_histogram" AS SELECT * FROM "default"."otel_metrics_exponential_histogram"`)
+	require.Contains(t, queries, `CREATE VIEW "default"."metrics_summary" AS SELECT * FROM "default"."otel_metrics_summary"`)
 }
 
 func TestFactoryRunsLogsSchemaMigrationOnStart(t *testing.T) {
@@ -174,7 +178,8 @@ func TestFactoryWithHandleSkipsLocalViewsWhenRawNamesMatch(t *testing.T) {
 
 	session.mu.Lock()
 	defer session.mu.Unlock()
-	require.NotContains(t, joinedQueries(session.queries), "CREATE VIEW IF NOT EXISTS")
+	require.NotContains(t, joinedQueries(session.queries), "CREATE VIEW")
+	require.NotContains(t, joinedQueries(session.queries), "DROP VIEW")
 }
 
 func TestFactoryWithoutHandleFailsOnStart(t *testing.T) {
