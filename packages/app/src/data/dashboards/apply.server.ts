@@ -25,6 +25,7 @@ export interface ApplyDashboardsResult {
 export const applyDashboardSpecs: Reconciler = async ({
   orgId,
   repoid,
+  preview,
   resources,
   dryRun,
 }): Promise<ApplyDashboardsResult> => {
@@ -41,7 +42,11 @@ export const applyDashboardSpecs: Reconciler = async ({
     })
     .from(dashboards)
     .where(
-      and(eq(dashboards.organizationId, orgId), eq(dashboards.repoid, repoid)),
+      and(
+        eq(dashboards.organizationId, orgId),
+        eq(dashboards.repoid, repoid),
+        eq(dashboards.preview, preview),
+      ),
     );
 
   const diff = reconcile({ existing, desired });
@@ -59,6 +64,7 @@ export const applyDashboardSpecs: Reconciler = async ({
       await tx.insert(dashboards).values({
         organizationId: orgId,
         repoid,
+        preview,
         project: d.project,
         slug: d.slug,
         folderPath: d.folderPath,
@@ -77,6 +83,7 @@ export const applyDashboardSpecs: Reconciler = async ({
           and(
             eq(dashboards.organizationId, orgId),
             eq(dashboards.repoid, repoid),
+            eq(dashboards.preview, preview),
             eq(dashboards.project, d.project),
             eq(dashboards.slug, d.slug),
           ),
@@ -89,6 +96,7 @@ export const applyDashboardSpecs: Reconciler = async ({
           and(
             eq(dashboards.organizationId, orgId),
             eq(dashboards.repoid, repoid),
+            eq(dashboards.preview, preview),
             eq(dashboards.project, d.project),
             eq(dashboards.slug, d.slug),
           ),

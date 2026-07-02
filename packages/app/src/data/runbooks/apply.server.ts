@@ -26,6 +26,7 @@ export interface ApplyRunbooksResult {
 export const applyRunbookSpecs: Reconciler = async ({
   orgId,
   repoid,
+  preview,
   resources,
   dryRun,
 }): Promise<ApplyRunbooksResult> => {
@@ -42,7 +43,11 @@ export const applyRunbookSpecs: Reconciler = async ({
     })
     .from(runbooks)
     .where(
-      and(eq(runbooks.organizationId, orgId), eq(runbooks.repoid, repoid)),
+      and(
+        eq(runbooks.organizationId, orgId),
+        eq(runbooks.repoid, repoid),
+        eq(runbooks.preview, preview),
+      ),
     );
 
   const diff = reconcile({ existing, desired });
@@ -60,6 +65,7 @@ export const applyRunbookSpecs: Reconciler = async ({
       await tx.insert(runbooks).values({
         organizationId: orgId,
         repoid,
+        preview,
         project: d.project,
         slug: d.slug,
         folderPath: d.folderPath,
@@ -78,6 +84,7 @@ export const applyRunbookSpecs: Reconciler = async ({
           and(
             eq(runbooks.organizationId, orgId),
             eq(runbooks.repoid, repoid),
+            eq(runbooks.preview, preview),
             eq(runbooks.project, d.project),
             eq(runbooks.slug, d.slug),
           ),
@@ -90,6 +97,7 @@ export const applyRunbookSpecs: Reconciler = async ({
           and(
             eq(runbooks.organizationId, orgId),
             eq(runbooks.repoid, repoid),
+            eq(runbooks.preview, preview),
             eq(runbooks.project, d.project),
             eq(runbooks.slug, d.slug),
           ),

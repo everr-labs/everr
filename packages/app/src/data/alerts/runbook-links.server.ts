@@ -19,6 +19,7 @@ import { AlertRuleYamlSchema, identityKey, parseRunbookRef } from "./schema";
 export async function validateAlertRunbookLinks(opts: {
   orgId: string;
   repoid: string;
+  preview: string;
   alerts: ApplyResourceEntry[];
   runbooks: ApplyResourceEntry[];
 }): Promise<void> {
@@ -61,6 +62,7 @@ export async function validateAlertRunbookLinks(opts: {
         and(
           eq(runbooks.organizationId, opts.orgId),
           eq(runbooks.repoid, opts.repoid),
+          eq(runbooks.preview, opts.preview),
           or(
             ...refs.map((ref) =>
               and(

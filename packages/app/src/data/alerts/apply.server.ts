@@ -362,6 +362,7 @@ function shouldResetRuntimeState(
 export const applyAlertSpecs: Reconciler = async ({
   orgId,
   repoid,
+  preview,
   resources,
   source,
   dryRun,
@@ -396,6 +397,7 @@ export const applyAlertSpecs: Reconciler = async ({
       and(
         eq(alertDefinitions.organizationId, orgId),
         eq(alertDefinitions.repoid, repoid),
+        eq(alertDefinitions.preview, preview),
       ),
     )) as ExistingAlert[];
 
@@ -432,6 +434,7 @@ export const applyAlertSpecs: Reconciler = async ({
         creates.map((row) => ({
           organizationId: orgId,
           repoid,
+          preview,
           slug: row.slug,
           project: row.project,
           ...activeValues(row, now),
@@ -453,6 +456,7 @@ export const applyAlertSpecs: Reconciler = async ({
           and(
             eq(alertDefinitions.organizationId, orgId),
             eq(alertDefinitions.repoid, repoid),
+            eq(alertDefinitions.preview, preview),
             eq(alertDefinitions.project, row.project),
             eq(alertDefinitions.slug, row.slug),
           ),
@@ -466,6 +470,7 @@ export const applyAlertSpecs: Reconciler = async ({
           and(
             eq(alertDefinitions.organizationId, orgId),
             eq(alertDefinitions.repoid, repoid),
+            eq(alertDefinitions.preview, preview),
             or(
               ...deletes.map((row) =>
                 and(

@@ -56,6 +56,7 @@ vi.mock("@/db/schema", () => ({
     id: "id",
     organizationId: "organization_id",
     repoid: "repoid",
+    preview: "preview",
     slug: "slug",
     project: "project",
     folderPath: "folder_path",
@@ -98,6 +99,7 @@ describe("applyRunbookSpecs", () => {
     const result = await applyRunbookSpecs({
       orgId: "org-1",
       repoid: "repo-1",
+      preview: "",
       dryRun: true,
       resources: [{ path: "a.yaml", resource: nb("a") }],
     });
@@ -116,6 +118,7 @@ describe("applyRunbookSpecs", () => {
     const result = await applyRunbookSpecs({
       orgId: "org-1",
       repoid: "repo-1",
+      preview: "",
       resources: [{ path: "a.yaml", resource: nb("a", "team", "# new") }],
     });
     expect(result).toMatchObject({
@@ -137,6 +140,7 @@ describe("applyRunbookSpecs", () => {
     const result = await applyRunbookSpecs({
       orgId: "org-1",
       repoid: "repo-1",
+      preview: "",
       dryRun: true,
       resources: [],
     });
@@ -159,6 +163,7 @@ describe("applyRunbookSpecs", () => {
     const first = await applyRunbookSpecs({
       orgId: "org-1",
       repoid: "repo-1",
+      preview: "",
       dryRun: true,
       resources: [{ path: "a.yaml", resource: nb("a") }],
     });
@@ -167,6 +172,7 @@ describe("applyRunbookSpecs", () => {
     const second = await applyRunbookSpecs({
       orgId: "org-1",
       repoid: "repo-2",
+      preview: "",
       dryRun: true,
       resources: [{ path: "a.yaml", resource: nb("a") }],
     });
@@ -183,6 +189,7 @@ describe("applyRunbookSpecs", () => {
     const result = await applyRunbookSpecs({
       orgId: "org-1",
       repoid: "repo-1",
+      preview: "",
       resources: [{ path: "a.yaml", resource: nb("a", "team") }],
     });
     expect(result.created).toEqual(["a"]);
@@ -194,6 +201,7 @@ describe("applyRunbookSpecs", () => {
     const result = await applyRunbookSpecs({
       orgId: "org-1",
       repoid: "repo-1",
+      preview: "",
       dryRun: true,
       resources: [{ path: "a.yaml", resource: nb("a", "team") }],
     });
@@ -206,11 +214,27 @@ describe("applyRunbookSpecs", () => {
       applyRunbookSpecs({
         orgId: "org-1",
         repoid: "repo-1",
+        preview: "",
         resources: [
           { path: "bad.yaml", resource: { kind: "Runbook", spec: {} } },
         ],
       }),
     ).rejects.toThrow(/bad\.yaml/);
     expect(mockedDb.transaction).not.toHaveBeenCalled();
+  });
+
+  it("scopes inserts and deletes to the preview", async () => {
+    insertImpl = () => [{ slug: "a" }];
+    mockApplySelect([]);
+    const result = await applyRunbookSpecs({
+      orgId: "org-1",
+      repoid: "repo-1",
+      preview: "gio/x",
+      resources: [{ path: "a.yaml", resource: nb("a") }],
+    });
+    expect(result.created).toEqual(["a"]);
+    // The existing-rows query must carry the preview equality.
+    const eqCalls = vi.mocked(eq).mock.calls.map(([l, r]) => [l, r]);
+    expect(eqCalls).toContainEqual(["preview", "gio/x"]);
   });
 });

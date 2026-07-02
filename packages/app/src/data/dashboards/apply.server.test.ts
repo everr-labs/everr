@@ -56,6 +56,7 @@ vi.mock("@/db/schema", () => ({
     id: "id",
     organizationId: "organization_id",
     repoid: "repoid",
+    preview: "preview",
     slug: "slug",
     project: "project",
     folderPath: "folder_path",
@@ -98,6 +99,7 @@ describe("applyDashboardSpecs", () => {
     const result = await applyDashboardSpecs({
       orgId: "org-1",
       repoid: "repo-1",
+      preview: "",
       dryRun: true,
       resources: [{ path: "cpu.yaml", resource: dash("cpu") }],
     });
@@ -116,6 +118,7 @@ describe("applyDashboardSpecs", () => {
     const result = await applyDashboardSpecs({
       orgId: "org-1",
       repoid: "repo-1",
+      preview: "",
       dryRun: true,
       resources: [],
     });
@@ -138,6 +141,7 @@ describe("applyDashboardSpecs", () => {
     const result = await applyDashboardSpecs({
       orgId: "org-1",
       repoid: "repo-1",
+      preview: "",
       dryRun: true,
       resources: [{ path: "cpu.yaml", resource: dash("cpu", "platform") }],
     });
@@ -157,6 +161,7 @@ describe("applyDashboardSpecs", () => {
     const first = await applyDashboardSpecs({
       orgId: "org-1",
       repoid: "repo-1",
+      preview: "",
       dryRun: true,
       resources: [{ path: "cpu.yaml", resource: dash("cpu") }],
     });
@@ -165,6 +170,7 @@ describe("applyDashboardSpecs", () => {
     const second = await applyDashboardSpecs({
       orgId: "org-1",
       repoid: "repo-2",
+      preview: "",
       dryRun: true,
       resources: [{ path: "cpu.yaml", resource: dash("cpu") }],
     });
@@ -181,6 +187,7 @@ describe("applyDashboardSpecs", () => {
     const result = await applyDashboardSpecs({
       orgId: "org-1",
       repoid: "repo-1",
+      preview: "",
       resources: [{ path: "a.yaml", resource: dash("a", "team") }],
     });
     expect(result.created).toEqual(["a"]);
@@ -192,6 +199,7 @@ describe("applyDashboardSpecs", () => {
       applyDashboardSpecs({
         orgId: "org-1",
         repoid: "repo-1",
+        preview: "",
         resources: [
           { path: "bad.yaml", resource: { kind: "Dashboard", spec: {} } },
         ],

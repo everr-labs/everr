@@ -21,6 +21,7 @@ vi.mock("@/db/schema", () => ({
   runbooks: {
     organizationId: "organization_id",
     repoid: "repoid",
+    preview: "preview",
     project: "project",
     slug: "slug",
   },
@@ -64,6 +65,7 @@ describe("validateAlertRunbookLinks", () => {
       validateAlertRunbookLinks({
         orgId,
         repoid,
+        preview: "",
         alerts: [alertEntry("a.yaml", "a", "runbook")],
         runbooks: [runbookEntry("runbook")],
       }),
@@ -76,6 +78,7 @@ describe("validateAlertRunbookLinks", () => {
       validateAlertRunbookLinks({
         orgId,
         repoid,
+        preview: "",
         alerts: [alertEntry("a.yaml", "a", "runbook")],
         runbooks: [],
       }),
@@ -87,6 +90,7 @@ describe("validateAlertRunbookLinks", () => {
       validateAlertRunbookLinks({
         orgId,
         repoid,
+        preview: "",
         alerts: [alertEntry("a.yaml", "a", "missing")],
         runbooks: [],
       }),
@@ -98,6 +102,7 @@ describe("validateAlertRunbookLinks", () => {
       validateAlertRunbookLinks({
         orgId,
         repoid,
+        preview: "",
         alerts: [alertEntry("a.yaml", "a")],
         runbooks: [],
       }),

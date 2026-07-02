@@ -20,6 +20,11 @@ vi.mock("@/data/alerts/runbook-links.server", () => ({
   validateAlertRunbookLinks: (...a: unknown[]) => validateRunbookLinks(...a),
 }));
 
+const upsertPreview = vi.fn();
+vi.mock("@/data/previews/apply.server", () => ({
+  upsertPreview: (...a: unknown[]) => upsertPreview(...a),
+}));
+
 import { ApplyValidationError } from "./errors";
 import { applyResources } from "./registry";
 
@@ -212,5 +217,45 @@ describe("applyResources", () => {
     expect(dashboardReconciler).not.toHaveBeenCalled();
     expect(runbookReconciler).not.toHaveBeenCalled();
     expect(alertReconciler).not.toHaveBeenCalled();
+  });
+
+  it("passes preview to every reconciler and registers the preview once", async () => {
+    await applyResources({
+      orgId: "org-1",
+      repoid: "repo-1",
+      preview: "gio/x",
+      state: { dashboards: [], runbooks: [], alerts: [] },
+    });
+    for (const reconciler of [
+      dashboardReconciler,
+      runbookReconciler,
+      alertReconciler,
+    ]) {
+      expect(reconciler).toHaveBeenCalledWith(
+        expect.objectContaining({ preview: "gio/x", dryRun: false }),
+      );
+    }
+    expect(upsertPreview).toHaveBeenCalledTimes(1);
+    expect(upsertPreview).toHaveBeenCalledWith({
+      orgId: "org-1",
+      repoid: "repo-1",
+      name: "gio/x",
+    });
+  });
+
+  it("does not register a preview for live or dry-run applies", async () => {
+    await applyResources({
+      orgId: "org-1",
+      repoid: "repo-1",
+      state: { dashboards: [], runbooks: [], alerts: [] },
+    });
+    await applyResources({
+      orgId: "org-1",
+      repoid: "repo-1",
+      preview: "gio/x",
+      dryRun: true,
+      state: { dashboards: [], runbooks: [], alerts: [] },
+    });
+    expect(upsertPreview).not.toHaveBeenCalled();
   });
 });

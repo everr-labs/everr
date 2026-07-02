@@ -1,6 +1,7 @@
 import { applyAlertSpecs } from "@/data/alerts/apply.server";
 import { validateAlertRunbookLinks } from "@/data/alerts/runbook-links.server";
 import { applyDashboardSpecs } from "@/data/dashboards/apply.server";
+import { upsertPreview } from "@/data/previews/apply.server";
 import { applyRunbookSpecs } from "@/data/runbooks/apply.server";
 import { ApplyValidationError } from "./errors";
 import type { ApplyInput, ApplyResourceEntry, ApplySource } from "./schema";
@@ -21,6 +22,8 @@ export interface ApplyResourcesResult {
 export type Reconciler = (opts: {
   orgId: string;
   repoid: string;
+  /** Preview namespace to reconcile within; '' is the live state. */
+  preview: string;
   resources: ApplyResourceEntry[];
   source?: ApplySource;
   dryRun?: boolean;
@@ -77,11 +80,13 @@ function validateResourceKind(
 export async function applyResources(opts: {
   orgId: string;
   repoid: string;
+  preview?: string;
   state: ApplyInput["state"];
   source?: ApplySource;
   dryRun?: boolean;
 }): Promise<ApplyResourcesResult> {
   const { orgId, repoid, state, source, dryRun } = opts;
+  const preview = opts.preview ?? "";
 
   const summarize = (
     kind: string,
@@ -103,6 +108,7 @@ export async function applyResources(opts: {
     const r = await reconcile({
       orgId,
       repoid,
+      preview,
       resources: state[key],
       source,
       dryRun: true,
@@ -115,6 +121,7 @@ export async function applyResources(opts: {
   await validateAlertRunbookLinks({
     orgId,
     repoid,
+    preview,
     alerts: state.alerts,
     runbooks: state.runbooks,
   });
@@ -127,11 +134,19 @@ export async function applyResources(opts: {
     const r = await reconcile({
       orgId,
       repoid,
+      preview,
       resources: state[key],
       source,
       dryRun: false,
     });
     results.push(summarize(kind, r));
+  }
+
+  // Register the preview only after every kind applied, so the switcher never
+  // lists a preview whose rows failed to write. Live applies ('') are not
+  // registered — the registry is the preview lifecycle, not an apply log.
+  if (preview !== "") {
+    await upsertPreview({ orgId, repoid, name: preview });
   }
 
   return { dryRun: false, results };

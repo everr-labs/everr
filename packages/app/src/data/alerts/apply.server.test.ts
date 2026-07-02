@@ -60,6 +60,7 @@ vi.mock("@/db/schema", () => ({
   alertDefinitions: {
     organizationId: "organization_id",
     repoid: "repoid",
+    preview: "preview",
     slug: "slug",
     evaluationIntervalSeconds: "evaluation_interval_seconds",
     document: "document",
@@ -149,6 +150,7 @@ describe("applyAlertSpecs", () => {
     const result = await applyAlertSpecs({
       orgId: "org-1",
       repoid: "repo-1",
+      preview: "",
       dryRun: true,
       resources: [{ path: "alerts/high-errors.yaml", resource: alert() }],
     });
@@ -175,6 +177,7 @@ describe("applyAlertSpecs", () => {
     const result = await applyAlertSpecs({
       orgId: "org-1",
       repoid: "repo-1",
+      preview: "",
       source: {
         remote: "git@github.com:everr/example.git",
         commitSha: "abc123",
@@ -191,6 +194,7 @@ describe("applyAlertSpecs", () => {
     expect(created).toMatchObject({
       organizationId: "org-1",
       repoid: "repo-1",
+      preview: "",
       slug: "high-errors",
       evaluationIntervalSeconds: 300,
       document: alert(),
@@ -247,6 +251,7 @@ describe("applyAlertSpecs", () => {
     const result = await applyAlertSpecs({
       orgId: "org-1",
       repoid: "repo-1",
+      preview: "",
       resources: [{ path: "alerts/high-errors.yaml", resource: alert() }],
     });
 
@@ -280,6 +285,7 @@ describe("applyAlertSpecs", () => {
     const result = await applyAlertSpecs({
       orgId: "org-1",
       repoid: "repo-1",
+      preview: "",
       resources: [{ path: "alerts/high-errors.yaml", resource: alert() }],
     });
 
@@ -296,6 +302,7 @@ describe("applyAlertSpecs", () => {
       applyAlertSpecs({
         orgId: "org-1",
         repoid: "repo-1",
+        preview: "",
         resources: [
           { path: "a.yaml", resource: alert("same") },
           { path: "b.yaml", resource: alert("same") },
@@ -328,6 +335,7 @@ describe("applyAlertSpecs", () => {
     const result = await applyAlertSpecs({
       orgId: "org-1",
       repoid: "repo-1",
+      preview: "",
       resources: [{ path: "alerts/high-errors.yaml", resource: alert() }],
     });
 
@@ -366,6 +374,7 @@ describe("applyAlertSpecs", () => {
     const result = await applyAlertSpecs({
       orgId: "org-1",
       repoid: "repo-1",
+      preview: "",
       resources: [
         {
           path: "alerts/high-errors.yaml",
@@ -390,6 +399,7 @@ describe("applyAlertSpecs", () => {
       applyAlertSpecs({
         orgId: "org-1",
         repoid: "repo-1",
+        preview: "",
         resources: [{ path: "bad.yaml", resource: { kind: "AlertRule" } }],
       }),
     ).rejects.toThrow(/bad\.yaml: invalid alert rule/);
@@ -398,6 +408,7 @@ describe("applyAlertSpecs", () => {
       applyAlertSpecs({
         orgId: "org-1",
         repoid: "repo-1",
+        preview: "",
         resources: [
           {
             path: "fast.yaml",
@@ -411,6 +422,7 @@ describe("applyAlertSpecs", () => {
       applyAlertSpecs({
         orgId: "org-1",
         repoid: "repo-1",
+        preview: "",
         resources: [
           {
             path: "bad-var.yaml",
@@ -426,6 +438,7 @@ describe("applyAlertSpecs", () => {
       applyAlertSpecs({
         orgId: "org-1",
         repoid: "repo-1",
+        preview: "",
         resources: [
           {
             path: "labels.yaml",
@@ -444,6 +457,7 @@ describe("applyAlertSpecs", () => {
     await applyAlertSpecs({
       orgId: "org-1",
       repoid: "repo-1",
+      preview: "",
       resources: [
         {
           path: "alerts/high-errors.yaml",
@@ -467,6 +481,7 @@ describe("applyAlertSpecs", () => {
       applyAlertSpecs({
         orgId: "org-1",
         repoid: "repo-1",
+        preview: "",
         resources: [{ path: "missing-column.yaml", resource: alert() }],
       }),
     ).rejects.toThrow(
@@ -484,6 +499,7 @@ describe("applyAlertSpecs", () => {
     await applyAlertSpecs({
       orgId: "org-1",
       repoid: "repo-1",
+      preview: "",
       resources: [
         {
           path: "a.yaml",
@@ -530,6 +546,7 @@ describe("applyAlertSpecs", () => {
     const result = await applyAlertSpecs({
       orgId: "org-1",
       repoid: "repo-1",
+      preview: "",
       resources: [
         { path: "a.yaml", resource: mk("platform") },
         { path: "b.yaml", resource: mk("infra") },
@@ -548,6 +565,7 @@ describe("applyAlertSpecs", () => {
       await applyAlertSpecs({
         orgId: "org-1",
         repoid: "repo-1",
+        preview: "",
         resources: [{ path: "query.yaml", resource: alert() }],
       });
       expect.fail("expected query validation to fail");
