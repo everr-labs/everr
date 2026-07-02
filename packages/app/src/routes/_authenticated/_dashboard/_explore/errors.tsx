@@ -20,7 +20,7 @@ const defaultSearch = RouteSearchSchema.parse({});
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_explore/errors",
 )({
-  staticData: { breadcrumb: "Errors", fullBleed: true },
+  staticData: { breadcrumb: "Errors" },
   head: () => ({ meta: [{ title: "Everr - Errors" }] }),
   validateSearch: RouteSearchSchema,
   search: { middlewares: [stripSearchParams(defaultSearch)] },

@@ -30,7 +30,9 @@ type LinkedAccount = NonNullable<
   Awaited<ReturnType<typeof authClient.listAccounts>>["data"]
 >[number];
 
-export const Route = createFileRoute("/_authenticated/_dashboard/account")({
+export const Route = createFileRoute(
+  "/_authenticated/_dashboard/_padded/account",
+)({
   staticData: { breadcrumb: "Account Settings", hideTimeRangePicker: true },
   head: () => ({
     meta: [{ title: "Everr - Account Settings" }],

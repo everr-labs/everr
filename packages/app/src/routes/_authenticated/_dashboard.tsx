@@ -5,7 +5,6 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@everr/ui/components/sidebar";
-import { cn } from "@everr/ui/lib/utils";
 import {
   createFileRoute,
   Outlet,
@@ -110,13 +109,9 @@ function RouteComponent() {
 
   const matches = useMatches();
   let hideTimeRangePicker = false;
-  let fullBleed = false;
   for (const match of matches) {
     if (match.staticData?.hideTimeRangePicker !== undefined) {
       hideTimeRangePicker = match.staticData.hideTimeRangePicker;
-    }
-    if (match.staticData?.fullBleed !== undefined) {
-      fullBleed = match.staticData.fullBleed;
     }
   }
 
@@ -144,19 +139,14 @@ function RouteComponent() {
             </div>
           </div>
         </header>
-        <div
-          className={cn(
-            "flex min-h-0 flex-1 flex-col overflow-auto",
-            fullBleed ? "gap-0 p-0" : "gap-3 p-3",
-          )}
-        >
+        <div className="flex min-h-0 flex-1 flex-col overflow-auto">
           {search.github_install === "linked" ? (
-            <div className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+            <div className="mx-3 mt-3 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
               GitHub installation linked successfully.
             </div>
           ) : null}
           {search.github_install === "error" ? (
-            <div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900">
+            <div className="mx-3 mt-3 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900">
               Failed to link GitHub installation
               {search.reason ? ` (${search.reason})` : ""}.
             </div>

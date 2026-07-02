@@ -15,7 +15,7 @@ const SearchSchema = z.object({
 });
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/checkout/success",
+  "/_authenticated/_dashboard/_padded/checkout/success",
 )({
   staticData: { breadcrumb: "Checkout", hideTimeRangePicker: true },
   head: () => ({

@@ -4,6 +4,7 @@ import {
   useMatches,
   useSearch,
 } from "@tanstack/react-router";
+import { PageContainer } from "@/components/page-container";
 import { PreviewBanner } from "@/components/preview-banner";
 import type { PreviewStatus } from "@/data/previews/overlay";
 
@@ -40,14 +41,22 @@ function PreviewableLayout() {
     if (data?.previewStatus !== undefined) status = data.previewStatus;
   }
 
-  // A fragment on purpose — NO wrapper div. The pill's sticky-lane math (see
-  // preview-banner.tsx) depends on the banner and the page content both being
-  // direct flex children of the `_dashboard` scroll column (`gap-3 p-3`); a
-  // wrapper here would break the negative-margin cancellation and the float.
+  // This layout owns the previewable subtree's spacing. Two direct children of
+  // the bare `_dashboard` scroll column:
+  //   - the PreviewBanner, whose sticky, zero-height lane floats the pill over
+  //     the content (it's a flow sibling that reserves no height — see
+  //     preview-banner.tsx);
+  //   - the PageContainer, THE standard 12px page inset, wrapping the routed
+  //     content.
+  // The banner sits OUTSIDE the PageContainer so its lane spans the column edge
+  // to edge (its own `px-3` keeps the pill off the viewport edges) rather than
+  // being boxed inside the content inset.
   return (
     <>
       <PreviewBanner preview={preview} status={status} />
-      <Outlet />
+      <PageContainer>
+        <Outlet />
+      </PageContainer>
     </>
   );
 }

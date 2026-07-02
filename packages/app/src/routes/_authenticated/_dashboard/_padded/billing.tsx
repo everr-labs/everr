@@ -37,7 +37,9 @@ type Entitlement = {
   cancelAtPeriodEnd: boolean;
 };
 
-export const Route = createFileRoute("/_authenticated/_dashboard/billing")({
+export const Route = createFileRoute(
+  "/_authenticated/_dashboard/_padded/billing",
+)({
   staticData: { breadcrumb: "Billing", hideTimeRangePicker: true },
   head: () => ({
     meta: [{ title: "Everr - Billing" }],

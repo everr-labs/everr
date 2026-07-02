@@ -26,7 +26,7 @@ import { formatCost } from "@/lib/runner-pricing";
 import { TimeRangeSearchSchema } from "@/lib/time-range";
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/workflows/$repo/$workflowName",
+  "/_authenticated/_dashboard/_padded/workflows/$repo/$workflowName",
 )({
   staticData: {
     breadcrumb: (match: { params?: { workflowName?: string } }) => [

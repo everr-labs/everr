@@ -106,26 +106,27 @@ export function PreviewBanner({
 
   return (
     // A centered floating pill (think Vercel/Next.js preview mode). The wrapper
-    // is a zero-height, sticky, full-width lane centered on the padded content
-    // column (not the viewport — it lives inside the `_dashboard` scroll box, so
-    // it already clears the sidebar). `-mt-2` pulls the lane 8px into the
-    // column's `p-3` inset and `top-1` pins at that same 4px offset, so the chip
-    // holds a constant, tight gap under the header whether the page is at rest
-    // or scrolled — no jump as sticky engages. `h-0` + margins summing to -12px
-    // (`-mt-2` + `-mb-1`) cancel the flex `gap-3` this element would otherwise
-    // add, so the pill overlays the content instead of pushing it down;
-    // `items-start` stops the h-0 lane from stretch-squashing the pill to zero
-    // height. `pointer-events-none` on the empty lane lets clicks fall through to
-    // the content it floats over (and keeps content interactive throughout the
-    // exit animation); the pill re-enables its own. `z-30` clears sticky table
-    // headers (z-10) and react-grid-layout dragged panels (raw z-index: 3) but
-    // stays under popovers/modals (z-50). The animated element IS this lane, so
-    // the pill rides its translate — and `role="status"` stays on the Banner
-    // child, keeping the lane as the Banner's parentElement.
+    // is a zero-height, sticky, full-width lane — the first flow child of the
+    // bare `_dashboard` scroll column, rendered by `_previewable` as a sibling of
+    // the padded content (not inside it). `h-0` reserves no height, so the pill
+    // overlays the content beneath instead of pushing it down; `items-start`
+    // stops the zero-height lane from stretch-squashing the pill. `top-1` pins it
+    // 4px under the header: at rest the lane's natural offset is 0, and sticky
+    // holds it at that 4px minimum from the first scroll pixel, so the chip keeps
+    // a constant tight gap whether the page is at rest or scrolled — no jump as
+    // sticky engages. `px-3` matches the content inset so the pill can't kiss the
+    // viewport edges on narrow widths. `pointer-events-none` on the empty lane
+    // lets clicks fall through to the content it floats over (and keeps content
+    // interactive throughout the exit animation); the pill re-enables its own.
+    // `z-30` clears sticky table headers (z-10) and react-grid-layout dragged
+    // panels (raw z-index: 3) but stays under popovers/modals (z-50). The
+    // animated element IS this lane, so the pill rides its translate — and
+    // `role="status"` stays on the Banner child, keeping the lane as the Banner's
+    // parentElement.
     <AnimatePresence>
       {!dismissed && (
         <motion.div
-          className="pointer-events-none sticky top-1 z-30 -mt-2 -mb-1 flex h-0 items-start justify-center"
+          className="pointer-events-none sticky top-1 z-30 flex h-0 items-start justify-center px-3"
           // Every page mounts its own banner, but the pill should read as one
           // persistent element: the entrance only plays the first time this
           // preview appears (per reload); later mounts start already in place.

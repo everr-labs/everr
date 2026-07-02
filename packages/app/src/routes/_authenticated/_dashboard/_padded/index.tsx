@@ -18,7 +18,7 @@ import type { ComponentType } from "react";
 import { INSTALL_COMMAND } from "@/common/install-command";
 import { InstallCommandBlock } from "@/components/install-command-block";
 
-export const Route = createFileRoute("/_authenticated/_dashboard/")({
+export const Route = createFileRoute("/_authenticated/_dashboard/_padded/")({
   staticData: { breadcrumb: "Home", hideTimeRangePicker: true },
   head: () => ({
     meta: [{ title: "Everr - Home" }],

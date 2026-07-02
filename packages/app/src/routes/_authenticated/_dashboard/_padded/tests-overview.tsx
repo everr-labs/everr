@@ -41,7 +41,7 @@ import { buildTestPerformanceBreadcrumb } from "@/lib/test-performance-breadcrum
 import { TimeRangeSearchSchema } from "@/lib/time-range";
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/tests-overview",
+  "/_authenticated/_dashboard/_padded/tests-overview",
 )({
   staticData: {
     breadcrumb: (match: { search?: { path?: string; pkg?: string } }) =>

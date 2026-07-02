@@ -36,7 +36,7 @@ const ensureOrgAdmin = createAuthenticatedServerFn.handler(
 );
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/users-management",
+  "/_authenticated/_dashboard/_padded/users-management",
 )({
   staticData: { breadcrumb: "Users Management", hideTimeRangePicker: true },
   head: () => ({

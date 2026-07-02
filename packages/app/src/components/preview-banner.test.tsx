@@ -61,14 +61,14 @@ describe("PreviewBanner", () => {
 
   it("floats the pill via a centered, zero-height, sticky lane so content scrolls under it", () => {
     render(<PreviewBanner preview="gio/apply-previews" />);
-    // The pill sits in a sticky, centered lane that reserves no height (`h-0`)
-    // and swallows its own flex gap (margins summing to -12px: `-mt-2` + `-mb-1`,
-    // with `-mt-2` pulling the resting position to the same 4px offset `top-1`
-    // pins at), so it floats over the content rather than pushing it down;
-    // `items-start` keeps the h-0 lane from stretch-squashing the pill;
-    // `pointer-events-none` lets clicks reach the content beneath. It centers
-    // within the padded column, not the viewport — so no edge-to-edge negative
-    // margins.
+    // The pill sits in a sticky, centered lane that reserves no height (`h-0`),
+    // so it floats over the content rather than pushing it down; `top-1` pins it
+    // 4px under the header (the lane's natural offset is 0 and sticky holds that
+    // 4px minimum from the first scroll pixel — no jump); `items-start` keeps the
+    // h-0 lane from stretch-squashing the pill; `px-3` matches the content inset
+    // so the pill stays off the viewport edges; `pointer-events-none` lets clicks
+    // reach the content beneath. No negative margins now that the scroll column
+    // is bare (nothing to cancel).
     const wrapper = screen.getByRole("status").parentElement;
     expect(wrapper).toHaveClass(
       "sticky",
@@ -77,11 +77,10 @@ describe("PreviewBanner", () => {
       "items-start",
       "justify-center",
       "h-0",
-      "-mt-2",
-      "-mb-1",
+      "px-3",
       "pointer-events-none",
     );
-    expect(wrapper).not.toHaveClass("-mx-3");
+    expect(wrapper).not.toHaveClass("-mt-2", "-mb-1", "-mx-3");
   });
 
   it("wears the rounded-full pill shape", () => {

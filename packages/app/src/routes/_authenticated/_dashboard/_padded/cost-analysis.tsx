@@ -23,7 +23,7 @@ import { formatCost } from "@/lib/runner-pricing";
 import { TimeRangeSearchSchema } from "@/lib/time-range";
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/cost-analysis",
+  "/_authenticated/_dashboard/_padded/cost-analysis",
 )({
   staticData: { breadcrumb: "Cost Analysis" },
   head: () => ({
