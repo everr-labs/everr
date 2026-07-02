@@ -27,6 +27,9 @@ export const alertDefinitions = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     organizationId: text("organization_id").notNull(),
     repoid: text("repoid").notNull(),
+    // Preview namespace: '' is the live state (see dashboards.preview).
+    // Preview rows evaluate normally but never dispatch notifications.
+    preview: text("preview").notNull().default(""),
     slug: text("slug").notNull(),
     project: text("project").notNull().default("default"),
     evaluationIntervalSeconds: integer("evaluation_interval_seconds").notNull(),
@@ -78,6 +81,7 @@ export const alertDefinitions = pgTable(
     uniqueIndex("alert_definitions_org_repo_project_slug_uq").on(
       table.organizationId,
       table.repoid,
+      table.preview,
       table.project,
       table.slug,
     ),

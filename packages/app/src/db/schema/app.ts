@@ -179,6 +179,10 @@ export const dashboards = pgTable(
     // Stable repository identifier from everr.yaml — the apply ownership and
     // prune boundary. Dashboards are unreleased, so identity changes directly.
     repoid: text("repoid").notNull().default(""),
+    // Preview namespace: '' is the live state; otherwise a preview name
+    // (usually a git branch). Part of the identity tuple so a preview apply
+    // reconciles its own row set without ever touching live rows.
+    preview: text("preview").notNull().default(""),
     // Perses project namespace inside the repository. Denormalized from the
     // document's metadata.project (default "default") so identity/indexing
     // never reads from JSONB.
@@ -206,6 +210,7 @@ export const dashboards = pgTable(
     uniqueIndex("dashboards_tenant_repo_project_slug_uq").on(
       table.organizationId,
       table.repoid,
+      table.preview,
       table.project,
       table.slug,
     ),
@@ -225,6 +230,10 @@ export const runbooks = pgTable(
     // prune boundary, like dashboards. Runbooks from other repoids are never
     // touched on apply.
     repoid: text("repoid").notNull().default(""),
+    // Preview namespace: '' is the live state; otherwise a preview name
+    // (usually a git branch). Part of the identity tuple so a preview apply
+    // reconciles its own row set without ever touching live rows.
+    preview: text("preview").notNull().default(""),
     // Perses project namespace that owns this runbook (identity), denormalized
     // from metadata.project like dashboards.
     project: text("project").notNull(),
@@ -246,12 +255,45 @@ export const runbooks = pgTable(
     uniqueIndex("runbooks_tenant_repo_project_slug_uq").on(
       table.organizationId,
       table.repoid,
+      table.preview,
       table.project,
       table.slug,
     ),
     index("runbooks_tenant_updated_idx").on(
       table.organizationId,
       sql`updated_at DESC`,
+    ),
+  ],
+);
+
+/**
+ * Registry of applied previews: one row per (org, repoid, preview name).
+ * Powers the web app's preview switcher (which repoids a preview covers is
+ * the overlay boundary) and the retention job. `lastAppliedAt` is touched on
+ * every apply; rows older than the retention window are hard-deleted along
+ * with their resource rows.
+ */
+export const previews = pgTable(
+  "previews",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: text("organization_id").notNull(),
+    repoid: text("repoid").notNull(),
+    // Raw preview name (usually a git branch, e.g. "gio/desktop-app"),
+    // stored verbatim; URL-encoded only at the edges.
+    name: text("name").notNull(),
+    lastAppliedAt: timestamp("last_applied_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("previews_tenant_repo_name_uq").on(
+      table.organizationId,
+      table.repoid,
+      table.name,
     ),
   ],
 );
