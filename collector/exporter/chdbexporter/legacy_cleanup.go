@@ -56,25 +56,10 @@ func adoptLegacyLocalTable(ctx context.Context, db driver.Conn, database, legacy
 }
 
 // adoptLegacyLogsTable renames the legacy logs table under the cloud-facing
-// name and brings it up to the column set the explorer queries filter on:
-// legacy tables predate TimestampTime, which is the reason the old view
-// layout broke.
+// name; migrateLogsTable then brings it up to the current column set.
 func adoptLegacyLogsTable(ctx context.Context, cfg *Config, db driver.Conn) error {
-	adopted, err := adoptLegacyLocalTable(ctx, db, cfg.database(), legacyLogsTableName, cfg.LogsTableName)
-	if err != nil || !adopted {
-		return err
-	}
-
-	addColumn := fmt.Sprintf(
-		"ALTER TABLE %q.%q ADD COLUMN IF NOT EXISTS `TimestampTime` DateTime DEFAULT toDateTime(Timestamp)",
-		cfg.database(),
-		cfg.LogsTableName,
-	)
-	if err := db.Exec(ctx, addColumn); err != nil {
-		return fmt.Errorf("add TimestampTime to adopted logs table: %w", err)
-	}
-
-	return nil
+	_, err := adoptLegacyLocalTable(ctx, db, cfg.database(), legacyLogsTableName, cfg.LogsTableName)
+	return err
 }
 
 // adoptLegacyTraceTables renames the legacy traces table and its trace-id

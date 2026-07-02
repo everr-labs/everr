@@ -55,7 +55,11 @@ func TestAdoptLegacyLogsTablePreservesDataAndAddsTimestampTime(t *testing.T) {
 	ctx := t.Context()
 	seedLegacyLogsLayout(t, ctx, db)
 
-	require.NoError(t, adoptLegacyLogsTable(ctx, cloudNamedConfig(), db))
+	// Mirrors the exporter start sequence: adopt the legacy table, then run
+	// the column migration against it.
+	cfg := cloudNamedConfig()
+	require.NoError(t, adoptLegacyLogsTable(ctx, cfg, db))
+	require.NoError(t, migrateLogsTable(ctx, cfg, db))
 
 	legacyExists, err := tableExists(ctx, db, "default", "otel_logs")
 	require.NoError(t, err)
