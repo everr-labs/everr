@@ -18,9 +18,7 @@ fn cached_update_prints_notice_without_network() {
         .assert()
         .success()
         .stdout(contains("A new version is available: 2099.1.0"))
-        .stdout(contains(
-            "Run: curl -fsSL https://everr.dev/upgrade.sh | bash",
-        ));
+        .stdout(contains("Run: everr upgrade"));
 }
 
 #[test]
@@ -45,9 +43,7 @@ fn stale_cache_fetches_release_metadata_and_records_update() {
     .assert()
     .success()
     .stdout(contains("A new version is available: 2099.1.0"))
-    .stdout(contains(
-        "Run: curl -fsSL https://everr.dev/upgrade.sh | bash",
-    ));
+    .stdout(contains("Run: everr upgrade"));
 
     mock.assert();
     let cache = fs::read_to_string(env.update_cache_path()).expect("read cache");
@@ -66,9 +62,7 @@ fn cached_update_continues_to_print_before_next_check_interval() {
         .assert()
         .success()
         .stdout(contains("A new version is available: 2099.1.0"))
-        .stdout(contains(
-            "Run: curl -fsSL https://everr.dev/upgrade.sh | bash",
-        ));
+        .stdout(contains("Run: everr upgrade"));
 }
 
 #[test]

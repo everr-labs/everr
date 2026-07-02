@@ -13,7 +13,7 @@ use crate::cli::Cli;
 const CHECK_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
 const FETCH_TIMEOUT: Duration = Duration::from_millis(750);
 const RELEASE_METADATA_PATH: &str = "/everr-app/release-metadata.json";
-const UPGRADE_COMMAND: &str = "curl -fsSL https://everr.dev/upgrade.sh | bash";
+const UPGRADE_COMMAND: &str = "everr upgrade";
 
 #[cfg(debug_assertions)]
 const RELEASE_METADATA_URL_OVERRIDE_ENV: &str = "EVERR_RELEASE_METADATA_URL_FOR_TESTS";
