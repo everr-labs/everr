@@ -28,9 +28,7 @@ async fn main() -> Result<()> {
     let cli = Cli::parse_from(argv.clone());
     let telemetry = command_telemetry::init();
     command_telemetry::record_invocation(&cli, argv);
-    if !matches!(cli.command, Commands::Upgrade) {
-        update_notice::maybe_print(&cli).await;
-    }
+    update_notice::maybe_print(&cli).await;
 
     match cli.command {
         Commands::Uninstall => uninstall::run_uninstall()?,

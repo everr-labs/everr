@@ -3,7 +3,6 @@ use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
 use semver::Version;
-use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
 use crate::update_notice;
@@ -14,11 +13,6 @@ const DOWNLOAD_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const DOWNLOAD_READ_TIMEOUT: Duration = Duration::from_secs(30);
 const FALLBACK_COMMAND: &str = "curl -fsSL https://everr.dev/upgrade.sh | bash";
 const DOWNLOAD_BASE_URL_OVERRIDE_ENV: &str = "EVERR_DOWNLOAD_BASE_URL_FOR_TESTS";
-
-#[derive(Debug, Deserialize)]
-struct ReleaseMetadata {
-    version: String,
-}
 
 pub async fn run() -> Result<()> {
     let current = Version::parse(env!("EVERR_VERSION")).context("parse current CLI version")?;
@@ -31,9 +25,12 @@ pub async fn run() -> Result<()> {
 
     let binary_name = release_binary_name()?;
     let base = download_base_url()?;
+    let client = download_client()?;
     println!("Downloading Everr CLI v{latest}...");
-    let binary = download_bytes(&format!("{base}/{binary_name}")).await?;
-    let checksum_file = download_bytes(&format!("{base}/{binary_name}.sha256")).await?;
+    let (binary, checksum_file) = futures_util::try_join!(
+        download_bytes(&client, format!("{base}/{binary_name}")),
+        download_bytes(&client, format!("{base}/{binary_name}.sha256")),
+    )?;
     verify_sha256(&binary, &checksum_file)?;
     replace_current_exe(&binary)?;
     println!("Upgraded everr v{current} → v{latest}");
@@ -41,27 +38,12 @@ pub async fn run() -> Result<()> {
 }
 
 async fn fetch_latest_version() -> Result<Version> {
-    let url = update_notice::release_metadata_url();
-    let client = reqwest::Client::builder()
-        .timeout(METADATA_TIMEOUT)
-        .build()
-        .context("build release metadata client")?;
-    let metadata: ReleaseMetadata = client
-        .get(&url)
-        .send()
-        .await
-        .with_context(|| format!("GET {url}"))?
-        .error_for_status()
-        .with_context(|| format!("GET {url}"))?
-        .json()
-        .await
-        .with_context(|| format!("parse {url}"))?;
-    Version::parse(&metadata.version)
-        .with_context(|| format!("parse latest version {:?}", metadata.version))
+    let raw = update_notice::fetch_latest_version(METADATA_TIMEOUT).await?;
+    Version::parse(&raw).with_context(|| format!("parse latest version {raw:?}"))
 }
 
 /// Same platform → artifact mapping as packages/docs/public/install.sh.
-fn release_binary_name() -> Result<&'static str> {
+pub fn release_binary_name() -> Result<&'static str> {
     match (std::env::consts::OS, std::env::consts::ARCH) {
         ("macos", "aarch64") => Ok("everr"),
         ("linux", "aarch64") => Ok("everr-linux-arm64"),
@@ -91,14 +73,17 @@ fn download_base_url() -> Result<String> {
     ))
 }
 
-async fn download_bytes(url: &str) -> Result<Vec<u8>> {
-    let client = reqwest::Client::builder()
+fn download_client() -> Result<reqwest::Client> {
+    reqwest::Client::builder()
         .connect_timeout(DOWNLOAD_CONNECT_TIMEOUT)
         .read_timeout(DOWNLOAD_READ_TIMEOUT)
         .build()
-        .context("build download client")?;
+        .context("build download client")
+}
+
+async fn download_bytes(client: &reqwest::Client, url: String) -> Result<Vec<u8>> {
     let response = client
-        .get(url)
+        .get(&url)
         .send()
         .await
         .with_context(|| format!("GET {url}"))?
@@ -120,11 +105,7 @@ fn verify_sha256(binary: &[u8], checksum_file: &[u8]) -> Result<()> {
         .next()
         .context("checksum file is empty")?
         .to_ascii_lowercase();
-    let digest = Sha256::digest(binary);
-    let mut actual = String::with_capacity(digest.len() * 2);
-    for byte in digest {
-        actual.push_str(&format!("{byte:02x}"));
-    }
+    let actual = format!("{:x}", Sha256::digest(binary));
     if actual != expected {
         bail!("checksum mismatch for downloaded binary: expected {expected}, got {actual}");
     }

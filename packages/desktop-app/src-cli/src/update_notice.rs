@@ -8,7 +8,7 @@ use chrono::{DateTime, Utc};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
-use crate::cli::Cli;
+use crate::cli::{Cli, Commands};
 
 const CHECK_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
 const FETCH_TIMEOUT: Duration = Duration::from_millis(750);
@@ -37,6 +37,11 @@ struct CacheFile {
 }
 
 pub async fn maybe_print(cli: &Cli) {
+    // `everr upgrade` fetches the same metadata itself; nagging first is noise.
+    if matches!(cli.command, Commands::Upgrade) {
+        return;
+    }
+
     if !cli.prints_human_stdout(std::io::stdout().is_terminal()) {
         return;
     }
@@ -62,7 +67,7 @@ async fn check() -> Result<CacheFile> {
         }
     }
 
-    match fetch_latest_version().await {
+    match fetch_latest_version(FETCH_TIMEOUT).await {
         Ok(latest_version) => {
             let update_available = is_newer(&latest_version, env!("EVERR_VERSION"));
             let cache = CacheFile {
@@ -115,10 +120,10 @@ fn is_stale(cache: &CacheFile) -> bool {
         .map_or(true, |elapsed| elapsed >= CHECK_INTERVAL)
 }
 
-async fn fetch_latest_version() -> Result<String> {
+pub(crate) async fn fetch_latest_version(timeout: Duration) -> Result<String> {
     let url = release_metadata_url();
     let client = reqwest::Client::builder()
-        .timeout(FETCH_TIMEOUT)
+        .timeout(timeout)
         .build()
         .context("build release metadata client")?;
     let metadata: ReleaseMetadata = client
@@ -126,13 +131,15 @@ async fn fetch_latest_version() -> Result<String> {
         .send()
         .await
         .with_context(|| format!("GET {url}"))?
+        .error_for_status()
+        .with_context(|| format!("GET {url}"))?
         .json()
         .await
         .with_context(|| format!("parse {url}"))?;
     Ok(metadata.version)
 }
 
-pub(crate) fn release_metadata_url() -> String {
+fn release_metadata_url() -> String {
     #[cfg(debug_assertions)]
     if let Ok(url) = std::env::var(RELEASE_METADATA_URL_OVERRIDE_ENV) {
         if !url.trim().is_empty() {
