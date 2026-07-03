@@ -18,15 +18,10 @@ export const Route = createFileRoute("/_authenticated/_dashboard/_previewable")(
 // list + detail). It mounts ONE `<PreviewBanner>` for the whole subtree so the
 // pill is a single persistent element that survives navigation between these
 // routes (no per-page remount, no re-run entrance animation, no per-page prop
-// threading). Being pathless, it adds no URL segment — the child URLs are
-// unchanged.
-//
-// This is also the natural home for any subtree-wide chrome we may want later
-// (e.g. a shared padding/max-width wrapper around previewable content): add it
-// here rather than repeating it on every page.
+// threading).
 function PreviewableLayout() {
-  // App-wide preview context lives on the `_dashboard` ancestor; read it there.
   const { preview } = useSearch({ from: "/_authenticated/_dashboard" });
+
   // Detail routes surface how *this* resource differs under the preview by
   // returning `previewStatus` from their loader; list routes don't. Walk the
   // matches root→leaf and keep the deepest one that carries a status, so the
@@ -41,19 +36,9 @@ function PreviewableLayout() {
     if (data?.previewStatus !== undefined) status = data.previewStatus;
   }
 
-  // This layout owns the previewable subtree's spacing. Two direct children of
-  // the bare `_dashboard` scroll column:
-  //   - the PreviewBanner, whose sticky, zero-height lane floats the pill over
-  //     the content (it's a flow sibling that reserves no height — see
-  //     preview-banner.tsx);
-  //   - the PageContainer, THE standard 12px page inset, wrapping the routed
-  //     content.
-  // The banner sits OUTSIDE the PageContainer so its lane spans the column edge
-  // to edge (its own `px-3` keeps the pill off the viewport edges) rather than
-  // being boxed inside the content inset.
   return (
     <>
-      <PreviewBanner preview={preview} status={status} />
+      {preview && <PreviewBanner preview={preview} status={status} />}
       <PageContainer>
         <Outlet />
       </PageContainer>
