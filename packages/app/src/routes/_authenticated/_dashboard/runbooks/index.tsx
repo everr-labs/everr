@@ -59,7 +59,7 @@ function RunbooksIndexPage() {
       {isEmpty && (
         <ResourceEmptyState
           title="No runbooks yet"
-          description="Paste this into your coding assistant and it'll set up your first runbook."
+          description="Paste this into your coding assistant. It writes the YAML, applies it, and the runbook shows up here."
           assistantPrompt={ASSISTANT_RUNBOOK_PROMPT}
         />
       )}

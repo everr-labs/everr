@@ -474,8 +474,9 @@ function AlertsEmptyState() {
   return (
     <ResourceEmptyState
       title="No alert rules yet"
-      description="Paste this into your coding assistant and it'll set up your first alert."
+      description="Paste this into your coding assistant. It writes the YAML, applies it, and the alert shows up here."
       assistantPrompt={ASSISTANT_ALERT_PROMPT}
+      docsHref="https://everr.dev/docs/alerts/first-alert"
     />
   );
 }

@@ -61,8 +61,9 @@ function DashboardsIndexPage() {
       {isEmpty && (
         <ResourceEmptyState
           title="No dashboards yet"
-          description="Paste this into your coding assistant and it'll set up your first dashboard."
+          description="Paste this into your coding assistant. It writes the YAML, applies it, and the dashboard shows up here."
           assistantPrompt={ASSISTANT_DASHBOARD_PROMPT}
+          docsHref="https://everr.dev/docs/dashboards/first-dashboard"
         />
       )}
 
