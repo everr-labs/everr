@@ -268,6 +268,9 @@ export const listAlerts = createAuthenticatedServerFn({ method: "GET" })
     const query = db
       .select({
         ...alertListColumns,
+        // `document`/`preview`/`folderPath` extend the shared list columns for
+        // the overlay diff; keep them out of `alertListColumns` so these
+        // explicit keys never collide with a spread key (last-write-wins).
         document: alertDefinitions.document,
         preview: alertDefinitions.preview,
         // Alert rows have no folderPath; the constant satisfies
