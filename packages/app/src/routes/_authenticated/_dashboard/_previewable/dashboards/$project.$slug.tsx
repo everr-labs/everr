@@ -1,6 +1,8 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
+import gridLayoutCSS from "react-grid-layout/css/styles.css?url";
 import { DashboardGrid } from "@/components/dashboards/dashboard-grid";
+import gridLayoutOverridesCSS from "@/components/dashboards/dashboard-grid.css?url";
 import { DashboardNotFound } from "@/components/dashboards/dashboard-not-found";
 import { DashboardProvider } from "@/components/dashboards/use-dashboard";
 import { dashboardOptions } from "@/data/dashboards/options";
@@ -15,7 +17,20 @@ export const Route = createFileRoute(
       { label: match.loaderData?.name ?? "Dashboard" },
     ],
   },
-  head: () => ({ meta: [{ title: "Everr - Dashboard" }] }),
+  head: () => ({
+    meta: [{ title: "Everr - Dashboard" }],
+    links: [
+      {
+        rel: "stylesheet",
+        href: gridLayoutCSS,
+      },
+      {
+        rel: "stylesheet",
+        href: gridLayoutOverridesCSS,
+      },
+    ],
+  }),
+
   component: DashboardPage,
   notFoundComponent: DashboardNotFound,
   // Preview is app-wide search state; declaring it as a loader dep keeps the

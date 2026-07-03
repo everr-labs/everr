@@ -14,14 +14,12 @@ import {
   stripSearchParams,
   useMatches,
 } from "@tanstack/react-router";
-import gridLayoutCSS from "react-grid-layout/css/styles.css?url";
 import { z } from "zod";
 import { RefreshPicker } from "@/components/analytics/refresh-picker";
 import { TimeRangePicker } from "@/components/analytics/time-range-picker";
 import { AppSidebar } from "@/components/app-sidebar";
 import { CommandBar } from "@/components/command-bar";
 import { DashboardBreadcrumb } from "@/components/dashboard-breadcrumb";
-import gridLayoutOverridesCSS from "@/components/dashboards/dashboard-grid.css?url";
 import { PreviewIndicator } from "@/components/preview-indicator";
 import { ExploreSearchRetainShape } from "@/lib/explore-search";
 import { SIDEBAR_TRACKED_LEFT } from "@/lib/sidebar-tracked-left";
@@ -91,18 +89,6 @@ export const Route = createFileRoute("/_authenticated/_dashboard")({
       });
     }
   },
-  head: () => ({
-    links: [
-      {
-        rel: "stylesheet",
-        href: gridLayoutCSS,
-      },
-      {
-        rel: "stylesheet",
-        href: gridLayoutOverridesCSS,
-      },
-    ],
-  }),
   component: RouteComponent,
 });
 
@@ -153,17 +139,18 @@ function RouteComponent() {
           </div>
         </header>
         <div className="flex min-h-0 flex-1 flex-col overflow-auto">
-          {search.github_install === "linked" ? (
+          {search.github_install === "linked" && (
             <div className="mx-3 mt-3 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
               GitHub installation linked successfully.
             </div>
-          ) : null}
-          {search.github_install === "error" ? (
+          )}
+
+          {search.github_install === "error" && (
             <div className="mx-3 mt-3 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900">
               Failed to link GitHub installation
               {search.reason ? ` (${search.reason})` : ""}.
             </div>
-          ) : null}
+          )}
           <Outlet />
         </div>
       </SidebarInset>
