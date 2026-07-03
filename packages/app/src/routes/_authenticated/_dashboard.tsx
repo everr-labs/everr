@@ -5,6 +5,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@everr/ui/components/sidebar";
+import { cn } from "@everr/ui/lib/utils";
 import {
   createFileRoute,
   Outlet,
@@ -23,6 +24,7 @@ import { DashboardBreadcrumb } from "@/components/dashboard-breadcrumb";
 import gridLayoutOverridesCSS from "@/components/dashboards/dashboard-grid.css?url";
 import { PreviewIndicator } from "@/components/preview-indicator";
 import { ExploreSearchRetainShape } from "@/lib/explore-search";
+import { SIDEBAR_TRACKED_LEFT } from "@/lib/sidebar-tracked-left";
 import {
   ResolvedTimeRangeSearchSchema,
   TimeRangeSearchSchema,
@@ -118,8 +120,19 @@ function RouteComponent() {
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset className="h-screen min-w-0">
-        <header className="flex h-12 border-b border-sidebar-border px-3 bg-sidebar">
+      <SidebarInset className="h-screen min-w-0 pt-12">
+        {/* `fixed` (not in-flow, not sticky): the macOS rubber-band translates
+            all in-flow content — root bounce chained from the content scroller
+            included — but leaves fixed elements pinned. This is what lets the
+            content keep its native overscroll bounce while the topnav stays
+            put (the sidebar is already `fixed` inside <Sidebar>). SidebarInset
+            compensates with pt-12. */}
+        <header
+          className={cn(
+            "fixed top-0 right-0 z-10 flex h-12 border-b border-sidebar-border bg-sidebar px-3",
+            SIDEBAR_TRACKED_LEFT,
+          )}
+        >
           <div className="flex items-center justify-between flex-1">
             <div className="flex items-center gap-2">
               <SidebarTrigger className="-ml-1" />

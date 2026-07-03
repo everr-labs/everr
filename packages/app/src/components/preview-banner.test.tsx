@@ -59,20 +59,19 @@ describe("PreviewBanner", () => {
     ).toBeInTheDocument();
   });
 
-  it("floats the pill via a centered, zero-height, sticky lane so content scrolls under it", () => {
+  it("floats the pill via a centered, zero-height, fixed lane so content scrolls under it", () => {
     render(<PreviewBanner preview="gio/apply-previews" />);
-    // The pill sits in a sticky, centered lane that reserves no height (`h-0`),
-    // so it floats over the content rather than pushing it down; `top-1` pins it
-    // 4px under the header (the lane's natural offset is 0 and sticky holds that
-    // 4px minimum from the first scroll pixel — no jump); `items-start` keeps the
-    // h-0 lane from stretch-squashing the pill; `px-3` matches the content inset
-    // so the pill stays off the viewport edges; `pointer-events-none` lets clicks
-    // reach the content beneath. No negative margins now that the scroll column
-    // is bare (nothing to cancel).
+    // The pill sits in a viewport-fixed, centered lane that reserves no height
+    // (`h-0`), so it floats over the content rather than pushing it down.
+    // `fixed` — not sticky — keeps it out of the macOS rubber-band, which only
+    // translates in-flow content; `top-13` pins it 4px under the fixed h-12
+    // topnav; `items-start` keeps the h-0 lane from stretch-squashing the pill;
+    // `px-3` matches the content inset so the pill stays off the viewport
+    // edges; `pointer-events-none` lets clicks reach the content beneath.
     const wrapper = screen.getByRole("status").parentElement;
     expect(wrapper).toHaveClass(
-      "sticky",
-      "top-1",
+      "fixed",
+      "top-13",
       "flex",
       "items-start",
       "justify-center",
@@ -80,7 +79,7 @@ describe("PreviewBanner", () => {
       "px-3",
       "pointer-events-none",
     );
-    expect(wrapper).not.toHaveClass("-mt-2", "-mb-1", "-mx-3");
+    expect(wrapper).not.toHaveClass("sticky", "-mt-2", "-mb-1", "-mx-3");
   });
 
   it("wears the rounded-full pill shape", () => {

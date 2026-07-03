@@ -4,11 +4,13 @@ import {
   BannerContent,
 } from "@everr/ui/components/banner";
 import { Button } from "@everr/ui/components/button";
+import { cn } from "@everr/ui/lib/utils";
 import { useNavigate } from "@tanstack/react-router";
 import { GitBranch, LogOut, X } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import type * as React from "react";
 import type { PreviewStatus } from "@/data/previews/overlay";
+import { SIDEBAR_TRACKED_LEFT } from "@/lib/sidebar-tracked-left";
 import {
   dismissPreview,
   hasEntrancePlayed,
@@ -56,34 +58,18 @@ function message(preview: string, status?: PreviewStatus): string {
   }
 }
 
-/**
- * Context banner for an active preview. Names the preview and — on detail routes
- * that pass a `status` — how this resource differs under it; lists pass no status
- * and get generic copy. It carries two affordances:
- *
- *   - "Exit preview" clears the `preview` search param (preserving all other
- *     params) to return to live — this unmounts the whole banner instantly (no
- *     exit animation, so it doesn't fight the route transition).
- *   - a Dismiss (×) button hides the pill in place without leaving preview mode;
- *     the header PreviewIndicator still signals the preview. Dismissal is
- *     in-memory only (see ./preview-dismissals), keyed by preview name, and
- *     animates the pill up and out.
- *
- * The pill animates in from the top on first appearance (page load / entering a
- * preview). Renders nothing on live, so callers can mount it unconditionally.
- */
 export function PreviewBanner({
   preview,
   status,
 }: {
-  preview?: string;
+  preview: string | undefined;
   status?: PreviewStatus;
 }) {
   const navigate = useNavigate();
   const reduceMotion = useReducedMotion();
-  // Reads treat "" / whitespace as live; mirror that so a stray `?preview=`
-  // doesn't render an empty banner.
-  const name = preview?.trim();
+  // Reads treat absent / "" / whitespace as live; mirror that so mounting on
+  // live or with a stray `?preview=` doesn't render an empty banner.
+  const name = (preview ?? "").trim();
   // Hooks run before any early return; dismissal is derived from the store, not
   // synced into local state.
   const dismissed = useIsPreviewDismissed(name);
@@ -98,53 +84,30 @@ export function PreviewBanner({
   const exitPreview = () =>
     navigate({ to: ".", search: (prev) => ({ ...prev, preview: undefined }) });
 
-  // Snappy, decisive vertical slide (ease-out-expo). Enter ~220ms, exit a hair
-  // quicker at ~160ms per motion convention. `prefers-reduced-motion` collapses
-  // both to an instant show/hide (no offset, zero duration).
   const enter = reduceMotion ? { opacity: 1 } : { y: 0, opacity: 1 };
   const hidden = reduceMotion ? { opacity: 0 } : { y: -16, opacity: 0 };
 
   return (
-    // A centered floating pill (think Vercel/Next.js preview mode). The wrapper
-    // is a zero-height, sticky, full-width lane — the first flow child of the
-    // bare `_dashboard` scroll column, rendered by `_previewable` as a sibling of
-    // the padded content (not inside it). `h-0` reserves no height, so the pill
-    // overlays the content beneath instead of pushing it down; `items-start`
-    // stops the zero-height lane from stretch-squashing the pill. `top-1` pins it
-    // 4px under the header: at rest the lane's natural offset is 0, and sticky
-    // holds it at that 4px minimum from the first scroll pixel, so the chip keeps
-    // a constant tight gap whether the page is at rest or scrolled — no jump as
-    // sticky engages. `px-3` matches the content inset so the pill can't kiss the
-    // viewport edges on narrow widths. `pointer-events-none` on the empty lane
-    // lets clicks fall through to the content it floats over (and keeps content
-    // interactive throughout the exit animation); the pill re-enables its own.
-    // `z-30` clears sticky table headers (z-10) and react-grid-layout dragged
-    // panels (raw z-index: 3) but stays under popovers/modals (z-50). The
-    // animated element IS this lane, so the pill rides its translate — and
-    // `role="status"` stays on the Banner child, keeping the lane as the Banner's
-    // parentElement.
     <AnimatePresence>
       {!dismissed && (
         <motion.div
-          className="pointer-events-none sticky top-1 z-30 flex h-0 items-start justify-center px-3"
+          className={cn(
+            "pointer-events-none fixed top-13 right-0 z-30 flex h-0 items-start justify-center px-3",
+            SIDEBAR_TRACKED_LEFT,
+          )}
           // Every page mounts its own banner, but the pill should read as one
           // persistent element: the entrance only plays the first time this
           // preview appears (per reload); later mounts start already in place.
           initial={reduceMotion || hasEntrancePlayed(name) ? false : hidden}
           animate={enter}
-          // The exit carries its own transition: the top-level `transition`
-          // only governs `animate`, so without this the dismissal would run at
-          // the enter's 220ms instead of the quicker 160ms it's meant to have.
           exit={{
             ...hidden,
             transition: {
               duration: reduceMotion ? 0 : 0.16,
-              ease: [0.16, 1, 0.3, 1],
             },
           }}
           transition={{
             duration: reduceMotion ? 0 : 0.22,
-            ease: [0.16, 1, 0.3, 1],
           }}
           onAnimationComplete={() => markEntrancePlayed(name)}
         >
