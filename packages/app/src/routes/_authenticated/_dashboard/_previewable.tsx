@@ -23,10 +23,10 @@ export const Route = createFileRoute("/_authenticated/_dashboard/_previewable")(
 // scrolling content, copy, and exit action to the ui `PreviewFrame`.
 function PreviewableLayout() {
   const navigate = useNavigate();
-  const [dismissed, dismiss] = usePreviewDismissed();
   const { preview } = useSearch({ from: "/_authenticated/_dashboard" });
   // "" / whitespace is live.
   const name = (preview ?? "").trim();
+  const [dismissed, dismiss] = usePreviewDismissed(name);
 
   // Detail routes return `previewStatus` from their loader; list routes don't.
   // Keep the deepest status so the bar's copy matches the resource on screen.
