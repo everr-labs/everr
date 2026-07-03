@@ -64,14 +64,14 @@ describe("PreviewBanner", () => {
     // The pill sits in a viewport-fixed, centered lane that reserves no height
     // (`h-0`), so it floats over the content rather than pushing it down.
     // `fixed` — not sticky — keeps it out of the macOS rubber-band, which only
-    // translates in-flow content; `top-13` pins it 4px under the fixed h-12
+    // translates in-flow content; `top-14` pins it 8px under the fixed h-12
     // topnav; `items-start` keeps the h-0 lane from stretch-squashing the pill;
     // `px-3` matches the content inset so the pill stays off the viewport
     // edges; `pointer-events-none` lets clicks reach the content beneath.
     const wrapper = screen.getByRole("status").parentElement;
     expect(wrapper).toHaveClass(
       "fixed",
-      "top-13",
+      "top-14",
       "flex",
       "items-start",
       "justify-center",
