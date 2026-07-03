@@ -66,7 +66,7 @@ function PreviewFrame({
                     size="icon-sm"
                     aria-label="Dismiss"
                     title="Dismiss"
-                    className="rounded-full opacity-70 hover:opacity-100"
+                    className="opacity-70 hover:opacity-100"
                     onClick={() => {
                       setDismissed(true);
                       onDismiss?.();
