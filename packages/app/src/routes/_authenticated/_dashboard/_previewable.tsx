@@ -30,9 +30,12 @@ function PreviewableLayout() {
 
   // Detail routes return `previewStatus` from their loader; list routes don't.
   // Keep the deepest status so the bar's copy matches the resource on screen.
+  // Only trust matches under this layout, so an unrelated route that happens to
+  // expose a `previewStatus` in its loaderData can't feed the bar.
   const matches = useMatches();
   let status: PreviewStatus | undefined;
   for (const match of matches) {
+    if (!match.routeId.startsWith(Route.id)) continue;
     const data = match.loaderData as
       | { previewStatus?: PreviewStatus }
       | undefined;

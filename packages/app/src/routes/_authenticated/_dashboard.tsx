@@ -37,8 +37,11 @@ const DashboardSearchSchema = TimeRangeSearchSchema.extend({
   reason: z.string().optional(),
   // Active preview (a preview/branch name). App-wide context: retained across
   // navigation (below) so the whole app stays in the same preview until the
-  // user switches back to Live. Absent = Live.
-  preview: z.string().optional(),
+  // user switches back to Live. Absent = Live. Bounded here (matching the
+  // server's previewNameSchema cap) and coerced to Live on anything oversized,
+  // so retainSearchParams can't carry a junk value around; control-character
+  // rejection stays authoritative on the server at apply time.
+  preview: z.string().max(200).optional().catch(undefined),
   // Dashboard variable values, e.g. ?vars={"env":"prod","svc":["a","b"]}.
   // Deliberately NOT retained across navigation — different dashboards have
   // different variables. Malformed values fall back to spec defaults.
