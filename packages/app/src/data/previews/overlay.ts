@@ -25,8 +25,7 @@ export function overlayPreview<T extends OverlayResource>(opts: {
   rows: T[];
   coveredRepoids: ReadonlySet<string>;
 }): (T & { previewStatus?: PreviewStatus })[] {
-  // Own the "" = live / anything-else = preview split here, so callers hand over
-  // one combined query result instead of re-deriving the convention each time.
+  // "" = live, anything else = a preview row.
   const live = opts.rows.filter((row) => row.preview === "");
   const previewRows = opts.rows.filter((row) => row.preview !== "");
 

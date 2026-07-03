@@ -11,10 +11,9 @@ import { X } from "lucide-react";
 import type * as React from "react";
 import { Separator } from "./separator";
 
-// Controlled: the caller owns `dismissed` and flips it in `onDismiss`. Passing
-// `onDismiss` is what renders the dismiss button; `dismissed` collapses the bar
-// (grid 1fr→0fr, pure CSS) so the content below rises in sync while the frame
-// edge stays.
+// Controlled: the caller owns `dismissed`; passing `onDismiss` renders the
+// dismiss button. Dismissing collapses the bar row (grid 1fr→0fr) rather than
+// unmounting it, so the content below rises in sync.
 function PreviewFrame({
   variant,
   icon,
@@ -54,10 +53,7 @@ function PreviewFrame({
             {(actions || onDismiss) && (
               <BannerActions className="gap-0.5">
                 {actions}
-                {actions && onDismiss && (
-                  // A hairline splits caller actions from the dismiss.
-                  <Separator orientation="vertical" />
-                )}
+                {actions && onDismiss && <Separator orientation="vertical" />}
                 {onDismiss && (
                   <Button
                     type="button"

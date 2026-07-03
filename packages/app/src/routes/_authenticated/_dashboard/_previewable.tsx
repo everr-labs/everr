@@ -19,25 +19,17 @@ export const Route = createFileRoute("/_authenticated/_dashboard/_previewable")(
   },
 );
 
-// Pathless layout for the "previewable" pages (dashboards, runbooks, alerts —
-// list + detail). In preview mode the ui `PreviewFrame` frames the section and
-// bars it (border + bar kept colour-synced by one variant); this layout just
-// supplies the scrolling content, the copy, and the routing-backed exit action.
+// Layout for the previewable pages (dashboards, runbooks, alerts). Supplies the
+// scrolling content, copy, and exit action to the ui `PreviewFrame`.
 function PreviewableLayout() {
   const navigate = useNavigate();
-  // Global (survives navigation across the previewable subtree), owned here and
-  // passed into the controlled PreviewFrame.
   const [dismissed, dismiss] = usePreviewDismissed();
   const { preview } = useSearch({ from: "/_authenticated/_dashboard" });
-  // Reads treat absent / "" / whitespace as live; mirror that so a stray
-  // `?preview=` doesn't frame a live page.
+  // "" / whitespace is live.
   const name = (preview ?? "").trim();
 
-  // Detail routes surface how *this* resource differs under the preview by
-  // returning `previewStatus` from their loader; list routes don't. Walk the
-  // matches root→leaf and keep the deepest one that carries a status, so the
-  // bar tones its copy to the resource on screen (and falls back to generic copy
-  // when none is present, e.g. the list pages or alert detail).
+  // Detail routes return `previewStatus` from their loader; list routes don't.
+  // Keep the deepest status so the bar's copy matches the resource on screen.
   const matches = useMatches();
   let status: PreviewStatus | undefined;
   for (const match of matches) {
@@ -55,7 +47,6 @@ function PreviewableLayout() {
     </div>
   );
 
-  // Live: no frame, no bar — just the scrolling content.
   if (!name) return content;
 
   return (
@@ -66,8 +57,6 @@ function PreviewableLayout() {
       dismissed={dismissed}
       onDismiss={dismiss}
       actions={
-        // Exit is the labeled, primary affordance — a distinct `LogOut` glyph
-        // (not an ×) so it never reads as a plain close.
         <Button
           type="button"
           variant="ghost"
