@@ -12,6 +12,9 @@ CREATE TABLE IF NOT EXISTS app.alert_events
   alert_definition_id String,
   repoid String,
   slug String,
+  -- Preview namespace ('' = live). Drives ServiceName / deployment.environment
+  -- in the logs projection below so preview alerts land under their own service.
+  preview String DEFAULT '',
   event_type LowCardinality(String),
   evaluation_scheduled_at DateTime64(3) DEFAULT toDateTime64(0, 3),
   event_time DateTime64(3) DEFAULT now64(3),
@@ -61,16 +64,23 @@ SELECT
   toUInt8(0) AS TraceFlags,
   'INFO' AS SeverityText,
   toUInt8(9) AS SeverityNumber,
-  'alert' AS ServiceName,
+  -- Preview alerts get their own service; live alerts stay 'alert'.
+  if(preview = '', 'alert', 'alert-preview') AS ServiceName,
   concat('alert ', slug, ' ', event_type) AS Body,
   '' AS ResourceSchemaUrl,
-  map('everr.tenant.id', tenant_id) AS ResourceAttributes,
+  -- Env facet ('deployment.environment' resource attr): the preview name for
+  -- preview alerts, 'production' for live.
+  map(
+    'everr.tenant.id', tenant_id,
+    'deployment.environment', if(preview = '', 'production', preview)
+  ) AS ResourceAttributes,
   '' AS ScopeSchemaUrl,
   'everr.alerting' AS ScopeName,
   '' AS ScopeVersion,
   map() AS ScopeAttributes,
   map(
     'alert.slug', slug,
+    'alert.preview', preview,
     'alert.event_type', event_type,
     'alert.delivery_targets', toJSONString(delivery_targets),
     'alert.silenced', if(silence_id = '', 'false', 'true'),

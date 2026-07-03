@@ -23,7 +23,13 @@ import {
   recordAlertEvents,
 } from "./03-events";
 
-const def = { id: "d1", organizationId: "org-1", repoid: "r1", slug: "s1" };
+const def = {
+  id: "d1",
+  organizationId: "org-1",
+  repoid: "r1",
+  slug: "s1",
+  preview: "",
+};
 
 describe("boundEvidence", () => {
   it("caps at 50 rows and flags truncation", () => {
@@ -67,6 +73,43 @@ describe("event row construction", () => {
       row_count: 1,
       evidence_truncated: 0,
     });
+  });
+
+  it("carries the preview namespace onto every event row", () => {
+    const previewDef = { ...def, preview: "gio/branch" };
+    expect(
+      buildEvaluationEvent({
+        def: previewDef,
+        eventType: "firing",
+        scheduledFor: new Date("2026-06-10T12:00:00.000Z"),
+      }).preview,
+    ).toBe("gio/branch");
+    expect(
+      buildInstanceEvent({
+        def: previewDef,
+        eventType: "instance_fired",
+        scheduledFor: new Date("2026-06-10T12:00:00.000Z"),
+        fingerprint: "fp",
+        labels: {},
+      }).preview,
+    ).toBe("gio/branch");
+    expect(
+      buildDeliveryFailureEvent({
+        def: previewDef,
+        scheduledFor: new Date("2026-06-10T12:00:00.000Z"),
+        failure: { channel: "slack", target: "t", error: "boom" },
+      }).preview,
+    ).toBe("gio/branch");
+    // Live definitions carry the empty namespace.
+    expect(
+      buildInstanceEvent({
+        def,
+        eventType: "instance_resolved",
+        scheduledFor: new Date("2026-06-10T12:00:00.000Z"),
+        fingerprint: "fp",
+        labels: {},
+      }).preview,
+    ).toBe("");
   });
 
   it("adds delivery targets and silence id to evaluator events", () => {
