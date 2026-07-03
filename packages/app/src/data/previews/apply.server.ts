@@ -48,12 +48,12 @@ export async function deleteStalePreviews(
 
   let removed = 0;
   for (const p of stale) {
-    const identity = and(
-      eq(previews.organizationId, p.organizationId),
-      eq(previews.repoid, p.repoid),
-      eq(previews.name, p.name),
-    );
     const deleted = await db.transaction(async (tx) => {
+      const identity = and(
+        eq(previews.organizationId, p.organizationId),
+        eq(previews.repoid, p.repoid),
+        eq(previews.name, p.name),
+      );
       // Re-check under a row lock: a concurrent apply can refresh
       // lastAppliedAt (or delete the preview) between the scan above and here,
       // and deleting on identity alone would drop a now-active preview along
