@@ -61,6 +61,7 @@ function RunbooksIndexPage() {
           title="No runbooks yet"
           description="Paste this into your coding assistant. It writes the YAML, applies it, and the runbook shows up here."
           assistantPrompt={ASSISTANT_RUNBOOK_PROMPT}
+          docsHref="https://everr.dev/docs/learn/add-a-runbook"
         />
       )}
 

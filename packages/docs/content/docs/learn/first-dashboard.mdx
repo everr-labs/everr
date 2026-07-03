@@ -20,10 +20,7 @@ The hard part of a first dashboard is the blank page: you don't yet know which o
 A concrete prompt:
 
 ```text
-Use the everr-write-dashboards skill. First inspect what telemetry this repo
-actually emits in Everr (the services, spans, metrics, and columns present in
-my data), then recommend the single most useful starter dashboard for it and
-build it. Tell me why you picked those panels.
+/everr-write-dashboards Help me build a good first dashboard based on the telemetry we have in production
 ```
 
 The Agent queries your data with `everr cloud query`, sees which signals you actually have, picks the panels and queries that fit, writes the file, and validates it with a dry-run, so you start from a dashboard grounded in your telemetry instead of a blank file. The rest of this step walks through the same actions by hand so you understand what it produces.

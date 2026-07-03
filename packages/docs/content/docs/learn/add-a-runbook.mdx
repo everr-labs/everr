@@ -10,9 +10,7 @@ This is step 6 of getting started with Everr: give the alert from [step 5](/docs
 Everr ships the `everr-write-runbooks` skill. Ask your Agent to draft the runbook grounded in your real telemetry:
 
 ```text
-Use the everr-write-runbooks skill. Add a runbook for the alert I just created:
-when to act, an embedded panel of the metric it fires on, and the steps to
-take. Link it to the alert and apply with a dry-run first.
+/everr-write-runbooks Add a runbook for the alert I just created: when to act, an embedded panel of the metric it fires on, and the steps to take
 ```
 
 The Agent inspects your telemetry, picks panels and queries that fit what you actually emit, writes the files, and validates them with `everr apply --dry-run`. The rest of this step walks through the same shape by hand.

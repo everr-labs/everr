@@ -63,7 +63,7 @@ function DashboardsIndexPage() {
           title="No dashboards yet"
           description="Paste this into your coding assistant. It writes the YAML, applies it, and the dashboard shows up here."
           assistantPrompt={ASSISTANT_DASHBOARD_PROMPT}
-          docsHref="https://everr.dev/docs/dashboards/first-dashboard"
+          docsHref="https://everr.dev/docs/learn/first-dashboard"
         />
       )}
 

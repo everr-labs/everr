@@ -20,10 +20,7 @@ The hard part of a first alert is knowing what to alert on: which signal actuall
 A concrete prompt:
 
 ```text
-Use the everr-setup-telemetry skill. First look at what telemetry this repo
-actually emits in Everr, then propose the single alert most worth having (a
-user-facing symptom, not a cause), ground its threshold in the real baselines,
-and write the rule. Tell me why that signal is the one worth paging on.
+/everr-setup-telemetry Help me build a good first alert based on the telemetry we have in production
 ```
 
 The Agent inspects your data, picks the signal, sets a threshold from your real baselines, writes the rule, and validates it with a dry-run. Make sure it's actionable: fire on symptoms users feel rather than causes, guard against noise, and identify the affected instance. The rest of this step walks through the same actions by hand so you understand what it produces.
