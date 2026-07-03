@@ -18,6 +18,10 @@ _Avoid_: using Tenant as a plain synonym for Organization
 The single Organization a session — or a connected client — is currently acting as; its telemetry is what queries read. For an MCP connection it is chosen when access is authorized and stays fixed for that connection.
 _Avoid_: last-used organization, current org, default org
 
+**User**:
+A person who uses Everr, typically the developer working on the code. Everr is built for Users and Agents at the same level: its telemetry is meant to be equally usable by a human and by an AI, neither above the other. Belongs to an Organization through a Membership.
+_Avoid_: end user, customer
+
 **Member**:
 A User's belonging to an Organization, which grants access to its telemetry and resources. Access is decided by current Membership, not by membership at the time access was granted.
 _Avoid_: collaborator, seat
@@ -103,14 +107,22 @@ _Avoid_: machine, agent
 A test whose outcome varies for the same code — sometimes passing, sometimes failing.
 _Avoid_: intermittent failure
 
+**Test telemetry**:
+Tests represented as Signals: each test case's execution captured as a Span (carrying `everr.test.*` attributes) by parsing a test framework's verbose output. The basis for surfacing pass/fail, duration, and Flaky tests over time.
+_Avoid_: test analytics, test insights, test reporting
+
 ### Resources as code
 
 **Dashboard**:
 A grid of Panels for visualizing telemetry, defined as code and reconciled with apply.
 
 **Panel**:
-A single visualization — chart, table, stat, gauge — within a Dashboard or Runbook, backed by a query.
-_Avoid_: widget, chart, visualization (a chart is one kind of Panel; the Panel is the config)
+The configured unit within a Dashboard or Runbook — a query plus a chosen Visualization and its placement in the grid. The Panel is the config; the Visualization is how it draws.
+_Avoid_: widget, chart (a chart is one Visualization kind, not the Panel)
+
+**Visualization**:
+The render kind a Panel uses to display its query result — TimeSeriesChart, BarChart, Table, StatChart, GaugeChart, and the like. Distinct from Panel: many Panels can share one Visualization kind, and switching a Panel's Visualization leaves the query intact.
+_Avoid_: chart (one kind, not the category), viz (informal), panel type
 
 **Runbook**:
 A multi-page Markdown document with embedded Panels and shared variables — the umbrella concept for any such as-code document, whether used for incident response, an agent skill, or an investigation doc.
@@ -134,7 +146,7 @@ The `everr.yaml` file that declares a directory's Repoid (its ownership boundary
 ### Agent integration
 
 **Agent**:
-An AI coding assistant — Claude Code, Cursor, Codex, and the like — that integrates with Everr through Skills or the MCP server. Not the Collector. An Agent is also the target a Skill is installed for.
+An AI coding assistant (Claude Code, Cursor, Codex, and the like) that integrates with Everr through Skills or the MCP server. A first-class consumer of Everr alongside the human User and at the same level: it reads and acts on the same telemetry, neither above nor below the User. Not the Collector. An Agent is also the target a Skill is installed for.
 _Avoid_: assistant, bot, provider
 
 **Skill**:

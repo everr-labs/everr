@@ -1,0 +1,44 @@
+---
+title: Install Everr
+description: Step 1, install the CLI and run first-time setup.
+---
+
+This is step 1 of getting started with Everr: install the CLI and finish first-time setup. By the end you'll have `everr` on your PATH, authenticated, and ready for step 2: instrumenting your app.
+
+## Install the CLI
+
+Run the installer from a terminal:
+
+```sh
+curl -fsSL https://everr.dev/install.sh | sh
+```
+
+Expected output: the installer adds the `everr` CLI to your PATH and, if your terminal is interactive, runs `everr setup` automatically.
+
+For the full list of supported platforms and every install flag, see the [CLI reference](/docs/reference/cli).
+
+## Finish setup
+
+If setup didn't run automatically, or was interrupted, run it yourself:
+
+```sh
+everr setup
+```
+
+Setup connects GitHub and authorizes the CLI.
+
+If the GitHub App is installed for your repository, Everr starts receiving CI runs from new workflow executions automatically. Trigger or wait for a new run, then check the dashboard or CLI once ingestion catches up.
+
+## Keep Everr Desktop open
+
+Everr Desktop runs your local Collector, the service that receives telemetry on your machine. Keep it open while you work locally; the rest of this path assumes the Collector is running. If it ever isn't, the `everr-setup-telemetry` skill will start it for you.
+
+## Install skills for your Agent
+
+Skills teach your Agent when and how to use Everr. Install them globally so every project picks them up:
+
+```sh
+everr skills install --all --global
+```
+
+**Next:** [Instrument your app](/docs/learn/instrument-your-app).

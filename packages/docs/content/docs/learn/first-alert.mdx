@@ -1,0 +1,136 @@
+---
+title: Create your first alert
+description: Step 5, write an AlertRule as code, apply it, and get notified.
+---
+
+This is step 5 of getting started with Everr: write one rule, reconcile it with `everr apply`, and open it in the Alerts UI. By the end you'll have a real alert and the workflow you'll reuse for every alert after.
+
+`everr apply` uses your `everr cloud login` session by default and prints the destination organization before writing. For CI or non-interactive use, set `EVERR_API_KEY` to an organization API key with the **Manage as code** (`apply`) capability (mint one in **API keys**):
+
+```sh
+export EVERR_API_KEY="<your-org-api-key>"
+```
+
+See the [`everr apply` reference](/docs/reference/cli) for the full gitops model. This step's example alerts on Node.js runtime metrics; swap the query for a signal your own services emit.
+
+## Let your Agent pick a starter
+
+The hard part of a first alert is knowing what to alert on: which signal actually predicts a problem worth waking someone for. Let your Agent answer that first. Everr ships the `everr-setup-telemetry` skill, which teaches it the `AlertRule` format and how to ground a rule in your real telemetry. Run it from the repository that emits the telemetry, so it can connect services, routes, and metrics back to the code that produces them.
+
+A concrete prompt:
+
+```text
+Use the everr-setup-telemetry skill. First look at what telemetry this repo
+actually emits in Everr, then propose the single alert most worth having (a
+user-facing symptom, not a cause), ground its threshold in the real baselines,
+and write the rule. Tell me why that signal is the one worth paging on.
+```
+
+The Agent inspects your data, picks the signal, sets a threshold from your real baselines, writes the rule, and validates it with a dry-run. Make sure it's actionable: fire on symptoms users feel rather than causes, guard against noise, and identify the affected instance. The rest of this step walks through the same actions by hand so you understand what it produces.
+
+## Create the apply directory
+
+If you already created an `everr/` directory in the previous step, reuse it: apply discovers and reconciles everything under it, and alerts (`*.alert.yaml`) sit flat alongside dashboards. Otherwise create one now with an `everr.yaml` manifest declaring a stable `repoid`:
+
+```sh
+mkdir -p everr
+```
+
+`everr/everr.yaml`:
+
+```yaml
+repoid: "2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1"
+```
+
+Generate your own UUID (for example with `uuidgen`) and keep it stable: changing it makes apply treat the rules as a different repo, so it deletes the old ones and recreates them. The manifest accepts only `repoid`; any other key is rejected. See the [manifest reference](/docs/alerts/alert-spec).
+
+## Write the rule
+
+`everr/eventloop-delay.alert.yaml`:
+
+```yaml
+kind: AlertRule
+metadata:
+  name: eventloop-delay
+spec:
+  display:
+    name: Node.js event loop delay
+    description: Services whose event loop is blocked over the last 5 minutes.
+  evaluationInterval: 1m
+  notificationMessage:
+    title: "${ServiceName} event loop is lagging"
+    description: "p99 event loop delay averaged ${p99_delay_ms}ms over the last 5 minutes"
+  query: |
+    SELECT
+      ServiceName,
+      round(avg(Value) * 1000, 1) AS p99_delay_ms
+    FROM metrics_gauge
+    WHERE MetricName = 'nodejs.eventloop.delay.p99'
+      AND TimeUnix >= now() - INTERVAL 5 MINUTE
+    GROUP BY ServiceName
+    HAVING p99_delay_ms > 100
+    ORDER BY p99_delay_ms DESC
+```
+
+A few things worth noting:
+
+- `metadata.name` is the rule's **slug** and identity. Use lowercase letters, digits, and hyphens.
+- The query **is** the condition: one row per service over the threshold → each such service is a firing instance; nothing over the threshold → no rows → resolved. `nodejs.eventloop.delay.p99` is reported in seconds, so the query converts it to milliseconds. A healthy service sits around 10ms, so `HAVING p99_delay_ms > 100` stays quiet until the event loop is genuinely blocked. Tune that number to your services. Averaging over the 5-minute window keeps a single momentary blip from paging.
+- `ServiceName` is a string column, so Everr uses it as each instance's identity automatically: one alert instance per service.
+- `notificationMessage` is templated with `${ServiceName}` and `${p99_delay_ms}` from that instance's row; only columns the query returns can be referenced.
+- `evaluationInterval: 1m` runs the query once a minute, the minimum. See the [AlertRule spec](/docs/alerts/alert-spec) for every field and constraint.
+- Link a runbook to the rule with `spec.runbook` so responders get a documented procedure when it fires.
+
+## Test the change
+
+Use dry-run to validate that the query and file are correct:
+
+```sh
+everr apply ./everr --dry-run
+```
+
+Expected output:
+
+```
+(dry run) AlertRule: 1 created, 0 updated, 0 deleted
+  + eventloop-delay
+```
+
+## Publish it
+
+```sh
+everr apply ./everr
+```
+
+Apply first prints a plan, then asks you to confirm before writing. Answer the `Apply to «Acme Corp»?` prompt, or pass `--yes` (`-y`) to skip it (required in CI and piped contexts). Expected output, after confirming:
+
+```
+Destination org: «Acme Corp»
+AlertRule: 1 created, 0 updated, 0 deleted
+  + eventloop-delay
+```
+
+If there are no changes, apply prints `Nothing to apply.` and exits without prompting: re-running is idempotent.
+
+## Open it in Everr
+
+Open Everr and go to **Alerts** (`/alerts`). Your `eventloop-delay` rule appears in the **Rules** list with its current state. Open it:
+
+- The **Configuration** card shows the evaluation interval, instance labels, and the **Last evaluated** time.
+- When a service crosses the threshold, the **Firing instances** card lists one row per firing service with a **Firing since** time. If nothing is firing, it shows the resolved state.
+- If the query errors, the rule shows an evaluation error on the detail page. Fix the SQL and re-apply.
+
+## Get notified
+
+Seeing the alert fire in the UI needs no setup. To actually receive it via Telegram or Slack, configure a channel.
+
+## Change and re-apply
+
+Edit the file (say, tighten the threshold to `HAVING p99_delay_ms > 200`) and apply again. A changed rule is updated in place; the slug and URL don't change because the slug didn't. Reconciliation is delete-by-default within the repoid: delete the file and apply, and Everr removes the rule.
+
+```sh
+rm everr/eventloop-delay.alert.yaml
+everr apply ./everr
+```
+
+**Next:** [Add a runbook](/docs/learn/add-a-runbook).

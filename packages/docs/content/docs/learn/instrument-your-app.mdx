@@ -1,0 +1,48 @@
+---
+title: Instrument your app
+description: Step 2, set up OpenTelemetry, emit your first signal (a log), and see it in the local Collector.
+---
+
+This is step 2 of getting started with Everr: set up OpenTelemetry in your app, point it at the local Collector, and confirm it works by emitting your first signal. A log is the easiest thing to add, so start there. Do each part with your Agent or by hand.
+
+## Set up OpenTelemetry
+
+**With your Agent**: the fastest path is to let it run the `everr-setup-telemetry` skill.
+
+```text
+Use the everr-setup-telemetry skill to instrument this app and send telemetry to my local Everr Collector.
+```
+
+The skill adds the OpenTelemetry SDK to your app, points its exporter at the local Collector (starting the Collector if needed), and confirms the wiring works.
+
+**By hand**: install the OpenTelemetry SDK for your language and point its exporter at the local Collector's endpoint. If your app already emits OpenTelemetry, that's the only change. Keep this to development and test environments.
+
+## Add a log
+
+**With your Agent**: ask it to add one and check it lands.
+
+```text
+Add a log line to a code path I can trigger, send it to my local Everr Collector, and confirm it shows up.
+```
+
+**By hand**: emit a log from a path you can trigger. Most apps already log; make sure your logger sends to OpenTelemetry (the setup above wires this up), or add a single line. Then run your app and trigger that path.
+
+## Verify it
+
+**With your Agent**: ask it to check.
+
+```text
+Look in my local Everr Collector for logs from this app and show me the most recent ones.
+```
+
+**By hand**: query the local store.
+
+```sh
+everr local query "SELECT Timestamp, ServiceName, SeverityText, Body FROM logs ORDER BY Timestamp DESC LIMIT 20"
+```
+
+You should see your log line with its `ServiceName`. That's your first signal in Everr. You can also open Everr Desktop to browse logs, traces, and metrics visually.
+
+If no rows appear, make sure Everr Desktop is running and your app restarted after setup, then trigger the path again.
+
+**Next:** [Send production telemetry](/docs/learn/production-telemetry).

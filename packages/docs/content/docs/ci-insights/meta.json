@@ -1,11 +1,5 @@
 {
   "title": "CI Insights",
   "defaultOpen": true,
-  "pages": [
-    "setup-new-repo",
-    "resource-monitoring",
-    "debug-ci",
-    "how-billing-works",
-    "cost-analysis"
-  ]
+  "pages": ["setup-new-repo", "resource-monitoring", "debug-ci", "how-ci-cost-is-estimated", "cost-analysis"]
 }
