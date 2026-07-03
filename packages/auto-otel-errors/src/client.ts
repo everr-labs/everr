@@ -154,16 +154,18 @@ export class Client {
         : {}),
       "everr.error.handled": event.handled,
       "everr.error.mechanism": event.mechanism,
-      "log.record.uid": errorId,
     };
     const filteredAttributes = filterKeyValueData(
       rawAttributes,
       this.redactKeys,
     );
-    const attributes = scrubAttributes(
-      filteredAttributes,
-      this.redactPatterns,
-    );
+    const attributes = {
+      ...scrubAttributes(filteredAttributes, this.redactPatterns),
+      // The uid is a library-generated identifier, never user data, so it's set
+      // after scrubbing: a numeric-heavy UUID would otherwise trip the
+      // credit-card pattern and get partially redacted to "[Filtered]".
+      "log.record.uid": errorId,
+    };
     const body = scrubString(event.message, this.redactPatterns);
     const activeSpan = trace.getActiveSpan();
 
