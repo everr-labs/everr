@@ -3,6 +3,10 @@ import { db } from "@/db/client";
 
 const deleted: unknown[] = [];
 let staleRows: unknown[] = [];
+// The row `SELECT … FOR UPDATE` sees inside the transaction; null models a
+// preview deleted since the scan, a fresh lastAppliedAt models a concurrent
+// re-apply.
+let lockedRows: unknown[] = [];
 
 vi.mock("@/db/client", () => {
   const insertChain = {
@@ -15,6 +19,11 @@ vi.mock("@/db/client", () => {
       return Promise.resolve();
     }),
   });
+  const lockChain = {
+    from: vi.fn(() => lockChain),
+    where: vi.fn(() => lockChain),
+    for: vi.fn(() => Promise.resolve(lockedRows)),
+  };
   return {
     db: {
       insert: vi.fn(() => insertChain),
@@ -24,7 +33,10 @@ vi.mock("@/db/client", () => {
         })),
       })),
       transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
-        fn({ delete: vi.fn((t: unknown) => deleteChain(t)) }),
+        fn({
+          select: vi.fn(() => lockChain),
+          delete: vi.fn((t: unknown) => deleteChain(t)),
+        }),
       ),
     },
   };
@@ -64,6 +76,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   deleted.length = 0;
   staleRows = [];
+  lockedRows = [];
 });
 
 describe("upsertPreview", () => {
@@ -81,9 +94,24 @@ describe("deleteStalePreviews", () => {
 
   it("deletes resource rows and the registry row per stale preview", async () => {
     staleRows = [{ organizationId: "org-1", repoid: "repo-1", name: "gio/x" }];
+    lockedRows = [{ lastAppliedAt: new Date(0) }];
     expect(await deleteStalePreviews(7)).toBe(1);
     // dashboards, runbooks, alertDefinitions, previews — one delete each.
     expect(deleted).toHaveLength(4);
     expect(mockedDb.transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips a preview re-applied since the scan (locked row is now fresh)", async () => {
+    staleRows = [{ organizationId: "org-1", repoid: "repo-1", name: "gio/x" }];
+    lockedRows = [{ lastAppliedAt: new Date() }];
+    expect(await deleteStalePreviews(7)).toBe(0);
+    expect(deleted).toHaveLength(0);
+  });
+
+  it("skips a preview deleted since the scan (locked row is gone)", async () => {
+    staleRows = [{ organizationId: "org-1", repoid: "repo-1", name: "gio/x" }];
+    lockedRows = [];
+    expect(await deleteStalePreviews(7)).toBe(0);
+    expect(deleted).toHaveLength(0);
   });
 });

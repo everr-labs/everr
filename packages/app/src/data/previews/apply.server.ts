@@ -46,8 +46,25 @@ export async function deleteStalePreviews(
     .from(previews)
     .where(lt(previews.lastAppliedAt, cutoff));
 
+  let removed = 0;
   for (const p of stale) {
-    await db.transaction(async (tx) => {
+    const identity = and(
+      eq(previews.organizationId, p.organizationId),
+      eq(previews.repoid, p.repoid),
+      eq(previews.name, p.name),
+    );
+    const deleted = await db.transaction(async (tx) => {
+      // Re-check under a row lock: a concurrent apply can refresh
+      // lastAppliedAt (or delete the preview) between the scan above and here,
+      // and deleting on identity alone would drop a now-active preview along
+      // with all its resource rows.
+      const [locked] = await tx
+        .select({ lastAppliedAt: previews.lastAppliedAt })
+        .from(previews)
+        .where(identity)
+        .for("update");
+      if (!locked || locked.lastAppliedAt >= cutoff) return false;
+
       for (const table of [dashboards, runbooks, alertDefinitions]) {
         await tx
           .delete(table)
@@ -59,16 +76,10 @@ export async function deleteStalePreviews(
             ),
           );
       }
-      await tx
-        .delete(previews)
-        .where(
-          and(
-            eq(previews.organizationId, p.organizationId),
-            eq(previews.repoid, p.repoid),
-            eq(previews.name, p.name),
-          ),
-        );
+      await tx.delete(previews).where(identity);
+      return true;
     });
+    if (deleted) removed += 1;
   }
-  return stale.length;
+  return removed;
 }
