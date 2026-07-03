@@ -92,7 +92,7 @@ export function PreviewBanner({
       {!dismissed && (
         <motion.div
           className={cn(
-            "pointer-events-none fixed top-13 right-0 z-30 flex h-0 items-start justify-center px-3",
+            "pointer-events-none fixed top-14 right-0 z-30 flex h-0 items-start justify-center px-3",
             SIDEBAR_TRACKED_LEFT,
           )}
           // Every page mounts its own banner, but the pill should read as one
