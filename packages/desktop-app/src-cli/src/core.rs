@@ -713,13 +713,33 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
         .await?;
     print_apply_summary(&summary, false);
     if let Some(name) = &preview {
-        println!(
-            "Preview: {}/dashboards?preview={}",
+        let url = format!(
+            "{}/dashboards?preview={}",
             client.base_url(),
             percent_encode(name)
         );
+        println!("Preview: {}", preview_link(&url));
     }
     Ok(())
+}
+
+/// Render a URL as a clickable terminal hyperlink (OSC 8). A bare printed URL is
+/// only clickable if the terminal happens to auto-detect it — many don't, or
+/// mangle the `?`/`%2F` query — so we emit an explicit hyperlink instead. Falls
+/// back to the plain URL when stdout isn't a TTY (pipes, CI) or NO_COLOR is set,
+/// so scripts still get a clean, copyable address.
+fn preview_link(url: &str) -> String {
+    if std::io::stdout().is_terminal() && std::env::var_os("NO_COLOR").is_none() {
+        osc8_hyperlink(url)
+    } else {
+        url.to_string()
+    }
+}
+
+/// Wrap a URL in an OSC 8 hyperlink escape, using the URL itself as the visible
+/// text so it stays readable and copyable in terminals that don't support OSC 8.
+fn osc8_hyperlink(url: &str) -> String {
+    format!("\x1b]8;;{url}\x1b\\{url}\x1b]8;;\x1b\\")
 }
 
 /// Minimal RFC 3986 query-component encoding for the preview deep link.
@@ -820,6 +840,24 @@ mod tests {
         assert_eq!(
             super::format_watch_event_line(&event),
             "Run completed: CI  success"
+        );
+    }
+
+    #[test]
+    fn percent_encode_escapes_slashes_in_branch_names() {
+        assert_eq!(
+            super::percent_encode("gio/apply-previews"),
+            "gio%2Fapply-previews"
+        );
+        assert_eq!(super::percent_encode("a b&c"), "a%20b%26c");
+        assert_eq!(super::percent_encode("safe-_.~AZ09"), "safe-_.~AZ09");
+    }
+
+    #[test]
+    fn osc8_hyperlink_wraps_url_as_clickable_link() {
+        assert_eq!(
+            super::osc8_hyperlink("https://app.everr.dev/dashboards?preview=x"),
+            "\x1b]8;;https://app.everr.dev/dashboards?preview=x\x1b\\https://app.everr.dev/dashboards?preview=x\x1b]8;;\x1b\\"
         );
     }
 
