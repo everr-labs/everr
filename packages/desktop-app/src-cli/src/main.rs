@@ -9,6 +9,7 @@ mod onboarding;
 mod skills;
 mod telemetry;
 mod uninstall;
+mod upgrade;
 mod update_notice;
 mod wrap;
 
@@ -31,6 +32,7 @@ async fn main() -> Result<()> {
 
     match cli.command {
         Commands::Uninstall => uninstall::run_uninstall()?,
+        Commands::Upgrade => upgrade::run().await?,
         Commands::Cloud(args) => match args.command {
             CloudSubcommand::Login(login) => auth::login(login).await?,
             CloudSubcommand::Logout => auth::logout()?,
