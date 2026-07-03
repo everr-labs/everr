@@ -71,6 +71,13 @@
       "when": 1782743463868,
       "tag": "0009_rename_notebooks_to_runbooks",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1783010260548,
+      "tag": "0010_burly_manta",
+      "breakpoints": true
     }
   ]
 }
