@@ -731,19 +731,28 @@ function SilenceDialog({
   const [matchers, setMatchers] = useState<Matcher[]>([]);
   const [hours, setHours] = useState("2");
   const [reason, setReason] = useState("");
-  const [initializedFor, setInitializedFor] = useState<string | null>(null);
+  const [wasOpen, setWasOpen] = useState(false);
 
-  if (instance && initializedFor !== instance.fingerprint) {
-    setMatchers(
-      Object.entries(instance.labels).map(([label, value]) => ({
-        label,
-        op: "=" as const,
-        value,
-      })),
-    );
-    setHours("2");
-    setReason("");
-    setInitializedFor(instance.fingerprint);
+  const isOpen = instance !== null || (open ?? false);
+  // Re-seed the form on each open transition (not via a prop→state effect): a
+  // specific instance prefills its labels as matchers; the blank "Add" form
+  // (instance === null) resets to empty so it can't inherit the matchers of the
+  // instance silenced just before it.
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
+    if (isOpen) {
+      setMatchers(
+        instance
+          ? Object.entries(instance.labels).map(([label, value]) => ({
+              label,
+              op: "=" as const,
+              value,
+            }))
+          : [],
+      );
+      setHours("2");
+      setReason("");
+    }
   }
 
   const patchMatcher = (index: number, patch: Partial<Matcher>) =>
@@ -764,18 +773,14 @@ function SilenceDialog({
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["alerts"] });
       onClose();
-      setInitializedFor(null);
     },
   });
 
   return (
     <Dialog
-      open={instance !== null || (open ?? false)}
+      open={isOpen}
       onOpenChange={(dialogOpen) => {
-        if (!dialogOpen) {
-          onClose();
-          setInitializedFor(null);
-        }
+        if (!dialogOpen) onClose();
       }}
     >
       <DialogContent>

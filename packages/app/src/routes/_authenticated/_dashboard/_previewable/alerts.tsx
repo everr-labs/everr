@@ -49,7 +49,7 @@ import {
 
 const alertsQueryOptions = (preview?: string) =>
   queryOptions({
-    queryKey: ["alerts", preview ?? ""],
+    queryKey: ["alerts", "list", preview ?? ""],
     queryFn: () => listAlerts({ data: { preview } }),
   });
 
