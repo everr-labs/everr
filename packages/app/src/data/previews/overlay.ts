@@ -7,6 +7,8 @@ export interface OverlayResource {
   project: string;
   slug: string;
   folderPath: string;
+  // "" marks a live row; any other value is a preview row (see `overlayPreview`).
+  preview: string;
   document: unknown;
 }
 
@@ -20,19 +22,23 @@ export interface OverlayResource {
  * ignored entirely.
  */
 export function overlayPreview<T extends OverlayResource>(opts: {
-  live: T[];
-  previewRows: T[];
+  rows: T[];
   coveredRepoids: ReadonlySet<string>;
 }): (T & { previewStatus?: PreviewStatus })[] {
+  // Own the "" = live / anything-else = preview split here, so callers hand over
+  // one combined query result instead of re-deriving the convention each time.
+  const live = opts.rows.filter((row) => row.preview === "");
+  const previewRows = opts.rows.filter((row) => row.preview !== "");
+
   // NUL-joined like reconcile's identity key: unambiguous even if a segment
   // ever contained the display separator.
   const key = (row: OverlayResource) =>
     `${row.repoid}\u0000${row.project}\u0000${row.slug}`;
-  const liveByKey = new Map(opts.live.map((row) => [key(row), row]));
-  const previewKeys = new Set(opts.previewRows.map(key));
+  const liveByKey = new Map(live.map((row) => [key(row), row]));
+  const previewKeys = new Set(previewRows.map(key));
 
   const out: (T & { previewStatus?: PreviewStatus })[] = [];
-  for (const row of opts.previewRows) {
+  for (const row of previewRows) {
     // A preview row outside the covered set is an orphan (its registry row
     // never landed); the registry defines the overlay boundary, so skip it
     // rather than emit a duplicate of the live identity.
@@ -49,7 +55,7 @@ export function overlayPreview<T extends OverlayResource>(opts: {
       out.push({ ...row, previewStatus: "unchanged" });
     }
   }
-  for (const row of opts.live) {
+  for (const row of live) {
     if (!opts.coveredRepoids.has(row.repoid)) {
       out.push(row);
     } else if (!previewKeys.has(key(row))) {

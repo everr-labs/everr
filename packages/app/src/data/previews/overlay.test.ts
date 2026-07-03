@@ -6,15 +6,23 @@ const r = (
   slug: string,
   doc: unknown = { v: 1 },
   folderPath = "",
-) => ({ repoid, project: "default", slug, folderPath, document: doc });
+  preview = "",
+) => ({ repoid, project: "default", slug, folderPath, preview, document: doc });
+
+// A preview row: same shape as a live row but carrying a non-empty preview name.
+const p = (
+  repoid: string,
+  slug: string,
+  doc: unknown = { v: 1 },
+  folderPath = "",
+) => r(repoid, slug, doc, folderPath, "pr");
 
 const covered = new Set(["repo-1"]);
 
 describe("overlayPreview", () => {
   it("passes live rows of uncovered repoids through untagged", () => {
     const out = overlayPreview({
-      live: [r("repo-2", "other")],
-      previewRows: [],
+      rows: [r("repo-2", "other")],
       coveredRepoids: covered,
     });
     expect(out).toEqual([r("repo-2", "other")]);
@@ -23,15 +31,13 @@ describe("overlayPreview", () => {
 
   it("tags added, changed, unchanged, and removed", () => {
     const out = overlayPreview({
-      live: [
+      rows: [
         r("repo-1", "changed", { v: 1 }),
         r("repo-1", "unchanged"),
         r("repo-1", "removed"),
-      ],
-      previewRows: [
-        r("repo-1", "added"),
-        r("repo-1", "changed", { v: 2 }),
-        r("repo-1", "unchanged"),
+        p("repo-1", "added"),
+        p("repo-1", "changed", { v: 2 }),
+        p("repo-1", "unchanged"),
       ],
       coveredRepoids: covered,
     });
@@ -48,14 +54,12 @@ describe("overlayPreview", () => {
 
   it("treats a folderPath move as changed and compares documents stably", () => {
     const out = overlayPreview({
-      live: [
+      rows: [
         r("repo-1", "moved", { a: 1, b: 2 }, "old"),
         r("repo-1", "same", { a: 1, b: 2 }),
-      ],
-      previewRows: [
-        r("repo-1", "moved", { a: 1, b: 2 }, "new"),
+        p("repo-1", "moved", { a: 1, b: 2 }, "new"),
         // Key order differs; stable-stringify must call them equal.
-        r("repo-1", "same", { b: 2, a: 1 }),
+        p("repo-1", "same", { b: 2, a: 1 }),
       ],
       coveredRepoids: covered,
     });
@@ -67,8 +71,7 @@ describe("overlayPreview", () => {
 
   it("a same-identity live row in an uncovered repoid does not shadow the preview row", () => {
     const out = overlayPreview({
-      live: [r("repo-2", "dup")],
-      previewRows: [r("repo-1", "dup")],
+      rows: [r("repo-2", "dup"), p("repo-1", "dup")],
       coveredRepoids: covered,
     });
     expect(out).toHaveLength(2);
@@ -82,8 +85,7 @@ describe("overlayPreview", () => {
 
   it("ignores orphan preview rows whose repoid is not covered", () => {
     const out = overlayPreview({
-      live: [r("repo-3", "dup")],
-      previewRows: [r("repo-3", "dup")],
+      rows: [r("repo-3", "dup"), p("repo-3", "dup")],
       coveredRepoids: new Set<string>(),
     });
     expect(out).toEqual([r("repo-3", "dup")]);

@@ -290,11 +290,7 @@ export const listAlerts = createAuthenticatedServerFn({ method: "GET" })
       getCoveredRepoids(organizationId, preview),
       query,
     ]);
-    const overlaid = overlayPreview({
-      live: rows.filter((row) => row.preview === ""),
-      previewRows: rows.filter((row) => row.preview !== ""),
-      coveredRepoids: covered,
-    });
+    const overlaid = overlayPreview({ rows, coveredRepoids: covered });
     return overlaid.map((row) => ({
       ...toAlertSummary(row as AlertSummaryRow),
       previewStatus: row.previewStatus,

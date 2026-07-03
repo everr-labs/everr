@@ -55,11 +55,7 @@ export const getRunbook = createAuthenticatedServerFn({ method: "GET" })
         .from(runbooks)
         .where(and(identity, inArray(runbooks.preview, ["", preview]))),
     ]);
-    const overlaid = overlayPreview({
-      live: rows.filter((row) => row.preview === ""),
-      previewRows: rows.filter((row) => row.preview !== ""),
-      coveredRepoids: covered,
-    });
+    const overlaid = overlayPreview({ rows, coveredRepoids: covered });
     // Prefer a surviving row; a shadowed-by-deletion live row still renders,
     // marked "removed", instead of 404ing mid-review.
     const row =
@@ -138,9 +134,5 @@ export const listRunbooks = createAuthenticatedServerFn({ method: "GET" })
           ),
         ),
     ]);
-    return overlayPreview({
-      live: rows.filter((row) => row.preview === ""),
-      previewRows: rows.filter((row) => row.preview !== ""),
-      coveredRepoids: covered,
-    }).map(toItem);
+    return overlayPreview({ rows, coveredRepoids: covered }).map(toItem);
   });

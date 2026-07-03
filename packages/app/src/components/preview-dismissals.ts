@@ -69,7 +69,6 @@ export function markEntrancePlayed(name: string): void {
 /** Test-only: clears dismissals and entrance bookkeeping between cases. */
 export function __resetPreviewDismissals(): void {
   entrancePlayed.clear();
-  if (dismissed.size === 0) return;
   dismissed = new Set<string>();
   for (const listener of listeners) listener();
 }
