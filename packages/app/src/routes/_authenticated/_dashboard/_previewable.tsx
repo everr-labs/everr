@@ -8,6 +8,7 @@ import {
   useSearch,
 } from "@tanstack/react-router";
 import { GitBranch, LogOut } from "lucide-react";
+import { useState } from "react";
 import { PageContainer } from "@/components/page-container";
 import { previewMessage } from "@/components/preview-message";
 import type { PreviewStatus } from "@/data/previews/overlay";
@@ -24,6 +25,10 @@ export const Route = createFileRoute("/_authenticated/_dashboard/_previewable")(
 // supplies the scrolling content, the copy, and the routing-backed exit action.
 function PreviewableLayout() {
   const navigate = useNavigate();
+  // The frame is controlled: this layout owns whether the bar is dismissed. It
+  // stays mounted across navigation within the previewable subtree, so a dismiss
+  // persists there and resets when you leave to a non-previewable page.
+  const [dismissed, setDismissed] = useState(false);
   const { preview } = useSearch({ from: "/_authenticated/_dashboard" });
   // Reads treat absent / "" / whitespace as live; mirror that so a stray
   // `?preview=` doesn't frame a live page.
@@ -59,7 +64,8 @@ function PreviewableLayout() {
       variant="info"
       icon={<GitBranch className="size-4 shrink-0" />}
       message={previewMessage(name, status)}
-      dismissible
+      dismissed={dismissed}
+      onDismiss={() => setDismissed(true)}
       actions={
         // Exit is the labeled, primary affordance — a distinct `LogOut` glyph
         // (not an ×) so it never reads as a plain close.

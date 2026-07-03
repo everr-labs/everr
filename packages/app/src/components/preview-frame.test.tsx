@@ -1,7 +1,7 @@
 // Exercises the ui `PreviewFrame` from the app suite: the ui package has no
 // jsdom/testing-library, and the app is where the component is actually consumed.
 import { PreviewFrame } from "@everr/ui/components/preview-frame";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -48,26 +48,38 @@ describe("PreviewFrame", () => {
     expect(screen.getByRole("status")).toHaveClass("bg-amber-500");
   });
 
-  it("dismiss collapses the bar (out of the a11y tree) but keeps the frame", async () => {
+  it("shows a dismiss button only when onDismiss is given, and delegates to it", async () => {
     const onDismiss = vi.fn();
-    render(
-      <PreviewFrame
-        variant="info"
-        message="hi"
-        dismissible
-        onDismiss={onDismiss}
-      >
+    const { rerender } = render(
+      <PreviewFrame variant="info" message="hi">
         {content}
       </PreviewFrame>,
     );
-    expect(screen.getByRole("status")).toBeInTheDocument();
+    // No dismiss affordance without an onDismiss handler.
+    expect(
+      screen.queryByRole("button", { name: /dismiss/i }),
+    ).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: /dismiss/i }));
-    await waitFor(() =>
-      expect(screen.queryByRole("status")).not.toBeInTheDocument(),
+    // Controlled: clicking dismiss just calls the handler; the parent decides.
+    rerender(
+      <PreviewFrame variant="info" message="hi" onDismiss={onDismiss}>
+        {content}
+      </PreviewFrame>,
     );
+    await userEvent.click(screen.getByRole("button", { name: /dismiss/i }));
     expect(onDismiss).toHaveBeenCalledTimes(1);
-    // The framed content stays — dismissing the bar isn't leaving the frame.
+    // Still visible — the component didn't dismiss itself.
+    expect(screen.getByRole("status")).toBeInTheDocument();
+  });
+
+  it("collapses the bar out of the a11y tree when dismissed, keeping the frame", () => {
+    render(
+      <PreviewFrame variant="info" message="hi" dismissed onDismiss={() => {}}>
+        {content}
+      </PreviewFrame>,
+    );
+    // Controlled `dismissed` removes the bar from the a11y tree; content stays.
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
     expect(screen.getByTestId("content")).toBeInTheDocument();
   });
 });

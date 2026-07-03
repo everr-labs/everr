@@ -9,14 +9,18 @@ import { cn } from "@everr/ui/lib/utils";
 import type { VariantProps } from "class-variance-authority";
 import { X } from "lucide-react";
 import type * as React from "react";
-import { useState } from "react";
+import { Separator } from "./separator";
 
+// Controlled: the caller owns `dismissed` and flips it in `onDismiss`. Passing
+// `onDismiss` is what renders the dismiss button; `dismissed` collapses the bar
+// (grid 1fr→0fr, pure CSS) so the content below rises in sync while the frame
+// edge stays.
 function PreviewFrame({
   variant,
   icon,
   message,
   actions,
-  dismissible = false,
+  dismissed = false,
   onDismiss,
   className,
   children,
@@ -26,11 +30,9 @@ function PreviewFrame({
     icon?: React.ReactNode;
     message?: React.ReactNode;
     actions?: React.ReactNode;
-    dismissible?: boolean;
+    dismissed?: boolean;
     onDismiss?: () => void;
   }) {
-  const [dismissed, setDismissed] = useState(false);
-
   return (
     <div className={cn(bannerFrameVariants({ variant }), className)} {...props}>
       <div
@@ -49,17 +51,14 @@ function PreviewFrame({
                 {message}
               </BannerContent>
             </div>
-            {(actions || dismissible) && (
+            {(actions || onDismiss) && (
               <BannerActions className="gap-0.5">
                 {actions}
-                {actions && dismissible && (
-                  // A hairline splits caller actions from the built-in dismiss.
-                  <span
-                    aria-hidden
-                    className="mx-0.5 h-4 w-px shrink-0 bg-current opacity-20"
-                  />
+                {actions && onDismiss && (
+                  // A hairline splits caller actions from the dismiss.
+                  <Separator orientation="vertical" />
                 )}
-                {dismissible && (
+                {onDismiss && (
                   <Button
                     type="button"
                     variant="ghost"
@@ -67,10 +66,7 @@ function PreviewFrame({
                     aria-label="Dismiss"
                     title="Dismiss"
                     className="opacity-70 hover:opacity-100"
-                    onClick={() => {
-                      setDismissed(true);
-                      onDismiss?.();
-                    }}
+                    onClick={onDismiss}
                   >
                     <X />
                   </Button>
