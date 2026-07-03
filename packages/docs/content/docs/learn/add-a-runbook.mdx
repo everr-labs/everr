@@ -13,11 +13,11 @@ Everr ships the `everr-write-runbooks` skill. Ask your Agent to draft the runboo
 /everr-write-runbooks Add a runbook for the alert I just created: when to act, an embedded panel of the metric it fires on, and the steps to take
 ```
 
-The Agent inspects your telemetry, picks panels and queries that fit what you actually emit, writes the files, and validates them with `everr apply --dry-run`. The rest of this step walks through the same shape by hand.
+The Agent inspects your telemetry, picks panels and queries that fit what you actually emit, writes the files, and validates them with `everr apply --dry-run`.
 
-## Write the runbook
+## Alternative: write it by hand
 
-A runbook is one `kind: Runbook` YAML file plus the markdown file it points at. Reuse the `everr/` directory from the previous steps.
+The rest of this step is the same workflow done manually. A runbook is one `kind: Runbook` YAML file plus the markdown file it points at. Reuse the `everr/` directory from the previous steps.
 
 `everr/eventloop-delay.runbook.yaml`:
 

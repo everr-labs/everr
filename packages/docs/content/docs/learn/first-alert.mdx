@@ -3,31 +3,21 @@ title: Create your first alert
 description: Step 5, write an AlertRule as code, apply it, and get notified.
 ---
 
-This is step 5 of getting started with Everr: write one rule, reconcile it with `everr apply`, and open it in the Alerts UI. By the end you'll have a real alert and the workflow you'll reuse for every alert after.
-
-`everr apply` uses your `everr cloud login` session by default and prints the destination organization before writing. For CI or non-interactive use, set `EVERR_API_KEY` to an organization API key with the **Manage as code** (`apply`) capability (mint one in **API keys**):
-
-```sh
-export EVERR_API_KEY="<your-org-api-key>"
-```
-
-See the [`everr apply` reference](/docs/reference/cli) for the full gitops model. This step's example alerts on Node.js runtime metrics; swap the query for a signal your own services emit.
+This is step 5 of getting started with Everr: write one rule, reconcile it with `everr apply`, and open it in the Alerts UI. Apply uses your `everr cloud login` session; for CI or non-interactive use, set `EVERR_API_KEY` to a key with the **Manage as code** capability (see the [`everr apply` reference](/docs/reference/cli)). The example alerts on Node.js runtime metrics; swap the query for a signal your own services emit.
 
 ## Let your Agent pick a starter
 
-The hard part of a first alert is knowing what to alert on: which signal actually predicts a problem worth waking someone for. Let your Agent answer that first. Everr ships the `everr-setup-telemetry` skill, which teaches it the `AlertRule` format and how to ground a rule in your real telemetry. Run it from the repository that emits the telemetry, so it can connect services, routes, and metrics back to the code that produces them.
-
-A concrete prompt:
+The hard part of a first alert is knowing what to alert on. Everr ships the `everr-setup-telemetry` skill; run this from the repository that emits the telemetry:
 
 ```text
 /everr-setup-telemetry Help me build a good first alert based on the telemetry we have in production
 ```
 
-The Agent inspects your data, picks the signal, sets a threshold from your real baselines, writes the rule, and validates it with a dry-run. Make sure it's actionable: fire on symptoms users feel rather than causes, guard against noise, and identify the affected instance. The rest of this step walks through the same actions by hand so you understand what it produces.
+The Agent picks the signal, sets a threshold from your real baselines, writes the rule, and validates it with a dry-run. Make sure it's actionable: fire on symptoms users feel, not causes.
 
-## Create the apply directory
+## Alternative: write it by hand
 
-If you already created an `everr/` directory in the previous step, reuse it: apply discovers and reconciles everything under it, and alerts (`*.alert.yaml`) sit flat alongside dashboards. Otherwise create one now with an `everr.yaml` manifest declaring a stable `repoid`:
+The rest of this step is the same workflow done manually. If you already created an `everr/` directory in the previous step, reuse it: apply discovers and reconciles everything under it, and alerts (`*.alert.yaml`) sit flat alongside dashboards. Otherwise create one now with an `everr.yaml` manifest declaring a stable `repoid`:
 
 ```sh
 mkdir -p everr
