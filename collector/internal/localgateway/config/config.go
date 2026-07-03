@@ -76,6 +76,17 @@ func BuildCollectorConfigMap(cfg CollectorConfig) map[string]any {
 		"exporters": map[string]any{
 			"chdb": map[string]any{
 				"ttl": cfg.TTL.String(),
+				// Local tables carry the same names as the cloud's query-facing
+				// tables so the shared explorer queries run unchanged.
+				"logs_table_name":   "logs",
+				"traces_table_name": "traces",
+				"metrics_tables": map[string]any{
+					"gauge":                 map[string]any{"name": "metrics_gauge"},
+					"sum":                   map[string]any{"name": "metrics_sum"},
+					"histogram":             map[string]any{"name": "metrics_histogram"},
+					"exponential_histogram": map[string]any{"name": "metrics_exponential_histogram"},
+					"summary":               map[string]any{"name": "metrics_summary"},
+				},
 			},
 		},
 		"service": map[string]any{

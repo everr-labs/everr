@@ -36,26 +36,13 @@ var LogsJSONCreateTable string
 //go:embed logs_json_insert.sql
 var LogsJSONInsert string
 
-//go:embed logs_add_column.sql
-var LogsAddColumn string
-
 // Parsed templates for logs (text/template).
 var (
 	LogsCreateTableTmpl     = newTemplate("logs_table", LogsCreateTable)
 	LogsInsertTmpl          = newTemplate("logs_insert", LogsInsert)
 	LogsJSONCreateTableTmpl = newTemplate("logs_json_table", LogsJSONCreateTable)
 	LogsJSONInsertTmpl      = newTemplate("logs_json_insert", LogsJSONInsert)
-	LogsAddColumnTmpl       = newTemplate("logs_add_column", LogsAddColumn)
 )
-
-// AddColumnData contains the template parameters for an idempotent ADD COLUMN.
-type AddColumnData struct {
-	Database         string
-	TableName        string
-	ClusterString    string
-	ColumnName       string
-	ColumnDefinition string
-}
 
 // CreateTableData contains the template parameters for creating a logs table.
 type CreateTableData struct {
