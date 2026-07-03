@@ -13,11 +13,11 @@ The hard part of a first dashboard is knowing what's worth a panel. Everr ships 
 /everr-write-dashboards Help me build a good first dashboard based on the telemetry we have in production
 ```
 
-The Agent inspects your data, picks panels grounded in it, writes the file, and validates it with a dry-run. The rest of this step walks through the same actions by hand.
+The Agent inspects your data, picks panels grounded in it, writes the file, and validates it with a dry-run.
 
-## Create a dashboard file
+## Alternative: build it by hand
 
-In your repo, make an `everr/` directory at the root to hold your declarations. The directory is the unit you'll apply; files sit flat inside it, named by kind (dashboards are `*.dashboard.yaml`).
+The rest of this step is the same workflow done manually. In your repo, make an `everr/` directory at the root to hold your declarations. The directory is the unit you'll apply; files sit flat inside it, named by kind (dashboards are `*.dashboard.yaml`).
 
 ```sh
 mkdir -p everr
