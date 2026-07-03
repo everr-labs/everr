@@ -115,7 +115,7 @@ function RouteComponent() {
             compensates with pt-12. */}
         <header
           className={cn(
-            "fixed top-0 right-0 z-10 flex h-12 border-b border-sidebar-border bg-sidebar px-3",
+            "fixed top-0 right-0 z-50 flex h-12 border-b border-sidebar-border bg-sidebar px-3",
             SIDEBAR_TRACKED_LEFT,
           )}
         >
@@ -138,7 +138,7 @@ function RouteComponent() {
             </div>
           </div>
         </header>
-        <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {search.github_install === "linked" && (
             <div className="mx-3 mt-3 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
               GitHub installation linked successfully.
