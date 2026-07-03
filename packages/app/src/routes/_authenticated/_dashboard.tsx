@@ -107,12 +107,9 @@ function RouteComponent() {
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset className="h-screen min-w-0 pt-12">
-        {/* `fixed` (not in-flow, not sticky): the macOS rubber-band translates
-            all in-flow content — root bounce chained from the content scroller
-            included — but leaves fixed elements pinned. This is what lets the
-            content keep its native overscroll bounce while the topnav stays
-            put (the sidebar is already `fixed` inside <Sidebar>). SidebarInset
-            compensates with pt-12. */}
+        {/* `fixed` (not sticky): the macOS rubber-band translates in-flow
+            content but leaves fixed elements pinned, so the topnav stays put.
+            SidebarInset compensates with pt-12. */}
         <header
           className={cn(
             "fixed top-0 right-0 z-50 flex h-12 border-b border-sidebar-border bg-sidebar px-3",

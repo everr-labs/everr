@@ -265,8 +265,6 @@ export const listAlerts = createAuthenticatedServerFn({ method: "GET" })
       return rows.map((row) => toAlertSummary(row as AlertSummaryRow));
     }
 
-    // Preview mode: the end result of the apply — preview rows replace live
-    // rows for covered repoids; everything else shows as-is, diff-tagged.
     const query = db
       .select({
         ...alertListColumns,

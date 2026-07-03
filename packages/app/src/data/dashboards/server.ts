@@ -150,8 +150,6 @@ export const listDashboards = createAuthenticatedServerFn({ method: "GET" })
       return rows.map(toItem);
     }
 
-    // Preview mode: the end result of the apply — preview rows replace live
-    // rows for covered repoids; everything else shows as-is, diff-tagged.
     const [covered, rows] = await Promise.all([
       getCoveredRepoids(orgId, preview),
       db

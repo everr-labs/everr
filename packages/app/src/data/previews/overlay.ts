@@ -12,15 +12,10 @@ export interface OverlayResource {
   document: unknown;
 }
 
-/**
- * Compute the end result of a preview over the live state. For repoids the
- * preview covers (its registry rows), the preview's rows replace the live
- * rows wholesale — a live row with no preview counterpart is "removed", a
- * preview row with no live counterpart is "added". Live rows of uncovered
- * repoids pass through with no status: the preview says nothing about them.
- * Preview rows whose repoid is not in `coveredRepoids` are orphans and are
- * ignored entirely.
- */
+// End state of a preview over live: for covered repoids the preview's rows
+// replace the live ones (missing preview row = "removed", missing live row =
+// "added"); live rows of uncovered repoids pass through untagged; preview rows
+// outside the covered set are orphans and dropped.
 export function overlayPreview<T extends OverlayResource>(opts: {
   rows: T[];
   coveredRepoids: ReadonlySet<string>;
@@ -29,8 +24,7 @@ export function overlayPreview<T extends OverlayResource>(opts: {
   const live = opts.rows.filter((row) => row.preview === "");
   const previewRows = opts.rows.filter((row) => row.preview !== "");
 
-  // NUL-joined like reconcile's identity key: unambiguous even if a segment
-  // ever contained the display separator.
+  // NUL-joined identity key: unambiguous even if a segment contains a separator.
   const key = (row: OverlayResource) =>
     `${row.repoid}\u0000${row.project}\u0000${row.slug}`;
   const liveByKey = new Map(live.map((row) => [key(row), row]));
@@ -38,9 +32,7 @@ export function overlayPreview<T extends OverlayResource>(opts: {
 
   const out: (T & { previewStatus?: PreviewStatus })[] = [];
   for (const row of previewRows) {
-    // A preview row outside the covered set is an orphan (its registry row
-    // never landed); the registry defines the overlay boundary, so skip it
-    // rather than emit a duplicate of the live identity.
+    // Orphan preview row (repoid the registry doesn't cover) — skip it.
     if (!opts.coveredRepoids.has(row.repoid)) continue;
     const liveRow = liveByKey.get(key(row));
     if (!liveRow) {
@@ -60,7 +52,6 @@ export function overlayPreview<T extends OverlayResource>(opts: {
     } else if (!previewKeys.has(key(row))) {
       out.push({ ...row, previewStatus: "removed" });
     }
-    // Covered + present in the preview: already emitted above.
   }
   return out;
 }

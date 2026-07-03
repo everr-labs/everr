@@ -2,13 +2,9 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { previews } from "@/db/schema";
 
-/**
- * Repoids a preview covers — the overlay replacement boundary.
- *
- * Server-only: this touches `db` at the top level, so it must NOT live in a
- * module a client component imports — see the server-fn client-bundle gotcha.
- * Called by the dashboard/runbook/alert read server fns to bound the overlay.
- */
+// Repoids a preview covers — the overlay's replacement boundary. Server-only
+// (touches `db` at module top level; must not be imported by a client
+// component — see the server-fn client-bundle gotcha).
 export async function getCoveredRepoids(
   orgId: string,
   preview: string,

@@ -1,10 +1,8 @@
 import { Badge } from "@everr/ui/components/badge";
 import type { PreviewStatus } from "@/data/previews/overlay";
 
-// Diff vocabulary for the preview overlay, tuned for the app's dark surfaces:
-// a saturated 400-shade sits legibly on the near-black content and sidebar,
-// where the Tailwind 600 shades the sketch reached for would read as mud.
-// "unchanged" is intentionally absent — it earns no badge.
+// 400-shades read legibly on the app's near-black surfaces. "unchanged" earns
+// no badge, so it's excluded.
 const STYLES: Record<Exclude<PreviewStatus, "unchanged">, string> = {
   added: "border-emerald-500/40 bg-emerald-500/10 text-emerald-400",
   changed: "border-amber-500/40 bg-amber-500/10 text-amber-400",
@@ -17,11 +15,8 @@ const LABELS: Record<Exclude<PreviewStatus, "unchanged">, string> = {
   removed: "Removed",
 };
 
-/**
- * A compact diff pill for a resource under an active preview. Renders nothing
- * for the two non-events — no preview status, or unchanged — so callers can
- * drop it in unconditionally next to a resource name.
- */
+// Renders nothing without a status (or when unchanged), so callers can drop it
+// in unconditionally.
 export function PreviewStatusBadge({ status }: { status?: PreviewStatus }) {
   if (!status || status === "unchanged") return null;
   return (
