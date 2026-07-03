@@ -25,6 +25,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { NotebookText, SearchIcon, Settings, XIcon } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { ResourceEmptyState } from "@/components/resource-empty-state";
 import type { NormalizedAlertDeliverySettings } from "@/data/alerts/delivery-settings";
 import {
   validateSlackWebhookUrl,
@@ -256,6 +257,7 @@ function AlertsPage() {
     !!delivery &&
     ((delivery.telegram.enabled && delivery.telegram.entries.length > 0) ||
       (delivery.slack.enabled && delivery.slack.webhooks.length > 0));
+  const hasAlerts = !!alerts.data && alerts.data.length > 0;
 
   const columns = useMemo<Column<AlertSummary>[]>(
     () => [
@@ -358,7 +360,7 @@ function AlertsPage() {
         </Button>
       </div>
 
-      {settings.data && !hasChannel && (
+      {hasAlerts && settings.data && !hasChannel && (
         <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
           No notification channels are configured, so firing alerts won't reach
           anyone.{" "}
@@ -449,19 +451,7 @@ function AlertsPage() {
                     </Button>
                   </div>
                 ) : (
-                  <div className="px-3 py-8 text-center text-muted-foreground">
-                    <p>No alerts have been applied for this organization.</p>
-                    <p className="mt-1">
-                      <a
-                        className="underline underline-offset-4"
-                        href="https://everr.dev/docs/alerts/first-alert"
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Create your first alert
-                      </a>
-                    </p>
-                  </div>
+                  <AlertsEmptyState />
                 )
               }
             />
@@ -474,6 +464,19 @@ function AlertsPage() {
         onOpenChange={setSettingsOpen}
       />
     </div>
+  );
+}
+
+const ASSISTANT_ALERT_PROMPT =
+  "/everr-setup-telemetry Help me build a good first alert based on the telemetry we have in production";
+
+function AlertsEmptyState() {
+  return (
+    <ResourceEmptyState
+      title="No alert rules yet"
+      description="Paste this into your coding assistant and it'll set up your first alert."
+      assistantPrompt={ASSISTANT_ALERT_PROMPT}
+    />
   );
 }
 
