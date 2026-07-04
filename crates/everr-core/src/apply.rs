@@ -327,9 +327,9 @@ pub fn resolve_preview_name(dir: &Path, flag: &str) -> Result<String> {
     // where `rev-parse HEAD` has no object to resolve.
     match git_output(dir, &["symbolic-ref", "--short", "-q", "HEAD"]) {
         Some(branch) => Ok(branch),
-        None if git_output(dir, &["rev-parse", "HEAD"]).is_some() => anyhow::bail!(
-            "HEAD is detached; pass an explicit preview name: --preview <name>"
-        ),
+        None if git_output(dir, &["rev-parse", "HEAD"]).is_some() => {
+            anyhow::bail!("HEAD is detached; pass an explicit preview name: --preview <name>")
+        }
         None => anyhow::bail!(
             "{} is not a git repository; pass an explicit preview name: --preview <name>",
             dir.display()
@@ -525,8 +525,7 @@ mod tests {
             path: "a.yaml".into(),
             document: serde_json::json!({"kind": "AlertRule"}),
         };
-        let state =
-            classify_documents(vec![dash.clone(), runbook.clone(), alert.clone()]).unwrap();
+        let state = classify_documents(vec![dash.clone(), runbook.clone(), alert.clone()]).unwrap();
         assert_eq!(state.dashboards, vec![dash]);
         assert_eq!(state.runbooks, vec![runbook]);
         assert_eq!(state.alerts, vec![alert]);
