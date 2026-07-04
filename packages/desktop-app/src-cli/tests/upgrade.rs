@@ -42,17 +42,21 @@ mod app_upgrade {
     use std::path::{Path, PathBuf};
 
     use assert_cmd::Command;
+    use base64::Engine;
+    use minisign::KeyPair;
     use predicates::str::contains;
 
     use crate::support::{CliTestEnv, mock_api_server};
     use crate::{DOWNLOAD_BASE_URL_ENV, sha256_hex};
 
     const APP_INSTALL_PATH_ENV: &str = "EVERR_APP_INSTALL_PATH_FOR_TESTS";
+    const UPDATER_PUBKEY_ENV: &str = "EVERR_UPDATER_PUBKEY_FOR_TESTS";
     const ARCHIVE_NAME: &str = "everr-macos-arm64.app.tar.gz";
 
     struct AppUpgradeHarness {
         env: CliTestEnv,
         server: mockito::ServerGuard,
+        keypair: KeyPair,
         _install_dir: tempfile::TempDir,
         installed_app: PathBuf,
     }
@@ -81,21 +85,58 @@ mod app_upgrade {
             let install_dir = tempfile::tempdir().expect("install dir");
             let installed_app =
                 write_fake_app(install_dir.path(), installed_version, "old-app-binary");
+            let keypair = KeyPair::generate_unencrypted_keypair().expect("generate keypair");
 
             Self {
                 env,
                 server,
+                keypair,
                 _install_dir: install_dir,
                 installed_app,
             }
         }
 
         fn mock_archive(&mut self, archive: &[u8]) {
+            self.mock_archive_with_signature(archive, archive);
+        }
+
+        /// Serves `archive` with a signature computed over `signed_bytes`, so
+        /// tests can publish a signature that does not match the archive. The
+        /// .sig body is base64 over the minisign signature file, matching the
+        /// Tauri release artifacts.
+        fn mock_archive_with_signature(&mut self, archive: &[u8], signed_bytes: &[u8]) {
+            let signature_file = minisign::sign(
+                Some(&self.keypair.pk),
+                &self.keypair.sk,
+                std::io::Cursor::new(signed_bytes),
+                None,
+                None,
+            )
+            .expect("sign archive")
+            .into_string();
+            let signature = base64::engine::general_purpose::STANDARD.encode(signature_file);
             self.server
                 .mock("GET", format!("/everr-app/{ARCHIVE_NAME}").as_str())
                 .with_status(200)
                 .with_body(archive)
                 .create();
+            self.server
+                .mock("GET", format!("/everr-app/{ARCHIVE_NAME}.sig").as_str())
+                .with_status(200)
+                .with_body(signature)
+                .create();
+        }
+
+        /// The pubkey override value: base64 over the minisign .pub file
+        /// content, the same encoding tauri.conf.json uses.
+        fn pubkey_override(&self) -> String {
+            let pubkey_file = self
+                .keypair
+                .pk
+                .to_box()
+                .expect("box public key")
+                .into_string();
+            base64::engine::general_purpose::STANDARD.encode(pubkey_file)
         }
 
         fn upgrade_command(&self) -> Command {
@@ -108,6 +149,7 @@ mod app_upgrade {
                 format!("{}/everr-app", self.server.url()),
             );
             cmd.env(APP_INSTALL_PATH_ENV, &self.installed_app);
+            cmd.env(UPDATER_PUBKEY_ENV, self.pubkey_override());
             cmd.arg("upgrade");
             cmd
         }
@@ -217,6 +259,55 @@ mod app_upgrade {
             "old-app-binary",
             "app must be untouched after a checksum mismatch"
         );
+    }
+
+    #[test]
+    fn upgrade_aborts_on_bad_app_signature_and_leaves_the_app_untouched() {
+        let archive = app_archive("2099.1.0", "new-app-binary");
+        let mut harness = AppUpgradeHarness::new("1.0.0", "2099.1.0", &sha256_hex(&archive));
+        harness.mock_archive_with_signature(&archive, b"not the archive bytes");
+
+        harness
+            .upgrade_command()
+            .assert()
+            .failure()
+            .stderr(contains("signature"));
+
+        assert_eq!(
+            harness.installed_marker(),
+            "old-app-binary",
+            "app must be untouched after a signature mismatch"
+        );
+    }
+
+    /// Metadata published before the app fields existed must not fail the
+    /// upgrade command for users who have the app installed.
+    #[test]
+    fn upgrade_skips_the_app_when_metadata_has_no_app_info() {
+        let env = CliTestEnv::new();
+        let mut server = mock_api_server();
+        server
+            .mock("GET", "/everr-app/release-metadata.json")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(format!(r#"{{"version":"{}"}}"#, env!("EVERR_VERSION")))
+            .create();
+        let install_dir = tempfile::tempdir().expect("install dir");
+        let installed_app = write_fake_app(install_dir.path(), "1.0.0", "old-app-binary");
+
+        let mut cmd = env.command_with_release_metadata_url(&format!(
+            "{}/everr-app/release-metadata.json",
+            server.url()
+        ));
+        cmd.env(APP_INSTALL_PATH_ENV, &installed_app);
+        cmd.arg("upgrade")
+            .assert()
+            .success()
+            .stdout(contains("Skipping the Everr app update"));
+
+        let marker = fs::read_to_string(installed_app.join("Contents").join("MacOS").join("Everr"))
+            .expect("read app marker binary");
+        assert_eq!(marker, "old-app-binary", "app must be untouched");
     }
 }
 

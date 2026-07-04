@@ -15,6 +15,7 @@ const DOWNLOAD_READ_TIMEOUT: Duration = Duration::from_secs(30);
 const FALLBACK_COMMAND: &str = "curl -fsSL https://everr.dev/upgrade.sh | bash";
 const DOWNLOAD_BASE_URL_OVERRIDE_ENV: &str = "EVERR_DOWNLOAD_BASE_URL_FOR_TESTS";
 const APP_INSTALL_PATH_OVERRIDE_ENV: &str = "EVERR_APP_INSTALL_PATH_FOR_TESTS";
+const UPDATER_PUBKEY_OVERRIDE_ENV: &str = "EVERR_UPDATER_PUBKEY_FOR_TESTS";
 
 pub async fn run() -> Result<()> {
     let metadata = update_notice::fetch_release_metadata(METADATA_TIMEOUT).await?;
@@ -51,11 +52,17 @@ async fn upgrade_app(metadata: &ReleaseMetadata) -> Result<()> {
         return Ok(());
     };
 
+    // Metadata published before the app fields existed must not fail the
+    // CLI upgrade that already succeeded; the app can still update itself.
+    let (Some(latest), Some(target)) = (metadata.platform_version.as_deref(), &metadata.target)
+    else {
+        println!(
+            "Skipping the Everr app update: the release metadata has no app info yet. The app can update itself from its own updater."
+        );
+        return Ok(());
+    };
+
     let installed_version = installed_app_version(&installed)?;
-    let latest = metadata
-        .platform_version
-        .as_deref()
-        .context("release metadata is missing platform_version; cannot update the Everr app")?;
     let latest = parse_version(latest, "latest app version")?;
 
     if latest <= installed_version {
@@ -63,21 +70,74 @@ async fn upgrade_app(metadata: &ReleaseMetadata) -> Result<()> {
         return Ok(());
     }
 
-    let archive_name = &metadata
-        .target
-        .as_ref()
-        .context("release metadata is missing target; cannot update the Everr app")?
-        .updater_archive_name;
+    let archive_name = &target.updater_archive_name;
     let expected_sha256 = app_archive_sha256(metadata, archive_name)?;
+    let pubkey = updater_pubkey()?;
     let base = download_base_url()?;
     let client = download_client()?;
     println!("Downloading Everr app v{latest}...");
-    let archive = download_bytes(&client, format!("{base}/{archive_name}")).await?;
+    let (archive, signature) = futures_util::try_join!(
+        download_bytes(&client, format!("{base}/{archive_name}")),
+        download_bytes(&client, format!("{base}/{archive_name}.sig")),
+    )?;
     verify_sha256_hex(&archive, expected_sha256)?;
+    verify_updater_signature(&pubkey, &archive, &signature)?;
     replace_app_bundle(&installed, &archive)?;
     println!("Upgraded Everr app v{installed_version} → v{latest}");
     println!("If the Everr app is running, quit and reopen it to finish the update.");
     Ok(())
+}
+
+/// The Tauri updater public key from tauri.conf.json, so this channel trusts
+/// the exact signing identity the in-app updater already trusts. The value is
+/// base64 over the minisign .pub file content.
+fn updater_pubkey() -> Result<minisign_verify::PublicKey> {
+    #[cfg(debug_assertions)]
+    let encoded = std::env::var(UPDATER_PUBKEY_OVERRIDE_ENV)
+        .ok()
+        .filter(|value| !value.trim().is_empty());
+    #[cfg(not(debug_assertions))]
+    let encoded: Option<String> = None;
+
+    let encoded = match encoded {
+        Some(value) => value,
+        None => {
+            let conf: serde_json::Value =
+                serde_json::from_str(include_str!("../../src-tauri/tauri.conf.json"))
+                    .context("parse bundled tauri.conf.json")?;
+            conf.pointer("/plugins/updater/pubkey")
+                .and_then(|value| value.as_str())
+                .context("tauri.conf.json is missing plugins.updater.pubkey")?
+                .to_owned()
+        }
+    };
+
+    use base64::Engine;
+    let decoded = base64::engine::general_purpose::STANDARD
+        .decode(encoded.trim())
+        .context("base64-decode updater pubkey")?;
+    let decoded = String::from_utf8(decoded).context("updater pubkey is not utf-8")?;
+    minisign_verify::PublicKey::decode(decoded.trim()).context("parse updater pubkey")
+}
+
+/// The published .sig artifact is base64 over the minisign signature file,
+/// the same encoding the Tauri updater uses for latest.json's signature field.
+fn verify_updater_signature(
+    pubkey: &minisign_verify::PublicKey,
+    archive: &[u8],
+    signature: &[u8],
+) -> Result<()> {
+    use base64::Engine;
+    let signature = std::str::from_utf8(signature).context("signature file is not utf-8")?;
+    let signature = base64::engine::general_purpose::STANDARD
+        .decode(signature.trim())
+        .context("base64-decode updater signature")?;
+    let signature = String::from_utf8(signature).context("updater signature is not utf-8")?;
+    let signature =
+        minisign_verify::Signature::decode(signature.trim()).context("parse updater signature")?;
+    pubkey
+        .verify(archive, &signature, true)
+        .context("updater signature verification failed for the app archive")
 }
 
 fn parse_version(raw: &str, what: &str) -> Result<Version> {
@@ -239,11 +299,24 @@ fn replace_app_bundle(installed: &Path, archive: &[u8]) -> Result<()> {
     tar.unpack(&unpack_dir).context("extract app archive")?;
     let new_app = find_app_bundle(&unpack_dir)?;
 
+    // The window between the two renames is the only moment without an
+    // installed app; a crash inside it leaves the previous bundle intact in
+    // the staging directory, so it is recoverable rather than lost.
     let previous = staging.path().join("previous.app");
     std::fs::rename(installed, &previous)
         .with_context(|| format!("move aside {}", installed.display()))?;
     if let Err(err) = std::fs::rename(&new_app, installed) {
-        let _ = std::fs::rename(&previous, installed);
+        if std::fs::rename(&previous, installed).is_err() {
+            // Never let TempDir cleanup delete the only remaining copy.
+            let staging = staging.keep();
+            return Err(err).with_context(|| {
+                format!(
+                    "install new app at {} (rollback also failed; the previous app was preserved at {})",
+                    installed.display(),
+                    staging.join("previous.app").display()
+                )
+            });
+        }
         return Err(err).with_context(|| format!("install new app at {}", installed.display()));
     }
     Ok(())
@@ -253,6 +326,14 @@ fn find_app_bundle(dir: &Path) -> Result<PathBuf> {
     for entry in std::fs::read_dir(dir).with_context(|| format!("read {}", dir.display()))? {
         let path = entry.context("read extracted archive entry")?.path();
         if path.extension().is_some_and(|extension| extension == "app") {
+            // Refuse to swap a bundle that is obviously broken; better to
+            // keep the old app than install an unlaunchable one.
+            if !path.join("Contents").join("Info.plist").exists() {
+                bail!(
+                    "extracted app bundle {} has no Contents/Info.plist",
+                    path.display()
+                );
+            }
             return Ok(path);
         }
     }
