@@ -1,6 +1,6 @@
 ---
 name: everr-setup-telemetry
-description: Use when a task mentions adding or fixing telemetry, OpenTelemetry, local collector setup, debug telemetry, missing or stale spans/logs/metrics, instrumentation verification or alerting rules.
+description: Use when a task mentions adding or fixing telemetry, OpenTelemetry, local collector setup, debug telemetry, missing or stale spans/logs/metrics, or instrumentation verification.
 ---
 
 ## Startup Access
@@ -15,7 +15,7 @@ If the current tool cannot ask for a blanket permission grant, request scoped co
 
 # Setup Telemetry With Everr
 
-Use this skill when an app, service, test, script, or command needs to emit telemetry into Everr, or when setting up alerting rules on that telemetry.
+Use this skill when an app, service, test, script, or command needs to emit telemetry into Everr. For alerting rules on that telemetry (and dashboards or runbooks), use the `everr-setup-resources` skill.
 
 Local telemetry lets development match production behavior closely, and debug telemetry lets the agent collect extra evidence locally without guessing from the code.
 
@@ -38,7 +38,6 @@ Always read the relevant rule files before editing instrumentation. Use the tabl
 | `tauri` | Tauri v2 desktop/mobile: Rust backend + browser frontend proxying telemetry through IPC |
 | `electron` | Electron desktop: Node main process + Chromium renderer proxying telemetry through IPC |
 | `rust` | Rust tracing-based OpenTelemetry setup and runtime pitfalls |
-| `alerts` | AlertRule YAML, `everr apply`, notification channels, query patterns, verification |
 
 For most runtime work, read `resolve-values`, `resources`, `error-tracking`, `sensitive-data`, `validation`, and the signal/runtime rules that match the task.
 

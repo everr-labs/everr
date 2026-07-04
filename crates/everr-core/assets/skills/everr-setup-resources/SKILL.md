@@ -1,0 +1,75 @@
+---
+name: everr-setup-resources
+description: Use when creating, editing, or applying Everr as-code resources (dashboards, runbooks, alert rules), Perses-format dashboard YAML, panels, ClickHouse queries, ```panel blocks, AlertRule YAML, the everr.yaml manifest, or the `everr apply` CLI.
+---
+
+## Startup Access
+
+Authoring resources is just editing files. Two things need access:
+
+- **`everr apply`** talks to your Everr host. Allow production network `https://app.everr.dev` and filesystem read of `~/Library/Application Support/everr/session.json` (and `session-dev.json`) and their parent directory. Apply uses your `everr cloud login` session, or `EVERR_API_KEY` for CI (the deprecated alias `EVERR_API_TOKEN` still works).
+- **Writing correct queries** means knowing your real ClickHouse columns. Discover them with `everr cloud query "DESCRIBE TABLE traces"` (or sample rows), or use the `everr-use-telemetry` skill. **Do not invent metric/label/column names.**
+
+# Setting Up Everr Resources
+
+Everr resources are **as-code**: dashboards, runbooks, and alert rules are YAML files on disk, reconciled into Everr with `everr apply`. The files are the source of truth.
+
+## Rule Loading
+
+Always read the relevant rule files before authoring or editing a resource. Load the minimum guidance for the resource kind being changed.
+
+| Rule | Description |
+| --- | --- |
+| `queries` | The shared panel and query model: ClickHouse SQL, time params, bucketing, variables, data shapes. Read for any dashboard or runbook work. |
+| `dashboards` | Dashboard schema, grid layout, worked example |
+| `runbooks` | Runbook schema, pages, ```panel embeds, reading runbooks as an agent |
+| `alerts` | AlertRule schema, alert design, thresholds, notification messages, verification |
+| `timeseries`, `barchart`, `table`, `statchart`, `gaugechart`, `geomap`, `treemap`, `statetimeline`, `statushistory`, `heatmap`, `nodegraph` | One file per visualization kind: the complete option set, expected data shape, and footguns |
+
+For a dashboard task read `queries`, `dashboards`, and the viz rules you use. For a runbook read `queries` and `runbooks`. For an alert read `alerts`, plus `runbooks` when creating the linked runbook.
+
+## File Layout And The Required Manifest
+
+`everr apply <dir>` reconciles a directory of declarations. By convention that directory is `everr/` at your repo root. It **must** contain an `everr.yaml` (or `.yml`) at its root declaring a stable `repoid`. Apply errors without it. Name each file by its kind, with the slug as the stem:
+
+```
+everr/
+  everr.yaml                       # REQUIRED manifest, declares the repoid (reconcile scope)
+  checkout-api.dashboard.yaml      # a Dashboard
+  high-error-rate.runbook.yaml     # a Runbook
+  high-error-rate.runbook.md       # referenced by the runbook's `markdown.file`
+  high-error-rate.alert.yaml       # an AlertRule (may share a stem with its runbook)
+  platform/
+    db-health.dashboard.yaml       # folder "platform" (from the directory name)
+```
+
+`everr/everr.yaml`:
+
+```yaml
+repoid: "2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1"
+```
+
+The `repoid` is the **apply ownership boundary**: `everr apply` reconciles exactly the resources previously applied under this id and nothing else. Use one stable id per repository (a UUID is a good default); never reuse a repoid across unrelated repos, and never change it for an existing one (that orphans everything applied under the old id). It is the only key the manifest accepts.
+
+Apply routes each document by its `kind:` field, so the `.dashboard.yaml`/`.runbook.yaml`/`.alert.yaml` suffixes are a human-facing naming convention, not something the CLI parses. The slug always comes from `metadata.name`. Files are flat in `everr/` by convention; subdirectories are optional and become folder paths in the UI. There are no folder objects.
+
+## Apply Workflow
+
+```sh
+everr apply ./everr --dry-run     # always preview first; writes nothing
+everr apply ./everr               # prints the destination org, then asks to confirm
+```
+
+Apply discovers all `.yaml`/`.yml` files under the directory, classifies them by `kind`, and reconciles creates, updates, and deletes. It is **declarative and delete-by-default within the `repoid`**: new files are created, changed files updated, removed files **deleted** (alerts are soft-deleted, history is preserved). This spans **all resource kinds**: the tree is the complete desired state for that repoid, so applying a dashboards-only directory also prunes runbooks and alerts previously applied under the same repoid. Never split one repoid across two apply directories. Re-applying with no changes prints `Nothing to apply.`
+
+In CI, set `EVERR_API_KEY` and pass `--yes`. Only deploy to production when the user is satisfied with the changes.
+
+## Common Mistakes
+
+| Mistake | Fix |
+| --- | --- |
+| Missing `everr.yaml` manifest, or wrong key in it | Every apply dir needs `everr.yaml` with a single stable `repoid:`, the only key it accepts |
+| Empty `repoid` or reusing across repos | Use one stable id per repository; a UUID is a good default for new repos |
+| `everr dashboard apply -f file.yaml` or applying a single file | The command is `everr apply <dir>` against a directory |
+| Splitting one repoid across two apply directories | One tree per repoid; apply prunes everything not in the tree, across all kinds |
+| Inventing metric/label/column names | Discover real columns with `everr cloud query "DESCRIBE TABLE traces"` or the `everr-use-telemetry` skill |

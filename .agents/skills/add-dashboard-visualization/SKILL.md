@@ -181,7 +181,7 @@ Without this, `everr apply` accepts any spec for the new kind instead of rejecti
 
 ### 6. Document the options
 
-Add the new kind and its option table to `packages/docs/content/docs/dashboards/visualizations.mdx`, and update the `everr-write-dashboards` skill in `crates/everr-core/assets/skills/` so dashboard-authoring agents know the options exist.
+Add the new kind and its option table to `packages/docs/content/docs/dashboards/visualizations.mdx`, and update the `everr-setup-resources` skill in `crates/everr-core/assets/skills/` so dashboard-authoring agents know the options exist.
 
 ### 7. Add it to the gallery dashboard
 
