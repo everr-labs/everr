@@ -17,11 +17,7 @@ The Agent inspects your data, picks panels grounded in it, writes the file, and 
 
 ## Alternative: build it by hand
 
-The rest of this step is the same workflow done manually. In your repo, make an `everr/` directory at the root to hold your declarations. The directory is the unit you'll apply; files sit flat inside it, named by kind (dashboards are `*.dashboard.yaml`).
-
-```sh
-mkdir -p everr
-```
+The rest of this step is the same workflow done manually. Your declarations live in an `everr/` directory at the repo root; it is the unit you'll apply, and files sit flat inside it, named by kind (dashboards are `*.dashboard.yaml`).
 
 Apply scopes everything to your repository's identity (its `repoid`), inferred from the repo's `origin` remote as `host/owner/repo`. Nothing to configure.
 

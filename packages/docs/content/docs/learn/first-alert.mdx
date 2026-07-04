@@ -17,11 +17,7 @@ The Agent picks the signal, sets a threshold from your real baselines, writes th
 
 ## Alternative: write it by hand
 
-The rest of this step is the same workflow done manually. If you already created an `everr/` directory in the previous step, reuse it: apply discovers and reconciles everything under it, and alerts (`*.alert.yaml`) sit flat alongside dashboards. Otherwise create one now:
-
-```sh
-mkdir -p everr
-```
+The rest of this step is the same workflow done manually. If you already created an `everr/` directory in the previous step, reuse it: apply discovers and reconciles everything under it, and alerts (`*.alert.yaml`) sit flat alongside dashboards.
 
 Apply scopes everything to your repository's identity (its `repoid`), inferred from the repo's `origin` remote as `host/owner/repo`. Nothing to configure.
 
