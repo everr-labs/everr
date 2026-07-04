@@ -18,7 +18,8 @@ import {
   SelectValue,
 } from "@everr/ui/components/select";
 import { Switch } from "@everr/ui/components/switch";
-import { Check, Copy, KeyRound, Loader2, Plus } from "lucide-react";
+import { Textarea } from "@everr/ui/components/textarea";
+import { Check, Copy, Globe, KeyRound, Loader2, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useCreateApiKey } from "@/components/api-keys/queries";
@@ -56,6 +57,8 @@ export function CreateApiKeyDialog() {
     useState<Record<ApiKeyScope, boolean>>(defaultScopes);
   const [issuedKey, setIssuedKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [isPublic, setIsPublic] = useState(false);
+  const [originsText, setOriginsText] = useState("");
   const copyResetTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const create = useCreateApiKey();
 
@@ -68,6 +71,8 @@ export function CreateApiKeyDialog() {
     setScopes(defaultScopes());
     setIssuedKey(null);
     setCopied(false);
+    setIsPublic(false);
+    setOriginsText("");
   };
 
   const handleOpenChange = (next: boolean) => {
@@ -83,6 +88,13 @@ export function CreateApiKeyDialog() {
     setScopes((prev) => ({ ...prev, [scope]: !prev[scope] }));
   };
 
+  const togglePublic = (next: boolean) => {
+    setIsPublic(next);
+    // Public keys are browser-ingestion-only: lock capabilities to
+    // Send telemetry the moment the toggle flips on.
+    if (next) setScopes({ ...defaultScopes(), ingest: true });
+  };
+
   const selectedScopes = ALL_API_KEY_SCOPES.filter((s) => scopes[s]);
   const noScopePicked = selectedScopes.length === 0;
 
@@ -94,9 +106,26 @@ export function CreateApiKeyDialog() {
       toast.error("Pick at least one capability for the key");
       return;
     }
+    const origins = Array.from(
+      new Set(
+        originsText
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(Boolean),
+      ),
+    );
+    if (isPublic && origins.length === 0) {
+      toast.error("Add at least one allowed origin");
+      return;
+    }
     const days = expiry === "never" ? undefined : Number(expiry);
     create.mutate(
-      { name: trimmed, expiresInDays: days, scopes: selectedScopes },
+      {
+        name: trimmed,
+        expiresInDays: days,
+        scopes: selectedScopes,
+        ...(isPublic ? { public: true, allowedOrigins: origins } : {}),
+      },
       {
         // The server fn guarantees a string `key` or throws, so no null guard.
         onSuccess: (data) => {
@@ -241,12 +270,60 @@ export function CreateApiKeyDialog() {
                         id={switchId}
                         checked={scopes[scope]}
                         onCheckedChange={() => toggleScope(scope)}
+                        disabled={isPublic}
                       />
                     </div>
                   );
                 })}
               </div>
             </fieldset>
+
+            <div className="space-y-3">
+              <div className="has-[[data-checked]]:border-foreground/20 flex items-center gap-3 rounded-lg border p-3 transition-colors">
+                <span className="bg-muted/50 text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-md border">
+                  <Globe className="size-4" />
+                </span>
+                <label
+                  htmlFor="api-key-public"
+                  className="min-w-0 flex-1 cursor-pointer space-y-0.5"
+                >
+                  <span className="block text-sm font-medium">
+                    Public browser key
+                  </span>
+                  <span className="text-muted-foreground block text-xs/relaxed">
+                    Ships in page source and only sends telemetry from the
+                    origins below. Not usable server-side.
+                  </span>
+                </label>
+                <Switch
+                  id="api-key-public"
+                  checked={isPublic}
+                  onCheckedChange={togglePublic}
+                />
+              </div>
+
+              {isPublic && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="api-key-origins">
+                    Allowed browser origins
+                  </Label>
+                  <Textarea
+                    id="api-key-origins"
+                    value={originsText}
+                    onChange={(e) => setOriginsText(e.target.value)}
+                    placeholder={
+                      "https://app.example.com\nhttp://localhost:5173"
+                    }
+                    rows={3}
+                    required
+                  />
+                  <p className="text-muted-foreground text-xs">
+                    One origin per line: scheme://host with an optional port, no
+                    paths.
+                  </p>
+                </div>
+              )}
+            </div>
 
             <DialogFooter>
               <Button
