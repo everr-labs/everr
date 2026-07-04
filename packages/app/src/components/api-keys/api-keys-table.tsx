@@ -17,6 +17,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@everr/ui/components/tooltip";
+import { Globe } from "lucide-react";
 import { toast } from "sonner";
 import { formatDate } from "@/components/users-management/format-date";
 import {
@@ -24,6 +25,7 @@ import {
   type ApiKeyPermissions,
   describeApiKeyScopes,
 } from "@/lib/api-key-scopes";
+import { publicKeyMetadataOf } from "@/lib/public-ingest-keys";
 import { type ApiKey, useRevokeApiKey } from "./queries";
 import { SCOPE_ICONS } from "./scope-meta";
 
@@ -92,6 +94,27 @@ function ScopeBadges({ row }: { row: ApiKey }) {
   );
 }
 
+function PublicBadge({ row }: { row: ApiKey }) {
+  const meta = publicKeyMetadataOf(row.metadata);
+  if (!meta) return null;
+  return (
+    <Tooltip>
+      <TooltipTrigger render={<Badge variant="secondary" className="gap-1" />}>
+        <Globe className="size-3" />
+        Public
+      </TooltipTrigger>
+      <TooltipContent>
+        <p>Browser-only key. Allowed origins:</p>
+        <ul className="mt-1 font-mono">
+          {meta.allowedOrigins.map((origin) => (
+            <li key={origin}>{origin}</li>
+          ))}
+        </ul>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 function LastUsed({ row }: { row: ApiKey }) {
   const value = row.lastRequest;
   const relative = relativeFromNow(value);
@@ -156,7 +179,12 @@ export function ApiKeysTable({ keys }: ApiKeysTableProps) {
     },
     {
       header: "Capabilities",
-      cell: (row) => <ScopeBadges row={row} />,
+      cell: (row) => (
+        <div className="flex flex-wrap items-center gap-1">
+          <PublicBadge row={row} />
+          <ScopeBadges row={row} />
+        </div>
+      ),
     },
     {
       header: "Last used",
