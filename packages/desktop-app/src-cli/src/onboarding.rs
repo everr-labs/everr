@@ -234,7 +234,9 @@ async fn step_import_repos(session: &Session) -> Result<bool> {
 fn existing_cloud_session() -> Option<Session> {
     let store = auth::state_store();
     let config = auth::resolve_auth_config().ok()?;
-    store.load_session_for_api_base_url(&config.api_base_url).ok()
+    store
+        .load_session_for_api_base_url(&config.api_base_url)
+        .ok()
 }
 
 async fn step_connect_cloud(outcome: &mut SetupOutcome) -> Result<()> {
@@ -626,7 +628,10 @@ mod tests {
     fn both_targets_map_to_all_providers() {
         use everr_core::skills::SkillProvider;
         assert_eq!(
-            super::skill_target_providers(&[super::SkillTarget::Claude, super::SkillTarget::Agents]),
+            super::skill_target_providers(&[
+                super::SkillTarget::Claude,
+                super::SkillTarget::Agents
+            ]),
             vec![
                 SkillProvider::ClaudeCode,
                 SkillProvider::Codex,
@@ -660,7 +665,10 @@ mod tests {
                 path: String::new(),
             },
         ];
-        assert_eq!(super::default_targets(&statuses), vec![super::SkillTarget::Claude]);
+        assert_eq!(
+            super::default_targets(&statuses),
+            vec![super::SkillTarget::Claude]
+        );
     }
 
     #[test]
@@ -672,7 +680,10 @@ mod tests {
         };
         let steps = super::next_steps("everr", &outcome);
         assert_eq!(steps.len(), 1);
-        assert_eq!(steps[0].command, "everr local query \"SELECT * FROM logs LIMIT 20\"");
+        assert_eq!(
+            steps[0].command,
+            "everr local query \"SELECT * FROM logs LIMIT 20\""
+        );
     }
 
     #[test]
@@ -682,14 +693,18 @@ mod tests {
             skills_installed: false,
             repos_imported: true,
         };
-        assert!(super::next_steps("everr", &imported)
-            .iter()
-            .any(|step| step.command.contains("ci runs")));
+        assert!(
+            super::next_steps("everr", &imported)
+                .iter()
+                .any(|step| step.command.contains("ci runs"))
+        );
 
         let not_imported = super::SetupOutcome::default();
-        assert!(!super::next_steps("everr", &not_imported)
-            .iter()
-            .any(|step| step.command.contains("ci runs")));
+        assert!(
+            !super::next_steps("everr", &not_imported)
+                .iter()
+                .any(|step| step.command.contains("ci runs"))
+        );
     }
 
     #[test]
@@ -699,14 +714,18 @@ mod tests {
             skills_installed: true,
             repos_imported: false,
         };
-        assert!(super::next_steps("everr", &with_skills)
-            .iter()
-            .any(|step| step.command.contains("/everr-setup-telemetry")));
+        assert!(
+            super::next_steps("everr", &with_skills)
+                .iter()
+                .any(|step| step.command.contains("/everr-setup-telemetry"))
+        );
 
         let without = super::SetupOutcome::default();
-        assert!(!super::next_steps("everr", &without)
-            .iter()
-            .any(|step| step.command.contains("/everr-setup-telemetry")));
+        assert!(
+            !super::next_steps("everr", &without)
+                .iter()
+                .any(|step| step.command.contains("/everr-setup-telemetry"))
+        );
     }
 
     #[test]
@@ -722,9 +741,11 @@ mod tests {
             repos_imported: true,
         };
         let steps = super::next_steps("everr-dev", &outcome);
-        assert!(steps
-            .iter()
-            .all(|step| step.command.starts_with("everr-dev") || step.command.starts_with('/')));
+        assert!(
+            steps
+                .iter()
+                .all(|step| step.command.starts_with("everr-dev") || step.command.starts_with('/'))
+        );
     }
 
     #[test]
