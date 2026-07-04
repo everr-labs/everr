@@ -159,9 +159,12 @@ stdout logs are not ingested. See fix 4.
    4 MiB of body text (`logEmitter` in
    `collector/receiver/githubactionsreceiver/log_event_handling.go`), so
    memory stays proportional to one chunk instead of the whole run.
-   Processing is still synchronous in the webhook handler; the app's replay
-   timeout was raised from 30s to 60s to cover big archives. The async half
-   remains open.
+   The app's replay timeout was raised from 30s to 60s while ingestion was
+   still synchronous. The async half is done as well: the handler now acks
+   the webhook with 202 and a bounded worker pool ingests the archive off
+   the request path (queue of 64, two workers, 503 on overflow so the app's
+   retry is the backpressure; the worker retries transient failures itself
+   since the 202 forecloses redelivery).
 4. **Add a real restart signal.** Add a `k8s_cluster` receiver (or ingest
    Kubernetes events) to the internal collector in
    `everr-deploy/infra-v2/config/otel-collector-internal-config.yaml` so we

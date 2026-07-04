@@ -32,6 +32,31 @@ var errMissingGitHubAuth = errors.New("github api authentication is not configur
 
 const maxPayloadSize = 25 * 1024 * 1024 // 25 MB — GitHub webhook max payload size
 
+// Log-archive ingestion runs off the webhook request path: downloading and
+// scanning a run's logs takes tens of seconds for big runs, and doing it
+// inline blocked the webhook response for the whole duration. Jobs queue on a
+// bounded channel; when it is full the receiver responds 503 so the sender's
+// retry becomes the backpressure, instead of buffering without limit.
+const logIngestQueueSize = 64
+const logIngestWorkers = 2
+
+// logIngestRetries and logIngestRetryBackoff govern the worker's own retry of
+// a failed ingestion. Once the webhook is acked with 202 the sender will not
+// redeliver it, so transient GitHub API or pipeline failures are retried here
+// before the archive is given up on.
+const logIngestRetries = 3
+const logIngestRetryBackoff = 30 * time.Second
+
+// logIngestJob is one accepted workflow_run event whose log archive still has
+// to be ingested. Headers are retained because downstream processors read
+// tenant information from client metadata.
+type logIngestJob struct {
+	event          *github.WorkflowRunEvent
+	installationID int64
+	headers        http.Header
+	withTraceInfo  bool
+}
+
 type githubActionsReceiver struct {
 	logsConsumer    consumer.Logs
 	metricsConsumer consumer.Metrics
@@ -46,6 +71,14 @@ type githubActionsReceiver struct {
 	ghClient        *github.Client
 	jobNames        *jobNameCache
 	stepTimings     *stepTimingCache
+	logJobs         chan logIngestJob
+	logWorkerWG     sync.WaitGroup
+	logWorkerCtx    context.Context
+	logWorkerStop   context.CancelFunc
+
+	// newInstallationClient builds the GitHub client a log worker uses.
+	// Overridable in tests; production wires githubClientForInstallation.
+	newInstallationClient func(installationID int64) (*github.Client, error)
 }
 
 func newReceiver(
@@ -88,7 +121,9 @@ func newReceiver(
 		ghClient:    ghClient,
 		jobNames:    newJobNameCache(1024, 30*time.Minute),
 		stepTimings: newStepTimingCache(1024, 30*time.Minute),
+		logJobs:     make(chan logIngestJob, logIngestQueueSize),
 	}
+	gar.newInstallationClient = gar.githubClientForInstallation
 
 	return gar, nil
 }
@@ -169,6 +204,12 @@ func (gar *githubActionsReceiver) Start(ctx context.Context, host component.Host
 	endpoint := fmt.Sprintf("%s%s", gar.config.ServerConfig.NetAddr.Endpoint, gar.config.Path)
 	gar.logger.Info("Starting GithubActions server", zap.String("endpoint", endpoint))
 
+	gar.logWorkerCtx, gar.logWorkerStop = context.WithCancel(context.Background())
+	for i := 0; i < logIngestWorkers; i++ {
+		gar.logWorkerWG.Add(1)
+		go gar.runLogWorker()
+	}
+
 	server := &http.Server{
 		Addr:              gar.config.ServerConfig.NetAddr.Endpoint,
 		Handler:           gar,
@@ -200,10 +241,68 @@ func (gar *githubActionsReceiver) Shutdown(ctx context.Context) error {
 
 	var err error
 	if server != nil {
+		// Stops accepting requests and waits for in-flight handlers, so no
+		// enqueue can race with closing the job channel below.
 		err = server.Shutdown(ctx)
 	}
 	gar.shutdownWG.Wait()
+
+	if gar.logWorkerStop != nil {
+		// Cancel first so queued and in-flight ingestions fail fast instead of
+		// draining multi-minute downloads against the shutdown deadline.
+		gar.logWorkerStop()
+		close(gar.logJobs)
+		gar.logWorkerWG.Wait()
+	}
 	return err
+}
+
+func (gar *githubActionsReceiver) runLogWorker() {
+	defer gar.logWorkerWG.Done()
+	for job := range gar.logJobs {
+		gar.processLogJob(job)
+	}
+}
+
+// processLogJob ingests one accepted workflow_run log archive. The webhook
+// was already acked with 202, so the sender will not redeliver the event;
+// transient failures are retried here before the archive is given up on.
+func (gar *githubActionsReceiver) processLogJob(job logIngestJob) {
+	logger := gar.logger.Named("eventToLogs").With(
+		zap.Int64("run_id", job.event.GetWorkflowRun().GetID()),
+		zap.String("repository", job.event.GetRepo().GetFullName()),
+	)
+
+	// Rebuild the client metadata the request carried: downstream processors
+	// read tenant information from it.
+	ci := client.FromContext(gar.logWorkerCtx)
+	ci.Metadata = client.NewMetadata(job.headers)
+	ctx := client.NewContext(gar.logWorkerCtx, ci)
+
+	ghClient, err := gar.newInstallationClient(job.installationID)
+	if err != nil {
+		logger.Error("Failed to initialize GitHub client for logs", zap.Error(err))
+		return
+	}
+
+	for attempt := 1; ; attempt++ {
+		err = eventToLogs(ctx, job.event, gar.config, ghClient, logger, job.withTraceInfo, gar.jobNames, gar.stepTimings, func(ld plog.Logs) error {
+			return gar.logsConsumer.ConsumeLogs(ctx, ld)
+		})
+		if err == nil || ctx.Err() != nil {
+			return
+		}
+		if attempt >= logIngestRetries {
+			logger.Error("Giving up on workflow run log archive", zap.Int("attempts", attempt), zap.Error(err))
+			return
+		}
+		logger.Warn("Log ingestion failed, retrying", zap.Int("attempt", attempt), zap.Error(err))
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(logIngestRetryBackoff):
+		}
+	}
 }
 
 func (gar *githubActionsReceiver) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -364,23 +463,28 @@ func (gar *githubActionsReceiver) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
-	// if a log consumer is set, process the event into logs
+	// If a log consumer is set, queue the run for log-archive ingestion.
+	// Downloading and scanning the archive takes tens of seconds for big
+	// runs, so it happens on the worker pool, off the request path.
 	if !processingFailed && gar.logsConsumer != nil {
-		ghClient, clientErr := getInstallationClient()
-		if clientErr != nil {
-			processingFailed = true
-			gar.logger.Error("Failed to initialize GitHub client for logs", zap.Error(clientErr))
-		} else {
-			withTraceInfo := gar.tracesConsumer != nil && !traceErr
-
-			// eventToLogs hands payloads to the consumer in bounded chunks so
-			// a large run is never materialized in memory at once.
-			err := eventToLogs(ctx, event, gar.config, ghClient, gar.logger.Named("eventToLogs"), withTraceInfo, gar.jobNames, gar.stepTimings, func(ld plog.Logs) error {
-				return gar.logsConsumer.ConsumeLogs(ctx, ld)
-			})
-			if err != nil {
-				processingFailed = true
-				gar.logger.Error("Failed to process logs", zap.Error(err))
+		if runEvent, ok := event.(*github.WorkflowRunEvent); ok {
+			job := logIngestJob{
+				event:          runEvent,
+				installationID: installationID,
+				headers:        r.Header.Clone(),
+				withTraceInfo:  gar.tracesConsumer != nil && !traceErr,
+			}
+			select {
+			case gar.logJobs <- job:
+			default:
+				// Queue full: reject so the sender's retry becomes the
+				// backpressure instead of buffering without bound. Duplicate
+				// traces/metrics on redelivery match the existing semantics
+				// of a failure after those consumers already ran.
+				gar.logger.Warn("Log ingestion queue full, rejecting webhook",
+					zap.Int64("run_id", runEvent.GetWorkflowRun().GetID()))
+				http.Error(w, "Log ingestion queue full", http.StatusServiceUnavailable)
+				return
 			}
 		}
 	}

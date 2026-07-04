@@ -13,12 +13,11 @@ are assumed to be in place:
 - the collector container has memory requests and limits, and the pipeline
   has a `memory_limiter` processor, so overload produces backpressure instead
   of a kernel OOM kill,
-- log ingestion emits in bounded chunks (capped by record count and body
-  bytes), so no
-  single run is materialized in memory at once. Processing is still
-  synchronous in the webhook handler and the app allows it 60 seconds, so
-  replay durations up to a minute are expected for huge runs, not a
-  regression.
+- log ingestion runs off the webhook request path: the handler acks with
+  202 and a bounded worker queue downloads and parses the archive, emitting
+  in bounded chunks (capped by record count and body bytes), so no single
+  run is materialized in memory at once. A full queue rejects the webhook
+  with 503 and the app's retry provides the backpressure.
 
 With those in place this alert should be rare. If it fires, one of the
 protections is not doing its job or the load pattern changed. Work through
@@ -64,11 +63,12 @@ verbose logs is the classic trigger.
 
 ## 3. Did the protections hold?
 
-- **Webhook latency.** Ingestion is synchronous, so replay durations scale
-  with archive size; up to the 60s app timeout is expected for huge runs.
-  What matters is memory staying flat while a slow replay is in flight. A
-  slow replay together with a memory balloon means chunked emission is not
-  bounding the payload (regression):
+- **Webhook latency.** With async ingestion, replay durations must stay
+  flat even while a big run is processed. Spikes returning here mean the
+  handler is doing heavy work inline again (regression). A burst of 503
+  replay failures means the ingestion queue was full; occasional bursts are
+  backpressure working, sustained 503s mean ingestion is not keeping up
+  with load:
 
 ```panel
 ref: replay-durations
