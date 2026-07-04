@@ -14,6 +14,7 @@ const LEGACY_SKILL_RENAMES: &[(&str, &str)] = &[
     ("everr-local-debugging", "everr-use-telemetry"),
     ("everr-write-dashboards", "everr-setup-resources"),
     ("everr-write-runbooks", "everr-setup-resources"),
+    ("everr-write-notebooks", "everr-setup-resources"),
 ];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize)]

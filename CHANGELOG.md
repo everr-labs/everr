@@ -1,4 +1,26 @@
 
+## 2026-07-04
+
+### `everr upgrade`
+
+New `everr upgrade` command to upgrade both the CLI and the Desktop App
+
+### Resource empty states
+
+Alerts, dashboards, and runbooks pages now show an empty state that provide instructions on how to create them.
+
+### Learning path
+
+Improved the getting started docs, to provide a full learning path.
+
+### Desktop app
+
+Local collector tables renamed to match directly the cloud tables, and removed the views we used as prev workaround.
+
+This should fix the issue that some users are facing due to a missing TimestampTime column
+
+## 2026-07-01
+
 ### MCP server
 
 Introduced a new [MCP server](/docs/reference/mcp) at `/mcp` with a `query` tool that runs SQL against your telemetry from AI agents, plus a `whoami` introspection tool.

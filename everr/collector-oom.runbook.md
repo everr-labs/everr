@@ -7,18 +7,17 @@ peaks above **1024 MiB** working set over the last 5 minutes. Baseline is
 The known driver is GitHub Actions log ingestion: a `workflow_run: completed`
 webhook makes the collector download and parse the run's full log archive.
 The protections added after the
-[2026-07-04 investigation](./investigations/collector-webhook-oom.runbook.md)
+[2026-07-04 investigation](./investigations/2026-07-04-collector-oom/collector-webhook-oom.runbook.md)
 are assumed to be in place:
 
 - the collector container has memory requests and limits, and the pipeline
   has a `memory_limiter` processor, so overload produces backpressure instead
   of a kernel OOM kill,
-- log ingestion emits in bounded chunks (capped by record count and body
-  bytes), so no
-  single run is materialized in memory at once. Processing is still
-  synchronous in the webhook handler and the app allows it 60 seconds, so
-  replay durations up to a minute are expected for huge runs, not a
-  regression.
+- log ingestion skips any run whose log archive exceeds **15 MiB**
+  compressed. The run keeps its pipeline trace spans and metrics, it just
+  gets no log lines, and the collector logs a "Log archive exceeds size cap"
+  warning with the repo and run id. Runs under the cap are small enough that
+  the whole-run payload stays far from the danger zone.
 
 With those in place this alert should be rare. If it fires, one of the
 protections is not doing its job or the load pattern changed. Work through
@@ -64,11 +63,10 @@ verbose logs is the classic trigger.
 
 ## 3. Did the protections hold?
 
-- **Webhook latency.** Ingestion is synchronous, so replay durations scale
-  with archive size; up to the 60s app timeout is expected for huge runs.
-  What matters is memory staying flat while a slow replay is in flight. A
-  slow replay together with a memory balloon means chunked emission is not
-  bounding the payload (regression):
+- **Webhook latency.** Ingestion is synchronous, but the 15 MiB archive cap
+  bounds the work per run, so replays should stay well under the app's 30s
+  timeout. A replay near the timeout together with a memory balloon means
+  the size cap is not being enforced (regression):
 
 ```panel
 ref: replay-durations
@@ -92,14 +90,14 @@ height: 240
 
 | Finding | Action |
 | --- | --- |
-| One pathological workflow run, protections held, no restart | Nothing urgent. Note the repo/run; consider a per-run size guard if it repeats. |
-| Replay durations spiky again, or whole runs buffered in memory | Regression in the receiver. Compare the deployed collector image against main and roll back or fix. |
+| One pathological workflow run, protections held, no restart | Nothing urgent. Note the repo/run; if its archive was over the 15 MiB cap its logs were skipped by design. |
+| Replay durations spiky again, or whole runs buffered in memory | Regression in the receiver's archive size cap. Compare the deployed collector image against main and roll back or fix. |
 | OOMKilled at the container limit, memory_limiter never engaged | Fix the `memory_limiter` soft/hard limits so they sit safely below the container limit. |
 | No container limits present | Restore memory requests/limits in the collector deployment (everr-deploy). |
 | Sustained high memory with steady refusals | Load outgrew the sizing. Raise the container limit and the memory_limiter thresholds together, then raise the alert threshold in `collector-oom.alert.yaml` to keep headroom. |
 
 ## Related
 
-- [Investigation (2026-07-04)](./investigations/collector-webhook-oom.runbook.md):
+- [Investigation (2026-07-04)](./investigations/2026-07-04-collector-oom/collector-webhook-oom.runbook.md):
   the original incident analysis, root cause in the
   `githubactionsreceiver`, and the fixes this runbook assumes are deployed.
