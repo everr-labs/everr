@@ -7,7 +7,6 @@
 package githubactionsreceiver
 
 import (
-	"archive/zip"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -57,14 +56,9 @@ func TestWorkflowRunWebhookAcksBeforeLogIngestion(t *testing.T) {
 	// Zip download blocks until released, proving the ack does not wait on it.
 	release := make(chan struct{})
 
-	var buf bytes.Buffer
-	w := zip.NewWriter(&buf)
-	f, err := w.Create("pre-commit/1_Set up job.txt")
-	require.NoError(t, err)
-	_, err = f.Write([]byte("2023-10-13T10:11:33Z hello from async ingestion\n"))
-	require.NoError(t, err)
-	require.NoError(t, w.Close())
-	zipData := buf.Bytes()
+	zipData := createCombinedZip(t, map[string]string{
+		"pre-commit/1_Set up job.txt": "2023-10-13T10:11:33Z hello from async ingestion\n",
+	})
 
 	zipServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		<-release
@@ -138,9 +132,10 @@ func TestWorkflowRunWebhookRejectsWhenQueueFull(t *testing.T) {
 	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
 }
 
-// TestLogWorkerRetriesTransientFailures verifies that a failed ingestion is
-// retried by the worker: once the webhook is acked the sender will not
-// redeliver, so the worker owns transient-failure retries.
+// TestLogWorkerRetriesTransientFailures verifies the retry contract: once the
+// webhook is acked the sender will not redeliver, so a failed attempt is
+// re-enqueued after the backoff (without parking a worker slot) until the
+// attempt budget is spent.
 func TestLogWorkerRetriesTransientFailures(t *testing.T) {
 	var calls atomic.Int32
 	apiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -158,34 +153,42 @@ func TestLogWorkerRetriesTransientFailures(t *testing.T) {
 	require.NoError(t, err)
 	gar.logsConsumer = new(consumertest.LogsSink)
 	gar.newInstallationClient = func(int64) (*github.Client, error) { return ghClient, nil }
+	gar.logRetryBackoff = 20 * time.Millisecond
 	gar.logWorkerCtx, gar.logWorkerStop = context.WithCancel(context.Background())
-	t.Cleanup(gar.logWorkerStop)
+	t.Cleanup(func() {
+		gar.logWorkerStop()
+		gar.logResubmitWG.Wait()
+	})
 
 	raw, err := os.ReadFile("./testdata/completed/8_workflow_run_completed.json")
 	require.NoError(t, err)
 	event, err := github.ParseWebHook("workflow_run", raw)
 	require.NoError(t, err)
 
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		gar.processLogJob(logIngestJob{
-			event:          event.(*github.WorkflowRunEvent),
-			installationID: 123,
-			headers:        http.Header{},
-		})
-	}()
-
-	// Each attempt makes one GetWorkflowRunAttemptLogs call (go-github does
-	// not retry 500s); the worker should retry up to logIngestRetries times.
-	require.Eventually(t, func() bool { return calls.Load() >= 1 }, 5*time.Second, 10*time.Millisecond)
-
-	// Cancel instead of waiting out the retry backoff.
-	gar.logWorkerStop()
-	select {
-	case <-done:
-	case <-time.After(5 * time.Second):
-		t.Fatal("worker did not stop after context cancellation")
+	job := logIngestJob{
+		event:          event.(*github.WorkflowRunEvent),
+		installationID: 123,
+		headers:        http.Header{},
 	}
-	require.Equal(t, int32(1), calls.Load(), "second attempt must not start before the backoff elapses")
+
+	// A failed first attempt is re-enqueued after the backoff with the
+	// attempt counter bumped, and makes exactly one API call itself.
+	gar.processLogJob(job)
+	require.Equal(t, int32(1), calls.Load())
+	select {
+	case retried := <-gar.logJobs:
+		require.Equal(t, 1, retried.attempt)
+	case <-time.After(5 * time.Second):
+		t.Fatal("failed job was not re-enqueued after the backoff")
+	}
+
+	// A failure on the final attempt is given up on, not re-enqueued.
+	job.attempt = logIngestRetries - 1
+	gar.processLogJob(job)
+	gar.logResubmitWG.Wait()
+	select {
+	case <-gar.logJobs:
+		t.Fatal("exhausted job must not be re-enqueued")
+	default:
+	}
 }
