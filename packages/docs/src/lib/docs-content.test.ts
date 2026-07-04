@@ -30,13 +30,11 @@ describe("docs content", () => {
     expect(existsSync(join(docsRoot, "features"))).toBe(false);
     expect(existsSync(join(docsRoot, "reference/index.mdx"))).toBe(false);
     expect(existsSync(join(docsRoot, "reference/cli.mdx"))).toBe(true);
-    expect(existsSync(join(docsRoot, "reference/mcp.mdx"))).toBe(true);
     expect(existsSync(join(docsRoot, "reference/skills.mdx"))).toBe(true);
     expect(existsSync(join(docsRoot, "reference/datemath.mdx"))).toBe(true);
     expect(existsSync(join(docsRoot, "reference/retention.mdx"))).toBe(true);
     expect(referenceMeta.pages).toEqual([
       "cli",
-      "mcp",
       "skills",
       "datemath",
       "retention",
