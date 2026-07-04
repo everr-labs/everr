@@ -19,6 +19,7 @@ import {
 } from "@everr/ui/components/select";
 import { Switch } from "@everr/ui/components/switch";
 import { Textarea } from "@everr/ui/components/textarea";
+import { cn } from "@everr/ui/lib/utils";
 import { Check, Copy, Globe, KeyRound, Loader2, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -74,7 +75,9 @@ export function CreateApiKeyDialog({
     useState<Record<ApiKeyScope, boolean>>(defaultScopes);
   const [issuedKey, setIssuedKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [isPublic, setIsPublic] = useState(defaultPublic);
+  // The key kind is fixed by which entry point opened the dialog ("New key"
+  // vs "New public key"), so it's a prop, not toggleable state.
+  const isPublic = defaultPublic;
   const [originsText, setOriginsText] = useState("");
   const copyResetTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const create = useCreateApiKey();
@@ -88,7 +91,6 @@ export function CreateApiKeyDialog({
     setScopes(defaultScopes());
     setIssuedKey(null);
     setCopied(false);
-    setIsPublic(defaultPublic);
     setOriginsText("");
   };
 
@@ -194,7 +196,7 @@ export function CreateApiKeyDialog({
               </DialogTitle>
               <DialogDescription>
                 This is the only time the full key is shown. Store it in your
-                secret manager — you won't be able to retrieve it later.
+                secret manager. You won't be able to retrieve it later.
               </DialogDescription>
             </DialogHeader>
             <div className="bg-muted/40 rounded-md border p-3 font-mono text-xs break-all">
@@ -217,11 +219,33 @@ export function CreateApiKeyDialog({
         ) : (
           <form onSubmit={handleSubmit} className="space-y-5">
             <DialogHeader>
-              <DialogTitle>New API key</DialogTitle>
+              <DialogTitle className="flex items-center gap-2">
+                <span
+                  className={cn(
+                    "flex size-7 items-center justify-center rounded-md",
+                    isPublic
+                      ? "bg-muted text-muted-foreground"
+                      : "bg-primary/10 text-primary",
+                  )}
+                >
+                  {isPublic ? (
+                    <Globe className="size-4" />
+                  ) : (
+                    <KeyRound className="size-4" />
+                  )}
+                </span>
+                {isPublic ? "New public key" : "New key"}
+              </DialogTitle>
               <DialogDescription>
-                Mint an organization-scoped{" "}
-                <code className="font-mono text-[0.7rem]">ek_</code> key and
-                choose what it's allowed to do.
+                {isPublic ? (
+                  "Anyone can read this key in your page source, so it only sends telemetry, and only from the origins you allow."
+                ) : (
+                  <>
+                    Organization-scoped{" "}
+                    <code className="font-mono text-[0.7rem]">ek_</code> key for
+                    servers, CLIs, and collectors. Pick what it can do.
+                  </>
+                )}
               </DialogDescription>
             </DialogHeader>
 
@@ -263,96 +287,64 @@ export function CreateApiKeyDialog({
               </div>
             </div>
 
-            <fieldset className="space-y-2">
-              <legend className="text-sm font-medium">Capabilities</legend>
-              <p className="text-muted-foreground text-xs">
-                Grant only what this key needs — it's rejected for anything
-                else.
-              </p>
-              <div className="space-y-2 pt-0.5">
-                {ALL_API_KEY_SCOPES.map((scope) => {
-                  const meta = API_KEY_SCOPES[scope];
-                  const Icon = SCOPE_ICONS[scope];
-                  const switchId = `api-key-scope-${scope}`;
-                  return (
-                    <div
-                      key={scope}
-                      className="has-[[data-checked]]:border-foreground/20 flex items-center gap-3 rounded-lg border p-3 transition-colors"
-                    >
-                      <span className="bg-muted/50 text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-md border">
-                        <Icon className="size-4" />
-                      </span>
-                      <label
-                        htmlFor={switchId}
-                        className="min-w-0 flex-1 cursor-pointer space-y-0.5"
-                      >
-                        <span className="block text-sm font-medium">
-                          {meta.label}
-                        </span>
-                        <span className="text-muted-foreground block text-xs/relaxed">
-                          {meta.description}
-                        </span>
-                      </label>
-                      <Switch
-                        id={switchId}
-                        checked={
-                          isPublic ? scope === PUBLIC_KEY_SCOPE : scopes[scope]
-                        }
-                        onCheckedChange={() => toggleScope(scope)}
-                        disabled={isPublic}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            </fieldset>
-
-            <div className="space-y-3">
-              <div className="has-[[data-checked]]:border-foreground/20 flex items-center gap-3 rounded-lg border p-3 transition-colors">
-                <span className="bg-muted/50 text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-md border">
-                  <Globe className="size-4" />
-                </span>
-                <label
-                  htmlFor="api-key-public"
-                  className="min-w-0 flex-1 cursor-pointer space-y-0.5"
-                >
-                  <span className="block text-sm font-medium">
-                    Public browser key
-                  </span>
-                  <span className="text-muted-foreground block text-xs/relaxed">
-                    Ships in page source and only sends telemetry from the
-                    origins below. Not usable server-side.
-                  </span>
-                </label>
-                <Switch
-                  id="api-key-public"
-                  checked={isPublic}
-                  onCheckedChange={setIsPublic}
+            {isPublic ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="api-key-origins">Allowed origins</Label>
+                <Textarea
+                  id="api-key-origins"
+                  value={originsText}
+                  onChange={(e) => setOriginsText(e.target.value)}
+                  placeholder={"https://app.example.com\nhttp://localhost:5173"}
+                  rows={3}
+                  required
                 />
+                <p className="text-muted-foreground text-xs">
+                  One origin per line: scheme://host with an optional port, no
+                  paths.
+                </p>
               </div>
-
-              {isPublic && (
-                <div className="space-y-1.5">
-                  <Label htmlFor="api-key-origins">
-                    Allowed browser origins
-                  </Label>
-                  <Textarea
-                    id="api-key-origins"
-                    value={originsText}
-                    onChange={(e) => setOriginsText(e.target.value)}
-                    placeholder={
-                      "https://app.example.com\nhttp://localhost:5173"
-                    }
-                    rows={3}
-                    required
-                  />
-                  <p className="text-muted-foreground text-xs">
-                    One origin per line: scheme://host with an optional port, no
-                    paths.
-                  </p>
+            ) : (
+              <fieldset className="space-y-2">
+                <legend className="text-sm font-medium">Capabilities</legend>
+                <p className="text-muted-foreground text-xs">
+                  Grant only what this key needs. It's rejected for anything
+                  else.
+                </p>
+                <div className="space-y-2 pt-0.5">
+                  {ALL_API_KEY_SCOPES.map((scope) => {
+                    const meta = API_KEY_SCOPES[scope];
+                    const Icon = SCOPE_ICONS[scope];
+                    const switchId = `api-key-scope-${scope}`;
+                    return (
+                      <div
+                        key={scope}
+                        className="has-[[data-checked]]:border-foreground/20 flex items-center gap-3 rounded-lg border p-3 transition-colors"
+                      >
+                        <span className="bg-muted/50 text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-md border">
+                          <Icon className="size-4" />
+                        </span>
+                        <label
+                          htmlFor={switchId}
+                          className="min-w-0 flex-1 cursor-pointer space-y-0.5"
+                        >
+                          <span className="block text-sm font-medium">
+                            {meta.label}
+                          </span>
+                          <span className="text-muted-foreground block text-xs/relaxed">
+                            {meta.description}
+                          </span>
+                        </label>
+                        <Switch
+                          id={switchId}
+                          checked={scopes[scope]}
+                          onCheckedChange={() => toggleScope(scope)}
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
-              )}
-            </div>
+              </fieldset>
+            )}
 
             <DialogFooter>
               <Button
@@ -370,7 +362,7 @@ export function CreateApiKeyDialog({
                 {create.isPending && (
                   <Loader2 className="size-4 animate-spin" />
                 )}
-                Create key
+                {isPublic ? "Create public key" : "Create key"}
               </Button>
             </DialogFooter>
           </form>
