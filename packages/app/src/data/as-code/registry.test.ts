@@ -21,8 +21,20 @@ vi.mock("@/data/alerts/runbook-links.server", () => ({
 }));
 
 const upsertPreview = vi.fn();
+const findPreviewId = vi.fn();
 vi.mock("@/data/previews/apply.server", () => ({
   upsertPreview: (...a: unknown[]) => upsertPreview(...a),
+  findPreviewId: (...a: unknown[]) => findPreviewId(...a),
+}));
+
+// The real apply pass runs inside one db.transaction; the mock just invokes
+// the callback with a stand-in executor so the reconcilers (also mocked) run.
+vi.mock("@/db/client", () => ({
+  db: {
+    transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
+      fn({ tx: true }),
+    ),
+  },
 }));
 
 import { ApplyValidationError } from "./errors";
@@ -35,6 +47,8 @@ beforeEach(() => {
   dashboardReconciler.mockResolvedValue(empty);
   runbookReconciler.mockResolvedValue(empty);
   alertReconciler.mockResolvedValue(empty);
+  upsertPreview.mockResolvedValue("prev-1");
+  findPreviewId.mockResolvedValue(null);
 });
 
 describe("applyResources", () => {
@@ -58,26 +72,15 @@ describe("applyResources", () => {
       state: { dashboards: [dash], runbooks: [runbook], alerts: [alert] },
       dryRun: false,
     });
+    const liveNs = { orgId: "org-1", repoid: "repo-1", kind: "live" };
     expect(dashboardReconciler).toHaveBeenCalledWith(
-      expect.objectContaining({
-        orgId: "org-1",
-        repoid: "repo-1",
-        resources: [dash],
-      }),
+      expect.objectContaining({ namespace: liveNs, resources: [dash] }),
     );
     expect(runbookReconciler).toHaveBeenCalledWith(
-      expect.objectContaining({
-        orgId: "org-1",
-        repoid: "repo-1",
-        resources: [runbook],
-      }),
+      expect.objectContaining({ namespace: liveNs, resources: [runbook] }),
     );
     expect(alertReconciler).toHaveBeenCalledWith(
-      expect.objectContaining({
-        orgId: "org-1",
-        repoid: "repo-1",
-        resources: [alert],
-      }),
+      expect.objectContaining({ namespace: liveNs, resources: [alert] }),
     );
     expect(out).toEqual({
       dryRun: false,
@@ -232,11 +235,20 @@ describe("applyResources", () => {
       alertReconciler,
     ]) {
       expect(reconciler).toHaveBeenCalledWith(
-        expect.objectContaining({ preview: "gio/x", dryRun: false }),
+        expect.objectContaining({
+          namespace: {
+            orgId: "org-1",
+            repoid: "repo-1",
+            kind: "preview",
+            id: "prev-1",
+          },
+          dryRun: false,
+        }),
       );
     }
     expect(upsertPreview).toHaveBeenCalledTimes(1);
-    expect(upsertPreview).toHaveBeenCalledWith({
+    // Registered first, inside the shared transaction (the executor arg).
+    expect(upsertPreview).toHaveBeenCalledWith(expect.anything(), {
       orgId: "org-1",
       repoid: "repo-1",
       name: "gio/x",

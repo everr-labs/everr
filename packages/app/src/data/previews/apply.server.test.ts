@@ -1,43 +1,30 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/client";
 
-const deleted: unknown[] = [];
-let staleRows: unknown[] = [];
-// The row `SELECT … FOR UPDATE` sees inside the transaction; null models a
-// preview deleted since the scan, a fresh lastAppliedAt models a concurrent
-// re-apply.
-let lockedRows: unknown[] = [];
+// Rows the mocked `returning()`/`limit()` resolve to; set per-test.
+let deletedRows: { id: string }[] = [];
+let findRows: { id: string }[] = [];
 
 vi.mock("@/db/client", () => {
   const insertChain = {
     values: vi.fn(() => insertChain),
-    onConflictDoUpdate: vi.fn(() => Promise.resolve()),
+    onConflictDoUpdate: vi.fn(() => insertChain),
+    returning: vi.fn(() => Promise.resolve([{ id: "prev-1" }])),
   };
-  const deleteChain = (tableRef: unknown) => ({
-    where: vi.fn((cond: unknown) => {
-      deleted.push({ table: tableRef, cond });
-      return Promise.resolve();
-    }),
-  });
-  const lockChain = {
-    from: vi.fn(() => lockChain),
-    where: vi.fn(() => lockChain),
-    for: vi.fn(() => Promise.resolve(lockedRows)),
+  const selectChain = {
+    from: vi.fn(() => selectChain),
+    where: vi.fn(() => selectChain),
+    limit: vi.fn(() => Promise.resolve(findRows)),
+  };
+  const deleteChain = {
+    where: vi.fn(() => deleteChain),
+    returning: vi.fn(() => Promise.resolve(deletedRows)),
   };
   return {
     db: {
       insert: vi.fn(() => insertChain),
-      select: vi.fn(() => ({
-        from: vi.fn(() => ({
-          where: vi.fn(() => Promise.resolve(staleRows)),
-        })),
-      })),
-      transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
-        fn({
-          select: vi.fn(() => lockChain),
-          delete: vi.fn((t: unknown) => deleteChain(t)),
-        }),
-      ),
+      select: vi.fn(() => selectChain),
+      delete: vi.fn(() => deleteChain),
     },
   };
 });
@@ -49,18 +36,8 @@ vi.mock("drizzle-orm", () => ({
 }));
 
 vi.mock("@/db/schema", () => ({
-  dashboards: {
-    organizationId: "d.org",
-    repoid: "d.repo",
-    preview: "d.preview",
-  },
-  runbooks: { organizationId: "r.org", repoid: "r.repo", preview: "r.preview" },
-  alertDefinitions: {
-    organizationId: "a.org",
-    repoid: "a.repo",
-    preview: "a.preview",
-  },
   previews: {
+    id: "p.id",
     organizationId: "p.org",
     repoid: "p.repo",
     name: "p.name",
@@ -68,50 +45,58 @@ vi.mock("@/db/schema", () => ({
   },
 }));
 
-import { deleteStalePreviews, upsertPreview } from "./apply.server";
+import {
+  deleteStalePreviews,
+  findPreviewId,
+  upsertPreview,
+} from "./apply.server";
 
 const mockedDb = vi.mocked(db);
 
 beforeEach(() => {
   vi.clearAllMocks();
-  deleted.length = 0;
-  staleRows = [];
-  lockedRows = [];
+  deletedRows = [];
+  findRows = [];
 });
 
 describe("upsertPreview", () => {
-  it("inserts with conflict-update on lastAppliedAt", async () => {
-    await upsertPreview({ orgId: "org-1", repoid: "repo-1", name: "gio/x" });
+  it("inserts with conflict-update and returns the row id", async () => {
+    const id = await upsertPreview(db, {
+      orgId: "org-1",
+      repoid: "repo-1",
+      name: "gio/x",
+    });
+    expect(id).toBe("prev-1");
     expect(mockedDb.insert).toHaveBeenCalledTimes(1);
   });
 });
 
+describe("findPreviewId", () => {
+  it("returns the id when the preview exists", async () => {
+    findRows = [{ id: "prev-9" }];
+    expect(
+      await findPreviewId(db, { orgId: "o", repoid: "r", name: "gio/x" }),
+    ).toBe("prev-9");
+  });
+
+  it("returns null when no row matches", async () => {
+    findRows = [];
+    expect(
+      await findPreviewId(db, { orgId: "o", repoid: "r", name: "gio/x" }),
+    ).toBeNull();
+  });
+});
+
 describe("deleteStalePreviews", () => {
-  it("deletes nothing when no previews are stale", async () => {
+  it("returns 0 when nothing is stale", async () => {
     expect(await deleteStalePreviews(7)).toBe(0);
-    expect(deleted).toHaveLength(0);
+    expect(mockedDb.delete).toHaveBeenCalledTimes(1);
   });
 
-  it("deletes resource rows and the registry row per stale preview", async () => {
-    staleRows = [{ organizationId: "org-1", repoid: "repo-1", name: "gio/x" }];
-    lockedRows = [{ lastAppliedAt: new Date(0) }];
-    expect(await deleteStalePreviews(7)).toBe(1);
-    // dashboards, runbooks, alertDefinitions, previews — one delete each.
-    expect(deleted).toHaveLength(4);
-    expect(mockedDb.transaction).toHaveBeenCalledTimes(1);
-  });
-
-  it("skips a preview re-applied since the scan (locked row is now fresh)", async () => {
-    staleRows = [{ organizationId: "org-1", repoid: "repo-1", name: "gio/x" }];
-    lockedRows = [{ lastAppliedAt: new Date() }];
-    expect(await deleteStalePreviews(7)).toBe(0);
-    expect(deleted).toHaveLength(0);
-  });
-
-  it("skips a preview deleted since the scan (locked row is gone)", async () => {
-    staleRows = [{ organizationId: "org-1", repoid: "repo-1", name: "gio/x" }];
-    lockedRows = [];
-    expect(await deleteStalePreviews(7)).toBe(0);
-    expect(deleted).toHaveLength(0);
+  it("counts the stale registry rows removed (resources cascade)", async () => {
+    deletedRows = [{ id: "a" }, { id: "b" }];
+    expect(await deleteStalePreviews(7)).toBe(2);
+    // One predicated delete on previews; the FK cascade removes resource rows.
+    expect(mockedDb.delete).toHaveBeenCalledTimes(1);
   });
 });

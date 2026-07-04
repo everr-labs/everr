@@ -103,7 +103,7 @@ describe("scanDueAlerts", () => {
     await scanDueAlerts({ batchSize: 100 });
 
     const claimSql = drizzleSqlText(dbExecute.mock.calls[0]?.[0]);
-    expect(claimSql).not.toContain("AND preview = ''");
+    expect(claimSql).not.toContain("AND preview_id IS NULL");
   });
 
   it("excludes preview rows from the due set when the kill-switch is off", async () => {
@@ -113,6 +113,6 @@ describe("scanDueAlerts", () => {
     await scanDueAlerts({ batchSize: 100 });
 
     const claimSql = drizzleSqlText(dbExecute.mock.calls[0]?.[0]);
-    expect(claimSql).toContain("AND preview = ''");
+    expect(claimSql).toContain("AND preview_id IS NULL");
   });
 });

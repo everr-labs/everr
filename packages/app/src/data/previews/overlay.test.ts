@@ -6,16 +6,23 @@ const r = (
   slug: string,
   doc: unknown = { v: 1 },
   folderPath = "",
-  preview = "",
-) => ({ repoid, project: "default", slug, folderPath, preview, document: doc });
+  previewId: string | null = null,
+) => ({
+  repoid,
+  project: "default",
+  slug,
+  folderPath,
+  previewId,
+  document: doc,
+});
 
-// A preview row: same shape as a live row but carrying a non-empty preview name.
+// A preview row: same shape as a live row but carrying a registry id.
 const p = (
   repoid: string,
   slug: string,
   doc: unknown = { v: 1 },
   folderPath = "",
-) => r(repoid, slug, doc, folderPath, "pr");
+) => r(repoid, slug, doc, folderPath, "preview-1");
 
 const covered = new Set(["repo-1"]);
 

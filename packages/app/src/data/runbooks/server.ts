@@ -1,10 +1,10 @@
 import { notFound } from "@tanstack/react-router";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, isNull, or, sql } from "drizzle-orm";
 import * as z from "zod";
 import { overlayPreview, type PreviewStatus } from "@/data/previews/overlay";
 import { getCoveredRepoids } from "@/data/previews/repoids";
 import { db } from "@/db/client";
-import { runbooks } from "@/db/schema";
+import { previews, runbooks } from "@/db/schema";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import type { Runbook } from "./schema";
 import { runbookSpecSchema } from "./schema";
@@ -19,7 +19,7 @@ export const getRunbook = createAuthenticatedServerFn({ method: "GET" })
   )
   .handler(async ({ data: { project, slug, ...rest }, context }) => {
     const orgId = context.session.session.activeOrganizationId;
-    const preview = rest.preview ?? "";
+    const preview = rest.preview ?? null;
 
     const identity = and(
       eq(runbooks.organizationId, orgId),
@@ -27,11 +27,11 @@ export const getRunbook = createAuthenticatedServerFn({ method: "GET" })
       eq(runbooks.slug, slug),
     );
 
-    if (preview === "") {
+    if (preview === null) {
       const [row] = await db
         .select({ document: runbooks.document })
         .from(runbooks)
-        .where(and(identity, eq(runbooks.preview, "")))
+        .where(and(identity, isNull(runbooks.previewId)))
         .limit(1);
       if (!row) throw notFound();
       runbookSpecSchema.parse(row.document.spec);
@@ -41,19 +41,27 @@ export const getRunbook = createAuthenticatedServerFn({ method: "GET" })
       };
     }
 
+    // Live rows (previewId NULL) plus this preview's rows. repoid/name come from
+    // the joined registry row for preview rows, from the row itself for live.
     const [covered, rows] = await Promise.all([
       getCoveredRepoids(orgId, preview),
       db
         .select({
-          repoid: runbooks.repoid,
-          preview: runbooks.preview,
+          repoid: sql<string>`coalesce(${runbooks.repoid}, ${previews.repoid})`,
+          previewId: runbooks.previewId,
           project: runbooks.project,
           slug: runbooks.slug,
           folderPath: runbooks.folderPath,
           document: runbooks.document,
         })
         .from(runbooks)
-        .where(and(identity, inArray(runbooks.preview, ["", preview]))),
+        .leftJoin(previews, eq(runbooks.previewId, previews.id))
+        .where(
+          and(
+            identity,
+            or(isNull(runbooks.previewId), eq(previews.name, preview)),
+          ),
+        ),
     ]);
     const overlaid = overlayPreview({ rows, coveredRepoids: covered });
     // Prefer a surviving row; a shadowed-by-deletion live row still renders,
@@ -73,7 +81,7 @@ export const listRunbooks = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(z.object({ preview: z.string().optional() }).optional())
   .handler(async ({ data, context }) => {
     const orgId = context.session.session.activeOrganizationId;
-    const preview = data?.preview ?? "";
+    const preview = data?.preview ?? null;
 
     // Live path never diffs against anything, so it only needs the scalar
     // columns `toItem` returns — no `document` (expensive JSONB) fetch. The
@@ -87,8 +95,8 @@ export const listRunbooks = createAuthenticatedServerFn({ method: "GET" })
     };
 
     const previewSelect = {
-      repoid: runbooks.repoid,
-      preview: runbooks.preview,
+      repoid: sql<string>`coalesce(${runbooks.repoid}, ${previews.repoid})`,
+      previewId: runbooks.previewId,
       slug: runbooks.slug,
       project: runbooks.project,
       folderPath: runbooks.folderPath,
@@ -110,12 +118,12 @@ export const listRunbooks = createAuthenticatedServerFn({ method: "GET" })
       previewStatus: row.previewStatus,
     });
 
-    if (preview === "") {
+    if (preview === null) {
       const rows = await db
         .select(liveSelect)
         .from(runbooks)
         .where(
-          and(eq(runbooks.organizationId, orgId), eq(runbooks.preview, "")),
+          and(eq(runbooks.organizationId, orgId), isNull(runbooks.previewId)),
         );
       return rows.map(toItem);
     }
@@ -125,10 +133,11 @@ export const listRunbooks = createAuthenticatedServerFn({ method: "GET" })
       db
         .select(previewSelect)
         .from(runbooks)
+        .leftJoin(previews, eq(runbooks.previewId, previews.id))
         .where(
           and(
             eq(runbooks.organizationId, orgId),
-            inArray(runbooks.preview, ["", preview]),
+            or(isNull(runbooks.previewId), eq(previews.name, preview)),
           ),
         ),
     ]);

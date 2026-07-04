@@ -1,12 +1,12 @@
 import { bucketSeconds } from "@everr/ui/lib/bucket";
 import { DEFAULT_TIME_RANGE, resolveTimeRange } from "@everr/ui/lib/time-range";
 import { notFound } from "@tanstack/react-router";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, isNull, or, sql } from "drizzle-orm";
 import * as z from "zod";
 import { overlayPreview, type PreviewStatus } from "@/data/previews/overlay";
 import { getCoveredRepoids } from "@/data/previews/repoids";
 import { db } from "@/db/client";
-import { dashboards } from "@/db/schema";
+import { dashboards, previews } from "@/db/schema";
 import { querySqlApi } from "@/lib/clickhouse";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { interpolateVariables } from "./interpolate";
@@ -49,7 +49,7 @@ export const getDashboard = createAuthenticatedServerFn({ method: "GET" })
   )
   .handler(async ({ data: { project, slug, ...rest }, context }) => {
     const orgId = context.session.session.activeOrganizationId;
-    const preview = rest.preview ?? "";
+    const preview = rest.preview ?? null;
 
     const identity = and(
       eq(dashboards.organizationId, orgId),
@@ -57,11 +57,11 @@ export const getDashboard = createAuthenticatedServerFn({ method: "GET" })
       eq(dashboards.slug, slug),
     );
 
-    if (preview === "") {
+    if (preview === null) {
       const [row] = await db
         .select({ document: dashboards.document })
         .from(dashboards)
-        .where(and(identity, eq(dashboards.preview, "")))
+        .where(and(identity, isNull(dashboards.previewId)))
         .limit(1);
       if (!row) throw notFound();
       dashboardSpecSchema.parse(row.document.spec);
@@ -71,19 +71,28 @@ export const getDashboard = createAuthenticatedServerFn({ method: "GET" })
       };
     }
 
+    // Live rows (previewId NULL) plus this preview's rows. repoid comes from the
+    // joined registry row for preview rows, from the row itself for live; the
+    // raw previewId is the overlay's live/preview discriminator.
     const [covered, rows] = await Promise.all([
       getCoveredRepoids(orgId, preview),
       db
         .select({
-          repoid: dashboards.repoid,
-          preview: dashboards.preview,
+          repoid: sql<string>`coalesce(${dashboards.repoid}, ${previews.repoid})`,
+          previewId: dashboards.previewId,
           project: dashboards.project,
           slug: dashboards.slug,
           folderPath: dashboards.folderPath,
           document: dashboards.document,
         })
         .from(dashboards)
-        .where(and(identity, inArray(dashboards.preview, ["", preview]))),
+        .leftJoin(previews, eq(dashboards.previewId, previews.id))
+        .where(
+          and(
+            identity,
+            or(isNull(dashboards.previewId), eq(previews.name, preview)),
+          ),
+        ),
     ]);
     const overlaid = overlayPreview({ rows, coveredRepoids: covered });
     // Prefer a surviving row; a shadowed-by-deletion live row still renders,
@@ -103,12 +112,12 @@ export const listDashboards = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(z.object({ preview: z.string().optional() }).optional())
   .handler(async ({ data, context }) => {
     const orgId = context.session.session.activeOrganizationId;
-    const preview = data?.preview ?? "";
+    const preview = data?.preview ?? null;
 
     // Live path never diffs against anything, so it only needs the scalar
     // columns `toItem` returns — no `document` (expensive JSONB) fetch. The
     // preview path feeds `overlayPreview`, which diffs `document` and keys off
-    // `repoid`/`preview`, so it keeps those.
+    // `repoid`/`previewId`, so it keeps those.
     const liveSelect = {
       slug: dashboards.slug,
       project: dashboards.project,
@@ -117,8 +126,8 @@ export const listDashboards = createAuthenticatedServerFn({ method: "GET" })
     };
 
     const previewSelect = {
-      repoid: dashboards.repoid,
-      preview: dashboards.preview,
+      repoid: sql<string>`coalesce(${dashboards.repoid}, ${previews.repoid})`,
+      previewId: dashboards.previewId,
       slug: dashboards.slug,
       project: dashboards.project,
       folderPath: dashboards.folderPath,
@@ -140,12 +149,15 @@ export const listDashboards = createAuthenticatedServerFn({ method: "GET" })
       previewStatus: row.previewStatus,
     });
 
-    if (preview === "") {
+    if (preview === null) {
       const rows = await db
         .select(liveSelect)
         .from(dashboards)
         .where(
-          and(eq(dashboards.organizationId, orgId), eq(dashboards.preview, "")),
+          and(
+            eq(dashboards.organizationId, orgId),
+            isNull(dashboards.previewId),
+          ),
         );
       return rows.map(toItem);
     }
@@ -155,10 +167,11 @@ export const listDashboards = createAuthenticatedServerFn({ method: "GET" })
       db
         .select(previewSelect)
         .from(dashboards)
+        .leftJoin(previews, eq(dashboards.previewId, previews.id))
         .where(
           and(
             eq(dashboards.organizationId, orgId),
-            inArray(dashboards.preview, ["", preview]),
+            or(isNull(dashboards.previewId), eq(previews.name, preview)),
           ),
         ),
     ]);

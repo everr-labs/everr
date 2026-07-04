@@ -1,5 +1,5 @@
 {
-  "id": "02b9bf14-c374-4de9-91d7-fe70369b1bbd",
+  "id": "deeb8f26-4eb2-4ca8-b136-ee1a0fb85574",
   "prevId": "1832b2cd-de21-4adb-bd82-ea60acdffc95",
   "version": "7",
   "dialect": "postgresql",
@@ -25,14 +25,13 @@
           "name": "repoid",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
-        "preview": {
-          "name": "preview",
-          "type": "text",
+        "preview_id": {
+          "name": "preview_id",
+          "type": "uuid",
           "primaryKey": false,
-          "notNull": true,
-          "default": "''"
+          "notNull": false
         },
         "slug": {
           "name": "slug",
@@ -228,8 +227,8 @@
         }
       },
       "indexes": {
-        "alert_definitions_org_repo_project_slug_uq": {
-          "name": "alert_definitions_org_repo_project_slug_uq",
+        "alert_definitions_live_project_slug_uq": {
+          "name": "alert_definitions_live_project_slug_uq",
           "columns": [
             {
               "expression": "organization_id",
@@ -239,12 +238,6 @@
             },
             {
               "expression": "repoid",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "preview",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -263,6 +256,35 @@
             }
           ],
           "isUnique": true,
+          "where": "\"alert_definitions\".\"preview_id\" IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "alert_definitions_preview_project_slug_uq": {
+          "name": "alert_definitions_preview_project_slug_uq",
+          "columns": [
+            {
+              "expression": "preview_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "project",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "slug",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"alert_definitions\".\"preview_id\" IS NOT NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -289,11 +311,30 @@
           "with": {}
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "alert_definitions_preview_id_previews_id_fk": {
+          "name": "alert_definitions_preview_id_previews_id_fk",
+          "tableFrom": "alert_definitions",
+          "tableTo": "previews",
+          "columnsFrom": [
+            "preview_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "alert_definitions_live_xor_preview": {
+          "name": "alert_definitions_live_xor_preview",
+          "value": "(\"alert_definitions\".\"preview_id\" IS NULL) <> (\"alert_definitions\".\"repoid\" IS NULL)"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.alert_settings": {
@@ -504,15 +545,13 @@
           "name": "repoid",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "default": "''"
+          "notNull": false
         },
-        "preview": {
-          "name": "preview",
-          "type": "text",
+        "preview_id": {
+          "name": "preview_id",
+          "type": "uuid",
           "primaryKey": false,
-          "notNull": true,
-          "default": "''"
+          "notNull": false
         },
         "project": {
           "name": "project",
@@ -555,8 +594,8 @@
         }
       },
       "indexes": {
-        "dashboards_tenant_repo_project_slug_uq": {
-          "name": "dashboards_tenant_repo_project_slug_uq",
+        "dashboards_live_project_slug_uq": {
+          "name": "dashboards_live_project_slug_uq",
           "columns": [
             {
               "expression": "organization_id",
@@ -566,12 +605,6 @@
             },
             {
               "expression": "repoid",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "preview",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -590,6 +623,35 @@
             }
           ],
           "isUnique": true,
+          "where": "\"dashboards\".\"preview_id\" IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "dashboards_preview_project_slug_uq": {
+          "name": "dashboards_preview_project_slug_uq",
+          "columns": [
+            {
+              "expression": "preview_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "project",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "slug",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"dashboards\".\"preview_id\" IS NOT NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -616,11 +678,30 @@
           "with": {}
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "dashboards_preview_id_previews_id_fk": {
+          "name": "dashboards_preview_id_previews_id_fk",
+          "tableFrom": "dashboards",
+          "tableTo": "previews",
+          "columnsFrom": [
+            "preview_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "dashboards_live_xor_preview": {
+          "name": "dashboards_live_xor_preview",
+          "value": "(\"dashboards\".\"preview_id\" IS NULL) <> (\"dashboards\".\"repoid\" IS NULL)"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.github_installation_organizations": {
@@ -787,15 +868,13 @@
           "name": "repoid",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "default": "''"
+          "notNull": false
         },
-        "preview": {
-          "name": "preview",
-          "type": "text",
+        "preview_id": {
+          "name": "preview_id",
+          "type": "uuid",
           "primaryKey": false,
-          "notNull": true,
-          "default": "''"
+          "notNull": false
         },
         "project": {
           "name": "project",
@@ -838,8 +917,8 @@
         }
       },
       "indexes": {
-        "runbooks_tenant_repo_project_slug_uq": {
-          "name": "runbooks_tenant_repo_project_slug_uq",
+        "runbooks_live_project_slug_uq": {
+          "name": "runbooks_live_project_slug_uq",
           "columns": [
             {
               "expression": "organization_id",
@@ -849,12 +928,6 @@
             },
             {
               "expression": "repoid",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "preview",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -873,6 +946,35 @@
             }
           ],
           "isUnique": true,
+          "where": "\"runbooks\".\"preview_id\" IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "runbooks_preview_project_slug_uq": {
+          "name": "runbooks_preview_project_slug_uq",
+          "columns": [
+            {
+              "expression": "preview_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "project",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "slug",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"runbooks\".\"preview_id\" IS NOT NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -899,11 +1001,30 @@
           "with": {}
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "runbooks_preview_id_previews_id_fk": {
+          "name": "runbooks_preview_id_previews_id_fk",
+          "tableFrom": "runbooks",
+          "tableTo": "previews",
+          "columnsFrom": [
+            "preview_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "runbooks_live_xor_preview": {
+          "name": "runbooks_live_xor_preview",
+          "value": "(\"runbooks\".\"preview_id\" IS NULL) <> (\"runbooks\".\"repoid\" IS NULL)"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.workflow_jobs": {

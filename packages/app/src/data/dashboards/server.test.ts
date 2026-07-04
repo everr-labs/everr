@@ -3,12 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/client";
 import { querySqlApi } from "@/lib/clickhouse";
 
-// Spy on `eq` while keeping every other drizzle-orm export real, so the
-// live-mode filter (`eq(dashboards.preview, "")`) is assertable without
+// Spy on `eq`/`isNull` while keeping every other drizzle-orm export real, so
+// the live-mode filter (`isNull(dashboards.previewId)`) is assertable without
 // hand-rolling a fake SQL builder for the rest of the query.
 vi.mock("drizzle-orm", async (importOriginal) => {
   const actual = await importOriginal<typeof import("drizzle-orm")>();
-  return { ...actual, eq: vi.fn(actual.eq) };
+  return { ...actual, eq: vi.fn(actual.eq), isNull: vi.fn(actual.isNull) };
 });
 
 // ---------------------------------------------------------------------------
@@ -25,6 +25,7 @@ let deleteImpl: () => unknown = () => [];
 vi.mock("@/db/client", () => {
   const selectChain = {
     from: vi.fn(() => selectChain),
+    leftJoin: vi.fn(() => selectChain),
     where: vi.fn(() => selectChain),
     limit: vi.fn(() => selectImpl()),
   };
@@ -61,7 +62,7 @@ vi.mock("@/db/schema", () => ({
     id: "id",
     organizationId: "organization_id",
     repoid: "repoid",
-    preview: "preview",
+    previewId: "preview_id",
     slug: "slug",
     project: "project",
     folderPath: "folder_path",
@@ -69,6 +70,7 @@ vi.mock("@/db/schema", () => ({
     document: "document",
   },
   previews: {
+    id: "previews.id",
     organizationId: "organization_id",
     repoid: "repoid",
     name: "name",
@@ -300,10 +302,10 @@ describe("getDashboard (project/slug)", () => {
       apiVersion: "perses.dev/v1",
     };
     selectImpl = () => [{ document }];
-    const { eq } = await import("drizzle-orm");
+    const { isNull } = await import("drizzle-orm");
     await getDashboard({ data: { project: "team", slug: "cpu" } });
 
-    expect(eq).toHaveBeenCalledWith("preview", "");
+    expect(isNull).toHaveBeenCalledWith("preview_id");
   });
 
   it("in preview mode, overlays preview rows and tags a 'changed' result", async () => {
@@ -317,46 +319,49 @@ describe("getDashboard (project/slug)", () => {
             }),
           }) as unknown as ReturnType<typeof mockedDb.select>,
       )
-      // dashboards rows (live + preview)
+      // dashboards rows (live + preview): repoid/preview come coalesced from the
+      // registry join, so the read path uses .from().leftJoin().where().
       .mockImplementationOnce(
         () =>
           ({
             from: () => ({
-              where: () =>
-                Promise.resolve([
-                  {
-                    repoid: "repo-1",
-                    preview: "",
-                    project: "team",
-                    slug: "cpu",
-                    folderPath: "",
-                    document: {
-                      kind: "Dashboard",
-                      metadata: { name: "cpu" },
-                      spec: {
-                        panels: {},
-                        layouts: [],
-                        display: { name: "v1" },
+              leftJoin: () => ({
+                where: () =>
+                  Promise.resolve([
+                    {
+                      repoid: "repo-1",
+                      previewId: null,
+                      project: "team",
+                      slug: "cpu",
+                      folderPath: "",
+                      document: {
+                        kind: "Dashboard",
+                        metadata: { name: "cpu" },
+                        spec: {
+                          panels: {},
+                          layouts: [],
+                          display: { name: "v1" },
+                        },
                       },
                     },
-                  },
-                  {
-                    repoid: "repo-1",
-                    preview: "gio/branch",
-                    project: "team",
-                    slug: "cpu",
-                    folderPath: "",
-                    document: {
-                      kind: "Dashboard",
-                      metadata: { name: "cpu" },
-                      spec: {
-                        panels: {},
-                        layouts: [],
-                        display: { name: "v2" },
+                    {
+                      repoid: "repo-1",
+                      previewId: "prev-1",
+                      project: "team",
+                      slug: "cpu",
+                      folderPath: "",
+                      document: {
+                        kind: "Dashboard",
+                        metadata: { name: "cpu" },
+                        spec: {
+                          panels: {},
+                          layouts: [],
+                          display: { name: "v2" },
+                        },
                       },
                     },
-                  },
-                ]),
+                  ]),
+              }),
             }),
           }) as unknown as ReturnType<typeof mockedDb.select>,
       );
@@ -405,10 +410,10 @@ describe("listDashboards (with project + folderPath)", () => {
           from: () => ({ where: () => Promise.resolve([]) }),
         }) as unknown as ReturnType<typeof mockedDb.select>,
     );
-    const { eq } = await import("drizzle-orm");
+    const { isNull } = await import("drizzle-orm");
     await listDashboards();
 
-    expect(eq).toHaveBeenCalledWith("preview", "");
+    expect(isNull).toHaveBeenCalledWith("preview_id");
   });
 
   it("in preview mode, overlays preview rows: added/changed/unchanged tagged, uncovered rows pass through", async () => {
@@ -422,32 +427,35 @@ describe("listDashboards (with project + folderPath)", () => {
             }),
           }) as unknown as ReturnType<typeof mockedDb.select>,
       )
-      // dashboards rows (live + preview, plus an uncovered live row)
+      // dashboards rows (live + preview, plus an uncovered live row); the read
+      // path joins the registry, so mock .from().leftJoin().where().
       .mockImplementationOnce(
         () =>
           ({
             from: () => ({
-              where: () =>
-                Promise.resolve([
-                  {
-                    repoid: "repo-1",
-                    preview: "gio/branch",
-                    project: "team",
-                    slug: "new-panel",
-                    folderPath: "",
-                    document: { spec: {} },
-                    displayName: "New panel",
-                  },
-                  {
-                    repoid: "repo-2",
-                    preview: "",
-                    project: "team",
-                    slug: "other",
-                    folderPath: "",
-                    document: { spec: {} },
-                    displayName: "Other",
-                  },
-                ]),
+              leftJoin: () => ({
+                where: () =>
+                  Promise.resolve([
+                    {
+                      repoid: "repo-1",
+                      previewId: "prev-1",
+                      project: "team",
+                      slug: "new-panel",
+                      folderPath: "",
+                      document: { spec: {} },
+                      displayName: "New panel",
+                    },
+                    {
+                      repoid: "repo-2",
+                      previewId: null,
+                      project: "team",
+                      slug: "other",
+                      folderPath: "",
+                      document: { spec: {} },
+                      displayName: "Other",
+                    },
+                  ]),
+              }),
             }),
           }) as unknown as ReturnType<typeof mockedDb.select>,
       );

@@ -1,11 +1,16 @@
 import { resolveTimeRange, TimeRangeSchema } from "@everr/ui/lib/time-range";
 import { getRequestHeaders } from "@tanstack/react-start/server";
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { overlayPreview, type PreviewStatus } from "@/data/previews/overlay";
 import { getCoveredRepoids } from "@/data/previews/repoids";
 import { db } from "@/db/client";
-import { alertDefinitions, alertSettings, alertSilences } from "@/db/schema";
+import {
+  alertDefinitions,
+  alertSettings,
+  alertSilences,
+  previews,
+} from "@/db/schema";
 import { auth } from "@/lib/auth.server";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import {
@@ -240,7 +245,7 @@ export const listAlerts = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(z.object({ preview: z.string().optional() }).optional())
   .handler(async ({ data, context: { session } }) => {
     const organizationId = session.session.activeOrganizationId;
-    const preview = data?.preview ?? "";
+    const preview = data?.preview ?? null;
 
     const orderBy = [
       desc(alertDefinitions.active),
@@ -249,7 +254,7 @@ export const listAlerts = createAuthenticatedServerFn({ method: "GET" })
       alertDefinitions.slug,
     ] as const;
 
-    if (preview === "") {
+    if (preview === null) {
       const rows = await db
         .select({ ...alertListColumns, document: alertDefinitions.document })
         .from(alertDefinitions)
@@ -257,7 +262,7 @@ export const listAlerts = createAuthenticatedServerFn({ method: "GET" })
           and(
             eq(alertDefinitions.organizationId, organizationId),
             isNull(alertDefinitions.deletedAt),
-            eq(alertDefinitions.preview, ""),
+            isNull(alertDefinitions.previewId),
           ),
         )
         .orderBy(...orderBy);
@@ -268,21 +273,26 @@ export const listAlerts = createAuthenticatedServerFn({ method: "GET" })
     const query = db
       .select({
         ...alertListColumns,
-        // `document`/`preview`/`folderPath` extend the shared list columns for
+        // `document`/`previewId`/`folderPath` extend the shared list columns for
         // the overlay diff; keep them out of `alertListColumns` so these
         // explicit keys never collide with a spread key (last-write-wins).
+        // repoid overrides the spread: preview rows derive it from the joined
+        // registry row, live rows from the row itself. previewId is the overlay's
+        // live/preview discriminator.
+        repoid: sql<string>`coalesce(${alertDefinitions.repoid}, ${previews.repoid})`,
         document: alertDefinitions.document,
-        preview: alertDefinitions.preview,
+        previewId: alertDefinitions.previewId,
         // Alert rows have no folderPath; the constant satisfies
         // `OverlayResource` and never differs, so it never drives a "changed".
         folderPath: sql<string>`''`,
       })
       .from(alertDefinitions)
+      .leftJoin(previews, eq(alertDefinitions.previewId, previews.id))
       .where(
         and(
           eq(alertDefinitions.organizationId, organizationId),
           isNull(alertDefinitions.deletedAt),
-          inArray(alertDefinitions.preview, ["", preview]),
+          or(isNull(alertDefinitions.previewId), eq(previews.name, preview)),
         ),
       )
       .orderBy(...orderBy);

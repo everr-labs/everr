@@ -7,8 +7,8 @@ export interface OverlayResource {
   project: string;
   slug: string;
   folderPath: string;
-  // "" marks a live row; any other value is a preview row (see `overlayPreview`).
-  preview: string;
+  // null marks a live row; a registry id marks a preview row (see `overlayPreview`).
+  previewId: string | null;
   document: unknown;
 }
 
@@ -20,9 +20,9 @@ export function overlayPreview<T extends OverlayResource>(opts: {
   rows: T[];
   coveredRepoids: ReadonlySet<string>;
 }): (T & { previewStatus?: PreviewStatus })[] {
-  // "" = live, anything else = a preview row.
-  const live = opts.rows.filter((row) => row.preview === "");
-  const previewRows = opts.rows.filter((row) => row.preview !== "");
+  // null = live, a registry id = a preview row.
+  const live = opts.rows.filter((row) => row.previewId === null);
+  const previewRows = opts.rows.filter((row) => row.previewId !== null);
 
   // NUL-joined identity key: unambiguous even if a segment contains a separator.
   const key = (row: OverlayResource) =>

@@ -3,7 +3,7 @@ import { and, eq, or } from "drizzle-orm";
 import { ApplyValidationError } from "@/data/as-code/errors";
 import type { Reconciler } from "@/data/as-code/registry";
 import type { ApplyResourceEntry, ApplySource } from "@/data/as-code/schema";
-import { db } from "@/db/client";
+import { previewOwner, previewScope } from "@/data/previews/scope";
 import { alertDefinitions } from "@/db/schema";
 import { querySqlApiWithMeta, type SqlApiResult } from "@/lib/clickhouse";
 import { errorMessage } from "@/telemetry/logger";
@@ -360,21 +360,22 @@ function shouldResetRuntimeState(
  * Re-adding a rule later creates a fresh definition row.
  */
 export const applyAlertSpecs: Reconciler = async ({
-  orgId,
-  repoid,
-  preview,
+  namespace,
   resources,
   source,
   dryRun,
+  db: exec,
 }): Promise<ApplyAlertsResult> => {
   const desired = await buildDesiredAlerts({
-    orgId,
-    repoid,
+    orgId: namespace.orgId,
+    repoid: namespace.repoid,
     resources,
     source,
   });
 
-  const existing = (await db
+  const scope = previewScope(alertDefinitions, namespace);
+
+  const existing = (await exec
     .select({
       slug: alertDefinitions.slug,
       project: alertDefinitions.project,
@@ -393,13 +394,7 @@ export const applyAlertSpecs: Reconciler = async ({
       active: alertDefinitions.active,
     })
     .from(alertDefinitions)
-    .where(
-      and(
-        eq(alertDefinitions.organizationId, orgId),
-        eq(alertDefinitions.repoid, repoid),
-        eq(alertDefinitions.preview, preview),
-      ),
-    )) as ExistingAlert[];
+    .where(scope)) as ExistingAlert[];
 
   const existingByKey = new Map(
     existing.map((row) => [identityKey(row.project, row.slug), row]),
@@ -428,61 +423,56 @@ export const applyAlertSpecs: Reconciler = async ({
   if (dryRun) return summary;
 
   const now = new Date();
-  await db.transaction(async (tx) => {
-    if (creates.length > 0) {
-      await tx.insert(alertDefinitions).values(
-        creates.map((row) => ({
-          organizationId: orgId,
-          repoid,
-          preview,
-          slug: row.slug,
-          project: row.project,
-          ...activeValues(row, now),
-          createdAt: now,
-        })),
+  // Registry owns the transaction (`exec`); these writes join it so the whole
+  // apply commits or rolls back together.
+  if (creates.length > 0) {
+    await exec.insert(alertDefinitions).values(
+      creates.map((row) => ({
+        organizationId: namespace.orgId,
+        ...previewOwner(namespace),
+        slug: row.slug,
+        project: row.project,
+        ...activeValues(row, now),
+        createdAt: now,
+      })),
+    );
+  }
+
+  for (const row of updates) {
+    const current = existingByKey.get(identityKey(row.project, row.slug));
+    await exec
+      .update(alertDefinitions)
+      .set(
+        activeValues(row, now, {
+          resetRuntimeState: shouldResetRuntimeState(current, row),
+        }),
+      )
+      .where(
+        and(
+          scope,
+          eq(alertDefinitions.project, row.project),
+          eq(alertDefinitions.slug, row.slug),
+        ),
       );
-    }
+  }
 
-    for (const row of updates) {
-      const current = existingByKey.get(identityKey(row.project, row.slug));
-      await tx
-        .update(alertDefinitions)
-        .set(
-          activeValues(row, now, {
-            resetRuntimeState: shouldResetRuntimeState(current, row),
-          }),
-        )
-        .where(
-          and(
-            eq(alertDefinitions.organizationId, orgId),
-            eq(alertDefinitions.repoid, repoid),
-            eq(alertDefinitions.preview, preview),
-            eq(alertDefinitions.project, row.project),
-            eq(alertDefinitions.slug, row.slug),
-          ),
-        );
-    }
-
-    if (deletes.length > 0) {
-      await tx
-        .delete(alertDefinitions)
-        .where(
-          and(
-            eq(alertDefinitions.organizationId, orgId),
-            eq(alertDefinitions.repoid, repoid),
-            eq(alertDefinitions.preview, preview),
-            or(
-              ...deletes.map((row) =>
-                and(
-                  eq(alertDefinitions.project, row.project),
-                  eq(alertDefinitions.slug, row.slug),
-                ),
+  if (deletes.length > 0) {
+    await exec
+      .delete(alertDefinitions)
+      .where(
+        and(
+          scope,
+          or(
+            ...deletes.map((row) =>
+              and(
+                eq(alertDefinitions.project, row.project),
+                eq(alertDefinitions.slug, row.slug),
               ),
             ),
           ),
-        );
-    }
-  });
+        ),
+      );
+  }
 
   return summary;
 };

@@ -1,8 +1,10 @@
 import { applyAlertSpecs } from "@/data/alerts/apply.server";
 import { validateAlertRunbookLinks } from "@/data/alerts/runbook-links.server";
 import { applyDashboardSpecs } from "@/data/dashboards/apply.server";
-import { upsertPreview } from "@/data/previews/apply.server";
+import { findPreviewId, upsertPreview } from "@/data/previews/apply.server";
+import type { Namespace } from "@/data/previews/scope";
 import { applyRunbookSpecs } from "@/data/runbooks/apply.server";
+import { type DbExecutor, db } from "@/db/client";
 import { ApplyValidationError } from "./errors";
 import type { ApplyInput, ApplyResourceEntry, ApplySource } from "./schema";
 
@@ -20,13 +22,15 @@ export interface ApplyResourcesResult {
 
 /** A reconciler makes the repo's resources of one kind match the given entries. */
 export type Reconciler = (opts: {
-  orgId: string;
-  repoid: string;
-  /** Preview namespace to reconcile within; '' is the live state. */
-  preview: string;
+  /** The apply target — live or a preview, carrying its (org, repoid). Scopes
+   * every read and write. */
+  namespace: Namespace;
   resources: ApplyResourceEntry[];
   source?: ApplySource;
   dryRun?: boolean;
+  /** Runs queries: the shared apply transaction for real runs, base db for
+   * dry-run reads. */
+  db: DbExecutor;
 }) => Promise<{ created: string[]; updated: string[]; deleted: string[] }>;
 
 /**
@@ -86,7 +90,8 @@ export async function applyResources(opts: {
   dryRun?: boolean;
 }): Promise<ApplyResourcesResult> {
   const { orgId, repoid, state, source, dryRun } = opts;
-  const preview = opts.preview ?? "";
+  // null = live. previewNameSchema is min-length, so a present name is never "".
+  const previewName = opts.preview ?? null;
 
   const summarize = (
     kind: string,
@@ -98,6 +103,19 @@ export async function applyResources(opts: {
     deleted: r.deleted,
   });
 
+  // The dry-run target: live, or the preview resolved to its existing registry
+  // id (without creating it) so the diff scopes to the right rows. A preview
+  // with nothing applied yet resolves to a null id, which matches no rows.
+  const namespace: Namespace =
+    previewName === null
+      ? { orgId, repoid, kind: "live" }
+      : {
+          orgId,
+          repoid,
+          kind: "preview",
+          id: await findPreviewId(db, { orgId, repoid, name: previewName }),
+        };
+
   // Validation pass: every kind reconciles in dryRun mode, which runs the full
   // document validation but writes nothing. Any invalid document throws here,
   // before any kind has written. When the caller asked for a dry run, this pass
@@ -106,12 +124,11 @@ export async function applyResources(opts: {
   for (const { key, kind, reconcile } of REGISTRY) {
     validateResourceKind(state[key], kind);
     const r = await reconcile({
-      orgId,
-      repoid,
-      preview,
+      namespace,
       resources: state[key],
       source,
       dryRun: true,
+      db,
     });
     validated.push(summarize(kind, r));
   }
@@ -119,35 +136,40 @@ export async function applyResources(opts: {
   // Cross-kind: a linked runbook must exist in this batch or already in the
   // DB. Runs after every kind validated, before any kind writes.
   await validateAlertRunbookLinks({
-    orgId,
-    repoid,
-    preview,
+    namespace,
     alerts: state.alerts,
     runbooks: state.runbooks,
   });
 
   if (dryRun) return { dryRun: true, results: validated };
 
-  // All kinds validated above; now apply for real.
+  // Real apply: one transaction so registration + every kind commit or roll
+  // back together. Register the preview FIRST — its row is the parent every
+  // preview resource row references (FK), and a rollback removes the row along
+  // with any partial writes, so the switcher never lists a half-applied
+  // preview. Live is not registered.
   const results: KindResult[] = [];
-  for (const { key, kind, reconcile } of REGISTRY) {
-    const r = await reconcile({
-      orgId,
-      repoid,
-      preview,
-      resources: state[key],
-      source,
-      dryRun: false,
-    });
-    results.push(summarize(kind, r));
-  }
-
-  // Register the preview only after every kind applied, so the switcher never
-  // lists a preview whose rows failed to write. Live applies ('') are not
-  // registered — the registry is the preview lifecycle, not an apply log.
-  if (preview !== "") {
-    await upsertPreview({ orgId, repoid, name: preview });
-  }
+  await db.transaction(async (tx) => {
+    const applied: Namespace =
+      previewName === null
+        ? { orgId, repoid, kind: "live" }
+        : {
+            orgId,
+            repoid,
+            kind: "preview",
+            id: await upsertPreview(tx, { orgId, repoid, name: previewName }),
+          };
+    for (const { key, kind, reconcile } of REGISTRY) {
+      const r = await reconcile({
+        namespace: applied,
+        resources: state[key],
+        source,
+        dryRun: false,
+        db: tx,
+      });
+      results.push(summarize(kind, r));
+    }
+  });
 
   return { dryRun: false, results };
 }

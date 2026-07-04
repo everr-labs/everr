@@ -1,11 +1,13 @@
-import { eq } from "drizzle-orm";
+import { eq, isNull } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/client";
 
 // ---------------------------------------------------------------------------
-// Mock the db client with a chainable fluent builder.
-// applyDashboardSpecs ends the read chain at .where() (not .limit()), so tests
-// override db.select per-case via `mockApplySelect`.
+// Mock the db client with a chainable fluent builder. The reconciler runs on
+// the executor passed in `opts.db` (the registry's transaction in production);
+// tests pass this mocked `db` and override its `select` per-case via
+// `mockApplySelect`. The registry — not the reconciler — owns the transaction,
+// so writes are asserted directly on insert/update/delete.
 // ---------------------------------------------------------------------------
 
 let insertImpl: () => unknown = () => [{ slug: "aaaaaaaaaaaa" }];
@@ -35,13 +37,6 @@ vi.mock("@/db/client", () => {
       update: vi.fn(() => updateChain),
       insert: vi.fn(() => insertChain),
       delete: vi.fn(() => deleteChain),
-      transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
-        fn({
-          insert: vi.fn(() => insertChain),
-          update: vi.fn(() => updateChain),
-          delete: vi.fn(() => deleteChain),
-        }),
-      ),
     },
   };
 });
@@ -49,6 +44,8 @@ vi.mock("@/db/client", () => {
 vi.mock("drizzle-orm", () => ({
   and: vi.fn((...conditions: unknown[]) => ({ op: "and", conditions })),
   eq: vi.fn((left: unknown, right: unknown) => ({ op: "eq", left, right })),
+  isNull: vi.fn((col: unknown) => ({ op: "isNull", col })),
+  sql: vi.fn(() => ({ op: "sql" })),
 }));
 
 vi.mock("@/db/schema", () => ({
@@ -56,7 +53,7 @@ vi.mock("@/db/schema", () => ({
     id: "id",
     organizationId: "organization_id",
     repoid: "repoid",
-    preview: "preview",
+    previewId: "preview_id",
     slug: "slug",
     project: "project",
     folderPath: "folder_path",
@@ -93,13 +90,15 @@ const dash = (name: string, project?: string) => ({
   spec: { panels: {}, layouts: [] },
 });
 
+// Shared executor + live-namespace default; each test overrides what it needs.
+const live = { orgId: "org-1", repoid: "repo-1", kind: "live" } as const;
+const base = { namespace: live, db };
+
 describe("applyDashboardSpecs", () => {
   it("accepts a defaulted doc under the repo scope", async () => {
     mockApplySelect([]);
     const result = await applyDashboardSpecs({
-      orgId: "org-1",
-      repoid: "repo-1",
-      preview: "",
+      ...base,
       dryRun: true,
       resources: [{ path: "cpu.yaml", resource: dash("cpu") }],
     });
@@ -116,9 +115,7 @@ describe("applyDashboardSpecs", () => {
       },
     ]);
     const result = await applyDashboardSpecs({
-      orgId: "org-1",
-      repoid: "repo-1",
-      preview: "",
+      ...base,
       dryRun: true,
       resources: [],
     });
@@ -139,9 +136,7 @@ describe("applyDashboardSpecs", () => {
       },
     ]);
     const result = await applyDashboardSpecs({
-      orgId: "org-1",
-      repoid: "repo-1",
-      preview: "",
+      ...base,
       dryRun: true,
       resources: [{ path: "cpu.yaml", resource: dash("cpu", "platform") }],
     });
@@ -159,18 +154,15 @@ describe("applyDashboardSpecs", () => {
       },
     ]);
     const first = await applyDashboardSpecs({
-      orgId: "org-1",
-      repoid: "repo-1",
-      preview: "",
+      ...base,
       dryRun: true,
       resources: [{ path: "cpu.yaml", resource: dash("cpu") }],
     });
 
     mockApplySelect([]);
     const second = await applyDashboardSpecs({
-      orgId: "org-1",
-      repoid: "repo-2",
-      preview: "",
+      ...base,
+      namespace: { orgId: "org-1", repoid: "repo-2", kind: "live" },
       dryRun: true,
       resources: [{ path: "cpu.yaml", resource: dash("cpu") }],
     });
@@ -180,31 +172,61 @@ describe("applyDashboardSpecs", () => {
     expect(second.deleted).toEqual([]);
     expect(eq).toHaveBeenCalledWith("repoid", "repo-1");
     expect(eq).toHaveBeenCalledWith("repoid", "repo-2");
+    // Live rows are scoped by a NULL preview_id, never the repoid alone.
+    expect(isNull).toHaveBeenCalledWith("preview_id");
   });
 
-  it("applies the diff inside a transaction when not a dry run", async () => {
+  it("writes preview rows under previewId with a null repoid", async () => {
     mockApplySelect([]);
     const result = await applyDashboardSpecs({
-      orgId: "org-1",
-      repoid: "repo-1",
-      preview: "",
+      db,
+      namespace: {
+        orgId: "org-1",
+        repoid: "repo-1",
+        kind: "preview",
+        id: "prev-1",
+      },
+      resources: [{ path: "cpu.yaml", resource: dash("cpu") }],
+    });
+    expect(result.created).toEqual(["cpu"]);
+    // Preview rows hang off the registry id; repoid stays null (schema CHECK).
+    expect(mockedDb.insert).toHaveBeenCalled();
+    const insertChain = mockedDb.insert.mock.results[0]?.value as {
+      values: ReturnType<typeof vi.fn>;
+    };
+    expect(insertChain.values).toHaveBeenCalledWith(
+      expect.objectContaining({ previewId: "prev-1", repoid: null }),
+    );
+    // The preview scope keys off previewId, not (org, repoid, isNull).
+    expect(eq).toHaveBeenCalledWith("preview_id", "prev-1");
+  });
+
+  it("writes the diff on the executor when not a dry run", async () => {
+    mockApplySelect([]);
+    const result = await applyDashboardSpecs({
+      ...base,
       resources: [{ path: "a.yaml", resource: dash("a", "team") }],
     });
     expect(result.created).toEqual(["a"]);
-    expect(mockedDb.transaction).toHaveBeenCalledOnce();
+    expect(mockedDb.insert).toHaveBeenCalledOnce();
+    // Live creates carry the repoid and a null previewId (schema CHECK).
+    const insertChain = mockedDb.insert.mock.results[0]?.value as {
+      values: ReturnType<typeof vi.fn>;
+    };
+    expect(insertChain.values).toHaveBeenCalledWith(
+      expect.objectContaining({ repoid: "repo-1", previewId: null }),
+    );
   });
 
   it("rejects the apply when a document is invalid", async () => {
     await expect(
       applyDashboardSpecs({
-        orgId: "org-1",
-        repoid: "repo-1",
-        preview: "",
+        ...base,
         resources: [
           { path: "bad.yaml", resource: { kind: "Dashboard", spec: {} } },
         ],
       }),
     ).rejects.toThrow(/bad\.yaml/);
-    expect(mockedDb.transaction).not.toHaveBeenCalled();
+    expect(mockedDb.insert).not.toHaveBeenCalled();
   });
 });

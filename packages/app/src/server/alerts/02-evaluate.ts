@@ -21,12 +21,17 @@
 // Evaluations of one definition never run concurrently (per-org Graphile
 // queue + job_key), so each run may assume it sees the previous run's state.
 
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { ensureDeliveryDefaults } from "@/data/alerts/delivery-settings";
 import { activeSilenceConditions } from "@/data/alerts/silences";
 import { db } from "@/db/client";
-import { alertDefinitions, alertSettings, alertSilences } from "@/db/schema";
+import {
+  alertDefinitions,
+  alertSettings,
+  alertSilences,
+  previews,
+} from "@/db/schema";
 import { querySqlApiWithMeta } from "@/lib/clickhouse";
 import {
   errorMessage,
@@ -55,7 +60,14 @@ import {
   type ResolvedDeliveryContext,
 } from "./04-delivery";
 
-type AlertDefinition = typeof alertDefinitions.$inferSelect;
+// The stored row, enriched at load with the preview name and effective repoid
+// resolved from the registry parent: preview rows keep repoid/name only there
+// (previewId FK), but the evaluator and the events it stamps into ClickHouse
+// need both as plain strings. `preview` is '' for live.
+type AlertDefinition = typeof alertDefinitions.$inferSelect & {
+  preview: string;
+  repoid: string;
+};
 
 const EvaluatePayloadSchema = z.object({
   alertDefinitionId: z.string().uuid(),
@@ -68,13 +80,24 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
   if (!parsedPayload) return;
   const { alertDefinitionId, scheduledFor } = parsedPayload;
 
-  // 2. Load the definition.
-  const [def] = await db
-    .select()
+  // 2. Load the definition, resolving the preview name and effective repoid
+  // from the registry parent (null on the row for preview rows).
+  const [row] = await db
+    .select({
+      def: alertDefinitions,
+      previewName: sql<string>`coalesce(${previews.name}, '')`,
+      repoid: sql<string>`coalesce(${alertDefinitions.repoid}, ${previews.repoid})`,
+    })
     .from(alertDefinitions)
+    .leftJoin(previews, eq(alertDefinitions.previewId, previews.id))
     .where(eq(alertDefinitions.id, alertDefinitionId))
     .limit(1);
-  if (!def?.active) return;
+  if (!row?.def.active) return;
+  const def: AlertDefinition = {
+    ...row.def,
+    preview: row.previewName,
+    repoid: row.repoid,
+  };
   const now = new Date();
 
   const [[settingsRow], silences] = await Promise.all([
@@ -164,7 +187,7 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
   // Preview alerts evaluate silently: the state bookkeeping above still runs
   // so the UI shows firing/ok, but notifications never leave the building.
   let delivery: NotificationOutcome | null = null;
-  if (transition.actions.length > 0 && def.preview === "") {
+  if (transition.actions.length > 0 && def.previewId === null) {
     delivery = await enqueueAlertNotification(
       {
         def,

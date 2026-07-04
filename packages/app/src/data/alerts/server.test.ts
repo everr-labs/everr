@@ -34,6 +34,7 @@ vi.mock("drizzle-orm", () => ({
   })),
   isNull: vi.fn((value: unknown) => ({ type: "isNull", value })),
   lte: vi.fn((left: unknown, right: unknown) => ({ type: "lte", left, right })),
+  or: vi.fn((...args: unknown[]) => ({ type: "or", args })),
   sql: vi.fn(() => ({ as: vi.fn((alias: string) => alias) })),
 }));
 
@@ -42,7 +43,7 @@ vi.mock("@/db/schema", () => {
     id: "alert_definitions.id",
     organizationId: "alert_definitions.organization_id",
     repoid: "alert_definitions.repoid",
-    preview: "alert_definitions.preview",
+    previewId: "alert_definitions.preview_id",
     slug: "alert_definitions.slug",
     evaluationIntervalSeconds: "alert_definitions.evaluation_interval_seconds",
     sourceLink: "alert_definitions.source_link",
@@ -87,6 +88,7 @@ vi.mock("@/db/schema", () => {
     updatedAt: "alert_silences.updated_at",
   };
   const previews = {
+    id: "previews.id",
     organizationId: "previews.organization_id",
     repoid: "previews.repoid",
     name: "previews.name",
@@ -248,11 +250,11 @@ describe("listAlerts", () => {
 
   it("in live mode (no preview), filters to preview = ''", async () => {
     mocks.selectOrderBy.mockResolvedValueOnce([]);
-    const { eq } = await import("drizzle-orm");
+    const { isNull } = await import("drizzle-orm");
 
     await listAlerts();
 
-    expect(eq).toHaveBeenCalledWith("alert_definitions.preview", "");
+    expect(isNull).toHaveBeenCalledWith("alert_definitions.preview_id");
     // getCoveredRepoids must not run in live mode.
     expect(mocks.selectWhere).not.toHaveBeenCalled();
   });
@@ -265,20 +267,20 @@ describe("listAlerts", () => {
     mocks.selectOrderBy.mockResolvedValueOnce([
       {
         ...alertRow,
-        preview: "",
+        previewId: null,
         folderPath: "",
       },
       {
         ...alertRow,
         slug: "new-rule",
-        preview: "gio/branch",
+        previewId: "prev-1",
         folderPath: "",
       },
       {
         ...alertRow,
         repoid: "owner/other-repo",
         slug: "untouched",
-        preview: "",
+        previewId: null,
         folderPath: "",
       },
     ]);

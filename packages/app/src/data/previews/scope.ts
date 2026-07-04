@@ -1,0 +1,57 @@
+import { and, eq, isNull, type SQL, sql } from "drizzle-orm";
+import type { PgColumn } from "drizzle-orm/pg-core";
+
+/** The columns every preview-scoped resource table shares. */
+interface ScopedTable {
+  organizationId: PgColumn;
+  repoid: PgColumn;
+  previewId: PgColumn;
+}
+
+/**
+ * The apply target: the live state of a repo, or a preview. Always carries the
+ * (org, repoid) it applies to; a preview also carries its registry id (null
+ * while a first apply is still being dry-run — the preview row doesn't exist
+ * yet). Replaces the old `preview === ""` string sentinel.
+ */
+export type Namespace = {
+  readonly orgId: string;
+  readonly repoid: string;
+} & (
+  | { readonly kind: "live" }
+  | { readonly kind: "preview"; readonly id: string | null }
+);
+
+/**
+ * WHERE predicate selecting one namespace's rows in a resource table: live rows
+ * by (org, repoid) with a null preview_id, preview rows by their registry id. A
+ * preview with no registry row yet (dry run of a first apply) matches nothing.
+ */
+export function previewScope(table: ScopedTable, ns: Namespace): SQL {
+  if (ns.kind === "live")
+    // `and` is typed `SQL | undefined` (undefined only with zero conditions —
+    // impossible here). The `?? sql`false`` keeps a non-undefined return so a
+    // caller can never get an unfiltered `.where(undefined)`; it never fires.
+    return (
+      and(
+        eq(table.organizationId, ns.orgId),
+        eq(table.repoid, ns.repoid),
+        isNull(table.previewId),
+      ) ?? sql`false`
+    );
+  if (ns.id === null) return sql`false`;
+  return eq(table.previewId, ns.id);
+}
+
+/**
+ * The (repoid, preview_id) a create must set for this namespace — exactly one is
+ * non-null (the schema's CHECK): live rows carry the repoid, preview rows the id.
+ */
+export function previewOwner(ns: Namespace): {
+  repoid: string | null;
+  previewId: string | null;
+} {
+  return ns.kind === "live"
+    ? { repoid: ns.repoid, previewId: null }
+    : { repoid: null, previewId: ns.id };
+}

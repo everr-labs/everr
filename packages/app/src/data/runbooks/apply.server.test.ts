@@ -1,11 +1,13 @@
-import { eq } from "drizzle-orm";
+import { eq, isNull } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/client";
 
 // ---------------------------------------------------------------------------
-// Mock the db client with a chainable fluent builder.
-// applyRunbookSpecs ends the read chain at .where() (not .limit()), so tests
-// override db.select per-case via `mockApplySelect`.
+// Mock the db client with a chainable fluent builder. The reconciler runs on
+// the executor passed in `opts.db` (the registry's transaction in production);
+// tests pass this mocked `db` and override its `select` per-case via
+// `mockApplySelect`. Writes are asserted directly on insert/update/delete since
+// the registry — not the reconciler — owns the transaction.
 // ---------------------------------------------------------------------------
 
 let insertImpl: () => unknown = () => [{ slug: "aaaaaaaaaaaa" }];
@@ -35,13 +37,6 @@ vi.mock("@/db/client", () => {
       update: vi.fn(() => updateChain),
       insert: vi.fn(() => insertChain),
       delete: vi.fn(() => deleteChain),
-      transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
-        fn({
-          insert: vi.fn(() => insertChain),
-          update: vi.fn(() => updateChain),
-          delete: vi.fn(() => deleteChain),
-        }),
-      ),
     },
   };
 });
@@ -49,6 +44,8 @@ vi.mock("@/db/client", () => {
 vi.mock("drizzle-orm", () => ({
   and: vi.fn((...conditions: unknown[]) => ({ op: "and", conditions })),
   eq: vi.fn((left: unknown, right: unknown) => ({ op: "eq", left, right })),
+  isNull: vi.fn((col: unknown) => ({ op: "isNull", col })),
+  sql: vi.fn(() => ({ op: "sql" })),
 }));
 
 vi.mock("@/db/schema", () => ({
@@ -56,7 +53,7 @@ vi.mock("@/db/schema", () => ({
     id: "id",
     organizationId: "organization_id",
     repoid: "repoid",
-    preview: "preview",
+    previewId: "preview_id",
     slug: "slug",
     project: "project",
     folderPath: "folder_path",
@@ -93,13 +90,15 @@ const nb = (name: string, project?: string, inline = "# x") => ({
   spec: { markdown: { inline } },
 });
 
+// Shared executor + live-namespace defaults; each test overrides what it needs.
+const live = { orgId: "org-1", repoid: "repo-1", kind: "live" } as const;
+const base = { namespace: live, db };
+
 describe("applyRunbookSpecs", () => {
   it("accepts a defaulted doc under the repo scope", async () => {
     mockApplySelect([]);
     const result = await applyRunbookSpecs({
-      orgId: "org-1",
-      repoid: "repo-1",
-      preview: "",
+      ...base,
       dryRun: true,
       resources: [{ path: "a.yaml", resource: nb("a") }],
     });
@@ -116,9 +115,7 @@ describe("applyRunbookSpecs", () => {
       },
     ]);
     const result = await applyRunbookSpecs({
-      orgId: "org-1",
-      repoid: "repo-1",
-      preview: "",
+      ...base,
       resources: [{ path: "a.yaml", resource: nb("a", "team", "# new") }],
     });
     expect(result).toMatchObject({
@@ -138,9 +135,7 @@ describe("applyRunbookSpecs", () => {
       },
     ]);
     const result = await applyRunbookSpecs({
-      orgId: "org-1",
-      repoid: "repo-1",
-      preview: "",
+      ...base,
       dryRun: true,
       resources: [],
     });
@@ -161,18 +156,15 @@ describe("applyRunbookSpecs", () => {
       },
     ]);
     const first = await applyRunbookSpecs({
-      orgId: "org-1",
-      repoid: "repo-1",
-      preview: "",
+      ...base,
       dryRun: true,
       resources: [{ path: "a.yaml", resource: nb("a") }],
     });
 
     mockApplySelect([]);
     const second = await applyRunbookSpecs({
-      orgId: "org-1",
-      repoid: "repo-2",
-      preview: "",
+      ...base,
+      namespace: { orgId: "org-1", repoid: "repo-2", kind: "live" },
       dryRun: true,
       resources: [{ path: "a.yaml", resource: nb("a") }],
     });
@@ -182,59 +174,72 @@ describe("applyRunbookSpecs", () => {
     expect(second.deleted).toEqual([]);
     expect(eq).toHaveBeenCalledWith("repoid", "repo-1");
     expect(eq).toHaveBeenCalledWith("repoid", "repo-2");
+    // Live rows are scoped by a NULL preview_id, never the repoid alone.
+    expect(isNull).toHaveBeenCalledWith("preview_id");
   });
 
-  it("applies the diff inside a transaction when not a dry run", async () => {
+  it("writes the diff on the executor when not a dry run", async () => {
     mockApplySelect([]);
     const result = await applyRunbookSpecs({
-      orgId: "org-1",
-      repoid: "repo-1",
-      preview: "",
+      ...base,
       resources: [{ path: "a.yaml", resource: nb("a", "team") }],
     });
     expect(result.created).toEqual(["a"]);
-    expect(mockedDb.transaction).toHaveBeenCalledOnce();
+    expect(mockedDb.insert).toHaveBeenCalledOnce();
+    // Live creates carry the repoid and a null previewId (schema CHECK).
+    const insertChain = mockedDb.insert.mock.results[0]?.value as {
+      values: ReturnType<typeof vi.fn>;
+    };
+    expect(insertChain.values).toHaveBeenCalledWith(
+      expect.objectContaining({ repoid: "repo-1", previewId: null }),
+    );
   });
 
   it("dryRun makes no writes", async () => {
     mockApplySelect([]);
     const result = await applyRunbookSpecs({
-      orgId: "org-1",
-      repoid: "repo-1",
-      preview: "",
+      ...base,
       dryRun: true,
       resources: [{ path: "a.yaml", resource: nb("a", "team") }],
     });
     expect(result.created).toEqual(["a"]);
-    expect(mockedDb.transaction).not.toHaveBeenCalled();
+    expect(mockedDb.insert).not.toHaveBeenCalled();
   });
 
   it("rejects the apply when a document is invalid", async () => {
     await expect(
       applyRunbookSpecs({
-        orgId: "org-1",
-        repoid: "repo-1",
-        preview: "",
+        ...base,
         resources: [
           { path: "bad.yaml", resource: { kind: "Runbook", spec: {} } },
         ],
       }),
     ).rejects.toThrow(/bad\.yaml/);
-    expect(mockedDb.transaction).not.toHaveBeenCalled();
+    expect(mockedDb.insert).not.toHaveBeenCalled();
   });
 
-  it("scopes inserts and deletes to the preview", async () => {
+  it("scopes preview inserts to the registry id with a null repoid", async () => {
     insertImpl = () => [{ slug: "a" }];
     mockApplySelect([]);
     const result = await applyRunbookSpecs({
-      orgId: "org-1",
-      repoid: "repo-1",
-      preview: "gio/x",
+      db,
+      namespace: {
+        orgId: "org-1",
+        repoid: "repo-1",
+        kind: "preview",
+        id: "prev-1",
+      },
       resources: [{ path: "a.yaml", resource: nb("a") }],
     });
     expect(result.created).toEqual(["a"]);
-    // The existing-rows query must carry the preview equality.
+    // The existing-rows query and writes scope by the registry id.
     const eqCalls = vi.mocked(eq).mock.calls.map(([l, r]) => [l, r]);
-    expect(eqCalls).toContainEqual(["preview", "gio/x"]);
+    expect(eqCalls).toContainEqual(["preview_id", "prev-1"]);
+    const insertChain = mockedDb.insert.mock.results[0]?.value as {
+      values: ReturnType<typeof vi.fn>;
+    };
+    expect(insertChain.values).toHaveBeenCalledWith(
+      expect.objectContaining({ previewId: "prev-1", repoid: null }),
+    );
   });
 });

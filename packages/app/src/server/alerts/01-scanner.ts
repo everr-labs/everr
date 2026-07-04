@@ -37,7 +37,7 @@ export async function scanDueAlerts(opts: { batchSize?: number } = {}) {
       FROM alert_definitions
       WHERE active
         AND next_evaluation_at <= now() + make_interval(secs => ${SCAN_GRACE_SECONDS})
-        ${env.EVERR_PREVIEW_ALERTS === "off" ? sql`AND preview = ''` : sql``}
+        ${env.EVERR_PREVIEW_ALERTS === "off" ? sql`AND preview_id IS NULL` : sql``}
       ORDER BY next_evaluation_at
       LIMIT ${batchSize}
       FOR UPDATE SKIP LOCKED
