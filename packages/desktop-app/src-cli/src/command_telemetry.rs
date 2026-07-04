@@ -15,6 +15,7 @@ use crate::cli::{CiSubcommand, Cli, CloudSubcommand, Commands, LocalSubcommand, 
 
 const SERVICE_NAME: &str = "everr-cli";
 const EVENT_NAME: &str = "everr.cli.command";
+const RESULT_EVENT_NAME: &str = "everr.cli.command.result";
 const EVENT_TARGET: &str = "everr_cli_command";
 const EXPORT_TIMEOUT: Duration = Duration::from_millis(750);
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_millis(750);
@@ -58,6 +59,56 @@ pub fn record_invocation(cli: &Cli, argv: impl IntoIterator<Item = OsString>) {
             },
             "everr.cli.command"
         );
+    }
+}
+
+/// The command and subcommand names as recorded in telemetry, resolvable
+/// before `Cli` is consumed by the command dispatch.
+pub fn command_names(cli: &Cli) -> (&'static str, Option<&'static str>) {
+    let metadata = CommandTelemetry::from_cli_and_argv(cli, std::iter::empty::<OsString>());
+    (metadata.command, metadata.subcommand)
+}
+
+/// Records how the command ended. On failure the full anyhow context chain
+/// is attached, which names the step that broke (each fallible step in the
+/// command implementations carries its own context label).
+pub fn record_result(
+    command: &'static str,
+    subcommand: Option<&'static str>,
+    result: &anyhow::Result<()>,
+) {
+    let subcommand = subcommand.unwrap_or_default();
+    match result {
+        Ok(()) => {
+            tracing::event!(
+                target: EVENT_TARGET,
+                tracing::Level::INFO,
+                {
+                    event.name = RESULT_EVENT_NAME,
+                    everr.cli.command = command,
+                    everr.cli.subcommand = subcommand,
+                    everr.cli.status = "ok",
+                    os.type = operating_system(),
+                },
+                "everr.cli.command.result"
+            );
+        }
+        Err(err) => {
+            let error = format!("{err:#}");
+            tracing::event!(
+                target: EVENT_TARGET,
+                tracing::Level::ERROR,
+                {
+                    event.name = RESULT_EVENT_NAME,
+                    everr.cli.command = command,
+                    everr.cli.subcommand = subcommand,
+                    everr.cli.status = "error",
+                    error.message = error.as_str(),
+                    os.type = operating_system(),
+                },
+                "everr.cli.command.result"
+            );
+        }
     }
 }
 
