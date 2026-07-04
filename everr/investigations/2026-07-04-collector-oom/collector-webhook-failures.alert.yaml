@@ -1,0 +1,21 @@
+kind: AlertRule
+metadata:
+  name: collector-webhook-failures
+spec:
+  runbook: collector-oom
+  display:
+    name: Collector webhook replay failures
+    description: Webhook replays to the collector are failing again. The collector release of 2026-07-04 (f114d040) is expected to have eliminated these 500s; this alert verifies that stays true.
+  notificationMessage:
+    title: "${failed_replays} webhook replays to the collector failed"
+    description: "Replays failed in the last 30 minutes (last error: ${last_error}). The collector 500s fixed by the 2026-07-04 release may have regressed; check the collector logs and image version."
+  evaluationInterval: 30m
+  query: |
+    SELECT
+      count() AS failed_replays,
+      anyLast(StatusMessage) AS last_error
+    FROM traces
+    WHERE SpanName = 'github_events.jobs.replay_webhook_to_collector'
+      AND StatusCode = 'Error'
+      AND Timestamp >= now() - INTERVAL 30 MINUTE
+    HAVING failed_replays > 0
