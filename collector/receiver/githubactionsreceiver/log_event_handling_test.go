@@ -690,6 +690,37 @@ func TestEventToLogsChunksLargePayloads(t *testing.T) {
 	require.ErrorIs(t, err, consumeErr)
 }
 
+// TestLogEmitterFlushesOnByteBound verifies that a payload flushes once its
+// accumulated record bodies reach logFlushBodyBytes even when far below the
+// record-count bound, so few-huge-lines jobs cannot balloon a single chunk.
+func TestLogEmitterFlushesOnByteBound(t *testing.T) {
+	var consumed []plog.Logs
+	emitter := newLogEmitter(
+		func(ld plog.Logs) error {
+			consumed = append(consumed, ld)
+			return nil
+		},
+		func(attrs pcommon.Map) { attrs.PutStr("run", "r1") },
+	)
+	emitter.startJob("job", 1)
+
+	// Three records just over half the byte bound each: the third append
+	// crosses the bound and flushes the first two.
+	overHalf := logFlushBodyBytes/2 + 1
+	for i := 0; i < 3; i++ {
+		emitter.appendRecord(overHalf).Body().SetStr("x")
+	}
+	require.NoError(t, emitter.flush())
+
+	require.Len(t, consumed, 2)
+	require.Equal(t, 2, consumed[0].LogRecordCount())
+	require.Equal(t, 1, consumed[1].LogRecordCount())
+	for i, ld := range consumed {
+		_, ok := ld.ResourceLogs().At(0).Resource().Attributes().Get("run")
+		require.True(t, ok, "payload %d missing resource attributes", i)
+	}
+}
+
 // TestScanLogFileContinuationLines verifies that multi-line step output —
 // where continuation lines have no leading timestamp — is preserved with the
 // previous line's timestamp and doesn't produce error-level logs.
@@ -707,8 +738,9 @@ func TestScanLogFileContinuationLines(t *testing.T) {
 		t.Helper()
 		core, observed := observer.New(zap.ErrorLevel)
 		var lines []parsedLine
-		scanLogFile(newZipFile(t, content), zap.New(core), func(pl parsedLine) {
+		scanLogFile(newZipFile(t, content), zap.New(core), func(pl parsedLine) bool {
 			lines = append(lines, pl)
+			return true
 		})
 		return lines, observed
 	}

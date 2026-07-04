@@ -13,7 +13,8 @@ are assumed to be in place:
 - the collector container has memory requests and limits, and the pipeline
   has a `memory_limiter` processor, so overload produces backpressure instead
   of a kernel OOM kill,
-- log ingestion emits in bounded chunks (10k records per payload), so no
+- log ingestion emits in bounded chunks (capped by record count and body
+  bytes), so no
   single run is materialized in memory at once. Processing is still
   synchronous in the webhook handler and the app allows it 60 seconds, so
   replay durations up to a minute are expected for huge runs, not a

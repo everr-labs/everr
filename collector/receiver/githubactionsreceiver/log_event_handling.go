@@ -29,33 +29,36 @@ import (
 
 const maxLogArchiveSize = 256 * 1024 * 1024 // 256 MB
 
-// logFlushRecordCount bounds how many log records accumulate in memory before
-// the payload is handed to the consumer. Emitting in chunks keeps memory
-// proportional to one chunk instead of the whole run: a large build matrix
-// with verbose output decodes to multiple GiB of pdata when materialized at
-// once, which is what OOM-killed the collector.
+// A payload is handed to the consumer once it reaches either bound. Emitting
+// in chunks keeps memory proportional to one chunk instead of the whole run:
+// a large build matrix with verbose output decodes to multiple GiB of pdata
+// when materialized at once, which is what OOM-killed the collector. The
+// record bound caps per-record pdata overhead for runs with many tiny lines;
+// the byte bound caps payloads whose lines are individually huge (multi-line
+// step output folds continuation lines into single records).
 const logFlushRecordCount = 10_000
+const logFlushBodyBytes = 4 * 1024 * 1024
 
 // logEmitter incrementally builds plog.Logs payloads and hands each one to
-// consume once it reaches logFlushRecordCount records. Every payload carries
-// the full run resource attributes and the current job's scope attributes, so
-// chunked output is indistinguishable from the previous whole-run payload
-// downstream. After a consume failure the emitter drops further records at
-// flush time and keeps the first error sticky so the whole event fails and
-// the sender retries it.
+// consume when it reaches a flush bound. Every payload carries the full run
+// resource attributes and the current job's scope attributes, so chunked
+// output is indistinguishable from the previous whole-run payload downstream.
+// After a consume failure the emitter drops further records at flush time and
+// keeps the first error sticky so the whole event fails and the sender
+// retries it.
 type logEmitter struct {
 	consume     func(plog.Logs) error
 	setResource func(pcommon.Map)
 
-	logs     plog.Logs
-	resource plog.ResourceLogs
-	scope    plog.ScopeLogs
-	hasLogs  bool
-	hasScope bool
-	jobName  string
-	jobID    int64
-	count    int
-	err      error
+	logs      plog.Logs
+	resource  plog.ResourceLogs
+	scope     plog.ScopeLogs
+	hasScope  bool
+	jobName   string
+	jobID     int64
+	count     int
+	bodyBytes int
+	err       error
 }
 
 func newLogEmitter(consume func(plog.Logs) error, setResource func(pcommon.Map)) *logEmitter {
@@ -69,15 +72,24 @@ func (le *logEmitter) startJob(jobName string, jobID int64) {
 	le.hasScope = false
 }
 
-func (le *logEmitter) appendRecord() plog.LogRecord {
-	if le.count >= logFlushRecordCount {
+// failed reports whether a consume error occurred. Once it has, flush drops
+// further records, so callers should stop scanning instead of decoding work
+// that will be thrown away.
+func (le *logEmitter) failed() bool {
+	return le.err != nil
+}
+
+// appendRecord returns a fresh record in the current job's scope, flushing
+// first if the pending payload reached a bound. bodyBytes is the record body
+// size the caller is about to set.
+func (le *logEmitter) appendRecord(bodyBytes int) plog.LogRecord {
+	if le.count >= logFlushRecordCount || le.bodyBytes >= logFlushBodyBytes {
 		le.flush()
 	}
-	if !le.hasLogs {
+	if le.count == 0 {
 		le.logs = plog.NewLogs()
 		le.resource = le.logs.ResourceLogs().AppendEmpty()
 		le.setResource(le.resource.Resource().Attributes())
-		le.hasLogs = true
 	}
 	if !le.hasScope {
 		le.scope = le.resource.ScopeLogs().AppendEmpty()
@@ -85,20 +97,21 @@ func (le *logEmitter) appendRecord() plog.LogRecord {
 		le.hasScope = true
 	}
 	le.count++
+	le.bodyBytes += bodyBytes
 	return le.scope.LogRecords().AppendEmpty()
 }
 
 // flush hands the accumulated payload to the consumer and resets the buffer.
 // It returns the first consume error seen so far, if any.
 func (le *logEmitter) flush() error {
-	if le.hasLogs && le.count > 0 && le.err == nil {
+	if le.count > 0 && le.err == nil {
 		if err := le.consume(le.logs); err != nil {
 			le.err = err
 		}
 	}
-	le.hasLogs = false
 	le.hasScope = false
 	le.count = 0
+	le.bodyBytes = 0
 	return le.err
 }
 
@@ -257,7 +270,7 @@ func eventToLogs(ctx context.Context, event interface{}, config *Config, ghClien
 
 	for _, zipJobName := range jobs {
 		// A consume failure is sticky; stop scanning the remaining jobs.
-		if emitter.err != nil {
+		if emitter.failed() {
 			break
 		}
 
@@ -312,7 +325,8 @@ type parsedLine struct {
 }
 
 // scanLogFile reads a zip log file and calls emit for each parsed line.
-func scanLogFile(f *zip.File, logger *zap.Logger, emit func(parsedLine)) {
+// Scanning stops early when emit returns false.
+func scanLogFile(f *zip.File, logger *zap.Logger, emit func(parsedLine) bool) {
 	ff, err := f.Open()
 	if err != nil {
 		logger.Error("Failed to open file", zap.Error(err))
@@ -336,7 +350,9 @@ func scanLogFile(f *zip.File, logger *zap.Logger, emit func(parsedLine)) {
 		if ts, line, ok := strings.Cut(lineText, " "); ok {
 			if parsedTime, err := time.Parse(time.RFC3339, ts); err == nil {
 				lastTime = parsedTime
-				emit(parsedLine{time: parsedTime, body: line})
+				if !emit(parsedLine{time: parsedTime, body: line}) {
+					return
+				}
 				continue
 			}
 		}
@@ -344,7 +360,9 @@ func scanLogFile(f *zip.File, logger *zap.Logger, emit func(parsedLine)) {
 		// No leading timestamp — this is a continuation of multi-line step
 		// output, not an error. Keep the full text and attribute it to the
 		// previous line's timestamp (zero if it's the very first line).
-		emit(parsedLine{time: lastTime, body: lineText})
+		if !emit(parsedLine{time: lastTime, body: lineText}) {
+			return
+		}
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -354,8 +372,11 @@ func scanLogFile(f *zip.File, logger *zap.Logger, emit func(parsedLine)) {
 
 // emitLogRecords reads a zip log file and emits one log record per line.
 func emitLogRecords(logFile *zip.File, emitter *logEmitter, traceID pcommon.TraceID, spanID pcommon.SpanID, stepNumber int, withTraceInfo bool, logger *zap.Logger) {
-	scanLogFile(logFile, logger, func(pl parsedLine) {
-		record := emitter.appendRecord()
+	scanLogFile(logFile, logger, func(pl parsedLine) bool {
+		if emitter.failed() {
+			return false
+		}
+		record := emitter.appendRecord(len(pl.body))
 		if withTraceInfo {
 			record.SetSpanID(spanID)
 			record.SetTraceID(traceID)
@@ -364,6 +385,7 @@ func emitLogRecords(logFile *zip.File, emitter *logEmitter, traceID pcommon.Trac
 		record.SetTimestamp(pcommon.NewTimestampFromTime(pl.time))
 		record.SetObservedTimestamp(pcommon.NewTimestampFromTime(time.Now()))
 		record.Body().SetStr(pl.body)
+		return true
 	})
 }
 
@@ -396,7 +418,7 @@ func processCombinedLogs(
 
 	for _, cf := range combinedFiles {
 		// A consume failure is sticky; stop scanning the remaining files.
-		if emitter.err != nil {
+		if emitter.failed() {
 			break
 		}
 
@@ -434,7 +456,11 @@ func processCombinedLogs(
 			})
 		}
 
-		scanLogFile(cf, logger, func(pl parsedLine) {
+		scanLogFile(cf, logger, func(pl parsedLine) bool {
+			if emitter.failed() {
+				return false
+			}
+
 			// Find which step this line belongs to based on timestamp
 			step := assignLineToStep(pl.time, steps)
 			if step == nil {
@@ -442,10 +468,10 @@ func processCombinedLogs(
 				step = nearestStep(pl.time, steps)
 			}
 			if step == nil {
-				return
+				return true
 			}
 
-			record := emitter.appendRecord()
+			record := emitter.appendRecord(len(pl.body))
 			if withTraceInfo {
 				record.SetSpanID(step.spanID)
 				record.SetTraceID(traceID)
@@ -454,6 +480,7 @@ func processCombinedLogs(
 			record.SetTimestamp(pcommon.NewTimestampFromTime(pl.time))
 			record.SetObservedTimestamp(pcommon.NewTimestampFromTime(time.Now()))
 			record.Body().SetStr(pl.body)
+			return true
 		})
 	}
 

@@ -155,8 +155,8 @@ stdout logs are not ingested. See fix 4.
    file) instead of building the whole 23-job run as one `plog.Logs` payload.
    The 256 MB cap bounds the compressed download, not the decoded pdata size.
    **Update, 2026-07-04:** the emit half is done. The receiver now hands
-   payloads to the pipeline in bounded chunks of 10k records
-   (`logEmitter` in
+   payloads to the pipeline in bounded chunks, capped at 10k records or
+   4 MiB of body text (`logEmitter` in
    `collector/receiver/githubactionsreceiver/log_event_handling.go`), so
    memory stays proportional to one chunk instead of the whole run.
    Processing is still synchronous in the webhook handler; the app's replay
