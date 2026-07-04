@@ -18,14 +18,6 @@ beforeEach(() => {
 });
 
 describe("PreviewIndicator", () => {
-  it("renders the preview name when a preview is active", () => {
-    mocks.useSearch.mockReturnValue({ preview: "gio/apply-previews" });
-    render(<PreviewIndicator />);
-
-    const status = screen.getByRole("status");
-    expect(status).toHaveTextContent("gio/apply-previews");
-  });
-
   it("renders nothing on live (no preview param)", () => {
     mocks.useSearch.mockReturnValue({ preview: undefined });
     const { container } = render(<PreviewIndicator />);

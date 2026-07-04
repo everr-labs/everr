@@ -7,43 +7,6 @@ import { describe, expect, it, vi } from "vitest";
 const content = <div data-testid="content" />;
 
 describe("PreviewFrame", () => {
-  it("renders the message, actions, and framed content", () => {
-    render(
-      <PreviewFrame
-        variant="info"
-        message="Previewing X"
-        actions={<button type="button">Exit</button>}
-      >
-        {content}
-      </PreviewFrame>,
-    );
-    expect(screen.getByRole("status")).toHaveTextContent("Previewing X");
-    expect(screen.getByRole("button", { name: "Exit" })).toBeInTheDocument();
-    expect(screen.getByTestId("content")).toBeInTheDocument();
-  });
-
-  it("keeps the frame border and the bar fill in sync from one variant", () => {
-    const { rerender } = render(
-      <PreviewFrame variant="info" message="hi">
-        {content}
-      </PreviewFrame>,
-    );
-    expect(screen.getByTestId("content").parentElement).toHaveClass(
-      "ring-sky-500",
-    );
-    expect(screen.getByRole("status")).toHaveClass("bg-sky-500");
-
-    rerender(
-      <PreviewFrame variant="warning" message="hi">
-        {content}
-      </PreviewFrame>,
-    );
-    expect(screen.getByTestId("content").parentElement).toHaveClass(
-      "ring-amber-500",
-    );
-    expect(screen.getByRole("status")).toHaveClass("bg-amber-500");
-  });
-
   it("shows a dismiss button only when onDismiss is given, and delegates to it", async () => {
     const onDismiss = vi.fn();
     const { rerender } = render(

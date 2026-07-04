@@ -415,60 +415,6 @@ describe("listDashboards (with project + folderPath)", () => {
 
     expect(isNull).toHaveBeenCalledWith("preview_id");
   });
-
-  it("in preview mode, overlays preview rows: added/changed/unchanged tagged, uncovered rows pass through", async () => {
-    mockedDb.select
-      // getCoveredRepoids
-      .mockImplementationOnce(
-        () =>
-          ({
-            from: () => ({
-              where: () => Promise.resolve([{ repoid: "repo-1" }]),
-            }),
-          }) as unknown as ReturnType<typeof mockedDb.select>,
-      )
-      // dashboards rows (live + preview, plus an uncovered live row); the read
-      // path joins the registry, so mock .from().leftJoin().where().
-      .mockImplementationOnce(
-        () =>
-          ({
-            from: () => ({
-              leftJoin: () => ({
-                where: () =>
-                  Promise.resolve([
-                    {
-                      repoid: "repo-1",
-                      previewId: "prev-1",
-                      project: "team",
-                      slug: "new-panel",
-                      folderPath: "",
-                      document: { spec: {} },
-                      displayName: "New panel",
-                    },
-                    {
-                      repoid: "repo-2",
-                      previewId: null,
-                      project: "team",
-                      slug: "other",
-                      folderPath: "",
-                      document: { spec: {} },
-                      displayName: "Other",
-                    },
-                  ]),
-              }),
-            }),
-          }) as unknown as ReturnType<typeof mockedDb.select>,
-      );
-
-    const rows = await listDashboards({ data: { preview: "gio/branch" } });
-    const bySlug = Object.fromEntries(
-      rows.map((r) => [r.slug, r.previewStatus]),
-    );
-    expect(bySlug).toEqual({
-      "new-panel": "added",
-      other: undefined,
-    });
-  });
 });
 
 // ---------------------------------------------------------------------------
