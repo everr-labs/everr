@@ -1,4 +1,4 @@
-import { stableStringify } from "@/data/as-code/reconcile";
+import { identityKey, stableStringify } from "@/data/as-code/reconcile";
 
 export type PreviewStatus =
   | "added"
@@ -36,9 +36,8 @@ export function overlayPreview<T extends OverlayResource>(opts: {
     `${row.repoid}\u0000${row.project}\u0000${row.slug}`;
   // Owner-agnostic identity (project, slug): a live match under a *different*
   // owner is a cross-repo clash, not an edit.
-  const identity = (row: OverlayResource) => `${row.project}\u0000${row.slug}`;
   const liveByKey = new Map(live.map((row) => [key(row), row]));
-  const liveByIdentity = new Map(live.map((row) => [identity(row), row]));
+  const liveByIdentity = new Map(live.map((row) => [identityKey(row), row]));
   const previewKeys = new Set(previewRows.map(key));
 
   const out: (T & { previewStatus?: PreviewStatus })[] = [];
@@ -50,7 +49,7 @@ export function overlayPreview<T extends OverlayResource>(opts: {
       // No same-owner live row. A live resource with this identity under a
       // different owner (same-owner would have matched above) means a merge
       // would collide → conflict; otherwise it's a genuine add.
-      const status: PreviewStatus = liveByIdentity.has(identity(row))
+      const status: PreviewStatus = liveByIdentity.has(identityKey(row))
         ? "conflict"
         : "added";
       out.push({ ...row, previewStatus: status });

@@ -6,7 +6,10 @@ import type { Namespace } from "@/data/previews/scope";
 import { applyRunbookSpecs } from "@/data/runbooks/apply.server";
 import { type DbExecutor, db } from "@/db/client";
 import { ApplyValidationError } from "./errors";
+import type { OwnershipConflict } from "./ownership";
 import type { ApplyInput, ApplyResourceEntry, ApplySource } from "./schema";
+
+export type { OwnershipConflict } from "./ownership";
 
 export interface KindResult {
   kind: string;
@@ -20,13 +23,6 @@ export interface KindResult {
 export interface ApplyResourcesResult {
   dryRun: boolean;
   results: KindResult[];
-}
-
-/** A create that collides with a live resource owned by a different repo. */
-export interface OwnershipConflict {
-  project: string;
-  slug: string;
-  owner: string;
 }
 
 /** A reconciler makes the repo's resources of one kind match the given entries. */

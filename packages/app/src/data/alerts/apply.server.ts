@@ -1,7 +1,11 @@
 import { createHash } from "node:crypto";
 import { and, eq, isNull, or } from "drizzle-orm";
 import { ApplyValidationError } from "@/data/as-code/errors";
-import type { OwnershipConflict, Reconciler } from "@/data/as-code/registry";
+import {
+  type OwnershipConflict,
+  partitionByOwnership,
+} from "@/data/as-code/ownership";
+import type { Reconciler } from "@/data/as-code/registry";
 import type { ApplyResourceEntry, ApplySource } from "@/data/as-code/schema";
 import {
   foreignLiveScope,
@@ -435,28 +439,15 @@ export const applyAlertSpecs: Reconciler = async ({
           .from(alertDefinitions)
           .where(foreignLiveScope(alertDefinitions, namespace, creates))
       : [];
-  const foreignOwner = new Map(
-    foreign.map((r) => [identityKey(r.project, r.slug), r.owner ?? ""]),
-  );
-  const takenCreates = creates.filter((row) =>
-    foreignOwner.has(identityKey(row.project, row.slug)),
-  );
-  const freshCreates = creates.filter(
-    (row) => !foreignOwner.has(identityKey(row.project, row.slug)),
-  );
+  const { freshCreates, takenCreates, adopted, conflicts } =
+    partitionByOwnership(creates, foreign, adopt);
 
   const summary: ApplyAlertsResult = {
     created: freshCreates.map((row) => row.slug),
     updated: updates.map((row) => row.slug),
     deleted: deletes.map((row) => row.slug),
-    adopted: adopt ? takenCreates.map((row) => row.slug) : [],
-    conflicts: adopt
-      ? []
-      : takenCreates.map((row) => ({
-          project: row.project,
-          slug: row.slug,
-          owner: foreignOwner.get(identityKey(row.project, row.slug)) ?? "",
-        })),
+    adopted,
+    conflicts,
   };
 
   if (dryRun) return summary;

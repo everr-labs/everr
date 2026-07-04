@@ -1,6 +1,10 @@
 import { and, eq, isNull } from "drizzle-orm";
+import {
+  type OwnershipConflict,
+  partitionByOwnership,
+} from "@/data/as-code/ownership";
 import { reconcile } from "@/data/as-code/reconcile";
-import type { OwnershipConflict, Reconciler } from "@/data/as-code/registry";
+import type { Reconciler } from "@/data/as-code/registry";
 import {
   foreignLiveScope,
   previewOwner,
@@ -17,9 +21,6 @@ export interface ApplyDashboardsResult {
   adopted: string[];
   conflicts: OwnershipConflict[];
 }
-
-const identityKey = (d: { project: string; slug: string }) =>
-  `${d.project}\u0000${d.slug}`;
 
 /**
  * Declarative reconcile core for dashboards. The reconcile scope is (org, repoid)
@@ -71,28 +72,15 @@ export const applyDashboardSpecs: Reconciler = async ({
           .from(dashboards)
           .where(foreignLiveScope(dashboards, namespace, diff.creates))
       : [];
-  const foreignOwner = new Map(
-    foreign.map((r) => [identityKey(r), r.owner ?? ""]),
-  );
-  const takenCreates = diff.creates.filter((d) =>
-    foreignOwner.has(identityKey(d)),
-  );
-  const freshCreates = diff.creates.filter(
-    (d) => !foreignOwner.has(identityKey(d)),
-  );
+  const { freshCreates, takenCreates, adopted, conflicts } =
+    partitionByOwnership(diff.creates, foreign, adopt);
 
   const summary: ApplyDashboardsResult = {
     created: freshCreates.map((d) => d.slug),
     updated: diff.updates.map((d) => d.slug),
     deleted: diff.deletes.map((d) => d.slug),
-    adopted: adopt ? takenCreates.map((d) => d.slug) : [],
-    conflicts: adopt
-      ? []
-      : takenCreates.map((d) => ({
-          project: d.project,
-          slug: d.slug,
-          owner: foreignOwner.get(identityKey(d)) ?? "",
-        })),
+    adopted,
+    conflicts,
   };
 
   if (dryRun) return summary;
