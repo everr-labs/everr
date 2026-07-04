@@ -1,5 +1,0 @@
-{
-  "title": "Local Debugging",
-  "defaultOpen": true,
-  "pages": ["setup", "test-production-telemetry", "debug-traces"]
-}

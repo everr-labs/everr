@@ -31,7 +31,8 @@ fn root_help_lists_main_commands() {
         .stdout(predicates::str::contains("\n  show").not())
         .stdout(predicates::str::contains("\n  logs").not())
         .stdout(contains("wrap"))
-        .stdout(contains("skills"));
+        .stdout(contains("skills"))
+        .stdout(contains("upgrade"));
 }
 
 #[test]

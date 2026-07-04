@@ -329,6 +329,29 @@ func TestGitHubActionsServiceResourceAttributes(t *testing.T) {
 	})
 }
 
+// TestSetWorkflowRunEventAttributesNilRunStartedAt verifies that a payload
+// with a null run_started_at (e.g. a run cancelled before starting) doesn't
+// panic on the raw *Timestamp pointer.
+func TestSetWorkflowRunEventAttributesNilRunStartedAt(t *testing.T) {
+	payload, err := os.ReadFile("./testdata/completed/8_workflow_run_completed.json")
+	require.NoError(t, err)
+
+	event, err := github.ParseWebHook("workflow_run", payload)
+	require.NoError(t, err)
+
+	wre := event.(*github.WorkflowRunEvent)
+	wre.WorkflowRun.RunStartedAt = nil
+
+	attrs := pcommon.NewMap()
+	require.NotPanics(t, func() {
+		setWorkflowRunEventAttributes(attrs, wre, &Config{})
+	})
+
+	started, found := attrs.Get(semconv.EverrGitHubWorkflowRunStartedAt)
+	require.True(t, found)
+	require.Equal(t, time.Time{}.Format(time.RFC3339), started.Str())
+}
+
 // attributeValueToString converts an attribute value to a string regardless of its actual type
 func attributeValueToString(attr pcommon.Value) string {
 	switch attr.Type() {

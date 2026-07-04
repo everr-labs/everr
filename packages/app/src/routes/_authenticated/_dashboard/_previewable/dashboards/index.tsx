@@ -4,7 +4,11 @@ import { createFileRoute, useSearch } from "@tanstack/react-router";
 import { AlertCircle, LayoutDashboard, SearchIcon } from "lucide-react";
 import { useState } from "react";
 import { DashboardTree } from "@/components/dashboards/dashboard-tree";
+import { ResourceEmptyState } from "@/components/resource-empty-state";
 import { dashboardListOptions } from "@/data/dashboards/options";
+
+const ASSISTANT_DASHBOARD_PROMPT =
+  "/everr-write-dashboards Help me build a good first dashboard based on the telemetry we have in production";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_previewable/dashboards/",
@@ -32,15 +36,17 @@ function DashboardsIndexPage() {
         <h1 className="text-lg font-semibold">Dashboards</h1>
       </div>
 
-      <div className="relative mb-4 max-w-sm">
-        <SearchIcon className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Search dashboards..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-8"
-        />
-      </div>
+      {!isEmpty && (
+        <div className="relative mb-4 max-w-sm">
+          <SearchIcon className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search dashboards..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-8"
+          />
+        </div>
+      )}
 
       {isLoading && <p className="text-sm text-muted-foreground">Loading...</p>}
 
@@ -56,12 +62,12 @@ function DashboardsIndexPage() {
       )}
 
       {isEmpty && (
-        <div className="flex flex-col items-center justify-center gap-3 py-16 text-muted-foreground">
-          <LayoutDashboard className="size-10" />
-          <p className="text-sm">
-            No dashboards yet — apply some with the everr CLI
-          </p>
-        </div>
+        <ResourceEmptyState
+          title="No dashboards yet"
+          description="Paste this into your coding assistant. It writes the YAML, applies it, and the dashboard shows up here."
+          assistantPrompt={ASSISTANT_DASHBOARD_PROMPT}
+          docsHref="https://everr.dev/docs/learn/first-dashboard"
+        />
       )}
 
       {!isLoading && !isError && !isEmpty && (

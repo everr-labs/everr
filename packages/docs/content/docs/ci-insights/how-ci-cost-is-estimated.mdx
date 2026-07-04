@@ -1,19 +1,11 @@
 ---
-title: How CI Billing Works
-description: Understand how GitHub Actions charges runner time and why Everr treats cost as an estimate.
+title: How CI cost is estimated
+description: How Everr estimates what your GitHub Actions runs cost you.
 ---
 
-Before you optimize CI cost, it helps to understand how the bill is actually
-produced. CI cost is hard to reason about from a single workflow run: a
-five-minute run can be cheap or expensive depending on how many jobs ran in
-parallel, which runner labels they used, whether the jobs retried, and how much
-rounding the billing system applied.
+Everr estimates what your GitHub Actions runs cost you, so you can see where CI time and spend go. It's an estimate from runner usage, not a bill; this page explains the per-job model behind it. To find and fix expensive CI, see [Cost Analysis](/docs/ci-insights/cost-analysis).
 
-This page explains the model Everr uses to turn GitHub Actions job data into a
-cost estimate. For the practical workflow of finding and fixing expensive CI,
-see [Cost Analysis](/docs/ci-insights/cost-analysis).
-
-## Billing is per job, not per workflow
+## Cost is per job, not per workflow
 
 GitHub Actions billing is based on runner time, not on workflow wall-clock
 time. The important unit is the job.

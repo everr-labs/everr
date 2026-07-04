@@ -1,0 +1,5 @@
+{
+  "title": "Test Telemetry",
+  "defaultOpen": true,
+  "pages": ["go-tests", "rust-tests", "vitest"]
+}

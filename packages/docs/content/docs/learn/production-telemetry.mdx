@@ -1,0 +1,37 @@
+---
+title: Send production telemetry
+description: Step 3, mint an API key and forward telemetry to Everr Cloud.
+---
+
+This is step 3 of getting started with Everr: mint an API key, point your deployed service's OpenTelemetry export at Everr Cloud, and confirm telemetry arrives. Everything you queried locally in step 2 works the same way once it's flowing from production.
+
+## Mint an API key
+
+In the Everr dashboard, open the user menu (top-left) and click **API keys**, then **New key**.
+
+- Leave the **Send telemetry** capability enabled: it's what lets the key authenticate OTLP requests.
+- The full key is shown only once, at creation time. Copy it into your secret manager; you can't retrieve it later.
+
+## Point your service at Everr Cloud
+
+In your deployed service, set the standard OpenTelemetry exporter environment variables to send to Everr Cloud, with your API key as a bearer token:
+
+```sh
+export OTEL_EXPORTER_OTLP_ENDPOINT="https://ingest.everr.dev"
+export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer <your-api-key>"
+```
+
+Most OpenTelemetry SDKs and the Collector read these automatically.
+
+If you already run your own OpenTelemetry Collector, forward from it instead of instrumenting each service directly.
+
+## Confirm telemetry arrives
+
+Trigger the instrumented path in production (a request, a deploy, a scheduled job), then check the Everr dashboard for traces, logs, or metrics tagged with your service.
+
+If nothing shows up:
+
+- Confirm the request returned `200`, not `401`.
+- Confirm you're using the key you just minted, not a local or stale one.
+
+**Next:** [Build your first dashboard](/docs/learn/first-dashboard).

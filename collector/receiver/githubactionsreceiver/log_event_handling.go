@@ -58,9 +58,17 @@ func eventToLogs(ctx context.Context, event interface{}, config *Config, ghClien
 
 	setWorkflowRunEventAttributes(attrs, e, config)
 
-	url, _, err := ghClient.Actions.GetWorkflowRunAttemptLogs(ctx, e.GetRepo().GetOwner().GetLogin(), e.GetRepo().GetName(), e.GetWorkflowRun().GetID(), e.GetWorkflowRun().GetRunAttempt(), 10)
+	url, ghResp, err := ghClient.Actions.GetWorkflowRunAttemptLogs(ctx, e.GetRepo().GetOwner().GetLogin(), e.GetRepo().GetName(), e.GetWorkflowRun().GetID(), e.GetWorkflowRun().GetRunAttempt(), 10)
 
 	if err != nil {
+		// Runs without a downloadable log archive (e.g. skipped or cancelled
+		// before any job produced output) return 404. That's not a processing
+		// failure — return the logs built so far so the caller doesn't turn
+		// this into a 500 and the sender doesn't retry the event.
+		if ghResp != nil && ghResp.StatusCode == http.StatusNotFound {
+			logger.Warn("No log archive available for workflow run", zap.Error(err))
+			return &logs, nil
+		}
 		logger.Error("Failed to get logs", zap.Error(err))
 		return nil, err
 	}
@@ -239,6 +247,7 @@ func scanLogFile(f *zip.File, logger *zap.Logger, emit func(parsedLine)) {
 
 	scanner := bufio.NewScanner(ff)
 	firstLine := true
+	var lastTime time.Time
 	for scanner.Scan() {
 		lineText := scanner.Text()
 		if firstLine {
@@ -249,19 +258,18 @@ func scanLogFile(f *zip.File, logger *zap.Logger, emit func(parsedLine)) {
 			continue
 		}
 
-		ts, line, ok := strings.Cut(lineText, " ")
-		if !ok {
-			logger.Error("Failed to cut log line", zap.String("body", lineText))
-			continue
+		if ts, line, ok := strings.Cut(lineText, " "); ok {
+			if parsedTime, err := time.Parse(time.RFC3339, ts); err == nil {
+				lastTime = parsedTime
+				emit(parsedLine{time: parsedTime, body: line})
+				continue
+			}
 		}
 
-		parsedTime, err := time.Parse(time.RFC3339, ts)
-		if err != nil {
-			logger.Error("Failed to parse timestamp", zap.String("timestamp", ts), zap.Error(err))
-			continue
-		}
-
-		emit(parsedLine{time: parsedTime, body: line})
+		// No leading timestamp — this is a continuation of multi-line step
+		// output, not an error. Keep the full text and attribute it to the
+		// previous line's timestamp (zero if it's the very first line).
+		emit(parsedLine{time: lastTime, body: lineText})
 	}
 
 	if err := scanner.Err(); err != nil {

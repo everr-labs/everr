@@ -152,6 +152,7 @@ impl CommandTelemetry {
     fn from_cli_and_argv(cli: &Cli, argv: impl IntoIterator<Item = OsString>) -> Self {
         let (command, subcommand) = match &cli.command {
             Commands::Uninstall => ("uninstall", None),
+            Commands::Upgrade => ("upgrade", None),
             Commands::Cloud(args) => (
                 "cloud",
                 Some(match &args.command {

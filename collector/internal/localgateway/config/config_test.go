@@ -38,6 +38,17 @@ func TestBuildCollectorConfigUsesLocalDefaults(t *testing.T) {
 	chdb := exporters["chdb"].(map[string]any)
 	require.Equal(t, "168h0m0s", chdb["ttl"])
 	require.NotContains(t, chdb, "path")
+
+	// Local table names mirror the cloud query-facing tables so the shared
+	// explorer queries run unchanged.
+	require.Equal(t, "logs", chdb["logs_table_name"])
+	require.Equal(t, "traces", chdb["traces_table_name"])
+	metricsTables := chdb["metrics_tables"].(map[string]any)
+	require.Equal(t, map[string]any{"name": "metrics_gauge"}, metricsTables["gauge"])
+	require.Equal(t, map[string]any{"name": "metrics_sum"}, metricsTables["sum"])
+	require.Equal(t, map[string]any{"name": "metrics_histogram"}, metricsTables["histogram"])
+	require.Equal(t, map[string]any{"name": "metrics_exponential_histogram"}, metricsTables["exponential_histogram"])
+	require.Equal(t, map[string]any{"name": "metrics_summary"}, metricsTables["summary"])
 }
 
 func TestStaticProviderReturnsGeneratedConfig(t *testing.T) {

@@ -245,7 +245,7 @@ export function QuickstartFriction() {
             to the data.
           </p>
           <a
-            href="/docs/getting-started/install"
+            href="/docs/learn/install"
             className="group inline-flex shrink-0 items-center gap-2 rounded-full border border-fd-border bg-fd-card/40 px-6 py-3 font-heading text-sm font-bold tracking-tight text-fd-foreground outline-none transition-colors hover:border-fd-border/80 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-fd-background"
           >
             Read the quickstart

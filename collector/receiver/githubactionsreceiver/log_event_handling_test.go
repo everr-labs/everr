@@ -15,8 +15,11 @@ import (
 	"github.com/google/go-github/v67/github"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/plog"
 	conventions "go.opentelemetry.io/otel/semconv/v1.38.0"
+	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
+	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/everr-labs/everr/collector/semconv"
 )
@@ -510,6 +513,111 @@ func TestEventToLogsNormalFormatUnchanged(t *testing.T) {
 	sn, ok := records.At(0).Attributes().Get(semconv.EverrGitHubWorkflowJobStepNumber)
 	require.True(t, ok)
 	require.Equal(t, int64(1), sn.Int())
+}
+
+// TestEventToLogsNoLogArchive verifies that a completed run whose log archive
+// doesn't exist (GitHub returns 404, e.g. for runs skipped or cancelled before
+// producing output) is not treated as a processing failure — otherwise the
+// receiver responds 500 and the sender keeps redelivering the event.
+func TestEventToLogsNoLogArchive(t *testing.T) {
+	logger := zaptest.NewLogger(t)
+
+	runPayload, err := os.ReadFile("./testdata/completed/8_workflow_run_completed.json")
+	require.NoError(t, err)
+	runEvent, err := github.ParseWebHook("workflow_run", runPayload)
+	require.NoError(t, err)
+	wre := runEvent.(*github.WorkflowRunEvent)
+
+	newEventToLogs := func(t *testing.T, statusCode int) (*plog.Logs, error) {
+		t.Helper()
+		apiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, http.StatusText(statusCode), statusCode)
+		}))
+		t.Cleanup(apiServer.Close)
+
+		ghClient, err := github.NewClient(nil).WithEnterpriseURLs(apiServer.URL+"/", apiServer.URL+"/")
+		require.NoError(t, err)
+
+		return eventToLogs(
+			context.Background(),
+			wre,
+			&Config{},
+			ghClient,
+			logger,
+			true,
+			newJobNameCache(100, 30*time.Minute),
+			newStepTimingCache(100, 30*time.Minute),
+		)
+	}
+
+	t.Run("404 means no logs, not a failure", func(t *testing.T) {
+		logs, err := newEventToLogs(t, http.StatusNotFound)
+		require.NoError(t, err)
+		require.NotNil(t, logs)
+
+		// Resource attributes are set, but no log records were produced.
+		require.Equal(t, 1, logs.ResourceLogs().Len())
+		require.Equal(t, 0, logs.ResourceLogs().At(0).ScopeLogs().Len())
+	})
+
+	t.Run("server errors still fail", func(t *testing.T) {
+		logs, err := newEventToLogs(t, http.StatusServiceUnavailable)
+		require.Error(t, err)
+		require.Nil(t, logs)
+	})
+}
+
+// TestScanLogFileContinuationLines verifies that multi-line step output —
+// where continuation lines have no leading timestamp — is preserved with the
+// previous line's timestamp and doesn't produce error-level logs.
+func TestScanLogFileContinuationLines(t *testing.T) {
+	newZipFile := func(t *testing.T, content string) *zip.File {
+		t.Helper()
+		zipData := createCombinedZip(t, map[string]string{"job/1_step.txt": content})
+		reader, err := zip.NewReader(bytes.NewReader(zipData), int64(len(zipData)))
+		require.NoError(t, err)
+		require.Len(t, reader.File, 1)
+		return reader.File[0]
+	}
+
+	scan := func(t *testing.T, content string) ([]parsedLine, *observer.ObservedLogs) {
+		t.Helper()
+		core, observed := observer.New(zap.ErrorLevel)
+		var lines []parsedLine
+		scanLogFile(newZipFile(t, content), zap.New(core), func(pl parsedLine) {
+			lines = append(lines, pl)
+		})
+		return lines, observed
+	}
+
+	t.Run("continuation inherits previous timestamp", func(t *testing.T) {
+		lines, observed := scan(t, ""+
+			"2023-10-13T10:11:33Z line one\n"+
+			"core.setOutput(\"reason\", continuation without timestamp)\n"+
+			"2023-10-13T10:11:35Z line two\n")
+
+		require.Len(t, lines, 3)
+		require.Equal(t, "line one", lines[0].body)
+		require.Equal(t, "core.setOutput(\"reason\", continuation without timestamp)", lines[1].body)
+		require.Equal(t, lines[0].time, lines[1].time, "continuation line should inherit previous timestamp")
+		require.Equal(t, "line two", lines[2].body)
+		require.True(t, lines[2].time.After(lines[0].time))
+
+		require.Equal(t, 0, observed.Len(), "continuation lines must not log at error level")
+	})
+
+	t.Run("leading line without timestamp", func(t *testing.T) {
+		lines, observed := scan(t, ""+
+			"no timestamp at all\n"+
+			"2023-10-13T10:11:33Z line one\n")
+
+		require.Len(t, lines, 2)
+		require.Equal(t, "no timestamp at all", lines[0].body)
+		require.True(t, lines[0].time.IsZero(), "line before any timestamp should have zero time")
+		require.Equal(t, "line one", lines[1].body)
+
+		require.Equal(t, 0, observed.Len(), "lines without timestamps must not log at error level")
+	})
 }
 
 func makeTestWorkflowRunEvent(repoID, runID int64, runAttempt int) *github.WorkflowRunEvent {

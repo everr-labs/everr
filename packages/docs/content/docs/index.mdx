@@ -1,17 +1,48 @@
 ---
-title: Everr
+title: How Everr works
+description: The mental model, one OpenTelemetry pipeline across Local, CI, and Production, read through the evidence loop.
 ---
 
-Everr makes observability easy for developers and coding assistants.
+Everr is built on a single idea: the signals that explain your software should be available wherever your code runs, whether that's your laptop, CI, or production. And they should be as easy for an Agent to read as they are for you.
 
-## Overview
+Instead of separate tools for local debugging, CI inspection, and production monitoring, Everr collects everything as standard [OpenTelemetry](https://opentelemetry.io) and makes it queryable through one CLI and one workspace.
 
-Everr gives you and your agents direct access to the signals that matter wherever your code runs: locally, in CI, inside remote sandboxes, and in production services.
+## One pipeline, everywhere your code runs
 
-Use it to set up a fast local telemetry feedback loop, monitor CI failures and resource usage, and send production OpenTelemetry to a shared workspace. The result is observability that works where development happens, without forcing you to stitch together logs or context by hand.
+The same telemetry model follows your code through its whole lifecycle. Each place your code runs feeds the same queryable store, read through two surfaces: the local Collector and the Cloud backend.
 
-<Cards>
-  <Card title="Getting Started" href="/docs/getting-started/install" description="Set up Everr for your repo, local telemetry, production telemetry, and CI" />
-  <Card title="Production Monitoring" href="/docs/production-monitoring/setup" description="Send OpenTelemetry data to Everr" />
-  <Card title="CI Insights" href="/docs/ci-insights/setup-new-repo" description="Connect repos, import CI history, and monitor GitHub Actions workflows" />
-</Cards>
+### Local
+
+A Collector runs on your machine, receiving OpenTelemetry over OTLP from your app, tests, and wrapped commands, and keeps the data local. This is the fast feedback loop you use while writing and debugging code. See [Instrument your app](/docs/learn/instrument-your-app).
+
+### Production
+
+Your services send OpenTelemetry to the Everr Cloud over OTLP, authenticated with an API key. Everything lands in a shared, per-organization workspace you can inspect during and after an incident. See [Send production telemetry](/docs/learn/production-telemetry).
+
+### CI
+
+The Everr GitHub App ingests your GitHub Actions runs (workflows, jobs, steps, and logs) so a failing run is structured data rather than pasted screenshots. Verbose test output is parsed into per-test Spans, and an optional action adds per-job resource metrics. See [CI Insights](/docs/ci-insights/setup-new-repo).
+
+## Collector vs Cloud
+
+Local telemetry lives in the Collector, the sidecar that runs on your machine. CI and Production telemetry live in the Cloud, Everr's hosted backend. Both surfaces speak the same query model, so a query you write against local traces reads the same way against production ones.
+
+## The signals are all OpenTelemetry
+
+Traces, Logs, and Metrics are standard OpenTelemetry Signals. CI runs and test results are represented as the same kinds of Signals (a CI run is a Trace, a test case is a Span), so one set of tools works everywhere. You don't learn a different model for CI than you use for production.
+
+## Built for humans and AIs, equally
+
+Everr is built for humans and AIs at the same level. The signals are meant to be as usable by an AI as by a person, so whether you run a query yourself or hand the investigation to your Agent, it works the same way. Bundled Skills teach your Agent when to reach for telemetry and how to query it, and because it works from your repository, it can connect runtime signal back to the code that produced it.
+
+The recurring pattern across every Everr workflow is the **evidence loop**:
+
+1. State the question the telemetry should answer.
+2. Add the smallest signal that answers it (or use what's already there).
+3. Run the workflow: exercise the app, trigger the CI run, reproduce the bug.
+4. Inspect what was actually recorded.
+5. Compare it to what you expected, then make the next change.
+
+Local debugging, production monitoring, and CI investigation are all variations on this loop. The rest of the docs show what it looks like in each context.
+
+Ready to try it? Follow [Getting started](/docs/learn/install) to install Everr and go from your first trace to your first alert.

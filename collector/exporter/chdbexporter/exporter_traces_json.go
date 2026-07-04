@@ -302,6 +302,9 @@ func renderCreateTracesJSONTableSQL(cfg *Config) string {
 }
 
 func createTraceJSONTables(ctx context.Context, cfg *Config, db driver.Conn) error {
+	if err := adoptLegacyTraceTables(ctx, cfg, db); err != nil {
+		return err
+	}
 	if err := db.Exec(ctx, renderCreateTracesJSONTableSQL(cfg)); err != nil {
 		return fmt.Errorf("exec create json traces table sql: %w", err)
 	}
@@ -310,9 +313,6 @@ func createTraceJSONTables(ctx context.Context, cfg *Config, db driver.Conn) err
 	}
 	if err := db.Exec(ctx, renderTraceIDTsMaterializedViewSQL(cfg)); err != nil {
 		return fmt.Errorf("exec create traceID timestamp view sql: %w", err)
-	}
-	if err := createLocalTracesView(ctx, cfg, db); err != nil {
-		return err
 	}
 
 	return nil

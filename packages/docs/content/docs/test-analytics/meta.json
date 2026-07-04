@@ -1,5 +1,0 @@
-{
-  "title": "Test Analytics",
-  "defaultOpen": true,
-  "pages": ["index", "go-tests", "rust-tests", "vitest"]
-}

@@ -1,0 +1,241 @@
+kind: Dashboard
+metadata:
+  name: errors-to-fix
+spec:
+  display:
+    name: Errors to Fix
+    description: >-
+      Triage board for open errors: volume and rate at a glance, error groups
+      ranked by occurrences with a sample trace to jump into, failing
+      operations, and the latest error logs.
+  duration: 24h
+  refreshInterval: 1m
+  variables:
+    - kind: ListVariable
+      spec:
+        name: service
+        display: { name: Service }
+        allowMultiple: true
+        allowAllValue: true
+        defaultValue: everr-dev-app
+        sort: alphabetical-asc
+        plugin:
+          kind: ClickHouseSQLVariable
+          spec:
+            query: SELECT DISTINCT ServiceName FROM traces ORDER BY ServiceName
+  panels:
+    error-spans:
+      kind: Panel
+      spec:
+        display: { name: Error spans }
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: sum
+            sparkline: true
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                           count() AS errors
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND ServiceName IN $service
+                      AND StatusCode = 'Error'
+                    GROUP BY ts
+                    ORDER BY ts
+    error-rate:
+      kind: Panel
+      spec:
+        display: { name: Error rate, description: Failed spans / all spans }
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last
+            unit: "%"
+            decimals: 2
+            thresholds:
+              mode: absolute
+              defaultColor: "#22c55e"
+              steps:
+                - { value: 1, color: "#f59e0b" }
+                - { value: 5, color: "#ef4444" }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT countIf(StatusCode = 'Error') / count() * 100 AS error_pct
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND ServiceName IN $service
+    error-groups:
+      kind: Panel
+      spec:
+        display: { name: Distinct error groups, description: Unique exception type + message signatures }
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT uniqExact(
+                             ev.2['exception.type'],
+                             replaceRegexpAll(substring(ev.2['exception.message'], 1, 200), '[0-9]+([.][0-9]+)?', 'N')
+                           ) AS groups
+                    FROM traces ARRAY JOIN arrayZip(Events.Name, Events.Attributes) AS ev
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND ServiceName IN $service
+                      AND ev.1 = 'exception'
+    error-logs:
+      kind: Panel
+      spec:
+        display: { name: Error logs }
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: sum
+            sparkline: true
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                           count() AS error_logs
+                    FROM logs
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND ServiceName IN $service
+                      AND upper(SeverityText) IN ('ERROR', 'FATAL')
+                    GROUP BY ts
+                    ORDER BY ts
+    errors-over-time:
+      kind: Panel
+      spec:
+        display: { name: Error spans by service }
+        plugin:
+          kind: TimeSeriesChart
+          spec: { showLegend: true, stacked: true }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                           ServiceName,
+                           count() AS errors
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND ServiceName IN $service
+                      AND StatusCode = 'Error'
+                    GROUP BY ts, ServiceName
+                    ORDER BY ts
+    top-error-groups:
+      kind: Panel
+      spec:
+        display:
+          name: Top error groups
+          description: Exceptions grouped by type + normalized message, ranked by occurrences. Open the sample trace to investigate.
+        plugin:
+          kind: Table
+          spec: { stickyHeader: true }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT ev.2['exception.type'] AS type,
+                           replaceRegexpAll(substring(ev.2['exception.message'], 1, 200), '[0-9]+([.][0-9]+)?', 'N') AS message,
+                           count() AS occurrences,
+                           arrayStringConcat(groupUniqArray(ServiceName), ', ') AS services,
+                           formatDateTime(min(Timestamp), '%Y-%m-%d %H:%i') AS first_seen,
+                           formatDateTime(max(Timestamp), '%Y-%m-%d %H:%i') AS last_seen,
+                           argMax(TraceId, Timestamp) AS sample_trace
+                    FROM traces ARRAY JOIN arrayZip(Events.Name, Events.Attributes) AS ev
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND ServiceName IN $service
+                      AND ev.1 = 'exception'
+                    GROUP BY type, message
+                    ORDER BY occurrences DESC
+                    LIMIT 50
+    failing-operations:
+      kind: Panel
+      spec:
+        display:
+          name: Failing operations
+          description: Spans with errors, including failures that carry no exception event.
+        plugin:
+          kind: Table
+          spec: { stickyHeader: true }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT ServiceName AS service,
+                           SpanName AS operation,
+                           countIf(StatusCode = 'Error') AS errors,
+                           round(countIf(StatusCode = 'Error') / count() * 100, 1) AS error_pct,
+                           formatDateTime(maxIf(Timestamp, StatusCode = 'Error'), '%Y-%m-%d %H:%i') AS last_seen
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND ServiceName IN $service
+                    GROUP BY service, operation
+                    HAVING errors > 0
+                    ORDER BY errors DESC
+                    LIMIT 30
+    recent-error-logs:
+      kind: Panel
+      spec:
+        display: { name: Recent error logs }
+        plugin:
+          kind: Table
+          spec: { stickyHeader: true }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT formatDateTime(Timestamp, '%m-%d %H:%i:%S') AS time,
+                           ServiceName AS service,
+                           substring(Body, 1, 140) AS message,
+                           TraceId AS trace_id
+                    FROM logs
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND ServiceName IN $service
+                      AND upper(SeverityText) IN ('ERROR', 'FATAL')
+                    ORDER BY Timestamp DESC
+                    LIMIT 50
+  layouts:
+    - kind: Grid
+      spec:
+        items:
+          - { x: 0,  y: 0,  width: 6,  height: 5,  content: { $ref: "#/spec/panels/error-spans" } }
+          - { x: 6,  y: 0,  width: 6,  height: 5,  content: { $ref: "#/spec/panels/error-rate" } }
+          - { x: 12, y: 0,  width: 6,  height: 5,  content: { $ref: "#/spec/panels/error-groups" } }
+          - { x: 18, y: 0,  width: 6,  height: 5,  content: { $ref: "#/spec/panels/error-logs" } }
+          - { x: 0,  y: 5,  width: 24, height: 8,  content: { $ref: "#/spec/panels/errors-over-time" } }
+          - { x: 0,  y: 13, width: 24, height: 10, content: { $ref: "#/spec/panels/top-error-groups" } }
+          - { x: 0,  y: 23, width: 12, height: 9,  content: { $ref: "#/spec/panels/failing-operations" } }
+          - { x: 12, y: 23, width: 12, height: 9,  content: { $ref: "#/spec/panels/recent-error-logs" } }

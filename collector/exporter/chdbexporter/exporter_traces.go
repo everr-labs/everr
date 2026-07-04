@@ -231,6 +231,9 @@ func renderTraceIDTsMaterializedViewSQL(cfg *Config) string {
 }
 
 func createTraceTables(ctx context.Context, cfg *Config, db driver.Conn) error {
+	if err := adoptLegacyTraceTables(ctx, cfg, db); err != nil {
+		return err
+	}
 	if err := db.Exec(ctx, renderCreateTracesTableSQL(cfg)); err != nil {
 		return fmt.Errorf("exec create traces table sql: %w", err)
 	}
@@ -239,9 +242,6 @@ func createTraceTables(ctx context.Context, cfg *Config, db driver.Conn) error {
 	}
 	if err := db.Exec(ctx, renderTraceIDTsMaterializedViewSQL(cfg)); err != nil {
 		return fmt.Errorf("exec create traceID timestamp view sql: %w", err)
-	}
-	if err := createLocalTracesView(ctx, cfg, db); err != nil {
-		return err
 	}
 
 	return nil

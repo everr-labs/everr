@@ -57,12 +57,25 @@ func (e *metricsExporter) start(ctx context.Context, _ component.Host) error {
 			return err
 		}
 
+		legacyMetricsTables := []struct {
+			legacyName  string
+			currentName string
+		}{
+			{"otel_metrics_gauge", e.cfg.MetricsTables.Gauge.Name},
+			{"otel_metrics_sum", e.cfg.MetricsTables.Sum.Name},
+			{"otel_metrics_histogram", e.cfg.MetricsTables.Histogram.Name},
+			{"otel_metrics_exponential_histogram", e.cfg.MetricsTables.ExponentialHistogram.Name},
+			{"otel_metrics_summary", e.cfg.MetricsTables.Summary.Name},
+		}
+		for _, table := range legacyMetricsTables {
+			if _, err := adoptLegacyLocalTable(ctx, e.db, database, table.legacyName, table.currentName); err != nil {
+				return err
+			}
+		}
+
 		ttlExpr := internal.GenerateTTLExpr(e.cfg.TTL, "toDateTime(TimeUnix)")
 		err := metrics.NewMetricsTable(ctx, e.tablesConfig, database, clusterStr, e.cfg.tableEngineString(), ttlExpr, e.db)
 		if err != nil {
-			return err
-		}
-		if err := createLocalMetricsViews(ctx, e.cfg, e.db); err != nil {
 			return err
 		}
 	}

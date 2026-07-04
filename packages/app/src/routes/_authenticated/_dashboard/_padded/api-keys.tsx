@@ -96,7 +96,7 @@ function ApiKeysPage() {
             key's capabilities when you create it.{" "}
             <a
               className="text-foreground underline underline-offset-4 hover:text-primary"
-              href="https://everr.dev/docs/production-monitoring/setup"
+              href="https://everr.dev/docs/reference/production-telemetry"
               target="_blank"
               rel="noreferrer"
             >

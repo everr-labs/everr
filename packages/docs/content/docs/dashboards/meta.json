@@ -3,7 +3,6 @@
   "defaultOpen": true,
   "pages": [
     "index",
-    "first-dashboard",
     "panels-and-visualizations",
     "variables",
     "organizing-and-sources",

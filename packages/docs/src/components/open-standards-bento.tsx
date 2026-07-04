@@ -86,7 +86,7 @@ export function OpenStandardsBento() {
           className="mt-10 flex justify-center"
         >
           <a
-            href="/docs/overview"
+            href="/docs"
             className="group inline-flex items-center gap-1.5 font-heading text-sm font-bold text-fd-muted-foreground outline-none transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-fd-background"
           >
             See how it fits together

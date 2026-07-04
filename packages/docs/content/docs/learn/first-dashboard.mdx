@@ -1,0 +1,150 @@
+---
+title: Build your first dashboard
+description: Step 4, write a dashboard as code, apply it, and view it.
+---
+
+This is step 4 of getting started with Everr: write one dashboard file, reconcile it with `everr apply`, and open it in Everr. Apply uses your `everr cloud login` session; for CI or non-interactive use, set `EVERR_API_KEY` to a key with the **Manage as code** capability (see the [`everr apply` reference](/docs/reference/cli)).
+
+## Let your Agent pick a starter
+
+The hard part of a first dashboard is knowing what's worth a panel. Everr ships the `everr-write-dashboards` skill; run this from the repository that emits the telemetry:
+
+```text
+/everr-write-dashboards Help me build a good first dashboard based on the telemetry we have in production
+```
+
+The Agent inspects your data, picks panels grounded in it, writes the file, and validates it with a dry-run.
+
+## Alternative: build it by hand
+
+The rest of this step is the same workflow done manually. In your repo, make an `everr/` directory at the root to hold your declarations. The directory is the unit you'll apply; files sit flat inside it, named by kind (dashboards are `*.dashboard.yaml`).
+
+```sh
+mkdir -p everr
+```
+
+The `everr/` directory needs an `everr.yaml` (or `everr.yml`) at its root declaring a stable `repoid`, the apply ownership boundary. Apply reconciles exactly the resources previously applied under it.
+
+`everr/everr.yaml`:
+
+```yaml
+repoid: "2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1"
+```
+
+Use one stable id per repository (a UUID is a good default); never change it for an existing setup.
+
+`everr/api-latency.dashboard.yaml`:
+
+```yaml
+kind: Dashboard
+metadata:
+  name: api-latency
+  project: demo            # optional; defaults to "default"
+spec:
+  display:
+    name: API Latency
+  panels:
+    p99:
+      kind: Panel
+      spec:
+        display: { name: p99 latency (ms) }
+        plugin:
+          kind: TimeSeriesChart
+          spec: { unit: ms, showLegend: true }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                           quantile(0.99)(Duration) / 1e6 AS p99
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                    GROUP BY ts
+                    ORDER BY ts
+  layouts:
+    - kind: Grid
+      spec:
+        items:
+          - x: 0
+            y: 0
+            width: 24
+            height: 8
+            content: { $ref: "#/spec/panels/p99" }
+```
+
+In your version, swap `traces` and `Duration` for the table and columns your own telemetry uses. A few things worth noting:
+
+- `metadata.name` is the **slug**, the dashboard's stable identity and its URL. Use lowercase letters, digits, and hyphens.
+- `metadata.project` groups dashboards into a named set; it defaults to `default` when omitted. A dashboard's URL is `/dashboards/<project>/<slug>`.
+- The panel's query must alias its time column to a recognized name (`ts`, `time`, or `timestamp`), the time-series chart uses that column for the x-axis.
+- `{from:String}`, `{to:String}`, and `{step:UInt32}` carry the dashboard's selected time range and adaptive bucket width. Include the `WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}` filter yourself. It isn't injected automatically. See the [dashboard spec](/docs/dashboards/dashboard-spec) for every field and query param.
+- The `layouts` grid places the panel: `content.$ref` points at the panel key under `spec.panels` (here, `p99`), on a 24-column-wide grid.
+
+## Preview the change
+
+Always dry-run first. It computes the diff and writes nothing:
+
+```sh
+everr apply ./everr --dry-run
+```
+
+Expected output:
+
+```
+(dry run) Dashboard: 1 created, 0 updated, 0 deleted
+  + api-latency
+```
+
+## Apply it
+
+```sh
+everr apply ./everr
+```
+
+Apply first prints a plan, then (because there are changes) asks you to confirm before writing. Answer the `Apply to «Acme Corp»?` prompt, or pass `--yes` (`-y`) to skip it (required in CI and piped contexts). Expected output, after confirming:
+
+```
+Destination org: «Acme Corp»
+Dashboard: 1 created, 0 updated, 0 deleted
+  + api-latency
+```
+
+If there are no changes, apply prints `Nothing to apply.` and exits without prompting: re-running is idempotent.
+
+## View it
+
+Open Everr and go to **Dashboards**, or navigate directly to:
+
+```
+/dashboards/demo/api-latency
+```
+
+(Replace `demo` with the `metadata.project` value you used, or `default` if you omitted it.) The panel renders live, driven by the global time-range picker. Adjust the time range and the query re-runs; drag across a time-series panel to zoom.
+
+## Change and re-apply
+
+Edit the file (say, add a second panel or change the query) and apply again. A changed dashboard is updated in place; the URL never changes because the slug didn't.
+
+```sh
+everr apply ./everr
+```
+
+Expected output:
+
+```
+Destination org: «Acme Corp»
+Dashboard: 0 created, 1 updated, 0 deleted
+  ~ api-latency
+```
+
+Reconciliation is delete-by-default within the project: delete the file and apply, and Everr removes the dashboard.
+
+```sh
+rm everr/api-latency.dashboard.yaml
+everr apply ./everr
+```
+
+**Next:** [Create your first alert](/docs/learn/first-alert).
