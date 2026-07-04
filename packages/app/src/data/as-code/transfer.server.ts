@@ -1,4 +1,5 @@
-import { and, eq, isNull, notInArray } from "drizzle-orm";
+import { and, eq, notInArray } from "drizzle-orm";
+import { previewScope } from "@/data/previews/scope";
 import type { DbExecutor } from "@/db/client";
 import { alertDefinitions, dashboards, previews, runbooks } from "@/db/schema";
 
@@ -26,37 +27,25 @@ export async function transferBoundary(
 ): Promise<TransferredSlugs> {
   const { orgId, from, to, dryRun } = opts;
 
-  const dashScope = and(
-    eq(dashboards.organizationId, orgId),
-    isNull(dashboards.previewId),
-    eq(dashboards.repoid, from),
-  );
-  const runbookScope = and(
-    eq(runbooks.organizationId, orgId),
-    isNull(runbooks.previewId),
-    eq(runbooks.repoid, from),
-  );
-  const alertScope = and(
-    eq(alertDefinitions.organizationId, orgId),
-    isNull(alertDefinitions.previewId),
-    eq(alertDefinitions.repoid, from),
-  );
+  // The old repo's live rows, via the same canonical predicate every
+  // reconciler scopes with, so "a repo's live rows" is defined in one place.
+  const fromNs = { orgId, repoid: from, kind: "live" } as const;
+  const dashScope = previewScope(dashboards, fromNs);
+  const runbookScope = previewScope(runbooks, fromNs);
+  const alertScope = previewScope(alertDefinitions, fromNs);
 
   if (dryRun) {
-    // Sequential on purpose: `exec` may be a transaction bound to one
-    // connection, which cannot multiplex concurrent queries.
-    const d = await exec
-      .select({ slug: dashboards.slug })
-      .from(dashboards)
-      .where(dashScope);
-    const r = await exec
-      .select({ slug: runbooks.slug })
-      .from(runbooks)
-      .where(runbookScope);
-    const a = await exec
-      .select({ slug: alertDefinitions.slug })
-      .from(alertDefinitions)
-      .where(alertScope);
+    // The dry-run listing's only caller passes the pool db (the transaction
+    // executor is used only for the real relabel below), so the three
+    // independent reads can run concurrently.
+    const [d, r, a] = await Promise.all([
+      exec.select({ slug: dashboards.slug }).from(dashboards).where(dashScope),
+      exec.select({ slug: runbooks.slug }).from(runbooks).where(runbookScope),
+      exec
+        .select({ slug: alertDefinitions.slug })
+        .from(alertDefinitions)
+        .where(alertScope),
+    ]);
     return {
       dashboards: d.map((row) => row.slug),
       runbooks: r.map((row) => row.slug),

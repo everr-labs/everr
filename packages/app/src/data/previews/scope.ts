@@ -46,9 +46,22 @@ export type Namespace = {
   | { readonly kind: "preview"; readonly id: string | null }
 );
 
-/** The repoids a live namespace owns: its own plus a transfer source, if any. */
-function ownedRepoids(ns: Namespace & { kind: "live" }): string[] {
-  return ns.absorbs ? [ns.repoid, ns.absorbs] : [ns.repoid];
+// The owned-repoid predicates for a live namespace: its own repoid plus a
+// transfer source, if any. The single-owner case (every non-transfer apply)
+// keeps the plain `=` / `<>` SQL; the list forms appear only mid-transfer.
+function ownsRepoid(table: ScopedTable, ns: Namespace & { kind: "live" }): SQL {
+  return ns.absorbs
+    ? inArray(table.repoid, [ns.repoid, ns.absorbs])
+    : eq(table.repoid, ns.repoid);
+}
+
+function foreignRepoid(
+  table: ScopedTable,
+  ns: Namespace & { kind: "live" },
+): SQL {
+  return ns.absorbs
+    ? notInArray(table.repoid, [ns.repoid, ns.absorbs])
+    : ne(table.repoid, ns.repoid);
 }
 
 /**
@@ -64,7 +77,7 @@ export function previewScope(table: ScopedTable, ns: Namespace): SQL {
     return (
       and(
         eq(table.organizationId, ns.orgId),
-        inArray(table.repoid, ownedRepoids(ns)),
+        ownsRepoid(table, ns),
         isNull(table.previewId),
       ) ?? sql`false`
     );
@@ -129,14 +142,11 @@ export function foreignLiveScope(
         and(eq(table.project, id.project), eq(table.slug, id.slug)),
       ),
     ) ?? sql`false`;
-  const owned = ownedRepoids(ns);
   return (
     and(
       eq(table.organizationId, ns.orgId),
       isNull(table.previewId),
-      owned.length === 1
-        ? ne(table.repoid, ns.repoid)
-        : notInArray(table.repoid, owned),
+      foreignRepoid(table, ns),
       matchesAnyIdentity,
     ) ?? sql`false`
   );

@@ -798,6 +798,14 @@ fn percent_encode(s: &str) -> String {
 fn print_apply_summary(summary: &everr_core::apply::ApplySummary, plan: bool) {
     let label = if plan { "(plan) " } else { "" };
     println!("{label}Destination org: «{}»", summary.organization.name);
+    // Counts that only appear when non-zero, so the common line stays short.
+    let suffix = |n: usize, word: &str| {
+        if n == 0 {
+            String::new()
+        } else {
+            format!(", {n} {word}")
+        }
+    };
     for r in &summary.results {
         println!(
             "{label}{}: {} created, {} updated, {} deleted{}{}",
@@ -805,16 +813,8 @@ fn print_apply_summary(summary: &everr_core::apply::ApplySummary, plan: bool) {
             r.created.len(),
             r.updated.len(),
             r.deleted.len(),
-            if r.adopted.is_empty() {
-                String::new()
-            } else {
-                format!(", {} adopted", r.adopted.len())
-            },
-            if r.transferred.is_empty() {
-                String::new()
-            } else {
-                format!(", {} transferred", r.transferred.len())
-            }
+            suffix(r.adopted.len(), "adopted"),
+            suffix(r.transferred.len(), "transferred")
         );
         for s in &r.created {
             println!("  + {s}");

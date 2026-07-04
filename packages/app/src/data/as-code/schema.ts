@@ -63,17 +63,24 @@ export const applyInput = z
     if (input.transferFrom === input.repoid) {
       ctx.addIssue({
         code: "custom",
-        message: "transferFrom must differ from the repo's own repoid",
+        message: TRANSFER_FROM_SELF_ERROR,
         path: ["transferFrom"],
       });
     }
     if (input.transferFrom && input.preview) {
       ctx.addIssue({
         code: "custom",
-        message: "transferFrom cannot be combined with a preview apply",
+        message: TRANSFER_FROM_PREVIEW_ERROR,
         path: ["transferFrom"],
       });
     }
   });
+
+// The transferFrom rules are enforced both here (the wire schema) and in
+// applyResources (for non-route callers); shared strings keep them in sync.
+export const TRANSFER_FROM_SELF_ERROR =
+  "transferFrom must differ from the repo's own repoid";
+export const TRANSFER_FROM_PREVIEW_ERROR =
+  "transferFrom cannot be combined with a preview apply";
 
 export type ApplyInput = z.infer<typeof applyInput>;

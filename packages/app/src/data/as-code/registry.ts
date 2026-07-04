@@ -7,7 +7,13 @@ import { applyRunbookSpecs } from "@/data/runbooks/apply.server";
 import { type DbExecutor, db } from "@/db/client";
 import { ApplyValidationError } from "./errors";
 import type { OwnershipConflict } from "./ownership";
-import type { ApplyInput, ApplyResourceEntry, ApplySource } from "./schema";
+import {
+  type ApplyInput,
+  type ApplyResourceEntry,
+  type ApplySource,
+  TRANSFER_FROM_PREVIEW_ERROR,
+  TRANSFER_FROM_SELF_ERROR,
+} from "./schema";
 import { transferBoundary } from "./transfer.server";
 
 export type { OwnershipConflict } from "./ownership";
@@ -118,14 +124,10 @@ export async function applyResources(opts: {
 
   // The input schema rejects these too; guard here for non-route callers.
   if (transferFrom === repoid) {
-    throw new ApplyValidationError(
-      "transferFrom must differ from the repo's own repoid",
-    );
+    throw new ApplyValidationError(TRANSFER_FROM_SELF_ERROR);
   }
   if (transferFrom && previewName !== null) {
-    throw new ApplyValidationError(
-      "transferFrom cannot be combined with a preview apply",
-    );
+    throw new ApplyValidationError(TRANSFER_FROM_PREVIEW_ERROR);
   }
 
   const summarize = (
