@@ -2,41 +2,31 @@ import { cn } from "@everr/ui/lib/utils";
 import { cva, type VariantProps } from "class-variance-authority";
 import type * as React from "react";
 
-export type BannerVariant =
-  | "neutral"
-  | "info"
-  | "success"
-  | "warning"
-  | "danger";
-
-const VARIANTS = {
-  neutral: { surface: "text-muted-foreground", ring: "ring-border" },
-  info: { surface: "bg-sky-500 text-foreground", ring: "ring-sky-500" },
-  success: {
-    surface: "bg-emerald-500 text-emerald-300",
-    ring: "ring-emerald-500",
-  },
-  warning: {
-    surface: "bg-amber-500 text-amber-300",
-    ring: "ring-amber-500",
-  },
-  danger: { surface: "bg-red-500 text-red-300", ring: "ring-red-500" },
-} satisfies Record<BannerVariant, { surface: string; ring: string }>;
-
-const byVariant = (key: "surface" | "ring"): Record<BannerVariant, string> =>
-  Object.fromEntries(
-    Object.entries(VARIANTS).map(([variant, tone]) => [variant, tone[key]]),
-  ) as Record<BannerVariant, string>;
-
 const bannerVariants = cva("flex items-center gap-2 text-sm", {
-  variants: { variant: byVariant("surface") },
+  variants: {
+    variant: {
+      neutral: "text-muted-foreground",
+      info: "bg-sky-500 text-foreground",
+      success: "bg-emerald-500 text-emerald-300",
+      warning: "bg-amber-500 text-amber-300",
+      danger: "bg-red-500 text-red-300",
+    },
+  },
   defaultVariants: { variant: "neutral" },
 });
 
 const bannerFrameVariants = cva(
   "flex min-h-0 flex-1 flex-col ring-2 ring-inset",
   {
-    variants: { variant: byVariant("ring") },
+    variants: {
+      variant: {
+        neutral: "ring-border",
+        info: "ring-sky-500",
+        success: "ring-emerald-500",
+        warning: "ring-amber-500",
+        danger: "ring-red-500",
+      },
+    },
     defaultVariants: { variant: "neutral" },
   },
 );

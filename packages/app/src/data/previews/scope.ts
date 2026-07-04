@@ -1,5 +1,6 @@
-import { and, eq, isNull, type SQL, sql } from "drizzle-orm";
+import { and, eq, isNull, or, type SQL, sql } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
+import { previews } from "@/db/schema";
 
 /** The columns every preview-scoped resource table shares. */
 interface ScopedTable {
@@ -54,4 +55,29 @@ export function previewOwner(ns: Namespace): {
   return ns.kind === "live"
     ? { repoid: ns.repoid, previewId: null }
     : { repoid: null, previewId: ns.id };
+}
+
+// Read-side overlay: a review view returns a repo's live rows plus one preview's
+// rows and diffs them (see `overlayPreview`). Where `previewScope`/`previewOwner`
+// target a single namespace, these select and describe that live+preview union.
+// Each assumes the query joined `previews` via `previewJoin`.
+
+/** ON condition joining a resource table to its registry parent. */
+export function previewJoin(table: ScopedTable): SQL {
+  return eq(table.previewId, previews.id);
+}
+
+/**
+ * A row's effective repoid: the row's own for live rows, the joined registry
+ * row's for preview rows (which keep repoid only on the parent).
+ */
+export function effectiveRepoid(table: ScopedTable): SQL<string> {
+  return sql<string>`coalesce(${table.repoid}, ${previews.repoid})`;
+}
+
+/** WHERE predicate for the overlay read: live rows (null preview_id) plus this preview's. */
+export function liveOrPreview(table: ScopedTable, preview: string): SQL {
+  // `or` is typed `SQL | undefined` (undefined only with zero conditions); the
+  // `?? sql`false`` keeps a non-undefined return and never fires.
+  return or(isNull(table.previewId), eq(previews.name, preview)) ?? sql`false`;
 }

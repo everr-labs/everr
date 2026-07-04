@@ -1,10 +1,15 @@
 import { bucketSeconds } from "@everr/ui/lib/bucket";
 import { DEFAULT_TIME_RANGE, resolveTimeRange } from "@everr/ui/lib/time-range";
 import { notFound } from "@tanstack/react-router";
-import { and, eq, isNull, or, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import * as z from "zod";
 import { overlayPreview, type PreviewStatus } from "@/data/previews/overlay";
 import { getCoveredRepoids } from "@/data/previews/repoids";
+import {
+  effectiveRepoid,
+  liveOrPreview,
+  previewJoin,
+} from "@/data/previews/scope";
 import { db } from "@/db/client";
 import { dashboards, previews } from "@/db/schema";
 import { querySqlApi } from "@/lib/clickhouse";
@@ -65,20 +70,19 @@ export const getDashboard = createAuthenticatedServerFn({ method: "GET" })
         .limit(1);
       if (!row) throw notFound();
       dashboardSpecSchema.parse(row.document.spec);
-      return {
-        document: row.document satisfies Dashboard,
-        previewStatus: undefined as PreviewStatus | undefined,
-      };
+      // Typed binding (not an assertion) so the live and preview branches share
+      // one return shape without widening `undefined` via a cast.
+      const previewStatus: PreviewStatus | undefined = undefined;
+      return { document: row.document satisfies Dashboard, previewStatus };
     }
 
-    // Live rows (previewId NULL) plus this preview's rows. repoid comes from the
-    // joined registry row for preview rows, from the row itself for live; the
-    // raw previewId is the overlay's live/preview discriminator.
+    // Live rows (previewId NULL) plus this preview's rows; `previewId` is the
+    // overlay's live/preview discriminator.
     const [covered, rows] = await Promise.all([
       getCoveredRepoids(orgId, preview),
       db
         .select({
-          repoid: sql<string>`coalesce(${dashboards.repoid}, ${previews.repoid})`,
+          repoid: effectiveRepoid(dashboards),
           previewId: dashboards.previewId,
           project: dashboards.project,
           slug: dashboards.slug,
@@ -86,13 +90,8 @@ export const getDashboard = createAuthenticatedServerFn({ method: "GET" })
           document: dashboards.document,
         })
         .from(dashboards)
-        .leftJoin(previews, eq(dashboards.previewId, previews.id))
-        .where(
-          and(
-            identity,
-            or(isNull(dashboards.previewId), eq(previews.name, preview)),
-          ),
-        ),
+        .leftJoin(previews, previewJoin(dashboards))
+        .where(and(identity, liveOrPreview(dashboards, preview))),
     ]);
     const overlaid = overlayPreview({ rows, coveredRepoids: covered });
     // Prefer a surviving row; a shadowed-by-deletion live row still renders,
@@ -126,7 +125,7 @@ export const listDashboards = createAuthenticatedServerFn({ method: "GET" })
     };
 
     const previewSelect = {
-      repoid: sql<string>`coalesce(${dashboards.repoid}, ${previews.repoid})`,
+      repoid: effectiveRepoid(dashboards),
       previewId: dashboards.previewId,
       slug: dashboards.slug,
       project: dashboards.project,
@@ -167,11 +166,11 @@ export const listDashboards = createAuthenticatedServerFn({ method: "GET" })
       db
         .select(previewSelect)
         .from(dashboards)
-        .leftJoin(previews, eq(dashboards.previewId, previews.id))
+        .leftJoin(previews, previewJoin(dashboards))
         .where(
           and(
             eq(dashboards.organizationId, orgId),
-            or(isNull(dashboards.previewId), eq(previews.name, preview)),
+            liveOrPreview(dashboards, preview),
           ),
         ),
     ]);

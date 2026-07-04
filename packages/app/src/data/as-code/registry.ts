@@ -103,18 +103,20 @@ export async function applyResources(opts: {
     deleted: r.deleted,
   });
 
-  // The dry-run target: live, or the preview resolved to its existing registry
-  // id (without creating it) so the diff scopes to the right rows. A preview
-  // with nothing applied yet resolves to a null id, which matches no rows.
-  const namespace: Namespace =
+  // Live, or the preview resolved to its registry id via the given resolver.
+  const resolveNamespace = async (
+    resolveId: (name: string) => Promise<string | null>,
+  ): Promise<Namespace> =>
     previewName === null
       ? { orgId, repoid, kind: "live" }
-      : {
-          orgId,
-          repoid,
-          kind: "preview",
-          id: await findPreviewId(db, { orgId, repoid, name: previewName }),
-        };
+      : { orgId, repoid, kind: "preview", id: await resolveId(previewName) };
+
+  // The dry-run target resolves the preview to its existing registry id (without
+  // creating it) so the diff scopes to the right rows. A preview with nothing
+  // applied yet resolves to a null id, which matches no rows.
+  const namespace = await resolveNamespace((name) =>
+    findPreviewId(db, { orgId, repoid, name }),
+  );
 
   // Validation pass: every kind reconciles in dryRun mode, which runs the full
   // document validation but writes nothing. Any invalid document throws here,
@@ -150,15 +152,9 @@ export async function applyResources(opts: {
   // preview. Live is not registered.
   const results: KindResult[] = [];
   await db.transaction(async (tx) => {
-    const applied: Namespace =
-      previewName === null
-        ? { orgId, repoid, kind: "live" }
-        : {
-            orgId,
-            repoid,
-            kind: "preview",
-            id: await upsertPreview(tx, { orgId, repoid, name: previewName }),
-          };
+    const applied = await resolveNamespace((name) =>
+      upsertPreview(tx, { orgId, repoid, name }),
+    );
     for (const { key, kind, reconcile } of REGISTRY) {
       const r = await reconcile({
         namespace: applied,

@@ -25,6 +25,7 @@ import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { ensureDeliveryDefaults } from "@/data/alerts/delivery-settings";
 import { activeSilenceConditions } from "@/data/alerts/silences";
+import { effectiveRepoid, previewJoin } from "@/data/previews/scope";
 import { db } from "@/db/client";
 import {
   alertDefinitions,
@@ -86,10 +87,10 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
     .select({
       def: alertDefinitions,
       previewName: sql<string>`coalesce(${previews.name}, '')`,
-      repoid: sql<string>`coalesce(${alertDefinitions.repoid}, ${previews.repoid})`,
+      repoid: effectiveRepoid(alertDefinitions),
     })
     .from(alertDefinitions)
-    .leftJoin(previews, eq(alertDefinitions.previewId, previews.id))
+    .leftJoin(previews, previewJoin(alertDefinitions))
     .where(eq(alertDefinitions.id, alertDefinitionId))
     .limit(1);
   if (!row?.def.active) return;

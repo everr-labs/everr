@@ -3,20 +3,14 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@everr/ui/components/tooltip";
-import { useNavigate, useSearch } from "@tanstack/react-router";
 import { GitBranch, LogOut } from "lucide-react";
+import { usePreview } from "@/hooks/use-preview";
 
 // "Not on live" marker in the global header, driven by the `?preview=` param.
 // Unlike the dismissible banner, it always offers a way out of preview mode.
 export function PreviewIndicator() {
-  const navigate = useNavigate();
-  const { preview: raw } = useSearch({ from: "/_authenticated/_dashboard" });
-  // "" / whitespace is live.
-  const preview = raw?.trim();
+  const { name: preview, exit: exitPreview } = usePreview();
   if (!preview) return null;
-
-  const exitPreview = () =>
-    navigate({ to: ".", search: (prev) => ({ ...prev, preview: undefined }) });
 
   return (
     <Tooltip>

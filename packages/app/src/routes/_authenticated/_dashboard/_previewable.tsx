@@ -1,16 +1,11 @@
 import { Button } from "@everr/ui/components/button";
 import { PreviewFrame } from "@everr/ui/components/preview-frame";
-import {
-  createFileRoute,
-  Outlet,
-  useMatches,
-  useNavigate,
-  useSearch,
-} from "@tanstack/react-router";
+import { createFileRoute, Outlet, useMatches } from "@tanstack/react-router";
 import { GitBranch, LogOut } from "lucide-react";
 import { PageContainer } from "@/components/page-container";
 import { previewMessage } from "@/components/preview-message";
 import type { PreviewStatus } from "@/data/previews/overlay";
+import { usePreview } from "@/hooks/use-preview";
 import { usePreviewDismissed } from "@/hooks/use-preview-dismissed";
 
 export const Route = createFileRoute("/_authenticated/_dashboard/_previewable")(
@@ -22,10 +17,7 @@ export const Route = createFileRoute("/_authenticated/_dashboard/_previewable")(
 // Layout for the previewable pages (dashboards, runbooks, alerts). Supplies the
 // scrolling content, copy, and exit action to the ui `PreviewFrame`.
 function PreviewableLayout() {
-  const navigate = useNavigate();
-  const { preview } = useSearch({ from: "/_authenticated/_dashboard" });
-  // "" / whitespace is live.
-  const name = (preview ?? "").trim();
+  const { name, exit } = usePreview();
   const [dismissed, dismiss] = usePreviewDismissed(name);
 
   // Detail routes return `previewStatus` from their loader; list routes don't.
@@ -65,12 +57,7 @@ function PreviewableLayout() {
           variant="ghost"
           size="sm"
           className="h-7 px-2"
-          onClick={() =>
-            navigate({
-              to: ".",
-              search: (prev) => ({ ...prev, preview: undefined }),
-            })
-          }
+          onClick={exit}
         >
           <LogOut data-icon="inline-start" />
           Exit preview

@@ -375,7 +375,7 @@ export const applyAlertSpecs: Reconciler = async ({
 
   const scope = previewScope(alertDefinitions, namespace);
 
-  const existing = (await exec
+  const existing: ExistingAlert[] = await exec
     .select({
       slug: alertDefinitions.slug,
       project: alertDefinitions.project,
@@ -394,7 +394,7 @@ export const applyAlertSpecs: Reconciler = async ({
       active: alertDefinitions.active,
     })
     .from(alertDefinitions)
-    .where(scope)) as ExistingAlert[];
+    .where(scope);
 
   const existingByKey = new Map(
     existing.map((row) => [identityKey(row.project, row.slug), row]),

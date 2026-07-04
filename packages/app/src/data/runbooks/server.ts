@@ -1,8 +1,13 @@
 import { notFound } from "@tanstack/react-router";
-import { and, eq, isNull, or, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import * as z from "zod";
 import { overlayPreview, type PreviewStatus } from "@/data/previews/overlay";
 import { getCoveredRepoids } from "@/data/previews/repoids";
+import {
+  effectiveRepoid,
+  liveOrPreview,
+  previewJoin,
+} from "@/data/previews/scope";
 import { db } from "@/db/client";
 import { previews, runbooks } from "@/db/schema";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
@@ -35,19 +40,19 @@ export const getRunbook = createAuthenticatedServerFn({ method: "GET" })
         .limit(1);
       if (!row) throw notFound();
       runbookSpecSchema.parse(row.document.spec);
-      return {
-        document: row.document satisfies Runbook,
-        previewStatus: undefined as PreviewStatus | undefined,
-      };
+      // Typed binding (not an assertion) so the live and preview branches share
+      // one return shape without widening `undefined` via a cast.
+      const previewStatus: PreviewStatus | undefined = undefined;
+      return { document: row.document satisfies Runbook, previewStatus };
     }
 
-    // Live rows (previewId NULL) plus this preview's rows. repoid/name come from
-    // the joined registry row for preview rows, from the row itself for live.
+    // Live rows (previewId NULL) plus this preview's rows; `previewId` is the
+    // overlay's live/preview discriminator.
     const [covered, rows] = await Promise.all([
       getCoveredRepoids(orgId, preview),
       db
         .select({
-          repoid: sql<string>`coalesce(${runbooks.repoid}, ${previews.repoid})`,
+          repoid: effectiveRepoid(runbooks),
           previewId: runbooks.previewId,
           project: runbooks.project,
           slug: runbooks.slug,
@@ -55,13 +60,8 @@ export const getRunbook = createAuthenticatedServerFn({ method: "GET" })
           document: runbooks.document,
         })
         .from(runbooks)
-        .leftJoin(previews, eq(runbooks.previewId, previews.id))
-        .where(
-          and(
-            identity,
-            or(isNull(runbooks.previewId), eq(previews.name, preview)),
-          ),
-        ),
+        .leftJoin(previews, previewJoin(runbooks))
+        .where(and(identity, liveOrPreview(runbooks, preview))),
     ]);
     const overlaid = overlayPreview({ rows, coveredRepoids: covered });
     // Prefer a surviving row; a shadowed-by-deletion live row still renders,
@@ -95,7 +95,7 @@ export const listRunbooks = createAuthenticatedServerFn({ method: "GET" })
     };
 
     const previewSelect = {
-      repoid: sql<string>`coalesce(${runbooks.repoid}, ${previews.repoid})`,
+      repoid: effectiveRepoid(runbooks),
       previewId: runbooks.previewId,
       slug: runbooks.slug,
       project: runbooks.project,
@@ -133,11 +133,11 @@ export const listRunbooks = createAuthenticatedServerFn({ method: "GET" })
       db
         .select(previewSelect)
         .from(runbooks)
-        .leftJoin(previews, eq(runbooks.previewId, previews.id))
+        .leftJoin(previews, previewJoin(runbooks))
         .where(
           and(
             eq(runbooks.organizationId, orgId),
-            or(isNull(runbooks.previewId), eq(previews.name, preview)),
+            liveOrPreview(runbooks, preview),
           ),
         ),
     ]);
