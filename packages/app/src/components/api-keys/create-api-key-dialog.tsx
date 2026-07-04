@@ -29,6 +29,10 @@ import {
   API_KEY_SCOPES,
   type ApiKeyScope,
 } from "@/lib/api-key-scopes";
+import {
+  PUBLIC_KEY_SCOPE,
+  publicKeyInputError,
+} from "@/lib/public-ingest-keys";
 
 const EXPIRY_OPTIONS = [
   { value: "never", label: "Never" },
@@ -92,7 +96,7 @@ export function CreateApiKeyDialog() {
     setIsPublic(next);
     // Public keys are browser-ingestion-only: lock capabilities to
     // Send telemetry the moment the toggle flips on.
-    if (next) setScopes({ ...defaultScopes(), ingest: true });
+    if (next) setScopes({ ...defaultScopes(), [PUBLIC_KEY_SCOPE]: true });
   };
 
   const selectedScopes = ALL_API_KEY_SCOPES.filter((s) => scopes[s]);
@@ -106,16 +110,27 @@ export function CreateApiKeyDialog() {
       toast.error("Pick at least one capability for the key");
       return;
     }
-    const origins = Array.from(
-      new Set(
-        originsText
-          .split(/\r?\n/)
-          .map((line) => line.trim())
-          .filter(Boolean),
-      ),
-    );
-    if (isPublic && origins.length === 0) {
-      toast.error("Add at least one allowed origin");
+    // Only public keys carry origins; ignore any text left over from toggling
+    // public off. The policy module owns the invariants (>=1 origin, each a
+    // valid origin, ingest-only scope) so the UI pre-check stays in lock-step
+    // with the server schema instead of re-encoding a fragment of it.
+    const origins = isPublic
+      ? Array.from(
+          new Set(
+            originsText
+              .split(/\r?\n/)
+              .map((line) => line.trim())
+              .filter(Boolean),
+          ),
+        )
+      : [];
+    const originError = publicKeyInputError({
+      public: isPublic,
+      allowedOrigins: origins,
+      scopes: selectedScopes,
+    });
+    if (originError) {
+      toast.error(originError);
       return;
     }
     const days = expiry === "never" ? undefined : Number(expiry);

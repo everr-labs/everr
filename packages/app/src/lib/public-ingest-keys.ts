@@ -7,10 +7,20 @@
  * policy; verify-key, the create server fn, and the UI all delegate here.
  */
 
+import type { ApiKeyScope } from "./api-key-scopes";
+
 export type PublicKeyMetadata = {
   public: true;
   allowedOrigins: string[];
 };
+
+/**
+ * The one capability a public browser key may hold. Public keys are
+ * browser-ingestion-only, so both the creation invariant here and the UI's
+ * capability lock reference this single constant. Typed as `ApiKeyScope` so a
+ * rename of the scope is caught at compile time.
+ */
+export const PUBLIC_KEY_SCOPE: ApiKeyScope = "ingest";
 
 /**
  * Parse `raw` as a web origin (`scheme://host[:port]`, http/https only) and
@@ -28,9 +38,9 @@ export function normalizeOrigin(raw: string): string | null {
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") return null;
   if (url.username || url.password) return null;
-  // A bare origin parses with pathname "/", so tolerate exactly that (and a
-  // trailing slash in the input) but reject real paths, queries, fragments.
-  if ((url.pathname !== "/" && url.pathname !== "") || url.search || url.hash) {
+  // A bare origin (with or without a trailing slash in the input) parses to
+  // pathname "/", so reject anything else: real paths, queries, fragments.
+  if (url.pathname !== "/" || url.search || url.hash) {
     return null;
   }
   return url.origin;
@@ -98,7 +108,7 @@ export function publicKeyInputError(input: {
     if (!input.allowedOrigins || input.allowedOrigins.length === 0) {
       return "Public keys need at least one allowed origin";
     }
-    if (input.scopes.length !== 1 || input.scopes[0] !== "ingest") {
+    if (input.scopes.length !== 1 || input.scopes[0] !== PUBLIC_KEY_SCOPE) {
       return "Public keys can only send telemetry";
     }
   } else if (input.allowedOrigins && input.allowedOrigins.length > 0) {
