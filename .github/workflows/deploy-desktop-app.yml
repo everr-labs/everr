@@ -159,6 +159,8 @@ jobs:
       - name: Build signed desktop release
         env:
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          # Job display name; used to parent build-phase spans under this job in the CI trace.
+          EVERR_CI_JOB_NAME: Build, Sign, Notarize Desktop
           EVERR_INGEST_KEY: ${{ secrets.EVERR_INGEST_KEY }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -267,6 +269,8 @@ jobs:
 
       - name: Build release binary
         env:
+          # Job display name; used to parent build-phase spans under this job in the CI trace.
+          EVERR_CI_JOB_NAME: Build Linux CLI ${{ matrix.name }}
           EVERR_INGEST_KEY: ${{ secrets.EVERR_INGEST_KEY }}
         run: pnpm --dir packages/desktop-app build:cli:release
 

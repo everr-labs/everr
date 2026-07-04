@@ -12,6 +12,8 @@ const LEGACY_SKILL_RENAMES: &[(&str, &str)] = &[
     ("everr-ci-debugging", "everr-working-with-ci"),
     ("everr-local-telemetry-setup", "everr-setup-telemetry"),
     ("everr-local-debugging", "everr-use-telemetry"),
+    ("everr-write-dashboards", "everr-setup-resources"),
+    ("everr-write-runbooks", "everr-setup-resources"),
 ];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize)]
@@ -486,7 +488,11 @@ fn remove_installed_skill_paths(
     let canonical_dir = canonical_skill_dir(options, skill_name);
     for provider in normalize_providers(&options.providers) {
         let provider_dir = provider_skill_dir(options, provider, skill_name);
-        if same_path(&provider_dir, &canonical_dir) {
+        // Compare literally, not via `same_path`: that canonicalizes, which
+        // resolves a provider symlink to the canonical dir and would wrongly
+        // skip it, leaving a dangling link after the canonical dir is removed
+        // below.
+        if provider_dir == canonical_dir {
             continue;
         }
         remove_path(

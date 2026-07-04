@@ -12,6 +12,7 @@ import {
   resolveDesktopReleaseIdentity,
   writeDesktopReleaseTauriConfigOverride,
 } from "./build-support.ts";
+import { withBuildTelemetry } from "./build-telemetry.ts";
 import {
   notarizeReleaseDmgIfConfigured,
   stageReleaseArtifacts,
@@ -84,21 +85,31 @@ export async function buildDesktop(args = process.argv.slice(2)) {
     tauriArgs.push("--config", overridePath);
   }
 
-  // DMG packaging is more reliable in CI mode because Tauri skips Finder AppleScript setup.
-  await $({
-    env: {
-      ...process.env,
-      CI: process.env.CI || "true",
-      EVERR_RELEASE_SHA: identity.releaseSha,
-      EVERR_RELEASE_SHORT_SHA: identity.releaseShortSha,
-    },
-  })`pnpm tauri build --bundles app,dmg ${tauriArgs}`;
-  await notarizeReleaseDmgIfConfigured();
-  await stageReleaseArtifacts();
+  await withBuildTelemetry("desktop release build", async (telemetry) => {
+    telemetry.setRootAttribute("everr.build.version", identity.desktopVersion);
+    telemetry.setRootAttribute("everr.build.release_sha", identity.releaseSha);
 
-  if (installCli) {
-    await installCliBinary(path.join(desktopReleaseDir, "everr"));
-  }
+    // DMG packaging is more reliable in CI mode because Tauri skips Finder AppleScript setup.
+    await telemetry.phase(
+      "build tauri app",
+      (span) =>
+        $({
+          env: {
+            ...process.env,
+            ...span.childEnv(),
+            CI: process.env.CI || "true",
+            EVERR_RELEASE_SHA: identity.releaseSha,
+            EVERR_RELEASE_SHORT_SHA: identity.releaseShortSha,
+          },
+        })`pnpm tauri build --bundles app,dmg ${tauriArgs}`,
+    );
+    await notarizeReleaseDmgIfConfigured(telemetry);
+    await telemetry.phase("stage release artifacts", () => stageReleaseArtifacts());
+
+    if (installCli) {
+      await installCliBinary(path.join(desktopReleaseDir, "everr"));
+    }
+  });
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

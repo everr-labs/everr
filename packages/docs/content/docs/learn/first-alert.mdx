@@ -7,10 +7,10 @@ This is step 5 of getting started with Everr: write one rule, reconcile it with 
 
 ## Let your Agent pick a starter
 
-The hard part of a first alert is knowing what to alert on. Everr ships the `everr-setup-telemetry` skill; run this from the repository that emits the telemetry:
+The hard part of a first alert is knowing what to alert on. Everr ships the `everr-setup-resources` skill; run this from the repository that emits the telemetry:
 
 ```text
-/everr-setup-telemetry Help me build a good first alert based on the telemetry we have in production
+/everr-setup-resources Help me build a good first alert based on the telemetry we have in production
 ```
 
 The Agent picks the signal, sets a threshold from your real baselines, writes the rule, and validates it with a dry-run. Make sure it's actionable: fire on symptoms users feel, not causes.

@@ -5,6 +5,7 @@ import {
   publishCliArtifact,
   resolveCliBuild,
 } from "./build-support.ts";
+import { withBuildTelemetry } from "./build-telemetry.ts";
 
 const args = process.argv.slice(2);
 
@@ -23,28 +24,38 @@ if (flag === "--install") {
   process.exit(1);
 }
 
-const { buildArgs, builtBin } = resolveCliBuild(mode);
-const assets = await prepareCliEmbeddedAssets(mode);
+await withBuildTelemetry("cli build", async (telemetry) => {
+  telemetry.setRootAttribute("everr.build.mode", mode);
 
-console.log(`Building everr CLI (${mode})...`);
-await $({
-  env: {
-    ...process.env,
-    EVERR_EMBEDDED_COLLECTOR_GZ: assets.collectorGz,
-    EVERR_EMBEDDED_CHDB_GZ: assets.chdbGz,
-    EVERR_REQUIRE_EMBEDDED_COLLECTOR: "1",
-  },
-})`cargo build ${buildArgs}`;
+  const { buildArgs, builtBin } = resolveCliBuild(mode);
+  const assets = await prepareCliEmbeddedAssets(mode, telemetry);
 
-let installSource = builtBin;
+  console.log(`Building everr CLI (${mode})...`);
+  await telemetry.phase(
+    "build cli",
+    () =>
+      $({
+        env: {
+          ...process.env,
+          EVERR_EMBEDDED_COLLECTOR_GZ: assets.collectorGz,
+          EVERR_EMBEDDED_CHDB_GZ: assets.chdbGz,
+          EVERR_REQUIRE_EMBEDDED_COLLECTOR: "1",
+        },
+      })`cargo build ${buildArgs}`,
+  );
 
-if (mode === "release") {
-  const { outputBin } = await publishCliArtifact(builtBin);
-  installSource = outputBin;
-}
+  let installSource = builtBin;
 
-if (installBin || mode === "debug") {
-  await installCliBinary(installSource, mode === "debug" ? "everr-dev" : "everr");
-}
+  if (mode === "release") {
+    const { outputBin } = await telemetry.phase("publish cli artifact", () =>
+      publishCliArtifact(builtBin),
+    );
+    installSource = outputBin;
+  }
 
-console.log(`Run '${mode === "debug" ? "everr-dev" : "everr"} --help' to get started.`);
+  if (installBin || mode === "debug") {
+    await installCliBinary(installSource, mode === "debug" ? "everr-dev" : "everr");
+  }
+
+  console.log(`Run '${mode === "debug" ? "everr-dev" : "everr"} --help' to get started.`);
+});

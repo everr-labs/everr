@@ -18,6 +18,7 @@ import {
   loadBuildEnvFile,
   resolveDesktopReleaseIdentity,
 } from "./build-support.ts";
+import { type BuildPhases, noopBuildPhases } from "./build-telemetry.ts";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const packageDir = path.resolve(scriptDir, "..");
@@ -236,7 +237,7 @@ export function resolveDmgNotarizationRequest({
   };
 }
 
-async function notarizeDmgIfConfigured(dmgPath: string) {
+async function notarizeDmgIfConfigured(dmgPath: string, telemetry: BuildPhases) {
   loadBuildEnvFile();
 
   const request = resolveDmgNotarizationRequest({ dmgPath });
@@ -248,14 +249,18 @@ async function notarizeDmgIfConfigured(dmgPath: string) {
   }
 
   console.log(`Submitting ${dmgPath} for Apple notarization...`);
-  await $`xcrun notarytool submit ${request.dmgPath} --key ${request.keyPath} --key-id ${request.keyId} --issuer ${request.issuer} --wait`;
-  await $`xcrun stapler staple ${request.dmgPath}`;
+  await telemetry.phase(
+    "notarize dmg",
+    () =>
+      $`xcrun notarytool submit ${request.dmgPath} --key ${request.keyPath} --key-id ${request.keyId} --issuer ${request.issuer} --wait`,
+  );
+  await telemetry.phase("staple dmg", () => $`xcrun stapler staple ${request.dmgPath}`);
 }
 
-export async function notarizeReleaseDmgIfConfigured() {
+export async function notarizeReleaseDmgIfConfigured(telemetry: BuildPhases = noopBuildPhases) {
   const bundleDir = await findBundleDir();
   const artifacts = await findReleaseArtifacts(bundleDir);
-  await notarizeDmgIfConfigured(artifacts.dmg);
+  await notarizeDmgIfConfigured(artifacts.dmg, telemetry);
 }
 
 async function findNewestFileWithSuffix(dir: string, suffix: string) {

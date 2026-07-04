@@ -8,7 +8,7 @@ import { ResourceEmptyState } from "@/components/resource-empty-state";
 import { dashboardListOptions } from "@/data/dashboards/options";
 
 const ASSISTANT_DASHBOARD_PROMPT =
-  "/everr-write-dashboards Help me build a good first dashboard based on the telemetry we have in production";
+  "/everr-setup-resources Help me build a good first dashboard based on the telemetry we have in production";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_previewable/dashboards/",
