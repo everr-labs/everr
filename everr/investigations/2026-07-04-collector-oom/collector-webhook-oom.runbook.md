@@ -12,6 +12,28 @@ image (fix 1). The **collector-webhook-failures** alert
 (`everr/investigations/2026-07-04-collector-oom/collector-webhook-failures.alert.yaml`) now checks every 30 minutes
 that the webhook 500s this release eliminates have not come back.
 
+**Update, 2026-07-04 (later):** the collector-oom alert fired twice more,
+at 04:55 UTC (8.3 GiB, old image) and at 10:30 UTC (10 GiB, on the pod
+running the new image released around 09:25). Each spike coincides with a
+single `workflow_run` replay taking over 20 seconds (26.9s at 04:55:35,
+22.4s at 10:33:52), so the synchronous inline ingestion (fix 3, not yet
+implemented) is still the driver; fix 1 was never expected to address it.
+The offending run could not be identified from the everr tenant: the app's
+replay span recorded only the event type and job id, no repo or run id,
+and the run does not appear in our tenant's ingested CI logs. Querying the
+affected customer's tenant identified both occurrences as the same Rust
+cross-compilation workflow from the original analysis (customer repo and
+run ids intentionally not recorded here); the second run ended at
+10:33:51, one second before the 22.4s replay began. Notably, that
+workflow's runs have pipeline trace spans but zero ingested log lines, in
+both occurrences the log payload died with the collector.
+The app-side replay span now records
+`github.repository.full_name`, `github.workflow_run.id`,
+`github.workflow_run.name`, `github.workflow_run.run_attempt`,
+`github.event.action`, and `everr.organization.id`
+(`packages/app/src/server/github-events/tasks.ts`), so the next slow
+replay names its run directly.
+
 ## Status at the time vs now
 
 The left tile of each pair is pinned to the incident window (2026-07-03 17:00

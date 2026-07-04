@@ -46,12 +46,14 @@ function makeWebhookTask(
     const body = Buffer.from(data.body, "base64");
     const parsed = parseQueuedWorkflowEvent(eventType, body);
     const jobId = helpers.job.id;
+    const eventAttributes = eventDetailAttributes(parsed);
 
     await tracer.startActiveSpan(
       spanName,
       {
         attributes: {
           ...(eventType ? { "github.event.type": eventType } : {}),
+          ...eventAttributes,
           "graphile_worker.job.id": jobId,
         },
         kind: SpanKind.INTERNAL,
@@ -60,11 +62,13 @@ function makeWebhookTask(
         try {
           const installationId = installationIdFromQueuedEvent(parsed);
           const organizationId = await resolveOrganizationId(installationId);
+          span.setAttribute("everr.organization.id", organizationId);
           await action({ body, data, organizationId, parsed });
         } catch (error) {
           const err = error instanceof Error ? error : new Error(String(error));
           const terminalAttributes = {
             ...(eventType ? { "github.event.type": eventType } : {}),
+            ...eventAttributes,
             ...installationAttribute(parsed),
             "graphile_worker.job.id": jobId,
           };
@@ -104,6 +108,45 @@ function makeWebhookTask(
       },
     );
   };
+}
+
+function eventDetailAttributes(
+  parsed: ParsedQueuedEvent,
+): Record<string, string | number> {
+  const attributes: Record<string, string | number> = {};
+
+  if (parsed.payload.action) {
+    attributes["github.event.action"] = parsed.payload.action;
+  }
+  const repository = parsed.payload.repository?.full_name;
+  if (repository) {
+    attributes["github.repository.full_name"] = repository;
+  }
+
+  if (parsed.eventType === "workflow_run") {
+    const run = parsed.payload.workflow_run;
+    if (run) {
+      attributes["github.workflow_run.id"] = run.id;
+      if (run.name) attributes["github.workflow_run.name"] = run.name;
+      if (run.run_attempt) {
+        attributes["github.workflow_run.run_attempt"] = run.run_attempt;
+      }
+    }
+  } else {
+    const job = parsed.payload.workflow_job;
+    if (job) {
+      attributes["github.workflow_job.id"] = job.id;
+      attributes["github.workflow_run.id"] = job.run_id;
+      if (job.workflow_name) {
+        attributes["github.workflow_run.name"] = job.workflow_name;
+      }
+      if (job.run_attempt) {
+        attributes["github.workflow_run.run_attempt"] = job.run_attempt;
+      }
+    }
+  }
+
+  return attributes;
 }
 
 function installationId(parsed: ParsedQueuedEvent): number | null {

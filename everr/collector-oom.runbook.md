@@ -43,7 +43,12 @@ ref: slow-by-event-type
 height: 240
 ```
 
-Identify the run on the pod itself:
+Since 2026-07-04 the app's replay spans
+(`github_events.jobs.replay_webhook_to_collector`) carry
+`github.repository.full_name`, `github.workflow_run.id`,
+`github.workflow_run.name`, and `everr.organization.id`, so the slow
+replay in the panel above names the run directly. As a fallback,
+identify the run on the pod itself:
 
 ```sh
 kubectl logs -n collector <pod> | grep "Processing WorkflowRunEvent"
