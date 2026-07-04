@@ -12,6 +12,11 @@ type VerifyKeyResponse = {
   keyId: string;
 };
 
+type VerifyBody = {
+  key?: unknown;
+  origin?: unknown;
+};
+
 function secretMatches(provided: string | null): boolean {
   if (!provided) return false;
   const expected = env.INGEST_VERIFY_SHARED_SECRET;
@@ -29,12 +34,9 @@ export const Route = createFileRoute("/api/internal/verify-key")({
           return new Response(null, { status: 403 });
         }
 
-        let body: { key?: unknown; origin?: unknown } | null = null;
+        let body: VerifyBody | null = null;
         try {
-          body = (await request.json()) as {
-            key?: unknown;
-            origin?: unknown;
-          };
+          body = (await request.json()) as VerifyBody;
         } catch {
           return new Response(null, { status: 400 });
         }

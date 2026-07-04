@@ -74,6 +74,23 @@ export function publicKeyMetadataOf(
 }
 
 /**
+ * Build the metadata blob stored on a public browser key. Each origin is
+ * normalized (and dropped if it somehow fails to parse) so the stored shape
+ * stays canonical even when the caller skipped pre-validation. The write-side
+ * counterpart of `publicKeyMetadataOf`.
+ */
+export function buildPublicKeyMetadata(
+  origins: readonly string[],
+): PublicKeyMetadata {
+  return {
+    public: true,
+    allowedOrigins: origins
+      .map(normalizeOrigin)
+      .filter((origin): origin is string => origin !== null),
+  };
+}
+
+/**
  * The browser-ingestion policy matrix. `origin` is the request's Origin
  * header, null when absent (server-to-server traffic).
  *

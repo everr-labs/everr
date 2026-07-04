@@ -9,7 +9,7 @@ import {
 } from "@/lib/api-key-scopes";
 import { auth } from "@/lib/auth.server";
 import {
-  normalizeOrigin,
+  buildPublicKeyMetadata,
   type PublicKeyMetadata,
   publicKeyInputError,
 } from "@/lib/public-ingest-keys";
@@ -95,13 +95,8 @@ export const createApiKey = createAuthenticatedServerFn({ method: "POST" })
         ? data.expiresInDays * 24 * 60 * 60
         : undefined;
 
-    // Origins were validated by the schema, so every entry normalizes.
-    const normalizedOrigins = (data.allowedOrigins ?? []).flatMap((origin) => {
-      const normalized = normalizeOrigin(origin);
-      return normalized ? [normalized] : [];
-    });
     const metadata = data.public
-      ? { public: true, allowedOrigins: normalizedOrigins }
+      ? buildPublicKeyMetadata(data.allowedOrigins ?? [])
       : undefined;
 
     // `permissions` is a server-only field: better-auth rejects it when the
