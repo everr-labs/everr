@@ -8,7 +8,7 @@ import { ResourceEmptyState } from "@/components/resource-empty-state";
 import { runbookListOptions } from "@/data/runbooks/options";
 
 const ASSISTANT_RUNBOOK_PROMPT =
-  "/everr-write-runbooks Help me build a good first runbook based on the telemetry we have in production";
+  "/everr-setup-resources Help me build a good first runbook based on the telemetry we have in production";
 
 export const Route = createFileRoute("/_authenticated/_dashboard/runbooks/")({
   staticData: { breadcrumb: "Runbooks" },

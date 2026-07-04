@@ -48,7 +48,7 @@ import {
 } from "./-alerts-shared";
 
 const ASSISTANT_ALERT_PROMPT =
-  "/everr-setup-telemetry Help me build a good first alert based on the telemetry we have in production";
+  "/everr-setup-resources Help me build a good first alert based on the telemetry we have in production";
 
 const alertsQueryOptions = () =>
   queryOptions({ queryKey: ["alerts"], queryFn: () => listAlerts() });

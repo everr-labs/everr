@@ -1,20 +1,8 @@
 # Alerts
 
-Alerts are defined as code: `kind: AlertRule` YAML files reconciled with `everr apply`, the same gitops flow as dashboards. The query is the condition — every row it returns is a firing instance, and an empty result means resolved.
+Alerts are defined as code: `kind: AlertRule` YAML files reconciled with `everr apply`, the same gitops flow as dashboards and runbooks — see the skill root for the manifest, file layout (`*.alert.yaml`), and apply semantics. The query is the condition — every row it returns is a firing instance, and an empty result means resolved.
 
-## Prerequisites
-
-- An `everr/` directory at your repo root holding an `everr.yaml` manifest with a stable `repoid`.
-- Telemetry already flowing into Everr (traces, logs, or metrics).
-
-The manifest is required. Apply errors without it. Declarations sit flat in `everr/`, named by kind: alerts are `*.alert.yaml` (dashboards `*.dashboard.yaml`, runbooks `*.runbook.yaml`).
-
-```yaml
-# everr/everr.yaml
-repoid: "AE89E884-0AF0-45A9-8BA1-6237A162347D"
-```
-
-Use one stable id per repository. A UUID is a good default for new repositories; do not reuse repoids across unrelated repos.
+Prerequisite: telemetry already flowing into Everr (traces, logs, or metrics).
 
 ## AlertRule Schema
 
@@ -43,7 +31,7 @@ All fields are strict — unknown keys are rejected.
 
 ## Alert Design Checklist
 
-Before writing SQL, decide whether the condition should notify a human at all. Prefer alerts that describe a real symptom: something urgent, actionable, and active or imminent. 
+Before writing SQL, decide whether the condition should notify a human at all. Prefer alerts that describe a real symptom: something urgent, actionable, and active or imminent.
 
 Do not create alert rules for interesting, weird, or purely diagnostic signals; put those in dashboards or ad hoc queries instead.
 
@@ -70,7 +58,7 @@ The runbook should answer, for whoever the alert wakes up:
 - how to confirm it's real (the dashboards/queries to look at),
 - the usual causes and how to mitigate them.
 
-The link appears on the alert's detail page and list row, and in the Telegram and Slack notifications. See the `everr-write-runbooks` skill for authoring.
+The link appears on the alert's detail page and list row, and in the Telegram and Slack notifications. See `rules/runbooks.md` for authoring.
 
 Runbooks can also show the alert's own status by querying the alert service
 events projected into `logs`. Add a small Table panel that filters
@@ -120,9 +108,7 @@ metadata:
   project: platform
 spec:
   markdown:
-    inline: |
-      # DB pool exhausted — runbook
-      ...
+    file: ./db-pool-runbook.runbook.md
 ```
 
 ## Writing Alert Queries
@@ -198,25 +184,13 @@ Per-instance values come from that instance's firing row. If the query returns `
 
 ## Verification
 
-1. Test the query using `everr cloud query`
+1. Test the query using `everr cloud query` and confirm the result set stays far below 1,000 rows — every returned row is a firing instance.
 2. Run `everr apply ./everr --dry-run` and confirm the plan shows the expected creates/updates.
-
-## Deploying alerts in production
-
-Only when the user is satisfied with the changes, to deploy them run:
-
-```sh
-everr apply ./everr --yes
-```
-
-Apply discovers all `.yaml`/`.yml` files under the directory, classifies them by `kind`, and reconciles creates, updates, and deletes. Alerts not in the directory are soft-deleted (history is preserved).
 
 ## Common Mistakes
 
 | Mistake | Fix |
 | --- | --- |
-| Missing `everr.yaml` manifest | Add `repoid: "<stable-repository-id>"` at the `everr/` root |
-| Empty `repoid` or reusing across repos | Use one stable id per repository; a UUID is a good default for new repos |
 | `${...}` in the query | Queries are plain SQL; use `${...}` only in `notificationMessage` |
 | `instanceLabels` references a missing column | Every label must exist in the query result set |
 | `evaluationInterval` below `1m` | Use `1m` or higher |
