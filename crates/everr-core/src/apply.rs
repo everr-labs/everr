@@ -347,6 +347,9 @@ pub struct ApplyRequest {
     pub preview: Option<String>,
     #[serde(rename = "dryRun")]
     pub dry_run: bool,
+    /// Take over live resources owned by another repo instead of failing on the
+    /// cross-repo ownership conflict.
+    pub adopt: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
@@ -355,6 +358,9 @@ pub struct KindResult {
     pub created: Vec<String>,
     pub updated: Vec<String>,
     pub deleted: Vec<String>,
+    /// Live resources taken over from another owning repo (only with `--adopt`).
+    #[serde(default)]
+    pub adopted: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
@@ -572,10 +578,12 @@ mod tests {
             }),
             preview: None,
             dry_run: false,
+            adopt: false,
         };
         let v = serde_json::to_value(&req).unwrap();
         assert_eq!(v["repoid"], "repo-1");
         assert_eq!(v["dryRun"], false);
+        assert_eq!(v["adopt"], false);
         assert_eq!(v["state"]["dashboards"][0]["path"], "cpu.yaml");
         assert_eq!(
             v["state"]["dashboards"][0]["resource"],
@@ -594,6 +602,7 @@ mod tests {
             source: None,
             preview: None,
             dry_run: true,
+            adopt: false,
         };
         let v = serde_json::to_value(&req).unwrap();
         assert!(v.get("preview").is_none());

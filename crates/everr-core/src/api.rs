@@ -576,6 +576,7 @@ mod api_client_tests {
             source: None,
             preview: None,
             dry_run: false,
+            adopt: false,
         }
     }
 

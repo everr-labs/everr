@@ -668,6 +668,7 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
             source: source.clone(),
             preview: preview.clone(),
             dry_run: true,
+            adopt: args.adopt,
         })
         .await?;
     print_apply_summary(&plan, true);
@@ -709,6 +710,7 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
             source,
             preview: preview.clone(),
             dry_run: false,
+            adopt: args.adopt,
         })
         .await?;
     print_apply_summary(&summary, false);
@@ -759,11 +761,16 @@ fn print_apply_summary(summary: &everr_core::apply::ApplySummary, plan: bool) {
     println!("{label}Destination org: «{}»", summary.organization.name);
     for r in &summary.results {
         println!(
-            "{label}{}: {} created, {} updated, {} deleted",
+            "{label}{}: {} created, {} updated, {} deleted{}",
             r.kind,
             r.created.len(),
             r.updated.len(),
-            r.deleted.len()
+            r.deleted.len(),
+            if r.adopted.is_empty() {
+                String::new()
+            } else {
+                format!(", {} adopted", r.adopted.len())
+            }
         );
         for s in &r.created {
             println!("  + {s}");
@@ -773,6 +780,9 @@ fn print_apply_summary(summary: &everr_core::apply::ApplySummary, plan: bool) {
         }
         for s in &r.deleted {
             println!("  - {s}");
+        }
+        for s in &r.adopted {
+            println!("  ⇄ {s}");
         }
     }
 }

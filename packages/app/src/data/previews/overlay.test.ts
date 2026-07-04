@@ -76,18 +76,30 @@ describe("overlayPreview", () => {
     expect(byStatus).toEqual({ moved: "changed", same: "unchanged" });
   });
 
-  it("a same-identity live row in an uncovered repoid does not shadow the preview row", () => {
+  it("flags a preview add as a conflict when the identity is live under another owner", () => {
+    // (project, slug) is the global identity: a preview "add" of "dup" collides
+    // with repo-2's live "dup" — merging it would fail the ownership check.
     const out = overlayPreview({
       rows: [r("repo-2", "dup"), p("repo-1", "dup")],
       coveredRepoids: covered,
     });
     expect(out).toHaveLength(2);
     expect(out.find((row) => row.repoid === "repo-1")?.previewStatus).toBe(
-      "added",
+      "conflict",
     );
+    // repo-2's live row is in an uncovered repoid → passes through untagged.
     expect(
       out.find((row) => row.repoid === "repo-2")?.previewStatus,
     ).toBeUndefined();
+  });
+
+  it("tags a preview add with no live identity anywhere as added", () => {
+    const out = overlayPreview({
+      rows: [p("repo-1", "brand-new")],
+      coveredRepoids: covered,
+    });
+    expect(out).toHaveLength(1);
+    expect(out[0].previewStatus).toBe("added");
   });
 
   it("ignores orphan preview rows whose repoid is not covered", () => {

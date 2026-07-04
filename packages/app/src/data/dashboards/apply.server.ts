@@ -1,7 +1,11 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { reconcile } from "@/data/as-code/reconcile";
-import type { Reconciler } from "@/data/as-code/registry";
-import { previewOwner, previewScope } from "@/data/previews/scope";
+import type { OwnershipConflict, Reconciler } from "@/data/as-code/registry";
+import {
+  foreignLiveScope,
+  previewOwner,
+  previewScope,
+} from "@/data/previews/scope";
 import { dashboards } from "@/db/schema";
 import { buildDesiredSet } from "./desired";
 import type { Dashboard } from "./schema";
@@ -10,7 +14,12 @@ export interface ApplyDashboardsResult {
   created: string[];
   updated: string[];
   deleted: string[];
+  adopted: string[];
+  conflicts: OwnershipConflict[];
 }
+
+const identityKey = (d: { project: string; slug: string }) =>
+  `${d.project}\u0000${d.slug}`;
 
 /**
  * Declarative reconcile core for dashboards. The reconcile scope is (org, repoid)
@@ -27,6 +36,7 @@ export const applyDashboardSpecs: Reconciler = async ({
   namespace,
   resources,
   dryRun,
+  adopt,
   db: exec,
 }): Promise<ApplyDashboardsResult> => {
   const desired = buildDesiredSet(
@@ -47,15 +57,47 @@ export const applyDashboardSpecs: Reconciler = async ({
 
   const diff = reconcile({ existing, desired });
 
+  // A create whose (project, slug) is a live resource owned by another repo is a
+  // cross-repo conflict: reported (fail-fast upstream) unless adopting, in which
+  // case we transfer ownership. Only live applies can collide.
+  const foreign =
+    namespace.kind === "live" && diff.creates.length > 0
+      ? await exec
+          .select({
+            project: dashboards.project,
+            slug: dashboards.slug,
+            owner: dashboards.repoid,
+          })
+          .from(dashboards)
+          .where(foreignLiveScope(dashboards, namespace, diff.creates))
+      : [];
+  const foreignOwner = new Map(
+    foreign.map((r) => [identityKey(r), r.owner ?? ""]),
+  );
+  const takenCreates = diff.creates.filter((d) =>
+    foreignOwner.has(identityKey(d)),
+  );
+  const freshCreates = diff.creates.filter(
+    (d) => !foreignOwner.has(identityKey(d)),
+  );
+
   const summary: ApplyDashboardsResult = {
-    created: diff.creates.map((d) => d.slug),
+    created: freshCreates.map((d) => d.slug),
     updated: diff.updates.map((d) => d.slug),
     deleted: diff.deletes.map((d) => d.slug),
+    adopted: adopt ? takenCreates.map((d) => d.slug) : [],
+    conflicts: adopt
+      ? []
+      : takenCreates.map((d) => ({
+          project: d.project,
+          slug: d.slug,
+          owner: foreignOwner.get(identityKey(d)) ?? "",
+        })),
   };
 
   if (dryRun) return summary;
 
-  for (const d of diff.creates) {
+  for (const d of freshCreates) {
     await exec.insert(dashboards).values({
       organizationId: namespace.orgId,
       ...previewOwner(namespace),
@@ -64,6 +106,27 @@ export const applyDashboardSpecs: Reconciler = async ({
       folderPath: d.folderPath,
       document: d.document as Dashboard,
     });
+  }
+  // Adoption: take over the other repo's live row by its global identity,
+  // transferring ownership and applying the desired content. Only reached with
+  // `adopt` (otherwise the registry aborts on the conflict before any write).
+  for (const d of takenCreates) {
+    await exec
+      .update(dashboards)
+      .set({
+        repoid: namespace.repoid,
+        document: d.document as Dashboard,
+        folderPath: d.folderPath,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(dashboards.organizationId, namespace.orgId),
+          isNull(dashboards.previewId),
+          eq(dashboards.project, d.project),
+          eq(dashboards.slug, d.slug),
+        ),
+      );
   }
   for (const d of diff.updates) {
     await exec

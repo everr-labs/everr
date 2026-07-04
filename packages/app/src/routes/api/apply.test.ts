@@ -120,6 +120,7 @@ describe("POST /api/apply", () => {
         remote: "git@example.com:acme/repo.git",
       },
       dryRun: true,
+      adopt: false,
     });
   });
 

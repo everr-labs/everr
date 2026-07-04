@@ -13,11 +13,20 @@ export interface KindResult {
   created: string[];
   updated: string[];
   deleted: string[];
+  /** Live resources taken over from another owning repo (only with `adopt`). */
+  adopted: string[];
 }
 
 export interface ApplyResourcesResult {
   dryRun: boolean;
   results: KindResult[];
+}
+
+/** A create that collides with a live resource owned by a different repo. */
+export interface OwnershipConflict {
+  project: string;
+  slug: string;
+  owner: string;
 }
 
 /** A reconciler makes the repo's resources of one kind match the given entries. */
@@ -28,10 +37,20 @@ export type Reconciler = (opts: {
   resources: ApplyResourceEntry[];
   source?: ApplySource;
   dryRun?: boolean;
+  /** Take over live resources owned by another repo instead of reporting them
+   * as conflicts. */
+  adopt?: boolean;
   /** Runs queries: the shared apply transaction for real runs, base db for
    * dry-run reads. */
   db: DbExecutor;
-}) => Promise<{ created: string[]; updated: string[]; deleted: string[] }>;
+}) => Promise<{
+  created: string[];
+  updated: string[];
+  deleted: string[];
+  adopted: string[];
+  /** Creates colliding with another repo's live resource; empty when adopting. */
+  conflicts: OwnershipConflict[];
+}>;
 
 /**
  * State key → (kind label, reconciler). Every registered kind reconciles on
@@ -88,19 +107,27 @@ export async function applyResources(opts: {
   state: ApplyInput["state"];
   source?: ApplySource;
   dryRun?: boolean;
+  /** Take over live resources owned by another repo instead of failing. */
+  adopt?: boolean;
 }): Promise<ApplyResourcesResult> {
-  const { orgId, repoid, state, source, dryRun } = opts;
+  const { orgId, repoid, state, source, dryRun, adopt } = opts;
   // null = live. previewNameSchema is min-length, so a present name is never "".
   const previewName = opts.preview ?? null;
 
   const summarize = (
     kind: string,
-    r: { created: string[]; updated: string[]; deleted: string[] },
+    r: {
+      created: string[];
+      updated: string[];
+      deleted: string[];
+      adopted: string[];
+    },
   ): KindResult => ({
     kind,
     created: r.created,
     updated: r.updated,
     deleted: r.deleted,
+    adopted: r.adopted,
   });
 
   // Live, or the preview resolved to its registry id via the given resolver.
@@ -123,6 +150,7 @@ export async function applyResources(opts: {
   // before any kind has written. When the caller asked for a dry run, this pass
   // is also the result.
   const validated: KindResult[] = [];
+  const conflicts: (OwnershipConflict & { kind: string })[] = [];
   for (const { key, kind, reconcile } of REGISTRY) {
     validateResourceKind(state[key], kind);
     const r = await reconcile({
@@ -130,9 +158,25 @@ export async function applyResources(opts: {
       resources: state[key],
       source,
       dryRun: true,
+      adopt,
       db,
     });
     validated.push(summarize(kind, r));
+    for (const c of r.conflicts) conflicts.push({ kind, ...c });
+  }
+
+  // Fail-fast on cross-repo ownership conflicts (a live create whose (project,
+  // slug) another repo already owns). Aborts before any write; `--adopt`
+  // transfers ownership instead. Reconcilers only report conflicts when not
+  // adopting, so this never fires with `adopt`.
+  if (conflicts.length > 0) {
+    const lines = conflicts
+      .map((c) => `  ${c.project}/${c.slug} (owned by ${c.owner})`)
+      .join("\n");
+    throw new ApplyValidationError(
+      `${conflicts.length} resource(s) are owned by another repo:\n${lines}\n` +
+        `Re-run with --adopt to take ownership.`,
+    );
   }
 
   // Cross-kind: a linked runbook must exist in this batch or already in the
@@ -161,6 +205,7 @@ export async function applyResources(opts: {
         resources: state[key],
         source,
         dryRun: false,
+        adopt,
         db: tx,
       });
       results.push(summarize(kind, r));

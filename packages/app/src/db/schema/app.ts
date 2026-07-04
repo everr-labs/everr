@@ -213,10 +213,12 @@ export const dashboards = pgTable(
       "dashboards_live_xor_preview",
       sql`(${table.previewId} IS NULL) <> (${table.repoid} IS NULL)`,
     ),
-    // Live identity: (org, repoid, project, slug). Preview identity: repoid/name
-    // are implied by the parent, so (preview_id, project, slug) suffices.
+    // Live identity is the global address (org, project, slug); `repoid` is the
+    // owning repo (reconcile scope + provenance), NOT part of identity — two
+    // repos can't both hold the same live (project, slug). Preview identity:
+    // repoid/name are implied by the parent, so (preview_id, project, slug) fits.
     uniqueIndex("dashboards_live_project_slug_uq")
-      .on(table.organizationId, table.repoid, table.project, table.slug)
+      .on(table.organizationId, table.project, table.slug)
       .where(sql`${table.previewId} IS NULL`),
     uniqueIndex("dashboards_preview_project_slug_uq")
       .on(table.previewId, table.project, table.slug)
@@ -259,8 +261,10 @@ export const runbooks = pgTable(
       "runbooks_live_xor_preview",
       sql`(${table.previewId} IS NULL) <> (${table.repoid} IS NULL)`,
     ),
+    // Live identity is the global address (org, project, slug); `repoid` owns
+    // (reconcile scope), not identity. Preview identity via the parent.
     uniqueIndex("runbooks_live_project_slug_uq")
-      .on(table.organizationId, table.repoid, table.project, table.slug)
+      .on(table.organizationId, table.project, table.slug)
       .where(sql`${table.previewId} IS NULL`),
     uniqueIndex("runbooks_preview_project_slug_uq")
       .on(table.previewId, table.project, table.slug)

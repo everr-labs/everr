@@ -46,6 +46,7 @@ vi.mock("@/db/client", () => {
 vi.mock("drizzle-orm", () => ({
   and: vi.fn((...conditions: unknown[]) => ({ op: "and", conditions })),
   eq: vi.fn((left: unknown, right: unknown) => ({ op: "eq", left, right })),
+  ne: vi.fn((left: unknown, right: unknown) => ({ op: "ne", left, right })),
   or: vi.fn((...conditions: unknown[]) => ({ op: "or", conditions })),
   isNull: vi.fn((col: unknown) => ({ op: "isNull", col })),
   sql: vi.fn(() => ({ op: "sql" })),
@@ -153,12 +154,55 @@ describe("applyAlertSpecs", () => {
       created: ["high-errors"],
       updated: [],
       deleted: [],
+      adopted: [],
+      conflicts: [],
     });
     expect(mockedQuerySqlApiWithMeta).toHaveBeenCalledWith(
       expect.stringContaining("INTERVAL 15 MINUTE"),
       "org-1",
     );
     expect(mockedDb.insert).not.toHaveBeenCalled();
+  });
+
+  it("reports a cross-repo conflict when another repo owns the alert name", async () => {
+    mockApplySelect([]); // scope: no existing rows → create
+    // The foreign-owner probe finds repo-2 already owns default/high-errors live.
+    mockApplySelect([
+      { project: "default", slug: "high-errors", owner: "repo-2" },
+    ]);
+    const result = await applyAlertSpecs({
+      namespace: { orgId: "org-1", repoid: "repo-1", kind: "live" },
+      db,
+      dryRun: true,
+      resources: [{ path: "alerts/high-errors.yaml", resource: alert() }],
+    });
+    expect(result.created).toEqual([]);
+    expect(result.adopted).toEqual([]);
+    expect(result.conflicts).toEqual([
+      { project: "default", slug: "high-errors", owner: "repo-2" },
+    ]);
+    expect(mockedDb.insert).not.toHaveBeenCalled();
+  });
+
+  it("adopts a conflicting alert, transferring ownership and resetting runtime state", async () => {
+    mockApplySelect([]); // scope
+    mockApplySelect([
+      { project: "default", slug: "high-errors", owner: "repo-2" },
+    ]);
+    const result = await applyAlertSpecs({
+      namespace: { orgId: "org-1", repoid: "repo-1", kind: "live" },
+      db,
+      adopt: true,
+      resources: [{ path: "alerts/high-errors.yaml", resource: alert() }],
+    });
+    expect(result.adopted).toEqual(["high-errors"]);
+    expect(result.conflicts).toEqual([]);
+    expect(result.created).toEqual([]);
+    expect(mockedDb.insert).not.toHaveBeenCalled();
+    // Ownership transfer: an update setting the new repoid + reset runtime state.
+    expect(updateSets).toEqual([
+      expect.objectContaining({ repoid: "repo-1", currentState: "unknown" }),
+    ]);
   });
 
   it("creates active valid alerts and persists source/path metadata", async () => {
@@ -251,6 +295,8 @@ describe("applyAlertSpecs", () => {
       created: [],
       updated: ["high-errors"],
       deleted: ["stale"],
+      adopted: [],
+      conflicts: [],
     });
     expect(updateSets).toEqual([expect.objectContaining({ active: true })]);
     expect(deleteCalled).toBe(true);

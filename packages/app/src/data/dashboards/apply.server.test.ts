@@ -17,7 +17,8 @@ let deleteImpl: () => unknown = () => [];
 vi.mock("@/db/client", () => {
   const selectChain = {
     from: vi.fn(() => selectChain),
-    where: vi.fn(() => selectChain),
+    // Un-queued selects (e.g. the cross-repo conflict probe) resolve to no rows.
+    where: vi.fn(() => Promise.resolve([])),
     limit: vi.fn(() => undefined),
   };
   const updateChain = {
@@ -44,6 +45,8 @@ vi.mock("@/db/client", () => {
 vi.mock("drizzle-orm", () => ({
   and: vi.fn((...conditions: unknown[]) => ({ op: "and", conditions })),
   eq: vi.fn((left: unknown, right: unknown) => ({ op: "eq", left, right })),
+  ne: vi.fn((left: unknown, right: unknown) => ({ op: "ne", left, right })),
+  or: vi.fn((...conditions: unknown[]) => ({ op: "or", conditions })),
   isNull: vi.fn((col: unknown) => ({ op: "isNull", col })),
   sql: vi.fn(() => ({ op: "sql" })),
 }));
@@ -123,6 +126,8 @@ describe("applyDashboardSpecs", () => {
       created: [],
       updated: [],
       deleted: ["old"],
+      adopted: [],
+      conflicts: [],
     });
   });
 
@@ -228,5 +233,42 @@ describe("applyDashboardSpecs", () => {
       }),
     ).rejects.toThrow(/bad\.yaml/);
     expect(mockedDb.insert).not.toHaveBeenCalled();
+  });
+
+  it("reports a cross-repo conflict for a create whose identity another repo owns", async () => {
+    mockApplySelect([]); // scope: no existing rows → cpu is a create
+    // The foreign-owner probe finds repo-2 already owns default/cpu live.
+    mockApplySelect([{ project: "default", slug: "cpu", owner: "repo-2" }]);
+    const result = await applyDashboardSpecs({
+      ...base,
+      dryRun: true,
+      resources: [{ path: "cpu.yaml", resource: dash("cpu") }],
+    });
+    expect(result.created).toEqual([]);
+    expect(result.adopted).toEqual([]);
+    expect(result.conflicts).toEqual([
+      { project: "default", slug: "cpu", owner: "repo-2" },
+    ]);
+  });
+
+  it("adopts a conflicting create, transferring ownership via an update", async () => {
+    mockApplySelect([]); // scope
+    mockApplySelect([{ project: "default", slug: "cpu", owner: "repo-2" }]);
+    const result = await applyDashboardSpecs({
+      ...base,
+      adopt: true,
+      resources: [{ path: "cpu.yaml", resource: dash("cpu") }],
+    });
+    expect(result.adopted).toEqual(["cpu"]);
+    expect(result.conflicts).toEqual([]);
+    expect(result.created).toEqual([]);
+    // Ownership transfer is an update setting the new repoid, not an insert.
+    expect(mockedDb.insert).not.toHaveBeenCalled();
+    const updateChain = mockedDb.update.mock.results[0]?.value as {
+      set: ReturnType<typeof vi.fn>;
+    };
+    expect(updateChain.set).toHaveBeenCalledWith(
+      expect.objectContaining({ repoid: "repo-1" }),
+    );
   });
 });

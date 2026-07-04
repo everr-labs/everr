@@ -6,12 +6,14 @@ import type { PreviewStatus } from "@/data/previews/overlay";
 const STYLES: Record<Exclude<PreviewStatus, "unchanged">, string> = {
   added: "border-emerald-500/40 bg-emerald-500/10 text-emerald-400",
   changed: "border-amber-500/40 bg-amber-500/10 text-amber-400",
+  conflict: "border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-400",
   removed: "border-red-500/40 bg-red-500/10 text-red-400",
 };
 
 const LABELS: Record<Exclude<PreviewStatus, "unchanged">, string> = {
   added: "Added",
   changed: "Changed",
+  conflict: "Conflict",
   removed: "Removed",
 };
 

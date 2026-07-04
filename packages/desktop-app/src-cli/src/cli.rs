@@ -263,6 +263,11 @@ pub struct ApplyArgs {
     /// available (CI, detached HEAD).
     #[arg(long, value_name = "NAME", num_args = 0..=1, default_missing_value = "")]
     pub preview: Option<String>,
+    /// Take over resources whose (project, slug) another repo already owns,
+    /// transferring ownership to this repo. Without it, such a collision aborts
+    /// the apply.
+    #[arg(long)]
+    pub adopt: bool,
 }
 
 #[derive(Args, Debug, Default)]

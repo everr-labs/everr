@@ -47,6 +47,7 @@ export const Route = createFileRoute("/api/apply")({
             source: parsed.data.source,
             dryRun: parsed.data.dryRun,
             preview: parsed.data.preview,
+            adopt: parsed.data.adopt,
           });
           return Response.json({
             ...summary,

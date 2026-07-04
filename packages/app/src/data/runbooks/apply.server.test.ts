@@ -17,7 +17,8 @@ let deleteImpl: () => unknown = () => [];
 vi.mock("@/db/client", () => {
   const selectChain = {
     from: vi.fn(() => selectChain),
-    where: vi.fn(() => selectChain),
+    // Un-queued selects (e.g. the cross-repo conflict probe) resolve to no rows.
+    where: vi.fn(() => Promise.resolve([])),
     limit: vi.fn(() => undefined),
   };
   const updateChain = {
@@ -44,6 +45,8 @@ vi.mock("@/db/client", () => {
 vi.mock("drizzle-orm", () => ({
   and: vi.fn((...conditions: unknown[]) => ({ op: "and", conditions })),
   eq: vi.fn((left: unknown, right: unknown) => ({ op: "eq", left, right })),
+  ne: vi.fn((left: unknown, right: unknown) => ({ op: "ne", left, right })),
+  or: vi.fn((...conditions: unknown[]) => ({ op: "or", conditions })),
   isNull: vi.fn((col: unknown) => ({ op: "isNull", col })),
   sql: vi.fn(() => ({ op: "sql" })),
 }));
@@ -143,6 +146,8 @@ describe("applyRunbookSpecs", () => {
       created: [],
       updated: [],
       deleted: ["old"],
+      adopted: [],
+      conflicts: [],
     });
   });
 

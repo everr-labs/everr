@@ -1,4 +1,4 @@
-import { and, eq, isNull, or, type SQL, sql } from "drizzle-orm";
+import { and, eq, isNull, ne, or, type SQL, sql } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 import { previews } from "@/db/schema";
 
@@ -7,6 +7,12 @@ interface ScopedTable {
   organizationId: PgColumn;
   repoid: PgColumn;
   previewId: PgColumn;
+}
+
+/** A resource table addressable by its global identity (org, project, slug). */
+interface IdentifiedTable extends ScopedTable {
+  project: PgColumn;
+  slug: PgColumn;
 }
 
 /**
@@ -80,4 +86,33 @@ export function liveOrPreview(table: ScopedTable, preview: string): SQL {
   // `or` is typed `SQL | undefined` (undefined only with zero conditions); the
   // `?? sql`false`` keeps a non-undefined return and never fires.
   return or(isNull(table.previewId), eq(previews.name, preview)) ?? sql`false`;
+}
+
+/**
+ * Live rows in this namespace's org owned by a *different* repo that collide with
+ * one of the given (project, slug) identities. A live apply that would create one
+ * of these is a cross-repo ownership conflict — fail-fast, or transfer with
+ * `--adopt`. Non-live namespaces and empty identity sets match nothing: a preview
+ * is keyed by its own parent and never collides with a live address.
+ */
+export function foreignLiveScope(
+  table: IdentifiedTable,
+  ns: Namespace,
+  identities: readonly { project: string; slug: string }[],
+): SQL {
+  if (ns.kind !== "live" || identities.length === 0) return sql`false`;
+  const matchesAnyIdentity =
+    or(
+      ...identities.map((id) =>
+        and(eq(table.project, id.project), eq(table.slug, id.slug)),
+      ),
+    ) ?? sql`false`;
+  return (
+    and(
+      eq(table.organizationId, ns.orgId),
+      isNull(table.previewId),
+      ne(table.repoid, ns.repoid),
+      matchesAnyIdentity,
+    ) ?? sql`false`
+  );
 }

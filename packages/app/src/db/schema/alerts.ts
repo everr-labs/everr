@@ -87,8 +87,10 @@ export const alertDefinitions = pgTable(
       "alert_definitions_live_xor_preview",
       sql`(${table.previewId} IS NULL) <> (${table.repoid} IS NULL)`,
     ),
+    // Live identity is the global address (org, project, slug); `repoid` owns
+    // (reconcile scope), not identity. Preview identity via the parent.
     uniqueIndex("alert_definitions_live_project_slug_uq")
-      .on(table.organizationId, table.repoid, table.project, table.slug)
+      .on(table.organizationId, table.project, table.slug)
       .where(sql`${table.previewId} IS NULL`),
     uniqueIndex("alert_definitions_preview_project_slug_uq")
       .on(table.previewId, table.project, table.slug)

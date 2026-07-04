@@ -51,6 +51,9 @@ export const applyInput = z
     preview: previewNameSchema.optional(),
     /** When true, compute and return the diff without writing. */
     dryRun: z.boolean().default(false),
+    /** Take over live resources owned by another repo instead of failing on the
+     * cross-repo ownership conflict. */
+    adopt: z.boolean().default(false),
   })
   .strict();
 

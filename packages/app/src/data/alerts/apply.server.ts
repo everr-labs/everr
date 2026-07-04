@@ -1,9 +1,13 @@
 import { createHash } from "node:crypto";
-import { and, eq, or } from "drizzle-orm";
+import { and, eq, isNull, or } from "drizzle-orm";
 import { ApplyValidationError } from "@/data/as-code/errors";
-import type { Reconciler } from "@/data/as-code/registry";
+import type { OwnershipConflict, Reconciler } from "@/data/as-code/registry";
 import type { ApplyResourceEntry, ApplySource } from "@/data/as-code/schema";
-import { previewOwner, previewScope } from "@/data/previews/scope";
+import {
+  foreignLiveScope,
+  previewOwner,
+  previewScope,
+} from "@/data/previews/scope";
 import { alertDefinitions } from "@/db/schema";
 import { querySqlApiWithMeta, type SqlApiResult } from "@/lib/clickhouse";
 import { errorMessage } from "@/telemetry/logger";
@@ -44,6 +48,8 @@ interface ApplyAlertsResult {
   created: string[];
   updated: string[];
   deleted: string[];
+  adopted: string[];
+  conflicts: OwnershipConflict[];
 }
 
 function pathForLink(path: string): string {
@@ -364,6 +370,7 @@ export const applyAlertSpecs: Reconciler = async ({
   resources,
   source,
   dryRun,
+  adopt,
   db: exec,
 }): Promise<ApplyAlertsResult> => {
   const desired = await buildDesiredAlerts({
@@ -414,10 +421,42 @@ export const applyAlertSpecs: Reconciler = async ({
     (row) => !desiredByKey.has(identityKey(row.project, row.slug)),
   );
 
+  // A create whose (project, slug) is a live alert owned by another repo is a
+  // cross-repo conflict: reported (fail-fast upstream) unless adopting, which
+  // transfers ownership. Only live applies can collide.
+  const foreign =
+    namespace.kind === "live" && creates.length > 0
+      ? await exec
+          .select({
+            project: alertDefinitions.project,
+            slug: alertDefinitions.slug,
+            owner: alertDefinitions.repoid,
+          })
+          .from(alertDefinitions)
+          .where(foreignLiveScope(alertDefinitions, namespace, creates))
+      : [];
+  const foreignOwner = new Map(
+    foreign.map((r) => [identityKey(r.project, r.slug), r.owner ?? ""]),
+  );
+  const takenCreates = creates.filter((row) =>
+    foreignOwner.has(identityKey(row.project, row.slug)),
+  );
+  const freshCreates = creates.filter(
+    (row) => !foreignOwner.has(identityKey(row.project, row.slug)),
+  );
+
   const summary: ApplyAlertsResult = {
-    created: creates.map((row) => row.slug),
+    created: freshCreates.map((row) => row.slug),
     updated: updates.map((row) => row.slug),
     deleted: deletes.map((row) => row.slug),
+    adopted: adopt ? takenCreates.map((row) => row.slug) : [],
+    conflicts: adopt
+      ? []
+      : takenCreates.map((row) => ({
+          project: row.project,
+          slug: row.slug,
+          owner: foreignOwner.get(identityKey(row.project, row.slug)) ?? "",
+        })),
   };
 
   if (dryRun) return summary;
@@ -425,9 +464,9 @@ export const applyAlertSpecs: Reconciler = async ({
   const now = new Date();
   // Registry owns the transaction (`exec`); these writes join it so the whole
   // apply commits or rolls back together.
-  if (creates.length > 0) {
+  if (freshCreates.length > 0) {
     await exec.insert(alertDefinitions).values(
-      creates.map((row) => ({
+      freshCreates.map((row) => ({
         organizationId: namespace.orgId,
         ...previewOwner(namespace),
         slug: row.slug,
@@ -436,6 +475,25 @@ export const applyAlertSpecs: Reconciler = async ({
         createdAt: now,
       })),
     );
+  }
+  // Adoption: take over the other repo's live alert by its global identity,
+  // transferring ownership and resetting runtime state (a re-homed alert
+  // re-evaluates fresh). Only reached with `adopt`.
+  for (const row of takenCreates) {
+    await exec
+      .update(alertDefinitions)
+      .set({
+        repoid: namespace.repoid,
+        ...activeValues(row, now, { resetRuntimeState: true }),
+      })
+      .where(
+        and(
+          eq(alertDefinitions.organizationId, namespace.orgId),
+          isNull(alertDefinitions.previewId),
+          eq(alertDefinitions.project, row.project),
+          eq(alertDefinitions.slug, row.slug),
+        ),
+      );
   }
 
   for (const row of updates) {

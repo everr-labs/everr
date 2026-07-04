@@ -40,7 +40,13 @@ vi.mock("@/db/client", () => ({
 import { ApplyValidationError } from "./errors";
 import { applyResources } from "./registry";
 
-const empty = { created: [], updated: [], deleted: [] };
+const empty = {
+  created: [],
+  updated: [],
+  deleted: [],
+  adopted: [],
+  conflicts: [],
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -60,11 +66,15 @@ describe("applyResources", () => {
       created: ["cpu"],
       updated: [],
       deleted: [],
+      adopted: [],
+      conflicts: [],
     });
     runbookReconciler.mockResolvedValue({
       created: ["runbook"],
       updated: [],
       deleted: [],
+      adopted: [],
+      conflicts: [],
     });
     const out = await applyResources({
       orgId: "org-1",
@@ -85,9 +95,27 @@ describe("applyResources", () => {
     expect(out).toEqual({
       dryRun: false,
       results: [
-        { kind: "Dashboard", created: ["cpu"], updated: [], deleted: [] },
-        { kind: "Runbook", created: ["runbook"], updated: [], deleted: [] },
-        { kind: "AlertRule", created: [], updated: [], deleted: [] },
+        {
+          kind: "Dashboard",
+          created: ["cpu"],
+          updated: [],
+          deleted: [],
+          adopted: [],
+        },
+        {
+          kind: "Runbook",
+          created: ["runbook"],
+          updated: [],
+          deleted: [],
+          adopted: [],
+        },
+        {
+          kind: "AlertRule",
+          created: [],
+          updated: [],
+          deleted: [],
+          adopted: [],
+        },
       ],
     });
   });
@@ -124,6 +152,8 @@ describe("applyResources", () => {
       created: ["cpu"],
       updated: [],
       deleted: [],
+      adopted: [],
+      conflicts: [],
     });
     const out = await applyResources({
       orgId: "org-1",
@@ -141,6 +171,7 @@ describe("applyResources", () => {
       created: ["cpu"],
       updated: [],
       deleted: [],
+      adopted: [],
     });
   });
 
@@ -269,5 +300,45 @@ describe("applyResources", () => {
       state: { dashboards: [], runbooks: [], alerts: [] },
     });
     expect(upsertPreview).not.toHaveBeenCalled();
+  });
+
+  it("aborts, listing every conflict, when a reconciler reports an ownership clash", async () => {
+    dashboardReconciler.mockResolvedValue({
+      created: [],
+      updated: [],
+      deleted: [],
+      adopted: [],
+      conflicts: [{ project: "default", slug: "cpu", owner: "repo-2" }],
+    });
+    await expect(
+      applyResources({
+        orgId: "org-1",
+        repoid: "repo-1",
+        state: {
+          dashboards: [{ path: "d.yaml", resource: { kind: "Dashboard" } }],
+          runbooks: [],
+          alerts: [],
+        },
+        dryRun: false,
+      }),
+    ).rejects.toThrow(/default\/cpu \(owned by repo-2\)[\s\S]*--adopt/);
+    // Fail-fast: aborts in the validation pass, before the real apply's
+    // transaction ever registers or writes.
+    expect(upsertPreview).not.toHaveBeenCalled();
+  });
+
+  it("passes adopt through to every reconciler", async () => {
+    await applyResources({
+      orgId: "org-1",
+      repoid: "repo-1",
+      adopt: true,
+      state: { dashboards: [], runbooks: [], alerts: [] },
+    });
+    expect(dashboardReconciler).toHaveBeenCalledWith(
+      expect.objectContaining({ adopt: true }),
+    );
+    expect(alertReconciler).toHaveBeenCalledWith(
+      expect.objectContaining({ adopt: true }),
+    );
   });
 });
