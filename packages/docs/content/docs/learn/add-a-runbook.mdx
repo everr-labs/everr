@@ -1,0 +1,108 @@
+---
+title: Add a runbook
+description: Step 6, write a runbook and link it to the alert so responders have a procedure.
+---
+
+This is step 6 of getting started with Everr: give the alert from [step 5](/docs/learn/first-alert) a runbook, a short as-code document with the triage steps and live charts a responder needs when it fires. Like dashboards and alerts, a runbook is a file you reconcile with `everr apply`, and it renders read-only in Everr.
+
+## Let your Agent write it
+
+Everr ships the `everr-write-runbooks` skill. Ask your Agent to draft the runbook grounded in your real telemetry:
+
+```text
+/everr-write-runbooks Add a runbook for the alert I just created: when to act, an embedded panel of the metric it fires on, and the steps to take
+```
+
+The Agent inspects your telemetry, picks panels and queries that fit what you actually emit, writes the files, and validates them with `everr apply --dry-run`.
+
+## Alternative: write it by hand
+
+The rest of this step is the same workflow done manually. A runbook is one `kind: Runbook` YAML file plus the markdown file it points at. Reuse the `everr/` directory from the previous steps.
+
+`everr/eventloop-delay.runbook.yaml`:
+
+```yaml
+kind: Runbook
+metadata:
+  name: eventloop-delay
+spec:
+  display:
+    name: Event loop delay runbook
+    description: What to do when a service's event loop is blocked.
+  markdown:
+    file: ./eventloop-delay.runbook.md
+```
+
+`everr/eventloop-delay.runbook.md`, with an embedded panel (the same shape as the dashboard panel from [step 4](/docs/learn/first-dashboard)):
+
+````md
+# Event loop delay
+
+Follow these steps when the `eventloop-delay` alert fires.
+
+## Current delay
+
+```panel
+kind: Panel
+height: 280
+spec:
+  display: { name: p99 event loop delay (ms) }
+  plugin:
+    kind: TimeSeriesChart
+    spec: { unit: ms, showLegend: true }
+  queries:
+    - kind: ClickHouseSQL
+      spec:
+        plugin:
+          kind: ClickHouseSQL
+          spec:
+            query: |
+              SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts,
+                     avg(Value) * 1000 AS p99_delay_ms
+              FROM metrics_gauge
+              WHERE MetricName = 'nodejs.eventloop.delay.p99'
+                AND TimeUnix >= {from:String} AND TimeUnix <= {to:String}
+              GROUP BY ts
+              ORDER BY ts
+```
+
+1. Identify the affected service from the firing instance.
+2. Check its recent deploys and long-running requests.
+3. If the delay keeps climbing, roll back the most recent change.
+````
+
+The ```panel``` block is a full dashboard [Panel](/docs/dashboards/dashboard-spec), so swap the table and columns for whatever your telemetry uses.
+
+## Link it to the alert
+
+Point the alert at the runbook with `spec.runbook` (the runbook's slug), so the notification carries a link to the procedure. Edit `everr/eventloop-delay.alert.yaml` from step 5:
+
+```yaml
+kind: AlertRule
+metadata:
+  name: eventloop-delay
+spec:
+  runbook: eventloop-delay
+  # ...the rest of the rule from step 5
+```
+
+See the [AlertRule spec](/docs/alerts/alert-spec) for `spec.runbook` and every other field.
+
+## Apply and view
+
+Apply reconciles the whole directory, so this creates the runbook and updates the alert in one step:
+
+```sh
+everr apply ./everr --dry-run
+everr apply ./everr
+```
+
+Open Everr and go to **Runbooks**, or navigate directly to `/runbooks/default/eventloop-delay`. It renders read-only, with the panel running live against the time-range picker. When the alert fires, its notification now links straight to it.
+
+## Where to go next
+
+You've completed getting started: install, instrument your app, production telemetry, first dashboard, first alert, and add a runbook. From here, go deeper in whichever area matches what you're doing next:
+
+- **Guides**: [CI insights](/docs/ci-insights/setup-new-repo), [dashboards](/docs/dashboards), and [alerts](/docs/alerts).
+- **Concepts**: [How Everr works](/docs).
+- **Reference**: the [CLI](/docs/reference/cli), the [AlertRule spec](/docs/alerts/alert-spec), and the [dashboard spec](/docs/dashboards/dashboard-spec).

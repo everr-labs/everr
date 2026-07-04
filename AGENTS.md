@@ -6,6 +6,8 @@ Never add tests for YAML files that only check their text content.
 
 NEVER use a useEffect to react to props change to update an internal state. That's the worst thing you can do in a React app.
 
+Never use em dashes (—) or en dashes (–) in the docs. Use commas, colons, parentheses, or separate sentences instead. CLI flags and operators such as `--yes` stay as written.
+
 # CONSTITUTION
 
 When working on the web app, always test changes manually, use the credentials from .auth (look for this on the main worktree)

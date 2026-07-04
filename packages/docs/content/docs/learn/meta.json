@@ -1,0 +1,12 @@
+{
+  "title": "Getting started",
+  "defaultOpen": true,
+  "pages": [
+    "install",
+    "instrument-your-app",
+    "production-telemetry",
+    "first-dashboard",
+    "first-alert",
+    "add-a-runbook"
+  ]
+}
