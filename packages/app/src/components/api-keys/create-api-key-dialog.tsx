@@ -53,7 +53,20 @@ function defaultScopes(): Record<ApiKeyScope, boolean> {
   ) as Record<ApiKeyScope, boolean>;
 }
 
-export function CreateApiKeyDialog() {
+interface CreateApiKeyDialogProps {
+  /** Open the dialog with the public-browser-key toggle already on. */
+  defaultPublic?: boolean;
+  /** Trigger button label. */
+  triggerLabel?: string;
+  /** Trigger button visual variant. */
+  triggerVariant?: React.ComponentProps<typeof Button>["variant"];
+}
+
+export function CreateApiKeyDialog({
+  defaultPublic = false,
+  triggerLabel = "New key",
+  triggerVariant,
+}: CreateApiKeyDialogProps = {}) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [expiry, setExpiry] = useState<Expiry>("never");
@@ -61,7 +74,7 @@ export function CreateApiKeyDialog() {
     useState<Record<ApiKeyScope, boolean>>(defaultScopes);
   const [issuedKey, setIssuedKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [isPublic, setIsPublic] = useState(false);
+  const [isPublic, setIsPublic] = useState(defaultPublic);
   const [originsText, setOriginsText] = useState("");
   const copyResetTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const create = useCreateApiKey();
@@ -75,7 +88,7 @@ export function CreateApiKeyDialog() {
     setScopes(defaultScopes());
     setIssuedKey(null);
     setCopied(false);
-    setIsPublic(false);
+    setIsPublic(defaultPublic);
     setOriginsText("");
   };
 
@@ -92,14 +105,13 @@ export function CreateApiKeyDialog() {
     setScopes((prev) => ({ ...prev, [scope]: !prev[scope] }));
   };
 
-  const togglePublic = (next: boolean) => {
-    setIsPublic(next);
-    // Public keys are browser-ingestion-only: lock capabilities to
-    // Send telemetry the moment the toggle flips on.
-    if (next) setScopes({ ...defaultScopes(), [PUBLIC_KEY_SCOPE]: true });
-  };
-
-  const selectedScopes = ALL_API_KEY_SCOPES.filter((s) => scopes[s]);
+  // A public browser key is locked to a single capability, so derive the
+  // selection from `isPublic` instead of mirroring it into `scopes`. That
+  // keeps `isPublic` the single source of truth and preserves the user's
+  // prior capability picks across a public on/off toggle.
+  const selectedScopes = isPublic
+    ? [PUBLIC_KEY_SCOPE]
+    : ALL_API_KEY_SCOPES.filter((s) => scopes[s]);
   const noScopePicked = selectedScopes.length === 0;
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -166,9 +178,9 @@ export function CreateApiKeyDialog() {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger render={<Button size="sm" />}>
+      <DialogTrigger render={<Button size="sm" variant={triggerVariant} />}>
         <Plus className="size-4" />
-        New key
+        {triggerLabel}
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         {issuedKey ? (
@@ -283,7 +295,9 @@ export function CreateApiKeyDialog() {
                       </label>
                       <Switch
                         id={switchId}
-                        checked={scopes[scope]}
+                        checked={
+                          isPublic ? scope === PUBLIC_KEY_SCOPE : scopes[scope]
+                        }
                         onCheckedChange={() => toggleScope(scope)}
                         disabled={isPublic}
                       />
@@ -313,7 +327,7 @@ export function CreateApiKeyDialog() {
                 <Switch
                   id="api-key-public"
                   checked={isPublic}
-                  onCheckedChange={togglePublic}
+                  onCheckedChange={setIsPublic}
                 />
               </div>
 
