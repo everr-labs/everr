@@ -158,6 +158,51 @@ export function repositoryIdFromQueuedEvent(
   return repositoryId && repositoryId > 0 ? repositoryId : null;
 }
 
+export function eventAttributesFromQueuedEvent(
+  event: ParsedQueuedWorkflowEvent,
+): Record<string, string | number> {
+  const attributes: Record<string, string | number> = {};
+
+  if (event.payload.action) {
+    attributes["github.event.action"] = event.payload.action;
+  }
+  const repository = event.payload.repository?.full_name;
+  if (repository) {
+    attributes["github.repository.full_name"] = repository;
+  }
+
+  let runId: number | undefined;
+  let runName: string | null | undefined;
+  let runAttempt: number | undefined;
+
+  if (event.eventType === "workflow_run") {
+    const run = event.payload.workflow_run;
+    runId = run?.id;
+    runName = run?.name;
+    runAttempt = run?.run_attempt;
+  } else {
+    const job = event.payload.workflow_job;
+    if (job) {
+      attributes["github.workflow_job.id"] = job.id;
+      runId = job.run_id;
+      runName = job.workflow_name;
+      runAttempt = job.run_attempt;
+    }
+  }
+
+  if (runId !== undefined) {
+    attributes["github.workflow_run.id"] = runId;
+  }
+  if (runName) {
+    attributes["github.workflow_run.name"] = runName;
+  }
+  if (runAttempt) {
+    attributes["github.workflow_run.run_attempt"] = runAttempt;
+  }
+
+  return attributes;
+}
+
 export function parseTimestamp(
   ...values: Array<string | null | undefined>
 ): Date {

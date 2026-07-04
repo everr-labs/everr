@@ -1,0 +1,22 @@
+kind: AlertRule
+metadata:
+  name: collector-oom
+spec:
+  runbook: collector-oom
+  display:
+    name: Collector pod memory spike
+    description: A pod in the collector namespace is using far more memory than its baseline. Historically the precursor to collector OOM kills; with the memory protections deployed this should be rare.
+  notificationMessage:
+    title: "${pod} memory spiked to ${peak_mem_mib} MiB"
+    description: "Working set peaked at ${peak_mem_mib} MiB in the last 5 minutes (baseline is under 150 MiB). Check what the collector was ingesting and whether the memory protections held."
+  evaluationInterval: 1m
+  query: |
+    SELECT
+      ResourceAttributes['k8s.pod.name'] AS pod,
+      round(max(Value) / 1048576) AS peak_mem_mib
+    FROM metrics_gauge
+    WHERE MetricName = 'k8s.pod.memory.working_set'
+      AND ResourceAttributes['k8s.namespace.name'] = 'collector'
+      AND TimeUnix >= now() - INTERVAL 5 MINUTE
+    GROUP BY pod
+    HAVING peak_mem_mib > 1024

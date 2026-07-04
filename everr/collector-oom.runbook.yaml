@@ -1,0 +1,268 @@
+kind: Runbook
+metadata:
+  name: collector-oom
+  # no project → "default", matching the collector-oom alert
+spec:
+  display:
+    name: "Collector pod memory spike"
+    description: "Triage steps for the collector-oom alert: a collector pod's working set passed 1 GiB."
+  duration: 6h
+  refreshInterval: 1m
+  panels:
+    collector-memory:
+      kind: Panel
+      spec:
+        display:
+          name: Collector pod memory working set (MiB)
+          description: Baseline is 65-150 MiB. The alert fires when any pod in the collector namespace peaks above 1024 MiB over 5 minutes.
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            unit: MiB
+            showLegend: true
+            lineWidth: 1.5
+            curveType: monotone
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT
+                      toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts,
+                      ResourceAttributes['k8s.pod.name'] AS pod,
+                      round(max(Value) / 1048576, 1) AS mem_mib
+                    FROM metrics_gauge
+                    WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
+                      AND MetricName = 'k8s.pod.memory.working_set'
+                      AND ResourceAttributes['k8s.namespace.name'] = 'collector'
+                    GROUP BY ts, pod
+                    ORDER BY ts
+    slow-replays:
+      kind: Panel
+      spec:
+        display:
+          name: Slow webhook replays (over 5s)
+          description: Replay jobs that stalled, with the GitHub event type. A slow workflow_run replay near the spike identifies the run being ingested.
+        plugin:
+          kind: Table
+          spec:
+            stickyHeader: true
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT
+                      formatDateTime(Timestamp, '%m-%d %H:%i:%S') AS started,
+                      SpanAttributes['github.event.type'] AS event_type,
+                      round(Duration / 1e6, 1) AS duration_ms,
+                      TraceId AS trace_id
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND SpanName = 'github_events.jobs.replay_webhook_to_collector'
+                      AND Duration > 5e9
+                    ORDER BY Timestamp DESC
+                    LIMIT 50
+    replay-durations:
+      kind: Panel
+      spec:
+        display:
+          name: Webhook replay duration (worst per interval)
+          description: Max duration of github_events.jobs.replay_webhook_to_collector spans. With async ingestion deployed this should stay flat in the low milliseconds; a return of 20-30s spikes means the webhook handler is doing heavy work inline again.
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            unit: ms
+            showLegend: false
+            lineWidth: 1.5
+            curveType: monotone
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT
+                      toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                      round(max(Duration) / 1e6, 1) AS max_ms
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND SpanName = 'github_events.jobs.replay_webhook_to_collector'
+                    GROUP BY ts
+                    ORDER BY ts
+    slow-by-event-type:
+      kind: Panel
+      spec:
+        display:
+          name: Replay duration by GitHub event type
+          description: p50 vs max per event type. workflow_run is the only event that triggers log archive ingestion, so it owns the tail.
+        plugin:
+          kind: Table
+          spec:
+            stickyHeader: true
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT
+                      SpanAttributes['github.event.type'] AS event_type,
+                      count() AS replays,
+                      round(quantile(0.5)(Duration) / 1e6, 1) AS p50_ms,
+                      round(quantile(0.95)(Duration) / 1e6, 1) AS p95_ms,
+                      round(max(Duration) / 1e6, 1) AS max_ms
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND SpanName = 'github_events.jobs.replay_webhook_to_collector'
+                    GROUP BY event_type
+                    ORDER BY max_ms DESC
+                    LIMIT 20
+    memory-then-vs-now:
+      kind: Panel
+      spec:
+        display:
+          name: Peak collector memory, incident vs selected window
+          description: Left tile is pinned to the incident window (2026-07-03 17:00 to 2026-07-04 05:30 UTC); right tile follows the time picker. Red above the 1024 MiB alert threshold.
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last
+            unit: " MiB"
+            decimals: 0
+            colorMode: background
+            thresholds:
+              mode: absolute
+              defaultColor: "#22c55e"
+              steps:
+                - { value: 1024, color: "#ef4444" }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT round(max(Value) / 1048576) AS incident_peak
+                    FROM metrics_gauge
+                    WHERE TimeUnix >= '2026-07-03 17:00:00' AND TimeUnix <= '2026-07-04 05:30:00'
+                      AND MetricName = 'k8s.pod.memory.working_set'
+                      AND ResourceAttributes['k8s.namespace.name'] = 'collector'
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT round(max(Value) / 1048576) AS selected_window_peak
+                    FROM metrics_gauge
+                    WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
+                      AND MetricName = 'k8s.pod.memory.working_set'
+                      AND ResourceAttributes['k8s.namespace.name'] = 'collector'
+    replay-then-vs-now:
+      kind: Panel
+      spec:
+        display:
+          name: Worst webhook replay, incident vs selected window
+          description: Left tile is pinned to the incident window; right tile follows the time picker. Red above 5000 ms.
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last
+            unit: " ms"
+            decimals: 0
+            colorMode: background
+            thresholds:
+              mode: absolute
+              defaultColor: "#22c55e"
+              steps:
+                - { value: 5000, color: "#ef4444" }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT round(max(Duration) / 1e6) AS incident_worst
+                    FROM traces
+                    WHERE Timestamp >= '2026-07-03 17:00:00' AND Timestamp <= '2026-07-04 05:30:00'
+                      AND SpanName = 'github_events.jobs.replay_webhook_to_collector'
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT round(max(Duration) / 1e6) AS selected_window_worst
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND SpanName = 'github_events.jobs.replay_webhook_to_collector'
+    incident-slow-replays:
+      kind: Panel
+      spec:
+        display:
+          name: Slow replays during the incident (pinned)
+          description: The replay jobs over 5s in the incident window, 2026-07-03 17:00 to 2026-07-04 05:30 UTC. Each preceded a collector OOM kill by about a minute. Does not follow the time picker.
+        plugin:
+          kind: Table
+          spec:
+            stickyHeader: true
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT
+                      formatDateTime(Timestamp, '%m-%d %H:%i:%S') AS started,
+                      SpanAttributes['github.event.type'] AS event_type,
+                      round(Duration / 1e6, 1) AS duration_ms,
+                      TraceId AS trace_id
+                    FROM traces
+                    WHERE Timestamp >= '2026-07-03 17:00:00' AND Timestamp <= '2026-07-04 05:30:00'
+                      AND SpanName = 'github_events.jobs.replay_webhook_to_collector'
+                      AND Duration > 5e9
+                    ORDER BY Timestamp ASC
+                    LIMIT 20
+    incident-memory-scrapes:
+      kind: Panel
+      spec:
+        display:
+          name: Highest collector memory scrapes during the incident (pinned)
+          description: Top kubelet scrapes of collector pod working set in the incident window. The multi-GiB rows are the balloons right before each kill. Does not follow the time picker.
+        plugin:
+          kind: Table
+          spec:
+            stickyHeader: true
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT
+                      formatDateTime(TimeUnix, '%m-%d %H:%i:%S') AS scraped,
+                      ResourceAttributes['k8s.pod.name'] AS pod,
+                      round(Value / 1048576, 1) AS mem_mib
+                    FROM metrics_gauge
+                    WHERE TimeUnix >= '2026-07-03 17:00:00' AND TimeUnix <= '2026-07-04 05:30:00'
+                      AND MetricName = 'k8s.pod.memory.working_set'
+                      AND ResourceAttributes['k8s.namespace.name'] = 'collector'
+                    ORDER BY mem_mib DESC
+                    LIMIT 10
+  markdown:
+    file: ./collector-oom.runbook.md
+  pages:
+    - name: investigation
+      display: { name: "Investigation (2026-07-04)" }
+      markdown:
+        file: ./investigations/2026-07-04-collector-oom/collector-webhook-oom.runbook.md

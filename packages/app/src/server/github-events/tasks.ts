@@ -15,6 +15,7 @@ import {
   STATUS_TASK_IDENTIFIER,
 } from "./identifiers";
 import {
+  eventAttributesFromQueuedEvent,
   installationIdFromQueuedEvent,
   parseQueuedWorkflowEvent,
 } from "./payloads";
@@ -46,12 +47,14 @@ function makeWebhookTask(
     const body = Buffer.from(data.body, "base64");
     const parsed = parseQueuedWorkflowEvent(eventType, body);
     const jobId = helpers.job.id;
+    const eventAttributes = eventAttributesFromQueuedEvent(parsed);
 
     await tracer.startActiveSpan(
       spanName,
       {
         attributes: {
           ...(eventType ? { "github.event.type": eventType } : {}),
+          ...eventAttributes,
           "graphile_worker.job.id": jobId,
         },
         kind: SpanKind.INTERNAL,
@@ -60,11 +63,13 @@ function makeWebhookTask(
         try {
           const installationId = installationIdFromQueuedEvent(parsed);
           const organizationId = await resolveOrganizationId(installationId);
+          span.setAttribute("everr.organization.id", organizationId);
           await action({ body, data, organizationId, parsed });
         } catch (error) {
           const err = error instanceof Error ? error : new Error(String(error));
           const terminalAttributes = {
             ...(eventType ? { "github.event.type": eventType } : {}),
+            ...eventAttributes,
             ...installationAttribute(parsed),
             "graphile_worker.job.id": jobId,
           };

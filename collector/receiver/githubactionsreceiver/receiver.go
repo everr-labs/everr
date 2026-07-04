@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/collector/client"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
+	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/receiverhelper"
 	"go.uber.org/zap"
@@ -372,18 +373,14 @@ func (gar *githubActionsReceiver) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		} else {
 			withTraceInfo := gar.tracesConsumer != nil && !traceErr
 
-			ld, err := eventToLogs(ctx, event, gar.config, ghClient, gar.logger.Named("eventToLogs"), withTraceInfo, gar.jobNames, gar.stepTimings)
+			// eventToLogs hands payloads to the consumer in bounded chunks so
+			// a large run is never materialized in memory at once.
+			err := eventToLogs(ctx, event, gar.config, ghClient, gar.logger.Named("eventToLogs"), withTraceInfo, gar.jobNames, gar.stepTimings, func(ld plog.Logs) error {
+				return gar.logsConsumer.ConsumeLogs(ctx, ld)
+			})
 			if err != nil {
 				processingFailed = true
 				gar.logger.Error("Failed to process logs", zap.Error(err))
-			}
-
-			if ld != nil {
-				consumerErr := gar.logsConsumer.ConsumeLogs(ctx, *ld)
-				if consumerErr != nil {
-					processingFailed = true
-					gar.logger.Error("Failed to consume logs", zap.Error(consumerErr))
-				}
 			}
 		}
 	}

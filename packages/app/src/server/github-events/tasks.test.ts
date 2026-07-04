@@ -8,6 +8,7 @@ const STATUS_TASK_IDENTIFIER = "github-events/status";
 type MockSpan = {
   end: ReturnType<typeof vi.fn>;
   recordException: ReturnType<typeof vi.fn>;
+  setAttribute: ReturnType<typeof vi.fn>;
   setStatus: ReturnType<typeof vi.fn>;
 };
 
@@ -15,6 +16,7 @@ const taskMocks = vi.hoisted(() => {
   const span: MockSpan = {
     end: vi.fn(),
     recordException: vi.fn(),
+    setAttribute: vi.fn(),
     setStatus: vi.fn(),
   };
   const logActiveSpan: boolean[] = [];
@@ -98,9 +100,10 @@ function encodePayload(payload: unknown): string {
 function workflowRunData(): WebhookJobData {
   return {
     body: encodePayload({
+      action: "completed",
       installation: { id: 123 },
-      repository: { id: 456 },
-      workflow_run: { id: 789, run_attempt: 1 },
+      repository: { id: 456, full_name: "acme/widgets" },
+      workflow_run: { id: 789, run_attempt: 1, name: "Build & Test" },
     }),
     headers: { "x-github-event": ["workflow_run"] },
   };
@@ -109,8 +112,9 @@ function workflowRunData(): WebhookJobData {
 function workflowJobData(): WebhookJobData {
   return {
     body: encodePayload({
+      action: "completed",
       installation: { id: 123 },
-      repository: { id: 456 },
+      repository: { id: 456, full_name: "acme/widgets" },
       workflow_job: { id: 789, run_id: 654, run_attempt: 1 },
     }),
     headers: { "x-github-event": ["workflow_job"] },
@@ -139,6 +143,7 @@ beforeEach(() => {
   taskMocks.serverLoggerInfo.mockClear();
   taskMocks.span.end.mockClear();
   taskMocks.span.recordException.mockClear();
+  taskMocks.span.setAttribute.mockClear();
   taskMocks.span.setStatus.mockClear();
   taskMocks.startActiveSpan.mockClear();
 });
@@ -162,12 +167,21 @@ describe("github events tasks", () => {
       "github_events.jobs.replay_webhook_to_collector",
       {
         attributes: {
+          "github.event.action": "completed",
           "github.event.type": "workflow_run",
+          "github.repository.full_name": "acme/widgets",
+          "github.workflow_run.id": 789,
+          "github.workflow_run.name": "Build & Test",
+          "github.workflow_run.run_attempt": 1,
           "graphile_worker.job.id": "collector-job-1",
         },
         kind: 0,
       },
       expect.any(Function),
+    );
+    expect(taskMocks.span.setAttribute).toHaveBeenCalledWith(
+      "everr.organization.id",
+      "org-1",
     );
   });
 
@@ -183,7 +197,7 @@ describe("github events tasks", () => {
       "org-1",
       expect.objectContaining({
         payload: expect.objectContaining({
-          repository: { id: 456 },
+          repository: { id: 456, full_name: "acme/widgets" },
           workflow_job: { id: 789, run_id: 654, run_attempt: 1 },
         }),
         eventType: "workflow_job",
@@ -193,7 +207,12 @@ describe("github events tasks", () => {
       "github_events.jobs.handle_status_event",
       {
         attributes: {
+          "github.event.action": "completed",
           "github.event.type": "workflow_job",
+          "github.repository.full_name": "acme/widgets",
+          "github.workflow_job.id": 789,
+          "github.workflow_run.id": 654,
+          "github.workflow_run.run_attempt": 1,
           "graphile_worker.job.id": "status-job-1",
         },
         kind: 0,
