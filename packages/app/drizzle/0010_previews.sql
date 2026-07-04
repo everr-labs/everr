@@ -22,11 +22,11 @@ CREATE UNIQUE INDEX "previews_tenant_repo_name_uq" ON "previews" USING btree ("o
 ALTER TABLE "alert_definitions" ADD CONSTRAINT "alert_definitions_preview_id_previews_id_fk" FOREIGN KEY ("preview_id") REFERENCES "public"."previews"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "dashboards" ADD CONSTRAINT "dashboards_preview_id_previews_id_fk" FOREIGN KEY ("preview_id") REFERENCES "public"."previews"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "runbooks" ADD CONSTRAINT "runbooks_preview_id_previews_id_fk" FOREIGN KEY ("preview_id") REFERENCES "public"."previews"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE UNIQUE INDEX "alert_definitions_live_project_slug_uq" ON "alert_definitions" USING btree ("organization_id","repoid","project","slug") WHERE "alert_definitions"."preview_id" IS NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "alert_definitions_live_project_slug_uq" ON "alert_definitions" USING btree ("organization_id","project","slug") WHERE "alert_definitions"."preview_id" IS NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "alert_definitions_preview_project_slug_uq" ON "alert_definitions" USING btree ("preview_id","project","slug") WHERE "alert_definitions"."preview_id" IS NOT NULL;--> statement-breakpoint
-CREATE UNIQUE INDEX "dashboards_live_project_slug_uq" ON "dashboards" USING btree ("organization_id","repoid","project","slug") WHERE "dashboards"."preview_id" IS NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "dashboards_live_project_slug_uq" ON "dashboards" USING btree ("organization_id","project","slug") WHERE "dashboards"."preview_id" IS NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "dashboards_preview_project_slug_uq" ON "dashboards" USING btree ("preview_id","project","slug") WHERE "dashboards"."preview_id" IS NOT NULL;--> statement-breakpoint
-CREATE UNIQUE INDEX "runbooks_live_project_slug_uq" ON "runbooks" USING btree ("organization_id","repoid","project","slug") WHERE "runbooks"."preview_id" IS NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "runbooks_live_project_slug_uq" ON "runbooks" USING btree ("organization_id","project","slug") WHERE "runbooks"."preview_id" IS NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "runbooks_preview_project_slug_uq" ON "runbooks" USING btree ("preview_id","project","slug") WHERE "runbooks"."preview_id" IS NOT NULL;--> statement-breakpoint
 ALTER TABLE "alert_definitions" ADD CONSTRAINT "alert_definitions_live_xor_preview" CHECK (("alert_definitions"."preview_id" IS NULL) <> ("alert_definitions"."repoid" IS NULL));--> statement-breakpoint
 ALTER TABLE "dashboards" ADD CONSTRAINT "dashboards_live_xor_preview" CHECK (("dashboards"."preview_id" IS NULL) <> ("dashboards"."repoid" IS NULL));--> statement-breakpoint

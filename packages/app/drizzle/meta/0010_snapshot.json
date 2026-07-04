@@ -1,5 +1,5 @@
 {
-  "id": "deeb8f26-4eb2-4ca8-b136-ee1a0fb85574",
+  "id": "c797da5f-ae44-43e3-9318-b1536d6688d9",
   "prevId": "1832b2cd-de21-4adb-bd82-ea60acdffc95",
   "version": "7",
   "dialect": "postgresql",
@@ -232,12 +232,6 @@
           "columns": [
             {
               "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "repoid",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -604,12 +598,6 @@
               "nulls": "last"
             },
             {
-              "expression": "repoid",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
               "expression": "project",
               "isExpression": false,
               "asc": true,
@@ -922,12 +910,6 @@
           "columns": [
             {
               "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "repoid",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
