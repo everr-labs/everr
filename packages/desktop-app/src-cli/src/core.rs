@@ -626,18 +626,21 @@ impl cliclack::Theme for WarnTheme {
 
 pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
     use everr_core::apply::{
-        ApplyRequest, classify_documents, detect_git_source, load_apply_manifest,
-        load_resource_documents, resolve_preview_name,
+        ApplyRequest, classify_documents, detect_git_source, load_resource_documents,
+        resolve_preview_name, resolve_repoid,
     };
 
     let dir = std::path::Path::new(&args.dir);
     if !dir.is_dir() {
         anyhow::bail!("{} is not a directory", args.dir);
     }
-    // The required everr.yaml declares the repoid (apply ownership boundary).
-    // Check it before parsing resources so unrelated YAML errors cannot hide a
-    // missing manifest.
-    let repoid = load_apply_manifest(dir)?;
+    // The repoid (apply ownership boundary) comes from everr.yaml when
+    // present, else from the normalized origin remote that detect_git_source
+    // already read (one git invocation; the shipped source.remote and the
+    // inferred repoid are the same string). Resolve it before parsing
+    // resources so unrelated YAML errors cannot hide a missing identity.
+    let source = detect_git_source(dir);
+    let repoid = resolve_repoid(dir, source.as_ref().and_then(|s| s.remote.as_deref()))?;
     let documents = load_resource_documents(dir)?;
     if documents.is_empty() {
         eprintln!(
@@ -647,7 +650,6 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
     }
 
     let state = classify_documents(documents)?.into_wire();
-    let source = detect_git_source(dir);
     let preview = match args.preview.as_deref() {
         Some(flag) => Some(resolve_preview_name(dir, flag)?),
         None => None,
@@ -695,6 +697,7 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
             preview: preview.clone(),
             dry_run: true,
             adopt: args.adopt,
+            transfer_from: args.transfer_from.clone(),
         })
         .await?;
     print_apply_summary(&plan, true);
@@ -703,10 +706,12 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let has_changes = plan
-        .results
-        .iter()
-        .any(|r| !r.created.is_empty() || !r.updated.is_empty() || !r.deleted.is_empty());
+    let has_changes = plan.results.iter().any(|r| {
+        !r.created.is_empty()
+            || !r.updated.is_empty()
+            || !r.deleted.is_empty()
+            || !r.transferred.is_empty()
+    });
     if !has_changes {
         println!("Nothing to apply.");
         return Ok(());
@@ -744,6 +749,7 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
             preview: preview.clone(),
             dry_run: false,
             adopt: args.adopt,
+            transfer_from: args.transfer_from.clone(),
         })
         .await?;
     print_apply_summary(&summary, false);
@@ -794,7 +800,7 @@ fn print_apply_summary(summary: &everr_core::apply::ApplySummary, plan: bool) {
     println!("{label}Destination org: «{}»", summary.organization.name);
     for r in &summary.results {
         println!(
-            "{label}{}: {} created, {} updated, {} deleted{}",
+            "{label}{}: {} created, {} updated, {} deleted{}{}",
             r.kind,
             r.created.len(),
             r.updated.len(),
@@ -803,6 +809,11 @@ fn print_apply_summary(summary: &everr_core::apply::ApplySummary, plan: bool) {
                 String::new()
             } else {
                 format!(", {} adopted", r.adopted.len())
+            },
+            if r.transferred.is_empty() {
+                String::new()
+            } else {
+                format!(", {} transferred", r.transferred.len())
             }
         );
         for s in &r.created {
@@ -816,6 +827,9 @@ fn print_apply_summary(summary: &everr_core::apply::ApplySummary, plan: bool) {
         }
         for s in &r.adopted {
             println!("  ⇄ {s}");
+        }
+        for s in &r.transferred {
+            println!("  → {s}");
         }
     }
 }

@@ -8,6 +8,7 @@ import { type DbExecutor, db } from "@/db/client";
 import { ApplyValidationError } from "./errors";
 import type { OwnershipConflict } from "./ownership";
 import type { ApplyInput, ApplyResourceEntry, ApplySource } from "./schema";
+import { transferBoundary } from "./transfer.server";
 
 export type { OwnershipConflict } from "./ownership";
 
@@ -18,6 +19,8 @@ export interface KindResult {
   deleted: string[];
   /** Live resources taken over from another owning repo (only with `adopt`). */
   adopted: string[];
+  /** Live resources relabeled from the old repoid (only with `transferFrom`). */
+  transferred: string[];
 }
 
 export interface ApplyResourcesResult {
@@ -105,10 +108,25 @@ export async function applyResources(opts: {
   dryRun?: boolean;
   /** Take over live resources owned by another repo instead of failing. */
   adopt?: boolean;
+  /** Move everything this repoid owns to `repoid` before reconciling, in the
+   * same transaction (repo rename / legacy-manifest removal). Live only. */
+  transferFrom?: string;
 }): Promise<ApplyResourcesResult> {
-  const { orgId, repoid, state, source, dryRun, adopt } = opts;
+  const { orgId, repoid, state, source, dryRun, adopt, transferFrom } = opts;
   // null = live. previewNameSchema is min-length, so a present name is never "".
   const previewName = opts.preview ?? null;
+
+  // The input schema rejects these too; guard here for non-route callers.
+  if (transferFrom === repoid) {
+    throw new ApplyValidationError(
+      "transferFrom must differ from the repo's own repoid",
+    );
+  }
+  if (transferFrom && previewName !== null) {
+    throw new ApplyValidationError(
+      "transferFrom cannot be combined with a preview apply",
+    );
+  }
 
   const summarize = (
     kind: string,
@@ -124,14 +142,19 @@ export async function applyResources(opts: {
     updated: r.updated,
     deleted: r.deleted,
     adopted: r.adopted,
+    transferred: [],
   });
 
   // Live, or the preview resolved to its registry id via the given resolver.
+  // A live namespace carries the transfer source (`absorbs`) so every scope
+  // diffs against the post-transfer world; see previewScope.
   const resolveNamespace = async (
     resolveId: (name: string) => Promise<string | null>,
   ): Promise<Namespace> =>
     previewName === null
-      ? { orgId, repoid, kind: "live" }
+      ? transferFrom
+        ? { orgId, repoid, kind: "live", absorbs: transferFrom }
+        : { orgId, repoid, kind: "live" }
       : { orgId, repoid, kind: "preview", id: await resolveId(previewName) };
 
   // The dry-run target resolves the preview to its existing registry id (without
@@ -183,7 +206,23 @@ export async function applyResources(opts: {
     runbooks: state.runbooks,
   });
 
-  if (dryRun) return { dryRun: true, results: validated };
+  if (dryRun) {
+    if (transferFrom) {
+      // Report what the transfer would relabel; the reconcile diff above is
+      // already computed against the post-transfer world via the absorbing
+      // namespace scope.
+      const moved = await transferBoundary(db, {
+        orgId,
+        from: transferFrom,
+        to: repoid,
+        dryRun: true,
+      });
+      for (const [i, { key }] of REGISTRY.entries()) {
+        validated[i].transferred = moved[key];
+      }
+    }
+    return { dryRun: true, results: validated };
+  }
 
   // Real apply: one transaction so registration + every kind commit or roll
   // back together. Register the preview FIRST — its row is the parent every
@@ -195,6 +234,17 @@ export async function applyResources(opts: {
     const applied = await resolveNamespace((name) =>
       upsertPreview(tx, { orgId, repoid, name }),
     );
+    // The transfer relabels the old boundary FIRST, so the reconcilers see
+    // its rows as their own: unchanged ones no-op, changed ones update, and
+    // ones missing from the tree prune, all in this same transaction.
+    const moved = transferFrom
+      ? await transferBoundary(tx, {
+          orgId,
+          from: transferFrom,
+          to: repoid,
+          dryRun: false,
+        })
+      : null;
     for (const { key, kind, reconcile } of REGISTRY) {
       const r = await reconcile({
         namespace: applied,
@@ -204,7 +254,9 @@ export async function applyResources(opts: {
         adopt,
         db: tx,
       });
-      results.push(summarize(kind, r));
+      const summary = summarize(kind, r);
+      if (moved) summary.transferred = moved[key];
+      results.push(summary);
     }
   });
 

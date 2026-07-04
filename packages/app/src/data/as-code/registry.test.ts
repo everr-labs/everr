@@ -27,6 +27,11 @@ vi.mock("@/data/previews/apply.server", () => ({
   findPreviewId: (...a: unknown[]) => findPreviewId(...a),
 }));
 
+const transferBoundary = vi.fn();
+vi.mock("./transfer.server", () => ({
+  transferBoundary: (...a: unknown[]) => transferBoundary(...a),
+}));
+
 // The real apply pass runs inside one db.transaction; the mock just invokes
 // the callback with a stand-in executor so the reconcilers (also mocked) run.
 vi.mock("@/db/client", () => ({
@@ -53,6 +58,11 @@ beforeEach(() => {
   dashboardReconciler.mockResolvedValue(empty);
   runbookReconciler.mockResolvedValue(empty);
   alertReconciler.mockResolvedValue(empty);
+  transferBoundary.mockResolvedValue({
+    dashboards: [],
+    runbooks: [],
+    alerts: [],
+  });
   upsertPreview.mockResolvedValue("prev-1");
   findPreviewId.mockResolvedValue(null);
 });
@@ -101,6 +111,7 @@ describe("applyResources", () => {
           updated: [],
           deleted: [],
           adopted: [],
+          transferred: [],
         },
         {
           kind: "Runbook",
@@ -108,6 +119,7 @@ describe("applyResources", () => {
           updated: [],
           deleted: [],
           adopted: [],
+          transferred: [],
         },
         {
           kind: "AlertRule",
@@ -115,6 +127,7 @@ describe("applyResources", () => {
           updated: [],
           deleted: [],
           adopted: [],
+          transferred: [],
         },
       ],
     });
@@ -172,6 +185,7 @@ describe("applyResources", () => {
       updated: [],
       deleted: [],
       adopted: [],
+      transferred: [],
     });
   });
 
@@ -325,6 +339,111 @@ describe("applyResources", () => {
     // Fail-fast: aborts in the validation pass, before the real apply's
     // transaction ever registers or writes.
     expect(upsertPreview).not.toHaveBeenCalled();
+  });
+
+  it("transfers the old boundary before reconciling and reports it per kind", async () => {
+    transferBoundary.mockResolvedValue({
+      dashboards: ["cpu"],
+      runbooks: [],
+      alerts: ["high-errors"],
+    });
+
+    const out = await applyResources({
+      orgId: "org-1",
+      repoid: "repo-1",
+      transferFrom: "legacy-uuid",
+      state: { dashboards: [], runbooks: [], alerts: [] },
+      dryRun: false,
+    });
+
+    // Real pass: relabel runs on the shared transaction, before any reconciler.
+    expect(transferBoundary).toHaveBeenCalledWith(
+      { tx: true },
+      { orgId: "org-1", from: "legacy-uuid", to: "repo-1", dryRun: false },
+    );
+    const transferOrder = transferBoundary.mock.invocationCallOrder.at(-1) ?? 0;
+    const reconcileOrder = dashboardReconciler.mock.invocationCallOrder
+      .filter((_, i) => dashboardReconciler.mock.calls[i][0].dryRun === false)
+      .at(0);
+    expect(transferOrder).toBeLessThan(reconcileOrder ?? 0);
+
+    // Every reconciler scoped to the absorbing namespace, so the diff is
+    // computed against the post-transfer world.
+    expect(dashboardReconciler).toHaveBeenCalledWith(
+      expect.objectContaining({
+        namespace: {
+          orgId: "org-1",
+          repoid: "repo-1",
+          kind: "live",
+          absorbs: "legacy-uuid",
+        },
+      }),
+    );
+    expect(out.results).toContainEqual(
+      expect.objectContaining({ kind: "Dashboard", transferred: ["cpu"] }),
+    );
+    expect(out.results).toContainEqual(
+      expect.objectContaining({
+        kind: "AlertRule",
+        transferred: ["high-errors"],
+      }),
+    );
+  });
+
+  it("reports the would-be transfer in a dry run without opening the transaction", async () => {
+    transferBoundary.mockResolvedValue({
+      dashboards: [],
+      runbooks: ["triage"],
+      alerts: [],
+    });
+
+    const out = await applyResources({
+      orgId: "org-1",
+      repoid: "repo-1",
+      transferFrom: "legacy-uuid",
+      state: { dashboards: [], runbooks: [], alerts: [] },
+      dryRun: true,
+    });
+
+    expect(transferBoundary).toHaveBeenCalledTimes(1);
+    expect(transferBoundary).toHaveBeenCalledWith(expect.anything(), {
+      orgId: "org-1",
+      from: "legacy-uuid",
+      to: "repo-1",
+      dryRun: true,
+    });
+    expect(upsertPreview).not.toHaveBeenCalled();
+    expect(out.results).toContainEqual(
+      expect.objectContaining({ kind: "Runbook", transferred: ["triage"] }),
+    );
+  });
+
+  it("never transfers without transferFrom and rejects invalid combinations", async () => {
+    await applyResources({
+      orgId: "org-1",
+      repoid: "repo-1",
+      state: { dashboards: [], runbooks: [], alerts: [] },
+    });
+    expect(transferBoundary).not.toHaveBeenCalled();
+
+    await expect(
+      applyResources({
+        orgId: "org-1",
+        repoid: "repo-1",
+        transferFrom: "repo-1",
+        state: { dashboards: [], runbooks: [], alerts: [] },
+      }),
+    ).rejects.toThrow(/differ from the repo's own repoid/);
+
+    await expect(
+      applyResources({
+        orgId: "org-1",
+        repoid: "repo-1",
+        transferFrom: "legacy-uuid",
+        preview: "gio/x",
+        state: { dashboards: [], runbooks: [], alerts: [] },
+      }),
+    ).rejects.toThrow(/cannot be combined with a preview/);
   });
 
   it("passes adopt through to every reconciler", async () => {

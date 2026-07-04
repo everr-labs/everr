@@ -1,4 +1,14 @@
-import { and, eq, isNull, ne, or, type SQL, sql } from "drizzle-orm";
+import {
+  and,
+  eq,
+  inArray,
+  isNull,
+  ne,
+  notInArray,
+  or,
+  type SQL,
+  sql,
+} from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 import { previews } from "@/db/schema";
 
@@ -25,9 +35,21 @@ export type Namespace = {
   readonly orgId: string;
   readonly repoid: string;
 } & (
-  | { readonly kind: "live" }
+  | {
+      readonly kind: "live";
+      /** A repoid whose whole boundary this apply transfers to `repoid`
+       * (`--transfer-from`). Scopes treat its rows as already owned so a dry
+       * run diffs against the post-transfer world; the real pass relabels the
+       * rows first, after which this matches nothing. */
+      readonly absorbs?: string;
+    }
   | { readonly kind: "preview"; readonly id: string | null }
 );
+
+/** The repoids a live namespace owns: its own plus a transfer source, if any. */
+function ownedRepoids(ns: Namespace & { kind: "live" }): string[] {
+  return ns.absorbs ? [ns.repoid, ns.absorbs] : [ns.repoid];
+}
 
 /**
  * WHERE predicate selecting one namespace's rows in a resource table: live rows
@@ -42,7 +64,7 @@ export function previewScope(table: ScopedTable, ns: Namespace): SQL {
     return (
       and(
         eq(table.organizationId, ns.orgId),
-        eq(table.repoid, ns.repoid),
+        inArray(table.repoid, ownedRepoids(ns)),
         isNull(table.previewId),
       ) ?? sql`false`
     );
@@ -107,11 +129,14 @@ export function foreignLiveScope(
         and(eq(table.project, id.project), eq(table.slug, id.slug)),
       ),
     ) ?? sql`false`;
+  const owned = ownedRepoids(ns);
   return (
     and(
       eq(table.organizationId, ns.orgId),
       isNull(table.previewId),
-      ne(table.repoid, ns.repoid),
+      owned.length === 1
+        ? ne(table.repoid, ns.repoid)
+        : notInArray(table.repoid, owned),
       matchesAnyIdentity,
     ) ?? sql`false`
   );

@@ -54,7 +54,26 @@ export const applyInput = z
     /** Take over live resources owned by another repo instead of failing on the
      * cross-repo ownership conflict. */
     adopt: z.boolean().default(false),
+    /** Move everything this repoid owns to `repoid` before reconciling, in the
+     * same transaction (repo rename / legacy-manifest removal). Live only. */
+    transferFrom: z.string().min(1).optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((input, ctx) => {
+    if (input.transferFrom === input.repoid) {
+      ctx.addIssue({
+        code: "custom",
+        message: "transferFrom must differ from the repo's own repoid",
+        path: ["transferFrom"],
+      });
+    }
+    if (input.transferFrom && input.preview) {
+      ctx.addIssue({
+        code: "custom",
+        message: "transferFrom cannot be combined with a preview apply",
+        path: ["transferFrom"],
+      });
+    }
+  });
 
 export type ApplyInput = z.infer<typeof applyInput>;
