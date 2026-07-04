@@ -15,7 +15,6 @@ const FETCH_TIMEOUT: Duration = Duration::from_millis(750);
 const RELEASE_METADATA_PATH: &str = "/everr-app/release-metadata.json";
 const UPGRADE_COMMAND: &str = "everr upgrade";
 
-#[cfg(debug_assertions)]
 const RELEASE_METADATA_URL_OVERRIDE_ENV: &str = "EVERR_RELEASE_METADATA_URL_FOR_TESTS";
 
 #[cfg(debug_assertions)]
@@ -30,9 +29,7 @@ const CACHE_FILE_NAME: &str = "cli-update-check.json";
 #[derive(Debug, Deserialize)]
 pub(crate) struct ReleaseMetadata {
     pub(crate) version: String,
-    #[serde(default)]
     pub(crate) platform_version: Option<String>,
-    #[serde(default)]
     pub(crate) target: Option<ReleaseTarget>,
     #[serde(default)]
     pub(crate) files: Vec<ReleaseFile>,
@@ -161,11 +158,8 @@ pub(crate) async fn fetch_release_metadata(timeout: Duration) -> Result<ReleaseM
 }
 
 fn release_metadata_url() -> String {
-    #[cfg(debug_assertions)]
-    if let Ok(url) = std::env::var(RELEASE_METADATA_URL_OVERRIDE_ENV) {
-        if !url.trim().is_empty() {
-            return url;
-        }
+    if let Some(url) = test_override(RELEASE_METADATA_URL_OVERRIDE_ENV) {
+        return url;
     }
 
     format!(
@@ -173,6 +167,18 @@ fn release_metadata_url() -> String {
         everr_core::build::default_docs_base_url(),
         RELEASE_METADATA_PATH
     )
+}
+
+/// A `*_FOR_TESTS` env override. Always `None` in release builds, so no
+/// environment variable can redirect a real upgrade.
+pub(crate) fn test_override(name: &str) -> Option<String> {
+    if cfg!(debug_assertions) {
+        std::env::var(name)
+            .ok()
+            .filter(|value| !value.trim().is_empty())
+    } else {
+        None
+    }
 }
 
 fn cache_path() -> Result<PathBuf> {

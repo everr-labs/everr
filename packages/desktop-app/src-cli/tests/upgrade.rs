@@ -4,8 +4,6 @@ use predicates::str::contains;
 use sha2::{Digest, Sha256};
 use support::{CliTestEnv, mock_api_server};
 
-const DOWNLOAD_BASE_URL_ENV: &str = "EVERR_DOWNLOAD_BASE_URL_FOR_TESTS";
-
 fn sha256_hex(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
@@ -47,14 +45,15 @@ mod app_upgrade {
 
     use assert_cmd::Command;
     use base64::Engine;
+    use everr_cli::upgrade::{
+        APP_INSTALL_PATH_OVERRIDE_ENV, DOWNLOAD_BASE_URL_OVERRIDE_ENV, UPDATER_PUBKEY_OVERRIDE_ENV,
+    };
     use minisign::KeyPair;
     use predicates::str::contains;
 
+    use crate::sha256_hex;
     use crate::support::{CliTestEnv, mock_api_server};
-    use crate::{DOWNLOAD_BASE_URL_ENV, sha256_hex};
 
-    const APP_INSTALL_PATH_ENV: &str = "EVERR_APP_INSTALL_PATH_FOR_TESTS";
-    const UPDATER_PUBKEY_ENV: &str = "EVERR_UPDATER_PUBKEY_FOR_TESTS";
     const ARCHIVE_NAME: &str = "everr-macos-arm64.app.tar.gz";
 
     struct AppUpgradeHarness {
@@ -67,23 +66,28 @@ mod app_upgrade {
 
     impl AppUpgradeHarness {
         fn new(installed_version: &str, latest_app_version: &str, archive_sha256: &str) -> Self {
+            Self::with_metadata_body(
+                installed_version,
+                serde_json::json!({
+                    "version": env!("EVERR_VERSION"),
+                    "platform_version": latest_app_version,
+                    "target": { "updaterArchiveName": ARCHIVE_NAME },
+                    "files": [
+                        { "path": format!("everr-app/{ARCHIVE_NAME}"), "sha256": archive_sha256 },
+                    ],
+                })
+                .to_string(),
+            )
+        }
+
+        fn with_metadata_body(installed_version: &str, metadata_body: String) -> Self {
             let env = CliTestEnv::new();
             let mut server = mock_api_server();
             server
                 .mock("GET", "/everr-app/release-metadata.json")
                 .with_status(200)
                 .with_header("content-type", "application/json")
-                .with_body(
-                    serde_json::json!({
-                        "version": env!("EVERR_VERSION"),
-                        "platform_version": latest_app_version,
-                        "target": { "updaterArchiveName": ARCHIVE_NAME },
-                        "files": [
-                            { "path": format!("everr-app/{ARCHIVE_NAME}"), "sha256": archive_sha256 },
-                        ],
-                    })
-                    .to_string(),
-                )
+                .with_body(metadata_body)
                 .create();
 
             let install_dir = tempfile::tempdir().expect("install dir");
@@ -149,11 +153,11 @@ mod app_upgrade {
                 self.server.url()
             ));
             cmd.env(
-                DOWNLOAD_BASE_URL_ENV,
+                DOWNLOAD_BASE_URL_OVERRIDE_ENV,
                 format!("{}/everr-app", self.server.url()),
             );
-            cmd.env(APP_INSTALL_PATH_ENV, &self.installed_app);
-            cmd.env(UPDATER_PUBKEY_ENV, self.pubkey_override());
+            cmd.env(APP_INSTALL_PATH_OVERRIDE_ENV, &self.installed_app);
+            cmd.env(UPDATER_PUBKEY_OVERRIDE_ENV, self.pubkey_override());
             cmd.arg("upgrade");
             cmd
         }
@@ -309,30 +313,22 @@ mod app_upgrade {
     /// upgrade command for users who have the app installed.
     #[test]
     fn upgrade_skips_the_app_when_metadata_has_no_app_info() {
-        let env = CliTestEnv::new();
-        let mut server = mock_api_server();
-        server
-            .mock("GET", "/everr-app/release-metadata.json")
-            .with_status(200)
-            .with_header("content-type", "application/json")
-            .with_body(format!(r#"{{"version":"{}"}}"#, env!("EVERR_VERSION")))
-            .create();
-        let install_dir = tempfile::tempdir().expect("install dir");
-        let installed_app = write_fake_app(install_dir.path(), "1.0.0", "old-app-binary");
+        let harness = AppUpgradeHarness::with_metadata_body(
+            "1.0.0",
+            format!(r#"{{"version":"{}"}}"#, env!("EVERR_VERSION")),
+        );
 
-        let mut cmd = env.command_with_release_metadata_url(&format!(
-            "{}/everr-app/release-metadata.json",
-            server.url()
-        ));
-        cmd.env(APP_INSTALL_PATH_ENV, &installed_app);
-        cmd.arg("upgrade")
+        harness
+            .upgrade_command()
             .assert()
             .success()
             .stdout(contains("Skipping the Everr app update"));
 
-        let marker = fs::read_to_string(installed_app.join("Contents").join("MacOS").join("Everr"))
-            .expect("read app marker binary");
-        assert_eq!(marker, "old-app-binary", "app must be untouched");
+        assert_eq!(
+            harness.installed_marker(),
+            "old-app-binary",
+            "app must be untouched"
+        );
     }
 }
 
@@ -350,7 +346,9 @@ mod supported_platform {
     use predicates::str::contains;
 
     use crate::support::{CliTestEnv, mock_api_server};
-    use crate::{DOWNLOAD_BASE_URL_ENV, sha256_hex};
+    use everr_cli::upgrade::DOWNLOAD_BASE_URL_OVERRIDE_ENV;
+
+    use crate::sha256_hex;
 
     const RELEASE_METADATA_URL_ENV: &str = "EVERR_RELEASE_METADATA_URL_FOR_TESTS";
     const FAKE_BINARY: &[u8] = b"#!/bin/sh\necho fake-new-everr\n";
@@ -407,7 +405,7 @@ mod supported_platform {
         fn upgrade_command(&self) -> Command {
             let mut cmd = self.upgrade_command_without_download_override();
             cmd.env(
-                DOWNLOAD_BASE_URL_ENV,
+                DOWNLOAD_BASE_URL_OVERRIDE_ENV,
                 format!("{}/everr-app", self.server.url()),
             );
             cmd

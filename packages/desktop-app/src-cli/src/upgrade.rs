@@ -13,18 +13,21 @@ const METADATA_TIMEOUT: Duration = Duration::from_secs(10);
 const DOWNLOAD_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const DOWNLOAD_READ_TIMEOUT: Duration = Duration::from_secs(30);
 const FALLBACK_COMMAND: &str = "curl -fsSL https://everr.dev/upgrade.sh | bash";
-const DOWNLOAD_BASE_URL_OVERRIDE_ENV: &str = "EVERR_DOWNLOAD_BASE_URL_FOR_TESTS";
-const APP_INSTALL_PATH_OVERRIDE_ENV: &str = "EVERR_APP_INSTALL_PATH_FOR_TESTS";
-const UPDATER_PUBKEY_OVERRIDE_ENV: &str = "EVERR_UPDATER_PUBKEY_FOR_TESTS";
+pub const DOWNLOAD_BASE_URL_OVERRIDE_ENV: &str = "EVERR_DOWNLOAD_BASE_URL_FOR_TESTS";
+pub const APP_INSTALL_PATH_OVERRIDE_ENV: &str = "EVERR_APP_INSTALL_PATH_FOR_TESTS";
+pub const UPDATER_PUBKEY_OVERRIDE_ENV: &str = "EVERR_UPDATER_PUBKEY_FOR_TESTS";
 
 pub async fn run() -> Result<()> {
     let metadata = update_notice::fetch_release_metadata(METADATA_TIMEOUT).await?;
-    upgrade_cli(&metadata).await?;
-    upgrade_app(&metadata).await?;
+    // One client for both phases, so the app download reuses the CLI
+    // download's connection instead of paying a second TLS handshake.
+    let client = download_client()?;
+    upgrade_cli(&metadata, &client).await?;
+    upgrade_app(&metadata, &client).await?;
     Ok(())
 }
 
-async fn upgrade_cli(metadata: &ReleaseMetadata) -> Result<()> {
+async fn upgrade_cli(metadata: &ReleaseMetadata, client: &reqwest::Client) -> Result<()> {
     let current = Version::parse(env!("EVERR_VERSION")).context("parse current CLI version")?;
     let latest = parse_version(&metadata.version, "latest CLI version")?;
 
@@ -35,11 +38,10 @@ async fn upgrade_cli(metadata: &ReleaseMetadata) -> Result<()> {
 
     let binary_name = release_binary_name()?;
     let base = download_base_url()?;
-    let client = download_client()?;
     println!("Downloading Everr CLI v{latest}...");
     let (binary, checksum_file) = futures_util::try_join!(
-        download_bytes(&client, format!("{base}/{binary_name}")),
-        download_bytes(&client, format!("{base}/{binary_name}.sha256")),
+        download_bytes(client, format!("{base}/{binary_name}")),
+        download_bytes(client, format!("{base}/{binary_name}.sha256")),
     )?;
     verify_sha256(&binary, &checksum_file)?;
     replace_current_exe(&binary)?;
@@ -47,7 +49,7 @@ async fn upgrade_cli(metadata: &ReleaseMetadata) -> Result<()> {
     Ok(())
 }
 
-async fn upgrade_app(metadata: &ReleaseMetadata) -> Result<()> {
+async fn upgrade_app(metadata: &ReleaseMetadata, client: &reqwest::Client) -> Result<()> {
     let Some(installed) = installed_app_path() else {
         return Ok(());
     };
@@ -74,11 +76,10 @@ async fn upgrade_app(metadata: &ReleaseMetadata) -> Result<()> {
     let expected_sha256 = app_archive_sha256(metadata, archive_name)?;
     let pubkey = updater_pubkey()?;
     let base = download_base_url()?;
-    let client = download_client()?;
     println!("Downloading Everr app v{latest}...");
     let (archive, signature) = futures_util::try_join!(
-        download_bytes(&client, format!("{base}/{archive_name}")),
-        download_bytes(&client, format!("{base}/{archive_name}.sig")),
+        download_bytes(client, format!("{base}/{archive_name}")),
+        download_bytes(client, format!("{base}/{archive_name}.sig")),
     )?;
     verify_sha256_hex(&archive, expected_sha256)?;
     verify_updater_signature(&pubkey, &archive, &signature)?;
@@ -92,14 +93,7 @@ async fn upgrade_app(metadata: &ReleaseMetadata) -> Result<()> {
 /// the exact signing identity the in-app updater already trusts. The value is
 /// base64 over the minisign .pub file content.
 fn updater_pubkey() -> Result<minisign_verify::PublicKey> {
-    #[cfg(debug_assertions)]
-    let encoded = std::env::var(UPDATER_PUBKEY_OVERRIDE_ENV)
-        .ok()
-        .filter(|value| !value.trim().is_empty());
-    #[cfg(not(debug_assertions))]
-    let encoded: Option<String> = None;
-
-    let encoded = match encoded {
+    let encoded = match update_notice::test_override(UPDATER_PUBKEY_OVERRIDE_ENV) {
         Some(value) => value,
         None => {
             let conf: serde_json::Value =
@@ -112,11 +106,7 @@ fn updater_pubkey() -> Result<minisign_verify::PublicKey> {
         }
     };
 
-    use base64::Engine;
-    let decoded = base64::engine::general_purpose::STANDARD
-        .decode(encoded.trim())
-        .context("base64-decode updater pubkey")?;
-    let decoded = String::from_utf8(decoded).context("updater pubkey is not utf-8")?;
+    let decoded = decode_base64_file(&encoded, "updater pubkey")?;
     minisign_verify::PublicKey::decode(decoded.trim()).context("parse updater pubkey")
 }
 
@@ -127,17 +117,23 @@ fn verify_updater_signature(
     archive: &[u8],
     signature: &[u8],
 ) -> Result<()> {
-    use base64::Engine;
     let signature = std::str::from_utf8(signature).context("signature file is not utf-8")?;
-    let signature = base64::engine::general_purpose::STANDARD
-        .decode(signature.trim())
-        .context("base64-decode updater signature")?;
-    let signature = String::from_utf8(signature).context("updater signature is not utf-8")?;
+    let signature = decode_base64_file(signature, "updater signature")?;
     let signature =
         minisign_verify::Signature::decode(signature.trim()).context("parse updater signature")?;
     pubkey
         .verify(archive, &signature, true)
         .context("updater signature verification failed for the app archive")
+}
+
+/// Tauri encodes minisign files (pubkey, signatures) as base64 over the
+/// two-line text file format.
+fn decode_base64_file(encoded: &str, what: &str) -> Result<String> {
+    use base64::Engine;
+    let decoded = base64::engine::general_purpose::STANDARD
+        .decode(encoded.trim())
+        .with_context(|| format!("base64-decode {what}"))?;
+    String::from_utf8(decoded).with_context(|| format!("{what} is not utf-8"))
 }
 
 fn parse_version(raw: &str, what: &str) -> Result<Version> {
@@ -159,13 +155,11 @@ pub fn release_binary_name() -> Result<&'static str> {
 /// workflow. Tests point this at a mock server via the override env.
 fn download_base_url() -> Result<String> {
     if cfg!(debug_assertions) {
-        let url = std::env::var(DOWNLOAD_BASE_URL_OVERRIDE_ENV).unwrap_or_default();
-        if url.trim().is_empty() {
-            bail!(
+        return update_notice::test_override(DOWNLOAD_BASE_URL_OVERRIDE_ENV).with_context(|| {
+            format!(
                 "refusing to self-update a debug build; set {DOWNLOAD_BASE_URL_OVERRIDE_ENV} or use a release binary"
-            );
-        }
-        return Ok(url);
+            )
+        });
     }
 
     Ok(format!(
@@ -183,7 +177,7 @@ fn download_client() -> Result<reqwest::Client> {
         .context("build download client")
 }
 
-async fn download_bytes(client: &reqwest::Client, url: String) -> Result<Vec<u8>> {
+async fn download_bytes(client: &reqwest::Client, url: String) -> Result<bytes::Bytes> {
     let response = client
         .get(&url)
         .send()
@@ -191,11 +185,10 @@ async fn download_bytes(client: &reqwest::Client, url: String) -> Result<Vec<u8>
         .with_context(|| format!("GET {url}"))?
         .error_for_status()
         .with_context(|| format!("GET {url}"))?;
-    Ok(response
+    response
         .bytes()
         .await
-        .with_context(|| format!("read {url}"))?
-        .into())
+        .with_context(|| format!("read {url}"))
 }
 
 /// The checksum file is `<hex>  <filename>`, as produced by `shasum -a 256`.
@@ -220,28 +213,25 @@ fn verify_sha256_hex(bytes: &[u8], expected: &str) -> Result<()> {
 /// Debug builds only look at the test override so `everr upgrade` from a dev
 /// checkout can never touch a real /Applications install.
 fn installed_app_path() -> Option<PathBuf> {
-    #[cfg(debug_assertions)]
-    {
-        std::env::var(APP_INSTALL_PATH_OVERRIDE_ENV)
-            .ok()
-            .filter(|value| !value.trim().is_empty())
+    const APP_BUNDLE_NAME: &str = "Everr.app";
+
+    if cfg!(debug_assertions) {
+        return update_notice::test_override(APP_INSTALL_PATH_OVERRIDE_ENV)
             .map(PathBuf::from)
-            .filter(|path| path.exists())
+            .filter(|path| path.exists());
     }
 
-    #[cfg(not(debug_assertions))]
-    {
-        const APP_BUNDLE_NAME: &str = "Everr.app";
-
-        if std::env::consts::OS != "macos" {
-            return None;
-        }
-        let mut candidates = vec![PathBuf::from("/Applications").join(APP_BUNDLE_NAME)];
-        if let Some(home) = dirs::home_dir() {
-            candidates.push(home.join("Applications").join(APP_BUNDLE_NAME));
-        }
-        candidates.into_iter().find(|path| path.exists())
+    // The app is only released for macOS arm64 (see the darwin-aarch64
+    // updater target in copy-release-artifact.ts); never swap that bundle
+    // onto another platform.
+    if !cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+        return None;
     }
+    let mut candidates = vec![PathBuf::from("/Applications").join(APP_BUNDLE_NAME)];
+    if let Some(home) = dirs::home_dir() {
+        candidates.push(home.join("Applications").join(APP_BUNDLE_NAME));
+    }
+    candidates.into_iter().find(|path| path.exists())
 }
 
 fn installed_app_version(app: &Path) -> Result<Version> {
@@ -255,33 +245,17 @@ fn installed_app_version(app: &Path) -> Result<Version> {
     parse_version(&raw, "app bundle version")
 }
 
-/// Tauri writes XML plists, which the regex handles on any platform; binary
-/// plists (from `plutil -convert binary1` or distribution tooling) fall back
-/// to `plutil` on macOS, the only platform with real installs.
+/// Tauri writes XML plists, but installed apps can end up with binary plists
+/// (`plutil -convert binary1`, distribution tooling); the plist crate parses
+/// both on every platform.
 fn read_plist_short_version(plist_path: &Path) -> Result<String> {
-    let from_xml = std::fs::read_to_string(plist_path).ok().and_then(|body| {
-        regex::Regex::new(r"<key>CFBundleShortVersionString</key>\s*<string>([^<]+)</string>")
-            .expect("static regex")
-            .captures(&body)
-            .map(|captures| captures[1].to_string())
-    });
-    if let Some(version) = from_xml {
-        return Ok(version);
-    }
-
-    if std::env::consts::OS == "macos" {
-        let output = std::process::Command::new("plutil")
-            .args(["-extract", "CFBundleShortVersionString", "raw", "-o", "-"])
-            .arg(plist_path)
-            .output()
-            .context("run plutil")?;
-        if output.status.success() {
-            let version = String::from_utf8(output.stdout).context("plutil output is not utf-8")?;
-            return Ok(version.trim().to_string());
-        }
-    }
-
-    bail!("could not find CFBundleShortVersionString")
+    let value = plist::Value::from_file(plist_path).context("parse plist")?;
+    value
+        .as_dictionary()
+        .and_then(|dict| dict.get("CFBundleShortVersionString"))
+        .and_then(|value| value.as_string())
+        .map(str::to_owned)
+        .context("could not find CFBundleShortVersionString")
 }
 
 fn app_archive_sha256<'a>(metadata: &'a ReleaseMetadata, archive_name: &str) -> Result<&'a str> {
@@ -353,18 +327,12 @@ fn replace_app_bundle(installed: &Path, archive: &[u8], expected_version: &Versi
     Ok(())
 }
 
+/// A broken bundle (e.g. missing Info.plist) is rejected by the version
+/// cross-check in replace_app_bundle before any rename happens.
 fn find_app_bundle(dir: &Path) -> Result<PathBuf> {
     for entry in std::fs::read_dir(dir).with_context(|| format!("read {}", dir.display()))? {
         let path = entry.context("read extracted archive entry")?.path();
         if path.extension().is_some_and(|extension| extension == "app") {
-            // Refuse to swap a bundle that is obviously broken; better to
-            // keep the old app than install an unlaunchable one.
-            if !path.join("Contents").join("Info.plist").exists() {
-                bail!(
-                    "extracted app bundle {} has no Contents/Info.plist",
-                    path.display()
-                );
-            }
             return Ok(path);
         }
     }
