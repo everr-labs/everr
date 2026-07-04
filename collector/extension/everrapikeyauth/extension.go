@@ -101,17 +101,7 @@ func (e *ext) Authenticate(ctx context.Context, headers map[string][]string) (co
 }
 
 func bearerFrom(headers map[string][]string) (string, error) {
-	// gRPC lowercases headers; net/http canonicalizes them. Probe both common
-	// shapes before falling back to a case-insensitive scan.
-	raw := firstNonEmpty(headers["authorization"], headers["Authorization"])
-	if raw == "" {
-		for k, v := range headers {
-			if len(v) > 0 && v[0] != "" && strings.EqualFold(k, "authorization") {
-				raw = v[0]
-				break
-			}
-		}
-	}
+	raw := headerValue(headers, "Authorization")
 	if raw == "" {
 		return "", errMissingAuth
 	}
@@ -127,19 +117,25 @@ func bearerFrom(headers map[string][]string) (string, error) {
 }
 
 // originFrom extracts the request's Origin header, or "" when absent.
-// Browsers set it on cross-origin requests; server SDKs don't. Same casing
-// probing as bearerFrom: gRPC lowercases, net/http canonicalizes.
+// Browsers set it on cross-origin requests; server SDKs don't.
 func originFrom(headers map[string][]string) string {
-	raw := firstNonEmpty(headers["origin"], headers["Origin"])
+	return strings.TrimSpace(headerValue(headers, "Origin"))
+}
+
+// headerValue returns the first non-empty value for the named header. gRPC
+// lowercases header keys; net/http canonicalizes them. Probe both common
+// shapes before falling back to a case-insensitive scan.
+func headerValue(headers map[string][]string, name string) string {
+	raw := firstNonEmpty(headers[strings.ToLower(name)], headers[http.CanonicalHeaderKey(name)])
 	if raw == "" {
 		for k, v := range headers {
-			if len(v) > 0 && v[0] != "" && strings.EqualFold(k, "origin") {
+			if len(v) > 0 && v[0] != "" && strings.EqualFold(k, name) {
 				raw = v[0]
 				break
 			}
 		}
 	}
-	return strings.TrimSpace(raw)
+	return raw
 }
 
 func firstNonEmpty(slices ...[]string) string {
