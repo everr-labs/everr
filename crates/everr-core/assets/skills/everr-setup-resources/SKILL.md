@@ -1,6 +1,6 @@
 ---
 name: everr-setup-resources
-description: Use when creating, editing, or applying Everr as-code resources (dashboards, runbooks, alert rules), Perses-format dashboard YAML, panels, ClickHouse queries, ```panel blocks, AlertRule YAML, the optional everr.yaml manifest, or the `everr apply` CLI.
+description: Use when creating, editing, or applying Everr as-code resources (dashboards, runbooks, alert rules), Perses-format dashboard YAML, panels, ClickHouse queries, ```panel blocks, AlertRule YAML, or the `everr apply` CLI.
 ---
 
 ## Startup Access
