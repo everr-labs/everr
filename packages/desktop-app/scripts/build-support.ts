@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 import { createGzip } from "node:zlib";
 import { valid as validVersion } from "semver";
 import { $ } from "zx";
+import { type BuildPhases, noopBuildPhases } from "./build-telemetry.ts";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -221,7 +222,10 @@ export type CliEmbeddedAssets = {
   chdbGz: string;
 };
 
-export async function prepareCliEmbeddedAssets(mode: string): Promise<CliEmbeddedAssets> {
+export async function prepareCliEmbeddedAssets(
+  mode: string,
+  telemetry: BuildPhases = noopBuildPhases,
+): Promise<CliEmbeddedAssets> {
   if (mode !== "debug" && mode !== "release") {
     throw new Error(`Unsupported mode: ${mode}`);
   }
@@ -235,7 +239,10 @@ export async function prepareCliEmbeddedAssets(mode: string): Promise<CliEmbedde
   const chdbGz = `${chdbPrepared}.gz`;
 
   console.log(`Building local OTel collector for CLI embedding (${mode})...`);
-  await $`make -C ${path.join(repoDir, "collector")} build-local`;
+  await telemetry.phase(
+    "build embedded collector",
+    () => $`make -C ${path.join(repoDir, "collector")} build-local`,
+  );
 
   await copyFile(collectorSource, collectorPrepared);
   await chmod(collectorPrepared, 0o755);
@@ -243,9 +250,13 @@ export async function prepareCliEmbeddedAssets(mode: string): Promise<CliEmbedde
     await signBinaryIfNeeded(collectorPrepared);
   }
 
-  await prepareChdbLibAt(mode, chdbPrepared);
-  await gzipFile(collectorPrepared, collectorGz);
-  await gzipFile(chdbPrepared, chdbGz);
+  await telemetry.phase("prepare chdb library", () => prepareChdbLibAt(mode, chdbPrepared));
+  await telemetry.phase("compress embedded assets", async () => {
+    await Promise.all([
+      gzipFile(collectorPrepared, collectorGz),
+      gzipFile(chdbPrepared, chdbGz),
+    ]);
+  });
 
   return { collectorGz, chdbGz };
 }
