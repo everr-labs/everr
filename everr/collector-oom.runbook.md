@@ -13,8 +13,11 @@ are assumed to be in place:
 - the collector container has memory requests and limits, and the pipeline
   has a `memory_limiter` processor, so overload produces backpressure instead
   of a kernel OOM kill,
-- log ingestion runs off the webhook request path and emits per job, so no
-  single run is materialized in memory at once.
+- log ingestion emits in bounded chunks (10k records per payload), so no
+  single run is materialized in memory at once. Processing is still
+  synchronous in the webhook handler and the app allows it 60 seconds, so
+  replay durations up to a minute are expected for huge runs, not a
+  regression.
 
 With those in place this alert should be rare. If it fires, one of the
 protections is not doing its job or the load pattern changed. Work through
@@ -60,9 +63,11 @@ verbose logs is the classic trigger.
 
 ## 3. Did the protections hold?
 
-- **Webhook latency.** With async ingestion, replay durations must stay flat
-  even while a big run is processed. Spikes returning here mean the handler
-  is doing heavy work inline again (regression):
+- **Webhook latency.** Ingestion is synchronous, so replay durations scale
+  with archive size; up to the 60s app timeout is expected for huge runs.
+  What matters is memory staying flat while a slow replay is in flight. A
+  slow replay together with a memory balloon means chunked emission is not
+  bounding the payload (regression):
 
 ```panel
 ref: replay-durations

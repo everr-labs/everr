@@ -154,6 +154,14 @@ stdout logs are not ingested. See fix 4.
    and process the log archive asynchronously, and emit logs per job (or per
    file) instead of building the whole 23-job run as one `plog.Logs` payload.
    The 256 MB cap bounds the compressed download, not the decoded pdata size.
+   **Update, 2026-07-04:** the emit half is done. The receiver now hands
+   payloads to the pipeline in bounded chunks of 10k records
+   (`logEmitter` in
+   `collector/receiver/githubactionsreceiver/log_event_handling.go`), so
+   memory stays proportional to one chunk instead of the whole run.
+   Processing is still synchronous in the webhook handler; the app's replay
+   timeout was raised from 30s to 60s to cover big archives. The async half
+   remains open.
 4. **Add a real restart signal.** Add a `k8s_cluster` receiver (or ingest
    Kubernetes events) to the internal collector in
    `everr-deploy/infra-v2/config/otel-collector-internal-config.yaml` so we

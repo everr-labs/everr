@@ -29,67 +29,138 @@ import (
 
 const maxLogArchiveSize = 256 * 1024 * 1024 // 256 MB
 
-func eventToLogs(ctx context.Context, event interface{}, config *Config, ghClient *github.Client, logger *zap.Logger, withTraceInfo bool, jobNamesCache *jobNameCache, stepTimingsCache *stepTimingCache) (*plog.Logs, error) {
+// logFlushRecordCount bounds how many log records accumulate in memory before
+// the payload is handed to the consumer. Emitting in chunks keeps memory
+// proportional to one chunk instead of the whole run: a large build matrix
+// with verbose output decodes to multiple GiB of pdata when materialized at
+// once, which is what OOM-killed the collector.
+const logFlushRecordCount = 10_000
+
+// logEmitter incrementally builds plog.Logs payloads and hands each one to
+// consume once it reaches logFlushRecordCount records. Every payload carries
+// the full run resource attributes and the current job's scope attributes, so
+// chunked output is indistinguishable from the previous whole-run payload
+// downstream. After a consume failure the emitter drops further records at
+// flush time and keeps the first error sticky so the whole event fails and
+// the sender retries it.
+type logEmitter struct {
+	consume     func(plog.Logs) error
+	setResource func(pcommon.Map)
+
+	logs     plog.Logs
+	resource plog.ResourceLogs
+	scope    plog.ScopeLogs
+	hasLogs  bool
+	hasScope bool
+	jobName  string
+	jobID    int64
+	count    int
+	err      error
+}
+
+func newLogEmitter(consume func(plog.Logs) error, setResource func(pcommon.Map)) *logEmitter {
+	return &logEmitter{consume: consume, setResource: setResource}
+}
+
+// startJob sets the job whose scope attributes subsequent records belong to.
+func (le *logEmitter) startJob(jobName string, jobID int64) {
+	le.jobName = jobName
+	le.jobID = jobID
+	le.hasScope = false
+}
+
+func (le *logEmitter) appendRecord() plog.LogRecord {
+	if le.count >= logFlushRecordCount {
+		le.flush()
+	}
+	if !le.hasLogs {
+		le.logs = plog.NewLogs()
+		le.resource = le.logs.ResourceLogs().AppendEmpty()
+		le.setResource(le.resource.Resource().Attributes())
+		le.hasLogs = true
+	}
+	if !le.hasScope {
+		le.scope = le.resource.ScopeLogs().AppendEmpty()
+		setJobScopeAttributes(le.scope, le.jobName, le.jobID)
+		le.hasScope = true
+	}
+	le.count++
+	return le.scope.LogRecords().AppendEmpty()
+}
+
+// flush hands the accumulated payload to the consumer and resets the buffer.
+// It returns the first consume error seen so far, if any.
+func (le *logEmitter) flush() error {
+	if le.hasLogs && le.count > 0 && le.err == nil {
+		if err := le.consume(le.logs); err != nil {
+			le.err = err
+		}
+	}
+	le.hasLogs = false
+	le.hasScope = false
+	le.count = 0
+	return le.err
+}
+
+func eventToLogs(ctx context.Context, event interface{}, config *Config, ghClient *github.Client, logger *zap.Logger, withTraceInfo bool, jobNamesCache *jobNameCache, stepTimingsCache *stepTimingCache, consumeLogs func(plog.Logs) error) error {
 	e, ok := event.(*github.WorkflowRunEvent)
 	if !ok {
-		return nil, nil
+		return nil
 	}
 
 	if e.GetWorkflowRun().GetStatus() != "completed" {
 		logger.Debug("Run not completed, skipping")
-		return nil, nil
+		return nil
 	}
 
 	repositoryID, err := requireRepositoryID(e.GetRepo().GetID())
 	if err != nil {
 		logger.Error("Failed to determine repository ID", zap.Error(err))
-		return nil, err
+		return err
 	}
 
 	traceID, err := generateTraceID(repositoryID, e.GetWorkflowRun().GetID(), e.GetWorkflowRun().GetRunAttempt())
 	if err != nil {
 		logger.Error("Failed to generate trace ID", zap.Error(err))
-		return nil, err
+		return err
 	}
 
-	logs := plog.NewLogs()
-	allLogs := logs.ResourceLogs().AppendEmpty()
-	attrs := allLogs.Resource().Attributes()
-
-	setWorkflowRunEventAttributes(attrs, e, config)
+	emitter := newLogEmitter(consumeLogs, func(attrs pcommon.Map) {
+		setWorkflowRunEventAttributes(attrs, e, config)
+	})
 
 	url, ghResp, err := ghClient.Actions.GetWorkflowRunAttemptLogs(ctx, e.GetRepo().GetOwner().GetLogin(), e.GetRepo().GetName(), e.GetWorkflowRun().GetID(), e.GetWorkflowRun().GetRunAttempt(), 10)
 
 	if err != nil {
 		// Runs without a downloadable log archive (e.g. skipped or cancelled
 		// before any job produced output) return 404. That's not a processing
-		// failure — return the logs built so far so the caller doesn't turn
-		// this into a 500 and the sender doesn't retry the event.
+		// failure — otherwise the caller turns this into a 500 and the sender
+		// retries the event.
 		if ghResp != nil && ghResp.StatusCode == http.StatusNotFound {
 			logger.Warn("No log archive available for workflow run", zap.Error(err))
-			return &logs, nil
+			return nil
 		}
 		logger.Error("Failed to get logs", zap.Error(err))
-		return nil, err
+		return err
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url.String(), nil)
 	if err != nil {
 		logger.Error("Failed to create log download request", zap.Error(err))
-		return nil, err
+		return err
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		logger.Error("Failed to get logs", zap.Error(err))
-		return nil, err
+		return err
 	}
 	defer resp.Body.Close()
 
 	tmpFile, err := os.CreateTemp("", "tmpfile-")
 	if err != nil {
 		logger.Error("Failed to create temp file", zap.Error(err))
-		return nil, err
+		return err
 	}
 	defer os.Remove(tmpFile.Name())
 	defer tmpFile.Close()
@@ -98,19 +169,19 @@ func eventToLogs(ctx context.Context, event interface{}, config *Config, ghClien
 	_, err = io.Copy(tmpFile, io.LimitReader(resp.Body, maxLogArchiveSize))
 	if err != nil {
 		logger.Error("Failed to copy response to temp file", zap.Error(err))
-		return nil, err
+		return err
 	}
 
 	archive, err := zip.OpenReader(tmpFile.Name())
 	if err != nil {
 		logger.Error("Failed to open zip file", zap.Error(err))
-		return nil, fmt.Errorf("failed to open zip file: %w", err)
+		return fmt.Errorf("failed to open zip file: %w", err)
 	}
 	defer archive.Close()
 
 	if archive.File == nil {
 		logger.Error("Archive is empty")
-		return nil, fmt.Errorf("archive is empty")
+		return fmt.Errorf("archive is empty")
 	}
 
 	// Classify zip entries: subdirectory files are per-step logs (normal format),
@@ -161,12 +232,12 @@ func eventToLogs(ctx context.Context, event interface{}, config *Config, ghClien
 		}
 		if cachedJobs == nil {
 			logger.Warn("No step timing data available, cannot split combined logs")
-			return &logs, nil
+			return nil
 		}
 		stepTimingsCache.Delete(key)
 
-		processCombinedLogs(combinedFiles, e, allLogs, traceID, withTraceInfo, cachedJobs, logger)
-		return &logs, nil
+		processCombinedLogs(combinedFiles, e, emitter, traceID, withTraceInfo, cachedJobs, logger)
+		return emitter.flush()
 	}
 
 	// Normal format: per-step log files in subdirectories
@@ -185,6 +256,11 @@ func eventToLogs(ctx context.Context, event interface{}, config *Config, ghClien
 	resolvedNames := resolveJobNames(ctx, jobs, jobNamesCache, ghClient, e, logger)
 
 	for _, zipJobName := range jobs {
+		// A consume failure is sticky; stop scanning the remaining jobs.
+		if emitter.err != nil {
+			break
+		}
+
 		// Use the original (unsanitized) name for scope attributes and span IDs.
 		// The ZIP directory name is kept for file path matching.
 		jobName := zipJobName
@@ -199,8 +275,7 @@ func eventToLogs(ctx context.Context, event interface{}, config *Config, ghClien
 			jobID = metadata.jobID
 		}
 
-		jobLogsScope := allLogs.ScopeLogs().AppendEmpty()
-		setJobScopeAttributes(jobLogsScope, jobName, jobID)
+		emitter.startJob(jobName, jobID)
 
 		for _, logFile := range stepFiles {
 			// File matching uses the ZIP directory name
@@ -223,11 +298,11 @@ func eventToLogs(ctx context.Context, event interface{}, config *Config, ghClien
 				continue
 			}
 
-			emitLogRecords(logFile, jobLogsScope, traceID, spanID, stepNumber, withTraceInfo, logger)
+			emitLogRecords(logFile, emitter, traceID, spanID, stepNumber, withTraceInfo, logger)
 		}
 	}
 
-	return &logs, nil
+	return emitter.flush()
 }
 
 // parsedLine is a single log line with its parsed timestamp.
@@ -278,9 +353,9 @@ func scanLogFile(f *zip.File, logger *zap.Logger, emit func(parsedLine)) {
 }
 
 // emitLogRecords reads a zip log file and emits one log record per line.
-func emitLogRecords(logFile *zip.File, scope plog.ScopeLogs, traceID pcommon.TraceID, spanID pcommon.SpanID, stepNumber int, withTraceInfo bool, logger *zap.Logger) {
+func emitLogRecords(logFile *zip.File, emitter *logEmitter, traceID pcommon.TraceID, spanID pcommon.SpanID, stepNumber int, withTraceInfo bool, logger *zap.Logger) {
 	scanLogFile(logFile, logger, func(pl parsedLine) {
-		record := scope.LogRecords().AppendEmpty()
+		record := emitter.appendRecord()
 		if withTraceInfo {
 			record.SetSpanID(spanID)
 			record.SetTraceID(traceID)
@@ -299,7 +374,7 @@ func emitLogRecords(logFile *zip.File, scope plog.ScopeLogs, traceID pcommon.Tra
 func processCombinedLogs(
 	combinedFiles []*zip.File,
 	e *github.WorkflowRunEvent,
-	allLogs plog.ResourceLogs,
+	emitter *logEmitter,
 	traceID pcommon.TraceID,
 	withTraceInfo bool,
 	cachedJobs []jobStepTimings,
@@ -320,6 +395,11 @@ func processCombinedLogs(
 	}
 
 	for _, cf := range combinedFiles {
+		// A consume failure is sticky; stop scanning the remaining files.
+		if emitter.err != nil {
+			break
+		}
+
 		// Parse "0_<jobName>.txt" → jobName
 		jobZipName := parseCombinedFileName(cf.Name)
 		if jobZipName == "" {
@@ -336,8 +416,7 @@ func processCombinedLogs(
 		// Use the original (unsanitized) job name for scope attributes and span IDs
 		jobName := jst.jobName
 
-		jobLogsScope := allLogs.ScopeLogs().AppendEmpty()
-		setJobScopeAttributes(jobLogsScope, jobName, jst.jobID)
+		emitter.startJob(jobName, jst.jobID)
 
 		// Pre-generate span IDs for each step
 		steps := make([]stepInfo, 0, len(jst.steps))
@@ -366,7 +445,7 @@ func processCombinedLogs(
 				return
 			}
 
-			record := jobLogsScope.LogRecords().AppendEmpty()
+			record := emitter.appendRecord()
 			if withTraceInfo {
 				record.SetSpanID(step.spanID)
 				record.SetTraceID(traceID)
