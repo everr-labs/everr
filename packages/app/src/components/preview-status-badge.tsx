@@ -6,15 +6,8 @@ import {
 } from "@everr/ui/components/tooltip";
 import type { PreviewStatus } from "@/data/previews/overlay";
 
-// 400-shades read legibly on the app's near-black surfaces. "unchanged" earns
-// no badge, so it's excluded.
-const STYLES: Record<Exclude<PreviewStatus, "unchanged">, string> = {
-  added: "border-emerald-500/40 bg-emerald-500/10 text-emerald-400",
-  changed: "border-amber-500/40 bg-amber-500/10 text-amber-400",
-  conflict: "border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-400",
-  removed: "border-red-500/40 bg-red-500/10 text-red-400",
-};
-
+// Each visible status maps 1:1 to a Badge tone variant (see @everr/ui badge).
+// "unchanged" earns no badge, so it's excluded.
 const LABELS: Record<Exclude<PreviewStatus, "unchanged">, string> = {
   added: "Added",
   changed: "Changed",
@@ -41,9 +34,7 @@ export function PreviewStatusBadge({ status }: { status?: PreviewStatus }) {
   if (!status || status === "unchanged") return null;
   return (
     <Tooltip>
-      <TooltipTrigger
-        render={<Badge variant="outline" className={STYLES[status]} />}
-      >
+      <TooltipTrigger render={<Badge variant={status} />}>
         {LABELS[status]}
       </TooltipTrigger>
       <TooltipContent>{DESCRIPTIONS[status]}</TooltipContent>
