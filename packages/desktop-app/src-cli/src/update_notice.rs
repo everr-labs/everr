@@ -15,7 +15,6 @@ const FETCH_TIMEOUT: Duration = Duration::from_millis(750);
 const RELEASE_METADATA_PATH: &str = "/everr-app/release-metadata.json";
 const UPGRADE_COMMAND: &str = "everr upgrade";
 
-#[cfg(debug_assertions)]
 const RELEASE_METADATA_URL_OVERRIDE_ENV: &str = "EVERR_RELEASE_METADATA_URL_FOR_TESTS";
 
 #[cfg(debug_assertions)]
@@ -24,9 +23,28 @@ const CACHE_FILE_NAME: &str = "cli-update-check-dev.json";
 #[cfg(not(debug_assertions))]
 const CACHE_FILE_NAME: &str = "cli-update-check.json";
 
+/// Subset of release-metadata.json (see
+/// packages/desktop-app/scripts/copy-release-artifact.ts). The app fields are
+/// optional so older metadata without them still allows CLI upgrades.
 #[derive(Debug, Deserialize)]
-struct ReleaseMetadata {
-    version: String,
+pub(crate) struct ReleaseMetadata {
+    pub(crate) version: String,
+    pub(crate) platform_version: Option<String>,
+    pub(crate) target: Option<ReleaseTarget>,
+    #[serde(default)]
+    pub(crate) files: Vec<ReleaseFile>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct ReleaseTarget {
+    #[serde(rename = "updaterArchiveName")]
+    pub(crate) updater_archive_name: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct ReleaseFile {
+    pub(crate) path: String,
+    pub(crate) sha256: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -67,8 +85,9 @@ async fn check() -> Result<CacheFile> {
         }
     }
 
-    match fetch_latest_version(FETCH_TIMEOUT).await {
-        Ok(latest_version) => {
+    match fetch_release_metadata(FETCH_TIMEOUT).await {
+        Ok(metadata) => {
+            let latest_version = metadata.version;
             let update_available = is_newer(&latest_version, env!("EVERR_VERSION"));
             let cache = CacheFile {
                 last_checked_at: Utc::now().to_rfc3339(),
@@ -120,13 +139,13 @@ fn is_stale(cache: &CacheFile) -> bool {
         .map_or(true, |elapsed| elapsed >= CHECK_INTERVAL)
 }
 
-pub(crate) async fn fetch_latest_version(timeout: Duration) -> Result<String> {
+pub(crate) async fn fetch_release_metadata(timeout: Duration) -> Result<ReleaseMetadata> {
     let url = release_metadata_url();
     let client = reqwest::Client::builder()
         .timeout(timeout)
         .build()
         .context("build release metadata client")?;
-    let metadata: ReleaseMetadata = client
+    client
         .get(&url)
         .send()
         .await
@@ -135,16 +154,12 @@ pub(crate) async fn fetch_latest_version(timeout: Duration) -> Result<String> {
         .with_context(|| format!("GET {url}"))?
         .json()
         .await
-        .with_context(|| format!("parse {url}"))?;
-    Ok(metadata.version)
+        .with_context(|| format!("parse {url}"))
 }
 
 fn release_metadata_url() -> String {
-    #[cfg(debug_assertions)]
-    if let Ok(url) = std::env::var(RELEASE_METADATA_URL_OVERRIDE_ENV) {
-        if !url.trim().is_empty() {
-            return url;
-        }
+    if let Some(url) = test_override(RELEASE_METADATA_URL_OVERRIDE_ENV) {
+        return url;
     }
 
     format!(
@@ -152,6 +167,18 @@ fn release_metadata_url() -> String {
         everr_core::build::default_docs_base_url(),
         RELEASE_METADATA_PATH
     )
+}
+
+/// A `*_FOR_TESTS` env override. Always `None` in release builds, so no
+/// environment variable can redirect a real upgrade.
+pub(crate) fn test_override(name: &str) -> Option<String> {
+    if cfg!(debug_assertions) {
+        std::env::var(name)
+            .ok()
+            .filter(|value| !value.trim().is_empty())
+    } else {
+        None
+    }
 }
 
 fn cache_path() -> Result<PathBuf> {

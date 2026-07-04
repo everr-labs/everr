@@ -121,11 +121,16 @@ fn ensure_supported_platform() -> Result<()> {
     if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
         return Ok(());
     }
-    if cfg!(all(target_os = "linux", any(target_arch = "aarch64", target_arch = "x86_64"))) {
+    if cfg!(all(
+        target_os = "linux",
+        any(target_arch = "aarch64", target_arch = "x86_64")
+    )) {
         return Ok(());
     }
 
-    bail!("embedded local collector is currently supported only on macOS arm64 and Linux arm64/x86_64");
+    bail!(
+        "embedded local collector is currently supported only on macOS arm64 and Linux arm64/x86_64"
+    );
 }
 
 async fn spawn_collector(assets: &ExtractedAssets, telemetry_dir: &Path) -> Result<Child> {

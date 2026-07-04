@@ -25,7 +25,7 @@ pub struct Cli {
 pub enum Commands {
     /// Remove local Everr setup artifacts
     Uninstall,
-    /// Upgrade the Everr CLI to the latest version
+    /// Upgrade the Everr CLI (and the Everr app, if installed) to the latest version
     Upgrade,
     /// Manage Everr Cloud authentication
     Cloud(CloudArgs),
