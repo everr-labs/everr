@@ -219,6 +219,141 @@ func TestAuthenticate_StaleFallback_OnTransientError(t *testing.T) {
 	}
 }
 
+func TestAuthenticate_ForwardsOrigin(t *testing.T) {
+	var got struct {
+		Key    string `json:"key"`
+		Origin string `json:"origin"`
+	}
+	srv := fakeVerifyServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Errorf("decode verify body: %v", err)
+		}
+		_ = json.NewEncoder(w).Encode(verifyResponse{TenantID: "org_1", KeyID: "ak_1"})
+	})
+	defer srv.Close()
+	e := newTestExt(t, srv.URL)
+
+	headers := authHeaders("tok")
+	headers["Origin"] = []string{"https://app.example.com"}
+	if _, err := e.Authenticate(context.Background(), headers); err != nil {
+		t.Fatal(err)
+	}
+	if got.Key != "tok" || got.Origin != "https://app.example.com" {
+		t.Fatalf("verify body: %+v", got)
+	}
+}
+
+func TestAuthenticate_LowercaseOriginHeader(t *testing.T) {
+	// gRPC metadata arrives lowercased.
+	var got struct {
+		Origin string `json:"origin"`
+	}
+	srv := fakeVerifyServer(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		_ = json.NewEncoder(w).Encode(verifyResponse{TenantID: "org_1", KeyID: "ak_1"})
+	})
+	defer srv.Close()
+	e := newTestExt(t, srv.URL)
+
+	headers := authHeaders("tok")
+	headers["origin"] = []string{"https://app.example.com"}
+	if _, err := e.Authenticate(context.Background(), headers); err != nil {
+		t.Fatal(err)
+	}
+	if got.Origin != "https://app.example.com" {
+		t.Fatalf("origin not forwarded from lowercase header: %+v", got)
+	}
+}
+
+func TestAuthenticate_NoOrigin_OmitsField(t *testing.T) {
+	var raw map[string]any
+	srv := fakeVerifyServer(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&raw)
+		_ = json.NewEncoder(w).Encode(verifyResponse{TenantID: "org_1", KeyID: "ak_1"})
+	})
+	defer srv.Close()
+	e := newTestExt(t, srv.URL)
+
+	if _, err := e.Authenticate(context.Background(), authHeaders("tok")); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := raw["origin"]; ok {
+		t.Fatalf("origin should be omitted for headerless requests, got %v", raw["origin"])
+	}
+}
+
+// The cache must key by (key, origin): the same key from two origins is two
+// independent verdicts, and repeats of either must not re-verify.
+func TestAuthenticate_CachePerOrigin(t *testing.T) {
+	var calls int32
+	srv := fakeVerifyServer(t, func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		_ = json.NewEncoder(w).Encode(verifyResponse{TenantID: "org_1", KeyID: "ak_1"})
+	})
+	defer srv.Close()
+	e := newTestExt(t, srv.URL)
+
+	withOrigin := func(origin string) map[string][]string {
+		h := authHeaders("tok")
+		h["Origin"] = []string{origin}
+		return h
+	}
+	sequence := []map[string][]string{
+		withOrigin("https://a.example"),
+		withOrigin("https://b.example"),
+		withOrigin("https://a.example"),
+		withOrigin("https://b.example"),
+		authHeaders("tok"), // no origin: a third distinct cache entry
+		authHeaders("tok"),
+	}
+	for i, h := range sequence {
+		if _, err := e.Authenticate(context.Background(), h); err != nil {
+			t.Fatalf("request %d: %v", i, err)
+		}
+	}
+	if got := atomic.LoadInt32(&calls); got != 3 {
+		t.Fatalf("expected 3 verify calls (a, b, headerless), got %d", got)
+	}
+}
+
+// A negative verdict for one origin must not poison other origins.
+func TestAuthenticate_NegativeCachePerOrigin(t *testing.T) {
+	var calls int32
+	srv := fakeVerifyServer(t, func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		var body struct {
+			Origin string `json:"origin"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if body.Origin == "https://evil.example" {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(verifyResponse{TenantID: "org_1", KeyID: "ak_1"})
+	})
+	defer srv.Close()
+	e := newTestExt(t, srv.URL)
+
+	withOrigin := func(origin string) map[string][]string {
+		h := authHeaders("tok")
+		h["Origin"] = []string{origin}
+		return h
+	}
+
+	for i := 0; i < 3; i++ {
+		if _, err := e.Authenticate(context.Background(), withOrigin("https://evil.example")); err == nil {
+			t.Fatal("expected rejection for evil origin")
+		}
+	}
+	if _, err := e.Authenticate(context.Background(), withOrigin("https://good.example")); err != nil {
+		t.Fatalf("good origin should pass: %v", err)
+	}
+	// 1 verify for evil (then negative-cached) + 1 for good.
+	if got := atomic.LoadInt32(&calls); got != 2 {
+		t.Fatalf("expected 2 verify calls, got %d", got)
+	}
+}
+
 // guard: Timeout config plumbs to http client.
 func TestExtension_TimeoutWiring(t *testing.T) {
 	cfg := &Config{Endpoint: "http://x", SharedSecret: "s", Timeout: 500 * time.Millisecond}

@@ -88,8 +88,9 @@ func (e *ext) Authenticate(ctx context.Context, headers map[string][]string) (co
 	if err != nil {
 		return ctx, err
 	}
+	origin := originFrom(headers)
 
-	res, err := e.lookup(ctx, token)
+	res, err := e.lookup(ctx, token, origin)
 	if err != nil {
 		return ctx, err
 	}
@@ -125,6 +126,22 @@ func bearerFrom(headers map[string][]string) (string, error) {
 	return tok, nil
 }
 
+// originFrom extracts the request's Origin header, or "" when absent.
+// Browsers set it on cross-origin requests; server SDKs don't. Same casing
+// probing as bearerFrom: gRPC lowercases, net/http canonicalizes.
+func originFrom(headers map[string][]string) string {
+	raw := firstNonEmpty(headers["origin"], headers["Origin"])
+	if raw == "" {
+		for k, v := range headers {
+			if len(v) > 0 && v[0] != "" && strings.EqualFold(k, "origin") {
+				raw = v[0]
+				break
+			}
+		}
+	}
+	return strings.TrimSpace(raw)
+}
+
 func firstNonEmpty(slices ...[]string) string {
 	for _, s := range slices {
 		if len(s) > 0 && s[0] != "" {
@@ -140,18 +157,21 @@ func firstNonEmpty(slices ...[]string) string {
 // wait for that one answer. The shared verify call uses a detached context
 // with its own timeout so one caller's cancellation does not fail all the
 // waiters.
-func (e *ext) lookup(ctx context.Context, token string) (*authResult, error) {
-	if cached, ok := e.cache.get(token); ok {
+func (e *ext) lookup(ctx context.Context, token, origin string) (*authResult, error) {
+	// \x00 cannot appear in a bearer token or an Origin header, so the
+	// composite is unambiguous.
+	cacheKey := token + "\x00" + origin
+	if cached, ok := e.cache.get(cacheKey); ok {
 		if cached.err != nil {
 			return nil, cached.err
 		}
 		return cached.result, nil
 	}
 
-	ch := e.verifyFlight.DoChan(token, func() (any, error) {
+	ch := e.verifyFlight.DoChan(cacheKey, func() (any, error) {
 		// Re-check the cache: another goroutine may have populated it while
 		// we were queued behind singleflight.
-		if cached, ok := e.cache.get(token); ok {
+		if cached, ok := e.cache.get(cacheKey); ok {
 			if cached.err != nil {
 				return nil, cached.err
 			}
@@ -159,11 +179,11 @@ func (e *ext) lookup(ctx context.Context, token string) (*authResult, error) {
 		}
 		verifyCtx, cancel := context.WithTimeout(context.Background(), e.cfg.Timeout)
 		defer cancel()
-		res, err := e.verify(verifyCtx, token)
+		res, err := e.verify(verifyCtx, token, origin)
 		if err != nil {
 			if errors.Is(err, errUnauthorized) {
 				// Definitive rejection — cache the negative outcome.
-				e.cache.putFailure(token, err)
+				e.cache.putFailure(cacheKey, err)
 				return nil, err
 			}
 			// Transient (network, 5xx). OTel auth maps any error we return to
@@ -171,7 +191,7 @@ func (e *ext) lookup(ctx context.Context, token string) (*authResult, error) {
 			// within a grace window so brief verify outages don't translate
 			// into client-visible auth failures for keys we recently accepted.
 			grace := e.cfg.CacheTTL
-			if stale, ok := e.cache.peekStalePositive(token, grace); ok {
+			if stale, ok := e.cache.peekStalePositive(cacheKey, grace); ok {
 				e.logger.Warn(
 					"verify endpoint unavailable; serving stale cached auth",
 					zap.Error(err),
@@ -180,7 +200,7 @@ func (e *ext) lookup(ctx context.Context, token string) (*authResult, error) {
 			}
 			return nil, err
 		}
-		e.cache.putSuccess(token, res)
+		e.cache.putSuccess(cacheKey, res)
 		return res, nil
 	})
 
@@ -195,8 +215,12 @@ func (e *ext) lookup(ctx context.Context, token string) (*authResult, error) {
 	}
 }
 
-func (e *ext) verify(ctx context.Context, token string) (*authResult, error) {
-	body, _ := json.Marshal(map[string]string{"key": token})
+func (e *ext) verify(ctx context.Context, token, origin string) (*authResult, error) {
+	payload := map[string]string{"key": token}
+	if origin != "" {
+		payload["origin"] = origin
+	}
+	body, _ := json.Marshal(payload)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, e.cfg.Endpoint, bytes.NewReader(body))
 	if err != nil {
