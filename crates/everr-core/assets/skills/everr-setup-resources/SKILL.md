@@ -1,6 +1,6 @@
 ---
 name: everr-setup-resources
-description: Use when creating, editing, or applying Everr as-code resources (dashboards, runbooks, alert rules), Perses-format dashboard YAML, panels, ClickHouse queries, ```panel blocks, AlertRule YAML, the everr.yaml manifest, or the `everr apply` CLI.
+description: Use when creating, editing, or applying Everr as-code resources (dashboards, runbooks, alert rules), Perses-format dashboard YAML, panels, ClickHouse queries, ```panel blocks, AlertRule YAML, the optional everr.yaml manifest, or the `everr apply` CLI.
 ---
 
 ## Startup Access
@@ -28,13 +28,13 @@ Always read the relevant rule files before authoring or editing a resource. Load
 
 For a dashboard task read `queries`, `dashboards`, and the viz rules you use. For a runbook read `queries` and `runbooks`. For an alert read `alerts`, plus `runbooks` when creating the linked runbook.
 
-## File Layout And The Required Manifest
+## File Layout And The Repo Identity
 
-`everr apply <dir>` reconciles a directory of declarations. By convention that directory is `everr/` at your repo root. It **must** contain an `everr.yaml` (or `.yml`) at its root declaring a stable `repoid`. Apply errors without it. Name each file by its kind, with the slug as the stem:
+`everr apply <dir>` reconciles a directory of declarations. By convention that directory is `everr/` at your repo root. The apply identity (the `repoid`) is inferred from the repository's `origin` remote, normalized to `host/owner/repo`. No manifest is needed. Name each file by its kind, with the slug as the stem:
 
 ```
 everr/
-  everr.yaml                       # REQUIRED manifest, declares the repoid (reconcile scope)
+  everr.yaml                       # optional explicit repoid override
   checkout-api.dashboard.yaml      # a Dashboard
   high-error-rate.runbook.yaml     # a Runbook
   high-error-rate.runbook.md       # referenced by the runbook's `markdown.file`
@@ -43,13 +43,14 @@ everr/
     db-health.dashboard.yaml       # folder "platform" (from the directory name)
 ```
 
-`everr/everr.yaml`:
+An optional `everr.yaml` (or `.yml`) at the apply root overrides the inferred identity. It accepts exactly one key:
 
 ```yaml
-repoid: "2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1"
+# everr/everr.yaml (optional override)
+repoid: "my-explicit-id"
 ```
 
-The `repoid` is the **apply ownership boundary**: `everr apply` reconciles exactly the resources previously applied under this id and nothing else. Use one stable id per repository (a UUID is a good default); never reuse a repoid across unrelated repos, and never change it for an existing one (that orphans everything applied under the old id). It is the only key the manifest accepts.
+The `repoid` is the **apply ownership boundary**: `everr apply` reconciles exactly the resources previously applied under this id and nothing else. Use one stable id per repository; never reuse a repoid across unrelated repos, and never change it for an existing one (that orphans everything applied under the old id). It is the only key the manifest accepts. Use the manifest for local-only repositories, non-git directories, or when you need to pin an explicit name.
 
 Apply routes each document by its `kind:` field, so the `.dashboard.yaml`/`.runbook.yaml`/`.alert.yaml` suffixes are a human-facing naming convention, not something the CLI parses. The slug always comes from `metadata.name`. Files are flat in `everr/` by convention; subdirectories are optional and become folder paths in the UI. There are no folder objects.
 
@@ -68,7 +69,7 @@ In CI, set `EVERR_API_KEY` and pass `--yes`. Only deploy to production when the 
 
 | Mistake | Fix |
 | --- | --- |
-| Missing `everr.yaml` manifest, or wrong key in it | Every apply dir needs `everr.yaml` with a single stable `repoid:`, the only key it accepts |
+| No `origin` remote and no `everr.yaml` manifest | Apply infers the repoid from the `origin` remote. If there is neither, create `everr.yaml` with a `repoid:` or add a remote. An `everr.yaml` always wins over the inferred slug. |
 | Empty `repoid` or reusing across repos | Use one stable id per repository; a UUID is a good default for new repos |
 | `everr dashboard apply -f file.yaml` or applying a single file | The command is `everr apply <dir>` against a directory |
 | Splitting one repoid across two apply directories | One tree per repoid; apply prunes everything not in the tree, across all kinds |

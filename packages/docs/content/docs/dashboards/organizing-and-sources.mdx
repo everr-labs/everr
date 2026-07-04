@@ -11,7 +11,7 @@ Your declarations live in an `everr/` directory at your repo root, flat and name
 
 ```
 everr/
-  everr.yaml                          -> manifest (declares the repoid)
+  everr.yaml                          -> optional explicit repoid override
   overview.dashboard.yaml             -> root
   platform/
     api-latency.dashboard.yaml        -> folder "platform"
@@ -23,29 +23,26 @@ everr/
 
 Directory segments become the folder path, joined by ` / `. Underscores and hyphens in segment names are shown as spaces (`team_payments` → `team payments`). Move a file to a different directory and re-apply, and the dashboard moves folders. There are no folder objects to create, rename, or delete.
 
-## The manifest declares what you manage
+## The repo identity scopes what you manage
 
-The `everr/` directory must contain an `everr.yaml` (or `everr.yml`) at its root declaring a stable `repoid`:
+The `repoid` is inferred automatically from the repository's `origin` git remote, normalized to the slug `host/owner/repo`. Equivalent ssh, https, and scp clone URLs collapse to the same identity, so one repo means one boundary. No manifest file is needed.
+
+An optional `everr.yaml` (or `everr.yml`) at the apply root can override the inferred identity. It accepts exactly one key:
 
 ```yaml
 # everr/everr.yaml
-repoid: "2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1"
+repoid: "my-explicit-id"
 ```
 
-The `repoid` is the **apply ownership boundary**. `everr apply` reconciles exactly the resources previously applied under this id — nothing else is touched. Use one stable id per repository (a UUID is a good default); never reuse a repoid across unrelated repos, and never change it for an existing setup (that orphans everything applied under the old id, leaving the old resources live but unmanaged). It is the only key the manifest accepts.
+The `repoid` is the **apply ownership boundary**. `everr apply` reconciles exactly the resources previously applied under this id — nothing else is touched. Use it as an escape hatch for local-only repositories, non-git directories, or when you need to pin an explicit name. Never reuse a repoid across unrelated repos, and never change it for an existing setup (that orphans everything applied under the old id, leaving the old resources live but unmanaged). It is the only key the manifest accepts.
 
 ## Projects namespace identity
 
 Independently of the repoid, every dashboard may declare a `metadata.project` (defaults to `default`). A project is an identifier you choose for a set of dashboards — typically one per team (`platform`, `team-payments`). It **namespaces identity**: a dashboard's full identity is `project` + `slug`, and its URL is `/dashboards/<project>/<slug>`, so two projects can both have an `overview` dashboard without colliding. It is optional and does **not** need to appear in the manifest.
 
-## Multiple repos stay isolated by repoid
+## Multiple repos stay isolated by identity
 
-Give each repo its own `repoid`, and applies never collide: `everr apply` only ever touches resources under the repoid in that repo's `everr.yaml`. It can never modify another repo's (or another organization's) dashboards.
-
-```yaml
-# platform repo — everr/everr.yaml
-repoid: "0b6c1f4e-8a21-4d3b-9f17-2c5e7a9d6b04"
-```
+Each repo's identity is its own remote slug, so applies never collide: `everr apply` only ever touches resources under that repo's identity. It can never modify another repo's (or another organization's) dashboards. No manifest is needed to keep them separate.
 
 ```yaml
 # platform repo — everr/api-latency.dashboard.yaml
@@ -58,11 +55,6 @@ spec:
 ```
 
 ```yaml
-# payments repo — everr/everr.yaml
-repoid: "9d2a77c3-1e54-4f8a-b6d0-3a8c1f2e5b97"
-```
-
-```yaml
 # payments repo — everr/checkout-funnel.dashboard.yaml
 kind: Dashboard
 metadata:
@@ -71,6 +63,8 @@ metadata:
 spec:
   ...
 ```
+
+If you need to pin an explicit identity, use the optional `everr.yaml` override described above.
 
 Apply each repo independently:
 
@@ -90,7 +84,7 @@ everr apply ./everr
 - **update** dashboards whose files changed,
 - **delete** dashboards whose files are no longer present.
 
-There is no separate prune step — removing a file removes the dashboard on the next apply, moving a dashboard's file within the tree relocates it (no duplicate), and emptying the tree removes its last dashboard. It's safe because reconciliation only ever applies within the repoid declared in `everr.yaml`. Always preview with `--dry-run` first:
+There is no separate prune step — removing a file removes the dashboard on the next apply, moving a dashboard's file within the tree relocates it (no duplicate), and emptying the tree removes its last dashboard. It's safe because reconciliation only ever applies within the repo's identity. Always preview with `--dry-run` first:
 
 ```sh
 everr apply ./everr --dry-run
