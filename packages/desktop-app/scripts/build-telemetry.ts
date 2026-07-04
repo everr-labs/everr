@@ -12,8 +12,15 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
  * build-telemetry.test.ts so drift on either side fails its own suite.
  */
 
-const BUILD_TELEMETRY_SERVICE_NAME = "everr-desktop-build";
-const BUILD_TELEMETRY_SERVICE_NAMESPACE = "everr";
+// In CI, spans join the workflow trace, so they carry the same service
+// identity the receiver stamps on it (attributes.go: githubActionsServiceName
+// and githubActionsServiceNamespace); the everr-build-telemetry scope and the
+// cicd.pipeline.* attributes still distinguish build-script spans. Local dev
+// builds keep their own service name so they never masquerade as CI.
+const CI_SERVICE_NAME = "github-actions";
+const CI_SERVICE_NAMESPACE = "cicd";
+const LOCAL_SERVICE_NAME = "everr-desktop-build";
+const LOCAL_SERVICE_NAMESPACE = "everr";
 const BUILD_TELEMETRY_SCOPE_NAME = "everr-build-telemetry";
 const DEFAULT_LOCAL_OTLP_ENDPOINT = "http://127.0.0.1:54318";
 const EVERR_HOSTED_OTLP_ENDPOINT = "https://ingest.everr.dev";
@@ -152,11 +159,12 @@ export function resolveBuildTelemetryExport(env: BuildTelemetryEnv): BuildTeleme
 }
 
 export function buildTelemetryResourceAttributes(env: BuildTelemetryEnv) {
+  const inCi = env.GITHUB_ACTIONS === "true";
   const attributes: Record<string, SpanAttributeValue> = {
-    "service.name": BUILD_TELEMETRY_SERVICE_NAME,
-    "service.namespace": BUILD_TELEMETRY_SERVICE_NAMESPACE,
+    "service.name": inCi ? CI_SERVICE_NAME : LOCAL_SERVICE_NAME,
+    "service.namespace": inCi ? CI_SERVICE_NAMESPACE : LOCAL_SERVICE_NAMESPACE,
     "service.instance.id": randomUUID(),
-    "deployment.environment.name": env.GITHUB_ACTIONS === "true" ? "ci" : "development",
+    "deployment.environment.name": inCi ? "ci" : "development",
   };
 
   const sha = cleanEnvValue(env.GITHUB_SHA);

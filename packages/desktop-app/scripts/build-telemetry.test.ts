@@ -122,7 +122,8 @@ describe("buildTelemetryResourceAttributes", () => {
       GITHUB_RUN_ID: "9876543210",
       EVERR_CI_JOB_NAME: "Build, Sign, Notarize Desktop",
     });
-    expect(attributes["service.name"]).toBe("everr-desktop-build");
+    expect(attributes["service.name"]).toBe("github-actions");
+    expect(attributes["service.namespace"]).toBe("cicd");
     expect(attributes["deployment.environment.name"]).toBe("ci");
     expect(attributes["service.version"]).toBe(
       "0123456789abcdef0123456789abcdef01234567",
@@ -132,8 +133,10 @@ describe("buildTelemetryResourceAttributes", () => {
     expect(attributes["cicd.pipeline.task.name"]).toBe("Build, Sign, Notarize Desktop");
   });
 
-  it("marks local builds as development", () => {
+  it("marks local builds as development under their own service name", () => {
     const attributes = buildTelemetryResourceAttributes({});
+    expect(attributes["service.name"]).toBe("everr-desktop-build");
+    expect(attributes["service.namespace"]).toBe("everr");
     expect(attributes["deployment.environment.name"]).toBe("development");
     expect(attributes["service.version"]).toBe("local-dev");
   });
