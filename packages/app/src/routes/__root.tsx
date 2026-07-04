@@ -1,8 +1,6 @@
 // Side-effect import: starts browser error tracking as early as the client
 // bundle loads (no-op during SSR and when unconfigured). See telemetry/client.
 import "@/telemetry/client";
-import { ErrorBoundary } from "@everr/auto-otel-errors/react";
-import { Button } from "@everr/ui/components/button";
 import { Toaster } from "@everr/ui/components/sonner";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import { FormDevtoolsPanel } from "@tanstack/react-form-devtools";
@@ -83,27 +81,11 @@ export const Route = createRootRouteWithContext<RouterContext>()({
   component: Component,
 });
 
-function AppErrorFallback() {
-  return (
-    <div className="flex h-screen flex-col items-center justify-center gap-4 p-6 text-center">
-      <div className="space-y-1">
-        <h1 className="text-lg font-semibold">Something went wrong</h1>
-        <p className="text-muted-foreground max-w-sm text-sm/relaxed">
-          An unexpected error occurred. Reloading the page usually fixes it.
-        </p>
-      </div>
-      <Button onClick={() => window.location.reload()}>Reload</Button>
-    </div>
-  );
-}
-
 function Component() {
   const { queryClient } = Route.useRouteContext();
   return (
     <QueryClientProvider client={queryClient}>
-      <ErrorBoundary fallback={<AppErrorFallback />}>
-        <Outlet />
-      </ErrorBoundary>
+      <Outlet />
       <TanStackDevtools
         config={{ position: "bottom-right" }}
         plugins={[

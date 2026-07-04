@@ -24,10 +24,10 @@ const BATCH_OPTIONS = {
   exportTimeoutMillis: 30_000,
 };
 
-let started = false;
-
 function initClientErrorTracking(): void {
-  if (started || typeof window === "undefined") return;
+  // Runs once at client bundle load (this is a side-effect module). No-op on
+  // the server.
+  if (typeof window === "undefined") return;
 
   const ingestKey = import.meta.env.VITE_EVERR_PUBLIC_INGEST_KEY?.trim();
   const endpointOverride = import.meta.env.VITE_EVERR_INGEST_ENDPOINT?.trim();
@@ -37,8 +37,6 @@ function initClientErrorTracking(): void {
   // there. In dev, fall back to the local collector so developers see their
   // own browser errors with no setup.
   if (!ingestKey && !endpointOverride && !import.meta.env.DEV) return;
-
-  started = true;
 
   const config = resolveTelemetryConfig(
     {

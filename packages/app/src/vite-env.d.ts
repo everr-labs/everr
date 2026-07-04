@@ -13,7 +13,3 @@ interface ImportMetaEnv {
    */
   readonly VITE_EVERR_INGEST_ENDPOINT?: string;
 }
-
-interface ImportMeta {
-  readonly env: ImportMetaEnv;
-}
