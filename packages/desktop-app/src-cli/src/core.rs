@@ -598,6 +598,32 @@ fn push_pagination(query: &mut Vec<(&str, String)>, limit: u32, offset: u32) {
     query.push(("offset", offset.to_string()));
 }
 
+/// Renders a cliclack prompt like a warning — a yellow `▲` and matching side
+/// bar — to flag that a live apply is about to write. Scoped around the live
+/// confirmation via `set_theme`/`reset_theme`.
+struct WarnTheme;
+
+impl cliclack::Theme for WarnTheme {
+    fn bar_color(&self, state: &cliclack::ThemeState) -> console::Style {
+        use cliclack::ThemeState::*;
+        match state {
+            Active | Error(_) => console::Style::new().yellow(),
+            Cancel => console::Style::new().red(),
+            Submit => console::Style::new().bright().black(),
+        }
+    }
+
+    fn state_symbol(&self, state: &cliclack::ThemeState) -> String {
+        use cliclack::ThemeState::*;
+        let symbol = match state {
+            Active | Error(_) => console::Emoji("▲", "x"),
+            Cancel => console::Emoji("■", "x"),
+            Submit => console::Emoji("◇", "o"),
+        };
+        self.state_symbol_color(state).apply_to(symbol).to_string()
+    }
+}
+
 pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
     use everr_core::apply::{
         ApplyRequest, classify_documents, detect_git_source, load_apply_manifest,
@@ -686,20 +712,27 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    // Confirm the (destructive) change before writing.
-    let target = match &preview {
-        Some(name) => format!("preview «{name}» in «{}»", plan.organization.name),
-        None => format!("«{}»", plan.organization.name),
-    };
-    if !args.yes {
+    // Previews are cheap and disposable, so they apply without confirmation.
+    // A live apply is the real thing: gate it behind an explicit, warning-styled
+    // confirmation.
+    if preview.is_none() && !args.yes {
         if std::io::stdin().is_terminal() && std::io::stdout().is_terminal() {
-            let proceed = cliclack::confirm(format!("Apply to {target}?")).interact()?;
-            if !proceed {
+            let org = console::style(&plan.organization.name).color256(208).bold();
+            cliclack::set_theme(WarnTheme);
+            let proceed = cliclack::confirm(format!(
+                "Are you sure you want to apply this change to {org}?"
+            ))
+            .interact();
+            cliclack::reset_theme();
+            if !proceed? {
                 println!("Aborted.");
                 return Ok(());
             }
         } else {
-            anyhow::bail!("refusing to apply to {target} without confirmation; re-run with --yes");
+            anyhow::bail!(
+                "refusing to apply to {} without confirmation; re-run with --yes",
+                plan.organization.name
+            );
         }
     }
 
