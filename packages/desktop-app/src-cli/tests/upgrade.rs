@@ -37,6 +37,10 @@ fn upgrade_is_a_noop_when_already_up_to_date() {
 /// The app-update path is exercised through the debug-only install path
 /// override, so these tests run on every platform: the CLI half of the
 /// upgrade is a no-op because the metadata reports the current CLI version.
+/// Debug-only: in a release build the overrides are compiled out, and on a
+/// macOS machine `installed_app_path` would find the real /Applications
+/// install instead of the harness fixture.
+#[cfg(debug_assertions)]
 mod app_upgrade {
     use std::fs;
     use std::path::{Path, PathBuf};
@@ -277,6 +281,27 @@ mod app_upgrade {
             harness.installed_marker(),
             "old-app-binary",
             "app must be untouched after a signature mismatch"
+        );
+    }
+
+    /// The metadata is unsigned, so a validly signed but older archive must
+    /// not be installable under an inflated claimed version.
+    #[test]
+    fn upgrade_aborts_when_archive_version_does_not_match_metadata() {
+        let archive = app_archive("1.5.0", "new-app-binary");
+        let mut harness = AppUpgradeHarness::new("1.0.0", "2099.1.0", &sha256_hex(&archive));
+        harness.mock_archive(&archive);
+
+        harness
+            .upgrade_command()
+            .assert()
+            .failure()
+            .stderr(contains("refusing to swap"));
+
+        assert_eq!(
+            harness.installed_marker(),
+            "old-app-binary",
+            "app must be untouched after a version mismatch"
         );
     }
 

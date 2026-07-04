@@ -82,7 +82,7 @@ async fn upgrade_app(metadata: &ReleaseMetadata) -> Result<()> {
     )?;
     verify_sha256_hex(&archive, expected_sha256)?;
     verify_updater_signature(&pubkey, &archive, &signature)?;
-    replace_app_bundle(&installed, &archive)?;
+    replace_app_bundle(&installed, &archive, &latest)?;
     println!("Upgraded Everr app v{installed_version} → v{latest}");
     println!("If the Everr app is running, quit and reopen it to finish the update.");
     Ok(())
@@ -246,22 +246,42 @@ fn installed_app_path() -> Option<PathBuf> {
 
 fn installed_app_version(app: &Path) -> Result<Version> {
     let plist_path = app.join("Contents").join("Info.plist");
-    let body = std::fs::read_to_string(&plist_path)
-        .with_context(|| format!("read {}", plist_path.display()))?;
-    let pattern =
+    let raw = read_plist_short_version(&plist_path).with_context(|| {
+        format!(
+            "read CFBundleShortVersionString from {}",
+            plist_path.display()
+        )
+    })?;
+    parse_version(&raw, "app bundle version")
+}
+
+/// Tauri writes XML plists, which the regex handles on any platform; binary
+/// plists (from `plutil -convert binary1` or distribution tooling) fall back
+/// to `plutil` on macOS, the only platform with real installs.
+fn read_plist_short_version(plist_path: &Path) -> Result<String> {
+    let from_xml = std::fs::read_to_string(plist_path).ok().and_then(|body| {
         regex::Regex::new(r"<key>CFBundleShortVersionString</key>\s*<string>([^<]+)</string>")
-            .expect("static regex");
-    let raw = pattern
-        .captures(&body)
-        .and_then(|captures| captures.get(1))
-        .with_context(|| {
-            format!(
-                "find CFBundleShortVersionString in {}",
-                plist_path.display()
-            )
-        })?
-        .as_str();
-    parse_version(raw, "installed app version")
+            .expect("static regex")
+            .captures(&body)
+            .map(|captures| captures[1].to_string())
+    });
+    if let Some(version) = from_xml {
+        return Ok(version);
+    }
+
+    if std::env::consts::OS == "macos" {
+        let output = std::process::Command::new("plutil")
+            .args(["-extract", "CFBundleShortVersionString", "raw", "-o", "-"])
+            .arg(plist_path)
+            .output()
+            .context("run plutil")?;
+        if output.status.success() {
+            let version = String::from_utf8(output.stdout).context("plutil output is not utf-8")?;
+            return Ok(version.trim().to_string());
+        }
+    }
+
+    bail!("could not find CFBundleShortVersionString")
 }
 
 fn app_archive_sha256<'a>(metadata: &'a ReleaseMetadata, archive_name: &str) -> Result<&'a str> {
@@ -279,7 +299,7 @@ fn app_archive_sha256<'a>(metadata: &'a ReleaseMetadata, archive_name: &str) -> 
 
 /// Everything is staged inside the install directory so the two renames are
 /// atomic (same filesystem) and a failed swap can roll the old bundle back.
-fn replace_app_bundle(installed: &Path, archive: &[u8]) -> Result<()> {
+fn replace_app_bundle(installed: &Path, archive: &[u8], expected_version: &Version) -> Result<()> {
     let parent = installed
         .parent()
         .context("resolve app install directory")?;
@@ -298,6 +318,17 @@ fn replace_app_bundle(installed: &Path, archive: &[u8]) -> Result<()> {
     tar.set_preserve_permissions(true);
     tar.unpack(&unpack_dir).context("extract app archive")?;
     let new_app = find_app_bundle(&unpack_dir)?;
+
+    // The signature proves the archive is ours, not that it is the version
+    // the (unsigned) metadata claims: without this check a tampered
+    // platform_version could pair an old, validly signed archive with a
+    // newer claimed version and silently downgrade the app.
+    let new_version = installed_app_version(&new_app)?;
+    if new_version != *expected_version {
+        bail!(
+            "extracted app bundle is v{new_version}, but the release metadata claims v{expected_version}; refusing to swap"
+        );
+    }
 
     // The window between the two renames is the only moment without an
     // installed app; a crash inside it leaves the previous bundle intact in
