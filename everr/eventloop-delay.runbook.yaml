@@ -31,8 +31,9 @@ spec:
                   query: |
                     SELECT
                       toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts,
-                      replaceOne(MetricName, 'nodejs.eventloop.delay.', '') AS series,
-                      round(avg(Value) * 1000, 1) AS delay_ms
+                      round(avgIf(Value, MetricName = 'nodejs.eventloop.delay.p50') * 1000, 1) AS p50,
+                      round(avgIf(Value, MetricName = 'nodejs.eventloop.delay.p90') * 1000, 1) AS p90,
+                      round(avgIf(Value, MetricName = 'nodejs.eventloop.delay.p99') * 1000, 1) AS p99
                     FROM metrics_gauge
                     WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
                       AND MetricName IN (
@@ -40,7 +41,7 @@ spec:
                         'nodejs.eventloop.delay.p90',
                         'nodejs.eventloop.delay.p99'
                       )
-                    GROUP BY ts, series
+                    GROUP BY ts
                     ORDER BY ts
     eventloop-utilization:
       kind: Panel
@@ -98,12 +99,15 @@ spec:
                       AND MetricName = 'v8js.memory.heap.used'
                     GROUP BY ts
                     ORDER BY ts
-    current-percentiles:
+    slowest-requests:
       kind: Panel
       spec:
         display:
-          name: Current delay percentiles
-          description: Latest event loop delay distribution across the selected window.
+          name: Slowest requests
+          description: >-
+            The worst individual requests in the selected window, slowest first,
+            for services that emit the event loop delay metric. Match the started
+            column against spikes on the delay chart, then open the trace.
         plugin:
           kind: Table
           spec:
@@ -116,121 +120,169 @@ spec:
                 spec:
                   query: |
                     SELECT
-                      replaceOne(MetricName, 'nodejs.eventloop.delay.', '') AS percentile,
-                      round(avg(Value) * 1000, 1) AS delay_ms
-                    FROM metrics_gauge
-                    WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
-                      AND MetricName LIKE 'nodejs.eventloop.delay.%'
-                    GROUP BY percentile
-                    ORDER BY delay_ms DESC
-    alert-status:
-      kind: Panel
-      spec:
-        display:
-          name: Alert service status
-          description: Recent alert service events for this alert, projected into logs.
-        plugin:
-          kind: Table
-          spec:
-            stickyHeader: true
-        queries:
-          - kind: ClickHouseSQL
-            spec:
-              plugin:
-                kind: ClickHouseSQL
-                spec:
-                  query: |
-                    SELECT
-                      TimestampTime AS event_time,
-                      LogAttributes['alert.event_type'] AS event_type,
-                      LogAttributes['alert.row_count'] AS row_count,
-                      LogAttributes['alert.silenced'] AS silenced,
-                      LogAttributes['alert.delivery_targets'] AS delivery_targets,
-                      LogAttributes['alert.instance_labels'] AS instance_labels
-                    FROM logs
+                      formatDateTime(min(Timestamp), '%m-%d %H:%i:%S') AS started,
+                      any(ServiceName) AS service,
+                      anyIf(SpanName, SpanKind = 'Server' OR ParentSpanId = '') AS entry,
+                      anyIf(SpanAttributes['rpc.method'], SpanAttributes['rpc.method'] != '') AS server_fn,
+                      round(max(Duration) / 1e6, 1) AS duration_ms,
+                      TraceId AS trace_id
+                    FROM traces
                     WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
-                      AND ServiceName = 'alert'
-                      AND LogAttributes['alert.slug'] = 'eventloop-delay'
-                    ORDER BY event_time DESC
-                    LIMIT 50
+                      AND ServiceName IN (
+                        SELECT DISTINCT ServiceName
+                        FROM metrics_gauge
+                        WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
+                          AND MetricName = 'nodejs.eventloop.delay.p99'
+                      )
+                    GROUP BY TraceId
+                    ORDER BY duration_ms DESC
+                    LIMIT 30
+    top-operations:
+      kind: Panel
+      spec:
+        display:
+          name: Heaviest operations
+          description: >-
+            Entry spans and server functions ranked by total time in the selected
+            window. The repeat offender is usually at the top.
+        plugin:
+          kind: Table
+          spec:
+            stickyHeader: true
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT
+                      if(SpanAttributes['rpc.method'] != '',
+                         concat('fn ', SpanAttributes['rpc.method']),
+                         SpanName) AS operation,
+                      count() AS calls,
+                      round(quantile(0.95)(Duration) / 1e6, 1) AS p95_ms,
+                      round(max(Duration) / 1e6, 1) AS max_ms,
+                      round(sum(Duration) / 1e6, 0) AS total_ms
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND ServiceName IN (
+                        SELECT DISTINCT ServiceName
+                        FROM metrics_gauge
+                        WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
+                          AND MetricName = 'nodejs.eventloop.delay.p99'
+                      )
+                      AND (SpanKind = 'Server' OR ParentSpanId = '' OR SpanAttributes['rpc.method'] != '')
+                    GROUP BY operation
+                    ORDER BY total_ms DESC
+                    LIMIT 20
+    request-latency:
+      kind: Panel
+      spec:
+        display:
+          name: Request latency percentiles
+          description: Server span duration p50/p95/p99 for services that emit the event loop delay metric.
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            unit: ms
+            showLegend: true
+            lineWidth: 1.5
+            curveType: monotone
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT
+                      toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                      round(quantile(0.5)(Duration) / 1e6, 1) AS p50,
+                      round(quantile(0.95)(Duration) / 1e6, 1) AS p95,
+                      round(quantile(0.99)(Duration) / 1e6, 1) AS p99
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND SpanKind = 'Server'
+                      AND ServiceName IN (
+                        SELECT DISTINCT ServiceName
+                        FROM metrics_gauge
+                        WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
+                          AND MetricName = 'nodejs.eventloop.delay.p99'
+                      )
+                    GROUP BY ts
+                    ORDER BY ts
+    slow-endpoints:
+      kind: Panel
+      spec:
+        display:
+          name: Slowest endpoints
+          description: Server entry spans ranked by p95 duration in the selected window.
+        plugin:
+          kind: Table
+          spec:
+            stickyHeader: true
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT
+                      ServiceName AS service,
+                      SpanName AS endpoint,
+                      count() AS calls,
+                      round(quantile(0.5)(Duration) / 1e6, 1) AS p50_ms,
+                      round(quantile(0.95)(Duration) / 1e6, 1) AS p95_ms,
+                      round(max(Duration) / 1e6, 1) AS max_ms,
+                      countIf(StatusCode = 'Error') AS errors
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND SpanKind = 'Server'
+                      AND ServiceName IN (
+                        SELECT DISTINCT ServiceName
+                        FROM metrics_gauge
+                        WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
+                          AND MetricName = 'nodejs.eventloop.delay.p99'
+                      )
+                    GROUP BY service, endpoint
+                    ORDER BY p95_ms DESC
+                    LIMIT 30
+    server-functions:
+      kind: Panel
+      spec:
+        display:
+          name: Slowest server functions
+          description: TanStack server functions ranked by p95 duration, broken out by rpc.method.
+        plugin:
+          kind: Table
+          spec:
+            stickyHeader: true
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT
+                      SpanAttributes['rpc.method'] AS server_fn,
+                      count() AS calls,
+                      round(quantile(0.5)(Duration) / 1e6, 1) AS p50_ms,
+                      round(quantile(0.95)(Duration) / 1e6, 1) AS p95_ms,
+                      round(max(Duration) / 1e6, 1) AS max_ms,
+                      countIf(StatusCode = 'Error') AS errors
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND SpanAttributes['rpc.method'] != ''
+                    GROUP BY server_fn
+                    ORDER BY p95_ms DESC
+                    LIMIT 30
   markdown:
-    inline: |
-      # Node.js event loop delay — runbook
-
-      The **eventloop-delay** alert fires when a service's
-      `nodejs.eventloop.delay.p99`, averaged over the last 5 minutes, exceeds
-      **100ms**. Each firing instance is one `ServiceName`.
-
-      The event loop is Node's single thread. "Delay" is how long a ready
-      callback waited before it ran — when it climbs, the process is **blocked**
-      (CPU-bound work, synchronous I/O, or GC pauses) and every request served by
-      that instance gets slower. This runbook localizes which of those it is.
-
-      ## 1. Confirm severity
-
-      ```panel
-      ref: eventloop-delay
-      ```
-
-      - **p99 spiking while p50 stays low** → occasional stalls (a periodic job, a
-        few heavy requests). Annoying tail latency, not a meltdown.
-      - **All percentiles elevated together** → sustained saturation; the loop is
-        behind continuously and the service is broadly slow.
-
-      ## 2. Is the loop CPU-saturated?
-
-      ```panel
-      ref: eventloop-utilization
-      ```
-
-      - **Utilization near 100%** → the loop is genuinely busy: CPU-bound work on
-        the main thread (large JSON parse/stringify, synchronous crypto/zlib,
-        tight loops, regex backtracking). Move it off the loop — stream/chunk it,
-        or push it to `worker_threads`.
-      - **Low utilization but high delay** → the loop is *blocked*, not busy:
-        synchronous filesystem calls, a native addon, or GC pauses. Check memory
-        next.
-
-      ## 3. GC / memory pressure
-
-      ```panel
-      ref: heap-used
-      ```
-
-      A heap that sawtooths up to the limit and back drives frequent major GCs,
-      and each major GC pause freezes the loop. Growth that never drops back is a
-      leak. Mitigations: cut per-request allocation, raise `--max-old-space-size`
-      if the working set is legitimately large, or fix the leak.
-
-      ## 4. Current snapshot
-
-      ```panel
-      ref: current-percentiles
-      ```
-
-      ## 5. Alert service status
-
-      This panel reads the alert service's projected logs for
-      **eventloop-delay**. Use it to confirm recent `firing`, `resolved`,
-      `evaluation_failed`, and `delivery_failed` events, plus row counts and
-      delivery/silence metadata.
-
-      ```panel
-      ref: alert-status
-      ```
-
-      ## 6. Common causes & what to do
-
-      | Signal | Likely cause | Action |
-      | --- | --- | --- |
-      | High utilization, high delay | CPU-bound work on the main thread | Offload to `worker_threads`; chunk/stream heavy work |
-      | Low utilization, high delay | Synchronous I/O or native call blocking the loop | Replace sync `fs`/crypto with async; audit native addons |
-      | Heap sawtooth near the limit | GC pauses | Reduce allocations; raise heap; check for leaks |
-      | Delay tracks request bursts | Overload | Scale out or shed load |
-      | One service only, after a deploy | Regression in that release | Correlate with deploy history; roll back |
-
-      ## 7. Related
-
-      - **app-server-latency** — event loop delay surfaces as elevated request
-        latency; use that runbook to find which endpoints are affected, then come
-        back here to see whether the loop is the cause.
+    file: ./eventloop-delay.runbook.md
+  pages:
+    - name: app-server-latency
+      display: { name: App server latency }
+      markdown:
+        file: ./eventloop-delay.app-server-latency.md
