@@ -80,9 +80,10 @@ function EmptyState() {
 export function GeoMapVisualization({ spec, data }: VisualizationProps<GeoMapSpec>) {
   const countries = getWorldCountries();
 
+  const projectionType = spec.projection;
   const projection = useMemo(
-    () => PROJECTIONS[spec.projection]().fitSize([VW, VH], { type: "Sphere" }),
-    [spec.projection],
+    () => PROJECTIONS[projectionType]().fitSize([VW, VH], { type: "Sphere" }),
+    [projectionType],
   );
 
   /** Serialized path + identity per country, computed once per projection —
@@ -172,14 +173,14 @@ export function GeoMapVisualization({ spec, data }: VisualizationProps<GeoMapSpe
 
   const markersLayer = useMemo(() => {
     if (content?.kind !== "points") return null;
-    return content.markers.map((m, i) => {
+    return content.markers.map((m) => {
       const xy = projection([m.lon, m.lat]);
       if (!xy) return null;
       const title = m.label ?? `${m.lat.toFixed(2)}, ${m.lon.toFixed(2)}`;
       return (
         // biome-ignore lint/a11y/noStaticElementInteractions: marker hover
         <circle
-          key={`${m.frame}-${i}`}
+          key={`${m.frame}-${m.lat}-${m.lon}-${m.label ?? ""}`}
           cx={xy[0]}
           cy={xy[1]}
           r={m.r}

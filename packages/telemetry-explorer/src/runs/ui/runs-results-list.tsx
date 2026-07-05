@@ -266,6 +266,7 @@ function ResultsSkeleton() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {Array.from({ length: 14 }).map((_, i) => (
+        // oxlint-disable-next-line react/no-array-index-key -- static placeholder skeleton, no data-derived key exists and the list never reorders
         <div key={i} className="flex items-center gap-3 border-b px-3 py-2">
           <Skeleton className="size-4 shrink-0 rounded-full" />
           <div className="flex min-w-0 flex-1 flex-col gap-1.5">

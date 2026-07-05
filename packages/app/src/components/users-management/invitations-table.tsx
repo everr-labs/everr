@@ -55,8 +55,8 @@ export function InvitationsTable({ invitations }: InvitationsTableProps) {
             <AlertDialogHeader>
               <AlertDialogTitle>Revoke invitation</AlertDialogTitle>
               <AlertDialogDescription>
-                This will cancel the invitation to {row.email}. They won't be able to join using
-                this link.
+                This will cancel the invitation to {row.email}. They won&apos;t be able to join
+                using this link.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

@@ -91,7 +91,7 @@ export function LogViewer({
     (absoluteIndex: number) => {
       const entry = visibleLines[absoluteIndex - firstItemIndex];
       if (!entry) {
-        return <div className={cn("grid whitespace-pre-wrap px-1 py-px")}></div>;
+        return <div className={cn("grid whitespace-pre-wrap px-1 py-px")} />;
       }
       const { index, indentLevel, displayLine } = entry;
       const line = lines[index];

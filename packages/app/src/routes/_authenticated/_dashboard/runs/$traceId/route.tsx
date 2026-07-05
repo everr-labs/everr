@@ -181,6 +181,7 @@ function RunDetailSkeleton() {
           </CardHeader>
           <CardContent className="min-h-0 flex-1 space-y-2 overflow-auto">
             {Array.from({ length: 3 }).map((_, i) => (
+              // oxlint-disable-next-line react/no-array-index-key -- static placeholder skeleton list, never reordered
               <Skeleton key={i} className="h-8 w-full" />
             ))}
           </CardContent>

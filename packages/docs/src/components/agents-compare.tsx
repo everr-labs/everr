@@ -182,7 +182,8 @@ function GroundedColumn({ inView }: { inView: boolean }) {
         <p className="text-[13.5px] leading-relaxed text-fd-foreground">
           All ten connections are in use, so the pool is my bottleneck. Commit <Code>a1f3c9d</Code>{" "}
           scaled checkout out to more workers but left the pool at 10, so requests queue for a
-          connection, hit the acquire timeout, and 500. I'll raise the cap to match the workers.
+          connection, hit the acquire timeout, and 500. I&apos;ll raise the cap to match the
+          workers.
         </p>
         <div className="overflow-hidden rounded-lg border border-fd-border bg-fd-background shadow-lg shadow-black/20">
           <WindowChrome
@@ -244,8 +245,8 @@ function GroundedColumn({ inView }: { inView: boolean }) {
       {/* 3 — reproduce locally, then confirm */}
       <AgentMessage className="mt-5">
         <p className="text-[13.5px] leading-relaxed text-fd-foreground">
-          Before I ship, I'll reproduce it locally, replaying the load against the patched pool and
-          checking again with <Code>everr</Code>.
+          Before I ship, I&apos;ll reproduce it locally, replaying the load against the patched pool
+          and checking again with <Code>everr</Code>.
         </p>
         <div className="overflow-hidden rounded-lg border border-fd-border bg-fd-background/60">
           <QueryRow

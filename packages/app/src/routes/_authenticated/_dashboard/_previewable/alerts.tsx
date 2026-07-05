@@ -357,7 +357,7 @@ function AlertsPage() {
 
       {hasAlerts && settings.data && !hasChannel && (
         <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
-          No notification channels are configured, so firing alerts won't reach anyone.{" "}
+          No notification channels are configured, so firing alerts won&apos;t reach anyone.{" "}
           <button
             type="button"
             className="font-medium underline underline-offset-4"
@@ -417,6 +417,7 @@ function AlertsPage() {
           ) : alerts.isPending ? (
             <div className="flex flex-col gap-2 px-3 py-2">
               {Array.from({ length: 5 }).map((_, index) => (
+                // oxlint-disable-next-line react/no-array-index-key -- static fixed-length skeleton placeholder, no stable data
                 <Skeleton key={index} className="h-8 w-full" />
               ))}
             </div>
@@ -667,7 +668,7 @@ function NotificationSettingsForm({
       />
       {update.error && (
         <p className="text-destructive text-sm" role="alert">
-          Couldn't save notification settings. {update.error.message}
+          Couldn&apos;t save notification settings. {update.error.message}
         </p>
       )}
       <DialogFooter>

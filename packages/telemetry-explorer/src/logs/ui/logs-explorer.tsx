@@ -138,6 +138,7 @@ const LogRowsSkeleton = memo(function LogRowsSkeleton() {
     <div className="flex h-full flex-col bg-background">
       {Array.from({ length: 14 }).map((_, index) => (
         <div
+          // oxlint-disable-next-line react/no-array-index-key -- static placeholder skeleton, no data-derived key exists and the list never reorders
           key={index}
           className="grid grid-cols-[86px_minmax(0,1fr)_28px] gap-2 border-b px-3 py-2 md:grid-cols-[112px_minmax(0,1fr)_156px_28px]"
         >
@@ -188,10 +189,14 @@ export function LogsExplorer({
   }));
 
   // Sync from search prop when it changes externally (back/forward, link nav, time range).
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
+  // Derived during render via the previous-prop pattern (no props->state effect): when the
+  // `search` reference changes, reset the optimistic mirror. setState during render re-renders
+  // before paint, so there's no flash and no effect dependency to chase.
+  const [prevSearch, setPrevSearch] = useState(search);
+  if (prevSearch !== search) {
+    setPrevSearch(search);
     setFilters({ q, levels, services, attributes, traceId });
-  }, [search]);
+  }
 
   const applyFilters = (updates: Partial<typeof filters>) => {
     setFilters((prev) => ({ ...prev, ...updates }));
@@ -235,8 +240,7 @@ export function LogsExplorer({
     placeholderData: keepPreviousData,
   });
 
-  const pages = data?.pages ?? [];
-  const logs = useMemo(() => pages.flatMap((page) => page?.logs ?? []), [pages]);
+  const logs = useMemo(() => data?.pages.flatMap((page) => page?.logs ?? []) ?? [], [data?.pages]);
 
   const totalCount = totals?.totalCount;
   const levelCounts = totals?.levelCounts;

@@ -281,6 +281,7 @@ function ResultsSkeleton() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {Array.from({ length: 12 }).map((_, i) => (
+        // oxlint-disable-next-line react/no-array-index-key -- static placeholder skeleton list with no data-backed key
         <div key={i} className="flex items-center gap-3 border-b px-3 py-1.5">
           <Skeleton className="size-2 shrink-0 rounded-full" />
           <Skeleton className="h-4 min-w-0 flex-1" />

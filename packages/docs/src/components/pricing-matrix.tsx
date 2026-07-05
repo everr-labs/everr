@@ -171,7 +171,7 @@ export function PricingMatrix() {
           <p className="mt-5 max-w-2xl text-base leading-relaxed text-fd-muted-foreground md:text-lg">
             No asterisks, no surprise line items. Compare the whole platform feature-by-feature and
             pick the tier that fits — start free and self-hosted, scale into managed Cloud when
-            you're ready.
+            you&apos;re ready.
           </p>
         </motion.div>
 

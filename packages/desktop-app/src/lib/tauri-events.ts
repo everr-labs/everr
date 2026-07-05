@@ -88,7 +88,8 @@ export function useTauriEvent<T = unknown>(eventName: EventName, onEvent: (paylo
         cleanupTauriListener(unlisten);
       }
     };
-  }, [eventName, handleEvent]);
+    // handleEvent is a useEffectEvent — stable by contract and must not be a dependency.
+  }, [eventName]);
 }
 
 export function useInvalidateOnTauriEvent(

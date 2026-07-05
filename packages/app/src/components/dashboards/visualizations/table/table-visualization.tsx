@@ -56,6 +56,7 @@ export function TableVisualization({ spec, data }: VisualizationProps<TableSpec>
             size="sm"
           >
             {sets.map((_, i) => (
+              // oxlint-disable-next-line react/no-array-index-key -- query result sets have no stable id; identity is positional (the toggle value is the index) and the array is never reordered
               <ToggleGroupItem key={i} value={String(i)}>
                 {queryLabel(i)}
               </ToggleGroupItem>

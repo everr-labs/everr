@@ -333,7 +333,7 @@ function CloudPanel({ tablistId }: { tablistId: string }) {
           <div className="flex items-center gap-2.5">
             <Gauge className="size-4 text-primary" strokeWidth={2.25} aria-hidden />
             <span className="font-heading text-xs font-bold uppercase tracking-[0.25em] text-fd-muted-foreground">
-              What's included
+              What&apos;s included
             </span>
           </div>
           <dl className="mt-8 grid grid-cols-3 gap-4">

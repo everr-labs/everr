@@ -75,6 +75,7 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
 
   return (
     <style
+      // oxlint-disable-next-line react/no-danger -- injects trusted chart theme CSS variables built from the local config, not user input
       dangerouslySetInnerHTML={{
         __html: Object.entries(THEMES)
           .map(

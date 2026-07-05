@@ -89,6 +89,7 @@ function LogInspectorSkeleton() {
   return (
     <div className="space-y-4">
       {Array.from({ length: 3 }).map((_, sectionIndex) => (
+        // oxlint-disable-next-line react/no-array-index-key -- fixed-length static skeleton placeholders with no data identity
         <div key={sectionIndex} className="space-y-2">
           <Skeleton className="h-3 w-24" />
           <Skeleton className="h-9 w-full" />

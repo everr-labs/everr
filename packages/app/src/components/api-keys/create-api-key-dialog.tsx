@@ -135,7 +135,7 @@ export function CreateApiKeyDialog() {
               </DialogTitle>
               <DialogDescription>
                 This is the only time the full key is shown. Store it in your secret manager — you
-                won't be able to retrieve it later.
+                won&apos;t be able to retrieve it later.
               </DialogDescription>
             </DialogHeader>
             <div className="bg-muted/40 rounded-md border p-3 font-mono text-xs break-all">
@@ -157,7 +157,7 @@ export function CreateApiKeyDialog() {
               <DialogTitle>New API key</DialogTitle>
               <DialogDescription>
                 Mint an organization-scoped <code className="font-mono text-[0.7rem]">ek_</code> key
-                and choose what it's allowed to do.
+                and choose what it&apos;s allowed to do.
               </DialogDescription>
             </DialogHeader>
 
@@ -205,7 +205,7 @@ export function CreateApiKeyDialog() {
             <fieldset className="space-y-2">
               <legend className="text-sm font-medium">Capabilities</legend>
               <p className="text-muted-foreground text-xs">
-                Grant only what this key needs — it's rejected for anything else.
+                Grant only what this key needs — it&apos;s rejected for anything else.
               </p>
               <div className="space-y-2 pt-0.5">
                 {ALL_API_KEY_SCOPES.map((scope) => {

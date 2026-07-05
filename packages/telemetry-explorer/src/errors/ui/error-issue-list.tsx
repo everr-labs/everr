@@ -60,6 +60,7 @@ export function ErrorIssueList({
     return (
       <div className="flex flex-col">
         {Array.from({ length: 8 }).map((_, index) => (
+          // oxlint-disable-next-line react/no-array-index-key -- static placeholder skeleton, no data-derived key exists and the list never reorders
           <div key={index} className="border-b px-3 py-2.5">
             <div className="flex items-start gap-3">
               <Skeleton className="size-7" />

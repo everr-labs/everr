@@ -36,9 +36,9 @@ const FAQS: FaqItem[] = [
     q: "Do I have to instrument my code?",
     a: (
       <>
-        If your runtime already speaks OpenTelemetry, you're most of the way there. Everr's bundled
-        skills also help your coding assistant add the right instrumentation, working straight from
-        your repository.
+        If your runtime already speaks OpenTelemetry, you&apos;re most of the way there.
+        Everr&apos;s bundled skills also help your coding assistant add the right instrumentation,
+        working straight from your repository.
       </>
     ),
   },

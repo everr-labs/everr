@@ -311,7 +311,7 @@ function QueryShot() {
           <span className={kw}>FROM</span> metrics
           {"\n  "}
           <span className={kw}>WHERE</span> name ={" "}
-          <span className={fg}>'http.server.duration'</span>
+          <span className={fg}>&apos;http.server.duration&apos;</span>
           {"\n  "}
           <span className={kw}>GROUP BY</span> service
           {"\n  "}

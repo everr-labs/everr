@@ -254,7 +254,9 @@ export function TimeRangePicker({
             </div>
 
             {customRangeState.rangeInverted && (
-              <p className="text-destructive text-[11px]">"From" must be before "To"</p>
+              <p className="text-destructive text-[11px]">
+                &quot;From&quot; must be before &quot;To&quot;
+              </p>
             )}
             <Button
               className="w-full mt-1"

@@ -37,7 +37,7 @@ export function DataTable<T>({
   onRowClick,
 }: DataTableProps<T>) {
   if (data.length === 0 && emptyState) {
-    return <>{emptyState}</>;
+    return emptyState;
   }
 
   const isFirst = (i: number) => i === 0;
@@ -50,6 +50,7 @@ export function DataTable<T>({
           <tr className="text-left text-muted-foreground">
             {columns.map((col, i) => (
               <th
+                // oxlint-disable-next-line react/no-array-index-key -- columns is a fixed-order prop array with no stable id field
                 key={i}
                 className={cn(
                   "whitespace-nowrap",
@@ -82,6 +83,7 @@ export function DataTable<T>({
             >
               {columns.map((col, i) => (
                 <td
+                  // oxlint-disable-next-line react/no-array-index-key -- columns is a fixed-order prop array with no stable id field
                   key={i}
                   className={
                     col.cellClassName ??

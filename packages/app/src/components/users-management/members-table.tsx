@@ -192,7 +192,7 @@ export function MembersTable({ members, currentUserId }: MembersTableProps) {
             <AlertDialogDescription>
               {rolePending && (
                 <>
-                  Change {rolePending.memberName}'s role from{" "}
+                  Change {rolePending.memberName}&apos;s role from{" "}
                   <span className="capitalize">{rolePending.currentRole}</span> to{" "}
                   <span className="capitalize">{rolePending.nextRole}</span>?
                 </>

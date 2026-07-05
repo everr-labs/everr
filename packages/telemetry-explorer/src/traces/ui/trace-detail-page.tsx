@@ -170,6 +170,7 @@ function DetailSkeleton() {
       <Skeleton className="h-7 w-40" />
       <div className="flex-1 space-y-2">
         {Array.from({ length: 8 }).map((_, i) => (
+          // oxlint-disable-next-line react/no-array-index-key -- static fixed-length skeleton placeholder, no stable data
           <Skeleton key={i} className="h-6 w-full" />
         ))}
       </div>

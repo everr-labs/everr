@@ -82,6 +82,7 @@ export function ErrorTracePanel({
         {isPending ? (
           <div className="grid gap-2">
             {Array.from({ length: 4 }).map((_, index) => (
+              // oxlint-disable-next-line react/no-array-index-key -- fixed-length placeholder skeletons with no data identity; list is static
               <Skeleton key={index} className="h-12" />
             ))}
           </div>

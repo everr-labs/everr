@@ -201,7 +201,7 @@ function AlertDetailPage() {
           )}
           {setActive.error && (
             <p className="text-sm text-destructive" role="alert">
-              Couldn't update evaluation. {setActive.error.message}
+              Couldn&apos;t update evaluation. {setActive.error.message}
             </p>
           )}
         </div>
@@ -234,8 +234,8 @@ function AlertDetailPage() {
           <CardContent className="flex items-center gap-3">
             <CircleCheck className="size-5 shrink-0 text-emerald-500" />
             <p className="text-sm">
-              <span className="font-medium text-foreground">You're all good.</span>{" "}
-              <span className="text-muted-foreground">Nothing's firing right now.</span>
+              <span className="font-medium text-foreground">You&apos;re all good.</span>{" "}
+              <span className="text-muted-foreground">Nothing&apos;s firing right now.</span>
             </p>
           </CardContent>
         </Card>
@@ -461,6 +461,7 @@ function LastEvaluationResult({ instance }: { instance: AlertInstanceSummary }) 
   return (
     <div className="flex max-w-xl flex-col gap-1 font-mono text-xs">
       {rows.map((row, index) => (
+        // oxlint-disable-next-line react/no-array-index-key -- read-only rows derived from data with no stable id (content can duplicate); list is static, never reordered
         <KeyValueList key={index} values={row} />
       ))}
     </div>
@@ -550,6 +551,7 @@ function HistoryInstances({
   return (
     <div className="flex max-w-xl flex-col gap-1 font-mono text-xs">
       {instances.map((instance, index) => (
+        // oxlint-disable-next-line react/no-array-index-key -- read-only history instances with no stable id (labels can duplicate); list is static, never reordered
         <KeyValueList key={index} values={instance.labels} />
       ))}
     </div>
@@ -615,7 +617,7 @@ function SilenceRow({ silence }: { silence: AlertSilenceSummary }) {
       )}
       {cancel.error && (
         <span className="mt-1.5 block text-destructive text-xs" role="alert">
-          Couldn't cancel silence. {cancel.error.message}
+          Couldn&apos;t cancel silence. {cancel.error.message}
         </span>
       )}
     </div>
@@ -720,6 +722,7 @@ function SilenceDialog({
               </p>
             )}
             {matchers.map((matcher, index) => (
+              // oxlint-disable-next-line react/no-array-index-key -- matchers have no stable id and duplicate blank rows would collide on a content key; all inputs are fully controlled from state, so index keys are safe on add/remove
               <div key={index} className="grid grid-cols-[1fr_72px_1fr_28px] items-center gap-1.5">
                 <Input
                   aria-label="Label"
@@ -805,7 +808,7 @@ function SilenceDialog({
           </div>
           {create.error && (
             <p className="text-sm text-destructive" role="alert">
-              Couldn't create silence. {create.error.message}
+              Couldn&apos;t create silence. {create.error.message}
             </p>
           )}
         </div>

@@ -43,7 +43,7 @@ function AuthErrorPage() {
           </div>
           <h1 className="font-heading text-2xl font-bold tracking-tight">Authentication error</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            We couldn't complete that authentication step.
+            We couldn&apos;t complete that authentication step.
           </p>
         </div>
 

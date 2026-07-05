@@ -475,6 +475,7 @@ function TestPerformanceSkeleton() {
       </div>
       <div className="flex flex-wrap gap-2">
         {Array.from({ length: 3 }).map((_, i) => (
+          // oxlint-disable-next-line react/no-array-index-key -- static placeholder skeleton list, never reordered
           <Skeleton key={i} className="h-9 w-[160px]" />
         ))}
       </div>
@@ -489,6 +490,7 @@ function TestPerformanceSkeleton() {
       </Card>
       <div className="grid gap-4 md:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
+          // oxlint-disable-next-line react/no-array-index-key -- static placeholder skeleton list, never reordered
           <Card key={i}>
             <CardHeader className="pb-2">
               <Skeleton className="h-4 w-24" />

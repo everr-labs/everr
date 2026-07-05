@@ -67,8 +67,8 @@ function DevlogIndex() {
               toward the best practices that have always been too complicated to apply everywhere.
             </p>
             <p>
-              We use Everr on our own systems every day, and honestly we don't know how we used to
-              live without it.
+              We use Everr on our own systems every day, and honestly we don&apos;t know how we used
+              to live without it.
             </p>
           </div>
         </section>

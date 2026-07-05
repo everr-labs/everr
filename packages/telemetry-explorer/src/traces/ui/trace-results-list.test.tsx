@@ -18,6 +18,7 @@ vi.mock("react-virtuoso", () => ({
   }) => (
     <div data-testid="virtuoso-mock">
       {data.map((item, i) => (
+        // oxlint-disable-next-line react/no-array-index-key -- generic Virtuoso mock over unconstrained T with no accessible stable field
         <div key={i}>{itemContent(i, item)}</div>
       ))}
       {/* Lets tests simulate scrolling to the bottom of the virtual list. */}

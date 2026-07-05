@@ -53,6 +53,7 @@ export function SpanDetailPanel({ span, traceStartNs, onClose }: Props) {
           <DetailSection title={`Events (${span.events.length})`}>
             {span.events.map((event, idx) => (
               <div
+                // oxlint-disable-next-line react/no-array-index-key -- span events carry no unique id; timestamps can collide, so index disambiguates in this immutable, non-reordering list
                 key={`${event.timestamp}-${idx}`}
                 className="bg-muted/40 grid gap-2 rounded-md p-2 text-xs"
               >
@@ -74,6 +75,7 @@ export function SpanDetailPanel({ span, traceStartNs, onClose }: Props) {
           <DetailSection title={`Links (${span.links.length})`}>
             {span.links.map((link, idx) => (
               <div
+                // oxlint-disable-next-line react/no-array-index-key -- span links carry no unique id; the same trace/span pair can repeat, so index disambiguates in this immutable, non-reordering list
                 key={`${link.traceId}-${link.spanId}-${idx}`}
                 className="bg-muted/40 grid gap-2 rounded-md p-2"
               >

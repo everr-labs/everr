@@ -57,6 +57,7 @@ export function useSyncExternalStoreWithSelector<Snapshot, Selection>(
         : () => memoizedSelector(getServerSnapshot());
 
     return [getSnap, getServerSnap];
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- faithful port of React's useSyncExternalStore shim; deps match upstream
   }, [getSnapshot, getServerSnapshot, selector, isEqual]);
 
   const value = useSyncExternalStore(subscribe, getSelection, getServerSelection);
@@ -64,6 +65,7 @@ export function useSyncExternalStoreWithSelector<Snapshot, Selection>(
   useEffect(() => {
     inst.hasValue = true;
     inst.value = value;
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- faithful port of React's useSyncExternalStore shim; deps match upstream
   }, [value]);
 
   useDebugValue(value);

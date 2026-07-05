@@ -637,7 +637,8 @@ function PersesEditor() {
       {/* the spec */}
       <div className="px-3 py-3 font-mono text-[12.5px] leading-relaxed">
         {PERSES_LINES.map((line, i) => (
-          <div key={`${line.k ?? line.raw}-${i}`} className="flex">
+          // oxlint-disable-next-line react/no-array-index-key -- PERSES_LINES is a static const array that never reorders and has no unique field (keys can repeat)
+          <div key={i} className="flex">
             <span className="w-7 shrink-0 select-none pr-3 text-right text-fd-muted-foreground/25">
               {i + 1}
             </span>

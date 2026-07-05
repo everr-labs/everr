@@ -26,6 +26,7 @@ vi.mock("react-virtuoso", () => ({
     return (
       <div data-testid="virtuoso-mock">
         {data.map((item, i) => (
+          // oxlint-disable-next-line react/no-array-index-key -- Virtuoso mock over generic T[] with no stable identity; index mirrors the real component's index arg
           <div key={i}>{itemContent(i, item)}</div>
         ))}
         {Footer ? <Footer /> : null}

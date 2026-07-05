@@ -174,6 +174,7 @@ function StepLogSkeleton() {
       <CardContent className="h-full p-0">
         <div className="space-y-1 p-3">
           {Array.from({ length: 20 }).map((_, i) => (
+            // oxlint-disable-next-line react/no-array-index-key -- static fixed-length skeleton placeholder, no stable data
             <Skeleton key={i} className="h-4 w-full" />
           ))}
         </div>

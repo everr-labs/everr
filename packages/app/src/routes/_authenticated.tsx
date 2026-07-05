@@ -86,6 +86,7 @@ function OrgSwitcher() {
 
   useEffect(() => {
     refetch();
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- fetch a fresh org list once on mount; refetch identity from the better-auth hook isn't guaranteed stable, so re-running on its change could loop
   }, []);
 
   const [switching, setSwitching] = useState<string | null>(null);
@@ -129,7 +130,7 @@ function OrgSwitcher() {
           ) : (
             <div className="space-y-4 text-center">
               <p className="text-sm text-muted-foreground">
-                You don't belong to any organizations.
+                You don&apos;t belong to any organizations.
               </p>
               <Button
                 className="w-full"

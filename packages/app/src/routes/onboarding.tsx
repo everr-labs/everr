@@ -428,7 +428,7 @@ function OrganizationStep({
       >
         <h2 className="text-lg font-semibold">Organization details</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Your team's home on Everr. You can always change this later.
+          Your team&apos;s home on Everr. You can always change this later.
         </p>
 
         <form className="mt-8 space-y-5" onSubmit={(e) => void handleSubmit(e)}>

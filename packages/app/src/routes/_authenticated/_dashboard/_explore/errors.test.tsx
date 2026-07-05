@@ -44,15 +44,15 @@ vi.mock("@/hooks/use-realtime-subscription", async () => {
 
         useEffect(() => {
           const subscription =
-            opts.scope === "trace"
-              ? ({ scope: opts.scope, traceId: opts.traceId } as const)
-              : ({ scope: opts.scope } as const);
+            traceId !== undefined
+              ? ({ scope: "trace", traceId } as const)
+              : ({ scope: "tenant" } as const);
           realtimeSubscriptions.starts.push(subscription);
 
           return () => {
             realtimeSubscriptions.stops.push(subscription);
           };
-        }, [opts.scope, traceId]);
+        }, [traceId]);
       },
     ),
   };

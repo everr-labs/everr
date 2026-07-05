@@ -32,7 +32,7 @@ export function PreviewIndicator() {
           <LogOut className="size-3.5" />
         </button>
       </TooltipTrigger>
-      <TooltipContent>Previewing "{preview}" — not live</TooltipContent>
+      <TooltipContent>Previewing &quot;{preview}&quot; — not live</TooltipContent>
     </Tooltip>
   );
 }
