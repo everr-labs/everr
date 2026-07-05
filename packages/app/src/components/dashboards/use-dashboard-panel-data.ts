@@ -156,7 +156,11 @@ export function useDashboardPanelData(
     [sources, definedNames, values, meta, pendingAllNames, allErrors],
   );
 
-  const results = useQueries({
+  // `combine` merges the per-query results into the panel state. React Query
+  // runs it with structural sharing, so the returned object stays referentially
+  // stable across renders (unlike the raw `useQueries` array, which is a fresh
+  // reference every render and would defeat a downstream `useMemo`).
+  const combined = useQueries({
     queries: requests.map((r) => ({
       ...panelQueryOptions(r.source, timeRange.from, timeRange.to, r.variables, r.variableMeta),
       enabled:
@@ -166,10 +170,7 @@ export function useDashboardPanelData(
         r.optionsError === undefined &&
         !r.waitingForOptions,
     })),
-  });
-
-  const combined = useMemo(
-    () =>
+    combine: (results) =>
       combineQueryStates(
         requests.map((r, i) => ({
           active: sourceIsActive(r.source),
@@ -181,8 +182,7 @@ export function useDashboardPanelData(
           rows: results[i]?.data?.rows,
         })),
       ),
-    [requests, results],
-  );
+  });
 
   // Memoize on the primitive bounds: `timeRange` is a fresh object each render,
   // so depending on it directly would never hit the cache.

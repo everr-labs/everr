@@ -130,6 +130,9 @@ export function NotificationWindow() {
 
 export function NotificationCard({ notification }: { notification: FailureNotification }) {
   const dismissMutation = useDismissActiveNotificationMutation();
+  // `mutateAsync` is referentially stable; the mutation object is not, so the
+  // auto-dismiss effect below depends on the function, not the whole mutation.
+  const { mutateAsync: dismissActiveNotification } = dismissMutation;
   const openMutation = useOpenNotificationTargetMutation();
   const copyMutation = useCopyAutoFixPromptMutation();
   const [copiedAutoFixPrompt, setCopiedAutoFixPrompt] = useState(false);
@@ -153,7 +156,7 @@ export function NotificationCard({ notification }: { notification: FailureNotifi
 
     const timeout = window.setTimeout(
       () => {
-        void dismissMutation.mutateAsync();
+        void dismissActiveNotification();
       },
       Math.max(deadlineAt - Date.now(), 0),
     );
@@ -161,7 +164,7 @@ export function NotificationCard({ notification }: { notification: FailureNotifi
     return () => {
       window.clearTimeout(timeout);
     };
-  }, [deadlineAt, dismissMutation, hovered]);
+  }, [deadlineAt, dismissActiveNotification, hovered]);
 
   function pauseAutoDismiss() {
     setHovered(true);

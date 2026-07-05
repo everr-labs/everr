@@ -53,7 +53,7 @@ export default defineConfig({
       "query/exhaustive-deps": "warn",
       "query/no-rest-destructuring": "warn",
       "query/stable-query-client": "error",
-      "query/no-unstable-deps": "warn",
+      "query/no-unstable-deps": "error",
       "query/infinite-query-property-order": "error",
       "query/no-void-query-fn": "error",
       "query/mutation-property-order": "error",
