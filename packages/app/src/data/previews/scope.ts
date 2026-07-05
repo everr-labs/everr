@@ -1,14 +1,4 @@
-import {
-  and,
-  eq,
-  inArray,
-  isNull,
-  ne,
-  notInArray,
-  or,
-  type SQL,
-  sql,
-} from "drizzle-orm";
+import { and, eq, isNull, ne, or, type SQL, sql } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 import { previews } from "@/db/schema";
 
@@ -35,34 +25,9 @@ export type Namespace = {
   readonly orgId: string;
   readonly repoid: string;
 } & (
-  | {
-      readonly kind: "live";
-      /** A repoid whose whole boundary this apply transfers to `repoid`
-       * (`--transfer-from`). Scopes treat its rows as already owned so a dry
-       * run diffs against the post-transfer world; the real pass relabels the
-       * rows first, after which this matches nothing. */
-      readonly absorbs?: string;
-    }
+  | { readonly kind: "live" }
   | { readonly kind: "preview"; readonly id: string | null }
 );
-
-// The owned-repoid predicates for a live namespace: its own repoid plus a
-// transfer source, if any. The single-owner case (every non-transfer apply)
-// keeps the plain `=` / `<>` SQL; the list forms appear only mid-transfer.
-function ownsRepoid(table: ScopedTable, ns: Namespace & { kind: "live" }): SQL {
-  return ns.absorbs
-    ? inArray(table.repoid, [ns.repoid, ns.absorbs])
-    : eq(table.repoid, ns.repoid);
-}
-
-function foreignRepoid(
-  table: ScopedTable,
-  ns: Namespace & { kind: "live" },
-): SQL {
-  return ns.absorbs
-    ? notInArray(table.repoid, [ns.repoid, ns.absorbs])
-    : ne(table.repoid, ns.repoid);
-}
 
 /**
  * WHERE predicate selecting one namespace's rows in a resource table: live rows
@@ -77,7 +42,7 @@ export function previewScope(table: ScopedTable, ns: Namespace): SQL {
     return (
       and(
         eq(table.organizationId, ns.orgId),
-        ownsRepoid(table, ns),
+        eq(table.repoid, ns.repoid),
         isNull(table.previewId),
       ) ?? sql`false`
     );
@@ -146,7 +111,7 @@ export function foreignLiveScope(
     and(
       eq(table.organizationId, ns.orgId),
       isNull(table.previewId),
-      foreignRepoid(table, ns),
+      ne(table.repoid, ns.repoid),
       matchesAnyIdentity,
     ) ?? sql`false`
   );

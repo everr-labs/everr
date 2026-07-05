@@ -697,7 +697,6 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
             preview: preview.clone(),
             dry_run: true,
             adopt: args.adopt,
-            transfer_from: args.transfer_from.clone(),
         })
         .await?;
     print_apply_summary(&plan, true);
@@ -706,12 +705,10 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let has_changes = plan.results.iter().any(|r| {
-        !r.created.is_empty()
-            || !r.updated.is_empty()
-            || !r.deleted.is_empty()
-            || !r.transferred.is_empty()
-    });
+    let has_changes = plan
+        .results
+        .iter()
+        .any(|r| !r.created.is_empty() || !r.updated.is_empty() || !r.deleted.is_empty());
     if !has_changes {
         println!("Nothing to apply.");
         return Ok(());
@@ -749,7 +746,6 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
             preview: preview.clone(),
             dry_run: false,
             adopt: args.adopt,
-            transfer_from: args.transfer_from.clone(),
         })
         .await?;
     print_apply_summary(&summary, false);
@@ -798,23 +794,18 @@ fn percent_encode(s: &str) -> String {
 fn print_apply_summary(summary: &everr_core::apply::ApplySummary, plan: bool) {
     let label = if plan { "(plan) " } else { "" };
     println!("{label}Destination org: «{}»", summary.organization.name);
-    // Counts that only appear when non-zero, so the common line stays short.
-    let suffix = |n: usize, word: &str| {
-        if n == 0 {
-            String::new()
-        } else {
-            format!(", {n} {word}")
-        }
-    };
     for r in &summary.results {
         println!(
-            "{label}{}: {} created, {} updated, {} deleted{}{}",
+            "{label}{}: {} created, {} updated, {} deleted{}",
             r.kind,
             r.created.len(),
             r.updated.len(),
             r.deleted.len(),
-            suffix(r.adopted.len(), "adopted"),
-            suffix(r.transferred.len(), "transferred")
+            if r.adopted.is_empty() {
+                String::new()
+            } else {
+                format!(", {} adopted", r.adopted.len())
+            }
         );
         for s in &r.created {
             println!("  + {s}");
@@ -827,9 +818,6 @@ fn print_apply_summary(summary: &everr_core::apply::ApplySummary, plan: bool) {
         }
         for s in &r.adopted {
             println!("  ⇄ {s}");
-        }
-        for s in &r.transferred {
-            println!("  → {s}");
         }
     }
 }

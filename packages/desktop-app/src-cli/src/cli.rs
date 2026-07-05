@@ -271,11 +271,6 @@ pub struct ApplyArgs {
     /// the apply.
     #[arg(long)]
     pub adopt: bool,
-    /// Move everything the given repoid owns to this repo's identity before
-    /// reconciling, in the same transaction. Use after a repo rename or when
-    /// removing a legacy everr.yaml.
-    #[arg(long = "transfer-from", value_name = "REPOID")]
-    pub transfer_from: Option<String>,
 }
 
 #[derive(Args, Debug, Default)]

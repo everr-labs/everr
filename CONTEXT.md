@@ -141,7 +141,7 @@ The stable identity that scopes ownership: every Dashboard, Alert, and Runbook i
 _Avoid_: repo id, ownership key
 
 **Ownership boundary**:
-The set of live resources sharing one Repoid — what apply reconciles a directory against, and prunes within. Adopt moves individual resources across boundaries; Transfer relabels a whole boundary at once.
+The set of live resources sharing one Repoid — what apply reconciles a directory against, and prunes within. Adopt moves individual resources across boundaries.
 _Avoid_: reconcile scope, prune boundary (informal, code-level)
 
 **Manifest**:
@@ -151,10 +151,6 @@ _Avoid_: config file, everr.yaml (name the concept, not the filename)
 **Adopt**:
 Taking over resources another Repoid owns by re-applying them under yours (`everr apply --adopt`). Deliberately targeted: only the resources present in the applied tree change owner; everything else the other Repoid owns is left untouched.
 _Avoid_: take over, claim
-
-**Transfer**:
-Moving an entire Ownership boundary to a new Repoid in one apply (`everr apply --transfer-from <old>`), then reconciling the tree. The switch path after a repository rename or Manifest removal; unlike Adopt it moves everything the old Repoid owns, not just the applied tree.
-_Avoid_: migrate, reassign
 
 ### Agent integration
 

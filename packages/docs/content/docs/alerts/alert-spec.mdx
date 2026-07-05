@@ -54,16 +54,6 @@ repoid: "my-explicit-id"
 
 If there is neither an `origin` remote nor an `everr.yaml` manifest, apply errors and tells you to add a remote or create `everr.yaml`.
 
-### Switching identity
-
-If the effective repoid changes (for example after deleting a legacy `everr.yaml` with a UUID repoid or after a GitHub org/repo rename), run the switch as a transfer:
-
-```sh
-everr apply ./everr --transfer-from "<old-repoid>"
-```
-
-In one transaction this moves everything the old repoid owns to the new identity, then reconciles the tree as usual: unchanged resources carry over untouched (alerts keep their runtime state and history), changed ones update, and anything no longer in the tree is pruned. Use `--dry-run --transfer-from` first to preview the full effect. Without a transfer, an apply under the new identity fails with a cross-repo ownership conflict that names the old repoid; `--adopt` remains the targeted alternative for deliberately taking over individual resources from another repo.
-
 Declarations sit flat in `everr/`, named by kind: `*.alert.yaml`, `*.dashboard.yaml`, `*.runbook.yaml` (the legacy `*.notebook.yaml` suffix is still recognized). `everr apply ./everr` discovers every `kind: Dashboard`, `kind: AlertRule`, and `kind: Runbook` document under the directory and makes the live resources for that repoid exactly match the tree: new documents are created, changed ones updated, and removed ones **deleted**. The kind suffix is a naming convention only — apply routes by the `kind:` field. Use `--dry-run` to preview the changes without applying them. See the [`everr apply` reference](/docs/reference/cli#dashboards-gitops).
 
 ## Constraints and errors

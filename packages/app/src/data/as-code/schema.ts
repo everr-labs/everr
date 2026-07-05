@@ -54,33 +54,7 @@ export const applyInput = z
     /** Take over live resources owned by another repo instead of failing on the
      * cross-repo ownership conflict. */
     adopt: z.boolean().default(false),
-    /** Move everything this repoid owns to `repoid` before reconciling, in the
-     * same transaction (repo rename / legacy-manifest removal). Live only. */
-    transferFrom: z.string().min(1).optional(),
   })
-  .strict()
-  .superRefine((input, ctx) => {
-    if (input.transferFrom === input.repoid) {
-      ctx.addIssue({
-        code: "custom",
-        message: TRANSFER_FROM_SELF_ERROR,
-        path: ["transferFrom"],
-      });
-    }
-    if (input.transferFrom && input.preview) {
-      ctx.addIssue({
-        code: "custom",
-        message: TRANSFER_FROM_PREVIEW_ERROR,
-        path: ["transferFrom"],
-      });
-    }
-  });
-
-// The transferFrom rules are enforced both here (the wire schema) and in
-// applyResources (for non-route callers); shared strings keep them in sync.
-export const TRANSFER_FROM_SELF_ERROR =
-  "transferFrom must differ from the repo's own repoid";
-export const TRANSFER_FROM_PREVIEW_ERROR =
-  "transferFrom cannot be combined with a preview apply";
+  .strict();
 
 export type ApplyInput = z.infer<typeof applyInput>;

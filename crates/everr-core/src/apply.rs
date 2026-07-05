@@ -367,10 +367,6 @@ pub struct ApplyRequest {
     /// Take over live resources owned by another repo instead of failing on the
     /// cross-repo ownership conflict.
     pub adopt: bool,
-    /// Move everything this repoid owns to `repoid` before reconciling, in the
-    /// same transaction (repo rename / legacy-manifest removal).
-    #[serde(rename = "transferFrom", skip_serializing_if = "Option::is_none")]
-    pub transfer_from: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
@@ -382,9 +378,6 @@ pub struct KindResult {
     /// Live resources taken over from another owning repo (only with `--adopt`).
     #[serde(default)]
     pub adopted: Vec<String>,
-    /// Live resources relabeled from the old repoid (only with `--transfer-from`).
-    #[serde(default)]
-    pub transferred: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
@@ -632,7 +625,6 @@ mod tests {
             preview: None,
             dry_run: false,
             adopt: false,
-            transfer_from: None,
         };
         let v = serde_json::to_value(&req).unwrap();
         assert_eq!(v["repoid"], "repo-1");
@@ -657,7 +649,6 @@ mod tests {
             preview: None,
             dry_run: true,
             adopt: false,
-            transfer_from: None,
         };
         let v = serde_json::to_value(&req).unwrap();
         assert!(v.get("preview").is_none());
