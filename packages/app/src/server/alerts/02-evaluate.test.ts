@@ -32,17 +32,29 @@ vi.mock("@/db/client", () => ({
   db: {
     select: (_columns?: unknown) => {
       const callIndex = selectCallCount++;
-      return {
-        from: () => ({
-          where: () => ({
-            limit: () => {
-              if (callIndex === 0) return Promise.resolve(definitionRows());
-              if (callIndex === 1) return Promise.resolve(settingsRows());
-              return Promise.resolve(silenceRows());
-            },
-          }),
-        }),
+      // The definition load joins the registry and returns the row wrapped as
+      // { def, previewName, repoid }; the evaluator flattens it back out.
+      const whereResult = {
+        limit: () => {
+          if (callIndex === 0)
+            return Promise.resolve(
+              definitionRows().map(
+                (d: { preview?: string; repoid?: string | null }) => ({
+                  def: d,
+                  previewName: d.preview ?? "",
+                  repoid: d.repoid ?? null,
+                }),
+              ),
+            );
+          if (callIndex === 1) return Promise.resolve(settingsRows());
+          return Promise.resolve(silenceRows());
+        },
       };
+      const afterFrom = {
+        leftJoin: () => ({ where: () => whereResult }),
+        where: () => whereResult,
+      };
+      return { from: () => afterFrom };
     },
     update: () => ({
       set: (value: unknown) => ({
@@ -83,6 +95,8 @@ const baseDef = {
   currentState: "resolved",
   instanceLabelColumns: [],
   firingInstanceCount: 0,
+  preview: "",
+  previewId: null,
 };
 
 const fp = (route: string) => instanceFingerprint({ route });
@@ -446,6 +460,28 @@ describe("evaluateAlert", () => {
     });
 
     expect(sqlApi).not.toHaveBeenCalled();
+  });
+
+  it("evaluates a preview alert but never dispatches notifications", async () => {
+    definitionRows.mockReturnValue([
+      { ...baseDef, preview: "gio/x", previewId: "prev-1" },
+    ]);
+    sqlApi.mockResolvedValue({ rows: [{ route: "/x" }], columns: ["route"] });
+
+    await evaluateAlert({
+      alertDefinitionId,
+      scheduledFor: "2026-06-10T12:00:00.000Z",
+    });
+
+    // State bookkeeping still persisted…
+    expect(updates.length).toBeGreaterThan(0);
+    expect(
+      updates.some(
+        (u) => (u as { currentState?: string }).currentState === "firing",
+      ),
+    ).toBe(true);
+    // …but nothing was enqueued for delivery.
+    expect(deliver).not.toHaveBeenCalled();
   });
 
   it("drops malformed stale jobs before querying Postgres", async () => {

@@ -50,12 +50,19 @@ const def = {
   organizationId: "org-1",
   repoid: "r1",
   slug: "s1",
+  preview: "",
   notificationTitleTemplate: "3 bad",
   notificationDescriptionTemplate: "",
 };
 
 // The parsed def (without template fields) as it appears in delivery jobs
-const sendDef = { id: "a1", organizationId: "org-1", repoid: "r1", slug: "s1" };
+const sendDef = {
+  id: "a1",
+  organizationId: "org-1",
+  repoid: "r1",
+  slug: "s1",
+  preview: "",
+};
 const scheduledFor = new Date("2026-06-12T12:00:00Z");
 
 const defaultContext: ResolvedDeliveryContext = {

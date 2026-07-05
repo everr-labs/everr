@@ -10,6 +10,8 @@ export interface AlertEventRow {
   alert_definition_id: string;
   repoid: string;
   slug: string;
+  // Preview namespace ('' = live); projected to ServiceName/env in app.logs.
+  preview: string;
   event_type:
     | "firing"
     | "resolved"
@@ -111,7 +113,13 @@ function clickhouseDateTime64(date: Date): string {
 }
 
 export function buildEvaluationEvent(opts: {
-  def: { id: string; organizationId: string; repoid: string; slug: string };
+  def: {
+    id: string;
+    organizationId: string;
+    repoid: string;
+    slug: string;
+    preview: string;
+  };
   eventType: "firing" | "resolved" | "evaluation_failed";
   scheduledFor: Date;
   evidence?: BoundedEvidence;
@@ -123,6 +131,7 @@ export function buildEvaluationEvent(opts: {
     alert_definition_id: opts.def.id,
     repoid: opts.def.repoid,
     slug: opts.def.slug,
+    preview: opts.def.preview,
     event_type: opts.eventType,
     evaluation_scheduled_at: clickhouseDateTime64(opts.scheduledFor),
     row_count: opts.evidence?.rowCount ?? 0,
@@ -161,7 +170,13 @@ function boundJson(value: Record<string, unknown>): string {
 // alert history UI. delivery_targets identifies the channel + target; the
 // error message travels in evidence_json.
 export function buildDeliveryFailureEvent(opts: {
-  def: { id: string; organizationId: string; repoid: string; slug: string };
+  def: {
+    id: string;
+    organizationId: string;
+    repoid: string;
+    slug: string;
+    preview: string;
+  };
   scheduledFor: Date;
   failure: { channel: AlertChannel; target: string; error: string };
 }): AlertEventRow {
@@ -170,6 +185,7 @@ export function buildDeliveryFailureEvent(opts: {
     alert_definition_id: opts.def.id,
     repoid: opts.def.repoid,
     slug: opts.def.slug,
+    preview: opts.def.preview,
     event_type: "delivery_failed",
     evaluation_scheduled_at: clickhouseDateTime64(opts.scheduledFor),
     delivery_targets: { [opts.failure.channel]: [opts.failure.target] },
@@ -178,7 +194,13 @@ export function buildDeliveryFailureEvent(opts: {
 }
 
 export function buildInstanceEvent(opts: {
-  def: { id: string; organizationId: string; repoid: string; slug: string };
+  def: {
+    id: string;
+    organizationId: string;
+    repoid: string;
+    slug: string;
+    preview: string;
+  };
   eventType: "instance_fired" | "instance_resolved";
   scheduledFor: Date;
   fingerprint: string;
@@ -190,6 +212,7 @@ export function buildInstanceEvent(opts: {
     alert_definition_id: opts.def.id,
     repoid: opts.def.repoid,
     slug: opts.def.slug,
+    preview: opts.def.preview,
     event_type: opts.eventType,
     evaluation_scheduled_at: clickhouseDateTime64(opts.scheduledFor),
     instance_fingerprint: opts.fingerprint,

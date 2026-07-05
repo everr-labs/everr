@@ -1,6 +1,6 @@
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { SeverityNumber } from "@opentelemetry/api-logs";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Client } from "./client.js";
 import { setupTestTelemetry } from "./test-utils.js";
 import type { Options } from "./types.js";
@@ -37,6 +37,27 @@ describe("Client.capture", () => {
     expect(record.attributes["everr.error.handled"]).toBe(true);
     expect(record.attributes["everr.error.mechanism"]).toBe("manual");
     expect(record.attributes["log.record.uid"]).toMatch(/^[0-9a-f-]{32,36}$/);
+  });
+
+  it("never scrubs the uid, even when it matches the credit-card pattern", () => {
+    // A numeric-heavy UUID whose leading groups are all digits — the default
+    // credit-card scrub pattern would redact it to "[Filtered]" if the uid went
+    // through scrubbing.
+    const uid = "40000000-0000-4000-8000-000000000002";
+    const spy = vi
+      .spyOn(globalThis.crypto, "randomUUID")
+      .mockReturnValue(uid as ReturnType<typeof crypto.randomUUID>);
+    try {
+      makeClient().capture({
+        error: new Error("boom"),
+        mechanism: "manual",
+        handled: true,
+      });
+      const [record] = otel.records();
+      expect(record.attributes["log.record.uid"]).toBe(uid);
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("maps fatal severity", () => {

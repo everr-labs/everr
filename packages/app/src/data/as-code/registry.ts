@@ -1,15 +1,23 @@
 import { applyAlertSpecs } from "@/data/alerts/apply.server";
 import { validateAlertRunbookLinks } from "@/data/alerts/runbook-links.server";
 import { applyDashboardSpecs } from "@/data/dashboards/apply.server";
+import { findPreviewId, upsertPreview } from "@/data/previews/apply.server";
+import type { Namespace } from "@/data/previews/scope";
 import { applyRunbookSpecs } from "@/data/runbooks/apply.server";
+import { type DbExecutor, db } from "@/db/client";
 import { ApplyValidationError } from "./errors";
+import type { OwnershipConflict } from "./ownership";
 import type { ApplyInput, ApplyResourceEntry, ApplySource } from "./schema";
+
+export type { OwnershipConflict } from "./ownership";
 
 export interface KindResult {
   kind: string;
   created: string[];
   updated: string[];
   deleted: string[];
+  /** Live resources taken over from another owning repo (only with `adopt`). */
+  adopted: string[];
 }
 
 export interface ApplyResourcesResult {
@@ -19,12 +27,26 @@ export interface ApplyResourcesResult {
 
 /** A reconciler makes the repo's resources of one kind match the given entries. */
 export type Reconciler = (opts: {
-  orgId: string;
-  repoid: string;
+  /** The apply target — live or a preview, carrying its (org, repoid). Scopes
+   * every read and write. */
+  namespace: Namespace;
   resources: ApplyResourceEntry[];
   source?: ApplySource;
   dryRun?: boolean;
-}) => Promise<{ created: string[]; updated: string[]; deleted: string[] }>;
+  /** Take over live resources owned by another repo instead of reporting them
+   * as conflicts. */
+  adopt?: boolean;
+  /** Runs queries: the shared apply transaction for real runs, base db for
+   * dry-run reads. */
+  db: DbExecutor;
+}) => Promise<{
+  created: string[];
+  updated: string[];
+  deleted: string[];
+  adopted: string[];
+  /** Creates colliding with another repo's live resource; empty when adopting. */
+  conflicts: OwnershipConflict[];
+}>;
 
 /**
  * State key → (kind label, reconciler). Every registered kind reconciles on
@@ -77,62 +99,114 @@ function validateResourceKind(
 export async function applyResources(opts: {
   orgId: string;
   repoid: string;
+  preview?: string;
   state: ApplyInput["state"];
   source?: ApplySource;
   dryRun?: boolean;
+  /** Take over live resources owned by another repo instead of failing. */
+  adopt?: boolean;
 }): Promise<ApplyResourcesResult> {
-  const { orgId, repoid, state, source, dryRun } = opts;
+  const { orgId, repoid, state, source, dryRun, adopt } = opts;
+  // null = live. previewNameSchema is min-length, so a present name is never "".
+  const previewName = opts.preview ?? null;
 
   const summarize = (
     kind: string,
-    r: { created: string[]; updated: string[]; deleted: string[] },
+    r: {
+      created: string[];
+      updated: string[];
+      deleted: string[];
+      adopted: string[];
+    },
   ): KindResult => ({
     kind,
     created: r.created,
     updated: r.updated,
     deleted: r.deleted,
+    adopted: r.adopted,
   });
+
+  // Live, or the preview resolved to its registry id via the given resolver.
+  const resolveNamespace = async (
+    resolveId: (name: string) => Promise<string | null>,
+  ): Promise<Namespace> =>
+    previewName === null
+      ? { orgId, repoid, kind: "live" }
+      : { orgId, repoid, kind: "preview", id: await resolveId(previewName) };
+
+  // The dry-run target resolves the preview to its existing registry id (without
+  // creating it) so the diff scopes to the right rows. A preview with nothing
+  // applied yet resolves to a null id, which matches no rows.
+  const namespace = await resolveNamespace((name) =>
+    findPreviewId(db, { orgId, repoid, name }),
+  );
 
   // Validation pass: every kind reconciles in dryRun mode, which runs the full
   // document validation but writes nothing. Any invalid document throws here,
   // before any kind has written. When the caller asked for a dry run, this pass
   // is also the result.
   const validated: KindResult[] = [];
+  const conflicts: (OwnershipConflict & { kind: string })[] = [];
   for (const { key, kind, reconcile } of REGISTRY) {
     validateResourceKind(state[key], kind);
     const r = await reconcile({
-      orgId,
-      repoid,
+      namespace,
       resources: state[key],
       source,
       dryRun: true,
+      adopt,
+      db,
     });
     validated.push(summarize(kind, r));
+    for (const c of r.conflicts) conflicts.push({ kind, ...c });
+  }
+
+  // Fail-fast on cross-repo ownership conflicts (a live create whose (project,
+  // slug) another repo already owns). Aborts before any write; `--adopt`
+  // transfers ownership instead. Reconcilers only report conflicts when not
+  // adopting, so this never fires with `adopt`.
+  if (conflicts.length > 0) {
+    const lines = conflicts
+      .map((c) => `  ${c.project}/${c.slug} (owned by ${c.owner})`)
+      .join("\n");
+    throw new ApplyValidationError(
+      `${conflicts.length} resource(s) are owned by another repo:\n${lines}\n` +
+        `Re-run with --adopt to take ownership.`,
+    );
   }
 
   // Cross-kind: a linked runbook must exist in this batch or already in the
   // DB. Runs after every kind validated, before any kind writes.
   await validateAlertRunbookLinks({
-    orgId,
-    repoid,
+    namespace,
     alerts: state.alerts,
     runbooks: state.runbooks,
   });
 
   if (dryRun) return { dryRun: true, results: validated };
 
-  // All kinds validated above; now apply for real.
+  // Real apply: one transaction so registration + every kind commit or roll
+  // back together. Register the preview FIRST — its row is the parent every
+  // preview resource row references (FK), and a rollback removes the row along
+  // with any partial writes, so the switcher never lists a half-applied
+  // preview. Live is not registered.
   const results: KindResult[] = [];
-  for (const { key, kind, reconcile } of REGISTRY) {
-    const r = await reconcile({
-      orgId,
-      repoid,
-      resources: state[key],
-      source,
-      dryRun: false,
-    });
-    results.push(summarize(kind, r));
-  }
+  await db.transaction(async (tx) => {
+    const applied = await resolveNamespace((name) =>
+      upsertPreview(tx, { orgId, repoid, name }),
+    );
+    for (const { key, kind, reconcile } of REGISTRY) {
+      const r = await reconcile({
+        namespace: applied,
+        resources: state[key],
+        source,
+        dryRun: false,
+        adopt,
+        db: tx,
+      });
+      results.push(summarize(kind, r));
+    }
+  });
 
   return { dryRun: false, results };
 }

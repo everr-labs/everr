@@ -15,12 +15,14 @@ vi.mock("drizzle-orm", () => ({
   and: vi.fn((...conditions: unknown[]) => ({ op: "and", conditions })),
   eq: vi.fn((left: unknown, right: unknown) => ({ op: "eq", left, right })),
   or: vi.fn((...conditions: unknown[]) => ({ op: "or", conditions })),
+  isNull: vi.fn((col: unknown) => ({ op: "isNull", col })),
 }));
 
 vi.mock("@/db/schema", () => ({
   runbooks: {
     organizationId: "organization_id",
     repoid: "repoid",
+    previewId: "preview_id",
     project: "project",
     slug: "slug",
   },
@@ -62,8 +64,7 @@ describe("validateAlertRunbookLinks", () => {
   it("passes when the runbook is in the same apply batch", async () => {
     await expect(
       validateAlertRunbookLinks({
-        orgId,
-        repoid,
+        namespace: { orgId, repoid, kind: "live" },
         alerts: [alertEntry("a.yaml", "a", "runbook")],
         runbooks: [runbookEntry("runbook")],
       }),
@@ -74,8 +75,7 @@ describe("validateAlertRunbookLinks", () => {
     dbRunbooks = [{ project: "default", slug: "runbook" }];
     await expect(
       validateAlertRunbookLinks({
-        orgId,
-        repoid,
+        namespace: { orgId, repoid, kind: "live" },
         alerts: [alertEntry("a.yaml", "a", "runbook")],
         runbooks: [],
       }),
@@ -85,8 +85,7 @@ describe("validateAlertRunbookLinks", () => {
   it("throws when the linked runbook does not exist", async () => {
     await expect(
       validateAlertRunbookLinks({
-        orgId,
-        repoid,
+        namespace: { orgId, repoid, kind: "live" },
         alerts: [alertEntry("a.yaml", "a", "missing")],
         runbooks: [],
       }),
@@ -96,8 +95,7 @@ describe("validateAlertRunbookLinks", () => {
   it("ignores alerts with no runbook", async () => {
     await expect(
       validateAlertRunbookLinks({
-        orgId,
-        repoid,
+        namespace: { orgId, repoid, kind: "live" },
         alerts: [alertEntry("a.yaml", "a")],
         runbooks: [],
       }),

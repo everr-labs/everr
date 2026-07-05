@@ -5,6 +5,7 @@ import {
   projectFromDocument,
   slugFromDocument,
 } from "@/data/dashboards/desired";
+import { type Namespace, previewScope } from "@/data/previews/scope";
 import { db } from "@/db/client";
 import { runbooks } from "@/db/schema";
 import { AlertRuleYamlSchema, identityKey, parseRunbookRef } from "./schema";
@@ -14,11 +15,10 @@ import { AlertRuleYamlSchema, identityKey, parseRunbookRef } from "./schema";
  * either ships in this same apply batch or already exists in the DB for the
  * repo. Cross-kind, so it runs from the apply orchestration rather than the
  * single-kind alert reconciler. Runbook identity is `(project, slug)`, scoped
- * to (org, repoid).
+ * to the namespace: (org, repoid) for live, or the preview registry id.
  */
 export async function validateAlertRunbookLinks(opts: {
-  orgId: string;
-  repoid: string;
+  namespace: Namespace;
   alerts: ApplyResourceEntry[];
   runbooks: ApplyResourceEntry[];
 }): Promise<void> {
@@ -52,6 +52,9 @@ export async function validateAlertRunbookLinks(opts: {
     if (!identities.has(key)) missing.set(key, ref);
   }
 
+  // Runbooks already in the DB for this namespace: (org, repoid) for live, the
+  // registry id for a preview. A preview with no registry row yet matches
+  // nothing, so only the batch counts.
   if (missing.size > 0) {
     const refs = [...missing.values()];
     const dbRows = await db
@@ -59,8 +62,7 @@ export async function validateAlertRunbookLinks(opts: {
       .from(runbooks)
       .where(
         and(
-          eq(runbooks.organizationId, opts.orgId),
-          eq(runbooks.repoid, opts.repoid),
+          previewScope(runbooks, opts.namespace),
           or(
             ...refs.map((ref) =>
               and(

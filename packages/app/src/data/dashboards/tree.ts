@@ -1,8 +1,12 @@
+import type { PreviewStatus } from "@/data/previews/overlay";
+
 export interface DashboardSummary {
   slug: string;
   project: string;
   name: string;
   folderPath: string;
+  /** Diff status when the list is viewed under an active preview. */
+  previewStatus?: PreviewStatus;
 }
 
 export interface FolderNode {

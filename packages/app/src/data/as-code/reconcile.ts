@@ -21,6 +21,16 @@ export interface ReconcileDiff {
 }
 
 /**
+ * The global identity of a resource within an org: (project, slug), NUL-joined.
+ * NUL can't appear in a project or slug, so the key is unambiguous even if a
+ * segment ever contained the separator (a space would let "a b"+"c" collide
+ * with "a"+"b c"). This is the single notion the whole as-code layer keys on —
+ * reconcile diffing, ownership conflicts, and the read-side overlay.
+ */
+export const identityKey = (r: { project: string; slug: string }): string =>
+  `${r.project}\u0000${r.slug}`;
+
+/**
  * Compute the create/update/delete diff to make the given resources match the
  * desired set. Identity is keyed by (project, slug). `existing` MUST already be
  * scoped to the declared reconcile scope (which may include projects absent from
@@ -36,18 +46,13 @@ export function reconcile(input: {
   existing: ExistingResource[];
   desired: DesiredResource[];
 }): ReconcileDiff {
-  // Join with a NUL, which can't appear in a project or slug, so the key is
-  // unambiguous even if either ever contained the separator (a space would let
-  // "a b"+"c" collide with "a"+"b c").
-  const key = (d: { project: string; slug: string }) =>
-    `${d.project}\u0000${d.slug}`;
-  const existingByKey = new Map(input.existing.map((d) => [key(d), d]));
-  const desiredKeys = new Set(input.desired.map(key));
+  const existingByKey = new Map(input.existing.map((d) => [identityKey(d), d]));
+  const desiredKeys = new Set(input.desired.map(identityKey));
 
   const creates: DesiredResource[] = [];
   const updates: DesiredResource[] = [];
   for (const want of input.desired) {
-    const have = existingByKey.get(key(want));
+    const have = existingByKey.get(identityKey(want));
     if (!have) {
       creates.push(want);
     } else if (
@@ -59,14 +64,14 @@ export function reconcile(input: {
   }
 
   const deletes = input.existing
-    .filter((d) => !desiredKeys.has(key(d)))
+    .filter((d) => !desiredKeys.has(identityKey(d)))
     .map((d) => ({ project: d.project, slug: d.slug }));
 
   return { creates, updates, deletes };
 }
 
 /** Deterministic JSON with object keys sorted recursively. */
-function stableStringify(value: unknown): string {
+export function stableStringify(value: unknown): string {
   return JSON.stringify(sortKeys(value));
 }
 

@@ -23,7 +23,13 @@ import {
   recordAlertEvents,
 } from "./03-events";
 
-const def = { id: "d1", organizationId: "org-1", repoid: "r1", slug: "s1" };
+const def = {
+  id: "d1",
+  organizationId: "org-1",
+  repoid: "r1",
+  slug: "s1",
+  preview: "",
+};
 
 describe("boundEvidence", () => {
   it("caps at 50 rows and flags truncation", () => {

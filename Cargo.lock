@@ -1423,6 +1423,7 @@ dependencies = [
  "chrono",
  "clap",
  "cliclack",
+ "console 0.16.3",
  "dialoguer",
  "dirs 6.0.0",
  "everr-core",

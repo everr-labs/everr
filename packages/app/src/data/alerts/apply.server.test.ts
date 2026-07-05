@@ -39,13 +39,6 @@ vi.mock("@/db/client", () => {
       insert: vi.fn(() => insertChain),
       update: vi.fn(() => updateChain),
       delete: vi.fn(() => deleteChain),
-      transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
-        fn({
-          insert: vi.fn(() => insertChain),
-          update: vi.fn(() => updateChain),
-          delete: vi.fn(() => deleteChain),
-        }),
-      ),
     },
   };
 });
@@ -53,13 +46,17 @@ vi.mock("@/db/client", () => {
 vi.mock("drizzle-orm", () => ({
   and: vi.fn((...conditions: unknown[]) => ({ op: "and", conditions })),
   eq: vi.fn((left: unknown, right: unknown) => ({ op: "eq", left, right })),
+  ne: vi.fn((left: unknown, right: unknown) => ({ op: "ne", left, right })),
   or: vi.fn((...conditions: unknown[]) => ({ op: "or", conditions })),
+  isNull: vi.fn((col: unknown) => ({ op: "isNull", col })),
+  sql: vi.fn(() => ({ op: "sql" })),
 }));
 
 vi.mock("@/db/schema", () => ({
   alertDefinitions: {
     organizationId: "organization_id",
     repoid: "repoid",
+    previewId: "preview_id",
     slug: "slug",
     evaluationIntervalSeconds: "evaluation_interval_seconds",
     document: "document",
@@ -147,8 +144,8 @@ describe("applyAlertSpecs", () => {
     mockApplySelect([]);
 
     const result = await applyAlertSpecs({
-      orgId: "org-1",
-      repoid: "repo-1",
+      namespace: { orgId: "org-1", repoid: "repo-1", kind: "live" },
+      db,
       dryRun: true,
       resources: [{ path: "alerts/high-errors.yaml", resource: alert() }],
     });
@@ -157,12 +154,55 @@ describe("applyAlertSpecs", () => {
       created: ["high-errors"],
       updated: [],
       deleted: [],
+      adopted: [],
+      conflicts: [],
     });
     expect(mockedQuerySqlApiWithMeta).toHaveBeenCalledWith(
       expect.stringContaining("INTERVAL 15 MINUTE"),
       "org-1",
     );
-    expect(mockedDb.transaction).not.toHaveBeenCalled();
+    expect(mockedDb.insert).not.toHaveBeenCalled();
+  });
+
+  it("reports a cross-repo conflict when another repo owns the alert name", async () => {
+    mockApplySelect([]); // scope: no existing rows → create
+    // The foreign-owner probe finds repo-2 already owns default/high-errors live.
+    mockApplySelect([
+      { project: "default", slug: "high-errors", owner: "repo-2" },
+    ]);
+    const result = await applyAlertSpecs({
+      namespace: { orgId: "org-1", repoid: "repo-1", kind: "live" },
+      db,
+      dryRun: true,
+      resources: [{ path: "alerts/high-errors.yaml", resource: alert() }],
+    });
+    expect(result.created).toEqual([]);
+    expect(result.adopted).toEqual([]);
+    expect(result.conflicts).toEqual([
+      { project: "default", slug: "high-errors", owner: "repo-2" },
+    ]);
+    expect(mockedDb.insert).not.toHaveBeenCalled();
+  });
+
+  it("adopts a conflicting alert, transferring ownership and resetting runtime state", async () => {
+    mockApplySelect([]); // scope
+    mockApplySelect([
+      { project: "default", slug: "high-errors", owner: "repo-2" },
+    ]);
+    const result = await applyAlertSpecs({
+      namespace: { orgId: "org-1", repoid: "repo-1", kind: "live" },
+      db,
+      adopt: true,
+      resources: [{ path: "alerts/high-errors.yaml", resource: alert() }],
+    });
+    expect(result.adopted).toEqual(["high-errors"]);
+    expect(result.conflicts).toEqual([]);
+    expect(result.created).toEqual([]);
+    expect(mockedDb.insert).not.toHaveBeenCalled();
+    // Ownership transfer: an update setting the new repoid + reset runtime state.
+    expect(updateSets).toEqual([
+      expect.objectContaining({ repoid: "repo-1", currentState: "unknown" }),
+    ]);
   });
 
   it("creates active valid alerts and persists source/path metadata", async () => {
@@ -173,8 +213,8 @@ describe("applyAlertSpecs", () => {
     mockApplySelect([]);
 
     const result = await applyAlertSpecs({
-      orgId: "org-1",
-      repoid: "repo-1",
+      namespace: { orgId: "org-1", repoid: "repo-1", kind: "live" },
+      db,
       source: {
         remote: "git@github.com:everr/example.git",
         commitSha: "abc123",
@@ -183,7 +223,7 @@ describe("applyAlertSpecs", () => {
     });
 
     expect(result.created).toEqual(["high-errors"]);
-    expect(mockedDb.transaction).toHaveBeenCalledOnce();
+    expect(mockedDb.insert).toHaveBeenCalledOnce();
     expect(insertValues).toHaveLength(1);
     const batch = insertValues[0] as Record<string, unknown>[];
     expect(batch).toHaveLength(1);
@@ -191,6 +231,7 @@ describe("applyAlertSpecs", () => {
     expect(created).toMatchObject({
       organizationId: "org-1",
       repoid: "repo-1",
+      previewId: null,
       slug: "high-errors",
       evaluationIntervalSeconds: 300,
       document: alert(),
@@ -245,8 +286,8 @@ describe("applyAlertSpecs", () => {
     ]);
 
     const result = await applyAlertSpecs({
-      orgId: "org-1",
-      repoid: "repo-1",
+      namespace: { orgId: "org-1", repoid: "repo-1", kind: "live" },
+      db,
       resources: [{ path: "alerts/high-errors.yaml", resource: alert() }],
     });
 
@@ -254,6 +295,8 @@ describe("applyAlertSpecs", () => {
       created: [],
       updated: ["high-errors"],
       deleted: ["stale"],
+      adopted: [],
+      conflicts: [],
     });
     expect(updateSets).toEqual([expect.objectContaining({ active: true })]);
     expect(deleteCalled).toBe(true);
@@ -278,8 +321,8 @@ describe("applyAlertSpecs", () => {
     ]);
 
     const result = await applyAlertSpecs({
-      orgId: "org-1",
-      repoid: "repo-1",
+      namespace: { orgId: "org-1", repoid: "repo-1", kind: "live" },
+      db,
       resources: [{ path: "alerts/high-errors.yaml", resource: alert() }],
     });
 
@@ -294,8 +337,8 @@ describe("applyAlertSpecs", () => {
   it("rejects duplicate alert names before querying ClickHouse", async () => {
     await expect(
       applyAlertSpecs({
-        orgId: "org-1",
-        repoid: "repo-1",
+        namespace: { orgId: "org-1", repoid: "repo-1", kind: "live" },
+        db,
         resources: [
           { path: "a.yaml", resource: alert("same") },
           { path: "b.yaml", resource: alert("same") },
@@ -326,8 +369,8 @@ describe("applyAlertSpecs", () => {
     ]);
 
     const result = await applyAlertSpecs({
-      orgId: "org-1",
-      repoid: "repo-1",
+      namespace: { orgId: "org-1", repoid: "repo-1", kind: "live" },
+      db,
       resources: [{ path: "alerts/high-errors.yaml", resource: alert() }],
     });
 
@@ -364,8 +407,8 @@ describe("applyAlertSpecs", () => {
     ]);
 
     const result = await applyAlertSpecs({
-      orgId: "org-1",
-      repoid: "repo-1",
+      namespace: { orgId: "org-1", repoid: "repo-1", kind: "live" },
+      db,
       resources: [
         {
           path: "alerts/high-errors.yaml",
@@ -388,16 +431,16 @@ describe("applyAlertSpecs", () => {
   it("rejects invalid schema, intervals, and unsupported variables with path context", async () => {
     await expect(
       applyAlertSpecs({
-        orgId: "org-1",
-        repoid: "repo-1",
+        namespace: { orgId: "org-1", repoid: "repo-1", kind: "live" },
+        db,
         resources: [{ path: "bad.yaml", resource: { kind: "AlertRule" } }],
       }),
     ).rejects.toThrow(/bad\.yaml: invalid alert rule/);
 
     await expect(
       applyAlertSpecs({
-        orgId: "org-1",
-        repoid: "repo-1",
+        namespace: { orgId: "org-1", repoid: "repo-1", kind: "live" },
+        db,
         resources: [
           {
             path: "fast.yaml",
@@ -409,8 +452,8 @@ describe("applyAlertSpecs", () => {
 
     await expect(
       applyAlertSpecs({
-        orgId: "org-1",
-        repoid: "repo-1",
+        namespace: { orgId: "org-1", repoid: "repo-1", kind: "live" },
+        db,
         resources: [
           {
             path: "bad-var.yaml",
@@ -424,8 +467,8 @@ describe("applyAlertSpecs", () => {
   it("rejects instanceLabels columns the query does not return", async () => {
     await expect(
       applyAlertSpecs({
-        orgId: "org-1",
-        repoid: "repo-1",
+        namespace: { orgId: "org-1", repoid: "repo-1", kind: "live" },
+        db,
         resources: [
           {
             path: "labels.yaml",
@@ -442,8 +485,8 @@ describe("applyAlertSpecs", () => {
     mockApplySelect([]);
 
     await applyAlertSpecs({
-      orgId: "org-1",
-      repoid: "repo-1",
+      namespace: { orgId: "org-1", repoid: "repo-1", kind: "live" },
+      db,
       resources: [
         {
           path: "alerts/high-errors.yaml",
@@ -465,8 +508,8 @@ describe("applyAlertSpecs", () => {
 
     await expect(
       applyAlertSpecs({
-        orgId: "org-1",
-        repoid: "repo-1",
+        namespace: { orgId: "org-1", repoid: "repo-1", kind: "live" },
+        db,
         resources: [{ path: "missing-column.yaml", resource: alert() }],
       }),
     ).rejects.toThrow(
@@ -482,8 +525,8 @@ describe("applyAlertSpecs", () => {
     mockApplySelect([]);
 
     await applyAlertSpecs({
-      orgId: "org-1",
-      repoid: "repo-1",
+      namespace: { orgId: "org-1", repoid: "repo-1", kind: "live" },
+      db,
       resources: [
         {
           path: "a.yaml",
@@ -528,8 +571,8 @@ describe("applyAlertSpecs", () => {
     });
 
     const result = await applyAlertSpecs({
-      orgId: "org-1",
-      repoid: "repo-1",
+      namespace: { orgId: "org-1", repoid: "repo-1", kind: "live" },
+      db,
       resources: [
         { path: "a.yaml", resource: mk("platform") },
         { path: "b.yaml", resource: mk("infra") },
@@ -546,8 +589,8 @@ describe("applyAlertSpecs", () => {
 
     try {
       await applyAlertSpecs({
-        orgId: "org-1",
-        repoid: "repo-1",
+        namespace: { orgId: "org-1", repoid: "repo-1", kind: "live" },
+        db,
         resources: [{ path: "query.yaml", resource: alert() }],
       });
       expect.fail("expected query validation to fail");

@@ -23,6 +23,7 @@ import {
   useParams,
 } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
+import { PageContainer } from "@/components/page-container";
 import { JobTreeNav } from "@/components/run-detail/job-tree-nav";
 import { RunHeader } from "@/components/run-detail/run-header";
 import {
@@ -91,18 +92,20 @@ function RunDetailLayout() {
 
   if (!runDetails) {
     return (
-      <div className="space-y-3">
-        <Card size="sm">
-          <CardContent className="pt-4">
-            <p className="text-muted-foreground text-center">Run not found</p>
-          </CardContent>
-        </Card>
-      </div>
+      <PageContainer>
+        <div className="space-y-3">
+          <Card size="sm">
+            <CardContent className="pt-4">
+              <p className="text-muted-foreground text-center">Run not found</p>
+            </CardContent>
+          </Card>
+        </div>
+      </PageContainer>
     );
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3">
+    <PageContainer>
       <RunHeader
         runId={runDetails.runId}
         runAttempt={runDetails.runAttempt}
@@ -179,13 +182,13 @@ function RunDetailLayout() {
           <Outlet />
         </TabsContent>
       </Tabs>
-    </div>
+    </PageContainer>
   );
 }
 
 function RunDetailSkeleton() {
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3">
+    <PageContainer>
       <div className="flex items-center gap-3">
         <Skeleton className="h-7 w-7" />
         <Skeleton className="size-5" />
@@ -210,34 +213,36 @@ function RunDetailSkeleton() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </PageContainer>
   );
 }
 
 function RunDetailError({ error }: { error: Error }) {
   return (
-    <div className="space-y-3">
-      <Link
-        to="/runs"
-        className={cn(
-          buttonVariants({ variant: "ghost", size: "sm" }),
-          "h-7 px-2",
-        )}
-      >
-        <ArrowLeft className="size-4" />
-      </Link>
-      <Card size="sm">
-        <CardContent className="pt-4">
-          <div className="text-center">
-            <p className="text-destructive font-medium">
-              Failed to load run details
-            </p>
-            <p className="text-muted-foreground mt-1 text-sm">
-              {error.message}
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+    <PageContainer>
+      <div className="space-y-3">
+        <Link
+          to="/runs"
+          className={cn(
+            buttonVariants({ variant: "ghost", size: "sm" }),
+            "h-7 px-2",
+          )}
+        >
+          <ArrowLeft className="size-4" />
+        </Link>
+        <Card size="sm">
+          <CardContent className="pt-4">
+            <div className="text-center">
+              <p className="text-destructive font-medium">
+                Failed to load run details
+              </p>
+              <p className="text-muted-foreground mt-1 text-sm">
+                {error.message}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </PageContainer>
   );
 }

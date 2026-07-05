@@ -17,3 +17,13 @@ export const pool = new Pool({
 });
 
 export const db = drizzle(pool, { schema });
+
+export type Database = typeof db;
+/** The `tx` handle inside `db.transaction(async (tx) => …)`. */
+export type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+/**
+ * Anything that can run queries: the base pool or an open transaction. Reconcilers
+ * take one so the whole apply (register + every kind) commits or rolls back as a
+ * unit; dry-run reads pass the base `db`.
+ */
+export type DbExecutor = Database | Transaction;

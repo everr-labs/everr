@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   index,
   integer,
   jsonb,
@@ -14,6 +15,7 @@ import {
 import type { StoredDeliverySettings } from "@/data/alerts/delivery-settings";
 import type { Matcher } from "@/data/alerts/matchers";
 import type { AlertRuleYaml } from "@/data/alerts/schema";
+import { previews } from "./app";
 
 export const alertStateEnum = pgEnum("alert_state", [
   "unknown",
@@ -26,7 +28,13 @@ export const alertDefinitions = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     organizationId: text("organization_id").notNull(),
-    repoid: text("repoid").notNull(),
+    // Live/preview split mirrors dashboards: live rows carry `repoid`, preview
+    // rows carry `previewId` and cascade-delete with the preview. Preview rows
+    // evaluate normally but never dispatch notifications. See the CHECK below.
+    repoid: text("repoid"),
+    previewId: uuid("preview_id").references(() => previews.id, {
+      onDelete: "cascade",
+    }),
     slug: text("slug").notNull(),
     project: text("project").notNull().default("default"),
     evaluationIntervalSeconds: integer("evaluation_interval_seconds").notNull(),
@@ -75,12 +83,18 @@ export const alertDefinitions = pgTable(
       .$type<string[]>(),
   },
   (table) => [
-    uniqueIndex("alert_definitions_org_repo_project_slug_uq").on(
-      table.organizationId,
-      table.repoid,
-      table.project,
-      table.slug,
+    check(
+      "alert_definitions_live_xor_preview",
+      sql`(${table.previewId} IS NULL) <> (${table.repoid} IS NULL)`,
     ),
+    // Live identity is the global address (org, project, slug); `repoid` owns
+    // (reconcile scope), not identity. Preview identity via the parent.
+    uniqueIndex("alert_definitions_live_project_slug_uq")
+      .on(table.organizationId, table.project, table.slug)
+      .where(sql`${table.previewId} IS NULL`),
+    uniqueIndex("alert_definitions_preview_project_slug_uq")
+      .on(table.previewId, table.project, table.slug)
+      .where(sql`${table.previewId} IS NOT NULL`),
     index("alert_definitions_due_idx").on(table.active, table.nextEvaluationAt),
   ],
 );

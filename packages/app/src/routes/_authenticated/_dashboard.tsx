@@ -14,15 +14,15 @@ import {
   stripSearchParams,
   useMatches,
 } from "@tanstack/react-router";
-import gridLayoutCSS from "react-grid-layout/css/styles.css?url";
 import { z } from "zod";
 import { RefreshPicker } from "@/components/analytics/refresh-picker";
 import { TimeRangePicker } from "@/components/analytics/time-range-picker";
 import { AppSidebar } from "@/components/app-sidebar";
 import { CommandBar } from "@/components/command-bar";
 import { DashboardBreadcrumb } from "@/components/dashboard-breadcrumb";
-import gridLayoutOverridesCSS from "@/components/dashboards/dashboard-grid.css?url";
+import { PreviewIndicator } from "@/components/preview-indicator";
 import { ExploreSearchRetainShape } from "@/lib/explore-search";
+import { SIDEBAR_TRACKED_LEFT } from "@/lib/sidebar-tracked-left";
 import {
   ResolvedTimeRangeSearchSchema,
   TimeRangeSearchSchema,
@@ -35,6 +35,13 @@ const DashboardSearchSchema = TimeRangeSearchSchema.extend({
   ...ExploreSearchRetainShape,
   github_install: z.string().optional(),
   reason: z.string().optional(),
+  // Active preview (a preview/branch name). App-wide context: retained across
+  // navigation (below) so the whole app stays in the same preview until the
+  // user switches back to Live. Absent = Live. Bounded here (matching the
+  // server's previewNameSchema cap) and coerced to Live on anything oversized,
+  // so retainSearchParams can't carry a junk value around; control-character
+  // rejection stays authoritative on the server at apply time.
+  preview: z.string().max(200).optional().catch(undefined),
   // Dashboard variable values, e.g. ?vars={"env":"prod","svc":["a","b"]}.
   // Deliberately NOT retained across navigation — different dashboards have
   // different variables. Malformed values fall back to spec defaults.
@@ -64,7 +71,14 @@ export const Route = createFileRoute("/_authenticated/_dashboard")({
     // See ExploreSearchShape for why the schemas must stay optional.
     middlewares: [
       stripSearchParams({ service: [], environment: [] }),
-      retainSearchParams(["from", "to", "refresh", "service", "environment"]),
+      retainSearchParams([
+        "from",
+        "to",
+        "refresh",
+        "service",
+        "environment",
+        "preview",
+      ]),
     ],
   },
   beforeLoad({ search }) {
@@ -78,18 +92,6 @@ export const Route = createFileRoute("/_authenticated/_dashboard")({
       });
     }
   },
-  head: () => ({
-    links: [
-      {
-        rel: "stylesheet",
-        href: gridLayoutCSS,
-      },
-      {
-        rel: "stylesheet",
-        href: gridLayoutOverridesCSS,
-      },
-    ],
-  }),
   component: RouteComponent,
 });
 
@@ -98,21 +100,25 @@ function RouteComponent() {
 
   const matches = useMatches();
   let hideTimeRangePicker = false;
-  let fullBleed = false;
   for (const match of matches) {
     if (match.staticData?.hideTimeRangePicker !== undefined) {
       hideTimeRangePicker = match.staticData.hideTimeRangePicker;
-    }
-    if (match.staticData?.fullBleed !== undefined) {
-      fullBleed = match.staticData.fullBleed;
     }
   }
 
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset className="h-screen min-w-0">
-        <header className="flex h-12 border-b border-sidebar-border px-3 bg-sidebar">
+      <SidebarInset className="h-screen min-w-0 pt-12">
+        {/* `fixed` (not sticky): the macOS rubber-band translates in-flow
+            content but leaves fixed elements pinned, so the topnav stays put.
+            SidebarInset compensates with pt-12. */}
+        <header
+          className={cn(
+            "fixed top-0 right-0 z-50 flex h-12 border-b border-sidebar-border bg-sidebar px-3",
+            SIDEBAR_TRACKED_LEFT,
+          )}
+        >
           <div className="flex items-center justify-between flex-1">
             <div className="flex items-center gap-2">
               <SidebarTrigger className="-ml-1" />
@@ -120,6 +126,7 @@ function RouteComponent() {
               <DashboardBreadcrumb />
             </div>
             <div className="flex items-center gap-1.5">
+              <PreviewIndicator />
               <CommandBar />
 
               {!hideTimeRangePicker && (
@@ -131,23 +138,19 @@ function RouteComponent() {
             </div>
           </div>
         </header>
-        <div
-          className={cn(
-            "flex min-h-0 flex-1 flex-col overflow-auto",
-            fullBleed ? "gap-0 p-0" : "gap-3 p-3",
-          )}
-        >
-          {search.github_install === "linked" ? (
-            <div className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          {search.github_install === "linked" && (
+            <div className="mx-3 mt-3 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
               GitHub installation linked successfully.
             </div>
-          ) : null}
-          {search.github_install === "error" ? (
-            <div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900">
+          )}
+
+          {search.github_install === "error" && (
+            <div className="mx-3 mt-3 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900">
               Failed to link GitHub installation
               {search.reason ? ` (${search.reason})` : ""}.
             </div>
-          ) : null}
+          )}
           <Outlet />
         </div>
       </SidebarInset>

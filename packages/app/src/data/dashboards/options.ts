@@ -18,20 +18,24 @@ const dashboardsQueryKey = ["dashboards"] as const;
 const MAX_CONCURRENT_PANEL_QUERIES = 4;
 const panelLimiter = createLimiter(MAX_CONCURRENT_PANEL_QUERIES);
 
-export const dashboardOptions = (project: string, slug: string) =>
+export const dashboardOptions = (
+  project: string,
+  slug: string,
+  preview?: string,
+) =>
   queryOptions({
-    queryKey: [...dashboardsQueryKey, project, slug],
-    queryFn: () => getDashboard({ data: { project, slug } }),
+    queryKey: [...dashboardsQueryKey, project, slug, preview ?? ""],
+    queryFn: () => getDashboard({ data: { project, slug, preview } }),
     // The dashboard document is immutable (gitops); never auto-refetch it (e.g.
     // when a card preview re-enters the viewport). A manual refresh still
     // invalidates it.
     staleTime: Number.POSITIVE_INFINITY,
   });
 
-export const dashboardListOptions = () =>
+export const dashboardListOptions = (preview?: string) =>
   queryOptions({
-    queryKey: [...dashboardsQueryKey, "list"],
-    queryFn: () => listDashboards(),
+    queryKey: [...dashboardsQueryKey, "list", preview ?? ""],
+    queryFn: () => listDashboards({ data: { preview } }),
   });
 
 export const panelQueryOptions = (

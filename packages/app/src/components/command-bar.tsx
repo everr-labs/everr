@@ -14,7 +14,7 @@ import { Kbd } from "@everr/ui/components/kbd";
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { cn } from "@everr/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { LayoutDashboard, SearchIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { flushSync } from "react-dom";
@@ -25,6 +25,7 @@ import { navMain } from "@/lib/navigation";
 
 export function CommandBar() {
   const navigate = useNavigate();
+  const { preview } = useSearch({ from: "/_authenticated/_dashboard" });
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search, 200);
@@ -34,7 +35,7 @@ export function CommandBar() {
     enabled: debouncedSearch.length >= 2,
   });
 
-  const { data: dashboardList } = useQuery(dashboardListOptions());
+  const { data: dashboardList } = useQuery(dashboardListOptions(preview));
 
   function handleSelect(url: string) {
     toggleCommandBar(false);

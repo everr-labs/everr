@@ -1,62 +1,145 @@
 import { notFound } from "@tanstack/react-router";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import * as z from "zod";
+import { overlayPreview, type PreviewStatus } from "@/data/previews/overlay";
+import { getCoveredRepoids } from "@/data/previews/repoids";
+import {
+  effectiveRepoid,
+  liveOrPreview,
+  previewJoin,
+} from "@/data/previews/scope";
 import { db } from "@/db/client";
-import { runbooks } from "@/db/schema";
+import { previews, runbooks } from "@/db/schema";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import type { Runbook } from "./schema";
 import { runbookSpecSchema } from "./schema";
 
 export const getRunbook = createAuthenticatedServerFn({ method: "GET" })
-  .inputValidator(z.object({ project: z.string(), slug: z.string() }))
-  .handler(async ({ data: { project, slug }, context }) => {
+  .inputValidator(
+    z.object({
+      project: z.string(),
+      slug: z.string(),
+      preview: z.string().optional(),
+    }),
+  )
+  .handler(async ({ data: { project, slug, ...rest }, context }) => {
     const orgId = context.session.session.activeOrganizationId;
+    const preview = rest.preview ?? null;
 
-    const [row] = await db
-      .select({ document: runbooks.document })
-      .from(runbooks)
-      .where(
-        and(
-          eq(runbooks.organizationId, orgId),
-          eq(runbooks.project, project),
-          eq(runbooks.slug, slug),
-        ),
-      )
-      .limit(1);
+    const identity = and(
+      eq(runbooks.organizationId, orgId),
+      eq(runbooks.project, project),
+      eq(runbooks.slug, slug),
+    );
 
-    if (!row) {
-      // Throw a framework notFound so only a genuinely-missing runbook shows
-      // the not-found UI; real errors (auth, server, invalid spec) surface as
-      // errors instead.
-      throw notFound();
+    if (preview === null) {
+      const [row] = await db
+        .select({ document: runbooks.document })
+        .from(runbooks)
+        .where(and(identity, isNull(runbooks.previewId)))
+        .limit(1);
+      if (!row) throw notFound();
+      runbookSpecSchema.parse(row.document.spec);
+      // Typed binding (not an assertion) so the live and preview branches share
+      // one return shape without widening `undefined` via a cast.
+      const previewStatus: PreviewStatus | undefined = undefined;
+      return { document: row.document satisfies Runbook, previewStatus };
     }
 
-    // Validate the spec shape on read; return the stored document verbatim so
-    // unknown fields survive (same lenient-read contract as dashboards).
+    // Live rows (previewId NULL) plus this preview's rows; `previewId` is the
+    // overlay's live/preview discriminator.
+    const [covered, rows] = await Promise.all([
+      getCoveredRepoids(orgId, preview),
+      db
+        .select({
+          repoid: effectiveRepoid(runbooks),
+          previewId: runbooks.previewId,
+          project: runbooks.project,
+          slug: runbooks.slug,
+          folderPath: runbooks.folderPath,
+          document: runbooks.document,
+        })
+        .from(runbooks)
+        .leftJoin(previews, previewJoin(runbooks))
+        .where(and(identity, liveOrPreview(runbooks, preview))),
+    ]);
+    const overlaid = overlayPreview({ rows, coveredRepoids: covered });
+    // Prefer a surviving row; a shadowed-by-deletion live row still renders,
+    // marked "removed", instead of 404ing mid-review.
+    const row =
+      overlaid.find((r) => r.previewStatus !== "removed") ??
+      overlaid.find((r) => r.previewStatus === "removed");
+    if (!row) throw notFound();
     runbookSpecSchema.parse(row.document.spec);
-
-    return row.document satisfies Runbook;
+    return {
+      document: row.document satisfies Runbook,
+      previewStatus: row.previewStatus,
+    };
   });
 
-export const listRunbooks = createAuthenticatedServerFn({
-  method: "GET",
-}).handler(async ({ context }) => {
-  const orgId = context.session.session.activeOrganizationId;
+export const listRunbooks = createAuthenticatedServerFn({ method: "GET" })
+  .inputValidator(z.object({ preview: z.string().optional() }).optional())
+  .handler(async ({ data, context }) => {
+    const orgId = context.session.session.activeOrganizationId;
+    const preview = data?.preview ?? null;
 
-  const rows = await db
-    .select({
+    // Live path never diffs against anything, so it only needs the scalar
+    // columns `toItem` returns — no `document` (expensive JSONB) fetch. The
+    // preview path feeds `overlayPreview`, which diffs `document` and keys off
+    // `repoid`/`preview`, so it keeps those.
+    const liveSelect = {
       slug: runbooks.slug,
       project: runbooks.project,
       folderPath: runbooks.folderPath,
       displayName: sql<string>`document->'spec'->'display'->>'name'`,
-    })
-    .from(runbooks)
-    .where(eq(runbooks.organizationId, orgId));
+    };
 
-  return rows.map((r) => ({
-    slug: r.slug,
-    project: r.project,
-    name: r.displayName ?? r.slug,
-    folderPath: r.folderPath,
-  }));
-});
+    const previewSelect = {
+      repoid: effectiveRepoid(runbooks),
+      previewId: runbooks.previewId,
+      slug: runbooks.slug,
+      project: runbooks.project,
+      folderPath: runbooks.folderPath,
+      document: runbooks.document,
+      displayName: sql<string>`document->'spec'->'display'->>'name'`,
+    };
+
+    const toItem = (row: {
+      slug: string;
+      project: string;
+      folderPath: string;
+      displayName: string | null;
+      previewStatus?: PreviewStatus;
+    }) => ({
+      slug: row.slug,
+      project: row.project,
+      name: row.displayName ?? row.slug,
+      folderPath: row.folderPath,
+      previewStatus: row.previewStatus,
+    });
+
+    if (preview === null) {
+      const rows = await db
+        .select(liveSelect)
+        .from(runbooks)
+        .where(
+          and(eq(runbooks.organizationId, orgId), isNull(runbooks.previewId)),
+        );
+      return rows.map(toItem);
+    }
+
+    const [covered, rows] = await Promise.all([
+      getCoveredRepoids(orgId, preview),
+      db
+        .select(previewSelect)
+        .from(runbooks)
+        .leftJoin(previews, previewJoin(runbooks))
+        .where(
+          and(
+            eq(runbooks.organizationId, orgId),
+            liveOrPreview(runbooks, preview),
+          ),
+        ),
+    ]);
+    return overlayPreview({ rows, coveredRepoids: covered }).map(toItem);
+  });

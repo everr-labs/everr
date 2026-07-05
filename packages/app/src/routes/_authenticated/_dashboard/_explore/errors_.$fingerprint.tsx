@@ -6,7 +6,7 @@ import { ErrorDetailRouteContent } from "./-error-detail";
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_explore/errors_/$fingerprint",
 )({
-  staticData: { breadcrumb: "Detail", fullBleed: true, hideExploreBar: true },
+  staticData: { breadcrumb: "Detail", hideExploreBar: true },
   head: () => ({ meta: [{ title: "Everr - Error detail" }] }),
   validateSearch: ErrorIssueSearchSchema,
   component: ErrorDetailPage,

@@ -1,3 +1,4 @@
+import { cn } from "@everr/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import {
   ChevronDown,
@@ -7,6 +8,7 @@ import {
   NotebookText,
 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
+import { PreviewStatusBadge } from "@/components/preview-status-badge";
 import {
   buildTree,
   type DashboardSummary,
@@ -166,9 +168,13 @@ function DashboardRow({
   resource: TreeResource;
 }) {
   const Icon = resource === "runbook" ? NotebookText : LayoutDashboard;
+  const removed = dashboard.previewStatus === "removed";
   return (
     <div
-      className="flex items-center gap-1 rounded-md py-1 pr-1 hover:bg-accent/50"
+      className={cn(
+        "flex items-center gap-1 rounded-md py-1 pr-1 hover:bg-accent/50",
+        removed && "opacity-50",
+      )}
       style={{ paddingLeft: `${depth * 20 + 26}px` }}
     >
       <Link
@@ -185,6 +191,7 @@ function DashboardRow({
         {path && (
           <span className="truncate text-xs text-muted-foreground">{path}</span>
         )}
+        <PreviewStatusBadge status={dashboard.previewStatus} />
       </Link>
     </div>
   );
