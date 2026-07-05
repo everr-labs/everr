@@ -10,7 +10,7 @@ import {
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
 import { cn } from "@everr/ui/lib/utils";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { AlertCircle, ChevronDown, Loader2 } from "lucide-react";
 import { useCallback } from "react";
 import { ALL_VALUE } from "@/data/dashboards/interpolate";
@@ -31,6 +31,10 @@ function isVisible(variable: Variable): boolean {
 export function VariableBar() {
   const navigate = useNavigate();
   const { variables, values, optionsState } = useDashboardVariables();
+  // Read the current vars from the typed route search (same source as
+  // useDashboardVariables) rather than the navigate updater's `prev`, whose
+  // nested `vars` type is not reliably inferred. Keeps the merge type-safe.
+  const currentVars = useSearch({ from: "/_authenticated/_dashboard", select: (s) => s.vars });
 
   const setValue = useCallback(
     (name: string, value: string | string[]) => {
@@ -39,19 +43,14 @@ export function VariableBar() {
         search: (prev) => ({
           ...prev,
           vars: {
-            // The `_dashboard` route types `vars` as
-            // Record<string, string | string[]> | undefined, but under the
-            // vite-plus toolchain TanStack Router widens `prev` to a loose index
-            // type, so `prev.vars` reads as `unknown` and can't be spread.
-            // Assert the schema-guaranteed shape.
-            ...(prev.vars as Record<string, string | string[]> | undefined),
+            ...currentVars,
             [name]: value,
           },
         }),
         replace: false,
       });
     },
-    [navigate],
+    [navigate, currentVars],
   );
 
   const visible = variables.filter(isVisible);
