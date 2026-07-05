@@ -1,0 +1,133 @@
+import { z } from "zod";
+import { createAuthenticatedServerFn } from "@/lib/serverFn";
+import * as cc from "./client";
+import { CcMatcherSchema, CcRuleSpecSchema } from "./schema";
+
+const orgId = (session: { session: { activeOrganizationId: string } }) =>
+  session.session.activeOrganizationId;
+
+// ---- Queries ----
+export const listCcRules = createAuthenticatedServerFn({
+  method: "GET",
+}).handler(({ context: { session } }) => cc.listRules(orgId(session)));
+
+export const getCcRule = createAuthenticatedServerFn({ method: "GET" })
+  .inputValidator(z.object({ ruleId: z.string() }))
+  .handler(({ data: { ruleId }, context: { session } }) =>
+    cc.getRule(orgId(session), ruleId),
+  );
+
+export const listCcAlerts = createAuthenticatedServerFn({
+  method: "GET",
+}).handler(({ context: { session } }) => cc.listAlerts(orgId(session)));
+
+export const listCcReceivers = createAuthenticatedServerFn({
+  method: "GET",
+}).handler(({ context: { session } }) => cc.listReceivers(orgId(session)));
+
+export const listCcRoutes = createAuthenticatedServerFn({
+  method: "GET",
+}).handler(({ context: { session } }) => cc.listRoutes(orgId(session)));
+
+export const listCcInhibitions = createAuthenticatedServerFn({
+  method: "GET",
+}).handler(({ context: { session } }) => cc.listInhibitions(orgId(session)));
+
+export const listCcSilences = createAuthenticatedServerFn({
+  method: "GET",
+}).handler(({ context: { session } }) => cc.listSilences(orgId(session)));
+
+// ---- Rule operations ----
+export const pauseCcRule = createAuthenticatedServerFn({ method: "POST" })
+  .inputValidator(z.object({ ruleId: z.string() }))
+  .handler(({ data: { ruleId }, context: { session } }) =>
+    cc.pauseRule(orgId(session), ruleId),
+  );
+
+export const resumeCcRule = createAuthenticatedServerFn({ method: "POST" })
+  .inputValidator(z.object({ ruleId: z.string() }))
+  .handler(({ data: { ruleId }, context: { session } }) =>
+    cc.resumeRule(orgId(session), ruleId),
+  );
+
+export const testCcRule = createAuthenticatedServerFn({ method: "POST" })
+  .inputValidator(z.object({ ruleId: z.string(), spec: CcRuleSpecSchema }))
+  .handler(({ data: { ruleId, spec }, context: { session } }) =>
+    cc.testRule(orgId(session), ruleId, spec),
+  );
+
+// ---- Routes ----
+const RouteInputSchema = z.object({
+  matchers: z.array(CcMatcherSchema),
+  receiver: z.string().min(1),
+  continue: z.boolean(),
+  priority: z.number().int(),
+  group_by: z.array(z.string()).nullable(),
+  group_wait_secs: z.number().int().nullable(),
+  group_interval_secs: z.number().int().nullable(),
+});
+
+export const createCcRoute = createAuthenticatedServerFn({ method: "POST" })
+  .inputValidator(RouteInputSchema)
+  .handler(({ data, context: { session } }) =>
+    cc.createRoute(orgId(session), data),
+  );
+
+export const deleteCcRoute = createAuthenticatedServerFn({ method: "POST" })
+  .inputValidator(z.object({ id: z.string() }))
+  .handler(({ data: { id }, context: { session } }) =>
+    cc.deleteRoute(orgId(session), id),
+  );
+
+// ---- Inhibitions ----
+const InhibitionInputSchema = z.object({
+  source_matchers: z.array(CcMatcherSchema),
+  target_matchers: z.array(CcMatcherSchema),
+  equal: z.array(z.string()),
+});
+
+export const createCcInhibition = createAuthenticatedServerFn({
+  method: "POST",
+})
+  .inputValidator(InhibitionInputSchema)
+  .handler(({ data, context: { session } }) =>
+    cc.createInhibition(orgId(session), data),
+  );
+
+export const deleteCcInhibition = createAuthenticatedServerFn({
+  method: "POST",
+})
+  .inputValidator(z.object({ id: z.string() }))
+  .handler(({ data: { id }, context: { session } }) =>
+    cc.deleteInhibition(orgId(session), id),
+  );
+
+// ---- Silences ----
+const SilenceInputSchema = z.object({
+  matchers: z.array(CcMatcherSchema).min(1),
+  starts_at: z.string(),
+  ends_at: z.string(),
+  comment: z.string().optional(),
+  author: z.string().optional(),
+});
+
+export const createCcSilence = createAuthenticatedServerFn({ method: "POST" })
+  .inputValidator(SilenceInputSchema)
+  .handler(({ data, context: { session } }) =>
+    cc.createSilence(orgId(session), data),
+  );
+
+export const deleteCcSilence = createAuthenticatedServerFn({ method: "POST" })
+  .inputValidator(z.object({ id: z.string() }))
+  .handler(({ data: { id }, context: { session } }) =>
+    cc.deleteSilence(orgId(session), id),
+  );
+
+// ---- Subscriptions ----
+export const createCcSubscription = createAuthenticatedServerFn({
+  method: "POST",
+})
+  .inputValidator(z.object({ webhookUrl: z.url() }))
+  .handler(({ data: { webhookUrl }, context: { session } }) =>
+    cc.createSubscription(orgId(session), webhookUrl),
+  );
