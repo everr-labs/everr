@@ -132,6 +132,15 @@ export default defineConfig({
       // On in prod (catches a method reference that loses its `this`), but off in
       // tests (see overrides) where it only ever fires on mock method references.
       "typescript/unbound-method": "error",
+      // Free type-aware footgun guards (0 findings today): for-in over arrays,
+      // `delete arr[i]` (leaves holes), mixed string/number enums, duplicate
+      // union members, redundant `=== true`, and Array#reduce type params.
+      "typescript/no-for-in-array": "error",
+      "typescript/no-array-delete": "error",
+      "typescript/no-mixed-enums": "error",
+      "typescript/no-duplicate-type-constituents": "error",
+      "typescript/no-unnecessary-boolean-literal-compare": "error",
+      "typescript/prefer-reduce-type-parameter": "error",
       // Off: flags the intentional `KnownLiterals | string` widening idiom
       // (e.g. `NodeJS.Platform | string`, `"now" | string`) we use to keep
       // autocomplete hints while accepting arbitrary strings. Stylistic, not a
