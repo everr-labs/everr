@@ -47,6 +47,10 @@ services:
     volumes:
       - ./collector/config.yml:/etc/everr-collector/config.yaml:ro,z
       - ./collector/dev-everr-app.pem:/etc/everr-collector/dev-everr-app.pem:ro,z
+    environment:
+      # Shared secret gating the trusted OTLP ingest path (otlp/trusted, ports
+      # 4417/4418). clickety-clack sends `Authorization: Bearer <this>`. Dev-only.
+      TRUSTED_INGEST_TOKEN: cc-trusted-wLrlvA6pELmMieZ2odq0njrui8qr5QLQ
 
   mailpit:
     image: axllent/mailpit
@@ -62,3 +66,82 @@ services:
       MP_DATABASE: /data/mailpit.db
       MP_SMTP_AUTH_ACCEPT_ANY: 1
       MP_SMTP_AUTH_ALLOW_INSECURE: 1
+
+  # Redis backing store for clickety-clack (work queue + event stream).
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./volumes/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Creates a dedicated `clickety_clack` database in the shared Postgres (CC runs
+  # its own migrations there) so its tables never collide with everr's. Idempotent
+  # one-shot; exits 0.
+  clickety-clack-db-init:
+    image: postgres:18.3-alpine3.23
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    entrypoint:
+      - sh
+      - -c
+      - >
+        psql postgres://postgres:postgres@postgres:5432/postgres -tc
+        "SELECT 1 FROM pg_database WHERE datname='clickety_clack'" | grep -q 1 ||
+        psql postgres://postgres:postgres@postgres:5432/postgres -c
+        "CREATE DATABASE clickety_clack"
+
+  # clickety-clack alerting engine (the everr CC UI talks to this). Built from the
+  # sibling ../clickety-clack checkout; runs all roles in one container against this
+  # stack's Postgres + ClickHouse + Redis. The everr web app (host `pnpm dev`)
+  # reaches it at http://localhost:8088 — set CLICKETY_CLACK_BASE_URL to that.
+  clickety-clack:
+    build:
+      context: ../clickety-clack
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      clickety-clack-db-init:
+        condition: service_completed_successfully
+      mailpit:
+        condition: service_started
+    # Host 8088 → container 8080 (8080 is taken by the collector service above).
+    ports:
+      - "8088:8080"
+    environment:
+      CC_ROLE: all
+      CC_HTTP_ADDR: 0.0.0.0:8080
+      CC_NODE_ID: node-1
+      CC_PG_URL: postgres://postgres:postgres@postgres:5432/clickety_clack
+      CC_REDIS_URL: redis://redis:6379
+      CC_CH_URL: http://clickhouse:8123
+      CC_CH_USER: default
+      CC_CH_PASSWORD: everr
+      CC_CH_AUTH_MODE: shared
+      # Dev-only fake-KMS root key (base64 of 32 bytes). NOT for production.
+      CC_SECRET_PROVIDER: kms
+      CC_KMS_FAKE_ROOT_KEY: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=
+      # Email delivery → mailpit (plaintext SMTP; web UI at http://localhost:8025).
+      CC_SMTP_HOST: mailpit
+      CC_SMTP_PORT: "1025"
+      CC_SMTP_FROM: alerts@everr.dev
+      # Trusted OTLP path: the `events` role + dispatcher ship alert-event logs
+      # here (one ResourceLogs per tenant, everr.tenant.id preserved) → app.logs.
+      CC_TRUSTED_OTLP_ENDPOINT: http://collector:4418/v1/logs
+      CC_TRUSTED_INGEST_SECRET: cc-trusted-wLrlvA6pELmMieZ2odq0njrui8qr5QLQ
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/healthz || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 12

@@ -6,6 +6,13 @@ extensions:
     endpoint: ${env:INGEST_VERIFY_URL:-http://host.docker.internal:5173/api/internal/verify-key}
     shared_secret: ${env:INGEST_VERIFY_SHARED_SECRET:-replace-with-a-long-random-value}
 
+  # Trusted first-party ingest. Only clickety-clack holds this token; rotate it
+  # like any shared secret. The token gates admission only and carries no
+  # tenant — tenant is the per-ResourceLogs everr.tenant.id CC sets.
+  bearertokenauth/trusted:
+    scheme: "Bearer"
+    token: ${env:TRUSTED_INGEST_TOKEN:-replace-with-a-long-random-trusted-token}
+
 receivers:
   githubactions:
     path: /webhook/github
@@ -28,6 +35,19 @@ receivers:
         endpoint: 0.0.0.0:4317
         auth:
           authenticator: everr_apikey
+
+  # Trusted OTLP ingest for clickety-clack. Reachable only by first-party infra
+  # (network policy + bearertokenauth/trusted secret). Preserves everr.tenant.id.
+  otlp/trusted:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4418
+        auth:
+          authenticator: bearertokenauth/trusted
+      grpc:
+        endpoint: 0.0.0.0:4417
+        auth:
+          authenticator: bearertokenauth/trusted
 
 processors:
   batch:
@@ -71,7 +91,7 @@ connectors:
   testlogstotraces:
 
 service:
-  extensions: [everr_apikey]
+  extensions: [everr_apikey, bearertokenauth/trusted]
   pipelines:
     # Internal pipelines: trusted receivers, tenant from receiver-populated metadata header.
     traces:
@@ -102,6 +122,13 @@ service:
     logs/public:
       receivers: [otlp/public]
       processors: [attributes/strip_user_tenant, resource/public_tenant, batch]
+      exporters: [clickhouse, debug]
+
+    # Trusted pipeline: CC alert events. No strip/stamp — the per-ResourceLogs
+    # everr.tenant.id is trusted and flows to otel.otel_logs -> app.logs.
+    logs/trusted:
+      receivers: [otlp/trusted]
+      processors: [batch]
       exporters: [clickhouse, debug]
 
   # Ship the collector's own telemetry (its logs, metrics, and internal
