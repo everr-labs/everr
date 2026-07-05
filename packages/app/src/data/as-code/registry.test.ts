@@ -19,6 +19,12 @@ const validateRunbookLinks = vi.fn();
 vi.mock("@/data/alerts/runbook-links.server", () => ({
   validateAlertRunbookLinks: (...a: unknown[]) => validateRunbookLinks(...a),
 }));
+const ccRuleReconciler = vi.fn();
+const ccReceiverReconciler = vi.fn();
+vi.mock("@/data/cc/apply.server", () => ({
+  applyCcRuleSpecs: (...a: unknown[]) => ccRuleReconciler(...a),
+  applyCcReceiverSpecs: (...a: unknown[]) => ccReceiverReconciler(...a),
+}));
 
 const upsertPreview = vi.fn();
 const findPreviewId = vi.fn();
@@ -53,6 +59,8 @@ beforeEach(() => {
   dashboardReconciler.mockResolvedValue(empty);
   runbookReconciler.mockResolvedValue(empty);
   alertReconciler.mockResolvedValue(empty);
+  ccRuleReconciler.mockResolvedValue(empty);
+  ccReceiverReconciler.mockResolvedValue(empty);
   upsertPreview.mockResolvedValue("prev-1");
   findPreviewId.mockResolvedValue(null);
 });
@@ -79,7 +87,13 @@ describe("applyResources", () => {
     const out = await applyResources({
       orgId: "org-1",
       repoid: "repo-1",
-      state: { dashboards: [dash], runbooks: [runbook], alerts: [alert] },
+      state: {
+        dashboards: [dash],
+        runbooks: [runbook],
+        alerts: [alert],
+        ccRules: [],
+        ccReceivers: [],
+      },
       dryRun: false,
     });
     const liveNs = { orgId: "org-1", repoid: "repo-1", kind: "live" };
@@ -116,6 +130,20 @@ describe("applyResources", () => {
           deleted: [],
           adopted: [],
         },
+        {
+          kind: "CCAlertRule",
+          created: [],
+          updated: [],
+          deleted: [],
+          adopted: [],
+        },
+        {
+          kind: "CCReceiver",
+          created: [],
+          updated: [],
+          deleted: [],
+          adopted: [],
+        },
       ],
     });
   });
@@ -135,6 +163,8 @@ describe("applyResources", () => {
           dashboards: [{ path: "d.yaml", resource: { kind: "Dashboard" } }],
           runbooks: [{ path: "n.yaml", resource: { kind: "Runbook" } }],
           alerts: [],
+          ccRules: [],
+          ccReceivers: [],
         },
         dryRun: false,
       }),
@@ -158,7 +188,13 @@ describe("applyResources", () => {
     const out = await applyResources({
       orgId: "org-1",
       repoid: "repo-1",
-      state: { dashboards: [], runbooks: [], alerts: [] },
+      state: {
+        dashboards: [],
+        runbooks: [],
+        alerts: [],
+        ccRules: [],
+        ccReceivers: [],
+      },
       dryRun: true,
     });
     expect(dashboardReconciler).toHaveBeenCalledTimes(1);
@@ -179,7 +215,13 @@ describe("applyResources", () => {
     await applyResources({
       orgId: "org-1",
       repoid: "repo-1",
-      state: { dashboards: [], runbooks: [], alerts: [] },
+      state: {
+        dashboards: [],
+        runbooks: [],
+        alerts: [],
+        ccRules: [],
+        ccReceivers: [],
+      },
     });
     expect(dashboardReconciler).toHaveBeenCalledWith(
       expect.objectContaining({ dryRun: false }),
@@ -201,6 +243,8 @@ describe("applyResources", () => {
           dashboards: [{ path: "alert.yaml", resource: { kind: "AlertRule" } }],
           runbooks: [],
           alerts: [],
+          ccRules: [],
+          ccReceivers: [],
         },
       }),
     ).rejects.toThrow('alert.yaml: expected kind "Dashboard"');
@@ -224,6 +268,8 @@ describe("applyResources", () => {
           dashboards: [],
           runbooks: [{ path: "rb.yaml", resource: { kind } }],
           alerts: [],
+          ccRules: [],
+          ccReceivers: [],
         },
         dryRun: true,
       }),
@@ -244,6 +290,8 @@ describe("applyResources", () => {
           dashboards: [{ path: "nb.yaml", resource: { kind: "Notebook" } }],
           runbooks: [],
           alerts: [],
+          ccRules: [],
+          ccReceivers: [],
         },
       }),
     ).rejects.toThrow('nb.yaml: expected kind "Dashboard"');
@@ -258,7 +306,13 @@ describe("applyResources", () => {
       orgId: "org-1",
       repoid: "repo-1",
       preview: "gio/x",
-      state: { dashboards: [], runbooks: [], alerts: [] },
+      state: {
+        dashboards: [],
+        runbooks: [],
+        alerts: [],
+        ccRules: [],
+        ccReceivers: [],
+      },
     });
     for (const reconciler of [
       dashboardReconciler,
@@ -290,14 +344,26 @@ describe("applyResources", () => {
     await applyResources({
       orgId: "org-1",
       repoid: "repo-1",
-      state: { dashboards: [], runbooks: [], alerts: [] },
+      state: {
+        dashboards: [],
+        runbooks: [],
+        alerts: [],
+        ccRules: [],
+        ccReceivers: [],
+      },
     });
     await applyResources({
       orgId: "org-1",
       repoid: "repo-1",
       preview: "gio/x",
       dryRun: true,
-      state: { dashboards: [], runbooks: [], alerts: [] },
+      state: {
+        dashboards: [],
+        runbooks: [],
+        alerts: [],
+        ccRules: [],
+        ccReceivers: [],
+      },
     });
     expect(upsertPreview).not.toHaveBeenCalled();
   });
@@ -318,6 +384,8 @@ describe("applyResources", () => {
           dashboards: [{ path: "d.yaml", resource: { kind: "Dashboard" } }],
           runbooks: [],
           alerts: [],
+          ccRules: [],
+          ccReceivers: [],
         },
         dryRun: false,
       }),
@@ -332,7 +400,13 @@ describe("applyResources", () => {
       orgId: "org-1",
       repoid: "repo-1",
       adopt: true,
-      state: { dashboards: [], runbooks: [], alerts: [] },
+      state: {
+        dashboards: [],
+        runbooks: [],
+        alerts: [],
+        ccRules: [],
+        ccReceivers: [],
+      },
     });
     expect(dashboardReconciler).toHaveBeenCalledWith(
       expect.objectContaining({ adopt: true }),

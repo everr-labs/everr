@@ -72,8 +72,8 @@ import {
   formatInterval,
   QueryErrorMessage,
   RelativeTime,
+  SeverityBadge,
   stateVariant,
-  TimeUntil,
 } from "./-alerts-shared";
 
 const alertDetailQueryOptions = (alertId: string) =>
@@ -112,13 +112,8 @@ export const Route = createFileRoute(
   head: () => ({ meta: [{ title: "Everr - Alert detail" }] }),
   loaderDeps: ({ search }) => withTimeRange(search),
   loader: async ({ context: { queryClient }, params, deps }) => {
-    const detail = await queryClient.ensureQueryData(
-      alertDetailQueryOptions(params.alertId),
-    );
-
-    if (!detail) return {};
-
-    await Promise.all([
+    const [detail] = await Promise.all([
+      queryClient.ensureQueryData(alertDetailQueryOptions(params.alertId)),
       queryClient.prefetchQuery(
         alertInstancesQueryOptions(params.alertId, deps.timeRange),
       ),
@@ -127,7 +122,6 @@ export const Route = createFileRoute(
         alertEventsQueryOptions(params.alertId, deps.timeRange),
       ),
     ]);
-
     return { slug: detail.slug };
   },
   component: AlertDetailPage,
@@ -140,37 +134,14 @@ type SilenceTarget = {
   labels: Record<string, string>;
 };
 
-function AlertNotFound() {
-  return (
-    <div className="flex flex-col items-start gap-4">
-      <p className="text-muted-foreground" role="alert">
-        Alert not found.
-      </p>
-      <Link to="/alerts" className="underline underline-offset-4">
-        Back to alerts
-      </Link>
-    </div>
-  );
-}
-
 function AlertDetailPage() {
   const { alertId } = Route.useParams();
   const queryClient = useQueryClient();
   const { timeRange } = useTimeRange();
   const alert = useQuery(alertDetailQueryOptions(alertId));
-  const hasAlert = Boolean(alert.data);
-  const instances = useQuery({
-    ...alertInstancesQueryOptions(alertId, timeRange),
-    enabled: hasAlert,
-  });
-  const silences = useQuery({
-    ...alertSilencesQueryOptions(alertId),
-    enabled: hasAlert,
-  });
-  const events = useQuery({
-    ...alertEventsQueryOptions(alertId, timeRange),
-    enabled: hasAlert,
-  });
+  const instances = useQuery(alertInstancesQueryOptions(alertId, timeRange));
+  const silences = useQuery(alertSilencesQueryOptions(alertId));
+  const events = useQuery(alertEventsQueryOptions(alertId, timeRange));
   const [silenceTarget, setSilenceTarget] = useState<SilenceTarget | null>(
     null,
   );
@@ -189,11 +160,13 @@ function AlertDetailPage() {
   if (alert.isPending) {
     return <Skeleton className="h-96 w-full" />;
   }
-  if (alert.isError) {
+  if (alert.isError || !alert.data) {
+    const notFound =
+      alert.error instanceof Error && alert.error.message === "Alert not found";
     return (
       <div className="flex flex-col items-start gap-4">
         <p className="text-muted-foreground" role="alert">
-          Unable to load alert.
+          {notFound ? "Alert not found." : "Unable to load alert."}
         </p>
         <Link to="/alerts" className="underline underline-offset-4">
           Back to alerts
@@ -201,25 +174,27 @@ function AlertDetailPage() {
       </div>
     );
   }
-  if (!alert.data) {
-    return <AlertNotFound />;
-  }
   const detail = alert.data;
   const definitionRows: [string, ReactNode][] = [
     ["Repository", detail.repoid],
-    ["Project", detail.project],
-    ...maybeRow(detail.runbookSlug, [
-      "Runbook",
-      runbookLink(detail.runbookProject, detail.runbookSlug),
-    ]),
+    ["Severity", <SeverityBadge key="sev" severity={detail.severity} />],
     ["Evaluation interval", formatInterval(detail.evaluationIntervalSeconds)],
     ["Notification title", detail.notificationTitleTemplate],
     ["Notification description", detail.notificationDescriptionTemplate || "-"],
-    ...maybeRow(detail.instanceLabelColumns.length > 0, [
-      "Instance labels",
-      detail.instanceLabelColumns.join(", "),
-    ]),
-    ["Last evaluated", formatDate(detail.lastEvaluatedAt)],
+    ...(detail.instanceLabelColumns.length > 0
+      ? ([
+          ["Instance labels", detail.instanceLabelColumns.join(", ")],
+        ] satisfies [string, ReactNode][])
+      : []),
+    ...(detail.runbookSlug
+      ? ([
+          [
+            "Runbook",
+            runbookLink(detail.runbookProject ?? "default", detail.runbookSlug),
+          ],
+        ] satisfies [string, ReactNode][])
+      : []),
+    ["Last seen", formatDate(detail.lastSeenAt)],
   ];
 
   const firingInstances = (instances.data ?? []).filter(
@@ -231,8 +206,8 @@ function AlertDetailPage() {
   return (
     <div className="flex w-full flex-col gap-6">
       <div className="flex items-start justify-between gap-4">
-        <div className="flex min-w-0 flex-col gap-1">
-          <h1 className="font-mono text-xl font-bold tracking-tight break-words">
+        <div className="flex flex-col gap-1">
+          <h1 className="font-mono text-xl font-bold tracking-tight">
             {detail.display.name || detail.slug}
           </h1>
           {detail.display.description && (
@@ -242,7 +217,7 @@ function AlertDetailPage() {
           )}
           {setActive.error && (
             <p className="text-sm text-destructive" role="alert">
-              Couldn't update evaluation. {setActive.error.message}
+              {setActive.error.message}
             </p>
           )}
         </div>
@@ -250,22 +225,22 @@ function AlertDetailPage() {
           <Button
             variant="destructive"
             size="sm"
-            className="shrink-0"
+            className="hidden md:inline-flex"
             disabled={setActive.isPending}
             onClick={() => setActive.mutate(false)}
           >
             <CircleStop data-icon="inline-start" />
-            Pause evaluation
+            Pause Evaluation
           </Button>
         ) : (
           <Button
             size="sm"
-            className="shrink-0"
+            className="hidden md:inline-flex"
             disabled={setActive.isPending}
             onClick={() => setActive.mutate(true)}
           >
             <CirclePlay data-icon="inline-start" />
-            Resume evaluation
+            Resume Evaluation
           </Button>
         )}
       </div>
@@ -356,74 +331,58 @@ function AlertDetailPage() {
           </CardContent>
         </Card>
       )}
-      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.72fr)]">
-        <Card>
-          <CardHeader>
-            <CardTitle>Definition</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col gap-4">
+      <Card>
+        <CardContent>
+          <div className="grid gap-4 xl:grid-cols-2">
+            <div className="flex flex-col gap-3">
               <DefinitionTable rows={definitionRows} />
-              {detail.lastEvaluationError && (
+              {detail.healthError && (
                 <pre className="max-h-32 overflow-auto rounded bg-muted/30 p-2 text-xs text-destructive">
-                  {detail.lastEvaluationError}
+                  {detail.healthError}
                 </pre>
               )}
 
-              <div className="flex flex-col gap-1.5">
-                <span className="font-medium text-muted-foreground text-xs">
-                  Query
-                </span>
-                <pre className="max-h-72 overflow-auto rounded-md border border-border/60 bg-muted/20 p-3 text-xs leading-relaxed">
+              <div className="flex flex-col gap-1">
+                <span className="text-muted-foreground text-xs">Query</span>
+                <pre className="max-h-72 overflow-auto rounded bg-muted/30 p-2 text-xs">
                   {detail.parsedQuery}
                 </pre>
               </div>
             </div>
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-3">
-            <CardTitle className="flex items-center gap-2">
-              Silences
-              {silenceCount > 0 && (
-                <span className="font-normal text-muted-foreground text-xs">
-                  {silenceCount} active
-                </span>
-              )}
-            </CardTitle>
-            <Button
-              size="sm"
-              variant="outline"
-              className="shrink-0"
-              onClick={() => {
-                setSilenceTarget(null);
-                setNewSilenceOpen(true);
-              }}
-            >
-              <Plus data-icon="inline-start" />
-              Add
-            </Button>
-          </CardHeader>
-          <CardContent>
-            {silences.isError ? (
-              <QueryErrorMessage message="Unable to load silences." />
-            ) : silences.isPending ? (
-              <Skeleton className="h-20 w-full" />
-            ) : silenceCount > 0 ? (
-              <div className="divide-y divide-border/60">
-                {silences.data?.map((silence) => (
-                  <SilenceRow key={silence.id} silence={silence} />
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-md border border-dashed border-border/70 px-3 py-3 text-muted-foreground text-xs">
-                No active silences.
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+            <div className="grid h-fit grid-cols-[auto_1fr] items-start gap-x-3 gap-y-2 text-xs">
+              <dt className="flex items-center gap-1 text-muted-foreground">
+                Silences
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="size-5 cursor-pointer"
+                  aria-label="Add silence"
+                  onClick={() => {
+                    setSilenceTarget(null);
+                    setNewSilenceOpen(true);
+                  }}
+                >
+                  <Plus className="size-3" />
+                </Button>
+              </dt>
+              <dd className="min-w-0">
+                {silences.isError ? (
+                  <QueryErrorMessage message="Unable to load silences." />
+                ) : silences.isPending ? (
+                  <Skeleton className="h-5 w-full" />
+                ) : silenceCount > 0 ? (
+                  <div className="flex flex-col divide-y">
+                    {silences.data?.map((silence) => (
+                      <SilenceRow key={silence.id} silence={silence} />
+                    ))}
+                  </div>
+                ) : null}
+              </dd>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card inset="flush-content">
         <CardHeader>
@@ -462,8 +421,9 @@ function AlertDetailPage() {
                       row.instances[0];
                     return (
                       <Button
-                        variant="outline"
-                        size="sm"
+                        variant="ghost"
+                        size="icon"
+                        className="cursor-pointer"
                         aria-label="Silence"
                         onClick={() => {
                           setSilenceTarget({
@@ -473,8 +433,7 @@ function AlertDetailPage() {
                           setNewSilenceOpen(false);
                         }}
                       >
-                        <BellOff data-icon="inline-start" />
-                        <span className="hidden md:inline">Silence</span>
+                        <BellOff />
                       </Button>
                     );
                   },
@@ -541,6 +500,21 @@ function KeyValueList({ values }: { values: Record<string, string> }) {
   );
 }
 
+function DefinitionTable({ rows }: { rows: [string, ReactNode][] }) {
+  return (
+    <dl className="grid grid-cols-[140px_1fr] gap-x-3 gap-y-2 text-xs">
+      {rows.map(([label, value]) => (
+        <div key={label} className="contents">
+          <dt className="text-muted-foreground">{label}</dt>
+          <dd className="min-w-0 break-words">{value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+// Deep-link an alert to its linked runbook. The link target lives in the CC
+// rule's `everr.runbook` annotation (see data/alerts/mapping.ts).
 function runbookLink(project: string, slug: string): ReactNode {
   return (
     <Link
@@ -551,29 +525,6 @@ function runbookLink(project: string, slug: string): ReactNode {
       <NotebookText className="size-4" />
       {formatRunbookRef(project, slug)}
     </Link>
-  );
-}
-
-function maybeRow(
-  test: unknown,
-  row: [string, ReactNode],
-): Array<[string, ReactNode]> {
-  return test ? [row] : [];
-}
-
-function DefinitionTable({ rows }: { rows: [string, ReactNode][] }) {
-  return (
-    <dl className="grid text-xs">
-      {rows.map(([label, value]) => (
-        <div
-          key={label}
-          className="grid grid-cols-[140px_minmax(0,1fr)] gap-x-3 border-border/50 border-b py-1.5 last:border-b-0"
-        >
-          <dt className="text-muted-foreground">{label}</dt>
-          <dd className="min-w-0 break-words font-medium">{value}</dd>
-        </div>
-      ))}
-    </dl>
   );
 }
 
@@ -653,46 +604,44 @@ function SilenceRow({ silence }: { silence: AlertSilenceSummary }) {
       await queryClient.invalidateQueries({ queryKey: ["alerts"] });
     },
   });
-  const matcherText =
-    silence.matchers.length === 0
-      ? "All instances"
-      : silence.matchers.map((m) => `${m.label}${m.op}${m.value}`).join(", ");
   return (
-    <div className="py-2.5">
-      <div className="flex min-h-6 items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs">
-          <span
-            className={
-              silence.matchers.length === 0
-                ? "font-medium text-foreground"
-                : "font-mono text-foreground"
-            }
-          >
-            {matcherText}
-          </span>
-          <span className="text-muted-foreground">
-            expires <TimeUntil value={silence.endsAt} />
-          </span>
+    <div className="flex flex-col gap-1 py-2 first:pt-0">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-1">
+          {silence.matchers.length === 0 ? (
+            <Badge variant="secondary">all instances</Badge>
+          ) : (
+            silence.matchers.map((m, i) => (
+              <Badge
+                key={i}
+                variant="secondary"
+                className="font-mono font-normal"
+              >
+                {m.label}
+                {m.op}
+                {m.value}
+              </Badge>
+            ))
+          )}
         </div>
         <Button
           variant="ghost"
-          size="icon-sm"
-          className="shrink-0 cursor-pointer text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+          size="icon"
+          className="shrink-0 cursor-pointer text-muted-foreground hover:text-destructive"
           aria-label="Cancel silence"
           disabled={cancel.isPending}
           onClick={() => cancel.mutate()}
         >
-          <X className="size-3" />
+          <X />
         </Button>
       </div>
-      {silence.reason && (
-        <span className="mt-1 block text-muted-foreground text-xs">
-          {silence.reason}
-        </span>
-      )}
+      <span className="text-muted-foreground text-xs">
+        Until {formatDate(silence.endsAt)}
+        {silence.reason ? ` · ${silence.reason}` : ""}
+      </span>
       {cancel.error && (
-        <span className="mt-1.5 block text-destructive text-xs" role="alert">
-          Couldn't cancel silence. {cancel.error.message}
+        <span className="text-destructive text-xs" role="alert">
+          {cancel.error.message}
         </span>
       )}
     </div>
@@ -731,28 +680,19 @@ function SilenceDialog({
   const [matchers, setMatchers] = useState<Matcher[]>([]);
   const [hours, setHours] = useState("2");
   const [reason, setReason] = useState("");
-  const [wasOpen, setWasOpen] = useState(false);
+  const [initializedFor, setInitializedFor] = useState<string | null>(null);
 
-  const isOpen = instance !== null || (open ?? false);
-  // Re-seed the form on each open transition (not via a prop→state effect): a
-  // specific instance prefills its labels as matchers; the blank "Add" form
-  // (instance === null) resets to empty so it can't inherit the matchers of the
-  // instance silenced just before it.
-  if (isOpen !== wasOpen) {
-    setWasOpen(isOpen);
-    if (isOpen) {
-      setMatchers(
-        instance
-          ? Object.entries(instance.labels).map(([label, value]) => ({
-              label,
-              op: "=" as const,
-              value,
-            }))
-          : [],
-      );
-      setHours("2");
-      setReason("");
-    }
+  if (instance && initializedFor !== instance.fingerprint) {
+    setMatchers(
+      Object.entries(instance.labels).map(([label, value]) => ({
+        label,
+        op: "=" as const,
+        value,
+      })),
+    );
+    setHours("2");
+    setReason("");
+    setInitializedFor(instance.fingerprint);
   }
 
   const patchMatcher = (index: number, patch: Partial<Matcher>) =>
@@ -773,14 +713,18 @@ function SilenceDialog({
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["alerts"] });
       onClose();
+      setInitializedFor(null);
     },
   });
 
   return (
     <Dialog
-      open={isOpen}
+      open={instance !== null || (open ?? false)}
       onOpenChange={(dialogOpen) => {
-        if (!dialogOpen) onClose();
+        if (!dialogOpen) {
+          onClose();
+          setInitializedFor(null);
+        }
       }}
     >
       <DialogContent>
@@ -906,7 +850,7 @@ function SilenceDialog({
           </div>
           {create.error && (
             <p className="text-sm text-destructive" role="alert">
-              Couldn't create silence. {create.error.message}
+              {create.error.message}
             </p>
           )}
         </div>

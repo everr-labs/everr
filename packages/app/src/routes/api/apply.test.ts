@@ -113,6 +113,8 @@ describe("POST /api/apply", () => {
         ],
         runbooks: [],
         alerts: [],
+        ccRules: [],
+        ccReceivers: [],
       },
       source: {
         branch: "main",

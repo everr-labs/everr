@@ -1,184 +1,122 @@
 import { resolveTimeRange, TimeRangeSchema } from "@everr/ui/lib/time-range";
 import { getRequestHeaders } from "@tanstack/react-start/server";
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
-import { overlayPreview, type PreviewStatus } from "@/data/previews/overlay";
-import { getCoveredRepoids } from "@/data/previews/repoids";
-import {
-  effectiveRepoid,
-  liveOrPreview,
-  previewJoin,
-} from "@/data/previews/scope";
-import { db } from "@/db/client";
-import {
-  alertDefinitions,
-  alertSettings,
-  alertSilences,
-  previews,
-} from "@/db/schema";
+import * as cc from "@/data/cc/client";
+import type { CcMatcher, CcRuleView, CcSilence } from "@/data/cc/types";
 import { auth } from "@/lib/auth.server";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import {
-  extractInstanceLabels,
-  instanceFingerprint,
-  parseLabels,
-} from "@/server/alerts/02-instances";
-import { OPERATIONAL_EVENT_TYPES } from "@/server/alerts/03-events";
-import {
   ALERT_CHANNELS,
   type AlertDeliveryTargets,
+  DEFAULT_EMAIL_RECEIVER,
+  DEFAULT_TELEGRAM_RECEIVER,
   DeliverySettingsSchema,
-  ensureDeliveryDefaults,
-  redactDeliverySecrets,
-  resolveDeliverySettings,
+  normalizeDeliverySettings,
+  receiversToDeliverySettings,
 } from "./delivery-settings";
+import { queryAlertHistory } from "./history.server";
+import { fromCcRuleSpec, isManagedSimple } from "./mapping";
 import {
   findSilenceForInstance,
   type Matcher,
   MatchersSchema,
   validateMatchers,
 } from "./matchers";
-import type { AlertRuleYaml } from "./schema";
-import { activeSilenceConditions } from "./silences";
-import { renderMessage } from "./template";
 
-type AlertEventInstance = {
-  state: "firing" | "resolved";
-  labels: Record<string, string>;
+// A simple alert's silences are scoped to the rule by a synthetic `rule` label
+// carrying the rule's id (CC does not stamp the slug as a label, so an
+// `alertname` matcher never matches). The create path writes this matcher; the
+// list/count paths filter on it; the UI never sees it.
+const RULE_LABEL = "rule";
+
+const CC_OP_TO_UI: Record<CcMatcher["op"], Matcher["op"]> = {
+  eq: "=",
+  ne: "!=",
+  regex: "=~",
+  notregex: "!~",
+};
+const UI_OP_TO_CC: Record<Matcher["op"], CcMatcher["op"]> = {
+  "=": "eq",
+  "!=": "ne",
+  "=~": "regex",
+  "!~": "notregex",
 };
 
-type AlertEvidenceValue =
-  | string
-  | number
-  | boolean
-  | null
-  | AlertEvidenceValue[]
-  | { [key: string]: AlertEvidenceValue };
+function ccToUiMatchers(ms: CcMatcher[]): Matcher[] {
+  return ms.map((m) => ({
+    label: m.label,
+    op: CC_OP_TO_UI[m.op],
+    value: m.value,
+  }));
+}
 
-type AlertDisplay = {
-  name?: string;
-  description?: string;
-};
+// A silence belongs to this rule when it carries the synthetic rule matcher.
+function silenceScopedToRule(s: CcSilence, ruleId: string): boolean {
+  return s.matchers.some(
+    (m) => m.label === RULE_LABEL && m.op === "eq" && m.value === ruleId,
+  );
+}
 
 export type AlertSummary = {
-  id: string;
+  id: string; // CC rule id
   repoid: string;
   slug: string;
-  project: string;
   displayName: string | null;
   evaluationIntervalSeconds: number;
-  sourceLink: string;
-  configFilePath: string;
-  runbookProject: string;
-  runbookSlug: string;
+  severity: "info" | "warning" | "critical";
   currentState: "unknown" | "resolved" | "firing";
-  active: boolean;
-  lastEvaluationStatus: string;
-  lastEvaluationError: string;
-  lastEvaluatedAt: Date | null;
-  lastFiredAt: Date | null;
-  lastResolvedAt: Date | null;
-  lastSeenAt: Date | null;
-  lastRowCount: number;
-  lastEvidenceSnapshot: AlertEvidenceValue;
+  active: boolean; // !paused
+  health: string; // CcRuleHealth.status
+  healthError: string | null;
+  lastFiredAt: string | null;
+  lastResolvedAt: string | null;
+  lastSeenAt: string | null;
   firingInstanceCount: number;
   activeSilenceCount: number;
-  activeSilenceExpiresAt: Date | string | null;
-  previewStatus?: PreviewStatus;
 };
 
+// CC RuleView → AlertSummary. The rolled-up alert state lives under the nested
+// (optional) `rollup` object — read it defensively (a CC not yet on SP2 2a
+// omits it).
+function toSummary(r: CcRuleView, silenceCount: number): AlertSummary {
+  const v = fromCcRuleSpec(r.spec);
+  const state =
+    r.rollup?.alert_state === "firing"
+      ? "firing"
+      : r.rollup?.alert_state === "pending" ||
+          r.rollup?.alert_state === "inactive"
+        ? "resolved"
+        : "unknown";
+  return {
+    id: r.id,
+    repoid: v.repoid,
+    slug: v.slug,
+    displayName: v.displayName,
+    evaluationIntervalSeconds: r.spec.interval_secs,
+    severity: v.severity,
+    currentState: state,
+    active: !r.paused,
+    health: r.health.status,
+    healthError: r.health.last_error ?? null,
+    lastFiredAt: r.rollup?.last_fired_at ?? null,
+    lastResolvedAt: r.rollup?.last_resolved_at ?? null,
+    lastSeenAt: r.rollup?.last_seen_at ?? null,
+    firingInstanceCount: r.rollup?.firing_instance_count ?? 0,
+    activeSilenceCount: silenceCount,
+  };
+}
+
+const alertIdInput = z.object({ alertId: z.string().min(1) });
+
 type AlertDetail = AlertSummary & {
-  display: AlertDisplay;
-  document: AlertRuleYaml;
+  display: { name?: string; description?: string };
   parsedQuery: string;
   notificationTitleTemplate: string;
   notificationDescriptionTemplate: string;
   instanceLabelColumns: string[];
+  runbookProject: string | null;
+  runbookSlug: string | null;
 };
-
-type AlertEvent = {
-  eventId: string;
-  alertDefinitionId: string;
-  repoid: string;
-  slug: string;
-  eventType: string;
-  eventTime: string;
-  evaluationScheduledAt: string | null;
-  rowCount: number;
-  evidenceTruncated: boolean;
-  evidenceJson: string;
-  deliveryTargets: AlertDeliveryTargets;
-  silenceId: string;
-  instances: AlertEventInstance[];
-};
-
-type AlertSummaryRow = Omit<
-  AlertSummary,
-  "activeSilenceCount" | "displayName" | "lastEvidenceSnapshot"
-> & {
-  activeSilenceCount?: number | string;
-  active_silence_count?: number | string;
-  activeSilenceExpiresAt?: Date | string | null;
-  active_silence_expires_at?: Date | string | null;
-  // Untyped `jsonb` on the row; `toAlertSummary` narrows it to `AlertEvidenceValue`.
-  lastEvidenceSnapshot: unknown;
-  document: unknown;
-};
-
-const alertIdInput = z.object({ alertId: z.string().uuid() });
-
-// Subquery instead of a join: a rule can have several active silences and a
-// join would duplicate list rows.
-const activeSilenceCountSql = sql<number>`(
-  select count(*)::int
-  from alert_silences s
-  where s.organization_id = alert_definitions.organization_id
-    and s.alert_definition_id = alert_definitions.id
-    and s.starts_at <= now()
-    and s.ends_at > now()
-    and s.cancelled_at is null
-)`.as("activeSilenceCount");
-
-// max(): with several overlapping silences the alert stays silenced until the
-// last one ends, so this is when silencing actually lifts.
-const activeSilenceExpiresAtSql = sql<Date | null>`(
-  select max(s.ends_at)
-  from alert_silences s
-  where s.organization_id = alert_definitions.organization_id
-    and s.alert_definition_id = alert_definitions.id
-    and s.starts_at <= now()
-    and s.ends_at > now()
-    and s.cancelled_at is null
-)`.as("activeSilenceExpiresAt");
-
-// Every consumer of these columns must `.leftJoin(previews, previewJoin(...))`:
-// `repoid` is the effective repoid (the row's own for live, the preview parent's
-// for preview rows), which reads `previews.repoid`. In return it is non-null —
-// the column itself is nullable (a preview row keeps repoid only on its parent).
-const alertListColumns = {
-  id: alertDefinitions.id,
-  repoid: effectiveRepoid(alertDefinitions),
-  slug: alertDefinitions.slug,
-  project: alertDefinitions.project,
-  evaluationIntervalSeconds: alertDefinitions.evaluationIntervalSeconds,
-  sourceLink: alertDefinitions.sourceLink,
-  configFilePath: alertDefinitions.configFilePath,
-  runbookProject: alertDefinitions.runbookProject,
-  runbookSlug: alertDefinitions.runbookSlug,
-  currentState: alertDefinitions.currentState,
-  active: alertDefinitions.active,
-  lastEvaluationStatus: alertDefinitions.lastEvaluationStatus,
-  lastEvaluationError: alertDefinitions.lastEvaluationError,
-  lastEvaluatedAt: alertDefinitions.lastEvaluatedAt,
-  lastFiredAt: alertDefinitions.lastFiredAt,
-  lastResolvedAt: alertDefinitions.lastResolvedAt,
-  lastSeenAt: alertDefinitions.lastSeenAt,
-  lastRowCount: alertDefinitions.lastRowCount,
-  lastEvidenceSnapshot: alertDefinitions.lastEvidenceSnapshot,
-  firingInstanceCount: alertDefinitions.firingInstanceCount,
-  activeSilenceCount: activeSilenceCountSql,
-  activeSilenceExpiresAt: activeSilenceExpiresAtSql,
-} as const;
 
 // The caller's role in the active organization — every call site gates a
 // mutation scoped to session.activeOrganizationId.
@@ -191,293 +129,105 @@ async function ensureOrgAdmin() {
   }
 }
 
-function toAlertSummary(row: AlertSummaryRow): AlertSummary {
-  const {
-    active_silence_count,
-    active_silence_expires_at,
-    document,
-    lastEvidenceSnapshot,
-    ...rest
-  } = row;
-  return {
-    ...rest,
-    displayName: displayFromDocument(document).name ?? null,
-    // The one unavoidable bridge: `last_evidence_snapshot` is untyped `jsonb`.
-    lastEvidenceSnapshot: (lastEvidenceSnapshot ?? []) as AlertEvidenceValue,
-    activeSilenceCount:
-      Number(rest.activeSilenceCount ?? active_silence_count) || 0,
-    activeSilenceExpiresAt:
-      rest.activeSilenceExpiresAt ?? active_silence_expires_at ?? null,
-  };
-}
-
-function clickhouseIsoMillis(column: string): string {
-  return `concat(formatDateTime(${column}, '%Y-%m-%dT%H:%i:%S', 'UTC'), '.', substring(formatDateTime(${column}, '%f', 'UTC'), 1, 3), 'Z')`;
-}
-
-const alertDisplaySchema = z
-  .object({
-    spec: z
-      .object({
-        display: z
-          .object({
-            name: z.string().optional(),
-            description: z.string().optional(),
-          })
-          .optional(),
-      })
-      .passthrough(),
-  })
-  .passthrough();
-
-function displayFromDocument(document: unknown): AlertDisplay {
-  const parsed = alertDisplaySchema.safeParse(document);
-  return parsed.success ? (parsed.data.spec.display ?? {}) : {};
-}
-
-async function getAlertRow(alertId: string, organizationId: string) {
-  const [row] = await db
-    .select({
-      ...alertListColumns,
-      document: alertDefinitions.document,
-      parsedQuery: alertDefinitions.parsedQuery,
-      notificationTitleTemplate: alertDefinitions.notificationTitleTemplate,
-      notificationDescriptionTemplate:
-        alertDefinitions.notificationDescriptionTemplate,
-      instanceLabelColumns: alertDefinitions.instanceLabelColumns,
-    })
-    .from(alertDefinitions)
-    .leftJoin(previews, previewJoin(alertDefinitions))
-    .where(
-      and(
-        eq(alertDefinitions.organizationId, organizationId),
-        eq(alertDefinitions.id, alertId),
-        isNull(alertDefinitions.deletedAt),
-      ),
-    )
-    .limit(1);
-  return row;
-}
-
-export const listAlerts = createAuthenticatedServerFn({ method: "GET" })
-  .inputValidator(z.object({ preview: z.string().optional() }).optional())
-  .handler(async ({ data, context: { session } }) => {
-    const organizationId = session.session.activeOrganizationId;
-    const preview = data?.preview ?? null;
-
-    const orderBy = [
-      desc(alertDefinitions.active),
-      desc(alertDefinitions.lastEvaluatedAt),
-      alertDefinitions.repoid,
-      alertDefinitions.slug,
-    ] as const;
-
-    if (preview === null) {
-      const rows = await db
-        .select({ ...alertListColumns, document: alertDefinitions.document })
-        .from(alertDefinitions)
-        .leftJoin(previews, previewJoin(alertDefinitions))
-        .where(
-          and(
-            eq(alertDefinitions.organizationId, organizationId),
-            isNull(alertDefinitions.deletedAt),
-            isNull(alertDefinitions.previewId),
-          ),
-        )
-        .orderBy(...orderBy);
-
-      return rows.map((row) => toAlertSummary(row));
-    }
-
-    const query = db
-      .select({
-        ...alertListColumns,
-        // `document`/`previewId`/`folderPath` extend the shared list columns for
-        // the overlay diff; keep them out of `alertListColumns` so these explicit
-        // keys never collide with a spread key (last-write-wins). `previewId` is
-        // the overlay's live/preview discriminator.
-        document: alertDefinitions.document,
-        previewId: alertDefinitions.previewId,
-        // Alert rows have no folderPath; the constant satisfies
-        // `OverlayResource` and never differs, so it never drives a "changed".
-        folderPath: sql<string>`''`,
-      })
-      .from(alertDefinitions)
-      .leftJoin(previews, previewJoin(alertDefinitions))
-      .where(
-        and(
-          eq(alertDefinitions.organizationId, organizationId),
-          isNull(alertDefinitions.deletedAt),
-          liveOrPreview(alertDefinitions, preview),
-        ),
-      )
-      .orderBy(...orderBy);
-
-    const [covered, rows] = await Promise.all([
-      getCoveredRepoids(organizationId, preview),
-      query,
-    ]);
-    const overlaid = overlayPreview({ rows, coveredRepoids: covered });
-    return overlaid.map((row) => ({
-      ...toAlertSummary(row),
-      previewStatus: row.previewStatus,
-    }));
-  });
+export const listAlerts = createAuthenticatedServerFn({
+  method: "GET",
+}).handler(async ({ context: { session } }) => {
+  const org = session.session.activeOrganizationId;
+  const [rules, silences] = await Promise.all([
+    cc.listRules(org),
+    cc.listSilences(org),
+  ]);
+  return rules
+    .filter((r) => isManagedSimple(r.spec))
+    .map((r) => {
+      const count = silences.filter((s) => silenceScopedToRule(s, r.id)).length;
+      return toSummary(r, count);
+    });
+});
 
 export const getAlert = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(alertIdInput)
   .handler(async ({ data: { alertId }, context: { session } }) => {
-    const row = await getAlertRow(
-      alertId,
-      session.session.activeOrganizationId,
-    );
-    if (!row) return null;
+    const org = session.session.activeOrganizationId;
+    const rule = await cc.getRule(org, alertId);
+    if (!isManagedSimple(rule.spec)) throw new Error("Alert not found");
+    const view = fromCcRuleSpec(rule.spec);
+    const silences = await cc.listSilences(org);
+    const count = silences.filter((s) =>
+      silenceScopedToRule(s, alertId),
+    ).length;
     return {
-      ...toAlertSummary(row),
-      display: displayFromDocument(row.document),
-      document: row.document,
-      parsedQuery: row.parsedQuery,
-      notificationTitleTemplate: row.notificationTitleTemplate,
-      notificationDescriptionTemplate: row.notificationDescriptionTemplate,
-      instanceLabelColumns: row.instanceLabelColumns,
+      ...toSummary(rule, count),
+      display: {
+        name: view.displayName ?? undefined,
+        description: view.displayDescription ?? undefined,
+      },
+      parsedQuery: rule.spec.sql,
+      notificationTitleTemplate: view.notificationTitleTemplate,
+      notificationDescriptionTemplate: view.notificationDescriptionTemplate,
+      instanceLabelColumns: view.instanceLabelColumns,
+      runbookProject: view.runbookProject,
+      runbookSlug: view.runbookSlug,
     } satisfies AlertDetail;
   });
 
-export const listAlertEvents = createAuthenticatedServerFn({ method: "GET" })
-  .inputValidator(
-    alertIdInput.extend({
-      limit: z.number().int().min(1).max(100).default(50),
-      timeRange: TimeRangeSchema,
-    }),
-  )
-  .handler(
-    async ({
-      data: { alertId, limit, timeRange },
-      context: { session, clickhouse },
-    }) => {
-      const organizationId = session.session.activeOrganizationId;
-      const alert = await getAlertRow(alertId, organizationId);
-      if (!alert) throw new Error("Alert not found");
-      const { fromISO, toISO } = resolveTimeRange(timeRange);
+export type AlertInstanceSummary = {
+  fingerprint: string;
+  labels: Record<string, string>;
+  state: "firing" | "resolved";
+  lastFiredAt: string | null;
+  lastResolvedAt: string | null;
+  lastRow: Record<string, unknown>;
+  lastEvaluationRows: Record<string, unknown>[];
+  lastEvaluationTitle: string | null;
+  lastEvaluationDescription: string | null;
+  silenced: boolean;
+};
 
-      const rows = await clickhouse.query<{
-        eventId: string;
-        alertDefinitionId: string;
-        repoid: string;
-        slug: string;
-        eventType: string;
-        eventTime: string;
-        evaluationScheduledAt: string;
-        rowCount: number;
-        evidenceTruncated: number;
-        evidenceJson: string;
-        deliveryTargetsJson: string;
-        silenceId: string;
-        instanceLabelsJson: string[];
-      }>(
-        `
-	          WITH history AS (
-	            SELECT
-	              tenant_id,
-	              alert_definition_id,
-	              repoid,
-	              slug,
-	              event_id,
-	              event_type,
-	              event_time,
-	              evaluation_scheduled_at,
-	              row_count,
-	              evidence_truncated,
-	              evidence_json,
-	              toJSONString(delivery_targets) AS deliveryTargetsJson,
-	              silence_id
-	            FROM app.alert_events
-	            WHERE tenant_id = {organizationId:String}
-	              AND repoid = {repoid:String}
-	              AND slug = {slug:String}
-	              AND alert_definition_id = {alertDefinitionId:String}
-	              AND event_type NOT IN (${OPERATIONAL_EVENT_TYPES.map((t) => `'${t}'`).join(", ")})
-	              AND event_time >= {fromTime:String}
-	              AND event_time <= {toTime:String}
-	            ORDER BY event_time DESC, event_id DESC
-	            LIMIT {limit:UInt32}
-	          )
-	          SELECT
-	            toString(history.event_id) AS eventId,
-	            history.alert_definition_id AS alertDefinitionId,
-	            history.repoid AS repoid,
-	            history.slug AS slug,
-	            history.event_type AS eventType,
-	            ${clickhouseIsoMillis("history.event_time")} AS eventTime,
-	            if(history.evaluation_scheduled_at = toDateTime64(0, 3), '', ${clickhouseIsoMillis("history.evaluation_scheduled_at")}) AS evaluationScheduledAt,
-	            history.row_count AS rowCount,
-	            history.evidence_truncated AS evidenceTruncated,
-	            history.evidence_json AS evidenceJson,
-	            history.deliveryTargetsJson AS deliveryTargetsJson,
-	            history.silence_id AS silenceId,
-	            groupArrayIf(
-	              instance_events.instance_labels_json,
-	              (history.event_type = 'firing' AND instance_events.event_type = 'instance_fired')
-	                OR (history.event_type = 'resolved' AND instance_events.event_type = 'instance_resolved')
-	            ) AS instanceLabelsJson
-	          FROM history
-	          LEFT JOIN (
-	            SELECT evaluation_scheduled_at, event_type, instance_labels_json
-	            FROM app.alert_events
-	            WHERE tenant_id = {organizationId:String}
-	              AND repoid = {repoid:String}
-	              AND slug = {slug:String}
-	              AND alert_definition_id = {alertDefinitionId:String}
-	              AND event_type IN ('instance_fired', 'instance_resolved')
-	              AND evaluation_scheduled_at IN (SELECT evaluation_scheduled_at FROM history)
-	              AND event_time >= {fromTime:String}
-	              AND event_time <= {toTime:String}
-	          ) AS instance_events
-	            ON instance_events.evaluation_scheduled_at = history.evaluation_scheduled_at
-	          GROUP BY
-	            history.tenant_id,
-	            history.alert_definition_id,
-	            history.repoid,
-	            history.slug,
-	            history.event_id,
-	            history.event_type,
-	            history.event_time,
-	            history.evaluation_scheduled_at,
-	            history.row_count,
-	            history.evidence_truncated,
-	            history.evidence_json,
-	            history.deliveryTargetsJson,
-	            history.silence_id
-	          ORDER BY history.event_time DESC, history.event_id DESC
-	        `,
-        {
-          organizationId,
-          repoid: alert.repoid,
-          slug: alert.slug,
-          alertDefinitionId: alert.id,
-          limit,
-          fromTime: fromISO,
-          toTime: toISO,
-        },
-      );
+export const listAlertInstances = createAuthenticatedServerFn({ method: "GET" })
+  .inputValidator(alertIdInput.extend({ timeRange: TimeRangeSchema }))
+  .handler(async ({ data: { alertId }, context: { session } }) => {
+    const org = session.session.activeOrganizationId;
+    const [rule, alerts, silences] = await Promise.all([
+      cc.getRule(org, alertId),
+      cc.listAlerts(org),
+      cc.listSilences(org),
+    ]);
+    if (!isManagedSimple(rule.spec)) throw new Error("Alert not found");
+    // Only this rule's silences scope its instances.
+    const scoped = silences
+      .filter((s) => silenceScopedToRule(s, alertId))
+      .map((s) => ({
+        matchers: ccToUiMatchers(
+          s.matchers.filter((m) => m.label !== RULE_LABEL),
+        ),
+      }));
+    return alerts
+      .filter((a) => a.rule === alertId && a.status === "firing")
+      .map((a) => ({
+        fingerprint: a.key,
+        labels: a.labels,
+        state: "firing" as const,
+        lastFiredAt: a.active_since,
+        lastResolvedAt: null,
+        lastRow: a.value === null ? {} : { value: a.value },
+        lastEvaluationRows: a.value === null ? [] : [{ value: a.value }],
+        lastEvaluationTitle: null,
+        lastEvaluationDescription: null,
+        silenced: Boolean(findSilenceForInstance(scoped, a.labels)),
+      })) satisfies AlertInstanceSummary[];
+  });
 
-      return rows.map((row) => ({
-        eventId: row.eventId,
-        alertDefinitionId: row.alertDefinitionId,
-        repoid: row.repoid,
-        slug: row.slug,
-        eventType: row.eventType,
-        eventTime: row.eventTime,
-        evaluationScheduledAt: row.evaluationScheduledAt || null,
-        rowCount: Number(row.rowCount),
-        evidenceTruncated: Boolean(row.evidenceTruncated),
-        evidenceJson: row.evidenceJson,
-        deliveryTargets: parseDeliveryTargets(row.deliveryTargetsJson),
-        silenceId: row.silenceId,
-        instances: parseEventInstances(row.eventType, row.instanceLabelsJson),
-      })) satisfies AlertEvent[];
-    },
-  );
+type AlertEvent = {
+  eventId: string;
+  slug: string;
+  eventType: string;
+  eventTime: string;
+  rowCount: number;
+  deliveryTargets: AlertDeliveryTargets;
+  silenceId: string;
+  instances: { state: "firing" | "resolved"; labels: Record<string, string> }[];
+};
 
 function parseJsonObject(json: string): Record<string, unknown> {
   try {
@@ -503,170 +253,55 @@ function parseDeliveryTargets(json: string): AlertDeliveryTargets {
   return targets;
 }
 
-function parseEventInstances(
-  eventType: string,
-  labelsJson: readonly string[],
-): AlertEventInstance[] {
-  const state =
-    eventType === "firing"
-      ? "firing"
-      : eventType === "resolved"
-        ? "resolved"
-        : null;
-  if (!state) return [];
-  return labelsJson.map((json) => ({
-    state,
-    labels: parseLabels(json),
-  }));
-}
-
-function evidenceRows(
-  value: AlertEvidenceValue | null | undefined,
-): Record<string, AlertEvidenceValue>[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter(
-    (row): row is Record<string, AlertEvidenceValue> =>
-      Boolean(row) && typeof row === "object" && !Array.isArray(row),
+function stringifyValues(obj: Record<string, unknown>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(obj).map(([k, v]) => [
+      k,
+      v === null || v === undefined
+        ? ""
+        : typeof v === "object"
+          ? JSON.stringify(v)
+          : String(v),
+    ]),
   );
 }
 
-export type AlertInstanceSummary = {
-  fingerprint: string;
-  labels: Record<string, string>;
-  state: "firing" | "resolved";
-  lastFiredAt: string | null;
-  lastResolvedAt: string | null;
-  lastRow: Record<string, AlertEvidenceValue>;
-  lastEvaluationRows: Record<string, AlertEvidenceValue>[];
-  lastEvaluationTitle: string | null;
-  lastEvaluationDescription: string | null;
-  silenced: boolean;
-};
-
-async function listActiveSilenceRows(alertId: string, organizationId: string) {
-  return db
-    .select({
-      id: alertSilences.id,
-      startsAt: alertSilences.startsAt,
-      endsAt: alertSilences.endsAt,
-      reason: alertSilences.reason,
-      createdByUserId: alertSilences.createdByUserId,
-      matchers: alertSilences.matchers,
-    })
-    .from(alertSilences)
-    .where(activeSilenceConditions(organizationId, alertId))
-    .orderBy(desc(alertSilences.endsAt));
-}
-
-export const listAlertInstances = createAuthenticatedServerFn({ method: "GET" })
-  .inputValidator(alertIdInput.extend({ timeRange: TimeRangeSchema }))
+export const listAlertEvents = createAuthenticatedServerFn({ method: "GET" })
+  .inputValidator(
+    alertIdInput.extend({
+      limit: z.number().int().min(1).max(100).default(50),
+      timeRange: TimeRangeSchema,
+    }),
+  )
   .handler(
     async ({
-      data: { alertId, timeRange },
+      data: { alertId, limit, timeRange },
       context: { session, clickhouse },
     }) => {
-      const organizationId = session.session.activeOrganizationId;
-      const [alert, silences] = await Promise.all([
-        getAlertRow(alertId, organizationId),
-        listActiveSilenceRows(alertId, organizationId),
-      ]);
-      if (!alert) throw new Error("Alert not found");
+      const org = session.session.activeOrganizationId;
+      const rule = await cc.getRule(org, alertId);
+      if (!isManagedSimple(rule.spec)) throw new Error("Alert not found");
+      const slug = fromCcRuleSpec(rule.spec).slug;
       const { fromISO, toISO } = resolveTimeRange(timeRange);
-
-      const rows = await clickhouse.query<{
-        fingerprint: string;
-        lastEventType: string;
-        labelsJson: string;
-        lastFiredEvidenceJson: string;
-        lastFiredAt: string;
-        lastResolvedAt: string;
-      }>(
-        `
-        SELECT
-          instance_fingerprint AS fingerprint,
-          argMax(event_type, event_time) AS lastEventType,
-          argMax(instance_labels_json, event_time) AS labelsJson,
-          argMaxIf(evidence_json, event_time, event_type = 'instance_fired') AS lastFiredEvidenceJson,
-          if(countIf(event_type = 'instance_fired') = 0, '', ${clickhouseIsoMillis("maxIf(event_time, event_type = 'instance_fired')")}) AS lastFiredAt,
-          if(countIf(event_type = 'instance_resolved') = 0, '', ${clickhouseIsoMillis("maxIf(event_time, event_type = 'instance_resolved')")}) AS lastResolvedAt
-        FROM app.alert_events
-        WHERE tenant_id = {organizationId:String}
-          AND repoid = {repoid:String}
-          AND slug = {slug:String}
-          AND alert_definition_id = {alertDefinitionId:String}
-          AND event_type IN ('instance_fired', 'instance_resolved')
-          AND event_time >= {fromTime:String}
-          AND event_time <= {toTime:String}
-        GROUP BY instance_fingerprint
-        ORDER BY (lastEventType = 'instance_fired') DESC, max(event_time) DESC
-        LIMIT 500
-      `,
-        {
-          organizationId,
-          repoid: alert.repoid,
-          slug: alert.slug,
-          alertDefinitionId: alert.id,
-          fromTime: fromISO,
-          toTime: toISO,
-        },
-      );
-
-      const instanceLabelColumns = alert.instanceLabelColumns ?? [];
-      // Group snapshot rows by the same fingerprint the evaluator wrote to
-      // instance events, so each instance's rows are a single Map lookup.
-      const snapshotRowsByFingerprint = new Map<
-        string,
-        Record<string, AlertEvidenceValue>[]
-      >();
-      for (const row of evidenceRows(
-        alert.lastEvidenceSnapshot as AlertEvidenceValue | undefined,
-      )) {
-        const fingerprint = instanceFingerprint(
-          extractInstanceLabels(row, instanceLabelColumns),
-        );
-        const group = snapshotRowsByFingerprint.get(fingerprint);
-        if (group) {
-          group.push(row);
-        } else {
-          snapshotRowsByFingerprint.set(fingerprint, [row]);
-        }
-      }
-
-      return rows.map((row) => {
-        const labels = parseLabels(row.labelsJson);
+      const rows = await queryAlertHistory(clickhouse.query, slug, {
+        limit,
+        fromISO,
+        toISO,
+      });
+      return rows.map((row, i) => {
+        const labels = parseJsonObject(row.instanceLabelsJson);
         const state =
-          row.lastEventType === "instance_fired" ? "firing" : "resolved";
-        const lastEvaluationRows =
-          state === "firing"
-            ? (snapshotRowsByFingerprint.get(row.fingerprint) ?? [])
-            : [];
-        const firstEvaluationRow = lastEvaluationRows[0];
+          row.eventType === "instance_resolved" ? "resolved" : "firing";
         return {
-          fingerprint: row.fingerprint,
-          labels,
-          state,
-          lastFiredAt: row.lastFiredAt || null,
-          lastResolvedAt: row.lastResolvedAt || null,
-          lastRow: parseJsonObject(row.lastFiredEvidenceJson) as Record<
-            string,
-            AlertEvidenceValue
-          >,
-          lastEvaluationRows,
-          lastEvaluationTitle: firstEvaluationRow
-            ? renderMessage(alert.notificationTitleTemplate, {
-                firstRow: firstEvaluationRow,
-              })
-            : null,
-          lastEvaluationDescription:
-            firstEvaluationRow && alert.notificationDescriptionTemplate
-              ? renderMessage(alert.notificationDescriptionTemplate, {
-                  firstRow: firstEvaluationRow,
-                })
-              : null,
-          silenced:
-            state === "firing" &&
-            Boolean(findSilenceForInstance(silences, labels)),
-        } satisfies AlertInstanceSummary;
+          eventId: `${row.timestamp}:${row.instanceFingerprint || i}`,
+          slug,
+          eventType: row.eventType,
+          eventTime: row.timestamp,
+          rowCount: Number(row.rowCount) || 0,
+          deliveryTargets: parseDeliveryTargets(row.deliveryTargetsJson),
+          silenceId: row.silenced === "true" ? "silenced" : "",
+          instances: [{ state, labels: stringifyValues(labels) }],
+        } satisfies AlertEvent;
       });
     },
   );
@@ -683,56 +318,23 @@ export type AlertSilenceSummary = {
 export const listAlertSilences = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(alertIdInput)
   .handler(async ({ data: { alertId }, context: { session } }) => {
-    const organizationId = session.session.activeOrganizationId;
-    const alert = await getAlertRow(alertId, organizationId);
-    if (!alert) throw new Error("Alert not found");
-    const rows = await listActiveSilenceRows(alertId, organizationId);
-    return rows satisfies AlertSilenceSummary[];
-  });
-
-export const getAlertSettings = createAuthenticatedServerFn({
-  method: "GET",
-}).handler(async ({ context: { session } }) => {
-  const [row] = await db
-    .select({ delivery: alertSettings.delivery })
-    .from(alertSettings)
-    .where(
-      eq(alertSettings.organizationId, session.session.activeOrganizationId),
-    )
-    .limit(1);
-
-  return {
-    delivery: redactDeliverySecrets(ensureDeliveryDefaults(row?.delivery)),
-  };
-});
-
-export const updateAlertSettings = createAuthenticatedServerFn({
-  method: "POST",
-})
-  .inputValidator(z.object({ delivery: DeliverySettingsSchema }))
-  .handler(async ({ data: { delivery }, context: { session } }) => {
-    const organizationId = session.session.activeOrganizationId;
-    await ensureOrgAdmin();
-    const now = new Date();
-
-    const [existing] = await db
-      .select({ delivery: alertSettings.delivery })
-      .from(alertSettings)
-      .where(eq(alertSettings.organizationId, organizationId))
-      .limit(1);
-
-    const stored = ensureDeliveryDefaults(existing?.delivery);
-    const resolved = resolveDeliverySettings(stored, delivery);
-
-    await db
-      .insert(alertSettings)
-      .values({ organizationId, delivery: resolved, updatedAt: now })
-      .onConflictDoUpdate({
-        target: alertSettings.organizationId,
-        set: { delivery: resolved, updatedAt: now },
-      });
-
-    return { delivery: redactDeliverySecrets(resolved) };
+    const org = session.session.activeOrganizationId;
+    const rule = await cc.getRule(org, alertId);
+    if (!isManagedSimple(rule.spec)) throw new Error("Alert not found");
+    const silences = await cc.listSilences(org);
+    return silences
+      .filter((s) => silenceScopedToRule(s, alertId))
+      .map((s) => ({
+        id: s.id,
+        startsAt: new Date(s.starts_at),
+        endsAt: new Date(s.ends_at),
+        reason: s.comment ?? "",
+        createdByUserId: s.author ?? "",
+        // Hide the synthetic rule matcher from the UI.
+        matchers: ccToUiMatchers(
+          s.matchers.filter((m) => m.label !== RULE_LABEL),
+        ),
+      })) satisfies AlertSilenceSummary[];
   });
 
 export const createSilence = createAuthenticatedServerFn({ method: "POST" })
@@ -748,107 +350,110 @@ export const createSilence = createAuthenticatedServerFn({ method: "POST" })
       data: { alertId, endsAt, reason, matchers },
       context: { session },
     }) => {
-      const organizationId = session.session.activeOrganizationId;
+      const org = session.session.activeOrganizationId;
       await ensureOrgAdmin();
-      const alert = await getAlertRow(alertId, organizationId);
-      if (!alert) throw new Error("Alert not found");
-
+      const rule = await cc.getRule(org, alertId);
+      if (!isManagedSimple(rule.spec)) throw new Error("Alert not found");
       validateMatchers(matchers);
-
       const startsAt = new Date();
-      const parsedEndsAt = new Date(endsAt);
-      if (parsedEndsAt <= startsAt) {
+      if (new Date(endsAt) <= startsAt) {
         throw new Error("Silence end time must be in the future");
       }
-
-      const [row] = await db
-        .insert(alertSilences)
-        .values({
-          organizationId,
-          alertDefinitionId: alertId,
-          startsAt,
-          endsAt: parsedEndsAt,
-          reason,
-          matchers,
-          createdByUserId: session.user.id,
-        })
-        .returning({
-          id: alertSilences.id,
-          startsAt: alertSilences.startsAt,
-          endsAt: alertSilences.endsAt,
-          reason: alertSilences.reason,
-          matchers: alertSilences.matchers,
-          createdByUserId: alertSilences.createdByUserId,
-        });
-
-      return row;
+      return cc.createSilence(org, {
+        starts_at: startsAt.toISOString(),
+        ends_at: endsAt,
+        comment: reason || undefined,
+        author: session.user.id,
+        matchers: [
+          { label: RULE_LABEL, op: "eq", value: alertId },
+          ...matchers.map((m) => ({
+            label: m.label,
+            op: UI_OP_TO_CC[m.op],
+            value: m.value,
+          })),
+        ],
+      });
     },
   );
 
 export const cancelSilence = createAuthenticatedServerFn({ method: "POST" })
-  .inputValidator(z.object({ silenceId: z.string().uuid() }))
+  .inputValidator(z.object({ silenceId: z.string().min(1) }))
   .handler(async ({ data: { silenceId }, context: { session } }) => {
-    const organizationId = session.session.activeOrganizationId;
     await ensureOrgAdmin();
-    const now = new Date();
-    const [row] = await db
-      .update(alertSilences)
-      .set({
-        cancelledAt: now,
-        cancelledByUserId: session.user.id,
-        updatedAt: now,
-      })
-      .where(
-        and(
-          eq(alertSilences.organizationId, organizationId),
-          eq(alertSilences.id, silenceId),
-          isNull(alertSilences.cancelledAt),
-        ),
-      )
-      .returning({ id: alertSilences.id });
-
-    if (!row) throw new Error("Silence not found");
-    return row;
+    return cc.deleteSilence(session.session.activeOrganizationId, silenceId);
   });
 
-// Admin-gated, org-scoped active toggle. Activation resumes scheduling
-// immediately (the scanner picks the alert up on its next tick) and keeps
-// runtime state — unlike an `everr apply` revival, the definition hasn't
-// changed, and the next evaluation corrects a stale firing/resolved state.
-async function setAlertActive(
-  alertId: string,
-  organizationId: string,
-  active: boolean,
-) {
-  await ensureOrgAdmin();
-  const now = new Date();
-  const [row] = await db
-    .update(alertDefinitions)
-    .set({
-      active,
-      nextEvaluationAt: active ? now : null,
-      updatedAt: now,
-    })
-    .where(
-      and(
-        eq(alertDefinitions.organizationId, organizationId),
-        eq(alertDefinitions.id, alertId),
-      ),
-    )
-    .returning({ id: alertDefinitions.id });
+export const getAlertSettings = createAuthenticatedServerFn({
+  method: "GET",
+}).handler(async ({ context: { session } }) => {
+  const receivers = await cc.listReceivers(
+    session.session.activeOrganizationId,
+  );
+  return { delivery: receiversToDeliverySettings(receivers) };
+});
 
-  if (!row) throw new Error("Alert not found");
-  return row;
+// Ensure one catch-all route (empty matchers) per managed receiver. Each route
+// has `continue: true` so both managed receivers fire, and distinct high
+// priority numbers so lower-priority power-user routes evaluate first.
+async function ensureCatchAllRoutes(org: string) {
+  const routes = await cc.listRoutes(org);
+  const wanted: [string, number][] = [
+    [DEFAULT_EMAIL_RECEIVER, 1000],
+    [DEFAULT_TELEGRAM_RECEIVER, 1001],
+  ];
+  for (const [receiver, priority] of wanted) {
+    const has = routes.some(
+      (r) => r.matchers.length === 0 && r.receiver === receiver,
+    );
+    if (!has) {
+      await cc.createRoute(org, {
+        matchers: [],
+        receiver,
+        continue: true,
+        priority,
+        group_by: null,
+        group_wait_secs: null,
+        group_interval_secs: null,
+      });
+    }
+  }
 }
+
+export const updateAlertSettings = createAuthenticatedServerFn({
+  method: "POST",
+})
+  .inputValidator(z.object({ delivery: DeliverySettingsSchema }))
+  .handler(async ({ data: { delivery }, context: { session } }) => {
+    const org = session.session.activeOrganizationId;
+    await ensureOrgAdmin();
+    const n = normalizeDeliverySettings(delivery);
+    // Provision/refresh the two managed receivers.
+    await cc.upsertReceiver(org, {
+      name: DEFAULT_EMAIL_RECEIVER,
+      channel: { type: "email", to: n.email.enabled ? n.email.to : [] },
+    });
+    await cc.upsertReceiver(org, {
+      name: DEFAULT_TELEGRAM_RECEIVER,
+      channel: {
+        type: "telegram",
+        bot_token: n.telegram.enabled ? n.telegram.botToken : "",
+        chat_ids: n.telegram.enabled ? n.telegram.chatIds : [],
+      },
+    });
+    await ensureCatchAllRoutes(org);
+    return { delivery: n };
+  });
 
 export const deactivateAlert = createAuthenticatedServerFn({ method: "POST" })
   .inputValidator(alertIdInput)
-  .handler(({ data: { alertId }, context: { session } }) =>
-    setAlertActive(alertId, session.session.activeOrganizationId, false),
-  );
+  .handler(async ({ data: { alertId }, context: { session } }) => {
+    await ensureOrgAdmin();
+    return cc.pauseRule(session.session.activeOrganizationId, alertId);
+  });
 
 export const activateAlert = createAuthenticatedServerFn({ method: "POST" })
   .inputValidator(alertIdInput)
-  .handler(({ data: { alertId }, context: { session } }) =>
-    setAlertActive(alertId, session.session.activeOrganizationId, true),
-  );
+  .handler(async ({ data: { alertId }, context: { session } }) => {
+    await ensureOrgAdmin();
+    return cc.resumeRule(session.session.activeOrganizationId, alertId);
+  });

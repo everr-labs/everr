@@ -115,6 +115,7 @@ export const AlertRuleYamlSchema = z
         // config for back-compat and folded into `runbook` by the transform.
         notebook: runbookRefSchema.optional(),
         evaluationInterval: nonEmptyString,
+        severity: z.enum(["info", "warning", "critical"]).default("info"),
         notificationMessage: notificationMessageSchema,
         query: nonEmptyString,
         instanceLabels: z.array(nonEmptyString).min(1).optional(),

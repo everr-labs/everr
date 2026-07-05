@@ -24,6 +24,14 @@
     // Static entry points reached via Vite resolve.alias in
     // packages/app/vite.config.ts (use-sync-external-store/shim).
     "packages/app/src/ssr-shims/**",
+    // CC domain types — public type API, consumers added in follow-up tasks.
+    "packages/app/src/data/cc/types.ts",
+    // CC server functions — consumers (pages) added in follow-up tasks.
+    "packages/app/src/data/cc/server.ts",
+    // CC shared UI helpers — consumers (CC pages) added in follow-up tasks.
+    "packages/app/src/routes/_authenticated/_dashboard/cc-alerting/-cc-shared.tsx",
+    // CC matchers editor — consumers (routes/inhibitions/silences pages) added in follow-up tasks.
+    "packages/app/src/components/cc/matchers-editor.tsx",
   ],
   "ignoreDependencies": ["@everr/auto-otel-errors"],
   // Docs content (MDX) is loaded dynamically by fumadocs via import.meta.glob
@@ -111,5 +119,40 @@
       "file": "packages/app/src/data/dashboards/testdata/spec.ts",
       "exports": ["*"]
     },
+    {
+      // CC transport layer — consumers (server functions) added in follow-up tasks.
+      "file": "packages/app/src/lib/clickety-clack.server.ts",
+      "exports": ["*"]
+    },
+    {
+      // CC domain schemas — consumers (client verbs, pages) added in follow-up tasks.
+      "file": "packages/app/src/data/cc/schema.ts",
+      "exports": ["*"]
+    },
+    {
+      // CC domain types — consumers (client verbs, pages) added in follow-up tasks.
+      "file": "packages/app/src/data/cc/types.ts",
+      "exports": ["*"]
+    },
+    {
+      // CC client verbs — consumers (server functions, pages) added in follow-up tasks.
+      "file": "packages/app/src/data/cc/client.ts",
+      "exports": ["*"]
+    },
+    {
+      // CC server functions — consumers (pages) added in follow-up tasks.
+      "file": "packages/app/src/data/cc/server.ts",
+      "exports": ["*"]
+    },
+    {
+      // CC shared UI helpers — consumers (CC pages) added in follow-up tasks.
+      "file": "packages/app/src/routes/_authenticated/_dashboard/cc-alerting/-cc-shared.tsx",
+      "exports": ["*"]
+    },
+    {
+      // CC matchers editor — consumers (CC CRUD pages) added in follow-up tasks.
+      "file": "packages/app/src/components/cc/matchers-editor.tsx",
+      "exports": ["*"]
+    }
   ]
 }

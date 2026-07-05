@@ -3,7 +3,6 @@ import { performance } from "node:perf_hooks";
 import { metrics } from "@opentelemetry/api";
 import { type Runner, run, type WorkerEvents } from "graphile-worker";
 import { pool } from "@/db/client";
-import { alertCronItems, alertTaskList } from "@/server/alerts/00-runtime";
 import { githubEventsTaskList } from "@/server/github-events/tasks";
 import {
   previewsCronItems,
@@ -104,11 +103,10 @@ async function startRunner(): Promise<Runner> {
     concurrency: WORKER_CONCURRENCY,
     events,
     noHandleSignals: true,
-    parsedCronItems: [...alertCronItems, ...previewsCronItems],
+    parsedCronItems: [...previewsCronItems],
     pgPool: pool,
     taskList: {
       ...githubEventsTaskList,
-      ...alertTaskList,
       ...previewsTaskList,
     },
   });

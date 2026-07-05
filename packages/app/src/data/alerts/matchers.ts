@@ -61,12 +61,6 @@ export function sortedLabelEntries(
   return Object.entries(labels).sort(([a], [b]) => a.localeCompare(b));
 }
 
-export function formatLabels(labels: Record<string, string>): string {
-  const entries = sortedLabelEntries(labels);
-  if (entries.length === 0) return NO_LABELS_TEXT;
-  return entries.map(([key, value]) => `${key}=${value}`).join(", ");
-}
-
 export function findSilenceForInstance<S extends { matchers: Matcher[] }>(
   silences: readonly S[],
   labels: Record<string, string>,

@@ -1,26 +1,16 @@
-import { createHash } from "node:crypto";
-import { and, eq, isNull, or } from "drizzle-orm";
 import { ApplyValidationError } from "@/data/as-code/errors";
-import {
-  type OwnershipConflict,
-  partitionByOwnership,
-} from "@/data/as-code/ownership";
 import type { Reconciler } from "@/data/as-code/registry";
-import type { ApplyResourceEntry, ApplySource } from "@/data/as-code/schema";
-import {
-  foreignLiveScope,
-  previewOwner,
-  previewScope,
-} from "@/data/previews/scope";
-import { alertDefinitions } from "@/db/schema";
+import * as cc from "@/data/cc/client";
 import { querySqlApiWithMeta, type SqlApiResult } from "@/lib/clickhouse";
 import { errorMessage } from "@/telemetry/logger";
 import {
-  type AlertRuleYaml,
-  AlertRuleYamlSchema,
-  identityKey,
-  parseRunbookRef,
-} from "./schema";
+  isManagedSimple,
+  OWN_MANAGED,
+  OWN_NAME,
+  OWN_REPO,
+  toSimpleRuleSpec,
+} from "./mapping";
+import { type AlertRuleYaml, AlertRuleYamlSchema } from "./schema";
 import {
   validateMessageColumns,
   validateMessageTemplate,
@@ -28,64 +18,25 @@ import {
 } from "./template";
 import { parseEvaluationInterval } from "./window";
 
-interface DesiredAlert {
-  slug: string;
-  project: string;
-  runbookProject: string;
-  runbookSlug: string;
-  evaluationIntervalSeconds: number;
-  document: AlertRuleYaml;
-  parsedQuery: string;
-  notificationTitleTemplate: string;
-  notificationDescriptionTemplate: string;
-  instanceLabelColumns: string[];
-  scheduleJitterSeconds: number;
-  configFilePath: string;
-  sourceLink: string;
-}
-
-interface ExistingAlert extends DesiredAlert {
-  active: boolean;
-}
-
 interface ApplyAlertsResult {
   created: string[];
   updated: string[];
   deleted: string[];
   adopted: string[];
-  conflicts: OwnershipConflict[];
+  conflicts: never[];
 }
 
-function pathForLink(path: string): string {
-  return path.split("/").map(encodeURIComponent).join("/");
-}
-
-function normalizeRemote(remote: string): string {
-  const ssh = /^git@([^:]+):(.+?)(?:\.git)?$/.exec(remote);
-  if (ssh) return `https://${ssh[1]}/${ssh[2]}`;
-  return remote.replace(/\/$/, "").replace(/\.git$/, "");
-}
-
-function sourceLink(source: ApplySource | undefined, path: string): string {
-  if (!source?.remote || !source.commitSha) return "";
-  return `${normalizeRemote(source.remote)}/blob/${source.commitSha}/${pathForLink(
-    path,
-  )}`;
-}
-
-function scheduleJitterSeconds(
-  orgId: string,
-  repoid: string,
-  project: string,
-  slug: string,
-  evaluationIntervalSeconds: number,
-): number {
-  const spread = Math.min(evaluationIntervalSeconds, 5);
-  const hash = createHash("sha256")
-    .update(`${orgId}\0${repoid}\0${project}\0${slug}`)
-    .digest();
-  return hash.readUInt32BE(0) % spread;
-}
+// A simple alert is stored as a CC rule scoped by its `everr.repoid` marker, so
+// it has no cross-repo (project, slug) ownership and no Postgres preview overlay
+// to diff against. Returned by the reconciler for both the "nothing to adopt"
+// and the "previews are a no-op" paths.
+const NO_ALERT_CHANGES: ApplyAlertsResult = {
+  created: [],
+  updated: [],
+  deleted: [],
+  adopted: [],
+  conflicts: [],
+};
 
 function validationError(path: string, error: unknown): ApplyValidationError {
   const message = errorMessage(error);
@@ -116,12 +67,7 @@ function parseAlertRule(path: string, resource: unknown) {
     throw validationError(path, error);
   }
 
-  return {
-    rule,
-    slug: rule.metadata.name,
-    project: rule.metadata.project ?? "default",
-    evaluationIntervalSeconds,
-  };
+  return { rule, slug: rule.metadata.name, evaluationIntervalSeconds };
 }
 
 // Result-dependent validation: run the rule's query against the org's data and
@@ -201,327 +147,104 @@ async function mapSettledWithConcurrency<T, R>(
   return results;
 }
 
-async function buildDesiredAlerts(opts: {
-  orgId: string;
-  repoid: string;
-  resources: ApplyResourceEntry[];
-  source?: ApplySource;
-}): Promise<DesiredAlert[]> {
-  const seen = new Map<string, string>();
-  const parsedAlerts = opts.resources.map(({ path, resource }) => {
-    const parsed = parseAlertRule(path, resource);
-
-    const key = identityKey(parsed.project, parsed.slug);
-    const prior = seen.get(key);
-    if (prior) {
-      throw new ApplyValidationError(
-        `duplicate alert "${parsed.slug}" in project "${parsed.project}" (${prior} and ${path})`,
-      );
-    }
-    seen.set(key, path);
-    return { ...parsed, path };
-  });
-
-  // The validation queries are independent; run them with bounded concurrency
-  // but report failures in file order so the surfaced error is deterministic.
-  const validations = await mapSettledWithConcurrency(
-    parsedAlerts,
-    VALIDATION_QUERY_CONCURRENCY,
-    (parsed) => validateAlertRuleQuery(parsed.path, parsed.rule, opts.orgId),
+// Stable identity for change detection: everything except ownership/management
+// annotations. Annotation key order is NOT stable across the YAML source and
+// CC's response, so we sort the annotation entries before hashing — otherwise a
+// rule with 2+ annotations would look "changed" on every apply and be needlessly
+// deleted+recreated. Mirrors data/cc/apply.server.ts's fingerprint (intentionally
+// duplicated per the no-dedupe-reconciler-boilerplate convention), additionally
+// stripping the everr.managed marker.
+function specFingerprint(spec: Record<string, unknown>): string {
+  const ann = { ...(spec.annotations as Record<string, string> | undefined) };
+  delete ann[OWN_NAME];
+  delete ann[OWN_REPO];
+  delete ann[OWN_MANAGED];
+  const sortedAnnotations = Object.fromEntries(
+    Object.entries(ann).sort(([a], [b]) => a.localeCompare(b)),
   );
-
-  return parsedAlerts.map((parsed, index) => {
-    const validation = validations[index];
-    if (validation.status === "rejected") throw validation.reason;
-
-    const ref = parsed.rule.spec.runbook
-      ? parseRunbookRef(parsed.rule.spec.runbook, parsed.project)
-      : { project: "", slug: "" };
-
-    return {
-      slug: parsed.slug,
-      project: parsed.project,
-      runbookProject: ref.project,
-      runbookSlug: ref.slug,
-      evaluationIntervalSeconds: parsed.evaluationIntervalSeconds,
-      document: parsed.rule,
-      parsedQuery: parsed.rule.spec.query,
-      notificationTitleTemplate: parsed.rule.spec.notificationMessage.title,
-      notificationDescriptionTemplate:
-        parsed.rule.spec.notificationMessage.description ?? "",
-      instanceLabelColumns: validation.value.instanceLabelColumns,
-      scheduleJitterSeconds: scheduleJitterSeconds(
-        opts.orgId,
-        opts.repoid,
-        parsed.project,
-        parsed.slug,
-        parsed.evaluationIntervalSeconds,
-      ),
-      configFilePath: parsed.path,
-      sourceLink: sourceLink(opts.source, parsed.path),
-    };
-  });
-}
-
-function instanceLabelsChanged(a: string[], b: string[]): boolean {
-  return a.length !== b.length || a.some((value, index) => value !== b[index]);
-}
-
-function stableStringify(value: unknown): string {
-  return JSON.stringify(sortKeys(value));
-}
-
-function sortKeys(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sortKeys);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.keys(value as Record<string, unknown>)
-        .sort()
-        .map((key) => [key, sortKeys((value as Record<string, unknown>)[key])]),
-    );
-  }
-  return value;
-}
-
-// The query and instance-label columns define the runtime state's shape; when
-// either changes the previous firing set no longer applies and must be reset.
-function queryOrLabelsChanged(a: DesiredAlert, b: DesiredAlert): boolean {
-  return (
-    a.parsedQuery !== b.parsedQuery ||
-    instanceLabelsChanged(a.instanceLabelColumns, b.instanceLabelColumns)
-  );
-}
-
-function needsUpdate(existing: ExistingAlert, desired: DesiredAlert): boolean {
-  return (
-    !existing.active ||
-    existing.evaluationIntervalSeconds !== desired.evaluationIntervalSeconds ||
-    stableStringify(existing.document) !== stableStringify(desired.document) ||
-    queryOrLabelsChanged(existing, desired) ||
-    existing.notificationTitleTemplate !== desired.notificationTitleTemplate ||
-    existing.notificationDescriptionTemplate !==
-      desired.notificationDescriptionTemplate ||
-    existing.scheduleJitterSeconds !== desired.scheduleJitterSeconds ||
-    existing.configFilePath !== desired.configFilePath ||
-    existing.sourceLink !== desired.sourceLink ||
-    existing.runbookProject !== desired.runbookProject ||
-    existing.runbookSlug !== desired.runbookSlug
-  );
-}
-
-function nextEvaluationAt(now: Date, desired: DesiredAlert): Date {
-  return new Date(
-    now.getTime() +
-      (desired.evaluationIntervalSeconds + desired.scheduleJitterSeconds) *
-        1000,
-  );
-}
-
-function activeValues(
-  desired: DesiredAlert,
-  now: Date,
-  opts: { resetRuntimeState?: boolean } = {},
-) {
-  const values = {
-    evaluationIntervalSeconds: desired.evaluationIntervalSeconds,
-    document: desired.document,
-    parsedQuery: desired.parsedQuery,
-    notificationTitleTemplate: desired.notificationTitleTemplate,
-    notificationDescriptionTemplate: desired.notificationDescriptionTemplate,
-    instanceLabelColumns: desired.instanceLabelColumns,
-    nextEvaluationAt: nextEvaluationAt(now, desired),
-    scheduleJitterSeconds: desired.scheduleJitterSeconds,
-    configFilePath: desired.configFilePath,
-    sourceLink: desired.sourceLink,
-    runbookProject: desired.runbookProject,
-    runbookSlug: desired.runbookSlug,
-    active: true,
-    updatedAt: now,
-  };
-
-  if (!opts.resetRuntimeState) return values;
-
-  return {
-    ...values,
-    lastEvaluationStatus: "",
-    lastEvaluationError: "",
-    currentState: "unknown" as const,
-    lastEvaluatedAt: null,
-    lastFiredAt: null,
-    lastResolvedAt: null,
-    lastSeenAt: null,
-    lastRowCount: 0,
-    lastEvidenceSnapshot: [],
-    firingInstanceCount: 0,
-  };
-}
-
-function shouldResetRuntimeState(
-  existing: ExistingAlert | undefined,
-  desired: DesiredAlert,
-): boolean {
-  if (!existing?.active) return true;
-  return queryOrLabelsChanged(existing, desired);
+  return JSON.stringify({ ...spec, annotations: sortedAnnotations });
 }
 
 /**
- * Reconcile alert definitions for one repo. Alerts missing from the config are
- * deleted; the FK from alert_silences cascades, so their silences go too.
- * Re-adding a rule later creates a fresh definition row.
+ * Reconcile `kind: AlertRule` (simple) alerts for one repo against CC. A simple
+ * alert IS a CC rule tagged everr.managed="simple" (+ everr.name, everr.repoid).
+ * We list CC rules, scope to THIS repo's managed-simple rules only — so
+ * power-user `CCAlertRule` rules in the same repo are never touched — and
+ * converge to the applied set. CC rules are immutable, so a changed rule is
+ * delete+recreate; a managed rule absent from config is deleted.
  */
 export const applyAlertSpecs: Reconciler = async ({
   namespace,
   resources,
-  source,
   dryRun,
-  adopt,
-  db: exec,
 }): Promise<ApplyAlertsResult> => {
-  const desired = await buildDesiredAlerts({
-    orgId: namespace.orgId,
-    repoid: namespace.repoid,
-    resources,
-    source,
+  const { orgId, repoid } = namespace;
+  // Simple alerts live in CC, which has no preview concept: a preview apply must
+  // never mutate the shared CC state. Reconcile CC only for the live namespace;
+  // preview applies of AlertRule resources are a no-op (reported as no changes).
+  if (namespace.kind === "preview") return NO_ALERT_CHANGES;
+
+  // 1. Parse + statically validate, then run the result-dependent query
+  // validation; finally map each rule to its desired CC spec.
+  const seen = new Map<string, string>();
+  const parsed = resources.map(({ path, resource }) => {
+    const p = parseAlertRule(path, resource);
+    const prior = seen.get(p.slug);
+    if (prior) {
+      throw new ApplyValidationError(
+        `duplicate alert "${p.slug}" (${prior} and ${path})`,
+      );
+    }
+    seen.set(p.slug, path);
+    return { ...p, path };
   });
 
-  const scope = previewScope(alertDefinitions, namespace);
-
-  const existing: ExistingAlert[] = await exec
-    .select({
-      slug: alertDefinitions.slug,
-      project: alertDefinitions.project,
-      runbookProject: alertDefinitions.runbookProject,
-      runbookSlug: alertDefinitions.runbookSlug,
-      evaluationIntervalSeconds: alertDefinitions.evaluationIntervalSeconds,
-      document: alertDefinitions.document,
-      parsedQuery: alertDefinitions.parsedQuery,
-      notificationTitleTemplate: alertDefinitions.notificationTitleTemplate,
-      notificationDescriptionTemplate:
-        alertDefinitions.notificationDescriptionTemplate,
-      instanceLabelColumns: alertDefinitions.instanceLabelColumns,
-      scheduleJitterSeconds: alertDefinitions.scheduleJitterSeconds,
-      configFilePath: alertDefinitions.configFilePath,
-      sourceLink: alertDefinitions.sourceLink,
-      active: alertDefinitions.active,
-    })
-    .from(alertDefinitions)
-    .where(scope);
-
-  const existingByKey = new Map(
-    existing.map((row) => [identityKey(row.project, row.slug), row]),
-  );
-  const desiredByKey = new Map(
-    desired.map((row) => [identityKey(row.project, row.slug), row]),
+  const validations = await mapSettledWithConcurrency(
+    parsed,
+    VALIDATION_QUERY_CONCURRENCY,
+    (p) => validateAlertRuleQuery(p.path, p.rule, orgId),
   );
 
-  const creates = desired.filter(
-    (row) => !existingByKey.has(identityKey(row.project, row.slug)),
-  );
-  const updates = desired.filter((row) => {
-    const current = existingByKey.get(identityKey(row.project, row.slug));
-    return current ? needsUpdate(current, row) : false;
+  const desired = parsed.map((p, i) => {
+    const v = validations[i];
+    if (v.status === "rejected") throw v.reason;
+    return { name: p.slug, spec: toSimpleRuleSpec(p.rule, repoid) };
   });
-  const deletes = existing.filter(
-    (row) => !desiredByKey.has(identityKey(row.project, row.slug)),
+
+  // 2. Reconcile against CC, scoped to this repo's MANAGED-SIMPLE rules only.
+  const existing = (await cc.listRules(orgId)).filter((r) =>
+    isManagedSimple(r.spec, repoid),
+  );
+  const existingByName = new Map(
+    existing.map((r) => [(r.spec.annotations ?? {})[OWN_NAME] ?? "", r]),
   );
 
-  // A create whose (project, slug) is a live alert owned by another repo is a
-  // cross-repo conflict: reported (fail-fast upstream) unless adopting, which
-  // transfers ownership. Only live applies can collide.
-  const foreign =
-    namespace.kind === "live" && creates.length > 0
-      ? await exec
-          .select({
-            project: alertDefinitions.project,
-            slug: alertDefinitions.slug,
-            owner: alertDefinitions.repoid,
-          })
-          .from(alertDefinitions)
-          .where(foreignLiveScope(alertDefinitions, namespace, creates))
-      : [];
-  const { freshCreates, takenCreates, adopted, conflicts } =
-    partitionByOwnership(creates, foreign, adopt);
+  const created: string[] = [];
+  const updated: string[] = [];
+  const deleted: string[] = [];
 
-  const summary: ApplyAlertsResult = {
-    created: freshCreates.map((row) => row.slug),
-    updated: updates.map((row) => row.slug),
-    deleted: deletes.map((row) => row.slug),
-    adopted,
-    conflicts,
-  };
-
-  if (dryRun) return summary;
-
-  const now = new Date();
-  // Registry owns the transaction (`exec`); these writes join it so the whole
-  // apply commits or rolls back together.
-  if (freshCreates.length > 0) {
-    await exec.insert(alertDefinitions).values(
-      freshCreates.map((row) => ({
-        organizationId: namespace.orgId,
-        ...previewOwner(namespace),
-        slug: row.slug,
-        project: row.project,
-        ...activeValues(row, now),
-        createdAt: now,
-      })),
-    );
+  for (const d of desired) {
+    const cur = existingByName.get(d.name);
+    if (!cur) {
+      if (!dryRun) await cc.createRule(orgId, d.spec);
+      created.push(d.name);
+    } else if (
+      specFingerprint(cur.spec as Record<string, unknown>) !==
+      specFingerprint(d.spec as unknown as Record<string, unknown>)
+    ) {
+      // CC rules are immutable: delete + recreate.
+      if (!dryRun) {
+        await cc.deleteRule(orgId, cur.id);
+        await cc.createRule(orgId, d.spec);
+      }
+      updated.push(d.name);
+    }
+    existingByName.delete(d.name);
   }
-  // Adoption: take over the other repo's live alert by its global identity,
-  // transferring ownership and resetting runtime state (a re-homed alert
-  // re-evaluates fresh). Only reached with `adopt`.
-  for (const row of takenCreates) {
-    await exec
-      .update(alertDefinitions)
-      .set({
-        repoid: namespace.repoid,
-        ...activeValues(row, now, { resetRuntimeState: true }),
-      })
-      .where(
-        and(
-          eq(alertDefinitions.organizationId, namespace.orgId),
-          isNull(alertDefinitions.previewId),
-          eq(alertDefinitions.project, row.project),
-          eq(alertDefinitions.slug, row.slug),
-        ),
-      );
+  for (const [name, cur] of existingByName) {
+    if (!dryRun) await cc.deleteRule(orgId, cur.id);
+    deleted.push(name);
   }
 
-  for (const row of updates) {
-    const current = existingByKey.get(identityKey(row.project, row.slug));
-    await exec
-      .update(alertDefinitions)
-      .set(
-        activeValues(row, now, {
-          resetRuntimeState: shouldResetRuntimeState(current, row),
-        }),
-      )
-      .where(
-        and(
-          scope,
-          eq(alertDefinitions.project, row.project),
-          eq(alertDefinitions.slug, row.slug),
-        ),
-      );
-  }
-
-  if (deletes.length > 0) {
-    await exec
-      .delete(alertDefinitions)
-      .where(
-        and(
-          scope,
-          or(
-            ...deletes.map((row) =>
-              and(
-                eq(alertDefinitions.project, row.project),
-                eq(alertDefinitions.slug, row.slug),
-              ),
-            ),
-          ),
-        ),
-      );
-  }
-
-  return summary;
+  return { created, updated, deleted, adopted: [], conflicts: [] };
 };

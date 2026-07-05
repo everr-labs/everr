@@ -36,6 +36,23 @@ describe("AlertRuleYamlSchema", () => {
     ).toBe(true);
   });
 
+  it("defaults severity to info and accepts explicit values", () => {
+    const parsed = AlertRuleYamlSchema.parse(valid);
+    expect(parsed.spec.severity).toBe("info");
+    expect(
+      AlertRuleYamlSchema.safeParse({
+        ...valid,
+        spec: { ...valid.spec, severity: "critical" },
+      }).success,
+    ).toBe(true);
+    expect(
+      AlertRuleYamlSchema.safeParse({
+        ...valid,
+        spec: { ...valid.spec, severity: "bogus" },
+      }).success,
+    ).toBe(false);
+  });
+
   it("rejects empty instanceLabels arrays and entries", () => {
     expect(
       AlertRuleYamlSchema.safeParse({

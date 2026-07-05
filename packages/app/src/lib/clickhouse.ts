@@ -201,7 +201,7 @@ type AdminInsertSettings = Parameters<
 >[0]["clickhouse_settings"];
 
 // Generic admin-client insert for app-owned tables; row typing lives with the
-// feature that owns the table (e.g. server/alerts/events.ts).
+// feature that owns the table.
 export async function insertAdminRows(
   table: string,
   rows: object[],

@@ -152,28 +152,24 @@ describe("querySqlApiWithMeta", () => {
 describe("insertAdminRows", () => {
   it("writes rows through the admin client with the given settings", async () => {
     await insertAdminRows(
-      "app.alert_events",
+      "app.logs",
       [
         {
-          tenant_id: ORG,
-          alert_definition_id: "alert-1",
-          repoid: "repo-1",
-          slug: "high-5xx",
-          event_type: "firing",
+          organization_id: ORG,
+          service_name: "everr",
+          body: "hello",
         },
       ],
       { async_insert: 1, wait_for_async_insert: 1 },
     );
 
     expect(mockInsert).toHaveBeenCalledWith({
-      table: "app.alert_events",
+      table: "app.logs",
       values: [
         {
-          tenant_id: ORG,
-          alert_definition_id: "alert-1",
-          repoid: "repo-1",
-          slug: "high-5xx",
-          event_type: "firing",
+          organization_id: ORG,
+          service_name: "everr",
+          body: "hello",
         },
       ],
       format: "JSONEachRow",
@@ -185,7 +181,7 @@ describe("insertAdminRows", () => {
   });
 
   it("does not issue an insert for an empty batch", async () => {
-    await insertAdminRows("app.alert_events", []);
+    await insertAdminRows("app.logs", []);
 
     expect(mockInsert).not.toHaveBeenCalled();
   });
