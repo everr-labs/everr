@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-06-16T16:55:41Z",
+  "title": "Design System: Everr",
+  "extensions": {
+    "colorMeta": {
+      "signal-lime": { "role": "primary", "displayName": "Signal Lime", "canonical": "oklch(0.937 0.264 119.7)", "tonalRamp": ["oklch(0.30 0.10 119.7)", "oklch(0.42 0.14 119.7)", "oklch(0.54 0.18 119.7)", "oklch(0.66 0.21 119.7)", "oklch(0.76 0.24 119.7)", "oklch(0.85 0.26 119.7)", "oklch(0.937 0.264 119.7)", "oklch(0.97 0.12 119.7)"] },
+      "slate": { "role": "secondary", "displayName": "Slate", "canonical": "oklch(0.274 0.006 286.033)", "tonalRamp": ["oklch(0.18 0.006 286)", "oklch(0.24 0.006 286)", "oklch(0.30 0.006 286)", "oklch(0.40 0.006 286)", "oklch(0.52 0.006 286)", "oklch(0.66 0.006 286)", "oklch(0.80 0.006 286)", "oklch(0.92 0.006 286)"] },
+      "alert-red": { "role": "tertiary", "displayName": "Alert Red", "canonical": "oklch(0.704 0.191 22.216)", "tonalRamp": ["oklch(0.30 0.10 22.2)", "oklch(0.40 0.13 22.2)", "oklch(0.50 0.16 22.2)", "oklch(0.60 0.18 22.2)", "oklch(0.704 0.191 22.216)", "oklch(0.78 0.17 22.2)", "oklch(0.86 0.12 22.2)", "oklch(0.93 0.07 22.2)"] },
+      "bg-base": { "role": "neutral", "displayName": "Base", "canonical": "oklch(0.145 0 0)", "tonalRamp": ["oklch(0.145 0 0)", "oklch(0.205 0 0)", "oklch(0.269 0 0)", "oklch(0.34 0 0)", "oklch(0.45 0 0)", "oklch(0.58 0 0)", "oklch(0.708 0 0)", "oklch(0.985 0 0)"] },
+      "ink": { "role": "neutral", "displayName": "Ink", "canonical": "oklch(0.985 0 0)", "tonalRamp": ["oklch(0.145 0 0)", "oklch(0.205 0 0)", "oklch(0.269 0 0)", "oklch(0.45 0 0)", "oklch(0.58 0 0)", "oklch(0.708 0 0)", "oklch(0.85 0 0)", "oklch(0.985 0 0)"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Space Grotesk — CTA buttons and marketing/brand moments only. Never in-app labels or page titles." },
+      "body": { "displayName": "Body", "purpose": "Inter at 0.75rem — the workhorse for UI text and most prose. Prose caps at 65–75ch." },
+      "label": { "displayName": "Label", "purpose": "Inter 500 at 0.625rem — badges, chips, micro-labels." },
+      "mono": { "displayName": "Mono", "purpose": "source-code-pro — literal data: key=value label sets, IDs, query values, log/ANSI output." }
+    },
+    "shadows": [
+      { "name": "ring-card", "value": "inset 0 0 0 1px oklch(1 0 0 / 10%)", "purpose": "The only in-shell elevation — a translucent hairline ring etching cards/panels into the dark. Not a drop shadow." }
+    ],
+    "motion": [
+      { "name": "ease-expo-out", "value": "cubic-bezier(0.19, 1, 0.22, 1)", "purpose": "The universal control easing for hover/focus/state transitions, at 200ms." },
+      { "name": "ease-reveal", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Fade-up entrance for content reveals (0.7s); used sparingly, never as a page-load sequence." },
+      { "name": "duration-control", "value": "200ms", "purpose": "Standard transition duration across interactive components." }
+    ],
+    "breakpoints": [
+      { "name": "sidebar-icon", "value": "3rem" },
+      { "name": "sidebar", "value": "16rem" },
+      { "name": "sidebar-mobile", "value": "18rem" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Primary action — Signal Lime fill, reserved for the one committing action on a surface.",
+      "html": "<button class=\"ds-btn-primary\">Apply</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; height: 2rem; padding: 0 0.5rem; gap: 0.25rem; border: 1px solid transparent; border-radius: 0.5rem; background: oklch(0.937 0.264 119.7); color: oklch(0.1 0.031 120.757); font-family: 'Inter Variable', sans-serif; font-size: 0.75rem; font-weight: 500; line-height: 1.625; white-space: nowrap; cursor: pointer; transition: all 200ms cubic-bezier(0.19,1,0.22,1); } .ds-btn-primary:hover { background: oklch(0.937 0.264 119.7 / 0.8); } .ds-btn-primary:focus-visible { outline: 2px solid oklch(0.937 0.264 119.7); outline-offset: 3px; } .ds-btn-primary:disabled { opacity: 0.5; pointer-events: none; }"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Neutral-but-present default action — translucent fill over a hairline border.",
+      "html": "<button class=\"ds-btn-outline\">Cancel</button>",
+      "css": ".ds-btn-outline { display: inline-flex; align-items: center; justify-content: center; height: 2rem; padding: 0 0.5rem; gap: 0.25rem; border: 1px solid oklch(1 0 0 / 0.1); border-radius: 0.5rem; background: oklch(1 0 0 / 0.06); color: oklch(0.708 0 0); font-family: 'Inter Variable', sans-serif; font-size: 0.75rem; font-weight: 500; cursor: pointer; transition: all 200ms cubic-bezier(0.19,1,0.22,1); } .ds-btn-outline:hover { background: oklch(1 0 0 / 0.12); color: oklch(0.985 0 0); } .ds-btn-outline:active { background: oklch(1 0 0 / 0.18); } .ds-btn-outline:focus-visible { outline: 2px solid oklch(0.937 0.264 119.7); outline-offset: 3px; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Low-emphasis toolbar action — transparent until hovered.",
+      "html": "<button class=\"ds-btn-ghost\">More</button>",
+      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; justify-content: center; height: 2rem; padding: 0 0.5rem; gap: 0.25rem; border: 1px solid transparent; border-radius: 0.5rem; background: transparent; color: oklch(0.708 0 0); font-family: 'Inter Variable', sans-serif; font-size: 0.75rem; font-weight: 500; cursor: pointer; transition: all 200ms cubic-bezier(0.19,1,0.22,1); } .ds-btn-ghost:hover { background: oklch(0.269 0 0 / 0.5); color: oklch(0.985 0 0); } .ds-btn-ghost:focus-visible { outline: 2px solid oklch(0.937 0.264 119.7); outline-offset: 3px; }"
+    },
+    {
+      "name": "Status Badge",
+      "kind": "chip",
+      "refersTo": "badge",
+      "description": "Tiny pill carrying status — paired with a label so meaning survives colorblind viewing. Shown here in the firing (destructive) variant.",
+      "html": "<span class=\"ds-badge-firing\"><svg viewBox=\"0 0 24 24\" width=\"10\" height=\"10\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z\"/><path d=\"M12 9v4\"/><path d=\"M12 17h.01\"/></svg>firing</span>",
+      "css": ".ds-badge-firing { display: inline-flex; align-items: center; justify-content: center; gap: 0.25rem; height: 1.25rem; padding: 0.125rem 0.5rem; border: 1px solid transparent; border-radius: 9999px; background: oklch(0.704 0.191 22.216 / 0.2); color: oklch(0.704 0.191 22.216); font-family: 'Inter Variable', sans-serif; font-size: 0.625rem; font-weight: 500; white-space: nowrap; }"
+    },
+    {
+      "name": "Default Badge",
+      "kind": "chip",
+      "refersTo": "badge",
+      "description": "Signal Lime pill — the pending/active/positive state.",
+      "html": "<span class=\"ds-badge-default\">pending</span>",
+      "css": ".ds-badge-default { display: inline-flex; align-items: center; justify-content: center; height: 1.25rem; padding: 0.125rem 0.5rem; border: 1px solid transparent; border-radius: 9999px; background: oklch(0.937 0.264 119.7); color: oklch(0.1 0.031 120.757); font-family: 'Inter Variable', sans-serif; font-size: 0.625rem; font-weight: 500; white-space: nowrap; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Translucent field that brightens on hover and resolves the lime focus ring on focus.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Filter by label…\" />",
+      "css": ".ds-input { width: 100%; height: 2rem; padding: 0.125rem 0.5rem; border: 1px solid oklch(1 0 0 / 0.1); border-radius: 0.5rem; background: oklch(1 0 0 / 0.06); color: oklch(0.985 0 0); font-family: 'Inter Variable', sans-serif; font-size: 0.75rem; transition: outline 200ms cubic-bezier(0.19,1,0.22,1), background-color 200ms cubic-bezier(0.19,1,0.22,1), border-color 200ms cubic-bezier(0.19,1,0.22,1); } .ds-input::placeholder { color: oklch(0.708 0 0); } .ds-input:hover { background: oklch(1 0 0 / 0.1); } .ds-input:focus-visible { border-color: oklch(0.556 0 0); outline: 2px solid oklch(0.937 0.264 119.7); outline-offset: 3px; }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Flat Surface panel lifted by a hairline ring — no drop shadow.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-title\">Current instances</div><div class=\"ds-card-body\">Dense content lives here at text-xs.</div></div>",
+      "css": ".ds-card { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.75rem; border-radius: 0.625rem; background: oklch(0.205 0 0); color: oklch(0.985 0 0); box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.1); font-size: 0.75rem; line-height: 1.625; } .ds-card-title { font-weight: 600; font-size: 0.875rem; } .ds-card-body { color: oklch(0.708 0 0); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Instrument Panel",
+    "overview": "Everr's interface is a precision readout for software delivery: dark, dense, and calm at rest, with the lime accent lighting up only what is live, selected, or actionable. It looks like a tool built to be watched under load — legible when the data is thick, fast when the user is mid-incident, quiet when nothing demands attention. Depth is implied by tonal layering and a single hairline ring, not by shadow. It practices what Everr preaches: an observability tool's own UI must feel instrumented-grade — no sloppy states, no decorative motion, no chrome between the user and the runtime fact. It rejects the legacy enterprise wall-of-dashboards, the generic shadcn SaaS template, consumer-y over-animation, and AI-gimmick flourishes.",
+    "keyCharacteristics": [
+      "Dark-first, near-black base with tonally-layered panels — depth without shadows.",
+      "A single chartreuse accent (Signal Lime) reserved for live / selected / actionable state.",
+      "Dense, compact controls (32px default height) tuned for expert throughput.",
+      "One consistent interaction signature: dotted focus outline + lime focus ring, expo-out easing.",
+      "Inter for everything functional; Space Grotesk reserved for CTA and marketing display."
+    ],
+    "rules": [
+      { "name": "The Signal Rule", "body": "Signal Lime marks what is live, selected, or actionable — never decoration. Its scarcity is what makes it read as signal.", "section": "colors" },
+      { "name": "The No-Shadow Rule", "body": "Depth is tonal, not cast. Panels lift by stepping lightness and a single hairline ring. Drop shadows are prohibited in the app shell.", "section": "colors" },
+      { "name": "The Status-Plus-Shape Rule", "body": "Status never rides on color alone. Pair red/lime/muted with an icon, badge label, or shape so firing/pending/inactive survive colorblind viewing.", "section": "colors" },
+      { "name": "The Fixed-Scale Rule", "body": "App typography is a fixed rem scale, never clamp(). A heading that shrinks inside a sidebar looks worse, not better.", "section": "typography" },
+      { "name": "The Space-Grotesk-Is-A-Guest Rule", "body": "The display face appears on CTAs and brand surfaces only. Using it for in-app labels, data, or page titles breaks the tool-disappears-into-the-task contract.", "section": "typography" },
+      { "name": "The Ring-Not-Border Rule", "body": "Containers separate from their background with a translucent hairline ring (ring-1 ring-foreground/10), not an opaque border and never a colored stripe.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do reserve Signal Lime for live / selected / actionable state — when it appears, it must mean something.",
+      "Do convey depth with tonal layering and a ring-1 ring-foreground/10 hairline — never a drop shadow in the content plane.",
+      "Do keep the one interaction signature on every control: h-8 default, rounded-md, dotted focus outline → 2px lime ring at 3px offset, cubic-bezier(0.19,1,0.22,1) at 200ms.",
+      "Do pair status color with a label, icon, or shape.",
+      "Do use Inter for everything functional and a fixed rem type scale; keep muted text legible, not faint.",
+      "Do embrace density where experts need it while keeping rows readable.",
+      "Do use skeleton loaders and teaching empty states, not mid-content spinners or 'nothing here.'"
+    ],
+    "donts": [
+      "Don't ship the generic shadcn SaaS template look — untouched card-grid-of-everything, rounded-everything, gradient accents.",
+      "Don't build the legacy enterprise observability wall — cramped chrome, a thousand knobs, dashboards you can look at but never query.",
+      "Don't add consumer-y over-animation — no bounce, no elastic, no decorative gradients, no choreographed page-load sequences.",
+      "Don't ship AI-gimmick flourishes — no sparkles badging, no mascot, no chatbot bolted onto the chrome.",
+      "Don't use Space Grotesk for in-app labels, data, or page titles — it's a guest, reserved for CTA/brand.",
+      "Don't use border-left/border-right > 1px as a colored accent stripe, gradient text, or glassmorphism as default.",
+      "Don't spend Signal Lime on inactive states, decorative fills, or large surfaces.",
+      "Don't use clamp() fluid type or drop shadows inside the app shell."
+    ]
+  }
+}
