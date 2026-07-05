@@ -410,6 +410,10 @@ export const auth = betterAuth({
         // keys. Rate limiting against abuse lives in the collector cache and
         // the shared-secret-guarded verify endpoint, not here.
         rateLimit: { enabled: false },
+        // Public browser keys store `{ public: true, allowedOrigins }` in
+        // the metadata JSON column; the plugin rejects metadata on create
+        // unless this is on.
+        enableMetadata: true,
         // No default permissions on purpose: capability choice is explicit.
         // A key created without a `permissions` map grants nothing — the
         // collector verify and apply endpoints check the scope and reject a

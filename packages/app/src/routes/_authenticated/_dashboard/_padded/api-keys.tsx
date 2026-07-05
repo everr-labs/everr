@@ -13,7 +13,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { KeyRound } from "lucide-react";
-import { ApiKeysTable } from "@/components/api-keys/api-keys-table";
+import { ApiKeysSections } from "@/components/api-keys/api-keys-table";
 import { CreateApiKeyDialog } from "@/components/api-keys/create-api-key-dialog";
 import { apiKeysQueryOptions } from "@/components/api-keys/queries";
 import { auth } from "@/lib/auth.server";
@@ -86,7 +86,7 @@ function ApiKeysPage() {
     !keys.isPending && !keys.isError && (keys.data?.length ?? 0) === 0;
 
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-6">
+    <div className="mx-auto w-full max-w-4xl space-y-8">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
           <h1 className="text-xl font-bold tracking-tight">API keys</h1>
@@ -95,7 +95,7 @@ function ApiKeysPage() {
             <code className="font-mono text-xs">everr apply</code>. Choose each
             key's capabilities when you create it.{" "}
             <a
-              className="text-foreground underline underline-offset-4 hover:text-primary"
+              className="text-foreground hover:text-primary underline underline-offset-4"
               href="https://everr.dev/docs/reference/production-telemetry"
               target="_blank"
               rel="noreferrer"
@@ -107,11 +107,15 @@ function ApiKeysPage() {
         {!isEmpty && <CreateApiKeyDialog />}
       </div>
 
-      <Card inset="flush-content">
-        <CardContent>
-          {keys.isPending ? (
+      {keys.isPending ? (
+        <Card inset="flush-content">
+          <CardContent>
             <KeysSkeleton />
-          ) : keys.isError ? (
+          </CardContent>
+        </Card>
+      ) : keys.isError ? (
+        <Card inset="flush-content">
+          <CardContent>
             <RetryError
               title="Couldn't load API keys"
               message={
@@ -121,13 +125,17 @@ function ApiKeysPage() {
               }
               onRetry={() => keys.refetch()}
             />
-          ) : isEmpty ? (
+          </CardContent>
+        </Card>
+      ) : isEmpty ? (
+        <Card inset="flush-content">
+          <CardContent>
             <ApiKeysEmpty />
-          ) : (
-            <ApiKeysTable keys={keys.data ?? []} />
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      ) : (
+        <ApiKeysSections keys={keys.data ?? []} />
+      )}
     </div>
   );
 }
