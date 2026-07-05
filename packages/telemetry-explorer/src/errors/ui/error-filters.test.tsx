@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import type { ErrorsRepositoryLike } from "../data/repository";
 import { ErrorFilters } from "./error-filters";
 
@@ -9,9 +9,7 @@ function renderWithQueryClient(children: ReactNode) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>,
-  );
+  return render(<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>);
 }
 
 const repo = {
@@ -38,9 +36,7 @@ describe("ErrorFilters", () => {
         onChange={vi.fn()}
       />,
     );
-    expect(
-      screen.getByRole("complementary", { name: "Error filters" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Error filters" })).toBeInTheDocument();
     expect(screen.getByText("Service")).toBeInTheDocument();
     expect(screen.getByText("Environment")).toBeInTheDocument();
     expect(screen.getByText("Attributes")).toBeInTheDocument();
@@ -141,8 +137,6 @@ describe("ErrorFilters", () => {
         onChange={vi.fn()}
       />,
     );
-    expect(
-      screen.queryByRole("button", { name: "Clear all" }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Clear all" })).not.toBeInTheDocument();
   });
 });

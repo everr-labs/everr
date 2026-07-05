@@ -75,10 +75,7 @@ function walk(p: WalkParams, seed: number, count: number): (number | null)[] {
   return out;
 }
 
-function generateRandomWalk(
-  spec: RandomWalkSpec,
-  params: TestDataParams,
-): QueryResultRow[] {
+function generateRandomWalk(spec: RandomWalkSpec, params: TestDataParams): QueryResultRow[] {
   const timestamps = spec.timeColumn ? bucketMs(params) : undefined;
   const count = timestamps ? timestamps.length : spec.points;
 
@@ -109,9 +106,7 @@ function generateRandomWalk(
         const row: QueryResultRow = {};
         if (timestamps) row.ts = tsStr(i);
         row[spec.labelColumn] = (spec.series[s] as { name: string }).name;
-        row[spec.valueColumn] = (seriesValues[s] as (number | null)[])[i] as
-          | number
-          | null;
+        row[spec.valueColumn] = (seriesValues[s] as (number | null)[])[i] as number | null;
         rows.push(row);
       }
     }
@@ -131,10 +126,7 @@ function generateRandomWalk(
   return rows;
 }
 
-function generateTable(
-  spec: TableSpec,
-  params: TestDataParams,
-): QueryResultRow[] {
+function generateTable(spec: TableSpec, params: TestDataParams): QueryResultRow[] {
   if (spec.rows === 0) return [];
   const fromMs = parseMs(params.from);
   const toMs = parseMs(params.to);
@@ -150,9 +142,7 @@ function generateTable(
     spec.columns.forEach((c, ci) => {
       if (c.time) {
         const ms =
-          spec.rows <= 1
-            ? fromMs
-            : fromMs + Math.round(((toMs - fromMs) * r) / (spec.rows - 1));
+          spec.rows <= 1 ? fromMs : fromMs + Math.round(((toMs - fromMs) * r) / (spec.rows - 1));
         row[c.name] = toClickHouseDateTime(new Date(ms));
       } else if (c.seq) {
         row[c.name] = r + 1;
@@ -217,10 +207,7 @@ function generateGeo(spec: GeoSpec): QueryResultRow[] {
   }
   const rows: QueryResultRow[] = [];
   for (let i = 0; i < spec.points; i++) {
-    const [clon, clat] = GEO_CENTROIDS[i % GEO_CENTROIDS.length] as [
-      number,
-      number,
-    ];
+    const [clon, clat] = GEO_CENTROIDS[i % GEO_CENTROIDS.length] as [number, number];
     const lon = clamp(clon + (rng() * 2 - 1) * 6, -180, 180);
     const lat = clamp(clat + (rng() * 2 - 1) * 6, -90, 90);
     const row: QueryResultRow = {};
@@ -232,10 +219,7 @@ function generateGeo(spec: GeoSpec): QueryResultRow[] {
   return rows;
 }
 
-export function generateTestData(
-  spec: TestDataSpec,
-  params: TestDataParams,
-): QueryResultRow[] {
+export function generateTestData(spec: TestDataSpec, params: TestDataParams): QueryResultRow[] {
   switch (spec.scenario) {
     case "random_walk":
       return generateRandomWalk(spec, params);

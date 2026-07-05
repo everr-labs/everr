@@ -11,8 +11,8 @@
     "./traces": "./src/traces/index.ts"
   },
   "scripts": {
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "vp test run",
+    "test:watch": "vp test",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -35,6 +35,7 @@
     "@types/react-dom": "catalog:",
     "jsdom": "^29.1.1",
     "typescript": "catalog:",
-    "vitest": "^4.1.5"
+    "vite": "catalog:",
+    "vite-plus": "catalog:"
   }
 }

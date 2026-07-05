@@ -28,24 +28,12 @@ function NavItemFlyout({ item }: { item: NavItem }) {
   return (
     <SidebarMenuItem>
       <DropdownMenu>
-        <DropdownMenuTrigger
-          openOnHover
-          delay={80}
-          closeDelay={120}
-          render={<SidebarMenuButton />}
-        >
+        <DropdownMenuTrigger openOnHover delay={80} closeDelay={120} render={<SidebarMenuButton />}>
           {item.icon && <item.icon />}
           <span>{item.title}</span>
         </DropdownMenuTrigger>
-        <DropdownMenuContent
-          side="right"
-          align="start"
-          sideOffset={12}
-          className="min-w-40"
-        >
-          <div className="text-muted-foreground px-2 py-1.5 text-xs font-medium">
-            {item.title}
-          </div>
+        <DropdownMenuContent side="right" align="start" sideOffset={12} className="min-w-40">
+          <div className="text-muted-foreground px-2 py-1.5 text-xs font-medium">{item.title}</div>
           {item.items?.map((subItem) => (
             <DropdownMenuLinkItem
               key={subItem.title}
@@ -100,15 +88,9 @@ export function NavMain({ items }: { items: NavItem[] }) {
           ) : isIconOnly ? (
             <NavItemFlyout key={item.title} item={item} />
           ) : (
-            <Collapsible
-              key={item.title}
-              defaultOpen={item.isActive}
-              className="group/collapsible"
-            >
+            <Collapsible key={item.title} defaultOpen={item.isActive} className="group/collapsible">
               <SidebarMenuItem>
-                <CollapsibleTrigger
-                  render={<SidebarMenuButton tooltip={item.title} />}
-                >
+                <CollapsibleTrigger render={<SidebarMenuButton tooltip={item.title} />}>
                   {item.icon && <item.icon />}
                   <span>{item.title}</span>
                   <ChevronRight className="ml-auto transition-transform duration-200 group-data-open/collapsible:rotate-90" />

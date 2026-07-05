@@ -37,11 +37,7 @@ export const Route = createFileRoute(
   // prefetch keyed to the same (project, slug, preview) the component reads, so
   // switching previews refetches instead of serving the wrong overlay.
   loaderDeps: ({ search: { preview } }) => ({ preview }),
-  loader: async ({
-    context: { queryClient },
-    params: { project, slug },
-    deps: { preview },
-  }) => {
+  loader: async ({ context: { queryClient }, params: { project, slug }, deps: { preview } }) => {
     // A missing dashboard throws notFound() from the server fn (→ notFound UI);
     // any other failure propagates to the error boundary instead of being
     // masked as not-found.

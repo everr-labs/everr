@@ -9,10 +9,8 @@ export const Route = createFileRoute("/api/auth/$")({
   server: {
     handlers: {
       GET: ({ request }) =>
-        redirectAuthErrorPage(request) ??
-        runWithDeviceOrgCapture(() => auth.handler(request)),
-      POST: ({ request }) =>
-        runWithDeviceOrgCapture(() => auth.handler(request)),
+        redirectAuthErrorPage(request) ?? runWithDeviceOrgCapture(() => auth.handler(request)),
+      POST: ({ request }) => runWithDeviceOrgCapture(() => auth.handler(request)),
     },
   },
 });

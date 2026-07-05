@@ -1,9 +1,5 @@
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
-import type {
-  RunsExplorerInput,
-  RunsFilter,
-  RunsHistogramInput,
-} from "../schemas";
+import type { RunsExplorerInput, RunsFilter, RunsHistogramInput } from "../schemas";
 import type { RunsRepositoryLike } from "./repository";
 
 // Offset-based infinite scroll: each page advances the offset by the number of
@@ -29,10 +25,7 @@ export function runsExplorerInfiniteOptions(
   });
 }
 
-export function runsHistogramOptions(
-  repo: RunsRepositoryLike,
-  input: RunsHistogramInput,
-) {
+export function runsHistogramOptions(repo: RunsRepositoryLike, input: RunsHistogramInput) {
   return queryOptions({
     queryKey: ["runs", "histogram", input] as const,
     queryFn: () => repo.histogram(input),
@@ -41,10 +34,7 @@ export function runsHistogramOptions(
 
 // Plain object (not queryOptions) so consumers can spread it and add a `select`
 // while keeping `queryFn` required — the FilterCombobox needs that exact shape.
-export function runsFilterOptions(
-  repo: RunsRepositoryLike,
-  input: Pick<RunsFilter, "timeRange">,
-) {
+export function runsFilterOptions(repo: RunsRepositoryLike, input: Pick<RunsFilter, "timeRange">) {
   return {
     queryKey: ["runs", "filterOptions", input] as const,
     queryFn: () => repo.filterOptions(input),

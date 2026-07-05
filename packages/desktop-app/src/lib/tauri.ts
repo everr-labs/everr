@@ -12,10 +12,7 @@ export const NOTIFIER_CHECKED_EVENT = "everr://notifier-checked";
 export const UPDATE_AVAILABLE_EVENT = "everr://update-available";
 export const NOTIFICATION_WINDOW_LABEL = "notification";
 
-export function invokeCommand<TResult>(
-  command: string,
-  args?: InvokeArgs,
-): Promise<TResult> {
+export function invokeCommand<TResult>(command: string, args?: InvokeArgs): Promise<TResult> {
   return invoke<TResult>(command, args);
 }
 

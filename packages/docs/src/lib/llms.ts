@@ -67,12 +67,7 @@ export function docsMarkdownPathToSlugs(pathname: string) {
   try {
     return encodedSegments.map((segment) => {
       const decoded = decodeURIComponent(segment);
-      if (
-        decoded.length === 0 ||
-        decoded === "." ||
-        decoded === ".." ||
-        decoded.includes("/")
-      ) {
+      if (decoded.length === 0 || decoded === "." || decoded === ".." || decoded.includes("/")) {
         throw new Error("Invalid docs Markdown path segment");
       }
 
@@ -83,10 +78,7 @@ export function docsMarkdownPathToSlugs(pathname: string) {
   }
 }
 
-export async function docsMarkdownResponse(
-  source: DocsSource,
-  pathname: string,
-) {
+export async function docsMarkdownResponse(source: DocsSource, pathname: string) {
   const slugs = docsMarkdownPathToSlugs(pathname);
   if (!slugs) return notFoundResponse();
 

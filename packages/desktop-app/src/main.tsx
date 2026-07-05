@@ -20,11 +20,7 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <ReactTelemetryErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        {isNotification ? (
-          <NotificationWindow />
-        ) : (
-          <RouterProvider router={router} />
-        )}
+        {isNotification ? <NotificationWindow /> : <RouterProvider router={router} />}
       </QueryClientProvider>
     </ReactTelemetryErrorBoundary>
   </React.StrictMode>,

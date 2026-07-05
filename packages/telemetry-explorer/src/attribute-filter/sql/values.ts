@@ -32,8 +32,7 @@ export function buildAttributeValuesQuery(
 ): BuiltQuery {
   validateTableName(opts.tableName);
   const timeColumn = opts.timeColumn ?? "TimestampTime";
-  const timeBound =
-    opts.timeBound ?? ((param) => `parseDateTimeBestEffort({${param}:String})`);
+  const timeBound = opts.timeBound ?? ((param) => `parseDateTimeBestEffort({${param}:String})`);
   const column = opts.columnFor(input.source);
   const { fromISO, toISO } = resolveTimeRange(input.timeRange);
   const params: Record<string, unknown> = {
@@ -54,9 +53,7 @@ export function buildAttributeValuesQuery(
   // cutoff remain reachable — the user types and the matching slice is fetched.
   const search = input.search?.trim();
   if (search) {
-    filters.push(
-      `positionCaseInsensitive(${column}[{key:String}], {valueSearch:String}) > 0`,
-    );
+    filters.push(`positionCaseInsensitive(${column}[{key:String}], {valueSearch:String}) > 0`);
     params.valueSearch = search;
   }
   const sql = `
@@ -69,8 +66,6 @@ export function buildAttributeValuesQuery(
   return { sql, params };
 }
 
-export function decodeAttributeValueRows(
-  rows: AttributeValueRowRaw[],
-): string[] {
+export function decodeAttributeValueRows(rows: AttributeValueRowRaw[]): string[] {
   return rows.map((row) => row.v);
 }

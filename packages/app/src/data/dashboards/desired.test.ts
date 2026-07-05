@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { ApplyValidationError } from "@/data/as-code/errors";
 import { buildDesiredSet } from "./desired";
 
@@ -52,9 +52,7 @@ describe("buildDesiredSet", () => {
       },
     ];
     expect(() => buildDesiredSet(input)).toThrow(ApplyValidationError);
-    expect(() => buildDesiredSet(input)).toThrow(
-      /invalid project "Not Valid"/i,
-    );
+    expect(() => buildDesiredSet(input)).toThrow(/invalid project "Not Valid"/i);
   });
 
   it("rejects an invalid plugin option, naming the file and the option path", () => {
@@ -143,14 +141,10 @@ describe("buildDesiredSet", () => {
 
   it("throws a typed ApplyValidationError (→ HTTP 400) with the file path on a bad spec", () => {
     expect(() =>
-      buildDesiredSet([
-        { path: "bad.yaml", document: { kind: "Dashboard", spec: {} } },
-      ]),
+      buildDesiredSet([{ path: "bad.yaml", document: { kind: "Dashboard", spec: {} } }]),
     ).toThrow(ApplyValidationError);
     expect(() =>
-      buildDesiredSet([
-        { path: "bad.yaml", document: { kind: "Dashboard", spec: {} } },
-      ]),
+      buildDesiredSet([{ path: "bad.yaml", document: { kind: "Dashboard", spec: {} } }]),
     ).toThrow(/bad\.yaml/);
   });
 });

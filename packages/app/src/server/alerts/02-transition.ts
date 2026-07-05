@@ -9,11 +9,7 @@
 // rule-level (resolved ↔ firing), but instances can also come and go while
 // the rule stays firing — that's where the partial/churn cases below come from.
 
-import type {
-  AlertInstance,
-  FiringInstance,
-  InstanceDiff,
-} from "./02-instances";
+import type { AlertInstance, FiringInstance, InstanceDiff } from "./02-instances";
 import type { NotifiableInstance } from "./04-format";
 
 // The runtime states the machine moves between.

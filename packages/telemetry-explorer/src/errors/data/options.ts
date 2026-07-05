@@ -1,9 +1,5 @@
 import { getRefreshIntervalMs } from "@everr/ui/components/refresh-picker";
-import {
-  resolveTimeRange,
-  type TimeRange,
-  toClickHouseDateTime,
-} from "@everr/ui/lib/time-range";
+import { resolveTimeRange, type TimeRange, toClickHouseDateTime } from "@everr/ui/lib/time-range";
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import type { AttributeFilter } from "../../attribute-filter/schemas";
 import type { ErrorsRepositoryLike } from "./repository";
@@ -61,10 +57,7 @@ export function errorIssuesInfiniteOptions(
     ) => {
       if (!lastPage) return undefined;
       if (lastPage.issues.length < input.limit) return undefined;
-      return allPages.reduce(
-        (count, page) => count + (page?.issues.length ?? 0),
-        0,
-      );
+      return allPages.reduce((count, page) => count + (page?.issues.length ?? 0), 0);
     },
     refetchInterval: refreshMs && refreshMs > 0 ? refreshMs : false,
   });
@@ -78,10 +71,7 @@ export type ErrorIssueOptionsInput = {
   occurrenceLimit: number;
 };
 
-export function errorIssueOptions(
-  repo: ErrorsRepositoryLike,
-  input: ErrorIssueOptionsInput,
-) {
+export function errorIssueOptions(repo: ErrorsRepositoryLike, input: ErrorIssueOptionsInput) {
   const refreshMs = getRefreshIntervalMs(input.refresh);
   return queryOptions({
     queryKey: [
@@ -117,12 +107,7 @@ export function errorServicesOptions(
 ) {
   const refreshMs = getRefreshIntervalMs(input.refresh);
   return queryOptions({
-    queryKey: [
-      "errors",
-      "services",
-      input.timeRange,
-      input.attributes,
-    ] as const,
+    queryKey: ["errors", "services", input.timeRange, input.attributes] as const,
     queryFn: () => {
       const { fromDate, toDate } = resolveTimeRange(input.timeRange);
       return repo.listServices({

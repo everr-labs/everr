@@ -14,21 +14,11 @@ import {
   decodeAttributeValueRows,
 } from "../../attribute-filter/sql/values";
 import { buildAttributeClauses } from "../../attribute-filter/sql/where";
-import {
-  resourceAttribute,
-  resourceAttributeKeyExists,
-} from "../../sql/resource-attributes";
-import {
-  TRACES_ATTRIBUTE_SOURCES,
-  tracesAttributeColumn,
-} from "../sql/attribute-columns";
+import { resourceAttribute, resourceAttributeKeyExists } from "../../sql/resource-attributes";
+import { TRACES_ATTRIBUTE_SOURCES, tracesAttributeColumn } from "../sql/attribute-columns";
 import { validateTableName } from "../sql/table";
 import type { SqlClient } from "./client";
-import type {
-  GetTraceInput,
-  ListServiceIdentitiesInput,
-  SearchTracesInput,
-} from "./schemas";
+import type { GetTraceInput, ListServiceIdentitiesInput, SearchTracesInput } from "./schemas";
 import type { ServiceIdentity, Span, TraceSummary } from "./types";
 
 type SpanRow = Omit<Span, "events" | "links"> & {
@@ -48,8 +38,7 @@ const SERVICE_NAMESPACE_RESOURCE_ATTRIBUTE = "service.namespace";
 // Traces store Timestamp as DateTime64(9); attribute discovery must parse its
 // bounds the same way the search queries do, or sub-second rows near the upper
 // bound get dropped and the offered keys/values disagree with the results.
-const tracesTimeBound = (param: string) =>
-  `parseDateTime64BestEffort({${param}:String}, 9)`;
+const tracesTimeBound = (param: string) => `parseDateTime64BestEffort({${param}:String}, 9)`;
 
 export class TracesRepository {
   private readonly tableName: string;
@@ -139,15 +128,11 @@ export class TracesRepository {
     // exposes it as a string. Filter on the raw int to avoid a double
     // toString → toUInt64 round-trip per row.
     if (input.minDurationNs !== undefined) {
-      aggregateHavingParts.push(
-        "durationNsRaw >= toUInt64({minDurationNs:String})",
-      );
+      aggregateHavingParts.push("durationNsRaw >= toUInt64({minDurationNs:String})");
       params.minDurationNs = input.minDurationNs;
     }
     if (input.maxDurationNs !== undefined) {
-      aggregateHavingParts.push(
-        "durationNsRaw <= toUInt64({maxDurationNs:String})",
-      );
+      aggregateHavingParts.push("durationNsRaw <= toUInt64({maxDurationNs:String})");
       params.maxDurationNs = input.maxDurationNs;
     }
     // Span-level, matching the rest of the filters: 'error' = trace contains
@@ -311,9 +296,7 @@ export class TracesRepository {
   }
 
   // fallow-ignore-next-line unused-class-member
-  async listServiceIdentities(
-    input: ListServiceIdentitiesInput,
-  ): Promise<ServiceIdentity[]> {
+  async listServiceIdentities(input: ListServiceIdentitiesInput): Promise<ServiceIdentity[]> {
     validateTableName(this.tableName);
     const sql = /* sql */ `
       SELECT DISTINCT
@@ -336,11 +319,7 @@ export interface TracesRepositoryOptions {
 
 export type TracesRepositoryLike = Pick<
   TracesRepository,
-  | "search"
-  | "getTrace"
-  | "listServiceIdentities"
-  | "attributeKeys"
-  | "attributeValues"
+  "search" | "getTrace" | "listServiceIdentities" | "attributeKeys" | "attributeValues"
 >;
 
 function rowToSpan(row: SpanRow): Span {

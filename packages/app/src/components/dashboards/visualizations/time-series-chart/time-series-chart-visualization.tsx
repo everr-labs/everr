@@ -1,8 +1,4 @@
-import {
-  ChartContainer,
-  ChartLegend,
-  ChartLegendContent,
-} from "@everr/ui/components/chart";
+import { ChartContainer, ChartLegend, ChartLegendContent } from "@everr/ui/components/chart";
 import { LineChart as LineChartIcon } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
@@ -17,11 +13,7 @@ import {
   YAxis,
 } from "recharts";
 import { CursorTooltip } from "@/components/cursor-tooltip";
-import {
-  createTimeTickFormatter,
-  generateTimeTicks,
-  SERIES_COLORS,
-} from "../data-utils";
+import { createTimeTickFormatter, generateTimeTicks, SERIES_COLORS } from "../data-utils";
 import type { VisualizationProps } from "../index";
 import { SeriesTooltipContent } from "../series-tooltip";
 import type { TimeSeriesChartSpec } from "./spec";
@@ -35,15 +27,8 @@ function getPlotArea(container: HTMLElement): DOMRect | null {
   return grid?.getBoundingClientRect() ?? null;
 }
 
-function pxToTimestamp(
-  clientX: number,
-  plotRect: DOMRect,
-  domain: [number, number],
-): number {
-  const ratio = Math.max(
-    0,
-    Math.min(1, (clientX - plotRect.left) / plotRect.width),
-  );
+function pxToTimestamp(clientX: number, plotRect: DOMRect, domain: [number, number]): number {
+  const ratio = Math.max(0, Math.min(1, (clientX - plotRect.left) / plotRect.width));
   return domain[0] + ratio * (domain[1] - domain[0]);
 }
 
@@ -53,8 +38,7 @@ export function TimeSeriesChartVisualization({
   timeRange,
   onTimeRangeChange,
 }: VisualizationProps<TimeSeriesChartSpec>) {
-  const { showLegend, connectNulls, lineWidth, unit, curveType, stacked } =
-    spec;
+  const { showLegend, connectNulls, lineWidth, unit, curveType, stacked } = spec;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const plotRectRef = useRef<DOMRect | null>(null);
@@ -178,15 +162,8 @@ export function TimeSeriesChartVisualization({
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
     >
-      <ChartContainer
-        config={chartConfig}
-        className="h-full w-full"
-        debounce={100}
-      >
-        <ComposedChart
-          data={stackedData ?? chartData}
-          margin={{ left: 12, right: 12, top: 8 }}
-        >
+      <ChartContainer config={chartConfig} className="h-full w-full" debounce={100}>
+        <ComposedChart data={stackedData ?? chartData} margin={{ left: 12, right: 12, top: 8 }}>
           <CartesianGrid vertical={false} />
           <XAxis
             dataKey={TS_KEY}
@@ -244,11 +221,7 @@ export function TimeSeriesChartVisualization({
             ),
           )}
           {tooltipTs !== undefined && (
-            <ReferenceLine
-              x={tooltipTs}
-              stroke="var(--border)"
-              strokeDasharray="3 3"
-            />
+            <ReferenceLine x={tooltipTs} stroke="var(--border)" strokeDasharray="3 3" />
           )}
           {tooltipTs !== undefined &&
             (() => {

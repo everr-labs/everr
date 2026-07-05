@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import type { Span } from "@/data/runs/schemas";
 import {
   buildSpanTree,
@@ -60,9 +60,7 @@ describe("buildSpanTree", () => {
   });
 
   it("handles orphan spans as roots", () => {
-    const roots = buildSpanTree([
-      makeSpan({ spanId: "child", parentSpanId: "nonexistent" }),
-    ]);
+    const roots = buildSpanTree([makeSpan({ spanId: "child", parentSpanId: "nonexistent" })]);
     expect(roots).toHaveLength(1);
     expect(roots[0].depth).toBe(0);
   });

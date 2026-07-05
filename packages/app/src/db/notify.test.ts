@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const mockExecute = vi.fn().mockResolvedValue(undefined);
 const mockDb = { execute: mockExecute } as unknown as Parameters<

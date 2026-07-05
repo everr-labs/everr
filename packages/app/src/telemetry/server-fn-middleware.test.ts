@@ -1,18 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 const middlewareMocks = vi.hoisted(() => ({
   createMiddleware: vi.fn(() => ({
     server: vi.fn((serverFn: unknown) => ({ runServer: serverFn })),
   })),
-  getRequest: vi.fn(
-    () => new Request("http://localhost/_serverFn/c4d3d0c28997f144965eeaca"),
-  ),
+  getRequest: vi.fn(() => new Request("http://localhost/_serverFn/c4d3d0c28997f144965eeaca")),
   instrumentServerFunction: vi.fn(
-    async (
-      _request: Request | undefined,
-      _serverFnMeta: unknown,
-      run: () => Promise<unknown>,
-    ) => run(),
+    async (_request: Request | undefined, _serverFnMeta: unknown, run: () => Promise<unknown>) =>
+      run(),
   ),
 }));
 

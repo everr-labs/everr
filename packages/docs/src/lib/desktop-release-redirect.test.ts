@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { resolveDesktopReleaseRedirectUrl } from "./desktop-release-redirect";
 
 const publicBaseUrl = "https://desktop-release.example.com/releases/";
@@ -10,9 +10,7 @@ describe("resolveDesktopReleaseRedirectUrl", () => {
         pathname: "/everr-app/latest.json",
         publicBaseUrl,
       }),
-    ).toBe(
-      "https://desktop-release.example.com/releases/everr-app/latest.json",
-    );
+    ).toBe("https://desktop-release.example.com/releases/everr-app/latest.json");
   });
 
   it("redirects CLI release files to the public artifact base URL", () => {
@@ -28,9 +26,7 @@ describe("resolveDesktopReleaseRedirectUrl", () => {
         pathname: "/everr-app/everr.sha256",
         publicBaseUrl,
       }),
-    ).toBe(
-      "https://desktop-release.example.com/releases/everr-app/everr.sha256",
-    );
+    ).toBe("https://desktop-release.example.com/releases/everr-app/everr.sha256");
   });
 
   it("redirects Linux CLI release files to the public artifact base URL", () => {
@@ -39,27 +35,21 @@ describe("resolveDesktopReleaseRedirectUrl", () => {
         pathname: "/everr-app/everr-linux-arm64",
         publicBaseUrl,
       }),
-    ).toBe(
-      "https://desktop-release.example.com/releases/everr-app/everr-linux-arm64",
-    );
+    ).toBe("https://desktop-release.example.com/releases/everr-app/everr-linux-arm64");
 
     expect(
       resolveDesktopReleaseRedirectUrl({
         pathname: "/everr-app/everr-linux-x86_64",
         publicBaseUrl,
       }),
-    ).toBe(
-      "https://desktop-release.example.com/releases/everr-app/everr-linux-x86_64",
-    );
+    ).toBe("https://desktop-release.example.com/releases/everr-app/everr-linux-x86_64");
 
     expect(
       resolveDesktopReleaseRedirectUrl({
         pathname: "/everr-app/everr-linux-x86_64.sha256",
         publicBaseUrl,
       }),
-    ).toBe(
-      "https://desktop-release.example.com/releases/everr-app/everr-linux-x86_64.sha256",
-    );
+    ).toBe("https://desktop-release.example.com/releases/everr-app/everr-linux-x86_64.sha256");
   });
 
   it("rejects unknown desktop release files", () => {

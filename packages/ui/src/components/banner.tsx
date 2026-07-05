@@ -15,21 +15,18 @@ const bannerVariants = cva("flex items-center gap-2 text-sm", {
   defaultVariants: { variant: "neutral" },
 });
 
-const bannerFrameVariants = cva(
-  "flex min-h-0 flex-1 flex-col ring-2 ring-inset",
-  {
-    variants: {
-      variant: {
-        neutral: "ring-border",
-        info: "ring-sky-500",
-        success: "ring-emerald-500",
-        warning: "ring-amber-500",
-        danger: "ring-red-500",
-      },
+const bannerFrameVariants = cva("flex min-h-0 flex-1 flex-col ring-2 ring-inset", {
+  variants: {
+    variant: {
+      neutral: "ring-border",
+      info: "ring-sky-500",
+      success: "ring-emerald-500",
+      warning: "ring-amber-500",
+      danger: "ring-red-500",
     },
-    defaultVariants: { variant: "neutral" },
   },
-);
+  defaultVariants: { variant: "neutral" },
+});
 
 function Banner({
   className,
@@ -48,13 +45,7 @@ function Banner({
 }
 
 function BannerContent({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="banner-content"
-      className={cn("min-w-0 flex-1", className)}
-      {...props}
-    />
-  );
+  return <div data-slot="banner-content" className={cn("min-w-0 flex-1", className)} {...props} />;
 }
 
 function BannerActions({ className, ...props }: React.ComponentProps<"div">) {
@@ -67,10 +58,4 @@ function BannerActions({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
-export {
-  Banner,
-  BannerActions,
-  BannerContent,
-  bannerFrameVariants,
-  bannerVariants,
-};
+export { Banner, BannerActions, BannerContent, bannerFrameVariants, bannerVariants };

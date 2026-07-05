@@ -19,16 +19,10 @@ import { TerminalEventError } from "./types";
 type AnyDb = NodePgDatabase<Record<string, never>>;
 type WorkflowStatus = (typeof workflowStatusEnum.enumValues)[number];
 type WorkflowRunPayload = NonNullable<
-  Extract<
-    ParsedQueuedWorkflowEvent,
-    { eventType: "workflow_run" }
-  >["payload"]["workflow_run"]
+  Extract<ParsedQueuedWorkflowEvent, { eventType: "workflow_run" }>["payload"]["workflow_run"]
 >;
 type WorkflowJobPayload = NonNullable<
-  Extract<
-    ParsedQueuedWorkflowEvent,
-    { eventType: "workflow_job" }
-  >["payload"]["workflow_job"]
+  Extract<ParsedQueuedWorkflowEvent, { eventType: "workflow_job" }>["payload"]["workflow_job"]
 >;
 
 function parseOptionalTimestamp(value?: string | null): Date | null {
@@ -58,9 +52,7 @@ function workflowRunStatus(action: string): WorkflowStatus {
     case "completed":
       return action;
     default:
-      throw new TerminalEventError(
-        `unsupported workflow_run action "${action}"`,
-      );
+      throw new TerminalEventError(`unsupported workflow_run action "${action}"`);
   }
 }
 
@@ -73,26 +65,16 @@ function workflowJobStatus(action: string): WorkflowStatus {
     case "completed":
       return action;
     default:
-      throw new TerminalEventError(
-        `unsupported workflow_job action "${action}"`,
-      );
+      throw new TerminalEventError(`unsupported workflow_job action "${action}"`);
   }
 }
 
 function workflowRunLastEventAt(workflowRun: WorkflowRunPayload): Date {
-  return parseTimestamp(
-    workflowRun.updated_at,
-    workflowRun.run_started_at,
-    workflowRun.created_at,
-  );
+  return parseTimestamp(workflowRun.updated_at, workflowRun.run_started_at, workflowRun.created_at);
 }
 
 function workflowJobLastEventAt(workflowJob: WorkflowJobPayload): Date {
-  return parseTimestamp(
-    workflowJob.completed_at,
-    workflowJob.started_at,
-    workflowJob.created_at,
-  );
+  return parseTimestamp(workflowJob.completed_at, workflowJob.started_at, workflowJob.created_at);
 }
 
 export async function upsertWorkflowRun(
@@ -112,13 +94,10 @@ export async function upsertWorkflowRun(
   const runAttempt = workflowRun.run_attempt ?? 1;
   const lastEventAt = workflowRunLastEventAt(workflowRun);
   const opTimestamp = new Date();
-  const conclusion =
-    status === "completed" ? (workflowRun.conclusion ?? null) : null;
+  const conclusion = status === "completed" ? (workflowRun.conclusion ?? null) : null;
   const startedAt = parseOptionalTimestamp(workflowRun.run_started_at);
   const completedAt =
-    status === "completed"
-      ? (parseOptionalTimestamp(workflowRun.updated_at) ?? lastEventAt)
-      : null;
+    status === "completed" ? (parseOptionalTimestamp(workflowRun.updated_at) ?? lastEventAt) : null;
 
   const metadata: WorkflowRunMetadata = {
     event: workflowRun.event ?? undefined,
@@ -159,11 +138,7 @@ export async function upsertWorkflowRun(
     .insert(workflowRuns)
     .values(values)
     .onConflictDoUpdate({
-      target: [
-        workflowRuns.organizationId,
-        workflowRuns.runId,
-        workflowRuns.attempts,
-      ],
+      target: [workflowRuns.organizationId, workflowRuns.runId, workflowRuns.attempts],
       set: {
         traceId: sql`excluded.trace_id`,
         workflowName: sql`excluded.workflow_name`,
@@ -219,8 +194,7 @@ export async function upsertWorkflowJob(
   const runAttempt = workflowJob.run_attempt ?? 1;
   const lastEventAt = workflowJobLastEventAt(workflowJob);
   const opTimestamp = new Date();
-  const conclusion =
-    status === "completed" ? (workflowJob.conclusion ?? null) : null;
+  const conclusion = status === "completed" ? (workflowJob.conclusion ?? null) : null;
   const startedAt = parseOptionalTimestamp(workflowJob.started_at);
   const completedAt =
     status === "completed"
@@ -247,11 +221,7 @@ export async function upsertWorkflowJob(
     jobId: workflowJob.id,
     runId: workflowJob.run_id,
     attempts: runAttempt,
-    traceId: generateWorkflowTraceId(
-      repositoryId,
-      workflowJob.run_id,
-      runAttempt,
-    ),
+    traceId: generateWorkflowTraceId(repositoryId, workflowJob.run_id, runAttempt),
     jobName: workflowJob.name ?? "",
     repository,
     sha: workflowJob.head_sha ?? "",

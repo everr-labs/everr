@@ -2,17 +2,9 @@ import { Button } from "@everr/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check } from "lucide-react";
 import { toast } from "sonner";
-import {
-  invokeCommand,
-  SETTINGS_CHANGED_EVENT,
-  toErrorMessageText,
-} from "@/lib/tauri";
+import { invokeCommand, SETTINGS_CHANGED_EVENT, toErrorMessageText } from "@/lib/tauri";
 import { useInvalidateOnTauriEvent } from "../../lib/tauri-events";
-import {
-  FeatureErrorText,
-  FeatureLoadingText,
-  SettingsSection,
-} from "../desktop-shell/ui";
+import { FeatureErrorText, FeatureLoadingText, SettingsSection } from "../desktop-shell/ui";
 
 type SkillProvider = "codex" | "claude-code" | "cursor";
 
@@ -80,26 +72,18 @@ export function SkillsSection() {
 
   // Scope the loading state to the agent actually being installed, so clicking
   // "Install" on one row doesn't put every other row into a loading state.
-  const installingProvider = installMutation.isPending
-    ? installMutation.variables?.[0]
-    : undefined;
+  const installingProvider = installMutation.isPending ? installMutation.variables?.[0] : undefined;
 
   const providers = [...(statusQuery.data ?? [])].sort(
-    (a, b) =>
-      PROVIDER_ORDER.indexOf(a.provider) - PROVIDER_ORDER.indexOf(b.provider),
+    (a, b) => PROVIDER_ORDER.indexOf(a.provider) - PROVIDER_ORDER.indexOf(b.provider),
   );
 
   return (
     <SettingsSection title="Agent skills" description={SECTION_DESCRIPTION}>
       <ul className="grid gap-3">
         {providers.map((provider) => (
-          <li
-            key={provider.provider}
-            className="flex min-h-8 items-center justify-between gap-4"
-          >
-            <span className="text-sm text-[var(--settings-text)]">
-              {provider.display_name}
-            </span>
+          <li key={provider.provider} className="flex min-h-8 items-center justify-between gap-4">
+            <span className="text-sm text-[var(--settings-text)]">{provider.display_name}</span>
             {provider.installed ? (
               <span className="inline-flex items-center gap-1.5 text-sm text-emerald-400">
                 <Check className="size-3.5" aria-hidden="true" />
@@ -112,14 +96,10 @@ export function SkillsSection() {
                 disabled={installMutation.isPending}
                 onClick={() => installMutation.mutate([provider.provider])}
               >
-                {installingProvider === provider.provider
-                  ? "Installing..."
-                  : "Install"}
+                {installingProvider === provider.provider ? "Installing..." : "Install"}
               </Button>
             ) : (
-              <span className="text-sm text-[var(--settings-text-muted)]">
-                Not detected
-              </span>
+              <span className="text-sm text-[var(--settings-text-muted)]">Not detected</span>
             )}
           </li>
         ))}

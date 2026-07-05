@@ -1,17 +1,13 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { assert, describe, expect, it, vi } from "vitest";
+import { assert, describe, expect, it, vi } from "vite-plus/test";
 import type { Span } from "@/data/runs/schemas";
 import { TraceWaterfall } from "./trace-waterfall";
 
 // Mock resizable panels — react-resizable-panels needs browser layout APIs
 vi.mock("@everr/ui/components/resizable", () => ({
-  ResizablePanelGroup: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
-  ResizablePanel: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
+  ResizablePanelGroup: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  ResizablePanel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   ResizableHandle: () => <div />,
 }));
 
@@ -44,10 +40,7 @@ function getFocusBadge(): HTMLElement {
   return badge;
 }
 
-async function typeMinimumDuration(
-  user: ReturnType<typeof userEvent.setup>,
-  value: string,
-) {
+async function typeMinimumDuration(user: ReturnType<typeof userEvent.setup>, value: string) {
   const input = screen.getByLabelText("Minimum duration");
   await user.type(input, value);
   return input;
@@ -55,17 +48,13 @@ async function typeMinimumDuration(
 
 function expectSpansVisible(...names: string[]) {
   for (const name of names) {
-    expect(
-      screen.getByRole("button", { name: new RegExp(name) }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: new RegExp(name) })).toBeInTheDocument();
   }
 }
 
 function expectSpansHidden(...names: string[]) {
   for (const name of names) {
-    expect(
-      screen.queryByRole("button", { name: new RegExp(name) }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: new RegExp(name) })).not.toBeInTheDocument();
   }
 }
 
@@ -173,9 +162,7 @@ describe("TraceWaterfall", () => {
       const user = renderWaterfall(flatSpans);
 
       // No badge initially
-      expect(
-        screen.queryByRole("button", { name: "Clear focus" }),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Clear focus" })).not.toBeInTheDocument();
 
       await user.click(getFocusButtons()[0]);
 
@@ -189,9 +176,7 @@ describe("TraceWaterfall", () => {
       await user.click(getFocusButtons()[0]);
 
       await user.click(screen.getByRole("button", { name: "Clear focus" }));
-      expect(
-        screen.queryByRole("button", { name: "Clear focus" }),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Clear focus" })).not.toBeInTheDocument();
     });
 
     it("time markers update to reflect focused span duration", async () => {
@@ -342,28 +327,20 @@ describe("TraceWaterfall", () => {
     it("clicking a span opens the detail panel", async () => {
       const user = renderWaterfall(flatSpans);
 
-      expect(
-        screen.queryByRole("heading", { name: "Job A" }),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Job A" })).not.toBeInTheDocument();
 
       await user.click(screen.getByRole("button", { name: /Job A/ }));
-      expect(
-        screen.getByRole("heading", { name: "Job A" }),
-      ).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Job A" })).toBeInTheDocument();
     });
 
     it("clicking the same span again closes the detail panel", async () => {
       const user = renderWaterfall(flatSpans);
 
       await user.click(screen.getByRole("button", { name: /Job A/ }));
-      expect(
-        screen.getByRole("heading", { name: "Job A" }),
-      ).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Job A" })).toBeInTheDocument();
 
       await user.click(screen.getByRole("button", { name: /Job A/ }));
-      expect(
-        screen.queryByRole("heading", { name: "Job A" }),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Job A" })).not.toBeInTheDocument();
     });
 
     it("shows suite and subtest types independently in the detail panel", async () => {
@@ -400,9 +377,7 @@ describe("TraceWaterfall", () => {
 
       const user = renderWaterfall(spans);
 
-      await user.click(
-        screen.getByRole("button", { name: /formats milliseconds/ }),
-      );
+      await user.click(screen.getByRole("button", { name: /formats milliseconds/ }));
 
       const frameworkRow = screen.getByText("Framework").parentElement;
       assert(frameworkRow instanceof HTMLElement, "expected framework row");

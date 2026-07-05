@@ -169,9 +169,9 @@ export function PricingMatrix() {
             Every feature, side by side.
           </h2>
           <p className="mt-5 max-w-2xl text-base leading-relaxed text-fd-muted-foreground md:text-lg">
-            No asterisks, no surprise line items. Compare the whole platform
-            feature-by-feature and pick the tier that fits — start free and
-            self-hosted, scale into managed Cloud when you're ready.
+            No asterisks, no surprise line items. Compare the whole platform feature-by-feature and
+            pick the tier that fits — start free and self-hosted, scale into managed Cloud when
+            you're ready.
           </p>
         </motion.div>
 
@@ -195,11 +195,7 @@ export function PricingMatrix() {
 
               <tbody>
                 {GROUPS.map((group, gi) => (
-                  <GroupBlock
-                    key={group.label}
-                    group={group}
-                    isFirst={gi === 0}
-                  />
+                  <GroupBlock key={group.label} group={group} isFirst={gi === 0} />
                 ))}
 
                 {/* CTA footer row */}
@@ -254,8 +250,7 @@ function PlanHeader() {
             scope="col"
             className={cn(
               "border-b border-fd-border bg-fd-background px-4 py-5 align-top md:px-6",
-              plan.recommended &&
-                "border-t-2 border-t-primary bg-primary/[0.06]",
+              plan.recommended && "border-t-2 border-t-primary bg-primary/[0.06]",
             )}
           >
             <div className="flex items-center gap-2">
@@ -277,9 +272,7 @@ function PlanHeader() {
               <span className="font-mono text-2xl font-bold tracking-tight text-fd-foreground md:text-3xl">
                 {plan.price}
               </span>
-              <span className="font-mono text-[11px] text-fd-muted-foreground/70">
-                {plan.unit}
-              </span>
+              <span className="font-mono text-[11px] text-fd-muted-foreground/70">{plan.unit}</span>
             </div>
           </th>
         ))}
@@ -355,11 +348,7 @@ function CellValue({ value, label }: { value: Cell; label: string }) {
   if (value === true) {
     return (
       <>
-        <Check
-          aria-hidden
-          className="size-[18px] text-primary"
-          strokeWidth={2.5}
-        />
+        <Check aria-hidden className="size-[18px] text-primary" strokeWidth={2.5} />
         <span className="sr-only">{`${label}: included`}</span>
       </>
     );
@@ -368,21 +357,13 @@ function CellValue({ value, label }: { value: Cell; label: string }) {
   if (value === false) {
     return (
       <>
-        <Minus
-          aria-hidden
-          className="size-[18px] text-fd-muted-foreground/35"
-          strokeWidth={2.5}
-        />
+        <Minus aria-hidden className="size-[18px] text-fd-muted-foreground/35" strokeWidth={2.5} />
         <span className="sr-only">{`${label}: not included`}</span>
       </>
     );
   }
 
-  return (
-    <span className="font-mono text-[13px] font-medium text-fd-foreground/90">
-      {value}
-    </span>
-  );
+  return <span className="font-mono text-[13px] font-medium text-fd-foreground/90">{value}</span>;
 }
 
 /* ------------------------------------------------------------------ */

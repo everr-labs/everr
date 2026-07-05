@@ -5,11 +5,7 @@ import { githubInstallationOrganizations } from "@/db/schema";
 import { auth } from "@/lib/auth.server";
 import { parseInstallState } from "@/lib/github-install-state";
 
-function redirectToDashboard(
-  origin: string,
-  status: string,
-  reason?: string,
-): Response {
+function redirectToDashboard(origin: string, status: string, reason?: string): Response {
   const url = new URL("/", origin);
   url.searchParams.set("github_install", status);
   if (reason) {
@@ -23,95 +19,56 @@ export const Route = createFileRoute("/api/github/install/callback")({
     handlers: {
       GET: async ({ request }) => {
         const callbackURL = new URL(request.url);
-        const installationIdParam =
-          callbackURL.searchParams.get("installation_id");
+        const installationIdParam = callbackURL.searchParams.get("installation_id");
         const state = callbackURL.searchParams.get("state");
         if (!installationIdParam || !state) {
-          return redirectToDashboard(
-            callbackURL.origin,
-            "error",
-            "missing_params",
-          );
+          return redirectToDashboard(callbackURL.origin, "error", "missing_params");
         }
 
         const installationId = Number(installationIdParam);
         if (!Number.isSafeInteger(installationId) || installationId <= 0) {
-          return redirectToDashboard(
-            callbackURL.origin,
-            "error",
-            "invalid_installation_id",
-          );
+          return redirectToDashboard(callbackURL.origin, "error", "invalid_installation_id");
         }
 
         const session = await auth.api.getSession({
           headers: request.headers,
         });
         if (!session?.user) {
-          return redirectToDashboard(
-            callbackURL.origin,
-            "error",
-            "unauthenticated",
-          );
+          return redirectToDashboard(callbackURL.origin, "error", "unauthenticated");
         }
 
         let parsedState: { organizationId: string; userId: string };
         try {
           parsedState = parseInstallState(state);
         } catch {
-          return redirectToDashboard(
-            callbackURL.origin,
-            "error",
-            "invalid_state",
-          );
+          return redirectToDashboard(callbackURL.origin, "error", "invalid_state");
         }
 
         if (parsedState.userId !== session.user.id) {
-          return redirectToDashboard(
-            callbackURL.origin,
-            "error",
-            "state_user_mismatch",
-          );
+          return redirectToDashboard(callbackURL.origin, "error", "state_user_mismatch");
         }
 
         const activeOrgId = session.session.activeOrganizationId;
         if (!activeOrgId) {
-          return redirectToDashboard(
-            callbackURL.origin,
-            "error",
-            "missing_org",
-          );
+          return redirectToDashboard(callbackURL.origin, "error", "missing_org");
         }
         if (parsedState.organizationId !== activeOrgId) {
-          return redirectToDashboard(
-            callbackURL.origin,
-            "error",
-            "state_org_mismatch",
-          );
+          return redirectToDashboard(callbackURL.origin, "error", "state_org_mismatch");
         }
 
         try {
           const [existing] = await db
             .select({
-              githubInstallationId:
-                githubInstallationOrganizations.githubInstallationId,
+              githubInstallationId: githubInstallationOrganizations.githubInstallationId,
               organizationId: githubInstallationOrganizations.organizationId,
             })
             .from(githubInstallationOrganizations)
-            .where(
-              eq(
-                githubInstallationOrganizations.githubInstallationId,
-                installationId,
-              ),
-            )
+            .where(eq(githubInstallationOrganizations.githubInstallationId, installationId))
             .limit(1);
 
           if (existing) {
             if (existing.organizationId !== activeOrgId) {
-              return redirectToDashboard(
-                callbackURL.origin,
-                "error",
-                "already_linked",
-              );
+              return redirectToDashboard(callbackURL.origin, "error", "already_linked");
             }
 
             await db
@@ -122,14 +79,8 @@ export const Route = createFileRoute("/api/github/install/callback")({
               })
               .where(
                 and(
-                  eq(
-                    githubInstallationOrganizations.githubInstallationId,
-                    installationId,
-                  ),
-                  eq(
-                    githubInstallationOrganizations.organizationId,
-                    activeOrgId,
-                  ),
+                  eq(githubInstallationOrganizations.githubInstallationId, installationId),
+                  eq(githubInstallationOrganizations.organizationId, activeOrgId),
                 ),
               );
           } else {
@@ -140,11 +91,7 @@ export const Route = createFileRoute("/api/github/install/callback")({
             });
           }
         } catch {
-          return redirectToDashboard(
-            callbackURL.origin,
-            "error",
-            "link_failed",
-          );
+          return redirectToDashboard(callbackURL.origin, "error", "link_failed");
         }
 
         // TODO: When installing the GitHub app via the web app, the user is shown this. This should only happen when the installation happens via the Desktop App or the CLI.

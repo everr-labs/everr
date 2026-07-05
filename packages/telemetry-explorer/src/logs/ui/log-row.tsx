@@ -22,12 +22,7 @@ function levelAccentClassName(level: LogExplorerRow["level"]) {
   return LOG_LEVEL_META[level].dotClassName;
 }
 
-export const LogRow = memo(function LogRow({
-  log,
-  rowKey,
-  isSelected,
-  onSelect,
-}: LogRowProps) {
+export const LogRow = memo(function LogRow({ log, rowKey, isSelected, onSelect }: LogRowProps) {
   return (
     // biome-ignore lint/a11y/useSemanticElements: Native buttons prevent selecting log text for copy.
     <div

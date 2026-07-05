@@ -1,9 +1,6 @@
 const DEVICE_ORG_SCOPE_PREFIX = "everr:org:";
 
-export function withDeviceOrgScope(
-  scope: string | null | undefined,
-  organizationId: string,
-) {
+export function withDeviceOrgScope(scope: string | null | undefined, organizationId: string) {
   const orgScope = `${DEVICE_ORG_SCOPE_PREFIX}${encodeURIComponent(organizationId)}`;
   const existingScopes = (scope ?? "")
     .split(/\s+/)

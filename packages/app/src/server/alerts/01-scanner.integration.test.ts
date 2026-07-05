@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
 
@@ -16,9 +16,7 @@ describe.skipIf(!databaseUrl)("scanner under concurrency", () => {
     const { scanDueAlerts } = await import("./01-scanner");
 
     try {
-      await pool.query(
-        "DELETE FROM alert_definitions WHERE organization_id = 'it-org'",
-      );
+      await pool.query("DELETE FROM alert_definitions WHERE organization_id = 'it-org'");
       await pool.query(`
         INSERT INTO alert_definitions
           (organization_id, repoid, slug, evaluation_interval_seconds, "window",

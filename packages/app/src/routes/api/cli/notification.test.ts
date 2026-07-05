@@ -1,5 +1,5 @@
 import type { QueryResultRow } from "pg";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 vi.mock("@/db/client", () => ({
   pool: {
@@ -11,10 +11,7 @@ import { pool } from "@/db/client";
 import { Route } from "./notification";
 
 const mockedQuery = vi.mocked(
-  pool.query as (
-    text: string,
-    values?: readonly never[],
-  ) => Promise<{ rows: QueryResultRow[] }>,
+  pool.query as (text: string, values?: readonly never[]) => Promise<{ rows: QueryResultRow[] }>,
 );
 
 type GetHandler = (args: {
@@ -73,9 +70,7 @@ describe("/api/cli/notification", () => {
       .mockResolvedValueOnce({ rows: [] });
 
     const response = await getHandler()({
-      request: new Request(
-        "http://localhost/api/cli/notification?traceId=trace-abc",
-      ),
+      request: new Request("http://localhost/api/cli/notification?traceId=trace-abc"),
       context,
     });
 
@@ -95,9 +90,7 @@ describe("/api/cli/notification", () => {
     mockedQuery.mockResolvedValueOnce({ rows: [] });
 
     const response = await getHandler()({
-      request: new Request(
-        "http://localhost/api/cli/notification?traceId=trace-xyz",
-      ),
+      request: new Request("http://localhost/api/cli/notification?traceId=trace-xyz"),
       context,
     });
 

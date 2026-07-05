@@ -72,30 +72,28 @@ test("finalizePartialArtifact writes metadata and sanitized samples", async () =
     assert.equal(metadata.checkRunId, 123);
     assert.equal(metadata.filesystem.mountpoint, "/");
 
-    const savedMetadata = JSON.parse(
-      await readFile(`${outputDir}/metadata.json`, "utf8"),
-    );
+    const savedMetadata = JSON.parse(await readFile(`${outputDir}/metadata.json`, "utf8"));
     const savedSamples = await readFile(`${outputDir}/samples.ndjson`, "utf8");
     const parsedSamples = await loadSamples(`${outputDir}/samples.ndjson`);
 
     assert.equal(savedMetadata.runner.os, "Linux");
     assert.equal(savedMetadata.sampleIntervalSeconds, undefined);
     assert.match(savedSamples, /"network"/);
-    assert.deepEqual(parsedSamples[0].cpu.logical.map((sample) => sample.logicalNumber), [
-      0, 2,
-    ]);
-    assert.deepEqual(parsedSamples[0].network.interfaces.map((sample) => sample.name), [
-      "eth0", "eth1",
-    ]);
+    assert.deepEqual(
+      parsedSamples[0].cpu.logical.map((sample) => sample.logicalNumber),
+      [0, 2],
+    );
+    assert.deepEqual(
+      parsedSamples[0].network.interfaces.map((sample) => sample.name),
+      ["eth0", "eth1"],
+    );
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
 });
 
 test("finalizePartialArtifact handles missing sample files", async () => {
-  const tempDir = await mkdtemp(
-    `${tmpdir()}/everr-resource-usage-finalize-empty-`,
-  );
+  const tempDir = await mkdtemp(`${tmpdir()}/everr-resource-usage-finalize-empty-`);
 
   try {
     const outputDir = `${tempDir}/partial`;
@@ -127,9 +125,7 @@ test("finalizePartialArtifact handles missing sample files", async () => {
 });
 
 test("finalizePartialArtifact rejects malformed samples with line numbers", async () => {
-  const tempDir = await mkdtemp(
-    `${tmpdir()}/everr-resource-usage-finalize-malformed-`,
-  );
+  const tempDir = await mkdtemp(`${tmpdir()}/everr-resource-usage-finalize-malformed-`);
 
   try {
     const samplesPath = `${tempDir}/samples.ndjson`;

@@ -104,9 +104,7 @@ export function InviteMemberDialog() {
               Cancel
             </Button>
             <Button type="submit" disabled={invite.isPending}>
-              {invite.isPending && (
-                <Loader2 className="mr-2 size-4 animate-spin" />
-              )}
+              {invite.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
               Send invite
             </Button>
           </DialogFooter>

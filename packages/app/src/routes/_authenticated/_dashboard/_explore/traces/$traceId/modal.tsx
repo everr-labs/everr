@@ -1,7 +1,4 @@
-import {
-  TraceDetailParamsSchema,
-  toTraceListSearch,
-} from "@everr/telemetry-explorer/traces";
+import { TraceDetailParamsSchema, toTraceListSearch } from "@everr/telemetry-explorer/traces";
 import { createFileRoute } from "@tanstack/react-router";
 import { DetailRouteDialog } from "@/components/detail-route-dialog";
 import {
@@ -11,9 +8,7 @@ import {
   TraceDetailRouteError,
 } from "../../-trace-detail";
 
-export const Route = createFileRoute(
-  "/_authenticated/_dashboard/_explore/traces/$traceId/modal",
-)({
+export const Route = createFileRoute("/_authenticated/_dashboard/_explore/traces/$traceId/modal")({
   staticData: { breadcrumb: "Trace" },
   head: () => ({ meta: [{ title: "Everr - Trace" }] }),
   validateSearch: TraceDetailParamsSchema,

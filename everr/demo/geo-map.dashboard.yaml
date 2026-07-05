@@ -334,25 +334,121 @@ spec:
       spec:
         items:
           # Full-width hero map for the demo.
-          - { x: 0,  y: 0,  width: 24, height: 12, content: { $ref: "#/spec/panels/geo-points" } }
-          - { x: 0,  y: 12, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-points-multi" } }
-          - { x: 12, y: 12, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-choropleth" } }
-          - { x: 0,  y: 21, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-choropleth-green" } }
-          - { x: 12, y: 21, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-choropleth-orange" } }
-          - { x: 0,  y: 30, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-choropleth-red-nolegend" } }
+          - { x: 0, y: 0, width: 24, height: 12, content: { $ref: "#/spec/panels/geo-points" } }
+          - {
+              x: 0,
+              y: 12,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/geo-points-multi" },
+            }
+          - {
+              x: 12,
+              y: 12,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/geo-choropleth" },
+            }
+          - {
+              x: 0,
+              y: 21,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/geo-choropleth-green" },
+            }
+          - {
+              x: 12,
+              y: 21,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/geo-choropleth-orange" },
+            }
+          - {
+              x: 0,
+              y: 30,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/geo-choropleth-red-nolegend" },
+            }
           # Aggregation modes (choropleth).
-          - { x: 12, y: 30, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-choropleth-avg" } }
-          - { x: 0,  y: 39, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-choropleth-max" } }
-          - { x: 12, y: 39, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-choropleth-last" } }
-          - { x: 0,  y: 48, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-choropleth-min" } }
+          - {
+              x: 12,
+              y: 30,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/geo-choropleth-avg" },
+            }
+          - {
+              x: 0,
+              y: 39,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/geo-choropleth-max" },
+            }
+          - {
+              x: 12,
+              y: 39,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/geo-choropleth-last" },
+            }
+          - {
+              x: 0,
+              y: 48,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/geo-choropleth-min" },
+            }
           # Scale types.
-          - { x: 12, y: 48, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-choropleth-log" } }
-          - { x: 0,  y: 57, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-points-sqrt" } }
-          - { x: 12, y: 57, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-points-log" } }
+          - {
+              x: 12,
+              y: 48,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/geo-choropleth-log" },
+            }
+          - {
+              x: 0,
+              y: 57,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/geo-points-sqrt" },
+            }
+          - {
+              x: 12,
+              y: 57,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/geo-points-log" },
+            }
           # Projections.
-          - { x: 0,  y: 66, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-points-mercator" } }
-          - { x: 12, y: 66, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-choropleth-equalearth" } }
+          - {
+              x: 0,
+              y: 66,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/geo-points-mercator" },
+            }
+          - {
+              x: 12,
+              y: 66,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/geo-choropleth-equalearth" },
+            }
           # Marker radius range + unmapped-rows badge.
-          - { x: 0,  y: 75, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-points-radius" } }
-          - { x: 12, y: 75, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-points-unmapped" } }
-          - { x: 0,  y: 84, width: 12, height: 9,  content: { $ref: "#/spec/panels/geo-empty" } }
+          - {
+              x: 0,
+              y: 75,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/geo-points-radius" },
+            }
+          - {
+              x: 12,
+              y: 75,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/geo-points-unmapped" },
+            }
+          - { x: 0, y: 84, width: 12, height: 9, content: { $ref: "#/spec/panels/geo-empty" } }

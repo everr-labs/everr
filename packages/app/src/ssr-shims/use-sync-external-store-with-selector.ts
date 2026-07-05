@@ -1,10 +1,4 @@
-import {
-  useDebugValue,
-  useEffect,
-  useMemo,
-  useRef,
-  useSyncExternalStore,
-} from "react";
+import { useDebugValue, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 
 export function useSyncExternalStoreWithSelector<Snapshot, Selection>(
   subscribe: (onStoreChange: () => void) => () => void,
@@ -13,9 +7,7 @@ export function useSyncExternalStoreWithSelector<Snapshot, Selection>(
   selector: (snapshot: Snapshot) => Selection,
   isEqual?: (a: Selection, b: Selection) => boolean,
 ): Selection {
-  const instRef = useRef<{ hasValue: boolean; value: Selection | null } | null>(
-    null,
-  );
+  const instRef = useRef<{ hasValue: boolean; value: Selection | null } | null>(null);
   if (instRef.current === null) {
     instRef.current = { hasValue: false, value: null };
   }
@@ -66,11 +58,7 @@ export function useSyncExternalStoreWithSelector<Snapshot, Selection>(
     return [getSnap, getServerSnap];
   }, [getSnapshot, getServerSnapshot, selector, isEqual]);
 
-  const value = useSyncExternalStore(
-    subscribe,
-    getSelection,
-    getServerSelection,
-  );
+  const value = useSyncExternalStore(subscribe, getSelection, getServerSelection);
 
   useEffect(() => {
     inst.hasValue = true;

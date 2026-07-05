@@ -18,8 +18,7 @@ export function Hero() {
             <span className="text-primary font-medium">For real.</span>
           </h1>
           <p className="max-w-prose">
-            Setting up observability shouldn&rsquo;t take days. Get started in
-            minutes.
+            Setting up observability shouldn&rsquo;t take days. Get started in minutes.
           </p>
           <InstallCommand className="w-full max-w-lg bg-fd-card/70 backdrop-blur-sm" />
           <div>

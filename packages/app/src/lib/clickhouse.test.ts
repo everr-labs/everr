@@ -1,5 +1,5 @@
 import { createHmac } from "node:crypto";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const {
   mockQuery,
@@ -56,9 +56,7 @@ import {
 
 const ORG = "org42";
 const ORG_USER = `sql_api_org_${ORG}`;
-const ORG_PASSWORD = `${createHmac("sha256", MASTER_KEY)
-  .update(ORG)
-  .digest("hex")}A!`;
+const ORG_PASSWORD = `${createHmac("sha256", MASTER_KEY).update(ORG).digest("hex")}A!`;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -120,9 +118,7 @@ describe("querySqlApi", () => {
   });
 
   it("rejects when tenant id is missing", async () => {
-    await expect(querySqlApi("SELECT 1", "")).rejects.toThrow(
-      /tenant context/i,
-    );
+    await expect(querySqlApi("SELECT 1", "")).rejects.toThrow(/tenant context/i);
     expect(mockQuery).not.toHaveBeenCalled();
   });
 });

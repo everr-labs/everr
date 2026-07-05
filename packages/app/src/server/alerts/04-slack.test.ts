@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { buildSlackMessage, type SlackMessage } from "./04-slack";
 
 const def = {
@@ -15,9 +15,7 @@ const opts = {
 };
 
 function sectionText(msg: SlackMessage): string {
-  const block = msg.attachments[0].blocks.find(
-    (b) => b.type === "section",
-  ) as unknown as {
+  const block = msg.attachments[0].blocks.find((b) => b.type === "section") as unknown as {
     text: { text: string };
   };
   return block.text.text;
@@ -36,9 +34,7 @@ describe("buildSlackMessage", () => {
     expect(msg.attachments[0].color).toBe("#dc2626");
     expect(sectionText(msg)).toContain("*s1 firing*");
     expect(sectionText(msg)).toContain("• route=/a");
-    const actions = msg.attachments[0].blocks.find(
-      (b) => b.type === "actions",
-    ) as unknown as {
+    const actions = msg.attachments[0].blocks.find((b) => b.type === "actions") as unknown as {
       elements: { url: string; text: { text: string } }[];
     };
     expect(actions.elements[0]).toMatchObject({
@@ -143,9 +139,9 @@ describe("buildSlackMessage", () => {
         runbookUrl: "https://app.example.com/runbooks/default/runbook",
       },
     );
-    const actions = msg.attachments[0].blocks.find(
-      (b) => b.type === "actions",
-    ) as unknown as { elements: { url: string; text: { text: string } }[] };
+    const actions = msg.attachments[0].blocks.find((b) => b.type === "actions") as unknown as {
+      elements: { url: string; text: { text: string } }[];
+    };
     expect(actions.elements).toHaveLength(2);
     expect(actions.elements[1]).toMatchObject({
       url: "https://app.example.com/runbooks/default/runbook",
@@ -162,9 +158,9 @@ describe("buildSlackMessage", () => {
       },
       opts,
     );
-    const actions = msg.attachments[0].blocks.find(
-      (b) => b.type === "actions",
-    ) as unknown as { elements: unknown[] };
+    const actions = msg.attachments[0].blocks.find((b) => b.type === "actions") as unknown as {
+      elements: unknown[];
+    };
     expect(actions.elements).toHaveLength(1);
   });
 });

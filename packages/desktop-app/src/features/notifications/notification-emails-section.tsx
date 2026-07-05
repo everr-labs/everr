@@ -11,18 +11,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import {
-  invokeCommand,
-  SETTINGS_CHANGED_EVENT,
-  toErrorMessageText,
-} from "@/lib/tauri";
+import { invokeCommand, SETTINGS_CHANGED_EVENT, toErrorMessageText } from "@/lib/tauri";
 import { useInvalidateOnTauriEvent } from "../../lib/tauri-events";
 import { useAuthStatusQuery } from "../auth/auth";
-import {
-  FeatureErrorText,
-  FeatureLoadingText,
-  SettingsSection,
-} from "../desktop-shell/ui";
+import { FeatureErrorText, FeatureLoadingText, SettingsSection } from "../desktop-shell/ui";
 import { notificationEmailsQueryKey } from "./query-keys";
 
 function getNotificationEmails() {
@@ -164,9 +156,7 @@ export function NotificationEmailsSection() {
             Add
           </Button>
         </div>
-        {emailError && (
-          <p className="text-[0.78rem] text-red-400">{emailError}</p>
-        )}
+        {emailError && <p className="text-[0.78rem] text-red-400">{emailError}</p>}
       </div>
     </SettingsSection>
   );

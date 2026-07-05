@@ -45,7 +45,5 @@ const tauriConf = JSON.parse(fs.readFileSync(tauriConfPath, "utf8"));
 if (tauriConf.version !== version) {
   tauriConf.version = version;
   fs.writeFileSync(tauriConfPath, `${JSON.stringify(tauriConf, null, 2)}\n`, "utf8");
-  console.log(
-    `Updated ${path.relative(repoRoot, tauriConfPath)} to ${version}`,
-  );
+  console.log(`Updated ${path.relative(repoRoot, tauriConfPath)} to ${version}`);
 }

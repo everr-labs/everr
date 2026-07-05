@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { AttributeFilterSchema, LogsExplorerInputSchema } from "./schemas";
 
 describe("AttributeFilterSchema", () => {
@@ -12,9 +12,7 @@ describe("AttributeFilterSchema", () => {
   });
 
   it("rejects an empty key", () => {
-    expect(() =>
-      AttributeFilterSchema.parse({ source: "log", key: "", op: "exists" }),
-    ).toThrow();
+    expect(() => AttributeFilterSchema.parse({ source: "log", key: "", op: "exists" })).toThrow();
   });
 
   it("rejects an unknown op", () => {

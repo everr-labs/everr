@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { attributeKeysOptions, attributeValuesOptions } from "./options";
 import type { AttributeRepositoryLike } from "./repository";
 
@@ -7,11 +7,7 @@ const timeRange = { from: "now-1h", to: "now" };
 
 describe("attribute options", () => {
   it("namespaces the keys query by domain", () => {
-    const opts = attributeKeysOptions(
-      repo,
-      { timeRange },
-      { domain: "traces" },
-    );
+    const opts = attributeKeysOptions(repo, { timeRange }, { domain: "traces" });
     expect(opts.queryKey).toEqual(["traces", "attributeKeys", timeRange]);
   });
 

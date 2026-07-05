@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 vi.mock("@/db/client", () => ({
   pool: {
@@ -33,12 +33,8 @@ describe("getRunJobs", () => {
     const result = await getRunJobs({ data: "trace-1" });
 
     expect(mockedQuery).toHaveBeenCalledTimes(1);
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
-      "max(Duration) / 1000000 as duration",
-    );
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
-      "WHERE TraceId = {traceId:String}",
-    );
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain("max(Duration) / 1000000 as duration");
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain("WHERE TraceId = {traceId:String}");
     expect(result).toEqual([
       {
         jobId: "job-1",
@@ -87,12 +83,8 @@ describe("getRunSpans", () => {
 
     expect(mockedQuery).toHaveBeenCalledTimes(1);
     expect(mockedQuery.mock.calls[0]?.[0]).toContain("everr.test.is_suite");
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
-      "ResourceAttributes['everr.test.framework']",
-    );
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
-      "ResourceAttributes['everr.test.language']",
-    );
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain("ResourceAttributes['everr.test.framework']");
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain("ResourceAttributes['everr.test.language']");
     expect(result).toEqual([
       {
         spanId: "suite-span",
@@ -147,9 +139,7 @@ describe("getStepLogs", () => {
     });
 
     expect(mockedQuery).toHaveBeenCalledTimes(2);
-    expect(mockedQuery.mock.calls[1]?.[0]).toContain(
-      "WHERE TraceId = {traceId:String}",
-    );
+    expect(mockedQuery.mock.calls[1]?.[0]).toContain("WHERE TraceId = {traceId:String}");
     expect(result).toEqual({
       logs: [
         {
@@ -222,12 +212,8 @@ describe("getStepLogs", () => {
     expect(mockedQuery).toHaveBeenCalledTimes(2);
     expect(mockedQuery.mock.calls[1]?.[0]).toContain("ORDER BY Timestamp ASC");
     expect(mockedQuery.mock.calls[1]?.[0]).toContain("LIMIT {maxLines:UInt32}");
-    expect(mockedQuery.mock.calls[1]?.[0]).toContain(
-      "OFFSET {offsetLines:UInt32}",
-    );
-    expect(mockedQuery.mock.calls[1]?.[0]).toContain(
-      "WHERE TraceId = {traceId:String}",
-    );
+    expect(mockedQuery.mock.calls[1]?.[0]).toContain("OFFSET {offsetLines:UInt32}");
+    expect(mockedQuery.mock.calls[1]?.[0]).toContain("WHERE TraceId = {traceId:String}");
     expect(mockedQuery.mock.calls[1]?.[2]).toEqual({
       traceId: "trace-1",
       jobName: "build",
@@ -274,9 +260,7 @@ describe("getStepLogs", () => {
   it("adds match(Body) clause to both count and fetch queries when egrep is set", async () => {
     mockedQuery
       .mockResolvedValueOnce([{ cnt: "3" }])
-      .mockResolvedValueOnce([
-        { timestamp: "2026-03-09 12:00:00", body: "Error: timeout" },
-      ]);
+      .mockResolvedValueOnce([{ timestamp: "2026-03-09 12:00:00", body: "Error: timeout" }]);
 
     const result = await getStepLogs({
       data: {
@@ -288,12 +272,8 @@ describe("getStepLogs", () => {
     });
 
     expect(mockedQuery).toHaveBeenCalledTimes(2);
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
-      "match(Body, {egrep:String})",
-    );
-    expect(mockedQuery.mock.calls[1]?.[0]).toContain(
-      "match(Body, {egrep:String})",
-    );
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain("match(Body, {egrep:String})");
+    expect(mockedQuery.mock.calls[1]?.[0]).toContain("match(Body, {egrep:String})");
     expect(mockedQuery.mock.calls[0]?.[2]).toMatchObject({ egrep: "Error" });
     expect(mockedQuery.mock.calls[1]?.[2]).toMatchObject({ egrep: "Error" });
     expect(result.logs).toHaveLength(1);
@@ -303,9 +283,7 @@ describe("getStepLogs", () => {
   it("omits match(Body) clause when egrep is not set", async () => {
     mockedQuery
       .mockResolvedValueOnce([{ cnt: "1" }])
-      .mockResolvedValueOnce([
-        { timestamp: "2026-03-09 12:00:00", body: "ok" },
-      ]);
+      .mockResolvedValueOnce([{ timestamp: "2026-03-09 12:00:00", body: "ok" }]);
 
     await getStepLogs({
       data: { traceId: "trace-1", jobName: "build", stepNumber: "2" },

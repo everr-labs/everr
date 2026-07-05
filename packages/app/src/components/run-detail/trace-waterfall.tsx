@@ -9,14 +9,7 @@ import {
 } from "@everr/ui/components/resizable";
 import { formatDuration } from "@everr/ui/lib/formatting";
 import { cn } from "@everr/ui/lib/utils";
-import {
-  ChevronRight,
-  ChevronsDownUp,
-  ChevronsUpDown,
-  Focus,
-  Timer,
-  X,
-} from "lucide-react";
+import { ChevronRight, ChevronsDownUp, ChevronsUpDown, Focus, Timer, X } from "lucide-react";
 import { Fragment, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Span } from "@/data/runs/schemas";
 import { parseDuration } from "@/lib/formatting";
@@ -35,11 +28,7 @@ interface TraceWaterfallProps {
   flakyTestNames?: string[];
 }
 
-export function TraceWaterfall({
-  spans,
-  traceId,
-  flakyTestNames,
-}: TraceWaterfallProps) {
+export function TraceWaterfall({ spans, traceId, flakyTestNames }: TraceWaterfallProps) {
   const [collapsedSpans, setCollapsedSpans] = useState<Set<string>>(new Set());
   const [selectedSpanId, setSelectedSpanId] = useState<string | null>(null);
   const [focusedSpanId, setFocusedSpanId] = useState<string | null>(null);
@@ -51,15 +40,9 @@ export function TraceWaterfall({
   const scrollSourceRef = useRef<"left" | "right" | null>(null);
   const detailRef = useRef<HTMLDivElement>(null);
 
-  const flakySet = useMemo(
-    () => new Set(flakyTestNames ?? []),
-    [flakyTestNames],
-  );
+  const flakySet = useMemo(() => new Set(flakyTestNames ?? []), [flakyTestNames]);
 
-  const minDuration = useMemo(
-    () => parseDuration(durationFilter) ?? 0,
-    [durationFilter],
-  );
+  const minDuration = useMemo(() => parseDuration(durationFilter) ?? 0, [durationFilter]);
 
   const { tree, parentSpanIds } = useMemo(() => {
     const builtTree = buildSpanTree(spans);
@@ -67,9 +50,7 @@ export function TraceWaterfall({
     return { tree: builtTree, parentSpanIds: parents };
   }, [spans]);
 
-  const focusedSpan = focusedSpanId
-    ? spans.find((s) => s.spanId === focusedSpanId)
-    : null;
+  const focusedSpan = focusedSpanId ? spans.find((s) => s.spanId === focusedSpanId) : null;
 
   const { minTime, totalDuration } = useMemo(() => {
     if (focusedSpanId) {
@@ -83,10 +64,7 @@ export function TraceWaterfall({
     return { minTime: min, totalDuration: Math.max(...times) - min };
   }, [spans, focusedSpanId]);
 
-  const flatSpans = useMemo(
-    () => flattenTree(tree, collapsedSpans),
-    [tree, collapsedSpans],
-  );
+  const flatSpans = useMemo(() => flattenTree(tree, collapsedSpans), [tree, collapsedSpans]);
 
   const filteredSpans = useMemo(() => {
     if (minDuration <= 0) return flatSpans;
@@ -115,10 +93,8 @@ export function TraceWaterfall({
   const syncScroll = (source: "left" | "right") => {
     if (scrollSourceRef.current && scrollSourceRef.current !== source) return;
     scrollSourceRef.current = source;
-    const from =
-      source === "left" ? leftScrollRef.current : rightScrollRef.current;
-    const to =
-      source === "left" ? rightScrollRef.current : leftScrollRef.current;
+    const from = source === "left" ? leftScrollRef.current : rightScrollRef.current;
+    const to = source === "left" ? rightScrollRef.current : leftScrollRef.current;
     if (from && to) to.scrollTop = from.scrollTop;
     requestAnimationFrame(() => {
       scrollSourceRef.current = null;
@@ -148,10 +124,7 @@ export function TraceWaterfall({
         <button
           type="button"
           onClick={expandAll}
-          className={cn(
-            buttonVariants({ variant: "ghost", size: "sm" }),
-            "h-7 gap-1 px-2 text-xs",
-          )}
+          className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "h-7 gap-1 px-2 text-xs")}
         >
           <ChevronsUpDown className="size-3.5" />
           Expand All
@@ -159,10 +132,7 @@ export function TraceWaterfall({
         <button
           type="button"
           onClick={collapseAll}
-          className={cn(
-            buttonVariants({ variant: "ghost", size: "sm" }),
-            "h-7 gap-1 px-2 text-xs",
-          )}
+          className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "h-7 gap-1 px-2 text-xs")}
         >
           <ChevronsDownUp className="size-3.5" />
           Collapse All
@@ -251,21 +221,12 @@ export function TraceWaterfall({
                         }}
                         onClick={() => toggleSelection(span.spanId)}
                       >
-                        <ConclusionIcon
-                          conclusion={span.conclusion}
-                          className="size-3 shrink-0"
-                        />
-                        <FrameworkIcon
-                          framework={span.testFramework}
-                          className="size-3 shrink-0"
-                        />
-                        <span className="truncate text-xs font-medium">
-                          {span.name}
-                        </span>
+                        <ConclusionIcon conclusion={span.conclusion} className="size-3 shrink-0" />
+                        <FrameworkIcon framework={span.testFramework} className="size-3 shrink-0" />
+                        <span className="truncate text-xs font-medium">{span.name}</span>
                         {span.testName &&
                           flakySet.size > 0 &&
-                          (flakySet.has(span.testName) ||
-                            flakySet.has(span.name)) && (
+                          (flakySet.has(span.testName) || flakySet.has(span.name)) && (
                             <span className="shrink-0 rounded bg-orange-950 px-1 py-0.5 text-[10px] font-medium text-orange-400">
                               Flaky
                             </span>
@@ -336,10 +297,8 @@ export function TraceWaterfall({
               </div>
 
               {filteredSpans.map((span) => {
-                const rawLeft =
-                  ((span.startTime - minTime) / totalDuration) * 100;
-                const rawRight =
-                  ((span.endTime - minTime) / totalDuration) * 100;
+                const rawLeft = ((span.startTime - minTime) / totalDuration) * 100;
+                const rawRight = ((span.endTime - minTime) / totalDuration) * 100;
                 const leftPercent = Math.max(0, rawLeft);
                 const rightPercent = Math.min(100, rawRight);
                 const widthPercent = Math.max(0, rightPercent - leftPercent);
@@ -394,11 +353,7 @@ export function TraceWaterfall({
                     {/* Inline detail panel */}
                     {isSelected && (
                       <div ref={detailRef}>
-                        <SpanDetailPanel
-                          span={span}
-                          minTime={minTime}
-                          traceId={traceId}
-                        />
+                        <SpanDetailPanel span={span} minTime={minTime} traceId={traceId} />
                       </div>
                     )}
                   </Fragment>

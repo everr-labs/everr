@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { initClient, teardown } from "./core.js";
 import { ErrorBoundary, captureReactError } from "./react.js";
 import { setupTestTelemetry } from "./test-utils.js";

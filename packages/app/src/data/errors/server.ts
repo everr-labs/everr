@@ -20,29 +20,21 @@ function repoFromContext(clickhouse: {
 
 export const searchErrorIssues = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(SearchErrorIssuesInputSchema)
-  .handler(({ data, context: { clickhouse } }) =>
-    repoFromContext(clickhouse).searchIssues(data),
-  );
+  .handler(({ data, context: { clickhouse } }) => repoFromContext(clickhouse).searchIssues(data));
 
 export const getErrorIssue = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(GetErrorIssueInputSchema)
-  .handler(({ data, context: { clickhouse } }) =>
-    repoFromContext(clickhouse).getIssue(data),
-  );
+  .handler(({ data, context: { clickhouse } }) => repoFromContext(clickhouse).getIssue(data));
 
 export const listErrorServices = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(ListErrorServicesInputSchema)
-  .handler(({ data, context: { clickhouse } }) =>
-    repoFromContext(clickhouse).listServices(data),
-  );
+  .handler(({ data, context: { clickhouse } }) => repoFromContext(clickhouse).listServices(data));
 
 export const getErrorAttributeKeys = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(ErrorAttributeKeysInputSchema)
-  .handler(({ data, context: { clickhouse } }) =>
-    repoFromContext(clickhouse).attributeKeys(data),
-  );
+  .handler(({ data, context: { clickhouse } }) => repoFromContext(clickhouse).attributeKeys(data));
 
 export const getErrorAttributeValues = createAuthenticatedServerFn({
   method: "GET",

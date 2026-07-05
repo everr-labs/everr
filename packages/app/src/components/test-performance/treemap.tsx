@@ -74,13 +74,10 @@ function TreemapTooltip({
       <div className="grid gap-0.5 text-muted-foreground">
         <p>
           Size ({SIZE_METRIC_LABEL[sizeMetric]}):{" "}
-          <span className="text-foreground font-mono">
-            {sizeMetricValue(item, sizeMetric)}
-          </span>
+          <span className="text-foreground font-mono">{sizeMetricValue(item, sizeMetric)}</span>
         </p>
         <p>
-          Failure Rate:{" "}
-          <span className="text-foreground font-mono">{item.failureRate}%</span>
+          Failure Rate: <span className="text-foreground font-mono">{item.failureRate}%</span>
         </p>
         <p>
           Avg:{" "}
@@ -143,9 +140,7 @@ export function TestPerfTreemap({
         aspectRatio={1}
         tileValueText={(item) => tileSizeText(item, sizeMetric)}
         tileBadgeText={(item) => item.nodeKindBadgeLabel}
-        renderTooltip={(item) => (
-          <TreemapTooltip item={item} sizeMetric={sizeMetric} />
-        )}
+        renderTooltip={(item) => <TreemapTooltip item={item} sizeMetric={sizeMetric} />}
         onSelectTile={onSelect && ((item) => onSelect(item.name))}
       />
     </div>

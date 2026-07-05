@@ -25,11 +25,7 @@ function codeText(children: ReactNode): string {
  * at the <pre> level so the embed replaces the whole block (a Card inside a
  * <pre> would be invalid markup); every other block renders as normal code.
  */
-function PreBlock({
-  node: _node,
-  children,
-  ...props
-}: AnchorOrBlockProps<"pre">) {
+function PreBlock({ node: _node, children, ...props }: AnchorOrBlockProps<"pre">) {
   const only = Children.toArray(children)[0];
   if (isValidElement<{ className?: string; children?: ReactNode }>(only)) {
     const { className, children: code } = only.props;
@@ -70,20 +66,10 @@ function isExternalHref(href: string): boolean {
  * In-runbook links become router <Link>s; external/unresolved ones stay plain
  * anchors, with external targets opened safely in a new tab.
  */
-function RunbookAnchor({
-  node: _node,
-  href,
-  children,
-  ...props
-}: AnchorOrBlockProps<"a">) {
+function RunbookAnchor({ node: _node, href, children, ...props }: AnchorOrBlockProps<"a">) {
   const { resolveLink, project, slug } = useContext(RunbookLinkContext);
 
-  if (
-    resolveLink &&
-    project !== undefined &&
-    slug !== undefined &&
-    typeof href === "string"
-  ) {
+  if (resolveLink && project !== undefined && slug !== undefined && typeof href === "string") {
     const resolved = resolveLink(href);
     if (resolved !== null) {
       // Re-attach the link's "#fragment" the resolver stripped, so a link like
@@ -93,12 +79,7 @@ function RunbookAnchor({
       // those attributes aren't lost on internal links the way they'd survive on
       // external ones.
       return resolved === "" ? (
-        <Link
-          to="/runbooks/$project/$slug"
-          params={{ project, slug }}
-          hash={hash}
-          {...props}
-        >
+        <Link to="/runbooks/$project/$slug" params={{ project, slug }} hash={hash} {...props}>
           {children}
         </Link>
       ) : (
@@ -142,26 +123,15 @@ interface RunbookMarkdownProps {
   slug?: string;
 }
 
-export function RunbookMarkdown({
-  markdown,
-  resolveLink,
-  project,
-  slug,
-}: RunbookMarkdownProps) {
-  const linkContext = useMemo(
-    () => ({ resolveLink, project, slug }),
-    [resolveLink, project, slug],
-  );
+export function RunbookMarkdown({ markdown, resolveLink, project, slug }: RunbookMarkdownProps) {
+  const linkContext = useMemo(() => ({ resolveLink, project, slug }), [resolveLink, project, slug]);
 
   // The app runs dark-only (see styles/global.css — :root is the dark theme),
   // so prose-invert is applied unconditionally for readable text.
   return (
     <RunbookLinkContext.Provider value={linkContext}>
       <div className="prose prose-invert max-w-none">
-        <Markdown
-          remarkPlugins={REMARK_PLUGINS}
-          components={MARKDOWN_COMPONENTS}
-        >
+        <Markdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
           {markdown}
         </Markdown>
       </div>

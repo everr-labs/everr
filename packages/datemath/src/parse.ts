@@ -110,11 +110,7 @@ function parseMathOps(math: string, expression: string): DateMathOp[] {
       }
 
       if (pos >= math.length) {
-        throw new DateMathError(
-          "Expected unit after operator",
-          expression,
-          pos,
-        );
+        throw new DateMathError("Expected unit after operator", expression, pos);
       }
 
       const unit = math[pos];

@@ -62,8 +62,7 @@ function formatBucketLabel(bucket: LogHistogramBucket | undefined) {
   if (!bucket) return "";
   const start = new Date(bucket.timestamp);
   const end = new Date(bucket.endTimestamp);
-  const time = (date: Date) =>
-    date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const time = (date: Date) => date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   const day = start.toLocaleDateString([], { month: "short", day: "numeric" });
   return `${day} · ${time(start)} – ${time(end)}`;
 }
@@ -72,10 +71,7 @@ type HistogramMouseEvent = {
   activeTooltipIndex?: number | null;
 };
 
-function histogramEventIndex(
-  event: unknown,
-  data: LogHistogramBucket[],
-): number | null {
+function histogramEventIndex(event: unknown, data: LogHistogramBucket[]): number | null {
   const index = (event as HistogramMouseEvent | undefined)?.activeTooltipIndex;
   if (typeof index !== "number" || index < 0 || index >= data.length) {
     return null;
@@ -121,19 +117,11 @@ function LogHistogramChart({
   const commitDrag = (event: unknown) => {
     const finalIndex = histogramEventIndex(event, data);
     const committedRange =
-      dragRange && finalIndex !== null
-        ? { ...dragRange, endIndex: finalIndex }
-        : dragRange;
+      dragRange && finalIndex !== null ? { ...dragRange, endIndex: finalIndex } : dragRange;
 
     if (committedRange) {
-      const startIndex = Math.min(
-        committedRange.startIndex,
-        committedRange.endIndex,
-      );
-      const endIndex = Math.max(
-        committedRange.startIndex,
-        committedRange.endIndex,
-      );
+      const startIndex = Math.min(committedRange.startIndex, committedRange.endIndex);
+      const endIndex = Math.max(committedRange.startIndex, committedRange.endIndex);
       const startBucket = data[startIndex];
       const endBucket = data[endIndex];
 
@@ -179,9 +167,7 @@ function LogHistogramChart({
           content={
             <ChartTooltipContent
               className="z-50 bg-popover text-popover-foreground"
-              labelFormatter={(_value, payload) =>
-                formatBucketLabel(payload?.[0]?.payload)
-              }
+              labelFormatter={(_value, payload) => formatBucketLabel(payload?.[0]?.payload)}
               formatter={(value, name) => (
                 <>
                   <div
@@ -261,10 +247,7 @@ export function LogHistogram({
           {isPending ? (
             <Skeleton className="h-[104px] w-full" />
           ) : buckets.length ? (
-            <LogHistogramChart
-              data={buckets}
-              onSelectRange={handleSelectRange}
-            />
+            <LogHistogramChart data={buckets} onSelectRange={handleSelectRange} />
           ) : (
             <div className="text-muted-foreground flex h-[104px] items-center justify-center rounded-md border border-dashed text-sm">
               No log volume in this range

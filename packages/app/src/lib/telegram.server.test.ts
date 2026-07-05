@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { sendTelegramMessage } from "./telegram.server";
 
@@ -31,9 +31,7 @@ describe("sendTelegramMessage", () => {
     await sendTelegramMessage("tok", "123", "🚨 s1 firing");
 
     const body = sentBody(0);
-    expect(fetchMock.mock.calls[0][0]).toBe(
-      "https://api.telegram.org/bottok/sendMessage",
-    );
+    expect(fetchMock.mock.calls[0][0]).toBe("https://api.telegram.org/bottok/sendMessage");
     expect(body).toEqual({ chat_id: "123", text: "🚨 s1 firing" });
   });
 

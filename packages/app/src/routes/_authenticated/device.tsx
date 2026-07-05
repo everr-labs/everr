@@ -17,8 +17,7 @@ export const Route = createFileRoute("/_authenticated/device")({
       .then((org) => org?.name ?? null)
       .catch(() => null);
 
-    const firstName =
-      session.user.name?.split(" ")[0] ?? session.user.email.split("@")[0];
+    const firstName = session.user.name?.split(" ")[0] ?? session.user.email.split("@")[0];
 
     return {
       deviceCode: deps.code.toUpperCase(),
@@ -36,9 +35,7 @@ function formatCodeForDisplay(code: string): string {
 
 function CliDeviceApprovalPage() {
   const { deviceCode, userName, orgName } = Route.useLoaderData();
-  const [status, setStatus] = useState<
-    "idle" | "approved" | "denied" | "error"
-  >("idle");
+  const [status, setStatus] = useState<"idle" | "approved" | "denied" | "error">("idle");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function submit(action: "approve" | "deny") {
@@ -51,9 +48,7 @@ function CliDeviceApprovalPage() {
 
     try {
       const result =
-        action === "approve"
-          ? await approveDevice(deviceCode)
-          : await denyDevice(deviceCode);
+        action === "approve" ? await approveDevice(deviceCode) : await denyDevice(deviceCode);
 
       if (!result.ok) {
         setStatus("error");
@@ -69,9 +64,7 @@ function CliDeviceApprovalPage() {
   return (
     <main className="bg-muted/20 flex min-h-screen items-center justify-center px-4 py-10">
       <div className="w-full max-w-2xl">
-        <h1 className="text-center text-4xl font-semibold tracking-tight">
-          Authenticate Device
-        </h1>
+        <h1 className="text-center text-4xl font-semibold tracking-tight">Authenticate Device</h1>
         <p className="text-muted-foreground mt-3 text-center text-base">
           {orgName ? `${userName} · ${orgName}` : userName}
         </p>
@@ -94,19 +87,15 @@ function CliDeviceApprovalPage() {
                 >
                   Deny
                 </Button>
-                <Button
-                  disabled={isSubmitting}
-                  onClick={() => void submit("approve")}
-                >
+                <Button disabled={isSubmitting} onClick={() => void submit("approve")}>
                   Confirm
                 </Button>
               </div>
 
               {status === "error" ? (
                 <p className="mt-4 text-center text-sm text-red-400">
-                  Invalid or expired code. Restart{" "}
-                  <code className="font-mono">everr setup</code> from your
-                  terminal.
+                  Invalid or expired code. Restart <code className="font-mono">everr setup</code>{" "}
+                  from your terminal.
                 </p>
               ) : null}
             </>

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { SERIES_COLORS } from "../data-utils";
 import { stateTimelineSpec } from "./spec";
 import { buildStateTimelineModel } from "./state-timeline-data";
@@ -31,9 +31,7 @@ describe("buildStateTimelineModel", () => {
       { start: 50_000, end: 100_000, state: "down" },
     ]);
     // db never changes state — one merged segment to the domain end
-    expect(model.lanes[1]!.segments).toEqual([
-      { start: 10_000, end: 100_000, state: "up" },
-    ]);
+    expect(model.lanes[1]!.segments).toEqual([{ start: 10_000, end: 100_000, state: "up" }]);
   });
 
   it("keeps consecutive equal states separate when mergeConsecutive is off", () => {
@@ -89,11 +87,7 @@ describe("buildStateTimelineModel", () => {
   });
 
   it("drops samples entirely outside the domain", () => {
-    const model = buildStateTimelineModel(
-      [[{ ts: ts(200), api: "up" }]],
-      specWith(),
-      DOMAIN,
-    );
+    const model = buildStateTimelineModel([[{ ts: ts(200), api: "up" }]], specWith(), DOMAIN);
     expect(model.lanes[0]!.segments).toEqual([]);
     expect(model.states).toEqual([]);
   });
@@ -115,9 +109,7 @@ describe("buildStateTimelineModel", () => {
       { start: 10_000, end: 50_000, state: "ok" },
       { start: 50_000, end: 100_000, state: "error" },
     ]);
-    expect(model.lanes[1]!.segments).toEqual([
-      { start: 10_000, end: 100_000, state: "warn" },
-    ]);
+    expect(model.lanes[1]!.segments).toEqual([{ start: 10_000, end: 100_000, state: "warn" }]);
   });
 
   it("reads the long-format state from an explicit stateColumn", () => {
@@ -131,10 +123,7 @@ describe("buildStateTimelineModel", () => {
       specWith({ seriesColumn: "service", stateColumn: "status" }),
       DOMAIN,
     );
-    expect(model.lanes[0]!.segments.map((s) => s.state)).toEqual([
-      "ok",
-      "down",
-    ]);
+    expect(model.lanes[0]!.segments.map((s) => s.state)).toEqual(["ok", "down"]);
   });
 
   it("stringifies numeric and boolean states", () => {
@@ -161,11 +150,7 @@ describe("buildStateTimelineModel", () => {
   });
 
   it("skips frames without a time column", () => {
-    const model = buildStateTimelineModel(
-      [[{ name: "api", state: "up" }]],
-      specWith(),
-      DOMAIN,
-    );
+    const model = buildStateTimelineModel([[{ name: "api", state: "up" }]], specWith(), DOMAIN);
     expect(model.lanes).toEqual([]);
   });
 

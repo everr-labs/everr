@@ -26,9 +26,7 @@ function mapLogRow(row: { timestamp: string; body: string | null }): LogEntry {
   };
 }
 
-type StepLogsJobFilter =
-  | { jobName: string; jobId?: never }
-  | { jobId: string; jobName?: never };
+type StepLogsJobFilter = { jobName: string; jobId?: never } | { jobId: string; jobName?: never };
 
 type StepLogsParams = StepLogsJobFilter & {
   traceId: string;
@@ -42,8 +40,7 @@ function buildJobFilterClause(params: StepLogsJobFilter): {
 } {
   if (params.jobName !== undefined) {
     return {
-      clause:
-        "AND ScopeAttributes['cicd.pipeline.task.name'] = {jobName:String}",
+      clause: "AND ScopeAttributes['cicd.pipeline.task.name'] = {jobName:String}",
       queryParam: { jobName: params.jobName },
     };
   }
@@ -59,11 +56,8 @@ async function countStepLogs(
   },
   params: StepLogsParams,
 ): Promise<number> {
-  const { clause: jobClause, queryParam: jobParam } =
-    buildJobFilterClause(params);
-  const egrepClause = params.egrep
-    ? "\n      AND match(Body, {egrep:String})"
-    : "";
+  const { clause: jobClause, queryParam: jobParam } = buildJobFilterClause(params);
+  const egrepClause = params.egrep ? "\n      AND match(Body, {egrep:String})" : "";
   const sql = `
     SELECT count() as cnt
     FROM logs
@@ -93,16 +87,11 @@ async function getRawStepLogs(
     useTail?: boolean;
   },
 ): Promise<LogEntry[]> {
-  const { clause: jobClause, queryParam: jobParam } =
-    buildJobFilterClause(params);
+  const { clause: jobClause, queryParam: jobParam } = buildJobFilterClause(params);
   const order = params.useTail ? "DESC" : "ASC";
-  const limitClause =
-    typeof params.maxLines === "number" ? "LIMIT {maxLines:UInt32}" : "";
-  const offsetClause =
-    typeof params.offsetLines === "number" ? "OFFSET {offsetLines:UInt32}" : "";
-  const egrepClause = params.egrep
-    ? "\n\t\t\tAND match(Body, {egrep:String})"
-    : "";
+  const limitClause = typeof params.maxLines === "number" ? "LIMIT {maxLines:UInt32}" : "";
+  const offsetClause = typeof params.offsetLines === "number" ? "OFFSET {offsetLines:UInt32}" : "";
+  const egrepClause = params.egrep ? "\n\t\t\tAND match(Body, {egrep:String})" : "";
   const sql = `
 		SELECT
 			Timestamp as timestamp,
@@ -172,14 +161,10 @@ export const getRunDetails = createAuthenticatedServerFn({
     if (!pg) return null;
 
     const effectiveConclusion =
-      pg.status === "completed"
-        ? normalizeConclusion(pg.conclusion)
-        : pg.status;
+      pg.status === "completed" ? normalizeConclusion(pg.conclusion) : pg.status;
 
     const pullRequestUrls = pg.pullRequestNumbers?.length
-      ? pg.pullRequestNumbers.map(
-          (n) => `https://github.com/${pg.repo}/pull/${n}`,
-        )
+      ? pg.pullRequestNumbers.map((n) => `https://github.com/${pg.repo}/pull/${n}`)
       : undefined;
 
     return {
@@ -245,10 +230,7 @@ export const getRunJobs = createAuthenticatedServerFn({
       name: row.name,
       conclusion: row.conclusion,
       duration: Number(row.duration),
-      firstFailingStep:
-        Number(row.firstFailingStep) > 0
-          ? Number(row.firstFailingStep)
-          : undefined,
+      firstFailingStep: Number(row.firstFailingStep) > 0 ? Number(row.firstFailingStep) : undefined,
     }));
 
     // Append jobs from Postgres that aren't yet in ClickHouse
@@ -259,10 +241,7 @@ export const getRunJobs = createAuthenticatedServerFn({
       .map((j) => ({
         jobId: j.jobId,
         name: j.name,
-        conclusion:
-          j.status === "completed"
-            ? normalizeConclusion(j.conclusion)
-            : j.status,
+        conclusion: j.status === "completed" ? normalizeConclusion(j.conclusion) : j.status,
         duration: 0,
       }));
 
@@ -272,9 +251,7 @@ export const getRunJobs = createAuthenticatedServerFn({
 export const getAllJobsSteps = createAuthenticatedServerFn({
   method: "GET",
 })
-  .inputValidator(
-    z.object({ traceId: z.string(), jobIds: z.array(z.string()) }),
-  )
+  .inputValidator(z.object({ traceId: z.string(), jobIds: z.array(z.string()) }))
   .handler(async ({ data: { traceId, jobIds }, context: { clickhouse } }) => {
     if (jobIds.length === 0) {
       return {};
@@ -355,10 +332,7 @@ export const getStepLogs = createAuthenticatedServerFn({
       egrep: data.egrep,
     });
 
-    if (
-      data.tail !== undefined ||
-      (data.limit === undefined && data.offset === undefined)
-    ) {
+    if (data.tail !== undefined || (data.limit === undefined && data.offset === undefined)) {
       const maxLines = data.tail ?? DEFAULT_LOG_PAGE_SIZE;
       const logs = await getRawStepLogs(context.clickhouse, {
         traceId: data.traceId,
@@ -481,8 +455,7 @@ export const getRunSpans = createAuthenticatedServerFn({
         startTime: Number(row.startTime),
         endTime: Number(row.endTime),
         duration: Number(row.duration),
-        conclusion:
-          row.conclusion || TEST_RESULT_TO_CONCLUSION[row.testResult] || "",
+        conclusion: row.conclusion || TEST_RESULT_TO_CONCLUSION[row.testResult] || "",
         jobId: row.jobId || undefined,
         jobName: row.jobName || undefined,
         stepNumber: row.stepNumber || undefined,
@@ -493,8 +466,7 @@ export const getRunSpans = createAuthenticatedServerFn({
         runnerName: isJobSpan && row.runnerName ? row.runnerName : undefined,
         labels: isJobSpan && row.labels ? row.labels : undefined,
         sender: isJobSpan && row.sender ? row.sender : undefined,
-        runAttempt:
-          isJobSpan && row.runAttempt ? Number(row.runAttempt) : undefined,
+        runAttempt: isJobSpan && row.runAttempt ? Number(row.runAttempt) : undefined,
         htmlUrl: isJobSpan && row.htmlUrl ? row.htmlUrl : undefined,
         // Test-specific attributes
         testName: row.testName || undefined,

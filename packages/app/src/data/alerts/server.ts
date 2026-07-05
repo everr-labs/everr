@@ -4,18 +4,9 @@ import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { overlayPreview, type PreviewStatus } from "@/data/previews/overlay";
 import { getCoveredRepoids } from "@/data/previews/repoids";
-import {
-  effectiveRepoid,
-  liveOrPreview,
-  previewJoin,
-} from "@/data/previews/scope";
+import { effectiveRepoid, liveOrPreview, previewJoin } from "@/data/previews/scope";
 import { db } from "@/db/client";
-import {
-  alertDefinitions,
-  alertSettings,
-  alertSilences,
-  previews,
-} from "@/db/schema";
+import { alertDefinitions, alertSettings, alertSilences, previews } from "@/db/schema";
 import { auth } from "@/lib/auth.server";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import {
@@ -32,12 +23,7 @@ import {
   redactDeliverySecrets,
   resolveDeliverySettings,
 } from "./delivery-settings";
-import {
-  findSilenceForInstance,
-  type Matcher,
-  MatchersSchema,
-  validateMatchers,
-} from "./matchers";
+import { findSilenceForInstance, type Matcher, MatchersSchema, validateMatchers } from "./matchers";
 import type { AlertRuleYaml } from "./schema";
 import { activeSilenceConditions } from "./silences";
 import { renderMessage } from "./template";
@@ -204,10 +190,8 @@ function toAlertSummary(row: AlertSummaryRow): AlertSummary {
     displayName: displayFromDocument(document).name ?? null,
     // The one unavoidable bridge: `last_evidence_snapshot` is untyped `jsonb`.
     lastEvidenceSnapshot: (lastEvidenceSnapshot ?? []) as AlertEvidenceValue,
-    activeSilenceCount:
-      Number(rest.activeSilenceCount ?? active_silence_count) || 0,
-    activeSilenceExpiresAt:
-      rest.activeSilenceExpiresAt ?? active_silence_expires_at ?? null,
+    activeSilenceCount: Number(rest.activeSilenceCount ?? active_silence_count) || 0,
+    activeSilenceExpiresAt: rest.activeSilenceExpiresAt ?? active_silence_expires_at ?? null,
   };
 }
 
@@ -242,8 +226,7 @@ async function getAlertRow(alertId: string, organizationId: string) {
       document: alertDefinitions.document,
       parsedQuery: alertDefinitions.parsedQuery,
       notificationTitleTemplate: alertDefinitions.notificationTitleTemplate,
-      notificationDescriptionTemplate:
-        alertDefinitions.notificationDescriptionTemplate,
+      notificationDescriptionTemplate: alertDefinitions.notificationDescriptionTemplate,
       instanceLabelColumns: alertDefinitions.instanceLabelColumns,
     })
     .from(alertDefinitions)
@@ -313,10 +296,7 @@ export const listAlerts = createAuthenticatedServerFn({ method: "GET" })
       )
       .orderBy(...orderBy);
 
-    const [covered, rows] = await Promise.all([
-      getCoveredRepoids(organizationId, preview),
-      query,
-    ]);
+    const [covered, rows] = await Promise.all([getCoveredRepoids(organizationId, preview), query]);
     const overlaid = overlayPreview({ rows, coveredRepoids: covered });
     return overlaid.map((row) => ({
       ...toAlertSummary(row),
@@ -327,10 +307,7 @@ export const listAlerts = createAuthenticatedServerFn({ method: "GET" })
 export const getAlert = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(alertIdInput)
   .handler(async ({ data: { alertId }, context: { session } }) => {
-    const row = await getAlertRow(
-      alertId,
-      session.session.activeOrganizationId,
-    );
+    const row = await getAlertRow(alertId, session.session.activeOrganizationId);
     if (!row) return null;
     return {
       ...toAlertSummary(row),
@@ -350,32 +327,28 @@ export const listAlertEvents = createAuthenticatedServerFn({ method: "GET" })
       timeRange: TimeRangeSchema,
     }),
   )
-  .handler(
-    async ({
-      data: { alertId, limit, timeRange },
-      context: { session, clickhouse },
-    }) => {
-      const organizationId = session.session.activeOrganizationId;
-      const alert = await getAlertRow(alertId, organizationId);
-      if (!alert) throw new Error("Alert not found");
-      const { fromISO, toISO } = resolveTimeRange(timeRange);
+  .handler(async ({ data: { alertId, limit, timeRange }, context: { session, clickhouse } }) => {
+    const organizationId = session.session.activeOrganizationId;
+    const alert = await getAlertRow(alertId, organizationId);
+    if (!alert) throw new Error("Alert not found");
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
 
-      const rows = await clickhouse.query<{
-        eventId: string;
-        alertDefinitionId: string;
-        repoid: string;
-        slug: string;
-        eventType: string;
-        eventTime: string;
-        evaluationScheduledAt: string;
-        rowCount: number;
-        evidenceTruncated: number;
-        evidenceJson: string;
-        deliveryTargetsJson: string;
-        silenceId: string;
-        instanceLabelsJson: string[];
-      }>(
-        `
+    const rows = await clickhouse.query<{
+      eventId: string;
+      alertDefinitionId: string;
+      repoid: string;
+      slug: string;
+      eventType: string;
+      eventTime: string;
+      evaluationScheduledAt: string;
+      rowCount: number;
+      evidenceTruncated: number;
+      evidenceJson: string;
+      deliveryTargetsJson: string;
+      silenceId: string;
+      instanceLabelsJson: string[];
+    }>(
+      `
 	          WITH history AS (
 	            SELECT
 	              tenant_id,
@@ -450,34 +423,33 @@ export const listAlertEvents = createAuthenticatedServerFn({ method: "GET" })
 	            history.silence_id
 	          ORDER BY history.event_time DESC, history.event_id DESC
 	        `,
-        {
-          organizationId,
-          repoid: alert.repoid,
-          slug: alert.slug,
-          alertDefinitionId: alert.id,
-          limit,
-          fromTime: fromISO,
-          toTime: toISO,
-        },
-      );
+      {
+        organizationId,
+        repoid: alert.repoid,
+        slug: alert.slug,
+        alertDefinitionId: alert.id,
+        limit,
+        fromTime: fromISO,
+        toTime: toISO,
+      },
+    );
 
-      return rows.map((row) => ({
-        eventId: row.eventId,
-        alertDefinitionId: row.alertDefinitionId,
-        repoid: row.repoid,
-        slug: row.slug,
-        eventType: row.eventType,
-        eventTime: row.eventTime,
-        evaluationScheduledAt: row.evaluationScheduledAt || null,
-        rowCount: Number(row.rowCount),
-        evidenceTruncated: Boolean(row.evidenceTruncated),
-        evidenceJson: row.evidenceJson,
-        deliveryTargets: parseDeliveryTargets(row.deliveryTargetsJson),
-        silenceId: row.silenceId,
-        instances: parseEventInstances(row.eventType, row.instanceLabelsJson),
-      })) satisfies AlertEvent[];
-    },
-  );
+    return rows.map((row) => ({
+      eventId: row.eventId,
+      alertDefinitionId: row.alertDefinitionId,
+      repoid: row.repoid,
+      slug: row.slug,
+      eventType: row.eventType,
+      eventTime: row.eventTime,
+      evaluationScheduledAt: row.evaluationScheduledAt || null,
+      rowCount: Number(row.rowCount),
+      evidenceTruncated: Boolean(row.evidenceTruncated),
+      evidenceJson: row.evidenceJson,
+      deliveryTargets: parseDeliveryTargets(row.deliveryTargetsJson),
+      silenceId: row.silenceId,
+      instances: parseEventInstances(row.eventType, row.instanceLabelsJson),
+    })) satisfies AlertEvent[];
+  });
 
 function parseJsonObject(json: string): Record<string, unknown> {
   try {
@@ -507,12 +479,7 @@ function parseEventInstances(
   eventType: string,
   labelsJson: readonly string[],
 ): AlertEventInstance[] {
-  const state =
-    eventType === "firing"
-      ? "firing"
-      : eventType === "resolved"
-        ? "resolved"
-        : null;
+  const state = eventType === "firing" ? "firing" : eventType === "resolved" ? "resolved" : null;
   if (!state) return [];
   return labelsJson.map((json) => ({
     state,
@@ -560,28 +527,24 @@ async function listActiveSilenceRows(alertId: string, organizationId: string) {
 
 export const listAlertInstances = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(alertIdInput.extend({ timeRange: TimeRangeSchema }))
-  .handler(
-    async ({
-      data: { alertId, timeRange },
-      context: { session, clickhouse },
-    }) => {
-      const organizationId = session.session.activeOrganizationId;
-      const [alert, silences] = await Promise.all([
-        getAlertRow(alertId, organizationId),
-        listActiveSilenceRows(alertId, organizationId),
-      ]);
-      if (!alert) throw new Error("Alert not found");
-      const { fromISO, toISO } = resolveTimeRange(timeRange);
+  .handler(async ({ data: { alertId, timeRange }, context: { session, clickhouse } }) => {
+    const organizationId = session.session.activeOrganizationId;
+    const [alert, silences] = await Promise.all([
+      getAlertRow(alertId, organizationId),
+      listActiveSilenceRows(alertId, organizationId),
+    ]);
+    if (!alert) throw new Error("Alert not found");
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
 
-      const rows = await clickhouse.query<{
-        fingerprint: string;
-        lastEventType: string;
-        labelsJson: string;
-        lastFiredEvidenceJson: string;
-        lastFiredAt: string;
-        lastResolvedAt: string;
-      }>(
-        `
+    const rows = await clickhouse.query<{
+      fingerprint: string;
+      lastEventType: string;
+      labelsJson: string;
+      lastFiredEvidenceJson: string;
+      lastFiredAt: string;
+      lastResolvedAt: string;
+    }>(
+      `
         SELECT
           instance_fingerprint AS fingerprint,
           argMax(event_type, event_time) AS lastEventType,
@@ -601,75 +564,59 @@ export const listAlertInstances = createAuthenticatedServerFn({ method: "GET" })
         ORDER BY (lastEventType = 'instance_fired') DESC, max(event_time) DESC
         LIMIT 500
       `,
-        {
-          organizationId,
-          repoid: alert.repoid,
-          slug: alert.slug,
-          alertDefinitionId: alert.id,
-          fromTime: fromISO,
-          toTime: toISO,
-        },
-      );
+      {
+        organizationId,
+        repoid: alert.repoid,
+        slug: alert.slug,
+        alertDefinitionId: alert.id,
+        fromTime: fromISO,
+        toTime: toISO,
+      },
+    );
 
-      const instanceLabelColumns = alert.instanceLabelColumns ?? [];
-      // Group snapshot rows by the same fingerprint the evaluator wrote to
-      // instance events, so each instance's rows are a single Map lookup.
-      const snapshotRowsByFingerprint = new Map<
-        string,
-        Record<string, AlertEvidenceValue>[]
-      >();
-      for (const row of evidenceRows(
-        alert.lastEvidenceSnapshot as AlertEvidenceValue | undefined,
-      )) {
-        const fingerprint = instanceFingerprint(
-          extractInstanceLabels(row, instanceLabelColumns),
-        );
-        const group = snapshotRowsByFingerprint.get(fingerprint);
-        if (group) {
-          group.push(row);
-        } else {
-          snapshotRowsByFingerprint.set(fingerprint, [row]);
-        }
+    const instanceLabelColumns = alert.instanceLabelColumns ?? [];
+    // Group snapshot rows by the same fingerprint the evaluator wrote to
+    // instance events, so each instance's rows are a single Map lookup.
+    const snapshotRowsByFingerprint = new Map<string, Record<string, AlertEvidenceValue>[]>();
+    for (const row of evidenceRows(alert.lastEvidenceSnapshot as AlertEvidenceValue | undefined)) {
+      const fingerprint = instanceFingerprint(extractInstanceLabels(row, instanceLabelColumns));
+      const group = snapshotRowsByFingerprint.get(fingerprint);
+      if (group) {
+        group.push(row);
+      } else {
+        snapshotRowsByFingerprint.set(fingerprint, [row]);
       }
+    }
 
-      return rows.map((row) => {
-        const labels = parseLabels(row.labelsJson);
-        const state =
-          row.lastEventType === "instance_fired" ? "firing" : "resolved";
-        const lastEvaluationRows =
-          state === "firing"
-            ? (snapshotRowsByFingerprint.get(row.fingerprint) ?? [])
-            : [];
-        const firstEvaluationRow = lastEvaluationRows[0];
-        return {
-          fingerprint: row.fingerprint,
-          labels,
-          state,
-          lastFiredAt: row.lastFiredAt || null,
-          lastResolvedAt: row.lastResolvedAt || null,
-          lastRow: parseJsonObject(row.lastFiredEvidenceJson) as Record<
-            string,
-            AlertEvidenceValue
-          >,
-          lastEvaluationRows,
-          lastEvaluationTitle: firstEvaluationRow
-            ? renderMessage(alert.notificationTitleTemplate, {
+    return rows.map((row) => {
+      const labels = parseLabels(row.labelsJson);
+      const state = row.lastEventType === "instance_fired" ? "firing" : "resolved";
+      const lastEvaluationRows =
+        state === "firing" ? (snapshotRowsByFingerprint.get(row.fingerprint) ?? []) : [];
+      const firstEvaluationRow = lastEvaluationRows[0];
+      return {
+        fingerprint: row.fingerprint,
+        labels,
+        state,
+        lastFiredAt: row.lastFiredAt || null,
+        lastResolvedAt: row.lastResolvedAt || null,
+        lastRow: parseJsonObject(row.lastFiredEvidenceJson) as Record<string, AlertEvidenceValue>,
+        lastEvaluationRows,
+        lastEvaluationTitle: firstEvaluationRow
+          ? renderMessage(alert.notificationTitleTemplate, {
+              firstRow: firstEvaluationRow,
+            })
+          : null,
+        lastEvaluationDescription:
+          firstEvaluationRow && alert.notificationDescriptionTemplate
+            ? renderMessage(alert.notificationDescriptionTemplate, {
                 firstRow: firstEvaluationRow,
               })
             : null,
-          lastEvaluationDescription:
-            firstEvaluationRow && alert.notificationDescriptionTemplate
-              ? renderMessage(alert.notificationDescriptionTemplate, {
-                  firstRow: firstEvaluationRow,
-                })
-              : null,
-          silenced:
-            state === "firing" &&
-            Boolean(findSilenceForInstance(silences, labels)),
-        } satisfies AlertInstanceSummary;
-      });
-    },
-  );
+        silenced: state === "firing" && Boolean(findSilenceForInstance(silences, labels)),
+      } satisfies AlertInstanceSummary;
+    });
+  });
 
 export type AlertSilenceSummary = {
   id: string;
@@ -696,9 +643,7 @@ export const getAlertSettings = createAuthenticatedServerFn({
   const [row] = await db
     .select({ delivery: alertSettings.delivery })
     .from(alertSettings)
-    .where(
-      eq(alertSettings.organizationId, session.session.activeOrganizationId),
-    )
+    .where(eq(alertSettings.organizationId, session.session.activeOrganizationId))
     .limit(1);
 
   return {
@@ -743,47 +688,42 @@ export const createSilence = createAuthenticatedServerFn({ method: "POST" })
       matchers: MatchersSchema.default([]),
     }),
   )
-  .handler(
-    async ({
-      data: { alertId, endsAt, reason, matchers },
-      context: { session },
-    }) => {
-      const organizationId = session.session.activeOrganizationId;
-      await ensureOrgAdmin();
-      const alert = await getAlertRow(alertId, organizationId);
-      if (!alert) throw new Error("Alert not found");
+  .handler(async ({ data: { alertId, endsAt, reason, matchers }, context: { session } }) => {
+    const organizationId = session.session.activeOrganizationId;
+    await ensureOrgAdmin();
+    const alert = await getAlertRow(alertId, organizationId);
+    if (!alert) throw new Error("Alert not found");
 
-      validateMatchers(matchers);
+    validateMatchers(matchers);
 
-      const startsAt = new Date();
-      const parsedEndsAt = new Date(endsAt);
-      if (parsedEndsAt <= startsAt) {
-        throw new Error("Silence end time must be in the future");
-      }
+    const startsAt = new Date();
+    const parsedEndsAt = new Date(endsAt);
+    if (parsedEndsAt <= startsAt) {
+      throw new Error("Silence end time must be in the future");
+    }
 
-      const [row] = await db
-        .insert(alertSilences)
-        .values({
-          organizationId,
-          alertDefinitionId: alertId,
-          startsAt,
-          endsAt: parsedEndsAt,
-          reason,
-          matchers,
-          createdByUserId: session.user.id,
-        })
-        .returning({
-          id: alertSilences.id,
-          startsAt: alertSilences.startsAt,
-          endsAt: alertSilences.endsAt,
-          reason: alertSilences.reason,
-          matchers: alertSilences.matchers,
-          createdByUserId: alertSilences.createdByUserId,
-        });
+    const [row] = await db
+      .insert(alertSilences)
+      .values({
+        organizationId,
+        alertDefinitionId: alertId,
+        startsAt,
+        endsAt: parsedEndsAt,
+        reason,
+        matchers,
+        createdByUserId: session.user.id,
+      })
+      .returning({
+        id: alertSilences.id,
+        startsAt: alertSilences.startsAt,
+        endsAt: alertSilences.endsAt,
+        reason: alertSilences.reason,
+        matchers: alertSilences.matchers,
+        createdByUserId: alertSilences.createdByUserId,
+      });
 
-      return row;
-    },
-  );
+    return row;
+  });
 
 export const cancelSilence = createAuthenticatedServerFn({ method: "POST" })
   .inputValidator(z.object({ silenceId: z.string().uuid() }))
@@ -815,11 +755,7 @@ export const cancelSilence = createAuthenticatedServerFn({ method: "POST" })
 // immediately (the scanner picks the alert up on its next tick) and keeps
 // runtime state — unlike an `everr apply` revival, the definition hasn't
 // changed, and the next evaluation corrects a stale firing/resolved state.
-async function setAlertActive(
-  alertId: string,
-  organizationId: string,
-  active: boolean,
-) {
+async function setAlertActive(alertId: string, organizationId: string, active: boolean) {
   await ensureOrgAdmin();
   const now = new Date();
   const [row] = await db
@@ -830,10 +766,7 @@ async function setAlertActive(
       updatedAt: now,
     })
     .where(
-      and(
-        eq(alertDefinitions.organizationId, organizationId),
-        eq(alertDefinitions.id, alertId),
-      ),
+      and(eq(alertDefinitions.organizationId, organizationId), eq(alertDefinitions.id, alertId)),
     )
     .returning({ id: alertDefinitions.id });
 

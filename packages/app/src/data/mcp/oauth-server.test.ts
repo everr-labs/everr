@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 vi.mock("@/env", () => ({
   env: { BETTER_AUTH_URL: "http://localhost:5173" },
@@ -22,9 +22,7 @@ describe("mcp-oauth server helpers", () => {
     await setActiveOrg(incoming, "org_1");
 
     const arg = api.setActiveOrganization.mock.calls[0][0];
-    expect((arg.headers as Headers).get("origin")).toBe(
-      "http://localhost:5173",
-    );
+    expect((arg.headers as Headers).get("origin")).toBe("http://localhost:5173");
     expect((arg.headers as Headers).get("cookie")).toBe("session=abc");
     expect(arg.body).toEqual({ organizationId: "org_1" });
   });
@@ -39,9 +37,7 @@ describe("mcp-oauth server helpers", () => {
 
     expect(res).toEqual({ url: "https://cb?code=1" });
     const arg = api.oauth2Consent.mock.calls[0][0];
-    expect((arg.headers as Headers).get("origin")).toBe(
-      "http://localhost:5173",
-    );
+    expect((arg.headers as Headers).get("origin")).toBe("http://localhost:5173");
     expect(arg.body).toMatchObject({
       accept: true,
       oauth_query: "client_id=c&sig=s",

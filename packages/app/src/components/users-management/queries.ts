@@ -1,16 +1,8 @@
-import {
-  queryOptions,
-  useMutation,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import { authClient } from "@/lib/auth-client";
 
-type ListMembersResult = Awaited<
-  ReturnType<typeof authClient.organization.listMembers>
->;
-type ListInvitationsResult = Awaited<
-  ReturnType<typeof authClient.organization.listInvitations>
->;
+type ListMembersResult = Awaited<ReturnType<typeof authClient.organization.listMembers>>;
+type ListInvitationsResult = Awaited<ReturnType<typeof authClient.organization.listInvitations>>;
 
 type MembersData = NonNullable<ListMembersResult["data"]>;
 type InvitationsData = NonNullable<ListInvitationsResult["data"]>;
@@ -52,8 +44,7 @@ export function membersQueryOptions() {
     queryKey: membersQueryKey,
     queryFn: async () => {
       const res = await authClient.organization.listMembers();
-      if (res.error)
-        throw new Error(res.error.message ?? "Failed to load members");
+      if (res.error) throw new Error(res.error.message ?? "Failed to load members");
       return unwrapArray<Member>(res.data, "members");
     },
   });
@@ -64,12 +55,9 @@ export function invitationsQueryOptions() {
     queryKey: invitationsQueryKey,
     queryFn: async () => {
       const res = await authClient.organization.listInvitations();
-      if (res.error)
-        throw new Error(res.error.message ?? "Failed to load invitations");
+      if (res.error) throw new Error(res.error.message ?? "Failed to load invitations");
       const all = unwrapArray<Invitation>(res.data, "invitations");
-      return all.filter(
-        (inv) => (inv as { status?: string }).status === "pending",
-      );
+      return all.filter((inv) => (inv as { status?: string }).status === "pending");
     },
   });
 }
@@ -82,8 +70,7 @@ export function useInviteMember() {
         email: vars.email,
         role: vars.role,
       });
-      if (res.error)
-        throw new Error(res.error.message ?? "Failed to send invitation");
+      if (res.error) throw new Error(res.error.message ?? "Failed to send invitation");
       return res.data;
     },
     onSuccess: () => {
@@ -99,8 +86,7 @@ export function useRevokeInvitation() {
       const res = await authClient.organization.cancelInvitation({
         invitationId,
       });
-      if (res.error)
-        throw new Error(res.error.message ?? "Failed to revoke invitation");
+      if (res.error) throw new Error(res.error.message ?? "Failed to revoke invitation");
       return res.data;
     },
     onSuccess: () => {
@@ -117,8 +103,7 @@ export function useUpdateMemberRole() {
         memberId: vars.memberId,
         role: vars.role,
       });
-      if (res.error)
-        throw new Error(res.error.message ?? "Failed to update role");
+      if (res.error) throw new Error(res.error.message ?? "Failed to update role");
       return res.data;
     },
     onSuccess: () => {
@@ -134,8 +119,7 @@ export function useRemoveMember() {
       const res = await authClient.organization.removeMember({
         memberIdOrEmail: memberId,
       });
-      if (res.error)
-        throw new Error(res.error.message ?? "Failed to remove member");
+      if (res.error) throw new Error(res.error.message ?? "Failed to remove member");
       return res.data;
     },
     onSuccess: () => {

@@ -21,13 +21,10 @@ export interface DashboardTree {
   dashboards: DashboardSummary[];
 }
 
-const byName = (a: { name: string }, b: { name: string }) =>
-  a.name.localeCompare(b.name);
+const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name);
 
 const dashboardOrder = (a: DashboardSummary, b: DashboardSummary) =>
-  byName(a, b) ||
-  a.slug.localeCompare(b.slug) ||
-  a.project.localeCompare(b.project);
+  byName(a, b) || a.slug.localeCompare(b.slug) || a.project.localeCompare(b.project);
 
 function splitPath(folderPath: string): string[] {
   return folderPath
@@ -77,9 +74,7 @@ export function buildTree(dashboards: DashboardSummary[]): DashboardTree {
   });
 
   return {
-    folders: [...root.children.values()]
-      .map(freeze)
-      .sort((a, b) => a.name.localeCompare(b.name)),
+    folders: [...root.children.values()].map(freeze).sort((a, b) => a.name.localeCompare(b.name)),
     dashboards: [...root.dashboards].sort(dashboardOrder),
   };
 }
@@ -88,10 +83,7 @@ export interface SearchResults {
   dashboards: { dashboard: DashboardSummary; path: string }[];
 }
 
-export function searchItems(
-  dashboards: DashboardSummary[],
-  query: string,
-): SearchResults {
+export function searchItems(dashboards: DashboardSummary[], query: string): SearchResults {
   const q = query.trim().toLowerCase();
   if (!q) return { dashboards: [] };
   return {

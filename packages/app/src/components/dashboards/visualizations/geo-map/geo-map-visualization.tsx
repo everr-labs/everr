@@ -77,10 +77,7 @@ function EmptyState() {
   );
 }
 
-export function GeoMapVisualization({
-  spec,
-  data,
-}: VisualizationProps<GeoMapSpec>) {
+export function GeoMapVisualization({ spec, data }: VisualizationProps<GeoMapSpec>) {
   const countries = getWorldCountries();
 
   const projection = useMemo(
@@ -106,9 +103,7 @@ export function GeoMapVisualization({
   const [hover, setHover] = useState<Hover | null>(null);
 
   const fmt = (v: number | null) =>
-    v == null
-      ? "–"
-      : `${formatStatValue(v, undefined)}${spec.unit ? ` ${spec.unit}` : ""}`;
+    v == null ? "–" : `${formatStatValue(v, undefined)}${spec.unit ? ` ${spec.unit}` : ""}`;
 
   const content = useMemo(() => {
     if (!data) return null;
@@ -125,14 +120,9 @@ export function GeoMapVisualization({
       };
     }
     const { markers, skipped } = extractMarkers(data, spec);
-    const vals = markers
-      .map((m) => m.value)
-      .filter((v): v is number => v != null);
+    const vals = markers.map((m) => m.value).filter((v): v is number => v != null);
     const domain = deriveDomain(vals, spec);
-    const rRange: [number, number] = [
-      spec.minRadius,
-      Math.max(spec.minRadius, spec.maxRadius),
-    ];
+    const rRange: [number, number] = [spec.minRadius, Math.max(spec.minRadius, spec.maxRadius)];
     // Big markers first so small overlapping ones stay on top and hoverable.
     const sized: SizedMarker[] = markers
       .map((m) => ({
@@ -153,12 +143,7 @@ export function GeoMapVisualization({
   const baseLand = useMemo(
     () =>
       countryPaths.map((c) => (
-        <path
-          key={c.key}
-          d={c.d}
-          className="fill-muted stroke-border"
-          strokeWidth={0.5}
-        />
+        <path key={c.key} d={c.d} className="fill-muted stroke-border" strokeWidth={0.5} />
       )),
     [countryPaths],
   );
@@ -178,9 +163,7 @@ export function GeoMapVisualization({
           fill={colorRamp(spec.colorScheme, t)}
           className="stroke-border"
           strokeWidth={0.5}
-          onMouseEnter={(e) =>
-            setHover({ title: c.name, value: v, x: e.clientX, y: e.clientY })
-          }
+          onMouseEnter={(e) => setHover({ title: c.name, value: v, x: e.clientX, y: e.clientY })}
           onMouseLeave={() => setHover(null)}
         />
       );
@@ -204,9 +187,7 @@ export function GeoMapVisualization({
           fillOpacity={MARKER_OPACITY}
           stroke="white"
           strokeWidth={0.75}
-          onMouseEnter={(e) =>
-            setHover({ title, value: m.value, x: e.clientX, y: e.clientY })
-          }
+          onMouseEnter={(e) => setHover({ title, value: m.value, x: e.clientX, y: e.clientY })}
           onMouseLeave={() => setHover(null)}
         />
       );
@@ -215,9 +196,7 @@ export function GeoMapVisualization({
 
   if (!content) return <EmptyState />;
   const hasData =
-    content.kind === "choropleth"
-      ? content.values.size > 0
-      : content.markers.length > 0;
+    content.kind === "choropleth" ? content.values.size > 0 : content.markers.length > 0;
   if (!hasData) return <EmptyState />;
 
   const [d0, d1] = content.domain;
@@ -232,9 +211,7 @@ export function GeoMapVisualization({
           className="h-full w-full"
           role="img"
           aria-label="Geographic map"
-          onMouseMove={(e) =>
-            setHover((h) => (h ? { ...h, x: e.clientX, y: e.clientY } : h))
-          }
+          onMouseMove={(e) => setHover((h) => (h ? { ...h, x: e.clientX, y: e.clientY } : h))}
           onMouseLeave={() => setHover(null)}
         >
           <title>Geographic map</title>
@@ -313,16 +290,10 @@ export function GeoMapVisualization({
                 style={{
                   // Sampled through the scale curve so the ramp matches the
                   // actual region fills under sqrt/log scales too.
-                  background: `linear-gradient(to right, ${[
-                    0, 0.25, 0.5, 0.75, 1,
-                  ]
+                  background: `linear-gradient(to right, ${[0, 0.25, 0.5, 0.75, 1]
                     .map((p) => {
                       const v = d0 + p * (d1 - d0);
-                      const t = normalizeValue(
-                        v,
-                        content.domain,
-                        spec.scaleType,
-                      );
+                      const t = normalizeValue(v, content.domain, spec.scaleType);
                       return `${colorRamp(spec.colorScheme, t)} ${p * 100}%`;
                     })
                     .join(", ")})`,

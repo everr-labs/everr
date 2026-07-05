@@ -47,9 +47,7 @@ export function DashboardBreadcrumb() {
           return (
             <Fragment key={`${crumb.to}-${String(i)}`}>
               {i > 0 && <BreadcrumbSeparator className="hidden md:block" />}
-              <BreadcrumbItem
-                className={isLast ? undefined : "hidden md:block"}
-              >
+              <BreadcrumbItem className={isLast ? undefined : "hidden md:block"}>
                 {isLast ? (
                   <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
                 ) : (

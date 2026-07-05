@@ -1,9 +1,6 @@
 import { useQueries } from "@tanstack/react-query";
 import { useSearch } from "@tanstack/react-router";
-import type {
-  VariableMeta,
-  VariableValues,
-} from "@/data/dashboards/interpolate";
+import type { VariableMeta, VariableValues } from "@/data/dashboards/interpolate";
 import { variableOptionsQueryOptions } from "@/data/dashboards/options";
 import type { Variable } from "@/data/dashboards/schema";
 import {
@@ -57,9 +54,7 @@ export function useDashboardVariables(): DashboardVariablesState {
     }
   }
   const optionQueries = useQueries({
-    queries: queryBacked.map(({ query }) =>
-      variableOptionsQueryOptions(query, from, to),
-    ),
+    queries: queryBacked.map(({ query }) => variableOptionsQueryOptions(query, from, to)),
   });
   const queryStateByName = new Map(
     queryBacked.map(({ name }, index) => [name, optionQueries[index]]),
@@ -94,11 +89,7 @@ export function useDashboardVariables(): DashboardVariablesState {
   }
 
   const values = effectiveVariableValues(variables, vars);
-  const { meta, pendingAllNames, allErrors } = buildAllMeta(
-    variables,
-    values,
-    optionsState,
-  );
+  const { meta, pendingAllNames, allErrors } = buildAllMeta(variables, values, optionsState);
 
   return {
     variables,

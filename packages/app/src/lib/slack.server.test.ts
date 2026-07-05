@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { sendSlackMessage } from "./slack.server";
 
 const url = "https://hooks.slack.com/services/T0/B0/abc";
@@ -25,9 +25,7 @@ describe("sendSlackMessage", () => {
   });
 
   it("throws on a non-2xx response", async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response("invalid_payload", { status: 400 }),
-    );
+    vi.mocked(fetch).mockResolvedValue(new Response("invalid_payload", { status: 400 }));
     await expect(sendSlackMessage(url, payload)).rejects.toThrow(/400/);
   });
 });

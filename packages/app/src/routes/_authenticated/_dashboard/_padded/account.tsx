@@ -30,9 +30,7 @@ type LinkedAccount = NonNullable<
   Awaited<ReturnType<typeof authClient.listAccounts>>["data"]
 >[number];
 
-export const Route = createFileRoute(
-  "/_authenticated/_dashboard/_padded/account",
-)({
+export const Route = createFileRoute("/_authenticated/_dashboard/_padded/account")({
   staticData: { breadcrumb: "Account Settings", hideTimeRangePicker: true },
   head: () => ({
     meta: [{ title: "Everr - Account Settings" }],
@@ -53,9 +51,7 @@ function AccountSettingsPage() {
   const [deleteOrganization, setDeleteOrganization] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
-  const isGoogleLinked = linkedAccounts.some(
-    (account) => account.providerId === "google",
-  );
+  const isGoogleLinked = linkedAccounts.some((account) => account.providerId === "google");
   const isDeleteConfirmationValid = deleteConfirmation === "DELETE";
   const activeOrganizationMembers = activeOrganization?.members ?? [];
   const currentMemberRole = activeOrganizationMembers.find(
@@ -64,10 +60,8 @@ function AccountSettingsPage() {
   const canDeleteActiveOrganization = isOrgOwnerRole(currentMemberRole);
   const isOnlyActiveOrganizationOwner =
     canDeleteActiveOrganization &&
-    activeOrganizationMembers.filter((member) => isOrgOwnerRole(member.role))
-      .length === 1;
-  const activeOrganizationName =
-    activeOrganization?.name ?? "current organization";
+    activeOrganizationMembers.filter((member) => isOrgOwnerRole(member.role)).length === 1;
+  const activeOrganizationName = activeOrganization?.name ?? "current organization";
   const googleButtonLabel = isLoadingLinkedAccounts
     ? "Checking..."
     : isLinkingGoogle
@@ -90,8 +84,7 @@ function AccountSettingsPage() {
 
         if (result.error) {
           setGoogleLinkError(
-            result.error.message ??
-              "We couldn't load your connected accounts right now.",
+            result.error.message ?? "We couldn't load your connected accounts right now.",
           );
           return;
         }
@@ -140,9 +133,7 @@ function AccountSettingsPage() {
         setIsLinkingGoogle(false);
       }
     } catch (error) {
-      setGoogleLinkError(
-        error instanceof Error ? error.message : "Google linking failed.",
-      );
+      setGoogleLinkError(error instanceof Error ? error.message : "Google linking failed.");
       setIsLinkingGoogle(false);
     }
   }
@@ -157,8 +148,7 @@ function AccountSettingsPage() {
 
     try {
       const shouldDeleteOrganization =
-        canDeleteActiveOrganization &&
-        (deleteOrganization || isOnlyActiveOrganizationOwner);
+        canDeleteActiveOrganization && (deleteOrganization || isOnlyActiveOrganizationOwner);
       await deleteCurrentUserAccount({
         data: shouldDeleteOrganization
           ? { confirmation: "DELETE", deleteOrganization: true }
@@ -167,9 +157,7 @@ function AccountSettingsPage() {
       await navigate({ to: "/" });
     } catch (error) {
       setDeleteError(
-        error instanceof Error
-          ? error.message
-          : "We couldn't delete your account right now.",
+        error instanceof Error ? error.message : "We couldn't delete your account right now.",
       );
     } finally {
       setIsDeletingAccount(false);
@@ -180,9 +168,7 @@ function AccountSettingsPage() {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
       <div>
         <h1 className="text-xl font-bold tracking-tight">Account Settings</h1>
-        <p className="text-muted-foreground">
-          Manage your profile and account lifecycle.
-        </p>
+        <p className="text-muted-foreground">Manage your profile and account lifecycle.</p>
       </div>
 
       {/* TODO: Replace WorkOS UserProfile/UserSecurity widgets with better-auth equivalents */}
@@ -190,9 +176,7 @@ function AccountSettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Google Connection</CardTitle>
-          <CardDescription>
-            Link Google to sign in to this account with Google.
-          </CardDescription>
+          <CardDescription>Link Google to sign in to this account with Google.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -210,16 +194,12 @@ function AccountSettingsPage() {
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              {isGoogleLinked ? (
-                <Badge variant="secondary">Connected</Badge>
-              ) : null}
+              {isGoogleLinked ? <Badge variant="secondary">Connected</Badge> : null}
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
-                disabled={
-                  isLoadingLinkedAccounts || isLinkingGoogle || isGoogleLinked
-                }
+                disabled={isLoadingLinkedAccounts || isLinkingGoogle || isGoogleLinked}
                 onClick={() => void handleLinkGoogle()}
               >
                 {isLinkingGoogle ? (
@@ -266,39 +246,29 @@ function AccountSettingsPage() {
             </CardDescription>
           </div>
           <AlertDialog>
-            <AlertDialogTrigger
-              render={<Button variant="destructive" size="lg" />}
-            >
+            <AlertDialogTrigger render={<Button variant="destructive" size="lg" />}>
               Delete account
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>Delete account</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Type <strong>DELETE</strong> to confirm permanent account
-                  deletion
+                  Type <strong>DELETE</strong> to confirm permanent account deletion
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <div className="flex flex-col gap-2">
-                <label
-                  htmlFor="delete-confirmation"
-                  className="text-xs font-medium"
-                >
+                <label htmlFor="delete-confirmation" className="text-xs font-medium">
                   Confirmation
                 </label>
                 <Input
                   id="delete-confirmation"
                   placeholder="Type DELETE"
                   value={deleteConfirmation}
-                  onChange={(event) =>
-                    setDeleteConfirmation(event.target.value)
-                  }
+                  onChange={(event) => setDeleteConfirmation(event.target.value)}
                 />
-                {canDeleteActiveOrganization &&
-                isOnlyActiveOrganizationOwner ? (
+                {canDeleteActiveOrganization && isOnlyActiveOrganizationOwner ? (
                   <p className="rounded-md border border-destructive/20 bg-destructive/5 p-2 text-xs font-medium">
-                    This action is also going to delete the{" "}
-                    {activeOrganizationName} organization.
+                    This action is also going to delete the {activeOrganizationName} organization.
                   </p>
                 ) : canDeleteActiveOrganization ? (
                   <label
@@ -311,17 +281,14 @@ function AccountSettingsPage() {
                       aria-label={`Delete ${activeOrganizationName} organization too`}
                       className="mt-0.5 size-3.5 accent-current"
                       checked={deleteOrganization}
-                      onChange={(event) =>
-                        setDeleteOrganization(event.target.checked)
-                      }
+                      onChange={(event) => setDeleteOrganization(event.target.checked)}
                     />
                     <span className="flex flex-col gap-1">
                       <span className="font-medium">
                         Delete {activeOrganizationName} organization too
                       </span>
                       <span className="text-muted-foreground">
-                        Leave this unchecked to remove only your account and
-                        keep the organization.
+                        Leave this unchecked to remove only your account and keep the organization.
                       </span>
                     </span>
                   </label>
@@ -333,9 +300,7 @@ function AccountSettingsPage() {
                 ) : null}
               </div>
               <AlertDialogFooter>
-                <AlertDialogCancel disabled={isDeletingAccount}>
-                  Cancel
-                </AlertDialogCancel>
+                <AlertDialogCancel disabled={isDeletingAccount}>Cancel</AlertDialogCancel>
                 <AlertDialogAction
                   variant="destructive"
                   disabled={!isDeleteConfirmationValid || isDeletingAccount}
@@ -361,13 +326,7 @@ function isOrgOwnerRole(role: string | null | undefined) {
   );
 }
 
-function GoogleIcon({
-  className,
-  dataIcon,
-}: {
-  className?: string;
-  dataIcon?: "inline-start";
-}) {
+function GoogleIcon({ className, dataIcon }: { className?: string; dataIcon?: "inline-start" }) {
   return (
     <svg
       aria-hidden="true"

@@ -13,12 +13,7 @@ interface ExpressLikeRequest {
 type ExpressLikeNext = (err?: unknown) => void;
 
 export function errorHandler() {
-  return (
-    err: unknown,
-    req: ExpressLikeRequest,
-    _res: unknown,
-    next: ExpressLikeNext,
-  ): void => {
+  return (err: unknown, req: ExpressLikeRequest, _res: unknown, next: ExpressLikeNext): void => {
     const attributes: Attributes = {
       "http.request.method": req.method,
       "url.full": fullUrl(req),

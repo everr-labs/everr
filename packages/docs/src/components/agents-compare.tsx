@@ -44,8 +44,8 @@ export function AgentsCompare() {
             Same task. One side is guessing.
           </h2>
           <p className="mt-6 max-w-2xl text-base leading-relaxed text-fd-muted-foreground md:text-lg">
-            Hand your coding agent a bug and it reasons from the code alone:
-            plausible, confident, and often wrong.
+            Hand your coding agent a bug and it reasons from the code alone: plausible, confident,
+            and often wrong.
           </p>
         </motion.div>
 
@@ -97,11 +97,7 @@ function GuessingColumn({ inView }: { inView: boolean }) {
       transition={{ ...REVEAL.transition, delay: 0.15 }}
       className="flex flex-col rounded-2xl border border-dashed border-fd-border bg-fd-card/40 p-6 sm:p-8 md:rounded-r-none md:border-r-0"
     >
-      <ColumnHeader
-        label="Without Everr"
-        sub="reasoning from code only"
-        tone="muted"
-      />
+      <ColumnHeader label="Without Everr" sub="reasoning from code only" tone="muted" />
 
       <TaskLine />
 
@@ -109,13 +105,7 @@ function GuessingColumn({ inView }: { inView: boolean }) {
       <AgentMessage className="mt-5">
         <ul className="space-y-2.5">
           {GUESSING_REASONING.map((line, i) => (
-            <ReasonRow
-              key={line.text}
-              line={line}
-              index={i}
-              inView={inView}
-              tone="muted"
-            />
+            <ReasonRow key={line.text} line={line} index={i} inView={inView} tone="muted" />
           ))}
         </ul>
       </AgentMessage>
@@ -153,11 +143,7 @@ function GroundedColumn({ inView }: { inView: boolean }) {
       transition={{ ...REVEAL.transition, delay: 0.3 }}
       className="relative flex flex-col rounded-2xl border border-fd-border bg-fd-card p-6 shadow-lg shadow-black/20 sm:p-8 md:rounded-l-none"
     >
-      <ColumnHeader
-        label="With Everr"
-        sub="grounded in what ran"
-        tone="primary"
-      />
+      <ColumnHeader label="With Everr" sub="grounded in what ran" tone="primary" />
 
       <TaskLine />
 
@@ -172,10 +158,7 @@ function GroundedColumn({ inView }: { inView: boolean }) {
             sql="SELECT ResourceAttributes['service.version'] AS version, count() FROM traces WHERE ServiceName = 'checkout' AND StatusCode = 'Error' GROUP BY version"
             result={
               <>
-                37 errors ·{" "}
-                <span className="font-medium text-fd-foreground">
-                  all on a1f3c9d
-                </span>
+                37 errors · <span className="font-medium text-fd-foreground">all on a1f3c9d</span>
               </>
             }
           />
@@ -197,10 +180,9 @@ function GroundedColumn({ inView }: { inView: boolean }) {
       {/* 2 — synthesis, then the fix as a diff (kept intact) */}
       <AgentMessage className="mt-5">
         <p className="text-[13.5px] leading-relaxed text-fd-foreground">
-          All ten connections are in use, so the pool is my bottleneck. Commit{" "}
-          <Code>a1f3c9d</Code> scaled checkout out to more workers but left the
-          pool at 10, so requests queue for a connection, hit the acquire
-          timeout, and 500. I'll raise the cap to match the workers.
+          All ten connections are in use, so the pool is my bottleneck. Commit <Code>a1f3c9d</Code>{" "}
+          scaled checkout out to more workers but left the pool at 10, so requests queue for a
+          connection, hit the acquire timeout, and 500. I'll raise the cap to match the workers.
         </p>
         <div className="overflow-hidden rounded-lg border border-fd-border bg-fd-background shadow-lg shadow-black/20">
           <WindowChrome
@@ -224,17 +206,12 @@ function GroundedColumn({ inView }: { inView: boolean }) {
               >
                 12
               </span>
-              <span
-                aria-hidden
-                className="select-none px-2 py-1 text-red-400/70"
-              >
+              <span aria-hidden className="select-none px-2 py-1 text-red-400/70">
                 -
               </span>
               <code className="py-1 pr-3 text-fd-muted-foreground">
                 {"pool: { max: "}
-                <span className="rounded-sm bg-red-500/25 px-1 text-red-300">
-                  10
-                </span>
+                <span className="rounded-sm bg-red-500/25 px-1 text-red-300">10</span>
                 {" }"}
               </code>
             </div>
@@ -246,10 +223,7 @@ function GroundedColumn({ inView }: { inView: boolean }) {
               >
                 12
               </span>
-              <span
-                aria-hidden
-                className="select-none px-2 py-1 text-green-400"
-              >
+              <span aria-hidden className="select-none px-2 py-1 text-green-400">
                 +
               </span>
               <code className="py-1 pr-3 text-fd-foreground">
@@ -270,23 +244,19 @@ function GroundedColumn({ inView }: { inView: boolean }) {
       {/* 3 — reproduce locally, then confirm */}
       <AgentMessage className="mt-5">
         <p className="text-[13.5px] leading-relaxed text-fd-foreground">
-          Before I ship, I'll reproduce it locally, replaying the load against
-          the patched pool and checking again with <Code>everr</Code>.
+          Before I ship, I'll reproduce it locally, replaying the load against the patched pool and
+          checking again with <Code>everr</Code>.
         </p>
         <div className="overflow-hidden rounded-lg border border-fd-border bg-fd-background/60">
           <QueryRow
             verb="everr local query"
             sql="SELECT count() FROM traces WHERE ServiceName = 'checkout' AND StatusCode = 'Error'"
-            result={
-              <span className="font-medium text-fd-foreground">0 errors</span>
-            }
+            result={<span className="font-medium text-fd-foreground">0 errors</span>}
           />
         </div>
         <div className="flex items-center gap-2 text-fd-muted-foreground">
           <Check className="size-3.5 shrink-0 text-primary" />
-          <span className="font-mono text-[11px] uppercase tracking-[0.12em]">
-            fix confirmed
-          </span>
+          <span className="font-mono text-[11px] uppercase tracking-[0.12em]">fix confirmed</span>
         </div>
       </AgentMessage>
     </motion.div>
@@ -325,15 +295,7 @@ function ColumnHeader({
 }
 
 /** One query in the agent's investigation: the command run, then the fact it returned. */
-function QueryRow({
-  verb,
-  sql,
-  result,
-}: {
-  verb: string;
-  sql: string;
-  result: ReactNode;
-}) {
+function QueryRow({ verb, sql, result }: { verb: string; sql: string; result: ReactNode }) {
   return (
     <div className="px-3.5 py-3">
       <code className="block whitespace-pre-wrap break-words font-mono text-[12.5px] leading-relaxed">
@@ -381,13 +343,7 @@ function AgentAvatar() {
 }
 
 /** A spoken message from the agent: avatar in the gutter, prose alongside. */
-function AgentMessage({
-  className,
-  children,
-}: {
-  className?: string;
-  children: ReactNode;
-}) {
+function AgentMessage({ className, children }: { className?: string; children: ReactNode }) {
   return (
     <div className={cn("flex items-start gap-2.5", className)}>
       <AgentAvatar />

@@ -3,9 +3,7 @@ import { Pool } from "pg";
 import * as schema from "@/db/schema";
 import { dbEnv } from "@/env/db";
 
-const shouldUseSsl = ["true", "1", "yes", "on"].includes(
-  dbEnv.DATABASE_SSL?.toLowerCase() ?? "",
-);
+const shouldUseSsl = ["true", "1", "yes", "on"].includes(dbEnv.DATABASE_SSL?.toLowerCase() ?? "");
 
 export const pool = new Pool({
   host: dbEnv.DATABASE_HOST,

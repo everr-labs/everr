@@ -20,11 +20,7 @@ export function InstallCommandBlock({ command }: { command: string }) {
         className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
         aria-label="Copy install command"
       >
-        {copied ? (
-          <Check className="size-4 text-green-400" />
-        ) : (
-          <Copy className="size-4" />
-        )}
+        {copied ? <Check className="size-4 text-green-400" /> : <Copy className="size-4" />}
       </button>
     </div>
   );

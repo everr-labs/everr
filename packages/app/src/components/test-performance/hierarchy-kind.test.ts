@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import {
   getTestPerfHierarchyKind,
   getTestPerfHierarchyKindBadgeLabel,
@@ -11,15 +11,11 @@ describe("getTestPerfHierarchyKind", () => {
   });
 
   it("treats expandable package children as test suites", () => {
-    expect(getTestPerfHierarchyKind({ isSuite: true }, "pkg/auth")).toBe(
-      "suite",
-    );
+    expect(getTestPerfHierarchyKind({ isSuite: true }, "pkg/auth")).toBe("suite");
   });
 
   it("treats non-expandable package children as tests", () => {
-    expect(getTestPerfHierarchyKind({ isSuite: false }, "pkg/auth")).toBe(
-      "test",
-    );
+    expect(getTestPerfHierarchyKind({ isSuite: false }, "pkg/auth")).toBe("test");
   });
 });
 

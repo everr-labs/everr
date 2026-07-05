@@ -5,4 +5,4 @@ status:
   stability:
     alpha: [traces, logs, metrics]
   codeowners:
-    active: ['Elfo404']
+    active: ["Elfo404"]

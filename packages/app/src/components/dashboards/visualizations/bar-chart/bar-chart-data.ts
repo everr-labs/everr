@@ -34,9 +34,7 @@ export interface BarChartModel {
  *
  * A time axis is sorted ascending; categories keep first-seen (query) order.
  */
-export function buildBarChartModel(
-  dataSets: QueryResultRow[][],
-): BarChartModel {
+export function buildBarChartModel(dataSets: QueryResultRow[][]): BarChartModel {
   const chartConfig: ChartConfig = {};
   const valueKeys: string[] = [];
   const byX = new Map<string | number, Record<string, unknown>>();
@@ -61,9 +59,7 @@ export function buildBarChartModel(
     }
 
     const groupKeys = getGroupKeys(data, [xKey]);
-    const rawValueKeys = getValueKeys(data, xKey).filter(
-      (k) => !groupKeys.includes(k),
-    );
+    const rawValueKeys = getValueKeys(data, xKey).filter((k) => !groupKeys.includes(k));
 
     let rows: QueryResultRow[];
     // The series' source names: pivoted group values, or raw value-column names.

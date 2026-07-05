@@ -2,10 +2,7 @@ import type { TimeRange } from "@everr/ui/lib/time-range";
 import { Boxes, Layers } from "lucide-react";
 import type { LogsRepositoryLike } from "../../logs/data/repository";
 import type { TracesRepositoryLike } from "../../traces/data/repository";
-import {
-  unionEnvironmentOptions,
-  unionServiceOptions,
-} from "../data/explore-filter-options";
+import { unionEnvironmentOptions, unionServiceOptions } from "../data/explore-filter-options";
 import { ExploreFilterPill } from "./explore-filter-pill";
 
 // The Explore topbar's global Service + Environment filters. Unlike the previous

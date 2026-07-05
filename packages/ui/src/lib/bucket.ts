@@ -11,8 +11,7 @@
 // these keeps `toStartOfInterval` boundaries on clean clock lines. Beyond the
 // ladder we round up to a whole number of days.
 const NICE_STEPS_SECONDS = [
-  1, 2, 5, 10, 15, 20, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 10800,
-  21600, 43200, 86400,
+  1, 2, 5, 10, 15, 20, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 10800, 21600, 43200, 86400,
 ] as const;
 const DAY_SECONDS = 86400;
 
@@ -30,11 +29,7 @@ export function snapToNiceStep(seconds: number): number {
  * range yields ~`targetBuckets` buckets. Always >= 1; a zero or negative range
  * floors to 1 second.
  */
-export function bucketSeconds(
-  from: Date,
-  to: Date,
-  targetBuckets: number,
-): number {
+export function bucketSeconds(from: Date, to: Date, targetBuckets: number): number {
   const rangeSeconds = (to.getTime() - from.getTime()) / 1000;
   const target = Math.max(1, Math.floor(targetBuckets));
   return snapToNiceStep(rangeSeconds / target);

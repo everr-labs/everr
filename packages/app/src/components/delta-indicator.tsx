@@ -8,8 +8,7 @@ export function DeltaIndicator({
   invertColors?: boolean;
 }) {
   if (previous === 0 && current === 0) return null;
-  if (previous === 0)
-    return <span className="text-green-600 text-xs font-normal">new</span>;
+  if (previous === 0) return <span className="text-green-600 text-xs font-normal">new</span>;
 
   const delta = ((current - previous) / previous) * 100;
   if (Math.abs(delta) < 0.5) return null;
@@ -19,9 +18,7 @@ export function DeltaIndicator({
   const isGood = invertColors ? !isPositive : isPositive;
 
   return (
-    <span
-      className={`text-xs font-normal ${isGood ? "text-green-600" : "text-red-600"}`}
-    >
+    <span className={`text-xs font-normal ${isGood ? "text-green-600" : "text-red-600"}`}>
       {isPositive ? "+" : ""}
       {Math.round(delta)}%
     </span>

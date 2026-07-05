@@ -78,7 +78,8 @@ spec:
     error-groups:
       kind: Panel
       spec:
-        display: { name: Distinct error groups, description: Unique exception type + message signatures }
+        display:
+          { name: Distinct error groups, description: Unique exception type + message signatures }
         plugin:
           kind: StatChart
           spec:
@@ -231,11 +232,35 @@ spec:
     - kind: Grid
       spec:
         items:
-          - { x: 0,  y: 0,  width: 6,  height: 5,  content: { $ref: "#/spec/panels/error-spans" } }
-          - { x: 6,  y: 0,  width: 6,  height: 5,  content: { $ref: "#/spec/panels/error-rate" } }
-          - { x: 12, y: 0,  width: 6,  height: 5,  content: { $ref: "#/spec/panels/error-groups" } }
-          - { x: 18, y: 0,  width: 6,  height: 5,  content: { $ref: "#/spec/panels/error-logs" } }
-          - { x: 0,  y: 5,  width: 24, height: 8,  content: { $ref: "#/spec/panels/errors-over-time" } }
-          - { x: 0,  y: 13, width: 24, height: 10, content: { $ref: "#/spec/panels/top-error-groups" } }
-          - { x: 0,  y: 23, width: 12, height: 9,  content: { $ref: "#/spec/panels/failing-operations" } }
-          - { x: 12, y: 23, width: 12, height: 9,  content: { $ref: "#/spec/panels/recent-error-logs" } }
+          - { x: 0, y: 0, width: 6, height: 5, content: { $ref: "#/spec/panels/error-spans" } }
+          - { x: 6, y: 0, width: 6, height: 5, content: { $ref: "#/spec/panels/error-rate" } }
+          - { x: 12, y: 0, width: 6, height: 5, content: { $ref: "#/spec/panels/error-groups" } }
+          - { x: 18, y: 0, width: 6, height: 5, content: { $ref: "#/spec/panels/error-logs" } }
+          - {
+              x: 0,
+              y: 5,
+              width: 24,
+              height: 8,
+              content: { $ref: "#/spec/panels/errors-over-time" },
+            }
+          - {
+              x: 0,
+              y: 13,
+              width: 24,
+              height: 10,
+              content: { $ref: "#/spec/panels/top-error-groups" },
+            }
+          - {
+              x: 0,
+              y: 23,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/failing-operations" },
+            }
+          - {
+              x: 12,
+              y: 23,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/recent-error-logs" },
+            }

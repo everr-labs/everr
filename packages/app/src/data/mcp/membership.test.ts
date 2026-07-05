@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const { selectMock } = vi.hoisted(() => ({ selectMock: vi.fn() }));
 vi.mock("@/db/client", () => ({
@@ -21,8 +21,6 @@ describe("assertCurrentMember", () => {
   });
   it("throws when no membership", async () => {
     selectMock.mockReturnValueOnce(returning([]));
-    await expect(assertCurrentMember("u", "org-1")).rejects.toBeInstanceOf(
-      McpMembershipError,
-    );
+    await expect(assertCurrentMember("u", "org-1")).rejects.toBeInstanceOf(McpMembershipError);
   });
 });

@@ -16,9 +16,9 @@ const FAQS: FaqItem[] = [
     q: "Where is my telemetry stored?",
     a: (
       <>
-        While you develop, a collector runs on your machine and the data stays
-        local. In production, your services send OpenTelemetry to the Everr
-        cloud over OTLP, into a shared workspace scoped to your organization.
+        While you develop, a collector runs on your machine and the data stays local. In production,
+        your services send OpenTelemetry to the Everr cloud over OTLP, into a shared workspace
+        scoped to your organization.
       </>
     ),
   },
@@ -26,9 +26,9 @@ const FAQS: FaqItem[] = [
     q: "What can I send to Everr?",
     a: (
       <>
-        Traces, logs, and metrics in one OpenTelemetry model, the same signal
-        from your laptop to CI to production. Business events ride the same
-        pipeline, so product and engineering query the same data.
+        Traces, logs, and metrics in one OpenTelemetry model, the same signal from your laptop to CI
+        to production. Business events ride the same pipeline, so product and engineering query the
+        same data.
       </>
     ),
   },
@@ -36,9 +36,9 @@ const FAQS: FaqItem[] = [
     q: "Do I have to instrument my code?",
     a: (
       <>
-        If your runtime already speaks OpenTelemetry, you're most of the way
-        there. Everr's bundled skills also help your coding assistant add the
-        right instrumentation, working straight from your repository.
+        If your runtime already speaks OpenTelemetry, you're most of the way there. Everr's bundled
+        skills also help your coding assistant add the right instrumentation, working straight from
+        your repository.
       </>
     ),
   },
@@ -47,14 +47,9 @@ const FAQS: FaqItem[] = [
     a: (
       <>
         Through bundled skills plus plain SQL via the CLI:{" "}
-        <code className="font-mono text-[0.95em] text-fd-foreground">
-          everr local query
-        </code>{" "}
-        and{" "}
-        <code className="font-mono text-[0.95em] text-fd-foreground">
-          everr cloud query
-        </code>
-        . Your coding assistant reads your telemetry directly, no glue code.
+        <code className="font-mono text-[0.95em] text-fd-foreground">everr local query</code> and{" "}
+        <code className="font-mono text-[0.95em] text-fd-foreground">everr cloud query</code>. Your
+        coding assistant reads your telemetry directly, no glue code.
       </>
     ),
   },
@@ -62,10 +57,9 @@ const FAQS: FaqItem[] = [
     q: "Am I locked in?",
     a: (
       <>
-        No. Everr uses OpenTelemetry for ingest, the Perses spec for dashboards,
-        and a ClickHouse SQL surface for queries, all open standards. Your data,
-        dashboards, and alerts are portable files, not trapped behind a
-        proprietary agent or query language.
+        No. Everr uses OpenTelemetry for ingest, the Perses spec for dashboards, and a ClickHouse
+        SQL surface for queries, all open standards. Your data, dashboards, and alerts are portable
+        files, not trapped behind a proprietary agent or query language.
       </>
     ),
   },

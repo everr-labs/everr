@@ -1,10 +1,7 @@
 import { isValid } from "@everr/datemath";
 import { TimeRangeSchema } from "@everr/ui/lib/time-range";
 import { z } from "zod";
-import {
-  attributesField,
-  attributeValuesInputSchema,
-} from "../../attribute-filter/schemas";
+import { attributesField, attributeValuesInputSchema } from "../../attribute-filter/schemas";
 
 export type {
   AttributeFilter,
@@ -59,9 +56,7 @@ export const SearchErrorIssuesInputSchema = z.object({
   offset: z.coerce.number().int().min(0).default(0),
   attributes: attributesField(["resource", "log", "scope"]),
 });
-export type SearchErrorIssuesInput = z.infer<
-  typeof SearchErrorIssuesInputSchema
->;
+export type SearchErrorIssuesInput = z.infer<typeof SearchErrorIssuesInputSchema>;
 
 export const GetErrorIssueInputSchema = z.object({
   fingerprint: z.string().min(1),
@@ -80,22 +75,16 @@ export const ListErrorServicesInputSchema = z.object({
   toTs: z.string().min(1),
   attributes: attributesField(["resource", "log", "scope"]),
 });
-export type ListErrorServicesInput = z.infer<
-  typeof ListErrorServicesInputSchema
->;
+export type ListErrorServicesInput = z.infer<typeof ListErrorServicesInputSchema>;
 
 export const ErrorAttributeKeysInputSchema = z.object({
   timeRange: TimeRangeSchema,
 });
-export type ErrorAttributeKeysInput = z.infer<
-  typeof ErrorAttributeKeysInputSchema
->;
+export type ErrorAttributeKeysInput = z.infer<typeof ErrorAttributeKeysInputSchema>;
 
 export const ErrorAttributeValuesInputSchema = attributeValuesInputSchema([
   "resource",
   "log",
   "scope",
 ]);
-export type ErrorAttributeValuesInput = z.infer<
-  typeof ErrorAttributeValuesInputSchema
->;
+export type ErrorAttributeValuesInput = z.infer<typeof ErrorAttributeValuesInputSchema>;

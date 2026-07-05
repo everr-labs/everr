@@ -1,7 +1,7 @@
 import { ErrorIssueSearchSchema } from "@everr/telemetry-explorer/errors";
 import { LogsSearchFiltersShape } from "@everr/telemetry-explorer/logs";
 import { TraceSearchParamsSchema } from "@everr/telemetry-explorer/traces";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { z } from "zod";
 import { ExploreSearchSchema, ExploreSearchShape } from "@/lib/explore-search";
 import { TimeRangeSearchSchema } from "@/lib/time-range";

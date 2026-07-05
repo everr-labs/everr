@@ -1,5 +1,5 @@
 import { ClickHouseError } from "@clickhouse/client";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 vi.mock("@/lib/clickhouse", () => ({
   querySqlApi: vi.fn(),
@@ -44,9 +44,7 @@ describe("/api/cli/sql", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("content-type")).toContain(
-      "application/x-ndjson",
-    );
+    expect(response.headers.get("content-type")).toContain("application/x-ndjson");
     expect(mockedQuerySqlApi).toHaveBeenCalledWith("SELECT 1 AS ok", "org-42");
     expect(await response.text()).toBe('{"ok":1}\n');
   });
@@ -67,14 +65,8 @@ describe("/api/cli/sql", () => {
   });
 
   it.each([
-    [
-      "standard query-level SETTINGS",
-      "SELECT 1 SETTINGS max_result_rows = 1000",
-    ],
-    [
-      "tenant override query-level SETTINGS",
-      "SELECT 1 SETTINGS SQL_everr_tenant_id = 'other-org'",
-    ],
+    ["standard query-level SETTINGS", "SELECT 1 SETTINGS max_result_rows = 1000"],
+    ["tenant override query-level SETTINGS", "SELECT 1 SETTINGS SQL_everr_tenant_id = 'other-org'"],
   ])("passes through SQL with %s", async (_name, sql) => {
     mockedQuerySqlApi.mockResolvedValue([{ ok: 1 }]);
 
@@ -141,9 +133,7 @@ describe("/api/cli/sql", () => {
     ],
     ["UNKNOWN_DATABASE", "81", "Database secret_db does not exist."],
   ])("collapses %s into a uniform message that leaks no schema", async (type, code, rawMessage) => {
-    mockedQuerySqlApi.mockRejectedValue(
-      new ClickHouseError({ message: rawMessage, code, type }),
-    );
+    mockedQuerySqlApi.mockRejectedValue(new ClickHouseError({ message: rawMessage, code, type }));
 
     const response = await postSql("SELECT * FROM app.tenant_retention");
     const body = (await response.json()) as { error: string };

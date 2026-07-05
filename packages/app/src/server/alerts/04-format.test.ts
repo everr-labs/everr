@@ -1,9 +1,5 @@
-import { describe, expect, it } from "vitest";
-import {
-  extractInstanceValues,
-  formatDuration,
-  instanceLine,
-} from "./04-format";
+import { describe, expect, it } from "vite-plus/test";
+import { extractInstanceValues, formatDuration, instanceLine } from "./04-format";
 
 const at = (iso: string) => new Date(iso);
 
@@ -30,11 +26,7 @@ describe("extractInstanceValues", () => {
   });
 
   it("caps at three values and handles missing rows", () => {
-    expect(extractInstanceValues({ a: 1, b: 2, c: 3, d: 4 }, {})).toEqual([
-      "a: 1",
-      "b: 2",
-      "c: 3",
-    ]);
+    expect(extractInstanceValues({ a: 1, b: 2, c: 3, d: 4 }, {})).toEqual(["a: 1", "b: 2", "c: 3"]);
     expect(extractInstanceValues(undefined, {})).toEqual([]);
   });
 });

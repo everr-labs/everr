@@ -6,30 +6,13 @@ import { cn } from "@everr/ui/lib/utils";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Bell,
-  Check,
-  Loader2,
-  SparklesIcon,
-  Terminal,
-} from "lucide-react";
+import { ArrowLeft, ArrowRight, Bell, Check, Loader2, SparklesIcon, Terminal } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import {
-  type ReactNode,
-  type SubmitEvent,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { type ReactNode, type SubmitEvent, useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { INSTALL_COMMAND } from "@/common/install-command";
 import { OrgMetadataSchema } from "@/common/org-metadata";
-import {
-  CreateOrganizationInputSchema,
-  OrganizationNameSchema,
-} from "@/common/organization-name";
+import { CreateOrganizationInputSchema, OrganizationNameSchema } from "@/common/organization-name";
 import { GithubInstallStep } from "@/components/github-install-step";
 import { InstallCommandBlock } from "@/components/install-command-block";
 import {
@@ -37,11 +20,7 @@ import {
   markOnboardingComplete,
   updateOrganizationName,
 } from "@/data/auth";
-import {
-  getGithubAppInstallStatus,
-  getInstallationRepos,
-  importRepos,
-} from "@/data/onboarding";
+import { getGithubAppInstallStatus, getInstallationRepos, importRepos } from "@/data/onboarding";
 import { authClient } from "@/lib/auth-client";
 import { approveDevice } from "@/lib/device-auth";
 
@@ -61,9 +40,7 @@ function parseDeviceUserCode(redirectTo: string | undefined): string | null {
   if (!redirectTo) return null;
   try {
     const url = new URL(redirectTo, "http://localhost");
-    return url.pathname === "/device"
-      ? url.searchParams.get("user_code")
-      : null;
+    return url.pathname === "/device" ? url.searchParams.get("user_code") : null;
   } catch {
     return null;
   }
@@ -120,9 +97,7 @@ export const Route = createFileRoute("/onboarding")({
   // after onboarding completes, instead of always landing on the dashboard.
   validateSearch: z.object({ redirect: z.string().optional() }),
   async beforeLoad({ context: { queryClient, session }, search }) {
-    const organization = await queryClient.ensureQueryData(
-      activeOrganizationOptions(),
-    );
+    const organization = await queryClient.ensureQueryData(activeOrganizationOptions());
 
     // Safety net: org should always exist after signup (auto-created by hook).
     // If missing, proceed to onboarding which will handle it.
@@ -154,8 +129,7 @@ export const Route = createFileRoute("/onboarding")({
 });
 
 function OnboardingWizard() {
-  const { githubInstalled, organization: initialOrganization } =
-    Route.useLoaderData();
+  const { githubInstalled, organization: initialOrganization } = Route.useLoaderData();
   const { data: sessionData, isPending: authLoading } = authClient.useSession();
   const user = sessionData?.user;
   const navigate = useNavigate();
@@ -169,16 +143,12 @@ function OnboardingWizard() {
   const organizationName = organization?.name ?? "";
 
   const [currentStep, setCurrentStep] = useState<Step>("organization");
-  const [[stepKey, direction], setStepState] = useState<[number, number]>([
-    0, 0,
-  ]);
+  const [[stepKey, direction], setStepState] = useState<[number, number]>([0, 0]);
 
   const currentStepIndex = STEPS.indexOf(currentStep);
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const [contentHeight, setContentHeight] = useState<number | undefined>(
-    undefined,
-  );
+  const [contentHeight, setContentHeight] = useState<number | undefined>(undefined);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -198,9 +168,7 @@ function OnboardingWizard() {
   const [isGithubInstalled, setIsGithubInstalled] = useState(githubInstalled);
 
   if (authLoading || !user) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-background" />
-    );
+    return <main className="flex min-h-screen items-center justify-center bg-background" />;
   }
 
   function goTo(step: Step) {
@@ -266,17 +234,14 @@ function OnboardingWizard() {
             {STEPS.map((step, i) => {
               const isActive = i === currentStepIndex;
               const isComplete = i < currentStepIndex;
-              const isSkipped =
-                step === "workflows" && !isGithubInstalled && isComplete;
+              const isSkipped = step === "workflows" && !isGithubInstalled && isComplete;
               const isClickable = i <= currentStepIndex && !isSkipped;
 
               return (
                 <button
                   key={step}
                   type="button"
-                  onClick={() =>
-                    isClickable && step !== currentStep && goTo(step)
-                  }
+                  onClick={() => isClickable && step !== currentStep && goTo(step)}
                   disabled={!isClickable}
                   className={cn(
                     "relative flex flex-1 items-center justify-center gap-2 px-3 py-3 text-xs font-medium outline-none transition-colors disabled:cursor-default",
@@ -308,9 +273,7 @@ function OnboardingWizard() {
                       narrow screens we keep just the numbered badges and the
                       progress bar — four labels can't fit in one row. */}
                   <span className="hidden tracking-wide sm:inline">
-                    {step === "app" && deviceUserCode
-                      ? "Authorize"
-                      : STEP_LABELS[step]}
+                    {step === "app" && deviceUserCode ? "Authorize" : STEP_LABELS[step]}
                   </span>
                 </button>
               );
@@ -427,9 +390,7 @@ function OrganizationStep({
     },
     onError: (error) => {
       setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "We couldn't finish setup. Please try again.",
+        error instanceof Error ? error.message : "We couldn't finish setup. Please try again.",
       );
     },
   });
@@ -456,8 +417,7 @@ function OrganizationStep({
       title="Set up your workspace"
       description={
         <>
-          Signed in as{" "}
-          <span className="font-medium text-foreground">{user.email}</span>
+          Signed in as <span className="font-medium text-foreground">{user.email}</span>
         </>
       }
       index={1}
@@ -492,10 +452,7 @@ function OrganizationStep({
                 />
 
                 {field.state.meta.errors.length > 0 && (
-                  <p
-                    className="text-xs text-destructive overflow-hidden"
-                    role="alert"
-                  >
+                  <p className="text-xs text-destructive overflow-hidden" role="alert">
                     {field.state.meta.errors
                       .map((error) => error?.message)
                       .filter(Boolean)
@@ -690,19 +647,11 @@ function WorkflowsStep({
         {showSuccess ? (
           <div className="flex flex-col items-center py-8">
             <Check className="size-8 text-green-400" />
-            <p className="mt-4 text-sm text-foreground">
-              Import completed successfully.
-            </p>
+            <p className="mt-4 text-sm text-foreground">Import completed successfully.</p>
             <p className="mt-1 text-sm text-center text-muted-foreground">
-              Your data is being processed and will appear gradually on the
-              dashboard.
+              Your data is being processed and will appear gradually on the dashboard.
             </p>
-            <Button
-              type="button"
-              size="lg"
-              className="mt-6"
-              onClick={onComplete}
-            >
+            <Button type="button" size="lg" className="mt-6" onClick={onComplete}>
               Continue
               <ArrowRight className="ml-2 size-3.5" />
             </Button>
@@ -717,9 +666,7 @@ function WorkflowsStep({
                 <div
                   className={cn(
                     "h-full bg-primary",
-                    progress
-                      ? "transition-all duration-300"
-                      : "animate-fake-progress",
+                    progress ? "transition-all duration-300" : "animate-fake-progress",
                   )}
                   style={
                     progress
@@ -731,9 +678,7 @@ function WorkflowsStep({
                 />
               </div>
               <p className="mt-2 text-center text-xs text-muted-foreground">
-                {progress
-                  ? `${progress.runsProcessed} runs imported`
-                  : "Gathering the runs list"}
+                {progress ? `${progress.runsProcessed} runs imported` : "Gathering the runs list"}
               </p>
             </div>
           </div>
@@ -766,8 +711,7 @@ function WorkflowsStep({
                   <ul className="max-h-64 space-y-1 overflow-y-auto">
                     {reposQuery.data.map((repo) => {
                       const selected = selectedRepos.has(repo.fullName);
-                      const disabled =
-                        !selected && selectedRepos.size >= maxRepos;
+                      const disabled = !selected && selectedRepos.size >= maxRepos;
                       return (
                         <li key={repo.id}>
                           <button
@@ -813,18 +757,12 @@ function WorkflowsStep({
               importMutation.data.totalErrors > 0 &&
               importMutation.data.totalJobs === 0 && (
                 <div className="mt-4 flex items-center justify-between text-sm text-amber-400">
-                  Could not import any workflow data. You can try again or skip
-                  this step.
+                  Could not import any workflow data. You can try again or skip this step.
                 </div>
               )}
 
             <div className="mt-8 flex items-center justify-between border-t border-border pt-6">
-              <Button
-                type="button"
-                variant="outline"
-                size="lg"
-                onClick={onBack}
-              >
+              <Button type="button" variant="outline" size="lg" onClick={onBack}>
                 <ArrowLeft className="mr-2 size-3.5" />
                 Back
               </Button>
@@ -857,13 +795,7 @@ function WorkflowsStep({
   );
 }
 
-function AppStep({
-  onBack,
-  onFinish,
-}: {
-  onBack: () => void;
-  onFinish: () => void;
-}) {
+function AppStep({ onBack, onFinish }: { onBack: () => void; onFinish: () => void }) {
   return (
     <StepContainer title="Install Everr" index={4}>
       <motion.section
@@ -894,9 +826,7 @@ function AppStep({
               </motion.div>
               <p className="text-sm">
                 <span className="font-semibold">{feature.title}</span>{" "}
-                <span className="text-muted-foreground">
-                  {feature.description}
-                </span>
+                <span className="text-muted-foreground">{feature.description}</span>
               </p>
             </motion.div>
           ))}
@@ -937,9 +867,7 @@ function DeviceAuthorizeStep({
   onApproved: () => Promise<unknown>;
   onGoToDashboard: () => void;
 }) {
-  const [status, setStatus] = useState<
-    "idle" | "approving" | "approved" | "error"
-  >("idle");
+  const [status, setStatus] = useState<"idle" | "approving" | "approved" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   async function approve() {
@@ -1003,17 +931,13 @@ function DeviceAuthorizeStep({
       >
         <h2 className="text-lg font-semibold">Authorize the Everr CLI</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Confirm this matches the code shown in your terminal, then approve to
-          finish signing the CLI in.
+          Confirm this matches the code shown in your terminal, then approve to finish signing the
+          CLI in.
         </p>
 
         <div className="mt-6 border border-border bg-muted/40 px-5 py-4 rounded-md">
-          <p className="text-xs font-medium tracking-wide text-muted-foreground">
-            Device code
-          </p>
-          <p className="mt-1 font-mono text-2xl font-semibold tracking-[0.18em]">
-            {userCode}
-          </p>
+          <p className="text-xs font-medium tracking-wide text-muted-foreground">Device code</p>
+          <p className="mt-1 font-mono text-2xl font-semibold tracking-[0.18em]">{userCode}</p>
         </div>
 
         {status === "error" && errorMessage ? (
@@ -1060,12 +984,7 @@ interface StepContainerProps {
   description?: ReactNode;
   index: number;
 }
-function StepContainer({
-  children,
-  title,
-  description,
-  index,
-}: StepContainerProps) {
+function StepContainer({ children, title, description, index }: StepContainerProps) {
   return (
     <motion.div variants={staggerContainer} initial="enter" animate="center">
       <div>
@@ -1076,9 +995,7 @@ function StepContainer({
           {title}
         </h1>
         {description && (
-          <p className="mt-3 text-center text-sm text-muted-foreground">
-            {description}
-          </p>
+          <p className="mt-3 text-center text-sm text-muted-foreground">{description}</p>
         )}
       </div>
 

@@ -13,11 +13,7 @@ interface SpanDetailPanelProps {
   traceId: string;
 }
 
-export function SpanDetailPanel({
-  span,
-  minTime,
-  traceId,
-}: SpanDetailPanelProps) {
+export function SpanDetailPanel({ span, minTime, traceId }: SpanDetailPanelProps) {
   return (
     <div
       className="border-l-3 bg-muted rounded-r p-3"
@@ -46,20 +42,14 @@ export function SpanDetailPanel({
       <div className="space-y-1.5 text-xs">
         <div className="flex gap-2">
           <span className="text-muted-foreground w-20">Status</span>
-          <span className="font-medium capitalize">
-            {span.conclusion || "—"}
-          </span>
+          <span className="font-medium capitalize">{span.conclusion || "—"}</span>
         </div>
-        {!span.stepNumber &&
-          span.queueTime !== undefined &&
-          span.queueTime > 0 && (
-            <div className="flex gap-2">
-              <span className="text-muted-foreground w-20">Queued</span>
-              <span className="font-medium">
-                {formatDuration(span.queueTime, "ms")}
-              </span>
-            </div>
-          )}
+        {!span.stepNumber && span.queueTime !== undefined && span.queueTime > 0 && (
+          <div className="flex gap-2">
+            <span className="text-muted-foreground w-20">Queued</span>
+            <span className="font-medium">{formatDuration(span.queueTime, "ms")}</span>
+          </div>
+        )}
         {span.jobName && (
           <div className="flex gap-2">
             <span className="text-muted-foreground w-20">Job</span>
@@ -163,19 +153,15 @@ export function SpanDetailPanel({
             <SenderCell sender={span.sender} className="font-medium" />
           </div>
         )}
-        {!span.stepNumber &&
-          span.runAttempt !== undefined &&
-          span.runAttempt > 1 && (
-            <div className="flex gap-2">
-              <span className="text-muted-foreground w-20">Attempt</span>
-              <span className="font-medium">#{span.runAttempt}</span>
-            </div>
-          )}
+        {!span.stepNumber && span.runAttempt !== undefined && span.runAttempt > 1 && (
+          <div className="flex gap-2">
+            <span className="text-muted-foreground w-20">Attempt</span>
+            <span className="font-medium">#{span.runAttempt}</span>
+          </div>
+        )}
         <div className="flex gap-2">
           <span className="text-muted-foreground w-20">Span ID</span>
-          <span className="font-mono text-[10px]">
-            {span.spanId.slice(0, 16)}...
-          </span>
+          <span className="font-mono text-[10px]">{span.spanId.slice(0, 16)}...</span>
         </div>
       </div>
 

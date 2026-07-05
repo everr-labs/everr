@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { buildNodeGraph, MAX_LAYOUT_NODES } from "./node-graph-data";
 import { nodeGraphSpec } from "./spec";
 
@@ -39,19 +39,12 @@ describe("buildNodeGraph", () => {
         valueColumn: "calls",
       }),
     );
-    expect(model.edges).toEqual([
-      { source: "a", target: "b", value: 3, hasValue: true },
-    ]);
+    expect(model.edges).toEqual([{ source: "a", target: "b", value: 3, hasValue: true }]);
   });
 
   it("falls back to the first two columns and first numeric column", () => {
-    const model = buildNodeGraph(
-      [[{ from: "a", to: "b", note: "x", n: "7" }]],
-      specWith(),
-    );
-    expect(model.edges).toEqual([
-      { source: "a", target: "b", value: 7, hasValue: true },
-    ]);
+    const model = buildNodeGraph([[{ from: "a", to: "b", note: "x", n: "7" }]], specWith());
+    expect(model.edges).toEqual([{ source: "a", target: "b", value: 7, hasValue: true }]);
   });
 
   it("weighs every edge 1 when there is no numeric column", () => {
@@ -90,15 +83,10 @@ describe("buildNodeGraph", () => {
 
   it("merges edges across query frames", () => {
     const model = buildNodeGraph(
-      [
-        [{ source: "a", target: "b", value: 1 }],
-        [{ source: "a", target: "b", value: 2 }],
-      ],
+      [[{ source: "a", target: "b", value: 1 }], [{ source: "a", target: "b", value: 2 }]],
       specWith(),
     );
-    expect(model.edges).toEqual([
-      { source: "a", target: "b", value: 3, hasValue: true },
-    ]);
+    expect(model.edges).toEqual([{ source: "a", target: "b", value: 3, hasValue: true }]);
   });
 
   it("drops rows with missing endpoints and self-loops, counting them", () => {
@@ -129,9 +117,7 @@ describe("buildNodeGraph", () => {
     );
     // mid touches both edges (100 + 1) so it outranks big (100)
     expect(model.nodes.map((n) => n.id)).toEqual(["mid", "big"]);
-    expect(model.edges).toEqual([
-      { source: "big", target: "mid", value: 100, hasValue: true },
-    ]);
+    expect(model.edges).toEqual([{ source: "big", target: "mid", value: 100, hasValue: true }]);
     expect(model.hiddenNodes).toBe(1);
   });
 

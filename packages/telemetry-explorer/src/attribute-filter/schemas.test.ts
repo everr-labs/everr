@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import {
   type AttributeFilter,
   AttributeFilterSchema,
@@ -17,15 +17,13 @@ describe("attributesField", () => {
 
   it("defaults to [] and accepts supported sources", () => {
     expect(logsAttrs.parse(undefined)).toEqual([]);
-    expect(
-      logsAttrs.parse([{ source: "log", key: "k", op: "exists" }]),
-    ).toEqual([{ source: "log", key: "k", op: "exists", values: [] }]);
+    expect(logsAttrs.parse([{ source: "log", key: "k", op: "exists" }])).toEqual([
+      { source: "log", key: "k", op: "exists", values: [] },
+    ]);
   });
 
   it("rejects a filter whose source the domain does not support", () => {
-    expect(() =>
-      logsAttrs.parse([{ source: "span", key: "k", op: "exists" }]),
-    ).toThrow();
+    expect(() => logsAttrs.parse([{ source: "span", key: "k", op: "exists" }])).toThrow();
   });
 });
 
@@ -61,24 +59,20 @@ describe("attribute-filter schemas", () => {
   });
 
   it("lists ops in display order", () => {
-    expect(AttributeOpSchema.options).toEqual([
-      "in",
-      "not_in",
-      "exists",
-      "missing",
-    ]);
+    expect(AttributeOpSchema.options).toEqual(["in", "not_in", "exists", "missing"]);
   });
 
   it("defaults values to an empty array", () => {
-    expect(
-      AttributeFilterSchema.parse({ source: "resource", key: "k", op: "in" }),
-    ).toEqual({ source: "resource", key: "k", op: "in", values: [] });
+    expect(AttributeFilterSchema.parse({ source: "resource", key: "k", op: "in" })).toEqual({
+      source: "resource",
+      key: "k",
+      op: "in",
+      values: [],
+    });
   });
 
   it("rejects an empty key", () => {
-    expect(() =>
-      AttributeFilterSchema.parse({ source: "log", key: "", op: "exists" }),
-    ).toThrow();
+    expect(() => AttributeFilterSchema.parse({ source: "log", key: "", op: "exists" })).toThrow();
   });
 
   // Exercises the type-only exports so the dead-code check sees them used

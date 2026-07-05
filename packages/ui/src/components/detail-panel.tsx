@@ -2,18 +2,10 @@ import { cn } from "@everr/ui/lib/utils";
 import { Check, Copy } from "lucide-react";
 import { useState } from "react";
 
-export function DetailSection({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
+export function DetailSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mb-4 last:mb-0">
-      <h2 className="text-muted-foreground mb-2 text-xs font-medium">
-        {title}
-      </h2>
+      <h2 className="text-muted-foreground mb-2 text-xs font-medium">{title}</h2>
       <div className="grid gap-2">{children}</div>
     </section>
   );
@@ -55,13 +47,7 @@ export function DetailItem({
   );
 }
 
-export function CopyValueButton({
-  value,
-  className,
-}: {
-  value: string;
-  className?: string;
-}) {
+export function CopyValueButton({ value, className }: { value: string; className?: string }) {
   const [copied, setCopied] = useState(false);
   const handleCopy = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -89,13 +75,7 @@ export function CopyValueButton({
   );
 }
 
-export function AttributeMap({
-  title,
-  map,
-}: {
-  title: string;
-  map: Record<string, string>;
-}) {
+export function AttributeMap({ title, map }: { title: string; map: Record<string, string> }) {
   const entries = Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
   if (entries.length === 0) return null;
   return (

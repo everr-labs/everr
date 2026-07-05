@@ -45,10 +45,7 @@ type ClickhouseTelemetryAttributes = {
 };
 
 export function isExpectedServerFunctionError(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    EXPECTED_SERVER_FUNCTION_MESSAGES.has(error.message)
-  );
+  return error instanceof Error && EXPECTED_SERVER_FUNCTION_MESSAGES.has(error.message);
 }
 
 export function isExpectedSqlApiQueryError(
@@ -71,7 +68,5 @@ function readErrorField(error: unknown, field: "code" | "type") {
   if (!error || typeof error !== "object") return "";
 
   const value = (error as Record<string, unknown>)[field];
-  return typeof value === "string" || typeof value === "number"
-    ? String(value)
-    : "";
+  return typeof value === "string" || typeof value === "number" ? String(value) : "";
 }

@@ -88,13 +88,11 @@ export function PricingToggle() {
           </p>
           <h2 className="mt-4 text-balance font-heading text-3xl leading-[1.1] tracking-tight sm:text-4xl md:text-5xl lg:text-6xl">
             <span className="text-fd-foreground">Host it yourself,</span>{" "}
-            <span className="text-fd-muted-foreground/60">
-              or let us run it.
-            </span>
+            <span className="text-fd-muted-foreground/60">or let us run it.</span>
           </h2>
           <p className="mt-6 max-w-xl text-base leading-relaxed text-fd-muted-foreground md:text-lg">
-            One decision shapes everything. Run the whole pipeline on your own
-            infrastructure for free, or hand the ops to us and start in seconds.
+            One decision shapes everything. Run the whole pipeline on your own infrastructure for
+            free, or hand the ops to us and start in seconds.
           </p>
         </motion.div>
 
@@ -168,11 +166,7 @@ export function PricingToggle() {
             inert={mode !== "self-host"}
             aria-hidden={mode !== "self-host"}
             initial={false}
-            animate={
-              mode === "self-host"
-                ? { opacity: 1, x: 0 }
-                : { opacity: 0, x: -28 }
-            }
+            animate={mode === "self-host" ? { opacity: 1, x: 0 } : { opacity: 0, x: -28 }}
             transition={{ duration: 0.45, ease: EASE }}
             className="col-start-1 row-start-1"
           >
@@ -182,9 +176,7 @@ export function PricingToggle() {
             inert={mode !== "cloud"}
             aria-hidden={mode !== "cloud"}
             initial={false}
-            animate={
-              mode === "cloud" ? { opacity: 1, x: 0 } : { opacity: 0, x: 28 }
-            }
+            animate={mode === "cloud" ? { opacity: 1, x: 0 } : { opacity: 0, x: 28 }}
             transition={{ duration: 0.45, ease: EASE }}
             className="col-start-1 row-start-1"
           >
@@ -230,11 +222,7 @@ function SelfHostPanel({ tablistId }: { tablistId: string }) {
       {/* Left: the offer */}
       <div className="flex flex-col rounded-2xl border border-fd-border bg-fd-card/30 p-8 md:p-10">
         <div className="flex items-center gap-2.5">
-          <Server
-            className="size-4 text-primary"
-            strokeWidth={2.25}
-            aria-hidden
-          />
+          <Server className="size-4 text-primary" strokeWidth={2.25} aria-hidden />
           <span className="font-heading text-xs font-bold uppercase tracking-[0.25em] text-fd-muted-foreground">
             Self-host
           </span>
@@ -247,21 +235,16 @@ function SelfHostPanel({ tablistId }: { tablistId: string }) {
           <span className="font-mono text-6xl font-bold leading-none tracking-tight text-fd-foreground md:text-7xl">
             $0
           </span>
-          <span className="pb-1.5 font-mono text-sm text-fd-muted-foreground">
-            forever
-          </span>
+          <span className="pb-1.5 font-mono text-sm text-fd-muted-foreground">forever</span>
         </div>
         <p className="mt-4 max-w-sm text-sm leading-relaxed text-fd-muted-foreground">
-          The full Everr stack, running on your infrastructure. No license keys,
-          no metered usage, no phone-home.
+          The full Everr stack, running on your infrastructure. No license keys, no metered usage,
+          no phone-home.
         </p>
 
         <ul className="mt-8 space-y-3.5">
           {SELF_HOST_FEATURES.map((f) => (
-            <li
-              key={f}
-              className="flex items-start gap-3 text-sm text-fd-foreground"
-            >
+            <li key={f} className="flex items-start gap-3 text-sm text-fd-foreground">
               <Check
                 className="mt-0.5 size-4 shrink-0 text-primary"
                 strokeWidth={2.5}
@@ -298,8 +281,7 @@ function SelfHostPanel({ tablistId }: { tablistId: string }) {
           </div>
           <div className="space-y-2 p-5 leading-relaxed">
             <p className="text-fd-muted-foreground">
-              <span className="text-primary">$</span> curl -fsSL
-              everr.dev/install | sh
+              <span className="text-primary">$</span> curl -fsSL everr.dev/install | sh
             </p>
             <p className="text-fd-muted-foreground/70">↳ pulling collector…</p>
             <p className="text-fd-muted-foreground/70">↳ starting pipeline…</p>
@@ -314,15 +296,8 @@ function SelfHostPanel({ tablistId }: { tablistId: string }) {
           {SELF_HOST_SPECS.map((spec) => {
             const Icon = spec.icon;
             return (
-              <div
-                key={spec.label}
-                className="flex flex-col justify-between bg-fd-card/30 p-5"
-              >
-                <Icon
-                  className="size-4 text-fd-muted-foreground"
-                  strokeWidth={2}
-                  aria-hidden
-                />
+              <div key={spec.label} className="flex flex-col justify-between bg-fd-card/30 p-5">
+                <Icon className="size-4 text-fd-muted-foreground" strokeWidth={2} aria-hidden />
                 <div className="mt-6">
                   <div className="font-heading text-sm font-bold text-fd-foreground">
                     {spec.value}
@@ -356,11 +331,7 @@ function CloudPanel({ tablistId }: { tablistId: string }) {
       <div className="flex flex-col gap-6">
         <div className="flex flex-col justify-between rounded-2xl border border-fd-border bg-fd-card/30 p-8">
           <div className="flex items-center gap-2.5">
-            <Gauge
-              className="size-4 text-primary"
-              strokeWidth={2.25}
-              aria-hidden
-            />
+            <Gauge className="size-4 text-primary" strokeWidth={2.25} aria-hidden />
             <span className="font-heading text-xs font-bold uppercase tracking-[0.25em] text-fd-muted-foreground">
               What's included
             </span>
@@ -384,9 +355,7 @@ function CloudPanel({ tablistId }: { tablistId: string }) {
             <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-fd-muted-foreground/60">
               Usage this cycle
             </span>
-            <span className="font-mono text-xs text-fd-muted-foreground">
-              31M / 50M
-            </span>
+            <span className="font-mono text-xs text-fd-muted-foreground">31M / 50M</span>
           </div>
           <div className="mt-3 h-2 overflow-hidden rounded-full bg-fd-border">
             <motion.div
@@ -397,8 +366,8 @@ function CloudPanel({ tablistId }: { tablistId: string }) {
             />
           </div>
           <p className="mt-5 text-sm leading-relaxed text-fd-muted-foreground">
-            Only pay past the included tier — billed per million events,
-            prorated to the second. No overage surprises.
+            Only pay past the included tier — billed per million events, prorated to the second. No
+            overage surprises.
           </p>
         </div>
       </div>
@@ -406,11 +375,7 @@ function CloudPanel({ tablistId }: { tablistId: string }) {
       {/* Right: the offer — single hero card */}
       <div className="relative flex flex-col rounded-2xl border-2 border-primary/50 bg-fd-card p-8 md:p-10">
         <div className="flex items-center gap-2.5">
-          <Cloud
-            className="size-4 text-primary"
-            strokeWidth={2.25}
-            aria-hidden
-          />
+          <Cloud className="size-4 text-primary" strokeWidth={2.25} aria-hidden />
           <span className="font-heading text-xs font-bold uppercase tracking-[0.25em] text-fd-muted-foreground">
             Cloud
           </span>
@@ -424,21 +389,16 @@ function CloudPanel({ tablistId }: { tablistId: string }) {
           <span className="font-mono text-6xl font-bold leading-none tracking-tight text-fd-foreground md:text-7xl">
             $39
           </span>
-          <span className="pb-1.5 font-mono text-sm text-fd-muted-foreground">
-            / mo + usage
-          </span>
+          <span className="pb-1.5 font-mono text-sm text-fd-muted-foreground">/ mo + usage</span>
         </div>
         <p className="mt-4 max-w-sm text-sm leading-relaxed text-fd-muted-foreground">
-          We run the whole thing for you — ingestion, storage, scaling,
-          upgrades. Point your agents at one endpoint and go.
+          We run the whole thing for you — ingestion, storage, scaling, upgrades. Point your agents
+          at one endpoint and go.
         </p>
 
         <ul className="mt-8 space-y-3.5">
           {CLOUD_FEATURES.map((f) => (
-            <li
-              key={f}
-              className="flex items-start gap-3 text-sm text-fd-foreground"
-            >
+            <li key={f} className="flex items-start gap-3 text-sm text-fd-foreground">
               <Check
                 className="mt-0.5 size-4 shrink-0 text-primary"
                 strokeWidth={2.5}

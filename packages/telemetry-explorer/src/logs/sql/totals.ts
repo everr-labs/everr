@@ -59,9 +59,6 @@ export function decodeTotalsRows(
     }
   }
   const effective = selectedLevels.length > 0 ? selectedLevels : LOG_LEVELS;
-  const totalCount = effective.reduce(
-    (sum, level) => sum + levelCounts[level],
-    0,
-  );
+  const totalCount = effective.reduce((sum, level) => sum + levelCounts[level], 0);
   return { totalCount, levelCounts };
 }

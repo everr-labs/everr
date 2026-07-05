@@ -21,8 +21,7 @@ export const API_KEY_SCOPES = {
   },
   apply: {
     label: "Manage as code",
-    description:
-      "Create and update dashboards, runbooks, and alerts with everr apply.",
+    description: "Create and update dashboards, runbooks, and alerts with everr apply.",
     actions: ["read", "write", "delete"] as const,
   },
 } as const;
@@ -34,15 +33,9 @@ export type ApiKeyScope = keyof typeof API_KEY_SCOPES;
  * (scope pickers) and the server (zod validation, `z.enum`) derive from, so
  * adding a capability is a single edit to `API_KEY_SCOPES`.
  */
-export const ALL_API_KEY_SCOPES = Object.keys(API_KEY_SCOPES) as [
-  ApiKeyScope,
-  ...ApiKeyScope[],
-];
+export const ALL_API_KEY_SCOPES = Object.keys(API_KEY_SCOPES) as [ApiKeyScope, ...ApiKeyScope[]];
 
-export type ApiKeyPermissions =
-  | Partial<Record<ApiKeyScope, readonly string[]>>
-  | null
-  | undefined;
+export type ApiKeyPermissions = Partial<Record<ApiKeyScope, readonly string[]>> | null | undefined;
 
 const WILDCARD = "*";
 
@@ -77,9 +70,7 @@ export function hasApiKeyScope(
  * dialog lists them, so table badges and the picker stay consistent. A key
  * with no capabilities yields an empty list.
  */
-export function describeApiKeyScopes(
-  permissions: ApiKeyPermissions,
-): ApiKeyScope[] {
+export function describeApiKeyScopes(permissions: ApiKeyPermissions): ApiKeyScope[] {
   if (permissions == null) {
     return [];
   }

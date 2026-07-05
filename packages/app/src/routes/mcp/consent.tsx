@@ -1,9 +1,5 @@
 import { Button } from "@everr/ui/components/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@everr/ui/components/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@everr/ui/components/popover";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   Check,
@@ -21,15 +17,11 @@ import { OAuthShell } from "./-components/oauth-shell";
 
 // Human-readable rendering for the scopes an MCP client can request. Unknown
 // scopes fall back to the raw value so consent never hides what's granted.
-const SCOPE_LABELS: Record<
-  string,
-  { icon: LucideIcon; label: string; description: string }
-> = {
+const SCOPE_LABELS: Record<string, { icon: LucideIcon; label: string; description: string }> = {
   "observability:read": {
     icon: Eye,
     label: "Read your telemetry",
-    description:
-      "Run read-only queries against your organization's traces, logs, and metrics.",
+    description: "Run read-only queries against your organization's traces, logs, and metrics.",
   },
   offline_access: {
     icon: RefreshCw,
@@ -88,11 +80,7 @@ function Consent() {
       setActiveId(organizationId);
       setSwitchOpen(false);
     } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "Failed to switch organization",
-      );
+      setError(caught instanceof Error ? caught.message : "Failed to switch organization");
     } finally {
       setSwitchingId(null);
     }
@@ -110,9 +98,7 @@ function Consent() {
       });
       window.location.href = url;
     } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "Failed to record consent",
-      );
+      setError(caught instanceof Error ? caught.message : "Failed to record consent");
       setBusy(null);
     }
   }
@@ -129,10 +115,7 @@ function Consent() {
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-foreground">MCP client</p>
           {clientId ? (
-            <p
-              className="truncate font-mono text-xs text-muted-foreground"
-              title={clientId}
-            >
+            <p className="truncate font-mono text-xs text-muted-foreground" title={clientId}>
               {clientId}
             </p>
           ) : null}
@@ -147,9 +130,7 @@ function Consent() {
             <li key={value} className="flex gap-3">
               <Icon className="mt-0.5 size-4 shrink-0 text-primary" />
               <div className="min-w-0">
-                <p className="text-sm font-medium text-foreground">
-                  {meta?.label ?? value}
-                </p>
+                <p className="text-sm font-medium text-foreground">{meta?.label ?? value}</p>
                 {meta ? (
                   <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
                     {meta.description}
@@ -168,20 +149,13 @@ function Consent() {
           </span>
           <div className="min-w-0 flex-1">
             <p className="text-xs text-muted-foreground">Organization</p>
-            <p className="truncate text-sm font-medium text-foreground">
-              {activeOrg.name}
-            </p>
+            <p className="truncate text-sm font-medium text-foreground">{activeOrg.name}</p>
           </div>
           {canSwitch ? (
             <Popover open={switchOpen} onOpenChange={setSwitchOpen}>
               <PopoverTrigger
                 render={
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={busy !== null}
-                  />
+                  <Button type="button" variant="outline" size="sm" disabled={busy !== null} />
                 }
               >
                 Switch

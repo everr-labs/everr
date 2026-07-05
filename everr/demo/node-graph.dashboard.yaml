@@ -273,14 +273,80 @@ spec:
     - kind: Grid
       spec:
         items:
-          - { x: 0,  y: 0,  width: 24, height: 12, content: { $ref: "#/spec/panels/node-graph-defaults" } }
-          - { x: 0,  y: 12, width: 12, height: 9,  content: { $ref: "#/spec/panels/node-graph-columns-unit" } }
-          - { x: 12, y: 12, width: 12, height: 9,  content: { $ref: "#/spec/panels/node-graph-fallback" } }
-          - { x: 0,  y: 21, width: 12, height: 9,  content: { $ref: "#/spec/panels/node-graph-undirected" } }
-          - { x: 12, y: 21, width: 12, height: 9,  content: { $ref: "#/spec/panels/node-graph-showvalues" } }
-          - { x: 0,  y: 30, width: 12, height: 9,  content: { $ref: "#/spec/panels/node-graph-weightless" } }
-          - { x: 12, y: 30, width: 12, height: 9,  content: { $ref: "#/spec/panels/node-graph-bidirectional" } }
-          - { x: 0,  y: 39, width: 12, height: 9,  content: { $ref: "#/spec/panels/node-graph-multiquery" } }
-          - { x: 12, y: 39, width: 12, height: 9,  content: { $ref: "#/spec/panels/node-graph-dropped" } }
-          - { x: 0,  y: 48, width: 12, height: 9,  content: { $ref: "#/spec/panels/node-graph-maxnodes" } }
-          - { x: 12, y: 48, width: 12, height: 9,  content: { $ref: "#/spec/panels/node-graph-empty" } }
+          - {
+              x: 0,
+              y: 0,
+              width: 24,
+              height: 12,
+              content: { $ref: "#/spec/panels/node-graph-defaults" },
+            }
+          - {
+              x: 0,
+              y: 12,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/node-graph-columns-unit" },
+            }
+          - {
+              x: 12,
+              y: 12,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/node-graph-fallback" },
+            }
+          - {
+              x: 0,
+              y: 21,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/node-graph-undirected" },
+            }
+          - {
+              x: 12,
+              y: 21,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/node-graph-showvalues" },
+            }
+          - {
+              x: 0,
+              y: 30,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/node-graph-weightless" },
+            }
+          - {
+              x: 12,
+              y: 30,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/node-graph-bidirectional" },
+            }
+          - {
+              x: 0,
+              y: 39,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/node-graph-multiquery" },
+            }
+          - {
+              x: 12,
+              y: 39,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/node-graph-dropped" },
+            }
+          - {
+              x: 0,
+              y: 48,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/node-graph-maxnodes" },
+            }
+          - {
+              x: 12,
+              y: 48,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/node-graph-empty" },
+            }

@@ -50,11 +50,7 @@ export async function instrumentServerFetch(
   );
 }
 
-function requestAttributes(
-  request: Request,
-  route: string,
-  method: string,
-): Attributes {
+function requestAttributes(request: Request, route: string, method: string): Attributes {
   return {
     "http.request.method": method,
     "http.route": route,

@@ -1,10 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import type { TimeRangeInput } from "@/data/analytics/schemas";
-import {
-  getCostByWorkflow,
-  getCostOverTimeBreakdown,
-  getCostOverview,
-} from "./server";
+import { getCostByWorkflow, getCostOverTimeBreakdown, getCostOverview } from "./server";
 
 // Query options factories
 export const costOverviewOptions = (input: TimeRangeInput) =>

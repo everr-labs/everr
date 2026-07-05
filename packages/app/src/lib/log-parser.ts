@@ -29,9 +29,7 @@ export type MarkerType =
   | "debug"
   | "command";
 
-export function parseGitHubMarker(
-  line: string,
-): { type: MarkerType; message?: string } | null {
+export function parseGitHubMarker(line: string): { type: MarkerType; message?: string } | null {
   const match = line.match(MARKER_REGEX);
   if (match) {
     return { type: match[1] as MarkerType, message: match[2] || undefined };
@@ -138,10 +136,7 @@ export function computeVisibleLines(
   for (const group of groups) {
     let depth = 0;
     for (const other of groups) {
-      if (
-        other.startIndex < group.startIndex &&
-        other.endIndex > group.endIndex
-      ) {
+      if (other.startIndex < group.startIndex && other.endIndex > group.endIndex) {
         depth++;
       }
     }
@@ -153,9 +148,7 @@ export function computeVisibleLines(
       }
     }
 
-    const headerTimestamp = formatTimestampTimeOfDay(
-      lines[group.startIndex].timestamp,
-    );
+    const headerTimestamp = formatTimestampTimeOfDay(lines[group.startIndex].timestamp);
     let hasUniformTimestamps = true;
     for (let i = group.startIndex + 1; i < group.endIndex; i++) {
       if (
@@ -183,11 +176,7 @@ export function computeVisibleLines(
     let isHidden = false;
     if (groupInfo) {
       for (const group of groups) {
-        if (
-          i > group.startIndex &&
-          i < group.endIndex &&
-          collapsed.has(group.id)
-        ) {
+        if (i > group.startIndex && i < group.endIndex && collapsed.has(group.id)) {
           isHidden = true;
           break;
         }

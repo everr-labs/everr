@@ -1,9 +1,5 @@
 import { getRefreshIntervalMs } from "@everr/ui/components/refresh-picker";
-import {
-  resolveTimeRange,
-  type TimeRange,
-  toClickHouseDateTime,
-} from "@everr/ui/lib/time-range";
+import { resolveTimeRange, type TimeRange, toClickHouseDateTime } from "@everr/ui/lib/time-range";
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import type { AttributeFilter } from "../../attribute-filter/schemas";
 import type { TracesRepositoryLike } from "./repository";
@@ -49,13 +45,9 @@ export function tracesSearchInfiniteOptions(input: TraceSearchOptionsInput) {
         service: input.service,
         name: input.name,
         minDurationNs:
-          input.minMs === undefined
-            ? undefined
-            : (BigInt(input.minMs) * MS_TO_NS).toString(),
+          input.minMs === undefined ? undefined : (BigInt(input.minMs) * MS_TO_NS).toString(),
         maxDurationNs:
-          input.maxMs === undefined
-            ? undefined
-            : (BigInt(input.maxMs) * MS_TO_NS).toString(),
+          input.maxMs === undefined ? undefined : (BigInt(input.maxMs) * MS_TO_NS).toString(),
         status: input.status,
         attributes: input.attributes,
         limit: input.limit,
@@ -82,13 +74,7 @@ export type GetTraceOptionsInput = {
 export function getTraceOptions(input: GetTraceOptionsInput) {
   const refreshMs = getRefreshIntervalMs(input.refresh);
   return queryOptions({
-    queryKey: [
-      "traces",
-      "get",
-      input.traceId,
-      input.window.fromTs,
-      input.window.toTs,
-    ] as const,
+    queryKey: ["traces", "get", input.traceId, input.window.fromTs, input.window.toTs] as const,
     queryFn: () =>
       input.repo.getTrace({
         traceId: input.traceId,

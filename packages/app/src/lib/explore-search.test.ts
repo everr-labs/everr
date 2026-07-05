@@ -1,9 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { z } from "zod";
-import {
-  ExploreSearchRetainShape,
-  ExploreSearchSchema,
-} from "./explore-search";
+import { ExploreSearchRetainShape, ExploreSearchSchema } from "./explore-search";
 
 const RetainSchema = z.object(ExploreSearchRetainShape);
 
@@ -23,9 +20,10 @@ describe("ExploreSearchSchema (shared by _explore + child routes)", () => {
   });
 
   it("keeps provided values", () => {
-    expect(
-      ExploreSearchSchema.parse({ service: ["api"], environment: ["prod"] }),
-    ).toEqual({ service: ["api"], environment: ["prod"] });
+    expect(ExploreSearchSchema.parse({ service: ["api"], environment: ["prod"] })).toEqual({
+      service: ["api"],
+      environment: ["prod"],
+    });
   });
 });
 
@@ -40,9 +38,10 @@ describe("ExploreSearchRetainShape (used by the _dashboard layout)", () => {
   });
 
   it("keeps provided values", () => {
-    expect(
-      RetainSchema.parse({ service: ["api"], environment: ["prod"] }),
-    ).toEqual({ service: ["api"], environment: ["prod"] });
+    expect(RetainSchema.parse({ service: ["api"], environment: ["prod"] })).toEqual({
+      service: ["api"],
+      environment: ["prod"],
+    });
   });
 
   it("tolerates a malformed value by falling back to undefined (not throwing)", () => {

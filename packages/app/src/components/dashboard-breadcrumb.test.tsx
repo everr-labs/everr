@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, type Mock, vi } from "vitest";
+import { describe, expect, it, type Mock, vi } from "vite-plus/test";
 
 vi.mock("@tanstack/react-router", () => ({
   useMatches: vi.fn(),
@@ -34,9 +34,7 @@ function makeMatch(
   fullPath: string,
   breadcrumb?:
     | string
-    | ((
-        match: Record<string, unknown>,
-      ) => string | BreadcrumbSegment[] | undefined),
+    | ((match: Record<string, unknown>) => string | BreadcrumbSegment[] | undefined),
   extra?: Record<string, unknown>,
 ) {
   return {
@@ -86,9 +84,7 @@ describe("DashboardBreadcrumb", () => {
     ]);
     const { container } = render(<DashboardBreadcrumb />);
 
-    const separators = container.querySelectorAll(
-      "[data-slot='breadcrumb-separator']",
-    );
+    const separators = container.querySelectorAll("[data-slot='breadcrumb-separator']");
     expect(separators).toHaveLength(1);
   });
 
@@ -96,17 +92,13 @@ describe("DashboardBreadcrumb", () => {
     mockUseMatches.mockReturnValue([makeMatch("/", "Overview")]);
     const { container } = render(<DashboardBreadcrumb />);
 
-    const separators = container.querySelectorAll(
-      "[data-slot='breadcrumb-separator']",
-    );
+    const separators = container.querySelectorAll("[data-slot='breadcrumb-separator']");
     expect(separators).toHaveLength(0);
   });
 
   it("evaluates function breadcrumbs with match data", () => {
     const breadcrumbFn = (match: Record<string, unknown>) => {
-      const loaderData = match.loaderData as
-        | { runDetails?: { workflowName?: string } }
-        | undefined;
+      const loaderData = match.loaderData as { runDetails?: { workflowName?: string } } | undefined;
       return loaderData?.runDetails?.workflowName ?? "Run Details";
     };
 
@@ -123,9 +115,7 @@ describe("DashboardBreadcrumb", () => {
 
   it("uses fallback when function breadcrumb has no loader data", () => {
     const breadcrumbFn = (match: Record<string, unknown>) => {
-      const loaderData = match.loaderData as
-        | { runDetails?: { workflowName?: string } }
-        | undefined;
+      const loaderData = match.loaderData as { runDetails?: { workflowName?: string } } | undefined;
       return loaderData?.runDetails?.workflowName ?? "Run Details";
     };
 
@@ -148,9 +138,7 @@ describe("DashboardBreadcrumb", () => {
     render(<DashboardBreadcrumb />);
 
     expect(screen.getByText("Runs")).toBeInTheDocument();
-    expect(
-      screen.getByText("Runs").closest("[data-slot='breadcrumb-page']"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Runs").closest("[data-slot='breadcrumb-page']")).toBeInTheDocument();
   });
 
   it("filters out crumbs where function returns empty string", () => {
@@ -161,9 +149,7 @@ describe("DashboardBreadcrumb", () => {
     render(<DashboardBreadcrumb />);
 
     expect(screen.getByText("Runs")).toBeInTheDocument();
-    expect(
-      screen.getByText("Runs").closest("[data-slot='breadcrumb-page']"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Runs").closest("[data-slot='breadcrumb-page']")).toBeInTheDocument();
   });
 
   it("applies hidden md:block class to non-last items for responsive behavior", () => {
@@ -190,9 +176,7 @@ describe("DashboardBreadcrumb", () => {
     expect(parentLink).toHaveAttribute("href", "/cost-analysis");
 
     expect(
-      screen
-        .getByText("Tests Overview")
-        .closest("[data-slot='breadcrumb-page']"),
+      screen.getByText("Tests Overview").closest("[data-slot='breadcrumb-page']"),
     ).toBeInTheDocument();
   });
 
@@ -218,9 +202,7 @@ describe("DashboardBreadcrumb", () => {
     expect(pkgLink).toHaveAttribute("href", "/tests-overview?pkg=my-pkg");
 
     expect(
-      screen
-        .getByText("TraceWaterfall")
-        .closest("[data-slot='breadcrumb-page']"),
+      screen.getByText("TraceWaterfall").closest("[data-slot='breadcrumb-page']"),
     ).toBeInTheDocument();
   });
 
@@ -235,9 +217,7 @@ describe("DashboardBreadcrumb", () => {
     mockUseMatches.mockReturnValue([makeMatch("/tests-overview", segmentsFn)]);
     const { container } = render(<DashboardBreadcrumb />);
 
-    const separators = container.querySelectorAll(
-      "[data-slot='breadcrumb-separator']",
-    );
+    const separators = container.querySelectorAll("[data-slot='breadcrumb-separator']");
     expect(separators).toHaveLength(2);
   });
 });

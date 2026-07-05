@@ -10,12 +10,7 @@ interface FastifyLikeRequest {
 interface FastifyLikeInstance {
   addHook(
     name: "onError",
-    hook: (
-      request: FastifyLikeRequest,
-      reply: unknown,
-      error: Error,
-      done: () => void,
-    ) => void,
+    hook: (request: FastifyLikeRequest, reply: unknown, error: Error, done: () => void) => void,
   ): void;
 }
 
@@ -33,9 +28,7 @@ export function errorTrackingPlugin(
       attributes: {
         "http.request.method": request.method,
         "url.path": stripUrlQueryAndFragment(request.url),
-        ...(request.routeOptions?.url
-          ? { "http.route": request.routeOptions.url }
-          : {}),
+        ...(request.routeOptions?.url ? { "http.route": request.routeOptions.url } : {}),
       },
     });
     hookDone();
@@ -43,6 +36,4 @@ export function errorTrackingPlugin(
   done();
 }
 
-(errorTrackingPlugin as unknown as Record<symbol, boolean>)[
-  Symbol.for("skip-override")
-] = true;
+(errorTrackingPlugin as unknown as Record<symbol, boolean>)[Symbol.for("skip-override")] = true;

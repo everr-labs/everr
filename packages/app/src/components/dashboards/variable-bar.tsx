@@ -14,15 +14,8 @@ import { useNavigate } from "@tanstack/react-router";
 import { AlertCircle, ChevronDown, Loader2 } from "lucide-react";
 import { useCallback } from "react";
 import { ALL_VALUE } from "@/data/dashboards/interpolate";
-import type {
-  ListVariable,
-  TextVariable,
-  Variable,
-} from "@/data/dashboards/schema";
-import {
-  useDashboardVariables,
-  type VariableOptionsState,
-} from "./use-dashboard-variables";
+import type { ListVariable, TextVariable, Variable } from "@/data/dashboards/schema";
+import { useDashboardVariables, type VariableOptionsState } from "./use-dashboard-variables";
 
 function variableLabel(variable: Variable): string {
   return variable.spec.display?.name ?? variable.spec.name;
@@ -46,7 +39,12 @@ export function VariableBar() {
         search: (prev) => ({
           ...prev,
           vars: {
-            ...(prev.vars ?? {}),
+            // The `_dashboard` route types `vars` as
+            // Record<string, string | string[]> | undefined, but under the
+            // vite-plus toolchain TanStack Router widens `prev` to a loose index
+            // type, so `prev.vars` reads as `unknown` and can't be spread.
+            // Assert the schema-guaranteed shape.
+            ...(prev.vars as Record<string, string | string[]> | undefined),
             [name]: value,
           },
         }),
@@ -195,16 +193,12 @@ function ListVariableField({
               {multi ? (
                 <DropdownMenuCheckboxItem
                   checked={isAll}
-                  onCheckedChange={(checked) =>
-                    onChange(checked ? ALL_VALUE : [])
-                  }
+                  onCheckedChange={(checked) => onChange(checked ? ALL_VALUE : [])}
                 >
                   All
                 </DropdownMenuCheckboxItem>
               ) : (
-                <DropdownMenuItem onClick={() => onChange(ALL_VALUE)}>
-                  All
-                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onChange(ALL_VALUE)}>All</DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
             </>
@@ -226,9 +220,7 @@ function ListVariableField({
             ),
           )}
           {truncated && (
-            <div className="px-2 py-1.5 text-xs text-muted-foreground">
-              First 1000 shown
-            </div>
+            <div className="px-2 py-1.5 text-xs text-muted-foreground">First 1000 shown</div>
           )}
         </DropdownMenuContent>
       </DropdownMenu>

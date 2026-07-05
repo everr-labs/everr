@@ -33,6 +33,5 @@ export const runsRepository: RunsRepositoryLike = {
         histogramBuckets: input.histogramBuckets,
       },
     }),
-  filterOptions: (input) =>
-    getRunFilterOptions({ data: { timeRange: input.timeRange } }),
+  filterOptions: (input) => getRunFilterOptions({ data: { timeRange: input.timeRange } }),
 };

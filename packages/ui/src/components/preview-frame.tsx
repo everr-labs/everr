@@ -46,9 +46,7 @@ function PreviewFrame({
           >
             <div className="flex min-w-0 items-center gap-2">
               {icon}
-              <BannerContent className="flex-initial truncate">
-                {message}
-              </BannerContent>
+              <BannerContent className="flex-initial truncate">{message}</BannerContent>
             </div>
             {(actions || onDismiss) && (
               <BannerActions className="gap-0.5">

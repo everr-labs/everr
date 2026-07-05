@@ -311,10 +311,7 @@ function deterministicUuid(input: string): string {
   ].join("-");
 }
 
-function signedHeaders(
-  eventType: "workflow_run" | "workflow_job",
-  body: Buffer,
-) {
+function signedHeaders(eventType: "workflow_run" | "workflow_job", body: Buffer) {
   const signature = `sha256=${createHmac("sha256", githubEnv.GITHUB_APP_WEBHOOK_SECRET).update(body).digest("hex")}`;
   return {
     "x-github-event": [eventType],
@@ -358,10 +355,7 @@ async function getExistingTraceIds(
     .select({ traceId: workflowRuns.traceId })
     .from(workflowRuns)
     .where(
-      and(
-        eq(workflowRuns.organizationId, organizationId),
-        inArray(workflowRuns.traceId, traceIds),
-      ),
+      and(eq(workflowRuns.organizationId, organizationId), inArray(workflowRuns.traceId, traceIds)),
     );
 
   return new Set(rows.map((r) => r.traceId));
@@ -371,9 +365,7 @@ async function getExistingTraceIds(
 // List installation repositories
 // ---------------------------------------------------------------------------
 
-export async function listInstallationRepos(
-  installationId: number,
-): Promise<ApiRepo[]> {
+export async function listInstallationRepos(installationId: number): Promise<ApiRepo[]> {
   const token = await getInstallationToken(installationId);
   const repos: ApiRepo[] = [];
   for await (const repo of paginate<ApiRepo>(
@@ -429,11 +421,7 @@ export async function* backfillRepo(
 
     // Collect all valid runs, then dedup in one query
     const candidateRuns: ApiWorkflowRun[] = [];
-    for await (const run of paginate<ApiWorkflowRun>(
-      token,
-      runsUrl,
-      "workflow_runs",
-    )) {
+    for await (const run of paginate<ApiWorkflowRun>(token, runsUrl, "workflow_runs")) {
       if (!VALID_CONCLUSIONS.has(run.conclusion ?? "")) continue;
       candidateRuns.push(run);
     }
@@ -466,19 +454,13 @@ export async function* backfillRepo(
           const jobsUrl = `https://api.github.com/repos/${repo.full_name}/actions/runs/${run.id}/jobs?per_page=100`;
           const freshToken = await getInstallationToken(installationId);
 
-          for await (const job of paginate<ApiWorkflowJob>(
-            freshToken,
-            jobsUrl,
-            "jobs",
-          )) {
+          for await (const job of paginate<ApiWorkflowJob>(freshToken, jobsUrl, "jobs")) {
             if (job.status !== "completed") continue;
 
             try {
               const jobBody = apiJobToCollectorBody(job, repo, installationId);
               await enqueueWebhookEvent(
-                deterministicUuid(
-                  `backfill-${organizationId}-job-${job.id}-${job.run_attempt}`,
-                ),
+                deterministicUuid(`backfill-${organizationId}-job-${job.id}-${job.run_attempt}`),
                 {
                   headers: signedHeaders("workflow_job", jobBody),
                   body: jobBody.toString("base64"),
@@ -532,10 +514,7 @@ export async function* backfillRepo(
     "result.runs_skipped": result.runsSkipped,
   };
   if (result.errors.length > 0) {
-    serverLogger.warn(
-      "github.backfill.repo_import.complete_with_errors",
-      finishAttributes,
-    );
+    serverLogger.warn("github.backfill.repo_import.complete_with_errors", finishAttributes);
   } else {
     serverLogger.info("github.backfill.repo_import.complete", finishAttributes);
   }

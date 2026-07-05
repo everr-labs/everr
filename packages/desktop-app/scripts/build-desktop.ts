@@ -13,10 +13,7 @@ import {
   writeDesktopReleaseTauriConfigOverride,
 } from "./build-support.ts";
 import { withBuildTelemetry } from "./build-telemetry.ts";
-import {
-  notarizeReleaseDmgIfConfigured,
-  stageReleaseArtifacts,
-} from "./copy-release-artifact.ts";
+import { notarizeReleaseDmgIfConfigured, stageReleaseArtifacts } from "./copy-release-artifact.ts";
 
 export async function buildDesktop(args = process.argv.slice(2)) {
   const tauriArgs: string[] = [];

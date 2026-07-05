@@ -14,14 +14,10 @@ export const Route = createFileRoute("/api/cli/org")({
         });
 
         if (!org) {
-          return Response.json(
-            { error: "Organization not found" },
-            { status: 404 },
-          );
+          return Response.json({ error: "Organization not found" }, { status: 404 });
         }
 
-        const isOnlyMember =
-          org.members.length === 1 && org.members[0].userId === user.id;
+        const isOnlyMember = org.members.length === 1 && org.members[0].userId === user.id;
         const currentMember = org.members.find((m) => m.userId === user.id);
         const metadata = OrgMetadataSchema.parse(org.metadata);
 
@@ -41,10 +37,7 @@ export const Route = createFileRoute("/api/cli/org")({
         });
 
         if (!org) {
-          return Response.json(
-            { error: "Organization not found" },
-            { status: 404 },
-          );
+          return Response.json({ error: "Organization not found" }, { status: 404 });
         }
 
         const metadata = OrgMetadataSchema.parse(org.metadata);

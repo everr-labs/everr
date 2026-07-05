@@ -9,10 +9,7 @@ import {
   NOTIFICATION_EXIT_EVENT,
   NOTIFICATION_HOVER_EVENT,
 } from "@/lib/tauri";
-import {
-  useInvalidateOnTauriEvent,
-  useTauriEvent,
-} from "../../lib/tauri-events";
+import { useInvalidateOnTauriEvent, useTauriEvent } from "../../lib/tauri-events";
 import {
   formatNotificationAbsoluteTime,
   formatNotificationRelativeTime,
@@ -25,10 +22,7 @@ type TestNotificationResponse = {
   status: "shown" | "queued";
 };
 
-export const activeNotificationQueryKey = [
-  "desktop-app",
-  "active-notification",
-] as const;
+export const activeNotificationQueryKey = ["desktop-app", "active-notification"] as const;
 
 function getActiveNotification() {
   return invokeCommand<FailureNotification | null>("get_active_notification");
@@ -100,11 +94,7 @@ export function DeveloperNotificationSection() {
   }
 
   return (
-    <SettingsSection
-      title="Notifications"
-      description="Preview the notification surface."
-      compact
-    >
+    <SettingsSection title="Notifications" description="Preview the notification surface." compact>
       <div className="flex flex-wrap gap-2">
         <Button
           variant="outline"
@@ -113,9 +103,7 @@ export function DeveloperNotificationSection() {
           disabled={triggerNotificationMutation.isPending}
           onClick={() => void handleTriggerNotification()}
         >
-          {triggerNotificationMutation.isPending
-            ? "Triggering..."
-            : "Test notification"}
+          {triggerNotificationMutation.isPending ? "Triggering..." : "Test notification"}
         </Button>
       </div>
     </SettingsSection>
@@ -130,11 +118,7 @@ export function NotificationWindow() {
   }
 
   if (notificationQuery.isError) {
-    return (
-      <NotificationErrorState
-        onRetry={() => void notificationQuery.refetch()}
-      />
-    );
+    return <NotificationErrorState onRetry={() => void notificationQuery.refetch()} />;
   }
 
   if (!notificationQuery.data) {
@@ -144,11 +128,7 @@ export function NotificationWindow() {
   return <NotificationCard notification={notificationQuery.data} />;
 }
 
-export function NotificationCard({
-  notification,
-}: {
-  notification: FailureNotification;
-}) {
+export function NotificationCard({ notification }: { notification: FailureNotification }) {
   const dismissMutation = useDismissActiveNotificationMutation();
   const openMutation = useOpenNotificationTargetMutation();
   const copyMutation = useCopyAutoFixPromptMutation();
@@ -157,10 +137,7 @@ export function NotificationCard({
   const [hovered, setHovered] = useState(false);
   const [remainingMs, setRemainingMs] = useState(AUTO_DISMISS_MS);
   const [deadlineAt, setDeadlineAt] = useState<number | null>(null);
-  const busy =
-    dismissMutation.isPending ||
-    openMutation.isPending ||
-    copyMutation.isPending;
+  const busy = dismissMutation.isPending || openMutation.isPending || copyMutation.isPending;
 
   useEffect(() => {
     setExiting(false);
@@ -226,9 +203,7 @@ export function NotificationCard({
 
   return (
     <main className="h-screen pl-3 pr-4 pt-3">
-      <div
-        className={`relative h-full ${exiting ? "notification-exit" : "notification-enter"}`}
-      >
+      <div className={`relative h-full ${exiting ? "notification-exit" : "notification-enter"}`}>
         <button
           type="button"
           className={`cursor-pointer absolute -left-[11px] -top-[11px] z-10 flex size-[22px] items-center justify-center rounded-full transition-opacity duration-150 bg-accent text-accent-foreground disabled:pointer-events-none ${hovered ? "opacity-100" : "opacity-0"}`}
@@ -294,15 +269,10 @@ export function NotificationCard({
                 }
               >
                 <span className="grid">
-                  <span
-                    aria-hidden="true"
-                    className="invisible col-start-1 row-start-1"
-                  >
+                  <span aria-hidden="true" className="invisible col-start-1 row-start-1">
                     Auto-fix prompt
                   </span>
-                  <span className="col-start-1 row-start-1">
-                    {copyAutoFixPromptLabel}
-                  </span>
+                  <span className="col-start-1 row-start-1">{copyAutoFixPromptLabel}</span>
                 </span>
               </Button>
               <Button

@@ -14,14 +14,7 @@ type Props = {
   onSelect: () => void;
 };
 
-export function SpanRow({
-  row,
-  traceStartNs,
-  traceEndNs,
-  selected,
-  onToggle,
-  onSelect,
-}: Props) {
+export function SpanRow({ row, traceStartNs, traceEndNs, selected, onToggle, onSelect }: Props) {
   const { span, depth, hasChildren, collapsed } = row;
   return (
     // biome-ignore lint/a11y/useSemanticElements: nested <button> for the chevron rules out a <button> outer
@@ -57,35 +50,22 @@ export function SpanRow({
           )}
           aria-label={collapsed ? "Expand" : "Collapse"}
         >
-          {collapsed ? (
-            <ChevronRight className="size-3" />
-          ) : (
-            <ChevronDown className="size-3" />
-          )}
+          {collapsed ? <ChevronRight className="size-3" /> : <ChevronDown className="size-3" />}
         </button>
         <span
           className="size-2 shrink-0 rounded-full"
           style={{
-            backgroundColor: serviceColor(
-              span.serviceNamespace,
-              span.serviceName,
-            ),
+            backgroundColor: serviceColor(span.serviceNamespace, span.serviceName),
           }}
         />
         <span className="truncate font-medium">{span.spanName}</span>
-        <span className="text-muted-foreground truncate text-[10px]">
-          {span.serviceName}
-        </span>
+        <span className="text-muted-foreground truncate text-[10px]">{span.serviceName}</span>
         <span className="text-muted-foreground ml-auto shrink-0 pl-2 text-[10px] tabular-nums">
           {formatDuration(Number(span.duration), "ns")}
         </span>
       </div>
       <div className="relative h-full px-2">
-        <SpanBar
-          span={span}
-          traceStartNs={traceStartNs}
-          traceEndNs={traceEndNs}
-        />
+        <SpanBar span={span} traceStartNs={traceStartNs} traceEndNs={traceEndNs} />
       </div>
     </div>
   );

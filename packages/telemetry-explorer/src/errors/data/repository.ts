@@ -13,22 +13,11 @@ import {
   buildAttributeValuesQuery,
   decodeAttributeValueRows,
 } from "../../attribute-filter/sql/values";
-import {
-  ERRORS_ATTRIBUTE_SOURCES,
-  errorsAttributeColumn,
-} from "../sql/attribute-columns";
+import { ERRORS_ATTRIBUTE_SOURCES, errorsAttributeColumn } from "../sql/attribute-columns";
 import { EXCEPTION_LOG_FILTER_SQL } from "../sql/fingerprint";
-import {
-  buildOccurrencesQuery,
-  buildServicesQuery,
-  buildSummaryQuery,
-} from "../sql/issues";
+import { buildOccurrencesQuery, buildServicesQuery, buildSummaryQuery } from "../sql/issues";
 import type { SqlClient } from "./client";
-import type {
-  GetErrorIssueInput,
-  ListErrorServicesInput,
-  SearchErrorIssuesInput,
-} from "./schemas";
+import type { GetErrorIssueInput, ListErrorServicesInput, SearchErrorIssuesInput } from "./schemas";
 import type {
   ErrorIssueDetail,
   ErrorIssueSummary,
@@ -36,10 +25,7 @@ import type {
   ErrorOccurrence,
 } from "./types";
 
-type ErrorIssueSummaryRow = Omit<
-  ErrorIssueSummary,
-  "occurrenceCount" | "traceCount"
-> & {
+type ErrorIssueSummaryRow = Omit<ErrorIssueSummary, "occurrenceCount" | "traceCount"> & {
   occurrenceCount: string | number;
   traceCount: string | number;
 };
@@ -64,8 +50,7 @@ function mapSummary(row: ErrorIssueSummaryRow): ErrorIssueSummary {
 function mapOccurrence(row: ErrorOccurrenceRow): ErrorOccurrence {
   return {
     ...row,
-    timestampRank:
-      row.timestampRank === undefined ? 1 : Number(row.timestampRank),
+    timestampRank: row.timestampRank === undefined ? 1 : Number(row.timestampRank),
     resourceAttributes: row.resourceAttributes ?? {},
     logAttributes: row.logAttributes ?? {},
     scopeAttributes: row.scopeAttributes ?? {},
@@ -87,9 +72,7 @@ export class ErrorsRepository {
   }
 
   // fallow-ignore-next-line unused-class-member
-  async searchIssues(
-    input: SearchErrorIssuesInput,
-  ): Promise<ErrorIssuesResult> {
+  async searchIssues(input: SearchErrorIssuesInput): Promise<ErrorIssuesResult> {
     const { sql, params } = buildSummaryQuery(input, this.tableName);
     const rows = await this.client.execute<ErrorIssueSummaryRow>(sql, params);
     return { issues: rows.map(mapSummary) };
@@ -113,14 +96,8 @@ export class ErrorsRepository {
     );
     const occurrencesQuery = buildOccurrencesQuery(input, this.tableName);
     const [summaryRows, occurrenceRows] = await Promise.all([
-      this.client.execute<ErrorIssueSummaryRow>(
-        summaryQuery.sql,
-        summaryQuery.params,
-      ),
-      this.client.execute<ErrorOccurrenceRow>(
-        occurrencesQuery.sql,
-        occurrencesQuery.params,
-      ),
+      this.client.execute<ErrorIssueSummaryRow>(summaryQuery.sql, summaryQuery.params),
+      this.client.execute<ErrorOccurrenceRow>(occurrencesQuery.sql, occurrencesQuery.params),
     ]);
 
     const summary = summaryRows[0] ? mapSummary(summaryRows[0]) : undefined;
@@ -172,9 +149,5 @@ export class ErrorsRepository {
 
 export type ErrorsRepositoryLike = Pick<
   ErrorsRepository,
-  | "searchIssues"
-  | "getIssue"
-  | "listServices"
-  | "attributeKeys"
-  | "attributeValues"
+  "searchIssues" | "getIssue" | "listServices" | "attributeKeys" | "attributeValues"
 >;

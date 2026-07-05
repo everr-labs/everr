@@ -3,9 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { runDetailsOptions } from "@/data/runs/options";
 
-export const Route = createFileRoute(
-  "/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/",
-)({
+export const Route = createFileRoute("/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/")({
   component: JobDetailPage,
 });
 
@@ -20,9 +18,7 @@ function JobDetailPage() {
   return (
     <Card size="sm" className="h-full">
       <CardContent className="flex h-full items-center justify-center">
-        <p className="text-muted-foreground text-sm">
-          Select a step to view logs
-        </p>
+        <p className="text-muted-foreground text-sm">Select a step to view logs</p>
       </CardContent>
     </Card>
   );

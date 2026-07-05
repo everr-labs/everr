@@ -27,9 +27,7 @@ import { TreemapVisualization } from "./treemap/treemap-visualization";
 
 const GeoMapVisualization = lazy(() =>
   import("./geo-map/geo-map-visualization").then((m) => ({
-    default: m.GeoMapVisualization as ComponentType<
-      VisualizationProps<GeoMapSpec>
-    >,
+    default: m.GeoMapVisualization as ComponentType<VisualizationProps<GeoMapSpec>>,
   })),
 );
 
@@ -117,9 +115,7 @@ const registry: Record<string, VisualizationEntry> = {
   }),
 };
 
-export function getVisualizationInset(
-  kind: string,
-): "default" | "flush-content" {
+export function getVisualizationInset(kind: string): "default" | "flush-content" {
   return registry[kind]?.inset ?? "default";
 }
 
@@ -158,8 +154,7 @@ export function PanelVisualization({
     return (
       <div className="flex h-full items-center justify-center p-4 text-center text-muted-foreground">
         <p className="text-sm">
-          Unknown visualization:{" "}
-          <code className="font-mono">{plugin.kind}</code>
+          Unknown visualization: <code className="font-mono">{plugin.kind}</code>
         </p>
       </div>
     );

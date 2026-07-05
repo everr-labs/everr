@@ -1,31 +1,15 @@
 import { createHash } from "node:crypto";
 import { and, eq, isNull, or } from "drizzle-orm";
 import { ApplyValidationError } from "@/data/as-code/errors";
-import {
-  type OwnershipConflict,
-  partitionByOwnership,
-} from "@/data/as-code/ownership";
+import { type OwnershipConflict, partitionByOwnership } from "@/data/as-code/ownership";
 import type { Reconciler } from "@/data/as-code/registry";
 import type { ApplyResourceEntry, ApplySource } from "@/data/as-code/schema";
-import {
-  foreignLiveScope,
-  previewOwner,
-  previewScope,
-} from "@/data/previews/scope";
+import { foreignLiveScope, previewOwner, previewScope } from "@/data/previews/scope";
 import { alertDefinitions } from "@/db/schema";
 import { querySqlApiWithMeta, type SqlApiResult } from "@/lib/clickhouse";
 import { errorMessage } from "@/telemetry/logger";
-import {
-  type AlertRuleYaml,
-  AlertRuleYamlSchema,
-  identityKey,
-  parseRunbookRef,
-} from "./schema";
-import {
-  validateMessageColumns,
-  validateMessageTemplate,
-  validateQueryTemplate,
-} from "./template";
+import { type AlertRuleYaml, AlertRuleYamlSchema, identityKey, parseRunbookRef } from "./schema";
+import { validateMessageColumns, validateMessageTemplate, validateQueryTemplate } from "./template";
 import { parseEvaluationInterval } from "./window";
 
 interface DesiredAlert {
@@ -68,9 +52,7 @@ function normalizeRemote(remote: string): string {
 
 function sourceLink(source: ApplySource | undefined, path: string): string {
   if (!source?.remote || !source.commitSha) return "";
-  return `${normalizeRemote(source.remote)}/blob/${source.commitSha}/${pathForLink(
-    path,
-  )}`;
+  return `${normalizeRemote(source.remote)}/blob/${source.commitSha}/${pathForLink(path)}`;
 }
 
 function scheduleJitterSeconds(
@@ -81,9 +63,7 @@ function scheduleJitterSeconds(
   evaluationIntervalSeconds: number,
 ): number {
   const spread = Math.min(evaluationIntervalSeconds, 5);
-  const hash = createHash("sha256")
-    .update(`${orgId}\0${repoid}\0${project}\0${slug}`)
-    .digest();
+  const hash = createHash("sha256").update(`${orgId}\0${repoid}\0${project}\0${slug}`).digest();
   return hash.readUInt32BE(0) % spread;
 }
 
@@ -104,9 +84,7 @@ function parseAlertRule(path: string, resource: unknown) {
   const rule = parsed.data;
   let evaluationIntervalSeconds: number;
   try {
-    evaluationIntervalSeconds = parseEvaluationInterval(
-      rule.spec.evaluationInterval,
-    );
+    evaluationIntervalSeconds = parseEvaluationInterval(rule.spec.evaluationInterval);
     validateQueryTemplate(rule.spec.query);
     validateMessageTemplate(rule.spec.notificationMessage.title);
     if (rule.spec.notificationMessage.description) {
@@ -138,21 +116,13 @@ async function validateAlertRuleQuery(
       organizationId,
     );
   } catch (error) {
-    throw new ApplyValidationError(
-      `${path}: query failed: ${errorMessage(error)}`,
-    );
+    throw new ApplyValidationError(`${path}: query failed: ${errorMessage(error)}`);
   }
 
   try {
-    validateMessageColumns(
-      rule.spec.notificationMessage.title,
-      queryResult.columns,
-    );
+    validateMessageColumns(rule.spec.notificationMessage.title, queryResult.columns);
     if (rule.spec.notificationMessage.description) {
-      validateMessageColumns(
-        rule.spec.notificationMessage.description,
-        queryResult.columns,
-      );
+      validateMessageColumns(rule.spec.notificationMessage.description, queryResult.columns);
     }
   } catch (error) {
     throw validationError(path, error);
@@ -195,9 +165,7 @@ async function mapSettledWithConcurrency<T, R>(
       }
     }
   }
-  await Promise.all(
-    Array.from({ length: Math.min(limit, items.length) }, worker),
-  );
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
   return results;
 }
 
@@ -247,8 +215,7 @@ async function buildDesiredAlerts(opts: {
       document: parsed.rule,
       parsedQuery: parsed.rule.spec.query,
       notificationTitleTemplate: parsed.rule.spec.notificationMessage.title,
-      notificationDescriptionTemplate:
-        parsed.rule.spec.notificationMessage.description ?? "",
+      notificationDescriptionTemplate: parsed.rule.spec.notificationMessage.description ?? "",
       instanceLabelColumns: validation.value.instanceLabelColumns,
       scheduleJitterSeconds: scheduleJitterSeconds(
         opts.orgId,
@@ -299,8 +266,7 @@ function needsUpdate(existing: ExistingAlert, desired: DesiredAlert): boolean {
     stableStringify(existing.document) !== stableStringify(desired.document) ||
     queryOrLabelsChanged(existing, desired) ||
     existing.notificationTitleTemplate !== desired.notificationTitleTemplate ||
-    existing.notificationDescriptionTemplate !==
-      desired.notificationDescriptionTemplate ||
+    existing.notificationDescriptionTemplate !== desired.notificationDescriptionTemplate ||
     existing.scheduleJitterSeconds !== desired.scheduleJitterSeconds ||
     existing.configFilePath !== desired.configFilePath ||
     existing.sourceLink !== desired.sourceLink ||
@@ -311,9 +277,7 @@ function needsUpdate(existing: ExistingAlert, desired: DesiredAlert): boolean {
 
 function nextEvaluationAt(now: Date, desired: DesiredAlert): Date {
   return new Date(
-    now.getTime() +
-      (desired.evaluationIntervalSeconds + desired.scheduleJitterSeconds) *
-        1000,
+    now.getTime() + (desired.evaluationIntervalSeconds + desired.scheduleJitterSeconds) * 1000,
   );
 }
 
@@ -396,8 +360,7 @@ export const applyAlertSpecs: Reconciler = async ({
       document: alertDefinitions.document,
       parsedQuery: alertDefinitions.parsedQuery,
       notificationTitleTemplate: alertDefinitions.notificationTitleTemplate,
-      notificationDescriptionTemplate:
-        alertDefinitions.notificationDescriptionTemplate,
+      notificationDescriptionTemplate: alertDefinitions.notificationDescriptionTemplate,
       instanceLabelColumns: alertDefinitions.instanceLabelColumns,
       scheduleJitterSeconds: alertDefinitions.scheduleJitterSeconds,
       configFilePath: alertDefinitions.configFilePath,
@@ -407,23 +370,15 @@ export const applyAlertSpecs: Reconciler = async ({
     .from(alertDefinitions)
     .where(scope);
 
-  const existingByKey = new Map(
-    existing.map((row) => [identityKey(row.project, row.slug), row]),
-  );
-  const desiredByKey = new Map(
-    desired.map((row) => [identityKey(row.project, row.slug), row]),
-  );
+  const existingByKey = new Map(existing.map((row) => [identityKey(row.project, row.slug), row]));
+  const desiredByKey = new Map(desired.map((row) => [identityKey(row.project, row.slug), row]));
 
-  const creates = desired.filter(
-    (row) => !existingByKey.has(identityKey(row.project, row.slug)),
-  );
+  const creates = desired.filter((row) => !existingByKey.has(identityKey(row.project, row.slug)));
   const updates = desired.filter((row) => {
     const current = existingByKey.get(identityKey(row.project, row.slug));
     return current ? needsUpdate(current, row) : false;
   });
-  const deletes = existing.filter(
-    (row) => !desiredByKey.has(identityKey(row.project, row.slug)),
-  );
+  const deletes = existing.filter((row) => !desiredByKey.has(identityKey(row.project, row.slug)));
 
   // A create whose (project, slug) is a live alert owned by another repo is a
   // cross-repo conflict: reported (fail-fast upstream) unless adopting, which
@@ -439,8 +394,11 @@ export const applyAlertSpecs: Reconciler = async ({
           .from(alertDefinitions)
           .where(foreignLiveScope(alertDefinitions, namespace, creates))
       : [];
-  const { freshCreates, takenCreates, adopted, conflicts } =
-    partitionByOwnership(creates, foreign, adopt);
+  const { freshCreates, takenCreates, adopted, conflicts } = partitionByOwnership(
+    creates,
+    foreign,
+    adopt,
+  );
 
   const summary: ApplyAlertsResult = {
     created: freshCreates.map((row) => row.slug),
@@ -497,11 +455,7 @@ export const applyAlertSpecs: Reconciler = async ({
         }),
       )
       .where(
-        and(
-          scope,
-          eq(alertDefinitions.project, row.project),
-          eq(alertDefinitions.slug, row.slug),
-        ),
+        and(scope, eq(alertDefinitions.project, row.project), eq(alertDefinitions.slug, row.slug)),
       );
   }
 
@@ -513,10 +467,7 @@ export const applyAlertSpecs: Reconciler = async ({
           scope,
           or(
             ...deletes.map((row) =>
-              and(
-                eq(alertDefinitions.project, row.project),
-                eq(alertDefinitions.slug, row.slug),
-              ),
+              and(eq(alertDefinitions.project, row.project), eq(alertDefinitions.slug, row.slug)),
             ),
           ),
         ),

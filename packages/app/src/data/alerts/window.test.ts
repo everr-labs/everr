@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { parseEvaluationInterval, parseWindow } from "./window";
 
 describe("parseWindow", () => {
@@ -10,16 +10,7 @@ describe("parseWindow", () => {
   });
 
   it("rejects malformed values", () => {
-    for (const bad of [
-      "",
-      "5",
-      "m",
-      "5 m",
-      "5mo",
-      "-5m",
-      "5.5m",
-      `${"9".repeat(400)}d`,
-    ]) {
+    for (const bad of ["", "5", "m", "5 m", "5mo", "-5m", "5.5m", `${"9".repeat(400)}d`]) {
       expect(() => parseWindow(bad)).toThrow();
     }
   });

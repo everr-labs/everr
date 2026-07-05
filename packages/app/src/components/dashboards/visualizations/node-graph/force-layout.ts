@@ -115,10 +115,7 @@ export function layoutGraph(
   }
   const spanX = Math.max(maxX - minX, 1);
   const spanY = Math.max(maxY - minY, 1);
-  const scale = Math.min(
-    (width - padding * 2) / spanX,
-    (height - padding * 2) / spanY,
-  );
+  const scale = Math.min((width - padding * 2) / spanX, (height - padding * 2) / spanY);
   const offsetX = cx - ((minX + maxX) / 2) * scale;
   const offsetY = cy - ((minY + maxY) / 2) * scale;
   for (let i = 0; i < n; i++) {

@@ -1,18 +1,16 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-const { mockAnd, mockDelete, mockEq, mockTransaction, whereCalls } = vi.hoisted(
-  () => ({
-    mockAnd: vi.fn((...conditions: unknown[]) => ({ type: "and", conditions })),
-    mockDelete: vi.fn(),
-    mockEq: vi.fn((column: unknown, value: unknown) => ({
-      type: "eq",
-      column,
-      value,
-    })),
-    mockTransaction: vi.fn(),
-    whereCalls: [] as Array<{ table: unknown; condition: unknown }>,
-  }),
-);
+const { mockAnd, mockDelete, mockEq, mockTransaction, whereCalls } = vi.hoisted(() => ({
+  mockAnd: vi.fn((...conditions: unknown[]) => ({ type: "and", conditions })),
+  mockDelete: vi.fn(),
+  mockEq: vi.fn((column: unknown, value: unknown) => ({
+    type: "eq",
+    column,
+    value,
+  })),
+  mockTransaction: vi.fn(),
+  whereCalls: [] as Array<{ table: unknown; condition: unknown }>,
+}));
 
 vi.mock("@/db/client", () => ({
   db: {
@@ -29,12 +27,7 @@ vi.mock("drizzle-orm", async (importOriginal) => {
   };
 });
 
-import {
-  apikey,
-  githubInstallationOrganizations,
-  workflowJobs,
-  workflowRuns,
-} from "@/db/schema";
+import { apikey, githubInstallationOrganizations, workflowJobs, workflowRuns } from "@/db/schema";
 import { deletePostgresOrganizationData } from "./organization-data-cleanup.server";
 
 const ORG = "org42";
@@ -67,10 +60,7 @@ describe("deletePostgresOrganizationData", () => {
     ]);
     expect(mockEq).toHaveBeenCalledWith(workflowJobs.organizationId, ORG);
     expect(mockEq).toHaveBeenCalledWith(workflowRuns.organizationId, ORG);
-    expect(mockEq).toHaveBeenCalledWith(
-      githubInstallationOrganizations.organizationId,
-      ORG,
-    );
+    expect(mockEq).toHaveBeenCalledWith(githubInstallationOrganizations.organizationId, ORG);
     expect(mockEq).toHaveBeenCalledWith(apikey.configId, "ingest");
     expect(mockEq).toHaveBeenCalledWith(apikey.referenceId, ORG);
     expect(mockAnd).toHaveBeenCalledWith(

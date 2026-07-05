@@ -1,9 +1,6 @@
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import type { AttributeRepositoryLike } from "../../attribute-filter/repository";
-import type {
-  AttributeFilter,
-  AttributeSource,
-} from "../../attribute-filter/schemas";
+import type { AttributeFilter, AttributeSource } from "../../attribute-filter/schemas";
 import { AttributeFilterSection } from "../../attribute-filter/ui/attribute-filter-section";
 import type { PromotedAttribute } from "../../attribute-filter/ui/attribute-meta";
 import { splitDedicatedAttributes } from "./dedicated-attributes";
@@ -35,10 +32,7 @@ export function DedicatedAttributeSection({
   sources: AttributeSource[];
   onChange: (next: AttributeFilter[]) => void;
 }) {
-  const { dedicated: dedicatedEntries, rest } = splitDedicatedAttributes(
-    attributes,
-    dedicated,
-  );
+  const { dedicated: dedicatedEntries, rest } = splitDedicatedAttributes(attributes, dedicated);
 
   const mergedExcludedKeys = new Set(excludedKeys);
   for (const { source, key } of dedicated) {

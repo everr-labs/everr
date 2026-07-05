@@ -3,11 +3,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import * as z from "zod";
 import { overlayPreview, type PreviewStatus } from "@/data/previews/overlay";
 import { getCoveredRepoids } from "@/data/previews/repoids";
-import {
-  effectiveRepoid,
-  liveOrPreview,
-  previewJoin,
-} from "@/data/previews/scope";
+import { effectiveRepoid, liveOrPreview, previewJoin } from "@/data/previews/scope";
 import { db } from "@/db/client";
 import { previews, runbooks } from "@/db/schema";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
@@ -122,9 +118,7 @@ export const listRunbooks = createAuthenticatedServerFn({ method: "GET" })
       const rows = await db
         .select(liveSelect)
         .from(runbooks)
-        .where(
-          and(eq(runbooks.organizationId, orgId), isNull(runbooks.previewId)),
-        );
+        .where(and(eq(runbooks.organizationId, orgId), isNull(runbooks.previewId)));
       return rows.map(toItem);
     }
 
@@ -134,12 +128,7 @@ export const listRunbooks = createAuthenticatedServerFn({ method: "GET" })
         .select(previewSelect)
         .from(runbooks)
         .leftJoin(previews, previewJoin(runbooks))
-        .where(
-          and(
-            eq(runbooks.organizationId, orgId),
-            liveOrPreview(runbooks, preview),
-          ),
-        ),
+        .where(and(eq(runbooks.organizationId, orgId), liveOrPreview(runbooks, preview))),
     ]);
     return overlayPreview({ rows, coveredRepoids: covered }).map(toItem);
   });

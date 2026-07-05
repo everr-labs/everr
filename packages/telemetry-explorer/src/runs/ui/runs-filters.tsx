@@ -94,9 +94,7 @@ export function RunsFilters({
             onClick={() => toggleStatus(status)}
           >
             <ConclusionIcon conclusion={status} className="size-3.5" />
-            <span className="truncate">
-              {RUN_CONCLUSION_META[status].label}
-            </span>
+            <span className="truncate">{RUN_CONCLUSION_META[status].label}</span>
           </button>
         ))}
       </div>

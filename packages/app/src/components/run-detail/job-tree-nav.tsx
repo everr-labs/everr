@@ -18,12 +18,7 @@ interface JobTreeNavProps {
   selectedJobId?: string;
 }
 
-export function JobTreeNav({
-  jobs,
-  stepsByJobId,
-  traceId,
-  selectedJobId,
-}: JobTreeNavProps) {
+export function JobTreeNav({ jobs, stepsByJobId, traceId, selectedJobId }: JobTreeNavProps) {
   if (jobs.length === 0) {
     return <p className="text-muted-foreground px-2 text-xs">No jobs found</p>;
   }
@@ -34,16 +29,10 @@ export function JobTreeNav({
         const steps = stepsByJobId[job.jobId] ?? [];
 
         return (
-          <Collapsible
-            key={job.jobId}
-            defaultOpen={selectedJobId === job.jobId}
-          >
+          <Collapsible key={job.jobId} defaultOpen={selectedJobId === job.jobId}>
             <CollapsibleTrigger className="group flex w-full items-center gap-1.5 rounded px-2 py-1 text-left text-sm transition-colors hover:bg-muted">
               <ChevronRight className="size-3.5 shrink-0 opacity-60 transition-transform group-data-[panel-open]:rotate-90" />
-              <ConclusionIcon
-                conclusion={job.conclusion}
-                className="size-3.5 shrink-0"
-              />
+              <ConclusionIcon conclusion={job.conclusion} className="size-3.5 shrink-0" />
               <span className="truncate">{job.name}</span>
               {isInProgressConclusion(job.conclusion) ? null : (
                 <span className="ml-auto shrink-0 opacity-60">
@@ -74,10 +63,7 @@ export function JobTreeNav({
                       }}
                     >
                       <div className="flex min-w-0 items-center gap-1.5">
-                        <ConclusionIcon
-                          conclusion={step.conclusion}
-                          className="size-3 shrink-0"
-                        />
+                        <ConclusionIcon conclusion={step.conclusion} className="size-3 shrink-0" />
                         <span className="truncate">{step.name}</span>
                       </div>
                       {isInProgressConclusion(step.conclusion) ? null : (
@@ -89,9 +75,7 @@ export function JobTreeNav({
                   );
                 })}
                 {steps.length === 0 && (
-                  <p className="text-muted-foreground px-2 py-1 text-xs">
-                    No steps
-                  </p>
+                  <p className="text-muted-foreground px-2 py-1 text-xs">No steps</p>
                 )}
               </div>
             </CollapsibleContent>

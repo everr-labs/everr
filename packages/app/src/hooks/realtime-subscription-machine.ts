@@ -1,9 +1,4 @@
-type State =
-  | "idle"
-  | "connecting"
-  | "connected"
-  | "reconnecting"
-  | "disconnected";
+type State = "idle" | "connecting" | "connected" | "reconnecting" | "disconnected";
 type MachineEvent = "CONNECT" | "OPEN" | "ERROR" | "MESSAGE" | "DISPOSE";
 
 interface RealtimeSubscriptionOpts {

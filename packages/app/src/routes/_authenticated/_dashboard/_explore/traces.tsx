@@ -1,7 +1,4 @@
-import {
-  TraceSearchParamsSchema,
-  TracesSearch,
-} from "@everr/telemetry-explorer/traces";
+import { TraceSearchParamsSchema, TracesSearch } from "@everr/telemetry-explorer/traces";
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import {
   createFileRoute,
@@ -22,9 +19,7 @@ const RouteSearchSchema = TraceSearchParamsSchema.extend(ExploreSearchShape);
 // back into the query string.
 const defaultSearch = RouteSearchSchema.parse({});
 
-export const Route = createFileRoute(
-  "/_authenticated/_dashboard/_explore/traces",
-)({
+export const Route = createFileRoute("/_authenticated/_dashboard/_explore/traces")({
   staticData: { breadcrumb: "Traces" },
   head: () => ({ meta: [{ title: "Everr - Traces" }] }),
   validateSearch: RouteSearchSchema,

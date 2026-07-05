@@ -16,9 +16,7 @@ function serviceDotClassName(serviceName: string): string {
     hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
   }
 
-  return (
-    serviceDotClassNames[hash % serviceDotClassNames.length] ?? "bg-chart-1"
-  );
+  return serviceDotClassNames[hash % serviceDotClassNames.length] ?? "bg-chart-1";
 }
 
 export function ErrorServiceBadge({ serviceName }: { serviceName: string }) {
@@ -28,10 +26,7 @@ export function ErrorServiceBadge({ serviceName }: { serviceName: string }) {
     <Badge variant="outline" className="max-w-52 justify-start" title={label}>
       <span
         aria-hidden="true"
-        className={cn(
-          "size-2 shrink-0 rounded-full",
-          serviceDotClassName(label),
-        )}
+        className={cn("size-2 shrink-0 rounded-full", serviceDotClassName(label))}
       />
       <span className="truncate">{label}</span>
     </Badge>

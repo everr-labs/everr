@@ -6,11 +6,8 @@ import {
   TimeRangeSchema,
   withTimeRange,
 } from "@everr/ui/lib/time-range";
-import { describe, expect, it } from "vitest";
-import {
-  applyRouteTimeDefaults,
-  ResolvedTimeRangeSearchSchema,
-} from "./time-range";
+import { describe, expect, it } from "vite-plus/test";
+import { applyRouteTimeDefaults, ResolvedTimeRangeSearchSchema } from "./time-range";
 
 describe("TimeRangeSchema", () => {
   it("accepts valid datemath expressions", () => {
@@ -83,9 +80,11 @@ describe("applyRouteTimeDefaults", () => {
   });
 
   it("lets explicit URL from/to win over the default range", () => {
-    expect(
-      applyRouteTimeDefaults({ from: "now-7d", to: "now" }, defaults),
-    ).toEqual({ from: "now-7d", to: "now", refresh: "30s" });
+    expect(applyRouteTimeDefaults({ from: "now-7d", to: "now" }, defaults)).toEqual({
+      from: "now-7d",
+      to: "now",
+      refresh: "30s",
+    });
   });
 
   it("does not mix a half-specified URL range with the default", () => {
@@ -173,17 +172,11 @@ describe("withTimeRange", () => {
 
 describe("formatTimeRangeDisplay", () => {
   it("returns preset label for known ranges", () => {
-    expect(formatTimeRangeDisplay({ from: "now-7d", to: "now" })).toBe(
-      "Last 7 days",
-    );
-    expect(formatTimeRangeDisplay({ from: "now-1h", to: "now" })).toBe(
-      "Last 1 hour",
-    );
+    expect(formatTimeRangeDisplay({ from: "now-7d", to: "now" })).toBe("Last 7 days");
+    expect(formatTimeRangeDisplay({ from: "now-1h", to: "now" })).toBe("Last 1 hour");
   });
 
   it("returns raw expression for custom ranges", () => {
-    expect(formatTimeRangeDisplay({ from: "now-3h", to: "now" })).toBe(
-      "now-3h to now",
-    );
+    expect(formatTimeRangeDisplay({ from: "now-3h", to: "now" })).toBe("now-3h to now");
   });
 });

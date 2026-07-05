@@ -27,14 +27,9 @@ function truncate(body: string, footer: string): string {
 
 // Plain text by choice: no parse mode means nothing to escape, nothing for
 // Telegram to reject, and the URL in the body needs no validation.
-export function buildTelegramText(
-  input: DeliveryInput,
-  opts: BuildOptions,
-): string {
+export function buildTelegramText(input: DeliveryInput, opts: BuildOptions): string {
   const status = KIND_STATUS[input.kind];
-  const lines: string[] = [
-    `${status.emoji} ${input.def.slug} ${status.label.toLowerCase()}`,
-  ];
+  const lines: string[] = [`${status.emoji} ${input.def.slug} ${status.label.toLowerCase()}`];
 
   const firing = input.instances.filter((i) => i.kind !== "resolved");
   const resolved = input.instances.filter((i) => i.kind === "resolved");
@@ -56,15 +51,8 @@ export function buildTelegramText(
     }
   } else if (input.kind === "resolved") {
     for (const instance of resolved) {
-      const duration = instance.firedAt
-        ? formatDuration(instance.firedAt, opts.now)
-        : "";
-      lines.push(
-        "",
-        duration
-          ? `Instance resolved (fired for ${duration})`
-          : "Instance resolved",
-      );
+      const duration = instance.firedAt ? formatDuration(instance.firedAt, opts.now) : "";
+      lines.push("", duration ? `Instance resolved (fired for ${duration})` : "Instance resolved");
       lines.push(instanceLine(instance, "resolved", opts.now, "•"));
     }
   } else {

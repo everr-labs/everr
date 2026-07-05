@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const sendTelegram = vi.fn();
 vi.mock("@/lib/telegram.server", () => ({
@@ -32,8 +32,7 @@ vi.mock("@/telemetry/logger", () => ({
   exceptionAttributes: (error: unknown) => ({
     "exception.message": error instanceof Error ? error.message : String(error),
   }),
-  errorMessage: (error: unknown) =>
-    error instanceof Error ? error.message : String(error),
+  errorMessage: (error: unknown) => (error instanceof Error ? error.message : String(error)),
   serverLogger: { error: vi.fn(), warn: vi.fn() },
 }));
 
@@ -125,9 +124,7 @@ describe("enqueueAlertNotification", () => {
     const slack = sends.find((s) => s.channel === "slack");
 
     expect(telegram).toMatchObject({ target: "123", botToken: "bot-token" });
-    expect(telegram?.channel === "telegram" && telegram.text).toContain(
-      "🔥 s1 firing",
-    );
+    expect(telegram?.channel === "telegram" && telegram.text).toContain("🔥 s1 firing");
     expect(slack).toMatchObject({
       target: "w1",
       webhookUrl: "https://hooks.slack.com/services/T/B/x",
@@ -162,10 +159,7 @@ describe("enqueueAlertNotification", () => {
     );
 
     expect(addWorkerJob).toHaveBeenCalledTimes(1);
-    const telegram = queuedSends()[0] as Extract<
-      DeliverySend,
-      { channel: "telegram" }
-    >;
+    const telegram = queuedSends()[0] as Extract<DeliverySend, { channel: "telegram" }>;
     expect(telegram.text).toBe(
       [
         "🔥 s1 firing",
@@ -188,9 +182,7 @@ describe("enqueueAlertNotification", () => {
   it("suppresses delivery when all instances are silenced", async () => {
     const silencedContext: ResolvedDeliveryContext = {
       ...telegramOnlyContext,
-      silences: [
-        { id: "sil-1", matchers: [{ label: "route", op: "=", value: "/a" }] },
-      ],
+      silences: [{ id: "sil-1", matchers: [{ label: "route", op: "=", value: "/a" }] }],
     };
 
     const result = await enqueueAlertNotification(
@@ -212,9 +204,7 @@ describe("enqueueAlertNotification", () => {
   it("filters out silenced instances and notifies with remaining", async () => {
     const silencedContext: ResolvedDeliveryContext = {
       ...telegramOnlyContext,
-      silences: [
-        { id: "sil-1", matchers: [{ label: "route", op: "=", value: "/a" }] },
-      ],
+      silences: [{ id: "sil-1", matchers: [{ label: "route", op: "=", value: "/a" }] }],
     };
 
     const result = await enqueueAlertNotification(
@@ -359,9 +349,7 @@ describe("enqueueAlertNotification", () => {
   it("drops a fully-silenced kind from a mixed notification but delivers the rest", async () => {
     const silencedContext: ResolvedDeliveryContext = {
       ...telegramOnlyContext,
-      silences: [
-        { id: "sil-1", matchers: [{ label: "route", op: "=", value: "/a" }] },
-      ],
+      silences: [{ id: "sil-1", matchers: [{ label: "route", op: "=", value: "/a" }] }],
     };
 
     const result = await enqueueAlertNotification(
@@ -381,10 +369,7 @@ describe("enqueueAlertNotification", () => {
     );
 
     expect(addWorkerJob).toHaveBeenCalledTimes(1);
-    const telegram = queuedSends()[0] as Extract<
-      DeliverySend,
-      { channel: "telegram" }
-    >;
+    const telegram = queuedSends()[0] as Extract<DeliverySend, { channel: "telegram" }>;
     expect(telegram.text).toBe(
       [
         "✅ s1 resolved",
@@ -456,9 +441,9 @@ describe("runDeliverySend", () => {
   it("rethrows on failure so the job retries, without recording an event", async () => {
     sendTelegram.mockRejectedValue(new Error("nope"));
 
-    await expect(
-      runDeliverySend(telegramSend(), { attempts: 1, max_attempts: 5 }),
-    ).rejects.toThrow("nope");
+    await expect(runDeliverySend(telegramSend(), { attempts: 1, max_attempts: 5 })).rejects.toThrow(
+      "nope",
+    );
 
     expect(vi.mocked(serverLogger.warn)).toHaveBeenCalledWith(
       "alerts.delivery.telegram_failed",
@@ -475,9 +460,9 @@ describe("runDeliverySend", () => {
   it("records a delivery_failed event on the final attempt", async () => {
     sendTelegram.mockRejectedValue(new Error("chat deleted"));
 
-    await expect(
-      runDeliverySend(telegramSend(), { attempts: 5, max_attempts: 5 }),
-    ).rejects.toThrow("chat deleted");
+    await expect(runDeliverySend(telegramSend(), { attempts: 5, max_attempts: 5 })).rejects.toThrow(
+      "chat deleted",
+    );
 
     expect(recordEvents).toHaveBeenCalledWith(
       sendDef,
@@ -499,9 +484,7 @@ describe("runDeliverySend", () => {
 
   it("records a slack delivery_failed event on the final attempt", async () => {
     sendSlack.mockRejectedValue(new Error("invalid_payload"));
-    await expect(
-      runDeliverySend(slackSend(), { attempts: 5, max_attempts: 5 }),
-    ).rejects.toThrow();
+    await expect(runDeliverySend(slackSend(), { attempts: 5, max_attempts: 5 })).rejects.toThrow();
     expect(recordEvents).toHaveBeenCalledWith(
       sendDef,
       [expect.objectContaining({ delivery_targets: { slack: ["w1"] } })],

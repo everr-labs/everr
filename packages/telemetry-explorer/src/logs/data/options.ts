@@ -31,40 +31,28 @@ export function logsExplorerInfiniteOptions(
   });
 }
 
-export function logsTotalsOptions(
-  repo: LogsRepositoryLike,
-  input: LogsTotalsInput,
-) {
+export function logsTotalsOptions(repo: LogsRepositoryLike, input: LogsTotalsInput) {
   return queryOptions({
     queryKey: ["logs", "totals", input],
     queryFn: () => repo.totals(input),
   });
 }
 
-export function logDetailOptions(
-  repo: LogsRepositoryLike,
-  identity: LogIdentity,
-) {
+export function logDetailOptions(repo: LogsRepositoryLike, identity: LogIdentity) {
   return queryOptions({
     queryKey: ["logs", "detail", identity],
     queryFn: () => repo.detail(identity),
   });
 }
 
-export function logsHistogramOptions(
-  repo: LogsRepositoryLike,
-  input: LogHistogramInput,
-) {
+export function logsHistogramOptions(repo: LogsRepositoryLike, input: LogHistogramInput) {
   return queryOptions({
     queryKey: ["logs", "histogram", input],
     queryFn: () => repo.histogram(input),
   });
 }
 
-export function logServiceFilterOptions(
-  repo: LogsRepositoryLike,
-  input: { timeRange: TimeRange },
-) {
+export function logServiceFilterOptions(repo: LogsRepositoryLike, input: { timeRange: TimeRange }) {
   return {
     queryKey: ["logs", "filterOptions", input.timeRange] as const,
     queryFn: () => repo.filterOptions(input),

@@ -2,11 +2,7 @@ import { RetryError } from "@everr/ui/components/retry-error";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
-import {
-  keepPreviousData,
-  useInfiniteQuery,
-  useQuery,
-} from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Virtuoso } from "react-virtuoso";
@@ -42,15 +38,8 @@ export interface LogsExplorerProps {
   hideSharedFilters?: boolean;
   onSearchChange: (next: LogsExplorerSearch) => void;
   onTimeRangeSelect?: (from: Date, to: Date) => void;
-  renderRunLink?: (ctx: {
-    traceId: string;
-    jobId: string;
-    stepNumber: string;
-  }) => ReactNode;
-  resolveJobId?: (input: {
-    traceId: string;
-    jobName: string;
-  }) => string | undefined;
+  renderRunLink?: (ctx: { traceId: string; jobId: string; stepNumber: string }) => ReactNode;
+  resolveJobId?: (input: { traceId: string; jobName: string }) => string | undefined;
 }
 
 const VIRTUOSO_OVERSCAN_IDLE = { top: 400, bottom: 400 };
@@ -86,8 +75,7 @@ function LogStream({
       setIsSelecting(Boolean(selection && !selection.isCollapsed));
     };
     document.addEventListener("selectionchange", onSelectionChange);
-    return () =>
-      document.removeEventListener("selectionchange", onSelectionChange);
+    return () => document.removeEventListener("selectionchange", onSelectionChange);
   }, []);
 
   const endReached = useCallback(() => {
@@ -121,15 +109,10 @@ function LogStream({
           ) : hasNextPage ? (
             <span>
               Showing {logs.length.toLocaleString()}
-              {totalCount !== undefined
-                ? ` of ${totalCount.toLocaleString()}`
-                : ""}{" "}
-              events
+              {totalCount !== undefined ? ` of ${totalCount.toLocaleString()}` : ""} events
             </span>
           ) : (
-            <span>
-              Showing all {logs.length.toLocaleString()} matching events
-            </span>
+            <span>Showing all {logs.length.toLocaleString()} matching events</span>
           )}
         </div>
       ),
@@ -141,9 +124,7 @@ function LogStream({
     <Virtuoso
       data={logs}
       className="h-full min-h-0 bg-background"
-      increaseViewportBy={
-        isSelecting ? VIRTUOSO_OVERSCAN_SELECTING : VIRTUOSO_OVERSCAN_IDLE
-      }
+      increaseViewportBy={isSelecting ? VIRTUOSO_OVERSCAN_SELECTING : VIRTUOSO_OVERSCAN_IDLE}
       endReached={endReached}
       computeItemKey={computeRowKey}
       itemContent={itemContent}
@@ -255,10 +236,7 @@ export function LogsExplorer({
   });
 
   const pages = data?.pages ?? [];
-  const logs = useMemo(
-    () => pages.flatMap((page) => page?.logs ?? []),
-    [pages],
-  );
+  const logs = useMemo(() => pages.flatMap((page) => page?.logs ?? []), [pages]);
 
   const totalCount = totals?.totalCount;
   const levelCounts = totals?.levelCounts;

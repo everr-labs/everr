@@ -105,7 +105,9 @@ export function chdbReleaseAssetUrl(
 }
 
 export async function sha256File(filePath: string) {
-  return createHash("sha256").update(await readFile(filePath)).digest("hex");
+  return createHash("sha256")
+    .update(await readFile(filePath))
+    .digest("hex");
 }
 
 async function pathExists(filePath: string) {
@@ -252,10 +254,7 @@ export async function prepareCliEmbeddedAssets(
 
   await telemetry.phase("prepare chdb library", () => prepareChdbLibAt(mode, chdbPrepared));
   await telemetry.phase("compress embedded assets", async () => {
-    await Promise.all([
-      gzipFile(collectorPrepared, collectorGz),
-      gzipFile(chdbPrepared, chdbGz),
-    ]);
+    await Promise.all([gzipFile(collectorPrepared, collectorGz), gzipFile(chdbPrepared, chdbGz)]);
   });
 
   return { collectorGz, chdbGz };
@@ -285,16 +284,11 @@ export async function signBinaryIfNeeded(binaryPath: string) {
 
   const signingIdentity = getEnv("APPLE_SIGNING_IDENTITY") ?? "";
   if (signingIdentity === "") {
-    console.error(
-      `Skipping signing for ${binaryPath} because APPLE_SIGNING_IDENTITY is not set.`,
-    );
+    console.error(`Skipping signing for ${binaryPath} because APPLE_SIGNING_IDENTITY is not set.`);
     return;
   }
 
-  if (
-    signingIdentity === "-" ||
-    !signingIdentity.includes("Developer ID Application:")
-  ) {
+  if (signingIdentity === "-" || !signingIdentity.includes("Developer ID Application:")) {
     throw new Error(
       `APPLE_SIGNING_IDENTITY must reference a Developer ID Application certificate to sign ${binaryPath}.`,
     );

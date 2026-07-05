@@ -1,8 +1,4 @@
-import {
-  makeWorkerUtils,
-  type TaskSpec,
-  type WorkerUtils,
-} from "graphile-worker";
+import { makeWorkerUtils, type TaskSpec, type WorkerUtils } from "graphile-worker";
 import { pool } from "@/db/client";
 
 // One long-lived WorkerUtils, memoized like the pool it attaches to. It is a

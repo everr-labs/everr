@@ -6,14 +6,7 @@ import {
   CardTitle,
 } from "@everr/ui/components/card";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  Activity,
-  ChartLine,
-  ChevronRight,
-  Download,
-  FileText,
-  FlaskConical,
-} from "lucide-react";
+import { Activity, ChartLine, ChevronRight, Download, FileText, FlaskConical } from "lucide-react";
 import type { ComponentType } from "react";
 import { INSTALL_COMMAND } from "@/common/install-command";
 import { InstallCommandBlock } from "@/components/install-command-block";
@@ -31,9 +24,7 @@ function HomePage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-bold tracking-tight">Home</h1>
-        <p className="text-muted-foreground text-sm">
-          Pick up where you left off.
-        </p>
+        <p className="text-muted-foreground text-sm">Pick up where you left off.</p>
       </div>
 
       <InstallEverrCard />
@@ -50,25 +41,13 @@ function HomePage() {
           }}
           className="block h-full"
         >
-          <SectionCard
-            title="Runs"
-            description="Browse every workflow run"
-            icon={Activity}
-          />
+          <SectionCard title="Runs" description="Browse every workflow run" icon={Activity} />
         </Link>
         <Link to="/logs" className="block h-full">
-          <SectionCard
-            title="Logs"
-            description="Search logs across runs"
-            icon={FileText}
-          />
+          <SectionCard title="Logs" description="Search logs across runs" icon={FileText} />
         </Link>
         <Link to="/tests-overview" className="block h-full">
-          <SectionCard
-            title="Tests"
-            description="Spot flaky and slow tests"
-            icon={FlaskConical}
-          />
+          <SectionCard title="Tests" description="Spot flaky and slow tests" icon={FlaskConical} />
         </Link>
         <Link to="/cost-analysis" className="block h-full">
           <SectionCard
@@ -116,8 +95,8 @@ function InstallEverrCard() {
           Install Everr
         </CardTitle>
         <CardDescription>
-          Get notified when CI fails, run queries from your terminal, and
-          integrate with your coding assistant.
+          Get notified when CI fails, run queries from your terminal, and integrate with your coding
+          assistant.
         </CardDescription>
       </CardHeader>
       <CardContent>

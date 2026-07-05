@@ -16,9 +16,7 @@ interface RepositoryInfo {
   stars: number;
 }
 
-export interface GithubInfoProps
-  extends ComponentProps<"a">,
-    FetchRepositoryInfoOptions {
+export interface GithubInfoProps extends ComponentProps<"a">, FetchRepositoryInfoOptions {
   locale?: Intl.LocalesArgument;
 }
 
@@ -88,9 +86,7 @@ export function GithubInfo({
   const cacheKey = JSON.stringify(options);
   promises[cacheKey] ??= fetchRepositoryInfo(options);
   const { stars } = use(promises[cacheKey]);
-  const formatter = locale
-    ? new Intl.NumberFormat(locale, formatterOptions)
-    : defaultFormatter;
+  const formatter = locale ? new Intl.NumberFormat(locale, formatterOptions) : defaultFormatter;
 
   return (
     <a

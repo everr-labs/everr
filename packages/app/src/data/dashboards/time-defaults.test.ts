@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { dashboardTimeDefaults } from "./time-defaults";
 
 describe("dashboardTimeDefaults", () => {
@@ -24,9 +24,11 @@ describe("dashboardTimeDefaults", () => {
   });
 
   it("derives both together", () => {
-    expect(
-      dashboardTimeDefaults({ duration: "6h", refreshInterval: "1m" }),
-    ).toEqual({ from: "now-6h", to: "now", refresh: "1m" });
+    expect(dashboardTimeDefaults({ duration: "6h", refreshInterval: "1m" })).toEqual({
+      from: "now-6h",
+      to: "now",
+      refresh: "1m",
+    });
   });
 
   it("returns undefined when the spec declares nothing", () => {

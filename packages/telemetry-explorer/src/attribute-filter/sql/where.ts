@@ -24,9 +24,7 @@ export function buildAttributeClauses(
       case "in":
         if (filter.values.length === 0) return;
         params[keyParam] = filter.key;
-        clauses.push(
-          `${contains} AND ${access} IN {${valsParam}:Array(String)}`,
-        );
+        clauses.push(`${contains} AND ${access} IN {${valsParam}:Array(String)}`);
         params[valsParam] = filter.values;
         break;
       case "not_in":
@@ -35,9 +33,7 @@ export function buildAttributeClauses(
         // keeps the four operators a clean partition (in ∪ not_in = exists).
         if (filter.values.length === 0) return;
         params[keyParam] = filter.key;
-        clauses.push(
-          `(${contains} AND ${access} NOT IN {${valsParam}:Array(String)})`,
-        );
+        clauses.push(`(${contains} AND ${access} NOT IN {${valsParam}:Array(String)})`);
         params[valsParam] = filter.values;
         break;
       case "exists":

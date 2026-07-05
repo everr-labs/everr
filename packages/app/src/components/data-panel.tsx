@@ -5,8 +5,7 @@ import type { ReactNode } from "react";
 import { PanelShell } from "./panel-shell";
 import type { InferQueriesData, PanelChromeProps } from "./panel-types";
 
-export interface DataPanelProps<TQueries extends readonly unknown[]>
-  extends PanelChromeProps {
+export interface DataPanelProps<TQueries extends readonly unknown[]> extends PanelChromeProps {
   queries: [...TQueries];
   children: (...data: InferQueriesData<TQueries>) => ReactNode;
   background?: (...data: InferQueriesData<TQueries>) => ReactNode;
@@ -55,12 +54,7 @@ export function DataPanel<const TQueries extends readonly unknown[]>({
   }
 
   return (
-    <PanelShell
-      {...chromeProps}
-      variant={variant}
-      status="success"
-      className={className}
-    >
+    <PanelShell {...chromeProps} variant={variant} status="success" className={className}>
       {children(...data)}
     </PanelShell>
   );

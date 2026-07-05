@@ -64,10 +64,7 @@ export function buildHeatmapModel(
       spec.valueColumn !== undefined && spec.valueColumn in first
         ? spec.valueColumn
         : keys.find(
-            (k) =>
-              k !== timeKey &&
-              k !== yKey &&
-              rows.some((row) => isNumericValue(row[k])),
+            (k) => k !== timeKey && k !== yKey && rows.some((row) => isNumericValue(row[k])),
           );
     if (valueKey === undefined) continue;
 

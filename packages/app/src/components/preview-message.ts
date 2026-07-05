@@ -1,9 +1,6 @@
 import type { PreviewStatus } from "@/data/previews/overlay";
 
-export function previewMessage(
-  preview: string,
-  status?: PreviewStatus,
-): string {
+export function previewMessage(preview: string, status?: PreviewStatus): string {
   switch (status) {
     case "removed":
       return `Removed in preview "${preview}". You're viewing the live version.`;

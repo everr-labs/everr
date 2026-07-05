@@ -1,13 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { buildBarChartModel } from "./bar-chart-data";
 
 const X_KEY = "__x";
 
 describe("buildBarChartModel", () => {
   it("uses the time column as the x-axis and assigns opaque render keys", () => {
-    const model = buildBarChartModel([
-      [{ time: "2026-06-07T00:00:00", value: 5 }],
-    ]);
+    const model = buildBarChartModel([[{ time: "2026-06-07T00:00:00", value: 5 }]]);
     expect(model.isTimeAxis).toBe(true);
     expect(model.valueKeys).toEqual(["s0"]);
     expect(model.chartConfig.s0?.label).toBe("value");

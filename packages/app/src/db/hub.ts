@@ -11,20 +11,14 @@ function ensureStarted(): void {
     started = true;
     hub.start().catch((err) => {
       started = false;
-      serverLogger.error(
-        "notification_hub.start.failed",
-        exceptionAttributes(err),
-      );
+      serverLogger.error("notification_hub.start.failed", exceptionAttributes(err));
     });
   }
 }
 
 type Callback = (payload: NotifyPayload) => void;
 
-export function subscribeTenant(
-  tenantId: string,
-  callback: Callback,
-): () => void {
+export function subscribeTenant(tenantId: string, callback: Callback): () => void {
   ensureStarted();
   return hub.subscribe("tenant", tenantId, callback);
 }
@@ -39,15 +33,7 @@ export function subscribe(
   return hub.subscribe(topic, `${tenantId}:${id}`, callback);
 }
 
-export function subscribeAuthor(
-  tenantId: string,
-  email: string,
-  callback: Callback,
-): () => void {
+export function subscribeAuthor(tenantId: string, email: string, callback: Callback): () => void {
   ensureStarted();
-  return hub.subscribe(
-    "author",
-    `${tenantId}:${email.toLowerCase()}`,
-    callback,
-  );
+  return hub.subscribe("author", `${tenantId}:${email.toLowerCase()}`, callback);
 }

@@ -1,5 +1,5 @@
 import { getRequestHeaders } from "@tanstack/react-start/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { auth } from "@/lib/auth.server";
 import { deleteCurrentUserAccount } from "./account-settings";
 
@@ -57,9 +57,9 @@ describe("deleteCurrentUserAccount", () => {
       headers: expect.any(Headers),
       body: {},
     });
-    expect(
-      vi.mocked(auth.api.deleteOrganization).mock.invocationCallOrder[0],
-    ).toBeLessThan(vi.mocked(auth.api.deleteUser).mock.invocationCallOrder[0]);
+    expect(vi.mocked(auth.api.deleteOrganization).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(auth.api.deleteUser).mock.invocationCallOrder[0],
+    );
   });
 
   it("rejects organization deletion when the current user is not an org owner", async () => {

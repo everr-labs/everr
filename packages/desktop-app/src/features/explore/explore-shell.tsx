@@ -1,10 +1,7 @@
 import { ExploreGlobalFilters } from "@everr/telemetry-explorer/filters";
 import { LogsRepository } from "@everr/telemetry-explorer/logs";
 import { TracesRepository } from "@everr/telemetry-explorer/traces";
-import {
-  getRefreshIntervalMs,
-  RefreshPicker,
-} from "@everr/ui/components/refresh-picker";
+import { getRefreshIntervalMs, RefreshPicker } from "@everr/ui/components/refresh-picker";
 import { TimeRangePicker } from "@everr/ui/components/time-range-picker";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { useIsFetching, useQueryClient } from "@tanstack/react-query";
@@ -47,10 +44,7 @@ export function ExploreShell({
 }) {
   const queryClient = useQueryClient();
   const isFetching = useIsFetching() > 0;
-  const refreshMs = useMemo(
-    () => (refresh ? getRefreshIntervalMs(refresh) : null),
-    [refresh],
-  );
+  const refreshMs = useMemo(() => (refresh ? getRefreshIntervalMs(refresh) : null), [refresh]);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -59,10 +53,7 @@ export function ExploreShell({
       intervalRef.current = null;
     }
     if (refreshMs) {
-      intervalRef.current = setInterval(
-        () => void queryClient.invalidateQueries(),
-        refreshMs,
-      );
+      intervalRef.current = setInterval(() => void queryClient.invalidateQueries(), refreshMs);
     }
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
@@ -97,9 +88,7 @@ export function ExploreShell({
           onEnvironmentChange={onEnvironmentChange}
         />
       </div>
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        {children}
-      </div>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
     </div>
   );
 }

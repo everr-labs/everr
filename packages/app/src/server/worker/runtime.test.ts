@@ -1,6 +1,6 @@
 // @vitest-environment node
 import type { EventEmitter } from "node:events";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 type MockRunOptions = {
   concurrency: number;
@@ -68,8 +68,7 @@ vi.mock("@/telemetry/logger", () => ({
       "exception.type": error.name,
     };
   },
-  errorMessage: (reason: unknown) =>
-    reason instanceof Error ? reason.message : String(reason),
+  errorMessage: (reason: unknown) => (reason instanceof Error ? reason.message : String(reason)),
   serverLogger: {
     error: runtimeMocks.serverLoggerError,
     info: runtimeMocks.serverLoggerInfo,
@@ -81,8 +80,7 @@ async function loadRuntime() {
   // The runner handle deliberately lives on the hot-singleton registry on
   // globalThis to survive HMR module replacement; tests need each import to
   // start from a clean slate.
-  delete (globalThis as { __everrHotSingletons?: unknown })
-    .__everrHotSingletons;
+  delete (globalThis as { __everrHotSingletons?: unknown }).__everrHotSingletons;
   runtimeMocks.run.mockClear();
   runtimeMocks.runOptions.length = 0;
   runtimeMocks.serverLoggerError.mockClear();
@@ -98,18 +96,13 @@ describe("worker runtime", () => {
 
     await runtime.startWorkerRuntime();
 
-    expect(runtimeMocks.serverLoggerInfo).toHaveBeenCalledWith(
-      "worker.runtime.start",
-    );
+    expect(runtimeMocks.serverLoggerInfo).toHaveBeenCalledWith("worker.runtime.start");
     expect(runtimeMocks.run).toHaveBeenCalledOnce();
     expect(runtimeMocks.runOptions[0]).toMatchObject({
       concurrency: 2,
       noHandleSignals: true,
       pgPool: runtimeMocks.pool,
-      parsedCronItems: [
-        ...runtimeMocks.alertCronItems,
-        ...runtimeMocks.previewsCronItems,
-      ],
+      parsedCronItems: [...runtimeMocks.alertCronItems, ...runtimeMocks.previewsCronItems],
     });
     expect(Object.keys(runtimeMocks.runOptions[0].taskList).sort()).toEqual([
       "alerts/evaluate",

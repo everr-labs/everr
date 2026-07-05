@@ -1,5 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import type { Span } from "../../data/types";
 import { useTimelineLayout } from "./use-timeline-layout";
 
@@ -32,11 +32,7 @@ describe("useTimelineLayout", () => {
     ];
     const { result } = renderHook(() => useTimelineLayout(spans));
 
-    expect(result.current.rows.map((r) => r.span.spanId)).toEqual([
-      "root",
-      "child",
-      "grand",
-    ]);
+    expect(result.current.rows.map((r) => r.span.spanId)).toEqual(["root", "child", "grand"]);
     expect(result.current.rows.map((r) => r.depth)).toEqual([0, 1, 2]);
   });
 
@@ -49,12 +45,7 @@ describe("useTimelineLayout", () => {
     ];
     const { result } = renderHook(() => useTimelineLayout(spans));
 
-    expect(result.current.rows.map((r) => r.span.spanId)).toEqual([
-      "a",
-      "a-child",
-      "b",
-      "c",
-    ]);
+    expect(result.current.rows.map((r) => r.span.spanId)).toEqual(["a", "a-child", "b", "c"]);
   });
 
   it("treats spans whose parent is missing from the set as orphan roots", () => {
@@ -71,11 +62,7 @@ describe("useTimelineLayout", () => {
 
     const roots = result.current.rows.filter((r) => r.depth === 0);
     expect(roots.map((r) => r.span.spanId)).toEqual(["a", "b"]);
-    expect(result.current.rows.map((r) => r.span.spanId)).toEqual([
-      "a",
-      "a-child",
-      "b",
-    ]);
+    expect(result.current.rows.map((r) => r.span.spanId)).toEqual(["a", "a-child", "b"]);
   });
 
   it("collapse hides descendants but keeps the ancestor", () => {
@@ -126,9 +113,6 @@ describe("useTimelineLayout", () => {
     ];
     const { result } = renderHook(() => useTimelineLayout(spans));
 
-    expect(result.current.rows.map((r) => r.span.spanId)).toEqual([
-      "earlier",
-      "later",
-    ]);
+    expect(result.current.rows.map((r) => r.span.spanId)).toEqual(["earlier", "later"]);
   });
 });

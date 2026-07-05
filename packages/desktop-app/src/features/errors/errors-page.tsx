@@ -9,26 +9,12 @@ import {
   getErrorOccurrenceKey,
   getErrorTraceWindow,
 } from "@everr/telemetry-explorer/errors";
-import {
-  getTraceOptions,
-  type Span,
-  TracesRepository,
-} from "@everr/telemetry-explorer/traces";
+import { getTraceOptions, type Span, TracesRepository } from "@everr/telemetry-explorer/traces";
 import { buttonVariants } from "@everr/ui/components/button";
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Link,
-  Outlet,
-  useMatch,
-  useNavigate,
-  useParams,
-  useSearch,
-} from "@tanstack/react-router";
-import {
-  DetailRouteDialog,
-  useDetailRouteDialogClose,
-} from "@/components/detail-route-dialog";
+import { Link, Outlet, useMatch, useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import { DetailRouteDialog, useDetailRouteDialogClose } from "@/components/detail-route-dialog";
 import { ExploreSearchShape } from "../explore/explore-search";
 import { ExploreShell } from "../explore/explore-shell";
 import { LocalTelemetryGate } from "../local-telemetry/collector-status";
@@ -38,8 +24,7 @@ export { ErrorIssueSearchSchema };
 
 // service/environment live in the shared Explore topbar but must also be in the
 // route schema so the leaf route's validateSearch doesn't strip them.
-export const ErrorsListSearchSchema =
-  ErrorIssueSearchSchema.extend(ExploreSearchShape);
+export const ErrorsListSearchSchema = ErrorIssueSearchSchema.extend(ExploreSearchShape);
 
 const localErrorsRepo = new ErrorsRepository(localSqlClient);
 const localTracesRepo = new TracesRepository(localSqlClient);
@@ -61,9 +46,7 @@ export function ErrorsPage() {
       {errorDetailMatch && (
         <DetailRouteDialog
           title="Error detail"
-          onClose={() =>
-            navigate({ to: "/errors", search: { ...search, occurrence: "" } })
-          }
+          onClose={() => navigate({ to: "/errors", search: { ...search, occurrence: "" } })}
         >
           <Outlet />
         </DetailRouteDialog>
@@ -188,11 +171,7 @@ export function ErrorDetailPage() {
             search: { ...search, occurrence: "" },
           });
         }}
-        renderOccurrenceLink={({
-          occurrence: linkedOccurrence,
-          children,
-          isSelected,
-        }) => (
+        renderOccurrenceLink={({ occurrence: linkedOccurrence, children, isSelected }) => (
           <Link
             to="/errors/$fingerprint"
             params={{ fingerprint }}
@@ -209,19 +188,13 @@ export function ErrorDetailPage() {
             {children}
           </Link>
         )}
-        renderTracePanel={({ occurrence }) => (
-          <DesktopErrorTracePanel occurrence={occurrence} />
-        )}
+        renderTracePanel={({ occurrence }) => <DesktopErrorTracePanel occurrence={occurrence} />}
       />
     </LocalTelemetryGate>
   );
 }
 
-function DesktopErrorTracePanel({
-  occurrence,
-}: {
-  occurrence: ErrorOccurrence;
-}) {
+function DesktopErrorTracePanel({ occurrence }: { occurrence: ErrorOccurrence }) {
   const hasTrace = occurrence.traceId.length > 0;
   const { start, end } = getErrorTraceWindow(occurrence.timestamp);
   const traceQuery = useQuery({

@@ -6,8 +6,7 @@ import { ArrowRight, Citrus } from "lucide-react";
 import type { ComponentProps, CSSProperties } from "react";
 import { GithubInfo } from "@/components/github-info";
 
-type DocsLayoutOptions = BaseLayoutProps &
-  Pick<DocsLayoutProps, "containerProps" | "sidebar">;
+type DocsLayoutOptions = BaseLayoutProps & Pick<DocsLayoutProps, "containerProps" | "sidebar">;
 
 const docsTopNavHeight = "3.5rem";
 

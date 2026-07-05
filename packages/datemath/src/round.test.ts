@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { roundDate } from "./round.js";
 
 // Wednesday, 2025-06-15 14:30:45.123

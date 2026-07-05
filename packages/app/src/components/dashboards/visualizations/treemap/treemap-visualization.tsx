@@ -20,14 +20,8 @@ function EmptyState() {
   );
 }
 
-export function TreemapVisualization({
-  spec,
-  data,
-}: VisualizationProps<TreemapSpec>) {
-  const model = useMemo(
-    () => (data ? buildTreemapTiles(data, spec) : null),
-    [data, spec],
-  );
+export function TreemapVisualization({ spec, data }: VisualizationProps<TreemapSpec>) {
+  const model = useMemo(() => (data ? buildTreemapTiles(data, spec) : null), [data, spec]);
   const chartData = useMemo(
     () => model?.tiles.map((t) => ({ ...t, fill: t.color })) ?? [],
     [model],
@@ -44,18 +38,14 @@ export function TreemapVisualization({
       group,
       color: tiles.find((t) => t.group === group)?.color,
     }))
-    .filter(
-      (g): g is { group: string; color: string } => g.color !== undefined,
-    );
+    .filter((g): g is { group: string; color: string } => g.color !== undefined);
 
   return (
     <div className="flex h-full flex-col border-t border-border">
       <div className="relative min-h-0 flex-1 overflow-hidden">
         <TreemapChart
           data={chartData}
-          tileValueText={
-            spec.showValues ? (t) => formatValue(t.value, spec.unit) : undefined
-          }
+          tileValueText={spec.showValues ? (t) => formatValue(t.value, spec.unit) : undefined}
           renderTooltip={(t) => (
             <SeriesTooltipContent
               title={t.group}

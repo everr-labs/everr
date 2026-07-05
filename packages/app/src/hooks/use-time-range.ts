@@ -17,9 +17,7 @@ export function useRouteTimeDefaults(): RouteTimeDefaults {
   return useMatches({
     select: (matches) => {
       for (let i = matches.length - 1; i >= 0; i--) {
-        const data = matches[i]?.loaderData as
-          | { timeDefaults?: RouteTimeDefaults }
-          | undefined;
+        const data = matches[i]?.loaderData as { timeDefaults?: RouteTimeDefaults } | undefined;
         if (data?.timeDefaults) return data.timeDefaults;
       }
       return EMPTY_TIME_DEFAULTS;

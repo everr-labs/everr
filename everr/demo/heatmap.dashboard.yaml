@@ -35,9 +35,9 @@ spec:
                   labelColumn: route
                   series:
                     - { name: /checkout, start: 60, noise: 20, min: 0 }
-                    - { name: /search,   start: 40, noise: 15, min: 0 }
-                    - { name: /api,      start: 80, noise: 25, min: 0 }
-                    - { name: /static,   start: 20, noise: 10, min: 0 }
+                    - { name: /search, start: 40, noise: 15, min: 0 }
+                    - { name: /api, start: 80, noise: 25, min: 0 }
+                    - { name: /static, start: 20, noise: 10, min: 0 }
     hm-values-unit:
       kind: Panel
       spec:
@@ -84,9 +84,9 @@ spec:
                   seed: 112
                   labelColumn: queue
                   series:
-                    - { name: ingest,  start: 90, noise: 40, min: 0 }
+                    - { name: ingest, start: 90, noise: 40, min: 0 }
                     - { name: exports, start: 15, noise: 10, min: 0 }
-                    - { name: emails,  start: 40, noise: 20, min: 0 }
+                    - { name: emails, start: 40, noise: 20, min: 0 }
     hm-log:
       kind: Panel
       spec:
@@ -109,8 +109,8 @@ spec:
                   labelColumn: status
                   series:
                     - { name: "2xx", start: 5000, noise: 800, min: 1 }
-                    - { name: "4xx", start: 60,   noise: 25,  min: 1 }
-                    - { name: "5xx", start: 8,    noise: 5,   min: 1 }
+                    - { name: "4xx", start: 60, noise: 25, min: 1 }
+                    - { name: "5xx", start: 8, noise: 5, min: 1 }
     hm-columns:
       kind: Panel
       spec:
@@ -158,10 +158,10 @@ spec:
                   seed: 115
                   labelColumn: bucket
                   series:
-                    - { name: "50",   start: 80, noise: 30, min: 0 }
-                    - { name: "500",  start: 10, noise: 8,  min: 0 }
-                    - { name: "100",  start: 50, noise: 20, min: 0 }
-                    - { name: "250",  start: 25, noise: 12, min: 0 }
+                    - { name: "50", start: 80, noise: 30, min: 0 }
+                    - { name: "500", start: 10, noise: 8, min: 0 }
+                    - { name: "100", start: 50, noise: 20, min: 0 }
+                    - { name: "250", start: 25, noise: 12, min: 0 }
     hm-domain:
       kind: Panel
       spec:
@@ -241,7 +241,7 @@ spec:
                   seed: 119
                   labelColumn: source
                   series:
-                    - { name: web,     start: 40, noise: 20, min: 0 }
+                    - { name: web, start: 40, noise: 20, min: 0 }
                     - { name: android, start: 20, noise: 10, min: 0 }
     hm-empty:
       kind: Panel
@@ -285,14 +285,26 @@ spec:
     - kind: Grid
       spec:
         items:
-          - { x: 0,  y: 0,  width: 12, height: 6, content: { $ref: "#/spec/panels/hm-defaults" } }
-          - { x: 12, y: 0,  width: 12, height: 6, content: { $ref: "#/spec/panels/hm-values-unit" } }
-          - { x: 0,  y: 6,  width: 12, height: 6, content: { $ref: "#/spec/panels/hm-sqrt" } }
-          - { x: 12, y: 6,  width: 12, height: 6, content: { $ref: "#/spec/panels/hm-log" } }
-          - { x: 0,  y: 12, width: 12, height: 6, content: { $ref: "#/spec/panels/hm-columns" } }
-          - { x: 12, y: 12, width: 12, height: 6, content: { $ref: "#/spec/panels/hm-numeric-buckets" } }
-          - { x: 0,  y: 18, width: 12, height: 6, content: { $ref: "#/spec/panels/hm-domain" } }
-          - { x: 12, y: 18, width: 12, height: 6, content: { $ref: "#/spec/panels/hm-gap-no-legend" } }
-          - { x: 0,  y: 24, width: 8,  height: 5, content: { $ref: "#/spec/panels/hm-multi-query" } }
-          - { x: 8,  y: 24, width: 8,  height: 5, content: { $ref: "#/spec/panels/hm-empty" } }
-          - { x: 16, y: 24, width: 8,  height: 5, content: { $ref: "#/spec/panels/hm-no-time" } }
+          - { x: 0, y: 0, width: 12, height: 6, content: { $ref: "#/spec/panels/hm-defaults" } }
+          - { x: 12, y: 0, width: 12, height: 6, content: { $ref: "#/spec/panels/hm-values-unit" } }
+          - { x: 0, y: 6, width: 12, height: 6, content: { $ref: "#/spec/panels/hm-sqrt" } }
+          - { x: 12, y: 6, width: 12, height: 6, content: { $ref: "#/spec/panels/hm-log" } }
+          - { x: 0, y: 12, width: 12, height: 6, content: { $ref: "#/spec/panels/hm-columns" } }
+          - {
+              x: 12,
+              y: 12,
+              width: 12,
+              height: 6,
+              content: { $ref: "#/spec/panels/hm-numeric-buckets" },
+            }
+          - { x: 0, y: 18, width: 12, height: 6, content: { $ref: "#/spec/panels/hm-domain" } }
+          - {
+              x: 12,
+              y: 18,
+              width: 12,
+              height: 6,
+              content: { $ref: "#/spec/panels/hm-gap-no-legend" },
+            }
+          - { x: 0, y: 24, width: 8, height: 5, content: { $ref: "#/spec/panels/hm-multi-query" } }
+          - { x: 8, y: 24, width: 8, height: 5, content: { $ref: "#/spec/panels/hm-empty" } }
+          - { x: 16, y: 24, width: 8, height: 5, content: { $ref: "#/spec/panels/hm-no-time" } }

@@ -1,7 +1,4 @@
-import {
-  RUN_STATUS_FILTERS,
-  RunsExplorer,
-} from "@everr/telemetry-explorer/runs";
+import { RUN_STATUS_FILTERS, RunsExplorer } from "@everr/telemetry-explorer/runs";
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { z } from "zod";
@@ -50,9 +47,7 @@ function RunsListPage() {
       }}
       // Each filter mutation pushes a history entry so Back undoes one change at
       // a time; the histogram brush replaces (it's a continuous adjustment).
-      onSearchChange={(patch) =>
-        navigate({ search: (prev) => ({ ...prev, ...patch }) })
-      }
+      onSearchChange={(patch) => navigate({ search: (prev) => ({ ...prev, ...patch }) })}
       onTimeRangeSelect={(from, to) =>
         navigate({
           search: (prev) => ({
@@ -64,11 +59,7 @@ function RunsListPage() {
         })
       }
       renderRunLink={({ run, className, children }) => (
-        <Link
-          to="/runs/$traceId"
-          params={{ traceId: run.traceId }}
-          className={className}
-        >
+        <Link to="/runs/$traceId" params={{ traceId: run.traceId }} className={className}>
           {children}
         </Link>
       )}

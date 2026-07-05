@@ -41,9 +41,7 @@ function createAppJwt(): string {
     iss: String(githubEnv.GITHUB_APP_ID),
   };
 
-  const header = Buffer.from(
-    JSON.stringify({ alg: "RS256", typ: "JWT" }),
-  ).toString("base64url");
+  const header = Buffer.from(JSON.stringify({ alg: "RS256", typ: "JWT" })).toString("base64url");
   const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const sigInput = `${header}.${body}`;
 
@@ -60,9 +58,7 @@ const installationTokenCache = new QuickLRU<number, string>({
   maxAge: 58 * 60_000,
 });
 
-export async function getInstallationToken(
-  installationId: number,
-): Promise<string> {
+export async function getInstallationToken(installationId: number): Promise<string> {
   const cached = installationTokenCache.get(installationId);
   if (cached) {
     return cached;

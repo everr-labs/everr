@@ -11,9 +11,7 @@ const MAX_BACKOFF_MS = 30_000;
 const MAX_RETRIES = 10;
 
 function buildClientConfig() {
-  const shouldUseSsl = ["true", "1", "yes", "on"].includes(
-    dbEnv.DATABASE_SSL?.toLowerCase() ?? "",
-  );
+  const shouldUseSsl = ["true", "1", "yes", "on"].includes(dbEnv.DATABASE_SSL?.toLowerCase() ?? "");
   return {
     host: dbEnv.DATABASE_HOST,
     database: dbEnv.DATABASE_NAME,
@@ -63,11 +61,7 @@ export class NotificationHub {
 
   dispatch(payload: NotifyPayload): void {
     this.dispatchTopic("tenant", payload.tenantId, payload);
-    this.dispatchTopic(
-      "trace",
-      `${payload.tenantId}:${payload.traceId}`,
-      payload,
-    );
+    this.dispatchTopic("trace", `${payload.tenantId}:${payload.traceId}`, payload);
     this.dispatchTopic("commit", `${payload.tenantId}:${payload.sha}`, payload);
     if (payload.authorEmail) {
       this.dispatchTopic(
@@ -142,10 +136,7 @@ export class NotificationHub {
       return;
     }
 
-    const backoff = Math.min(
-      1000 * 2 ** this.consecutiveFailures,
-      MAX_BACKOFF_MS,
-    );
+    const backoff = Math.min(1000 * 2 ** this.consecutiveFailures, MAX_BACKOFF_MS);
     this.consecutiveFailures++;
 
     this.reconnectTimer = setTimeout(() => {
@@ -154,11 +145,7 @@ export class NotificationHub {
     }, backoff);
   }
 
-  private dispatchTopic(
-    topic: Topic,
-    key: string,
-    payload: NotifyPayload,
-  ): void {
+  private dispatchTopic(topic: Topic, key: string, payload: NotifyPayload): void {
     const subscribers = this.indexes[topic].get(key);
     if (!subscribers) return;
     for (const cb of subscribers) {

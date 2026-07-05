@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import {
   formatNotificationAbsoluteTime,
   formatNotificationRelativeTime,
@@ -62,46 +62,34 @@ describe("formatNotificationRelativeTime", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-03-07T13:35:00Z"));
 
-    expect(formatNotificationRelativeTime("2026-03-07T13:32:00Z")).toBe(
-      "3m ago",
-    );
+    expect(formatNotificationRelativeTime("2026-03-07T13:32:00Z")).toBe("3m ago");
   });
 
   it("treats timezone-less ISO timestamps as UTC", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-03-07T13:35:00Z"));
 
-    expect(formatNotificationRelativeTime("2026-03-07T13:32:00")).toBe(
-      "3m ago",
-    );
+    expect(formatNotificationRelativeTime("2026-03-07T13:32:00")).toBe("3m ago");
   });
 
   it("returns 'just now' for timestamps less than a minute ago", () => {
     const now = new Date("2026-03-07T13:32:30Z");
-    expect(
-      formatNotificationRelativeTime("2026-03-07T13:32:00Z", { now }),
-    ).toBe("just now");
+    expect(formatNotificationRelativeTime("2026-03-07T13:32:00Z", { now })).toBe("just now");
   });
 
   it("returns 'just now' for future timestamps", () => {
     const now = new Date("2026-03-07T13:30:00Z");
-    expect(
-      formatNotificationRelativeTime("2026-03-07T13:35:00Z", { now }),
-    ).toBe("just now");
+    expect(formatNotificationRelativeTime("2026-03-07T13:35:00Z", { now })).toBe("just now");
   });
 
   it("renders relative hours", () => {
     const now = new Date("2026-03-07T16:32:00Z");
-    expect(
-      formatNotificationRelativeTime("2026-03-07T13:32:00Z", { now }),
-    ).toBe("3h ago");
+    expect(formatNotificationRelativeTime("2026-03-07T13:32:00Z", { now })).toBe("3h ago");
   });
 
   it("renders relative days", () => {
     const now = new Date("2026-03-10T13:32:00Z");
-    expect(
-      formatNotificationRelativeTime("2026-03-07T13:32:00Z", { now }),
-    ).toBe("3d ago");
+    expect(formatNotificationRelativeTime("2026-03-07T13:32:00Z", { now })).toBe("3d ago");
   });
 
   it("returns a safe placeholder for invalid timestamps", () => {

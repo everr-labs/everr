@@ -66,10 +66,7 @@ function SignIn() {
 
   return (
     <>
-      <AuthPageHeader
-        title="Sign in to Everr"
-        subtitle="Enter your credentials to continue"
-      />
+      <AuthPageHeader title="Sign in to Everr" subtitle="Enter your credentials to continue" />
 
       <div className="flex flex-col gap-4">
         <GoogleAuthButton

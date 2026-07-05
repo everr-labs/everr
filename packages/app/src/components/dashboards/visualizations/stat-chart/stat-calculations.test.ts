@@ -1,9 +1,5 @@
-import { describe, expect, it } from "vitest";
-import {
-  calculate,
-  formatStatValue,
-  resolveThresholdColor,
-} from "./stat-calculations";
+import { describe, expect, it } from "vite-plus/test";
+import { calculate, formatStatValue, resolveThresholdColor } from "./stat-calculations";
 
 describe("calculate", () => {
   const values = [4, 2, 8, 6];

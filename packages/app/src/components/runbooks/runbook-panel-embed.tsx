@@ -6,18 +6,9 @@ import { type PanelEmbed, parsePanelEmbed } from "@/data/runbooks/embed";
 
 const DEFAULT_HEIGHT = 350;
 
-function EmbedFrame({
-  height,
-  children,
-}: {
-  height: number | undefined;
-  children: ReactNode;
-}) {
+function EmbedFrame({ height, children }: { height: number | undefined; children: ReactNode }) {
   return (
-    <div
-      className="not-prose my-4"
-      style={{ height: height ?? DEFAULT_HEIGHT }}
-    >
+    <div className="not-prose my-4" style={{ height: height ?? DEFAULT_HEIGHT }}>
       {children}
     </div>
   );
@@ -36,9 +27,7 @@ function EmbedError({ message }: { message: string }) {
  * A ```panel fence: parse the YAML and render the matching embed form.
  */
 export function PanelEmbedBlock({ source }: { source: string }) {
-  const parsed = useMemo<
-    PanelEmbed | { kind: "error"; message: string }
-  >(() => {
+  const parsed = useMemo<PanelEmbed | { kind: "error"; message: string }>(() => {
     try {
       return parsePanelEmbed(source);
     } catch (e) {
@@ -69,9 +58,7 @@ function RefEmbed({ embed }: { embed: Extract<PanelEmbed, { kind: "ref" }> }) {
   const panel = useDashboard().spec.panels[embed.ref];
   if (!panel) {
     return (
-      <EmbedError
-        message={`Panel "${embed.ref}" is not defined in this runbook's spec.panels`}
-      />
+      <EmbedError message={`Panel "${embed.ref}" is not defined in this runbook's spec.panels`} />
     );
   }
   return (

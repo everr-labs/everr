@@ -17,8 +17,8 @@ services:
     volumes:
       - ./otel-collector-config.yml:/etc/otel-collector-config.yml
     ports:
-      - "4317:4317"   # otlp receiver
-      - "1888:1888"   # pprof extension
+      - "4317:4317" # otlp receiver
+      - "1888:1888" # pprof extension
       - "13133:13133" # health_check extension
       - "55679:55679" # zpages extension
       - "24224:24224" # fluentforwarder
@@ -59,7 +59,7 @@ services:
   flog:
     image: mingrammer/flog:0.4.3
     # Output fake log in JSON format
-    command: [ "--format=json", "--loop", "--delay=100ms"]
+    command: ["--format=json", "--loop", "--delay=100ms"]
     networks:
       - otel-clickhouse
     depends_on:

@@ -86,16 +86,10 @@ export function CommandBar() {
         )}
       >
         <SearchIcon className="size-3.5 shrink-0" />
-        <span className="flex-1 text-left text-muted-foreground">
-          Search...
-        </span>
+        <span className="flex-1 text-left text-muted-foreground">Search...</span>
         <Kbd>⌘+K</Kbd>
       </Button>
-      <CommandDialog
-        open={open}
-        onOpenChange={toggleCommandBar}
-        className="transition-none"
-      >
+      <CommandDialog open={open} onOpenChange={toggleCommandBar} className="transition-none">
         <Command className="p-0">
           <CommandInput
             placeholder="Search..."
@@ -116,16 +110,11 @@ export function CommandBar() {
                     onSelect={() => handleSelect(`/runs/${run.traceId}`)}
                     forceMount
                   >
-                    <ConclusionIcon
-                      conclusion={run.conclusion}
-                      className="size-3.5"
-                    />
+                    <ConclusionIcon conclusion={run.conclusion} className="size-3.5" />
                     <span>
                       #{run.runId} · {run.workflowName}
                     </span>
-                    <CommandShortcut>
-                      {formatRelativeTime(run.timestamp)}
-                    </CommandShortcut>
+                    <CommandShortcut>{formatRelativeTime(run.timestamp)}</CommandShortcut>
                   </CommandItem>
                 ))}
               </CommandGroup>
@@ -136,9 +125,7 @@ export function CommandBar() {
                   <CommandItem
                     key={`${d.project}/${d.slug}`}
                     value={`dashboard ${d.name} ${d.slug}`}
-                    onSelect={() =>
-                      handleSelect(`/dashboards/${d.project}/${d.slug}`)
-                    }
+                    onSelect={() => handleSelect(`/dashboards/${d.project}/${d.slug}`)}
                   >
                     <LayoutDashboard />
                     {d.name}
@@ -149,10 +136,7 @@ export function CommandBar() {
             {navMain.map((group) => (
               <CommandGroup key={group.title} heading={group.title}>
                 {(group.items ?? [group]).map((item) => (
-                  <CommandItem
-                    key={item.url}
-                    onSelect={() => handleSelect(item.url)}
-                  >
+                  <CommandItem key={item.url} onSelect={() => handleSelect(item.url)}>
                     {group.icon && <group.icon />}
                     {item.title}
                   </CommandItem>

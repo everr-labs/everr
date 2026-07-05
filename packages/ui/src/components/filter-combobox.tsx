@@ -82,9 +82,7 @@ export function FilterCombobox<TData>({
         >
           <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
             {isAll ? (
-              <span className="text-muted-foreground truncate text-xs">
-                {placeholder}
-              </span>
+              <span className="text-muted-foreground truncate text-xs">{placeholder}</span>
             ) : (
               <>
                 {visibleItems.map((val) => (
@@ -114,15 +112,9 @@ export function FilterCombobox<TData>({
               </>
             )}
           </div>
-          <ChevronDownIcon
-            className="text-muted-foreground size-3.5 shrink-0"
-            aria-hidden="true"
-          />
+          <ChevronDownIcon className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
         </PopoverTrigger>
-        <PopoverContent
-          align="start"
-          className="w-(--radix-popper-anchor-width) min-w-48 p-0"
-        >
+        <PopoverContent align="start" className="w-(--radix-popper-anchor-width) min-w-48 p-0">
           <Command className="p-0 *-data-[slot=command-input-wrapper]:p-0">
             <CommandInput
               wrapperClassName="p-0 border-b"
@@ -130,9 +122,7 @@ export function FilterCombobox<TData>({
               placeholder={searchPlaceholder ?? `Search...`}
             />
             <CommandList>
-              <CommandEmpty>
-                {isLoading ? "Loading..." : "No results."}
-              </CommandEmpty>
+              <CommandEmpty>{isLoading ? "Loading..." : "No results."}</CommandEmpty>
               <CommandGroup>
                 <CommandItem
                   value="__all__"

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { Route } from "./org";
 
 type GetHandler = (args: {
@@ -55,9 +55,7 @@ function makeOrg(overrides: Partial<OrgFixture> = {}): OrgFixture {
 
 async function mockGetFullOrganization(result: unknown) {
   const { auth } = await import("@/lib/auth.server");
-  vi.mocked(auth.api.getFullOrganization).mockResolvedValueOnce(
-    result as never,
-  );
+  vi.mocked(auth.api.getFullOrganization).mockResolvedValueOnce(result as never);
 }
 
 function invokeGet() {
@@ -92,9 +90,7 @@ describe("/api/cli/org", () => {
   });
 
   it("returns onboardingCompleted true when the active org metadata has it", async () => {
-    await mockGetFullOrganization(
-      makeOrg({ metadata: { onboardingCompleted: true } }),
-    );
+    await mockGetFullOrganization(makeOrg({ metadata: { onboardingCompleted: true } }));
 
     const response = await invokeGet();
 

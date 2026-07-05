@@ -13,12 +13,7 @@ interface WorkflowLinkProps {
   className?: string;
 }
 
-export function WorkflowLink({
-  repo,
-  workflowName,
-  link = true,
-  className,
-}: WorkflowLinkProps) {
+export function WorkflowLink({ repo, workflowName, link = true, className }: WorkflowLinkProps) {
   if (!link) {
     return (
       <div className={cn("truncate", className)} title={workflowName}>

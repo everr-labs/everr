@@ -46,12 +46,8 @@ function LocalTelemetrySection() {
         </dd>
         {status?.reason ? (
           <>
-            <dt className="self-start text-[var(--settings-text-muted)]">
-              Reason
-            </dt>
-            <dd className="m-0 min-w-0 font-mono text-[var(--settings-text)]">
-              {status.reason}
-            </dd>
+            <dt className="self-start text-[var(--settings-text-muted)]">Reason</dt>
+            <dd className="m-0 min-w-0 font-mono text-[var(--settings-text)]">{status.reason}</dd>
           </>
         ) : null}
         <dt className="text-[var(--settings-text-muted)]">OTLP</dt>

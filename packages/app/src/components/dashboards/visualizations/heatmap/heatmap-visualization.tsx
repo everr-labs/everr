@@ -2,11 +2,7 @@ import { Grid3x3 } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { CursorTooltip } from "@/components/cursor-tooltip";
 import { normalizeValue } from "../color-scale";
-import {
-  createTimeTickFormatter,
-  generateTimeTicks,
-  SERIES_COLORS,
-} from "../data-utils";
+import { createTimeTickFormatter, generateTimeTicks, SERIES_COLORS } from "../data-utils";
 import type { VisualizationProps } from "../index";
 import { SeriesTooltipContent } from "../series-tooltip";
 import { formatStatValue } from "../stat-chart/stat-calculations";
@@ -57,10 +53,7 @@ export function HeatmapVisualization({
   const ticks = useMemo(() => generateTimeTicks(domain, MAX_X_TICKS), [domain]);
   const formatTick = useMemo(() => createTimeTickFormatter(domain), [domain]);
 
-  const toPct = useCallback(
-    (ts: number) => ((ts - domain[0]) / span) * 100,
-    [domain, span],
-  );
+  const toPct = useCallback((ts: number) => ((ts - domain[0]) / span) * 100, [domain, span]);
 
   // One RGB compute per value yields both the fill and the text-contrast flag
   // (model is set wherever cells render).
@@ -80,10 +73,7 @@ export function HeatmapVisualization({
 
   const pxToTimestamp = useCallback(
     (clientX: number, rect: DOMRect) => {
-      const ratio = Math.max(
-        0,
-        Math.min(1, (clientX - rect.left) / rect.width),
-      );
+      const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
       return domain[0] + ratio * span;
     },
     [domain, span],
@@ -137,9 +127,7 @@ export function HeatmapVisualization({
   const { yBuckets, cells } = model;
   const [d0, d1] = model.domain;
   const gap = spec.cellGap;
-  const cellsByBucket = yBuckets.map((_, b) =>
-    cells.filter((c) => c.bucket === b),
-  );
+  const cellsByBucket = yBuckets.map((_, b) => cells.filter((c) => c.bucket === b));
 
   return (
     <div className="flex h-full select-none flex-col overflow-hidden">
@@ -151,9 +139,7 @@ export function HeatmapVisualization({
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        onMouseMove={(e) =>
-          setHover((h) => (h ? { ...h, x: e.clientX, y: e.clientY } : h))
-        }
+        onMouseMove={(e) => setHover((h) => (h ? { ...h, x: e.clientX, y: e.clientY } : h))}
         onMouseLeave={() => setHover(null)}
       >
         {/* No overscroll-none here: rows usually fit, and a non-scrollable
@@ -186,9 +172,7 @@ export function HeatmapVisualization({
                           height: `calc(100% - ${gap}px)`,
                           backgroundColor: fill,
                         }}
-                        onMouseEnter={(e) =>
-                          setHover({ bucket, cell, x: e.clientX, y: e.clientY })
-                        }
+                        onMouseEnter={(e) => setHover({ bucket, cell, x: e.clientX, y: e.clientY })}
                         onMouseLeave={() => setHover(null)}
                       >
                         {spec.showValues && (
@@ -248,9 +232,7 @@ export function HeatmapVisualization({
 
       {spec.showLegend && (
         <div className="flex shrink-0 items-center justify-center gap-2 pt-1.5 text-xs">
-          <span className="text-muted-foreground tabular-nums">
-            {formatValue(d0, spec.unit)}
-          </span>
+          <span className="text-muted-foreground tabular-nums">{formatValue(d0, spec.unit)}</span>
           <span className="inline-block h-2.5 w-28 rounded-sm bg-muted align-middle">
             <span
               className="block h-full w-full rounded-sm"
@@ -269,9 +251,7 @@ export function HeatmapVisualization({
               }}
             />
           </span>
-          <span className="text-muted-foreground tabular-nums">
-            {formatValue(d1, spec.unit)}
-          </span>
+          <span className="text-muted-foreground tabular-nums">{formatValue(d1, spec.unit)}</span>
         </div>
       )}
 

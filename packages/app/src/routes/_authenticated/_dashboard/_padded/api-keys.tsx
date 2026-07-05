@@ -19,24 +19,20 @@ import { apiKeysQueryOptions } from "@/components/api-keys/queries";
 import { auth } from "@/lib/auth.server";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 
-const ensureOrgAdmin = createAuthenticatedServerFn.handler(
-  async ({ context: { session } }) => {
-    const org = await auth.api.getFullOrganization({
-      headers: getRequestHeaders(),
-      query: { organizationId: session.session.activeOrganizationId },
-    });
-    if (!org) return { allowed: false };
+const ensureOrgAdmin = createAuthenticatedServerFn.handler(async ({ context: { session } }) => {
+  const org = await auth.api.getFullOrganization({
+    headers: getRequestHeaders(),
+    query: { organizationId: session.session.activeOrganizationId },
+  });
+  if (!org) return { allowed: false };
 
-    const membership = org.members.find((m) => m.userId === session.user.id);
-    return {
-      allowed: membership?.role === "admin" || membership?.role === "owner",
-    };
-  },
-);
+  const membership = org.members.find((m) => m.userId === session.user.id);
+  return {
+    allowed: membership?.role === "admin" || membership?.role === "owner",
+  };
+});
 
-export const Route = createFileRoute(
-  "/_authenticated/_dashboard/_padded/api-keys",
-)({
+export const Route = createFileRoute("/_authenticated/_dashboard/_padded/api-keys")({
   staticData: { breadcrumb: "API keys", hideTimeRangePicker: true },
   head: () => ({
     meta: [{ title: "Everr - API keys" }],
@@ -69,8 +65,8 @@ function ApiKeysEmpty() {
         </EmptyMedia>
         <EmptyTitle>No API keys yet</EmptyTitle>
         <EmptyDescription>
-          Create a key to send OpenTelemetry data to Everr or to manage
-          dashboards, runbooks, and alerts with <code>everr apply</code>.
+          Create a key to send OpenTelemetry data to Everr or to manage dashboards, runbooks, and
+          alerts with <code>everr apply</code>.
         </EmptyDescription>
       </EmptyHeader>
       <EmptyContent>
@@ -82,8 +78,7 @@ function ApiKeysEmpty() {
 
 function ApiKeysPage() {
   const keys = useQuery(apiKeysQueryOptions());
-  const isEmpty =
-    !keys.isPending && !keys.isError && (keys.data?.length ?? 0) === 0;
+  const isEmpty = !keys.isPending && !keys.isError && (keys.data?.length ?? 0) === 0;
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6">
@@ -92,8 +87,8 @@ function ApiKeysPage() {
           <h1 className="text-xl font-bold tracking-tight">API keys</h1>
           <p className="text-muted-foreground max-w-prose text-sm/relaxed">
             Organization-scoped keys for sending telemetry to Everr and running{" "}
-            <code className="font-mono text-xs">everr apply</code>. Choose each
-            key's capabilities when you create it.{" "}
+            <code className="font-mono text-xs">everr apply</code>. Choose each key's capabilities
+            when you create it.{" "}
             <a
               className="text-foreground underline underline-offset-4 hover:text-primary"
               href="https://everr.dev/docs/reference/production-telemetry"

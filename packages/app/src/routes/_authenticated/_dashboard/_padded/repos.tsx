@@ -20,9 +20,7 @@ import {
 } from "@/data/repo-detail/options";
 import { TimeRangeSearchSchema } from "@/lib/time-range";
 
-export const Route = createFileRoute(
-  "/_authenticated/_dashboard/_padded/repos",
-)({
+export const Route = createFileRoute("/_authenticated/_dashboard/_padded/repos")({
   staticData: { breadcrumb: "Repositories" },
   head: () => ({
     meta: [{ title: "Everr - Repositories" }],
@@ -57,20 +55,16 @@ function RepoDetailPage() {
   // Closures that bind `repo` so Panel can pass just { timeRange }
   const successRateTrend = (tr: TimeRangeInput) =>
     repoSuccessRateTrendOptions({ ...tr, repo: name });
-  const durationTrend = (tr: TimeRangeInput) =>
-    repoDurationTrendOptions({ ...tr, repo: name });
-  const failingJobs = (tr: TimeRangeInput) =>
-    topFailingJobsOptions({ ...tr, repo: name });
-  const branches = (tr: TimeRangeInput) =>
-    activeBranchesOptions({ ...tr, repo: name });
-  const recentRuns = (tr: TimeRangeInput) =>
-    repoRecentRunsOptions({ ...tr, repo: name });
+  const durationTrend = (tr: TimeRangeInput) => repoDurationTrendOptions({ ...tr, repo: name });
+  const failingJobs = (tr: TimeRangeInput) => topFailingJobsOptions({ ...tr, repo: name });
+  const branches = (tr: TimeRangeInput) => activeBranchesOptions({ ...tr, repo: name });
+  const recentRuns = (tr: TimeRangeInput) => repoRecentRunsOptions({ ...tr, repo: name });
 
   if (!name) {
     return (
       <div className="flex h-[400px] items-center justify-center text-muted-foreground text-sm">
-        Select a repository to view details. Navigate from the overview page or
-        use ?name=owner/repo.
+        Select a repository to view details. Navigate from the overview page or use
+        ?name=owner/repo.
       </div>
     );
   }

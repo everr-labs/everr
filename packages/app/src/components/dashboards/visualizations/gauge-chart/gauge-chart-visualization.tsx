@@ -62,17 +62,12 @@ function thresholdTicks(
   return (
     thresholds.steps
       .map((step) => ({
-        value:
-          thresholds.mode === "percent" ? (step.value / 100) * ref : step.value,
+        value: thresholds.mode === "percent" ? (step.value / 100) * ref : step.value,
         color: step.color,
       }))
-      .filter(
-        (t): t is { value: number; color: string } => t.color !== undefined,
-      )
+      .filter((t): t is { value: number; color: string } => t.color !== undefined)
       // Keep ticks strictly inside the axis span — works for inverted bounds too.
-      .filter(
-        (t) => t.value > Math.min(min, max) && t.value < Math.max(min, max),
-      )
+      .filter((t) => t.value > Math.min(min, max) && t.value < Math.max(min, max))
       .map((t) => ({
         fraction: axisFraction(t.value, min, max),
         color: t.color,
@@ -80,38 +75,21 @@ function thresholdTicks(
   );
 }
 
-export function GaugeChartVisualization({
-  spec,
-  data,
-}: VisualizationProps<GaugeChartSpec>) {
-  const {
-    calculation,
-    unit,
-    decimals,
-    min,
-    max,
-    thresholds,
-    showLabel,
-    noValue,
-  } = spec;
+export function GaugeChartVisualization({ spec, data }: VisualizationProps<GaugeChartSpec>) {
+  const { calculation, unit, decimals, min, max, thresholds, showLabel, noValue } = spec;
 
   const tiles = useMemo(
     () => (data ? computeStatTiles(data, calculation) : []),
     [data, calculation],
   );
   const hasAnyValue = tiles.some((t) => t.value !== undefined);
-  const ticks = useMemo(
-    () => thresholdTicks(thresholds, min, max),
-    [thresholds, min, max],
-  );
+  const ticks = useMemo(() => thresholdTicks(thresholds, min, max), [thresholds, min, max]);
 
   if (!data || !hasAnyValue) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
         <Gauge className="size-8" />
-        <p className="text-sm">
-          {!data ? "Configure a query to see results" : "No numeric data"}
-        </p>
+        <p className="text-sm">{!data ? "Configure a query to see results" : "No numeric data"}</p>
       </div>
     );
   }
@@ -124,23 +102,17 @@ export function GaugeChartVisualization({
         const value = tile.value;
         const label = tile.label || queryLabel(tile.frame);
         const color =
-          (value !== undefined
-            ? resolveThresholdColor(value, thresholds, max)
-            : undefined) ??
+          (value !== undefined ? resolveThresholdColor(value, thresholds, max) : undefined) ??
           SERIES_COLORS[0] ??
           "currentColor";
-        const fraction =
-          value !== undefined ? axisFraction(value, min, max) : 0;
-        const valueText =
-          value === undefined ? noValue : formatStatValue(value, decimals);
+        const fraction = value !== undefined ? axisFraction(value, min, max) : 0;
+        const valueText = value === undefined ? noValue : formatStatValue(value, decimals);
         return (
           <div
             key={`${tile.frame}-${tile.label}`}
             className="flex min-w-28 flex-1 flex-col items-center"
           >
-            {(multi || showLabel) && (
-              <p className="text-xs text-muted-foreground">{label}</p>
-            )}
+            {(multi || showLabel) && <p className="text-xs text-muted-foreground">{label}</p>}
             {/* The SVG is absolutely positioned: inside a wrapped flex line a
                 percentage height can't resolve and the SVG would fall back to
                 width-driven sizing and overflow the panel. */}
@@ -191,18 +163,12 @@ export function GaugeChartVisualization({
                   fontSize={13}
                   className={cn(
                     "font-semibold tabular-nums",
-                    value === undefined
-                      ? "fill-muted-foreground"
-                      : "fill-foreground",
+                    value === undefined ? "fill-muted-foreground" : "fill-foreground",
                   )}
                 >
                   {valueText}
                   {value !== undefined && unit && (
-                    <tspan
-                      dx={1.5}
-                      fontSize={7}
-                      className="fill-muted-foreground font-normal"
-                    >
+                    <tspan dx={1.5} fontSize={7} className="fill-muted-foreground font-normal">
                       {unit}
                     </tspan>
                   )}

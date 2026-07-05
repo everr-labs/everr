@@ -1,7 +1,7 @@
 {
   "name": "@everr/desktop-app",
-  "private": true,
   "version": "0.5.0",
+  "private": true,
   "type": "module",
   "scripts": {
     "dev": "tauri dev --config src-tauri/tauri.dev.conf.json",
@@ -16,10 +16,10 @@
     "build:cli:release": "node ./scripts/build-cli.ts release",
     "install:cli:debug": "node ./scripts/build-cli.ts debug --install",
     "install:cli:release": "node ./scripts/build-cli.ts release --install",
-    "frontend:dev": "vite",
-    "frontend:build": "tsc && vite build",
-    "test": "vitest run",
-    "preview": "vite preview",
+    "frontend:dev": "vp dev",
+    "frontend:build": "tsc && vp build",
+    "test": "vp test run",
+    "preview": "vp preview",
     "tauri": "tauri"
   },
   "dependencies": {
@@ -29,8 +29,8 @@
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/api-logs": "^0.218.0",
     "@opentelemetry/core": "^2.7.1",
-    "@opentelemetry/resources": "^2.7.1",
     "@opentelemetry/otlp-transformer": "^0.218.0",
+    "@opentelemetry/resources": "^2.7.1",
     "@opentelemetry/sdk-logs": "^0.218.0",
     "@opentelemetry/sdk-trace-base": "^2.7.1",
     "@opentelemetry/semantic-conventions": "^1.40.0",
@@ -57,6 +57,8 @@
     "semver": "^7.8.0",
     "typescript": "catalog:",
     "vite": "catalog:",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:",
     "zx": "^8.8.5"
   }
 }

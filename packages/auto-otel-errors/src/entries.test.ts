@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vite-plus/test";
 import * as browserEntry from "./browser.js";
 import * as nodeEntry from "./node.js";
 import { setupTestTelemetry } from "./test-utils.js";
@@ -14,16 +14,14 @@ describe("entry points", () => {
     expect(nodeEntry.init).toBeTypeOf("function");
     expect(nodeEntry.captureError).toBeTypeOf("function");
     expect(nodeEntry.teardown).toBeTypeOf("function");
-    expect(
-      nodeEntry.nodeDefaultIntegrations().map((integration) => integration.name),
-    ).toEqual(["nodeGlobalHandlers"]);
+    expect(nodeEntry.nodeDefaultIntegrations().map((integration) => integration.name)).toEqual([
+      "nodeGlobalHandlers",
+    ]);
   });
 
   it("browser entry exposes browser default integrations", () => {
     expect(
-      browserEntry
-        .browserDefaultIntegrations()
-        .map((integration) => integration.name),
+      browserEntry.browserDefaultIntegrations().map((integration) => integration.name),
     ).toEqual(["browserGlobalHandlers"]);
   });
 

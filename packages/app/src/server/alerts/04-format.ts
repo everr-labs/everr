@@ -37,10 +37,7 @@ const identity: EscapeFn = (text) => text;
 
 // One definition of how each kind presents across channels; telegram lowercases
 // the label for its headline.
-export const KIND_STATUS: Record<
-  DeliveryKind,
-  { emoji: string; label: string }
-> = {
+export const KIND_STATUS: Record<DeliveryKind, { emoji: string; label: string }> = {
   firing: { emoji: "🔥", label: "Firing" },
   resolved: { emoji: "✅", label: "Resolved" },
   mixed: { emoji: "🔥", label: "Firing + Resolved" },
@@ -96,17 +93,11 @@ export function extractInstanceValues(
 
 // What to show next to an instance's labels: the breaching values while
 // firing, how long it fired once resolved. Empty when neither is available.
-function instanceDetail(
-  instance: NotifiableInstance,
-  kind: DeliveryKind,
-  now: Date,
-): string {
+function instanceDetail(instance: NotifiableInstance, kind: DeliveryKind, now: Date): string {
   if (kind === "firing") {
     return extractInstanceValues(instance.row, instance.labels).join(", ");
   }
-  return instance.firedAt
-    ? `fired for ${formatDuration(instance.firedAt, now)}`
-    : "";
+  return instance.firedAt ? `fired for ${formatDuration(instance.firedAt, now)}` : "";
 }
 
 // The instance's labels with its breaching values or fired-for duration
@@ -133,19 +124,13 @@ export function instanceLine(
   return `${bullet} ${instanceDetailText(instance, kind, now, escapeText)}`;
 }
 
-export function renderTitle(
-  def: DeliveryInput["def"],
-  instance: NotifiableInstance,
-): string {
+export function renderTitle(def: DeliveryInput["def"], instance: NotifiableInstance): string {
   return renderMessage(def.notificationTitleTemplate, {
     firstRow: instance.row,
   });
 }
 
-export function renderDescription(
-  def: DeliveryInput["def"],
-  instance: NotifiableInstance,
-): string {
+export function renderDescription(def: DeliveryInput["def"], instance: NotifiableInstance): string {
   return def.notificationDescriptionTemplate
     ? renderMessage(def.notificationDescriptionTemplate, {
         firstRow: instance.row,

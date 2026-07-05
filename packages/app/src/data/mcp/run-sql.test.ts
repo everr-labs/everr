@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 // vi.hoisted so the hoisted vi.mock factory can reference this safely.
 const { querySqlApi } = vi.hoisted(() => ({ querySqlApi: vi.fn() }));
@@ -31,8 +31,9 @@ describe("runSqlForConnection", () => {
 
   it("sanitizes a query error", async () => {
     querySqlApi.mockRejectedValueOnce(new Error("Syntax error near FROM"));
-    expect(
-      await runSqlForConnection({ orgId: "org-1", sql: "SELEC 1" }),
-    ).toEqual({ isError: true, text: "Syntax error near FROM" });
+    expect(await runSqlForConnection({ orgId: "org-1", sql: "SELEC 1" })).toEqual({
+      isError: true,
+      text: "Syntax error near FROM",
+    });
   });
 });

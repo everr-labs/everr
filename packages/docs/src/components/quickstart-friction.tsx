@@ -47,10 +47,7 @@ export function QuickstartFriction() {
 
   return (
     <section className="relative overflow-x-clip border-y-2 border-fd-border bg-fd-background">
-      <div
-        ref={ref}
-        className="relative z-10 mx-auto max-w-7xl px-6 py-24 md:py-36"
-      >
+      <div ref={ref} className="relative z-10 mx-auto max-w-7xl px-6 py-24 md:py-36">
         {/* ---- Header ---- */}
         <motion.div
           initial={REVEAL.initial}
@@ -65,8 +62,8 @@ export function QuickstartFriction() {
             Days of setup, or one command.
           </h2>
           <p className="mt-6 max-w-xl text-balance text-base leading-relaxed text-fd-muted-foreground sm:text-lg">
-            Setting up observability usually means a long detour full of context
-            switches. With Everr the feedback loop is immediate.
+            Setting up observability usually means a long detour full of context switches. With
+            Everr the feedback loop is immediate.
           </p>
         </motion.div>
 
@@ -162,10 +159,7 @@ export function QuickstartFriction() {
               {/* command — one line */}
               <div className="overflow-x-auto px-5 py-5 [scrollbar-width:thin]">
                 <code className="whitespace-nowrap font-mono text-base sm:text-lg">
-                  <span
-                    className="select-none text-fd-muted-foreground/40"
-                    aria-hidden
-                  >
+                  <span className="select-none text-fd-muted-foreground/40" aria-hidden>
                     $
                   </span>{" "}
                   <span className="text-fd-foreground">{INSTALL_COMMAND}</span>
@@ -197,13 +191,7 @@ export function QuickstartFriction() {
                       >
                         {done ? "→" : "✓"}
                       </span>
-                      <span
-                        className={
-                          done
-                            ? "text-fd-foreground"
-                            : "text-fd-muted-foreground"
-                        }
-                      >
+                      <span className={done ? "text-fd-foreground" : "text-fd-muted-foreground"}>
                         {line}
                       </span>
                     </motion.div>
@@ -213,10 +201,9 @@ export function QuickstartFriction() {
             </div>
 
             <p className="mt-4 text-sm leading-relaxed text-fd-muted-foreground">
-              The <Code>everr</Code> installer sets up the CLI, agent skills,
-              and a local collector. The collector lets you build and validate
-              telemetry locally; the skills let your coding agent instrument the
-              codebase and take it to production.
+              The <Code>everr</Code> installer sets up the CLI, agent skills, and a local collector.
+              The collector lets you build and validate telemetry locally; the skills let your
+              coding agent instrument the codebase and take it to production.
             </p>
 
             <div className="flex-1" />
@@ -241,8 +228,7 @@ export function QuickstartFriction() {
           className="mt-14 flex flex-col items-start gap-6 sm:flex-row sm:items-center sm:justify-between"
         >
           <p className="max-w-md text-balance font-mono text-xs leading-relaxed text-fd-muted-foreground sm:text-sm">
-            Same pipeline, none of the setup. Skip the plumbing and go straight
-            to the data.
+            Same pipeline, none of the setup. Skip the plumbing and go straight to the data.
           </p>
           <a
             href="/docs/learn/install"
@@ -264,13 +250,7 @@ export function QuickstartFriction() {
 /*  Shared pieces                                                      */
 /* ------------------------------------------------------------------ */
 
-function ColumnTag({
-  label,
-  tone,
-}: {
-  label: string;
-  tone: "muted" | "plain";
-}) {
+function ColumnTag({ label, tone }: { label: string; tone: "muted" | "plain" }) {
   return (
     <h3
       className={cn(

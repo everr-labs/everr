@@ -1,7 +1,4 @@
-import {
-  ErrorIssueSearchSchema,
-  type ErrorIssuesProps,
-} from "@everr/telemetry-explorer/errors";
+import { ErrorIssueSearchSchema, type ErrorIssuesProps } from "@everr/telemetry-explorer/errors";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createMemoryHistory,
@@ -16,7 +13,7 @@ import {
 } from "@tanstack/react-router";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { z } from "zod";
 import { ErrorDetailRouteContent } from "./-error-detail";
 import { Route as ErrorsFileRoute } from "./errors";
@@ -33,9 +30,7 @@ vi.mock("@/data/runs/options", () => ({
 }));
 
 const realtimeSubscriptions = vi.hoisted(() => ({
-  starts: [] as Array<
-    { scope: "tenant" } | { scope: "trace"; traceId: string }
-  >,
+  starts: [] as Array<{ scope: "tenant" } | { scope: "trace"; traceId: string }>,
   stops: [] as Array<{ scope: "tenant" } | { scope: "trace"; traceId: string }>,
 }));
 
@@ -64,8 +59,7 @@ vi.mock("@/hooks/use-realtime-subscription", async () => {
 });
 
 vi.mock("@everr/telemetry-explorer/errors", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("@everr/telemetry-explorer/errors")>();
+  const actual = await importOriginal<typeof import("@everr/telemetry-explorer/errors")>();
   return {
     ...actual,
     ErrorDetail: ({ fingerprint }: { fingerprint: string }) => (
@@ -93,10 +87,7 @@ describe("/errors route", () => {
     realtimeSubscriptions.stops = [];
   });
 
-  function renderErrorsRoute(
-    initialEntries: string[],
-    initialState?: Record<string, unknown>,
-  ) {
+  function renderErrorsRoute(initialEntries: string[], initialState?: Record<string, unknown>) {
     const rootRoute = createRootRoute({
       component: Outlet,
     });
@@ -202,9 +193,7 @@ describe("/errors route", () => {
   it("renders the detail child route as a page for a direct error URL", async () => {
     renderErrorsRoute(["/errors/fp-1"]);
 
-    expect(
-      await screen.findByText("Error full page route"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Error full page route")).toBeInTheDocument();
     expect(screen.queryByText("Error list page")).not.toBeInTheDocument();
   });
 
@@ -213,9 +202,7 @@ describe("/errors route", () => {
       "/errors/fp-1?from=2026-06-04%2018%3A45%3A10.869&to=2026-06-04%2018%3A55%3A10.869",
     ]);
 
-    expect(
-      await screen.findByText("Error full page route"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Error full page route")).toBeInTheDocument();
     expect(screen.queryByText("Error list page")).not.toBeInTheDocument();
   });
 
@@ -223,44 +210,32 @@ describe("/errors route", () => {
     const user = userEvent.setup();
     const router = renderErrorsRoute(["/errors"]);
 
-    await user.click(
-      await screen.findByRole("link", { name: "Open error fp-1" }),
-    );
+    await user.click(await screen.findByRole("link", { name: "Open error fp-1" }));
 
     expect(screen.getByText("Error list page")).toBeInTheDocument();
     expect(screen.getByText("Error detail page fp-1")).toBeInTheDocument();
     expect(router.state.location.href).toContain("/modal");
     expect(router.state.location.maskedLocation?.href).not.toContain("/modal");
-    expect(router.state.location.maskedLocation?.href).toContain(
-      "/errors/fp-1",
-    );
+    expect(router.state.location.maskedLocation?.href).toContain("/errors/fp-1");
   });
 
   it("does not start another tenant realtime subscription for modal details", async () => {
     const user = userEvent.setup();
     renderErrorsRoute(["/errors"]);
 
-    await waitFor(() =>
-      expect(realtimeSubscriptions.starts).toEqual([{ scope: "tenant" }]),
-    );
+    await waitFor(() => expect(realtimeSubscriptions.starts).toEqual([{ scope: "tenant" }]));
 
-    await user.click(
-      await screen.findByRole("link", { name: "Open error fp-1" }),
-    );
+    await user.click(await screen.findByRole("link", { name: "Open error fp-1" }));
 
     expect(screen.getByText("Error list page")).toBeInTheDocument();
     expect(screen.getByText("Error detail page fp-1")).toBeInTheDocument();
-    await waitFor(() =>
-      expect(realtimeSubscriptions.starts).toEqual([{ scope: "tenant" }]),
-    );
+    await waitFor(() => expect(realtimeSubscriptions.starts).toEqual([{ scope: "tenant" }]));
   });
 
   it("renders the detail child route as a page when the masked URL is reloaded", async () => {
     renderErrorsRoute(["/errors/fp-1"]);
 
-    expect(
-      await screen.findByText("Error full page route"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Error full page route")).toBeInTheDocument();
     expect(screen.queryByText("Error list page")).not.toBeInTheDocument();
   });
 

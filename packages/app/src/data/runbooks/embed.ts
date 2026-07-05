@@ -15,10 +15,7 @@ const refEmbed = z.object({ ref: z.string().min(1), height: heightSchema });
 
 function firstIssue(error: z.ZodError): string {
   const issue = error.issues[0];
-  const where =
-    issue && issue.path.length > 0
-      ? ` at ${issue.path.map(String).join(".")}`
-      : "";
+  const where = issue && issue.path.length > 0 ? ` at ${issue.path.map(String).join(".")}` : "";
   return `${issue?.message}${where}`;
 }
 
@@ -32,9 +29,7 @@ export function parsePanelEmbed(source: string): PanelEmbed {
   try {
     doc = parse(source);
   } catch (e) {
-    throw new Error(
-      `invalid YAML: ${e instanceof Error ? e.message : String(e)}`,
-    );
+    throw new Error(`invalid YAML: ${e instanceof Error ? e.message : String(e)}`);
   }
   if (doc === null || typeof doc !== "object" || Array.isArray(doc)) {
     throw new Error("panel block must be a YAML mapping");
@@ -61,8 +56,7 @@ export function parsePanelEmbed(source: string): PanelEmbed {
     const h = heightSchema.safeParse(rawHeight);
     if (!h.success) throw new Error(`invalid height: ${firstIssue(h.error)}`);
     const p = panel.safeParse(rest);
-    if (!p.success)
-      throw new Error(`invalid inline panel: ${firstIssue(p.error)}`);
+    if (!p.success) throw new Error(`invalid inline panel: ${firstIssue(p.error)}`);
     return { kind: "inline", panel: p.data, height: h.data };
   }
 
@@ -103,8 +97,7 @@ export function extractPanelFences(markdown: string): PanelFence[] {
   const fences: PanelFence[] = [];
   const visit = (node: MdastNode) => {
     if (node.type === "code") {
-      if (node.lang === "panel")
-        fences.push({ yaml: (node.value ?? "").trim() });
+      if (node.lang === "panel") fences.push({ yaml: (node.value ?? "").trim() });
       return;
     }
     for (const child of node.children ?? []) visit(child);

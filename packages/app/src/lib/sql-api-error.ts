@@ -4,11 +4,7 @@ import { ClickHouseError } from "@clickhouse/client";
 // returns distinct errors for "exists but no read grant" vs "doesn't exist".
 // Forwarding them verbatim turns the SQL endpoint into a schema-enumeration
 // oracle. Collapse every schema-probing error into one uniform message.
-const SCHEMA_PROBE_ERROR_TYPES = new Set([
-  "ACCESS_DENIED",
-  "UNKNOWN_TABLE",
-  "UNKNOWN_DATABASE",
-]);
+const SCHEMA_PROBE_ERROR_TYPES = new Set(["ACCESS_DENIED", "UNKNOWN_TABLE", "UNKNOWN_DATABASE"]);
 const SCHEMA_PROBE_ERROR_CODES = new Set(["497", "60", "81"]);
 
 export const SCHEMA_PROBE_MESSAGE =
@@ -19,12 +15,9 @@ export const SCHEMA_PROBE_MESSAGE =
 export function sanitizeSqlApiError(error: unknown): string {
   if (
     error instanceof ClickHouseError &&
-    (SCHEMA_PROBE_ERROR_TYPES.has(error.type ?? "") ||
-      SCHEMA_PROBE_ERROR_CODES.has(error.code))
+    (SCHEMA_PROBE_ERROR_TYPES.has(error.type ?? "") || SCHEMA_PROBE_ERROR_CODES.has(error.code))
   ) {
     return SCHEMA_PROBE_MESSAGE;
   }
-  return error instanceof Error
-    ? error.message
-    : "Failed to execute SQL query.";
+  return error instanceof Error ? error.message : "Failed to execute SQL query.";
 }

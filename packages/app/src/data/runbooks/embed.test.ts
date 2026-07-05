@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { extractPanelFences, parsePanelEmbed } from "./embed";
 
 describe("parsePanelEmbed", () => {
@@ -41,9 +41,7 @@ describe("parsePanelEmbed", () => {
   });
 
   it("rejects an inline panel that fails the panel schema", () => {
-    expect(() => parsePanelEmbed("kind: Panel\nspec: {}")).toThrow(
-      /invalid inline panel/,
-    );
+    expect(() => parsePanelEmbed("kind: Panel\nspec: {}")).toThrow(/invalid inline panel/);
   });
 });
 

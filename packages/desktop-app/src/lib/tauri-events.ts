@@ -56,10 +56,7 @@ export function useIsFullscreen() {
   }, []);
 }
 
-export function useTauriEvent<T = unknown>(
-  eventName: EventName,
-  onEvent: (payload: T) => void,
-) {
+export function useTauriEvent<T = unknown>(eventName: EventName, onEvent: (payload: T) => void) {
   const handleEvent = useEffectEvent((payload: T) => {
     onEvent(payload);
   });

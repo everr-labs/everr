@@ -13,8 +13,8 @@ on:
   pull_request:
     paths:
       - .github/workflows/build-and-test-app.yml
-      - .nvmrc
-      - biome.json
+      - .node-version
+      - vite.config.ts
       - package.json
       - packages/app/**
       - packages/datemath/**
@@ -27,8 +27,8 @@ on:
     branches: [main]
     paths:
       - .github/workflows/build-and-test-app.yml
-      - .nvmrc
-      - biome.json
+      - .node-version
+      - vite.config.ts
       - package.json
       - packages/app/**
       - packages/datemath/**
@@ -56,14 +56,14 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version-file: .nvmrc
+          node-version-file: .node-version
           cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Lint
-        run: pnpm exec biome check packages/app packages/datemath
+        run: pnpm exec vp check packages/app packages/datemath
 
       - name: Typecheck
         run: pnpm -r --filter @everr/app... typecheck

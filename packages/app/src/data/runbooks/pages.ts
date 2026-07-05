@@ -17,10 +17,7 @@ function pageTitle(page: RunbookPage): string {
  * Returns null when any segment doesn't match — the viewer shows page-not-found
  * inline (the runbook itself exists).
  */
-export function findPage(
-  spec: RunbookSpec,
-  pagePath: string,
-): ResolvedPage | null {
+export function findPage(spec: RunbookSpec, pagePath: string): ResolvedPage | null {
   const segments = pagePath.split("/").filter(Boolean);
   if (segments.length === 0) {
     return {
@@ -41,9 +38,7 @@ export function findPage(
   return {
     title: pageTitle(resolved),
     markdown: resolved.markdown.inline ?? "",
-    ...(resolved.markdown.file !== undefined
-      ? { file: resolved.markdown.file }
-      : {}),
+    ...(resolved.markdown.file !== undefined ? { file: resolved.markdown.file } : {}),
   };
 }
 
@@ -55,10 +50,7 @@ export interface PageNavNode {
 }
 
 export function pageNavTree(spec: RunbookSpec): PageNavNode[] {
-  const build = (
-    pages: RunbookPage[] | undefined,
-    prefix: string,
-  ): PageNavNode[] =>
+  const build = (pages: RunbookPage[] | undefined, prefix: string): PageNavNode[] =>
     (pages ?? []).map((page) => {
       const path = prefix ? `${prefix}/${page.name}` : page.name;
       return {
@@ -133,10 +125,7 @@ export function hrefHash(href: string): string | undefined {
 }
 
 /** Resolve one markdown href against a runbook to a page path, or null. */
-export type RunbookLinkResolver = (
-  href: string,
-  currentFile: string | undefined,
-) => string | null;
+export type RunbookLinkResolver = (href: string, currentFile: string | undefined) => string | null;
 
 /**
  * Build a resolver that maps a markdown href to a runbook page path, or null
@@ -152,9 +141,7 @@ export type RunbookLinkResolver = (
  *     page's markdown.file) matches an entry in buildFileToPageMap → that page
  *  4. otherwise null
  */
-export function makeRunbookLinkResolver(
-  spec: RunbookSpec,
-): RunbookLinkResolver {
+export function makeRunbookLinkResolver(spec: RunbookSpec): RunbookLinkResolver {
   const pagePaths = new Set<string>([""]);
   const collect = (nodes: PageNavNode[]): void => {
     for (const node of nodes) {
@@ -213,11 +200,7 @@ export function resolveRunbookLink(
  * unchanged. `spec.panels` carries the runbook's shared
  * panels so `ref:` embeds resolve through the same context.
  */
-export function toDashboardDocument(
-  runbook: Runbook,
-  project: string,
-  slug: string,
-): Dashboard {
+export function toDashboardDocument(runbook: Runbook, project: string, slug: string): Dashboard {
   const spec: Dashboard["spec"] = {
     display: runbook.spec.display,
     panels: runbook.spec.panels ?? {},

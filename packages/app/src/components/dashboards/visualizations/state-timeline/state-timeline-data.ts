@@ -50,18 +50,11 @@ export function buildStateTimelineModel(
       const [ts, state] = sorted[i]!;
       if (state === null) continue;
       const start = Math.max(ts, domain[0]);
-      const end = Math.min(
-        i + 1 < sorted.length ? sorted[i + 1]![0] : domain[1],
-        domain[1],
-      );
+      const end = Math.min(i + 1 < sorted.length ? sorted[i + 1]![0] : domain[1], domain[1]);
       if (end <= start) continue;
       if (!states.includes(state)) states.push(state);
       const prev = segments.at(-1);
-      if (
-        spec.mergeConsecutive &&
-        prev?.state === state &&
-        prev.end === start
-      ) {
+      if (spec.mergeConsecutive && prev?.state === state && prev.end === start) {
         prev.end = end;
       } else {
         segments.push({ start, end, state });

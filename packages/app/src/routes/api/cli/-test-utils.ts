@@ -1,4 +1,4 @@
-import { vi } from "vitest";
+import { vi } from "vite-plus/test";
 
 type RouteLike = {
   options: unknown;
@@ -33,19 +33,13 @@ type HandlerMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
  * Extracts a typed route handler from a TanStack Start route's options.
  * Throws with a descriptive error if the handler is not registered.
  */
-export function getRouteHandler<T>(
-  route: RouteLike,
-  method: HandlerMethod,
-  label?: string,
-): T {
+export function getRouteHandler<T>(route: RouteLike, method: HandlerMethod, label?: string): T {
   const routeOptions = route.options as unknown as {
     server?: { handlers?: Partial<Record<HandlerMethod, T>> };
   };
   const handler = routeOptions.server?.handlers?.[method];
   if (!handler) {
-    throw new Error(
-      `Missing ${method} handler${label ? ` for ${label}` : ""}.`,
-    );
+    throw new Error(`Missing ${method} handler${label ? ` for ${label}` : ""}.`);
   }
   return handler;
 }

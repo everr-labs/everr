@@ -23,8 +23,8 @@ export function Community() {
         </h2>
 
         <p className="mt-6 max-w-2xl text-lg leading-relaxed text-primary-foreground/80 md:text-xl">
-          It's where we talk with the people using Everr. Drop feature requests,
-          share feedback, and weigh in on what we build next.
+          It's where we talk with the people using Everr. Drop feature requests, share feedback, and
+          weigh in on what we build next.
         </p>
 
         <div className="mt-10 flex flex-col items-start gap-5 sm:flex-row sm:items-center md:mt-12">

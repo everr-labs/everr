@@ -97,9 +97,7 @@ function formatError(error: unknown): string {
   return String(error);
 }
 
-function buildMetadata(
-  metadata: PartialArtifactMetadata,
-): ResourceUsageMetadata {
+function buildMetadata(metadata: PartialArtifactMetadata): ResourceUsageMetadata {
   const startedAt = parseDate(metadata.startedAt);
   const completedAt = parseDate(metadata.completedAt, startedAt);
 
@@ -158,9 +156,7 @@ function parseNetworkInterfaces(
   return value
     .map((item) => ({
       name: toString(
-        item && typeof item === "object"
-          ? (item as Record<string, unknown>).name
-          : undefined,
+        item && typeof item === "object" ? (item as Record<string, unknown>).name : undefined,
       ),
       receiveBytes: toNumber(
         item && typeof item === "object"
@@ -176,13 +172,9 @@ function parseNetworkInterfaces(
     .sort((left, right) => left.name.localeCompare(right.name));
 }
 
-function sanitizeSample(
-  parsed: Record<string, unknown>,
-): ResourceUsageSample {
+function sanitizeSample(parsed: Record<string, unknown>): ResourceUsageSample {
   const cpu =
-    parsed.cpu && typeof parsed.cpu === "object"
-      ? (parsed.cpu as Record<string, unknown>)
-      : {};
+    parsed.cpu && typeof parsed.cpu === "object" ? (parsed.cpu as Record<string, unknown>) : {};
   const memory =
     parsed.memory && typeof parsed.memory === "object"
       ? (parsed.memory as Record<string, unknown>)
@@ -222,9 +214,7 @@ function sanitizeSample(
   };
 }
 
-export async function loadSamples(
-  samplesPath: string | undefined,
-): Promise<ResourceUsageSample[]> {
+export async function loadSamples(samplesPath: string | undefined): Promise<ResourceUsageSample[]> {
   if (!samplesPath || !existsSync(samplesPath)) {
     return [];
   }
@@ -243,9 +233,7 @@ export async function loadSamples(
       try {
         parsed = JSON.parse(line) as Record<string, unknown>;
       } catch (error) {
-        throw new Error(
-          `invalid NDJSON sample on line ${index + 1}: ${formatError(error)}`,
-        );
+        throw new Error(`invalid NDJSON sample on line ${index + 1}: ${formatError(error)}`);
       }
 
       return sanitizeSample(parsed);
@@ -278,12 +266,7 @@ export async function finalizePartialArtifact({
     `${JSON.stringify(finalizedMetadata, null, 2)}\n`,
     "utf8",
   );
-  await writeFile(
-    `${outputDir}/samples.ndjson`,
-    serializeSamples(samples),
-    "utf8",
-  );
+  await writeFile(`${outputDir}/samples.ndjson`, serializeSamples(samples), "utf8");
 
   return finalizedMetadata;
 }
-

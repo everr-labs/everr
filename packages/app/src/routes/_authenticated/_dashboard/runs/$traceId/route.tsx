@@ -7,35 +7,18 @@ import {
   CardTitle,
 } from "@everr/ui/components/card";
 import { Skeleton } from "@everr/ui/components/skeleton";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@everr/ui/components/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@everr/ui/components/tabs";
 import { cn } from "@everr/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import {
-  createFileRoute,
-  Link,
-  Outlet,
-  useMatch,
-  useParams,
-} from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useMatch, useParams } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { PageContainer } from "@/components/page-container";
 import { JobTreeNav } from "@/components/run-detail/job-tree-nav";
 import { RunHeader } from "@/components/run-detail/run-header";
-import {
-  allJobsStepsOptions,
-  runDetailsOptions,
-  runJobsOptions,
-} from "@/data/runs/options";
+import { allJobsStepsOptions, runDetailsOptions, runJobsOptions } from "@/data/runs/options";
 import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
 
-export const Route = createFileRoute(
-  "/_authenticated/_dashboard/runs/$traceId",
-)({
+export const Route = createFileRoute("/_authenticated/_dashboard/runs/$traceId")({
   staticData: {
     breadcrumb: (match: { loaderData?: { workflowName?: string } }) =>
       match.loaderData?.workflowName ?? "Run Details",
@@ -118,10 +101,7 @@ function RunDetailLayout() {
         pullRequestUrls={runDetails.pullRequestUrls}
       />
 
-      <Tabs
-        value={traceMatch ? "Trace" : "Jobs"}
-        className="flex min-h-0 flex-1 flex-col"
-      >
+      <Tabs value={traceMatch ? "Trace" : "Jobs"} className="flex min-h-0 flex-1 flex-col">
         <TabsList className="shrink-0">
           <TabsTrigger value="Jobs">
             {stepDetailMatch ? (
@@ -160,9 +140,7 @@ function RunDetailLayout() {
             <Card size="sm" className="flex flex-col overflow-hidden">
               <CardHeader className="shrink-0">
                 <CardTitle>Jobs</CardTitle>
-                <CardDescription>
-                  {(jobs ?? []).length} jobs in this run
-                </CardDescription>
+                <CardDescription>{(jobs ?? []).length} jobs in this run</CardDescription>
               </CardHeader>
               <CardContent className="min-h-0 flex-1 overflow-auto">
                 <JobTreeNav
@@ -223,22 +201,15 @@ function RunDetailError({ error }: { error: Error }) {
       <div className="space-y-3">
         <Link
           to="/runs"
-          className={cn(
-            buttonVariants({ variant: "ghost", size: "sm" }),
-            "h-7 px-2",
-          )}
+          className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "h-7 px-2")}
         >
           <ArrowLeft className="size-4" />
         </Link>
         <Card size="sm">
           <CardContent className="pt-4">
             <div className="text-center">
-              <p className="text-destructive font-medium">
-                Failed to load run details
-              </p>
-              <p className="text-muted-foreground mt-1 text-sm">
-                {error.message}
-              </p>
+              <p className="text-destructive font-medium">Failed to load run details</p>
+              <p className="text-muted-foreground mt-1 text-sm">{error.message}</p>
             </div>
           </CardContent>
         </Card>

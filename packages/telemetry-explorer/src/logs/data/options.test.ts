@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { logsExplorerInfiniteOptions } from "./options";
 import type { LogsRepositoryLike } from "./repository";
 

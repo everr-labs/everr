@@ -1,10 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { BetterAuthPlugin } from "better-auth";
 import { createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
-import {
-  getDeviceApprovalUserCode,
-  getDeviceTokenCode,
-} from "@/lib/auth-context-body";
+import { getDeviceApprovalUserCode, getDeviceTokenCode } from "@/lib/auth-context-body";
 import {
   getActiveOrganizationIdFromAuthSession,
   getDeviceOrgIdFromScope,
@@ -67,18 +64,16 @@ export function cliDeviceOrganizationPlugin(options?: {
             }
 
             const browserSession = await getSessionFromCtx(context);
-            const activeOrganizationId =
-              getActiveOrganizationIdFromAuthSession(browserSession);
+            const activeOrganizationId = getActiveOrganizationIdFromAuthSession(browserSession);
             if (!activeOrganizationId) {
               return;
             }
 
             try {
-              const record =
-                await context.context.adapter.findOne<DeviceCodeRecord>({
-                  model: "deviceCode",
-                  where: [{ field: "userCode", value: userCode }],
-                });
+              const record = await context.context.adapter.findOne<DeviceCodeRecord>({
+                model: "deviceCode",
+                where: [{ field: "userCode", value: userCode }],
+              });
               if (!record) {
                 return;
               }
@@ -106,18 +101,15 @@ export function cliDeviceOrganizationPlugin(options?: {
             }
 
             try {
-              const record = await context.context.adapter.findOne<
-                Pick<DeviceCodeRecord, "scope">
-              >({
-                model: "deviceCode",
-                where: [{ field: "deviceCode", value: deviceCodeValue }],
-              });
+              const record = await context.context.adapter.findOne<Pick<DeviceCodeRecord, "scope">>(
+                {
+                  model: "deviceCode",
+                  where: [{ field: "deviceCode", value: deviceCodeValue }],
+                },
+              );
 
               const organizationId = getDeviceOrgIdFromScope(record?.scope);
-              if (
-                organizationId &&
-                !captureDeviceOrganizationId(organizationId)
-              ) {
+              if (organizationId && !captureDeviceOrganizationId(organizationId)) {
                 options?.onError?.(
                   "capture",
                   new Error(

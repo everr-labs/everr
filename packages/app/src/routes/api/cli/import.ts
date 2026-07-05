@@ -4,10 +4,7 @@ import { z } from "zod";
 import { db } from "@/db/client";
 import { githubInstallationOrganizations } from "@/db/schema";
 import { auth } from "@/lib/auth.server";
-import {
-  backfillRepo,
-  listInstallationRepos,
-} from "@/server/github-events/backfill";
+import { backfillRepo, listInstallationRepos } from "@/server/github-events/backfill";
 
 const BodySchema = z.object({ repos: z.array(z.string().min(1)).min(1) });
 const IMPORT_MANAGER_ROLES = new Set(["admin", "owner"]);
@@ -18,10 +15,7 @@ export const Route = createFileRoute("/api/cli/import")({
       POST: async ({ request, context }) => {
         const parsed = BodySchema.safeParse(await request.json());
         if (!parsed.success) {
-          return Response.json(
-            { error: "repos must be a non-empty array" },
-            { status: 400 },
-          );
+          return Response.json({ error: "repos must be a non-empty array" }, { status: 400 });
         }
 
         const { session, user } = context.session;
@@ -39,30 +33,17 @@ export const Route = createFileRoute("/api/cli/import")({
 
         const installations = await db
           .select({
-            installationId:
-              githubInstallationOrganizations.githubInstallationId,
+            installationId: githubInstallationOrganizations.githubInstallationId,
             status: githubInstallationOrganizations.status,
           })
           .from(githubInstallationOrganizations)
-          .where(
-            eq(
-              githubInstallationOrganizations.organizationId,
-              session.activeOrganizationId,
-            ),
-          );
-        const activeInstallation = installations.find(
-          (i) => i.status === "active",
-        );
+          .where(eq(githubInstallationOrganizations.organizationId, session.activeOrganizationId));
+        const activeInstallation = installations.find((i) => i.status === "active");
         if (!activeInstallation) {
-          return Response.json(
-            { error: "no active GitHub installation" },
-            { status: 400 },
-          );
+          return Response.json({ error: "no active GitHub installation" }, { status: 400 });
         }
 
-        const allRepos = await listInstallationRepos(
-          activeInstallation.installationId,
-        );
+        const allRepos = await listInstallationRepos(activeInstallation.installationId);
         const repos = parsed.data.repos
           .map((name) => allRepos.find((r) => r.full_name === name))
           .filter((r) => r != null);

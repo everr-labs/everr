@@ -2,9 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { RealtimeSubscriptionMachine } from "./realtime-subscription-machine";
 
-type SubscriptionOpts =
-  | { scope: "tenant" }
-  | { scope: "trace"; traceId: string };
+type SubscriptionOpts = { scope: "tenant" } | { scope: "trace"; traceId: string };
 
 export function useRealtimeSubscription(opts: SubscriptionOpts) {
   const queryClient = useQueryClient();

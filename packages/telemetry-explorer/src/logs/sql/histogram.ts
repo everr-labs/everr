@@ -30,15 +30,9 @@ export function buildHistogramQuery(
 ): HistogramBuilt {
   const tableName = opts.tableName ?? "logs";
   validateTableName(tableName);
-  const { fromISO, toISO, fromDate, toDate } = resolveTimeRange(
-    input.timeRange,
-  );
+  const { fromISO, toISO, fromDate, toDate } = resolveTimeRange(input.timeRange);
   const where = buildWhereClause(input);
-  const intervalSeconds = bucketSeconds(
-    fromDate,
-    toDate,
-    input.histogramBuckets,
-  );
+  const intervalSeconds = bucketSeconds(fromDate, toDate, input.histogramBuckets);
   const sql = `
       SELECT
         toStartOfInterval(TimestampTime, INTERVAL ${intervalSeconds} SECOND) AS bucket,
@@ -74,9 +68,7 @@ export function buildHistogramQuery(
   };
 }
 
-function mapHistogramRow(
-  row: HistogramRowRaw & { intervalSeconds: number },
-): LogHistogramBucket {
+function mapHistogramRow(row: HistogramRowRaw & { intervalSeconds: number }): LogHistogramBucket {
   const timestamp = normalizeTimestampToUtc(row.bucket);
   const date = new Date(timestamp);
   const endDate = new Date(date.getTime() + row.intervalSeconds * 1000);
@@ -103,10 +95,7 @@ export function fillHistogramBuckets(
   const startMs = Math.floor(fromDate.getTime() / intervalMs) * intervalMs;
   const endMs = Math.floor(toDate.getTime() / intervalMs) * intervalMs;
   const rowsByBucket = new Map(
-    rows.map((row) => [
-      new Date(normalizeTimestampToUtc(row.bucket)).getTime(),
-      row,
-    ]),
+    rows.map((row) => [new Date(normalizeTimestampToUtc(row.bucket)).getTime(), row]),
   );
   const buckets: LogHistogramBucket[] = [];
   for (let bucketMs = startMs; bucketMs <= endMs; bucketMs += intervalMs) {

@@ -2,10 +2,7 @@ import type { CalculationType, ThresholdsSpec } from "./spec";
 
 export type { CalculationType, ThresholdsSpec } from "./spec";
 
-export function calculate(
-  values: number[],
-  calculation: CalculationType,
-): number | undefined {
+export function calculate(values: number[], calculation: CalculationType): number | undefined {
   if (values.length === 0) return undefined;
   switch (calculation) {
     case "last":
@@ -27,9 +24,7 @@ export function calculate(
     case "diff": {
       const first = values[0];
       const last = values[values.length - 1];
-      return first === undefined || last === undefined
-        ? undefined
-        : last - first;
+      return first === undefined || last === undefined ? undefined : last - first;
     }
   }
 }
@@ -45,8 +40,7 @@ export function resolveThresholdColor(
   // non-positive divisor would invert the comparison (e.g. an all-negative
   // series), so it degrades to "no step crossed" instead.
   const max = thresholds.max ?? seriesMax;
-  const compare =
-    thresholds.mode === "percent" ? (max > 0 ? (value / max) * 100 : 0) : value;
+  const compare = thresholds.mode === "percent" ? (max > 0 ? (value / max) * 100 : 0) : value;
   let color = thresholds.defaultColor;
   for (const step of steps) {
     if (compare >= step.value) color = step.color ?? color;

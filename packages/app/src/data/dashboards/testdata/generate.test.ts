@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { generateTestData } from "./generate";
 import { testDataSpec } from "./spec";
 
@@ -125,9 +125,7 @@ describe("generateTestData – table", () => {
   });
 
   it("rows:0 yields an empty frame", () => {
-    expect(
-      gen({ scenario: "table", rows: 0, columns: [{ name: "a", seq: true }] }),
-    ).toEqual([]);
+    expect(gen({ scenario: "table", rows: 0, columns: [{ name: "a", seq: true }] })).toEqual([]);
   });
 
   it("cycles null values from a values list", () => {

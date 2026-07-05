@@ -13,9 +13,7 @@ export function getTestPerfHierarchyKind(
   return row.isSuite ? "suite" : "test";
 }
 
-export function getTestPerfHierarchyKindLabel(
-  kind: TestPerfHierarchyKind,
-): string {
+export function getTestPerfHierarchyKindLabel(kind: TestPerfHierarchyKind): string {
   switch (kind) {
     case "package":
       return "Package";
@@ -26,9 +24,7 @@ export function getTestPerfHierarchyKindLabel(
   }
 }
 
-export function getTestPerfHierarchyKindBadgeLabel(
-  kind: TestPerfHierarchyKind,
-): string {
+export function getTestPerfHierarchyKindBadgeLabel(kind: TestPerfHierarchyKind): string {
   switch (kind) {
     case "package":
       return "Pkg";

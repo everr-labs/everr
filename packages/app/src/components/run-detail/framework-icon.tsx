@@ -16,12 +16,7 @@ export function FrameworkIcon({ framework, className }: FrameworkIconProps) {
   const icon = frameworks[framework];
   if (!icon) return null;
   return (
-    <svg
-      role="img"
-      viewBox="0 0 24 24"
-      fill={`#${icon.hex}`}
-      className={className}
-    >
+    <svg role="img" viewBox="0 0 24 24" fill={`#${icon.hex}`} className={className}>
       <title>{framework}</title>
       <path d={icon.path} />
     </svg>

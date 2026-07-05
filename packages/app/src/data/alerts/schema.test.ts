@@ -1,9 +1,5 @@
-import { describe, expect, it } from "vitest";
-import {
-  AlertRuleYamlSchema,
-  EverrConfigYamlSchema,
-  parseRunbookRef,
-} from "./schema";
+import { describe, expect, it } from "vite-plus/test";
+import { AlertRuleYamlSchema, EverrConfigYamlSchema, parseRunbookRef } from "./schema";
 
 const valid = {
   kind: "AlertRule",
@@ -116,9 +112,7 @@ describe("AlertRuleYamlSchema", () => {
   });
 
   it("rejects unknown keys, missing title, and empty name", () => {
-    expect(AlertRuleYamlSchema.safeParse({ ...valid, extra: 1 }).success).toBe(
-      false,
-    );
+    expect(AlertRuleYamlSchema.safeParse({ ...valid, extra: 1 }).success).toBe(false);
     expect(
       AlertRuleYamlSchema.safeParse({
         ...valid,
@@ -164,13 +158,8 @@ describe("parseRunbookRef", () => {
 
 describe("EverrConfigYamlSchema", () => {
   it("accepts only { repoid } and rejects extras or empty values", () => {
-    expect(EverrConfigYamlSchema.safeParse({ repoid: "repo-1" }).success).toBe(
-      true,
-    );
+    expect(EverrConfigYamlSchema.safeParse({ repoid: "repo-1" }).success).toBe(true);
     expect(EverrConfigYamlSchema.safeParse({ repoid: "" }).success).toBe(false);
-    expect(
-      EverrConfigYamlSchema.safeParse({ repoid: "repo-1", projects: [] })
-        .success,
-    ).toBe(false);
+    expect(EverrConfigYamlSchema.safeParse({ repoid: "repo-1", projects: [] }).success).toBe(false);
   });
 });

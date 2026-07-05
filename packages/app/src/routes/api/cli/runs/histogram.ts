@@ -36,15 +36,13 @@ export const Route = createFileRoute("/api/cli/runs/histogram")({
           workflowNames: getAll("workflowNames"),
           runId: url.searchParams.get("runId") ?? undefined,
           authorEmails: getAll("authorEmails"),
-          histogramBuckets:
-            url.searchParams.get("histogramBuckets") ?? undefined,
+          histogramBuckets: url.searchParams.get("histogramBuckets") ?? undefined,
         });
 
         if (!parsed.success) {
           return Response.json(
             {
-              error:
-                "Invalid query parameters for runs histogram. Check filter and bucket values.",
+              error: "Invalid query parameters for runs histogram. Check filter and bucket values.",
             },
             { status: 400 },
           );

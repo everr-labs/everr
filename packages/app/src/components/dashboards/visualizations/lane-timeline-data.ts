@@ -21,10 +21,7 @@ interface LaneSampleSpec {
  * across frames. A null/missing state is recorded as null — the caller decides
  * how an absent state renders (a gap vs an empty slot).
  */
-export function collectLaneSamples(
-  frames: QueryResultRow[][],
-  spec: LaneSampleSpec,
-): LaneSamples {
+export function collectLaneSamples(frames: QueryResultRow[][], spec: LaneSampleSpec): LaneSamples {
   const samplesByLane: LaneSamples = new Map();
   const laneSamples = (label: string) => {
     let samples = samplesByLane.get(label);
@@ -45,8 +42,7 @@ export function collectLaneSamples(
       // Long format: one lane per seriesColumn value.
       const seriesKey = spec.seriesColumn;
       const stateKey =
-        spec.stateColumn ??
-        Object.keys(first).find((k) => k !== timeKey && k !== seriesKey);
+        spec.stateColumn ?? Object.keys(first).find((k) => k !== timeKey && k !== seriesKey);
       if (stateKey === undefined) continue;
       for (const row of rows) {
         const ts = toTimestamp(row[timeKey]);
@@ -82,8 +78,7 @@ export function assignStateColors(
   const colorByState: Record<string, string> = {};
   let paletteIndex = 0;
   for (const state of states) {
-    colorByState[state] =
-      colors[state] ?? SERIES_COLORS[paletteIndex++ % SERIES_COLORS.length]!;
+    colorByState[state] = colors[state] ?? SERIES_COLORS[paletteIndex++ % SERIES_COLORS.length]!;
   }
   return colorByState;
 }

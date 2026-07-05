@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { panelKeyFromRef, persesToRGL } from "./convert";
 import type { GridItem } from "./schema";
 

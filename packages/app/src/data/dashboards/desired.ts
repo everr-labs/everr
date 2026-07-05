@@ -1,10 +1,6 @@
 import { ApplyValidationError } from "@/data/as-code/errors";
 import type { DesiredResource } from "@/data/as-code/reconcile";
-import {
-  dashboardProjectSchema,
-  dashboardSlugSchema,
-  dashboardSpecSchemaStrict,
-} from "./schema";
+import { dashboardProjectSchema, dashboardSlugSchema, dashboardSpecSchemaStrict } from "./schema";
 
 export interface InputDocument {
   /** POSIX-style path relative to the applied root, e.g. "team/cpu.yaml". */
@@ -87,13 +83,8 @@ export function buildDesiredSet(inputs: InputDocument[]): DesiredResource[] {
     const specResult = dashboardSpecSchemaStrict.safeParse(rawSpec);
     if (!specResult.success) {
       const issue = specResult.error.issues[0];
-      const where =
-        issue && issue.path.length > 0
-          ? ` at ${issue.path.map(String).join(".")}`
-          : "";
-      throw new ApplyValidationError(
-        `${path}: invalid dashboard spec${where}: ${issue?.message}`,
-      );
+      const where = issue && issue.path.length > 0 ? ` at ${issue.path.map(String).join(".")}` : "";
+      throw new ApplyValidationError(`${path}: invalid dashboard spec${where}: ${issue?.message}`);
     }
 
     const key = `${project} ${slug}`;

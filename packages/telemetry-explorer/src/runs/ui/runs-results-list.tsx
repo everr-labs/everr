@@ -1,26 +1,11 @@
 import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "@everr/ui/components/empty";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@everr/ui/components/empty";
 import { RetryError } from "@everr/ui/components/retry-error";
 import { Skeleton } from "@everr/ui/components/skeleton";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@everr/ui/components/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
-import {
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { Virtuoso } from "react-virtuoso";
 import { useDelayedFlag } from "../../traces/util/use-delayed-flag";
 import type { RunListItem } from "../schemas";
@@ -86,11 +71,7 @@ export function RunsResultsList({
 
   const itemContent = useCallback(
     (_index: number, run: RunListItem) => (
-      <RunRow
-        run={run}
-        renderRunLink={renderRunLink}
-        renderRowActions={renderRowActions}
-      />
+      <RunRow run={run} renderRunLink={renderRunLink} renderRowActions={renderRowActions} />
     ),
     [renderRunLink, renderRowActions],
   );
@@ -190,10 +171,7 @@ function RunRow({
           <span className="truncate">{run.repo}</span>
           <span className="hidden shrink-0 items-center gap-1.5 sm:inline-flex">
             <Separator />
-            <Badge
-              variant="outline"
-              className="max-w-[12rem] truncate font-normal"
-            >
+            <Badge variant="outline" className="max-w-[12rem] truncate font-normal">
               {run.branch}
             </Badge>
           </span>
@@ -275,8 +253,7 @@ function ResultsFooter({
       ) : hasMore ? (
         <span>
           Showing {count.toLocaleString()}
-          {totalCount !== undefined ? ` of ${totalCount.toLocaleString()}` : ""}{" "}
-          runs
+          {totalCount !== undefined ? ` of ${totalCount.toLocaleString()}` : ""} runs
         </span>
       ) : (
         <span>Showing all {count.toLocaleString()} matching runs</span>
@@ -308,9 +285,7 @@ function EmptyState({ onClearFilters }: { onClearFilters: () => void }) {
     <Empty>
       <EmptyHeader>
         <EmptyTitle>No runs</EmptyTitle>
-        <EmptyDescription>
-          No workflow runs match the current filters.
-        </EmptyDescription>
+        <EmptyDescription>No workflow runs match the current filters.</EmptyDescription>
       </EmptyHeader>
       <Button variant="outline" size="sm" onClick={onClearFilters}>
         Clear filters

@@ -1,15 +1,13 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import type { AttributeRepositoryLike } from "../repository";
 import type { AttributeSource } from "../schemas";
 import { AttributeKeyPicker } from "./attribute-key-picker";
 import type { PromotedAttribute } from "./attribute-meta";
 
 const timeRange = { from: "now-1h", to: "now" };
-const PROMOTED: PromotedAttribute[] = [
-  { source: "resource", key: "vcs.repository.name" },
-];
+const PROMOTED: PromotedAttribute[] = [{ source: "resource", key: "vcs.repository.name" }];
 const EXCLUDED = new Set(["resource:service.name"]);
 const SOURCES: AttributeSource[] = ["resource", "log", "scope"];
 
@@ -84,9 +82,7 @@ describe("AttributeKeyPicker", () => {
   it("does not suggest a promoted key that also has a dedicated filter", async () => {
     const repo = {
       // Discovered and promoted, but also excluded by a top-level filter.
-      attributeKeys: vi
-        .fn()
-        .mockResolvedValue([{ source: "resource", key: "service.name" }]),
+      attributeKeys: vi.fn().mockResolvedValue([{ source: "resource", key: "service.name" }]),
     } as unknown as AttributeRepositoryLike;
     render(
       <QueryClientProvider client={new QueryClient()}>

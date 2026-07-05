@@ -1,5 +1,5 @@
 import { render } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import type { JobResourceUsage } from "@/data/resource-usage";
 import { ResourceUsagePanel } from "./resource-usage-panel";
 
@@ -14,18 +14,15 @@ vi.mock("@everr/ui/components/chart", () => ({
 vi.mock("recharts", async () => {
   const React = await import("react");
 
-  const Area = ({ dataKey }: { dataKey: string }) => (
-    <g data-key={dataKey} data-kind="area" />
-  );
+  const Area = ({ dataKey }: { dataKey: string }) => <g data-key={dataKey} data-kind="area" />;
   const CartesianGrid = () => <g data-kind="grid" />;
   const ReferenceArea = () => <g data-kind="reference-area" />;
 
   const supportedTypes = new Set<unknown>([Area, CartesianGrid, ReferenceArea]);
 
   const AreaChart = ({ children }: { children: React.ReactNode }) => {
-    const supportedChildren = React.Children.toArray(children).filter(
-      (child) =>
-        React.isValidElement(child) ? supportedTypes.has(child.type) : false,
+    const supportedChildren = React.Children.toArray(children).filter((child) =>
+      React.isValidElement(child) ? supportedTypes.has(child.type) : false,
     );
 
     return (
@@ -91,20 +88,15 @@ const usage: JobResourceUsage = {
 describe("ResourceUsagePanel", () => {
   it("renders overlays after the chart areas so they stay visible", () => {
     const { getAllByTestId } = render(
-      <ResourceUsagePanel
-        data={usage}
-        stepWindow={{ startTime: 1_200, endTime: 1_400 }}
-      />,
+      <ResourceUsagePanel data={usage} stepWindow={{ startTime: 1_200, endTime: 1_400 }} />,
     );
 
     const firstChart = getAllByTestId("area-chart")[0];
-    const layers = Array.from(firstChart.querySelectorAll("[data-kind]")).map(
-      (node) => node.getAttribute("data-kind"),
+    const layers = Array.from(firstChart.querySelectorAll("[data-kind]")).map((node) =>
+      node.getAttribute("data-kind"),
     );
 
-    expect(layers.indexOf("area")).toBeLessThan(
-      layers.indexOf("reference-area"),
-    );
+    expect(layers.indexOf("area")).toBeLessThan(layers.indexOf("reference-area"));
     expect(layers.includes("reference-line")).toBe(false);
   });
 });

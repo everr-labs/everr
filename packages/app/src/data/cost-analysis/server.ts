@@ -1,10 +1,7 @@
 import { resolveTimeRange } from "@everr/ui/lib/time-range";
 import * as z from "zod";
 import { TimeRangeInputSchema } from "@/data/analytics/schemas";
-import {
-  nonEmptyResourceAttribute,
-  resourceAttribute,
-} from "@/data/run-query-helpers";
+import { nonEmptyResourceAttribute, resourceAttribute } from "@/data/run-query-helpers";
 import { calculateCost } from "@/lib/runner-pricing";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { type BucketGranularity, getBucketGranularity } from "@/lib/time-range";
@@ -115,9 +112,11 @@ export const getCostOverview = createAuthenticatedServerFn({
       osCostMap.set(costResult.pricing.os, osEntry);
     }
 
-    summary.costByOs = Array.from(osCostMap.entries()).map(
-      ([os, { cost, jobs }]) => ({ os, cost, jobs }),
-    );
+    summary.costByOs = Array.from(osCostMap.entries()).map(([os, { cost, jobs }]) => ({
+      os,
+      cost,
+      jobs,
+    }));
 
     return { summary };
   });
@@ -194,12 +193,9 @@ export const getCostByWorkflow = createAuthenticatedServerFn({
     return Array.from(workflowMap.values())
       .map(({ maxUniqueRuns, ...rest }) => ({
         ...rest,
-        avgCostPerRun:
-          maxUniqueRuns > 0 ? rest.estimatedCost / maxUniqueRuns : 0,
+        avgCostPerRun: maxUniqueRuns > 0 ? rest.estimatedCost / maxUniqueRuns : 0,
       }))
-      .sort(
-        (a, b) => b.estimatedCost - a.estimatedCost,
-      ) satisfies CostByWorkflow[];
+      .sort((a, b) => b.estimatedCost - a.estimatedCost) satisfies CostByWorkflow[];
   });
 
 const BREAKDOWN_TOP_N = 6;
@@ -220,9 +216,7 @@ export const getCostOverTimeBreakdown = createAuthenticatedServerFn({
       const { fromISO, toISO, fromDate, toDate } = resolveTimeRange(timeRange);
       const granularity = getBucketGranularity(fromDate, toDate);
       const keyAttribute =
-        dimension === "repo"
-          ? RESOURCE_ATTRIBUTE_KEYS.repo
-          : RESOURCE_ATTRIBUTE_KEYS.runnerLabels;
+        dimension === "repo" ? RESOURCE_ATTRIBUTE_KEYS.repo : RESOURCE_ATTRIBUTE_KEYS.runnerLabels;
       const keyExpr = resourceAttribute(keyAttribute);
       const dimensionFilter =
         keyAttribute === RESOURCE_ATTRIBUTE_KEYS.runnerLabels
@@ -257,20 +251,14 @@ export const getCostOverTimeBreakdown = createAuthenticatedServerFn({
       }>(sql, { fromTime: fromISO, toTime: toISO });
 
       const totalsByKey = new Map<string, number>();
-      const byDateKey = new Map<
-        string,
-        Map<string, { cost: number; minutes: number }>
-      >();
+      const byDateKey = new Map<string, Map<string, { cost: number; minutes: number }>>();
 
       for (const row of rows) {
         const durationMs = Number(row.totalDurationMs);
         const roundedMinutes = Number(row.roundedMinutes);
         const result = calculateCost(row.labels, durationMs, roundedMinutes);
 
-        totalsByKey.set(
-          row.series,
-          (totalsByKey.get(row.series) ?? 0) + result.estimatedCost,
-        );
+        totalsByKey.set(row.series, (totalsByKey.get(row.series) ?? 0) + result.estimatedCost);
 
         const dateMap = byDateKey.get(row.date) ?? new Map();
         const existing = dateMap.get(row.series) ?? { cost: 0, minutes: 0 };

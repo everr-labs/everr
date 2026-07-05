@@ -1,19 +1,11 @@
-import {
-  context,
-  ROOT_CONTEXT,
-  SpanKind,
-  SpanStatusCode,
-} from "@opentelemetry/api";
+import { context, ROOT_CONTEXT, SpanKind, SpanStatusCode } from "@opentelemetry/api";
 import type { Task, TaskList } from "graphile-worker";
 import { db } from "@/db/client";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 import { getTelemetryTracer } from "@/telemetry/node";
 import { replayWebhookToCollector } from "./collector";
 import { firstHeader } from "./headers";
-import {
-  COLLECTOR_TASK_IDENTIFIER,
-  STATUS_TASK_IDENTIFIER,
-} from "./identifiers";
+import { COLLECTOR_TASK_IDENTIFIER, STATUS_TASK_IDENTIFIER } from "./identifiers";
 import {
   eventAttributesFromQueuedEvent,
   installationIdFromQueuedEvent,
@@ -76,14 +68,11 @@ function makeWebhookTask(
 
           if (error instanceof StaleInstallationError) {
             if (shouldLogStaleInstallation(parsed)) {
-              serverLogger.info(
-                "github_events.jobs.stale_installation_dropped",
-                {
-                  ...terminalAttributes,
-                  "error.message": err.message,
-                  "error.type": err.name,
-                },
-              );
+              serverLogger.info("github_events.jobs.stale_installation_dropped", {
+                ...terminalAttributes,
+                "error.message": err.message,
+                "error.type": err.name,
+              });
             }
             return;
           }

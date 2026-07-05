@@ -17,16 +17,11 @@ export function validateMessageTemplate(template: string): void {
   extractVariables(template);
 }
 
-export function validateMessageColumns(
-  template: string,
-  columns: readonly string[],
-): void {
+export function validateMessageColumns(template: string, columns: readonly string[]): void {
   const names = new Set(columns);
   for (const name of extractVariables(template)) {
     if (!names.has(name)) {
-      throw new Error(
-        `\${${name}} references column "${name}" which the query does not return`,
-      );
+      throw new Error(`\${${name}} references column "${name}" which the query does not return`);
     }
   }
 }

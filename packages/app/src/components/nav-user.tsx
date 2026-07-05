@@ -38,9 +38,7 @@ export function NavUser() {
   const { data: activeOrg } = authClient.useActiveOrganization();
   const { data: orgs } = authClient.useListOrganizations();
   const downloadUrl = PLATFORMS[0].downloadUrl;
-  const userRole = activeOrg?.members?.find(
-    (m) => m.userId === session?.user?.id,
-  )?.role;
+  const userRole = activeOrg?.members?.find((m) => m.userId === session?.user?.id)?.role;
   const isAdmin = userRole === "admin" || userRole === "owner";
   const hasMultipleOrgs = orgs && orgs.length > 1;
 
@@ -62,8 +60,7 @@ export function NavUser() {
   const lastName = nameParts.slice(1).join(" ");
   const fullName = user.name ?? user.email;
 
-  const initials =
-    (firstName.slice(0, 1) + lastName.slice(0, 1)).toUpperCase() || "?";
+  const initials = (firstName.slice(0, 1) + lastName.slice(0, 1)).toUpperCase() || "?";
 
   return (
     <SidebarMenu>
@@ -106,9 +103,7 @@ export function NavUser() {
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">{fullName}</span>
-                <span className="truncate text-xs">
-                  {activeOrg?.name ?? " "}
-                </span>
+                <span className="truncate text-xs">{activeOrg?.name ?? " "}</span>
               </div>
             </div>
             <DropdownMenuSeparator />
@@ -121,15 +116,8 @@ export function NavUser() {
                   </DropdownMenuSubTrigger>
                   <DropdownMenuSubContent>
                     {orgs.map((org) => (
-                      <DropdownMenuItem
-                        key={org.id}
-                        onClick={() => void handleSwitchOrg(org.id)}
-                      >
-                        {org.id === activeOrg?.id ? (
-                          <Check />
-                        ) : (
-                          <span className="size-4" />
-                        )}
+                      <DropdownMenuItem key={org.id} onClick={() => void handleSwitchOrg(org.id)}>
+                        {org.id === activeOrg?.id ? <Check /> : <span className="size-4" />}
                         <span className="truncate">{org.name}</span>
                       </DropdownMenuItem>
                     ))}
@@ -138,33 +126,21 @@ export function NavUser() {
               </DropdownMenuGroup>
             )}
             <DropdownMenuGroup>
-              <DropdownMenuItem
-                render={<Link to="/account" />}
-                nativeButton={false}
-              >
+              <DropdownMenuItem render={<Link to="/account" />} nativeButton={false}>
                 <BadgeCheck />
                 Account
               </DropdownMenuItem>
               {isAdmin && (
                 <>
-                  <DropdownMenuItem
-                    render={<Link to="/billing" />}
-                    nativeButton={false}
-                  >
+                  <DropdownMenuItem render={<Link to="/billing" />} nativeButton={false}>
                     <CreditCard />
                     Billing
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    render={<Link to="/users-management" />}
-                    nativeButton={false}
-                  >
+                  <DropdownMenuItem render={<Link to="/users-management" />} nativeButton={false}>
                     <Users />
                     Users Management
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    render={<Link to="/api-keys" />}
-                    nativeButton={false}
-                  >
+                  <DropdownMenuItem render={<Link to="/api-keys" />} nativeButton={false}>
                     <KeyRound />
                     API keys
                   </DropdownMenuItem>

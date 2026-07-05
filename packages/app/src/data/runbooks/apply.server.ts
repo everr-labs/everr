@@ -1,15 +1,8 @@
 import { and, eq, isNull } from "drizzle-orm";
-import {
-  type OwnershipConflict,
-  partitionByOwnership,
-} from "@/data/as-code/ownership";
+import { type OwnershipConflict, partitionByOwnership } from "@/data/as-code/ownership";
 import { reconcile } from "@/data/as-code/reconcile";
 import type { Reconciler } from "@/data/as-code/registry";
-import {
-  foreignLiveScope,
-  previewOwner,
-  previewScope,
-} from "@/data/previews/scope";
+import { foreignLiveScope, previewOwner, previewScope } from "@/data/previews/scope";
 import { runbooks } from "@/db/schema";
 import { buildDesiredRunbookSet } from "./desired";
 import type { Runbook } from "./schema";
@@ -73,8 +66,11 @@ export const applyRunbookSpecs: Reconciler = async ({
           .from(runbooks)
           .where(foreignLiveScope(runbooks, namespace, diff.creates))
       : [];
-  const { freshCreates, takenCreates, adopted, conflicts } =
-    partitionByOwnership(diff.creates, foreign, adopt);
+  const { freshCreates, takenCreates, adopted, conflicts } = partitionByOwnership(
+    diff.creates,
+    foreign,
+    adopt,
+  );
 
   const summary: ApplyRunbooksResult = {
     created: freshCreates.map((d) => d.slug),
@@ -124,16 +120,12 @@ export const applyRunbookSpecs: Reconciler = async ({
         folderPath: d.folderPath,
         updatedAt: new Date(),
       })
-      .where(
-        and(scope, eq(runbooks.project, d.project), eq(runbooks.slug, d.slug)),
-      );
+      .where(and(scope, eq(runbooks.project, d.project), eq(runbooks.slug, d.slug)));
   }
   for (const d of diff.deletes) {
     await exec
       .delete(runbooks)
-      .where(
-        and(scope, eq(runbooks.project, d.project), eq(runbooks.slug, d.slug)),
-      );
+      .where(and(scope, eq(runbooks.project, d.project), eq(runbooks.slug, d.slug)));
   }
 
   return summary;

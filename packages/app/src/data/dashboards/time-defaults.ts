@@ -20,10 +20,7 @@ export function dashboardTimeDefaults(
     defaults.to = "now";
   }
 
-  if (
-    spec.refreshInterval &&
-    getRefreshIntervalMs(spec.refreshInterval) !== null
-  ) {
+  if (spec.refreshInterval && getRefreshIntervalMs(spec.refreshInterval) !== null) {
     defaults.refresh = spec.refreshInterval;
   }
 

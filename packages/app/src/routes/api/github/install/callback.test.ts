@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 vi.mock("@/lib/github-install-state", () => ({
   parseInstallState: vi.fn(),
@@ -56,10 +56,7 @@ function getHandler() {
   return handler as (args: { request: Request }) => Promise<Response>;
 }
 
-function mockDbExistingLink(link: {
-  githubInstallationId: number;
-  organizationId: string;
-}) {
+function mockDbExistingLink(link: { githubInstallationId: number; organizationId: string }) {
   const limit = vi.fn().mockResolvedValue([link]);
   const where = vi.fn().mockReturnValue({ limit });
   const from = vi.fn().mockReturnValue({ where });

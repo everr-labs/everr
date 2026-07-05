@@ -1,8 +1,4 @@
-import {
-  resolveTimeRange,
-  type TimeRange,
-  toClickHouseDateTime,
-} from "@everr/ui/lib/time-range";
+import { resolveTimeRange, type TimeRange, toClickHouseDateTime } from "@everr/ui/lib/time-range";
 import type { LogsRepositoryLike } from "../../logs/data/repository";
 import type { TracesRepositoryLike } from "../../traces/data/repository";
 import { ENVIRONMENT_ATTRIBUTE } from "../ui/dedicated-attributes";
@@ -15,9 +11,9 @@ import { ENVIRONMENT_ATTRIBUTE } from "../ui/dedicated-attributes";
 // wherever you are. `selected` is folded in so a chosen value never disappears
 // from the list just because it has aged out of the current time range.
 function mergeOptions(...lists: string[][]): string[] {
-  return Array.from(
-    new Set(lists.flat().filter((value) => value.length > 0)),
-  ).sort((a, b) => a.localeCompare(b));
+  return Array.from(new Set(lists.flat().filter((value) => value.length > 0))).sort((a, b) =>
+    a.localeCompare(b),
+  );
 }
 
 export function unionServiceOptions(
@@ -58,11 +54,7 @@ export function unionEnvironmentOptions(
     key: ENVIRONMENT_ATTRIBUTE.key,
   };
   return {
-    queryKey: [
-      "explore",
-      "union-environment-options",
-      input.timeRange,
-    ] as const,
+    queryKey: ["explore", "union-environment-options", input.timeRange] as const,
     queryFn: async () => {
       const [logEnvironments, traceEnvironments] = await Promise.all([
         logsRepo.attributeValues(attributeInput),

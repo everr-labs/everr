@@ -87,12 +87,9 @@ export const DeliverySettingsSchema = z
         entries: z.array(TelegramWriteEntry).max(MAX_ENTRIES).default([]),
       })
       .strict()
-      .refine(
-        (v) => !emptyChannelError("telegram", v.enabled, v.entries.length),
-        {
-          message: EMPTY_CHANNEL_MESSAGES.telegram,
-        },
-      )
+      .refine((v) => !emptyChannelError("telegram", v.enabled, v.entries.length), {
+        message: EMPTY_CHANNEL_MESSAGES.telegram,
+      })
       .optional(),
     slack: z
       .object({
@@ -100,12 +97,9 @@ export const DeliverySettingsSchema = z
         webhooks: z.array(SlackWriteEntry).max(MAX_ENTRIES).default([]),
       })
       .strict()
-      .refine(
-        (v) => !emptyChannelError("slack", v.enabled, v.webhooks.length),
-        {
-          message: EMPTY_CHANNEL_MESSAGES.slack,
-        },
-      )
+      .refine((v) => !emptyChannelError("slack", v.enabled, v.webhooks.length), {
+        message: EMPTY_CHANNEL_MESSAGES.slack,
+      })
       .optional(),
   })
   .strict();
@@ -119,9 +113,7 @@ export function ensureDeliveryDefaults(
   raw: StoredDeliverySettings | null | undefined,
 ): StoredDeliverySettings {
   const telegram =
-    raw?.telegram && "entries" in raw.telegram
-      ? raw.telegram
-      : { enabled: false, entries: [] };
+    raw?.telegram && "entries" in raw.telegram ? raw.telegram : { enabled: false, entries: [] };
   return {
     telegram,
     slack: raw?.slack ?? { enabled: false, webhooks: [] },
@@ -152,11 +144,7 @@ export function redactDeliverySecrets(
 
 // Looks up the saved entry the form asked to keep. The form only sends ids it
 // got from us, so an unknown id means something is wrong rather than a no-op.
-function keepSaved<T extends { id: string }>(
-  saved: readonly T[],
-  id: string,
-  label: string,
-): T {
+function keepSaved<T extends { id: string }>(saved: readonly T[], id: string, label: string): T {
   const entry = saved.find((e) => e.id === id);
   if (!entry) throw new Error(`Unknown ${label} id: ${id}`);
   return entry;

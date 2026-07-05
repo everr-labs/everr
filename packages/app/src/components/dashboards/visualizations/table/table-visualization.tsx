@@ -1,8 +1,5 @@
 import { type Column, DataTable } from "@everr/ui/components/data-table";
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@everr/ui/components/toggle-group";
+import { ToggleGroup, ToggleGroupItem } from "@everr/ui/components/toggle-group";
 import { TableIcon } from "lucide-react";
 import { useState } from "react";
 import { queryLabel } from "../data-utils";
@@ -16,17 +13,13 @@ function buildColumns(rows: QueryResultRow[]): Column<QueryResultRow>[] {
     header: key,
     cell: (row: QueryResultRow) => {
       const val = row[key];
-      if (val == null)
-        return <span className="text-muted-foreground">NULL</span>;
+      if (val == null) return <span className="text-muted-foreground">NULL</span>;
       return String(val);
     },
   }));
 }
 
-export function TableVisualization({
-  spec,
-  data,
-}: VisualizationProps<TableSpec>) {
+export function TableVisualization({ spec, data }: VisualizationProps<TableSpec>) {
   const sets = data ?? [];
   const [selected, setSelected] = useState(0);
 

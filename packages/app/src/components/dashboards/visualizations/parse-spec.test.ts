@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { panelPluginSpecs } from "@/data/dashboards/plugin-specs";
 import { parseSpecLenient } from "./parse-spec";
 import { statChartSpec } from "./stat-chart/spec";

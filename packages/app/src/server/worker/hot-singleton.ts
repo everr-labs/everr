@@ -59,9 +59,7 @@ function settleWithin(promise: Promise<unknown>, ms: number): Promise<void> {
   });
 }
 
-export function hotSingleton<T>(
-  options: HotSingletonOptions<T>,
-): HotSingleton<T> {
+export function hotSingleton<T>(options: HotSingletonOptions<T>): HotSingleton<T> {
   const {
     key,
     start: startResource,

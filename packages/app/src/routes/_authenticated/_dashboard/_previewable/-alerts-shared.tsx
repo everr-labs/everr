@@ -88,10 +88,7 @@ export function isEvaluationStale(
   evaluationIntervalSeconds: number,
 ): boolean {
   if (!lastEvaluatedAt) return false;
-  const last =
-    typeof lastEvaluatedAt === "string"
-      ? new Date(lastEvaluatedAt)
-      : lastEvaluatedAt;
+  const last = typeof lastEvaluatedAt === "string" ? new Date(lastEvaluatedAt) : lastEvaluatedAt;
   if (Number.isNaN(last.getTime())) return false;
   const overdueMs = (evaluationIntervalSeconds * 3 + 60) * 1000;
   return Date.now() - last.getTime() > overdueMs;
@@ -123,12 +120,8 @@ export function AlertStateBadges({
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       <Badge variant={stateVariant(state)}>
-        {state === "firing" && firingInstanceCount > 0
-          ? `firing · ${firingInstanceCount}`
-          : state}
-        {state === "firing" && lastFiredAt && (
-          <FiringSince value={lastFiredAt} />
-        )}
+        {state === "firing" && firingInstanceCount > 0 ? `firing · ${firingInstanceCount}` : state}
+        {state === "firing" && lastFiredAt && <FiringSince value={lastFiredAt} />}
       </Badge>
       {!active && <Badge variant="outline">inactive</Badge>}
       {activeSilenceCount > 0 && (

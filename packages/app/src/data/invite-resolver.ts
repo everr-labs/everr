@@ -120,9 +120,7 @@ export async function resolveInvitationLoader({
   if (lookup.status === "inactive") return lookup;
 
   if (lookup.status === "accepted") {
-    const alreadyMember = session
-      ? await checkIsMember(lookup.organizationId)
-      : false;
+    const alreadyMember = session ? await checkIsMember(lookup.organizationId) : false;
     return {
       status: "accepted",
       organizationName: lookup.organizationName,

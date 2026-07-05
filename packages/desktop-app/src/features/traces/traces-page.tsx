@@ -9,18 +9,8 @@ import {
   toTraceListSearch,
 } from "@everr/telemetry-explorer/traces";
 import { withTimeRange } from "@everr/ui/lib/time-range";
-import {
-  Link,
-  Outlet,
-  useMatch,
-  useNavigate,
-  useParams,
-  useSearch,
-} from "@tanstack/react-router";
-import {
-  DetailRouteDialog,
-  useDetailRouteDialogClose,
-} from "@/components/detail-route-dialog";
+import { Link, Outlet, useMatch, useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import { DetailRouteDialog, useDetailRouteDialogClose } from "@/components/detail-route-dialog";
 import { ExploreSearchShape } from "../explore/explore-search";
 import { ExploreShell } from "../explore/explore-shell";
 import { LocalTelemetryGate } from "../local-telemetry/collector-status";
@@ -28,10 +18,8 @@ import { localSqlClient } from "../logs/local-sql-client";
 
 // service/environment live in the shared Explore topbar but must also be in the
 // route schemas so the leaf route's validateSearch doesn't strip them.
-export const TracesListSearchSchema =
-  TraceSearchParamsSchema.extend(ExploreSearchShape);
-export const TraceDetailSearchSchema =
-  TraceDetailParamsSchema.extend(ExploreSearchShape);
+export const TracesListSearchSchema = TraceSearchParamsSchema.extend(ExploreSearchShape);
+export const TraceDetailSearchSchema = TraceDetailParamsSchema.extend(ExploreSearchShape);
 
 const localTracesRepo = new TracesRepository(localSqlClient);
 
@@ -52,9 +40,7 @@ export function TracesPage() {
       {traceDetailMatch && (
         <DetailRouteDialog
           title="Trace detail"
-          onClose={() =>
-            navigate({ to: "/traces", search: toTraceListSearch(search) })
-          }
+          onClose={() => navigate({ to: "/traces", search: toTraceListSearch(search) })}
         >
           <Outlet />
         </DetailRouteDialog>

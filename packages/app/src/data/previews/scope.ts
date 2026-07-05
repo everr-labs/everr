@@ -24,10 +24,7 @@ interface IdentifiedTable extends ScopedTable {
 export type Namespace = {
   readonly orgId: string;
   readonly repoid: string;
-} & (
-  | { readonly kind: "live" }
-  | { readonly kind: "preview"; readonly id: string | null }
-);
+} & ({ readonly kind: "live" } | { readonly kind: "preview"; readonly id: string | null });
 
 /**
  * WHERE predicate selecting one namespace's rows in a resource table: live rows
@@ -102,11 +99,8 @@ export function foreignLiveScope(
 ): SQL {
   if (ns.kind !== "live" || identities.length === 0) return sql`false`;
   const matchesAnyIdentity =
-    or(
-      ...identities.map((id) =>
-        and(eq(table.project, id.project), eq(table.slug, id.slug)),
-      ),
-    ) ?? sql`false`;
+    or(...identities.map((id) => and(eq(table.project, id.project), eq(table.slug, id.slug)))) ??
+    sql`false`;
   return (
     and(
       eq(table.organizationId, ns.orgId),

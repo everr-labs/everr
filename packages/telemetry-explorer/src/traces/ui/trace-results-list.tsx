@@ -1,17 +1,8 @@
 import { Button } from "@everr/ui/components/button";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "@everr/ui/components/empty";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@everr/ui/components/empty";
 import { RetryError } from "@everr/ui/components/retry-error";
 import { Skeleton } from "@everr/ui/components/skeleton";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@everr/ui/components/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
 import { formatDuration } from "@everr/ui/lib/formatting";
 import {
   formatRelativeTime,
@@ -78,11 +69,7 @@ export function TraceResultsList({
 
   const itemContent = useCallback(
     (_index: number, row: TraceSummary) => (
-      <TraceRow
-        row={row}
-        maxDuration={maxDuration}
-        renderTraceLink={renderTraceLink}
-      />
+      <TraceRow row={row} maxDuration={maxDuration} renderTraceLink={renderTraceLink} />
     ),
     [maxDuration, renderTraceLink],
   );
@@ -90,11 +77,7 @@ export function TraceResultsList({
   const components = useMemo(
     () => ({
       Footer: () => (
-        <ResultsFooter
-          count={rows.length}
-          hasMore={hasMore}
-          isLoadingMore={isLoadingMore}
-        />
+        <ResultsFooter count={rows.length} hasMore={hasMore} isLoadingMore={isLoadingMore} />
       ),
     }),
     [rows.length, hasMore, isLoadingMore],
@@ -174,9 +157,7 @@ function TraceRow({
                 render={
                   <span
                     role="img"
-                    aria-label={`${row.errorCount} ${
-                      row.errorCount === 1 ? "error" : "errors"
-                    }`}
+                    aria-label={`${row.errorCount} ${row.errorCount === 1 ? "error" : "errors"}`}
                     className="text-destructive relative z-10 flex shrink-0 items-center"
                   />
                 }
@@ -203,13 +184,8 @@ function TraceRow({
         </div>
       </div>
       <div className="flex w-32 shrink-0 flex-col items-end gap-1">
-        <span className="tabular-nums">
-          {formatDuration(Number(row.durationNs), "ns")}
-        </span>
-        <DurationBar
-          durationNs={BigInt(row.durationNs)}
-          maxDurationNs={maxDuration}
-        />
+        <span className="tabular-nums">{formatDuration(Number(row.durationNs), "ns")}</span>
+        <DurationBar durationNs={BigInt(row.durationNs)} maxDurationNs={maxDuration} />
       </div>
       <span className="text-muted-foreground hidden w-14 text-right text-xs tabular-nums md:inline">
         {row.spanCount} {row.spanCount === 1 ? "span" : "spans"}
@@ -226,9 +202,7 @@ function TraceRow({
           {started ? (
             <span className="flex flex-col gap-0.5">
               <span className="tabular-nums">{started.toLocaleString()}</span>
-              <span className="text-background/70">
-                {formatRelativeTime(row.startTs)}
-              </span>
+              <span className="text-background/70">{formatRelativeTime(row.startTs)}</span>
             </span>
           ) : (
             row.startTs
@@ -323,9 +297,7 @@ function EmptyState({ onClearFilters }: { onClearFilters: () => void }) {
     <Empty>
       <EmptyHeader>
         <EmptyTitle>No traces</EmptyTitle>
-        <EmptyDescription>
-          No traces match the current filters.
-        </EmptyDescription>
+        <EmptyDescription>No traces match the current filters.</EmptyDescription>
       </EmptyHeader>
       <Button variant="outline" size="sm" onClick={onClearFilters}>
         Clear filters

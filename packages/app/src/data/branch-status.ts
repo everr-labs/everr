@@ -145,9 +145,7 @@ export async function getBranchStatus({
     };
   }
 
-  const activeTraceIds = runs
-    .filter((run) => run.status !== "completed")
-    .map((run) => run.traceId);
+  const activeTraceIds = runs.filter((run) => run.status !== "completed").map((run) => run.traceId);
 
   const jobs =
     activeTraceIds.length === 0
@@ -208,9 +206,7 @@ export async function getBranchStatus({
         ? new Date(run.startedAt).toISOString()
         : new Date(run.lastEventAt).toISOString(),
       durationSeconds: isCompleted ? computeDurationSeconds(run) : null,
-      activeJobs: isCompleted
-        ? []
-        : (activeJobNamesByTraceId.get(run.traceId) ?? []),
+      activeJobs: isCompleted ? [] : (activeJobNamesByTraceId.get(run.traceId) ?? []),
       failingJobs: failingJobsByTraceId.get(run.traceId) ?? [],
     };
 
@@ -231,9 +227,9 @@ export async function getBranchStatus({
   };
 }
 
-function latestRunAttempts<
-  T extends { runId: string | number; lastEventAt: string | Date },
->(rows: T[]): T[] {
+function latestRunAttempts<T extends { runId: string | number; lastEventAt: string | Date }>(
+  rows: T[],
+): T[] {
   const latestByRunId = new Map<string, T>();
   for (const row of rows) {
     const key = String(row.runId);
@@ -243,14 +239,11 @@ function latestRunAttempts<
   }
 
   return Array.from(latestByRunId.values()).sort(
-    (left, right) =>
-      toTimestampMs(right.lastEventAt) - toTimestampMs(left.lastEventAt),
+    (left, right) => toTimestampMs(right.lastEventAt) - toTimestampMs(left.lastEventAt),
   );
 }
 
-function buildFailingJobsByTraceId(
-  rows: FailedJobRow[],
-): Map<string, FailingJob[]> {
+function buildFailingJobsByTraceId(rows: FailedJobRow[]): Map<string, FailingJob[]> {
   const result = new Map<string, FailingJob[]>();
   for (const row of rows) {
     const failingStep = (row.steps ?? [])
@@ -285,16 +278,11 @@ function groupActiveJobNames(rows: WorkflowJobRow[]): Map<string, string[]> {
 }
 
 function computeDurationSeconds(
-  run: Pick<
-    WorkflowRunRow,
-    "status" | "startedAt" | "completedAt" | "lastEventAt"
-  >,
+  run: Pick<WorkflowRunRow, "status" | "startedAt" | "completedAt" | "lastEventAt">,
 ): number {
   const startedAtMs = toTimestampMs(run.startedAt ?? run.lastEventAt);
   const endedAtMs =
-    run.status === "completed"
-      ? toTimestampMs(run.completedAt ?? run.lastEventAt)
-      : Date.now();
+    run.status === "completed" ? toTimestampMs(run.completedAt ?? run.lastEventAt) : Date.now();
 
   return Math.max(0, Math.round((endedAtMs - startedAtMs) / 1000));
 }

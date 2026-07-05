@@ -34,22 +34,16 @@ export interface OwnershipPartition<T> {
  * registry fails fast before any write. This is the shared ownership policy the
  * three reconcilers apply on top of their own (kind-specific) probe and writes.
  */
-export function partitionByOwnership<
-  T extends { project: string; slug: string },
->(
+export function partitionByOwnership<T extends { project: string; slug: string }>(
   creates: readonly T[],
   foreignRows: readonly ForeignOwner[],
   adopt: boolean | undefined,
 ): OwnershipPartition<T> {
-  const ownerFor = new Map(
-    foreignRows.map((r) => [identityKey(r), r.owner ?? ""]),
-  );
+  const ownerFor = new Map(foreignRows.map((r) => [identityKey(r), r.owner ?? ""]));
   const freshCreates: T[] = [];
   const takenCreates: T[] = [];
   for (const create of creates) {
-    (ownerFor.has(identityKey(create)) ? takenCreates : freshCreates).push(
-      create,
-    );
+    (ownerFor.has(identityKey(create)) ? takenCreates : freshCreates).push(create);
   }
   return {
     freshCreates,

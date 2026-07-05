@@ -37,11 +37,7 @@ export function ErrorDetailRouteContent({
       occurrence={search.occurrence}
       onBack={onBack}
       onClose={onClose}
-      renderOccurrenceLink={({
-        occurrence: linkedOccurrence,
-        children,
-        isSelected,
-      }) => (
+      renderOccurrenceLink={({ occurrence: linkedOccurrence, children, isSelected }) => (
         <Link
           to={detailTo}
           params={{ fingerprint }}
@@ -58,9 +54,7 @@ export function ErrorDetailRouteContent({
           {children}
         </Link>
       )}
-      renderTracePanel={({ occurrence }) => (
-        <WebErrorTracePanel occurrence={occurrence} />
-      )}
+      renderTracePanel={({ occurrence }) => <WebErrorTracePanel occurrence={occurrence} />}
     />
   );
 }

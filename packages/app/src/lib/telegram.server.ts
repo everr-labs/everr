@@ -20,15 +20,12 @@ export async function sendTelegramMessage(
   // A truncated alert beats a dropped one.
   const bounded = truncateWithEllipsis(text, MAX_TEXT_LENGTH);
 
-  const response = await fetch(
-    `https://api.telegram.org/bot${token}/sendMessage`,
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text: bounded }),
-      signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
-    },
-  );
+  const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, text: bounded }),
+    signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
+  });
 
   if (!response.ok) {
     const body = await response.text().catch(() => "");

@@ -21,8 +21,7 @@ export interface VariableAllMeta {
 
 export type VariableMeta = Record<string, VariableAllMeta>;
 
-const TOKEN_RE =
-  /\$\{([a-zA-Z_][a-zA-Z0-9_]*)(?::(raw))?\}|\$([a-zA-Z_][a-zA-Z0-9_]*)/g;
+const TOKEN_RE = /\$\{([a-zA-Z_][a-zA-Z0-9_]*)(?::(raw))?\}|\$([a-zA-Z_][a-zA-Z0-9_]*)/g;
 
 /** Escape a string for use inside a ClickHouse single-quoted literal. */
 function escapeSqlString(value: string): string {

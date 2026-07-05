@@ -1,7 +1,4 @@
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@everr/ui/components/toggle-group";
+import { ToggleGroup, ToggleGroupItem } from "@everr/ui/components/toggle-group";
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import { createFileRoute } from "@tanstack/react-router";
 import { Clock, DollarSign, Receipt, Server } from "lucide-react";
@@ -22,9 +19,7 @@ import type { CostMetric } from "@/data/cost-analysis/schemas";
 import { formatCost } from "@/lib/runner-pricing";
 import { TimeRangeSearchSchema } from "@/lib/time-range";
 
-export const Route = createFileRoute(
-  "/_authenticated/_dashboard/_padded/cost-analysis",
-)({
+export const Route = createFileRoute("/_authenticated/_dashboard/_padded/cost-analysis")({
   staticData: { breadcrumb: "Cost Analysis" },
   head: () => ({
     meta: [{ title: "Everr - Cost Analysis" }],
@@ -36,9 +31,7 @@ export const Route = createFileRoute(
     const input = { timeRange };
     await Promise.all([
       queryClient.prefetchQuery(costOverviewOptions(input)),
-      queryClient.prefetchQuery(
-        costOverTimeBreakdownOptions({ ...input, dimension: "repo" }),
-      ),
+      queryClient.prefetchQuery(costOverTimeBreakdownOptions({ ...input, dimension: "repo" })),
       queryClient.prefetchQuery(costByWorkflowOptions(input)),
     ]);
   },
@@ -106,9 +99,7 @@ function CostAnalysisPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Cost Analysis</h1>
-          <p className="text-muted-foreground">
-            Estimated CI runner spend based on runner usage
-          </p>
+          <p className="text-muted-foreground">Estimated CI runner spend based on runner usage</p>
         </div>
       </div>
 
@@ -129,9 +120,7 @@ function CostAnalysisPage() {
           variant="stat"
           icon={Clock}
         >
-          {(overview) =>
-            Math.round(overview.summary.totalMinutes).toLocaleString()
-          }
+          {(overview) => Math.round(overview.summary.totalMinutes).toLocaleString()}
         </TimeRangePanel>
 
         <TimeRangePanel
@@ -151,9 +140,7 @@ function CostAnalysisPage() {
           variant="stat"
           icon={Server}
         >
-          {(overview) =>
-            Math.round(overview.summary.selfHostedMinutes).toLocaleString()
-          }
+          {(overview) => Math.round(overview.summary.selfHostedMinutes).toLocaleString()}
         </TimeRangePanel>
       </div>
 

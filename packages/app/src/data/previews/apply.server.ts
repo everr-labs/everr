@@ -58,9 +58,7 @@ export async function findPreviewId(
  * lastAppliedAt is simply not matched. Live rows have no registry row and are
  * never touched.
  */
-export async function deleteStalePreviews(
-  retentionDays: number,
-): Promise<number> {
+export async function deleteStalePreviews(retentionDays: number): Promise<number> {
   const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
   const deleted = await db
     .delete(previews)

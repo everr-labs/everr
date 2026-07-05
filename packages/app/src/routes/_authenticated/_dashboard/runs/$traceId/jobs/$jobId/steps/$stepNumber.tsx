@@ -6,11 +6,7 @@ import { useMemo, useState } from "react";
 import { LogViewer } from "@/components/run-detail/log-viewer";
 import { ResourceUsagePanel } from "@/components/run-detail/resource-usage-panel";
 import { jobResourceUsageOptions } from "@/data/resource-usage";
-import {
-  allJobsStepsOptions,
-  runDetailsOptions,
-  runJobsOptions,
-} from "@/data/runs/options";
+import { allJobsStepsOptions, runDetailsOptions, runJobsOptions } from "@/data/runs/options";
 import { getStepLogs } from "@/data/runs/server";
 
 const LOG_PAGE_SIZE = 1000;
@@ -33,19 +29,11 @@ function getInitialPageParam(): PageParam {
   return { tail: LOG_PAGE_SIZE, offset: 0, limit: 0 };
 }
 
-function stepLogsQueryKey(
-  traceId: string,
-  jobName: string,
-  stepNumber: string,
-) {
+function stepLogsQueryKey(traceId: string, jobName: string, stepNumber: string) {
   return ["runs", "stepLogs", traceId, jobName, stepNumber] as const;
 }
 
-export function stepLogsInfiniteOptions(
-  traceId: string,
-  jobName: string,
-  stepNumber: string,
-) {
+export function stepLogsInfiniteOptions(traceId: string, jobName: string, stepNumber: string) {
   return {
     queryKey: stepLogsQueryKey(traceId, jobName, stepNumber),
     queryFn: ({ pageParam }: { pageParam: PageParam }) => {
@@ -87,9 +75,7 @@ export const Route = createFileRoute(
 )({
   component: StepDetailPage,
   loader: async ({ context: { queryClient }, params }) => {
-    const jobs = await queryClient.ensureQueryData(
-      runJobsOptions(params.traceId),
-    );
+    const jobs = await queryClient.ensureQueryData(runJobsOptions(params.traceId));
     const selectedJob = jobs.find((j) => j.jobId === params.jobId);
     const jobName = selectedJob?.name ?? "";
 
@@ -119,9 +105,7 @@ function StepDetailPage() {
       jobIds: (jobs ?? []).map((j) => j.jobId),
     }),
   );
-  const { data: resourceUsage } = useQuery(
-    jobResourceUsageOptions({ traceId, jobId }),
-  );
+  const { data: resourceUsage } = useQuery(jobResourceUsageOptions({ traceId, jobId }));
 
   const selectedJob = (jobs ?? []).find((j) => j.jobId === jobId);
   const jobName = selectedJob?.name ?? "";
@@ -165,9 +149,7 @@ function StepDetailPage() {
     <Card size="sm" className="flex h-full flex-col overflow-hidden">
       {/* TODO: Make a card variant with 0 padding*/}
       <CardContent className="!px-0 -my-3 min-h-0 flex-1 flex flex-col">
-        {resourceUsage && (
-          <ResourceUsagePanel data={resourceUsage} stepWindow={stepWindow} />
-        )}
+        {resourceUsage && <ResourceUsagePanel data={resourceUsage} stepWindow={stepWindow} />}
         <div className="min-h-0 flex-1">
           <LogViewer
             key={stepNumber} // Need to reset the internal state when navigating to a new step

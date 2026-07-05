@@ -7,10 +7,7 @@ import {
   projectFromDocument,
   slugFromDocument,
 } from "@/data/dashboards/desired";
-import {
-  collectPanelStrictIssues,
-  dashboardSlugSchema,
-} from "@/data/dashboards/schema";
+import { collectPanelStrictIssues, dashboardSlugSchema } from "@/data/dashboards/schema";
 import type { PanelEmbed } from "./embed";
 import { extractPanelFences, parsePanelEmbed } from "./embed";
 import type { RunbookPage, RunbookSpec } from "./schema";
@@ -35,10 +32,7 @@ function validateFences(path: string, spec: RunbookSpec): void {
           `${path}: invalid panel block in ${where}: ${e instanceof Error ? e.message : String(e)}`,
         );
       }
-      if (
-        embed.kind === "ref" &&
-        !Object.hasOwn(spec.panels ?? {}, embed.ref)
-      ) {
+      if (embed.kind === "ref" && !Object.hasOwn(spec.panels ?? {}, embed.ref)) {
         throw new ApplyValidationError(
           `${path}: panel block in ${where} references unknown panel "${embed.ref}" (not in spec.panels)`,
         );
@@ -48,12 +42,8 @@ function validateFences(path: string, spec: RunbookSpec): void {
         if (issues.length > 0) {
           // Report every issue, not just the first, so the author fixes them all
           // in one pass instead of one re-apply per option.
-          const detail = issues
-            .map((i) => `${i.path.join(".")}: ${i.message}`)
-            .join("; ");
-          throw new ApplyValidationError(
-            `${path}: invalid inline panel in ${where}: ${detail}`,
-          );
+          const detail = issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
+          throw new ApplyValidationError(`${path}: invalid inline panel in ${where}: ${detail}`);
         }
       }
     }
@@ -75,9 +65,7 @@ function validateFences(path: string, spec: RunbookSpec): void {
  * `reconcile`. Mirrors the dashboard builder: throws ApplyValidationError
  * naming the file on any failure.
  */
-export function buildDesiredRunbookSet(
-  inputs: InputDocument[],
-): DesiredResource[] {
+export function buildDesiredRunbookSet(inputs: InputDocument[]): DesiredResource[] {
   const out: DesiredResource[] = [];
   const seen = new Map<string, string>(); // `${project} ${slug}` -> first path
 
@@ -96,13 +84,8 @@ export function buildDesiredRunbookSet(
     const specResult = runbookSpecSchemaStrict.safeParse(rawSpec);
     if (!specResult.success) {
       const issue = specResult.error.issues[0];
-      const where =
-        issue && issue.path.length > 0
-          ? ` at ${issue.path.map(String).join(".")}`
-          : "";
-      throw new ApplyValidationError(
-        `${path}: invalid runbook spec${where}: ${issue?.message}`,
-      );
+      const where = issue && issue.path.length > 0 ? ` at ${issue.path.map(String).join(".")}` : "";
+      throw new ApplyValidationError(`${path}: invalid runbook spec${where}: ${issue?.message}`);
     }
 
     validateFences(path, specResult.data);

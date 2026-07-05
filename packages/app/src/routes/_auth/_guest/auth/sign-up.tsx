@@ -74,10 +74,7 @@ function SignUp() {
 
   return (
     <>
-      <AuthPageHeader
-        title="Create your account"
-        subtitle="Get started with Everr"
-      />
+      <AuthPageHeader title="Create your account" subtitle="Get started with Everr" />
 
       <div className="flex flex-col gap-4">
         <GoogleAuthButton

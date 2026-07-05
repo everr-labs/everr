@@ -1,11 +1,5 @@
 import { Button } from "@everr/ui/components/button";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Check,
-  ExternalLink,
-  Loader2,
-} from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ExternalLink, Loader2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { getGithubAppInstallStatus } from "@/data/onboarding";
@@ -35,9 +29,7 @@ export function GithubInstallStep({
         const status = await getGithubAppInstallStatus();
         const isInstalled = Array.isArray(status)
           ? status.some((i) => i.status === "active")
-          : Boolean(
-              (status as { installed?: boolean } | null | undefined)?.installed,
-            );
+          : Boolean((status as { installed?: boolean } | null | undefined)?.installed);
         if (isInstalled) {
           onInstalled();
           clearInterval(id);
@@ -90,9 +82,9 @@ export function GithubInstallStep({
     <>
       <h2 className="text-lg font-semibold">See your CI in Everr</h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        Connect the Everr GitHub App to watch your GitHub Actions runs, catch
-        failures, and read logs without leaving Everr. You choose the repos, and
-        access is read-only. You can skip and connect later from Settings.
+        Connect the Everr GitHub App to watch your GitHub Actions runs, catch failures, and read
+        logs without leaving Everr. You choose the repos, and access is read-only. You can skip and
+        connect later from Settings.
       </p>
 
       <div className="mt-8 space-y-4">

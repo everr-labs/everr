@@ -35,10 +35,7 @@ export function RunbookViewer({
   const indexTitle = runbook.spec.display?.name ?? slug;
   // Build the link resolver once per runbook — it captures the page-path set
   // and file map so each rendered link doesn't re-walk the spec tree.
-  const resolveLink = useMemo(
-    () => makeRunbookLinkResolver(runbook.spec),
-    [runbook.spec],
-  );
+  const resolveLink = useMemo(() => makeRunbookLinkResolver(runbook.spec), [runbook.spec]);
   // Memoize the adapted document so the DashboardProvider value is stable across
   // re-renders; a fresh object would re-render every useDashboard consumer
   // (variable bar, panel queries, panels).
@@ -82,9 +79,7 @@ export function RunbookViewer({
           ) : (
             <div className="flex flex-col items-center gap-3 py-16 text-muted-foreground">
               <FileQuestion className="size-10" />
-              <p className="text-sm">
-                This runbook has no page &ldquo;{pagePath}&rdquo;
-              </p>
+              <p className="text-sm">This runbook has no page &ldquo;{pagePath}&rdquo;</p>
             </div>
           )}
         </div>

@@ -1,9 +1,5 @@
-import { describe, expect, it } from "vitest";
-import {
-  type AlertInstance,
-  diffInstances,
-  type FiringInstance,
-} from "./02-instances";
+import { describe, expect, it } from "vite-plus/test";
+import { type AlertInstance, diffInstances, type FiringInstance } from "./02-instances";
 import { buildAlertTransition } from "./02-transition";
 
 const now = new Date("2026-06-10T12:00:00.000Z");
@@ -73,10 +69,7 @@ describe("buildAlertTransition", () => {
   });
 
   it("keeps a firing alert firing without actions when the set is unchanged", () => {
-    const result = transition(
-      [previousInstance("/x")],
-      [currentInstance("/x")],
-    );
+    const result = transition([previousInstance("/x")], [currentInstance("/x")]);
 
     expect(result).toMatchObject({
       name: "stayed_firing",
@@ -155,10 +148,7 @@ describe("buildAlertTransition", () => {
   });
 
   it("emits firing before partial resolve when instances churn", () => {
-    const result = transition(
-      [previousInstance("/x")],
-      [currentInstance("/y")],
-    );
+    const result = transition([previousInstance("/x")], [currentInstance("/y")]);
 
     expect(result).toMatchObject({
       name: "churned",

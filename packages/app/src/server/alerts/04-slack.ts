@@ -31,10 +31,7 @@ const MAX_SECTION_TEXT = 3000;
 // embedded — otherwise alert data could trigger mentions or distort the layout.
 // https://api.slack.com/reference/surfaces/formatting#escaping
 function escapeSlackText(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 function truncate(text: string): string {
@@ -64,15 +61,8 @@ function buildBody(input: DeliveryInput, now: Date): string {
       pushFiringBlock(lines, input.def, instance, now, escapeSlackText);
   } else if (input.kind === "resolved") {
     for (const instance of resolved) {
-      const duration = instance.firedAt
-        ? formatDuration(instance.firedAt, now)
-        : "";
-      lines.push(
-        "",
-        duration
-          ? `Instance resolved (fired for ${duration})`
-          : "Instance resolved",
-      );
+      const duration = instance.firedAt ? formatDuration(instance.firedAt, now) : "";
+      lines.push("", duration ? `Instance resolved (fired for ${duration})` : "Instance resolved");
       lines.push(instanceLine(instance, "resolved", now, "•", escapeSlackText));
     }
   } else {
@@ -84,19 +74,14 @@ function buildBody(input: DeliveryInput, now: Date): string {
     if (resolved.length > 0) {
       lines.push("", "*Resolved:*");
       for (const instance of resolved)
-        lines.push(
-          instanceLine(instance, "resolved", now, "•", escapeSlackText),
-        );
+        lines.push(instanceLine(instance, "resolved", now, "•", escapeSlackText));
     }
   }
 
   return truncate(lines.join("\n"));
 }
 
-export function buildSlackMessage(
-  input: DeliveryInput,
-  opts: BuildOptions,
-): SlackMessage {
+export function buildSlackMessage(input: DeliveryInput, opts: BuildOptions): SlackMessage {
   return {
     attachments: [
       {

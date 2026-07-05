@@ -1,11 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { deriveOrgName } from "./auto-org";
 
 describe("deriveOrgName", () => {
   it("uses the first name from user name", () => {
-    expect(deriveOrgName("Jane Doe", "jane@example.com")).toBe(
-      "Jane's organization",
-    );
+    expect(deriveOrgName("Jane Doe", "jane@example.com")).toBe("Jane's organization");
   });
 
   it("falls back to email local part when name is empty", () => {

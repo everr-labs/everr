@@ -14,10 +14,8 @@ export function SpanBar({ span, traceStartNs, traceEndNs }: Props) {
   const spanDur = BigInt(span.duration);
   const offsetNs = spanStart - traceStartNs;
 
-  const leftPct =
-    totalNs === 0n ? 0 : Number((offsetNs * 10_000n) / totalNs) / 100;
-  const widthPct =
-    totalNs === 0n ? 0 : Number((spanDur * 10_000n) / totalNs) / 100;
+  const leftPct = totalNs === 0n ? 0 : Number((offsetNs * 10_000n) / totalNs) / 100;
+  const widthPct = totalNs === 0n ? 0 : Number((spanDur * 10_000n) / totalNs) / 100;
 
   const isError = span.statusCode === "Error";
   const isZero = spanDur === 0n;
@@ -35,9 +33,7 @@ export function SpanBar({ span, traceStartNs, traceEndNs }: Props) {
         backgroundColor: serviceColor(span.serviceNamespace, span.serviceName),
       }}
     >
-      {isError && (
-        <div className="bg-destructive/30 absolute inset-0 rounded-sm" />
-      )}
+      {isError && <div className="bg-destructive/30 absolute inset-0 rounded-sm" />}
     </div>
   );
 }

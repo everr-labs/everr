@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import {
   getActiveOrganizationIdFromAuthSession,
   getDeviceOrgIdFromScope,
@@ -13,9 +13,7 @@ describe("device org scope helpers", () => {
   });
 
   it("replaces an existing org marker", () => {
-    expect(withDeviceOrgScope("openid everr:org:old", "org_new")).toBe(
-      "openid everr:org:org_new",
-    );
+    expect(withDeviceOrgScope("openid everr:org:old", "org_new")).toBe("openid everr:org:org_new");
   });
 
   it("reads the org marker from a scope string", () => {

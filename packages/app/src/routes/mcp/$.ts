@@ -112,10 +112,7 @@ async function verifyToken(_req: Request, bearerToken?: string) {
   return {
     token: bearerToken,
     clientId: typeof payload.azp === "string" ? payload.azp : "",
-    scopes:
-      typeof payload.scope === "string"
-        ? payload.scope.split(" ")
-        : ["observability:read"],
+    scopes: typeof payload.scope === "string" ? payload.scope.split(" ") : ["observability:read"],
     expiresAt: typeof payload.exp === "number" ? payload.exp : undefined,
     extra: { orgId, userId } satisfies McpContext,
   };
@@ -151,8 +148,7 @@ function preflight(): Response {
     headers: {
       ...CORS_HEADERS,
       "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
-      "access-control-allow-headers":
-        "authorization, content-type, mcp-session-id",
+      "access-control-allow-headers": "authorization, content-type, mcp-session-id",
     },
   });
 }

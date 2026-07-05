@@ -1,10 +1,6 @@
 import { resolve } from "@everr/datemath";
 import { Separator } from "@everr/ui/components/separator";
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-} from "@everr/ui/components/sidebar";
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@everr/ui/components/sidebar";
 import { cn } from "@everr/ui/lib/utils";
 import {
   createFileRoute,
@@ -23,10 +19,7 @@ import { DashboardBreadcrumb } from "@/components/dashboard-breadcrumb";
 import { PreviewIndicator } from "@/components/preview-indicator";
 import { ExploreSearchRetainShape } from "@/lib/explore-search";
 import { SIDEBAR_TRACKED_LEFT } from "@/lib/sidebar-tracked-left";
-import {
-  ResolvedTimeRangeSearchSchema,
-  TimeRangeSearchSchema,
-} from "@/lib/time-range";
+import { ResolvedTimeRangeSearchSchema, TimeRangeSearchSchema } from "@/lib/time-range";
 
 const DashboardSearchSchema = TimeRangeSearchSchema.extend({
   // Explore section filters live at this level (not deeper on `_explore`) so the
@@ -71,14 +64,7 @@ export const Route = createFileRoute("/_authenticated/_dashboard")({
     // See ExploreSearchShape for why the schemas must stay optional.
     middlewares: [
       stripSearchParams({ service: [], environment: [] }),
-      retainSearchParams([
-        "from",
-        "to",
-        "refresh",
-        "service",
-        "environment",
-        "preview",
-      ]),
+      retainSearchParams(["from", "to", "refresh", "service", "environment", "preview"]),
     ],
   },
   beforeLoad({ search }) {

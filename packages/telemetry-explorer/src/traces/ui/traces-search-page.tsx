@@ -1,23 +1,13 @@
 import type { TimeRange } from "@everr/ui/lib/time-range";
-import {
-  keepPreviousData,
-  useInfiniteQuery,
-  useQuery,
-} from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { type ReactNode, useMemo } from "react";
 import { withEnvironment } from "../../filters/environment";
 import { FilterSearchBar } from "../../filters/ui/filter-search-bar";
-import {
-  listServiceIdentitiesOptions,
-  tracesSearchInfiniteOptions,
-} from "../data/options";
+import { listServiceIdentitiesOptions, tracesSearchInfiniteOptions } from "../data/options";
 import type { TracesRepositoryLike } from "../data/repository";
 import type { AttributeFilter, SpanStatusFilter } from "../data/schemas";
 import { TraceFilters } from "./trace-filters";
-import {
-  type TraceLinkRenderProps,
-  TraceResultsList,
-} from "./trace-results-list";
+import { type TraceLinkRenderProps, TraceResultsList } from "./trace-results-list";
 
 export type { TraceLinkRenderProps };
 
@@ -56,9 +46,7 @@ export function TracesSearch({
   onSearchChange,
   renderTraceLink,
 }: TracesSearchProps) {
-  const identitiesQuery = useQuery(
-    listServiceIdentitiesOptions(repo, { timeRange, refresh }),
-  );
+  const identitiesQuery = useQuery(listServiceIdentitiesOptions(repo, { timeRange, refresh }));
   const {
     data,
     fetchNextPage,
@@ -84,10 +72,7 @@ export function TracesSearch({
     }),
     placeholderData: keepPreviousData,
   });
-  const rows = useMemo(
-    () => (data?.pages ?? []).flat().filter((row) => row != null),
-    [data],
-  );
+  const rows = useMemo(() => (data?.pages ?? []).flat().filter((row) => row != null), [data]);
 
   return (
     <div className="min-h-0 flex-1 overflow-hidden">

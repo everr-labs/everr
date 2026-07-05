@@ -50,10 +50,7 @@ const SEP = "\u001f";
  * layout limit), the highest-value nodes stay and the hidden count is
  * reported.
  */
-export function buildNodeGraph(
-  frames: QueryResultRow[][],
-  spec: NodeGraphSpec,
-): NodeGraphModel {
+export function buildNodeGraph(frames: QueryResultRow[][], spec: NodeGraphSpec): NodeGraphModel {
   const edgeSums = new Map<string, { value: number; hasValue: boolean }>();
   let droppedRows = 0;
 
@@ -70,15 +67,10 @@ export function buildNodeGraph(
         : keys.find((k) => k !== sourceKey);
     if (targetKey === undefined) continue;
     const valueKey =
-      spec.valueColumn in first &&
-      spec.valueColumn !== sourceKey &&
-      spec.valueColumn !== targetKey
+      spec.valueColumn in first && spec.valueColumn !== sourceKey && spec.valueColumn !== targetKey
         ? spec.valueColumn
         : keys.find(
-            (k) =>
-              k !== sourceKey &&
-              k !== targetKey &&
-              rows.some((row) => isNumericValue(row[k])),
+            (k) => k !== sourceKey && k !== targetKey && rows.some((row) => isNumericValue(row[k])),
           );
 
     for (const row of rows) {

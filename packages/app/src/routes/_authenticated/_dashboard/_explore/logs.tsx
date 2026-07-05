@@ -22,9 +22,7 @@ const SearchSchema = TimeRangeSearchSchema.extend({
   showVolume: z.boolean().default(true),
 }).omit({ services: true });
 
-export const Route = createFileRoute(
-  "/_authenticated/_dashboard/_explore/logs",
-)({
+export const Route = createFileRoute("/_authenticated/_dashboard/_explore/logs")({
   staticData: { breadcrumb: "Logs" },
   head: () => ({ meta: [{ title: "Everr - Logs" }] }),
   validateSearch: SearchSchema,
@@ -75,13 +73,10 @@ function LogsExplorerPage() {
         })
       }
       resolveJobId={({ traceId, jobName }) => {
-        const cached = queryClient.getQueryData(
-          runJobsOptions(traceId).queryKey,
-        );
+        const cached = queryClient.getQueryData(runJobsOptions(traceId).queryKey);
         return Array.isArray(cached)
-          ? (cached as Array<{ name: string; jobId: string }>).find(
-              (j) => j.name === jobName,
-            )?.jobId
+          ? (cached as Array<{ name: string; jobId: string }>).find((j) => j.name === jobName)
+              ?.jobId
           : undefined;
       }}
       renderRunLink={({ traceId, jobId, stepNumber }) => (

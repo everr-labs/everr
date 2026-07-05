@@ -1,8 +1,4 @@
-import {
-  resolveTimeRange,
-  type TimeRange,
-  TimeRangeSchema,
-} from "@everr/ui/lib/time-range";
+import { resolveTimeRange, type TimeRange, TimeRangeSchema } from "@everr/ui/lib/time-range";
 import { queryOptions } from "@tanstack/react-query";
 import { z } from "zod";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
@@ -61,15 +57,13 @@ const testPerfFilterOptionsBase = (input: { timeRange: TimeRange }) => ({
 });
 
 const createTestPerfFieldFilter =
-  (field: keyof TestPerfFilterOptions) =>
-  (input: { timeRange: TimeRange }) => ({
+  (field: keyof TestPerfFilterOptions) => (input: { timeRange: TimeRange }) => ({
     ...testPerfFilterOptionsBase(input),
     select: (data: TestPerfFilterOptions) => data[field],
   });
 
 export const testPerfRepoFilterOptions = createTestPerfFieldFilter("repos");
-export const testPerfBranchFilterOptions =
-  createTestPerfFieldFilter("branches");
+export const testPerfBranchFilterOptions = createTestPerfFieldFilter("branches");
 
 // --- Children (hierarchy browser) ---
 
@@ -111,15 +105,11 @@ const getTestPerfChildren = createAuthenticatedServerFn({
     };
 
     if (data.repos?.length) {
-      baseConditions.push(
-        "ResourceAttributes['vcs.repository.name'] IN {repos:Array(String)}",
-      );
+      baseConditions.push("ResourceAttributes['vcs.repository.name'] IN {repos:Array(String)}");
       params.repos = data.repos;
     }
     if (data.branches?.length) {
-      baseConditions.push(
-        "ResourceAttributes['vcs.ref.head.name'] IN {branches:Array(String)}",
-      );
+      baseConditions.push("ResourceAttributes['vcs.ref.head.name'] IN {branches:Array(String)}");
       params.branches = data.branches;
     }
 
@@ -214,24 +204,18 @@ const getTestPerfChildren = createAuthenticatedServerFn({
     } else {
       // Package or deeper level: return direct children with suite flag in one query
       const childConditions = [...baseConditions];
-      childConditions.push(
-        "SpanAttributes['everr.test.package'] = {pkg:String}",
-      );
+      childConditions.push("SpanAttributes['everr.test.package'] = {pkg:String}");
       params.pkg = data.pkg;
 
       const parentTest = data.path ?? "";
       params.parentTest = parentTest;
 
-      childConditions.push(
-        "SpanAttributes['everr.test.parent_test'] = {parentTest:String}",
-      );
+      childConditions.push("SpanAttributes['everr.test.parent_test'] = {parentTest:String}");
 
       const childWhere = childConditions.join("\n          AND ");
 
       const suiteConditions = [...baseConditions];
-      suiteConditions.push(
-        "SpanAttributes['everr.test.package'] = {pkg:String}",
-      );
+      suiteConditions.push("SpanAttributes['everr.test.package'] = {pkg:String}");
       suiteConditions.push("SpanAttributes['everr.test.parent_test'] != ''");
       const suiteWhere = suiteConditions.join("\n          AND ");
 

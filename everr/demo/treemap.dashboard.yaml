@@ -255,13 +255,67 @@ spec:
     - kind: Grid
       spec:
         items:
-          - { x: 0,  y: 0,  width: 24, height: 12, content: { $ref: "#/spec/panels/treemap-grouped" } }
-          - { x: 0,  y: 12, width: 12, height: 9,  content: { $ref: "#/spec/panels/treemap-defaults" } }
-          - { x: 12, y: 12, width: 12, height: 9,  content: { $ref: "#/spec/panels/treemap-columns-unit" } }
-          - { x: 0,  y: 21, width: 12, height: 9,  content: { $ref: "#/spec/panels/treemap-grouped-nolegend" } }
-          - { x: 12, y: 21, width: 12, height: 9,  content: { $ref: "#/spec/panels/treemap-novalues" } }
-          - { x: 0,  y: 30, width: 12, height: 9,  content: { $ref: "#/spec/panels/treemap-multiquery" } }
-          - { x: 12, y: 30, width: 12, height: 9,  content: { $ref: "#/spec/panels/treemap-duplicates" } }
-          - { x: 0,  y: 39, width: 12, height: 9,  content: { $ref: "#/spec/panels/treemap-maxtiles" } }
-          - { x: 12, y: 39, width: 12, height: 9,  content: { $ref: "#/spec/panels/treemap-dropped" } }
-          - { x: 0,  y: 48, width: 12, height: 9,  content: { $ref: "#/spec/panels/treemap-empty" } }
+          - {
+              x: 0,
+              y: 0,
+              width: 24,
+              height: 12,
+              content: { $ref: "#/spec/panels/treemap-grouped" },
+            }
+          - {
+              x: 0,
+              y: 12,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/treemap-defaults" },
+            }
+          - {
+              x: 12,
+              y: 12,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/treemap-columns-unit" },
+            }
+          - {
+              x: 0,
+              y: 21,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/treemap-grouped-nolegend" },
+            }
+          - {
+              x: 12,
+              y: 21,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/treemap-novalues" },
+            }
+          - {
+              x: 0,
+              y: 30,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/treemap-multiquery" },
+            }
+          - {
+              x: 12,
+              y: 30,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/treemap-duplicates" },
+            }
+          - {
+              x: 0,
+              y: 39,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/treemap-maxtiles" },
+            }
+          - {
+              x: 12,
+              y: 39,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/treemap-dropped" },
+            }
+          - { x: 0, y: 48, width: 12, height: 9, content: { $ref: "#/spec/panels/treemap-empty" } }

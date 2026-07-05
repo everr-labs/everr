@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import {
   findSilenceForInstance,
   type Matcher,
@@ -27,27 +27,17 @@ describe("matcherMatches", () => {
   });
 
   it("anchors regex matchers", () => {
-    expect(
-      matcherMatches(m("route", "=~", "/api/.*"), { route: "/api/x" }),
-    ).toBe(true);
-    expect(matcherMatches(m("route", "=~", "api"), { route: "/api/x" })).toBe(
-      false,
-    );
-    expect(matcherMatches(m("route", "!~", "/api/.*"), { route: "/web" })).toBe(
-      true,
-    );
+    expect(matcherMatches(m("route", "=~", "/api/.*"), { route: "/api/x" })).toBe(true);
+    expect(matcherMatches(m("route", "=~", "api"), { route: "/api/x" })).toBe(false);
+    expect(matcherMatches(m("route", "!~", "/api/.*"), { route: "/web" })).toBe(true);
   });
 });
 
 describe("silenceMatchesInstance", () => {
   it("requires all matchers to match", () => {
     const matchers = [m("route", "=", "/x"), m("code", "=", "500")];
-    expect(silenceMatchesInstance(matchers, { route: "/x", code: "500" })).toBe(
-      true,
-    );
-    expect(silenceMatchesInstance(matchers, { route: "/x", code: "404" })).toBe(
-      false,
-    );
+    expect(silenceMatchesInstance(matchers, { route: "/x", code: "500" })).toBe(true);
+    expect(silenceMatchesInstance(matchers, { route: "/x", code: "404" })).toBe(false);
   });
 
   it("matches everything with an empty matcher list", () => {
@@ -69,9 +59,7 @@ describe("findSilenceForInstance", () => {
 
 describe("validateMatchers", () => {
   it("rejects invalid regex", () => {
-    expect(() => validateMatchers([m("route", "=~", "(")])).toThrow(
-      /invalid regex/,
-    );
+    expect(() => validateMatchers([m("route", "=~", "(")])).toThrow(/invalid regex/);
     expect(() => validateMatchers([m("route", "=", "(")])).not.toThrow();
   });
 });
@@ -79,11 +67,7 @@ describe("validateMatchers", () => {
 describe("MatchersSchema", () => {
   it("accepts well-formed matchers and rejects unknown ops", () => {
     expect(MatchersSchema.safeParse([m("a", "=", "b")]).success).toBe(true);
-    expect(
-      MatchersSchema.safeParse([{ label: "a", op: "==", value: "b" }]).success,
-    ).toBe(false);
-    expect(
-      MatchersSchema.safeParse([{ label: "", op: "=", value: "b" }]).success,
-    ).toBe(false);
+    expect(MatchersSchema.safeParse([{ label: "a", op: "==", value: "b" }]).success).toBe(false);
+    expect(MatchersSchema.safeParse([{ label: "", op: "=", value: "b" }]).success).toBe(false);
   });
 });

@@ -1,12 +1,6 @@
 import { ConclusionIcon } from "@everr/telemetry-explorer/runs";
 import { Button } from "@everr/ui/components/button";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@everr/ui/components/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@everr/ui/components/card";
 import { Empty, EmptyDescription } from "@everr/ui/components/empty";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { formatDuration } from "@everr/ui/lib/formatting";
@@ -34,10 +28,7 @@ const BAR_BG: Record<string, string> = {
   requested: "bg-blue-500",
 };
 
-export function WorkflowJobTimeline({
-  workflowName,
-  repo,
-}: WorkflowJobTimelineProps) {
+export function WorkflowJobTimeline({ workflowName, repo }: WorkflowJobTimelineProps) {
   const { timeRange } = useTimeRange();
   const { data, isPending, isError } = useQuery(
     workflowRunTimelinesOptions({ timeRange, workflowName, repo }),
@@ -76,13 +67,9 @@ export function WorkflowJobTimeline({
               <div className="flex items-center gap-3 text-muted-foreground tabular-nums">
                 <span>
                   total{" "}
-                  <span className="text-foreground">
-                    {formatDuration(run.wallClockMs, "ms")}
-                  </span>
+                  <span className="text-foreground">{formatDuration(run.wallClockMs, "ms")}</span>
                 </span>
-                <span className="font-mono text-foreground">
-                  {formatCost(run.estimatedCost)}
-                </span>
+                <span className="font-mono text-foreground">{formatCost(run.estimatedCost)}</span>
               </div>
               <div className="flex items-center gap-1">
                 <Button
@@ -133,8 +120,7 @@ export function WorkflowJobTimeline({
 
 function RunLanes({ run }: { run: WorkflowRunGantt }) {
   const span = run.wallClockMs;
-  const toPct = (ms: number) =>
-    span > 0 ? ((ms - run.startMs) / span) * 100 : 0;
+  const toPct = (ms: number) => (span > 0 ? ((ms - run.startMs) / span) * 100 : 0);
 
   return (
     <div className="space-y-3">
@@ -147,14 +133,10 @@ function RunLanes({ run }: { run: WorkflowRunGantt }) {
         >
           {run.runId}
           {run.runAttempt > 1 && (
-            <span className="ml-1 text-muted-foreground">
-              (#{run.runAttempt})
-            </span>
+            <span className="ml-1 text-muted-foreground">(#{run.runAttempt})</span>
           )}
         </Link>
-        <span className="text-muted-foreground">
-          {formatRelativeTime(run.timestamp)}
-        </span>
+        <span className="text-muted-foreground">{formatRelativeTime(run.timestamp)}</span>
       </div>
 
       <div className="max-h-[320px] space-y-1 overflow-y-auto pr-1">
@@ -163,10 +145,7 @@ function RunLanes({ run }: { run: WorkflowRunGantt }) {
           const width = Math.max(toPct(job.endMs) - left, 1.5);
           return (
             <div key={job.jobId} className="flex items-center gap-2">
-              <ConclusionIcon
-                conclusion={job.conclusion}
-                className="size-3.5 shrink-0"
-              />
+              <ConclusionIcon conclusion={job.conclusion} className="size-3.5 shrink-0" />
               <span
                 className="w-36 shrink-0 truncate text-xs text-muted-foreground"
                 title={job.name}

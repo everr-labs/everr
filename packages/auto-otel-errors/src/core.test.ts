@@ -1,5 +1,5 @@
 import { diag } from "@opentelemetry/api";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { captureError, getClient, initClient, teardown } from "./core.js";
 import { setupTestTelemetry } from "./test-utils.js";
 import type { Integration } from "./types.js";

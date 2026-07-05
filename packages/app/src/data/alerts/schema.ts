@@ -1,8 +1,5 @@
 import * as z from "zod";
-import {
-  dashboardProjectSchema,
-  dashboardSlugSchema,
-} from "@/data/dashboards/schema";
+import { dashboardProjectSchema, dashboardSlugSchema } from "@/data/dashboards/schema";
 
 const nonEmptyString = z.string().min(1);
 
@@ -28,14 +25,10 @@ const notificationMessageSchema = z
 // Split a `spec.runbook` ref into its parts. Returns null when it has more
 // than one "/"; `project` is undefined for a bare slug. Shared by the schema
 // (validation) and parseRunbookRef (resolution) so the format lives once.
-function runbookRefParts(
-  raw: string,
-): { project?: string; slug: string } | null {
+function runbookRefParts(raw: string): { project?: string; slug: string } | null {
   const parts = raw.split("/");
   if (parts.length > 2) return null;
-  return parts.length === 2
-    ? { project: parts[0], slug: parts[1] }
-    : { slug: parts[0] };
+  return parts.length === 2 ? { project: parts[0], slug: parts[1] } : { slug: parts[0] };
 }
 
 const runbookRefSchema = z
@@ -56,10 +49,7 @@ const runbookRefSchema = z
         message: `invalid runbook slug "${ref.slug}"`,
       });
     }
-    if (
-      ref.project !== undefined &&
-      !dashboardProjectSchema.safeParse(ref.project).success
-    ) {
+    if (ref.project !== undefined && !dashboardProjectSchema.safeParse(ref.project).success) {
       ctx.addIssue({
         code: "custom",
         message: `invalid runbook project "${ref.project}"`,
@@ -124,8 +114,7 @@ export const AlertRuleYamlSchema = z
         if (spec.notebook !== undefined && spec.runbook !== undefined) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message:
-              'set only one of "runbook" or the legacy "notebook" field, not both',
+            message: 'set only one of "runbook" or the legacy "notebook" field, not both',
             path: ["runbook"],
           });
         }

@@ -4,10 +4,7 @@ import { z } from "zod";
 import { db } from "@/db/client";
 import { invitation, member, organization, user } from "@/db/schema";
 import { createPartiallyAuthenticatedServerFn } from "@/lib/serverFn";
-import {
-  deriveInvitationLookup,
-  type InvitationLookup,
-} from "./invite-resolver";
+import { deriveInvitationLookup, type InvitationLookup } from "./invite-resolver";
 
 export type { InviteLoaderResult } from "./invite-resolver";
 export { resolveInvitationLoader } from "./invite-resolver";
@@ -42,12 +39,7 @@ export const isMemberOfOrg = createPartiallyAuthenticatedServerFn({
     const [row] = await db
       .select({ id: member.id })
       .from(member)
-      .where(
-        and(
-          eq(member.userId, session.user.id),
-          eq(member.organizationId, organizationId),
-        ),
-      )
+      .where(and(eq(member.userId, session.user.id), eq(member.organizationId, organizationId)))
       .limit(1);
     return { isMember: Boolean(row) };
   });

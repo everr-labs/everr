@@ -67,10 +67,7 @@ function patchGlobalCallback(
   });
 }
 
-function patchEventTarget(
-  restores: Array<() => void>,
-  wrap: (fn: AnyFn) => AnyFn,
-): void {
+function patchEventTarget(restores: Array<() => void>, wrap: (fn: AnyFn) => AnyFn): void {
   if (
     typeof EventTarget === "undefined" ||
     typeof EventTarget.prototype.addEventListener !== "function"

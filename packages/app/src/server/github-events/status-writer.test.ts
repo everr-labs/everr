@@ -3,15 +3,11 @@ vi.mock("@/db/notify", () => ({
 }));
 
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { notifyWorkflowUpdate } from "@/db/notify";
 import { workflowJobs, workflowRuns } from "@/db/schema";
 import type { ParsedQueuedWorkflowEvent } from "./payloads";
-import {
-  handleStatusEvent,
-  upsertWorkflowJob,
-  upsertWorkflowRun,
-} from "./status-writer";
+import { handleStatusEvent, upsertWorkflowJob, upsertWorkflowRun } from "./status-writer";
 import { generateWorkflowTraceId } from "./trace-id";
 
 const mockedNotify = vi.mocked(notifyWorkflowUpdate);
@@ -193,11 +189,7 @@ describe("upsertWorkflowRun", () => {
   it("records completedAt for completed workflow runs", async () => {
     const { db, values } = createMockDb();
 
-    await upsertWorkflowRun(
-      db,
-      "org-42",
-      buildRunEvent("completed", { conclusion: "success" }),
-    );
+    await upsertWorkflowRun(db, "org-42", buildRunEvent("completed", { conclusion: "success" }));
 
     const insertedValues = values.mock.calls[0]?.[0];
     expect(insertedValues).toMatchObject({

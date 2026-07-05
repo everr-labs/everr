@@ -38,10 +38,7 @@ test("buildRuntimePaths keeps job-scoped files under RUNNER_TEMP", () => {
   });
 
   assert.equal(paths.baseDir, "/tmp/runner/everr-resource-usage/12-3-lint");
-  assert.equal(
-    paths.outputDir,
-    "/tmp/runner/everr-resource-usage/12-3-lint/artifact",
-  );
+  assert.equal(paths.outputDir, "/tmp/runner/everr-resource-usage/12-3-lint/artifact");
 });
 
 test("resolveActionRoot derives the action directory from the entrypoint path", () => {
@@ -148,14 +145,11 @@ test("installCli downloads from everr.dev and adds to PATH", async () => {
   const fetchImpl = async (url: string) => {
     fetchCalls.push({ url });
     const isChecksum = url.endsWith(".sha256");
-    const content = isChecksum
-      ? Buffer.from(`${binaryHash}  everr\n`)
-      : binaryContent;
+    const content = isChecksum ? Buffer.from(`${binaryHash}  everr\n`) : binaryContent;
     return {
       ok: true,
       status: 200,
-      arrayBuffer: async () =>
-        new Uint8Array(content).buffer as ArrayBuffer,
+      arrayBuffer: async () => new Uint8Array(content).buffer as ArrayBuffer,
     };
   };
 
@@ -170,9 +164,7 @@ test("installCli downloads from everr.dev and adds to PATH", async () => {
         return _encoding ? content : Buffer.from(content);
       }
       if (p === cliPath) {
-        return _encoding
-          ? binaryContent.toString(_encoding)
-          : binaryContent;
+        return _encoding ? binaryContent.toString(_encoding) : binaryContent;
       }
       throw new Error(`unexpected read: ${p}`);
     },
@@ -197,14 +189,8 @@ test("installCli downloads from everr.dev and adds to PATH", async () => {
     assert.equal(result.target, "darwin-arm64");
     assert.deepEqual(paths, [installDir]);
     assert.match(infos[0], /installed Everr CLI for darwin-arm64/);
-    assert.equal(
-      fetchCalls[0].url,
-      "https://everr.dev/everr-app/everr",
-    );
-    assert.equal(
-      fetchCalls[1].url,
-      "https://everr.dev/everr-app/everr.sha256",
-    );
+    assert.equal(fetchCalls[0].url, "https://everr.dev/everr-app/everr");
+    assert.equal(fetchCalls[1].url, "https://everr.dev/everr-app/everr.sha256");
   } finally {
     await fsp.rm(tempDir, { recursive: true, force: true });
   }
@@ -433,12 +419,7 @@ test("startResourceUsage spawns node with sampler-macos.mjs on macOS", async () 
 
 test("finalizeAndUploadResourceUsage uploads the per-job artifact", async () => {
   const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "everr-ru-finalize-"));
-  const outputDir = path.join(
-    tempDir,
-    "everr-resource-usage",
-    "123-1-lint",
-    "artifact",
-  );
+  const outputDir = path.join(tempDir, "everr-resource-usage", "123-1-lint", "artifact");
   const uploaded: Array<{
     files: string[];
     name: string;
@@ -464,13 +445,13 @@ test("finalizeAndUploadResourceUsage uploads the per-job artifact", async () => 
       },
       readState: (key: string) =>
         (
-          {
+          ({
             enabled: "1",
             checkRunId: "777",
             samplesPath: path.join(tempDir, "samples.ndjson"),
             pidPath: path.join(tempDir, "missing.pid"),
             startedAt: "2026-03-10T10:00:00.000Z",
-          } as Record<string, string>
+          }) as Record<string, string>
         )[key] || "",
       finalizeImpl: (async (options) => {
         finalizeInvocation = options;
@@ -499,10 +480,7 @@ test("finalizeAndUploadResourceUsage uploads the per-job artifact", async () => 
     assert.equal(result.artifactName, "everr-resource-usage-v2-777");
     assert.deepEqual(uploaded[0], {
       name: "everr-resource-usage-v2-777",
-      files: [
-        path.join(outputDir, "metadata.json"),
-        path.join(outputDir, "samples.ndjson"),
-      ],
+      files: [path.join(outputDir, "metadata.json"), path.join(outputDir, "samples.ndjson")],
       rootDirectory: outputDir,
       options: { retentionDays: 7 },
     });
@@ -516,55 +494,47 @@ test("finalizeAndUploadResourceUsage uploads the per-job artifact", async () => 
   }
 });
 
-test(
-  "finalizeAndUploadResourceUsage downgrades finalize failures to warnings",
-  async () => {
-    const warnings: string[] = [];
+test("finalizeAndUploadResourceUsage downgrades finalize failures to warnings", async () => {
+  const warnings: string[] = [];
 
-    const result = await finalizeAndUploadResourceUsage({
-      env: {
-        RUNNER_OS: "Linux",
-        RUNNER_TEMP: os.tmpdir(),
-        GITHUB_RUN_ID: "123",
-        GITHUB_RUN_ATTEMPT: "1",
-        GITHUB_JOB: "lint",
-      },
-      readState: (key: string) =>
-        (
-          {
-            enabled: "1",
-            checkRunId: "777",
-            samplesPath: path.join(os.tmpdir(), "missing.ndjson"),
-            pidPath: path.join(os.tmpdir(), "missing.pid"),
-            startedAt: "2026-03-10T10:00:00.000Z",
-          } as Record<string, string>
-        )[key] || "",
-      finalizeImpl: (async () => {
-        throw new Error("finalize boom");
-      }) as typeof import("../scripts/finalize.ts").finalizePartialArtifact,
-      resolveFilesystemInfo: async () => ({
-        device: "/dev/root",
-        mountpoint: "/",
-        type: "ext4",
-      }),
-      uploadArtifactImpl: async () => {},
-      info: () => {},
-      warning: (message: string) => warnings.push(message),
-    });
+  const result = await finalizeAndUploadResourceUsage({
+    env: {
+      RUNNER_OS: "Linux",
+      RUNNER_TEMP: os.tmpdir(),
+      GITHUB_RUN_ID: "123",
+      GITHUB_RUN_ATTEMPT: "1",
+      GITHUB_JOB: "lint",
+    },
+    readState: (key: string) =>
+      (
+        ({
+          enabled: "1",
+          checkRunId: "777",
+          samplesPath: path.join(os.tmpdir(), "missing.ndjson"),
+          pidPath: path.join(os.tmpdir(), "missing.pid"),
+          startedAt: "2026-03-10T10:00:00.000Z",
+        }) as Record<string, string>
+      )[key] || "",
+    finalizeImpl: (async () => {
+      throw new Error("finalize boom");
+    }) as typeof import("../scripts/finalize.ts").finalizePartialArtifact,
+    resolveFilesystemInfo: async () => ({
+      device: "/dev/root",
+      mountpoint: "/",
+      type: "ext4",
+    }),
+    uploadArtifactImpl: async () => {},
+    info: () => {},
+    warning: (message: string) => warnings.push(message),
+  });
 
-    assert.equal(result.failed, true);
-    assert.match(warnings[0], /finalization failed: finalize boom/);
-  },
-);
+  assert.equal(result.failed, true);
+  assert.match(warnings[0], /finalization failed: finalize boom/);
+});
 
 test("finalizeAndUploadResourceUsage succeeds on macOS runners", async () => {
   const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "everr-ru-finalize-macos-"));
-  const outputDir = path.join(
-    tempDir,
-    "everr-resource-usage",
-    "123-1-lint",
-    "artifact",
-  );
+  const outputDir = path.join(tempDir, "everr-resource-usage", "123-1-lint", "artifact");
   const uploaded: Array<{
     files: string[];
     name: string;
@@ -587,13 +557,13 @@ test("finalizeAndUploadResourceUsage succeeds on macOS runners", async () => {
       },
       readState: (key: string) =>
         (
-          {
+          ({
             enabled: "1",
             checkRunId: "888",
             samplesPath: path.join(tempDir, "samples.ndjson"),
             pidPath: path.join(tempDir, "missing.pid"),
             startedAt: "2026-03-10T10:00:00.000Z",
-          } as Record<string, string>
+          }) as Record<string, string>
         )[key] || "",
       finalizeImpl: (async (options) => {
         await fsp.mkdir(outputDir, { recursive: true });
@@ -621,10 +591,7 @@ test("finalizeAndUploadResourceUsage succeeds on macOS runners", async () => {
     assert.equal(result.artifactName, "everr-resource-usage-v2-888");
     assert.deepEqual(uploaded[0], {
       name: "everr-resource-usage-v2-888",
-      files: [
-        path.join(outputDir, "metadata.json"),
-        path.join(outputDir, "samples.ndjson"),
-      ],
+      files: [path.join(outputDir, "metadata.json"), path.join(outputDir, "samples.ndjson")],
       rootDirectory: outputDir,
       options: { retentionDays: 7 },
     });
@@ -633,5 +600,3 @@ test("finalizeAndUploadResourceUsage succeeds on macOS runners", async () => {
     await fsp.rm(tempDir, { recursive: true, force: true });
   }
 });
-
-

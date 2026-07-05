@@ -1,9 +1,5 @@
 import { Badge } from "@everr/ui/components/badge";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@everr/ui/components/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
 import type { PreviewStatus } from "@/data/previews/overlay";
 
 // Each visible status maps 1:1 to a Badge tone variant (see @everr/ui badge).
@@ -34,9 +30,7 @@ export function PreviewStatusBadge({ status }: { status?: PreviewStatus }) {
   if (!status || status === "unchanged") return null;
   return (
     <Tooltip>
-      <TooltipTrigger render={<Badge variant={status} />}>
-        {LABELS[status]}
-      </TooltipTrigger>
+      <TooltipTrigger render={<Badge variant={status} />}>{LABELS[status]}</TooltipTrigger>
       <TooltipContent>{DESCRIPTIONS[status]}</TooltipContent>
     </Tooltip>
   );

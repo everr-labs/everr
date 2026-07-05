@@ -39,18 +39,14 @@ const columns: Column<CostByWorkflow>[] = [
   {
     header: "Est. Cost",
     cell: (row) => (
-      <span className="font-mono font-medium tabular-nums">
-        {formatCost(row.estimatedCost)}
-      </span>
+      <span className="font-mono font-medium tabular-nums">{formatCost(row.estimatedCost)}</span>
     ),
     className: "pb-2 pr-4 font-medium",
   },
   {
     header: "Avg $/Run",
     cell: (row) => (
-      <span className="font-mono font-medium tabular-nums">
-        {formatCost(row.avgCostPerRun)}
-      </span>
+      <span className="font-mono font-medium tabular-nums">{formatCost(row.avgCostPerRun)}</span>
     ),
     className: "pb-2 font-medium",
   },

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import {
   DEFAULT_SCRUB_PATTERNS,
   filterKeyValueData,
@@ -14,9 +14,9 @@ describe("scrubString", () => {
   });
 
   it("filters sensitive query params but keeps the param name", () => {
-    expect(
-      scrubString("GET /cb?token=s3cret&page=2", DEFAULT_SCRUB_PATTERNS),
-    ).toBe("GET /cb?token=[Filtered]&page=2");
+    expect(scrubString("GET /cb?token=s3cret&page=2", DEFAULT_SCRUB_PATTERNS)).toBe(
+      "GET /cb?token=[Filtered]&page=2",
+    );
   });
 
   it("does not use lookbehind in default patterns", () => {
@@ -26,15 +26,13 @@ describe("scrubString", () => {
   });
 
   it("filters card-shaped numbers and emails", () => {
-    expect(
-      scrubString("card 4242 4242 4242 4242 for a@b.com", DEFAULT_SCRUB_PATTERNS),
-    ).toBe("card [Filtered] for [Filtered]");
+    expect(scrubString("card 4242 4242 4242 4242 for a@b.com", DEFAULT_SCRUB_PATTERNS)).toBe(
+      "card [Filtered] for [Filtered]",
+    );
   });
 
   it("applies custom patterns", () => {
-    expect(scrubString("ssn 123-45-6789", [/\d{3}-\d{2}-\d{4}/g])).toBe(
-      "ssn [Filtered]",
-    );
+    expect(scrubString("ssn 123-45-6789", [/\d{3}-\d{2}-\d{4}/g])).toBe("ssn [Filtered]");
   });
 });
 
@@ -122,10 +120,7 @@ describe("filterKeyValueData", () => {
   });
 
   it("leaves keys unfiltered when behavior is false", () => {
-    const result = filterKeyValueData(
-      { authorization: "Bearer token123" },
-      false,
-    );
+    const result = filterKeyValueData({ authorization: "Bearer token123" }, false);
     expect(result).toEqual({ authorization: "Bearer token123" });
   });
 

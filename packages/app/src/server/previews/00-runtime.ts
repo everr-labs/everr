@@ -1,9 +1,5 @@
 import { context, ROOT_CONTEXT } from "@opentelemetry/api";
-import {
-  type ParsedCronItem,
-  parseCronItems,
-  type TaskList,
-} from "graphile-worker";
+import { type ParsedCronItem, parseCronItems, type TaskList } from "graphile-worker";
 import { deleteStalePreviews } from "@/data/previews/apply.server";
 import { env } from "@/env";
 import { serverLogger } from "@/telemetry/logger";

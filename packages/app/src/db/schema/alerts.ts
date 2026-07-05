@@ -17,11 +17,7 @@ import type { Matcher } from "@/data/alerts/matchers";
 import type { AlertRuleYaml } from "@/data/alerts/schema";
 import { previews } from "./app";
 
-export const alertStateEnum = pgEnum("alert_state", [
-  "unknown",
-  "resolved",
-  "firing",
-]);
+export const alertStateEnum = pgEnum("alert_state", ["unknown", "resolved", "firing"]);
 
 export const alertDefinitions = pgTable(
   "alert_definitions",
@@ -41,24 +37,16 @@ export const alertDefinitions = pgTable(
     document: jsonb("document").notNull().$type<AlertRuleYaml>(),
     parsedQuery: text("parsed_query").notNull(),
     notificationTitleTemplate: text("summary_template").notNull(),
-    notificationDescriptionTemplate: text("description_template")
-      .notNull()
-      .default(""),
+    notificationDescriptionTemplate: text("description_template").notNull().default(""),
     nextEvaluationAt: timestamp("next_evaluation_at", { withTimezone: true }),
-    scheduleJitterSeconds: integer("schedule_jitter_seconds")
-      .notNull()
-      .default(0),
+    scheduleJitterSeconds: integer("schedule_jitter_seconds").notNull().default(0),
     lastEnqueuedAt: timestamp("last_enqueued_at", { withTimezone: true }),
     configFilePath: text("config_file_path").notNull().default(""),
     sourceLink: text("source_link").notNull().default(""),
     runbookProject: text("runbook_project").notNull().default(""),
     runbookSlug: text("runbook_slug").notNull().default(""),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     // Legacy soft-delete marker. `apply` now hard-deletes removed rules, so
     // nothing writes this anymore; the column and the `isNull(deletedAt)` read
     // filters are retained only to keep any rows soft-deleted before that change
@@ -103,12 +91,8 @@ export const alertSettings = pgTable("alert_settings", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: text("organization_id").notNull().unique(),
   delivery: jsonb("delivery").notNull().$type<StoredDeliverySettings>(),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const alertSilences = pgTable(
@@ -127,12 +111,8 @@ export const alertSilences = pgTable(
       .default(sql`'[]'::jsonb`)
       .$type<Matcher[]>(),
     createdByUserId: text("created_by_user_id").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
     cancelledByUserId: text("cancelled_by_user_id"),
   },

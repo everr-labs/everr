@@ -7,11 +7,7 @@ import {
   CommandItem,
   CommandList,
 } from "@everr/ui/components/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@everr/ui/components/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@everr/ui/components/popover";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { useQuery } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
@@ -20,11 +16,7 @@ import { attributeKeysOptions } from "../options";
 import type { AttributeRepositoryLike } from "../repository";
 import type { AttributeKey, AttributeSource } from "../schemas";
 import { ATTRIBUTE_KEY_PER_SOURCE_LIMIT } from "../sql/keys";
-import {
-  ATTRIBUTE_SOURCE_LABELS,
-  attributeLabel,
-  type PromotedAttribute,
-} from "./attribute-meta";
+import { ATTRIBUTE_SOURCE_LABELS, attributeLabel, type PromotedAttribute } from "./attribute-meta";
 
 const filterKey = (source: AttributeSource, key: string) => `${source}:${key}`;
 
@@ -55,9 +47,7 @@ export function AttributeKeyPicker({
     enabled: open,
   });
 
-  const promotedKeySet = new Set(
-    promotedAttributes.map((p) => filterKey(p.source, p.key)),
-  );
+  const promotedKeySet = new Set(promotedAttributes.map((p) => filterKey(p.source, p.key)));
 
   const isActive = (source: AttributeSource, key: string) =>
     activeKeys?.has(filterKey(source, key)) ?? false;
@@ -78,9 +68,7 @@ export function AttributeKeyPicker({
         {label ? (
           <span className="flex min-w-0 flex-col">
             <span className="truncate">{label}</span>
-            <span className="text-muted-foreground truncate font-mono text-[10px]">
-              {key}
-            </span>
+            <span className="text-muted-foreground truncate font-mono text-[10px]">{key}</span>
           </span>
         ) : (
           <span className="truncate font-mono">{key}</span>
@@ -92,9 +80,7 @@ export function AttributeKeyPicker({
   // Promoted keys are only suggested when they actually appear in the current
   // range — otherwise we'd offer a chip that can never narrow these rows and
   // hide the empty state behind it.
-  const discoveredKeySet = new Set(
-    keys.map((k: AttributeKey) => filterKey(k.source, k.key)),
-  );
+  const discoveredKeySet = new Set(keys.map((k: AttributeKey) => filterKey(k.source, k.key)));
 
   const suggested = promotedAttributes.filter(
     (p) =>
@@ -127,21 +113,12 @@ export function AttributeKeyPicker({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
-        render={
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 w-full justify-start"
-          />
-        }
+        render={<Button variant="outline" size="sm" className="h-8 w-full justify-start" />}
       >
         <Plus className="size-3.5" />
         Filter
       </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        className="w-(--radix-popper-anchor-width) min-w-56 p-0"
-      >
+      <PopoverContent align="start" className="w-(--radix-popper-anchor-width) min-w-56 p-0">
         <Command className="p-0">
           <CommandInput
             wrapperClassName="p-0 border-b"
@@ -149,9 +126,7 @@ export function AttributeKeyPicker({
             placeholder="Search attributes..."
           />
           <CommandList>
-            <CommandEmpty>
-              {isLoading ? "Loading..." : "No attributes."}
-            </CommandEmpty>
+            <CommandEmpty>{isLoading ? "Loading..." : "No attributes."}</CommandEmpty>
             {suggested.length > 0 && (
               <CommandGroup heading="Suggested">
                 {suggested.map((p) => renderItem(p.source, p.key))}
@@ -160,13 +135,8 @@ export function AttributeKeyPicker({
             {grouped.map(
               (group) =>
                 group.keys.length > 0 && (
-                  <CommandGroup
-                    key={group.source}
-                    heading={ATTRIBUTE_SOURCE_LABELS[group.source]}
-                  >
-                    {group.keys.map((item: AttributeKey) =>
-                      renderItem(item.source, item.key),
-                    )}
+                  <CommandGroup key={group.source} heading={ATTRIBUTE_SOURCE_LABELS[group.source]}>
+                    {group.keys.map((item: AttributeKey) => renderItem(item.source, item.key))}
                   </CommandGroup>
                 ),
             )}

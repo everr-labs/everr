@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { tracesSearchInfiniteOptions } from "./options";
 import type { TracesRepositoryLike } from "./repository";
 import type { TraceSummary } from "./types";

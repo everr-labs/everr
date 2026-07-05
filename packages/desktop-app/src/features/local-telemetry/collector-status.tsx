@@ -32,8 +32,7 @@ export function useCollectorStatusQuery() {
 
   return useQuery({
     queryKey: collectorStatusQueryKey,
-    queryFn: () =>
-      invokeCommand<CollectorStatusResponse>("get_collector_status"),
+    queryFn: () => invokeCommand<CollectorStatusResponse>("get_collector_status"),
   });
 }
 
@@ -41,8 +40,7 @@ export function useRestartCollectorMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: () =>
-      invokeCommand<CollectorStatusResponse>("restart_collector"),
+    mutationFn: () => invokeCommand<CollectorStatusResponse>("restart_collector"),
     onSuccess: (status) => {
       queryClient.setQueryData(collectorStatusQueryKey, status);
       if (status.status === "running") {

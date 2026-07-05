@@ -6,11 +6,7 @@ const COLUMNS: Record<string, string> = {
   scope: "ScopeAttributes",
 };
 
-export const LOGS_ATTRIBUTE_SOURCES: AttributeSource[] = [
-  "resource",
-  "log",
-  "scope",
-];
+export const LOGS_ATTRIBUTE_SOURCES: AttributeSource[] = ["resource", "log", "scope"];
 
 export function logsAttributeColumn(source: AttributeSource): string {
   const column = COLUMNS[source];

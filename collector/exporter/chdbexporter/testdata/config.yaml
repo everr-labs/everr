@@ -21,15 +21,15 @@ chdb/full:
     queue_size: 100
     storage: file_storage/chdb
   metrics_tables:
-    gauge: 
+    gauge:
       name: "otel_metrics_custom_gauge"
-    sum: 
+    sum:
       name: "otel_metrics_custom_sum"
-    summary: 
+    summary:
       name: "otel_metrics_custom_summary"
-    histogram: 
+    histogram:
       name: "otel_metrics_custom_histogram"
-    exponential_histogram: 
+    exponential_histogram:
       name: "otel_metrics_custom_exp_histogram"
 chdb/json:
   endpoint: clickhouse://127.0.0.1:9000

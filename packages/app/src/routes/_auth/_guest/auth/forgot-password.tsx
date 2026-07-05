@@ -32,10 +32,7 @@ function ForgotPassword() {
         });
 
         if (result.error) {
-          setError(
-            result.error.message ??
-              "Failed to send reset email. Please try again.",
-          );
+          setError(result.error.message ?? "Failed to send reset email. Please try again.");
           return;
         }
 
@@ -108,10 +105,7 @@ function ForgotPassword() {
 
       <p className="text-center text-sm text-muted-foreground">
         Remember your password?{" "}
-        <Link
-          to="/auth/sign-in"
-          className="font-medium text-foreground hover:underline"
-        >
+        <Link to="/auth/sign-in" className="font-medium text-foreground hover:underline">
           Sign in
         </Link>
       </p>

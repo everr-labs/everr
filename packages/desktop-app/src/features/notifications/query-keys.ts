@@ -1,7 +1,4 @@
-export const notificationEmailsQueryKey = [
-  "desktop-app",
-  "notification-emails",
-] as const;
+export const notificationEmailsQueryKey = ["desktop-app", "notification-emails"] as const;
 export const userProfileQueryKey = ["desktop-app", "user-profile"] as const;
 export const orgQueryKey = ["desktop-app", "org"] as const;
 export const runsListQueryKey = ["desktop-app", "runs-list"] as const;

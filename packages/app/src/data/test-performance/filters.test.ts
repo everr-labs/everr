@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { buildFilterConditions } from "./filters";
 
 describe("buildFilterConditions", () => {
@@ -14,20 +14,15 @@ describe("buildFilterConditions", () => {
 
     const sql = scopeConditions.join("\n");
     expect(sql).toContain("NOT IN");
-    expect(sql).toContain(
-      "ResourceAttributes['vcs.repository.name'] IN {repos:Array(String)}",
-    );
-    expect(sql).toContain(
-      "ResourceAttributes['vcs.ref.head.name'] IN {branches:Array(String)}",
-    );
+    expect(sql).toContain("ResourceAttributes['vcs.repository.name'] IN {repos:Array(String)}");
+    expect(sql).toContain("ResourceAttributes['vcs.ref.head.name'] IN {branches:Array(String)}");
   });
 
   it("uses package parent root condition for package view", () => {
-    const { conditions, aggregateByRun, scopeConditions } =
-      buildFilterConditions(fromISO, toISO, {
-        timeRange: { from: "now-7d", to: "now" },
-        pkg: "pkg-a",
-      });
+    const { conditions, aggregateByRun, scopeConditions } = buildFilterConditions(fromISO, toISO, {
+      timeRange: { from: "now-7d", to: "now" },
+      pkg: "pkg-a",
+    });
 
     const sql = conditions.join("\n");
     expect(sql).toContain("SpanAttributes['everr.test.parent_test'] = ''");
@@ -36,20 +31,14 @@ describe("buildFilterConditions", () => {
   });
 
   it("uses exact path when provided and disables run aggregation", () => {
-    const { conditions, aggregateByRun } = buildFilterConditions(
-      fromISO,
-      toISO,
-      {
-        timeRange: { from: "now-7d", to: "now" },
-        pkg: "pkg-a",
-        path: "suite/test",
-      },
-    );
+    const { conditions, aggregateByRun } = buildFilterConditions(fromISO, toISO, {
+      timeRange: { from: "now-7d", to: "now" },
+      pkg: "pkg-a",
+      path: "suite/test",
+    });
 
     const sql = conditions.join("\n");
-    expect(sql).toContain(
-      "SpanAttributes['everr.test.name'] = {exactPath:String}",
-    );
+    expect(sql).toContain("SpanAttributes['everr.test.name'] = {exactPath:String}");
     expect(aggregateByRun).toBe(false);
   });
 });

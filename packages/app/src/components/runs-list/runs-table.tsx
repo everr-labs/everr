@@ -20,9 +20,7 @@ export function RunsTable({ data, showCost = false }: RunsTableProps) {
     () => [
       {
         header: "Status",
-        cell: (run) => (
-          <ConclusionIcon conclusion={run.conclusion} className="size-4" />
-        ),
+        cell: (run) => <ConclusionIcon conclusion={run.conclusion} className="size-4" />,
       },
       {
         header: "Run ID",
@@ -34,9 +32,7 @@ export function RunsTable({ data, showCost = false }: RunsTableProps) {
           >
             {run.runId}
             {run.runAttempt > 1 && (
-              <span className="text-muted-foreground ml-1">
-                (#{run.runAttempt})
-              </span>
+              <span className="text-muted-foreground ml-1">(#{run.runAttempt})</span>
             )}
           </Link>
         ),
@@ -44,10 +40,7 @@ export function RunsTable({ data, showCost = false }: RunsTableProps) {
       {
         header: "Branch",
         cell: (run) => (
-          <Link
-            to="/runs"
-            search={(prev) => ({ ...prev, branches: [run.branch] })}
-          >
+          <Link to="/runs" search={(prev) => ({ ...prev, branches: [run.branch] })}>
             <Badge
               variant="outline"
               className="inline-block max-w-[10rem] cursor-pointer truncate align-middle hover:bg-accent"
@@ -71,8 +64,7 @@ export function RunsTable({ data, showCost = false }: RunsTableProps) {
             {
               header: "Est. Cost",
               className: "pb-2 pr-4 text-right",
-              cellClassName:
-                "py-2 pr-4 text-right font-mono text-xs tabular-nums",
+              cellClassName: "py-2 pr-4 text-right font-mono text-xs tabular-nums",
               cell: (run: RunListItem & { estimatedCost?: number }) =>
                 formatCost(run.estimatedCost ?? 0),
             } satisfies Column<RunListItem & { estimatedCost?: number }>,

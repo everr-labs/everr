@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { buildTelegramText } from "./04-telegram";
 
 const def = {
@@ -85,9 +85,7 @@ describe("buildTelegramText", () => {
         runbookUrl: "https://app.example.com/runbooks/default/runbook",
       },
     );
-    expect(text).toContain(
-      "Runbook: https://app.example.com/runbooks/default/runbook",
-    );
+    expect(text).toContain("Runbook: https://app.example.com/runbooks/default/runbook");
   });
 
   it("omits the runbook line when runbookUrl is absent", () => {

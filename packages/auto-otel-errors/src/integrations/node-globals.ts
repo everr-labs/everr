@@ -66,9 +66,7 @@ async function flushLogs(): Promise<void> {
   }
 
   await Promise.race([
-    provider
-      .forceFlush()
-      .catch((err) => diag.error(`${PKG_NAME}: flush on fatal failed`, err)),
+    provider.forceFlush().catch((err) => diag.error(`${PKG_NAME}: flush on fatal failed`, err)),
     new Promise<void>((resolve) => setTimeout(resolve, FLUSH_TIMEOUT_MS)),
   ]);
 }

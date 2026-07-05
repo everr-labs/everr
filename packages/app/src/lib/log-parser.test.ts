@@ -1,11 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import type { LogEntry } from "@/data/runs/schemas";
-import {
-  computeVisibleLines,
-  getMarkerClass,
-  parseGitHubMarker,
-  parseLogs,
-} from "./log-parser";
+import { computeVisibleLines, getMarkerClass, parseGitHubMarker, parseLogs } from "./log-parser";
 
 describe("parseGitHubMarker", () => {
   it("parses group markers", () => {
@@ -177,10 +172,7 @@ describe("computeVisibleLines", () => {
     const { visible } = computeVisibleLines(lines, groups, collapsed);
 
     // Only group header + line after group
-    expect(visible.map((v) => lines[v.index].body)).toEqual([
-      "Setup",
-      "after group",
-    ]);
+    expect(visible.map((v) => lines[v.index].body)).toEqual(["Setup", "after group"]);
   });
 
   it("shows group children when expanded", () => {
@@ -192,11 +184,7 @@ describe("computeVisibleLines", () => {
     ]);
 
     const { visible } = computeVisibleLines(lines, groups, new Set());
-    expect(visible.map((v) => lines[v.index].body)).toEqual([
-      "Setup",
-      "child 1",
-      "child 2",
-    ]);
+    expect(visible.map((v) => lines[v.index].body)).toEqual(["Setup", "child 1", "child 2"]);
   });
 
   it("does not count endgroup lines in displayLine numbers", () => {
@@ -234,11 +222,7 @@ describe("computeVisibleLines", () => {
       makeLog("##[endgroup]", 0),
     ]);
 
-    const { groupsWithUniformTimestamps } = computeVisibleLines(
-      lines,
-      groups,
-      new Set(),
-    );
+    const { groupsWithUniformTimestamps } = computeVisibleLines(lines, groups, new Set());
     expect(groupsWithUniformTimestamps.has(groups[0].id)).toBe(true);
   });
 
@@ -250,11 +234,7 @@ describe("computeVisibleLines", () => {
       makeLog("##[endgroup]", 5),
     ]);
 
-    const { groupsWithUniformTimestamps } = computeVisibleLines(
-      lines,
-      groups,
-      new Set(),
-    );
+    const { groupsWithUniformTimestamps } = computeVisibleLines(lines, groups, new Set());
     expect(groupsWithUniformTimestamps.has(groups[0].id)).toBe(false);
   });
 
@@ -288,10 +268,6 @@ describe("computeVisibleLines", () => {
     const collapsed = new Set([groups[0].id]);
     const { visible } = computeVisibleLines(lines, groups, collapsed);
 
-    expect(visible.map((v) => lines[v.index].body)).toEqual([
-      "First",
-      "Second",
-      "child b",
-    ]);
+    expect(visible.map((v) => lines[v.index].body)).toEqual(["First", "Second", "child b"]);
   });
 });

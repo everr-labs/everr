@@ -58,16 +58,12 @@ export function createTimeTickFormatter(domain: [number, number]) {
 }
 
 /** Clock-aligned tick positions across a time domain, at most maxTicks of them. */
-export function generateTimeTicks(
-  domain: [number, number],
-  maxTicks: number,
-): number[] {
+export function generateTimeTicks(domain: [number, number], maxTicks: number): number[] {
   const span = domain[1] - domain[0];
   if (span <= 0) return [];
 
   const ideal = span / maxTicks;
-  const interval =
-    TICK_INTERVALS.find((i) => i >= ideal) ?? TICK_INTERVALS.at(-1)!;
+  const interval = TICK_INTERVALS.find((i) => i >= ideal) ?? TICK_INTERVALS.at(-1)!;
 
   const first = Math.ceil(domain[0] / interval) * interval;
   const ticks: number[] = [];
@@ -108,10 +104,7 @@ export function detectTimeKey(rows: QueryResultRow[]): string | undefined {
  * yet), so a first-row-only check would drop a perfectly good metric and leave
  * stat cards blank / time-series series missing.
  */
-export function getValueKeys(
-  rows: QueryResultRow[],
-  timeKey: string,
-): string[] {
+export function getValueKeys(rows: QueryResultRow[], timeKey: string): string[] {
   const first = rows[0];
   if (!first) return [];
   return Object.keys(first).filter(
@@ -126,10 +119,7 @@ export function getValueKeys(
  * it so it isn't double-counted. Scanning all rows mirrors getValueKeys: the
  * leading bucket may be NULL for a dimension that is populated later.
  */
-export function getGroupKeys(
-  rows: QueryResultRow[],
-  excludeKeys: string[],
-): string[] {
+export function getGroupKeys(rows: QueryResultRow[], excludeKeys: string[]): string[] {
   const first = rows[0];
   if (!first) return [];
   return Object.keys(first).filter(

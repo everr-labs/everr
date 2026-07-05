@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import {
   DeliverySettingsSchema,
   ensureDeliveryDefaults,
@@ -73,10 +73,7 @@ describe("DeliverySettingsSchema", () => {
     const parsed = DeliverySettingsSchema.parse({
       telegram: {
         enabled: true,
-        entries: [
-          { id: "keep-1" },
-          { botToken: "t", chatId: "123", name: "Ops" },
-        ],
+        entries: [{ id: "keep-1" }, { botToken: "t", chatId: "123", name: "Ops" }],
       },
       slack: {
         enabled: true,
@@ -92,18 +89,16 @@ describe("DeliverySettingsSchema", () => {
         telegram: { enabled: true, entries: [] },
       }),
     ).toThrow(/no entries/);
-    expect(() =>
-      DeliverySettingsSchema.parse({ slack: { enabled: true, webhooks: [] } }),
-    ).toThrow(/no webhooks/);
+    expect(() => DeliverySettingsSchema.parse({ slack: { enabled: true, webhooks: [] } })).toThrow(
+      /no webhooks/,
+    );
   });
 
   it("trims surrounding whitespace from a pasted webhook url", () => {
     const parsed = DeliverySettingsSchema.parse({
       slack: {
         enabled: true,
-        webhooks: [
-          { url: "  https://hooks.slack.com/services/T0/B0/abc123\n" },
-        ],
+        webhooks: [{ url: "  https://hooks.slack.com/services/T0/B0/abc123\n" }],
       },
     });
     const [webhook] = parsed.slack?.webhooks ?? [];
@@ -137,9 +132,7 @@ describe("resolveDeliverySettings", () => {
     },
     slack: {
       enabled: true,
-      webhooks: [
-        { id: "w-1", url: "https://hooks.slack.com/services/T/B/old" },
-      ],
+      webhooks: [{ id: "w-1", url: "https://hooks.slack.com/services/T/B/old" }],
     },
   };
 

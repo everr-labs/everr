@@ -75,7 +75,7 @@ spec:
                   rows: 12
                   columns:
                     - { name: ts, time: true }
-                    - { name: p50_ms, walk: { start: 40,  noise: 5,  min: 0, round: 0 } }
+                    - { name: p50_ms, walk: { start: 40, noise: 5, min: 0, round: 0 } }
                     - { name: p95_ms, walk: { start: 120, noise: 12, min: 0, round: 0 } }
     bar-percent:
       kind: Panel
@@ -248,11 +248,41 @@ spec:
     - kind: Grid
       spec:
         items:
-          - { x: 0,  y: 0,  width: 12, height: 8, content: { $ref: "#/spec/panels/bar-time-stacked" } }
-          - { x: 12, y: 0,  width: 12, height: 8, content: { $ref: "#/spec/panels/bar-time-grouped" } }
-          - { x: 0,  y: 8,  width: 12, height: 8, content: { $ref: "#/spec/panels/bar-percent" } }
-          - { x: 12, y: 8,  width: 12, height: 8, content: { $ref: "#/spec/panels/bar-categorical-horizontal" } }
-          - { x: 0,  y: 16, width: 8,  height: 8, content: { $ref: "#/spec/panels/bar-categorical-pivot" } }
-          - { x: 8,  y: 16, width: 8,  height: 8, content: { $ref: "#/spec/panels/bar-multi-query" } }
-          - { x: 16, y: 16, width: 8,  height: 8, content: { $ref: "#/spec/panels/bar-empty" } }
-          - { x: 0,  y: 24, width: 24, height: 8, content: { $ref: "#/spec/panels/bar-long-labels" } }
+          - {
+              x: 0,
+              y: 0,
+              width: 12,
+              height: 8,
+              content: { $ref: "#/spec/panels/bar-time-stacked" },
+            }
+          - {
+              x: 12,
+              y: 0,
+              width: 12,
+              height: 8,
+              content: { $ref: "#/spec/panels/bar-time-grouped" },
+            }
+          - { x: 0, y: 8, width: 12, height: 8, content: { $ref: "#/spec/panels/bar-percent" } }
+          - {
+              x: 12,
+              y: 8,
+              width: 12,
+              height: 8,
+              content: { $ref: "#/spec/panels/bar-categorical-horizontal" },
+            }
+          - {
+              x: 0,
+              y: 16,
+              width: 8,
+              height: 8,
+              content: { $ref: "#/spec/panels/bar-categorical-pivot" },
+            }
+          - { x: 8, y: 16, width: 8, height: 8, content: { $ref: "#/spec/panels/bar-multi-query" } }
+          - { x: 16, y: 16, width: 8, height: 8, content: { $ref: "#/spec/panels/bar-empty" } }
+          - {
+              x: 0,
+              y: 24,
+              width: 24,
+              height: 8,
+              content: { $ref: "#/spec/panels/bar-long-labels" },
+            }

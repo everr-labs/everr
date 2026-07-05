@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { runSummarySubquery } from "./run-query-helpers";
 
 describe("runSummarySubquery", () => {
@@ -11,9 +11,7 @@ describe("runSummarySubquery", () => {
 
     expect(sql).toContain("TraceId as trace_id");
     expect(sql).toContain("ResourceAttributes['cicd.pipeline.result']");
-    expect(sql).toContain(
-      "ResourceAttributes['cicd.pipeline.task.run.result']",
-    );
+    expect(sql).toContain("ResourceAttributes['cicd.pipeline.task.run.result']");
     expect(sql).toContain("GROUP BY trace_id");
   });
 

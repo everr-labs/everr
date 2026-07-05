@@ -3,15 +3,13 @@ import { logs, SeverityNumber } from "@opentelemetry/api-logs";
 
 type LogLevel = "debug" | "error" | "info" | "warn";
 
-const severityByLevel: Record<
-  LogLevel,
-  { severityNumber: SeverityNumber; severityText: string }
-> = {
-  debug: { severityNumber: SeverityNumber.DEBUG, severityText: "DEBUG" },
-  error: { severityNumber: SeverityNumber.ERROR, severityText: "ERROR" },
-  info: { severityNumber: SeverityNumber.INFO, severityText: "INFO" },
-  warn: { severityNumber: SeverityNumber.WARN, severityText: "WARN" },
-};
+const severityByLevel: Record<LogLevel, { severityNumber: SeverityNumber; severityText: string }> =
+  {
+    debug: { severityNumber: SeverityNumber.DEBUG, severityText: "DEBUG" },
+    error: { severityNumber: SeverityNumber.ERROR, severityText: "ERROR" },
+    info: { severityNumber: SeverityNumber.INFO, severityText: "INFO" },
+    warn: { severityNumber: SeverityNumber.WARN, severityText: "WARN" },
+  };
 
 export function createTelemetryLogger(name: string) {
   const logger = logs.getLogger(name);
@@ -26,14 +24,10 @@ export function createTelemetryLogger(name: string) {
   }
 
   return {
-    debug: (body: string, attributes?: Attributes) =>
-      emit("debug", body, attributes),
-    error: (body: string, attributes?: Attributes) =>
-      emit("error", body, attributes),
-    info: (body: string, attributes?: Attributes) =>
-      emit("info", body, attributes),
-    warn: (body: string, attributes?: Attributes) =>
-      emit("warn", body, attributes),
+    debug: (body: string, attributes?: Attributes) => emit("debug", body, attributes),
+    error: (body: string, attributes?: Attributes) => emit("error", body, attributes),
+    info: (body: string, attributes?: Attributes) => emit("info", body, attributes),
+    warn: (body: string, attributes?: Attributes) => emit("warn", body, attributes),
   };
 }
 

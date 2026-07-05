@@ -29,9 +29,7 @@ export function buildFilterOptionsQuery(
   return { sql, params: { fromTime: fromISO, toTime: toISO } };
 }
 
-export function decodeFilterOptionsRows(
-  rows: FilterOptionsRowRaw[],
-): LogFilterOptions {
+export function decodeFilterOptionsRows(rows: FilterOptionsRowRaw[]): LogFilterOptions {
   const row = rows[0];
   return { services: row?.services ?? [] };
 }

@@ -121,8 +121,7 @@ function HoleBackground({
       dpi: window.devicePixelRatio || 1,
     };
     canvas.width = stateRef.current.render.width * stateRef.current.render.dpi;
-    canvas.height =
-      stateRef.current.render.height * stateRef.current.render.dpi;
+    canvas.height = stateRef.current.render.height * stateRef.current.render.dpi;
   }, []);
 
   const setDiscs = React.useCallback(() => {
@@ -192,8 +191,7 @@ function HoleBackground({
         if (
           !lineIsIn &&
           clipPath &&
-          (ctx.isPointInPath(clipPath, p1.x, p1.y) ||
-            ctx.isPointInStroke(clipPath, p1.x, p1.y))
+          (ctx.isPointInPath(clipPath, p1.x, p1.y) || ctx.isPointInStroke(clipPath, p1.x, p1.y))
         ) {
           lineIsIn = true;
         } else if (lineIsIn) {
@@ -215,11 +213,9 @@ function HoleBackground({
   const initParticle = React.useCallback(
     (start: boolean = false) => {
       const sx =
-        stateRef.current.particleArea.sx +
-        stateRef.current.particleArea.sw * Math.random();
+        stateRef.current.particleArea.sx + stateRef.current.particleArea.sw * Math.random();
       const ex =
-        stateRef.current.particleArea.ex +
-        stateRef.current.particleArea.ew * Math.random();
+        stateRef.current.particleArea.ex + stateRef.current.particleArea.ew * Math.random();
       const dx = ex - sx;
       const y = start
         ? stateRef.current.particleArea.h * Math.random()
@@ -265,15 +261,7 @@ function HoleBackground({
       ctx.lineWidth = 2;
       const outerDisc = stateRef.current.startDisc;
       ctx.beginPath();
-      ctx.ellipse(
-        outerDisc.x,
-        outerDisc.y,
-        outerDisc.w,
-        outerDisc.h,
-        0,
-        0,
-        Math.PI * 2,
-      );
+      ctx.ellipse(outerDisc.x, outerDisc.y, outerDisc.w, outerDisc.h, 0, 0, Math.PI * 2);
       ctx.stroke();
       ctx.closePath();
       stateRef.current.discs.forEach((disc: Disc, i: number) => {

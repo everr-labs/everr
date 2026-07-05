@@ -81,7 +81,5 @@ export async function scanDueAlerts(opts: { batchSize?: number } = {}) {
 }
 
 function isoTimestamp(value: Date | string) {
-  return value instanceof Date
-    ? value.toISOString()
-    : new Date(value).toISOString();
+  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 }

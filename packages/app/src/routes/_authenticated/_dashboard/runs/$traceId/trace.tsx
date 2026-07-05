@@ -7,9 +7,7 @@ import { TraceWaterfall } from "@/components/run-detail/trace-waterfall";
 import { flakyTestNamesOptions } from "@/data/flaky-tests/options";
 import { runDetailsOptions, runSpansOptions } from "@/data/runs/options";
 
-export const Route = createFileRoute(
-  "/_authenticated/_dashboard/runs/$traceId/trace",
-)({
+export const Route = createFileRoute("/_authenticated/_dashboard/runs/$traceId/trace")({
   loader: async ({ context: { queryClient }, params }) => {
     const [, runDetails] = await Promise.all([
       queryClient.ensureQueryData(runSpansOptions(params.traceId)),
@@ -43,25 +41,16 @@ function TraceView() {
 
   return (
     <DataPanel
-      queries={[
-        runSpansOptions(traceId),
-        ...(repo ? [flakyTestNamesOptions(repo)] : []),
-      ]}
+      queries={[runSpansOptions(traceId), ...(repo ? [flakyTestNamesOptions(repo)] : [])]}
       className="flex h-full flex-col overflow-hidden"
       inset="flush-content"
       skeleton={traceSkeleton}
     >
       {(spans, flakyTestNames) =>
         spans.length === 0 ? (
-          <p className="text-muted-foreground text-center py-8">
-            No trace data available
-          </p>
+          <p className="text-muted-foreground text-center py-8">No trace data available</p>
         ) : (
-          <TraceWaterfall
-            spans={spans}
-            traceId={traceId}
-            flakyTestNames={flakyTestNames}
-          />
+          <TraceWaterfall spans={spans} traceId={traceId} flakyTestNames={flakyTestNames} />
         )
       }
     </DataPanel>

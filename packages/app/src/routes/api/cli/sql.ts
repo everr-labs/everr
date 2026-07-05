@@ -17,10 +17,7 @@ export const Route = createFileRoute("/api/cli/sql")({
         const sql = await request.text();
 
         if (!sql.trim()) {
-          return Response.json(
-            { error: "SQL query is required." },
-            { status: 400 },
-          );
+          return Response.json({ error: "SQL query is required." }, { status: 400 });
         }
 
         try {
@@ -35,10 +32,7 @@ export const Route = createFileRoute("/api/cli/sql")({
             },
           });
         } catch (error) {
-          return Response.json(
-            { error: sanitizeSqlApiError(error) },
-            { status: 400 },
-          );
+          return Response.json({ error: sanitizeSqlApiError(error) }, { status: 400 });
         }
       },
     },

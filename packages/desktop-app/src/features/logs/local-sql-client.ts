@@ -8,10 +8,7 @@ import { invokeCommand } from "@/lib/tauri";
  * Parameter substitution happens server-side using ClickHouse escape rules.
  */
 export const localSqlClient: SqlClient = {
-  execute: async <Row>(
-    sql: string,
-    params: Record<string, unknown>,
-  ): Promise<Row[]> => {
+  execute: async <Row>(sql: string, params: Record<string, unknown>): Promise<Row[]> => {
     try {
       return await invokeCommand<Row[]>("telemetry_sql_query", { sql, params });
     } catch (error) {

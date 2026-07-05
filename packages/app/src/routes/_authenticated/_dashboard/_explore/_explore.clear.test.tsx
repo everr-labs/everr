@@ -28,12 +28,9 @@ import {
   stripSearchParams,
 } from "@tanstack/react-router";
 import { render, waitFor } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { z } from "zod";
-import {
-  ExploreSearchRetainShape,
-  ExploreSearchShape,
-} from "@/lib/explore-search";
+import { ExploreSearchRetainShape, ExploreSearchShape } from "@/lib/explore-search";
 
 function buildRouter(initialEntries: string[]) {
   const rootRoute = createRootRoute({ component: Outlet });
@@ -86,9 +83,7 @@ function buildRouter(initialEntries: string[]) {
 
   const routeTree = rootRoute.addChildren([
     authenticatedRoute.addChildren([
-      dashboardRoute.addChildren([
-        exploreRoute.addChildren([logsRoute, errorsRoute]),
-      ]),
+      dashboardRoute.addChildren([exploreRoute.addChildren([logsRoute, errorsRoute])]),
     ]),
   ]);
 

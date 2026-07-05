@@ -41,14 +41,10 @@ function TreemapCell(props: TreemapCellProps) {
   const tile = props as unknown as TreemapTileDatum;
   const label = tile.label ?? tile.name ?? "";
   // Crude width fit (~6.5px/char at 11px); SVG text doesn't clip on its own.
-  const canLabel =
-    tileHeight >= 24 && tileWidth >= Math.min(64, label.length * 6.5 + 12);
+  const canLabel = tileHeight >= 24 && tileWidth >= Math.min(64, label.length * 6.5 + 12);
   const valueText = props.valueText?.(tile) ?? null;
   const canValue =
-    valueText !== null &&
-    canLabel &&
-    tileHeight >= 40 &&
-    tileWidth >= valueText.length * 6 + 12;
+    valueText !== null && canLabel && tileHeight >= 40 && tileWidth >= valueText.length * 6 + 12;
   const badge = props.badgeText?.(tile) ?? null;
   const canBadge = badge !== null && tileWidth >= 82 && tileHeight >= 24;
   const badgeWidth = badge === null ? 0 : badge.length * 6 + 14;
@@ -98,13 +94,7 @@ function TreemapCell(props: TreemapCellProps) {
         </text>
       )}
       {canValue && (
-        <text
-          x={tileX + 6}
-          y={tileY + 29}
-          fill="white"
-          opacity={0.85}
-          fontSize={10}
-        >
+        <text x={tileX + 6} y={tileY + 29} fill="white" opacity={0.85} fontSize={10}>
           {valueText}
         </text>
       )}
@@ -138,17 +128,13 @@ export function TreemapChart<T extends TreemapTileDatum>({
   // Tooltip follows the cursor (like the time-series chart's portal tooltip)
   // instead of recharts' tile-center anchoring: the hovered tile comes from
   // the cell's enter/leave, the position from every mousemove over the chart.
-  const [hover, setHover] = useState<{ tile: T; x: number; y: number } | null>(
-    null,
-  );
+  const [hover, setHover] = useState<{ tile: T; x: number; y: number } | null>(null);
 
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: chart hover tracking
     <div
       className="h-full w-full"
-      onMouseMove={(e) =>
-        setHover((h) => (h ? { ...h, x: e.clientX, y: e.clientY } : h))
-      }
+      onMouseMove={(e) => setHover((h) => (h ? { ...h, x: e.clientX, y: e.clientY } : h))}
       onMouseLeave={() => setHover(null)}
     >
       <ResponsiveContainer width="100%" height="100%">
@@ -164,8 +150,7 @@ export function TreemapChart<T extends TreemapTileDatum>({
               badgeText={tileBadgeText as TreemapCellProps["badgeText"]}
               onTileEnter={
                 renderTooltip &&
-                ((tile, e) =>
-                  setHover({ tile: tile as T, x: e.clientX, y: e.clientY }))
+                ((tile, e) => setHover({ tile: tile as T, x: e.clientX, y: e.clientY }))
               }
               onTileLeave={renderTooltip && (() => setHover(null))}
             />

@@ -150,15 +150,12 @@ export function LogFiltersBar({
             type="button"
             className={cn(
               "flex h-8 w-full items-center justify-between rounded-md px-2 text-left text-xs transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30",
-              levels.includes(level) &&
-                "bg-background font-medium shadow-xs ring-1 ring-border",
+              levels.includes(level) && "bg-background font-medium shadow-xs ring-1 ring-border",
             )}
             onClick={() => toggleLevel(level)}
           >
             <span className="flex min-w-0 items-center gap-2">
-              <span
-                className={cn("size-2 rounded-full", levelDotClassName(level))}
-              />
+              <span className={cn("size-2 rounded-full", levelDotClassName(level))} />
               <span className="truncate capitalize">{level}</span>
             </span>
             <span className="text-muted-foreground font-mono tabular-nums">

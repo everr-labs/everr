@@ -12,37 +12,32 @@ const StreamQuerySchema = z.discriminatedUnion("scope", [
   z.object({ scope: z.literal("author"), key: z.string().email() }),
 ]);
 
-const authMiddleware = createMiddleware({ type: "request" }).server(
-  async ({ next, request }) => {
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
+const authMiddleware = createMiddleware({ type: "request" }).server(async ({ next, request }) => {
+  const session = await auth.api.getSession({
+    headers: request.headers,
+  });
 
-    if (!session?.session || !session?.user) {
-      return Response.json(
-        { error: "You need to be authenticated to use this API" },
-        { status: 401 },
-      );
-    }
+  if (!session?.session || !session?.user) {
+    return Response.json(
+      { error: "You need to be authenticated to use this API" },
+      { status: 401 },
+    );
+  }
 
-    const activeOrgId = session.session.activeOrganizationId;
-    if (!activeOrgId) {
-      return Response.json(
-        { error: "No active organization" },
-        { status: 403 },
-      );
-    }
+  const activeOrgId = session.session.activeOrganizationId;
+  if (!activeOrgId) {
+    return Response.json({ error: "No active organization" }, { status: 403 });
+  }
 
-    return next({
-      context: {
-        session: {
-          userId: session.user.id,
-          organizationId: activeOrgId,
-        },
+  return next({
+    context: {
+      session: {
+        userId: session.user.id,
+        organizationId: activeOrgId,
       },
-    });
-  },
-);
+    },
+  });
+});
 
 export const Route = createFileRoute("/api/events/stream")({
   server: {
@@ -72,28 +67,18 @@ export const Route = createFileRoute("/api/events/stream")({
         const unsubscribe = (() => {
           switch (parsed.data.scope) {
             case "tenant":
-              return subscribeTenant(session.organizationId, (payload) =>
+              return subscribeTenant(session.organizationId, (payload) => sse.sendEvent(payload));
+            case "trace":
+              return subscribe("trace", session.organizationId, parsed.data.key, (payload) =>
                 sse.sendEvent(payload),
               );
-            case "trace":
-              return subscribe(
-                "trace",
-                session.organizationId,
-                parsed.data.key,
-                (payload) => sse.sendEvent(payload),
-              );
             case "commit":
-              return subscribe(
-                "commit",
-                session.organizationId,
-                parsed.data.key,
-                (payload) => sse.sendEvent(payload),
+              return subscribe("commit", session.organizationId, parsed.data.key, (payload) =>
+                sse.sendEvent(payload),
               );
             case "author":
-              return subscribeAuthor(
-                session.organizationId,
-                parsed.data.key,
-                (payload) => sse.sendEvent(payload),
+              return subscribeAuthor(session.organizationId, parsed.data.key, (payload) =>
+                sse.sendEvent(payload),
               );
           }
         })();

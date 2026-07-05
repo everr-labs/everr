@@ -4,8 +4,7 @@
  * `(tenant_id, ServiceName, …)` and lets ClickHouse use the primary index
  * instead of scanning every span in the time window.
  */
-export const TEST_SPAN_SERVICE_FILTER =
-  "ServiceName IN ('github-actions', 'everr-labs-everr')";
+export const TEST_SPAN_SERVICE_FILTER = "ServiceName IN ('github-actions', 'everr-labs-everr')";
 
 /**
  * SQL expression to build the full test name from parent_test and test name.
@@ -52,9 +51,7 @@ export function leafTestFilter(
     extraConditions = [],
   } = opts;
   const scopedConditions =
-    extraConditions.length > 0
-      ? `\n      AND ${extraConditions.join("\n      AND ")}`
-      : "";
+    extraConditions.length > 0 ? `\n      AND ${extraConditions.join("\n      AND ")}` : "";
 
   return `${leftExpr} NOT IN (
     SELECT DISTINCT ${rightExpr}

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import {
   MAX_RECONNECT_DELAY_MS,
   RealtimeSubscriptionMachine,
@@ -20,9 +20,7 @@ class MockEventSource {
 }
 
 function createMachine(
-  overrides: Partial<
-    ConstructorParameters<typeof RealtimeSubscriptionMachine>[0]
-  > = {},
+  overrides: Partial<ConstructorParameters<typeof RealtimeSubscriptionMachine>[0]> = {},
 ) {
   return new RealtimeSubscriptionMachine({
     url: "/api/events/stream?scope=tenant",
@@ -37,15 +35,11 @@ function latestEs(): MockEventSource {
 }
 
 function sendMessage(type: string) {
-  latestEs().onmessage!(
-    new MessageEvent("message", { data: JSON.stringify({ type }) }),
-  );
+  latestEs().onmessage!(new MessageEvent("message", { data: JSON.stringify({ type }) }));
 }
 
 function connectedMachine(
-  overrides: Partial<
-    ConstructorParameters<typeof RealtimeSubscriptionMachine>[0]
-  > = {},
+  overrides: Partial<ConstructorParameters<typeof RealtimeSubscriptionMachine>[0]> = {},
 ) {
   const machine = createMachine(overrides);
   machine.connect();

@@ -2,21 +2,12 @@ import { init as initErrorTracking } from "@everr/auto-otel-errors/browser";
 import { trace } from "@opentelemetry/api";
 import { logs } from "@opentelemetry/api-logs";
 import { resourceFromAttributes } from "@opentelemetry/resources";
-import {
-  BatchLogRecordProcessor,
-  LoggerProvider,
-} from "@opentelemetry/sdk-logs";
-import {
-  BasicTracerProvider,
-  BatchSpanProcessor,
-} from "@opentelemetry/sdk-trace-base";
+import { BatchLogRecordProcessor, LoggerProvider } from "@opentelemetry/sdk-logs";
+import { BasicTracerProvider, BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import { invoke } from "@tauri-apps/api/core";
 
-import {
-  OtlpProxyLogExporter,
-  OtlpProxySpanExporter,
-} from "./otlp-proxy-exporter";
+import { OtlpProxyLogExporter, OtlpProxySpanExporter } from "./otlp-proxy-exporter";
 
 type TelemetryContext = {
   serviceName: string;
@@ -36,9 +27,7 @@ let loggerProvider: LoggerProvider | null = null;
 let tracerProvider: BasicTracerProvider | null = null;
 
 async function initBrowserTelemetry() {
-  const telemetryContext = await invoke<TelemetryContext>(
-    "get_telemetry_context",
-  );
+  const telemetryContext = await invoke<TelemetryContext>("get_telemetry_context");
 
   const resource = resourceFromAttributes({
     [ATTR_SERVICE_NAME]: telemetryContext.serviceName,
@@ -49,9 +38,7 @@ async function initBrowserTelemetry() {
 
   loggerProvider = new LoggerProvider({
     resource,
-    processors: [
-      new BatchLogRecordProcessor(new OtlpProxyLogExporter(), BATCH_OPTIONS),
-    ],
+    processors: [new BatchLogRecordProcessor(new OtlpProxyLogExporter(), BATCH_OPTIONS)],
   });
   logs.setGlobalLoggerProvider(loggerProvider);
 
@@ -60,9 +47,7 @@ async function initBrowserTelemetry() {
   // correlated trace alongside their log. It must be set before initErrorTracking.
   tracerProvider = new BasicTracerProvider({
     resource,
-    spanProcessors: [
-      new BatchSpanProcessor(new OtlpProxySpanExporter(), BATCH_OPTIONS),
-    ],
+    spanProcessors: [new BatchSpanProcessor(new OtlpProxySpanExporter(), BATCH_OPTIONS)],
   });
   trace.setGlobalTracerProvider(tracerProvider);
 

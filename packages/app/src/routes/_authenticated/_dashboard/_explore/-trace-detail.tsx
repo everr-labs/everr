@@ -6,12 +6,7 @@ import {
   toTraceListSearch,
 } from "@everr/telemetry-explorer/traces";
 import { Button } from "@everr/ui/components/button";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "@everr/ui/components/empty";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@everr/ui/components/empty";
 import type { QueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { remoteTracesRepo } from "@/data/traces/remote-repo";

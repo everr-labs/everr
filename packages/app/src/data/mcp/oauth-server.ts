@@ -13,9 +13,7 @@ import { AUTH_BASE, AUTH_ISSUER } from "@/lib/mcp-resource";
 // (error_description for OAuth errors); surface that instead of an empty string.
 function oauthFlowError(error: unknown, fallback: string): string {
   if (error && typeof error === "object") {
-    const body = (
-      error as { body?: { error_description?: string; message?: string } }
-    ).body;
+    const body = (error as { body?: { error_description?: string; message?: string } }).body;
     if (body?.error_description) return body.error_description;
     if (body?.message) return body.message;
   }
@@ -53,10 +51,7 @@ function serverAuthContext(incoming: Headers, endpointPath: string) {
  * org switcher: the chosen org is what `consentReferenceId` binds into the token
  * when the user approves, so switching is just set-active before Approve.
  */
-export async function setActiveOrg(
-  incoming: Headers,
-  organizationId: string,
-): Promise<void> {
+export async function setActiveOrg(incoming: Headers, organizationId: string): Promise<void> {
   try {
     await auth.api.setActiveOrganization({
       headers: trustedHeaders(incoming),

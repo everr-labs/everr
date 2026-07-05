@@ -16,18 +16,11 @@ import {
   scrubAttributes,
   scrubString,
 } from "./scrub.js";
-import type {
-  ErrorEvent,
-  ErrorSeverity,
-  Integration,
-  Mechanism,
-  Options,
-} from "./types.js";
+import type { ErrorEvent, ErrorSeverity, Integration, Mechanism, Options } from "./types.js";
 
 export const PKG_NAME = "@everr/auto-otel-errors";
 declare const __PACKAGE_VERSION__: string | undefined;
-const PKG_VERSION =
-  typeof __PACKAGE_VERSION__ === "string" ? __PACKAGE_VERSION__ : "0.0.0-dev";
+const PKG_VERSION = typeof __PACKAGE_VERSION__ === "string" ? __PACKAGE_VERSION__ : "0.0.0-dev";
 
 export type Runtime = "node" | "browser";
 
@@ -59,10 +52,7 @@ export class Client {
     this.rateLimiter =
       options.rateLimit === false
         ? null
-        : new RateLimiter(
-            options.rateLimit?.count ?? 5,
-            options.rateLimit?.windowMs ?? 5000,
-          );
+        : new RateLimiter(options.rateLimit?.count ?? 5, options.rateLimit?.windowMs ?? 5000);
     this.redactPatterns = options.redactPatterns ?? DEFAULT_SCRUB_PATTERNS;
     this.redactKeys = options.redactKeys ?? true;
   }
@@ -128,9 +118,7 @@ export class Client {
       error: input.error,
       message:
         input.message ??
-        (normalized.message
-          ? `${normalized.type}: ${normalized.message}`
-          : normalized.type),
+        (normalized.message ? `${normalized.type}: ${normalized.message}` : normalized.type),
       severity: input.severity ?? "error",
       mechanism: input.mechanism,
       handled: input.handled,
@@ -149,16 +137,11 @@ export class Client {
       ...event.attributes,
       "exception.type": normalized.type,
       "exception.message": normalized.message,
-      ...(normalized.stacktrace
-        ? { "exception.stacktrace": normalized.stacktrace }
-        : {}),
+      ...(normalized.stacktrace ? { "exception.stacktrace": normalized.stacktrace } : {}),
       "everr.error.handled": event.handled,
       "everr.error.mechanism": event.mechanism,
     };
-    const filteredAttributes = filterKeyValueData(
-      rawAttributes,
-      this.redactKeys,
-    );
+    const filteredAttributes = filterKeyValueData(rawAttributes, this.redactKeys);
     const attributes = {
       ...scrubAttributes(filteredAttributes, this.redactPatterns),
       // The uid is a library-generated identifier, never user data, so it's set
@@ -186,24 +169,15 @@ export class Client {
     });
   }
 
-  private markActiveSpan(
-    span: Span,
-    normalized: NormalizedError,
-    error: unknown,
-  ): void {
+  private markActiveSpan(span: Span, normalized: NormalizedError, error: unknown): void {
     span.recordException(
-      error instanceof Error
-        ? error
-        : { name: normalized.type, message: normalized.message },
+      error instanceof Error ? error : { name: normalized.type, message: normalized.message },
     );
     span.setStatus({
       code: SpanStatusCode.ERROR,
-      message: normalized.message
-        ? `${normalized.type}: ${normalized.message}`
-        : normalized.type,
+      message: normalized.message ? `${normalized.type}: ${normalized.message}` : normalized.type,
     });
   }
-
 }
 
 function severityNumber(severity: ErrorSeverity): SeverityNumber {
@@ -241,7 +215,5 @@ function generateErrorId(): string {
     return cryptoRef.randomUUID();
   }
 
-  return Array.from({ length: 32 }, () =>
-    Math.floor(Math.random() * 16).toString(16),
-  ).join("");
+  return Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
 }

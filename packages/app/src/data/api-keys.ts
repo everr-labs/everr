@@ -17,10 +17,7 @@ import { createAuthenticatedServerFn } from "@/lib/serverFn";
  * serializes `timestamp` columns to ISO strings, and better-auth parses the
  * `permissions` text column into an object. Override exactly those fields.
  */
-export type ApiKey = Omit<
-  ApiKeyRow,
-  "createdAt" | "expiresAt" | "lastRequest" | "permissions"
-> & {
+export type ApiKey = Omit<ApiKeyRow, "createdAt" | "expiresAt" | "lastRequest" | "permissions"> & {
   createdAt?: string | Date | null;
   expiresAt?: string | Date | null;
   lastRequest?: string | Date | null;
@@ -32,14 +29,8 @@ const SCOPE_INPUT = z.enum(ALL_API_KEY_SCOPES);
 const CreateApiKeyInput = z
   .object({
     name: z.string().trim().min(1, "Name is required"),
-    expiresInDays: z
-      .number()
-      .int()
-      .positive("Expiry must be a positive number of days")
-      .optional(),
-    scopes: z
-      .array(SCOPE_INPUT)
-      .min(1, "Pick at least one capability for the key"),
+    expiresInDays: z.number().int().positive("Expiry must be a positive number of days").optional(),
+    scopes: z.array(SCOPE_INPUT).min(1, "Pick at least one capability for the key"),
   })
   .strict();
 
@@ -70,9 +61,7 @@ export const createApiKey = createAuthenticatedServerFn({ method: "POST" })
     const permissions = permissionsForScopes(data.scopes);
 
     const expiresIn =
-      data.expiresInDays !== undefined
-        ? data.expiresInDays * 24 * 60 * 60
-        : undefined;
+      data.expiresInDays !== undefined ? data.expiresInDays * 24 * 60 * 60 : undefined;
 
     // `permissions` is a server-only field: better-auth rejects it when the
     // create call carries a request/headers (it treats that as a client

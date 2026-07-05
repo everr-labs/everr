@@ -48,9 +48,7 @@ export function DetailRouteDialog({
           <DialogDescription>{title}</DialogDescription>
         </DialogHeader>
         <DetailRouteDialogCloseContext.Provider value={close}>
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            {children}
-          </div>
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
         </DetailRouteDialogCloseContext.Provider>
       </DialogContent>
     </Dialog>

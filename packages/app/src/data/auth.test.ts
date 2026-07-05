@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { beforeEach, describe, expect, it, type Mock, vi } from "vite-plus/test";
 import { auth } from "@/lib/auth.server";
 import { getActiveOrganization } from "./auth";
 

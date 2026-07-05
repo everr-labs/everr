@@ -297,7 +297,7 @@ spec:
                   scenario: random_walk
                   seed: 61
                   series:
-                    - { name: p50_ms, start: 40,  noise: 6,  min: 0 }
+                    - { name: p50_ms, start: 40, noise: 6, min: 0 }
                     - { name: p95_ms, start: 120, noise: 14, min: 0 }
                     - { name: p99_ms, start: 240, noise: 30, min: 0 }
     stat-empty:
@@ -323,16 +323,52 @@ spec:
     - kind: Grid
       spec:
         items:
-          - { x: 0,  y: 0,  width: 8, height: 5, content: { $ref: "#/spec/panels/stat-last" } }
-          - { x: 8,  y: 0,  width: 8, height: 5, content: { $ref: "#/spec/panels/stat-first" } }
-          - { x: 16, y: 0,  width: 8, height: 5, content: { $ref: "#/spec/panels/stat-mean" } }
-          - { x: 0,  y: 5,  width: 8, height: 5, content: { $ref: "#/spec/panels/stat-min" } }
-          - { x: 8,  y: 5,  width: 8, height: 5, content: { $ref: "#/spec/panels/stat-max-percent-thresholds" } }
-          - { x: 16, y: 5,  width: 8, height: 5, content: { $ref: "#/spec/panels/stat-sum-background" } }
-          - { x: 0,  y: 10, width: 8, height: 5, content: { $ref: "#/spec/panels/stat-count-show-label" } }
-          - { x: 8,  y: 10, width: 8, height: 5, content: { $ref: "#/spec/panels/stat-range" } }
+          - { x: 0, y: 0, width: 8, height: 5, content: { $ref: "#/spec/panels/stat-last" } }
+          - { x: 8, y: 0, width: 8, height: 5, content: { $ref: "#/spec/panels/stat-first" } }
+          - { x: 16, y: 0, width: 8, height: 5, content: { $ref: "#/spec/panels/stat-mean" } }
+          - { x: 0, y: 5, width: 8, height: 5, content: { $ref: "#/spec/panels/stat-min" } }
+          - {
+              x: 8,
+              y: 5,
+              width: 8,
+              height: 5,
+              content: { $ref: "#/spec/panels/stat-max-percent-thresholds" },
+            }
+          - {
+              x: 16,
+              y: 5,
+              width: 8,
+              height: 5,
+              content: { $ref: "#/spec/panels/stat-sum-background" },
+            }
+          - {
+              x: 0,
+              y: 10,
+              width: 8,
+              height: 5,
+              content: { $ref: "#/spec/panels/stat-count-show-label" },
+            }
+          - { x: 8, y: 10, width: 8, height: 5, content: { $ref: "#/spec/panels/stat-range" } }
           - { x: 16, y: 10, width: 8, height: 5, content: { $ref: "#/spec/panels/stat-diff" } }
-          - { x: 0,  y: 15, width: 12, height: 6, content: { $ref: "#/spec/panels/stat-multi-query-no-value" } }
-          - { x: 12, y: 15, width: 12, height: 6, content: { $ref: "#/spec/panels/stat-row-order-sparkline" } }
-          - { x: 0,  y: 21, width: 16, height: 6, content: { $ref: "#/spec/panels/stat-multi-tile" } }
-          - { x: 16, y: 21, width: 8,  height: 6, content: { $ref: "#/spec/panels/stat-empty" } }
+          - {
+              x: 0,
+              y: 15,
+              width: 12,
+              height: 6,
+              content: { $ref: "#/spec/panels/stat-multi-query-no-value" },
+            }
+          - {
+              x: 12,
+              y: 15,
+              width: 12,
+              height: 6,
+              content: { $ref: "#/spec/panels/stat-row-order-sparkline" },
+            }
+          - {
+              x: 0,
+              y: 21,
+              width: 16,
+              height: 6,
+              content: { $ref: "#/spec/panels/stat-multi-tile" },
+            }
+          - { x: 16, y: 21, width: 8, height: 6, content: { $ref: "#/spec/panels/stat-empty" } }

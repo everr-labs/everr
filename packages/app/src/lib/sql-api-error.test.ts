@@ -1,5 +1,5 @@
 import { ClickHouseError } from "@clickhouse/client";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { SCHEMA_PROBE_MESSAGE, sanitizeSqlApiError } from "./sql-api-error";
 
 describe("sanitizeSqlApiError", () => {
@@ -22,9 +22,7 @@ describe("sanitizeSqlApiError", () => {
   });
 
   it("passes through a normal error message", () => {
-    expect(sanitizeSqlApiError(new Error("Syntax error near FROM"))).toBe(
-      "Syntax error near FROM",
-    );
+    expect(sanitizeSqlApiError(new Error("Syntax error near FROM"))).toBe("Syntax error near FROM");
   });
 
   it("falls back for non-Error values", () => {

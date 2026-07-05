@@ -1,14 +1,6 @@
 import { context, ROOT_CONTEXT } from "@opentelemetry/api";
-import {
-  type ParsedCronItem,
-  parseCronItems,
-  type TaskList,
-} from "graphile-worker";
-import {
-  ALERT_EVALUATE_TASK,
-  type EvaluatePayload,
-  scanDueAlerts,
-} from "./01-scanner";
+import { type ParsedCronItem, parseCronItems, type TaskList } from "graphile-worker";
+import { ALERT_EVALUATE_TASK, type EvaluatePayload, scanDueAlerts } from "./01-scanner";
 import { evaluateAlert } from "./02-evaluate";
 import { ALERT_DELIVER_TASK, runDeliverySend } from "./04-delivery";
 

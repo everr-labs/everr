@@ -19,10 +19,7 @@ export function createChartTooltipFormatter(
   config: ChartConfig,
   valueFormatter?: (value: number, name: string | number) => string,
 ) {
-  return (
-    value: string | number | (string | number)[],
-    name: string | number,
-  ) => (
+  return (value: string | number | (string | number)[], name: string | number) => (
     <>
       <div
         className="h-2.5 w-2.5 shrink-0 rounded-[2px]"
@@ -51,6 +48,5 @@ export function chartTooltipLabelFormatter(
 }
 
 export function createLegendFormatter(config: ChartConfig) {
-  return (value: string) =>
-    config[value as keyof typeof config]?.label ?? value;
+  return (value: string) => config[value as keyof typeof config]?.label ?? value;
 }

@@ -8,11 +8,9 @@ import type { PreviewStatus } from "@/data/previews/overlay";
 import { usePreview } from "@/hooks/use-preview";
 import { usePreviewDismissed } from "@/hooks/use-preview-dismissed";
 
-export const Route = createFileRoute("/_authenticated/_dashboard/_previewable")(
-  {
-    component: PreviewableLayout,
-  },
-);
+export const Route = createFileRoute("/_authenticated/_dashboard/_previewable")({
+  component: PreviewableLayout,
+});
 
 // Layout for the previewable pages (dashboards, runbooks, alerts). Supplies the
 // scrolling content, copy, and exit action to the ui `PreviewFrame`.
@@ -28,9 +26,7 @@ function PreviewableLayout() {
   let status: PreviewStatus | undefined;
   for (const match of matches) {
     if (!match.routeId.startsWith(Route.id)) continue;
-    const data = match.loaderData as
-      | { previewStatus?: PreviewStatus }
-      | undefined;
+    const data = match.loaderData as { previewStatus?: PreviewStatus } | undefined;
     if (data?.previewStatus !== undefined) status = data.previewStatus;
   }
 
@@ -52,13 +48,7 @@ function PreviewableLayout() {
       dismissed={dismissed}
       onDismiss={dismiss}
       actions={
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-7 px-2"
-          onClick={exit}
-        >
+        <Button type="button" variant="ghost" size="sm" className="h-7 px-2" onClick={exit}>
           <LogOut data-icon="inline-start" />
           Exit preview
         </Button>

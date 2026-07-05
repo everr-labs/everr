@@ -9,13 +9,9 @@ export const ENVIRONMENT_ATTRIBUTE: PromotedAttribute = {
   key: "deployment.environment",
 };
 
-function isDedicated(
-  filter: AttributeFilter,
-  dedicated: readonly PromotedAttribute[],
-): boolean {
+function isDedicated(filter: AttributeFilter, dedicated: readonly PromotedAttribute[]): boolean {
   return dedicated.some(
-    (d) =>
-      d.source === filter.source && d.key === filter.key && filter.op === "in",
+    (d) => d.source === filter.source && d.key === filter.key && filter.op === "in",
   );
 }
 

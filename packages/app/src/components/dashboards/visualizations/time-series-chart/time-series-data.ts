@@ -194,9 +194,7 @@ export function buildChartModel(
         if (!(name in row)) continue;
         // Coerce numeric strings (quoted ClickHouse aggregates) to numbers so
         // recharts plots them; non-numeric values become null (a gap).
-        samplesByKey
-          .get(renderKeyByName.get(name)!)!
-          .set(ts, toNumber(row[name]));
+        samplesByKey.get(renderKeyByName.get(name)!)!.set(ts, toNumber(row[name]));
       }
     }
   });

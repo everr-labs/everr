@@ -27,15 +27,9 @@ export function Sparkline({
   const chartData = padded.map((value, index) => ({ index, value }));
 
   return (
-    <div
-      style={className ? undefined : { width, height }}
-      className={className}
-    >
+    <div style={className ? undefined : { width, height }} className={className}>
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart
-          data={chartData}
-          margin={{ left: 0, right: 0, bottom: 0, top: 8 }}
-        >
+        <AreaChart data={chartData} margin={{ left: 0, right: 0, bottom: 0, top: 8 }}>
           <defs>
             <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor={color} stopOpacity={0.8} />
