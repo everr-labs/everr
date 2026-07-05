@@ -275,6 +275,7 @@ function dedupe(items: string[]): string[] {
 }
 
 function staticListOptions<K extends readonly unknown[]>(queryKey: K, items: string[]) {
+  // oxlint-disable-next-line query/exhaustive-deps -- DI repo / input already in key; not a real missing dep
   return {
     queryKey,
     queryFn: () => items,

@@ -285,6 +285,7 @@ const getJobResourceUsage = createAuthenticatedServerFn({
   );
 
 export const jobResourceUsageOptions = (input: { traceId: string; jobId: string }) =>
+  // oxlint-disable-next-line query/exhaustive-deps -- DI repo / input already in key; not a real missing dep
   queryOptions({
     queryKey: ["runs", "jobResourceUsage", input.traceId, input.jobId],
     queryFn: () => getJobResourceUsage({ data: input }),

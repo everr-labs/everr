@@ -18,6 +18,7 @@ export const costByWorkflowOptions = (input: TimeRangeInput) =>
 export const costOverTimeBreakdownOptions = (
   input: TimeRangeInput & { dimension: "repo" | "runner" },
 ) =>
+  // oxlint-disable-next-line query/exhaustive-deps -- DI repo / input already in key; not a real missing dep
   queryOptions({
     queryKey: ["cost", "overTimeBreakdown", input.timeRange, input.dimension],
     queryFn: () => getCostOverTimeBreakdown({ data: input }),

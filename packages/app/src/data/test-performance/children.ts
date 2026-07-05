@@ -51,6 +51,7 @@ const getTestPerfFilterOptions = createAuthenticatedServerFn({
     } satisfies TestPerfFilterOptions;
   });
 
+// oxlint-disable-next-line query/exhaustive-deps -- DI repo / input already in key; not a real missing dep
 const testPerfFilterOptionsBase = (input: { timeRange: TimeRange }) => ({
   queryKey: ["testPerf", "filterOptions", input.timeRange] as const,
   queryFn: () => getTestPerfFilterOptions({ data: input }),

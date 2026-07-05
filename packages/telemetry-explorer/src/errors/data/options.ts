@@ -21,6 +21,7 @@ export function errorIssuesInfiniteOptions(
   input: ErrorIssuesInfiniteInput,
 ) {
   const refreshMs = getRefreshIntervalMs(input.refresh);
+  // oxlint-disable-next-line query/exhaustive-deps -- DI repo / input already in key; not a real missing dep
   return infiniteQueryOptions({
     queryKey: [
       "errors",
@@ -73,6 +74,7 @@ export type ErrorIssueOptionsInput = {
 
 export function errorIssueOptions(repo: ErrorsRepositoryLike, input: ErrorIssueOptionsInput) {
   const refreshMs = getRefreshIntervalMs(input.refresh);
+  // oxlint-disable-next-line query/exhaustive-deps -- DI repo / input already in key; not a real missing dep
   return queryOptions({
     queryKey: [
       "errors",
@@ -106,6 +108,7 @@ export function errorServicesOptions(
   },
 ) {
   const refreshMs = getRefreshIntervalMs(input.refresh);
+  // oxlint-disable-next-line query/exhaustive-deps -- DI repo / input already in key; not a real missing dep
   return queryOptions({
     queryKey: ["errors", "services", input.timeRange, input.attributes] as const,
     queryFn: () => {

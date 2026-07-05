@@ -15,6 +15,7 @@ export function logsExplorerInfiniteOptions(
   repo: LogsRepositoryLike,
   input: LogsExplorerInfiniteInput,
 ) {
+  // oxlint-disable-next-line query/exhaustive-deps -- DI repo / input already in key; not a real missing dep
   return infiniteQueryOptions({
     queryKey: ["logs", "explorer", "infinite", input] as const,
     queryFn: ({ pageParam }: { pageParam: number }) =>
@@ -32,6 +33,7 @@ export function logsExplorerInfiniteOptions(
 }
 
 export function logsTotalsOptions(repo: LogsRepositoryLike, input: LogsTotalsInput) {
+  // oxlint-disable-next-line query/exhaustive-deps -- DI repo / input already in key; not a real missing dep
   return queryOptions({
     queryKey: ["logs", "totals", input],
     queryFn: () => repo.totals(input),
@@ -39,6 +41,7 @@ export function logsTotalsOptions(repo: LogsRepositoryLike, input: LogsTotalsInp
 }
 
 export function logDetailOptions(repo: LogsRepositoryLike, identity: LogIdentity) {
+  // oxlint-disable-next-line query/exhaustive-deps -- DI repo / input already in key; not a real missing dep
   return queryOptions({
     queryKey: ["logs", "detail", identity],
     queryFn: () => repo.detail(identity),
@@ -46,6 +49,7 @@ export function logDetailOptions(repo: LogsRepositoryLike, identity: LogIdentity
 }
 
 export function logsHistogramOptions(repo: LogsRepositoryLike, input: LogHistogramInput) {
+  // oxlint-disable-next-line query/exhaustive-deps -- DI repo / input already in key; not a real missing dep
   return queryOptions({
     queryKey: ["logs", "histogram", input],
     queryFn: () => repo.histogram(input),
@@ -53,6 +57,7 @@ export function logsHistogramOptions(repo: LogsRepositoryLike, input: LogHistogr
 }
 
 export function logServiceFilterOptions(repo: LogsRepositoryLike, input: { timeRange: TimeRange }) {
+  // oxlint-disable-next-line query/exhaustive-deps -- DI repo / input already in key; not a real missing dep
   return {
     queryKey: ["logs", "filterOptions", input.timeRange] as const,
     queryFn: () => repo.filterOptions(input),

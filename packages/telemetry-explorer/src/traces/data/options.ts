@@ -32,6 +32,7 @@ export function tracesSearchInfiniteOptions(input: TraceSearchOptionsInput) {
   const { repo, refresh, ...key } = input;
   const refreshMs = getRefreshIntervalMs(refresh);
   const queryKey = ["traces", "search", "infinite", key] as const;
+  // oxlint-disable-next-line query/exhaustive-deps -- DI repo / input already in key; not a real missing dep
   return infiniteQueryOptions({
     queryKey,
     queryFn: async ({ pageParam }: { pageParam: TraceSearchCursor | null }) => {
@@ -73,6 +74,7 @@ export type GetTraceOptionsInput = {
 
 export function getTraceOptions(input: GetTraceOptionsInput) {
   const refreshMs = getRefreshIntervalMs(input.refresh);
+  // oxlint-disable-next-line query/exhaustive-deps -- DI repo / input already in key; not a real missing dep
   return queryOptions({
     queryKey: ["traces", "get", input.traceId, input.window.fromTs, input.window.toTs] as const,
     queryFn: () =>
@@ -91,6 +93,7 @@ export function listServiceIdentitiesOptions(
   input: { timeRange: TimeRange; refresh: string },
 ) {
   const refreshMs = getRefreshIntervalMs(input.refresh);
+  // oxlint-disable-next-line query/exhaustive-deps -- DI repo / input already in key; not a real missing dep
   return queryOptions({
     queryKey: ["traces", "service-identities", input.timeRange] as const,
     queryFn: async () => {

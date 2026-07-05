@@ -187,5 +187,13 @@ export function useDashboardPanelData(
   // Memoize on the primitive bounds: `timeRange` is a fresh object each render,
   // so depending on it directly would never hit the cache.
   const viz = useMemo(() => resolveTimeRange(timeRange), [timeRange.from, timeRange.to]);
-  return { ...combined, timeRange: { from: viz.fromDate, to: viz.toDate } };
+  // Read `combined`'s fields explicitly rather than spreading it: it originates
+  // from `useQueries`, and spreading a query result opts every field into React
+  // Query's change tracking (defeating the per-property render optimization).
+  return {
+    status: combined.status,
+    data: combined.data,
+    errorMessage: combined.errorMessage,
+    timeRange: { from: viz.fromDate, to: viz.toDate },
+  };
 }

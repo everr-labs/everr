@@ -15,6 +15,7 @@ export const runJobsOptions = (traceId: string) =>
   });
 
 export const allJobsStepsOptions = (input: { traceId: string; jobIds: string[] }) =>
+  // oxlint-disable-next-line query/exhaustive-deps -- DI repo / input already in key; not a real missing dep
   queryOptions({
     queryKey: ["runs", "allJobsSteps", input.traceId, input.jobIds],
     queryFn: () => getAllJobsSteps({ data: input }),

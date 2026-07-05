@@ -50,8 +50,12 @@ export default defineConfig({
       // cleared. `exhaustive-deps` mostly flags our query-options-factory
       // convention (spreading an input object's primitive fields into the key),
       // which is deliberate, so it stays a warning.
-      "query/exhaustive-deps": "warn",
-      "query/no-rest-destructuring": "warn",
+      // Kept on to catch genuinely missing queryKey deps in new code. The
+      // current hits are all false positives from our query-options-factory
+      // convention (dependency-injected repos, rest-spread keys, `refresh`
+      // deliberately excluded) and are suppressed inline at each site.
+      "query/exhaustive-deps": "error",
+      "query/no-rest-destructuring": "error",
       "query/stable-query-client": "error",
       "query/no-unstable-deps": "error",
       "query/infinite-query-property-order": "error",

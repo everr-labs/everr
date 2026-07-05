@@ -21,6 +21,7 @@ export function unionServiceOptions(
   tracesRepo: TracesRepositoryLike,
   input: { timeRange: TimeRange; selected: string[] },
 ) {
+  // oxlint-disable-next-line query/exhaustive-deps -- DI repo / input already in key; not a real missing dep
   return {
     queryKey: ["explore", "union-service-options", input.timeRange] as const,
     queryFn: async () => {
@@ -53,6 +54,7 @@ export function unionEnvironmentOptions(
     source: ENVIRONMENT_ATTRIBUTE.source,
     key: ENVIRONMENT_ATTRIBUTE.key,
   };
+  // oxlint-disable-next-line query/exhaustive-deps -- DI repo / input already in key; not a real missing dep
   return {
     queryKey: ["explore", "union-environment-options", input.timeRange] as const,
     queryFn: async () => {
