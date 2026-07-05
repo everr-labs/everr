@@ -23,8 +23,8 @@ export function Community() {
         </h2>
 
         <p className="mt-6 max-w-2xl text-lg leading-relaxed text-primary-foreground/80 md:text-xl">
-          It's where we talk with the people using Everr. Drop feature requests,
-          share feedback, and weigh in on what we build next.
+          It&apos;s where we talk with the people using Everr. Drop feature requests, share
+          feedback, and weigh in on what we build next.
         </p>
 
         <div className="mt-10 flex flex-col items-start gap-5 sm:flex-row sm:items-center md:mt-12">
@@ -34,8 +34,12 @@ export function Community() {
             nativeButton={false}
             className="border-2 border-primary-foreground bg-primary-foreground text-primary hover:bg-primary-foreground/90 hover:text-primary focus-visible:ring-primary-foreground ring-offset-primary focus-visible:border-primary-foreground"
             render={
-              // biome-ignore lint/a11y/useAnchorContent: content is injected
-              <a href={DISCORD_URL} target="_blank" rel="noopener noreferrer" />
+              <a
+                href={DISCORD_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Join Us on Discord"
+              />
             }
           >
             <SiDiscord className="size-5" />

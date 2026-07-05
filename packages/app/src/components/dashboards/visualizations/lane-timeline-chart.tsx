@@ -1,15 +1,11 @@
 import { cn } from "@everr/ui/lib/utils";
 import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
 import { CursorTooltip } from "@/components/cursor-tooltip";
-import {
-  createTimeTickFormatter,
-  generateTimeTicks,
-  SERIES_COLORS,
-} from "./data-utils";
+import { createTimeTickFormatter, generateTimeTicks, SERIES_COLORS } from "./data-utils";
 import type { ResolvedTimeRange } from "./index";
 import { SeriesTooltipContent } from "./series-tooltip";
 
-const BRUSH_COLOR = SERIES_COLORS[0]!;
+const BRUSH_COLOR = SERIES_COLORS[0];
 const MAX_X_TICKS = 6;
 /** Lane label gutter width — the axis row and brush overlay offset by the same
  * amount so they stay aligned with the segment tracks. */
@@ -81,17 +77,11 @@ export function LaneTimelineChart({
   const ticks = useMemo(() => generateTimeTicks(domain, MAX_X_TICKS), [domain]);
   const formatTick = useMemo(() => createTimeTickFormatter(domain), [domain]);
 
-  const toPct = useCallback(
-    (ts: number) => ((ts - domain[0]) / span) * 100,
-    [domain, span],
-  );
+  const toPct = useCallback((ts: number) => ((ts - domain[0]) / span) * 100, [domain, span]);
 
   const pxToTimestamp = useCallback(
     (clientX: number, rect: DOMRect) => {
-      const ratio = Math.max(
-        0,
-        Math.min(1, (clientX - rect.left) / rect.width),
-      );
+      const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
       return domain[0] + ratio * span;
     },
     [domain, span],
@@ -104,7 +94,9 @@ export function LaneTimelineChart({
       trackRectRef.current = rect;
       setBrushStart(pxToTimestamp(e.clientX, rect));
       setBrushEnd(null);
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      if (e.target instanceof HTMLElement) {
+        e.target.setPointerCapture(e.pointerId);
+      }
     },
     [pxToTimestamp],
   );
@@ -143,15 +135,12 @@ export function LaneTimelineChart({
     <div className="flex h-full select-none flex-col overflow-hidden">
       {/* chart area — pointer interactions and the brush overlay cover the
           lanes + axis but not the legend */}
-      {/* biome-ignore lint/a11y/noStaticElementInteractions: chart interaction area */}
       <div
         className="relative flex min-h-0 flex-1 flex-col"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        onMouseMove={(e) =>
-          setHover((h) => (h ? { ...h, x: e.clientX, y: e.clientY } : h))
-        }
+        onMouseMove={(e) => setHover((h) => (h ? { ...h, x: e.clientX, y: e.clientY } : h))}
         onMouseLeave={() => setHover(null)}
       >
         {/* No overscroll-none here: lanes usually fit, and a non-scrollable
@@ -160,10 +149,7 @@ export function LaneTimelineChart({
         <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
           <div className="flex h-full min-h-fit flex-col gap-1 py-1">
             {lanes.map((lane) => (
-              <div
-                key={lane.label}
-                className="flex min-h-5 flex-1 items-stretch"
-              >
+              <div key={lane.label} className="flex min-h-5 flex-1 items-stretch">
                 <div
                   className="shrink-0 self-center truncate pr-2 text-xs text-muted-foreground"
                   style={{ width: LABEL_WIDTH }}
@@ -173,7 +159,6 @@ export function LaneTimelineChart({
                 </div>
                 <div className="relative min-w-0 flex-1 overflow-hidden">
                   {lane.items.map((item) => (
-                    // biome-ignore lint/a11y/noStaticElementInteractions: hover target for the tooltip
                     <div
                       key={item.key}
                       className={cn(

@@ -38,10 +38,7 @@ export function recordToHeaders(record: WebhookHeaders): Headers {
   return headers;
 }
 
-export function firstHeader(
-  headers: Headers | WebhookHeaders,
-  name: string,
-): string | null {
+export function firstHeader(headers: Headers | WebhookHeaders, name: string): string | null {
   if (headers instanceof Headers) {
     return headers.get(name);
   }

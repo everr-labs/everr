@@ -21,7 +21,7 @@ everr/
       funnel.dashboard.yaml           -> folder "team payments / checkout"
 ```
 
-Directory segments become the folder path, joined by ` / `. Underscores and hyphens in segment names are shown as spaces (`team_payments` → `team payments`). Move a file to a different directory and re-apply, and the dashboard moves folders. There are no folder objects to create, rename, or delete.
+Directory segments become the folder path, joined by `/`. Underscores and hyphens in segment names are shown as spaces (`team_payments` → `team payments`). Move a file to a different directory and re-apply, and the dashboard moves folders. There are no folder objects to create, rename, or delete.
 
 ## The manifest declares what you manage
 
@@ -53,8 +53,7 @@ kind: Dashboard
 metadata:
   name: api-latency
   project: platform
-spec:
-  ...
+spec: ...
 ```
 
 ```yaml
@@ -68,8 +67,7 @@ kind: Dashboard
 metadata:
   name: checkout-funnel
   project: team-payments
-spec:
-  ...
+spec: ...
 ```
 
 Apply each repo independently:

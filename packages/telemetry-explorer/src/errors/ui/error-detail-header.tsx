@@ -50,8 +50,7 @@ export function ErrorDetailHeader({
         <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
           <ErrorServiceBadge serviceName={issue.latestServiceName} />
           <Badge variant="secondary">
-            {issue.occurrenceCount}{" "}
-            {issue.occurrenceCount === 1 ? "occurrence" : "occurrences"}
+            {issue.occurrenceCount} {issue.occurrenceCount === 1 ? "occurrence" : "occurrences"}
           </Badge>
           <span>Last seen {formatRelativeTime(issue.lastSeen)}</span>
         </div>

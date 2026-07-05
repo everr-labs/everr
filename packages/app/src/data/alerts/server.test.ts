@@ -1,5 +1,5 @@
 import { getRequestHeaders } from "@tanstack/react-start/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { db } from "@/db/client";
 import { auth } from "@/lib/auth.server";
 import { query } from "@/lib/clickhouse";
@@ -107,11 +107,9 @@ vi.mock("@/db/client", () => {
     // A query that stops at `.where(...)` (e.g. `getCoveredRepoids`) is
     // awaited directly rather than chained further — make the chain
     // thenable so `await` resolves it via `selectWhere`.
-    // biome-ignore lint/suspicious/noThenProperty: intentional thenable mock for a bare `.where(...)` query chain.
-    then: (
-      resolve: (value: unknown) => void,
-      reject: (reason: unknown) => void,
-    ) => Promise.resolve(mocks.selectWhere()).then(resolve, reject),
+    // oxlint-disable-next-line unicorn/no-thenable -- intentional thenable mock so `await` on a bare `.where(...)` chain resolves via selectWhere
+    then: (resolve: (value: unknown) => void, reject: (reason: unknown) => void) =>
+      Promise.resolve(mocks.selectWhere()).then(resolve, reject),
   };
   mocks.selectOrderBy.mockImplementation(() => []);
   mocks.selectWhere.mockImplementation(() => []);
@@ -121,8 +119,7 @@ vi.mock("@/db/client", () => {
       mocks.insertValues(...args);
       return insertChain;
     },
-    onConflictDoUpdate: (...args: unknown[]) =>
-      mocks.onConflictDoUpdate(...args),
+    onConflictDoUpdate: (...args: unknown[]) => mocks.onConflictDoUpdate(...args),
     returning: (...args: unknown[]) => mocks.returning(...args),
   };
 
@@ -219,9 +216,7 @@ describe("getAlert", () => {
   it("returns null for a missing or deleted alert", async () => {
     mocks.selectLimit.mockResolvedValueOnce([]);
 
-    await expect(
-      getAlert({ data: { alertId: alertRow.id } }),
-    ).resolves.toBeNull();
+    await expect(getAlert({ data: { alertId: alertRow.id } })).resolves.toBeNull();
   });
 });
 
@@ -286,9 +281,7 @@ describe("listAlerts", () => {
     ]);
 
     const alerts = await listAlerts({ data: { preview: "gio/branch" } });
-    const byStatus = Object.fromEntries(
-      alerts.map((a) => [a.slug, a.previewStatus]),
-    );
+    const byStatus = Object.fromEntries(alerts.map((a) => [a.slug, a.previewStatus]));
 
     expect(byStatus).toEqual({
       "new-rule": "added",
@@ -442,9 +435,7 @@ describe("updateAlertSettings", () => {
           },
           slack: {
             enabled: true,
-            webhooks: [
-              { url: "https://hooks.slack.com/services/T0/B0/abc123" },
-            ],
+            webhooks: [{ url: "https://hooks.slack.com/services/T0/B0/abc123" }],
           },
         },
       },
@@ -540,9 +531,7 @@ describe("silences", () => {
   });
 
   it("persists cancelledByUserId when cancelling a silence", async () => {
-    mocks.updateReturning.mockResolvedValueOnce([
-      { id: "22222222-2222-4222-8222-222222222222" },
-    ]);
+    mocks.updateReturning.mockResolvedValueOnce([{ id: "22222222-2222-4222-8222-222222222222" }]);
 
     await cancelSilence({
       data: { silenceId: "22222222-2222-4222-8222-222222222222" },
@@ -609,9 +598,7 @@ describe("listAlertEvents", () => {
     expect(sql).toContain("slug = {slug:String}");
     expect(sql).toContain("alert_definition_id = {alertDefinitionId:String}");
     expect(sql).not.toContain("%3N");
-    expect(sql).toContain(
-      "substring(formatDateTime(history.event_time, '%f', 'UTC'), 1, 3)",
-    );
+    expect(sql).toContain("substring(formatDateTime(history.event_time, '%f', 'UTC'), 1, 3)");
     expect(sql).toContain(
       "substring(formatDateTime(history.evaluation_scheduled_at, '%f', 'UTC'), 1, 3)",
     );
@@ -697,9 +684,7 @@ describe("listAlertInstances", () => {
 
     const sql = vi.mocked(query).mock.calls[0]?.[0] ?? "";
     expect(sql).toContain("GROUP BY instance_fingerprint");
-    expect(sql).toContain(
-      "event_type IN ('instance_fired', 'instance_resolved')",
-    );
+    expect(sql).toContain("event_type IN ('instance_fired', 'instance_resolved')");
     expect(instances).toEqual([
       {
         fingerprint: instanceFingerprint({ route: "/a" }),
@@ -766,8 +751,8 @@ describe("activateAlert", () => {
       role: "member",
     } as never);
 
-    await expect(
-      activateAlert({ data: { alertId: alertRow.id } }),
-    ).rejects.toThrow("Only organization admins can manage alerts");
+    await expect(activateAlert({ data: { alertId: alertRow.id } })).rejects.toThrow(
+      "Only organization admins can manage alerts",
+    );
   });
 });

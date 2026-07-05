@@ -5,11 +5,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import * as z from "zod";
 import { overlayPreview, type PreviewStatus } from "@/data/previews/overlay";
 import { getCoveredRepoids } from "@/data/previews/repoids";
-import {
-  effectiveRepoid,
-  liveOrPreview,
-  previewJoin,
-} from "@/data/previews/scope";
+import { effectiveRepoid, liveOrPreview, previewJoin } from "@/data/previews/scope";
 import { db } from "@/db/client";
 import { dashboards, previews } from "@/db/schema";
 import { querySqlApi } from "@/lib/clickhouse";
@@ -152,12 +148,7 @@ export const listDashboards = createAuthenticatedServerFn({ method: "GET" })
       const rows = await db
         .select(liveSelect)
         .from(dashboards)
-        .where(
-          and(
-            eq(dashboards.organizationId, orgId),
-            isNull(dashboards.previewId),
-          ),
-        );
+        .where(and(eq(dashboards.organizationId, orgId), isNull(dashboards.previewId)));
       return rows.map(toItem);
     }
 
@@ -167,12 +158,7 @@ export const listDashboards = createAuthenticatedServerFn({ method: "GET" })
         .select(previewSelect)
         .from(dashboards)
         .leftJoin(previews, previewJoin(dashboards))
-        .where(
-          and(
-            eq(dashboards.organizationId, orgId),
-            liveOrPreview(dashboards, preview),
-          ),
-        ),
+        .where(and(eq(dashboards.organizationId, orgId), liveOrPreview(dashboards, preview))),
     ]);
     return overlayPreview({ rows, coveredRepoids: covered }).map(toItem);
   });
@@ -195,9 +181,7 @@ export const runPanelQuery = createAuthenticatedServerFn({
       source: querySource,
       from: z.string().optional(),
       to: z.string().optional(),
-      variables: z
-        .record(z.string(), z.union([z.string(), z.array(z.string())]))
-        .optional(),
+      variables: z.record(z.string(), z.union([z.string(), z.array(z.string())])).optional(),
       variableMeta: z
         .record(
           z.string(),
@@ -209,37 +193,32 @@ export const runPanelQuery = createAuthenticatedServerFn({
         .optional(),
     }),
   )
-  .handler(
-    async ({
-      data: { source, from, to, variables, variableMeta },
-      context,
-    }) => {
-      // Synthetic data for the gallery / dev dashboards: deterministic, no
-      // ClickHouse, no tenant data. Reuses the same range + adaptive {step}.
-      if (source.kind === "TestData") {
-        // Parse the loose spec here (not in the input validator) so the client
-        // can pass the raw plugin spec. A malformed spec throws → surfaces as a
-        // panel query error; the gallery's specs are validated at apply time.
-        const spec = testDataSpec.parse(source.spec);
-        return {
-          rows: generateTestData(spec, dashboardQueryParams({ from, to })),
-        };
-      }
+  .handler(async ({ data: { source, from, to, variables, variableMeta }, context }) => {
+    // Synthetic data for the gallery / dev dashboards: deterministic, no
+    // ClickHouse, no tenant data. Reuses the same range + adaptive {step}.
+    if (source.kind === "TestData") {
+      // Parse the loose spec here (not in the input validator) so the client
+      // can pass the raw plugin spec. A malformed spec throws → surfaces as a
+      // panel query error; the gallery's specs are validated at apply time.
+      const spec = testDataSpec.parse(source.spec);
+      return {
+        rows: generateTestData(spec, dashboardQueryParams({ from, to })),
+      };
+    }
 
-      const interpolated = variables
-        ? interpolateVariables(source.sql, variables, variableMeta ?? {})
-        : source.sql;
-      // User-supplied SQL: run it through the per-org SQL API user, whose tenant
-      // filter is a row policy bound to the user — not a `SETTINGS`-based filter
-      // a malicious query could override to read another tenant's rows.
-      const rows = await querySqlApi<QueryRow>(
-        interpolated,
-        context.session.session.activeOrganizationId,
-        dashboardQueryParams({ from, to }),
-      );
-      return { rows };
-    },
-  );
+    const interpolated = variables
+      ? interpolateVariables(source.sql, variables, variableMeta ?? {})
+      : source.sql;
+    // User-supplied SQL: run it through the per-org SQL API user, whose tenant
+    // filter is a row policy bound to the user — not a `SETTINGS`-based filter
+    // a malicious query could override to read another tenant's rows.
+    const rows = await querySqlApi<QueryRow>(
+      interpolated,
+      context.session.session.activeOrganizationId,
+      dashboardQueryParams({ from, to }),
+    );
+    return { rows };
+  });
 
 // Hard-capped by the SQL API profile's `max_result_rows` (clickhouse/init/
 // 15-create-sql-api-role.sql). That profile uses result_overflow_mode='throw',

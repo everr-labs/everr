@@ -6,9 +6,7 @@ import { resolveRetention, type Tier } from "@/lib/retention";
 
 const ACTIVE_STATUSES = new Set(["active", "trialing"]);
 
-function tierForSubscription(args: {
-  status: string | null | undefined;
-}): Tier {
+function tierForSubscription(args: { status: string | null | undefined }): Tier {
   return args.status && ACTIVE_STATUSES.has(args.status) ? "pro" : "free";
 }
 
@@ -19,9 +17,7 @@ export type OrgEntitlement = {
   cancelAtPeriodEnd: boolean;
 };
 
-export async function readOrgEntitlement(
-  orgId: string,
-): Promise<OrgEntitlement> {
+export async function readOrgEntitlement(orgId: string): Promise<OrgEntitlement> {
   const [row] = await db
     .select()
     .from(orgSubscription)
@@ -74,9 +70,7 @@ export async function upsertOrgSubscription(input: SubscriptionUpsert) {
     .limit(1);
   if (!current) return;
 
-  const retention = resolveRetention(
-    tierForSubscription({ status: current.status }),
-  );
+  const retention = resolveRetention(tierForSubscription({ status: current.status }));
 
   await upsertTenantRetention({
     tenantId: input.orgId,

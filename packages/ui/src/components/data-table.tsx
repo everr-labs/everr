@@ -37,7 +37,7 @@ export function DataTable<T>({
   onRowClick,
 }: DataTableProps<T>) {
   if (data.length === 0 && emptyState) {
-    return <>{emptyState}</>;
+    return emptyState;
   }
 
   const isFirst = (i: number) => i === 0;
@@ -45,16 +45,12 @@ export function DataTable<T>({
 
   return (
     <div className={cn(!bordered && "overflow-x-auto", containerClassName)}>
-      <table
-        className={cn(
-          "w-full text-sm",
-          bordered && "border-separate border-spacing-0",
-        )}
-      >
+      <table className={cn("w-full text-sm", bordered && "border-separate border-spacing-0")}>
         <thead className={cn(stickyHeader && "sticky top-0 z-10 bg-card")}>
           <tr className="text-left text-muted-foreground">
             {columns.map((col, i) => (
               <th
+                // oxlint-disable-next-line react/no-array-index-key -- columns is a fixed-order prop array with no stable id field
                 key={i}
                 className={cn(
                   "whitespace-nowrap",
@@ -78,9 +74,7 @@ export function DataTable<T>({
           {data.map((row, rowIndex) => (
             <tr
               key={rowKey(row, rowIndex)}
-              onClick={
-                onRowClick ? (event) => onRowClick(row, event) : undefined
-              }
+              onClick={onRowClick ? (event) => onRowClick(row, event) : undefined}
               className={cn(
                 "hover:bg-muted/50",
                 !bordered && "border-b last:border-0",
@@ -89,17 +83,13 @@ export function DataTable<T>({
             >
               {columns.map((col, i) => (
                 <td
+                  // oxlint-disable-next-line react/no-array-index-key -- columns is a fixed-order prop array with no stable id field
                   key={i}
                   className={
                     col.cellClassName ??
                     (bordered
                       ? "border-b border-r border-border px-3 py-2 last:border-r-0"
-                      : cn(
-                          "py-2",
-                          !isLast(i) && "pr-4",
-                          isFirst(i) && "pl-3",
-                          isLast(i) && "pr-3",
-                        ))
+                      : cn("py-2", !isLast(i) && "pr-4", isFirst(i) && "pl-3", isLast(i) && "pr-3"))
                   }
                 >
                   {col.cell(row)}

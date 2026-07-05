@@ -5,8 +5,7 @@ import type { ReactNode } from "react";
 import { PanelShell } from "./panel-shell";
 import type { InferQueriesData, PanelChromeProps } from "./panel-types";
 
-export interface DataPanelProps<TQueries extends readonly unknown[]>
-  extends PanelChromeProps {
+export interface DataPanelProps<TQueries extends readonly unknown[]> extends PanelChromeProps {
   queries: [...TQueries];
   children: (...data: InferQueriesData<TQueries>) => ReactNode;
   background?: (...data: InferQueriesData<TQueries>) => ReactNode;
@@ -36,6 +35,7 @@ export function DataPanel<const TQueries extends readonly unknown[]>({
     );
   }
 
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- useQueries erases the per-query tuple types; after the all-success guard, mapping .data yields the InferQueriesData<TQueries> tuple, which isn't expressible via annotation.
   const data = results.map((r) => r.data) as InferQueriesData<TQueries>;
 
   if (variant === "stat" && background) {
@@ -55,12 +55,7 @@ export function DataPanel<const TQueries extends readonly unknown[]>({
   }
 
   return (
-    <PanelShell
-      {...chromeProps}
-      variant={variant}
-      status="success"
-      className={className}
-    >
+    <PanelShell {...chromeProps} variant={variant} status="success" className={className}>
       {children(...data)}
     </PanelShell>
   );

@@ -11,15 +11,7 @@ export const getTestHistory = createAuthenticatedServerFn({
   .inputValidator(TestHistoryInputSchema)
   .handler(
     async ({
-      data: {
-        timeRange,
-        repo,
-        testFullName,
-        testModule,
-        testName,
-        limit = 100,
-        offset = 0,
-      },
+      data: { timeRange, repo, testFullName, testModule, testName, limit, offset },
       context: { clickhouse },
     }) => {
       const { fromISO, toISO } = resolveTimeRange(timeRange);
@@ -37,21 +29,15 @@ export const getTestHistory = createAuthenticatedServerFn({
       };
 
       if (testFullName) {
-        whereConditions.push(
-          `${testFullNameExpr(null)} = {testFullName:String}`,
-        );
+        whereConditions.push(`${testFullNameExpr(null)} = {testFullName:String}`);
         params.testFullName = testFullName;
       }
       if (testModule) {
-        whereConditions.push(
-          "SpanAttributes['everr.test.parent_test'] = {testModule:String}",
-        );
+        whereConditions.push("SpanAttributes['everr.test.parent_test'] = {testModule:String}");
         params.testModule = testModule;
       }
       if (testName) {
-        whereConditions.push(
-          "SpanAttributes['everr.test.name'] ILIKE {testNamePattern:String}",
-        );
+        whereConditions.push("SpanAttributes['everr.test.name'] ILIKE {testNamePattern:String}");
         params.testNamePattern = `%${testName}%`;
       }
       const whereClause = whereConditions.join("\n\t\t\t\t\tAND ");

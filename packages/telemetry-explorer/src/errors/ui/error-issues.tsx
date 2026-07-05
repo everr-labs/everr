@@ -88,10 +88,10 @@ export function ErrorIssues({
                 issues={issues}
                 isPending={issuesQuery.isPending}
                 isError={issuesQuery.isError}
-                onRetry={() => issuesQuery.refetch()}
+                onRetry={() => void issuesQuery.refetch()}
                 hasNextPage={issuesQuery.hasNextPage}
                 isFetchingNextPage={issuesQuery.isFetchingNextPage}
-                onLoadMore={() => issuesQuery.fetchNextPage()}
+                onLoadMore={() => void issuesQuery.fetchNextPage()}
                 renderIssueLink={renderIssueLink}
               />
             </div>

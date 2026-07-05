@@ -1,10 +1,6 @@
 import { resolveTimeRange, TimeRangeSchema } from "@everr/ui/lib/time-range";
 import { z } from "zod";
-import {
-  leafTestFilter,
-  TEST_SPAN_SERVICE_FILTER,
-  testFullNameExpr,
-} from "../sql-helpers";
+import { leafTestFilter, TEST_SPAN_SERVICE_FILTER, testFullNameExpr } from "../sql-helpers";
 
 // Filter input for test performance
 export const TestPerformanceFilterSchema = z.object({
@@ -15,9 +11,7 @@ export const TestPerformanceFilterSchema = z.object({
   branches: z.array(z.string()).optional(),
   path: z.string().optional(),
 });
-export type TestPerformanceFilterInput = z.infer<
-  typeof TestPerformanceFilterSchema
->;
+export type TestPerformanceFilterInput = z.infer<typeof TestPerformanceFilterSchema>;
 
 interface BuildFilterResult {
   conditions: string[];
@@ -52,9 +46,7 @@ export function buildFilterConditions(
   const scopeConditions: string[] = [];
 
   if (data.repos?.length) {
-    conditions.push(
-      "ResourceAttributes['vcs.repository.name'] IN {repos:Array(String)}",
-    );
+    conditions.push("ResourceAttributes['vcs.repository.name'] IN {repos:Array(String)}");
     params.repos = data.repos;
   }
   if (data.pkg) {
@@ -62,15 +54,11 @@ export function buildFilterConditions(
     params.pkg = data.pkg;
   }
   if (data.testName) {
-    conditions.push(
-      "SpanAttributes['everr.test.name'] ILIKE {testName:String}",
-    );
+    conditions.push("SpanAttributes['everr.test.name'] ILIKE {testName:String}");
     params.testName = `%${data.testName}%`;
   }
   if (data.branches?.length) {
-    conditions.push(
-      "ResourceAttributes['vcs.ref.head.name'] IN {branches:Array(String)}",
-    );
+    conditions.push("ResourceAttributes['vcs.ref.head.name'] IN {branches:Array(String)}");
     params.branches = data.branches;
   }
 
@@ -140,11 +128,7 @@ export function executionsSubquery(
     includeMetadata?: boolean;
   } = {},
 ): string {
-  const {
-    includeResult = true,
-    includeTimestamp = false,
-    includeMetadata = false,
-  } = opts;
+  const { includeResult = true, includeTimestamp = false, includeMetadata = false } = opts;
 
   const selects = [
     testFullNameExpr(),

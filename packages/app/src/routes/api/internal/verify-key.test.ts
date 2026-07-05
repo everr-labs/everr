@@ -1,10 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { Route } from "./verify-key";
 
 vi.mock("@/env", () => ({
   env: {
-    INGEST_VERIFY_SHARED_SECRET:
-      "test-shared-secret-with-at-least-32-characters",
+    INGEST_VERIFY_SHARED_SECRET: "test-shared-secret-with-at-least-32-characters",
   },
 }));
 
@@ -56,10 +55,7 @@ describe("/api/internal/verify-key", () => {
 
   it("returns 403 when shared secret is wrong", async () => {
     const res = await getHandler()({
-      request: makeRequest(
-        { key: "k" },
-        "wrong-secret-padded-to-32-characters",
-      ),
+      request: makeRequest({ key: "k" }, "wrong-secret-padded-to-32-characters"),
     });
     expect(res.status).toBe(403);
   });

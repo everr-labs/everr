@@ -4,25 +4,17 @@ import AnsiImport from "ansi-to-react";
 const Ansi =
   typeof AnsiImport === "function"
     ? AnsiImport
-    : (AnsiImport as unknown as { default: typeof AnsiImport }).default;
+    : // oxlint-disable-next-line typescript/consistent-type-assertions -- CJS/ESM interop: Vite may double-wrap ansi-to-react's default as { default: Component }, but TS types the import as the component itself.
+      (AnsiImport as unknown as { default: typeof AnsiImport }).default;
 
 import { buttonVariants } from "@everr/ui/components/button";
 import { formatTimestampTimeOfDay } from "@everr/ui/lib/timestamp";
 import { cn } from "@everr/ui/lib/utils";
-import {
-  ChevronRight,
-  ChevronsDownUp,
-  ChevronsUpDown,
-  Loader2,
-} from "lucide-react";
+import { ChevronRight, ChevronsDownUp, ChevronsUpDown, Loader2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { Virtuoso } from "react-virtuoso";
 import type { LogEntry } from "@/data/runs/schemas";
-import {
-  computeVisibleLines,
-  getMarkerClass,
-  parseLogs,
-} from "@/lib/log-parser";
+import { computeVisibleLines, getMarkerClass, parseLogs } from "@/lib/log-parser";
 
 interface LogViewerProps {
   logs: LogEntry[];
@@ -54,29 +46,21 @@ export function LogViewer({
     return match ? Number(match[1]) : null;
   });
 
-  const handleLineClick = useCallback(
-    (lineNumber: number, e: React.MouseEvent) => {
-      e.preventDefault();
-      const hash = `#L${lineNumber}`;
-      window.history.replaceState(null, "", hash);
-      setAnchoredLine(lineNumber);
-    },
-    [],
-  );
+  const handleLineClick = useCallback((lineNumber: number, e: React.MouseEvent) => {
+    e.preventDefault();
+    const hash = `#L${lineNumber}`;
+    window.history.replaceState(null, "", hash);
+    setAnchoredLine(lineNumber);
+  }, []);
 
   // Default all groups to collapsed
-  const [collapsed, setCollapsed] = useState<Set<string>>(
-    () => new Set(groups.map((g) => g.id)),
-  );
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set(groups.map((g) => g.id)));
 
   const {
     visible: visibleLines,
     lineToGroup,
     groupsWithUniformTimestamps,
-  } = useMemo(
-    () => computeVisibleLines(lines, groups, collapsed),
-    [lines, groups, collapsed],
-  );
+  } = useMemo(() => computeVisibleLines(lines, groups, collapsed), [lines, groups, collapsed]);
 
   const firstItemIndex = lineOffset;
 
@@ -101,27 +85,20 @@ export function LogViewer({
   }, []);
 
   const expandAll = useCallback(() => setCollapsed(new Set()), []);
-  const collapseAll = useCallback(
-    () => setCollapsed(new Set(groups.map((g) => g.id))),
-    [groups],
-  );
+  const collapseAll = useCallback(() => setCollapsed(new Set(groups.map((g) => g.id))), [groups]);
 
   const renderLine = useCallback(
     (absoluteIndex: number) => {
       const entry = visibleLines[absoluteIndex - firstItemIndex];
       if (!entry) {
-        return (
-          <div className={cn("grid whitespace-pre-wrap px-1 py-px")}></div>
-        );
+        return <div className={cn("grid whitespace-pre-wrap px-1 py-px")} />;
       }
       const { index, indentLevel, displayLine } = entry;
       const line = lines[index];
       const hasGroups = groups.length > 0;
       const lineNumber = displayLine + lineOffset;
 
-      const group = line.isGroupStart
-        ? groups.find((g) => g.startIndex === index)
-        : null;
+      const group = line.isGroupStart ? groups.find((g) => g.startIndex === index) : null;
 
       const isAnchored = anchoredLine === lineNumber;
 
@@ -151,10 +128,7 @@ export function LogViewer({
             </a>
             <span />
             <ChevronRight
-              className={cn(
-                "size-3 shrink-0 transition-transform",
-                !isCollapsed && "rotate-90",
-              )}
+              className={cn("size-3 shrink-0 transition-transform", !isCollapsed && "rotate-90")}
             />
             <Ansi useClasses linkify>
               {line.body}
@@ -168,8 +142,7 @@ export function LogViewer({
 
       if (hasGroups) {
         const groupInfo = lineToGroup.get(index);
-        const hideTimestamp =
-          groupInfo && groupsWithUniformTimestamps.has(groupInfo.groupId);
+        const hideTimestamp = groupInfo && groupsWithUniformTimestamps.has(groupInfo.groupId);
 
         return (
           <div
@@ -300,9 +273,7 @@ export function LogViewer({
           firstItemIndex={firstItemIndex}
           initialTopMostItemIndex={
             initialAnchorIndex ??
-            (initialScrollToBottom
-              ? firstItemIndex + visibleLines.length - 1
-              : firstItemIndex)
+            (initialScrollToBottom ? firstItemIndex + visibleLines.length - 1 : firstItemIndex)
           }
           overscan={50}
           followOutput={initialScrollToBottom}

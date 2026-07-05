@@ -4,7 +4,7 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import react from "@vitejs/plugin-react";
 import mdx from "fumadocs-mdx/vite";
 import { nitro } from "nitro/vite";
-import { defineConfig, type Plugin } from "vite";
+import { defineConfig, type Plugin, lazyPlugins } from "vite-plus";
 import svgr from "vite-plugin-svgr";
 
 export default defineConfig({
@@ -20,7 +20,7 @@ export default defineConfig({
   server: {
     port: 3000,
   },
-  plugins: [
+  plugins: lazyPlugins(async () => [
     devtools(),
     docsMarkdownDevRequests(),
     mdx(await import("./source.config")),
@@ -33,7 +33,7 @@ export default defineConfig({
       traceDeps: ["@takumi-rs/image-response", "@takumi-rs/core"],
     }),
     svgr(),
-  ],
+  ]),
 });
 
 function docsMarkdownDevRequests(): Plugin {

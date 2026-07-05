@@ -8,10 +8,7 @@ import { env } from "@/env";
 import { auth } from "@/lib/auth.server";
 import { readOrgEntitlement } from "@/lib/billing-data.server";
 import { ensurePolarCustomerForOrg, polarClient } from "@/lib/polar.server";
-import {
-  createAuthenticatedServerFn,
-  requireOrgMiddleware,
-} from "@/lib/serverFn";
+import { createAuthenticatedServerFn, requireOrgMiddleware } from "@/lib/serverFn";
 
 export class NotBillingAdminError extends Error {
   name = "NotBillingAdminError";
@@ -46,9 +43,7 @@ const billingAdminMiddleware = createMiddleware()
     });
   });
 
-const createBillingAdminServerFn = createServerFn().middleware([
-  billingAdminMiddleware,
-]);
+const createBillingAdminServerFn = createServerFn().middleware([billingAdminMiddleware]);
 
 export const ensureOrgBillingAdmin = createBillingAdminServerFn({
   method: "GET",

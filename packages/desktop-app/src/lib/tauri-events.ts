@@ -56,10 +56,7 @@ export function useIsFullscreen() {
   }, []);
 }
 
-export function useTauriEvent<T = unknown>(
-  eventName: EventName,
-  onEvent: (payload: T) => void,
-) {
+export function useTauriEvent<T = unknown>(eventName: EventName, onEvent: (payload: T) => void) {
   const handleEvent = useEffectEvent((payload: T) => {
     onEvent(payload);
   });
@@ -91,7 +88,8 @@ export function useTauriEvent<T = unknown>(
         cleanupTauriListener(unlisten);
       }
     };
-  }, [eventName, handleEvent]);
+    // handleEvent is a useEffectEvent — stable by contract and must not be a dependency.
+  }, [eventName]);
 }
 
 export function useInvalidateOnTauriEvent(

@@ -7,10 +7,7 @@ import {
 } from "@everr/telemetry-explorer/runs";
 import { Button } from "@everr/ui/components/button";
 import { Card, CardContent } from "@everr/ui/components/card";
-import {
-  getRefreshIntervalMs,
-  RefreshPicker,
-} from "@everr/ui/components/refresh-picker";
+import { getRefreshIntervalMs, RefreshPicker } from "@everr/ui/components/refresh-picker";
 import { TimeRangePicker } from "@everr/ui/components/time-range-picker";
 import {
   Tooltip,
@@ -19,22 +16,13 @@ import {
   TooltipTrigger,
 } from "@everr/ui/components/tooltip";
 import { DEFAULT_TIME_RANGE, type TimeRange } from "@everr/ui/lib/time-range";
-import {
-  useIsFetching,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useIsFetching, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { Check, Clipboard, Mail, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { z } from "zod";
 import { APP_DISPLAY_NAME } from "@/lib/app-name";
-import {
-  invokeCommand,
-  NOTIFIER_CHECKED_EVENT,
-  SETTINGS_CHANGED_EVENT,
-} from "@/lib/tauri";
+import { invokeCommand, NOTIFIER_CHECKED_EVENT, SETTINGS_CHANGED_EVENT } from "@/lib/tauri";
 import { useInvalidateOnTauriEvent } from "@/lib/tauri-events";
 import { AuthStandalone, useAuthStatusQuery } from "../auth/auth";
 import { PageTitleBar } from "../desktop-shell/title-bar";
@@ -90,6 +78,7 @@ function CiSignInPrompt() {
 }
 
 function CiContent() {
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- useSearch({ strict: false }) returns a loose cross-route union; this route's params are validated against CiSearchSchema at the route boundary
   const search = useSearch({ strict: false }) as CiSearch;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -98,10 +87,7 @@ function CiContent() {
   const isFetching = useIsFetching({ queryKey: ["runs"] }) > 0;
 
   const refresh = search.refresh ?? "";
-  const refreshMs = useMemo(
-    () => (refresh ? getRefreshIntervalMs(refresh) : null),
-    [refresh],
-  );
+  const refreshMs = useMemo(() => (refresh ? getRefreshIntervalMs(refresh) : null), [refresh]);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -133,8 +119,7 @@ function CiContent() {
   useInvalidateOnTauriEvent(SETTINGS_CHANGED_EVENT, (qc) => {
     void qc.invalidateQueries({ queryKey: notificationEmailsQueryKey });
   });
-  const showNoEmailNotice =
-    search.onlyMine && notificationEmailsQuery.data?.length === 0;
+  const showNoEmailNotice = search.onlyMine && notificationEmailsQuery.data?.length === 0;
 
   const timeRange: TimeRange = {
     from: search.from ?? DEFAULT_TIME_RANGE.from,
@@ -158,9 +143,7 @@ function CiContent() {
       <button
         type="button"
         className={className}
-        onClick={() =>
-          void invokeCommand("open_run_in_browser", { traceId: run.traceId })
-        }
+        onClick={() => void invokeCommand("open_run_in_browser", { traceId: run.traceId })}
       >
         {children}
       </button>
@@ -168,10 +151,7 @@ function CiContent() {
     [],
   );
   const renderRowActions: RenderRunRowActions = useCallback(
-    (run) =>
-      run.conclusion === "failure" ? (
-        <CopyFixPromptButton traceId={run.traceId} />
-      ) : null,
+    (run) => (run.conclusion === "failure" ? <CopyFixPromptButton traceId={run.traceId} /> : null),
     [],
   );
 
@@ -184,7 +164,7 @@ function CiContent() {
             <TimeRangePicker
               value={timeRange}
               onChange={(range) =>
-                navigate({
+                void navigate({
                   to: "/ci",
                   search: (prev) => ({
                     ...prev,
@@ -198,45 +178,41 @@ function CiContent() {
             <RefreshPicker
               value={refresh}
               onChange={(value) =>
-                navigate({
+                void navigate({
                   to: "/ci",
                   search: (prev) => ({ ...prev, refresh: value || undefined }),
                   replace: true,
                 })
               }
-              onRefresh={() =>
-                void queryClient.invalidateQueries({ queryKey: ["runs"] })
-              }
+              onRefresh={() => void queryClient.invalidateQueries({ queryKey: ["runs"] })}
               isFetching={isFetching}
             />
           </>
         }
       />
       {showNoEmailNotice ? (
+        // oxlint-disable jsx-a11y/prefer-tag-over-role -- live-region banner wraps flow content (a <p> paragraph) that <output> (phrasing-only) cannot legally contain
         <div
           role="status"
           className="flex shrink-0 items-center gap-3 border-b border-amber-500/20 bg-amber-500/[0.08] px-3 py-2.5 animate-in fade-in-0 slide-in-from-top-1 duration-200"
         >
-          <TriangleAlert
-            aria-hidden
-            className="size-4 shrink-0 text-amber-400"
-          />
+          <TriangleAlert aria-hidden className="size-4 shrink-0 text-amber-400" />
           <p className="min-w-0 flex-1 text-pretty text-sm text-foreground">
-            No notification email set — add one so{" "}
-            <span className="font-medium">Your runs</span> can match your CI
-            activity.
+            No notification email set — add one so <span className="font-medium">Your runs</span>{" "}
+            can match your CI activity.
           </p>
           <Button
             variant="outline"
             size="sm"
             className="shrink-0"
-            onClick={() => navigate({ to: "/settings" })}
+            onClick={() => void navigate({ to: "/settings" })}
           >
             <Mail className="size-3.5" />
             Add notification email
           </Button>
         </div>
-      ) : null}
+      ) : // oxlint-enable jsx-a11y/prefer-tag-over-role
+      null}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <RunsExplorer
           repo={ciRunsRepository}
@@ -244,14 +220,14 @@ function CiContent() {
           search={explorerSearch}
           showMineFilter
           onSearchChange={(patch) =>
-            navigate({
+            void navigate({
               to: "/ci",
               search: (prev) => ({ ...prev, ...patch }),
               replace: true,
             })
           }
           onTimeRangeSelect={(from, to) =>
-            navigate({
+            void navigate({
               to: "/ci",
               search: (prev) => ({
                 ...prev,
@@ -274,8 +250,7 @@ function CopyFixPromptButton({ traceId }: { traceId: string }) {
   const copyTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const copyMutation = useMutation({
-    mutationFn: () =>
-      invokeCommand<void>("copy_run_auto_fix_prompt", { traceId }),
+    mutationFn: () => invokeCommand<void>("copy_run_auto_fix_prompt", { traceId }),
     onSuccess() {
       clearTimeout(copyTimerRef.current);
       setCopied(true);
@@ -300,9 +275,7 @@ function CopyFixPromptButton({ traceId }: { traceId: string }) {
             />
           </span>
         </TooltipTrigger>
-        <TooltipContent side="top">
-          {copied ? "Copied!" : "Copy auto-fix prompt"}
-        </TooltipContent>
+        <TooltipContent side="top">{copied ? "Copied!" : "Copy auto-fix prompt"}</TooltipContent>
       </Tooltip>
     </TooltipProvider>
   );

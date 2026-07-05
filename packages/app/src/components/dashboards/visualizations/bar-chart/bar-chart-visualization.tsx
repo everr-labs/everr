@@ -1,19 +1,7 @@
-import {
-  ChartContainer,
-  ChartLegend,
-  ChartLegendContent,
-} from "@everr/ui/components/chart";
+import { ChartContainer, ChartLegend, ChartLegendContent } from "@everr/ui/components/chart";
 import { BarChart3 } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  LabelList,
-  Text,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { Bar, BarChart, CartesianGrid, LabelList, Text, XAxis, YAxis } from "recharts";
 import { CursorTooltip } from "@/components/cursor-tooltip";
 import type { VisualizationProps } from "../index";
 import { SeriesTooltipContent } from "../series-tooltip";
@@ -107,10 +95,7 @@ function createTimeTickFormatter(spanMs: number) {
   };
 }
 
-export function BarChartVisualization({
-  spec,
-  data,
-}: VisualizationProps<BarChartSpec>) {
+export function BarChartVisualization({ spec, data }: VisualizationProps<BarChartSpec>) {
   const { unit, showLegend, stacking, orientation, showValues } = spec;
 
   const { chartData, valueKeys, chartConfig, isTimeAxis } = useMemo(
@@ -174,27 +159,19 @@ export function BarChartVisualization({
   const last = chartData.at(-1);
   const spanMs =
     isTimeAxis && first && last && chartData.length > 1
-      ? (last[X_KEY] as number) - (first[X_KEY] as number)
+      ? Number(last[X_KEY]) - Number(first[X_KEY])
       : 0;
   const formatXTick = isTimeAxis
     ? createTimeTickFormatter(spanMs)
     : (x: string | number) => String(x);
   // With percent stacking the value axis runs 0..1 (stackOffset="expand").
   const formatValueTick = (v: number) =>
-    stacking === "percent"
-      ? `${Math.round(v * 100)}%`
-      : unit
-        ? `${v}${unit}`
-        : String(v);
-  const formatValue = (v: number) =>
-    unit ? `${v.toLocaleString()}${unit}` : v.toLocaleString();
+    stacking === "percent" ? `${Math.round(v * 100)}%` : unit ? `${v}${unit}` : String(v);
+  const formatValue = (v: number) => (unit ? `${v.toLocaleString()}${unit}` : v.toLocaleString());
 
   // Dense (time-bucketed) data produces one category per bucket — thin the
   // tick labels instead of letting them overlap.
-  const tickInterval = Math.max(
-    0,
-    Math.ceil(chartData.length / MAX_CATEGORY_TICKS) - 1,
-  );
+  const tickInterval = Math.max(0, Math.ceil(chartData.length / MAX_CATEGORY_TICKS) - 1);
 
   const categoryAxisProps = {
     dataKey: X_KEY,
@@ -203,11 +180,7 @@ export function BarChartVisualization({
     // Custom tick truncates long category labels to their available band so
     // they stop overlapping; it receives the raw value, so format here.
     tick: (tickProps: object) => (
-      <CategoryTick
-        axis={horizontal ? "y" : "x"}
-        formatter={formatXTick}
-        {...tickProps}
-      />
+      <CategoryTick axis={horizontal ? "y" : "x"} formatter={formatXTick} {...tickProps} />
     ),
   };
   const valueAxisProps = {
@@ -219,18 +192,13 @@ export function BarChartVisualization({
   const tooltipX = tooltipRow ? tooltipRow[X_KEY] : undefined;
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: chart interaction area
     <div
       ref={containerRef}
       className="relative h-full w-full"
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
-      <ChartContainer
-        config={chartConfig}
-        className="h-full w-full"
-        debounce={100}
-      >
+      <ChartContainer config={chartConfig} className="h-full w-full" debounce={100}>
         <BarChart
           data={chartData}
           // recharts naming: layout "vertical" = horizontal bars.
@@ -268,9 +236,7 @@ export function BarChartVisualization({
                   position={stacked ? "center" : horizontal ? "right" : "top"}
                   className="fill-foreground"
                   fontSize={10}
-                  formatter={(v: unknown) =>
-                    typeof v === "number" ? formatValue(v) : ""
-                  }
+                  formatter={(v: unknown) => (typeof v === "number" ? formatValue(v) : "")}
                 />
               )}
             </Bar>
@@ -280,18 +246,14 @@ export function BarChartVisualization({
       {tooltipState && tooltipRow && (
         <CursorTooltip x={tooltipState.clientX} y={tooltipState.clientY}>
           <SeriesTooltipContent
-            title={
-              isTimeAxis
-                ? new Date(Number(tooltipX)).toLocaleString()
-                : String(tooltipX)
-            }
+            title={isTimeAxis ? new Date(Number(tooltipX)).toLocaleString() : String(tooltipX)}
             rows={valueKeys
               .filter((key) => typeof tooltipRow[key] === "number")
               .map((key) => ({
                 key,
                 color: chartConfig[key]?.color,
                 label: chartConfig[key]?.label ?? key,
-                value: formatValue(tooltipRow[key] as number),
+                value: formatValue(Number(tooltipRow[key])),
               }))}
           />
         </CursorTooltip>

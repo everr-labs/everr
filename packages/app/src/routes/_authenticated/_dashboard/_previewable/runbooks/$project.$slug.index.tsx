@@ -7,15 +7,12 @@ export const Route = createFileRoute(
   "/_authenticated/_dashboard/_previewable/runbooks/$project/$slug/",
 )({
   staticData: { breadcrumb: runbookBreadcrumb },
-  head: runbookHead,
+  loaderDeps: ({ search: { preview } }) => ({ preview }),
   component: RunbookIndexPage,
   notFoundComponent: RunbookNotFound,
-  loaderDeps: ({ search: { preview } }) => ({ preview }),
-  loader: ({
-    context: { queryClient },
-    params: { project, slug },
-    deps: { preview },
-  }) => loadRunbook(queryClient, project, slug, preview),
+  loader: ({ context: { queryClient }, params: { project, slug }, deps: { preview } }) =>
+    loadRunbook(queryClient, project, slug, preview),
+  head: runbookHead,
 });
 
 function RunbookIndexPage() {

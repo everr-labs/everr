@@ -5,7 +5,7 @@
     "dev": {
       "cache": false,
       "persistent": true,
-      "interruptible": true,
+      "interruptible": true
     }
   }
 }

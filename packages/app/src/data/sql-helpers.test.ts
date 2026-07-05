@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { leafTestFilter, testFullNameExpr } from "./sql-helpers";
 
 describe("testFullNameExpr", () => {
@@ -24,12 +24,8 @@ describe("leafTestFilter", () => {
     });
 
     expect(sql).toContain("NOT IN");
-    expect(sql).toContain(
-      "ResourceAttributes['vcs.repository.name'] = {repo:String}",
-    );
-    expect(sql).toContain(
-      "ResourceAttributes['vcs.ref.head.name'] = {branch:String}",
-    );
+    expect(sql).toContain("ResourceAttributes['vcs.repository.name'] = {repo:String}");
+    expect(sql).toContain("ResourceAttributes['vcs.ref.head.name'] = {branch:String}");
   });
 
   it("supports custom left and right expressions", () => {

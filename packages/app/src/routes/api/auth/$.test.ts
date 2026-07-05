@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { Route } from "./$";
 
 type GetHandler = (args: { request: Request }) => Response | Promise<Response>;
@@ -19,9 +19,7 @@ describe("/api/auth/$ route", () => {
     const handler = getGetHandler();
 
     const response = await handler({
-      request: new Request(
-        "http://localhost:5173/api/auth/error?error=email_doesn%27t_match",
-      ),
+      request: new Request("http://localhost:5173/api/auth/error?error=email_doesn%27t_match"),
     });
 
     expect(response.status).toBe(302);

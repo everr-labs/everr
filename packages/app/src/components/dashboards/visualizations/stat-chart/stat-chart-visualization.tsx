@@ -22,10 +22,7 @@ function unitSizeClass(tileCount: number): string {
   return "text-lg";
 }
 
-export function StatChartVisualization({
-  spec,
-  data,
-}: VisualizationProps<StatChartSpec>) {
+export function StatChartVisualization({ spec, data }: VisualizationProps<StatChartSpec>) {
   const {
     calculation,
     unit,
@@ -47,9 +44,7 @@ export function StatChartVisualization({
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
         <Hash className="size-8" />
-        <p className="text-sm">
-          {!data ? "Configure a query to see results" : "No numeric data"}
-        </p>
+        <p className="text-sm">{!data ? "Configure a query to see results" : "No numeric data"}</p>
       </div>
     );
   }
@@ -63,34 +58,23 @@ export function StatChartVisualization({
       {tiles.map((tile) => {
         const value = tile.value;
         const label = tile.label || queryLabel(tile.frame);
-        const seriesMax =
-          tile.points.length > 0
-            ? Math.max(...tile.points.map((p) => p.value))
-            : 0;
+        const seriesMax = tile.points.length > 0 ? Math.max(...tile.points.map((p) => p.value)) : 0;
         const color =
-          value !== undefined
-            ? resolveThresholdColor(value, thresholds, seriesMax)
-            : undefined;
+          value !== undefined ? resolveThresholdColor(value, thresholds, seriesMax) : undefined;
         const background = colorMode === "background" && color !== undefined;
         const sparklineColor = background
           ? "rgba(255, 255, 255, 0.9)"
-          : (color ?? SERIES_COLORS[0]!);
+          : (color ?? SERIES_COLORS[0]);
         return (
           <div
             key={`${tile.frame}-${tile.label}`}
-            className={cn(
-              "flex min-w-24 flex-1 flex-col",
-              background && "rounded-md p-2",
-            )}
+            className={cn("flex min-w-24 flex-1 flex-col", background && "rounded-md p-2")}
             style={background ? { backgroundColor: color } : undefined}
           >
             <div className="flex min-h-0 flex-1 flex-col items-center justify-center">
               {(multi || showLabel) && (
                 <p
-                  className={cn(
-                    "text-xs",
-                    background ? "text-white/80" : "text-muted-foreground",
-                  )}
+                  className={cn("text-xs", background ? "text-white/80" : "text-muted-foreground")}
                 >
                   {label}
                 </p>
@@ -104,9 +88,7 @@ export function StatChartVisualization({
                 )}
                 style={!background && color ? { color } : undefined}
               >
-                {value === undefined
-                  ? noValue
-                  : formatStatValue(value, decimals)}
+                {value === undefined ? noValue : formatStatValue(value, decimals)}
                 {value !== undefined && unit && (
                   <span
                     className={cn(
@@ -122,23 +104,12 @@ export function StatChartVisualization({
             </div>
             {showSparkline && tile.points.length > 1 && (
               <div className="h-1/3 max-h-24 w-full">
-                <ChartContainer
-                  config={{}}
-                  className="aspect-auto h-full w-full"
-                >
-                  <AreaChart
-                    data={tile.points}
-                    margin={{ top: 2, left: 0, right: 0, bottom: 0 }}
-                  >
+                <ChartContainer config={{}} className="aspect-auto h-full w-full">
+                  <AreaChart data={tile.points} margin={{ top: 2, left: 0, right: 0, bottom: 0 }}>
                     {/* Real time axis (hidden): without it recharts spaces
                         points by index and missing buckets compress the
                         timeline. */}
-                    <XAxis
-                      dataKey="ts"
-                      type="number"
-                      domain={["dataMin", "dataMax"]}
-                      hide
-                    />
+                    <XAxis dataKey="ts" type="number" domain={["dataMin", "dataMax"]} hide />
                     <Area
                       dataKey="value"
                       type="monotone"

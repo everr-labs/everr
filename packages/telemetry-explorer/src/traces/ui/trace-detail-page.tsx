@@ -1,10 +1,5 @@
 import { Button } from "@everr/ui/components/button";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "@everr/ui/components/empty";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@everr/ui/components/empty";
 import { RetryError } from "@everr/ui/components/retry-error";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
@@ -86,7 +81,7 @@ export function TraceDetail({
     return (
       <RetryError
         title="Failed to load trace"
-        message={(error as Error).message}
+        message={error.message}
         onRetry={() => {
           void refetch();
         }}
@@ -99,12 +94,7 @@ export function TraceDetail({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <TraceHeader
-        spans={spans}
-        traceId={traceId}
-        onBack={onBack}
-        onClose={onClose}
-      />
+      <TraceHeader spans={spans} traceId={traceId} onBack={onBack} onClose={onClose} />
       <TimelineView
         key={traceId}
         spans={spans}
@@ -156,10 +146,7 @@ function TraceHeader({
       <span
         className="size-2.5 rounded-full"
         style={{
-          backgroundColor: serviceColor(
-            root.serviceNamespace,
-            root.serviceName,
-          ),
+          backgroundColor: serviceColor(root.serviceNamespace, root.serviceName),
         }}
       />
       <div className="min-w-0 max-w-2xl flex-1">
@@ -183,6 +170,7 @@ function DetailSkeleton() {
       <Skeleton className="h-7 w-40" />
       <div className="flex-1 space-y-2">
         {Array.from({ length: 8 }).map((_, i) => (
+          // oxlint-disable-next-line react/no-array-index-key -- static fixed-length skeleton placeholder, no stable data
           <Skeleton key={i} className="h-6 w-full" />
         ))}
       </div>
@@ -196,9 +184,8 @@ function NotFoundState({ traceId }: { traceId: string }) {
       <EmptyHeader>
         <EmptyTitle>Trace not found</EmptyTitle>
         <EmptyDescription>
-          No spans matched trace id <code className="text-xs">{traceId}</code>{" "}
-          within the queried window. The trace may have been deleted or fall
-          outside the time range.
+          No spans matched trace id <code className="text-xs">{traceId}</code> within the queried
+          window. The trace may have been deleted or fall outside the time range.
         </EmptyDescription>
       </EmptyHeader>
     </Empty>

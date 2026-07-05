@@ -16,14 +16,8 @@ import type { ErrorsRepositoryLike } from "../data/repository";
 import type { ErrorOccurrence } from "../data/types";
 import { ErrorDetailHeader } from "./error-detail-header";
 import { ErrorLatestOccurrence } from "./error-latest-occurrence";
-import {
-  findErrorOccurrenceByKey,
-  getErrorOccurrenceKey,
-} from "./error-occurrence-key";
-import {
-  ErrorOccurrencesList,
-  type RenderOccurrenceLink,
-} from "./error-occurrences-list";
+import { findErrorOccurrenceByKey, getErrorOccurrenceKey } from "./error-occurrence-key";
+import { ErrorOccurrencesList, type RenderOccurrenceLink } from "./error-occurrences-list";
 import { ErrorStacktrace } from "./error-stacktrace";
 
 const OCCURRENCE_LIMIT = 50;
@@ -87,11 +81,7 @@ export function ErrorDetail({
         </EmptyHeader>
         <EmptyContent>
           <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => issueQuery.refetch()}
-            >
+            <Button type="button" variant="outline" onClick={() => void issueQuery.refetch()}>
               <RefreshCw data-icon="inline-start" />
               Retry
             </Button>
@@ -107,17 +97,12 @@ export function ErrorDetail({
   }
 
   const detail = issueQuery.data;
-  const selected =
-    findErrorOccurrenceByKey(detail.occurrences, occurrence) ?? detail.latest;
+  const selected = findErrorOccurrenceByKey(detail.occurrences, occurrence) ?? detail.latest;
   const selectedOccurrenceKey = getErrorOccurrenceKey(selected);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <ErrorDetailHeader
-        issue={detail.summary}
-        onBack={onBack}
-        onClose={onClose}
-      />
+      <ErrorDetailHeader issue={detail.summary} onBack={onBack} onClose={onClose} />
       <main className="min-h-0 flex-1 overflow-auto">
         <div className="mx-auto grid max-w-7xl gap-3 p-3">
           <ErrorStacktrace

@@ -27,10 +27,7 @@ export const Route = createFileRoute("/api/cli/runs/$traceId/logs")({
       GET: async ({ params, request }) => {
         const traceId = params.traceId;
         if (!traceId) {
-          return Response.json(
-            { error: "Missing traceId path parameter." },
-            { status: 400 },
-          );
+          return Response.json({ error: "Missing traceId path parameter." }, { status: 400 });
         }
 
         const url = new URL(request.url);

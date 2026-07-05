@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { evaluate } from "./evaluate.js";
 import { isValid, resolve } from "./index.js";
 import { parse } from "./parse.js";

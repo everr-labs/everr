@@ -15,7 +15,7 @@ variables:
     spec:
       name: search
       display: { name: Search }
-      value: ""                # default
+      value: "" # default
       # constant: true         # render nothing; just a fixed value for queries
 ```
 
@@ -67,10 +67,10 @@ Query-backed options load through the app keyed on the query and the active time
 
 Reference a variable in panel SQL with Grafana-style tokens. Everr interpolates them **server-side** before the query runs:
 
-| Token | Expands to |
-| --- | --- |
-| `$name` | the value as a ClickHouse literal — `'api'`, or a list `('api','web')` for multi-select |
-| `${name}` | same as `$name`, with explicit delimiters for embedding (e.g. `pre${name}post`) |
+| Token         | Expands to                                                                                  |
+| ------------- | ------------------------------------------------------------------------------------------- |
+| `$name`       | the value as a ClickHouse literal — `'api'`, or a list `('api','web')` for multi-select     |
+| `${name}`     | same as `$name`, with explicit delimiters for embedding (e.g. `pre${name}post`)             |
 | `${name:raw}` | the value **unquoted** — comma-joined for lists; use only for trusted, non-string fragments |
 
 ```sql

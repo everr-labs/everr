@@ -1,10 +1,7 @@
 import { FilterCombobox } from "@everr/ui/components/filter-combobox";
 import { Label } from "@everr/ui/components/label";
 import { Separator } from "@everr/ui/components/separator";
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@everr/ui/components/toggle-group";
+import { ToggleGroup, ToggleGroupItem } from "@everr/ui/components/toggle-group";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { useId } from "react";
 import { DedicatedAttributeSection } from "../../filters/ui/dedicated-attribute-section";
@@ -99,19 +96,14 @@ export function ErrorFilters({
   // filter is shared (rendered in the topbar — hideSharedFilters), it is owned
   // there too: excluded from hasActiveFilters and left untouched by onClear.
   const hasActiveFilters =
-    (!hideSharedFilters && value.service.length > 0) ||
-    value.attributes.length > 0;
+    (!hideSharedFilters && value.service.length > 0) || value.attributes.length > 0;
 
   return (
     <FilterSidebar
       label="Error filters"
       hasActiveFilters={hasActiveFilters}
       onClear={() =>
-        onChange(
-          hideSharedFilters
-            ? { attributes: [] }
-            : { service: [], attributes: [] },
-        )
+        onChange(hideSharedFilters ? { attributes: [] } : { service: [], attributes: [] })
       }
     >
       <div className="flex flex-col gap-1">
@@ -132,11 +124,7 @@ export function ErrorFilters({
           }}
           aria-labelledby={orderLabelId}
         >
-          <ToggleGroupItem
-            value="lastSeen"
-            aria-label="Last seen"
-            className="flex-1"
-          >
+          <ToggleGroupItem value="lastSeen" aria-label="Last seen" className="flex-1">
             Last seen
           </ToggleGroupItem>
           <ToggleGroupItem value="count" aria-label="Count" className="flex-1">

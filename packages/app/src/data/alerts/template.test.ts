@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import {
   extractVariables,
   renderMessage,
@@ -9,22 +9,15 @@ import {
 
 describe("extractVariables", () => {
   it("finds valid alert variables and ignores malformed ones", () => {
-    expect(extractVariables(`a \${window} b \${route} \${1bad}`)).toEqual([
-      "window",
-      "route",
-    ]);
+    expect(extractVariables(`a \${window} b \${route} \${1bad}`)).toEqual(["window", "route"]);
   });
 });
 
 describe("validateQueryTemplate", () => {
   it("rejects query variables", () => {
     expect(() => validateQueryTemplate("SELECT 1")).not.toThrow();
-    expect(() =>
-      validateQueryTemplate(`WHERE t >= now() - INTERVAL \${window}`),
-    ).toThrow(/window/);
-    expect(() => validateQueryTemplate(`SELECT \${row_count}`)).toThrow(
-      /row_count/,
-    );
+    expect(() => validateQueryTemplate(`WHERE t >= now() - INTERVAL \${window}`)).toThrow(/window/);
+    expect(() => validateQueryTemplate(`SELECT \${row_count}`)).toThrow(/row_count/);
   });
 });
 
@@ -38,15 +31,9 @@ describe("validateMessageTemplate", () => {
 
 describe("validateMessageColumns", () => {
   it("rejects column variables missing from the result schema", () => {
-    expect(() =>
-      validateMessageColumns(`\${route}`, ["route", "n"]),
-    ).not.toThrow();
-    expect(() => validateMessageColumns(`\${missing}`, ["route"])).toThrow(
-      /missing/,
-    );
-    expect(() => validateMessageColumns(`\${row_count}`, ["route"])).toThrow(
-      /row_count/,
-    );
+    expect(() => validateMessageColumns(`\${route}`, ["route", "n"])).not.toThrow();
+    expect(() => validateMessageColumns(`\${missing}`, ["route"])).toThrow(/missing/);
+    expect(() => validateMessageColumns(`\${row_count}`, ["route"])).toThrow(/row_count/);
   });
 });
 

@@ -4,10 +4,10 @@
   "type": "module",
   "sideEffects": false,
   "scripts": {
-    "dev": "vite dev --host",
-    "build": "vite build",
+    "dev": "vp dev --host",
+    "build": "vp build",
     "start": "node .output/server/index.mjs",
-    "preview": "vite preview",
+    "preview": "vp preview",
     "types:check": "fumadocs-mdx && tsc --noEmit",
     "postinstall": "fumadocs-mdx"
   },
@@ -46,6 +46,7 @@
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
-    "vite-plugin-svgr": "^5.2.0"
+    "vite-plugin-svgr": "^5.2.0",
+    "vite-plus": "catalog:"
   }
 }

@@ -10,11 +10,7 @@ function isRetryableStatus(status: number): boolean {
   return status === 408 || status === 429 || (status >= 500 && status <= 599);
 }
 
-function classifyFailedResponse(
-  target: string,
-  status: number,
-  bodyText: string,
-): never {
+function classifyFailedResponse(target: string, status: number, bodyText: string): never {
   const message = `${target} status=${status} body=${JSON.stringify(bodyText)}`;
   if (isRetryableStatus(status)) {
     throw new Error(message);

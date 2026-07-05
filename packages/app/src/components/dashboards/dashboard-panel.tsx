@@ -1,8 +1,4 @@
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@everr/ui/components/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
 import { useNavigate } from "@tanstack/react-router";
 import { TriangleAlert } from "lucide-react";
 import type { ReactNode } from "react";
@@ -39,9 +35,7 @@ function SpecWarningsIndicator({ warnings }: { warnings: string[] }) {
         <TriangleAlert className="size-4" />
       </TooltipTrigger>
       <TooltipContent className="max-w-72">
-        <p className="mb-1 font-medium">
-          Invalid panel options ignored (defaults used):
-        </p>
+        <p className="mb-1 font-medium">Invalid panel options ignored (defaults used):</p>
         <ul className="list-disc space-y-0.5 pl-4">
           {warnings.map((w) => (
             <li key={w}>{w}</li>
@@ -52,30 +46,22 @@ function SpecWarningsIndicator({ warnings }: { warnings: string[] }) {
   );
 }
 
-export function DashboardPanel({
-  panel,
-  panelKey,
-  action,
-}: DashboardPanelProps) {
+export function DashboardPanel({ panel, panelKey, action }: DashboardPanelProps) {
   const { display, plugin } = panel.spec;
   const navigate = useNavigate();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const inView = useInView(containerRef);
 
-  const { data, status, errorMessage, timeRange } = useDashboardPanelData(
-    panel,
-    { enabled: inView },
-  );
+  const { data, status, errorMessage, timeRange } = useDashboardPanelData(panel, {
+    enabled: inView,
+  });
 
-  const specWarnings = useMemo(
-    () => getVisualizationSpecWarnings(plugin),
-    [plugin],
-  );
+  const specWarnings = useMemo(() => getVisualizationSpecWarnings(plugin), [plugin]);
 
   const handleTimeRangeChange = useCallback(
     (range: { from: Date; to: Date }) => {
-      navigate({
+      void navigate({
         to: ".",
         search: (prev: Record<string, unknown>) => ({
           ...prev,
@@ -100,9 +86,7 @@ export function DashboardPanel({
         action={
           action || specWarnings.length > 0 ? (
             <div className="flex items-center gap-1.5">
-              {specWarnings.length > 0 && (
-                <SpecWarningsIndicator warnings={specWarnings} />
-              )}
+              {specWarnings.length > 0 && <SpecWarningsIndicator warnings={specWarnings} />}
               {action}
             </div>
           ) : undefined

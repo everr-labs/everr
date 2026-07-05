@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { hotSingleton } from "./hot-singleton";
 
 let keyCounter = 0;
@@ -11,13 +11,13 @@ function uniqueKey() {
 }
 
 function deferred<T>() {
-  let resolve!: (value: T) => void;
-  let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
+  let resolveFn!: (value: T) => void;
+  let rejectFn!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolve, reject) => {
+    resolveFn = resolve;
+    rejectFn = reject;
   });
-  return { promise, resolve, reject };
+  return { promise, resolve: resolveFn, reject: rejectFn };
 }
 
 function createMockHot() {

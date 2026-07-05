@@ -2,11 +2,7 @@ import { RetryError } from "@everr/ui/components/retry-error";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
-import {
-  keepPreviousData,
-  useInfiniteQuery,
-  useQuery,
-} from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Virtuoso } from "react-virtuoso";
@@ -42,15 +38,8 @@ export interface LogsExplorerProps {
   hideSharedFilters?: boolean;
   onSearchChange: (next: LogsExplorerSearch) => void;
   onTimeRangeSelect?: (from: Date, to: Date) => void;
-  renderRunLink?: (ctx: {
-    traceId: string;
-    jobId: string;
-    stepNumber: string;
-  }) => ReactNode;
-  resolveJobId?: (input: {
-    traceId: string;
-    jobName: string;
-  }) => string | undefined;
+  renderRunLink?: (ctx: { traceId: string; jobId: string; stepNumber: string }) => ReactNode;
+  resolveJobId?: (input: { traceId: string; jobName: string }) => string | undefined;
 }
 
 const VIRTUOSO_OVERSCAN_IDLE = { top: 400, bottom: 400 };
@@ -86,8 +75,7 @@ function LogStream({
       setIsSelecting(Boolean(selection && !selection.isCollapsed));
     };
     document.addEventListener("selectionchange", onSelectionChange);
-    return () =>
-      document.removeEventListener("selectionchange", onSelectionChange);
+    return () => document.removeEventListener("selectionchange", onSelectionChange);
   }, []);
 
   const endReached = useCallback(() => {
@@ -121,15 +109,10 @@ function LogStream({
           ) : hasNextPage ? (
             <span>
               Showing {logs.length.toLocaleString()}
-              {totalCount !== undefined
-                ? ` of ${totalCount.toLocaleString()}`
-                : ""}{" "}
-              events
+              {totalCount !== undefined ? ` of ${totalCount.toLocaleString()}` : ""} events
             </span>
           ) : (
-            <span>
-              Showing all {logs.length.toLocaleString()} matching events
-            </span>
+            <span>Showing all {logs.length.toLocaleString()} matching events</span>
           )}
         </div>
       ),
@@ -141,9 +124,7 @@ function LogStream({
     <Virtuoso
       data={logs}
       className="h-full min-h-0 bg-background"
-      increaseViewportBy={
-        isSelecting ? VIRTUOSO_OVERSCAN_SELECTING : VIRTUOSO_OVERSCAN_IDLE
-      }
+      increaseViewportBy={isSelecting ? VIRTUOSO_OVERSCAN_SELECTING : VIRTUOSO_OVERSCAN_IDLE}
       endReached={endReached}
       computeItemKey={computeRowKey}
       itemContent={itemContent}
@@ -157,6 +138,7 @@ const LogRowsSkeleton = memo(function LogRowsSkeleton() {
     <div className="flex h-full flex-col bg-background">
       {Array.from({ length: 14 }).map((_, index) => (
         <div
+          // oxlint-disable-next-line react/no-array-index-key -- static placeholder skeleton, no data-derived key exists and the list never reorders
           key={index}
           className="grid grid-cols-[86px_minmax(0,1fr)_28px] gap-2 border-b px-3 py-2 md:grid-cols-[112px_minmax(0,1fr)_156px_28px]"
         >
@@ -189,6 +171,7 @@ export function LogsExplorer({
 }: LogsExplorerProps) {
   // Default `attributes` to [] so a consumer that hand-builds the search object
   // without it (e.g. an external embedder) can't crash the filter UI on `.map`.
+  // oxlint-disable-next-line typescript/no-useless-default-assignment -- intentional runtime guard for untyped external embedders; the type says non-nullish but JS callers can omit it
   const { showVolume, q, levels, services, attributes = [], traceId } = search;
 
   const [selectedLogState, setSelectedLogState] = useState<{
@@ -207,10 +190,14 @@ export function LogsExplorer({
   }));
 
   // Sync from search prop when it changes externally (back/forward, link nav, time range).
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
+  // Derived during render via the previous-prop pattern (no props->state effect): when the
+  // `search` reference changes, reset the optimistic mirror. setState during render re-renders
+  // before paint, so there's no flash and no effect dependency to chase.
+  const [prevSearch, setPrevSearch] = useState(search);
+  if (prevSearch !== search) {
+    setPrevSearch(search);
     setFilters({ q, levels, services, attributes, traceId });
-  }, [search]);
+  }
 
   const applyFilters = (updates: Partial<typeof filters>) => {
     setFilters((prev) => ({ ...prev, ...updates }));
@@ -254,17 +241,13 @@ export function LogsExplorer({
     placeholderData: keepPreviousData,
   });
 
-  const pages = data?.pages ?? [];
-  const logs = useMemo(
-    () => pages.flatMap((page) => page?.logs ?? []),
-    [pages],
-  );
+  const logs = useMemo(() => data?.pages.flatMap((page) => page?.logs ?? []) ?? [], [data?.pages]);
 
   const totalCount = totals?.totalCount;
   const levelCounts = totals?.levelCounts;
 
   const handleLoadMore = useCallback(() => {
-    fetchNextPage();
+    void fetchNextPage();
   }, [fetchNextPage]);
 
   const handleSelectLog = useCallback(
@@ -325,7 +308,7 @@ export function LogsExplorer({
                 ) : isError ? (
                   <RetryError
                     title="Failed to load logs"
-                    message={(error as Error).message}
+                    message={error instanceof Error ? error.message : String(error)}
                     onRetry={() => {
                       void refetch();
                     }}

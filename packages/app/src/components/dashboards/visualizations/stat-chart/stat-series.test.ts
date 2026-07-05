@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { computeStatTiles } from "./stat-series";
 
 describe("computeStatTiles", () => {
@@ -20,20 +20,14 @@ describe("computeStatTiles", () => {
 
   it("produces one tile per query", () => {
     const tiles = computeStatTiles(
-      [
-        [{ ts: "2026-06-07T00:00:00", value: 10 }],
-        [{ ts: "2026-06-07T00:00:00", value: 20 }],
-      ],
+      [[{ ts: "2026-06-07T00:00:00", value: 10 }], [{ ts: "2026-06-07T00:00:00", value: 20 }]],
       "last",
     );
     expect(tiles.map((t) => t.value)).toEqual([10, 20]);
   });
 
   it("produces one tile per numeric column within a query", () => {
-    const tiles = computeStatTiles(
-      [[{ ts: "2026-06-07T00:00:00", a: 1, b: 2 }]],
-      "last",
-    );
+    const tiles = computeStatTiles([[{ ts: "2026-06-07T00:00:00", a: 1, b: 2 }]], "last");
     expect(tiles.map((t) => t.label)).toEqual(["a", "b"]);
   });
 

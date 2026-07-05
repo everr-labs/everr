@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import type { AttributeSource } from "../schemas";
 import { buildAttributeValuesQuery, decodeAttributeValueRows } from "./values";
 
@@ -83,10 +83,7 @@ describe("buildAttributeValuesQuery", () => {
   });
 
   it("decodes value rows", () => {
-    expect(decodeAttributeValueRows([{ v: "GET" }, { v: "POST" }])).toEqual([
-      "GET",
-      "POST",
-    ]);
+    expect(decodeAttributeValueRows([{ v: "GET" }, { v: "POST" }])).toEqual(["GET", "POST"]);
   });
 
   it("uses an injected time column when provided", () => {
@@ -98,9 +95,7 @@ describe("buildAttributeValuesQuery", () => {
       },
       { tableName: "traces", columnFor, timeColumn: "Timestamp" },
     );
-    expect(sql).toContain(
-      "Timestamp >= parseDateTimeBestEffort({fromTime:String})",
-    );
+    expect(sql).toContain("Timestamp >= parseDateTimeBestEffort({fromTime:String})");
     expect(sql).not.toContain("TimestampTime");
   });
 
@@ -118,12 +113,8 @@ describe("buildAttributeValuesQuery", () => {
         timeBound: (p) => `parseDateTime64BestEffort({${p}:String}, 9)`,
       },
     );
-    expect(sql).toContain(
-      "Timestamp >= parseDateTime64BestEffort({fromTime:String}, 9)",
-    );
-    expect(sql).toContain(
-      "Timestamp <= parseDateTime64BestEffort({toTime:String}, 9)",
-    );
+    expect(sql).toContain("Timestamp >= parseDateTime64BestEffort({fromTime:String}, 9)");
+    expect(sql).toContain("Timestamp <= parseDateTime64BestEffort({toTime:String}, 9)");
     expect(sql).not.toContain("parseDateTimeBestEffort(");
   });
 });

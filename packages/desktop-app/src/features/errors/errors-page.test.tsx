@@ -1,3 +1,5 @@
+import type * as TelemetryErrors from "@everr/telemetry-explorer/errors";
+import type * as TelemetryTraces from "@everr/telemetry-explorer/traces";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createMemoryHistory,
@@ -9,12 +11,8 @@ import {
 } from "@tanstack/react-router";
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
-import {
-  ErrorDetailPage,
-  ErrorIssueSearchSchema,
-  ErrorsPage,
-} from "./errors-page";
+import { describe, expect, it, vi } from "vite-plus/test";
+import { ErrorDetailPage, ErrorIssueSearchSchema, ErrorsPage } from "./errors-page";
 
 vi.mock("../local-telemetry/collector-status", () => ({
   LocalTelemetryGate: ({ children }: { children: ReactNode }) => children,
@@ -25,24 +23,15 @@ vi.mock("@/features/logs/local-sql-client", () => ({
 }));
 
 vi.mock("@everr/ui/components/dialog", () => ({
-  Dialog: ({ children }: { children: ReactNode }) => (
-    <section role="dialog">{children}</section>
-  ),
-  DialogContent: ({ children }: { children: ReactNode }) => (
-    <div>{children}</div>
-  ),
-  DialogDescription: ({ children }: { children: ReactNode }) => (
-    <p>{children}</p>
-  ),
-  DialogHeader: ({ children }: { children: ReactNode }) => (
-    <div>{children}</div>
-  ),
+  Dialog: ({ children }: { children: ReactNode }) => <dialog open>{children}</dialog>,
+  DialogContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DialogDescription: ({ children }: { children: ReactNode }) => <p>{children}</p>,
+  DialogHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   DialogTitle: ({ children }: { children: ReactNode }) => <h1>{children}</h1>,
 }));
 
 vi.mock("@everr/telemetry-explorer/errors", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("@everr/telemetry-explorer/errors")>();
+  const actual = await importOriginal<typeof TelemetryErrors>();
 
   return {
     ...actual,
@@ -53,8 +42,7 @@ vi.mock("@everr/telemetry-explorer/errors", async (importOriginal) => {
 });
 
 vi.mock("@everr/telemetry-explorer/traces", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("@everr/telemetry-explorer/traces")>();
+  const actual = await importOriginal<typeof TelemetryTraces>();
 
   return {
     ...actual,

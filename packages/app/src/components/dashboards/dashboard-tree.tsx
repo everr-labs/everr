@@ -1,12 +1,6 @@
 import { cn } from "@everr/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
-import {
-  ChevronDown,
-  ChevronRight,
-  Folder,
-  LayoutDashboard,
-  NotebookText,
-} from "lucide-react";
+import { ChevronDown, ChevronRight, Folder, LayoutDashboard, NotebookText } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { PreviewStatusBadge } from "@/components/preview-status-badge";
 import {
@@ -25,11 +19,7 @@ interface DashboardTreeProps {
   resource?: TreeResource;
 }
 
-export function DashboardTree({
-  dashboards,
-  search,
-  resource = "dashboard",
-}: DashboardTreeProps) {
+export function DashboardTree({ dashboards, search, resource = "dashboard" }: DashboardTreeProps) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const tree = useMemo(() => buildTree(dashboards), [dashboards]);
@@ -178,19 +168,13 @@ function DashboardRow({
       style={{ paddingLeft: `${depth * 20 + 26}px` }}
     >
       <Link
-        to={
-          resource === "runbook"
-            ? "/runbooks/$project/$slug"
-            : "/dashboards/$project/$slug"
-        }
+        to={resource === "runbook" ? "/runbooks/$project/$slug" : "/dashboards/$project/$slug"}
         params={{ project: dashboard.project, slug: dashboard.slug }}
         className="flex min-w-0 flex-1 items-center gap-2 py-0.5"
       >
         <Icon className="size-4 shrink-0 text-muted-foreground" />
         <span className="truncate text-sm">{dashboard.name}</span>
-        {path && (
-          <span className="truncate text-xs text-muted-foreground">{path}</span>
-        )}
+        {path && <span className="truncate text-xs text-muted-foreground">{path}</span>}
         <PreviewStatusBadge status={dashboard.previewStatus} />
       </Link>
     </div>

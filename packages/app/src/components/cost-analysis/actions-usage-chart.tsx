@@ -87,9 +87,7 @@ function pivotPoints(
 
 function hasAnyValue(data: CostOverTimeBreakdown, metric: CostMetric): boolean {
   const field = metric === "spend" ? "cost" : "minutes";
-  return data.points.some((point) =>
-    Object.values(point[field]).some((value) => value > 0),
-  );
+  return data.points.some((point) => Object.values(point[field]).some((value) => value > 0));
 }
 
 export function ActionsUsageChart({ data, metric }: ActionsUsageChartProps) {
@@ -118,24 +116,18 @@ export function ActionsUsageChart({ data, metric }: ActionsUsageChartProps) {
           tickMargin={8}
           tickFormatter={(d) => formatBucket(d, data.granularity, "axis")}
         />
-        <YAxis
-          tickLine={false}
-          axisLine={false}
-          tickMargin={8}
-          tickFormatter={formatValue}
-        />
+        <YAxis tickLine={false} axisLine={false} tickMargin={8} tickFormatter={formatValue} />
         <ChartTooltip
           content={
             <ChartTooltipContent
               labelFormatter={(_, payload) => {
-                const date = (payload?.[0]?.payload as { date?: string })?.date;
-                return date
-                  ? formatBucket(date, data.granularity, "tooltip")
-                  : "";
+                const date = payload?.[0]?.payload?.date;
+                return date ? formatBucket(date, data.granularity, "tooltip") : "";
               }}
               formatter={(value, name) => {
-                const label =
-                  config[String(name) as keyof typeof config]?.label ?? name;
+                const label = config[String(name)]?.label ?? name;
+                // oxlint-disable-next-line typescript/consistent-type-assertions -- recharts types the tooltip formatter value as ValueType (number | string | array); this bar chart's series values are always numbers.
+                const numericValue = value as number;
                 return (
                   <>
                     <div
@@ -146,7 +138,7 @@ export function ActionsUsageChart({ data, metric }: ActionsUsageChartProps) {
                     />
                     <span className="text-muted-foreground">{label}</span>
                     <span className="font-mono font-medium tabular-nums ml-auto">
-                      {formatValue(value as number)}
+                      {formatValue(numericValue)}
                     </span>
                   </>
                 );
@@ -166,9 +158,7 @@ export function ActionsUsageChart({ data, metric }: ActionsUsageChartProps) {
               }))}
             />
           }
-          formatter={(value: string) =>
-            config[value as keyof typeof config]?.label ?? value
-          }
+          formatter={(value: string) => config[value]?.label ?? value}
         />
         {seriesKeys.map((key, i) => (
           <Bar

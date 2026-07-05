@@ -30,9 +30,7 @@ export function OAuthShell({
           </p>
         </header>
 
-        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          {children}
-        </div>
+        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">{children}</div>
       </div>
     </main>
   );

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 vi.mock("@/lib/clickhouse", () => ({
   query: vi.fn(),
@@ -52,9 +52,7 @@ describe("getLogsExplorer", () => {
     expect(mockedQuery).toHaveBeenCalledTimes(1);
     const sql = mockedQuery.mock.calls[0]?.[0] ?? "";
     expect(sql).toContain("FROM logs");
-    expect(sql).toContain(
-      "TimestampTime >= parseDateTimeBestEffort({fromTime:String})",
-    );
+    expect(sql).toContain("TimestampTime >= parseDateTimeBestEffort({fromTime:String})");
     expect(sql).toContain("positionCaseInsensitive(Body, {query:String}) > 0");
     expect(sql).toContain("ServiceName IN {services:Array(String)}");
     expect(sql).toContain("TraceId = {traceId:String}");
@@ -119,9 +117,7 @@ describe("getLogDetail", () => {
 
     expect(mockedQuery).toHaveBeenCalledTimes(1);
     const sql = mockedQuery.mock.calls[0]?.[0] ?? "";
-    expect(sql).toContain(
-      "Timestamp = parseDateTime64BestEffort({timestampRaw:String}, 9)",
-    );
+    expect(sql).toContain("Timestamp = parseDateTime64BestEffort({timestampRaw:String}, 9)");
     expect(sql).toContain("ServiceName = {serviceName:String}");
     expect(sql).toContain("TraceId = {traceId:String}");
     expect(sql).toContain("SpanId = {spanId:String}");
@@ -129,13 +125,9 @@ describe("getLogDetail", () => {
     expect(sql).toContain("ResourceAttributes AS resourceAttributes");
     expect(sql).not.toContain("Body AS body");
     expect(sql).toContain("LIMIT 1");
-    expect(result.resourceAttributes["vcs.repository.name"]).toBe(
-      "everr-labs/everr",
-    );
+    expect(result.resourceAttributes["vcs.repository.name"]).toBe("everr-labs/everr");
     expect(result.scopeAttributes["cicd.pipeline.task.name"]).toBe("test");
-    expect(result.logAttributes["everr.github.workflow_job_step.number"]).toBe(
-      "3",
-    );
+    expect(result.logAttributes["everr.github.workflow_job_step.number"]).toBe("3");
     expect(result.severityNumber).toBe(17);
   });
 
@@ -292,9 +284,7 @@ describe("getLogFilterOptions", () => {
     });
 
     expect(mockedQuery).toHaveBeenCalledTimes(1);
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
-      "SELECT DISTINCT ServiceName",
-    );
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain("SELECT DISTINCT ServiceName");
     expect(result).toEqual({
       services: ["github-actions"],
     });

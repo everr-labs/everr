@@ -1,16 +1,16 @@
 import { ApplyValidationError } from "@/data/as-code/errors";
 import type { DesiredResource } from "@/data/as-code/reconcile";
-import {
-  dashboardProjectSchema,
-  dashboardSlugSchema,
-  dashboardSpecSchemaStrict,
-} from "./schema";
+import { dashboardProjectSchema, dashboardSlugSchema, dashboardSpecSchemaStrict } from "./schema";
 
 export interface InputDocument {
   /** POSIX-style path relative to the applied root, e.g. "team/cpu.yaml". */
   path: string;
   /** Raw parsed YAML/JSON document. */
   document: unknown;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 /** Normalize a single path segment: "latency_p99" -> "latency p99". */
@@ -37,9 +37,9 @@ const DEFAULT_PROJECT = "default";
  * Project from metadata.project, defaulting to "default"; validated.
  */
 export function projectFromDocument(path: string, document: unknown): string {
-  const meta = (document as { metadata?: { project?: unknown } }).metadata;
+  const meta = isRecord(document) ? document.metadata : undefined;
   const raw =
-    meta && typeof meta.project === "string" && meta.project.length > 0
+    isRecord(meta) && typeof meta.project === "string" && meta.project.length > 0
       ? meta.project
       : DEFAULT_PROJECT;
   const result = dashboardProjectSchema.safeParse(raw);
@@ -55,8 +55,8 @@ export function projectFromDocument(path: string, document: unknown): string {
  * Slug from metadata.name, falling back to the filename without extension.
  */
 export function slugFromDocument(path: string, document: unknown): string {
-  const meta = (document as { metadata?: { name?: unknown } }).metadata;
-  if (meta && typeof meta.name === "string" && meta.name.length > 0) {
+  const meta = isRecord(document) ? document.metadata : undefined;
+  if (isRecord(meta) && typeof meta.name === "string" && meta.name.length > 0) {
     return meta.name;
   }
   const file = path.split("/").pop() ?? path;
@@ -83,17 +83,12 @@ export function buildDesiredSet(inputs: InputDocument[]): DesiredResource[] {
       );
     }
 
-    const rawSpec = (document as { spec?: unknown }).spec;
+    const rawSpec = isRecord(document) ? document.spec : undefined;
     const specResult = dashboardSpecSchemaStrict.safeParse(rawSpec);
     if (!specResult.success) {
       const issue = specResult.error.issues[0];
-      const where =
-        issue && issue.path.length > 0
-          ? ` at ${issue.path.map(String).join(".")}`
-          : "";
-      throw new ApplyValidationError(
-        `${path}: invalid dashboard spec${where}: ${issue?.message}`,
-      );
+      const where = issue && issue.path.length > 0 ? ` at ${issue.path.map(String).join(".")}` : "";
+      throw new ApplyValidationError(`${path}: invalid dashboard spec${where}: ${issue?.message}`);
     }
 
     const key = `${project} ${slug}`;

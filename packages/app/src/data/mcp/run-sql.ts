@@ -23,10 +23,7 @@ export async function runSqlForConnection(args: {
 
   try {
     const rows = await querySqlApi<Record<string, unknown>>(sql, args.orgId);
-    const text =
-      rows.length === 0
-        ? "(0 rows)"
-        : rows.map((row) => JSON.stringify(row)).join("\n");
+    const text = rows.length === 0 ? "(0 rows)" : rows.map((row) => JSON.stringify(row)).join("\n");
     return { isError: false, text };
   } catch (error) {
     return { isError: true, text: sanitizeSqlApiError(error) };

@@ -66,20 +66,19 @@ const REGISTRY: {
   { key: "alerts", kind: "AlertRule", reconcile: applyAlertSpecs },
 ];
 
-function validateResourceKind(
-  resources: ApplyResourceEntry[],
-  expectedKind: string,
-): void {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function validateResourceKind(resources: ApplyResourceEntry[], expectedKind: string): void {
   for (const resource of resources) {
-    const value = resource.resource as { kind?: unknown } | null | undefined;
+    const value = isRecord(resource.resource) ? resource.resource : undefined;
     const ok =
       value?.kind === expectedKind ||
       // `Notebook` is the legacy alias for `Runbook` (ADR 0002).
       (expectedKind === "Runbook" && value?.kind === "Notebook");
     if (!ok) {
-      throw new ApplyValidationError(
-        `${resource.path}: expected kind "${expectedKind}"`,
-      );
+      throw new ApplyValidationError(`${resource.path}: expected kind "${expectedKind}"`);
     }
   }
 }
@@ -137,9 +136,7 @@ export async function applyResources(opts: {
   // The dry-run target resolves the preview to its existing registry id (without
   // creating it) so the diff scopes to the right rows. A preview with nothing
   // applied yet resolves to a null id, which matches no rows.
-  const namespace = await resolveNamespace((name) =>
-    findPreviewId(db, { orgId, repoid, name }),
-  );
+  const namespace = await resolveNamespace((name) => findPreviewId(db, { orgId, repoid, name }));
 
   // Validation pass: every kind reconciles in dryRun mode, which runs the full
   // document validation but writes nothing. Any invalid document throws here,
@@ -166,9 +163,7 @@ export async function applyResources(opts: {
   // transfers ownership instead. Reconcilers only report conflicts when not
   // adopting, so this never fires with `adopt`.
   if (conflicts.length > 0) {
-    const lines = conflicts
-      .map((c) => `  ${c.project}/${c.slug} (owned by ${c.owner})`)
-      .join("\n");
+    const lines = conflicts.map((c) => `  ${c.project}/${c.slug} (owned by ${c.owner})`).join("\n");
     throw new ApplyValidationError(
       `${conflicts.length} resource(s) are owned by another repo:\n${lines}\n` +
         `Re-run with --adopt to take ownership.`,
@@ -192,9 +187,7 @@ export async function applyResources(opts: {
   // preview. Live is not registered.
   const results: KindResult[] = [];
   await db.transaction(async (tx) => {
-    const applied = await resolveNamespace((name) =>
-      upsertPreview(tx, { orgId, repoid, name }),
-    );
+    const applied = await resolveNamespace((name) => upsertPreview(tx, { orgId, repoid, name }));
     for (const { key, kind, reconcile } of REGISTRY) {
       const r = await reconcile({
         namespace: applied,

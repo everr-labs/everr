@@ -1,9 +1,6 @@
 import { TimeRangeSchema } from "@everr/ui/lib/time-range";
 import { z } from "zod";
-import {
-  attributesField,
-  attributeValuesInputSchema,
-} from "../../attribute-filter/schemas";
+import { attributesField, attributeValuesInputSchema } from "../../attribute-filter/schemas";
 import { TimeRangeSearchSchema } from "../time-range";
 
 export type {
@@ -35,9 +32,7 @@ export const TraceDetailParamsSchema = TraceSearchParamsSchema.extend({
 });
 export type TraceDetailParams = z.infer<typeof TraceDetailParamsSchema>;
 
-export function toTraceListSearch(
-  search: TraceDetailParams,
-): TraceSearchParams {
+export function toTraceListSearch(search: TraceDetailParams): TraceSearchParams {
   const { span: _span, start: _start, end: _end, ...listSearch } = search;
   return listSearch;
 }
@@ -69,21 +64,12 @@ export const ListServiceIdentitiesInputSchema = z.object({
   fromTs: z.string().min(1),
   toTs: z.string().min(1),
 });
-export type ListServiceIdentitiesInput = z.infer<
-  typeof ListServiceIdentitiesInputSchema
->;
+export type ListServiceIdentitiesInput = z.infer<typeof ListServiceIdentitiesInputSchema>;
 
 export const TraceAttributeKeysInputSchema = z.object({
   timeRange: TimeRangeSchema,
 });
-export type TraceAttributeKeysInput = z.infer<
-  typeof TraceAttributeKeysInputSchema
->;
+export type TraceAttributeKeysInput = z.infer<typeof TraceAttributeKeysInputSchema>;
 
-export const TraceAttributeValuesInputSchema = attributeValuesInputSchema([
-  "resource",
-  "span",
-]);
-export type TraceAttributeValuesInput = z.infer<
-  typeof TraceAttributeValuesInputSchema
->;
+export const TraceAttributeValuesInputSchema = attributeValuesInputSchema(["resource", "span"]);
+export type TraceAttributeValuesInput = z.infer<typeof TraceAttributeValuesInputSchema>;

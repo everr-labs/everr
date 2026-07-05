@@ -4,11 +4,11 @@ import "@testing-library/jest-dom/vitest";
 // (command list highlighting) call during render. Provide noop polyfills so
 // component render tests can mount these primitives.
 if (!globalThis.ResizeObserver) {
-  globalThis.ResizeObserver = class {
+  globalThis.ResizeObserver = class implements ResizeObserver {
     observe() {}
     unobserve() {}
     disconnect() {}
-  } as unknown as typeof ResizeObserver;
+  };
 }
 
 if (!Element.prototype.scrollIntoView) {

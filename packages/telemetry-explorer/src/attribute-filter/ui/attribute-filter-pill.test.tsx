@@ -1,16 +1,13 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import type { AttributeRepositoryLike } from "../repository";
 import type { AttributeFilter } from "../schemas";
 import { AttributeFilterPill } from "./attribute-filter-pill";
 
 const timeRange = { from: "now-1h", to: "now" };
 
-function renderPill(
-  filter: AttributeFilter,
-  opts: { defaultOpen?: boolean } = {},
-) {
+function renderPill(filter: AttributeFilter, opts: { defaultOpen?: boolean } = {}) {
   const repo = {
     attributeValues: vi.fn().mockResolvedValue(["production", "staging"]),
   } as unknown as AttributeRepositoryLike;
@@ -88,9 +85,7 @@ describe("AttributeFilterPill", () => {
 
   it("hides the value picker for exists/missing", () => {
     renderPill({ ...baseFilter, op: "missing" }, { defaultOpen: true });
-    expect(
-      screen.queryByPlaceholderText("Search values..."),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Search values...")).not.toBeInTheDocument();
   });
 
   it("changes the op when an op button is clicked", () => {
@@ -112,14 +107,9 @@ describe("AttributeFilterPill", () => {
   });
 
   it("keeps an already-selected value visible even if discovery omits it", () => {
-    renderPill(
-      { ...baseFilter, values: ["legacy-value"] },
-      { defaultOpen: true },
-    );
+    renderPill({ ...baseFilter, values: ["legacy-value"] }, { defaultOpen: true });
     // Discovery mock returns production/staging; the selected value must remain
     // a selectable (checked) option so it can be deselected.
-    expect(
-      screen.getByRole("option", { name: "legacy-value" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "legacy-value" })).toBeInTheDocument();
   });
 });

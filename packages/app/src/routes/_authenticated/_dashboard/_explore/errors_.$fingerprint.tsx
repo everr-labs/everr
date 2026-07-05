@@ -3,12 +3,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
 import { ErrorDetailRouteContent } from "./-error-detail";
 
-export const Route = createFileRoute(
-  "/_authenticated/_dashboard/_explore/errors_/$fingerprint",
-)({
+export const Route = createFileRoute("/_authenticated/_dashboard/_explore/errors_/$fingerprint")({
   staticData: { breadcrumb: "Detail", hideExploreBar: true },
-  head: () => ({ meta: [{ title: "Everr - Error detail" }] }),
   validateSearch: ErrorIssueSearchSchema,
+  head: () => ({ meta: [{ title: "Everr - Error detail" }] }),
   component: ErrorDetailPage,
 });
 
@@ -24,7 +22,7 @@ function ErrorDetailPage() {
       search={search}
       detailTo="/errors/$fingerprint"
       onBack={() =>
-        navigate({
+        void navigate({
           to: "/errors",
           search: { ...search, occurrence: "" },
         })

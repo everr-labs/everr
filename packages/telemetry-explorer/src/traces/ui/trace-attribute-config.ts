@@ -1,10 +1,7 @@
 import type { AttributeSource } from "../../attribute-filter/schemas";
 import type { PromotedAttribute } from "../../attribute-filter/ui/attribute-meta";
 
-export const TRACES_ATTRIBUTE_SOURCES_UI: AttributeSource[] = [
-  "resource",
-  "span",
-];
+export const TRACES_ATTRIBUTE_SOURCES_UI: AttributeSource[] = ["resource", "span"];
 
 export const TRACES_PROMOTED_ATTRIBUTES: PromotedAttribute[] = [
   { source: "span", key: "http.route" },

@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import type { TracesRepositoryLike } from "../data/repository";
 import { TraceFilters } from "./trace-filters";
 
@@ -27,9 +27,7 @@ function renderWithQueryClient(children: ReactNode) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>,
-  );
+  return render(<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>);
 }
 
 describe("TraceFilters sidebar", () => {
@@ -43,9 +41,7 @@ describe("TraceFilters sidebar", () => {
         onChange={vi.fn()}
       />,
     );
-    expect(
-      screen.getByRole("complementary", { name: "Trace filters" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Trace filters" })).toBeInTheDocument();
     expect(screen.getByText("Status")).toBeInTheDocument();
     expect(screen.getByText("Service")).toBeInTheDocument();
     expect(screen.getByText("Environment")).toBeInTheDocument();
@@ -62,9 +58,7 @@ describe("TraceFilters sidebar", () => {
         onChange={vi.fn()}
       />,
     );
-    expect(
-      screen.queryByPlaceholderText("Span name contains..."),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Span name contains...")).not.toBeInTheDocument();
   });
 
   it("renders the environment selection once (combobox, not as a pill)", () => {
@@ -152,8 +146,6 @@ describe("TraceFilters sidebar", () => {
         onChange={vi.fn()}
       />,
     );
-    expect(
-      screen.queryByRole("button", { name: "Clear all" }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Clear all" })).not.toBeInTheDocument();
   });
 });

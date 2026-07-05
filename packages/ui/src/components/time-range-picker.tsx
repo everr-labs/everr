@@ -50,24 +50,17 @@ export const QUICK_RANGE_GROUPS: QuickRangeGroup[] = [
   },
 ];
 
-export const QUICK_RANGES: QuickRange[] = QUICK_RANGE_GROUPS.flatMap(
-  (g) => g.ranges,
-);
+export const QUICK_RANGES: QuickRange[] = QUICK_RANGE_GROUPS.flatMap((g) => g.ranges);
 
 export function formatTimeRangeDisplay(range: TimeRange): string {
-  const preset = QUICK_RANGES.find(
-    (q) => q.from === range.from && q.to === range.to,
-  );
+  const preset = QUICK_RANGES.find((q) => q.from === range.from && q.to === range.to);
   if (preset) return preset.label;
   return `${range.from} to ${range.to}`;
 }
 
 export { isValid as isValidDatemath };
 
-function resolvePreview(
-  expr: string,
-  roundUp: boolean,
-): { date: Date; label: string } | null {
+function resolvePreview(expr: string, roundUp: boolean): { date: Date; label: string } | null {
   try {
     const date = resolve(expr, { roundUp });
     return {
@@ -154,17 +147,9 @@ export function TimeRangePicker({
       <Tooltip>
         <TooltipTrigger
           delay={0}
-          render={
-            <PopoverTrigger
-              render={<Button variant="outline" className="gap-1.5" />}
-            />
-          }
+          render={<PopoverTrigger render={<Button variant="outline" className="gap-1.5" />} />}
         >
-          <Clock
-            data-icon="inline-start"
-            className="size-3.5"
-            aria-hidden="true"
-          />
+          <Clock data-icon="inline-start" className="size-3.5" aria-hidden="true" />
           {formatTimeRangeDisplay(value)}
           <ChevronDownIcon className="size-3" />
         </TooltipTrigger>
@@ -174,10 +159,7 @@ export function TimeRangePicker({
           </TooltipContent>
         )}
       </Tooltip>
-      <PopoverContent
-        align="end"
-        className="w-[520px] p-0 gap-0 overflow-hidden"
-      >
+      <PopoverContent align="end" className="w-[520px] p-0 gap-0 overflow-hidden">
         <div className="flex divide-x divide-border">
           {/* Left panel: quick ranges */}
           <div className="flex w-[200px] flex-col">
@@ -199,15 +181,12 @@ export function TimeRangePicker({
               ) : (
                 filteredGroups.map((group, groupIndex) => (
                   <div key={group.label}>
-                    {groupIndex > 0 && (
-                      <div className="bg-border/50 -mx-1 my-1 h-px" />
-                    )}
+                    {groupIndex > 0 && <div className="bg-border/50 -mx-1 my-1 h-px" />}
                     <div className="text-muted-foreground px-2 py-1.5 text-xs font-medium">
                       {group.label}
                     </div>
                     {group.ranges.map((range) => {
-                      const isActive =
-                        range.from === value.from && range.to === value.to;
+                      const isActive = range.from === value.from && range.to === value.to;
                       return (
                         <button
                           key={`${range.from}-${range.to}`}
@@ -217,9 +196,7 @@ export function TimeRangePicker({
                               ? "bg-primary/10 text-primary font-medium"
                               : "text-foreground hover:bg-accent hover:text-accent-foreground"
                           }`}
-                          onClick={() =>
-                            handlePresetClick(range.from, range.to)
-                          }
+                          onClick={() => handlePresetClick(range.from, range.to)}
                         >
                           {range.label}
                         </button>
@@ -233,9 +210,7 @@ export function TimeRangePicker({
 
           {/* Right panel: custom range */}
           <div className="flex-1 p-3 space-y-3">
-            <div className="text-xs font-medium text-muted-foreground">
-              Custom time range
-            </div>
+            <div className="text-xs font-medium text-muted-foreground">Custom time range</div>
 
             <div className="space-y-1.5 flex flex-col">
               <label
@@ -252,9 +227,7 @@ export function TimeRangePicker({
               />
               <div className="text-[11px] h-3.5">
                 {customRangeState.fromPreview ? (
-                  <span className="text-muted-foreground">
-                    → {customRangeState.fromPreview}
-                  </span>
+                  <span className="text-muted-foreground">→ {customRangeState.fromPreview}</span>
                 ) : customFrom ? (
                   <span className="text-destructive">Invalid expression</span>
                 ) : null}
@@ -262,10 +235,7 @@ export function TimeRangePicker({
             </div>
 
             <div className="space-y-1.5 flex flex-col">
-              <label
-                htmlFor="time-range-to"
-                className="text-xs font-medium text-muted-foreground"
-              >
+              <label htmlFor="time-range-to" className="text-xs font-medium text-muted-foreground">
                 To
               </label>
               <Input
@@ -276,9 +246,7 @@ export function TimeRangePicker({
               />
               <div className="text-[11px] h-3.5">
                 {customRangeState.toPreview ? (
-                  <span className="text-muted-foreground">
-                    → {customRangeState.toPreview}
-                  </span>
+                  <span className="text-muted-foreground">→ {customRangeState.toPreview}</span>
                 ) : customTo ? (
                   <span className="text-destructive">Invalid expression</span>
                 ) : null}
@@ -287,7 +255,7 @@ export function TimeRangePicker({
 
             {customRangeState.rangeInverted && (
               <p className="text-destructive text-[11px]">
-                "From" must be before "To"
+                &quot;From&quot; must be before &quot;To&quot;
               </p>
             )}
             <Button

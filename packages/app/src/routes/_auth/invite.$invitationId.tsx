@@ -46,18 +46,10 @@ function AcceptInvitation() {
   );
 }
 
-function Heading({
-  title,
-  subtitle,
-}: {
-  title: string;
-  subtitle: string | React.ReactNode;
-}) {
+function Heading({ title, subtitle }: { title: string; subtitle: string | React.ReactNode }) {
   return (
     <div className="text-center">
-      <h1 className="text-2xl font-bold tracking-tight font-heading">
-        {title}
-      </h1>
+      <h1 className="text-2xl font-bold tracking-tight font-heading">{title}</h1>
       <p className="mt-2 text-sm text-muted-foreground">{subtitle}</p>
     </div>
   );
@@ -80,15 +72,8 @@ function NotFoundContent() {
   );
 }
 
-function InactiveContent({
-  data,
-}: {
-  data: Extract<InviteLoaderResult, { status: "inactive" }>;
-}) {
-  const title =
-    data.reason === "expired"
-      ? "Invitation expired"
-      : "Invitation no longer available";
+function InactiveContent({ data }: { data: Extract<InviteLoaderResult, { status: "inactive" }> }) {
+  const title = data.reason === "expired" ? "Invitation expired" : "Invitation no longer available";
   const subtitle =
     data.reason === "expired"
       ? `Your invitation to ${data.organizationName} has expired. Ask for a new one to join.`
@@ -107,11 +92,7 @@ function InactiveContent({
   );
 }
 
-function AcceptedContent({
-  data,
-}: {
-  data: Extract<InviteLoaderResult, { status: "accepted" }>;
-}) {
+function AcceptedContent({ data }: { data: Extract<InviteLoaderResult, { status: "accepted" }> }) {
   const title = data.alreadyMember
     ? `You're already in ${data.organizationName}`
     : "Invitation already used";
@@ -122,11 +103,7 @@ function AcceptedContent({
   return (
     <>
       <Heading title={title} subtitle={subtitle} />
-      <Button
-        className="w-full"
-        nativeButton={false}
-        render={<Link to="/">Go home</Link>}
-      />
+      <Button className="w-full" nativeButton={false} render={<Link to="/">Go home</Link>} />
     </>
   );
 }
@@ -205,10 +182,7 @@ function AcceptReadyContent({
       });
 
       if (result.error) {
-        setError(
-          result.error.message ??
-            "Failed to accept invitation. Please try again.",
-        );
+        setError(result.error.message ?? "Failed to accept invitation. Please try again.");
         return;
       }
 
@@ -230,10 +204,7 @@ function AcceptReadyContent({
       });
 
       if (result.error) {
-        setError(
-          result.error.message ??
-            "Failed to decline invitation. Please try again.",
-        );
+        setError(result.error.message ?? "Failed to decline invitation. Please try again.");
         return;
       }
 
@@ -331,18 +302,12 @@ function WrongRecipientContent({
         subtitle={
           <>
             This invitation to {data.organizationName} was sent to{" "}
-            <span className="font-medium text-foreground">
-              {data.invitedEmail}
-            </span>
-            . Sign in with that account to accept it.
+            <span className="font-medium text-foreground">{data.invitedEmail}</span>. Sign in with
+            that account to accept it.
           </>
         }
       />
-      <Button
-        className="w-full"
-        onClick={() => void handleSwitchAccount()}
-        disabled={isSigningOut}
-      >
+      <Button className="w-full" onClick={() => void handleSwitchAccount()} disabled={isSigningOut}>
         {isSigningOut ? (
           <>
             <Loader2 className="mr-2 size-4 animate-spin" />

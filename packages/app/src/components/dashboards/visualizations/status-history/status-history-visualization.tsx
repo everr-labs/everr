@@ -49,11 +49,7 @@ export function StatusHistoryVisualization({
       rounded
       onTimeRangeChange={onTimeRangeChange}
       emptyIcon={<LayoutGrid className="size-8" />}
-      emptyMessage={
-        data
-          ? "No status data in this time range"
-          : "Configure a query to see results"
-      }
+      emptyMessage={data ? "No status data in this time range" : "Configure a query to see results"}
     />
   );
 }

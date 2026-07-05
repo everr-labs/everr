@@ -42,10 +42,7 @@ export function buildSpanTree(spans: Span[]): SpanNode[] {
   return roots;
 }
 
-export function flattenTree(
-  nodes: SpanNode[],
-  collapsed: Set<string>,
-): SpanNode[] {
+export function flattenTree(nodes: SpanNode[], collapsed: Set<string>): SpanNode[] {
   const result: SpanNode[] = [];
 
   function traverse(node: SpanNode) {
@@ -54,9 +51,7 @@ export function flattenTree(
     if (collapsed.has(node.spanId)) return;
 
     // Sort children by start time
-    const sortedChildren = [...node.children].sort(
-      (a, b) => a.startTime - b.startTime,
-    );
+    const sortedChildren = [...node.children].sort((a, b) => a.startTime - b.startTime);
     for (const child of sortedChildren) {
       traverse(child);
     }

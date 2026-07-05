@@ -2,12 +2,12 @@
 
 > Build cross-platform desktop and mobile apps with web frontends and Rust backends.
 
-| | |
-|---|---|
-| **Status** | Active |
-| **Version** | 1.0.0 |
-| **Last Updated** | 2025-12-31 |
-| **Confidence** | 4/5 |
+|                       |                       |
+| --------------------- | --------------------- |
+| **Status**            | Active                |
+| **Version**           | 1.0.0                 |
+| **Last Updated**      | 2025-12-31            |
+| **Confidence**        | 4/5                   |
 | **Production Tested** | https://v2.tauri.app/ |
 
 ## What This Skill Does
@@ -26,7 +26,9 @@ Provides expert assistance for Tauri v2 application development, covering the fu
 ## Auto-Trigger Keywords
 
 ### Primary Keywords
+
 Exact terms that strongly trigger this skill:
+
 - tauri
 - tauri v2
 - tauri.conf.json
@@ -36,7 +38,9 @@ Exact terms that strongly trigger this skill:
 - capabilities.json
 
 ### Secondary Keywords
+
 Related terms that may trigger in combination:
+
 - rust backend
 - desktop app
 - cross-platform app
@@ -47,7 +51,9 @@ Related terms that may trigger in combination:
 - bundle desktop
 
 ### Error-Based Keywords
+
 Common error messages that should trigger this skill:
+
 - "Command not found"
 - "Permission denied" (in Tauri context)
 - "Failed to invoke command"
@@ -58,18 +64,19 @@ Common error messages that should trigger this skill:
 
 ## Known Issues Prevention
 
-| Issue | Root Cause | Solution |
-|-------|-----------|----------|
-| Command not found | Missing from `generate_handler![]` | Register all commands in the macro |
-| Permission denied | Missing capability configuration | Add required permissions to capabilities file |
-| State access panic | Type mismatch in `State<T>` | Use exact type matching `.manage()` call |
-| White screen | Frontend not building | Verify `beforeDevCommand` and `devUrl` |
-| Mobile build fails | Missing Rust targets | Run `rustup target add <platform-targets>` |
-| IPC timeout | Blocking in async command | Use non-blocking async or spawn threads |
+| Issue              | Root Cause                         | Solution                                      |
+| ------------------ | ---------------------------------- | --------------------------------------------- |
+| Command not found  | Missing from `generate_handler![]` | Register all commands in the macro            |
+| Permission denied  | Missing capability configuration   | Add required permissions to capabilities file |
+| State access panic | Type mismatch in `State<T>`        | Use exact type matching `.manage()` call      |
+| White screen       | Frontend not building              | Verify `beforeDevCommand` and `devUrl`        |
+| Mobile build fails | Missing Rust targets               | Run `rustup target add <platform-targets>`    |
+| IPC timeout        | Blocking in async command          | Use non-blocking async or spawn threads       |
 
 ## When to Use
 
 ### Use This Skill For
+
 - Creating new Tauri v2 projects or commands
 - Configuring permissions and capabilities
 - Setting up IPC (invoke, events, channels)
@@ -79,6 +86,7 @@ Common error messages that should trigger this skill:
 - Mobile (iOS/Android) deployment setup
 
 ### Don't Use This Skill For
+
 - Tauri v1 development (use migration guide then this skill)
 - Pure frontend development without Tauri integration
 - Native mobile development (Swift/Kotlin directly)
@@ -103,11 +111,11 @@ npm run tauri build
 
 ## Token Efficiency
 
-| Approach | Estimated Tokens | Time |
-|----------|-----------------|------|
-| Manual Implementation | ~15,000 | 2+ hours |
-| With This Skill | ~6,000 | 30 min |
-| **Savings** | **60%** | **~1.5 hours** |
+| Approach              | Estimated Tokens | Time           |
+| --------------------- | ---------------- | -------------- |
+| Manual Implementation | ~15,000          | 2+ hours       |
+| With This Skill       | ~6,000           | 30 min         |
+| **Savings**           | **60%**          | **~1.5 hours** |
 
 ## File Structure
 
@@ -122,12 +130,12 @@ tauri-v2/
 
 ## Dependencies
 
-| Package | Version | Verified |
-|---------|---------|----------|
-| `@tauri-apps/cli` | ^2.0.0 | 2025-12-31 |
-| `@tauri-apps/api` | ^2.0.0 | 2025-12-31 |
-| `tauri` (Rust) | ^2.0.0 | 2025-12-31 |
-| `tauri-build` (Rust) | ^2.0.0 | 2025-12-31 |
+| Package              | Version | Verified   |
+| -------------------- | ------- | ---------- |
+| `@tauri-apps/cli`    | ^2.0.0  | 2025-12-31 |
+| `@tauri-apps/api`    | ^2.0.0  | 2025-12-31 |
+| `tauri` (Rust)       | ^2.0.0  | 2025-12-31 |
+| `tauri-build` (Rust) | ^2.0.0  | 2025-12-31 |
 
 ## Official Documentation
 

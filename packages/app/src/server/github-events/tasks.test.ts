@@ -1,5 +1,6 @@
 // @vitest-environment node
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { JobHelpers } from "graphile-worker";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import type { WebhookJobData } from "./types";
 
 const COLLECTOR_TASK_IDENTIFIER = "github-events/collector";
@@ -35,11 +36,7 @@ const taskMocks = vi.hoisted(() => {
     }),
     span,
     startActiveSpan: vi.fn(
-      async (
-        _name: string,
-        _options: unknown,
-        run: (span: MockSpan) => Promise<unknown>,
-      ) => {
+      async (_name: string, _options: unknown, run: (span: MockSpan) => Promise<unknown>) => {
         activeSpan = true;
         try {
           return await run(span);
@@ -64,8 +61,7 @@ vi.mock("@/telemetry/logger", () => ({
       "exception.type": error.name,
     };
   },
-  errorMessage: (reason: unknown) =>
-    reason instanceof Error ? reason.message : String(reason),
+  errorMessage: (reason: unknown) => (reason instanceof Error ? reason.message : String(reason)),
   serverLogger: {
     error: taskMocks.serverLoggerError,
     info: taskMocks.serverLoggerInfo,
@@ -130,8 +126,7 @@ async function runTask(
   if (!task) {
     throw new Error(`missing ${taskIdentifier} task`);
   }
-  // biome-ignore lint/suspicious/noExplicitAny: helpers are mocked minimally
-  await task(data, { job: { id: jobId } } as any);
+  await task(data, { job: { id: jobId } } as unknown as JobHelpers);
 }
 
 beforeEach(() => {
@@ -179,10 +174,7 @@ describe("github events tasks", () => {
       },
       expect.any(Function),
     );
-    expect(taskMocks.span.setAttribute).toHaveBeenCalledWith(
-      "everr.organization.id",
-      "org-1",
-    );
+    expect(taskMocks.span.setAttribute).toHaveBeenCalledWith("everr.organization.id", "org-1");
   });
 
   it("status tasks pass the parsed workflow event to the status writer", async () => {
@@ -248,9 +240,7 @@ describe("github events tasks", () => {
 
   it("drops stale installation terminal events without error telemetry", async () => {
     const data = workflowRunData();
-    const error = new StaleInstallationError(
-      "organization not found for installation",
-    );
+    const error = new StaleInstallationError("organization not found for installation");
     taskMocks.resolveOrganizationId.mockRejectedValue(error);
 
     await runTask(COLLECTOR_TASK_IDENTIFIER, data, "collector-job-1");
@@ -304,9 +294,9 @@ describe("github events tasks", () => {
     const error = new Error("collector unavailable");
     taskMocks.replayWebhookToCollector.mockRejectedValue(error);
 
-    await expect(
-      runTask(COLLECTOR_TASK_IDENTIFIER, data, "collector-job-1"),
-    ).rejects.toThrow("collector unavailable");
+    await expect(runTask(COLLECTOR_TASK_IDENTIFIER, data, "collector-job-1")).rejects.toThrow(
+      "collector unavailable",
+    );
 
     expect(taskMocks.span.recordException).toHaveBeenCalledWith(error);
     expect(taskMocks.span.end).toHaveBeenCalledOnce();
@@ -317,9 +307,9 @@ describe("github events tasks", () => {
     const error = new Error("status database unavailable");
     taskMocks.handleStatusEvent.mockRejectedValue(error);
 
-    await expect(
-      runTask(STATUS_TASK_IDENTIFIER, data, "status-job-1"),
-    ).rejects.toThrow("status database unavailable");
+    await expect(runTask(STATUS_TASK_IDENTIFIER, data, "status-job-1")).rejects.toThrow(
+      "status database unavailable",
+    );
 
     expect(taskMocks.span.recordException).toHaveBeenCalledWith(error);
     expect(taskMocks.span.end).toHaveBeenCalledOnce();

@@ -34,10 +34,7 @@ function ShareBar({ value, max }: { value: number; max: number }) {
   return (
     <div className="flex items-center gap-2">
       <div className="h-1.5 w-16 overflow-hidden rounded-full bg-muted">
-        <div
-          className="h-full rounded-full bg-[var(--chart-1)]"
-          style={{ width: `${pct}%` }}
-        />
+        <div className="h-full rounded-full bg-[var(--chart-1)]" style={{ width: `${pct}%` }} />
       </div>
       <span className="w-9 text-right font-mono text-[11px] text-muted-foreground tabular-nums">
         {Math.round(pct)}%
@@ -78,8 +75,7 @@ export function CostByJobTable({ data }: CostByJobTableProps) {
       {
         header: "Est. Cost",
         className: "pb-2 pr-4 text-right whitespace-nowrap",
-        cellClassName:
-          "py-2 pr-4 text-right font-mono font-medium tabular-nums whitespace-nowrap",
+        cellClassName: "py-2 pr-4 text-right font-mono font-medium tabular-nums whitespace-nowrap",
         cell: (row) => formatCost(row.estimatedCost),
       },
       {

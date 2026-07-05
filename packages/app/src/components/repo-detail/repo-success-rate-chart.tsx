@@ -11,15 +11,7 @@ import {
   createLegendFormatter,
   formatChartDate,
 } from "@everr/ui/components/chart-helpers";
-import {
-  Bar,
-  CartesianGrid,
-  ComposedChart,
-  Legend,
-  Line,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { Bar, CartesianGrid, ComposedChart, Legend, Line, XAxis, YAxis } from "recharts";
 import type { RepoSuccessRatePoint } from "@/data/repo-detail/schemas";
 
 interface RepoSuccessRateChartProps {

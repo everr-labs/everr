@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import {
   generateWorkflowTraceId,
   traceIdFromQueuedWorkflowEvent,
@@ -7,21 +7,15 @@ import {
 
 describe("generateWorkflowTraceId", () => {
   it("matches the collector trace id algorithm for a known run", () => {
-    expect(generateWorkflowTraceId(456, 123, 1)).toBe(
-      "d4a47d14ef1214a0f22cdc7bdfd2becf",
-    );
+    expect(generateWorkflowTraceId(456, 123, 1)).toBe("d4a47d14ef1214a0f22cdc7bdfd2becf");
   });
 
   it("defaults missing run attempts to 1", () => {
-    expect(generateWorkflowTraceId(456, 123)).toBe(
-      generateWorkflowTraceId(456, 123, 1),
-    );
+    expect(generateWorkflowTraceId(456, 123)).toBe(generateWorkflowTraceId(456, 123, 1));
   });
 
   it("changes when the repository id changes", () => {
-    expect(generateWorkflowTraceId(456, 123, 1)).not.toBe(
-      generateWorkflowTraceId(789, 123, 1),
-    );
+    expect(generateWorkflowTraceId(456, 123, 1)).not.toBe(generateWorkflowTraceId(789, 123, 1));
   });
 });
 
@@ -102,10 +96,7 @@ describe("traceIdFromQueuedWorkflowEvent", () => {
 describe("traceIdFromWebhookEvent", () => {
   it("returns null when the payload does not contain a canonical run identity", () => {
     expect(
-      traceIdFromWebhookEvent(
-        "workflow_run",
-        Buffer.from(JSON.stringify({ action: "requested" })),
-      ),
+      traceIdFromWebhookEvent("workflow_run", Buffer.from(JSON.stringify({ action: "requested" }))),
     ).toBeNull();
   });
 });

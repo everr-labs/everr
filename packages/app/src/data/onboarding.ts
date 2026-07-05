@@ -25,9 +25,7 @@ async function getInstallationsForOrganization(organizationId: string) {
 export const getGithubAppInstallStatus = createAuthenticatedServerFn({
   method: "GET",
 }).handler(async ({ context: { session } }) => {
-  const installations = await getInstallationsForOrganization(
-    session.session.activeOrganizationId,
-  );
+  const installations = await getInstallationsForOrganization(session.session.activeOrganizationId);
 
   return installations.map((installation) => ({
     installed: installation.status === "active",
@@ -40,9 +38,7 @@ export const getGithubAppInstallStatus = createAuthenticatedServerFn({
 export const getInstallationRepos = createAuthenticatedServerFn({
   method: "GET",
 }).handler(async ({ context: { session } }) => {
-  const installations = await getInstallationsForOrganization(
-    session.session.activeOrganizationId,
-  );
+  const installations = await getInstallationsForOrganization(session.session.activeOrganizationId);
   const active = installations.find((i) => i.status === "active");
 
   if (!active) {

@@ -65,8 +65,8 @@ export function heatmapColorRgb(scheme: HeatmapColorScheme, t: number): Rgb {
   const pos = u * (stops.length - 1);
   const i = Math.min(Math.floor(pos), stops.length - 2);
   const f = pos - i;
-  const [r0, g0, b0] = stops[i]!;
-  const [r1, g1, b1] = stops[i + 1]!;
+  const [r0, g0, b0] = stops[i];
+  const [r1, g1, b1] = stops[i + 1];
   return [
     Math.round(r0 + (r1 - r0) * f),
     Math.round(g0 + (g1 - g0) * f),

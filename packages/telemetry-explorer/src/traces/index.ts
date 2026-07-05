@@ -9,10 +9,7 @@ export * from "./data/schemas";
 export * from "./data/types";
 export * from "./data/window";
 export { TimeRangeSearchSchema } from "./time-range";
-export type {
-  TraceDetailProps,
-  TraceDetailSearch,
-} from "./ui/trace-detail-page";
+export type { TraceDetailProps, TraceDetailSearch } from "./ui/trace-detail-page";
 export { TraceDetail } from "./ui/trace-detail-page";
 export type {
   TraceLinkRenderProps,

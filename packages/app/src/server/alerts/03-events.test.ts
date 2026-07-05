@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const insertAdminRows = vi.fn();
 vi.mock("@/lib/clickhouse", () => ({
@@ -50,9 +50,7 @@ describe("boundEvidence", () => {
 
     const out = boundEvidence(rows);
 
-    expect(Buffer.byteLength(out.json, "utf8")).toBeLessThanOrEqual(
-      MAX_EVIDENCE_BYTES,
-    );
+    expect(Buffer.byteLength(out.json, "utf8")).toBeLessThanOrEqual(MAX_EVIDENCE_BYTES);
     expect(out.truncated).toBe(true);
   });
 });
@@ -170,9 +168,7 @@ describe("event row construction", () => {
 
     expect(event.event_type).toBe("delivery_failed");
     expect(event.delivery_targets).toEqual({ telegram: ["-100123"] });
-    expect(event.evidence_json).toBe(
-      '{"error":"telegram sendMessage failed: 403"}',
-    );
+    expect(event.evidence_json).toBe('{"error":"telegram sendMessage failed: 403"}');
     expect(event.evaluation_scheduled_at).toBe("2026-06-11T10:00:00.000Z");
   });
 });
@@ -192,11 +188,7 @@ describe("recordAlertEvents", () => {
   it("inserts the rows", async () => {
     await recordAlertEvents(def, [row], "alerts.test.insert_failed");
 
-    expect(insertAdminRows).toHaveBeenCalledWith(
-      "app.alert_events",
-      [row],
-      expect.anything(),
-    );
+    expect(insertAdminRows).toHaveBeenCalledWith("app.alert_events", [row], expect.anything());
     expect(vi.mocked(serverLogger.error)).not.toHaveBeenCalled();
   });
 

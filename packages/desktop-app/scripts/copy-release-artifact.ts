@@ -1,14 +1,6 @@
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
-import {
-  copyFile,
-  mkdir,
-  readFile,
-  readdir,
-  rm,
-  stat,
-  writeFile,
-} from "node:fs/promises";
+import { copyFile, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { arch as getArch, platform as getPlatform } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -68,10 +60,7 @@ function normalizePlatform(value: NodeJS.Platform) {
   }
 }
 
-export function getDesktopReleaseTarget(
-  platform: string,
-  arch: string,
-): DesktopReleaseTarget {
+export function getDesktopReleaseTarget(platform: string, arch: string): DesktopReleaseTarget {
   if (platform !== "macos" || arch !== "arm64") {
     throw new Error(`Unsupported desktop release target: ${platform}-${arch}`);
   }
@@ -278,8 +267,7 @@ async function findNewestFileWithSuffix(dir: string, suffix: string) {
   );
 
   candidatesWithStats.sort(
-    (left, right) =>
-      right.stat.mtimeMs - left.stat.mtimeMs || left.file.localeCompare(right.file),
+    (left, right) => right.stat.mtimeMs - left.stat.mtimeMs || left.file.localeCompare(right.file),
   );
 
   return candidatesWithStats[0];
@@ -311,9 +299,7 @@ export async function findReleaseArtifacts(bundleDir: string): Promise<ReleaseAr
 
 async function readDesktopPackageVersion() {
   const packageJsonPath = path.join(packageDir, "package.json");
-  const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8")) as {
-    version?: string;
-  };
+  const packageJson: { version?: string } = JSON.parse(await readFile(packageJsonPath, "utf8"));
 
   if (!packageJson.version) {
     throw new Error(`Could not resolve desktop app version from ${packageJsonPath}.`);
@@ -324,9 +310,7 @@ async function readDesktopPackageVersion() {
 
 async function readDesktopTauriVersion() {
   const configPath = path.join(packageDir, "src-tauri", "tauri.conf.json");
-  const config = JSON.parse(await readFile(configPath, "utf8")) as {
-    version?: string;
-  };
+  const config: { version?: string } = JSON.parse(await readFile(configPath, "utf8"));
 
   if (!config.version) {
     throw new Error(`Could not resolve desktop platform version from ${configPath}.`);
@@ -337,9 +321,10 @@ async function readDesktopTauriVersion() {
 
 function resolvePublicBaseUrl() {
   loadBuildEnvFile();
-  return (
-    process.env.EVERR_DESKTOP_PUBLIC_BASE_URL?.trim() || DEFAULT_PUBLIC_BASE_URL
-  ).replace(/\/+$/, "");
+  return (process.env.EVERR_DESKTOP_PUBLIC_BASE_URL?.trim() || DEFAULT_PUBLIC_BASE_URL).replace(
+    /\/+$/,
+    "",
+  );
 }
 
 async function sha256File(filePath: string) {
@@ -359,10 +344,7 @@ function releaseRelativePath(rootDir: string, filePath: string) {
   return path.relative(rootDir, filePath).split(path.sep).join("/");
 }
 
-async function describeReleaseFile(
-  rootDir: string,
-  filePath: string,
-): Promise<ReleaseFileEntry> {
+async function describeReleaseFile(rootDir: string, filePath: string): Promise<ReleaseFileEntry> {
   const fileStat = await stat(filePath);
   return {
     path: releaseRelativePath(rootDir, filePath),
@@ -452,11 +434,7 @@ export async function stageReleaseArtifacts() {
   await rm(appDestDir, { recursive: true, force: true });
   await mkdir(appDestDir, { recursive: true });
 
-  await copyReleaseFile(
-    desktopReleaseDir,
-    artifacts.dmg,
-    path.join(appDestDir, target.dmgName),
-  );
+  await copyReleaseFile(desktopReleaseDir, artifacts.dmg, path.join(appDestDir, target.dmgName));
   await copyReleaseFile(
     desktopReleaseDir,
     artifacts.updaterArchive,

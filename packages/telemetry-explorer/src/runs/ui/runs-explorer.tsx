@@ -1,9 +1,5 @@
 import type { TimeRange } from "@everr/ui/lib/time-range";
-import {
-  keepPreviousData,
-  useInfiniteQuery,
-  useQuery,
-} from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { FolderGit2 } from "lucide-react";
 import { useMemo } from "react";
 import { ExploreFilterPill } from "../../filters/ui/explore-filter-pill";
@@ -22,11 +18,7 @@ import {
 } from "../schemas";
 import { RunsFilters } from "./runs-filters";
 import { RunsHistogram } from "./runs-histogram";
-import {
-  type RenderRunLink,
-  type RenderRunRowActions,
-  RunsResultsList,
-} from "./runs-results-list";
+import { type RenderRunLink, type RenderRunRowActions, RunsResultsList } from "./runs-results-list";
 
 export interface RunsExplorerSearch {
   runId?: string;
@@ -60,15 +52,7 @@ export function RunsExplorer({
   renderRunLink,
   renderRowActions,
 }: RunsExplorerProps) {
-  const {
-    runId,
-    repos,
-    branches,
-    conclusions,
-    workflowNames,
-    onlyMine,
-    showVolume,
-  } = search;
+  const { runId, repos, branches, conclusions, workflowNames, onlyMine, showVolume } = search;
 
   const filterInput = {
     timeRange,
@@ -179,9 +163,7 @@ export function RunsExplorer({
                 isPending={isHistogramPending}
                 showVolume={showVolume}
                 onRangeSelect={onTimeRangeSelect}
-                onShowVolumeChange={(show) =>
-                  onSearchChange({ showVolume: show })
-                }
+                onShowVolumeChange={(show) => onSearchChange({ showVolume: show })}
               />
 
               <div className="flex min-h-0 flex-1 flex-col">
@@ -190,11 +172,11 @@ export function RunsExplorer({
                   totalCount={totalCount}
                   isPending={isPending}
                   isError={isError}
-                  error={error as Error | null}
-                  refetch={refetch}
+                  error={error}
+                  refetch={() => void refetch()}
                   hasMore={hasNextPage}
                   isLoadingMore={isFetchingNextPage}
-                  onLoadMore={fetchNextPage}
+                  onLoadMore={() => void fetchNextPage()}
                   onClearFilters={clearFilters}
                   renderRunLink={renderRunLink}
                   renderRowActions={renderRowActions}

@@ -22,17 +22,12 @@ export function validateMatchers(matchers: readonly Matcher[]): void {
     try {
       compileAnchored(matcher.value);
     } catch {
-      throw new Error(
-        `invalid regex in matcher ${matcher.label}${matcher.op}"${matcher.value}"`,
-      );
+      throw new Error(`invalid regex in matcher ${matcher.label}${matcher.op}"${matcher.value}"`);
     }
   }
 }
 
-export function matcherMatches(
-  matcher: Matcher,
-  labels: Record<string, string>,
-): boolean {
+export function matcherMatches(matcher: Matcher, labels: Record<string, string>): boolean {
   const value = labels[matcher.label] ?? "";
   switch (matcher.op) {
     case "=":
@@ -55,9 +50,7 @@ export function silenceMatchesInstance(
 
 export const NO_LABELS_TEXT = "(no labels)";
 
-export function sortedLabelEntries(
-  labels: Record<string, string>,
-): [string, string][] {
+export function sortedLabelEntries(labels: Record<string, string>): [string, string][] {
   return Object.entries(labels).sort(([a], [b]) => a.localeCompare(b));
 }
 
@@ -71,7 +64,5 @@ export function findSilenceForInstance<S extends { matchers: Matcher[] }>(
   silences: readonly S[],
   labels: Record<string, string>,
 ): S | undefined {
-  return silences.find((silence) =>
-    silenceMatchesInstance(silence.matchers, labels),
-  );
+  return silences.find((silence) => silenceMatchesInstance(silence.matchers, labels));
 }

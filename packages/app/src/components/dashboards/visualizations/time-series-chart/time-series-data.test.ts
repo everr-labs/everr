@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { buildChartModel, buildStackedData } from "./time-series-data";
 
 const TS_KEY = "__ts";
@@ -8,10 +8,7 @@ const WIDE: [number, number] = [0, Date.parse("2100-01-01T00:00:00Z")];
 
 describe("buildChartModel", () => {
   it("assigns an opaque render key and keeps the column name as the label", () => {
-    const model = buildChartModel(
-      [[{ time: "2026-06-07T00:00:00", value: 5 }]],
-      WIDE,
-    );
+    const model = buildChartModel([[{ time: "2026-06-07T00:00:00", value: 5 }]], WIDE);
     expect(model.valueKeys).toEqual(["s0"]);
     expect(model.chartConfig.s0?.label).toBe("value");
     expect(model.chartData[0]?.[TS_KEY]).toBeTypeOf("number");
@@ -37,10 +34,7 @@ describe("buildChartModel", () => {
 
   it("gives each series a distinct key across two queries and merges by time", () => {
     const model = buildChartModel(
-      [
-        [{ time: "2026-06-07T00:00:00", value: 1 }],
-        [{ time: "2026-06-07T00:00:00", value: 2 }],
-      ],
+      [[{ time: "2026-06-07T00:00:00", value: 1 }], [{ time: "2026-06-07T00:00:00", value: 2 }]],
       WIDE,
     );
     expect(model.valueKeys).toEqual(["s0", "s1"]);
@@ -76,10 +70,7 @@ describe("buildChartModel", () => {
 
   it("assigns distinct colors to series across queries", () => {
     const model = buildChartModel(
-      [
-        [{ time: "2026-06-07T00:00:00", value: 1 }],
-        [{ time: "2026-06-07T00:00:00", value: 2 }],
-      ],
+      [[{ time: "2026-06-07T00:00:00", value: 1 }], [{ time: "2026-06-07T00:00:00", value: 2 }]],
       WIDE,
     );
     expect(model.chartConfig.s0?.color).not.toBe(model.chartConfig.s1?.color);
@@ -140,10 +131,7 @@ describe("buildChartModel", () => {
   });
 
   it("keeps non-identifier column names as the label without mangling the key", () => {
-    const model = buildChartModel(
-      [[{ time: "2026-06-07T00:00:00", "count()": "42" }]],
-      WIDE,
-    );
+    const model = buildChartModel([[{ time: "2026-06-07T00:00:00", "count()": "42" }]], WIDE);
     // `count()` as a render key would produce `var(--color-count())` (invalid);
     // the opaque key sidesteps that and the original name stays as the label.
     expect(model.valueKeys).toEqual(["s0"]);
@@ -167,10 +155,7 @@ describe("buildChartModel", () => {
   });
 
   it("treats quoted numeric strings (ClickHouse aggregates) as values", () => {
-    const model = buildChartModel(
-      [[{ time: "2026-06-07T00:00:00", count: "42" }]],
-      WIDE,
-    );
+    const model = buildChartModel([[{ time: "2026-06-07T00:00:00", count: "42" }]], WIDE);
     expect(model.valueKeys).toEqual(["s0"]);
     expect(model.chartData[0]?.s0).toBe(42);
   });

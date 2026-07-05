@@ -1,10 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import {
-  getAllJobsSteps,
-  getRunDetails,
-  getRunJobs,
-  getRunSpans,
-} from "./server";
+import { getAllJobsSteps, getRunDetails, getRunJobs, getRunSpans } from "./server";
 
 // Query options factories
 export const runDetailsOptions = (traceId: string) =>
@@ -19,10 +14,8 @@ export const runJobsOptions = (traceId: string) =>
     queryFn: () => getRunJobs({ data: traceId }),
   });
 
-export const allJobsStepsOptions = (input: {
-  traceId: string;
-  jobIds: string[];
-}) =>
+export const allJobsStepsOptions = (input: { traceId: string; jobIds: string[] }) =>
+  // oxlint-disable-next-line query/exhaustive-deps -- DI repo / input already in key; not a real missing dep
   queryOptions({
     queryKey: ["runs", "allJobsSteps", input.traceId, input.jobIds],
     queryFn: () => getAllJobsSteps({ data: input }),

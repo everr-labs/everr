@@ -1,15 +1,8 @@
 import { and, eq, isNull } from "drizzle-orm";
-import {
-  type OwnershipConflict,
-  partitionByOwnership,
-} from "@/data/as-code/ownership";
+import { type OwnershipConflict, partitionByOwnership } from "@/data/as-code/ownership";
 import { reconcile } from "@/data/as-code/reconcile";
 import type { Reconciler } from "@/data/as-code/registry";
-import {
-  foreignLiveScope,
-  previewOwner,
-  previewScope,
-} from "@/data/previews/scope";
+import { foreignLiveScope, previewOwner, previewScope } from "@/data/previews/scope";
 import { dashboards } from "@/db/schema";
 import { buildDesiredSet } from "./desired";
 import type { Dashboard } from "./schema";
@@ -40,9 +33,7 @@ export const applyDashboardSpecs: Reconciler = async ({
   adopt,
   db: exec,
 }): Promise<ApplyDashboardsResult> => {
-  const desired = buildDesiredSet(
-    resources.map((r) => ({ path: r.path, document: r.resource })),
-  );
+  const desired = buildDesiredSet(resources.map((r) => ({ path: r.path, document: r.resource })));
 
   const scope = previewScope(dashboards, namespace);
 
@@ -72,8 +63,11 @@ export const applyDashboardSpecs: Reconciler = async ({
           .from(dashboards)
           .where(foreignLiveScope(dashboards, namespace, diff.creates))
       : [];
-  const { freshCreates, takenCreates, adopted, conflicts } =
-    partitionByOwnership(diff.creates, foreign, adopt);
+  const { freshCreates, takenCreates, adopted, conflicts } = partitionByOwnership(
+    diff.creates,
+    foreign,
+    adopt,
+  );
 
   const summary: ApplyDashboardsResult = {
     created: freshCreates.map((d) => d.slug),
@@ -92,6 +86,9 @@ export const applyDashboardSpecs: Reconciler = async ({
       project: d.project,
       slug: d.slug,
       folderPath: d.folderPath,
+      // The reconciler carries documents as opaque `unknown`; the jsonb column is
+      // typed `Dashboard` and there is no runtime guard for the full spec shape.
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- unknown reconcile document bridged to typed jsonb column
       document: d.document as Dashboard,
     });
   }
@@ -103,6 +100,7 @@ export const applyDashboardSpecs: Reconciler = async ({
       .update(dashboards)
       .set({
         repoid: namespace.repoid,
+        // oxlint-disable-next-line typescript/consistent-type-assertions -- unknown reconcile document bridged to typed jsonb column
         document: d.document as Dashboard,
         folderPath: d.folderPath,
         updatedAt: new Date(),
@@ -120,28 +118,17 @@ export const applyDashboardSpecs: Reconciler = async ({
     await exec
       .update(dashboards)
       .set({
+        // oxlint-disable-next-line typescript/consistent-type-assertions -- unknown reconcile document bridged to typed jsonb column
         document: d.document as Dashboard,
         folderPath: d.folderPath,
         updatedAt: new Date(),
       })
-      .where(
-        and(
-          scope,
-          eq(dashboards.project, d.project),
-          eq(dashboards.slug, d.slug),
-        ),
-      );
+      .where(and(scope, eq(dashboards.project, d.project), eq(dashboards.slug, d.slug)));
   }
   for (const d of diff.deletes) {
     await exec
       .delete(dashboards)
-      .where(
-        and(
-          scope,
-          eq(dashboards.project, d.project),
-          eq(dashboards.slug, d.slug),
-        ),
-      );
+      .where(and(scope, eq(dashboards.project, d.project), eq(dashboards.slug, d.slug)));
   }
 
   return summary;

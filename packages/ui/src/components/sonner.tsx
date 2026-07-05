@@ -20,6 +20,9 @@ const Toaster = ({ ...props }: ToasterProps) => {
         loading: <Loader2Icon className="size-4 animate-spin" />,
       }}
       style={
+        // React.CSSProperties has no index signature for CSS custom properties
+        // (`--*`), so setting CSS variables inline requires this assertion.
+        // oxlint-disable-next-line typescript/consistent-type-assertions -- CSS custom properties absent from React.CSSProperties
         {
           "--normal-bg": "var(--popover)",
           "--normal-text": "var(--popover-foreground)",

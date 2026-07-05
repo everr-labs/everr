@@ -1,9 +1,5 @@
-import { describe, expect, it } from "vitest";
-import {
-  resolveTelemetryConfig,
-  signalUrl,
-  telemetryResourceAttributes,
-} from "./config";
+import { describe, expect, it } from "vite-plus/test";
+import { resolveTelemetryConfig, signalUrl, telemetryResourceAttributes } from "./config";
 
 describe("telemetry config", () => {
   it("uses the local collector endpoint by default", () => {
@@ -78,9 +74,7 @@ describe("telemetry config", () => {
   });
 
   it("builds OTLP signal URLs from base or signal-specific endpoints", () => {
-    expect(signalUrl("http://127.0.0.1:54318", "traces")).toBe(
-      "http://127.0.0.1:54318/v1/traces",
-    );
+    expect(signalUrl("http://127.0.0.1:54318", "traces")).toBe("http://127.0.0.1:54318/v1/traces");
     expect(signalUrl("http://127.0.0.1:54318/v1/traces", "logs")).toBe(
       "http://127.0.0.1:54318/v1/logs",
     );

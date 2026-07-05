@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const dbExecute = vi.fn();
 
@@ -21,8 +21,7 @@ vi.mock("@/env", () => ({ env: mockEnv }));
 import { scanDueAlerts } from "./01-scanner";
 
 function drizzleSqlText(value: unknown): string {
-  const chunks =
-    (value as { queryChunks?: unknown[] } | undefined)?.queryChunks ?? [];
+  const chunks = (value as { queryChunks?: unknown[] } | undefined)?.queryChunks ?? [];
   return chunks
     .flatMap((chunk) => {
       const c = chunk as { value?: string[]; queryChunks?: unknown[] };
@@ -61,16 +60,10 @@ describe("scanDueAlerts", () => {
     expect(claimSql).toContain("SELECT now() AS claimed_at");
     // Claims alerts due within the grace window so per-minute cron jitter can't
     // push a 1-minute alert past its tick and skip an evaluation.
-    expect(claimSql).toContain(
-      "next_evaluation_at <= now() + make_interval(secs =>",
-    );
-    expect(claimSql).toContain(
-      "next_evaluation_at = claim.claimed_at + make_interval",
-    );
+    expect(claimSql).toContain("next_evaluation_at <= now() + make_interval(secs =>");
+    expect(claimSql).toContain("next_evaluation_at = claim.claimed_at + make_interval");
     expect(claimSql).toContain("claim.claimed_at AS evaluation_scheduled_at");
-    expect(claimSql).not.toContain(
-      "next_evaluation_at = due.next_evaluation_at + make_interval",
-    );
+    expect(claimSql).not.toContain("next_evaluation_at = due.next_evaluation_at + make_interval");
 
     expect(addWorkerJob).toHaveBeenCalledOnce();
     expect(addWorkerJob).toHaveBeenCalledWith(

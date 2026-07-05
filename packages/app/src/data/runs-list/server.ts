@@ -11,11 +11,7 @@ import type {
   RunsListInput,
   RunsListResult,
 } from "./schemas";
-import {
-  RunsHistogramInputSchema,
-  RunsListInputSchema,
-  SearchRunsInputSchema,
-} from "./schemas";
+import { RunsHistogramInputSchema, RunsListInputSchema, SearchRunsInputSchema } from "./schemas";
 
 type RunsFilter = Omit<RunsListInput, "limit" | "offset" | "includeTotalCount">;
 
@@ -27,11 +23,7 @@ type RunsFilter = Omit<RunsListInput, "limit" | "offset" | "includeTotalCount">;
  */
 function buildRunsFilterClause(data: RunsFilter, organizationId: string) {
   const { fromDate, toDate } = resolveTimeRange(data.timeRange);
-  const clauses = [
-    "organization_id = $1",
-    "last_event_at >= $2",
-    "last_event_at <= $3",
-  ];
+  const clauses = ["organization_id = $1", "last_event_at >= $2", "last_event_at <= $3"];
   const params: unknown[] = [organizationId, fromDate, toDate];
 
   if (data.repos?.length) {
@@ -138,16 +130,11 @@ export const getRunsList = createAuthenticatedServerFn({
         )
       : null;
 
-    const [rowsResult, countResult] = await Promise.all([
-      rowsPromise,
-      countPromise,
-    ]);
+    const [rowsResult, countResult] = await Promise.all([rowsPromise, countPromise]);
 
     return {
       runs: rowsResult.rows.map(mapWorkflowRunRow),
-      totalCount: countResult
-        ? Number(countResult.rows[0]?.count ?? 0)
-        : undefined,
+      totalCount: countResult ? Number(countResult.rows[0]?.count ?? 0) : undefined,
     } satisfies RunsListResult;
   });
 
@@ -169,11 +156,7 @@ export const getRunsHistogram = createAuthenticatedServerFn({
       data,
       session.session.activeOrganizationId,
     );
-    const intervalSeconds = bucketSeconds(
-      fromDate,
-      toDate,
-      data.histogramBuckets,
-    );
+    const intervalSeconds = bucketSeconds(fromDate, toDate, data.histogramBuckets);
     // Reuse one positional param for the interval in both the bucket floor and
     // the multiply-back; ::float8 keeps the division from truncating to int.
     const intervalParam = `$${params.length + 1}`;
@@ -197,12 +180,7 @@ export const getRunsHistogram = createAuthenticatedServerFn({
       [...params, intervalSeconds],
     );
 
-    return fillRunHistogramBuckets(
-      result.rows,
-      fromDate,
-      toDate,
-      intervalSeconds,
-    );
+    return fillRunHistogramBuckets(result.rows, fromDate, toDate, intervalSeconds);
   });
 
 function makeRunHistogramBucket(
@@ -236,14 +214,10 @@ function fillRunHistogramBuckets(
   const intervalMs = intervalSeconds * 1000;
   const startMs = Math.floor(fromDate.getTime() / intervalMs) * intervalMs;
   const endMs = Math.floor(toDate.getTime() / intervalMs) * intervalMs;
-  const rowsByBucket = new Map(
-    rows.map((row) => [Number(row.bucketEpoch) * 1000, row]),
-  );
+  const rowsByBucket = new Map(rows.map((row) => [Number(row.bucketEpoch) * 1000, row]));
   const buckets: RunHistogramBucket[] = [];
   for (let bucketMs = startMs; bucketMs <= endMs; bucketMs += intervalMs) {
-    buckets.push(
-      makeRunHistogramBucket(bucketMs, intervalMs, rowsByBucket.get(bucketMs)),
-    );
+    buckets.push(makeRunHistogramBucket(bucketMs, intervalMs, rowsByBucket.get(bucketMs)));
   }
   return buckets;
 }
@@ -348,9 +322,7 @@ function mapWorkflowRunRow(row: WorkflowRunRow): RunListItem {
   const endedAt = toDateValue(row.completedAt ?? row.lastEventAt);
   const startedAt = row.startedAt ? toDateValue(row.startedAt) : endedAt;
   const isCompleted = row.status === "completed";
-  const conclusion = isCompleted
-    ? normalizeConclusion(row.conclusion)
-    : row.status;
+  const conclusion = isCompleted ? normalizeConclusion(row.conclusion) : row.status;
 
   return {
     traceId: row.traceId,

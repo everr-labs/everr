@@ -1,8 +1,4 @@
-import {
-  ChartContainer,
-  ChartLegend,
-  ChartLegendContent,
-} from "@everr/ui/components/chart";
+import { ChartContainer, ChartLegend, ChartLegendContent } from "@everr/ui/components/chart";
 import { LineChart as LineChartIcon } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
@@ -17,17 +13,13 @@ import {
   YAxis,
 } from "recharts";
 import { CursorTooltip } from "@/components/cursor-tooltip";
-import {
-  createTimeTickFormatter,
-  generateTimeTicks,
-  SERIES_COLORS,
-} from "../data-utils";
+import { createTimeTickFormatter, generateTimeTicks, SERIES_COLORS } from "../data-utils";
 import type { VisualizationProps } from "../index";
 import { SeriesTooltipContent } from "../series-tooltip";
 import type { TimeSeriesChartSpec } from "./spec";
 import { buildChartModel, buildStackedData, TS_KEY } from "./time-series-data";
 
-const BRUSH_COLOR = SERIES_COLORS[0]!;
+const BRUSH_COLOR = SERIES_COLORS[0];
 const MAX_X_TICKS = 6;
 
 function getPlotArea(container: HTMLElement): DOMRect | null {
@@ -35,15 +27,8 @@ function getPlotArea(container: HTMLElement): DOMRect | null {
   return grid?.getBoundingClientRect() ?? null;
 }
 
-function pxToTimestamp(
-  clientX: number,
-  plotRect: DOMRect,
-  domain: [number, number],
-): number {
-  const ratio = Math.max(
-    0,
-    Math.min(1, (clientX - plotRect.left) / plotRect.width),
-  );
+function pxToTimestamp(clientX: number, plotRect: DOMRect, domain: [number, number]): number {
+  const ratio = Math.max(0, Math.min(1, (clientX - plotRect.left) / plotRect.width));
   return domain[0] + ratio * (domain[1] - domain[0]);
 }
 
@@ -53,8 +38,7 @@ export function TimeSeriesChartVisualization({
   timeRange,
   onTimeRangeChange,
 }: VisualizationProps<TimeSeriesChartSpec>) {
-  const { showLegend, connectNulls, lineWidth, unit, curveType, stacked } =
-    spec;
+  const { showLegend, connectNulls, lineWidth, unit, curveType, stacked } = spec;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const plotRectRef = useRef<DOMRect | null>(null);
@@ -90,9 +74,9 @@ export function TimeSeriesChartVisualization({
       if (!plotRect) return;
       const ts = pxToTimestamp(e.clientX, plotRect, domain);
       let nearest = 0;
-      let minDist = Math.abs((chartData[0]![TS_KEY] as number) - ts);
+      let minDist = Math.abs(Number(chartData[0]?.[TS_KEY]) - ts);
       for (let i = 1; i < chartData.length; i++) {
-        const dist = Math.abs((chartData[i]![TS_KEY] as number) - ts);
+        const dist = Math.abs(Number(chartData[i]?.[TS_KEY]) - ts);
         if (dist < minDist) {
           minDist = dist;
           nearest = i;
@@ -120,7 +104,7 @@ export function TimeSeriesChartVisualization({
       const ts = pxToTimestamp(e.clientX, plotRect, domain);
       setBrushStart(ts);
       setBrushEnd(null);
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      if (e.target instanceof Element) e.target.setPointerCapture(e.pointerId);
     },
     [domain],
   );
@@ -165,10 +149,9 @@ export function TimeSeriesChartVisualization({
   }
 
   const tooltipRow = tooltipState ? chartData[tooltipState.index] : undefined;
-  const tooltipTs = tooltipRow ? (tooltipRow[TS_KEY] as number) : undefined;
+  const tooltipTs = tooltipRow ? Number(tooltipRow[TS_KEY]) : undefined;
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: chart interaction area
     <div
       ref={containerRef}
       className="relative h-full w-full select-none"
@@ -178,15 +161,8 @@ export function TimeSeriesChartVisualization({
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
     >
-      <ChartContainer
-        config={chartConfig}
-        className="h-full w-full"
-        debounce={100}
-      >
-        <ComposedChart
-          data={stackedData ?? chartData}
-          margin={{ left: 12, right: 12, top: 8 }}
-        >
+      <ChartContainer config={chartConfig} className="h-full w-full" debounce={100}>
+        <ComposedChart data={stackedData ?? chartData} margin={{ left: 12, right: 12, top: 8 }}>
           <CartesianGrid vertical={false} />
           <XAxis
             dataKey={TS_KEY}
@@ -244,11 +220,7 @@ export function TimeSeriesChartVisualization({
             ),
           )}
           {tooltipTs !== undefined && (
-            <ReferenceLine
-              x={tooltipTs}
-              stroke="var(--border)"
-              strokeDasharray="3 3"
-            />
+            <ReferenceLine x={tooltipTs} stroke="var(--border)" strokeDasharray="3 3" />
           )}
           {tooltipTs !== undefined &&
             (() => {
@@ -286,10 +258,10 @@ export function TimeSeriesChartVisualization({
           )}
         </ComposedChart>
       </ChartContainer>
-      {tooltipRow && (
-        <CursorTooltip x={tooltipState!.clientX} y={tooltipState!.clientY}>
+      {tooltipRow && tooltipState && tooltipTs !== undefined && (
+        <CursorTooltip x={tooltipState.clientX} y={tooltipState.clientY}>
           <SeriesTooltipContent
-            title={new Date(tooltipTs!).toLocaleString()}
+            title={new Date(tooltipTs).toLocaleString()}
             rows={valueKeys
               .filter((key) => tooltipRow[key] != null)
               .map((key) => {
@@ -298,7 +270,7 @@ export function TimeSeriesChartVisualization({
                   key,
                   color: chartConfig[key]?.color,
                   label: chartConfig[key]?.label ?? key,
-                  value: unit ? `${val}${unit}` : String(val),
+                  value: unit ? `${String(val)}${unit}` : String(val),
                 };
               })}
           />

@@ -1,18 +1,15 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
-const docsRoot = join(
-  dirname(fileURLToPath(import.meta.url)),
-  "../../content/docs",
-);
+const docsRoot = join(dirname(fileURLToPath(import.meta.url)), "../../content/docs");
 
 describe("docs content", () => {
   it("removes app, features, and the reference index while keeping reference subpages", () => {
-    const meta = JSON.parse(
-      readFileSync(join(docsRoot, "meta.json"), "utf8"),
-    ) as { pages: string[] };
+    const meta = JSON.parse(readFileSync(join(docsRoot, "meta.json"), "utf8")) as {
+      pages: string[];
+    };
     const index = readFileSync(join(docsRoot, "index.mdx"), "utf8");
     const referenceMeta = JSON.parse(
       readFileSync(join(docsRoot, "reference/meta.json"), "utf8"),
@@ -33,11 +30,6 @@ describe("docs content", () => {
     expect(existsSync(join(docsRoot, "reference/skills.mdx"))).toBe(true);
     expect(existsSync(join(docsRoot, "reference/datemath.mdx"))).toBe(true);
     expect(existsSync(join(docsRoot, "reference/retention.mdx"))).toBe(true);
-    expect(referenceMeta.pages).toEqual([
-      "cli",
-      "skills",
-      "datemath",
-      "retention",
-    ]);
+    expect(referenceMeta.pages).toEqual(["cli", "skills", "datemath", "retention"]);
   });
 });

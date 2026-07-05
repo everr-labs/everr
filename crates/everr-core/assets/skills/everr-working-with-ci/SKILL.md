@@ -30,16 +30,16 @@ If Everr fails, capture the exact command and error, then investigate wrong repo
 
 ## Commands
 
-| Need | Command |
-| --- | --- |
-| Current commit pipeline state | `everr ci status` |
-| Known commit pipeline state | `everr ci status --commit <sha>` |
-| Recent or filtered runs | `everr ci runs` |
-| Jobs and steps for one run | `everr ci show <trace_id>` |
-| Only failed jobs and steps | `everr ci show <trace_id> --failed` |
-| Logs for a step | `everr ci logs <trace_id> --job-name <job> --step-number <n>` |
-| First failed step logs | `everr ci logs <trace_id> --job-name <job> --log-failed` |
-| Historical CI/test analysis | `everr cloud query "<SQL>"` |
+| Need                          | Command                                                       |
+| ----------------------------- | ------------------------------------------------------------- |
+| Current commit pipeline state | `everr ci status`                                             |
+| Known commit pipeline state   | `everr ci status --commit <sha>`                              |
+| Recent or filtered runs       | `everr ci runs`                                               |
+| Jobs and steps for one run    | `everr ci show <trace_id>`                                    |
+| Only failed jobs and steps    | `everr ci show <trace_id> --failed`                           |
+| Logs for a step               | `everr ci logs <trace_id> --job-name <job> --step-number <n>` |
+| First failed step logs        | `everr ci logs <trace_id> --job-name <job> --log-failed`      |
+| Historical CI/test analysis   | `everr cloud query "<SQL>"`                                   |
 
 Useful flags: `--branch`, `--current-branch`, `--conclusion`, `--workflow-name`, and `--run-id` narrow runs; `--job-id` is safer than `--job-name`; `--egrep` filters logs; `--tail`, `--limit`, and `--offset` page large logs.
 
@@ -54,6 +54,7 @@ Always include a time filter, scoped repo/branch/run/workflow/job/test filters w
 Run read-only ClickHouse SQL with `everr cloud query "<SQL>"`. Use `SHOW TABLES`, `DESCRIBE TABLE traces`, or `DESCRIBE TABLE logs` when unsure about columns. Cloud CI data usually starts in `traces`; step log lines are in `logs`; metrics are in `metrics_gauge` and `metrics_sum`.
 
 Everr CI follows OpenTelemetry semantic conventions where they exist. The conventions used in CI data include:
+
 - `service.name` as `ServiceName` (`github-actions`)
 - `vcs.repository.name`
 - `vcs.ref.head.name`

@@ -2,24 +2,23 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { RealtimeSubscriptionMachine } from "./realtime-subscription-machine";
 
-type SubscriptionOpts =
-  | { scope: "tenant" }
-  | { scope: "trace"; traceId: string };
+type SubscriptionOpts = { scope: "tenant" } | { scope: "trace"; traceId: string };
 
 export function useRealtimeSubscription(opts: SubscriptionOpts) {
   const queryClient = useQueryClient();
+  const scope = opts.scope;
   const traceId = opts.scope === "trace" ? opts.traceId : undefined;
 
   useEffect(() => {
-    const params = new URLSearchParams({ scope: opts.scope });
-    if (opts.scope === "trace") {
-      params.set("key", opts.traceId);
+    const params = new URLSearchParams({ scope });
+    if (traceId !== undefined) {
+      params.set("key", traceId);
     }
 
     const machine = new RealtimeSubscriptionMachine({
       url: `/api/events/stream?${params.toString()}`,
       onInvalidate: () => {
-        if (opts.scope === "tenant") {
+        if (scope === "tenant") {
           void queryClient.invalidateQueries({ queryKey: ["runs"] });
           void queryClient.invalidateQueries({ queryKey: ["errors"] });
         } else {
@@ -37,5 +36,5 @@ export function useRealtimeSubscription(opts: SubscriptionOpts) {
     });
     machine.connect();
     return () => machine.dispose();
-  }, [opts.scope, traceId, queryClient]);
+  }, [scope, traceId, queryClient]);
 }

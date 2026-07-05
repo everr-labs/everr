@@ -377,7 +377,7 @@ spec:
                   scenario: random_walk
                   seed: 80
                   series:
-                    - { name: p50_ms, start: 40,  noise: 6,  min: 0 }
+                    - { name: p50_ms, start: 40, noise: 6, min: 0 }
                     - { name: p95_ms, start: 120, noise: 14, min: 0 }
                     - { name: p99_ms, start: 240, noise: 30, min: 0 }
     gauge-empty:
@@ -403,19 +403,49 @@ spec:
     - kind: Grid
       spec:
         items:
-          - { x: 0,  y: 0,  width: 8, height: 5, content: { $ref: "#/spec/panels/gauge-last" } }
-          - { x: 8,  y: 0,  width: 8, height: 5, content: { $ref: "#/spec/panels/gauge-first" } }
-          - { x: 16, y: 0,  width: 8, height: 5, content: { $ref: "#/spec/panels/gauge-mean" } }
-          - { x: 0,  y: 5,  width: 8, height: 5, content: { $ref: "#/spec/panels/gauge-min" } }
-          - { x: 8,  y: 5,  width: 8, height: 5, content: { $ref: "#/spec/panels/gauge-max-percent-thresholds" } }
-          - { x: 16, y: 5,  width: 8, height: 5, content: { $ref: "#/spec/panels/gauge-sum-percent-max" } }
-          - { x: 0,  y: 10, width: 8, height: 5, content: { $ref: "#/spec/panels/gauge-count-show-label" } }
-          - { x: 8,  y: 10, width: 8, height: 5, content: { $ref: "#/spec/panels/gauge-range" } }
-          - { x: 16, y: 10, width: 8, height: 5, content: { $ref: "#/spec/panels/gauge-diff-negative-min" } }
-          - { x: 0,  y: 15, width: 8, height: 5, content: { $ref: "#/spec/panels/gauge-defaults" } }
-          - { x: 8,  y: 15, width: 8, height: 5, content: { $ref: "#/spec/panels/gauge-clamped" } }
-          - { x: 16, y: 15, width: 8, height: 5, content: { $ref: "#/spec/panels/gauge-multi-query-no-value" } }
-          - { x: 0,  y: 20, width: 16, height: 6, content: { $ref: "#/spec/panels/gauge-multi" } }
-          - { x: 16, y: 20, width: 8,  height: 6, content: { $ref: "#/spec/panels/gauge-empty" } }
-          - { x: 0,  y: 26, width: 8,  height: 5, content: { $ref: "#/spec/panels/gauge-inverted" } }
-          - { x: 8,  y: 26, width: 8,  height: 5, content: { $ref: "#/spec/panels/gauge-mid-band" } }
+          - { x: 0, y: 0, width: 8, height: 5, content: { $ref: "#/spec/panels/gauge-last" } }
+          - { x: 8, y: 0, width: 8, height: 5, content: { $ref: "#/spec/panels/gauge-first" } }
+          - { x: 16, y: 0, width: 8, height: 5, content: { $ref: "#/spec/panels/gauge-mean" } }
+          - { x: 0, y: 5, width: 8, height: 5, content: { $ref: "#/spec/panels/gauge-min" } }
+          - {
+              x: 8,
+              y: 5,
+              width: 8,
+              height: 5,
+              content: { $ref: "#/spec/panels/gauge-max-percent-thresholds" },
+            }
+          - {
+              x: 16,
+              y: 5,
+              width: 8,
+              height: 5,
+              content: { $ref: "#/spec/panels/gauge-sum-percent-max" },
+            }
+          - {
+              x: 0,
+              y: 10,
+              width: 8,
+              height: 5,
+              content: { $ref: "#/spec/panels/gauge-count-show-label" },
+            }
+          - { x: 8, y: 10, width: 8, height: 5, content: { $ref: "#/spec/panels/gauge-range" } }
+          - {
+              x: 16,
+              y: 10,
+              width: 8,
+              height: 5,
+              content: { $ref: "#/spec/panels/gauge-diff-negative-min" },
+            }
+          - { x: 0, y: 15, width: 8, height: 5, content: { $ref: "#/spec/panels/gauge-defaults" } }
+          - { x: 8, y: 15, width: 8, height: 5, content: { $ref: "#/spec/panels/gauge-clamped" } }
+          - {
+              x: 16,
+              y: 15,
+              width: 8,
+              height: 5,
+              content: { $ref: "#/spec/panels/gauge-multi-query-no-value" },
+            }
+          - { x: 0, y: 20, width: 16, height: 6, content: { $ref: "#/spec/panels/gauge-multi" } }
+          - { x: 16, y: 20, width: 8, height: 6, content: { $ref: "#/spec/panels/gauge-empty" } }
+          - { x: 0, y: 26, width: 8, height: 5, content: { $ref: "#/spec/panels/gauge-inverted" } }
+          - { x: 8, y: 26, width: 8, height: 5, content: { $ref: "#/spec/panels/gauge-mid-band" } }

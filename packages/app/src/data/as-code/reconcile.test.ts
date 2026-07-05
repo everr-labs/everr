@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { reconcile } from "./reconcile";
 
 const doc = (n: number, slug = "d") => ({
@@ -51,9 +51,7 @@ describe("reconcile", () => {
 
   it("keys identity by (project, slug): same slug in two projects is independent", () => {
     const diff = reconcile({
-      existing: [
-        { project: "a", slug: "d", folderPath: "", document: doc(1, "d") },
-      ],
+      existing: [{ project: "a", slug: "d", folderPath: "", document: doc(1, "d") }],
       desired: [
         { project: "a", slug: "d", folderPath: "", document: doc(1, "d") },
         { project: "b", slug: "d", folderPath: "", document: doc(1, "d") },
@@ -148,12 +146,8 @@ describe("reconcile", () => {
     // With a space separator, ("a","b c") and ("a b","c") both key to "a b c"
     // and would be treated as the same resource. They must stay distinct.
     const diff = reconcile({
-      existing: [
-        { project: "a", slug: "b c", folderPath: "", document: doc(1, "b c") },
-      ],
-      desired: [
-        { project: "a b", slug: "c", folderPath: "", document: doc(1, "c") },
-      ],
+      existing: [{ project: "a", slug: "b c", folderPath: "", document: doc(1, "b c") }],
+      desired: [{ project: "a b", slug: "c", folderPath: "", document: doc(1, "c") }],
     });
     expect(diff.creates.map((c) => c.slug)).toEqual(["c"]);
     expect(diff.deletes).toEqual([{ project: "a", slug: "b c" }]);
@@ -168,11 +162,7 @@ describe("reconcile", () => {
       folderPath: "",
       document: { kind: "Dashboard", metadata: { name: "a" }, extra },
     });
-    expect(
-      reconcile({ existing: [make(null)], desired: [make(null)] }).updates,
-    ).toEqual([]);
-    expect(
-      reconcile({ existing: [make(null)], desired: [make(1)] }).updates,
-    ).toHaveLength(1);
+    expect(reconcile({ existing: [make(null)], desired: [make(null)] }).updates).toEqual([]);
+    expect(reconcile({ existing: [make(null)], desired: [make(1)] }).updates).toHaveLength(1);
   });
 });

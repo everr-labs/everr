@@ -131,14 +131,10 @@ export function parseQueuedWorkflowEvent(
     };
   }
 
-  throw new TerminalEventError(
-    `unsupported workflow event type "${eventType}"`,
-  );
+  throw new TerminalEventError(`unsupported workflow event type "${eventType}"`);
 }
 
-export function installationIdFromQueuedEvent(
-  event: ParsedQueuedWorkflowEvent,
-): number {
+export function installationIdFromQueuedEvent(event: ParsedQueuedWorkflowEvent): number {
   const installationId =
     event.payload.installation?.id && event.payload.installation.id > 0
       ? event.payload.installation.id
@@ -151,9 +147,7 @@ export function installationIdFromQueuedEvent(
   return installationId;
 }
 
-export function repositoryIdFromQueuedEvent(
-  event: ParsedQueuedWorkflowEvent,
-): number | null {
+export function repositoryIdFromQueuedEvent(event: ParsedQueuedWorkflowEvent): number | null {
   const repositoryId = event.payload.repository?.id;
   return repositoryId && repositoryId > 0 ? repositoryId : null;
 }
@@ -203,9 +197,7 @@ export function eventAttributesFromQueuedEvent(
   return attributes;
 }
 
-export function parseTimestamp(
-  ...values: Array<string | null | undefined>
-): Date {
+export function parseTimestamp(...values: Array<string | null | undefined>): Date {
   for (const value of values) {
     if (!value) {
       continue;

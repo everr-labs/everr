@@ -9,6 +9,6 @@ export function usePreview(): { name: string; exit: () => void } {
   const { preview } = useSearch({ from: "/_authenticated/_dashboard" });
   const name = (preview ?? "").trim();
   const exit = () =>
-    navigate({ to: ".", search: (prev) => ({ ...prev, preview: undefined }) });
+    void navigate({ to: ".", search: (prev) => ({ ...prev, preview: undefined }) });
   return { name, exit };
 }

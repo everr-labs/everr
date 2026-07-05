@@ -4,8 +4,8 @@ Renders query rows as a plain table. Columns and their order come entirely from 
 
 ## Options (`plugin.spec`)
 
-| Option | Type | Default | Values | Effect |
-| --- | --- | --- | --- | --- |
+| Option         | Type    | Default | Values | Effect                                                                                  |
+| -------------- | ------- | ------- | ------ | --------------------------------------------------------------------------------------- |
 | `stickyHeader` | boolean | `false` | `true` | Keep the header row visible while the body scrolls. Only the literal `true` enables it. |
 
 ```yaml

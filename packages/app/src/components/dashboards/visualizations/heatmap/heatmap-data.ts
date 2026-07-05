@@ -52,7 +52,7 @@ export function buildHeatmapModel(
     if (!rows || rows.length === 0) continue;
     const timeKey = detectTimeKey(rows);
     if (!timeKey) continue;
-    const first = rows[0]!;
+    const [first] = rows;
     const keys = Object.keys(first);
 
     const yKey =
@@ -64,10 +64,7 @@ export function buildHeatmapModel(
       spec.valueColumn !== undefined && spec.valueColumn in first
         ? spec.valueColumn
         : keys.find(
-            (k) =>
-              k !== timeKey &&
-              k !== yKey &&
-              rows.some((row) => isNumericValue(row[k])),
+            (k) => k !== timeKey && k !== yKey && rows.some((row) => isNumericValue(row[k])),
           );
     if (valueKey === undefined) continue;
 
@@ -88,7 +85,7 @@ export function buildHeatmapModel(
   }
 
   const yBuckets = allNumericBuckets
-    ? [...bucketsSeen].sort((a, b) => toNumber(b)! - toNumber(a)!)
+    ? [...bucketsSeen].sort((a, b) => (toNumber(b) ?? 0) - (toNumber(a) ?? 0))
     : bucketsSeen;
 
   // Column width: the smallest gap between distinct samples. A single
@@ -96,7 +93,10 @@ export function buildHeatmapModel(
   const times = [...timesSeen].sort((a, b) => a - b);
   let step = domain[1] - domain[0];
   for (let i = 1; i < times.length; i++) {
-    const gap = times[i]! - times[i - 1]!;
+    const cur = times[i];
+    const prev = times[i - 1];
+    if (cur === undefined || prev === undefined) continue;
+    const gap = cur - prev;
     if (gap > 0 && gap < step) step = gap;
   }
 

@@ -3,9 +3,9 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "test": "vitest run",
-    "test:ci": "vitest run",
-    "test:watch": "vitest run --watch",
+    "test": "vp test run",
+    "test:ci": "vp test run",
+    "test:watch": "vp test run --watch",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

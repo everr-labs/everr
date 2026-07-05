@@ -16,10 +16,7 @@ const clickhouse = createClient({
   keep_alive: clickhouseKeepAlive,
 });
 
-export type ClickhouseQuery = <T>(
-  sql: string,
-  params?: Record<string, unknown>,
-) => Promise<T[]>;
+export type ClickhouseQuery = <T>(sql: string, params?: Record<string, unknown>) => Promise<T[]>;
 
 export async function query<T>(
   query: string,
@@ -30,17 +27,15 @@ export async function query<T>(
     throw new Error("Missing ClickHouse tenant context");
   }
 
-  const result = await instrumentClickhouseOperation(
-    { client: "app", operation: "QUERY" },
-    () =>
-      clickhouse.query({
-        query,
-        query_params,
-        format: "JSONEachRow",
-        clickhouse_settings: {
-          SQL_everr_tenant_id: organizationId,
-        },
-      }),
+  const result = await instrumentClickhouseOperation({ client: "app", operation: "QUERY" }, () =>
+    clickhouse.query({
+      query,
+      query_params,
+      format: "JSONEachRow",
+      clickhouse_settings: {
+        SQL_everr_tenant_id: organizationId,
+      },
+    }),
   );
 
   return result.json<T>();
@@ -92,19 +87,17 @@ function runSqlApiQuery<Format extends "JSONEachRow" | "JSON">(
   const username = sqlApiOrgUserName(organizationId);
   const password = sqlApiOrgPassword(organizationId);
 
-  return instrumentClickhouseOperation(
-    { client: "sql_api", operation: "QUERY" },
-    () =>
-      clickhouse.query({
-        query,
-        query_params,
-        format,
-        auth: { username, password },
-        // Per-tenant quota bucket. sql_api_quota is KEYED BY client_key, so each
-        // org gets its own counters. The header value is server-derived from
-        // session.activeOrganizationId — never forwarded from CLI input.
-        http_headers: { "X-ClickHouse-Quota": username },
-      }),
+  return instrumentClickhouseOperation({ client: "sql_api", operation: "QUERY" }, () =>
+    clickhouse.query({
+      query,
+      query_params,
+      format,
+      auth: { username, password },
+      // Per-tenant quota bucket. sql_api_quota is KEYED BY client_key, so each
+      // org gets its own counters. The header value is server-derived from
+      // session.activeOrganizationId — never forwarded from CLI input.
+      http_headers: { "X-ClickHouse-Quota": username },
+    }),
   );
 }
 
@@ -113,12 +106,7 @@ export async function querySqlApi<T>(
   organizationId: string,
   query_params?: Record<string, unknown>,
 ): Promise<T[]> {
-  const result = await runSqlApiQuery(
-    query,
-    organizationId,
-    query_params,
-    "JSONEachRow",
-  );
+  const result = await runSqlApiQuery(query, organizationId, query_params, "JSONEachRow");
   return result.json<T>();
 }
 
@@ -133,17 +121,11 @@ export async function querySqlApiWithMeta<T>(
   query_params?: Record<string, unknown>,
 ): Promise<SqlApiResult<T>> {
   // JSON (not JSONEachRow) so column metadata is present even for empty results.
-  const result = await runSqlApiQuery(
-    query,
-    organizationId,
-    query_params,
-    "JSON",
-  );
+  const result = await runSqlApiQuery(query, organizationId, query_params, "JSON");
 
-  const body = (await result.json()) as {
-    meta?: { name: string }[];
-    data?: T[];
-  };
+  // JSON format resolves `json<T>()` to a ResponseJSON<T> wrapper with `data`
+  // rows and column `meta`.
+  const body = await result.json<T>();
   return {
     rows: body.data ?? [],
     columns: (body.meta ?? []).map((m) => m.name),
@@ -167,10 +149,7 @@ const clickhouseAdmin = createClient({
   keep_alive: clickhouseKeepAlive,
 });
 
-type AdminCommandOptions = Omit<
-  Parameters<typeof clickhouseAdmin.command>[0],
-  "query"
->;
+type AdminCommandOptions = Omit<Parameters<typeof clickhouseAdmin.command>[0], "query">;
 
 export async function upsertTenantRetention(row: {
   tenantId: string;
@@ -178,27 +157,23 @@ export async function upsertTenantRetention(row: {
   logsDays: number;
   metricsDays: number;
 }): Promise<void> {
-  await instrumentClickhouseOperation(
-    { client: "admin", operation: "INSERT" },
-    () =>
-      clickhouseAdmin.insert({
-        table: "app.tenant_retention_source",
-        values: [
-          {
-            tenant_id: row.tenantId,
-            traces_days: row.tracesDays,
-            logs_days: row.logsDays,
-            metrics_days: row.metricsDays,
-          },
-        ],
-        format: "JSONEachRow",
-      }),
+  await instrumentClickhouseOperation({ client: "admin", operation: "INSERT" }, () =>
+    clickhouseAdmin.insert({
+      table: "app.tenant_retention_source",
+      values: [
+        {
+          tenant_id: row.tenantId,
+          traces_days: row.tracesDays,
+          logs_days: row.logsDays,
+          metrics_days: row.metricsDays,
+        },
+      ],
+      format: "JSONEachRow",
+    }),
   );
 }
 
-type AdminInsertSettings = Parameters<
-  typeof clickhouseAdmin.insert
->[0]["clickhouse_settings"];
+type AdminInsertSettings = Parameters<typeof clickhouseAdmin.insert>[0]["clickhouse_settings"];
 
 // Generic admin-client insert for app-owned tables; row typing lives with the
 // feature that owns the table (e.g. server/alerts/events.ts).
@@ -209,24 +184,20 @@ export async function insertAdminRows(
 ): Promise<void> {
   if (rows.length === 0) return;
 
-  await instrumentClickhouseOperation(
-    { client: "admin", operation: "INSERT" },
-    () =>
-      clickhouseAdmin.insert({
-        table,
-        values: rows,
-        format: "JSONEachRow",
-        clickhouse_settings,
-      }),
+  await instrumentClickhouseOperation({ client: "admin", operation: "INSERT" }, () =>
+    clickhouseAdmin.insert({
+      table,
+      values: rows,
+      format: "JSONEachRow",
+      clickhouse_settings,
+    }),
   );
 }
 
 // Create the per-org ClickHouse user, set its profile + default role, grant
 // sql_api_role, and create the per-table row policies that pin the tenant id
 // in as a constant.
-export async function provisionSqlApiOrgUser(
-  organizationId: string,
-): Promise<void> {
+export async function provisionSqlApiOrgUser(organizationId: string): Promise<void> {
   const username = sqlApiOrgUserName(organizationId);
   const password = sqlApiOrgPassword(organizationId);
   const tenantLiteral = `'${organizationId}'`;
@@ -258,28 +229,22 @@ export async function provisionSqlApiOrgUser(
 
 // Reverse of provisionSqlApiOrgUser. Order is important: drop the policies
 // before the user so DROP USER doesn't fail with "user is referenced".
-export async function deprovisionSqlApiOrgUser(
-  organizationId: string,
-): Promise<void> {
+export async function deprovisionSqlApiOrgUser(organizationId: string): Promise<void> {
   const username = sqlApiOrgUserName(organizationId);
 
   for (const table of SQL_API_TENANT_TABLES) {
     const policy = sqlApiOrgPolicyName(organizationId, table);
-    await adminCommand(
-      `DROP ROW POLICY IF EXISTS \`${policy}\` ON app.\`${table}\``,
-    );
+    await adminCommand(`DROP ROW POLICY IF EXISTS \`${policy}\` ON app.\`${table}\``);
   }
 
   await adminCommand(`DROP USER IF EXISTS \`${username}\``);
 }
 
 function adminCommand(query: string, options: AdminCommandOptions = {}) {
-  return instrumentClickhouseOperation(
-    { client: "admin", operation: "QUERY" },
-    () =>
-      clickhouseAdmin.command({
-        query,
-        ...options,
-      }),
+  return instrumentClickhouseOperation({ client: "admin", operation: "QUERY" }, () =>
+    clickhouseAdmin.command({
+      query,
+      ...options,
+    }),
   );
 }

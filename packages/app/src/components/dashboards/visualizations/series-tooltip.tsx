@@ -23,9 +23,7 @@ export function SeriesTooltipContent({
 }) {
   return (
     <>
-      {title != null && (
-        <div className="mb-1 text-muted-foreground">{title}</div>
-      )}
+      {title != null && <div className="mb-1 text-muted-foreground">{title}</div>}
       <div className="grid grid-cols-[auto_1fr_auto] items-center gap-x-2 gap-y-0.5">
         {rows.map((row) => (
           <Fragment key={row.key}>
@@ -34,9 +32,7 @@ export function SeriesTooltipContent({
               style={{ backgroundColor: row.color }}
             />
             <span className="text-muted-foreground">{row.label}</span>
-            <span className="text-right font-medium tabular-nums">
-              {row.value}
-            </span>
+            <span className="text-right font-medium tabular-nums">{row.value}</span>
           </Fragment>
         ))}
       </div>

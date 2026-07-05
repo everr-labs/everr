@@ -3,14 +3,7 @@ import { Sparkline } from "@everr/ui/components/sparkline";
 import { formatDuration } from "@everr/ui/lib/formatting";
 import { cn } from "@everr/ui/lib/utils";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Clock,
-  Coins,
-  DollarSign,
-  Receipt,
-} from "lucide-react";
+import { ArrowLeft, ArrowRight, Clock, Coins, DollarSign, Receipt } from "lucide-react";
 import { DeltaIndicator } from "@/components/delta-indicator";
 import { RunsTable } from "@/components/runs-list/runs-table";
 import { TimeRangePanel } from "@/components/time-range-panel";
@@ -38,11 +31,11 @@ export const Route = createFileRoute(
       },
     ],
   },
+  validateSearch: TimeRangeSearchSchema,
+  component: WorkflowCostDetailPage,
   head: ({ params }) => ({
     meta: [{ title: `Everr - ${decodeURIComponent(params.workflowName)}` }],
   }),
-  component: WorkflowCostDetailPage,
-  validateSearch: TimeRangeSearchSchema,
 });
 
 function WorkflowCostDetailPage() {
@@ -53,8 +46,7 @@ function WorkflowCostDetailPage() {
   // Closures bind workflowName + repo so the panel passes only { timeRange }.
   const wfSummary = (tr: TimeRangeInput) =>
     workflowCostSummaryOptions({ ...tr, workflowName, repo });
-  const wfByJob = (tr: TimeRangeInput) =>
-    workflowCostByJobOptions({ ...tr, workflowName, repo });
+  const wfByJob = (tr: TimeRangeInput) => workflowCostByJobOptions({ ...tr, workflowName, repo });
   const wfRecentRuns = (tr: TimeRangeInput) =>
     workflowRecentRunsOptions({ ...tr, workflowName, repo });
 
@@ -74,9 +66,7 @@ function WorkflowCostDetailPage() {
             <ArrowLeft />
           </Link>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">
-              {workflowName}
-            </h1>
+            <h1 className="text-2xl font-bold tracking-tight">{workflowName}</h1>
             <p className="text-muted-foreground">{repo}</p>
           </div>
         </div>
@@ -113,11 +103,7 @@ function WorkflowCostDetailPage() {
           {(s) => (
             <>
               {formatCost(s.totalCost)}{" "}
-              <DeltaIndicator
-                current={s.totalCost}
-                previous={s.prevTotalCost}
-                invertColors
-              />
+              <DeltaIndicator current={s.totalCost} previous={s.prevTotalCost} invertColors />
               <p className="text-muted-foreground text-xs font-normal">
                 {s.totalRuns.toLocaleString()} runs
               </p>
@@ -125,12 +111,7 @@ function WorkflowCostDetailPage() {
           )}
         </TimeRangePanel>
 
-        <TimeRangePanel
-          title="Avg $ / Run"
-          queries={[wfSummary]}
-          variant="stat"
-          icon={Coins}
-        >
+        <TimeRangePanel title="Avg $ / Run" queries={[wfSummary]} variant="stat" icon={Coins}>
           {(s) => formatCost(s.avgCostPerRun)}
         </TimeRangePanel>
 
@@ -153,9 +134,7 @@ function WorkflowCostDetailPage() {
         >
           {(s) => (
             <>
-              {s.avgWallClockMs > 0
-                ? formatDuration(s.avgWallClockMs, "ms")
-                : "—"}{" "}
+              {s.avgWallClockMs > 0 ? formatDuration(s.avgWallClockMs, "ms") : "—"}{" "}
               <DeltaIndicator
                 current={s.avgWallClockMs}
                 previous={s.prevAvgWallClockMs}
@@ -180,11 +159,7 @@ function WorkflowCostDetailPage() {
           {(jobs) => <CostByJobTable data={jobs} />}
         </TimeRangePanel>
 
-        <TimeRangePanel
-          title="Recent runs"
-          queries={[wfRecentRuns]}
-          inset="flush-content"
-        >
+        <TimeRangePanel title="Recent runs" queries={[wfRecentRuns]} inset="flush-content">
           {(runs) => <RunsTable data={runs} showCost />}
         </TimeRangePanel>
       </div>

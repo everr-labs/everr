@@ -1,14 +1,6 @@
 import { context, ROOT_CONTEXT } from "@opentelemetry/api";
-import {
-  type ParsedCronItem,
-  parseCronItems,
-  type TaskList,
-} from "graphile-worker";
-import {
-  ALERT_EVALUATE_TASK,
-  type EvaluatePayload,
-  scanDueAlerts,
-} from "./01-scanner";
+import { type ParsedCronItem, parseCronItems, type TaskList } from "graphile-worker";
+import { ALERT_EVALUATE_TASK, type EvaluatePayload, scanDueAlerts } from "./01-scanner";
 import { evaluateAlert } from "./02-evaluate";
 import { ALERT_DELIVER_TASK, runDeliverySend } from "./04-delivery";
 
@@ -19,6 +11,7 @@ export const alertTaskList: TaskList = {
     await scanDueAlerts();
   }),
   [ALERT_EVALUATE_TASK]: context.bind(ROOT_CONTEXT, async (payload) => {
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- graphile-worker types the job payload as `unknown`; the enqueue side guarantees the EvaluatePayload shape
     await evaluateAlert(payload as EvaluatePayload);
   }),
   [ALERT_DELIVER_TASK]: context.bind(ROOT_CONTEXT, async (payload, helpers) => {

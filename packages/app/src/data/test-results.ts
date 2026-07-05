@@ -28,17 +28,12 @@ const getTestResultsSummary = createAuthenticatedServerFn({
   .handler(async ({ data, context: { clickhouse } }) => {
     const { timeRange, includeSkipped = true } = data;
     const { fromISO, toISO } = resolveTimeRange(timeRange);
-    const { conditions, params, scopeConditions } = buildFilterConditions(
-      fromISO,
-      toISO,
-      data,
-      { includeSkipResults: includeSkipped },
-    );
+    const { conditions, params, scopeConditions } = buildFilterConditions(fromISO, toISO, data, {
+      includeSkipResults: includeSkipped,
+    });
     const whereClause = conditions.join("\n\t\t\t\t\tAND ");
     const scopeWhere =
-      scopeConditions.length > 0
-        ? `WHERE ${scopeConditions.join("\n\t\t\t\t\tAND ")}`
-        : "";
+      scopeConditions.length > 0 ? `WHERE ${scopeConditions.join("\n\t\t\t\t\tAND ")}` : "";
 
     const sql = `
 			SELECT

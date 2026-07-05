@@ -3,6 +3,10 @@ import { DateMathError } from "./types.js";
 
 const VALID_UNITS = new Set<string>(["s", "m", "h", "d", "w", "M", "y"]);
 
+function isValidUnit(unit: string): unit is DateMathUnit {
+  return VALID_UNITS.has(unit);
+}
+
 /**
  * Parse a date math expression string into a structured {@link DateMathExpression}.
  *
@@ -92,10 +96,10 @@ function parseMathOps(math: string, expression: string): DateMathOp[] {
         throw new DateMathError("Expected unit after /", expression, pos);
       }
       const unit = math[pos];
-      if (!VALID_UNITS.has(unit)) {
+      if (!isValidUnit(unit)) {
         throw new DateMathError(`Invalid unit: ${unit}`, expression, pos);
       }
-      ops.push({ type: "round", amount: 1, unit: unit as DateMathUnit });
+      ops.push({ type: "round", amount: 1, unit });
       pos++;
     } else if (char === "+" || char === "-") {
       // Add or subtract operation
@@ -110,20 +114,16 @@ function parseMathOps(math: string, expression: string): DateMathOp[] {
       }
 
       if (pos >= math.length) {
-        throw new DateMathError(
-          "Expected unit after operator",
-          expression,
-          pos,
-        );
+        throw new DateMathError("Expected unit after operator", expression, pos);
       }
 
       const unit = math[pos];
-      if (!VALID_UNITS.has(unit)) {
+      if (!isValidUnit(unit)) {
         throw new DateMathError(`Invalid unit: ${unit}`, expression, pos);
       }
 
       const amount = amountStr.length > 0 ? Number.parseInt(amountStr, 10) : 1;
-      ops.push({ type, amount, unit: unit as DateMathUnit });
+      ops.push({ type, amount, unit });
       pos++;
     } else {
       throw new DateMathError(`Unexpected character: ${char}`, expression, pos);

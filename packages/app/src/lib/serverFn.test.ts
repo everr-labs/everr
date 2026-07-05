@@ -1,8 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  composeMiddleware,
-  type FunctionMiddlewareHandler,
-} from "./test-middleware";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import type * as ServerFnModule from "./serverFn";
+import { composeMiddleware, type FunctionMiddlewareHandler } from "./test-middleware";
 
 const mocked = vi.hoisted(() => ({
   handler: null as FunctionMiddlewareHandler | null,
@@ -42,16 +40,12 @@ beforeEach(() => {
 async function loadModule() {
   function makeMiddleware(handlers: FunctionMiddlewareHandler[] = []) {
     return {
-      middleware: (
-        definitions: Array<{ __handler?: FunctionMiddlewareHandler }>,
-      ) =>
+      middleware: (definitions: Array<{ __handler?: FunctionMiddlewareHandler }>) =>
         makeMiddleware([
           ...handlers,
           ...definitions
             .map((definition) => definition.__handler)
-            .filter((handler): handler is FunctionMiddlewareHandler =>
-              Boolean(handler),
-            ),
+            .filter((handler): handler is FunctionMiddlewareHandler => Boolean(handler)),
         ]),
       server: (handler: FunctionMiddlewareHandler) => {
         const composed = composeMiddleware(handlers, handler);
@@ -85,7 +79,7 @@ async function loadModule() {
     },
   }));
 
-  return vi.importActual<typeof import("./serverFn")>("./serverFn");
+  return vi.importActual<typeof ServerFnModule>("./serverFn");
 }
 
 describe("createAuthenticatedServerFn", () => {
@@ -95,9 +89,7 @@ describe("createAuthenticatedServerFn", () => {
     // allDefinitions order: [authMiddleware, requireOrgMiddleware]
     const [, requireOrgDef] = mocked.allDefinitions;
     expect(createAuthenticatedServerFn).toBe(mocked.createServerFnResult);
-    expect(mocked.createServerFnMiddleware).toHaveBeenCalledWith([
-      requireOrgDef,
-    ]);
+    expect(mocked.createServerFnMiddleware).toHaveBeenCalledWith([requireOrgDef]);
   });
 });
 
@@ -139,9 +131,7 @@ describe("authMiddleware", () => {
     mocked.getRequest.mockReturnValue(request);
     mocked.getSession.mockResolvedValue(null);
 
-    await expect(getHandler()({ request, next })).rejects.toThrow(
-      "Unauthenticated",
-    );
+    await expect(getHandler()({ request, next })).rejects.toThrow("Unauthenticated");
 
     expect(next).not.toHaveBeenCalled();
   });
@@ -156,9 +146,7 @@ describe("authMiddleware", () => {
       session: { id: "session_123", activeOrganizationId: null },
     });
 
-    await expect(getHandler()({ request, next })).rejects.toThrow(
-      "No active organization",
-    );
+    await expect(getHandler()({ request, next })).rejects.toThrow("No active organization");
 
     expect(next).not.toHaveBeenCalled();
   });

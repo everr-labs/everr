@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 vi.mock("@/data/runs/server", () => ({
   getStepLogs: vi.fn(),
@@ -10,17 +10,10 @@ import { Route } from "./logs";
 
 const mockedGetStepLogs = vi.mocked(getStepLogs);
 
-type GetHandler = (args: {
-  params: { traceId: string };
-  request: Request;
-}) => Promise<Response>;
+type GetHandler = (args: { params: { traceId: string }; request: Request }) => Promise<Response>;
 
 function getHandler(): GetHandler {
-  return getRouteHandler<GetHandler>(
-    Route,
-    "GET",
-    "/api/cli/runs/:traceId/logs",
-  );
+  return getRouteHandler<GetHandler>(Route, "GET", "/api/cli/runs/:traceId/logs");
 }
 
 function makeRequest(params: Record<string, string>): Request {

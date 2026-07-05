@@ -10,9 +10,7 @@ import { runbookListOptions } from "@/data/runbooks/options";
 const ASSISTANT_RUNBOOK_PROMPT =
   "/everr-setup-resources Help me build a good first runbook based on the telemetry we have in production";
 
-export const Route = createFileRoute(
-  "/_authenticated/_dashboard/_previewable/runbooks/",
-)({
+export const Route = createFileRoute("/_authenticated/_dashboard/_previewable/runbooks/")({
   staticData: { breadcrumb: "Runbooks" },
   head: () => ({ meta: [{ title: "Everr - Runbooks" }] }),
   component: RunbooksIndexPage,
@@ -20,12 +18,7 @@ export const Route = createFileRoute(
 
 function RunbooksIndexPage() {
   const { preview } = useSearch({ from: "/_authenticated/_dashboard" });
-  const {
-    data: runbooks,
-    isLoading,
-    isError,
-    error,
-  } = useQuery(runbookListOptions(preview));
+  const { data: runbooks, isLoading, isError, error } = useQuery(runbookListOptions(preview));
   const [search, setSearch] = useState("");
   const isEmpty = !isLoading && !isError && (runbooks?.length ?? 0) === 0;
 
@@ -69,11 +62,7 @@ function RunbooksIndexPage() {
       )}
 
       {!isLoading && !isError && !isEmpty && (
-        <DashboardTree
-          dashboards={runbooks ?? []}
-          search={search}
-          resource="runbook"
-        />
+        <DashboardTree dashboards={runbooks ?? []} search={search} resource="runbook" />
       )}
     </div>
   );

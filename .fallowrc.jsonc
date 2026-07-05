@@ -12,7 +12,7 @@
     "unused-class-members": "error",
     "unused-dependencies": "error",
     "duplicate-exports": "error",
-    "stale-suppressions": "error"
+    "stale-suppressions": "error",
   },
   "entry": [
     // CI scripts invoked directly by GitHub Actions workflows.
@@ -25,19 +25,29 @@
     // packages/app/vite.config.ts (use-sync-external-store/shim).
     "packages/app/src/ssr-shims/**",
   ],
-  "ignoreDependencies": ["@everr/auto-otel-errors"],
+  // Vite+ toolchain deps fallow cannot trace: the @tanstack/eslint-plugin-* are
+  // referenced by string specifier in vite.config.ts (loaded by oxlint, never
+  // imported), and `vite` is a pnpm-catalog alias for @voidzero-dev/vite-plus-core
+  // so both the alias name and target read as unlisted.
+  "ignoreDependencies": [
+    "@everr/auto-otel-errors",
+    "@tanstack/eslint-plugin-query",
+    "@tanstack/eslint-plugin-router",
+    "vite-plus",
+    "@voidzero-dev/vite-plus-core",
+  ],
   // Docs content (MDX) is loaded dynamically by fumadocs via import.meta.glob
   // in packages/docs/.source/*.ts — fallow can't trace through the glob.
   "dynamicallyLoaded": [
     "packages/docs/content/**/*.{md,mdx}",
-    "packages/auto-otel-errors/test/fixtures/*.mjs"
+    "packages/auto-otel-errors/test/fixtures/*.mjs",
   ],
   "overrides": [
     {
       // Child-process fixtures intentionally import built package output, which
       // does not exist during CI's pre-build dead-code scan.
       "files": ["packages/auto-otel-errors/test/fixtures/*.mjs"],
-      "rules": { "unresolved-imports": "off" }
+      "rules": { "unresolved-imports": "off" },
     },
     {
       // Pricing is shelved until launch pricing is finalized: the route is
@@ -46,19 +56,15 @@
       "files": [
         "packages/docs/src/routes/-pricing.tsx",
         "packages/docs/src/components/pricing-matrix.tsx",
-        "packages/docs/src/components/pricing-toggle.tsx"
+        "packages/docs/src/components/pricing-toggle.tsx",
       ],
-      "rules": { "unused-files": "off", "unused-exports": "off" }
-    }
+      "rules": { "unused-files": "off", "unused-exports": "off" },
+    },
   ],
   // Internal workspace libraries whose exported API surface is intentional —
   // subcomponents (shadcn-style) and repository methods accessed structurally
   // via `Pick<>` interfaces are kept even when no current consumer is visible.
-  "publicPackages": [
-    "@everr/ui",
-    "@everr/logs-explorer",
-    "@everr/auto-otel-errors"
-  ],
+  "publicPackages": ["@everr/ui", "@everr/logs-explorer", "@everr/auto-otel-errors"],
   // Error subclasses commonly set `name` and are discriminated via
   // `err.name === "..."` rather than `instanceof`; fallow can't see those
   // string-comparison references.
@@ -68,17 +74,17 @@
     { "extends": "Error", "members": ["name"] },
     {
       "implements": "LogRecordExporter",
-      "members": ["export", "shutdown", "forceFlush"]
+      "members": ["export", "shutdown", "forceFlush"],
     },
     {
       "implements": "SpanExporter",
-      "members": ["export", "shutdown", "forceFlush"]
-    }
+      "members": ["export", "shutdown", "forceFlush"],
+    },
   ],
   "duplicates": {
     // TanStack Router's generated route tree contains many structurally
     // identical declarations by design — not actionable copy-paste.
-    "ignore": ["**/routeTree.gen.ts"]
+    "ignore": ["**/routeTree.gen.ts"],
   },
   "ignoreExports": [
     {
@@ -87,29 +93,29 @@
       // exports the parameterized primitive of the same name. Same export name
       // on purpose, parallel implementations.
       "file": "packages/app/src/components/analytics/refresh-picker.tsx",
-      "exports": ["*"]
+      "exports": ["*"],
     },
     {
       "file": "packages/ui/src/components/refresh-picker.tsx",
-      "exports": ["*"]
+      "exports": ["*"],
     },
     {
       "file": "packages/app/src/components/analytics/time-range-picker.tsx",
-      "exports": ["*"]
+      "exports": ["*"],
     },
     {
       "file": "packages/ui/src/components/time-range-picker.tsx",
-      "exports": ["*"]
+      "exports": ["*"],
     },
     {
       // Dashboard Zod schemas — Perses-compat surface (variables/datasources) kept schema-only by design.
       "file": "packages/app/src/data/dashboards/schema.ts",
-      "exports": ["*"]
+      "exports": ["*"],
     },
     {
       // TestData query spec — schema-only module, consumers added in follow-up tasks.
       "file": "packages/app/src/data/dashboards/testdata/spec.ts",
-      "exports": ["*"]
+      "exports": ["*"],
     },
-  ]
+  ],
 }

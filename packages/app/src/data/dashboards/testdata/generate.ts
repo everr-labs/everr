@@ -75,10 +75,7 @@ function walk(p: WalkParams, seed: number, count: number): (number | null)[] {
   return out;
 }
 
-function generateRandomWalk(
-  spec: RandomWalkSpec,
-  params: TestDataParams,
-): QueryResultRow[] {
+function generateRandomWalk(spec: RandomWalkSpec, params: TestDataParams): QueryResultRow[] {
   const timestamps = spec.timeColumn ? bucketMs(params) : undefined;
   const count = timestamps ? timestamps.length : spec.points;
 
@@ -98,8 +95,7 @@ function generateRandomWalk(
     ),
   );
 
-  const tsStr = (i: number): string =>
-    toClickHouseDateTime(new Date((timestamps as number[])[i] as number));
+  const tsStr = (times: number[], i: number): string => toClickHouseDateTime(new Date(times[i]));
 
   // Long output: one row per (bucket, series), label + value columns.
   if (spec.labelColumn) {
@@ -107,11 +103,9 @@ function generateRandomWalk(
     for (let i = 0; i < count; i++) {
       for (let s = 0; s < spec.series.length; s++) {
         const row: QueryResultRow = {};
-        if (timestamps) row.ts = tsStr(i);
-        row[spec.labelColumn] = (spec.series[s] as { name: string }).name;
-        row[spec.valueColumn] = (seriesValues[s] as (number | null)[])[i] as
-          | number
-          | null;
+        if (timestamps) row.ts = tsStr(timestamps, i);
+        row[spec.labelColumn] = spec.series[s].name;
+        row[spec.valueColumn] = seriesValues[s][i];
         rows.push(row);
       }
     }
@@ -122,19 +116,16 @@ function generateRandomWalk(
   const rows: QueryResultRow[] = [];
   for (let i = 0; i < count; i++) {
     const row: QueryResultRow = {};
-    if (timestamps) row.ts = tsStr(i);
+    if (timestamps) row.ts = tsStr(timestamps, i);
     spec.series.forEach((s, si) => {
-      row[s.name] = (seriesValues[si] as (number | null)[])[i] as number | null;
+      row[s.name] = seriesValues[si][i];
     });
     rows.push(row);
   }
   return rows;
 }
 
-function generateTable(
-  spec: TableSpec,
-  params: TestDataParams,
-): QueryResultRow[] {
+function generateTable(spec: TableSpec, params: TestDataParams): QueryResultRow[] {
   if (spec.rows === 0) return [];
   const fromMs = parseMs(params.from);
   const toMs = parseMs(params.to);
@@ -148,18 +139,17 @@ function generateTable(
   for (let r = 0; r < spec.rows; r++) {
     const row: QueryResultRow = {};
     spec.columns.forEach((c, ci) => {
+      const stream = walkStreams[ci];
       if (c.time) {
         const ms =
-          spec.rows <= 1
-            ? fromMs
-            : fromMs + Math.round(((toMs - fromMs) * r) / (spec.rows - 1));
+          spec.rows <= 1 ? fromMs : fromMs + Math.round(((toMs - fromMs) * r) / (spec.rows - 1));
         row[c.name] = toClickHouseDateTime(new Date(ms));
       } else if (c.seq) {
         row[c.name] = r + 1;
       } else if (c.values && c.values.length > 0) {
         row[c.name] = c.values[r % c.values.length] ?? null;
-      } else if (walkStreams[ci]) {
-        row[c.name] = (walkStreams[ci] as (number | null)[])[r] ?? null;
+      } else if (stream) {
+        row[c.name] = stream[r] ?? null;
       } else if (c.const !== undefined) {
         row[c.name] = c.const;
       } else {
@@ -209,7 +199,7 @@ function generateGeo(spec: GeoSpec): QueryResultRow[] {
     const rows: QueryResultRow[] = [];
     for (let i = 0; i < spec.count; i++) {
       const row: QueryResultRow = {};
-      row[spec.regionColumn] = GEO_REGIONS[i % GEO_REGIONS.length] as string;
+      row[spec.regionColumn] = GEO_REGIONS[i % GEO_REGIONS.length];
       row[spec.valueColumn] = Math.round(rng() * 1000);
       rows.push(row);
     }
@@ -217,10 +207,7 @@ function generateGeo(spec: GeoSpec): QueryResultRow[] {
   }
   const rows: QueryResultRow[] = [];
   for (let i = 0; i < spec.points; i++) {
-    const [clon, clat] = GEO_CENTROIDS[i % GEO_CENTROIDS.length] as [
-      number,
-      number,
-    ];
+    const [clon, clat] = GEO_CENTROIDS[i % GEO_CENTROIDS.length];
     const lon = clamp(clon + (rng() * 2 - 1) * 6, -180, 180);
     const lat = clamp(clat + (rng() * 2 - 1) * 6, -90, 90);
     const row: QueryResultRow = {};
@@ -232,10 +219,7 @@ function generateGeo(spec: GeoSpec): QueryResultRow[] {
   return rows;
 }
 
-export function generateTestData(
-  spec: TestDataSpec,
-  params: TestDataParams,
-): QueryResultRow[] {
+export function generateTestData(spec: TestDataSpec, params: TestDataParams): QueryResultRow[] {
   switch (spec.scenario) {
     case "random_walk":
       return generateRandomWalk(spec, params);

@@ -12,18 +12,10 @@ import {
 import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@everr/ui/components/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
 import { toast } from "sonner";
 import { formatDate } from "@/components/users-management/format-date";
-import {
-  API_KEY_SCOPES,
-  type ApiKeyPermissions,
-  describeApiKeyScopes,
-} from "@/lib/api-key-scopes";
+import { API_KEY_SCOPES, type ApiKeyPermissions, describeApiKeyScopes } from "@/lib/api-key-scopes";
 import { type ApiKey, useRevokeApiKey } from "./queries";
 import { SCOPE_ICONS } from "./scope-meta";
 
@@ -78,9 +70,7 @@ function ScopeBadges({ row }: { row: ApiKey }) {
         if (!meta) return null;
         return (
           <Tooltip key={scope}>
-            <TooltipTrigger
-              render={<Badge variant="outline" className="gap-1" />}
-            >
+            <TooltipTrigger render={<Badge variant="outline" className="gap-1" />}>
               {Icon ? <Icon /> : null}
               {meta.label}
             </TooltipTrigger>
@@ -100,9 +90,7 @@ function LastUsed({ row }: { row: ApiKey }) {
   }
   return (
     <Tooltip>
-      <TooltipTrigger render={<span className="cursor-default" />}>
-        {relative}
-      </TooltipTrigger>
+      <TooltipTrigger render={<span className="cursor-default" />}>{relative}</TooltipTrigger>
       <TooltipContent>{exactDate(value)}</TooltipContent>
     </Tooltip>
   );
@@ -115,11 +103,7 @@ function Expiry({ row }: { row: ApiKey }) {
   if (expired) {
     return (
       <Tooltip>
-        <TooltipTrigger
-          render={
-            <span className="text-destructive cursor-default font-medium" />
-          }
-        >
+        <TooltipTrigger render={<span className="text-destructive cursor-default font-medium" />}>
           Expired
         </TooltipTrigger>
         <TooltipContent>{exactDate(value)}</TooltipContent>
@@ -134,8 +118,7 @@ export function ApiKeysTable({ keys }: ApiKeysTableProps) {
 
   const handleRevoke = (id: string, name: string | null | undefined) => {
     revoke.mutate(id, {
-      onSuccess: () =>
-        toast.success(`API key ${name ?? id} revoked. Effective within 30s.`),
+      onSuccess: () => toast.success(`API key ${name ?? id} revoked. Effective within 30s.`),
       onError: (err) => toast.error(err.message),
     });
   };
@@ -191,12 +174,10 @@ export function ApiKeysTable({ keys }: ApiKeysTableProps) {
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>
-                Revoke “{row.name ?? "this key"}”?
-              </AlertDialogTitle>
+              <AlertDialogTitle>Revoke “{row.name ?? "this key"}”?</AlertDialogTitle>
               <AlertDialogDescription>
-                Any service still using this key will start receiving 401s
-                within ~30 seconds. This cannot be undone.
+                Any service still using this key will start receiving 401s within ~30 seconds. This
+                cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

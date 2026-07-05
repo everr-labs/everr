@@ -6,24 +6,9 @@ import {
 } from "@everr/ui/components/chart";
 import { cn } from "@everr/ui/lib/utils";
 import { useId } from "react";
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ReferenceArea,
-  XAxis,
-  YAxis,
-} from "recharts";
-import type {
-  JobResourceUsage,
-  ResourceUsagePoint,
-} from "@/data/resource-usage";
-import {
-  formatBytes,
-  formatPercent,
-  formatSpeed,
-  formatTimeOfDay,
-} from "@/lib/formatting";
+import { Area, AreaChart, CartesianGrid, ReferenceArea, XAxis, YAxis } from "recharts";
+import type { JobResourceUsage, ResourceUsagePoint } from "@/data/resource-usage";
+import { formatBytes, formatPercent, formatSpeed, formatTimeOfDay } from "@/lib/formatting";
 
 interface ResourceUsagePanelProps {
   data: JobResourceUsage;
@@ -70,21 +55,14 @@ function computeRates(points: ResourceUsagePoint[]) {
     }
     return {
       ...point,
-      diskRate:
-        Math.max(0, point.filesystemUsed - prev.filesystemUsed) / dtSeconds,
-      networkReceiveRate:
-        Math.max(0, point.networkReceive - prev.networkReceive) / dtSeconds,
-      networkTransmitRate:
-        Math.max(0, point.networkTransmit - prev.networkTransmit) / dtSeconds,
+      diskRate: Math.max(0, point.filesystemUsed - prev.filesystemUsed) / dtSeconds,
+      networkReceiveRate: Math.max(0, point.networkReceive - prev.networkReceive) / dtSeconds,
+      networkTransmitRate: Math.max(0, point.networkTransmit - prev.networkTransmit) / dtSeconds,
     };
   });
 }
 
-function clampToRange(
-  value: number,
-  rangeStart: number,
-  rangeEnd: number,
-): number {
+function clampToRange(value: number, rangeStart: number, rangeEnd: number): number {
   return Math.max(rangeStart, Math.min(rangeEnd, value));
 }
 
@@ -142,30 +120,12 @@ function MiniChart({
 
   return (
     <ChartContainer config={config} className="h-[100px] w-full">
-      <AreaChart
-        data={points}
-        margin={{ top: 4, right: 4, bottom: 0, left: 0 }}
-      >
+      <AreaChart data={points} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
         <defs>
           {dataKeys.map((key) => (
-            <linearGradient
-              key={key}
-              id={`${gradientId}-${key}`}
-              x1="0"
-              y1="0"
-              x2="0"
-              y2="1"
-            >
-              <stop
-                offset="5%"
-                stopColor={`var(--color-${key})`}
-                stopOpacity={0.3}
-              />
-              <stop
-                offset="95%"
-                stopColor={`var(--color-${key})`}
-                stopOpacity={0.05}
-              />
+            <linearGradient key={key} id={`${gradientId}-${key}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor={`var(--color-${key})`} stopOpacity={0.3} />
+              <stop offset="95%" stopColor={`var(--color-${key})`} stopOpacity={0.05} />
             </linearGradient>
           ))}
         </defs>
@@ -202,11 +162,9 @@ function MiniChart({
                     className="h-2.5 w-2.5 shrink-0 rounded-[2px]"
                     style={{ backgroundColor: `var(--color-${name})` }}
                   />
-                  <span className="text-muted-foreground">
-                    {config[String(name)]?.label}
-                  </span>
+                  <span className="text-muted-foreground">{config[String(name)]?.label}</span>
                   <span className="ml-auto font-mono font-medium tabular-nums">
-                    {tooltipFormatter(value as number, String(name))}
+                    {typeof value === "number" ? tooltipFormatter(value, String(name)) : null}
                   </span>
                 </>
               )}
@@ -238,42 +196,23 @@ function MiniChart({
   );
 }
 
-function SummaryItem({
-  label,
-  value,
-  sub,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-}) {
+function SummaryItem({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-muted-foreground text-[10px] uppercase tracking-wider">
-        {label}
-      </span>
-      <span className="font-mono text-sm font-medium tabular-nums">
-        {value}
-      </span>
+      <span className="text-muted-foreground text-[10px] uppercase tracking-wider">{label}</span>
+      <span className="font-mono text-sm font-medium tabular-nums">{value}</span>
       {sub && (
-        <span className="text-muted-foreground font-mono text-[10px] tabular-nums">
-          {sub}
-        </span>
+        <span className="text-muted-foreground font-mono text-[10px] tabular-nums">{sub}</span>
       )}
     </div>
   );
 }
 
-export function ResourceUsagePanel({
-  data,
-  stepWindow,
-}: ResourceUsagePanelProps) {
+export function ResourceUsagePanel({ data, stepWindow }: ResourceUsagePanelProps) {
   const { points, summary } = data;
   const ratePoints = computeRates(points);
 
-  const hasNetwork = points.some(
-    (p) => p.networkReceive > 0 || p.networkTransmit > 0,
-  );
+  const hasNetwork = points.some((p) => p.networkReceive > 0 || p.networkTransmit > 0);
 
   if (points.length === 0) return null;
 
@@ -289,19 +228,13 @@ export function ResourceUsagePanel({
         <SummaryItem
           label="Memory Peak"
           value={formatBytes(summary.memoryPeak)}
-          sub={
-            summary.memoryLimit > 0
-              ? `of ${formatBytes(summary.memoryLimit)}`
-              : undefined
-          }
+          sub={summary.memoryLimit > 0 ? `of ${formatBytes(summary.memoryLimit)}` : undefined}
         />
         <SummaryItem
           label="Disk Peak"
           value={formatBytes(summary.filesystemPeak)}
           sub={
-            summary.filesystemLimit > 0
-              ? `of ${formatBytes(summary.filesystemLimit)}`
-              : undefined
+            summary.filesystemLimit > 0 ? `of ${formatBytes(summary.filesystemLimit)}` : undefined
           }
         />
         {hasNetwork && (
@@ -372,13 +305,7 @@ export function ResourceUsagePanel({
   );
 }
 
-function ChartCard({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
+function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="bg-background px-2 py-1.5">
       <span className="text-muted-foreground text-[10px] font-medium uppercase tracking-wider">

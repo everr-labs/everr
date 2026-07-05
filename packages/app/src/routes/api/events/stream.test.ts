@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import type { NotifyPayload } from "@/db/notify";
 
 vi.mock("@/db/hub", () => ({
@@ -104,34 +104,22 @@ describe("GET /api/events/stream", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("text/event-stream");
-    expect(mockedSubscribeTenant).toHaveBeenCalledWith(
-      "org1",
-      expect.any(Function),
-    );
+    expect(mockedSubscribeTenant).toHaveBeenCalledWith("org1", expect.any(Function));
   });
 
   it("subscribes to trace topic for scope=trace", async () => {
     const response = await getHandler()({
-      request: new Request(
-        "http://localhost/api/events/stream?scope=trace&key=abc123",
-      ),
+      request: new Request("http://localhost/api/events/stream?scope=trace&key=abc123"),
       context: { session: mockSession },
     });
 
     expect(response.status).toBe(200);
-    expect(mockedSubscribe).toHaveBeenCalledWith(
-      "trace",
-      "org1",
-      "abc123",
-      expect.any(Function),
-    );
+    expect(mockedSubscribe).toHaveBeenCalledWith("trace", "org1", "abc123", expect.any(Function));
   });
 
   it("subscribes to commit topic for scope=commit", async () => {
     const response = await getHandler()({
-      request: new Request(
-        "http://localhost/api/events/stream?scope=commit&key=deadbeef",
-      ),
+      request: new Request("http://localhost/api/events/stream?scope=commit&key=deadbeef"),
       context: { session: mockSession },
     });
 
@@ -146,9 +134,7 @@ describe("GET /api/events/stream", () => {
 
   it("subscribes to author topic for scope=author", async () => {
     const response = await getHandler()({
-      request: new Request(
-        "http://localhost/api/events/stream?scope=author&key=dev%40example.com",
-      ),
+      request: new Request("http://localhost/api/events/stream?scope=author&key=dev%40example.com"),
       context: { session: mockSession },
     });
 
@@ -216,9 +202,7 @@ describe("GET /api/events/stream", () => {
     });
 
     await getHandler()({
-      request: new Request(
-        "http://localhost/api/events/stream?scope=commit&key=deadbeef",
-      ),
+      request: new Request("http://localhost/api/events/stream?scope=commit&key=deadbeef"),
       context: { session: mockSession },
     });
 

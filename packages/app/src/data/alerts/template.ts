@@ -17,16 +17,11 @@ export function validateMessageTemplate(template: string): void {
   extractVariables(template);
 }
 
-export function validateMessageColumns(
-  template: string,
-  columns: readonly string[],
-): void {
+export function validateMessageColumns(template: string, columns: readonly string[]): void {
   const names = new Set(columns);
   for (const name of extractVariables(template)) {
     if (!names.has(name)) {
-      throw new Error(
-        `\${${name}} references column "${name}" which the query does not return`,
-      );
+      throw new Error(`\${${name}} references column "${name}" which the query does not return`);
     }
   }
 }
@@ -38,6 +33,17 @@ export function renderMessage(
   return template.replace(VARIABLE_RE, (_, name: string) => {
     const value = ctx.firstRow?.[name];
     if (value === undefined || value === null) return "";
-    return String(value);
+    // Primitives stringify predictably; objects/arrays are serialized so alert
+    // messages never ship a bare "[object Object]" to users.
+    if (
+      typeof value === "string" ||
+      typeof value === "number" ||
+      typeof value === "boolean" ||
+      typeof value === "bigint" ||
+      typeof value === "symbol"
+    ) {
+      return String(value);
+    }
+    return JSON.stringify(value);
   });
 }

@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import type { ErrorIssueSummary, RelatedSpan } from "../data/types";
 
 function withQueryClient(ui: ReactNode) {
@@ -26,6 +26,7 @@ vi.mock("react-virtuoso", () => ({
     return (
       <div data-testid="virtuoso-mock">
         {data.map((item, i) => (
+          // oxlint-disable-next-line react/no-array-index-key -- Virtuoso mock over generic T[] with no stable identity; index mirrors the real component's index arg
           <div key={i}>{itemContent(i, item)}</div>
         ))}
         {Footer ? <Footer /> : null}
@@ -63,13 +64,9 @@ function listProps() {
     hasNextPage: false,
     isFetchingNextPage: false,
     onLoadMore: vi.fn(),
-    renderIssueLink: ({
-      fingerprint,
-      children,
-    }: {
-      fingerprint: string;
-      children: ReactNode;
-    }) => <a href={`/errors/${fingerprint}`}>{children}</a>,
+    renderIssueLink: ({ fingerprint, children }: { fingerprint: string; children: ReactNode }) => (
+      <a href={`/errors/${fingerprint}`}>{children}</a>
+    ),
   };
 }
 
@@ -142,9 +139,7 @@ describe("ErrorTracePanel", () => {
         isPending={false}
         isError={false}
         onRetry={vi.fn()}
-        renderTraceLink={({ traceId, children }) => (
-          <a href={`/traces/${traceId}`}>{children}</a>
-        )}
+        renderTraceLink={({ traceId, children }) => <a href={`/traces/${traceId}`}>{children}</a>}
       />,
     );
     expect(screen.getByText("Related trace")).toBeInTheDocument();
@@ -169,9 +164,7 @@ describe("ErrorTracePanel", () => {
         isPending={false}
         isError={false}
         onRetry={vi.fn()}
-        renderTraceLink={({ traceId, children }) => (
-          <a href={`/traces/${traceId}`}>{children}</a>
-        )}
+        renderTraceLink={({ traceId, children }) => <a href={`/traces/${traceId}`}>{children}</a>}
       />,
     );
 

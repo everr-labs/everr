@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { buildHeatmapModel } from "./heatmap-data";
 import { heatmapSpec } from "./spec";
 
@@ -91,9 +91,7 @@ describe("buildHeatmapModel", () => {
       specWith(),
       DOMAIN,
     );
-    expect(model.cells).toEqual([
-      { start: 10_000, end: 100_000, bucket: 0, value: 10 },
-    ]);
+    expect(model.cells).toEqual([{ start: 10_000, end: 100_000, bucket: 0, value: 10 }]);
   });
 
   it("clamps cells to the domain and drops fully outside ones", () => {
@@ -108,19 +106,15 @@ describe("buildHeatmapModel", () => {
       DOMAIN,
     );
     // step = 30s; the 90s cell clamps to the domain end, the 120s one is out
-    expect(model.cells).toEqual([
-      { start: 90_000, end: 100_000, bucket: 0, value: 1 },
-    ]);
+    expect(model.cells).toEqual([{ start: 90_000, end: 100_000, bucket: 0, value: 1 }]);
   });
 
   it("floors the default color domain at 0 and honors explicit min/max", () => {
     const frames = [[{ ts: ts(10), route: "/api", count: 5 }]];
-    expect(buildHeatmapModel(frames, specWith(), DOMAIN).domain).toEqual([
-      0, 5,
+    expect(buildHeatmapModel(frames, specWith(), DOMAIN).domain).toEqual([0, 5]);
+    expect(buildHeatmapModel(frames, specWith({ min: 2, max: 100 }), DOMAIN).domain).toEqual([
+      2, 100,
     ]);
-    expect(
-      buildHeatmapModel(frames, specWith({ min: 2, max: 100 }), DOMAIN).domain,
-    ).toEqual([2, 100]);
   });
 
   it("skips rows with a null bucket or non-numeric value", () => {
@@ -135,17 +129,11 @@ describe("buildHeatmapModel", () => {
       specWith(),
       DOMAIN,
     );
-    expect(model.cells).toEqual([
-      { start: 10_000, end: 100_000, bucket: 0, value: 4 },
-    ]);
+    expect(model.cells).toEqual([{ start: 10_000, end: 100_000, bucket: 0, value: 4 }]);
   });
 
   it("returns an empty model without a time column", () => {
-    const model = buildHeatmapModel(
-      [[{ route: "/api", count: 1 }]],
-      specWith(),
-      DOMAIN,
-    );
+    const model = buildHeatmapModel([[{ route: "/api", count: 1 }]], specWith(), DOMAIN);
     expect(model.cells).toEqual([]);
     expect(model.yBuckets).toEqual([]);
   });

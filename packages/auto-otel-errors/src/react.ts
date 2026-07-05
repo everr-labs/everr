@@ -33,10 +33,7 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-export class ErrorBoundary extends Component<
-  ErrorBoundaryProps,
-  ErrorBoundaryState
-> {
+export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state: ErrorBoundaryState = { error: null };
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
@@ -51,9 +48,7 @@ export class ErrorBoundary extends Component<
   render(): ReactNode {
     if (this.state.error) {
       const { fallback } = this.props;
-      return typeof fallback === "function"
-        ? fallback(this.state.error)
-        : (fallback ?? null);
+      return typeof fallback === "function" ? fallback(this.state.error) : (fallback ?? null);
     }
 
     return this.props.children;

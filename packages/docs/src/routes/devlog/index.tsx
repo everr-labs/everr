@@ -10,6 +10,9 @@ const DEVLOG_DESCRIPTION =
 
 export const Route = createFileRoute("/devlog/")({
   component: DevlogIndex,
+  loader: async () => {
+    return await loadDevlogPosts();
+  },
   head: () => {
     const base = getBaseUrl();
     return {
@@ -27,13 +30,10 @@ export const Route = createFileRoute("/devlog/")({
       ],
     };
   },
-  loader: async () => {
-    return await loadDevlogPosts();
-  },
 });
 
 const loadDevlogPosts = createServerFn({ method: "GET" }).handler(async () => {
-  return await devlogposts
+  return devlogposts
     .getPages()
     .filter((post) => !post.data.draft)
     .map((post) => ({
@@ -62,15 +62,13 @@ function DevlogIndex() {
           </h1>
           <div className="mt-6 max-w-2xl space-y-4 text-fd-muted-foreground">
             <p>
-              We want to bring AI into the software development lifecycle,
-              making observability a natural part of your stack instead of a
-              separate discipline, and guiding your team toward the best
-              practices that have always been too complicated to apply
-              everywhere.
+              We want to bring AI into the software development lifecycle, making observability a
+              natural part of your stack instead of a separate discipline, and guiding your team
+              toward the best practices that have always been too complicated to apply everywhere.
             </p>
             <p>
-              We use Everr on our own systems every day, and honestly we don't
-              know how we used to live without it.
+              We use Everr on our own systems every day, and honestly we don&apos;t know how we used
+              to live without it.
             </p>
           </div>
         </section>

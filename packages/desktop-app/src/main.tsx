@@ -16,15 +16,14 @@ document.title = APP_DISPLAY_NAME;
 
 const isNotification = resolveWindowLabel() === NOTIFICATION_WINDOW_LABEL;
 
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+const rootElement = document.getElementById("root");
+if (!rootElement) throw new Error("Root element #root not found");
+
+ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
     <ReactTelemetryErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        {isNotification ? (
-          <NotificationWindow />
-        ) : (
-          <RouterProvider router={router} />
-        )}
+        {isNotification ? <NotificationWindow /> : <RouterProvider router={router} />}
       </QueryClientProvider>
     </ReactTelemetryErrorBoundary>
   </React.StrictMode>,

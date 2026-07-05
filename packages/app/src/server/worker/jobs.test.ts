@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const mocks = vi.hoisted(() => ({
   addJob: vi.fn(),
@@ -37,17 +37,7 @@ describe("addWorkerJob", () => {
 
     expect(mocks.makeWorkerUtils).toHaveBeenCalledOnce();
     expect(mocks.makeWorkerUtils).toHaveBeenCalledWith({ pgPool: mocks.pool });
-    expect(mocks.addJob).toHaveBeenNthCalledWith(
-      1,
-      "task",
-      { a: 1 },
-      undefined,
-    );
-    expect(mocks.addJob).toHaveBeenNthCalledWith(
-      2,
-      "task",
-      { a: 2 },
-      { jobKey: "k" },
-    );
+    expect(mocks.addJob).toHaveBeenNthCalledWith(1, "task", { a: 1 }, undefined);
+    expect(mocks.addJob).toHaveBeenNthCalledWith(2, "task", { a: 2 }, { jobKey: "k" });
   });
 });

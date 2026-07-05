@@ -14,9 +14,9 @@ processors:
     limit_mib: 1800
     spike_limit_mib: 500
   resourcedetection/system:
-    detectors: [ "system" ]
+    detectors: ["system"]
     system:
-      hostname_sources: [ "os" ]
+      hostname_sources: ["os"]
   resource:
     attributes:
       - key: service.name
@@ -45,13 +45,13 @@ extensions:
   zpages:
 
 service:
-  extensions: [ pprof, zpages, health_check ]
+  extensions: [pprof, zpages, health_check]
   pipelines:
     logs:
-      receivers: [ fluentforward, otlp ]
-      processors: [ memory_limiter, resourcedetection/system, resource, batch ]
-      exporters: [ clickhouse ]
+      receivers: [fluentforward, otlp]
+      processors: [memory_limiter, resourcedetection/system, resource, batch]
+      exporters: [clickhouse]
     traces:
-      receivers: [ otlp ]
-      processors: [ memory_limiter, resourcedetection/system, resource, batch ]
-      exporters: [ clickhouse ]
+      receivers: [otlp]
+      processors: [memory_limiter, resourcedetection/system, resource, batch]
+      exporters: [clickhouse]

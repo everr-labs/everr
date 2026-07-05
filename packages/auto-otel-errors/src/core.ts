@@ -35,8 +35,7 @@ export function captureError(
   options?: CaptureErrorOptions,
 ): void {
   const handledAttr = attributes?.["error.handled"];
-  const handled =
-    options?.handled ?? (typeof handledAttr === "boolean" ? handledAttr : true);
+  const handled = options?.handled ?? (typeof handledAttr === "boolean" ? handledAttr : true);
 
   if (!activeClient) {
     diag.warn(`${PKG_NAME}: captureError called before init(); error dropped`);

@@ -32,11 +32,8 @@ export function buildAttributeKeysQuery(
 ): BuiltQuery {
   validateTableName(opts.tableName);
   const timeColumn = opts.timeColumn ?? "TimestampTime";
-  const timeBound =
-    opts.timeBound ?? ((param) => `parseDateTimeBestEffort({${param}:String})`);
-  const scope = opts.rowPredicate
-    ? `\n            AND (${opts.rowPredicate})`
-    : "";
+  const timeBound = opts.timeBound ?? ((param) => `parseDateTimeBestEffort({${param}:String})`);
+  const scope = opts.rowPredicate ? `\n            AND (${opts.rowPredicate})` : "";
   const { fromISO, toISO } = resolveTimeRange(input.timeRange);
   const selects = opts.sources.map(
     (source) => `
@@ -59,8 +56,6 @@ export function buildAttributeKeysQuery(
   return { sql, params: { fromTime: fromISO, toTime: toISO } };
 }
 
-export function decodeAttributeKeyRows(
-  rows: AttributeKeyRowRaw[],
-): AttributeKey[] {
+export function decodeAttributeKeyRows(rows: AttributeKeyRowRaw[]): AttributeKey[] {
   return rows.map((row) => ({ source: row.source, key: row.key }));
 }

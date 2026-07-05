@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 import { Client } from "../client.js";
 import { setupTestTelemetry } from "../test-utils.js";
 import { nodeGlobalHandlersIntegration } from "./node-globals.js";

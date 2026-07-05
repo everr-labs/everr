@@ -24,7 +24,7 @@ export function InstallCommand({ className }: { className?: string }) {
       </code>
       <button
         type="button"
-        onClick={copy}
+        onClick={() => void copy()}
         aria-label={copied ? "Copied" : "Copy install command"}
         className="-mr-1.5 shrink-0 rounded-md p-1.5 text-fd-muted-foreground transition-colors hover:bg-fd-muted/50 hover:text-fd-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       >

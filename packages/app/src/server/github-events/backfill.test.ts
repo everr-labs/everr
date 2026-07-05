@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
@@ -127,13 +127,10 @@ function makeRun(overrides: Record<string, unknown> = {}) {
     jobs_url: "https://api.github.com/repos/acme/repo/actions/runs/1001/jobs",
     logs_url: "https://api.github.com/repos/acme/repo/actions/runs/1001/logs",
     check_suite_url: "https://api.github.com/repos/acme/repo/check-suites/5001",
-    artifacts_url:
-      "https://api.github.com/repos/acme/repo/actions/runs/1001/artifacts",
-    cancel_url:
-      "https://api.github.com/repos/acme/repo/actions/runs/1001/cancel",
+    artifacts_url: "https://api.github.com/repos/acme/repo/actions/runs/1001/artifacts",
+    cancel_url: "https://api.github.com/repos/acme/repo/actions/runs/1001/cancel",
     rerun_url: "https://api.github.com/repos/acme/repo/actions/runs/1001/rerun",
-    workflow_url:
-      "https://api.github.com/repos/acme/repo/actions/workflows/100",
+    workflow_url: "https://api.github.com/repos/acme/repo/actions/workflows/100",
     previous_attempt_url: null,
     pull_requests: [],
     created_at: "2026-03-01T00:00:00Z",
@@ -304,10 +301,7 @@ describe("backfillRepo", () => {
         return mockTokenResponse();
       }
       if (url.includes("/actions/runs?")) {
-        return mockGitHubList(
-          "workflow_runs",
-          url.includes("branch=") ? [] : runs,
-        );
+        return mockGitHubList("workflow_runs", url.includes("branch=") ? [] : runs);
       }
       if (url.includes("/jobs")) {
         const runId = Number(url.match(/runs\/(\d+)\/jobs/)?.[1]);
@@ -348,13 +342,9 @@ describe("backfillRepo", () => {
 
   it("stops after 250 jobs per repo", async () => {
     // 60 runs with 5 jobs each = 300 jobs, should stop at 250 (50 runs)
-    const runs = Array.from({ length: 60 }, (_, i) =>
-      makeRun({ id: i + 1, run_number: i + 1 }),
-    );
+    const runs = Array.from({ length: 60 }, (_, i) => makeRun({ id: i + 1, run_number: i + 1 }));
     const jobsPerRun = runs.map((r) =>
-      Array.from({ length: 5 }, (_, j) =>
-        makeJob({ id: r.id * 100 + j, run_id: r.id }),
-      ),
+      Array.from({ length: 5 }, (_, j) => makeJob({ id: r.id * 100 + j, run_id: r.id })),
     );
     setupFetch(runs, jobsPerRun);
 
@@ -453,11 +443,7 @@ describe("backfillRepo", () => {
     const { runs, jobs } = makeSuccessfulRunsWithJobs([1, 2, 3]);
     setupFetch(runs, jobs);
 
-    const { result, progress: progressEvents } = await drainBackfill(
-      999,
-      "org-1",
-      TEST_REPO,
-    );
+    const { result, progress: progressEvents } = await drainBackfill(999, "org-1", TEST_REPO);
 
     expect(result.runsReplayed).toBe(3);
 

@@ -7,6 +7,7 @@ export function attributeKeysOptions(
   input: { timeRange: TimeRange },
   opts: { domain: string },
 ) {
+  // oxlint-disable-next-line query/exhaustive-deps -- DI repo / input already in key; not a real missing dep
   return {
     queryKey: [opts.domain, "attributeKeys", input.timeRange] as const,
     queryFn: () => repo.attributeKeys(input),
@@ -23,6 +24,7 @@ export function attributeValuesOptions(
   },
   opts: { domain: string },
 ) {
+  // oxlint-disable-next-line query/exhaustive-deps -- DI repo / input already in key; not a real missing dep
   return {
     queryKey: [
       opts.domain,

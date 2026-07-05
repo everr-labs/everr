@@ -44,12 +44,12 @@ const SCHEME_SERIES_INDEX: Record<GeoColorScheme, number> = {
 
 /** Per-scheme secondary palette (SERIES_COLORS minus the scheme's own hue),
  *  precomputed once instead of filtered per marker per render. */
-const SECONDARY_COLORS = Object.fromEntries(
-  (Object.keys(SCHEME_SERIES_INDEX) as GeoColorScheme[]).map((scheme) => [
-    scheme,
-    SERIES_COLORS.filter((_, i) => i !== SCHEME_SERIES_INDEX[scheme]),
-  ]),
-) as Record<GeoColorScheme, string[]>;
+const SECONDARY_COLORS: Record<GeoColorScheme, string[]> = {
+  blue: SERIES_COLORS.filter((_, i) => i !== SCHEME_SERIES_INDEX.blue),
+  green: SERIES_COLORS.filter((_, i) => i !== SCHEME_SERIES_INDEX.green),
+  red: SERIES_COLORS.filter((_, i) => i !== SCHEME_SERIES_INDEX.red),
+  orange: SERIES_COLORS.filter((_, i) => i !== SCHEME_SERIES_INDEX.orange),
+};
 
 /** Marker color encodes which query: frame 0 = scheme base; later frames use
  *  the shared palette, skipping the hue closest to the scheme color. */
@@ -77,15 +77,13 @@ function EmptyState() {
   );
 }
 
-export function GeoMapVisualization({
-  spec,
-  data,
-}: VisualizationProps<GeoMapSpec>) {
+export function GeoMapVisualization({ spec, data }: VisualizationProps<GeoMapSpec>) {
   const countries = getWorldCountries();
 
+  const projectionType = spec.projection;
   const projection = useMemo(
-    () => PROJECTIONS[spec.projection]().fitSize([VW, VH], { type: "Sphere" }),
-    [spec.projection],
+    () => PROJECTIONS[projectionType]().fitSize([VW, VH], { type: "Sphere" }),
+    [projectionType],
   );
 
   /** Serialized path + identity per country, computed once per projection —
@@ -106,9 +104,7 @@ export function GeoMapVisualization({
   const [hover, setHover] = useState<Hover | null>(null);
 
   const fmt = (v: number | null) =>
-    v == null
-      ? "–"
-      : `${formatStatValue(v, undefined)}${spec.unit ? ` ${spec.unit}` : ""}`;
+    v == null ? "–" : `${formatStatValue(v, undefined)}${spec.unit ? ` ${spec.unit}` : ""}`;
 
   const content = useMemo(() => {
     if (!data) return null;
@@ -125,14 +121,9 @@ export function GeoMapVisualization({
       };
     }
     const { markers, skipped } = extractMarkers(data, spec);
-    const vals = markers
-      .map((m) => m.value)
-      .filter((v): v is number => v != null);
+    const vals = markers.map((m) => m.value).filter((v): v is number => v != null);
     const domain = deriveDomain(vals, spec);
-    const rRange: [number, number] = [
-      spec.minRadius,
-      Math.max(spec.minRadius, spec.maxRadius),
-    ];
+    const rRange: [number, number] = [spec.minRadius, Math.max(spec.minRadius, spec.maxRadius)];
     // Big markers first so small overlapping ones stay on top and hoverable.
     const sized: SizedMarker[] = markers
       .map((m) => ({
@@ -153,12 +144,7 @@ export function GeoMapVisualization({
   const baseLand = useMemo(
     () =>
       countryPaths.map((c) => (
-        <path
-          key={c.key}
-          d={c.d}
-          className="fill-muted stroke-border"
-          strokeWidth={0.5}
-        />
+        <path key={c.key} d={c.d} className="fill-muted stroke-border" strokeWidth={0.5} />
       )),
     [countryPaths],
   );
@@ -171,16 +157,13 @@ export function GeoMapVisualization({
       if (v === undefined) return null;
       const t = normalizeValue(v, content.domain, spec.scaleType);
       return (
-        // biome-ignore lint/a11y/noStaticElementInteractions: map region hover
         <path
           key={`v-${c.key}`}
           d={c.d}
           fill={colorRamp(spec.colorScheme, t)}
           className="stroke-border"
           strokeWidth={0.5}
-          onMouseEnter={(e) =>
-            setHover({ title: c.name, value: v, x: e.clientX, y: e.clientY })
-          }
+          onMouseEnter={(e) => setHover({ title: c.name, value: v, x: e.clientX, y: e.clientY })}
           onMouseLeave={() => setHover(null)}
         />
       );
@@ -189,14 +172,13 @@ export function GeoMapVisualization({
 
   const markersLayer = useMemo(() => {
     if (content?.kind !== "points") return null;
-    return content.markers.map((m, i) => {
+    return content.markers.map((m) => {
       const xy = projection([m.lon, m.lat]);
       if (!xy) return null;
       const title = m.label ?? `${m.lat.toFixed(2)}, ${m.lon.toFixed(2)}`;
       return (
-        // biome-ignore lint/a11y/noStaticElementInteractions: marker hover
         <circle
-          key={`${m.frame}-${i}`}
+          key={`${m.frame}-${m.lat}-${m.lon}-${m.label ?? ""}`}
           cx={xy[0]}
           cy={xy[1]}
           r={m.r}
@@ -204,9 +186,7 @@ export function GeoMapVisualization({
           fillOpacity={MARKER_OPACITY}
           stroke="white"
           strokeWidth={0.75}
-          onMouseEnter={(e) =>
-            setHover({ title, value: m.value, x: e.clientX, y: e.clientY })
-          }
+          onMouseEnter={(e) => setHover({ title, value: m.value, x: e.clientX, y: e.clientY })}
           onMouseLeave={() => setHover(null)}
         />
       );
@@ -215,9 +195,7 @@ export function GeoMapVisualization({
 
   if (!content) return <EmptyState />;
   const hasData =
-    content.kind === "choropleth"
-      ? content.values.size > 0
-      : content.markers.length > 0;
+    content.kind === "choropleth" ? content.values.size > 0 : content.markers.length > 0;
   if (!hasData) return <EmptyState />;
 
   const [d0, d1] = content.domain;
@@ -226,15 +204,15 @@ export function GeoMapVisualization({
   return (
     <div className="flex h-full flex-col border-t border-border">
       <div className="relative min-h-0 flex-1 overflow-hidden">
+        {/* oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- handlers only position a hover tooltip over a static map; there is no essential interaction, so no keyboard/AT equivalent is required */}
         <svg
           viewBox={`0 0 ${VW} ${VH}`}
           preserveAspectRatio="xMidYMid meet"
           className="h-full w-full"
+          // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- inline SVG cannot become an <img>; role="img" + aria-label + <title> is the standard accessible pattern for a rendered SVG map
           role="img"
           aria-label="Geographic map"
-          onMouseMove={(e) =>
-            setHover((h) => (h ? { ...h, x: e.clientX, y: e.clientY } : h))
-          }
+          onMouseMove={(e) => setHover((h) => (h ? { ...h, x: e.clientX, y: e.clientY } : h))}
           onMouseLeave={() => setHover(null)}
         >
           <title>Geographic map</title>
@@ -313,16 +291,10 @@ export function GeoMapVisualization({
                 style={{
                   // Sampled through the scale curve so the ramp matches the
                   // actual region fills under sqrt/log scales too.
-                  background: `linear-gradient(to right, ${[
-                    0, 0.25, 0.5, 0.75, 1,
-                  ]
+                  background: `linear-gradient(to right, ${[0, 0.25, 0.5, 0.75, 1]
                     .map((p) => {
                       const v = d0 + p * (d1 - d0);
-                      const t = normalizeValue(
-                        v,
-                        content.domain,
-                        spec.scaleType,
-                      );
+                      const t = normalizeValue(v, content.domain, spec.scaleType);
                       return `${colorRamp(spec.colorScheme, t)} ${p * 100}%`;
                     })
                     .join(", ")})`,

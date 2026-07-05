@@ -1,10 +1,6 @@
-import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { beforeEach, describe, expect, it, type Mock, vi } from "vite-plus/test";
 import { auth } from "@/lib/auth.server";
-import {
-  ApiKeyCreateInputSchema,
-  createApiKey,
-  permissionsForScopes,
-} from "./api-keys";
+import { ApiKeyCreateInputSchema, createApiKey, permissionsForScopes } from "./api-keys";
 
 vi.mock("@tanstack/react-start/server", () => ({
   getRequestHeaders: () => ({}),
@@ -55,15 +51,13 @@ describe("ApiKeyCreateInputSchema", () => {
     });
     expect(trimmed.name).toBe("prod");
 
-    expect(() =>
-      ApiKeyCreateInputSchema.parse({ name: "   ", scopes: ["ingest"] }),
-    ).toThrow();
+    expect(() => ApiKeyCreateInputSchema.parse({ name: "   ", scopes: ["ingest"] })).toThrow();
   });
 
   it("requires at least one scope", () => {
-    expect(() =>
-      ApiKeyCreateInputSchema.parse({ name: "prod", scopes: [] }),
-    ).toThrow(/at least one/i);
+    expect(() => ApiKeyCreateInputSchema.parse({ name: "prod", scopes: [] })).toThrow(
+      /at least one/i,
+    );
   });
 
   it("rejects an unknown scope", () => {
@@ -169,9 +163,9 @@ describe("createApiKey (server fn)", () => {
   });
 
   it("rejects when no scope is selected", async () => {
-    await expect(
-      createApiKey({ data: { name: "prod", scopes: [] } }),
-    ).rejects.toThrow(/at least one/i);
+    await expect(createApiKey({ data: { name: "prod", scopes: [] } })).rejects.toThrow(
+      /at least one/i,
+    );
     expect(createApiKeyMock).not.toHaveBeenCalled();
   });
 
@@ -203,15 +197,15 @@ describe("createApiKey (server fn)", () => {
 
   it("throws when the server does not return a key", async () => {
     createApiKeyMock.mockResolvedValueOnce({ id: "ak_1" });
-    await expect(
-      createApiKey({ data: { name: "prod", scopes: ["ingest"] } }),
-    ).rejects.toThrow(/did not return a key/i);
+    await expect(createApiKey({ data: { name: "prod", scopes: ["ingest"] } })).rejects.toThrow(
+      /did not return a key/i,
+    );
   });
 
   it("throws when the server returns a null key", async () => {
     createApiKeyMock.mockResolvedValueOnce({ id: "ak_1", key: null });
-    await expect(
-      createApiKey({ data: { name: "prod", scopes: ["ingest"] } }),
-    ).rejects.toThrow(/did not return a key/i);
+    await expect(createApiKey({ data: { name: "prod", scopes: ["ingest"] } })).rejects.toThrow(
+      /did not return a key/i,
+    );
   });
 });

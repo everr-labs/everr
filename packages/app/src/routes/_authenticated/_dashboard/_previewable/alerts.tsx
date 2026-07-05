@@ -15,12 +15,7 @@ import { Label } from "@everr/ui/components/label";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { Switch } from "@everr/ui/components/switch";
 import { cn } from "@everr/ui/lib/utils";
-import {
-  queryOptions,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
 import { NotebookText, SearchIcon, Settings, XIcon } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
@@ -149,9 +144,7 @@ function AlertFilterButton({
         className={cn(
           "inline-flex min-w-4 items-center justify-center rounded-sm px-1 font-semibold tabular-nums",
           active ? "bg-background/70" : "bg-muted/50 text-foreground",
-          active &&
-            option.tone === "destructive" &&
-            "bg-destructive/15 text-destructive",
+          active && option.tone === "destructive" && "bg-destructive/15 text-destructive",
           active &&
             option.tone === "warning" &&
             "bg-amber-500/15 text-amber-600 dark:text-amber-400",
@@ -163,11 +156,8 @@ function AlertFilterButton({
   );
 }
 
-export const Route = createFileRoute(
-  "/_authenticated/_dashboard/_previewable/alerts",
-)({
+export const Route = createFileRoute("/_authenticated/_dashboard/_previewable/alerts")({
   staticData: { breadcrumb: "Alerts", hideTimeRangePicker: true },
-  head: () => ({ meta: [{ title: "Everr - Alerts" }] }),
   loaderDeps: ({ search: { preview } }) => ({ preview }),
   loader: async ({ context: { queryClient }, deps: { preview } }) => {
     await Promise.all([
@@ -175,6 +165,7 @@ export const Route = createFileRoute(
       queryClient.prefetchQuery(alertSettingsQueryOptions()),
     ]);
   },
+  head: () => ({ meta: [{ title: "Everr - Alerts" }] }),
   component: AlertsPage,
 });
 
@@ -251,13 +242,10 @@ function AlertsPage() {
   const filteredAlerts = useMemo(() => {
     const query = alertSearch.trim().toLowerCase();
     return (alerts.data ?? []).filter(
-      (alert) =>
-        alertMatchesFilter(alert, alertFilter) &&
-        alertMatchesSearch(alert, query),
+      (alert) => alertMatchesFilter(alert, alertFilter) && alertMatchesSearch(alert, query),
     );
   }, [alertFilter, alertSearch, alerts.data]);
-  const hasActiveListFilters =
-    alertFilter !== "all" || alertSearch.trim().length > 0;
+  const hasActiveListFilters = alertFilter !== "all" || alertSearch.trim().length > 0;
   const clearAlertFilters = () => {
     setAlertFilter("all");
     setAlertSearch("");
@@ -284,9 +272,7 @@ function AlertsPage() {
               {row.displayName ? (
                 <span className="flex items-baseline gap-2">
                   <span className="font-medium">{row.displayName}</span>
-                  <span className="font-mono text-muted-foreground text-xs">
-                    {row.slug}
-                  </span>
+                  <span className="font-mono text-muted-foreground text-xs">{row.slug}</span>
                 </span>
               ) : (
                 <span className="font-mono">{row.slug}</span>
@@ -312,10 +298,7 @@ function AlertsPage() {
       {
         header: "Last eval",
         cell: (row) => {
-          const stale = isEvaluationStale(
-            row.lastEvaluatedAt,
-            row.evaluationIntervalSeconds,
-          );
+          const stale = isEvaluationStale(row.lastEvaluatedAt, row.evaluationIntervalSeconds);
           return (
             <span className="flex items-center gap-1.5">
               <span className={stale ? "text-amber-500" : undefined}>
@@ -364,9 +347,7 @@ function AlertsPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold tracking-tight">Alerts</h1>
-          <p className="text-muted-foreground">
-            Alert rules applied for this organization.
-          </p>
+          <p className="text-muted-foreground">Alert rules applied for this organization.</p>
         </div>
         <Button variant="outline" onClick={() => setSettingsOpen(true)}>
           <Settings data-icon="inline-start" />
@@ -376,8 +357,7 @@ function AlertsPage() {
 
       {hasAlerts && settings.data && !hasChannel && (
         <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
-          No notification channels are configured, so firing alerts won't reach
-          anyone.{" "}
+          No notification channels are configured, so firing alerts won&apos;t reach anyone.{" "}
           <button
             type="button"
             className="font-medium underline underline-offset-4"
@@ -420,12 +400,7 @@ function AlertsPage() {
                   : `${summary.total} alert ${summary.total === 1 ? "rule" : "rules"}`}
               </span>
               {hasActiveListFilters && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={clearAlertFilters}
-                >
+                <Button type="button" variant="ghost" size="sm" onClick={clearAlertFilters}>
                   <XIcon data-icon="inline-start" />
                   Clear
                 </Button>
@@ -442,6 +417,7 @@ function AlertsPage() {
           ) : alerts.isPending ? (
             <div className="flex flex-col gap-2 px-3 py-2">
               {Array.from({ length: 5 }).map((_, index) => (
+                // oxlint-disable-next-line react/no-array-index-key -- static fixed-length skeleton placeholder, no stable data
                 <Skeleton key={index} className="h-8 w-full" />
               ))}
             </div>
@@ -450,19 +426,12 @@ function AlertsPage() {
               data={filteredAlerts}
               columns={columns}
               rowKey={(row) => row.id}
-              rowClassName={(row) =>
-                row.previewStatus === "removed" ? "opacity-50" : undefined
-              }
+              rowClassName={(row) => (row.previewStatus === "removed" ? "opacity-50" : undefined)}
               emptyState={
                 hasActiveListFilters ? (
                   <div className="flex flex-col items-center gap-2 px-3 py-8 text-center text-muted-foreground">
                     <p>No alerts match these filters.</p>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={clearAlertFilters}
-                    >
+                    <Button type="button" variant="ghost" size="sm" onClick={clearAlertFilters}>
                       <XIcon data-icon="inline-start" />
                       Clear filters
                     </Button>
@@ -481,10 +450,7 @@ function AlertsPage() {
         </CardContent>
       </Card>
 
-      <NotificationSettingsDialog
-        open={settingsOpen}
-        onOpenChange={setSettingsOpen}
-      />
+      <NotificationSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </div>
   );
 }
@@ -504,8 +470,7 @@ function NotificationSettingsDialog({
         <DialogHeader>
           <DialogTitle>Notification settings</DialogTitle>
           <DialogDescription>
-            Choose where firing alerts are delivered for everyone in this
-            organization.{" "}
+            Choose where firing alerts are delivered for everyone in this organization.{" "}
             <a
               className="underline underline-offset-4"
               href="https://everr.dev/docs/alerts/notifications"
@@ -552,9 +517,7 @@ type SlackRow =
   | { kind: "existing"; id: string; name?: string }
   | { kind: "new"; key: string; name: string; url: string };
 
-function toTelegramRows(
-  initial: NormalizedAlertDeliverySettings,
-): TelegramRow[] {
+function toTelegramRows(initial: NormalizedAlertDeliverySettings): TelegramRow[] {
   return initial.telegram.entries.map((e) => ({
     kind: "existing",
     id: e.id,
@@ -621,16 +584,10 @@ function NotificationSettingsForm({
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
-  const [telegramEnabled, setTelegramEnabled] = useState(
-    initial.telegram.enabled,
-  );
+  const [telegramEnabled, setTelegramEnabled] = useState(initial.telegram.enabled);
   const [slackEnabled, setSlackEnabled] = useState(initial.slack.enabled);
-  const [telegramRows, setTelegramRows] = useState<TelegramRow[]>(() =>
-    toTelegramRows(initial),
-  );
-  const [slackRows, setSlackRows] = useState<SlackRow[]>(() =>
-    toSlackRows(initial),
-  );
+  const [telegramRows, setTelegramRows] = useState<TelegramRow[]>(() => toTelegramRows(initial));
+  const [slackRows, setSlackRows] = useState<SlackRow[]>(() => toSlackRows(initial));
   // Gate "channel is on but empty" messaging until the first save attempt so
   // toggling a channel on doesn't immediately flash an error.
   const [submitted, setSubmitted] = useState(false);
@@ -670,9 +627,7 @@ function NotificationSettingsForm({
             slack: {
               enabled: slackEnabled,
               webhooks: slackKept.map((r) =>
-                r.kind === "existing"
-                  ? { id: r.id }
-                  : { name: r.name || undefined, url: r.url },
+                r.kind === "existing" ? { id: r.id } : { name: r.name || undefined, url: r.url },
               ),
             },
           },
@@ -713,16 +668,11 @@ function NotificationSettingsForm({
       />
       {update.error && (
         <p className="text-destructive text-sm" role="alert">
-          Couldn't save notification settings. {update.error.message}
+          Couldn&apos;t save notification settings. {update.error.message}
         </p>
       )}
       <DialogFooter>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onClose}
-          disabled={update.isPending}
-        >
+        <Button type="button" variant="outline" onClick={onClose} disabled={update.isPending}>
           Cancel
         </Button>
         <Button type="submit" disabled={update.isPending}>
@@ -752,15 +702,7 @@ function ChannelToggle({
 
 // Visible, persistent field label — placeholders alone vanish once the user
 // types, and these fields (chat ID vs token, name vs URL) are easy to confuse.
-function LabeledField({
-  id,
-  label,
-  children,
-}: {
-  id: string;
-  label: string;
-  children: ReactNode;
-}) {
+function LabeledField({ id, label, children }: { id: string; label: string; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
       <Label htmlFor={id} className="font-normal text-muted-foreground">
@@ -771,33 +713,15 @@ function LabeledField({
   );
 }
 
-function RemoveRowButton({
-  label,
-  onClick,
-}: {
-  label: string;
-  onClick: () => void;
-}) {
+function RemoveRowButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="sm"
-      aria-label={label}
-      onClick={onClick}
-    >
+    <Button type="button" variant="ghost" size="sm" aria-label={label} onClick={onClick}>
       Remove
     </Button>
   );
 }
 
-function DisabledChannelSummary({
-  count,
-  noun,
-}: {
-  count: number;
-  noun: string;
-}) {
+function DisabledChannelSummary({ count, noun }: { count: number; noun: string }) {
   if (count === 0) return null;
   return (
     <p className="pl-1 text-muted-foreground text-xs">
@@ -821,24 +745,13 @@ function TelegramChannel({
   submitted: boolean;
   emptyError: boolean;
 }) {
-  const setRow = (
-    i: number,
-    patch: Partial<Extract<TelegramRow, { kind: "new" }>>,
-  ) =>
-    onRowsChange(
-      rows.map((r, j) =>
-        j === i && r.kind === "new" ? { ...r, ...patch } : r,
-      ),
-    );
+  const setRow = (i: number, patch: Partial<Extract<TelegramRow, { kind: "new" }>>) =>
+    onRowsChange(rows.map((r, j) => (j === i && r.kind === "new" ? { ...r, ...patch } : r)));
   const removeRow = (i: number) => onRowsChange(rows.filter((_, j) => j !== i));
 
   return (
     <div className="flex flex-col gap-2">
-      <ChannelToggle
-        label="Telegram"
-        enabled={enabled}
-        onEnabledChange={onEnabledChange}
-      />
+      <ChannelToggle label="Telegram" enabled={enabled} onEnabledChange={onEnabledChange} />
       {enabled ? (
         <div className="flex flex-col gap-2 pl-1">
           {rows.map((row, i) => {
@@ -849,14 +762,9 @@ function TelegramChannel({
                   className="flex items-center justify-between gap-2 rounded border px-2 py-1 text-sm"
                 >
                   <span className="min-w-0 truncate">
-                    {row.name ? (
-                      <span className="font-medium">{row.name} · </span>
-                    ) : null}
+                    {row.name ? <span className="font-medium">{row.name} · </span> : null}
                     <span className="font-mono">{row.chatId}</span>
-                    <span className="text-muted-foreground">
-                      {" "}
-                      · token saved
-                    </span>
+                    <span className="text-muted-foreground"> · token saved</span>
                   </span>
                   <RemoveRowButton
                     label={`Remove Telegram chat ${row.name ?? row.chatId}`}
@@ -868,16 +776,10 @@ function TelegramChannel({
             const error = telegramRowError(row);
             const showError = !!error && (submitted || error.immediate);
             return (
-              <div
-                key={row.key}
-                className="flex flex-col gap-1 rounded border p-2"
-              >
+              <div key={row.key} className="flex flex-col gap-1 rounded border p-2">
                 <div className="flex items-start gap-2">
                   <div className="flex min-w-0 flex-1 flex-col gap-2">
-                    <LabeledField
-                      id={`tg-name-${row.key}`}
-                      label="Name (optional)"
-                    >
+                    <LabeledField id={`tg-name-${row.key}`} label="Name (optional)">
                       <Input
                         id={`tg-name-${row.key}`}
                         placeholder="e.g. On-call"
@@ -901,16 +803,11 @@ function TelegramChannel({
                         autoComplete="off"
                         placeholder="123456:ABC-DEF…"
                         value={row.botToken}
-                        onChange={(e) =>
-                          setRow(i, { botToken: e.target.value })
-                        }
+                        onChange={(e) => setRow(i, { botToken: e.target.value })}
                       />
                     </LabeledField>
                   </div>
-                  <RemoveRowButton
-                    label="Remove this Telegram chat"
-                    onClick={() => removeRow(i)}
-                  />
+                  <RemoveRowButton label="Remove this Telegram chat" onClick={() => removeRow(i)} />
                 </div>
                 {showError && error && (
                   <p className="text-destructive text-xs" role="alert">
@@ -967,24 +864,13 @@ function SlackChannel({
   submitted: boolean;
   emptyError: boolean;
 }) {
-  const setRow = (
-    i: number,
-    patch: Partial<Extract<SlackRow, { kind: "new" }>>,
-  ) =>
-    onRowsChange(
-      rows.map((r, j) =>
-        j === i && r.kind === "new" ? { ...r, ...patch } : r,
-      ),
-    );
+  const setRow = (i: number, patch: Partial<Extract<SlackRow, { kind: "new" }>>) =>
+    onRowsChange(rows.map((r, j) => (j === i && r.kind === "new" ? { ...r, ...patch } : r)));
   const removeRow = (i: number) => onRowsChange(rows.filter((_, j) => j !== i));
 
   return (
     <div className="flex flex-col gap-2">
-      <ChannelToggle
-        label="Slack"
-        enabled={enabled}
-        onEnabledChange={onEnabledChange}
-      />
+      <ChannelToggle label="Slack" enabled={enabled} onEnabledChange={onEnabledChange} />
       {enabled ? (
         <div className="flex flex-col gap-2 pl-1">
           {rows.map((row, i) => {
@@ -1008,16 +894,10 @@ function SlackChannel({
             const error = slackRowError(row);
             const showError = !!error && (submitted || error.immediate);
             return (
-              <div
-                key={row.key}
-                className="flex flex-col gap-1 rounded border p-2"
-              >
+              <div key={row.key} className="flex flex-col gap-1 rounded border p-2">
                 <div className="flex items-start gap-2">
                   <div className="flex min-w-0 flex-1 flex-col gap-2">
-                    <LabeledField
-                      id={`sl-name-${row.key}`}
-                      label="Name (optional)"
-                    >
+                    <LabeledField id={`sl-name-${row.key}`} label="Name (optional)">
                       <Input
                         id={`sl-name-${row.key}`}
                         placeholder="e.g. #incidents"
@@ -1037,10 +917,7 @@ function SlackChannel({
                       />
                     </LabeledField>
                   </div>
-                  <RemoveRowButton
-                    label="Remove this Slack webhook"
-                    onClick={() => removeRow(i)}
-                  />
+                  <RemoveRowButton label="Remove this Slack webhook" onClick={() => removeRow(i)} />
                 </div>
                 {showError && error && (
                   <p className="text-destructive text-xs" role="alert">

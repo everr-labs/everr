@@ -1,11 +1,8 @@
 import type { TimeRange } from "@everr/ui/lib/time-range";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import type { LogsRepositoryLike } from "../../logs/data/repository";
 import type { TracesRepositoryLike } from "../../traces/data/repository";
-import {
-  unionEnvironmentOptions,
-  unionServiceOptions,
-} from "./explore-filter-options";
+import { unionEnvironmentOptions, unionServiceOptions } from "./explore-filter-options";
 
 const timeRange: TimeRange = { from: "now-1h", to: "now" };
 
@@ -39,25 +36,19 @@ describe("unionServiceOptions", () => {
   });
 
   it("drops empty service names from either source", async () => {
-    const options = unionServiceOptions(
-      logsRepo(["web", ""], []),
-      tracesRepo(["", "api"], []),
-      { timeRange, selected: [] },
-    );
+    const options = unionServiceOptions(logsRepo(["web", ""], []), tracesRepo(["", "api"], []), {
+      timeRange,
+      selected: [],
+    });
     expect(options.select(await options.queryFn())).toEqual(["api", "web"]);
   });
 
   it("keeps a selected-but-unlisted service visible", async () => {
-    const options = unionServiceOptions(
-      logsRepo(["web"], []),
-      tracesRepo(["api"], []),
-      { timeRange, selected: ["aged-out"] },
-    );
-    expect(options.select(await options.queryFn())).toEqual([
-      "aged-out",
-      "api",
-      "web",
-    ]);
+    const options = unionServiceOptions(logsRepo(["web"], []), tracesRepo(["api"], []), {
+      timeRange,
+      selected: ["aged-out"],
+    });
+    expect(options.select(await options.queryFn())).toEqual(["aged-out", "api", "web"]);
   });
 });
 
@@ -68,10 +59,6 @@ describe("unionEnvironmentOptions", () => {
       tracesRepo([], ["staging", "dev"]),
       { timeRange, selected: [] },
     );
-    expect(options.select(await options.queryFn())).toEqual([
-      "dev",
-      "production",
-      "staging",
-    ]);
+    expect(options.select(await options.queryFn())).toEqual(["dev", "production", "staging"]);
   });
 });

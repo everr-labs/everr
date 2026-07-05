@@ -25,7 +25,6 @@ export function parseDuration(input: string): number | null {
   let matched = false;
   const regex = /(\d+(?:\.\d+)?)\s*(ms|s|m)/gi;
   let match: RegExpExecArray | null;
-  // biome-ignore lint/suspicious/noAssignInExpressions: Ok here
   while ((match = regex.exec(trimmed)) !== null) {
     matched = true;
     const value = Number(match[1]);
@@ -59,10 +58,7 @@ export function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
   const units = ["B", "KB", "MB", "GB", "TB"];
   const k = 1024;
-  const i = Math.min(
-    Math.floor(Math.log(bytes) / Math.log(k)),
-    units.length - 1,
-  );
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), units.length - 1);
   const value = bytes / k ** i;
   return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[i]}`;
 }
@@ -71,10 +67,7 @@ export function formatSpeed(bytesPerSecond: number): string {
   if (bytesPerSecond === 0) return "0 B/s";
   const units = ["B/s", "KB/s", "MB/s", "GB/s"];
   const k = 1024;
-  const i = Math.min(
-    Math.floor(Math.log(bytesPerSecond) / Math.log(k)),
-    units.length - 1,
-  );
+  const i = Math.min(Math.floor(Math.log(bytesPerSecond) / Math.log(k)), units.length - 1);
   const value = bytesPerSecond / k ** i;
   return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[i]}`;
 }

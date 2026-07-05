@@ -1,5 +1,5 @@
 import type { QueryResultRow } from "pg";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 vi.mock("@/db/client", () => ({
   pool: {
@@ -11,10 +11,7 @@ import { pool } from "@/db/client";
 import { getBranchStatus } from "./branch-status";
 
 const mockedQuery = vi.mocked(
-  pool.query as (
-    text: string,
-    values?: readonly never[],
-  ) => Promise<{ rows: QueryResultRow[] }>,
+  pool.query as (text: string, values?: readonly never[]) => Promise<{ rows: QueryResultRow[] }>,
 );
 
 beforeEach(() => {
@@ -147,13 +144,7 @@ describe("getBranchStatus", () => {
 
     expect(mockedQuery).toHaveBeenCalledTimes(1);
     expect(mockedQuery.mock.calls[0]?.[0]).toContain("attempts = $5");
-    expect(mockedQuery.mock.calls[0]?.[1]).toEqual([
-      "42",
-      "everr-labs/everr",
-      "abc123",
-      "main",
-      2,
-    ]);
+    expect(mockedQuery.mock.calls[0]?.[1]).toEqual(["42", "everr-labs/everr", "abc123", "main", 2]);
   });
 
   it("filters by run id without requiring a commit", async () => {
@@ -184,11 +175,7 @@ describe("getBranchStatus", () => {
     expect(mockedQuery).toHaveBeenCalledTimes(1);
     expect(mockedQuery.mock.calls[0]?.[0]).not.toContain("sha =");
     expect(mockedQuery.mock.calls[0]?.[0]).toContain("run_id::text = $3");
-    expect(mockedQuery.mock.calls[0]?.[1]).toEqual([
-      "42",
-      "everr-labs/everr",
-      "4242",
-    ]);
+    expect(mockedQuery.mock.calls[0]?.[1]).toEqual(["42", "everr-labs/everr", "4242"]);
     expect(result).toEqual({
       repo: "everr-labs/everr",
       branch: "feature/from-run-id",

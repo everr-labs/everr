@@ -78,11 +78,13 @@ function HoleBackground({
     discs: [],
     lines: [],
     particles: [],
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- placeholder for a mutable ref; populated by setDiscs()/setSize() before first read
     clip: {} as Clip,
     startDisc: { x: 0, y: 0, w: 0, h: 0 },
     endDisc: { x: 0, y: 0, w: 0, h: 0 },
     rect: { width: 0, height: 0 },
     render: { width: 0, height: 0, dpi: 1 },
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- placeholder for a mutable ref; populated before first read
     particleArea: {} as ParticleArea,
     linesCanvas: null,
   });
@@ -121,8 +123,7 @@ function HoleBackground({
       dpi: window.devicePixelRatio || 1,
     };
     canvas.width = stateRef.current.render.width * stateRef.current.render.dpi;
-    canvas.height =
-      stateRef.current.render.height * stateRef.current.render.dpi;
+    canvas.height = stateRef.current.render.height * stateRef.current.render.dpi;
   }, []);
 
   const setDiscs = React.useCallback(() => {
@@ -141,6 +142,7 @@ function HoleBackground({
       h: 0,
     };
     let prevBottom = height;
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- reset placeholder for a mutable ref; repopulated in the loop below before first read
     stateRef.current.clip = {} as Clip;
     for (let i = 0; i < numberOfDiscs; i++) {
       const p = i / numberOfDiscs;
@@ -192,8 +194,7 @@ function HoleBackground({
         if (
           !lineIsIn &&
           clipPath &&
-          (ctx.isPointInPath(clipPath, p1.x, p1.y) ||
-            ctx.isPointInStroke(clipPath, p1.x, p1.y))
+          (ctx.isPointInPath(clipPath, p1.x, p1.y) || ctx.isPointInStroke(clipPath, p1.x, p1.y))
         ) {
           lineIsIn = true;
         } else if (lineIsIn) {
@@ -215,11 +216,9 @@ function HoleBackground({
   const initParticle = React.useCallback(
     (start: boolean = false) => {
       const sx =
-        stateRef.current.particleArea.sx +
-        stateRef.current.particleArea.sw * Math.random();
+        stateRef.current.particleArea.sx + stateRef.current.particleArea.sw * Math.random();
       const ex =
-        stateRef.current.particleArea.ex +
-        stateRef.current.particleArea.ew * Math.random();
+        stateRef.current.particleArea.ex + stateRef.current.particleArea.ew * Math.random();
       const dx = ex - sx;
       const y = start
         ? stateRef.current.particleArea.h * Math.random()
@@ -265,15 +264,7 @@ function HoleBackground({
       ctx.lineWidth = 2;
       const outerDisc = stateRef.current.startDisc;
       ctx.beginPath();
-      ctx.ellipse(
-        outerDisc.x,
-        outerDisc.y,
-        outerDisc.w,
-        outerDisc.h,
-        0,
-        0,
-        Math.PI * 2,
-      );
+      ctx.ellipse(outerDisc.x, outerDisc.y, outerDisc.w, outerDisc.h, 0, 0, Math.PI * 2);
       ctx.stroke();
       ctx.closePath();
       stateRef.current.discs.forEach((disc: Disc, i: number) => {

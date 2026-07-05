@@ -13,9 +13,7 @@ export function createSSEStream(request: Request): SSEStream {
   function sendEvent(data: object) {
     if (closed) return;
     writer
-      .write(
-        encoder.encode(`event: message\ndata: ${JSON.stringify(data)}\n\n`),
-      )
+      .write(encoder.encode(`event: message\ndata: ${JSON.stringify(data)}\n\n`))
       .catch(() => {});
   }
 

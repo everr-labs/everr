@@ -59,15 +59,10 @@ export function AppShell() {
             className="flex min-w-0 flex-1 items-center self-stretch gap-2 pl-[var(--titlebar-inset)] pr-2"
           />
           {/* Right: page controls (time range, refresh) — interactive, not a drag region. */}
-          <div
-            ref={setTitleRight}
-            className="flex shrink-0 items-center gap-1.5 pr-3"
-          />
+          <div ref={setTitleRight} className="flex shrink-0 items-center gap-1.5 pr-3" />
         </header>
 
-        <TitleBarSlotsContext.Provider
-          value={{ left: titleLeft, right: titleRight }}
-        >
+        <TitleBarSlotsContext.Provider value={{ left: titleLeft, right: titleRight }}>
           <div className="flex min-h-0 flex-1 flex-row">
             <nav className="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-white/[0.06] pt-2 pb-3">
               <SidebarLink to="/logs" label="Logs">

@@ -63,8 +63,7 @@
 }
 
 .notification-exit {
-  animation: notification-slide-out 200ms cubic-bezier(0.32, 0, 0.67, 0)
-    forwards;
+  animation: notification-slide-out 200ms cubic-bezier(0.32, 0, 0.67, 0) forwards;
 }
 
 @keyframes notification-progress-shrink {

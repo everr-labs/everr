@@ -7,7 +7,7 @@ Everr alerts are **defined as code**, exactly like [dashboards](/docs/dashboards
 
 You write rules as `kind: AlertRule` YAML files in a Git repository, then reconcile them into Everr with `everr apply`. The Everr app **evaluates** each rule, it runs the query on a schedule and tracks its state, but it never edits the rule. Git is the source of truth.
 
-This means an alert changes when a file changes and you apply it. 
+This means an alert changes when a file changes and you apply it.
 
 Rules are reviewable in pull requests, versioned with your code, and reproducible across environments.
 
@@ -16,11 +16,11 @@ Here is a complete rule:
 ```yaml
 kind: AlertRule
 metadata:
-  name: eventloop-delay         # the rule's slug and identity
+  name: eventloop-delay # the rule's slug and identity
 spec:
   display:
     name: Node.js event loop delay
-  evaluationInterval: 1m        # how often the query runs (min 1m)
+  evaluationInterval: 1m # how often the query runs (min 1m)
   notificationMessage:
     title: "${ServiceName} event loop is lagging"
     description: "p99 event loop delay averaged ${p99_delay_ms}ms over the last 5 minutes"
@@ -37,7 +37,7 @@ spec:
 
 ## The query-driven model
 
-The query *is* the alert condition. Everr runs `spec.query` on the rule's schedule, and **every row it returns is a firing instance**. When the query returns no rows, the alert is resolved.
+The query _is_ the alert condition. Everr runs `spec.query` on the rule's schedule, and **every row it returns is a firing instance**. When the query returns no rows, the alert is resolved.
 
 There is no separate threshold field. The threshold lives in the SQL itself, a `WHERE` filter, a `HAVING` clause, or whatever comparison defines "something is wrong." Choose it so the query stays quiet under normal conditions and only returns rows when a human should act: here a healthy service sits around 10ms, so `HAVING p99_delay_ms > 100` only fires when the event loop is genuinely blocked.
 

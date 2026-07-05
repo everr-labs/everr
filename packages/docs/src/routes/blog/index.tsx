@@ -11,7 +11,7 @@ export const Route = createFileRoute("/blog/")({
 });
 
 const loadBlogPosts = createServerFn({ method: "GET" }).handler(async () => {
-  return await blogposts
+  return blogposts
     .getPages()
     .map((post) => ({
       slug: post.slugs.join("/"),
@@ -39,8 +39,8 @@ function BlogIndex() {
             Updates & insights
           </h1>
           <p className="mt-4 max-w-2xl text-lg text-fd-muted-foreground">
-            Product updates, engineering deep dives, and observability best
-            practices from the Everr team.
+            Product updates, engineering deep dives, and observability best practices from the Everr
+            team.
           </p>
         </section>
 
@@ -48,12 +48,7 @@ function BlogIndex() {
         <section className="pb-20 md:pb-32">
           <div className="flex flex-col">
             {posts.map((post, i) => (
-              <Link
-                key={post.slug}
-                to="/blog/$slug"
-                params={{ slug: post.slug }}
-                className="group"
-              >
+              <Link key={post.slug} to="/blog/$slug" params={{ slug: post.slug }} className="group">
                 <div
                   className={`grid grid-cols-1 gap-4 py-8 transition-colors md:grid-cols-[180px_1fr_auto] md:items-center md:gap-8 ${
                     i > 0 ? "border-t-2 border-fd-border" : ""
@@ -78,9 +73,7 @@ function BlogIndex() {
                     <h2 className="font-heading text-xl font-bold transition-colors group-hover:text-primary md:text-2xl everr-decoration everr-decoration-primary">
                       {post.title}
                     </h2>
-                    <p className="mt-2 text-fd-muted-foreground line-clamp-2">
-                      {post.description}
-                    </p>
+                    <p className="mt-2 text-fd-muted-foreground line-clamp-2">{post.description}</p>
                   </div>
 
                   <ArrowRight className="hidden size-5 text-fd-muted-foreground/40 transition-all group-hover:translate-x-1 group-hover:text-primary md:block" />

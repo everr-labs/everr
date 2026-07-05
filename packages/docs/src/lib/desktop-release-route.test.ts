@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { Route } from "../routes/everr-app/$";
 
 type GetHandler = (args: { request: Request }) => Promise<Response>;
@@ -23,9 +23,7 @@ describe("/everr-app/$", () => {
     });
 
     expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toContain(
-      "/everr-app/latest.json",
-    );
+    expect(response.headers.get("location")).toContain("/everr-app/latest.json");
   });
 
   it("redirects known CLI release files", async () => {
@@ -34,9 +32,7 @@ describe("/everr-app/$", () => {
     });
 
     expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toContain(
-      "/everr-app/everr.sha256",
-    );
+    expect(response.headers.get("location")).toContain("/everr-app/everr.sha256");
   });
 
   it("redirects known Linux CLI release files", async () => {
@@ -45,9 +41,7 @@ describe("/everr-app/$", () => {
     });
 
     expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toContain(
-      "/everr-app/everr-linux-x86_64",
-    );
+    expect(response.headers.get("location")).toContain("/everr-app/everr-linux-x86_64");
   });
 
   it("returns 404 for unknown files", async () => {

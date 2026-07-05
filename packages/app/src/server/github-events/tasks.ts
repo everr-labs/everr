@@ -1,19 +1,11 @@
-import {
-  context,
-  ROOT_CONTEXT,
-  SpanKind,
-  SpanStatusCode,
-} from "@opentelemetry/api";
+import { context, ROOT_CONTEXT, SpanKind, SpanStatusCode } from "@opentelemetry/api";
 import type { Task, TaskList } from "graphile-worker";
 import { db } from "@/db/client";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 import { getTelemetryTracer } from "@/telemetry/node";
 import { replayWebhookToCollector } from "./collector";
 import { firstHeader } from "./headers";
-import {
-  COLLECTOR_TASK_IDENTIFIER,
-  STATUS_TASK_IDENTIFIER,
-} from "./identifiers";
+import { COLLECTOR_TASK_IDENTIFIER, STATUS_TASK_IDENTIFIER } from "./identifiers";
 import {
   eventAttributesFromQueuedEvent,
   installationIdFromQueuedEvent,
@@ -42,6 +34,7 @@ function makeWebhookTask(
   action: WebhookTaskAction,
 ): Task {
   return async (payload, helpers) => {
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- graphile-worker types the job payload as `unknown`; the enqueue side guarantees the WebhookJobData shape
     const data = payload as WebhookJobData;
     const eventType = firstHeader(data.headers, "x-github-event") ?? "";
     const body = Buffer.from(data.body, "base64");
@@ -76,14 +69,11 @@ function makeWebhookTask(
 
           if (error instanceof StaleInstallationError) {
             if (shouldLogStaleInstallation(parsed)) {
-              serverLogger.info(
-                "github_events.jobs.stale_installation_dropped",
-                {
-                  ...terminalAttributes,
-                  "error.message": err.message,
-                  "error.type": err.name,
-                },
-              );
+              serverLogger.info("github_events.jobs.stale_installation_dropped", {
+                ...terminalAttributes,
+                "error.message": err.message,
+                "error.type": err.name,
+              });
             }
             return;
           }
@@ -143,8 +133,12 @@ const processStatusTask = makeWebhookTask(
   "github_events.jobs.handle_status_event",
   "github_events.jobs.handle_status_terminal_error",
   ({ organizationId, parsed }) =>
-    // biome-ignore lint/suspicious/noExplicitAny: db is badly typed
-    handleStatusEvent(db as any, organizationId, parsed),
+    handleStatusEvent(
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- drizzle NodePgDatabase schema generic variance: the app db isn't assignable to handleStatusEvent's AnyDb (Record<string, never>) schema
+      db as unknown as Parameters<typeof handleStatusEvent>[0],
+      organizationId,
+      parsed,
+    ),
 );
 
 export const githubEventsTaskList: TaskList = {

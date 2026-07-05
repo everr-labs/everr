@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { stepLogsInfiniteOptions } from "./$stepNumber";
 
 vi.mock("@/data/runs/server", () => ({
@@ -13,9 +13,7 @@ describe("stepLogsInfiniteOptions", () => {
   it("does not request another page when the last page is missing", () => {
     const options = stepLogsInfiniteOptions("trace-1", "build", "2");
     const getNextPageParam = options.getNextPageParam as (
-      lastPage:
-        | { logs: unknown[]; totalCount: number; offset: number }
-        | undefined,
+      lastPage: { logs: unknown[]; totalCount: number; offset: number } | undefined,
       allPages: { logs: unknown[]; totalCount: number; offset: number }[],
     ) => unknown;
 

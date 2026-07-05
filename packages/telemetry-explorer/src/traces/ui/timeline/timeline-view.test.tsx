@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { assert, describe, expect, it, vi } from "vitest";
+import { assert, describe, expect, it, vi } from "vite-plus/test";
 import type { Span } from "../../data/types";
 
 vi.mock("react-virtuoso", () => ({
@@ -16,9 +16,7 @@ vi.mock("react-virtuoso", () => ({
   }) => (
     <div data-testid="virtuoso-mock">
       {data.map((item, i) => (
-        <div key={computeItemKey ? computeItemKey(i, item) : i}>
-          {itemContent(i, item)}
-        </div>
+        <div key={computeItemKey ? computeItemKey(i, item) : i}>{itemContent(i, item)}</div>
       ))}
     </div>
   ),

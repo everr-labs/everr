@@ -1,5 +1,5 @@
 import fastify from "fastify";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 import { initClient, teardown } from "./core.js";
 import { errorTrackingPlugin } from "./fastify.js";
 import { setupTestTelemetry } from "./test-utils.js";

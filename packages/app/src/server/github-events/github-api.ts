@@ -41,9 +41,7 @@ function createAppJwt(): string {
     iss: String(githubEnv.GITHUB_APP_ID),
   };
 
-  const header = Buffer.from(
-    JSON.stringify({ alg: "RS256", typ: "JWT" }),
-  ).toString("base64url");
+  const header = Buffer.from(JSON.stringify({ alg: "RS256", typ: "JWT" })).toString("base64url");
   const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const sigInput = `${header}.${body}`;
 
@@ -60,9 +58,7 @@ const installationTokenCache = new QuickLRU<number, string>({
   maxAge: 58 * 60_000,
 });
 
-export async function getInstallationToken(
-  installationId: number,
-): Promise<string> {
+export async function getInstallationToken(installationId: number): Promise<string> {
   const cached = installationTokenCache.get(installationId);
   if (cached) {
     return cached;
@@ -88,7 +84,7 @@ export async function getInstallationToken(
     );
   }
 
-  const data = (await resp.json()) as { token: string; expires_at: string };
+  const data: { token: string; expires_at: string } = await resp.json();
   installationTokenCache.set(installationId, data.token);
   return data.token;
 }
@@ -167,7 +163,7 @@ export async function* paginate<T>(
       );
     }
 
-    const data = (await resp.json()) as Record<string, T[]>;
+    const data: Record<string, T[]> = await resp.json();
     const items = data[itemsKey];
     if (Array.isArray(items)) {
       for (const item of items) {

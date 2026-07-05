@@ -9,26 +9,12 @@ import {
   getErrorOccurrenceKey,
   getErrorTraceWindow,
 } from "@everr/telemetry-explorer/errors";
-import {
-  getTraceOptions,
-  type Span,
-  TracesRepository,
-} from "@everr/telemetry-explorer/traces";
+import { getTraceOptions, type Span, TracesRepository } from "@everr/telemetry-explorer/traces";
 import { buttonVariants } from "@everr/ui/components/button";
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Link,
-  Outlet,
-  useMatch,
-  useNavigate,
-  useParams,
-  useSearch,
-} from "@tanstack/react-router";
-import {
-  DetailRouteDialog,
-  useDetailRouteDialogClose,
-} from "@/components/detail-route-dialog";
+import { Link, Outlet, useMatch, useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import { DetailRouteDialog, useDetailRouteDialogClose } from "@/components/detail-route-dialog";
 import { ExploreSearchShape } from "../explore/explore-search";
 import { ExploreShell } from "../explore/explore-shell";
 import { LocalTelemetryGate } from "../local-telemetry/collector-status";
@@ -38,8 +24,7 @@ export { ErrorIssueSearchSchema };
 
 // service/environment live in the shared Explore topbar but must also be in the
 // route schema so the leaf route's validateSearch doesn't strip them.
-export const ErrorsListSearchSchema =
-  ErrorIssueSearchSchema.extend(ExploreSearchShape);
+export const ErrorsListSearchSchema = ErrorIssueSearchSchema.extend(ExploreSearchShape);
 
 const localErrorsRepo = new ErrorsRepository(localSqlClient);
 const localTracesRepo = new TracesRepository(localSqlClient);
@@ -49,7 +34,7 @@ export function ErrorsPage() {
     from: "/shell/errors/$fingerprint",
     shouldThrow: false,
   });
-  const search = useSearch({ strict: false }) as ErrorIssueSearch;
+  const search: ErrorIssueSearch = useSearch({ strict: false });
   const navigate = useNavigate();
 
   // Always keep the list mounted in the same position so opening/closing the
@@ -61,9 +46,7 @@ export function ErrorsPage() {
       {errorDetailMatch && (
         <DetailRouteDialog
           title="Error detail"
-          onClose={() =>
-            navigate({ to: "/errors", search: { ...search, occurrence: "" } })
-          }
+          onClose={() => navigate({ to: "/errors", search: { ...search, occurrence: "" } })}
         >
           <Outlet />
         </DetailRouteDialog>
@@ -73,9 +56,7 @@ export function ErrorsPage() {
 }
 
 function ErrorsListView() {
-  const search = useSearch({ strict: false }) as ErrorIssueSearch & {
-    environment?: string[];
-  };
+  const search: ErrorIssueSearch & { environment?: string[] } = useSearch({ strict: false });
   const navigate = useNavigate();
   const {
     timeRange,
@@ -99,28 +80,28 @@ function ErrorsListView() {
       service={service}
       environment={environment}
       onTimeRangeChange={(range) =>
-        navigate({
+        void navigate({
           to: "/errors",
           search: { ...search, from: range.from, to: range.to },
           replace: true,
         })
       }
       onRefreshChange={(value) =>
-        navigate({
+        void navigate({
           to: "/errors",
           search: { ...search, refresh: value || undefined },
           replace: true,
         })
       }
       onServiceChange={(values) =>
-        navigate({
+        void navigate({
           to: "/errors",
           search: { ...search, service: values },
           replace: true,
         })
       }
       onEnvironmentChange={(values) =>
-        navigate({
+        void navigate({
           to: "/errors",
           search: { ...search, environment: values },
           replace: true,
@@ -136,7 +117,7 @@ function ErrorsListView() {
           environment={environment}
           hideSharedFilters
           onSearchChange={(patch) =>
-            navigate({
+            void navigate({
               to: "/errors",
               search: { ...search, ...patch },
               replace: true,
@@ -159,10 +140,8 @@ function ErrorsListView() {
 }
 
 export function ErrorDetailPage() {
-  const { fingerprint } = useParams({ strict: false }) as {
-    fingerprint: string;
-  };
-  const search = useSearch({ strict: false }) as ErrorIssueSearch;
+  const { fingerprint }: { fingerprint: string } = useParams({ strict: false });
+  const search: ErrorIssueSearch = useSearch({ strict: false });
   const navigate = useNavigate();
   // Inside the modal, ask the dialog to close through the route owner so the
   // dialog stays open until navigation removes it.
@@ -183,16 +162,12 @@ export function ErrorDetailPage() {
             closeDialog();
             return;
           }
-          navigate({
+          void navigate({
             to: "/errors",
             search: { ...search, occurrence: "" },
           });
         }}
-        renderOccurrenceLink={({
-          occurrence: linkedOccurrence,
-          children,
-          isSelected,
-        }) => (
+        renderOccurrenceLink={({ occurrence: linkedOccurrence, children, isSelected }) => (
           <Link
             to="/errors/$fingerprint"
             params={{ fingerprint }}
@@ -209,19 +184,13 @@ export function ErrorDetailPage() {
             {children}
           </Link>
         )}
-        renderTracePanel={({ occurrence }) => (
-          <DesktopErrorTracePanel occurrence={occurrence} />
-        )}
+        renderTracePanel={({ occurrence }) => <DesktopErrorTracePanel occurrence={occurrence} />}
       />
     </LocalTelemetryGate>
   );
 }
 
-function DesktopErrorTracePanel({
-  occurrence,
-}: {
-  occurrence: ErrorOccurrence;
-}) {
+function DesktopErrorTracePanel({ occurrence }: { occurrence: ErrorOccurrence }) {
   const hasTrace = occurrence.traceId.length > 0;
   const { start, end } = getErrorTraceWindow(occurrence.timestamp);
   const traceQuery = useQuery({

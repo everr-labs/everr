@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import {
   diffInstances,
   extractInstanceLabels,
@@ -8,18 +8,16 @@ import {
 
 describe("extractInstanceLabels", () => {
   it("uses string columns implicitly", () => {
-    expect(
-      extractInstanceLabels(
-        { route: "/x", error_count: 7, ok: true, n: null },
-        [],
-      ),
-    ).toEqual({ route: "/x" });
+    expect(extractInstanceLabels({ route: "/x", error_count: 7, ok: true, n: null }, [])).toEqual({
+      route: "/x",
+    });
   });
 
   it("uses explicit columns and stringifies values", () => {
-    expect(
-      extractInstanceLabels({ route: "/x", code: 500 }, ["route", "code"]),
-    ).toEqual({ route: "/x", code: "500" });
+    expect(extractInstanceLabels({ route: "/x", code: 500 }, ["route", "code"])).toEqual({
+      route: "/x",
+      code: "500",
+    });
   });
 
   it("maps absent explicit columns to empty string", () => {
@@ -42,9 +40,7 @@ describe("instanceFingerprint", () => {
   });
 
   it("differs for different labels", () => {
-    expect(instanceFingerprint({ a: "1" })).not.toBe(
-      instanceFingerprint({ a: "2" }),
-    );
+    expect(instanceFingerprint({ a: "1" })).not.toBe(instanceFingerprint({ a: "2" }));
     expect(instanceFingerprint({})).toMatch(/^[0-9a-f]{16}$/);
   });
 });

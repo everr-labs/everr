@@ -1,12 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { db } from "@/db/client";
 import { listInstallationRepos } from "@/server/github-events/backfill";
 import { GitHubApiError } from "@/server/github-events/github-api";
-import {
-  cliSessionContext,
-  getRouteHandler,
-  mockDbInstallations,
-} from "./-test-utils";
+import { cliSessionContext, getRouteHandler, mockDbInstallations } from "./-test-utils";
 import { Route } from "./repos";
 
 vi.mock("@/db/client", () => ({
@@ -49,9 +45,7 @@ beforeEach(() => vi.clearAllMocks());
 
 describe("/api/cli/repos", () => {
   it("returns empty array when no active installation exists", async () => {
-    mockDbInstallations(mockedDb, [
-      { status: "uninstalled", installationId: 1 },
-    ]);
+    mockDbInstallations(mockedDb, [{ status: "uninstalled", installationId: 1 }]);
 
     const response = await getHandler()({
       request: new Request("http://localhost/api/cli/repos"),
@@ -66,12 +60,8 @@ describe("/api/cli/repos", () => {
   it("returns repos from active installation", async () => {
     mockDbInstallations(mockedDb, [{ status: "active", installationId: 99 }]);
     mockedListRepos.mockResolvedValueOnce([
-      { id: 1, full_name: "org/repo-a" } as Awaited<
-        ReturnType<typeof mockedListRepos>
-      >[number],
-      { id: 2, full_name: "org/repo-b" } as Awaited<
-        ReturnType<typeof mockedListRepos>
-      >[number],
+      { id: 1, full_name: "org/repo-a" } as Awaited<ReturnType<typeof mockedListRepos>>[number],
+      { id: 2, full_name: "org/repo-b" } as Awaited<ReturnType<typeof mockedListRepos>>[number],
     ]);
 
     const response = await getHandler()({

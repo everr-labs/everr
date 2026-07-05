@@ -1,10 +1,7 @@
 import { and, eq, or } from "drizzle-orm";
 import { ApplyValidationError } from "@/data/as-code/errors";
 import type { ApplyResourceEntry } from "@/data/as-code/schema";
-import {
-  projectFromDocument,
-  slugFromDocument,
-} from "@/data/dashboards/desired";
+import { projectFromDocument, slugFromDocument } from "@/data/dashboards/desired";
 import { type Namespace, previewScope } from "@/data/previews/scope";
 import { db } from "@/db/client";
 import { runbooks } from "@/db/schema";
@@ -36,10 +33,7 @@ export async function validateAlertRunbookLinks(opts: {
   const identities = new Set<string>();
   for (const { path, resource } of opts.runbooks) {
     identities.add(
-      identityKey(
-        projectFromDocument(path, resource),
-        slugFromDocument(path, resource),
-      ),
+      identityKey(projectFromDocument(path, resource), slugFromDocument(path, resource)),
     );
   }
 
@@ -65,16 +59,12 @@ export async function validateAlertRunbookLinks(opts: {
           previewScope(runbooks, opts.namespace),
           or(
             ...refs.map((ref) =>
-              and(
-                eq(runbooks.project, ref.project),
-                eq(runbooks.slug, ref.slug),
-              ),
+              and(eq(runbooks.project, ref.project), eq(runbooks.slug, ref.slug)),
             ),
           ),
         ),
       );
-    for (const row of dbRows)
-      identities.add(identityKey(row.project, row.slug));
+    for (const row of dbRows) identities.add(identityKey(row.project, row.slug));
   }
 
   for (const { path, ref } of links) {

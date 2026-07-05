@@ -4,13 +4,13 @@ A bar chart over time **or** over categories. It infers its structure from the c
 
 ## Options (`plugin.spec`)
 
-| Option | Type | Default | Values | Effect |
-| --- | --- | --- | --- | --- |
-| `unit` | string | `""` | any string | Suffix on value-axis ticks and tooltip values. Raw concatenation, **no space** — `unit: ms` renders `123ms`. |
-| `showLegend` | boolean | `false` | `true` | Show the series legend. Only the literal `true` enables it. |
-| `stacking` | string | `none` | `none`, `stacked`, `percent` | `none` draws series side by side; `stacked` piles them into one bar per x value; `percent` additionally normalizes each stack to 100% — the value axis becomes percentages while tooltips keep raw values. |
-| `orientation` | string | `vertical` | `vertical`, `horizontal` | `vertical` draws bars bottom-up; `horizontal` draws them left-to-right with categories on the y-axis — prefer it for categorical data with long labels. |
-| `showValues` | boolean | `false` | `true` | Draw each bar's value: on top (vertical) / to the right (horizontal) of grouped bars, centered inside stacked segments. |
+| Option        | Type    | Default    | Values                       | Effect                                                                                                                                                                                                     |
+| ------------- | ------- | ---------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `unit`        | string  | `""`       | any string                   | Suffix on value-axis ticks and tooltip values. Raw concatenation, **no space** — `unit: ms` renders `123ms`.                                                                                               |
+| `showLegend`  | boolean | `false`    | `true`                       | Show the series legend. Only the literal `true` enables it.                                                                                                                                                |
+| `stacking`    | string  | `none`     | `none`, `stacked`, `percent` | `none` draws series side by side; `stacked` piles them into one bar per x value; `percent` additionally normalizes each stack to 100% — the value axis becomes percentages while tooltips keep raw values. |
+| `orientation` | string  | `vertical` | `vertical`, `horizontal`     | `vertical` draws bars bottom-up; `horizontal` draws them left-to-right with categories on the y-axis — prefer it for categorical data with long labels.                                                    |
+| `showValues`  | boolean | `false`    | `true`                       | Draw each bar's value: on top (vertical) / to the right (horizontal) of grouped bars, centered inside stacked segments.                                                                                    |
 
 ```yaml
 plugin:

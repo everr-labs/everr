@@ -65,9 +65,9 @@ function hasSensitiveShortKey(lower: string, snippet: string): boolean {
 function hasDelimitedTerm(value: string, term: string): boolean {
   let index = value.indexOf(term);
   while (index !== -1) {
-    const before = index === 0 ? "" : value[index - 1]!;
+    const before = index === 0 ? "" : (value[index - 1] ?? "");
     const afterIndex = index + term.length;
-    const after = afterIndex >= value.length ? "" : value[afterIndex]!;
+    const after = afterIndex >= value.length ? "" : (value[afterIndex] ?? "");
     if (!isAlphaNumeric(before) && !isAlphaNumeric(after)) {
       return true;
     }
@@ -80,22 +80,15 @@ function isAlphaNumeric(char: string): boolean {
   return /^[a-z0-9]$/.test(char);
 }
 
-export function filterKeyValueData(
-  data: Attributes,
-  behavior: CollectBehavior,
-): Attributes {
+export function filterKeyValueData(data: Attributes, behavior: CollectBehavior): Attributes {
   if (behavior === false) {
     return { ...data };
   }
 
   const denyTerms =
-    behavior !== true && "deny" in behavior
-      ? behavior.deny.map((t) => t.toLowerCase())
-      : null;
+    behavior !== true && "deny" in behavior ? behavior.deny.map((t) => t.toLowerCase()) : null;
   const allowTerms =
-    behavior !== true && "allow" in behavior
-      ? behavior.allow.map((t) => t.toLowerCase())
-      : null;
+    behavior !== true && "allow" in behavior ? behavior.allow.map((t) => t.toLowerCase()) : null;
 
   const shouldFilter = (lower: string): boolean => {
     if (isSensitiveKey(lower)) return true;
@@ -105,8 +98,8 @@ export function filterKeyValueData(
   };
 
   const result: Attributes = {};
-  for (const key of Object.keys(data)) {
-    result[key] = shouldFilter(key.toLowerCase()) ? FILTERED : data[key]!;
+  for (const [key, value] of Object.entries(data)) {
+    result[key] = shouldFilter(key.toLowerCase()) ? FILTERED : value;
   }
   return result;
 }
@@ -129,10 +122,7 @@ export function scrubString(value: string, patterns: RegExp[]): string {
   return out;
 }
 
-export function scrubAttributes(
-  attributes: Attributes,
-  patterns: RegExp[],
-): Attributes {
+export function scrubAttributes(attributes: Attributes, patterns: RegExp[]): Attributes {
   const out: Attributes = {};
   for (const [key, value] of Object.entries(attributes)) {
     if (typeof value !== "string") {

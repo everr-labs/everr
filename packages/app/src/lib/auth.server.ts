@@ -65,12 +65,7 @@ async function getMarkedDeviceOrganizationId(session: { userId: string }) {
   const membership = await db
     .select({ organizationId: member.organizationId })
     .from(member)
-    .where(
-      and(
-        eq(member.userId, session.userId),
-        eq(member.organizationId, organizationId),
-      ),
-    )
+    .where(and(eq(member.userId, session.userId), eq(member.organizationId, organizationId)))
     .limit(1);
 
   return membership[0]?.organizationId ?? null;
@@ -85,10 +80,7 @@ async function getLastUsedOrganizationId(session: { userId: string }) {
     .select({ organizationId: sessionTable.activeOrganizationId })
     .from(sessionTable)
     .where(
-      and(
-        eq(sessionTable.userId, session.userId),
-        isNotNull(sessionTable.activeOrganizationId),
-      ),
+      and(eq(sessionTable.userId, session.userId), isNotNull(sessionTable.activeOrganizationId)),
     )
     .orderBy(desc(sessionTable.updatedAt))
     .limit(1);
@@ -102,12 +94,7 @@ async function getLastUsedOrganizationId(session: { userId: string }) {
   const membership = await db
     .select({ organizationId: member.organizationId })
     .from(member)
-    .where(
-      and(
-        eq(member.userId, session.userId),
-        eq(member.organizationId, candidateOrgId),
-      ),
-    )
+    .where(and(eq(member.userId, session.userId), eq(member.organizationId, candidateOrgId)))
     .limit(1);
 
   return membership[0]?.organizationId ?? null;
@@ -228,8 +215,7 @@ export const auth = betterAuth({
     session: {
       create: {
         before: async (session) => {
-          let activeOrganizationId =
-            await getMarkedDeviceOrganizationId(session);
+          let activeOrganizationId = await getMarkedDeviceOrganizationId(session);
 
           // Prefer the org the user most recently had active (their "current"
           // org) so a fresh login reuses it instead of picking the first one.
@@ -247,8 +233,7 @@ export const auth = betterAuth({
               .where(eq(member.userId, session.userId))
               .limit(1);
 
-            activeOrganizationId =
-              existingMembership[0]?.organizationId ?? null;
+            activeOrganizationId = existingMembership[0]?.organizationId ?? null;
           }
 
           // If the user has no org (fresh signup, not via invite),
@@ -261,10 +246,7 @@ export const auth = betterAuth({
               .limit(1);
 
             if (userRecord[0]) {
-              const orgName = deriveOrgName(
-                userRecord[0].name,
-                userRecord[0].email,
-              );
+              const orgName = deriveOrgName(userRecord[0].name, userRecord[0].email);
 
               try {
                 await auth.api.createOrganization({
@@ -306,10 +288,7 @@ export const auth = betterAuth({
   plugins: [
     cliDeviceOrganizationPlugin({
       onError: (stage, error) => {
-        serverLogger.error(
-          `cli_device_organization.${stage}.failed`,
-          exceptionAttributes(error),
-        );
+        serverLogger.error(`cli_device_organization.${stage}.failed`, exceptionAttributes(error));
       },
     }),
     organizationPlugin({
@@ -446,13 +425,7 @@ export const auth = betterAuth({
       // "/.well-known/oauth-authorization-server/api/auth" (see the route of the
       // same path); silence better-auth's startup check now that it exists.
       silenceWarnings: { oauthAuthServerConfig: true },
-      scopes: [
-        "openid",
-        "profile",
-        "email",
-        "offline_access",
-        "observability:read",
-      ],
+      scopes: ["openid", "profile", "email", "offline_access", "observability:read"],
       postLogin: {
         // `page` + `shouldRedirect` are required by the type, but we never
         // divert to a separate picker: the active org is shown and switchable on
@@ -464,8 +437,7 @@ export const auth = betterAuth({
           const orgId = selectedOrgId(session.activeOrganizationId);
           if (scopes.includes("observability:read") && !orgId) {
             throw new APIError("BAD_REQUEST", {
-              message:
-                "No active organization to authorize. Create one in Everr, then reconnect.",
+              message: "No active organization to authorize. Create one in Everr, then reconnect.",
             });
           }
           return orgId;

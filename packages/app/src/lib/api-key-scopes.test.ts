@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { describeApiKeyScopes, hasApiKeyScope } from "@/lib/api-key-scopes";
 
 describe("hasApiKeyScope", () => {
@@ -22,17 +22,13 @@ describe("hasApiKeyScope", () => {
 
   it("honors the explicit action when no wildcard is set", () => {
     expect(hasApiKeyScope({ ingest: ["write"] }, "ingest", "write")).toBe(true);
-    expect(hasApiKeyScope({ ingest: ["write"] }, "ingest", "delete")).toBe(
-      false,
-    );
+    expect(hasApiKeyScope({ ingest: ["write"] }, "ingest", "delete")).toBe(false);
   });
 
   it("treats a missing action as 'holds the scope at all'", () => {
     // A real apply key carries its concrete action set, not a wildcard — the
     // no-action check must accept it (this is what apply-auth relies on).
-    expect(
-      hasApiKeyScope({ apply: ["read", "write", "delete"] }, "apply"),
-    ).toBe(true);
+    expect(hasApiKeyScope({ apply: ["read", "write", "delete"] }, "apply")).toBe(true);
     expect(hasApiKeyScope({ apply: ["*"] }, "apply")).toBe(true);
     expect(hasApiKeyScope({ apply: ["read"] }, "apply")).toBe(true);
     expect(hasApiKeyScope({ apply: [] }, "apply")).toBe(false);
@@ -51,9 +47,7 @@ describe("describeApiKeyScopes", () => {
   });
 
   it("drops scopes with an empty action array", () => {
-    expect(describeApiKeyScopes({ ingest: [], apply: ["*"] })).toEqual([
-      "apply",
-    ]);
+    expect(describeApiKeyScopes({ ingest: [], apply: ["*"] })).toEqual(["apply"]);
   });
 
   it("returns an empty list when no scope has any action", () => {

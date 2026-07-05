@@ -62,13 +62,8 @@ export const Route = createFileRoute("/api/og/devlog/$slug")({
           return new Response(undefined, { status: 404 });
         }
 
-        const { title, description, date, commits, prs, additions, deletions } =
-          page.data;
-        const hasStats =
-          commits != null ||
-          prs != null ||
-          additions != null ||
-          deletions != null;
+        const { title, description, date, commits, prs, additions, deletions } = page.data;
+        const hasStats = commits != null || prs != null || additions != null || deletions != null;
         const formattedDate = new Date(date).toLocaleDateString("en-US", {
           year: "numeric",
           month: "long",

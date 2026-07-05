@@ -3,15 +3,9 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
 import { emit } from "@tauri-apps/api/event";
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
-import {
-  act,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import {
   activeNotificationQueryKey,
   NotificationCard,
@@ -100,20 +94,13 @@ type RenderMainOptions = {
 
 type NotificationResult = FailureNotification | null | Error;
 
-function renderWithProviders(
-  node: ReactNode,
-  queryClient = createQueryClient(),
-) {
-  render(
-    <QueryClientProvider client={queryClient}>{node}</QueryClientProvider>,
-  );
+function renderWithProviders(node: ReactNode, queryClient = createQueryClient()) {
+  render(<QueryClientProvider client={queryClient}>{node}</QueryClientProvider>);
 
   return queryClient;
 }
 
-function createNotification(
-  overrides: Partial<FailureNotification> = {},
-): FailureNotification {
+function createNotification(overrides: Partial<FailureNotification> = {}): FailureNotification {
   return {
     dedupeKey: "one",
     traceId: "trace-one",
@@ -151,9 +138,7 @@ function renderMainApp(options: RenderMainOptions = {}) {
   let notificationEmails = options.notificationEmails ?? ["user@example.com"];
   let pendingSignIn: PendingSignIn | null = options.pendingSignIn ?? null;
   const openSignInBrowserSpy = vi.fn(() => null);
-  const triggerTestNotificationSpy = vi.fn(
-    () => options.testNotification ?? { status: "shown" },
-  );
+  const triggerTestNotificationSpy = vi.fn(() => options.testNotification ?? { status: "shown" });
   let runs = options.runs ?? [];
   const runningCollectorStatus = {
     status: "running",
@@ -200,9 +185,7 @@ function renderMainApp(options: RenderMainOptions = {}) {
           };
           return pendingSignIn satisfies SignInResponse;
         case "poll_sign_in":
-          return (
-            pendingSignIn ?? ({ status: "expired" } satisfies SignInResponse)
-          );
+          return pendingSignIn ?? ({ status: "expired" } satisfies SignInResponse);
         case "open_sign_in_browser":
           return openSignInBrowserSpy();
         case "sign_out":
@@ -323,9 +306,7 @@ async function renderNotificationApp(
   };
 }
 
-async function renderNotificationCard(
-  notification: FailureNotification = createNotification(),
-) {
+async function renderNotificationCard(notification: FailureNotification = createNotification()) {
   const dismissSpy = vi.fn(() => null);
   const openSpy = vi.fn(() => null);
   const copySpy = vi.fn(() => null);
@@ -385,9 +366,7 @@ describe("desktop window", () => {
     });
 
     expect(await screen.findByText("CI runs")).toBeInTheDocument();
-    expect(
-      screen.queryByText("Sign in to view your CI runs"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Sign in to view your CI runs")).not.toBeInTheDocument();
     expect(screen.queryByText("Background tasks")).not.toBeInTheDocument();
   });
 
@@ -400,9 +379,7 @@ describe("desktop window", () => {
       await router.navigate({ to: "/ci" });
     });
 
-    expect(
-      await screen.findByText("Sign in to view your CI runs"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Sign in to view your CI runs")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
   });
 
@@ -415,12 +392,8 @@ describe("desktop window", () => {
       await router.navigate({ to: "/logs" });
     });
 
-    expect(
-      screen.queryByText("Sign in to view your CI runs"),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Sign in" }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Sign in to view your CI runs")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Sign in" })).not.toBeInTheDocument();
   });
 
   it("triggers a test notification from the settings view", async () => {
@@ -432,17 +405,13 @@ describe("desktop window", () => {
       await router.navigate({ to: "/developer" });
     });
 
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Test notification" }),
-    );
+    fireEvent.click(await screen.findByRole("button", { name: "Test notification" }));
 
     await waitFor(() => {
       expect(triggerTestNotificationSpy).toHaveBeenCalledTimes(1);
     });
     expect(
-      await screen.findByText(
-        "Test notification queued behind the active notification.",
-      ),
+      await screen.findByText("Test notification queued behind the active notification."),
     ).toBeInTheDocument();
   });
 });
@@ -582,9 +551,7 @@ describe("notification window", () => {
   it("shows a retry state when fetching the active notification fails", async () => {
     const harness = await renderNotificationApp(new Error("boom"));
 
-    expect(
-      await screen.findByText("Failed to load notification"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Failed to load notification")).toBeInTheDocument();
 
     harness.setNotification(createNotification());
     await act(async () => {
@@ -676,9 +643,7 @@ describe("local telemetry collector", () => {
       await router.navigate({ to: "/logs" });
     });
 
-    expect(
-      await screen.findByText("Local telemetry unavailable"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Local telemetry unavailable")).toBeInTheDocument();
     expect(screen.getByText("collector exited")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Restart collector" }));
@@ -724,12 +689,8 @@ describe("local telemetry collector", () => {
       await router.navigate({ to: "/logs" });
     });
 
-    expect(
-      await screen.findByText("Starting local telemetry"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("The local collector is starting."),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Starting local telemetry")).toBeInTheDocument();
+    expect(screen.getByText("The local collector is starting.")).toBeInTheDocument();
   });
 
   it("restarts the collector from the settings page", async () => {
@@ -785,9 +746,7 @@ describe("notification emails", () => {
     fireEvent.change(input, { target: { value: "not-an-email" } });
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
 
-    expect(
-      await screen.findByText("Please enter a valid email address."),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Please enter a valid email address.")).toBeInTheDocument();
   });
 
   it("prevents adding a duplicate email", async () => {
@@ -804,8 +763,6 @@ describe("notification emails", () => {
     fireEvent.change(input, { target: { value: "alice@example.com" } });
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
 
-    expect(
-      await screen.findByText("This email is already added."),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("This email is already added.")).toBeInTheDocument();
   });
 });

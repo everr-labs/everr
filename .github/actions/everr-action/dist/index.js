@@ -127948,6 +127948,9 @@ var external_node_url_ = __nccwpck_require__(73136);
 ;// CONCATENATED MODULE: ./scripts/finalize.ts
 
 
+function isRecord(value) {
+    return typeof value === "object" && value !== null;
+}
 function toNumber(value, fallback = 0) {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
@@ -127999,12 +128002,8 @@ function parseCPULogicalSamples(value) {
     }
     return value
         .map((item) => ({
-        logicalNumber: toInteger(item && typeof item === "object"
-            ? item.logicalNumber
-            : undefined),
-        utilization: toNumber(item && typeof item === "object"
-            ? item.utilization
-            : undefined),
+        logicalNumber: toInteger(isRecord(item) ? item.logicalNumber : undefined),
+        utilization: toNumber(isRecord(item) ? item.utilization : undefined),
     }))
         .sort((left, right) => left.logicalNumber - right.logicalNumber);
 }
@@ -128014,31 +128013,17 @@ function parseNetworkInterfaces(value) {
     }
     return value
         .map((item) => ({
-        name: finalize_toString(item && typeof item === "object"
-            ? item.name
-            : undefined),
-        receiveBytes: toNumber(item && typeof item === "object"
-            ? item.receiveBytes
-            : undefined),
-        transmitBytes: toNumber(item && typeof item === "object"
-            ? item.transmitBytes
-            : undefined),
+        name: finalize_toString(isRecord(item) ? item.name : undefined),
+        receiveBytes: toNumber(isRecord(item) ? item.receiveBytes : undefined),
+        transmitBytes: toNumber(isRecord(item) ? item.transmitBytes : undefined),
     }))
         .sort((left, right) => left.name.localeCompare(right.name));
 }
 function sanitizeSample(parsed) {
-    const cpu = parsed.cpu && typeof parsed.cpu === "object"
-        ? parsed.cpu
-        : {};
-    const memory = parsed.memory && typeof parsed.memory === "object"
-        ? parsed.memory
-        : {};
-    const filesystem = parsed.filesystem && typeof parsed.filesystem === "object"
-        ? parsed.filesystem
-        : {};
-    const network = parsed.network && typeof parsed.network === "object"
-        ? parsed.network
-        : {};
+    const cpu = isRecord(parsed.cpu) ? parsed.cpu : {};
+    const memory = isRecord(parsed.memory) ? parsed.memory : {};
+    const filesystem = isRecord(parsed.filesystem) ? parsed.filesystem : {};
+    const network = isRecord(parsed.network) ? parsed.network : {};
     return {
         timestamp: finalize_toString(parsed.timestamp),
         cpu: {
@@ -128323,10 +128308,7 @@ async function finalizeAndUploadResourceUsage({ env = process.env, fspModule = p
                 completedAt,
             },
         });
-        const files = [
-            external_node_path_.join(outputDir, "metadata.json"),
-            external_node_path_.join(outputDir, "samples.ndjson"),
-        ];
+        const files = [external_node_path_.join(outputDir, "metadata.json"), external_node_path_.join(outputDir, "samples.ndjson")];
         const artifactName = artifactNameForCheckRun(checkRunId);
         await uploadArtifactImpl(artifactName, files, outputDir, {
             retentionDays: 7,
@@ -128405,11 +128387,7 @@ async function resolveWorkspaceFilesystemInfo(workspacePath, runnerOs = process.
     return resolveFilesystemInfoLinux(workspacePath);
 }
 async function resolveFilesystemInfoLinux(workspacePath) {
-    const { stdout } = await execFileWithOutput("df", [
-        "-PkT",
-        "--",
-        workspacePath,
-    ]);
+    const { stdout } = await execFileWithOutput("df", ["-PkT", "--", workspacePath]);
     const lines = stdout
         .split("\n")
         .map((line) => line.trim())
@@ -128428,11 +128406,7 @@ async function resolveFilesystemInfoLinux(workspacePath) {
     };
 }
 async function resolveFilesystemInfoMacOS(workspacePath) {
-    const { stdout } = await execFileWithOutput("df", [
-        "-Pk",
-        "--",
-        workspacePath,
-    ]);
+    const { stdout } = await execFileWithOutput("df", ["-Pk", "--", workspacePath]);
     const lines = stdout
         .split("\n")
         .map((line) => line.trim())

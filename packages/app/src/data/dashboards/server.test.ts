@@ -1,5 +1,6 @@
 import { isNotFound } from "@tanstack/react-router";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import type * as DrizzleOrm from "drizzle-orm";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { db } from "@/db/client";
 import { querySqlApi } from "@/lib/clickhouse";
 
@@ -7,7 +8,7 @@ import { querySqlApi } from "@/lib/clickhouse";
 // the live-mode filter (`isNull(dashboards.previewId)`) is assertable without
 // hand-rolling a fake SQL builder for the rest of the query.
 vi.mock("drizzle-orm", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("drizzle-orm")>();
+  const actual = await importOriginal<typeof DrizzleOrm>();
   return { ...actual, eq: vi.fn(actual.eq), isNull: vi.fn(actual.isNull) };
 });
 
@@ -78,12 +79,7 @@ vi.mock("@/db/schema", () => ({
   },
 }));
 
-import {
-  getDashboard,
-  listDashboards,
-  runPanelQuery,
-  runVariableOptionsQuery,
-} from "./server";
+import { getDashboard, listDashboards, runPanelQuery, runVariableOptionsQuery } from "./server";
 
 const mockedDb = vi.mocked(db);
 const mockedClickhouse = vi.mocked(querySqlApi);
@@ -151,9 +147,7 @@ describe("runPanelQuery – variable interpolation", () => {
       },
     });
 
-    expect(mockedClickhouse.mock.calls[0]![0]).toBe(
-      "SELECT $notavar FROM logs",
-    );
+    expect(mockedClickhouse.mock.calls[0]![0]).toBe("SELECT $notavar FROM logs");
   });
 
   it("binds from/to and an adaptive {step} bucket as query params", async () => {
@@ -163,10 +157,7 @@ describe("runPanelQuery – variable interpolation", () => {
       data: { source: { kind: "ClickHouseSQL", sql: "SELECT 1" } },
     });
 
-    const params = mockedClickhouse.mock.calls[0]![2] as Record<
-      string,
-      unknown
-    >;
+    const params = mockedClickhouse.mock.calls[0]![2] as Record<string, unknown>;
     expect(typeof params.from).toBe("string");
     expect(typeof params.to).toBe("string");
     // Default range is now-7d..now → 604800s / 500 = 1209.6 → snapped to 30m.
@@ -203,10 +194,7 @@ describe("runVariableOptionsQuery", () => {
       data: { query: "SELECT DISTINCT ServiceName FROM traces" },
     });
 
-    const params = mockedClickhouse.mock.calls[0]![2] as Record<
-      string,
-      unknown
-    >;
+    const params = mockedClickhouse.mock.calls[0]![2] as Record<string, unknown>;
     expect(typeof params.from).toBe("string");
     expect(typeof params.to).toBe("string");
     expect(params.step).toBe(1800); // default now-7d..now → 30m
@@ -398,9 +386,7 @@ describe("listDashboards (with project + folderPath)", () => {
         }) as unknown as ReturnType<typeof mockedDb.select>,
     );
     const rows = await listDashboards();
-    expect(rows).toEqual([
-      { slug: "cpu", project: "team", name: "CPU", folderPath: "Infra" },
-    ]);
+    expect(rows).toEqual([{ slug: "cpu", project: "team", name: "CPU", folderPath: "Infra" }]);
   });
 
   it("in live mode, only reads rows with preview = ''", async () => {

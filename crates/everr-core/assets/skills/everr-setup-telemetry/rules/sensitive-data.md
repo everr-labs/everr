@@ -6,16 +6,16 @@ Telemetry is copied, indexed, retained, and queried. Prevent sensitive data from
 
 Never attach these values to any telemetry signal:
 
-| Category | Examples |
-| --- | --- |
-| Credentials | passwords, API keys, bearer tokens, OAuth secrets |
-| Session material | cookies, `Set-Cookie`, session ids |
-| Financial instruments | card numbers, bank accounts, CVVs |
-| Government identifiers | SSNs, tax ids, passport numbers |
-| Health records | diagnoses, prescriptions, medical record numbers |
-| Biometric data | fingerprints, face geometry, retinal scans |
-| Raw auth headers | `Authorization`, `Cookie`, `Set-Cookie` values |
-| Raw payloads | request bodies, response bodies, form data, uploaded files |
+| Category               | Examples                                                   |
+| ---------------------- | ---------------------------------------------------------- |
+| Credentials            | passwords, API keys, bearer tokens, OAuth secrets          |
+| Session material       | cookies, `Set-Cookie`, session ids                         |
+| Financial instruments  | card numbers, bank accounts, CVVs                          |
+| Government identifiers | SSNs, tax ids, passport numbers                            |
+| Health records         | diagnoses, prescriptions, medical record numbers           |
+| Biometric data         | fingerprints, face geometry, retinal scans                 |
+| Raw auth headers       | `Authorization`, `Cookie`, `Set-Cookie` values             |
+| Raw payloads           | request bodies, response bodies, form data, uploaded files |
 
 If the user asks to correlate using sensitive values, use a keyed hash or partially masked representation.
 
@@ -39,7 +39,7 @@ Strip query parameters unless there is a strong reason to keep safe ones.
 ```javascript
 function sanitizeUrl(value) {
   const url = new URL(value);
-  url.search = '';
+  url.search = "";
   return url.toString();
 }
 ```
@@ -74,10 +74,10 @@ If auto-instrumentation captures unsafe queries:
 Pick fields explicitly:
 
 ```javascript
-logger.info('request.received', {
+logger.info("request.received", {
   method: req.method,
   route: req.route?.path,
-  content_length: req.headers['content-length'],
+  content_length: req.headers["content-length"],
 });
 ```
 
@@ -88,10 +88,10 @@ Do not log `req.headers`, `req.body`, `res.body`, form data, or user objects who
 Use keyed HMAC when a sensitive value needs stable correlation.
 
 ```javascript
-import { createHmac } from 'node:crypto';
+import { createHmac } from "node:crypto";
 
 function hashForTelemetry(value, key) {
-  return createHmac('sha256', key).update(value).digest('hex');
+  return createHmac("sha256", key).update(value).digest("hex");
 }
 ```
 

@@ -63,16 +63,11 @@ export function ResourceEmptyState({
         <EmptyTitle as="h2" className="text-xl font-bold">
           {title}
         </EmptyTitle>
-        <EmptyDescription className="text-sm/relaxed">
-          {description}
-        </EmptyDescription>
+        <EmptyDescription className="text-sm/relaxed">{description}</EmptyDescription>
       </EmptyHeader>
       <EmptyContent className="mt-4 w-full max-w-2xl">
         <div className="flex w-full items-center gap-4 rounded-xl border bg-muted/30 py-3 pr-3 pl-5 text-left">
-          <span
-            aria-hidden
-            className="select-none font-mono font-semibold text-primary text-sm"
-          >
+          <span aria-hidden className="select-none font-mono font-semibold text-primary text-sm">
             {">_"}
           </span>
           <code
@@ -91,17 +86,13 @@ export function ResourceEmptyState({
             {copyState === "copied" ? "Copied" : "Copy"}
           </Button>
         </div>
-        <div
-          role="status"
-          className={cn(
-            "text-muted-foreground text-xs",
-            copyState !== "failed" && "sr-only",
-          )}
+        <output
+          className={cn("text-muted-foreground text-xs", copyState !== "failed" && "sr-only")}
         >
           {copyState === "copied" && "Prompt copied to clipboard."}
           {copyState === "failed" &&
             "Couldn't access the clipboard. The prompt is selected, copy it manually."}
-        </div>
+        </output>
         {docsHref && (
           <EmptyDescription>
             Or write the YAML yourself and publish it with the everr CLI.{" "}

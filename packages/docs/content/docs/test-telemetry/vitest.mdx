@@ -28,6 +28,7 @@ export default defineConfig({
 ### Default reporter
 
 The default reporter (no extra configuration needed) is also supported. Everr parses:
+
 - **File-level summaries** for every test file (pass/fail status and duration)
 - **Individual slow tests** that Vitest prints below each file summary
 
@@ -46,30 +47,31 @@ Everr automatically detects and parses Vitest output from workflow logs.
 
 ### Verbose reporter patterns
 
-| Pattern | Meaning |
-|---------|---------|
-| `✓ filepath > describe > test 42ms` | Test passed |
-| `× filepath > describe > test 15ms` | Test failed |
-| `↓ filepath > describe > test` | Test skipped |
+| Pattern                             | Meaning      |
+| ----------------------------------- | ------------ |
+| `✓ filepath > describe > test 42ms` | Test passed  |
+| `× filepath > describe > test 15ms` | Test failed  |
+| `↓ filepath > describe > test`      | Test skipped |
 
 ### Default reporter patterns
 
-| Pattern | Meaning |
-|---------|---------|
-| `✓ project filepath (N tests) 42ms` | File passed |
-| `× project filepath (N tests \| M failed) 42ms` | File failed |
-| `    ✓ test name 42ms` | Slow test passed (child of file above) |
-| `    × test name 15ms` | Slow test failed (child of file above) |
+| Pattern                                         | Meaning                                |
+| ----------------------------------------------- | -------------------------------------- |
+| `✓ project filepath (N tests) 42ms`             | File passed                            |
+| `× project filepath (N tests \| M failed) 42ms` | File failed                            |
+| `    ✓ test name 42ms`                          | Slow test passed (child of file above) |
+| `    × test name 15ms`                          | Slow test failed (child of file above) |
 
 ## Describe block hierarchy
 
-Vitest verbose output uses the ` > ` separator to represent the test hierarchy: file path, describe blocks, and test name. For example:
+Vitest verbose output uses the `>` separator to represent the test hierarchy: file path, describe blocks, and test name. For example:
 
 ```
 ✓ src/utils.test.ts > parseConfig > handles empty input 3ms
 ```
 
 This is parsed as:
+
 - **Package**: `src/utils.test.ts`
 - **Describe block**: `parseConfig`
 - **Test name**: `handles empty input`
@@ -78,13 +80,13 @@ Nested describe blocks are automatically detected. Describe nodes get `everr.tes
 
 ## Generated span attributes
 
-| Attribute | Value |
-|-----------|-------|
-| `everr.test.name` | Full test name (e.g. `parseConfig > handles empty input`) |
-| `everr.test.result` | `pass`, `fail`, or `skip` |
-| `everr.test.duration_seconds` | Duration from the test output |
-| `everr.test.framework` | `vitest` |
-| `everr.test.package` | File path (e.g. `src/utils.test.ts`) |
-| `everr.test.is_suite` | `true` for describe blocks or file summaries that contain child tests |
-| `everr.test.is_subtest` | `true` for tests within describe blocks or file summaries |
-| `everr.test.parent_test` | Parent describe block or file name |
+| Attribute                     | Value                                                                 |
+| ----------------------------- | --------------------------------------------------------------------- |
+| `everr.test.name`             | Full test name (e.g. `parseConfig > handles empty input`)             |
+| `everr.test.result`           | `pass`, `fail`, or `skip`                                             |
+| `everr.test.duration_seconds` | Duration from the test output                                         |
+| `everr.test.framework`        | `vitest`                                                              |
+| `everr.test.package`          | File path (e.g. `src/utils.test.ts`)                                  |
+| `everr.test.is_suite`         | `true` for describe blocks or file summaries that contain child tests |
+| `everr.test.is_subtest`       | `true` for tests within describe blocks or file summaries             |
+| `everr.test.parent_test`      | Parent describe block or file name                                    |

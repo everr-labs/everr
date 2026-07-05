@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { createHmac } from "node:crypto";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const { webhookSecret, webhookMocks } = vi.hoisted(() => {
   const webhookSecret = "super-secret-value-1234567890-ab";
@@ -23,9 +23,7 @@ vi.mock("./enqueue", () => ({
 }));
 
 vi.mock("@/db/client", () => {
-  const set = vi
-    .fn()
-    .mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) });
+  const set = vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) });
   return {
     db: {
       update: vi.fn().mockReturnValue({ set }),
@@ -104,15 +102,12 @@ describe("handleGitHubWebhookRequest", () => {
 
     expect(response.status).toBe(202);
     expect(webhookMocks.enqueueWebhookEvent).toHaveBeenCalledOnce();
-    expect(webhookMocks.enqueueWebhookEvent).toHaveBeenCalledWith(
-      "delivery-1",
-      {
-        headers: expect.objectContaining({
-          "x-github-event": ["workflow_run"],
-        }),
-        body: expect.any(String),
-      },
-    );
+    expect(webhookMocks.enqueueWebhookEvent).toHaveBeenCalledWith("delivery-1", {
+      headers: expect.objectContaining({
+        "x-github-event": ["workflow_run"],
+      }),
+      body: expect.any(String),
+    });
   });
 
   it("passes the eventId as deduplication id", async () => {

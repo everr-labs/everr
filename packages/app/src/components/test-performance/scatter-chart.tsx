@@ -18,14 +18,7 @@ import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { Link } from "@tanstack/react-router";
 import { ExternalLink } from "lucide-react";
 import { useMemo, useState } from "react";
-import {
-  CartesianGrid,
-  Scatter,
-  ScatterChart,
-  XAxis,
-  YAxis,
-  ZAxis,
-} from "recharts";
+import { CartesianGrid, Scatter, ScatterChart, XAxis, YAxis, ZAxis } from "recharts";
 import type { ScatterPoint } from "@/data/test-performance/metrics";
 
 interface TestPerfScatterChartProps {
@@ -115,12 +108,9 @@ function ScatterTooltipContent({
   const point = payload[0]?.payload;
   if (!point) return null;
 
-  const resultColor =
-    point.result === "pass" ? "text-green-600" : "text-red-600";
+  const resultColor = point.result === "pass" ? "text-green-600" : "text-red-600";
   const displayName =
-    point.testName.length > 45
-      ? `${point.testName.slice(0, 42)}...`
-      : point.testName;
+    point.testName.length > 45 ? `${point.testName.slice(0, 42)}...` : point.testName;
 
   return (
     <div className="border-border/50 bg-background rounded-lg border px-2.5 py-1.5 text-xs shadow-xl min-w-48">
@@ -128,8 +118,7 @@ function ScatterTooltipContent({
       <div className="grid gap-0.5 text-muted-foreground">
         {point.count > 1 && (
           <p>
-            Executions:{" "}
-            <span className="text-foreground font-medium">{point.count}</span>
+            Executions: <span className="text-foreground font-medium">{point.count}</span>
           </p>
         )}
         <p>
@@ -140,8 +129,7 @@ function ScatterTooltipContent({
           </span>
         </p>
         <p>
-          Result:{" "}
-          <span className={`font-medium ${resultColor}`}>{point.result}</span>
+          Result: <span className={`font-medium ${resultColor}`}>{point.result}</span>
         </p>
         <p>
           Branch: <span className="text-foreground">{point.branch}</span>
@@ -150,15 +138,11 @@ function ScatterTooltipContent({
           <>
             <p>
               Commit:{" "}
-              <span className="text-foreground font-mono">
-                {point.commitSha.slice(0, 7)}
-              </span>
+              <span className="text-foreground font-mono">{point.commitSha.slice(0, 7)}</span>
             </p>
             <p>
               Time:{" "}
-              <span className="text-foreground">
-                {new Date(point.timestamp).toLocaleString()}
-              </span>
+              <span className="text-foreground">{new Date(point.timestamp).toLocaleString()}</span>
             </p>
           </>
         )}
@@ -211,9 +195,7 @@ export function TestPerfScatterChart({
   }, [data, shouldAggregate, fromTimestamp, toTimestamp]);
 
   if (data.length === 0) {
-    return (
-      <ChartEmptyState message="No test executions match the current filters" />
-    );
+    return <ChartEmptyState message="No test executions match the current filters" />;
   }
 
   const handleClick = (entry: ScatterPointWithTs | undefined) => {
@@ -315,9 +297,7 @@ export function TestPerfScatterChart({
             <>
               <DrawerHeader>
                 <DrawerTitle>
-                  {selected.count > 1
-                    ? `${selected.count} Executions`
-                    : "Test Execution Details"}
+                  {selected.count > 1 ? `${selected.count} Executions` : "Test Execution Details"}
                 </DrawerTitle>
                 <DrawerDescription className="font-mono break-all">
                   {selected.testName}
@@ -337,9 +317,7 @@ export function TestPerfScatterChart({
                     <p className="text-muted-foreground text-xs">
                       {selected.count > 1 ? "Avg Duration" : "Duration"}
                     </p>
-                    <p className="font-mono">
-                      {formatDurationCompact(selected.duration, "s")}
-                    </p>
+                    <p className="font-mono">{formatDurationCompact(selected.duration, "s")}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground text-xs">Branch</p>
@@ -353,9 +331,7 @@ export function TestPerfScatterChart({
                     <>
                       <div>
                         <p className="text-muted-foreground text-xs">Commit</p>
-                        <p className="font-mono">
-                          {selected.commitSha.slice(0, 7)}
-                        </p>
+                        <p className="font-mono">{selected.commitSha.slice(0, 7)}</p>
                       </div>
                       <div>
                         <p className="text-muted-foreground text-xs">When</p>
@@ -369,13 +345,7 @@ export function TestPerfScatterChart({
                     className="w-full"
                     variant="outline"
                     nativeButton={false}
-                    role="link"
-                    render={
-                      <Link
-                        to="/runs/$traceId"
-                        params={{ traceId: selected.traceId }}
-                      />
-                    }
+                    render={<Link to="/runs/$traceId" params={{ traceId: selected.traceId }} />}
                   >
                     <ExternalLink className="size-4" />
                     View CI Run

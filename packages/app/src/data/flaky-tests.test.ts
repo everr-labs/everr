@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 vi.mock("@/lib/clickhouse", () => ({
   query: vi.fn(),
@@ -46,9 +46,7 @@ describe("getTestHistory", () => {
     });
 
     expect(mockedQuery).toHaveBeenCalledTimes(1);
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
-      "LIMIT {limit:UInt32} OFFSET {offset:UInt32}",
-    );
+    expect(mockedQuery.mock.calls[0]?.[0]).toContain("LIMIT {limit:UInt32} OFFSET {offset:UInt32}");
     expect(mockedQuery.mock.calls[0]?.[2]).toEqual(
       expect.objectContaining({
         repo: "everr-labs/everr",

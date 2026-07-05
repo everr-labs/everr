@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { buildDesiredRunbookSet } from "./desired";
 
 const doc = (over: Record<string, unknown> = {}) => ({
@@ -10,9 +10,7 @@ const doc = (over: Record<string, unknown> = {}) => ({
 
 describe("buildDesiredRunbookSet", () => {
   it("builds a desired resource with project, slug and folderPath", () => {
-    const out = buildDesiredRunbookSet([
-      { path: "runbooks/rb.yaml", document: doc() },
-    ]);
+    const out = buildDesiredRunbookSet([{ path: "runbooks/rb.yaml", document: doc() }]);
     expect(out).toEqual([
       {
         project: "demo",
@@ -25,9 +23,7 @@ describe("buildDesiredRunbookSet", () => {
 
   it("slug falls back to the filename", () => {
     const d = doc({ metadata: { project: "demo" } });
-    const out = buildDesiredRunbookSet([
-      { path: "incidents.yaml", document: d },
-    ]);
+    const out = buildDesiredRunbookSet([{ path: "incidents.yaml", document: d }]);
     expect(out[0]?.slug).toBe("incidents");
   });
 
@@ -42,9 +38,7 @@ describe("buildDesiredRunbookSet", () => {
 
   it("rejects an invalid spec naming the file", () => {
     expect(() =>
-      buildDesiredRunbookSet([
-        { path: "bad.yaml", document: doc({ spec: {} }) },
-      ]),
+      buildDesiredRunbookSet([{ path: "bad.yaml", document: doc({ spec: {} }) }]),
     ).toThrow(/bad\.yaml/);
   });
 
@@ -63,18 +57,16 @@ describe("buildDesiredRunbookSet", () => {
     const d = doc({
       spec: { markdown: { inline: "```panel\nfoo: bar\n```" } },
     });
-    expect(() =>
-      buildDesiredRunbookSet([{ path: "rb.yaml", document: d }]),
-    ).toThrow(/panel block/);
+    expect(() => buildDesiredRunbookSet([{ path: "rb.yaml", document: d }])).toThrow(/panel block/);
   });
 
   it("rejects a ref fence pointing at a missing shared panel", () => {
     const d = doc({
       spec: { markdown: { inline: "```panel\nref: nope\n```" } },
     });
-    expect(() =>
-      buildDesiredRunbookSet([{ path: "rb.yaml", document: d }]),
-    ).toThrow(/unknown panel "nope"/);
+    expect(() => buildDesiredRunbookSet([{ path: "rb.yaml", document: d }])).toThrow(
+      /unknown panel "nope"/,
+    );
   });
 
   it("rejects an inline fence panel with an invalid plugin option", () => {
@@ -86,9 +78,7 @@ describe("buildDesiredRunbookSet", () => {
       "```",
     ].join("\n");
     const d = doc({ spec: { markdown: { inline: md } } });
-    expect(() =>
-      buildDesiredRunbookSet([{ path: "rb.yaml", document: d }]),
-    ).toThrow(/rb\.yaml/);
+    expect(() => buildDesiredRunbookSet([{ path: "rb.yaml", document: d }])).toThrow(/rb\.yaml/);
   });
 
   it("validates fences in nested pages", () => {
@@ -109,9 +99,7 @@ describe("buildDesiredRunbookSet", () => {
         ],
       },
     });
-    expect(() =>
-      buildDesiredRunbookSet([{ path: "rb.yaml", document: d }]),
-    ).toThrow(/triage\/net/);
+    expect(() => buildDesiredRunbookSet([{ path: "rb.yaml", document: d }])).toThrow(/triage\/net/);
   });
 
   it("accepts valid fences of both forms", () => {
@@ -136,8 +124,6 @@ describe("buildDesiredRunbookSet", () => {
         },
       },
     });
-    expect(
-      buildDesiredRunbookSet([{ path: "rb.yaml", document: d }]),
-    ).toHaveLength(1);
+    expect(buildDesiredRunbookSet([{ path: "rb.yaml", document: d }])).toHaveLength(1);
   });
 });

@@ -1,5 +1,5 @@
 import { eq, isNull } from "drizzle-orm";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { db } from "@/db/client";
 
 // ---------------------------------------------------------------------------
@@ -215,9 +215,7 @@ describe("applyRunbookSpecs", () => {
     await expect(
       applyRunbookSpecs({
         ...base,
-        resources: [
-          { path: "bad.yaml", resource: { kind: "Runbook", spec: {} } },
-        ],
+        resources: [{ path: "bad.yaml", resource: { kind: "Runbook", spec: {} } }],
       }),
     ).rejects.toThrow(/bad\.yaml/);
     expect(mockedDb.insert).not.toHaveBeenCalled();

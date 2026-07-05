@@ -1,7 +1,4 @@
-import type {
-  AlertChannel,
-  AlertDeliveryTargets,
-} from "@/data/alerts/delivery-settings";
+import type { AlertChannel, AlertDeliveryTargets } from "@/data/alerts/delivery-settings";
 import { insertAdminRows } from "@/lib/clickhouse";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 
@@ -76,17 +73,12 @@ export interface BoundedEvidence {
   rows: Record<string, unknown>[];
 }
 
-export function boundEvidence(
-  rows: Record<string, unknown>[],
-): BoundedEvidence {
+export function boundEvidence(rows: Record<string, unknown>[]): BoundedEvidence {
   let kept = rows.slice(0, MAX_EVIDENCE_ROWS);
   let truncated = rows.length > MAX_EVIDENCE_ROWS;
   let json = JSON.stringify(kept);
 
-  while (
-    Buffer.byteLength(json, "utf8") > MAX_EVIDENCE_BYTES &&
-    kept.length > 1
-  ) {
+  while (Buffer.byteLength(json, "utf8") > MAX_EVIDENCE_BYTES && kept.length > 1) {
     kept = kept.slice(0, Math.ceil(kept.length / 2));
     truncated = true;
     json = JSON.stringify(kept);
@@ -156,8 +148,7 @@ function boundJson(value: Record<string, unknown>): string {
     // JSON.stringify(value) drops undefined/function entries; mirror that.
     if (entryJson === undefined) continue;
     const part = `${JSON.stringify(key)}:${entryJson}`;
-    const partBytes =
-      Buffer.byteLength(part, "utf8") + (parts.length > 0 ? 1 : 0);
+    const partBytes = Buffer.byteLength(part, "utf8") + (parts.length > 0 ? 1 : 0);
     if (bytes + partBytes > MAX_EVIDENCE_BYTES) break;
     parts.push(part);
     bytes += partBytes;

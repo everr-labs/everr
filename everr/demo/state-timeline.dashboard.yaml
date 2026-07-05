@@ -35,9 +35,12 @@ spec:
                   rows: 40
                   columns:
                     - { name: ts, time: true }
-                    - { name: api,    values: [up, up, up, degraded, up, up, down, up, up, up] }
-                    - { name: db,     values: [up, up, up, up, up, up, up, up, degraded, up] }
-                    - { name: worker, values: [up, down, up, up, up, degraded, degraded, up, up, up] }
+                    - { name: api, values: [up, up, up, degraded, up, up, down, up, up, up] }
+                    - { name: db, values: [up, up, up, up, up, up, up, up, degraded, up] }
+                    - {
+                        name: worker,
+                        values: [up, down, up, up, up, degraded, degraded, up, up, up],
+                      }
     st-colors:
       kind: Panel
       spec:
@@ -62,7 +65,10 @@ spec:
                   rows: 40
                   columns:
                     - { name: ts, time: true }
-                    - { name: checkout, values: [up, up, degraded, degraded, up, up, up, down, down, up] }
+                    - {
+                        name: checkout,
+                        values: [up, up, degraded, degraded, up, up, up, down, down, up],
+                      }
                     - { name: payments, values: [up, up, up, up, degraded, up, up, up, up, up] }
     st-long-format:
       kind: Panel
@@ -91,7 +97,11 @@ spec:
                   columns:
                     - { name: ts, time: true }
                     - { name: service, values: [api, db, worker] }
-                    - { name: status, values: [ok, ok, ok, ok, warn, ok, ok, error, ok, ok, ok, warn, warn, ok, ok] }
+                    - {
+                        name: status,
+                        values:
+                          [ok, ok, ok, ok, warn, ok, ok, error, ok, ok, ok, warn, warn, ok, ok],
+                      }
     st-merge-off:
       kind: Panel
       spec:
@@ -207,7 +217,22 @@ spec:
                   rows: 30
                   columns:
                     - { name: ts, time: true }
-                    - { name: agent, values: [reporting, reporting, null, null, reporting, reporting, null, reporting, reporting, reporting] }
+                    - {
+                        name: agent,
+                        values:
+                          [
+                            reporting,
+                            reporting,
+                            null,
+                            null,
+                            reporting,
+                            reporting,
+                            null,
+                            reporting,
+                            reporting,
+                            reporting,
+                          ],
+                      }
     st-multi-query:
       kind: Panel
       spec:
@@ -239,7 +264,10 @@ spec:
                   rows: 30
                   columns:
                     - { name: ts, time: true }
-                    - { name: deploys, values: [stable, stable, rolling, stable, stable, rolling, stable] }
+                    - {
+                        name: deploys,
+                        values: [stable, stable, rolling, stable, stable, rolling, stable],
+                      }
     st-empty:
       kind: Panel
       spec:
@@ -282,14 +310,26 @@ spec:
     - kind: Grid
       spec:
         items:
-          - { x: 0,  y: 0,  width: 12, height: 6, content: { $ref: "#/spec/panels/st-defaults" } }
-          - { x: 12, y: 0,  width: 12, height: 6, content: { $ref: "#/spec/panels/st-colors" } }
-          - { x: 0,  y: 6,  width: 12, height: 6, content: { $ref: "#/spec/panels/st-long-format" } }
-          - { x: 12, y: 6,  width: 12, height: 6, content: { $ref: "#/spec/panels/st-merge-off" } }
-          - { x: 0,  y: 12, width: 12, height: 6, content: { $ref: "#/spec/panels/st-compact" } }
-          - { x: 12, y: 12, width: 12, height: 6, content: { $ref: "#/spec/panels/st-legend-off-full-height" } }
-          - { x: 0,  y: 18, width: 8,  height: 5, content: { $ref: "#/spec/panels/st-numeric-states" } }
-          - { x: 8,  y: 18, width: 8,  height: 5, content: { $ref: "#/spec/panels/st-gaps" } }
-          - { x: 16, y: 18, width: 8,  height: 5, content: { $ref: "#/spec/panels/st-multi-query" } }
-          - { x: 0,  y: 23, width: 12, height: 5, content: { $ref: "#/spec/panels/st-empty" } }
+          - { x: 0, y: 0, width: 12, height: 6, content: { $ref: "#/spec/panels/st-defaults" } }
+          - { x: 12, y: 0, width: 12, height: 6, content: { $ref: "#/spec/panels/st-colors" } }
+          - { x: 0, y: 6, width: 12, height: 6, content: { $ref: "#/spec/panels/st-long-format" } }
+          - { x: 12, y: 6, width: 12, height: 6, content: { $ref: "#/spec/panels/st-merge-off" } }
+          - { x: 0, y: 12, width: 12, height: 6, content: { $ref: "#/spec/panels/st-compact" } }
+          - {
+              x: 12,
+              y: 12,
+              width: 12,
+              height: 6,
+              content: { $ref: "#/spec/panels/st-legend-off-full-height" },
+            }
+          - {
+              x: 0,
+              y: 18,
+              width: 8,
+              height: 5,
+              content: { $ref: "#/spec/panels/st-numeric-states" },
+            }
+          - { x: 8, y: 18, width: 8, height: 5, content: { $ref: "#/spec/panels/st-gaps" } }
+          - { x: 16, y: 18, width: 8, height: 5, content: { $ref: "#/spec/panels/st-multi-query" } }
+          - { x: 0, y: 23, width: 12, height: 5, content: { $ref: "#/spec/panels/st-empty" } }
           - { x: 12, y: 23, width: 12, height: 5, content: { $ref: "#/spec/panels/st-no-time" } }

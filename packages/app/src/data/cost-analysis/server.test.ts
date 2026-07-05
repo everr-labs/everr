@@ -1,15 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 vi.mock("@/lib/clickhouse", () => ({
   query: vi.fn(),
 }));
 
 import { query } from "@/lib/clickhouse";
-import {
-  getCostByWorkflow,
-  getCostOverTimeBreakdown,
-  getCostOverview,
-} from "./server";
+import { getCostByWorkflow, getCostOverTimeBreakdown, getCostOverview } from "./server";
 
 const mockedQuery = vi.mocked(query);
 const timeRange = {
@@ -27,12 +23,8 @@ describe("cost analysis queries", () => {
     await getCostOverview({ data: { timeRange } });
 
     const sql = mockedQuery.mock.calls[0]?.[0] ?? "";
-    expect(sql).toContain(
-      "mapContains(ResourceAttributes, 'cicd.pipeline.worker.labels')",
-    );
-    expect(sql).toContain(
-      "mapContains(ResourceAttributes, 'cicd.pipeline.task.run.id')",
-    );
+    expect(sql).toContain("mapContains(ResourceAttributes, 'cicd.pipeline.worker.labels')");
+    expect(sql).toContain("mapContains(ResourceAttributes, 'cicd.pipeline.task.run.id')");
     expect(sql).not.toContain("PREWHERE");
     expect(sql).not.toContain("SQL_everr_tenant_id");
   });
@@ -41,18 +33,10 @@ describe("cost analysis queries", () => {
     await getCostByWorkflow({ data: { timeRange } });
 
     const sql = mockedQuery.mock.calls[0]?.[0] ?? "";
-    expect(sql).toContain(
-      "mapContains(ResourceAttributes, 'cicd.pipeline.worker.labels')",
-    );
-    expect(sql).toContain(
-      "mapContains(ResourceAttributes, 'cicd.pipeline.task.run.id')",
-    );
-    expect(sql).toContain(
-      "mapContains(ResourceAttributes, 'vcs.repository.name')",
-    );
-    expect(sql).toContain(
-      "mapContains(ResourceAttributes, 'cicd.pipeline.name')",
-    );
+    expect(sql).toContain("mapContains(ResourceAttributes, 'cicd.pipeline.worker.labels')");
+    expect(sql).toContain("mapContains(ResourceAttributes, 'cicd.pipeline.task.run.id')");
+    expect(sql).toContain("mapContains(ResourceAttributes, 'vcs.repository.name')");
+    expect(sql).toContain("mapContains(ResourceAttributes, 'cicd.pipeline.name')");
   });
 
   it("exposes ResourceAttributes key checks for over-time breakdown", async () => {
@@ -61,14 +45,8 @@ describe("cost analysis queries", () => {
     });
 
     const sql = mockedQuery.mock.calls[0]?.[0] ?? "";
-    expect(sql).toContain(
-      "mapContains(ResourceAttributes, 'cicd.pipeline.worker.labels')",
-    );
-    expect(sql).toContain(
-      "mapContains(ResourceAttributes, 'cicd.pipeline.task.run.id')",
-    );
-    expect(sql).toContain(
-      "mapContains(ResourceAttributes, 'vcs.repository.name')",
-    );
+    expect(sql).toContain("mapContains(ResourceAttributes, 'cicd.pipeline.worker.labels')");
+    expect(sql).toContain("mapContains(ResourceAttributes, 'cicd.pipeline.task.run.id')");
+    expect(sql).toContain("mapContains(ResourceAttributes, 'vcs.repository.name')");
   });
 });

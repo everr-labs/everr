@@ -37,21 +37,16 @@ type Entitlement = {
   cancelAtPeriodEnd: boolean;
 };
 
-export const Route = createFileRoute(
-  "/_authenticated/_dashboard/_padded/billing",
-)({
+export const Route = createFileRoute("/_authenticated/_dashboard/_padded/billing")({
   staticData: { breadcrumb: "Billing", hideTimeRangePicker: true },
-  head: () => ({
-    meta: [{ title: "Everr - Billing" }],
-  }),
   beforeLoad: async () => {
     await ensureOrgBillingAdmin();
   },
+  head: () => ({
+    meta: [{ title: "Everr - Billing" }],
+  }),
   errorComponent: ({ error }) => {
-    if (
-      error instanceof NotBillingAdminError ||
-      error.name === "NotBillingAdminError"
-    ) {
+    if (error instanceof NotBillingAdminError || error.name === "NotBillingAdminError") {
       return <NotAdminMessage />;
     }
     throw error;
@@ -80,11 +75,7 @@ const FREE_FEATURES = [
   "Community support on Discord",
 ];
 
-const PRO_FEATURES = [
-  "Everything in Free",
-  "Premium support",
-  "White-glove onboarding",
-];
+const PRO_FEATURES = ["Everything in Free", "Premium support", "White-glove onboarding"];
 
 function BillingPage() {
   const { data: activeOrg } = authClient.useActiveOrganization();
@@ -151,9 +142,7 @@ function ProHero({ entitlement }: { entitlement: Entitlement }) {
             <Sparkles className="size-5" />
           </div>
           <div className="flex-1">
-            <p className="text-muted-foreground text-xs uppercase tracking-wider">
-              Current plan
-            </p>
+            <p className="text-muted-foreground text-xs uppercase tracking-wider">Current plan</p>
             <CardTitle className="text-2xl">Pro</CardTitle>
           </div>
           <Badge variant="default" className="capitalize">
@@ -193,9 +182,7 @@ function FreeHero() {
             <CreditCard className="size-5" />
           </div>
           <div className="flex-1">
-            <p className="text-muted-foreground text-xs uppercase tracking-wider">
-              Current plan
-            </p>
+            <p className="text-muted-foreground text-xs uppercase tracking-wider">Current plan</p>
             <CardTitle className="text-2xl">Free</CardTitle>
           </div>
           <Badge variant="secondary">No subscription</Badge>
@@ -204,10 +191,7 @@ function FreeHero() {
       <CardContent>
         <ul className="grid gap-2 sm:grid-cols-2">
           {FREE_FEATURES.map((feature) => (
-            <li
-              key={feature}
-              className="text-muted-foreground flex items-center gap-2 text-sm"
-            >
+            <li key={feature} className="text-muted-foreground flex items-center gap-2 text-sm">
               <Check className="size-4" />
               {feature}
             </li>
@@ -221,9 +205,7 @@ function FreeHero() {
 function PlanComparison() {
   return (
     <div>
-      <h2 className="text-sm font-semibold tracking-tight mb-3">
-        Upgrade your plan
-      </h2>
+      <h2 className="text-sm font-semibold tracking-tight mb-3">Upgrade your plan</h2>
       <Card className="relative overflow-hidden border-primary/40">
         <div className="absolute -right-20 -top-20 size-56 rounded-full bg-primary/10 blur-3xl" />
         <div className="absolute right-4 top-4">
@@ -255,9 +237,7 @@ function PlanComparison() {
             ))}
           </ul>
           <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-            <p className="text-muted-foreground text-xs">
-              Cancel anytime from the billing portal.
-            </p>
+            <p className="text-muted-foreground text-xs">Cancel anytime from the billing portal.</p>
             <UpgradeButton />
           </div>
         </CardContent>

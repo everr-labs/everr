@@ -91,8 +91,7 @@
     @apply font-sans bg-background text-foreground;
   }
   code {
-    font-family:
-      source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
+    font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
   }
   th {
     @apply font-medium;
@@ -129,10 +128,7 @@
 /* Drawer backdrop: opacity tracks swipe progress for smooth dismissal */
 [data-slot="drawer-overlay"] {
   --drawer-backdrop-opacity: 0.7;
-  opacity: calc(
-    var(--drawer-backdrop-opacity) *
-    (1 - var(--drawer-swipe-progress, 0))
-  );
+  opacity: calc(var(--drawer-backdrop-opacity) * (1 - var(--drawer-swipe-progress, 0)));
 }
 
 [data-slot="drawer-overlay"][data-starting-style],

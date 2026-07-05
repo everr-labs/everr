@@ -1,8 +1,5 @@
 import { buildAttributeClauses } from "../../attribute-filter/sql/where";
-import type {
-  GetErrorIssuesQueryInput,
-  SearchErrorIssuesInput,
-} from "../data/schemas";
+import type { GetErrorIssuesQueryInput, SearchErrorIssuesInput } from "../data/schemas";
 import { errorsAttributeColumn } from "./attribute-columns";
 import { ERROR_FINGERPRINT_SQL, EXCEPTION_LOG_FILTER_SQL } from "./fingerprint";
 import { validateTableName } from "./table";
@@ -30,10 +27,7 @@ function buildBaseParams(
 }
 
 function buildExceptionLogsCte(
-  input: Pick<
-    SearchErrorIssuesInput,
-    "fromTs" | "toTs" | "q" | "service" | "attributes"
-  >,
+  input: Pick<SearchErrorIssuesInput, "fromTs" | "toTs" | "q" | "service" | "attributes">,
   tableName: string,
 ): BuiltQuery {
   const params = buildBaseParams(input);
@@ -51,10 +45,7 @@ function buildExceptionLogsCte(
     params.q = input.q;
   }
 
-  const attr = buildAttributeClauses(
-    input.attributes ?? [],
-    errorsAttributeColumn,
-  );
+  const attr = buildAttributeClauses(input.attributes ?? [], errorsAttributeColumn);
   filters.push(...attr.clauses);
   Object.assign(params, attr.params);
 
@@ -79,10 +70,7 @@ function buildExceptionLogsCte(
   };
 }
 
-export function buildSummaryQuery(
-  input: SearchErrorIssuesInput,
-  tableName: string,
-): BuiltQuery {
+export function buildSummaryQuery(input: SearchErrorIssuesInput, tableName: string): BuiltQuery {
   validateTableName(tableName);
   const cte = buildExceptionLogsCte(input, tableName);
   const params: Record<string, unknown> = {
@@ -90,9 +78,7 @@ export function buildSummaryQuery(
     limit: input.limit,
     offset: input.offset,
   };
-  const fingerprintFilter = input.fingerprint
-    ? "WHERE fingerprint = {fingerprint:String}"
-    : "";
+  const fingerprintFilter = input.fingerprint ? "WHERE fingerprint = {fingerprint:String}" : "";
   if (input.fingerprint) params.fingerprint = input.fingerprint;
   // fingerprint is the unique GROUP BY key — append it as a deterministic
   // tiebreaker so offset paging stays stable across infinite-scroll fetches.
@@ -134,10 +120,7 @@ export function buildOccurrencesQuery(
   tableName: string,
 ): BuiltQuery {
   validateTableName(tableName);
-  const cte = buildExceptionLogsCte(
-    { ...input, q: "", attributes: [] },
-    tableName,
-  );
+  const cte = buildExceptionLogsCte({ ...input, q: "", attributes: [] }, tableName);
   return {
     params: {
       ...cte.params,
@@ -187,10 +170,7 @@ export function buildServicesQuery(
     toTs: input.toTs,
   };
   const filters = [timePredicateSql(), EXCEPTION_LOG_FILTER_SQL];
-  const attr = buildAttributeClauses(
-    input.attributes ?? [],
-    errorsAttributeColumn,
-  );
+  const attr = buildAttributeClauses(input.attributes ?? [], errorsAttributeColumn);
   filters.push(...attr.clauses);
   Object.assign(params, attr.params);
   return {

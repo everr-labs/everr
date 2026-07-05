@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const dashboardReconciler = vi.fn();
 const runbookReconciler = vi.fn();
@@ -31,9 +31,7 @@ vi.mock("@/data/previews/apply.server", () => ({
 // the callback with a stand-in executor so the reconcilers (also mocked) run.
 vi.mock("@/db/client", () => ({
   db: {
-    transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
-      fn({ tx: true }),
-    ),
+    transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn({ tx: true })),
   },
 }));
 
@@ -123,9 +121,7 @@ describe("applyResources", () => {
   it("validates every kind before any kind writes (an invalid Runbook blocks Dashboard's real apply)", async () => {
     // A Runbook that fails validation: it throws on the no-write dry-run pass,
     // exactly as buildDesiredRunbookSet would for a malformed document.
-    runbookReconciler.mockRejectedValue(
-      new ApplyValidationError("bad runbook"),
-    );
+    runbookReconciler.mockRejectedValue(new ApplyValidationError("bad runbook"));
 
     await expect(
       applyResources({
@@ -162,9 +158,7 @@ describe("applyResources", () => {
       dryRun: true,
     });
     expect(dashboardReconciler).toHaveBeenCalledTimes(1);
-    expect(dashboardReconciler).toHaveBeenCalledWith(
-      expect.objectContaining({ dryRun: true }),
-    );
+    expect(dashboardReconciler).toHaveBeenCalledWith(expect.objectContaining({ dryRun: true }));
     expect(out.dryRun).toBe(true);
     expect(out.results).toContainEqual({
       kind: "Dashboard",
@@ -181,15 +175,9 @@ describe("applyResources", () => {
       repoid: "repo-1",
       state: { dashboards: [], runbooks: [], alerts: [] },
     });
-    expect(dashboardReconciler).toHaveBeenCalledWith(
-      expect.objectContaining({ dryRun: false }),
-    );
-    expect(runbookReconciler).toHaveBeenCalledWith(
-      expect.objectContaining({ dryRun: false }),
-    );
-    expect(alertReconciler).toHaveBeenCalledWith(
-      expect.objectContaining({ dryRun: false }),
-    );
+    expect(dashboardReconciler).toHaveBeenCalledWith(expect.objectContaining({ dryRun: false }));
+    expect(runbookReconciler).toHaveBeenCalledWith(expect.objectContaining({ dryRun: false }));
+    expect(alertReconciler).toHaveBeenCalledWith(expect.objectContaining({ dryRun: false }));
   });
 
   it("rejects resources placed under the wrong state key", async () => {
@@ -212,28 +200,28 @@ describe("applyResources", () => {
 
   // Kind validation is the only back-compat surface in the rename: `Runbook`
   // is canonical and the legacy `Notebook` kind stays accepted (ADR 0002).
-  it.each([
-    "Runbook",
-    "Notebook",
-  ])("accepts kind %s under the runbooks state key (Notebook is the legacy alias)", async (kind) => {
-    await expect(
-      applyResources({
-        orgId: "org-1",
-        repoid: "repo-1",
-        state: {
-          dashboards: [],
-          runbooks: [{ path: "rb.yaml", resource: { kind } }],
-          alerts: [],
-        },
-        dryRun: true,
-      }),
-    ).resolves.toMatchObject({ dryRun: true });
-    expect(runbookReconciler).toHaveBeenCalledWith(
-      expect.objectContaining({
-        resources: [{ path: "rb.yaml", resource: { kind } }],
-      }),
-    );
-  });
+  it.each(["Runbook", "Notebook"])(
+    "accepts kind %s under the runbooks state key (Notebook is the legacy alias)",
+    async (kind) => {
+      await expect(
+        applyResources({
+          orgId: "org-1",
+          repoid: "repo-1",
+          state: {
+            dashboards: [],
+            runbooks: [{ path: "rb.yaml", resource: { kind } }],
+            alerts: [],
+          },
+          dryRun: true,
+        }),
+      ).resolves.toMatchObject({ dryRun: true });
+      expect(runbookReconciler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          resources: [{ path: "rb.yaml", resource: { kind } }],
+        }),
+      );
+    },
+  );
 
   it("honors the Notebook alias only for runbooks — rejects it under dashboards", async () => {
     await expect(
@@ -260,11 +248,7 @@ describe("applyResources", () => {
       preview: "gio/x",
       state: { dashboards: [], runbooks: [], alerts: [] },
     });
-    for (const reconciler of [
-      dashboardReconciler,
-      runbookReconciler,
-      alertReconciler,
-    ]) {
+    for (const reconciler of [dashboardReconciler, runbookReconciler, alertReconciler]) {
       expect(reconciler).toHaveBeenCalledWith(
         expect.objectContaining({
           namespace: {
@@ -334,11 +318,7 @@ describe("applyResources", () => {
       adopt: true,
       state: { dashboards: [], runbooks: [], alerts: [] },
     });
-    expect(dashboardReconciler).toHaveBeenCalledWith(
-      expect.objectContaining({ adopt: true }),
-    );
-    expect(alertReconciler).toHaveBeenCalledWith(
-      expect.objectContaining({ adopt: true }),
-    );
+    expect(dashboardReconciler).toHaveBeenCalledWith(expect.objectContaining({ adopt: true }));
+    expect(alertReconciler).toHaveBeenCalledWith(expect.objectContaining({ adopt: true }));
   });
 });

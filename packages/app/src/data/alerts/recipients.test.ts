@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import {
   validateSlackWebhookUrl,
   validateTelegramBotToken,
@@ -31,9 +31,7 @@ describe("validateTelegramBotToken", () => {
 
   it("rejects blank tokens", () => {
     expect(validateTelegramBotToken("")).toBe("Telegram bot token is required");
-    expect(validateTelegramBotToken("   ")).toBe(
-      "Telegram bot token is required",
-    );
+    expect(validateTelegramBotToken("   ")).toBe("Telegram bot token is required");
   });
 });
 
@@ -47,12 +45,8 @@ describe("validateSlackWebhookUrl", () => {
   });
 
   it("rejects non-Slack or malformed URLs", () => {
-    expect(
-      validateSlackWebhookUrl("https://example.com/webhook"),
-    ).not.toBeNull();
-    expect(
-      validateSlackWebhookUrl("http://hooks.slack.com/services/T/B/x"),
-    ).not.toBeNull();
+    expect(validateSlackWebhookUrl("https://example.com/webhook")).not.toBeNull();
+    expect(validateSlackWebhookUrl("http://hooks.slack.com/services/T/B/x")).not.toBeNull();
     expect(validateSlackWebhookUrl("")).not.toBeNull();
   });
 });

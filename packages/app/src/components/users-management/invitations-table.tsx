@@ -55,15 +55,13 @@ export function InvitationsTable({ invitations }: InvitationsTableProps) {
             <AlertDialogHeader>
               <AlertDialogTitle>Revoke invitation</AlertDialogTitle>
               <AlertDialogDescription>
-                This will cancel the invitation to {row.email}. They won't be
-                able to join using this link.
+                This will cancel the invitation to {row.email}. They won&apos;t be able to join
+                using this link.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => handleRevoke(row.id, row.email)}
-              >
+              <AlertDialogAction onClick={() => handleRevoke(row.id, row.email)}>
                 Revoke
               </AlertDialogAction>
             </AlertDialogFooter>
@@ -75,7 +73,5 @@ export function InvitationsTable({ invitations }: InvitationsTableProps) {
     },
   ];
 
-  return (
-    <DataTable data={invitations} columns={columns} rowKey={(row) => row.id} />
-  );
+  return <DataTable data={invitations} columns={columns} rowKey={(row) => row.id} />;
 }

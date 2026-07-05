@@ -30,9 +30,7 @@ const WILDCARD = "*";
  * unrestricted. API keys must hold `write` (or the wildcard) under the
  * `apply` scope — a `read`-only key can only run the plan pass.
  */
-export function canApplyMutate(
-  applyActions: readonly string[] | null,
-): boolean {
+export function canApplyMutate(applyActions: readonly string[] | null): boolean {
   if (applyActions === null) return true;
   return applyActions.includes(WILDCARD) || applyActions.includes("write");
 }
@@ -160,16 +158,14 @@ export function applyAuthErrorResponse(error: unknown): Response | null {
  * failures are returned as explicit 401/403 responses (thrown Responses are
  * sent by the server handler) rather than escaping as a generic 500.
  */
-export const requireOrgOrApiKeyMiddleware = createMiddleware().server(
-  async ({ request, next }) => {
-    let apiAuth: ApplyAuth;
-    try {
-      apiAuth = await resolveApplyAuth(request.headers);
-    } catch (error) {
-      const response = applyAuthErrorResponse(error);
-      if (response) throw response;
-      throw error;
-    }
-    return next({ context: buildApplyContext(apiAuth) });
-  },
-);
+export const requireOrgOrApiKeyMiddleware = createMiddleware().server(async ({ request, next }) => {
+  let apiAuth: ApplyAuth;
+  try {
+    apiAuth = await resolveApplyAuth(request.headers);
+  } catch (error) {
+    const response = applyAuthErrorResponse(error);
+    if (response) throw response;
+    throw error;
+  }
+  return next({ context: buildApplyContext(apiAuth) });
+});

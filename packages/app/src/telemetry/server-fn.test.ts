@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const telemetryMocks = vi.hoisted(() => {
   const span = {
@@ -12,10 +12,7 @@ const telemetryMocks = vi.hoisted(() => {
       async (
         _name: string,
         _options: unknown,
-        run: (span: {
-          end: () => void;
-          setAttribute: () => void;
-        }) => Promise<unknown>,
+        run: (span: { end: () => void; setAttribute: () => void }) => Promise<unknown>,
       ) => run(span),
     ),
     span,
@@ -81,28 +78,27 @@ describe("instrumentServerFunction", () => {
     expect(telemetryMocks.span.end).toHaveBeenCalledOnce();
   });
 
-  it.each([
-    "Unauthenticated",
-    "No active organization",
-    "Alert not found",
-  ])("does not record expected serverFn control-flow errors: %s", async (message) => {
-    await expect(
-      instrumentServerFunction(
-        new Request("http://localhost/_serverFn/c4d3d0c28997f144965eeaca"),
-        {
-          filename: "src/lib/auth.server.ts",
-          id: "c4d3d0c28997f144965eeaca",
-          name: "getActiveOrganization",
-        },
-        () => {
-          throw new Error(message);
-        },
-      ),
-    ).rejects.toThrow(message);
+  it.each(["Unauthenticated", "No active organization", "Alert not found"])(
+    "does not record expected serverFn control-flow errors: %s",
+    async (message) => {
+      await expect(
+        instrumentServerFunction(
+          new Request("http://localhost/_serverFn/c4d3d0c28997f144965eeaca"),
+          {
+            filename: "src/lib/auth.server.ts",
+            id: "c4d3d0c28997f144965eeaca",
+            name: "getActiveOrganization",
+          },
+          () => {
+            throw new Error(message);
+          },
+        ),
+      ).rejects.toThrow(message);
 
-    expect(telemetryMocks.captureError).not.toHaveBeenCalled();
-    expect(telemetryMocks.span.end).toHaveBeenCalledOnce();
-  });
+      expect(telemetryMocks.captureError).not.toHaveBeenCalled();
+      expect(telemetryMocks.span.end).toHaveBeenCalledOnce();
+    },
+  );
 
   it("parameterizes TanStack dev serverFn IDs in serverFn span attributes", async () => {
     await instrumentServerFunction(

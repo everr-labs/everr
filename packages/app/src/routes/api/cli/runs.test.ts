@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 vi.mock("@/data/runs-list/server", () => ({
   getRunsList: vi.fn(),
@@ -67,8 +67,7 @@ describe("/api/cli/runs", () => {
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({
-      error:
-        "Invalid query parameters for runs listing. Check limit, offset, and filter values.",
+      error: "Invalid query parameters for runs listing. Check limit, offset, and filter values.",
     });
     expect(mockedGetRunsList).not.toHaveBeenCalled();
   });

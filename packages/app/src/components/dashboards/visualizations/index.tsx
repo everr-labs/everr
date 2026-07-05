@@ -5,7 +5,6 @@ import { BarChartVisualization } from "./bar-chart/bar-chart-visualization";
 import { barChartSpec } from "./bar-chart/spec";
 import { GaugeChartVisualization } from "./gauge-chart/gauge-chart-visualization";
 import { gaugeChartSpec } from "./gauge-chart/spec";
-import type { GeoMapSpec } from "./geo-map/spec";
 import { geoMapSpec } from "./geo-map/spec";
 import { HeatmapVisualization } from "./heatmap/heatmap-visualization";
 import { heatmapSpec } from "./heatmap/spec";
@@ -27,9 +26,7 @@ import { TreemapVisualization } from "./treemap/treemap-visualization";
 
 const GeoMapVisualization = lazy(() =>
   import("./geo-map/geo-map-visualization").then((m) => ({
-    default: m.GeoMapVisualization as ComponentType<
-      VisualizationProps<GeoMapSpec>
-    >,
+    default: m.GeoMapVisualization,
   })),
 );
 
@@ -63,6 +60,7 @@ function defineVisualization<S extends z.ZodType>(entry: {
   component: ComponentType<VisualizationProps<z.output<S>>>;
   inset?: "default" | "flush-content";
 }): VisualizationEntry {
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- intentional spec-type erasure: the registry holds heterogeneous visualizations under one entry type, and React props are contravariant so a specific-spec component isn't assignable to the erased VisualizationProps<unknown> component
   return entry as VisualizationEntry;
 }
 
@@ -117,9 +115,7 @@ const registry: Record<string, VisualizationEntry> = {
   }),
 };
 
-export function getVisualizationInset(
-  kind: string,
-): "default" | "flush-content" {
+export function getVisualizationInset(kind: string): "default" | "flush-content" {
   return registry[kind]?.inset ?? "default";
 }
 
@@ -158,8 +154,7 @@ export function PanelVisualization({
     return (
       <div className="flex h-full items-center justify-center p-4 text-center text-muted-foreground">
         <p className="text-sm">
-          Unknown visualization:{" "}
-          <code className="font-mono">{plugin.kind}</code>
+          Unknown visualization: <code className="font-mono">{plugin.kind}</code>
         </p>
       </div>
     );

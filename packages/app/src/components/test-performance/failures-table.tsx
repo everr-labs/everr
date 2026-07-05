@@ -28,9 +28,7 @@ const columns: Column<TestFailure>[] = [
   },
   {
     header: "Duration",
-    cell: (row) => (
-      <span className="tabular-nums">{formatDuration(row.duration, "s")}</span>
-    ),
+    cell: (row) => <span className="tabular-nums">{formatDuration(row.duration, "s")}</span>,
   },
   {
     header: "Branch",
@@ -38,9 +36,7 @@ const columns: Column<TestFailure>[] = [
   },
   {
     header: "Commit",
-    cell: (row) => (
-      <span className="font-mono text-xs">{row.commitSha.slice(0, 7)}</span>
-    ),
+    cell: (row) => <span className="font-mono text-xs">{row.commitSha.slice(0, 7)}</span>,
   },
   {
     header: "Run",

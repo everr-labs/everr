@@ -29,9 +29,7 @@ export const deleteCurrentUserAccount = createAuthenticatedServerFn({
         headers,
         query: { organizationId: session.session.activeOrganizationId },
       });
-      const currentMember = org?.members.find(
-        (member) => member.userId === session.user.id,
-      );
+      const currentMember = org?.members.find((member) => member.userId === session.user.id);
 
       if (!isOrgOwnerRole(currentMember?.role)) {
         throw new Error(

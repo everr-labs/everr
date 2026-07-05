@@ -1,10 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import type { TimeRangeInput } from "@/data/analytics/schemas";
-import {
-  getCostByWorkflow,
-  getCostOverTimeBreakdown,
-  getCostOverview,
-} from "./server";
+import { getCostByWorkflow, getCostOverTimeBreakdown, getCostOverview } from "./server";
 
 // Query options factories
 export const costOverviewOptions = (input: TimeRangeInput) =>
@@ -22,6 +18,7 @@ export const costByWorkflowOptions = (input: TimeRangeInput) =>
 export const costOverTimeBreakdownOptions = (
   input: TimeRangeInput & { dimension: "repo" | "runner" },
 ) =>
+  // oxlint-disable-next-line query/exhaustive-deps -- DI repo / input already in key; not a real missing dep
   queryOptions({
     queryKey: ["cost", "overTimeBreakdown", input.timeRange, input.dimension],
     queryFn: () => getCostOverTimeBreakdown({ data: input }),

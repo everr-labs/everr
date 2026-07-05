@@ -80,14 +80,8 @@ export const Route = createFileRoute("/api/cli/runs")({
             offset: parsed.data.offset,
             repos: mergeFilter(parsed.data.repos, parsed.data.repo),
             branches: mergeFilter(parsed.data.branches, parsed.data.branch),
-            conclusions: mergeFilter(
-              parsed.data.conclusions,
-              parsed.data.conclusion,
-            ),
-            workflowNames: mergeFilter(
-              parsed.data.workflowNames,
-              parsed.data.workflowName,
-            ),
+            conclusions: mergeFilter(parsed.data.conclusions, parsed.data.conclusion),
+            workflowNames: mergeFilter(parsed.data.workflowNames, parsed.data.workflowName),
             runId: parsed.data.runId,
             authorEmails: parsed.data.authorEmails,
             includeTotalCount: parsed.data.includeTotalCount,

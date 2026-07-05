@@ -21,8 +21,7 @@ export interface VariableAllMeta {
 
 export type VariableMeta = Record<string, VariableAllMeta>;
 
-const TOKEN_RE =
-  /\$\{([a-zA-Z_][a-zA-Z0-9_]*)(?::(raw))?\}|\$([a-zA-Z_][a-zA-Z0-9_]*)/g;
+const TOKEN_RE = /\$\{([a-zA-Z_][a-zA-Z0-9_]*)(?::(raw))?\}|\$([a-zA-Z_][a-zA-Z0-9_]*)/g;
 
 /** Escape a string for use inside a ClickHouse single-quoted literal. */
 function escapeSqlString(value: string): string {
@@ -47,7 +46,7 @@ export function interpolateVariables(
   return sql.replace(TOKEN_RE, (match, braced, modifier, bare) => {
     const name: string = braced ?? bare;
     if (!(name in values)) return match;
-    const value = values[name]!;
+    const value = values[name];
     const raw = modifier === "raw";
 
     // The sentinel only means "All" for variables the caller supplied All

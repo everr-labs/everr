@@ -5,14 +5,14 @@ packages:
   - ".github/actions/everr-action"
 
 catalog:
-  '@icons-pack/react-simple-icons': ^13.13.0
-  '@t3-oss/env-core': ^0.13.11
-  '@tailwindcss/vite': ^4.3.0
-  '@tanstack/react-query': ^5.100.9
-  '@types/react': ^19.2.14
-  '@types/react-dom': ^19.2.3
-  '@vitejs/plugin-react': ^6.0.1
-  'lucide-react': ^1.14.0
+  "@icons-pack/react-simple-icons": ^13.13.0
+  "@t3-oss/env-core": ^0.13.11
+  "@tailwindcss/vite": ^4.3.0
+  "@tanstack/react-query": ^5.100.9
+  "@types/react": ^19.2.14
+  "@types/react-dom": ^19.2.3
+  "@vitejs/plugin-react": ^6.0.1
+  "lucide-react": ^1.14.0
   motion: ^12.38.0
   nitro: 3.0.260429-beta
   react: ^19.2.6
@@ -20,8 +20,12 @@ catalog:
   recharts: "^2.15.4"
   tailwindcss: ^4.3.0
   typescript: ^6.0.3
-  vite: ^8.0.11
+  vite: npm:@voidzero-dev/vite-plus-core@0.2.2
   zod: ^4.4.3
+  vitest: 4.1.9
+  vite-plus: 0.2.2
+  "@vitest/coverage-v8": 4.1.9
+  "@vitest/ui": 4.1.9
 
 minimumReleaseAge: 4320
 allowBuilds:
@@ -31,3 +35,24 @@ allowBuilds:
   lefthook: true
   msw: false
   protobufjs: false
+overrides:
+  vite: "catalog:"
+  vitest: "catalog:"
+peerDependencyRules:
+  allowAny:
+    - vite
+    - vitest
+  allowedVersions:
+    vite: "*"
+    vitest: "*"
+minimumReleaseAgeExclude:
+  - vite-plus
+  - "@voidzero-dev/*"
+  - oxlint
+  - "@oxlint/*"
+  - oxlint-tsgolint
+  - "@oxlint-tsgolint/*"
+  - oxfmt
+  - "@oxfmt/*"
+  - vitest
+  - "@vitest/*"

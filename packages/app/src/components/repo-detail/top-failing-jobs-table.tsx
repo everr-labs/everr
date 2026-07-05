@@ -14,9 +14,7 @@ const columns: Column<TopFailingJob>[] = [
   },
   {
     header: "Workflow",
-    cell: (job) => (
-      <span className="text-muted-foreground">{job.workflowName}</span>
-    ),
+    cell: (job) => <span className="text-muted-foreground">{job.workflowName}</span>,
   },
   {
     header: "Failures",
@@ -28,9 +26,7 @@ const columns: Column<TopFailingJob>[] = [
   },
   {
     header: "Failure Rate",
-    cell: (job) => (
-      <span className="font-mono text-xs text-red-600">{job.failureRate}%</span>
-    ),
+    cell: (job) => <span className="font-mono text-xs text-red-600">{job.failureRate}%</span>,
   },
 ];
 

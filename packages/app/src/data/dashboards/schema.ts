@@ -132,10 +132,7 @@ export const listVariable = z.object({
   }),
 });
 
-export const variable = z.discriminatedUnion("kind", [
-  textVariable,
-  listVariable,
-]);
+export const variable = z.discriminatedUnion("kind", [textVariable, listVariable]);
 
 export const dashboardSpecSchema = z
   .object({
@@ -201,15 +198,7 @@ export function collectPanelStrictIssues(
     if (qResult.success) return;
     for (const issue of qResult.error.issues) {
       issues.push({
-        path: [
-          "spec",
-          "queries",
-          qi,
-          "spec",
-          "plugin",
-          "spec",
-          ...issue.path.map(String),
-        ],
+        path: ["spec", "queries", qi, "spec", "plugin", "spec", ...issue.path.map(String)],
         message: issue.message,
       });
     }
@@ -228,19 +217,17 @@ export function collectPanelStrictIssues(
  * dashboard that predates validation must still load; the renderer parses
  * specs leniently and surfaces ignored options as panel warnings.
  */
-export const dashboardSpecSchemaStrict = dashboardSpecSchema.superRefine(
-  (spec, ctx) => {
-    for (const [key, p] of Object.entries(spec.panels)) {
-      for (const issue of collectPanelStrictIssues(p)) {
-        ctx.addIssue({
-          code: "custom",
-          message: issue.message,
-          path: ["panels", key, ...issue.path],
-        });
-      }
+export const dashboardSpecSchemaStrict = dashboardSpecSchema.superRefine((spec, ctx) => {
+  for (const [key, p] of Object.entries(spec.panels)) {
+    for (const issue of collectPanelStrictIssues(p)) {
+      ctx.addIssue({
+        code: "custom",
+        message: issue.message,
+        path: ["panels", key, ...issue.path],
+      });
     }
-  },
-);
+  }
+});
 
 export type DashboardDisplay = z.infer<typeof dashboardDisplay>;
 export type PanelPlugin = z.infer<typeof panelPlugin>;

@@ -12,7 +12,7 @@ on:
     paths:
       - .github/actions/everr-action/**
       - .github/workflows/verify-action-dist.yml
-      - .nvmrc
+      - .node-version
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
 
@@ -21,7 +21,7 @@ on:
     paths:
       - .github/actions/everr-action/**
       - .github/workflows/verify-action-dist.yml
-      - .nvmrc
+      - .node-version
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
 
@@ -39,7 +39,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version-file: .nvmrc
+          node-version-file: .node-version
           cache: pnpm
 
       - name: Install dependencies

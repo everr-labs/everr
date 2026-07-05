@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import type { LogsRepositoryLike } from "../data/repository";
 import { LogFiltersBar } from "./log-filters";
 
@@ -9,9 +9,7 @@ function renderWithQueryClient(children: ReactNode) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>,
-  );
+  return render(<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>);
 }
 
 const repo = {
@@ -32,9 +30,7 @@ const baseProps = {
 describe("LogFiltersBar", () => {
   it("renders Service, Environment and the attribute section inside the sidebar", () => {
     renderWithQueryClient(<LogFiltersBar {...baseProps} onChange={vi.fn()} />);
-    expect(
-      screen.getByRole("complementary", { name: "Log filters" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Log filters" })).toBeInTheDocument();
     expect(screen.getByText("Service")).toBeInTheDocument();
     expect(screen.getByText("Environment")).toBeInTheDocument();
     expect(screen.getByText("Attributes")).toBeInTheDocument();
@@ -87,16 +83,9 @@ describe("LogFiltersBar", () => {
 
   it("with hideSharedFilters, a shared service alone does not surface Clear all", () => {
     renderWithQueryClient(
-      <LogFiltersBar
-        {...baseProps}
-        hideSharedFilters
-        services={["api"]}
-        onChange={vi.fn()}
-      />,
+      <LogFiltersBar {...baseProps} hideSharedFilters services={["api"]} onChange={vi.fn()} />,
     );
-    expect(
-      screen.queryByRole("button", { name: "Clear all" }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Clear all" })).not.toBeInTheDocument();
   });
 
   it("deployment.environment renders in the Environment combobox and NOT as an attribute pill", () => {

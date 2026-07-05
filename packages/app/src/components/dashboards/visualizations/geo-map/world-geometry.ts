@@ -1,3 +1,4 @@
+// oxlint-disable typescript/consistent-type-assertions -- topojson-client's Topology/feature() types don't match the inferred type of the imported world-atlas JSON module; bridging the two requires assertions
 import type { Feature, Geometry } from "geojson";
 import { feature } from "topojson-client";
 import worldTopo from "world-atlas/countries-110m.json";

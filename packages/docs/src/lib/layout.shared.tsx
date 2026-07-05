@@ -6,8 +6,7 @@ import { ArrowRight, Citrus } from "lucide-react";
 import type { ComponentProps, CSSProperties } from "react";
 import { GithubInfo } from "@/components/github-info";
 
-type DocsLayoutOptions = BaseLayoutProps &
-  Pick<DocsLayoutProps, "containerProps" | "sidebar">;
+type DocsLayoutOptions = BaseLayoutProps & Pick<DocsLayoutProps, "containerProps" | "sidebar">;
 
 const docsTopNavHeight = "3.5rem";
 
@@ -61,10 +60,7 @@ export function baseOptions(): BaseLayoutProps {
           <Button
             className="rounded-full"
             nativeButton={false}
-            render={
-              // biome-ignore lint/a11y/useAnchorContent: content is injected
-              <a href="https://app.everr.dev" />
-            }
+            render={<a href="https://app.everr.dev" aria-label="Sign In" />}
           >
             Sign In <ArrowRight />
           </Button>
@@ -77,6 +73,10 @@ export function baseOptions(): BaseLayoutProps {
 export function docsOptions(): DocsLayoutOptions {
   const options = baseOptions();
 
+  const containerStyle: CSSProperties & Record<`--${string}`, string | number | undefined> = {
+    "--fd-banner-height": docsTopNavHeight,
+  };
+
   return {
     ...options,
     searchToggle: {
@@ -87,9 +87,7 @@ export function docsOptions(): DocsLayoutOptions {
       collapsible: false,
     },
     containerProps: {
-      style: {
-        "--fd-banner-height": docsTopNavHeight,
-      } as CSSProperties,
+      style: containerStyle,
     },
     slots: {
       ...options.slots,

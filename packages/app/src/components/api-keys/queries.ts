@@ -1,8 +1,4 @@
-import {
-  queryOptions,
-  useMutation,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createApiKey, listApiKeys } from "@/data/api-keys";
 import type { ApiKeyScope } from "@/lib/api-key-scopes";
 import { authClient } from "@/lib/auth-client";
@@ -30,17 +26,11 @@ export function useCreateApiKey() {
     // Permissions are server-only on the apiKey plugin, so creation routes
     // through a server function that can set the `permissions` field. The
     // client only picks scopes; the server decides the action set per scope.
-    mutationFn: (vars: {
-      name: string;
-      expiresInDays?: number;
-      scopes: ApiKeyScope[];
-    }) =>
+    mutationFn: (vars: { name: string; expiresInDays?: number; scopes: ApiKeyScope[] }) =>
       createApiKey({
         data: {
           name: vars.name,
-          ...(vars.expiresInDays !== undefined
-            ? { expiresInDays: vars.expiresInDays }
-            : {}),
+          ...(vars.expiresInDays !== undefined ? { expiresInDays: vars.expiresInDays } : {}),
           scopes: vars.scopes,
         },
       }),
@@ -58,8 +48,7 @@ export function useRevokeApiKey() {
         keyId,
         configId: API_KEY_CONFIG_ID,
       });
-      if (res.error)
-        throw new Error(res.error.message ?? "Failed to revoke API key");
+      if (res.error) throw new Error(res.error.message ?? "Failed to revoke API key");
       return res.data;
     },
     onSuccess: () => {

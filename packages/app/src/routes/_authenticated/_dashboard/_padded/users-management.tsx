@@ -1,10 +1,4 @@
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@everr/ui/components/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@everr/ui/components/card";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
@@ -20,34 +14,30 @@ import { auth } from "@/lib/auth.server";
 import { authClient } from "@/lib/auth-client";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 
-const ensureOrgAdmin = createAuthenticatedServerFn.handler(
-  async ({ context: { session } }) => {
-    const org = await auth.api.getFullOrganization({
-      headers: getRequestHeaders(),
-      query: { organizationId: session.session.activeOrganizationId },
-    });
-    if (!org) return { allowed: false };
+const ensureOrgAdmin = createAuthenticatedServerFn.handler(async ({ context: { session } }) => {
+  const org = await auth.api.getFullOrganization({
+    headers: getRequestHeaders(),
+    query: { organizationId: session.session.activeOrganizationId },
+  });
+  if (!org) return { allowed: false };
 
-    const membership = org.members.find((m) => m.userId === session.user.id);
-    return {
-      allowed: membership?.role === "admin" || membership?.role === "owner",
-    };
-  },
-);
+  const membership = org.members.find((m) => m.userId === session.user.id);
+  return {
+    allowed: membership?.role === "admin" || membership?.role === "owner",
+  };
+});
 
-export const Route = createFileRoute(
-  "/_authenticated/_dashboard/_padded/users-management",
-)({
+export const Route = createFileRoute("/_authenticated/_dashboard/_padded/users-management")({
   staticData: { breadcrumb: "Users Management", hideTimeRangePicker: true },
-  head: () => ({
-    meta: [{ title: "Everr - Users Management" }],
-  }),
   beforeLoad: async () => {
     const { allowed } = await ensureOrgAdmin();
     if (!allowed) {
       throw redirect({ to: "/" });
     }
   },
+  head: () => ({
+    meta: [{ title: "Everr - Users Management" }],
+  }),
   component: UsersManagementPage,
 });
 
@@ -55,6 +45,7 @@ function MembersSkeleton() {
   return (
     <div className="space-y-2 px-3 py-2">
       {Array.from({ length: 4 }).map((_, i) => (
+        // oxlint-disable-next-line react/no-array-index-key -- static placeholder skeleton list with no data-backed key
         <Skeleton key={i} className="h-8 w-full" />
       ))}
     </div>
@@ -100,10 +91,7 @@ function UsersManagementPage() {
           {members.isPending ? (
             <MembersSkeleton />
           ) : (
-            <MembersTable
-              members={members.data ?? []}
-              currentUserId={currentUserId}
-            />
+            <MembersTable members={members.data ?? []} currentUserId={currentUserId} />
           )}
         </CardContent>
       </Card>

@@ -1,7 +1,4 @@
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@everr/ui/components/toggle-group";
+import { ToggleGroup, ToggleGroupItem } from "@everr/ui/components/toggle-group";
 import type { TreemapSizeMetric } from "./treemap";
 
 export function getTreemapMetricLabel(metric: TreemapSizeMetric): string {
@@ -15,10 +12,7 @@ interface TestPerfTreemapMetricToggleProps {
   onChange: (metric: TreemapSizeMetric) => void;
 }
 
-export function TestPerfTreemapMetricToggle({
-  value,
-  onChange,
-}: TestPerfTreemapMetricToggleProps) {
+export function TestPerfTreemapMetricToggle({ value, onChange }: TestPerfTreemapMetricToggleProps) {
   return (
     <ToggleGroup
       value={[value]}

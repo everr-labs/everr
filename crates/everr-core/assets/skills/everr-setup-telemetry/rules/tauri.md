@@ -272,37 +272,37 @@ Capture Rust backend failures and panics per `error-tracking.md` and `rust.md`'s
 Each exporter serializes its batch to OTLP/JSON with `@opentelemetry/otlp-transformer` and hands the bytes to `proxy_otlp`. No body allowlist, no attribute mapping — the encoded request carries the signal's body, severity, and attributes.
 
 ```ts
-import type { ExportResult } from '@opentelemetry/core';
-import { ExportResultCode } from '@opentelemetry/core';
+import type { ExportResult } from "@opentelemetry/core";
+import { ExportResultCode } from "@opentelemetry/core";
 import {
   JsonLogsSerializer,
   JsonMetricsSerializer,
   JsonTraceSerializer,
-} from '@opentelemetry/otlp-transformer';
-import { resourceFromAttributes } from '@opentelemetry/resources';
-import { logs } from '@opentelemetry/api-logs';
-import { metrics, trace } from '@opentelemetry/api';
+} from "@opentelemetry/otlp-transformer";
+import { resourceFromAttributes } from "@opentelemetry/resources";
+import { logs } from "@opentelemetry/api-logs";
+import { metrics, trace } from "@opentelemetry/api";
 import {
   BatchLogRecordProcessor,
   LoggerProvider,
   type LogRecordExporter,
   type ReadableLogRecord,
-} from '@opentelemetry/sdk-logs';
+} from "@opentelemetry/sdk-logs";
 import {
   BatchSpanProcessor,
   BasicTracerProvider,
   type ReadableSpan,
   type SpanExporter,
-} from '@opentelemetry/sdk-trace-base';
+} from "@opentelemetry/sdk-trace-base";
 import {
   AggregationTemporality,
   MeterProvider,
   PeriodicExportingMetricReader,
   type PushMetricExporter,
   type ResourceMetrics,
-} from '@opentelemetry/sdk-metrics';
-import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
-import { invoke } from '@tauri-apps/api/core';
+} from "@opentelemetry/sdk-metrics";
+import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
+import { invoke } from "@tauri-apps/api/core";
 
 type TelemetryContext = {
   serviceName: string;
@@ -311,7 +311,7 @@ type TelemetryContext = {
   deploymentEnvironment: string;
 };
 
-type Signal = 'logs' | 'traces' | 'metrics';
+type Signal = "logs" | "traces" | "metrics";
 
 const decoder = new TextDecoder();
 
@@ -326,7 +326,7 @@ async function proxyOtlp(
   }
   try {
     // OTLP/JSON is UTF-8 text; pass it as a string and Rust POSTs it verbatim.
-    await invoke('proxy_otlp', { signal, body: decoder.decode(payload) });
+    await invoke("proxy_otlp", { signal, body: decoder.decode(payload) });
     done({ code: ExportResultCode.SUCCESS });
   } catch (error) {
     done({ code: ExportResultCode.FAILED, error: error as Error });
@@ -335,7 +335,7 @@ async function proxyOtlp(
 
 class OtlpProxyLogExporter implements LogRecordExporter {
   export(records: ReadableLogRecord[], done: (result: ExportResult) => void) {
-    void proxyOtlp('logs', JsonLogsSerializer.serializeRequest(records), done);
+    void proxyOtlp("logs", JsonLogsSerializer.serializeRequest(records), done);
   }
   async shutdown() {}
   async forceFlush() {}
@@ -343,14 +343,14 @@ class OtlpProxyLogExporter implements LogRecordExporter {
 
 class OtlpProxySpanExporter implements SpanExporter {
   export(spans: ReadableSpan[], done: (result: ExportResult) => void) {
-    void proxyOtlp('traces', JsonTraceSerializer.serializeRequest(spans), done);
+    void proxyOtlp("traces", JsonTraceSerializer.serializeRequest(spans), done);
   }
   async shutdown() {}
 }
 
 class OtlpProxyMetricExporter implements PushMetricExporter {
   export(data: ResourceMetrics, done: (result: ExportResult) => void) {
-    void proxyOtlp('metrics', JsonMetricsSerializer.serializeRequest(data), done);
+    void proxyOtlp("metrics", JsonMetricsSerializer.serializeRequest(data), done);
   }
   selectAggregationTemporality() {
     return AggregationTemporality.DELTA;
@@ -364,12 +364,12 @@ let tracerProvider: BasicTracerProvider | null = null;
 let meterProvider: MeterProvider | null = null;
 
 export async function initBrowserTelemetry() {
-  const context = await invoke<TelemetryContext>('get_telemetry_context');
+  const context = await invoke<TelemetryContext>("get_telemetry_context");
   const resource = resourceFromAttributes({
     [ATTR_SERVICE_NAME]: context.serviceName,
-    'service.version': context.serviceVersion,
-    'service.instance.id': context.serviceInstanceId,
-    'deployment.environment.name': context.deploymentEnvironment,
+    "service.version": context.serviceVersion,
+    "service.instance.id": context.serviceInstanceId,
+    "deployment.environment.name": context.deploymentEnvironment,
   });
   const batch = {
     maxQueueSize: 100,
@@ -416,7 +416,7 @@ export async function shutdownBrowserTelemetry() {
 Capture renderer errors with `@everr/auto-otel-errors/browser` (and `/react` for React), emitting through the providers above. Set the global providers, then call `init()`:
 
 ```ts
-import { init as initErrorTracking } from '@everr/auto-otel-errors/browser';
+import { init as initErrorTracking } from "@everr/auto-otel-errors/browser";
 
 await initBrowserTelemetry();
 initErrorTracking();
@@ -427,7 +427,7 @@ initErrorTracking();
 Flush on exit so buffered batches are sent:
 
 ```ts
-window.addEventListener('beforeunload', () => {
+window.addEventListener("beforeunload", () => {
   void shutdownBrowserTelemetry();
 });
 ```

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { baseOptions, docsOptions } from "./layout.shared";
 
 describe("layout options", () => {
@@ -9,12 +9,8 @@ describe("layout options", () => {
     expect(baseOptions().nav?.title).toBeTruthy();
     expect(baseOptions().searchToggle?.enabled).not.toBe(false);
     expect(docs.nav?.title).toBeTruthy();
-    expect(docs.links).not.toContainEqual(
-      expect.objectContaining({ text: "Docs" }),
-    );
-    expect(docs.links).not.toContainEqual(
-      expect.objectContaining({ text: "Discord" }),
-    );
+    expect(docs.links).not.toContainEqual(expect.objectContaining({ text: "Docs" }));
+    expect(docs.links).not.toContainEqual(expect.objectContaining({ text: "Discord" }));
     expect(docs.githubUrl).toBeUndefined();
     expect(docsNavTitle?.({ href: "/" })).toBeNull();
     expect(docs.searchToggle?.enabled).toBe(false);

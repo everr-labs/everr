@@ -30,7 +30,7 @@ export const Route = createFileRoute("/api/internal/verify-key")({
 
         let body: { key?: unknown } | null = null;
         try {
-          body = (await request.json()) as { key?: unknown };
+          body = await request.json();
         } catch {
           return new Response(null, { status: 400 });
         }

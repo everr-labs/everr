@@ -41,29 +41,23 @@ function AuthErrorPage() {
           <div className="mx-auto mb-4 flex size-10 items-center justify-center rounded-md bg-destructive/10 text-destructive">
             <AlertTriangle aria-hidden="true" className="size-5" />
           </div>
-          <h1 className="font-heading text-2xl font-bold tracking-tight">
-            Authentication error
-          </h1>
+          <h1 className="font-heading text-2xl font-bold tracking-tight">Authentication error</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            We couldn't complete that authentication step.
+            We couldn&apos;t complete that authentication step.
           </p>
         </div>
 
         <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 text-card-foreground">
           <div className="flex flex-col gap-1">
             <h2 className="text-sm font-medium">{content.title}</h2>
-            <p className="text-sm text-muted-foreground">
-              {content.description}
-            </p>
+            <p className="text-sm text-muted-foreground">{content.description}</p>
           </div>
 
           {content.detail ? (
             <p className="text-xs text-muted-foreground">{content.detail}</p>
           ) : null}
 
-          {error ? (
-            <p className="font-mono text-xs text-muted-foreground">{error}</p>
-          ) : null}
+          {error ? <p className="font-mono text-xs text-muted-foreground">{error}</p> : null}
         </div>
 
         <div className="flex flex-col gap-2">

@@ -1,7 +1,8 @@
+import type * as ReactRouter from "@tanstack/react-router";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const mocks = vi.hoisted(() => ({
   deleteCurrentUserAccount: vi.fn().mockResolvedValue(undefined),
@@ -13,8 +14,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@tanstack/react-router", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("@tanstack/react-router")>();
+  const actual = await importOriginal<typeof ReactRouter>();
   return {
     ...actual,
     createFileRoute: (_path: string) => (options: Record<string, unknown>) => ({
@@ -89,9 +89,7 @@ describe("/account route", () => {
     render(<Component />);
 
     expect(screen.getByText("Google Connection")).toBeInTheDocument();
-    expect(
-      await screen.findByRole("button", { name: "Connect Google" }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Connect Google" })).toBeInTheDocument();
   });
 
   it("starts Google account linking from account settings", async () => {
@@ -99,9 +97,7 @@ describe("/account route", () => {
     const Component = Route.options.component as React.ComponentType;
     render(<Component />);
 
-    await user.click(
-      await screen.findByRole("button", { name: "Connect Google" }),
-    );
+    await user.click(await screen.findByRole("button", { name: "Connect Google" }));
 
     expect(mocks.linkSocial).toHaveBeenCalledWith({
       callbackURL: "/account",
@@ -148,9 +144,7 @@ describe("/account route", () => {
 
     await user.click(screen.getByRole("button", { name: "Delete account" }));
 
-    expect(
-      screen.getByLabelText("Delete Acme organization too"),
-    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Delete Acme organization too")).toBeInTheDocument();
   });
 
   it("shows a forced organization deletion notice when the user is its only owner", async () => {
@@ -171,13 +165,9 @@ describe("/account route", () => {
     await user.click(screen.getByRole("button", { name: "Delete account" }));
 
     expect(
-      screen.getByText(
-        "This action is also going to delete the Acme organization.",
-      ),
+      screen.getByText("This action is also going to delete the Acme organization."),
     ).toBeInTheDocument();
-    expect(
-      screen.queryByLabelText("Delete Acme organization too"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Delete Acme organization too")).not.toBeInTheDocument();
   });
 
   it("hides the organization deletion option from organization admins", async () => {
@@ -194,9 +184,7 @@ describe("/account route", () => {
 
     await user.click(screen.getByRole("button", { name: "Delete account" }));
 
-    expect(
-      screen.queryByLabelText("Delete Test Org organization too"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Delete Test Org organization too")).not.toBeInTheDocument();
   });
 
   it("passes the organization deletion choice when confirmed", async () => {
@@ -217,9 +205,7 @@ describe("/account route", () => {
     await user.click(screen.getByRole("button", { name: "Delete account" }));
     await user.type(screen.getByLabelText("Confirmation"), "DELETE");
     await user.click(screen.getByLabelText("Delete Acme organization too"));
-    await user.click(
-      screen.getByRole("button", { name: "Delete permanently" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Delete permanently" }));
 
     await waitFor(() => {
       expect(mocks.deleteCurrentUserAccount).toHaveBeenCalledWith({
@@ -242,9 +228,7 @@ describe("/account route", () => {
 
     await user.click(screen.getByRole("button", { name: "Delete account" }));
     await user.type(screen.getByLabelText("Confirmation"), "DELETE");
-    await user.click(
-      screen.getByRole("button", { name: "Delete permanently" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Delete permanently" }));
 
     await waitFor(() => {
       expect(mocks.deleteCurrentUserAccount).toHaveBeenCalledWith({

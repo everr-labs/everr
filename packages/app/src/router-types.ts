@@ -9,9 +9,7 @@ export interface BreadcrumbSegment {
 
 declare module "@tanstack/react-router" {
   interface StaticDataRouteOption {
-    breadcrumb?:
-      | string
-      | ((match: AnyRouteMatch) => string | BreadcrumbSegment[] | undefined);
+    breadcrumb?: string | ((match: AnyRouteMatch) => string | BreadcrumbSegment[] | undefined);
     hideTimeRangePicker?: boolean;
     hideExploreBar?: boolean;
   }

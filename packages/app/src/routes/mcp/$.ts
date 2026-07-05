@@ -16,9 +16,19 @@ const READABLE_TABLES = SQL_API_TENANT_TABLES.join(", ");
 // thread it through the handler or stash it in AsyncLocalStorage ourselves.
 type McpContext = { orgId: string; userId: string };
 
-function contextOf(extra: { authInfo?: { extra?: Record<string, unknown> } }) {
-  const ctx = extra.authInfo?.extra as McpContext | undefined;
-  return ctx?.orgId && ctx?.userId ? ctx : undefined;
+function contextOf(extra: {
+  authInfo?: { extra?: Record<string, unknown> };
+}): McpContext | undefined {
+  const ctx = extra.authInfo?.extra;
+  if (
+    typeof ctx?.orgId === "string" &&
+    typeof ctx?.userId === "string" &&
+    ctx.orgId &&
+    ctx.userId
+  ) {
+    return { orgId: ctx.orgId, userId: ctx.userId };
+  }
+  return undefined;
 }
 
 // Built ONCE at module load. Named `mcpTransport` to avoid clashing with the
@@ -92,11 +102,11 @@ async function verifyToken(_req: Request, bearerToken?: string) {
     // issuer/jwksUrl must be passed explicitly: the resource client derives them
     // from auth.options.baseURL, which omits the /api/auth mount path, so it
     // would otherwise check the wrong issuer and fetch BETTER_AUTH_URL/jwks (404).
-    payload = (await mcpResourceClient().verifyAccessToken(bearerToken, {
+    payload = await mcpResourceClient().verifyAccessToken(bearerToken, {
       jwksUrl: `${AUTH_ISSUER}/jwks`,
       verifyOptions: { audience: MCP_RESOURCE, issuer: AUTH_ISSUER },
       scopes: ["observability:read"],
-    })) as Record<string, unknown>;
+    });
   } catch {
     return undefined; // bad sig/aud/iss/scope/expiry
   }
@@ -112,10 +122,7 @@ async function verifyToken(_req: Request, bearerToken?: string) {
   return {
     token: bearerToken,
     clientId: typeof payload.azp === "string" ? payload.azp : "",
-    scopes:
-      typeof payload.scope === "string"
-        ? payload.scope.split(" ")
-        : ["observability:read"],
+    scopes: typeof payload.scope === "string" ? payload.scope.split(" ") : ["observability:read"],
     expiresAt: typeof payload.exp === "number" ? payload.exp : undefined,
     extra: { orgId, userId } satisfies McpContext,
   };
@@ -151,8 +158,7 @@ function preflight(): Response {
     headers: {
       ...CORS_HEADERS,
       "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
-      "access-control-allow-headers":
-        "authorization, content-type, mcp-session-id",
+      "access-control-allow-headers": "authorization, content-type, mcp-session-id",
     },
   });
 }

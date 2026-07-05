@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { initClient, teardown } from "./core.js";
 import { ErrorBoundary, captureReactError } from "./react.js";
 import { setupTestTelemetry } from "./test-utils.js";
@@ -35,7 +35,7 @@ describe("ErrorBoundary", () => {
     expect(record.eventName).toBe("exception");
     expect(record.attributes["everr.error.mechanism"]).toBe("react");
     expect(record.attributes["exception.message"]).toBe("render boom");
-    expect(String(record.attributes["react.component_stack"])).toContain("Boom");
+    expect(record.attributes["react.component_stack"]).toContain("Boom");
   });
 
   it("supports a function fallback and onError callback", () => {

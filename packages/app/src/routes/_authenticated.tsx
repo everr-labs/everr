@@ -7,12 +7,7 @@ import {
   CardTitle,
 } from "@everr/ui/components/card";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  createFileRoute,
-  ErrorComponent,
-  redirect,
-  useRouter,
-} from "@tanstack/react-router";
+import { createFileRoute, ErrorComponent, redirect, useRouter } from "@tanstack/react-router";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -42,14 +37,10 @@ const verifyActiveOrg = createPartiallyAuthenticatedServerFn({
 });
 
 export const Route = createFileRoute("/_authenticated")({
-  beforeLoad: async ({
-    context: { session },
-    location: { pathname, hash },
-    search,
-  }) => {
+  beforeLoad: async ({ context: { session }, location: { pathname, hash }, search }) => {
     if (!session?.user) {
       const redirectTo = `${pathname}?${Object.entries(search)
-        .map(([key, value]) => `${key}=${value}`)
+        .map(([key, value]) => `${key}=${String(value)}`)
         .join("&")}${hash ? `#${hash}` : ""}`;
 
       // CLI device approval is reached by people setting up a fresh machine, who
@@ -94,7 +85,8 @@ function OrgSwitcher() {
   const { data: orgs, isPending, refetch } = authClient.useListOrganizations();
 
   useEffect(() => {
-    refetch();
+    void refetch();
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- fetch a fresh org list once on mount; refetch identity from the better-auth hook isn't guaranteed stable, so re-running on its change could loop
   }, []);
 
   const [switching, setSwitching] = useState<string | null>(null);
@@ -103,19 +95,16 @@ function OrgSwitcher() {
     setSwitching(orgId);
     await authClient.organization.setActive({ organizationId: orgId });
     await queryClient.invalidateQueries();
-    router.invalidate();
+    void router.invalidate();
   }
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-          <CardTitle className="text-xl font-heading">
-            Organization unavailable
-          </CardTitle>
+          <CardTitle className="text-xl font-heading">Organization unavailable</CardTitle>
           <CardDescription>
-            You no longer have access to this organization. Switch to another
-            one to continue.
+            You no longer have access to this organization. Switch to another one to continue.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -133,9 +122,7 @@ function OrgSwitcher() {
                   disabled={switching !== null}
                   onClick={() => void handleSwitch(org.id)}
                 >
-                  {switching === org.id && (
-                    <Loader2 className="mr-2 size-4 animate-spin" />
-                  )}
+                  {switching === org.id && <Loader2 className="mr-2 size-4 animate-spin" />}
                   {org.name}
                 </Button>
               ))}
@@ -143,7 +130,7 @@ function OrgSwitcher() {
           ) : (
             <div className="space-y-4 text-center">
               <p className="text-sm text-muted-foreground">
-                You don't belong to any organizations.
+                You don&apos;t belong to any organizations.
               </p>
               <Button
                 className="w-full"

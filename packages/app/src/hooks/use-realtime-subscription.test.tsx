@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { THROTTLE_MS } from "./realtime-subscription-machine";
 import { useRealtimeSubscription } from "./use-realtime-subscription";
 
@@ -29,9 +29,7 @@ function createQueryClient() {
 
 function createWrapper(queryClient = createQueryClient()) {
   return function wrapper({ children }: { children: ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
+    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
   };
 }
 
@@ -41,17 +39,14 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 function latestEs(): MockEventSource {
-  const eventSource =
-    MockEventSource.instances[MockEventSource.instances.length - 1];
+  const eventSource = MockEventSource.instances[MockEventSource.instances.length - 1];
   if (!eventSource) throw new Error("Expected an EventSource instance");
   return eventSource;
 }
 
 function sendUpdate() {
   latestEs().onopen?.();
-  latestEs().onmessage?.(
-    new MessageEvent("message", { data: JSON.stringify({ type: "update" }) }),
-  );
+  latestEs().onmessage?.(new MessageEvent("message", { data: JSON.stringify({ type: "update" }) }));
 }
 
 beforeEach(() => {
@@ -73,10 +68,7 @@ describe("useRealtimeSubscription — tenant scope", () => {
   });
 
   it("closes EventSource on unmount", () => {
-    const { unmount } = renderHook(
-      () => useRealtimeSubscription({ scope: "tenant" }),
-      { wrapper },
-    );
+    const { unmount } = renderHook(() => useRealtimeSubscription({ scope: "tenant" }), { wrapper });
 
     unmount();
 
@@ -104,10 +96,7 @@ describe("useRealtimeSubscription — tenant scope", () => {
 
 describe("useRealtimeSubscription — trace scope", () => {
   it("opens EventSource with scope=trace and traceId", () => {
-    renderHook(
-      () => useRealtimeSubscription({ scope: "trace", traceId: "abc123" }),
-      { wrapper },
-    );
+    renderHook(() => useRealtimeSubscription({ scope: "trace", traceId: "abc123" }), { wrapper });
 
     const url = MockEventSource.instances[0]?.url ?? "";
     expect(url).toContain("scope=trace");

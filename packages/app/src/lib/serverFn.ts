@@ -42,15 +42,11 @@ export const requireOrgMiddleware = createMiddleware()
     });
   });
 
-export const createAuthenticatedServerFn = createServerFn().middleware([
-  requireOrgMiddleware,
-]);
+export const createAuthenticatedServerFn = createServerFn().middleware([requireOrgMiddleware]);
 
 /**
  * A server function that is authenticated but not necessarily has an active organization.
  * This is useful for routes or function that need to be authenticated but not necessarily have an
  * active organization yet, such as the onboarding flow.
  */
-export const createPartiallyAuthenticatedServerFn = createServerFn().middleware(
-  [authMiddleware],
-);
+export const createPartiallyAuthenticatedServerFn = createServerFn().middleware([authMiddleware]);

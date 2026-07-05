@@ -1,9 +1,4 @@
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarGroup,
-  AvatarImage,
-} from "@everr/ui/components/avatar";
+import { Avatar, AvatarFallback, AvatarGroup, AvatarImage } from "@everr/ui/components/avatar";
 import { cn } from "@everr/ui/lib/utils";
 import { SiClickhouse } from "@icons-pack/react-simple-icons";
 import {
@@ -15,12 +10,7 @@ import {
   Tags,
   Terminal,
 } from "lucide-react";
-import {
-  AnimatePresence,
-  motion,
-  useInView,
-  useReducedMotion,
-} from "motion/react";
+import { AnimatePresence, motion, useInView, useReducedMotion } from "motion/react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import otelLogo from "../assets/logos/otel.svg?url";
 import persesLogo from "../assets/logos/perses.svg?url";
@@ -65,9 +55,8 @@ export function OpenStandardsBento() {
             <span className="text-primary">No lock-in by design.</span>
           </h2>
           <p className="mt-6 max-w-xl text-base leading-relaxed text-fd-muted-foreground md:text-lg">
-            Everr doesn&apos;t invent a private model. Your telemetry is
-            OpenTelemetry, your dashboards and alerts are plain files, and you
-            query all of it with SQL.
+            Everr doesn&apos;t invent a private model. Your telemetry is OpenTelemetry, your
+            dashboards and alerts are plain files, and you query all of it with SQL.
           </p>
         </motion.div>
 
@@ -114,31 +103,17 @@ type Item = {
   className?: string;
 };
 
-function BentoItem({
-  item,
-  index,
-  inView,
-}: {
-  item: Item;
-  index: number;
-  inView: boolean;
-}) {
+function BentoItem({ item, index, inView }: { item: Item; index: number; inView: boolean }) {
   const Icon = item.icon;
   const text = (
     <div>
       <div className="flex items-center gap-2">
-        <Icon
-          className="size-4 shrink-0 text-primary"
-          strokeWidth={2}
-          aria-hidden
-        />
+        <Icon className="size-4 shrink-0 text-primary" strokeWidth={2} aria-hidden />
         <h3 className="font-heading text-base font-bold tracking-tight text-fd-foreground">
           {item.title}
         </h3>
       </div>
-      <p className="mt-1.5 text-sm leading-snug text-fd-muted-foreground">
-        {item.description}
-      </p>
+      <p className="mt-1.5 text-sm leading-snug text-fd-muted-foreground">{item.description}</p>
     </div>
   );
 
@@ -338,8 +313,7 @@ const TAGS: Record<string, Tag> = {
   },
 };
 
-const clamp = (v: number, lo: number, hi: number) =>
-  Math.min(hi, Math.max(lo, v));
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 /** Candidate offsets a chip can occupy; placement picks whichever overlaps the
  *  fewest visible neighbours, so chips move around without landing on top. */
@@ -368,8 +342,7 @@ const CHIP_H = 26; // chip height, px
 const SEP = 1.5; // extra breathing room between chips, in %
 
 function chipExtent(t: Tag) {
-  const chars =
-    t.ns.length + t.rest.length + 1 + Math.max(...t.vals.map((v) => v.length));
+  const chars = t.ns.length + t.rest.length + 1 + Math.max(...t.vals.map((v) => v.length));
   return {
     hw: ((chars * 6.6 + 26) / CLOUD_W) * 50, // half-width, % of width
     hh: (CHIP_H / CLOUD_H) * 50, // half-height, % of height
@@ -381,22 +354,12 @@ function chipPos(t: Tag, i: number, posIdx: number) {
   return { x: clamp(t.x + dx, 6, 94), y: clamp(t.y + dy, 8, 92) };
 }
 
-function chipsOverlap(
-  ti: Tag,
-  i: number,
-  pi: number,
-  tj: Tag,
-  j: number,
-  pj: number,
-) {
+function chipsOverlap(ti: Tag, i: number, pi: number, tj: Tag, j: number, pj: number) {
   const a = chipPos(ti, i, pi);
   const b = chipPos(tj, j, pj);
   const ea = chipExtent(ti);
   const eb = chipExtent(tj);
-  return (
-    Math.abs(a.x - b.x) < ea.hw + eb.hw + SEP &&
-    Math.abs(a.y - b.y) < ea.hh + eb.hh + SEP
-  );
+  return Math.abs(a.x - b.x) < ea.hw + eb.hw + SEP && Math.abs(a.y - b.y) < ea.hh + eb.hh + SEP;
 }
 
 /** Pick the hop (from startIdx onward) overlapping the fewest visible neighbours.
@@ -508,9 +471,7 @@ function SemanticConventions() {
   // Going static (resize / reduced motion) must never strand a hidden chip.
   useEffect(() => {
     if (live) return;
-    setNodes((prev) =>
-      prev.map((n) => (n.visible ? n : { ...n, visible: true })),
-    );
+    setNodes((prev) => prev.map((n) => (n.visible ? n : { ...n, visible: true })));
   }, [live]);
 
   const posOf = (i: number) => chipPos(TAGS[ids[i]], i, nodes[i].posIdx);
@@ -519,10 +480,8 @@ function SemanticConventions() {
     <div
       className="pointer-events-none relative size-full select-none overflow-hidden"
       style={{
-        maskImage:
-          "radial-gradient(108% 108% at 50% 45%, #000 60%, transparent 100%)",
-        WebkitMaskImage:
-          "radial-gradient(108% 108% at 50% 45%, #000 60%, transparent 100%)",
+        maskImage: "radial-gradient(108% 108% at 50% 45%, #000 60%, transparent 100%)",
+        WebkitMaskImage: "radial-gradient(108% 108% at 50% 45%, #000 60%, transparent 100%)",
       }}
     >
       <SpaceBackdrop src={space3} dim="bg-fd-background/72" />
@@ -553,11 +512,7 @@ function SemanticConventions() {
                 y2={b.y}
                 className={cn(
                   "stroke-white",
-                  bothMobile
-                    ? undefined
-                    : reduce
-                      ? "hidden"
-                      : "hidden sm:block",
+                  bothMobile ? undefined : reduce ? "hidden" : "hidden sm:block",
                 )}
                 strokeWidth={1}
                 strokeLinecap="round"
@@ -601,24 +556,15 @@ function SemanticConventions() {
                 )}
               >
                 {t.hub && (
-                  <span
-                    className="size-1.5 shrink-0 rounded-full bg-primary/80"
-                    aria-hidden
-                  />
+                  <span className="size-1.5 shrink-0 rounded-full bg-primary/80" aria-hidden />
                 )}
                 <span>
-                  <span
-                    className={
-                      t.hub ? "text-fd-foreground" : "text-fd-foreground/70"
-                    }
-                  >
+                  <span className={t.hub ? "text-fd-foreground" : "text-fd-foreground/70"}>
                     {t.ns}
                   </span>
                   <span className="text-fd-muted-foreground">{t.rest}</span>
                   <span className="text-fd-muted-foreground/40">=</span>
-                  <span className="text-fd-foreground/80">
-                    {t.vals[n.valIdx]}
-                  </span>
+                  <span className="text-fd-foreground/80">{t.vals[n.valIdx]}</span>
                 </span>
               </span>
             </motion.div>
@@ -691,30 +637,22 @@ function PersesEditor() {
       {/* the spec */}
       <div className="px-3 py-3 font-mono text-[12.5px] leading-relaxed">
         {PERSES_LINES.map((line, i) => (
-          <div key={`${line.k ?? line.raw}-${i}`} className="flex">
+          // oxlint-disable-next-line react/no-array-index-key -- PERSES_LINES is a static const array that never reorders and has no unique field (keys can repeat)
+          <div key={i} className="flex">
             <span className="w-7 shrink-0 select-none pr-3 text-right text-fd-muted-foreground/25">
               {i + 1}
             </span>
-            <span
-              className="min-w-0"
-              style={{ paddingLeft: `${line.indent * 0.7}rem` }}
-            >
+            <span className="min-w-0" style={{ paddingLeft: `${line.indent * 0.7}rem` }}>
               {line.raw ? (
                 <span className="text-fd-foreground/75">{line.raw}</span>
               ) : (
                 <>
-                  {line.list && (
-                    <span className="text-fd-muted-foreground/40">- </span>
-                  )}
+                  {line.list && <span className="text-fd-muted-foreground/40">- </span>}
                   <span className="text-fd-muted-foreground">{line.k}</span>
                   {line.v ? (
                     <>
                       <span className="text-fd-muted-foreground/70">: </span>
-                      <span
-                        className={
-                          line.kind ? "text-primary" : "text-fd-foreground/75"
-                        }
-                      >
+                      <span className={line.kind ? "text-primary" : "text-fd-foreground/75"}>
                         {line.v}
                       </span>
                     </>
@@ -874,12 +812,7 @@ function AgentAvatar({ agent }: { agent: Agent }) {
   return (
     <Avatar size="sm">
       <AvatarFallback className="bg-fd-card p-1">
-        <img
-          src={agent.mark}
-          alt=""
-          aria-hidden
-          className="size-full object-contain"
-        />
+        <img src={agent.mark} alt="" aria-hidden className="size-full object-contain" />
       </AvatarFallback>
     </Avatar>
   );
@@ -888,13 +821,8 @@ function AgentAvatar({ agent }: { agent: Agent }) {
 function HumanAvatar({ human }: { human: Human }) {
   return (
     <Avatar size="sm">
-      <AvatarImage
-        src={`https://github.com/${human.login}.png?size=48`}
-        alt={human.name}
-      />
-      <AvatarFallback
-        className={cn("font-heading text-[10px] font-bold", human.tone)}
-      >
+      <AvatarImage src={`https://github.com/${human.login}.png?size=48`} alt={human.name} />
+      <AvatarFallback className={cn("font-heading text-[10px] font-bold", human.tone)}>
         {human.initials}
       </AvatarFallback>
     </Avatar>
@@ -992,9 +920,7 @@ function AsCodeFeed() {
                         {authorLabel(c.author)}
                       </span>
                       <span className="text-fd-muted-foreground/35">·</span>
-                      <span className="truncate text-fd-muted-foreground/80">
-                        {c.file}
-                      </span>
+                      <span className="truncate text-fd-muted-foreground/80">{c.file}</span>
                     </p>
                   </div>
                   <span className="shrink-0 font-mono text-[10.5px] text-fd-muted-foreground/45">
@@ -1034,8 +960,7 @@ const ITEMS: Item[] = [
   },
   {
     title: "Perses dashboards",
-    description:
-      "The open CNCF dashboard spec, versioned as plain files — not locked in a UI.",
+    description: "The open CNCF dashboard spec, versioned as plain files — not locked in a UI.",
     header: <PersesShowcase />,
     icon: LineChart,
     className: "md:col-span-9 md:row-span-2",
@@ -1046,10 +971,7 @@ const ITEMS: Item[] = [
       "One read-only SQL surface over every signal — no query language to learn, the same locally and in the cloud.",
     header: (
       <LogoShowcase src={space9}>
-        <SiClickhouse
-          className="relative size-16 drop-shadow-2xl sm:size-20"
-          color="default"
-        />
+        <SiClickhouse className="relative size-16 drop-shadow-2xl sm:size-20" color="default" />
       </LogoShowcase>
     ),
     icon: Terminal,

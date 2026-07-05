@@ -1,7 +1,7 @@
 import { mkdtemp, mkdir, readFile, writeFile, utimes } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vite-plus/test";
 import {
   buildPublicArtifactUrl,
   buildReleaseMetadata,
@@ -155,21 +155,9 @@ describe("copy-release-artifact helpers", () => {
     const newTime = Date.UTC(2026, 2, 14, 16, 0, 0);
 
     await writeVersionedFile(path.join(bundleDir, "old.dmg"), "old dmg", oldTime);
-    await writeVersionedFile(
-      path.join(bundleDir, "nested", "latest.dmg"),
-      "latest dmg",
-      newTime,
-    );
-    await writeVersionedFile(
-      path.join(bundleDir, "old.app.tar.gz"),
-      "old archive",
-      oldTime,
-    );
-    await writeVersionedFile(
-      path.join(bundleDir, "old.app.tar.gz.sig"),
-      "old signature",
-      oldTime,
-    );
+    await writeVersionedFile(path.join(bundleDir, "nested", "latest.dmg"), "latest dmg", newTime);
+    await writeVersionedFile(path.join(bundleDir, "old.app.tar.gz"), "old archive", oldTime);
+    await writeVersionedFile(path.join(bundleDir, "old.app.tar.gz.sig"), "old signature", oldTime);
     await writeVersionedFile(
       path.join(bundleDir, "nested", "latest.app.tar.gz"),
       "latest archive",

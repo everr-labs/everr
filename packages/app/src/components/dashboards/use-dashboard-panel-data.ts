@@ -47,22 +47,14 @@ export function buildPanelQueryRequest(
   if (source.kind !== "ClickHouseSQL") {
     return { source, waitingForOptions: false };
   }
-  const usedNames = extractVariableTokens(source.sql).filter((n) =>
-    ctx.definedNames.has(n),
-  );
+  const usedNames = extractVariableTokens(source.sql).filter((n) => ctx.definedNames.has(n));
   const missingName = usedNames.find((n) => ctx.values[n] === undefined);
-  const waitingForOptions = usedNames.some((n) =>
-    ctx.pendingAllNames.includes(n),
-  );
-  const optionsError = usedNames
-    .map((n) => ctx.allErrors[n])
-    .find((e) => e !== undefined);
+  const waitingForOptions = usedNames.some((n) => ctx.pendingAllNames.includes(n));
+  const optionsError = usedNames.map((n) => ctx.allErrors[n]).find((e) => e !== undefined);
   return {
     source,
-    variables:
-      usedNames.length > 0 ? pickByNames(ctx.values, usedNames) : undefined,
-    variableMeta:
-      usedNames.length > 0 ? pickByNames(ctx.meta, usedNames) : undefined,
+    variables: usedNames.length > 0 ? pickByNames(ctx.values, usedNames) : undefined,
+    variableMeta: usedNames.length > 0 ? pickByNames(ctx.meta, usedNames) : undefined,
     missingName,
     waitingForOptions,
     optionsError,
@@ -94,9 +86,7 @@ export interface SingleQueryState {
   rows?: QueryResultRow[];
 }
 
-export function combineQueryStates(
-  states: SingleQueryState[],
-): CombinedPanelResult {
+export function combineQueryStates(states: SingleQueryState[]): CombinedPanelResult {
   for (const s of states) {
     if (!s.active) continue;
     if (s.missingName !== undefined) {
@@ -111,8 +101,7 @@ export function combineQueryStates(
     if (s.isError) {
       return {
         status: "error",
-        errorMessage:
-          s.error instanceof Error ? s.error.message : String(s.error),
+        errorMessage: s.error instanceof Error ? s.error.message : String(s.error),
       };
     }
   }
@@ -152,12 +141,8 @@ export function useDashboardPanelData(
   // variable-options queries read the same range internally.
   const { timeRange } = useTimeRange();
 
-  const { variables, values, meta, pendingAllNames, allErrors } =
-    useDashboardVariables();
-  const definedNames = useMemo(
-    () => new Set(variables.map((v) => v.spec.name)),
-    [variables],
-  );
+  const { variables, values, meta, pendingAllNames, allErrors } = useDashboardVariables();
+  const definedNames = useMemo(() => new Set(variables.map((v) => v.spec.name)), [variables]);
   const sources = useMemo(() => getPanelQuerySources(panel), [panel]);
   const requests = useMemo(
     () =>
@@ -171,15 +156,13 @@ export function useDashboardPanelData(
     [sources, definedNames, values, meta, pendingAllNames, allErrors],
   );
 
-  const results = useQueries({
+  // `combine` merges the per-query results into the panel state. React Query
+  // runs it with structural sharing, so the returned object stays referentially
+  // stable across renders (unlike the raw `useQueries` array, which is a fresh
+  // reference every render and would defeat a downstream `useMemo`).
+  const combined = useQueries({
     queries: requests.map((r) => ({
-      ...panelQueryOptions(
-        r.source,
-        timeRange.from,
-        timeRange.to,
-        r.variables,
-        r.variableMeta,
-      ),
+      ...panelQueryOptions(r.source, timeRange.from, timeRange.to, r.variables, r.variableMeta),
       enabled:
         active &&
         sourceIsActive(r.source) &&
@@ -187,10 +170,7 @@ export function useDashboardPanelData(
         r.optionsError === undefined &&
         !r.waitingForOptions,
     })),
-  });
-
-  const combined = useMemo(
-    () =>
+    combine: (results) =>
       combineQueryStates(
         requests.map((r, i) => ({
           active: sourceIsActive(r.source),
@@ -202,14 +182,21 @@ export function useDashboardPanelData(
           rows: results[i]?.data?.rows,
         })),
       ),
-    [requests, results],
-  );
+  });
 
   // Memoize on the primitive bounds: `timeRange` is a fresh object each render,
-  // so depending on it directly would never hit the cache.
-  const viz = useMemo(
-    () => resolveTimeRange(timeRange),
-    [timeRange.from, timeRange.to],
-  );
-  return { ...combined, timeRange: { from: viz.fromDate, to: viz.toDate } };
+  // so depending on it directly would never hit the cache. `resolveTimeRange`
+  // only reads `from`/`to`, so closing over the destructured primitives keeps
+  // the deps exact.
+  const { from, to } = timeRange;
+  const viz = useMemo(() => resolveTimeRange({ from, to }), [from, to]);
+  // Read `combined`'s fields explicitly rather than spreading it: it originates
+  // from `useQueries`, and spreading a query result opts every field into React
+  // Query's change tracking (defeating the per-property render optimization).
+  return {
+    status: combined.status,
+    data: combined.data,
+    errorMessage: combined.errorMessage,
+    timeRange: { from: viz.fromDate, to: viz.toDate },
+  };
 }

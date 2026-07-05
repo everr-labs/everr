@@ -1,7 +1,4 @@
-import type {
-  FailedJobInfo,
-  FailureNotification,
-} from "@everr/ui/lib/notification";
+import type { FailedJobInfo, FailureNotification } from "@everr/ui/lib/notification";
 import { pool } from "@/db/client";
 import type { WorkflowJobStep } from "@/db/schema";
 
@@ -35,9 +32,7 @@ export async function getFailureNotifications({
   // All rows share the same run-level fields; group the job rows.
   const run = rows[0];
   const failedAt =
-    run.failureTime instanceof Date
-      ? run.failureTime.toISOString()
-      : String(run.failureTime);
+    run.failureTime instanceof Date ? run.failureTime.toISOString() : String(run.failureTime);
 
   const jobRows = rows.filter(
     (r): r is FailureRow & { jobId: string; jobName: string } =>
@@ -46,11 +41,7 @@ export async function getFailureNotifications({
 
   const failedJobs = buildFailedJobInfos(jobRows);
   const firstFailingStep = findFirstFailingStep(jobRows);
-  const detailsUrl = buildFailureDetailsUrl(
-    origin,
-    run.traceId,
-    firstFailingStep,
-  );
+  const detailsUrl = buildFailureDetailsUrl(origin, run.traceId, firstFailingStep);
 
   return [
     {
@@ -66,10 +57,7 @@ export async function getFailureNotifications({
   ];
 }
 
-async function loadFailureWithJobs(
-  tenantId: string,
-  traceId: string,
-): Promise<FailureRow[]> {
+async function loadFailureWithJobs(tenantId: string, traceId: string): Promise<FailureRow[]> {
   const result = await pool.query<FailureRow>(
     `
       SELECT
@@ -150,10 +138,7 @@ function findFirstFailingStepForJob(job: JobRow): WorkflowJobStep | undefined {
   return [...steps].sort((a, b) => b.number - a.number)[0];
 }
 
-function toFirstFailingStep(
-  job: JobRow,
-  step: WorkflowJobStep,
-): FirstFailingStep {
+function toFirstFailingStep(job: JobRow, step: WorkflowJobStep): FirstFailingStep {
   return {
     jobId: job.jobId,
     jobName: job.jobName,

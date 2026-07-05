@@ -17,9 +17,8 @@ export function useRouteTimeDefaults(): RouteTimeDefaults {
   return useMatches({
     select: (matches) => {
       for (let i = matches.length - 1; i >= 0; i--) {
-        const data = matches[i]?.loaderData as
-          | { timeDefaults?: RouteTimeDefaults }
-          | undefined;
+        // oxlint-disable-next-line typescript/consistent-type-assertions -- loaderData is the union of every route's loader data; only the opted-in routes carry timeDefaults, a shape TS can't narrow to from the union.
+        const data = matches[i]?.loaderData as { timeDefaults?: RouteTimeDefaults } | undefined;
         if (data?.timeDefaults) return data.timeDefaults;
       }
       return EMPTY_TIME_DEFAULTS;

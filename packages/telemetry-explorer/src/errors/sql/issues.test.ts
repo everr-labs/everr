@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { buildServicesQuery, buildSummaryQuery } from "./issues";
 
 const base = {
@@ -38,9 +38,7 @@ describe("error attribute filtering", () => {
     const { sql } = buildServicesQuery(
       {
         ...base,
-        attributes: [
-          { source: "log", key: "http.method", op: "exists", values: [] },
-        ],
+        attributes: [{ source: "log", key: "http.method", op: "exists", values: [] }],
       },
       "logs",
     );

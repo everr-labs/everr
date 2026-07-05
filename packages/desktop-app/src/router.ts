@@ -11,11 +11,7 @@ import { AppShell } from "./features/desktop-shell/app-shell";
 import { DesktopWindow } from "./features/desktop-shell/desktop-window";
 import { SettingsPage } from "./features/desktop-shell/settings-page";
 import { DeveloperPage } from "./features/developer/developer-page";
-import {
-  ErrorDetailPage,
-  ErrorsListSearchSchema,
-  ErrorsPage,
-} from "./features/errors/errors-page";
+import { ErrorDetailPage, ErrorsListSearchSchema, ErrorsPage } from "./features/errors/errors-page";
 import { ExploreSearchSchema } from "./features/explore/explore-search";
 import { LogsPage, LogsSearchSchema } from "./features/logs/logs-page";
 import {

@@ -3,10 +3,7 @@ import { getRequestHeaders } from "@tanstack/react-start/server";
 import { OrgMetadataSchema } from "@/common/org-metadata";
 import { CreateOrganizationInputSchema } from "@/common/organization-name";
 import { auth } from "@/lib/auth.server";
-import {
-  createAuthenticatedServerFn,
-  createPartiallyAuthenticatedServerFn,
-} from "@/lib/serverFn";
+import { createAuthenticatedServerFn, createPartiallyAuthenticatedServerFn } from "@/lib/serverFn";
 
 export const getActiveOrganization = createPartiallyAuthenticatedServerFn({
   method: "GET",

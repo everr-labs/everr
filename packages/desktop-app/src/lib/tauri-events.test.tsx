@@ -1,10 +1,11 @@
 import { act, renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import type * as TauriModule from "./tauri";
 import { safeGetCurrentWindow } from "./tauri";
 import { useTauriEvent } from "./tauri-events";
 
 vi.mock("./tauri", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./tauri")>();
+  const actual = await importOriginal<typeof TauriModule>();
   return {
     ...actual,
     safeGetCurrentWindow: vi.fn(),
@@ -12,12 +13,12 @@ vi.mock("./tauri", async (importOriginal) => {
 });
 
 function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((promiseResolve) => {
-    resolve = promiseResolve;
+  let resolveFn!: (value: T) => void;
+  const promise = new Promise<T>((resolve) => {
+    resolveFn = resolve;
   });
 
-  return { promise, resolve };
+  return { promise, resolve: resolveFn };
 }
 
 describe("useTauriEvent", () => {

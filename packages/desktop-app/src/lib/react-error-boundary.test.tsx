@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { ReactTelemetryErrorBoundary } from "./react-error-boundary";
 
 const telemetryMocks = vi.hoisted(() => ({
@@ -30,9 +30,7 @@ vi.mock("@everr/auto-otel-errors/react", async () => {
     render() {
       if (this.state.error) {
         const { fallback } = this.props;
-        return typeof fallback === "function"
-          ? fallback(this.state.error)
-          : (fallback ?? null);
+        return typeof fallback === "function" ? fallback(this.state.error) : (fallback ?? null);
       }
 
       return this.props.children;

@@ -31,9 +31,7 @@ export const geoMapSpec = z.looseObject({
   showLegend: z.boolean().default(true),
   colorScheme: z.enum(COLOR_SCHEMES).default("blue"),
   /** Map projection. */
-  projection: z
-    .enum(["naturalEarth1", "mercator", "equalEarth"])
-    .default("naturalEarth1"),
+  projection: z.enum(["naturalEarth1", "mercator", "equalEarth"]).default("naturalEarth1"),
   /**
    * Value→color/size curve. `sqrt` keeps marker *area* proportional to the
    * value; `log` spreads heavily skewed data (one dominant country) so the

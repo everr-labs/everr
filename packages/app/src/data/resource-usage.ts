@@ -135,8 +135,7 @@ function aggregatePoints(rows: RawMetricRow[]): ResourceUsagePoint[] {
       bucket.cpuValues.length > 0
         ? bucket.cpuValues.reduce((a, b) => a + b, 0) / bucket.cpuValues.length
         : 0;
-    const cpuMax =
-      bucket.cpuValues.length > 0 ? Math.max(...bucket.cpuValues) : 0;
+    const cpuMax = bucket.cpuValues.length > 0 ? Math.max(...bucket.cpuValues) : 0;
 
     let networkReceive = 0;
     let networkTransmit = 0;
@@ -285,10 +284,8 @@ const getJobResourceUsage = createAuthenticatedServerFn({
     },
   );
 
-export const jobResourceUsageOptions = (input: {
-  traceId: string;
-  jobId: string;
-}) =>
+export const jobResourceUsageOptions = (input: { traceId: string; jobId: string }) =>
+  // oxlint-disable-next-line query/exhaustive-deps -- DI repo / input already in key; not a real missing dep
   queryOptions({
     queryKey: ["runs", "jobResourceUsage", input.traceId, input.jobId],
     queryFn: () => getJobResourceUsage({ data: input }),

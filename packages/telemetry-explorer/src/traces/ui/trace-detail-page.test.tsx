@@ -1,12 +1,13 @@
+import type * as ReactQuery from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import type { Span } from "../data/types";
 import { TraceDetail } from "./trace-detail-page";
 
 vi.mock("@tanstack/react-query", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@tanstack/react-query")>();
+  const actual = await importOriginal<typeof ReactQuery>();
   return {
     ...actual,
     useQuery: vi.fn(),

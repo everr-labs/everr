@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import {
-  buildOtlpTracePayload,
+  type buildOtlpTracePayload,
   buildTelemetryResourceAttributes,
   createBuildTelemetry,
   deriveCiJobSpanId,
@@ -16,9 +16,7 @@ import {
 // either side fails its own suite.
 describe("CI trace id derivation", () => {
   it("matches the collector receiver's generateTraceID", () => {
-    expect(deriveCiTraceId("123456", "9876543210", "1")).toBe(
-      "ce3e4cc4a1ed6e03e580b6b9174acdbf",
-    );
+    expect(deriveCiTraceId("123456", "9876543210", "1")).toBe("ce3e4cc4a1ed6e03e580b6b9174acdbf");
   });
 
   it("matches the collector receiver's generateParentSpanID", () => {
@@ -125,9 +123,7 @@ describe("buildTelemetryResourceAttributes", () => {
     expect(attributes["service.name"]).toBe("github-actions");
     expect(attributes["service.namespace"]).toBe("cicd");
     expect(attributes["deployment.environment.name"]).toBe("ci");
-    expect(attributes["service.version"]).toBe(
-      "0123456789abcdef0123456789abcdef01234567",
-    );
+    expect(attributes["service.version"]).toBe("0123456789abcdef0123456789abcdef01234567");
     expect(attributes["vcs.repository.name"]).toBe("everr-labs/everr");
     expect(attributes["cicd.pipeline.run.id"]).toBe("9876543210");
     expect(attributes["cicd.pipeline.task.name"]).toBe("Build, Sign, Notarize Desktop");

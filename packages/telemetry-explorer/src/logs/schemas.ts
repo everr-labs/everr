@@ -8,22 +8,11 @@ import {
   attributeValuesInputSchema,
 } from "../attribute-filter/schemas";
 
-export const LogLevelSchema = z.enum([
-  "error",
-  "warning",
-  "info",
-  "debug",
-  "trace",
-  "unknown",
-]);
+export const LogLevelSchema = z.enum(["error", "warning", "info", "debug", "trace", "unknown"]);
 
 export type LogLevel = z.infer<typeof LogLevelSchema>;
 
-export type {
-  AttributeFilter,
-  AttributeOp,
-  AttributeSource,
-} from "../attribute-filter/schemas";
+export type { AttributeFilter, AttributeOp, AttributeSource } from "../attribute-filter/schemas";
 // Re-export the shared attribute types under both generic and historical names.
 export {
   AttributeFilterSchema,

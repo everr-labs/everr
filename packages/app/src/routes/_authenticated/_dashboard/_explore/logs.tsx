@@ -22,12 +22,10 @@ const SearchSchema = TimeRangeSearchSchema.extend({
   showVolume: z.boolean().default(true),
 }).omit({ services: true });
 
-export const Route = createFileRoute(
-  "/_authenticated/_dashboard/_explore/logs",
-)({
+export const Route = createFileRoute("/_authenticated/_dashboard/_explore/logs")({
   staticData: { breadcrumb: "Logs" },
-  head: () => ({ meta: [{ title: "Everr - Logs" }] }),
   validateSearch: SearchSchema,
+  head: () => ({ meta: [{ title: "Everr - Logs" }] }),
   component: LogsExplorerPage,
 });
 
@@ -60,12 +58,12 @@ function LogsExplorerPage() {
       onSearchChange={({ services: _ignored, ...next }) =>
         // Push a history entry per change so Back undoes filter changes one at a
         // time (the time-range brush below stays on replace — it's continuous).
-        navigate({
+        void navigate({
           search: (prev) => ({ ...prev, ...next }),
         })
       }
       onTimeRangeSelect={(from, to) =>
-        navigate({
+        void navigate({
           search: (prev) => ({
             ...prev,
             from: from.toISOString(),
@@ -75,14 +73,8 @@ function LogsExplorerPage() {
         })
       }
       resolveJobId={({ traceId, jobName }) => {
-        const cached = queryClient.getQueryData(
-          runJobsOptions(traceId).queryKey,
-        );
-        return Array.isArray(cached)
-          ? (cached as Array<{ name: string; jobId: string }>).find(
-              (j) => j.name === jobName,
-            )?.jobId
-          : undefined;
+        const cached = queryClient.getQueryData(runJobsOptions(traceId).queryKey);
+        return Array.isArray(cached) ? cached.find((j) => j.name === jobName)?.jobId : undefined;
       }}
       renderRunLink={({ traceId, jobId, stepNumber }) => (
         <Button

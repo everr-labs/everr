@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { overlayPreview } from "./overlay";
 
 const r = (
@@ -17,12 +17,8 @@ const r = (
 });
 
 // A preview row: same shape as a live row but carrying a registry id.
-const p = (
-  repoid: string,
-  slug: string,
-  doc: unknown = { v: 1 },
-  folderPath = "",
-) => r(repoid, slug, doc, folderPath, "preview-1");
+const p = (repoid: string, slug: string, doc: unknown = { v: 1 }, folderPath = "") =>
+  r(repoid, slug, doc, folderPath, "preview-1");
 
 const covered = new Set(["repo-1"]);
 
@@ -48,9 +44,7 @@ describe("overlayPreview", () => {
       ],
       coveredRepoids: covered,
     });
-    const byStatus = Object.fromEntries(
-      out.map((row) => [row.slug, row.previewStatus]),
-    );
+    const byStatus = Object.fromEntries(out.map((row) => [row.slug, row.previewStatus]));
     expect(byStatus).toEqual({
       added: "added",
       changed: "changed",
@@ -70,9 +64,7 @@ describe("overlayPreview", () => {
       ],
       coveredRepoids: covered,
     });
-    const byStatus = Object.fromEntries(
-      out.map((row) => [row.slug, row.previewStatus]),
-    );
+    const byStatus = Object.fromEntries(out.map((row) => [row.slug, row.previewStatus]));
     expect(byStatus).toEqual({ moved: "changed", same: "unchanged" });
   });
 
@@ -84,13 +76,9 @@ describe("overlayPreview", () => {
       coveredRepoids: covered,
     });
     expect(out).toHaveLength(2);
-    expect(out.find((row) => row.repoid === "repo-1")?.previewStatus).toBe(
-      "conflict",
-    );
+    expect(out.find((row) => row.repoid === "repo-1")?.previewStatus).toBe("conflict");
     // repo-2's live row is in an uncovered repoid → passes through untagged.
-    expect(
-      out.find((row) => row.repoid === "repo-2")?.previewStatus,
-    ).toBeUndefined();
+    expect(out.find((row) => row.repoid === "repo-2")?.previewStatus).toBeUndefined();
   });
 
   it("tags a preview add with no live identity anywhere as added", () => {

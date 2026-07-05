@@ -104,19 +104,17 @@ export const runbookSpecSchema = z
  * specs are only validated for registered query kinds (currently TestData);
  * unlisted kinds stay loose — never stricter than Perses.
  */
-export const runbookSpecSchemaStrict = runbookSpecSchema.superRefine(
-  (spec, ctx) => {
-    for (const [key, p] of Object.entries(spec.panels ?? {})) {
-      for (const issue of collectPanelStrictIssues(p)) {
-        ctx.addIssue({
-          code: "custom",
-          message: issue.message,
-          path: ["panels", key, ...issue.path],
-        });
-      }
+export const runbookSpecSchemaStrict = runbookSpecSchema.superRefine((spec, ctx) => {
+  for (const [key, p] of Object.entries(spec.panels ?? {})) {
+    for (const issue of collectPanelStrictIssues(p)) {
+      ctx.addIssue({
+        code: "custom",
+        message: issue.message,
+        path: ["panels", key, ...issue.path],
+      });
     }
-  },
-);
+  }
+});
 
 export type RunbookSpec = z.infer<typeof runbookSpecSchema>;
 

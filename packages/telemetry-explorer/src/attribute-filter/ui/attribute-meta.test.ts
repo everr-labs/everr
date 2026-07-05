@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import {
   ATTRIBUTE_OP_CONNECTORS,
   ATTRIBUTE_OP_LABELS,

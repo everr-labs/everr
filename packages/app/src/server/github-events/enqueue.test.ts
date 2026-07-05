@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import type { WebhookJobData } from "./types";
 
 const addWorkerJob = vi.fn();
@@ -32,15 +32,11 @@ describe("enqueueWebhookEvent", () => {
     await enqueueWebhookEvent("delivery-1", payload);
 
     expect(addWorkerJob).toHaveBeenCalledTimes(2);
-    expect(addWorkerJob).toHaveBeenCalledWith(
-      "github-events/collector",
-      payload,
-      {
-        jobKey: "github-events/collector:delivery-1",
-        jobKeyMode: "replace",
-        maxAttempts: 10,
-      },
-    );
+    expect(addWorkerJob).toHaveBeenCalledWith("github-events/collector", payload, {
+      jobKey: "github-events/collector:delivery-1",
+      jobKeyMode: "replace",
+      maxAttempts: 10,
+    });
     expect(addWorkerJob).toHaveBeenCalledWith("github-events/status", payload, {
       jobKey: "github-events/status:delivery-1",
       jobKeyMode: "replace",

@@ -12,12 +12,10 @@ type Props = {
 };
 
 export function TimelineView({ spans, focusedSpan, onSelectSpan }: Props) {
-  const { rows, traceStartNs, traceEndNs, toggleCollapse } =
-    useTimelineLayout(spans);
+  const { rows, traceStartNs, traceEndNs, toggleCollapse } = useTimelineLayout(spans);
 
   const selected = useMemo(
-    () =>
-      focusedSpan ? spans.find((s) => s.spanId === focusedSpan) : undefined,
+    () => (focusedSpan ? spans.find((s) => s.spanId === focusedSpan) : undefined),
     [spans, focusedSpan],
   );
 

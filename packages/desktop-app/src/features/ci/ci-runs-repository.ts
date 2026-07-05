@@ -56,9 +56,7 @@ export const ciRunsRepository: RunsRepositoryLike = {
     });
   },
 
-  filterOptions(
-    input: Pick<RunsFilter, "timeRange">,
-  ): Promise<RunFilterOptions> {
+  filterOptions(input: Pick<RunsFilter, "timeRange">): Promise<RunFilterOptions> {
     return invokeCommand<RunFilterOptions>("get_run_filter_options", {
       ...toCommandRange(input.timeRange),
     });

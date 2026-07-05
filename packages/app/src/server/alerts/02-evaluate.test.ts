@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import type * as AlertInstances from "./02-instances";
 
 const sqlApi = vi.fn();
 const insertEvents = vi.fn();
@@ -16,7 +17,7 @@ vi.mock("./04-delivery", () => ({
 
 const fetchFiring = vi.fn();
 vi.mock("./02-instances", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./02-instances")>();
+  const actual = await importOriginal<typeof AlertInstances>();
   return {
     ...actual,
     fetchFiringInstances: (...args: unknown[]) => fetchFiring(...args),
@@ -38,13 +39,11 @@ vi.mock("@/db/client", () => ({
         limit: () => {
           if (callIndex === 0)
             return Promise.resolve(
-              definitionRows().map(
-                (d: { preview?: string; repoid?: string | null }) => ({
-                  def: d,
-                  previewName: d.preview ?? "",
-                  repoid: d.repoid ?? null,
-                }),
-              ),
+              definitionRows().map((d: { preview?: string; repoid?: string | null }) => ({
+                def: d,
+                previewName: d.preview ?? "",
+                repoid: d.repoid ?? null,
+              })),
             );
           if (callIndex === 1) return Promise.resolve(settingsRows());
           return Promise.resolve(silenceRows());
@@ -71,8 +70,7 @@ vi.mock("@/telemetry/logger", () => ({
   exceptionAttributes: (error: unknown) => ({
     "exception.message": error instanceof Error ? error.message : String(error),
   }),
-  errorMessage: (error: unknown) =>
-    error instanceof Error ? error.message : String(error),
+  errorMessage: (error: unknown) => (error instanceof Error ? error.message : String(error)),
   serverLogger: { error: vi.fn(), warn: vi.fn() },
 }));
 
@@ -88,8 +86,7 @@ const baseDef = {
   repoid: "r1",
   slug: "high-5xx",
   active: true,
-  parsedQuery:
-    "SELECT route FROM logs WHERE TimestampTime >= now() - INTERVAL 5 MINUTE",
+  parsedQuery: "SELECT route FROM logs WHERE TimestampTime >= now() - INTERVAL 5 MINUTE",
   notificationTitleTemplate: `\${route} bad`,
   notificationDescriptionTemplate: "",
   currentState: "resolved",
@@ -136,31 +133,21 @@ describe("evaluateAlert", () => {
     });
 
     const inserted = insertEvents.mock.calls[0][0] as Record<string, unknown>[];
-    expect(inserted.map((e) => e.event_type)).toEqual([
-      "instance_fired",
-      "firing",
-    ]);
+    expect(inserted.map((e) => e.event_type)).toEqual(["instance_fired", "firing"]);
     expect(inserted[0]).toMatchObject({ instance_fingerprint: fp("/x") });
     expect(inserted[1]).toMatchObject({
       delivery_targets: { telegram: ["123"] },
       silence_id: "",
     });
+    expect(updates.some((u) => (u as { currentState?: string }).currentState === "firing")).toBe(
+      true,
+    );
     expect(
-      updates.some(
-        (u) => (u as { currentState?: string }).currentState === "firing",
-      ),
-    ).toBe(true);
-    expect(
-      updates.some(
-        (u) =>
-          (u as { firingInstanceCount?: number }).firingInstanceCount === 1,
-      ),
+      updates.some((u) => (u as { firingInstanceCount?: number }).firingInstanceCount === 1),
     ).toBe(true);
     expect(deliver).toHaveBeenCalledWith(
       expect.objectContaining({
-        instances: expect.arrayContaining([
-          expect.objectContaining({ kind: "firing" }),
-        ]),
+        instances: expect.arrayContaining([expect.objectContaining({ kind: "firing" })]),
       }),
       expect.any(Date),
       expect.any(Object),
@@ -187,9 +174,7 @@ describe("evaluateAlert", () => {
     );
     expect(deliver).toHaveBeenCalledWith(
       expect.objectContaining({
-        instances: expect.arrayContaining([
-          expect.objectContaining({ kind: "firing" }),
-        ]),
+        instances: expect.arrayContaining([expect.objectContaining({ kind: "firing" })]),
       }),
       expect.any(Date),
       expect.any(Object),
@@ -225,20 +210,13 @@ describe("evaluateAlert", () => {
     });
 
     const inserted = insertEvents.mock.calls[0][0] as Record<string, unknown>[];
+    expect(inserted.filter((e) => e.event_type === "instance_fired")).toHaveLength(60);
     expect(
-      inserted.filter((e) => e.event_type === "instance_fired"),
-    ).toHaveLength(60);
-    expect(
-      updates.some(
-        (u) =>
-          (u as { firingInstanceCount?: number }).firingInstanceCount === 60,
-      ),
+      updates.some((u) => (u as { firingInstanceCount?: number }).firingInstanceCount === 60),
     ).toBe(true);
     expect(deliver).toHaveBeenCalledWith(
       expect.objectContaining({
-        instances: expect.arrayContaining([
-          expect.objectContaining({ kind: "firing" }),
-        ]),
+        instances: expect.arrayContaining([expect.objectContaining({ kind: "firing" })]),
       }),
       expect.any(Date),
       expect.any(Object),
@@ -259,10 +237,7 @@ describe("evaluateAlert", () => {
     });
 
     const inserted = insertEvents.mock.calls[0][0] as Record<string, unknown>[];
-    expect(inserted.map((e) => e.event_type)).toEqual([
-      "instance_fired",
-      "firing",
-    ]);
+    expect(inserted.map((e) => e.event_type)).toEqual(["instance_fired", "firing"]);
     expect(deliver).toHaveBeenCalledWith(
       expect.objectContaining({
         instances: expect.arrayContaining([
@@ -300,15 +275,10 @@ describe("evaluateAlert", () => {
     });
 
     const inserted = insertEvents.mock.calls[0][0] as Record<string, unknown>[];
-    expect(inserted.map((e) => e.event_type)).toEqual([
-      "instance_resolved",
-      "resolved",
-    ]);
+    expect(inserted.map((e) => e.event_type)).toEqual(["instance_resolved", "resolved"]);
     expect(deliver).toHaveBeenCalledWith(
       expect.objectContaining({
-        instances: expect.arrayContaining([
-          expect.objectContaining({ kind: "resolved" }),
-        ]),
+        instances: expect.arrayContaining([expect.objectContaining({ kind: "resolved" })]),
       }),
       expect.any(Date),
       expect.any(Object),
@@ -326,10 +296,7 @@ describe("evaluateAlert", () => {
     });
 
     const inserted = insertEvents.mock.calls[0][0] as Record<string, unknown>[];
-    expect(inserted.map((e) => e.event_type)).toEqual([
-      "instance_resolved",
-      "resolved",
-    ]);
+    expect(inserted.map((e) => e.event_type)).toEqual(["instance_resolved", "resolved"]);
     expect(deliver).toHaveBeenCalledWith(
       expect.objectContaining({
         instances: expect.arrayContaining([
@@ -384,11 +351,9 @@ describe("evaluateAlert", () => {
       scheduledFor: "2026-06-10T12:00:00.000Z",
     });
 
-    expect(
-      updates.some(
-        (u) => (u as { currentState?: string }).currentState !== undefined,
-      ),
-    ).toBe(false);
+    expect(updates.some((u) => (u as { currentState?: string }).currentState !== undefined)).toBe(
+      false,
+    );
     expect(insertEvents).toHaveBeenCalledWith([
       expect.objectContaining({ event_type: "evaluation_failed" }),
     ]);
@@ -404,17 +369,11 @@ describe("evaluateAlert", () => {
       scheduledFor: "2026-06-10T12:00:00.000Z",
     });
 
+    expect(updates.some((u) => (u as { currentState?: string }).currentState !== undefined)).toBe(
+      false,
+    );
     expect(
-      updates.some(
-        (u) => (u as { currentState?: string }).currentState !== undefined,
-      ),
-    ).toBe(false);
-    expect(
-      updates.some(
-        (u) =>
-          (u as { lastEvaluationError?: string }).lastEvaluationError ===
-          "boom",
-      ),
+      updates.some((u) => (u as { lastEvaluationError?: string }).lastEvaluationError === "boom"),
     ).toBe(true);
     expect(insertEvents).toHaveBeenCalledWith([
       expect.objectContaining({ event_type: "evaluation_failed" }),
@@ -463,9 +422,7 @@ describe("evaluateAlert", () => {
   });
 
   it("evaluates a preview alert but never dispatches notifications", async () => {
-    definitionRows.mockReturnValue([
-      { ...baseDef, preview: "gio/x", previewId: "prev-1" },
-    ]);
+    definitionRows.mockReturnValue([{ ...baseDef, preview: "gio/x", previewId: "prev-1" }]);
     sqlApi.mockResolvedValue({ rows: [{ route: "/x" }], columns: ["route"] });
 
     await evaluateAlert({
@@ -475,11 +432,9 @@ describe("evaluateAlert", () => {
 
     // State bookkeeping still persisted…
     expect(updates.length).toBeGreaterThan(0);
-    expect(
-      updates.some(
-        (u) => (u as { currentState?: string }).currentState === "firing",
-      ),
-    ).toBe(true);
+    expect(updates.some((u) => (u as { currentState?: string }).currentState === "firing")).toBe(
+      true,
+    );
     // …but nothing was enqueued for delivery.
     expect(deliver).not.toHaveBeenCalled();
   });

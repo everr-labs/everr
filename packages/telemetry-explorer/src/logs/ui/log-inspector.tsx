@@ -11,15 +11,7 @@ import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { cn } from "@everr/ui/lib/utils";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import AnsiImport from "ansi-to-react";
-import {
-  Boxes,
-  Clock3,
-  FileSearch,
-  Fingerprint,
-  GitBranch,
-  Server,
-  X,
-} from "lucide-react";
+import { Boxes, Clock3, FileSearch, Fingerprint, GitBranch, Server, X } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
 import { logDetailOptions } from "../data/options";
@@ -27,22 +19,19 @@ import type { LogsRepositoryLike } from "../data/repository";
 import type { LogDetail, LogExplorerRow } from "../schemas";
 import { LOG_LEVEL_META } from "./log-level-meta";
 
+// ESM/CJS interop: some bundlers expose `ansi-to-react`'s component under
+// `.default`; TS types the import as the component only, so the runtime fallback
+// needs an assertion that TS can't express.
 const Ansi =
   typeof AnsiImport === "function"
     ? AnsiImport
-    : (AnsiImport as unknown as { default: typeof AnsiImport }).default;
+    : // oxlint-disable-next-line typescript/consistent-type-assertions -- ESM/CJS interop default-export unwrap
+      (AnsiImport as unknown as { default: typeof AnsiImport }).default;
 
 export interface LogInspectorProps {
   detail: LogDetail;
-  renderRunLink?: (ctx: {
-    traceId: string;
-    jobId: string;
-    stepNumber: string;
-  }) => React.ReactNode;
-  resolveJobId?: (input: {
-    traceId: string;
-    jobName: string;
-  }) => string | undefined;
+  renderRunLink?: (ctx: { traceId: string; jobId: string; stepNumber: string }) => React.ReactNode;
+  resolveJobId?: (input: { traceId: string; jobName: string }) => string | undefined;
 }
 
 export interface LogInspectorPanelProps {
@@ -83,8 +72,7 @@ function extractCiContext(detail: LogDetail) {
   const runId = detail.resourceAttributes["cicd.pipeline.run.id"] ?? "";
   const jobId = detail.resourceAttributes["cicd.pipeline.task.run.id"] ?? "";
   const jobName = detail.scopeAttributes["cicd.pipeline.task.name"] ?? "";
-  const stepNumber =
-    detail.logAttributes["everr.github.workflow_job_step.number"] ?? "";
+  const stepNumber = detail.logAttributes["everr.github.workflow_job_step.number"] ?? "";
   return {
     repo,
     branch,
@@ -93,9 +81,7 @@ function extractCiContext(detail: LogDetail) {
     jobId,
     jobName,
     stepNumber,
-    hasAny: Boolean(
-      branch || workflowName || runId || jobId || jobName || stepNumber,
-    ),
+    hasAny: Boolean(branch || workflowName || runId || jobId || jobName || stepNumber),
   };
 }
 
@@ -103,6 +89,7 @@ function LogInspectorSkeleton() {
   return (
     <div className="space-y-4">
       {Array.from({ length: 3 }).map((_, sectionIndex) => (
+        // oxlint-disable-next-line react/no-array-index-key -- fixed-length static skeleton placeholders with no data identity
         <div key={sectionIndex} className="space-y-2">
           <Skeleton className="h-3 w-24" />
           <Skeleton className="h-9 w-full" />
@@ -113,11 +100,7 @@ function LogInspectorSkeleton() {
   );
 }
 
-function LogInspectorDetails({
-  detail,
-  renderRunLink,
-  resolveJobId,
-}: LogInspectorProps) {
+function LogInspectorDetails({ detail, renderRunLink, resolveJobId }: LogInspectorProps) {
   const ciFields = extractCiContext(detail);
   const resolvedJobId =
     ciFields.jobId ||
@@ -129,41 +112,20 @@ function LogInspectorDetails({
   return (
     <>
       <DetailSection title="Event">
-        <DetailItem
-          icon={<Clock3 />}
-          label="Timestamp"
-          value={detail.timestamp}
-        />
-        <DetailItem
-          icon={<Server />}
-          label="Service"
-          value={detail.serviceName}
-        />
+        <DetailItem icon={<Clock3 />} label="Timestamp" value={detail.timestamp} />
+        <DetailItem icon={<Server />} label="Service" value={detail.serviceName} />
         <DetailItem label="Severity" value={severityLabel(detail)} />
-        <DetailItem
-          icon={<Boxes />}
-          label="Source"
-          value={ciFields.repo || "default"}
-        />
+        <DetailItem icon={<Boxes />} label="Source" value={ciFields.repo || "default"} />
       </DetailSection>
 
       <DetailSection title="Correlation">
-        <DetailItem
-          icon={<Fingerprint />}
-          label="Trace ID"
-          value={detail.traceId}
-          mono
-        />
+        <DetailItem icon={<Fingerprint />} label="Trace ID" value={detail.traceId} mono />
         <DetailItem label="Span ID" value={detail.spanId} mono />
       </DetailSection>
 
       {ciFields.hasAny ? (
         <DetailSection title="CI/CD">
-          <DetailItem
-            icon={<GitBranch />}
-            label="Branch"
-            value={ciFields.branch}
-          />
+          <DetailItem icon={<GitBranch />} label="Branch" value={ciFields.branch} />
           <DetailItem label="Pipeline" value={ciFields.workflowName} />
           <DetailItem label="Execution ID" value={ciFields.runId} mono />
           <DetailItem label="Task" value={ciFields.jobName || ciFields.jobId} />
@@ -174,12 +136,7 @@ function LogInspectorDetails({
                 jobId: resolvedJobId,
                 stepNumber: ciFields.stepNumber,
               }) ?? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-1 w-fit"
-                  disabled
-                >
+                <Button variant="outline" size="sm" className="mt-1 w-fit" disabled>
                   <FileSearch data-icon="inline-start" />
                   Open in CI View
                 </Button>
@@ -188,10 +145,7 @@ function LogInspectorDetails({
         </DetailSection>
       ) : null}
 
-      <AttributeMap
-        title="Resource attributes"
-        map={detail.resourceAttributes}
-      />
+      <AttributeMap title="Resource attributes" map={detail.resourceAttributes} />
       <AttributeMap title="Log attributes" map={detail.logAttributes} />
       <AttributeMap title="Scope attributes" map={detail.scopeAttributes} />
     </>
@@ -222,23 +176,13 @@ export function LogInspectorPanel({
         <div className="mb-2 flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="text-sm font-medium">Log event</div>
-            <div className="text-muted-foreground text-xs">
-              {formatRelativeTime(log.timestamp)}
-            </div>
+            <div className="text-muted-foreground text-xs">{formatRelativeTime(log.timestamp)}</div>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
-            <Badge
-              variant="outline"
-              className={cn("capitalize", levelBadgeClassName(log.level))}
-            >
+            <Badge variant="outline" className={cn("capitalize", levelBadgeClassName(log.level))}>
               {log.level}
             </Badge>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="Close log details"
-              onClick={onClose}
-            >
+            <Button variant="ghost" size="icon-sm" aria-label="Close log details" onClick={onClose}>
               <X />
             </Button>
           </div>
@@ -247,9 +191,7 @@ export function LogInspectorPanel({
 
       <div className="min-h-0 flex-1 overflow-auto p-3">
         <div className="group relative mb-4 rounded-md border bg-background p-3">
-          <div className="text-muted-foreground mb-2 text-xs font-medium">
-            Message
-          </div>
+          <div className="text-muted-foreground mb-2 text-xs font-medium">Message</div>
           <div className="font-mono text-xs leading-5">
             <Ansi useClasses>{log.body}</Ansi>
           </div>
@@ -264,12 +206,7 @@ export function LogInspectorPanel({
             Failed to load log details
           </div>
         ) : detail ? (
-          <div
-            className={cn(
-              "transition-opacity",
-              isPlaceholderData && "opacity-50",
-            )}
-          >
+          <div className={cn("transition-opacity", isPlaceholderData && "opacity-50")}>
             <LogInspectorDetails
               detail={detail}
               renderRunLink={renderRunLink}

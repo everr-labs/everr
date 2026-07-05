@@ -4,9 +4,7 @@ import { ENVIRONMENT_ATTRIBUTE } from "./ui/dedicated-attributes";
 // Build the dedicated environment AttributeFilter, or null when nothing is
 // selected. Environment is sugar over the `deployment.environment` resource
 // attribute, so this is what gets merged into query attributes.
-export function environmentFilter(
-  environment: string[],
-): AttributeFilter | null {
+export function environmentFilter(environment: string[]): AttributeFilter | null {
   if (environment.length === 0) return null;
   return {
     source: ENVIRONMENT_ATTRIBUTE.source,

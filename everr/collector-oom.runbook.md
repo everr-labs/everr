@@ -88,13 +88,13 @@ height: 240
 
 ## 4. Decide the action
 
-| Finding | Action |
-| --- | --- |
-| One pathological workflow run, protections held, no restart | Nothing urgent. Note the repo/run; if its archive was over the 15 MiB cap its logs were skipped by design. |
-| Replay durations spiky again, or whole runs buffered in memory | Regression in the receiver's archive size cap. Compare the deployed collector image against main and roll back or fix. |
-| OOMKilled at the container limit, memory_limiter never engaged | Fix the `memory_limiter` soft/hard limits so they sit safely below the container limit. |
-| No container limits present | Restore memory requests/limits in the collector deployment (everr-deploy). |
-| Sustained high memory with steady refusals | Load outgrew the sizing. Raise the container limit and the memory_limiter thresholds together, then raise the alert threshold in `collector-oom.alert.yaml` to keep headroom. |
+| Finding                                                        | Action                                                                                                                                                                        |
+| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| One pathological workflow run, protections held, no restart    | Nothing urgent. Note the repo/run; if its archive was over the 15 MiB cap its logs were skipped by design.                                                                    |
+| Replay durations spiky again, or whole runs buffered in memory | Regression in the receiver's archive size cap. Compare the deployed collector image against main and roll back or fix.                                                        |
+| OOMKilled at the container limit, memory_limiter never engaged | Fix the `memory_limiter` soft/hard limits so they sit safely below the container limit.                                                                                       |
+| No container limits present                                    | Restore memory requests/limits in the collector deployment (everr-deploy).                                                                                                    |
+| Sustained high memory with steady refusals                     | Load outgrew the sizing. Raise the container limit and the memory_limiter thresholds together, then raise the alert threshold in `collector-oom.alert.yaml` to keep headroom. |
 
 ## Related
 

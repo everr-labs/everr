@@ -1,6 +1,6 @@
 import type { Server } from "node:http";
 import express from "express";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 import { initClient, teardown } from "./core.js";
 import { errorHandler } from "./express.js";
 import { setupTestTelemetry } from "./test-utils.js";
@@ -18,12 +18,7 @@ beforeEach(async () => {
   });
   app.use(errorHandler());
   app.use(
-    (
-      _err: unknown,
-      _req: express.Request,
-      res: express.Response,
-      _next: express.NextFunction,
-    ) => {
+    (_err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
       res.status(500).json({ ok: false });
     },
   );

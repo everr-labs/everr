@@ -6,18 +6,10 @@ import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 function sendInBackground(params: Parameters<typeof mailer.send>[0]): void {
   void mailer
     .send(params)
-    .catch((error) =>
-      serverLogger.error("mailer.send.failed", exceptionAttributes(error)),
-    );
+    .catch((error) => serverLogger.error("mailer.send.failed", exceptionAttributes(error)));
 }
 
-export function sendVerificationEmail({
-  to,
-  url,
-}: {
-  to: string;
-  url: string;
-}): void {
+export function sendVerificationEmail({ to, url }: { to: string; url: string }): void {
   sendInBackground({
     to,
     subject: "Verify your email address",
@@ -25,13 +17,7 @@ export function sendVerificationEmail({
   });
 }
 
-export function sendPasswordResetEmail({
-  to,
-  url,
-}: {
-  to: string;
-  url: string;
-}): void {
+export function sendPasswordResetEmail({ to, url }: { to: string; url: string }): void {
   sendInBackground({
     to,
     subject: "Reset your password",

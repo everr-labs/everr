@@ -1,8 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import {
-  canApplyMutate,
-  requireOrgOrApiKeyMiddleware,
-} from "@/data/as-code/apply-auth.server";
+import { canApplyMutate, requireOrgOrApiKeyMiddleware } from "@/data/as-code/apply-auth.server";
 import { ApplyValidationError } from "@/data/as-code/errors";
 import { applyResources } from "@/data/as-code/registry";
 import { applyInput } from "@/data/as-code/schema";
@@ -32,8 +29,7 @@ export const Route = createFileRoute("/api/apply")({
         if (!parsed.data.dryRun && !canApplyMutate(context.applyActions)) {
           return Response.json(
             {
-              error:
-                "API key is read-only: run with --dry-run or grant the apply write capability",
+              error: "API key is read-only: run with --dry-run or grant the apply write capability",
             },
             { status: 403 },
           );
@@ -63,10 +59,7 @@ export const Route = createFileRoute("/api/apply")({
             return Response.json({ error: error.message }, { status: 400 });
           }
           console.error("apply failed", error);
-          return Response.json(
-            { error: "Internal error while applying" },
-            { status: 500 },
-          );
+          return Response.json({ error: "Internal error while applying" }, { status: 500 });
         }
       },
     },

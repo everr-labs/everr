@@ -10,19 +10,12 @@ import {
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
 import { cn } from "@everr/ui/lib/utils";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { AlertCircle, ChevronDown, Loader2 } from "lucide-react";
 import { useCallback } from "react";
 import { ALL_VALUE } from "@/data/dashboards/interpolate";
-import type {
-  ListVariable,
-  TextVariable,
-  Variable,
-} from "@/data/dashboards/schema";
-import {
-  useDashboardVariables,
-  type VariableOptionsState,
-} from "./use-dashboard-variables";
+import type { ListVariable, TextVariable, Variable } from "@/data/dashboards/schema";
+import { useDashboardVariables, type VariableOptionsState } from "./use-dashboard-variables";
 
 function variableLabel(variable: Variable): string {
   return variable.spec.display?.name ?? variable.spec.name;
@@ -38,22 +31,26 @@ function isVisible(variable: Variable): boolean {
 export function VariableBar() {
   const navigate = useNavigate();
   const { variables, values, optionsState } = useDashboardVariables();
+  // Read the current vars from the typed route search (same source as
+  // useDashboardVariables) rather than the navigate updater's `prev`, whose
+  // nested `vars` type is not reliably inferred. Keeps the merge type-safe.
+  const currentVars = useSearch({ from: "/_authenticated/_dashboard", select: (s) => s.vars });
 
   const setValue = useCallback(
     (name: string, value: string | string[]) => {
-      navigate({
+      void navigate({
         to: ".",
         search: (prev) => ({
           ...prev,
           vars: {
-            ...(prev.vars ?? {}),
+            ...currentVars,
             [name]: value,
           },
         }),
         replace: false,
       });
     },
-    [navigate],
+    [navigate, currentVars],
   );
 
   const visible = variables.filter(isVisible);
@@ -61,28 +58,25 @@ export function VariableBar() {
 
   return (
     <div className="mb-3 flex flex-wrap items-end gap-3">
-      {visible.map((variable) =>
-        variable.kind === "TextVariable" ? (
+      {visible.map((variable) => {
+        const rawValue = values[variable.spec.name];
+        return variable.kind === "TextVariable" ? (
           <TextVariableField
             key={variable.spec.name}
             variable={variable}
-            value={
-              typeof values[variable.spec.name] === "string"
-                ? (values[variable.spec.name] as string)
-                : ""
-            }
+            value={typeof rawValue === "string" ? rawValue : ""}
             onCommit={(value) => setValue(variable.spec.name, value)}
           />
         ) : (
           <ListVariableField
             key={variable.spec.name}
             variable={variable}
-            value={values[variable.spec.name]}
+            value={rawValue}
             optionsState={optionsState[variable.spec.name]}
             onChange={(value) => setValue(variable.spec.name, value)}
           />
-        ),
-      )}
+        );
+      })}
     </div>
   );
 }
@@ -195,16 +189,12 @@ function ListVariableField({
               {multi ? (
                 <DropdownMenuCheckboxItem
                   checked={isAll}
-                  onCheckedChange={(checked) =>
-                    onChange(checked ? ALL_VALUE : [])
-                  }
+                  onCheckedChange={(checked) => onChange(checked ? ALL_VALUE : [])}
                 >
                   All
                 </DropdownMenuCheckboxItem>
               ) : (
-                <DropdownMenuItem onClick={() => onChange(ALL_VALUE)}>
-                  All
-                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onChange(ALL_VALUE)}>All</DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
             </>
@@ -226,9 +216,7 @@ function ListVariableField({
             ),
           )}
           {truncated && (
-            <div className="px-2 py-1.5 text-xs text-muted-foreground">
-              First 1000 shown
-            </div>
+            <div className="px-2 py-1.5 text-xs text-muted-foreground">First 1000 shown</div>
           )}
         </DropdownMenuContent>
       </DropdownMenu>

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { runbookSpecSchema, runbookSpecSchemaStrict } from "./schema";
 
 const md = { inline: "# Hello" };
@@ -74,9 +74,7 @@ describe("runbookSpecSchema", () => {
   it("rejects unknown keys on a page (catches typos like 'pagse')", () => {
     const r = runbookSpecSchema.safeParse({
       markdown: md,
-      pages: [
-        { name: "a", markdown: md, pagse: [{ name: "b", markdown: md }] },
-      ],
+      pages: [{ name: "a", markdown: md, pagse: [{ name: "b", markdown: md }] }],
     });
     expect(r.success).toBe(false);
   });
@@ -92,9 +90,7 @@ describe("runbookSpecSchema", () => {
   it("accepts shared panels and variables (dashboard schemas)", () => {
     const r = runbookSpecSchema.safeParse({
       markdown: md,
-      variables: [
-        { kind: "TextVariable", spec: { name: "svc", value: "api" } },
-      ],
+      variables: [{ kind: "TextVariable", spec: { name: "svc", value: "api" } }],
       panels: {
         errors: {
           kind: "Panel",
@@ -136,11 +132,9 @@ describe("runbookSpecSchemaStrict", () => {
     });
     expect(r.success).toBe(false);
     const paths = r.error?.issues.map((i) => i.path.join(".")) ?? [];
-    expect(
-      paths.some((p) =>
-        p.startsWith("panels.bad.spec.queries.0.spec.plugin.spec"),
-      ),
-    ).toBe(true);
+    expect(paths.some((p) => p.startsWith("panels.bad.spec.queries.0.spec.plugin.spec"))).toBe(
+      true,
+    );
   });
 
   it("rejects an invalid panel plugin option with a precise path", () => {

@@ -1,5 +1,5 @@
 import { eq, isNull } from "drizzle-orm";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { db } from "@/db/client";
 
 // ---------------------------------------------------------------------------
@@ -227,9 +227,7 @@ describe("applyDashboardSpecs", () => {
     await expect(
       applyDashboardSpecs({
         ...base,
-        resources: [
-          { path: "bad.yaml", resource: { kind: "Dashboard", spec: {} } },
-        ],
+        resources: [{ path: "bad.yaml", resource: { kind: "Dashboard", spec: {} } }],
       }),
     ).rejects.toThrow(/bad\.yaml/);
     expect(mockedDb.insert).not.toHaveBeenCalled();
@@ -246,9 +244,7 @@ describe("applyDashboardSpecs", () => {
     });
     expect(result.created).toEqual([]);
     expect(result.adopted).toEqual([]);
-    expect(result.conflicts).toEqual([
-      { project: "default", slug: "cpu", owner: "repo-2" },
-    ]);
+    expect(result.conflicts).toEqual([{ project: "default", slug: "cpu", owner: "repo-2" }]);
   });
 
   it("adopts a conflicting create, transferring ownership via an update", async () => {
@@ -267,8 +263,6 @@ describe("applyDashboardSpecs", () => {
     const updateChain = mockedDb.update.mock.results[0]?.value as {
       set: ReturnType<typeof vi.fn>;
     };
-    expect(updateChain.set).toHaveBeenCalledWith(
-      expect.objectContaining({ repoid: "repo-1" }),
-    );
+    expect(updateChain.set).toHaveBeenCalledWith(expect.objectContaining({ repoid: "repo-1" }));
   });
 });

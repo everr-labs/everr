@@ -58,9 +58,7 @@ export function ErrorTrackingSection() {
           variant="outline"
           size="sm"
           className="min-w-[136px] max-[620px]:w-full"
-          onClick={() =>
-            trigger("Unhandled rejection", triggerUnhandledRejection)
-          }
+          onClick={() => trigger("Unhandled rejection", triggerUnhandledRejection)}
         >
           Reject a promise
         </Button>

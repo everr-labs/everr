@@ -114,15 +114,15 @@ Resources:
 
 ## Common Failures
 
-| Symptom | Likely cause | Fix |
-| --- | --- | --- |
-| No telemetry | Collector stopped, endpoint wrong, exporter disabled, protocol mismatch | Check status, env, protocol, and startup order |
-| `unknown_service` | Missing `service.name` resource attribute | Hardcode a stable service name in setup code |
-| Spans but no logs | Logger bridge/export path missing | Configure structured logger or OTel logs path |
-| Logs lack trace ids | Logger does not read active span context | Add trace context helper or bridge |
-| Crashes missing | Process exits before buffers flush | Add runtime crash handlers that log, flush, then preserve exit behavior |
-| Metrics missing | SDK exporter disabled or reader not configured | Enable metrics exporter/reader |
-| Duplicate logs | stdout collector and OTLP log exporter both active | Choose one path or deduplicate |
-| High cardinality | Raw URLs, ids, or user values in metric attributes | Normalize or remove attributes |
+| Symptom             | Likely cause                                                            | Fix                                                                     |
+| ------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| No telemetry        | Collector stopped, endpoint wrong, exporter disabled, protocol mismatch | Check status, env, protocol, and startup order                          |
+| `unknown_service`   | Missing `service.name` resource attribute                               | Hardcode a stable service name in setup code                            |
+| Spans but no logs   | Logger bridge/export path missing                                       | Configure structured logger or OTel logs path                           |
+| Logs lack trace ids | Logger does not read active span context                                | Add trace context helper or bridge                                      |
+| Crashes missing     | Process exits before buffers flush                                      | Add runtime crash handlers that log, flush, then preserve exit behavior |
+| Metrics missing     | SDK exporter disabled or reader not configured                          | Enable metrics exporter/reader                                          |
+| Duplicate logs      | stdout collector and OTLP log exporter both active                      | Choose one path or deduplicate                                          |
+| High cardinality    | Raw URLs, ids, or user values in metric attributes                      | Normalize or remove attributes                                          |
 
 If validation fails, fix instrumentation or configuration before continuing with feature work.

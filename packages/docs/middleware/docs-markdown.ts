@@ -5,10 +5,7 @@ import { source } from "../src/lib/source";
 export default defineEventHandler((event) => {
   const pathname = getRequestURL(event).pathname;
 
-  if (
-    pathname !== "/docs.md" &&
-    !(pathname.startsWith("/docs/") && pathname.endsWith(".md"))
-  ) {
+  if (pathname !== "/docs.md" && !(pathname.startsWith("/docs/") && pathname.endsWith(".md"))) {
     return;
   }
 

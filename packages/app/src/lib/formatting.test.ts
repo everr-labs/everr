@@ -1,8 +1,5 @@
-import {
-  formatDuration,
-  formatDurationCompact,
-} from "@everr/ui/lib/formatting";
-import { describe, expect, it } from "vitest";
+import { formatDuration, formatDurationCompact } from "@everr/ui/lib/formatting";
+import { describe, expect, it } from "vite-plus/test";
 import {
   getFailureRateColor,
   getSuccessRateVariant,
@@ -87,9 +84,7 @@ describe("getSuccessRateVariant", () => {
 
   it("supports custom thresholds", () => {
     expect(getSuccessRateVariant(90, { good: 95, fair: 70 })).toBe("secondary");
-    expect(getSuccessRateVariant(60, { good: 95, fair: 70 })).toBe(
-      "destructive",
-    );
+    expect(getSuccessRateVariant(60, { good: 95, fair: 70 })).toBe("destructive");
   });
 });
 
@@ -145,9 +140,7 @@ describe("parseDuration", () => {
 
 describe("normalizeTimestampToUtc", () => {
   it("returns timezone-aware UTC timestamps", () => {
-    expect(normalizeTimestampToUtc("2025-01-01 12:00:00.123")).toBe(
-      "2025-01-01T12:00:00.123Z",
-    );
+    expect(normalizeTimestampToUtc("2025-01-01 12:00:00.123")).toBe("2025-01-01T12:00:00.123Z");
   });
 
   it("leaves invalid timestamps unchanged", () => {

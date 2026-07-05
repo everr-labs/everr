@@ -5,18 +5,10 @@ import { useState } from "react";
 import { siGoogle } from "simple-icons";
 import { authClient } from "@/lib/auth-client";
 
-export function AuthPageHeader({
-  title,
-  subtitle,
-}: {
-  title: string;
-  subtitle: string;
-}) {
+export function AuthPageHeader({ title, subtitle }: { title: string; subtitle: string }) {
   return (
     <div className="text-center">
-      <h1 className="text-2xl font-bold tracking-tight font-heading">
-        {title}
-      </h1>
+      <h1 className="text-2xl font-bold tracking-tight font-heading">{title}</h1>
       <p className="mt-2 text-sm text-muted-foreground">{subtitle}</p>
     </div>
   );
@@ -27,9 +19,7 @@ export function AuthPageHeader({
 // onboarding search-param name here so the OAuth callbackURL stays in sync with
 // the onboarding route's `validateSearch`.
 export function buildOnboardingCallbackURL(redirect?: string) {
-  return redirect
-    ? `/onboarding?${new URLSearchParams({ redirect }).toString()}`
-    : "/onboarding";
+  return redirect ? `/onboarding?${new URLSearchParams({ redirect }).toString()}` : "/onboarding";
 }
 
 export function buildAuthErrorCallbackURL(
@@ -119,12 +109,7 @@ export function GoogleAuthButton({
 
 function GoogleIcon() {
   return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      data-icon="inline-start"
-    >
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" data-icon="inline-start">
       <path d={siGoogle.path} />
     </svg>
   );

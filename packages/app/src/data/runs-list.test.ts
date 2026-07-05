@@ -1,5 +1,5 @@
 import type { QueryResultRow } from "pg";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 vi.mock("@/db/client", () => ({
   pool: {
@@ -16,10 +16,7 @@ import { query } from "@/lib/clickhouse";
 import { getRunsList } from "./runs-list/server";
 
 const mockedQuery = vi.mocked(
-  pool.query as (
-    text: string,
-    values?: readonly never[],
-  ) => Promise<{ rows: QueryResultRow[] }>,
+  pool.query as (text: string, values?: readonly never[]) => Promise<{ rows: QueryResultRow[] }>,
 );
 const mockedClickhouseQuery = vi.mocked(query);
 

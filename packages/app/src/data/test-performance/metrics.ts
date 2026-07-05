@@ -113,8 +113,7 @@ const getTestPerfScatter = createAuthenticatedServerFn({
 })
   .inputValidator(TestPerformanceFilterSchema)
   .handler(async ({ data, context: { clickhouse } }) => {
-    const { whereClause, scopeWhere, params, aggregateByRun } =
-      prepareFilter(data);
+    const { whereClause, scopeWhere, params, aggregateByRun } = prepareFilter(data);
     const inner = executionsSubquery(whereClause, {
       includeMetadata: true,
       includeTimestamp: true,
@@ -244,8 +243,7 @@ const getTestPerfStatsTrend = createAuthenticatedServerFn({
 })
   .inputValidator(TestPerformanceFilterSchema)
   .handler(async ({ data, context: { clickhouse } }) => {
-    const { whereClause, scopeWhere, params, fromISO, toISO } =
-      prepareFilter(data);
+    const { whereClause, scopeWhere, params, fromISO, toISO } = prepareFilter(data);
     const inner = executionsSubquery(whereClause, {
       includeTimestamp: true,
     });

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import {
   buildFileToPageMap,
   findPage,
@@ -98,9 +98,7 @@ describe("findPage file", () => {
   });
 
   it("returns file for nested pages", () => {
-    expect(findPage(fileSpec, "timeline/deploys")?.file).toBe(
-      "./book/timeline-deploys.md",
-    );
+    expect(findPage(fileSpec, "timeline/deploys")?.file).toBe("./book/timeline-deploys.md");
   });
 
   it("omits file for inline-only pages", () => {
@@ -132,9 +130,7 @@ describe("resolveRunbookLink", () => {
 
   it("resolves direct page paths", () => {
     expect(resolveRunbookLink("traffic", undefined, fileSpec)).toBe("traffic");
-    expect(resolveRunbookLink("timeline/deploys", undefined, fileSpec)).toBe(
-      "timeline/deploys",
-    );
+    expect(resolveRunbookLink("timeline/deploys", undefined, fileSpec)).toBe("timeline/deploys");
   });
 
   it("returns null for unknown direct paths with no file context", () => {
@@ -142,25 +138,17 @@ describe("resolveRunbookLink", () => {
   });
 
   it("resolves a relative file link from the index", () => {
-    expect(
-      resolveRunbookLink("./traffic.md", "./book/index.md", fileSpec),
-    ).toBe("traffic");
+    expect(resolveRunbookLink("./traffic.md", "./book/index.md", fileSpec)).toBe("traffic");
   });
 
   it("resolves a relative file link from a nested page", () => {
-    expect(
-      resolveRunbookLink(
-        "./timeline-deploys.md",
-        "./book/timeline.md",
-        fileSpec,
-      ),
-    ).toBe("timeline/deploys");
+    expect(resolveRunbookLink("./timeline-deploys.md", "./book/timeline.md", fileSpec)).toBe(
+      "timeline/deploys",
+    );
   });
 
   it("resolves `..` traversal back to the index", () => {
-    expect(
-      resolveRunbookLink("../index.md", "./book/sub/page.md", fileSpec),
-    ).toBe("");
+    expect(resolveRunbookLink("../index.md", "./book/sub/page.md", fileSpec)).toBe("");
   });
 
   it("returns null for a .md link with no file context", () => {
@@ -169,12 +157,8 @@ describe("resolveRunbookLink", () => {
   });
 
   it("ignores fragment and query suffixes when matching page paths", () => {
-    expect(resolveRunbookLink("traffic#section", undefined, fileSpec)).toBe(
-      "traffic",
-    );
-    expect(resolveRunbookLink("traffic?x=1", undefined, fileSpec)).toBe(
-      "traffic",
-    );
+    expect(resolveRunbookLink("traffic#section", undefined, fileSpec)).toBe("traffic");
+    expect(resolveRunbookLink("traffic?x=1", undefined, fileSpec)).toBe("traffic");
   });
 });
 
@@ -212,9 +196,7 @@ describe("toDashboardDocument", () => {
   it("passes through variables and shared panels", () => {
     const withVars: RunbookSpec = {
       ...spec,
-      variables: [
-        { kind: "TextVariable", spec: { name: "svc", value: "api" } },
-      ],
+      variables: [{ kind: "TextVariable", spec: { name: "svc", value: "api" } }],
       panels: {
         p: { kind: "Panel", spec: { plugin: { kind: "Table", spec: {} } } },
       },

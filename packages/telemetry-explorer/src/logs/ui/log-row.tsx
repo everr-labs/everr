@@ -9,7 +9,10 @@ import { LOG_LEVEL_META } from "./log-level-meta";
 const Ansi =
   typeof AnsiImport === "function"
     ? AnsiImport
-    : (AnsiImport as unknown as { default: typeof AnsiImport }).default;
+    : // ansi-to-react ships as CJS; under some bundlers the default import resolves to
+      // the module namespace ({ default: Component }) rather than the component itself.
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- CJS/ESM interop: the runtime default-import shape diverges from the declared component type
+      (AnsiImport as unknown as { default: typeof AnsiImport }).default;
 
 interface LogRowProps {
   log: LogExplorerRow;
@@ -22,15 +25,10 @@ function levelAccentClassName(level: LogExplorerRow["level"]) {
   return LOG_LEVEL_META[level].dotClassName;
 }
 
-export const LogRow = memo(function LogRow({
-  log,
-  rowKey,
-  isSelected,
-  onSelect,
-}: LogRowProps) {
+export const LogRow = memo(function LogRow({ log, rowKey, isSelected, onSelect }: LogRowProps) {
   return (
-    // biome-ignore lint/a11y/useSemanticElements: Native buttons prevent selecting log text for copy.
     <div
+      // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a native <button> would prevent selecting log text for copy
       role="button"
       tabIndex={0}
       className={cn(

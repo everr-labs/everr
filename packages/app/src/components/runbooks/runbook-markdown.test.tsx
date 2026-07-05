@@ -1,6 +1,6 @@
 import { render } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 // Render TanStack's <Link> as a plain anchor that surfaces its props, so we can
 // assert what RunbookAnchor forwards (to, hash, and spread attrs like title).
@@ -41,21 +41,14 @@ const resolveLink = (href: string) =>
 
 function renderRunbook(markdown: string) {
   return render(
-    <RunbookMarkdown
-      markdown={markdown}
-      project="demo"
-      slug="rb"
-      resolveLink={resolveLink}
-    />,
+    <RunbookMarkdown markdown={markdown} project="demo" slug="rb" resolveLink={resolveLink} />,
   );
 }
 
 describe("RunbookMarkdown anchors", () => {
   it("opens external links in a new tab with a safe rel and keeps the title", () => {
     const { container } = renderRunbook('[ext](https://example.com "Ext")');
-    const a = container.querySelector(
-      "a:not([data-link])",
-    ) as HTMLAnchorElement;
+    const a = container.querySelector("a:not([data-link])") as HTMLAnchorElement;
     expect(a.getAttribute("href")).toBe("https://example.com");
     expect(a.getAttribute("target")).toBe("_blank");
     expect(a.getAttribute("rel")).toBe("noopener noreferrer");
@@ -79,18 +72,14 @@ describe("RunbookMarkdown anchors", () => {
 
   it("leaves hash-only links as in-place anchors (no new tab)", () => {
     const { container } = renderRunbook("[Top](#section)");
-    const a = container.querySelector(
-      "a:not([data-link])",
-    ) as HTMLAnchorElement;
+    const a = container.querySelector("a:not([data-link])") as HTMLAnchorElement;
     expect(a.getAttribute("href")).toBe("#section");
     expect(a.getAttribute("target")).toBeNull();
   });
 
   it("does not leak react-markdown's `node` prop onto the DOM", () => {
     const { container } = renderRunbook("[ext](https://example.com)");
-    const a = container.querySelector(
-      "a:not([data-link])",
-    ) as HTMLAnchorElement;
+    const a = container.querySelector("a:not([data-link])") as HTMLAnchorElement;
     expect(a.getAttribute("node")).toBeNull();
   });
 });

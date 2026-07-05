@@ -5,10 +5,7 @@ import { type Runner, run, type WorkerEvents } from "graphile-worker";
 import { pool } from "@/db/client";
 import { alertCronItems, alertTaskList } from "@/server/alerts/00-runtime";
 import { githubEventsTaskList } from "@/server/github-events/tasks";
-import {
-  previewsCronItems,
-  previewsTaskList,
-} from "@/server/previews/00-runtime";
+import { previewsCronItems, previewsTaskList } from "@/server/previews/00-runtime";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 import { hotSingleton } from "./hot-singleton";
 
@@ -59,17 +56,11 @@ function attachGraphileWorkerEventLogging(events: WorkerEvents): void {
   });
 
   events.on("pool:listen:error", ({ error }) => {
-    serverLogger.error(
-      "worker.jobs.pool_listen_error",
-      exceptionAttributes(error),
-    );
+    serverLogger.error("worker.jobs.pool_listen_error", exceptionAttributes(error));
   });
 
   events.on("pool:gracefulShutdown:error", ({ error }) => {
-    serverLogger.error(
-      "worker.jobs.graceful_shutdown_error",
-      exceptionAttributes(error),
-    );
+    serverLogger.error("worker.jobs.graceful_shutdown_error", exceptionAttributes(error));
   });
 
   events.on("worker:getJob:error", ({ error }) => {
@@ -79,9 +70,7 @@ function attachGraphileWorkerEventLogging(events: WorkerEvents): void {
   events.on("worker:fatalError", ({ error, jobError }) => {
     serverLogger.error("worker.jobs.worker_fatal_error", {
       ...exceptionAttributes(error),
-      ...(jobError
-        ? prefixedExceptionAttributes("job_exception", jobError)
-        : {}),
+      ...(jobError ? prefixedExceptionAttributes("job_exception", jobError) : {}),
     });
   });
 
@@ -97,7 +86,7 @@ function attachGraphileWorkerEventLogging(events: WorkerEvents): void {
 
 async function startRunner(): Promise<Runner> {
   serverLogger.info("worker.runtime.start");
-  const events = new EventEmitter() as WorkerEvents;
+  const events: WorkerEvents = new EventEmitter();
   attachGraphileWorkerEventLogging(events);
 
   return run({
@@ -119,11 +108,7 @@ const runtime = hotSingleton<Runner>({
   start: startRunner,
   stop: (runner) => runner.stop(),
   hot: import.meta.hot,
-  onError: (error) =>
-    serverLogger.error(
-      "worker.runtime.stop_failed",
-      exceptionAttributes(error),
-    ),
+  onError: (error) => serverLogger.error("worker.runtime.stop_failed", exceptionAttributes(error)),
 });
 
 export function startWorkerRuntime(): Promise<Runner> {

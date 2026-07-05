@@ -11,11 +11,11 @@ description: "Tauri v2 cross-platform app development with Rust backend. Use whe
 
 **This skill prevents 8+ common errors and saves ~60% tokens.**
 
-| Metric | Without Skill | With Skill |
-|--------|--------------|------------|
-| Setup Time | ~2 hours | ~30 min |
-| Common Errors | 8+ | 0 |
-| Token Usage | High (exploration) | Low (direct patterns) |
+| Metric        | Without Skill      | With Skill            |
+| ------------- | ------------------ | --------------------- |
+| Setup Time    | ~2 hours           | ~30 min               |
+| Common Errors | 8+                 | 0                     |
+| Token Usage   | High (exploration) | Low (direct patterns) |
 
 ### Known Issues This Skill Prevents
 
@@ -49,9 +49,9 @@ pub fn run() {
 ### Step 2: Call from Frontend
 
 ```typescript
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from "@tauri-apps/api/core";
 
-const greeting = await invoke<string>('greet', { name: 'World' });
+const greeting = await invoke<string>("greet", { name: "World" });
 console.log(greeting); // "Hello, World!"
 ```
 
@@ -62,10 +62,10 @@ console.log(greeting); // "Hello, World!"
 ```json
 // src-tauri/capabilities/default.json
 {
-    "$schema": "../gen/schemas/desktop-schema.json",
-    "identifier": "default",
-    "windows": ["main"],
-    "permissions": ["core:default"]
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "windows": ["main"],
+  "permissions": ["core:default"]
 }
 ```
 
@@ -91,6 +91,7 @@ console.log(greeting); // "Hello, World!"
 ### Common Mistakes
 
 **Wrong - Borrowed type in async:**
+
 ```rust
 #[tauri::command]
 async fn bad(name: &str) -> String { // Compile error!
@@ -99,6 +100,7 @@ async fn bad(name: &str) -> String { // Compile error!
 ```
 
 **Correct - Owned type:**
+
 ```rust
 #[tauri::command]
 async fn good(name: String) -> String {
@@ -110,14 +112,14 @@ async fn good(name: String) -> String {
 
 ## Known Issues Prevention
 
-| Issue | Root Cause | Solution |
-|-------|-----------|----------|
-| "Command not found" | Missing from `generate_handler!` | Add command to handler macro |
-| "Permission denied" | Missing capability | Add to `capabilities/default.json` |
-| State panic on access | Type mismatch in `State<T>` | Use exact type from `.manage()` |
-| White screen on launch | Frontend not building | Check `beforeDevCommand` in config |
-| IPC timeout | Blocking async command | Remove blocking code or use spawn |
-| Mobile build fails | Missing Rust targets | Run `rustup target add <target>` |
+| Issue                  | Root Cause                       | Solution                           |
+| ---------------------- | -------------------------------- | ---------------------------------- |
+| "Command not found"    | Missing from `generate_handler!` | Add command to handler macro       |
+| "Permission denied"    | Missing capability               | Add to `capabilities/default.json` |
+| State panic on access  | Type mismatch in `State<T>`      | Use exact type from `.manage()`    |
+| White screen on launch | Frontend not building            | Check `beforeDevCommand` in config |
+| IPC timeout            | Blocking async command           | Remove blocking code or use spawn  |
+| Mobile build fails     | Missing Rust targets             | Run `rustup target add <target>`   |
 
 ## Configuration Reference
 
@@ -125,37 +127,40 @@ async fn good(name: String) -> String {
 
 ```json
 {
-    "$schema": "./gen/schemas/desktop-schema.json",
-    "productName": "my-app",
-    "version": "1.0.0",
-    "identifier": "com.example.myapp",
-    "build": {
-        "devUrl": "http://localhost:5173",
-        "frontendDist": "../dist",
-        "beforeDevCommand": "npm run dev",
-        "beforeBuildCommand": "npm run build"
-    },
-    "app": {
-        "windows": [{
-            "label": "main",
-            "title": "My App",
-            "width": 800,
-            "height": 600
-        }],
-        "security": {
-            "csp": "default-src 'self'; img-src 'self' data:",
-            "capabilities": ["default"]
-        }
-    },
-    "bundle": {
-        "active": true,
-        "targets": "all",
-        "icon": ["icons/icon.icns", "icons/icon.ico", "icons/icon.png"]
+  "$schema": "./gen/schemas/desktop-schema.json",
+  "productName": "my-app",
+  "version": "1.0.0",
+  "identifier": "com.example.myapp",
+  "build": {
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "../dist",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "My App",
+        "width": 800,
+        "height": 600
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data:",
+      "capabilities": ["default"]
     }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": ["icons/icon.icns", "icons/icon.ico", "icons/icon.png"]
+  }
 }
 ```
 
 **Key settings:**
+
 - `build.devUrl`: Must match your frontend dev server port
 - `app.security.capabilities`: Array of capability file identifiers
 
@@ -181,6 +186,7 @@ serde_json = "1"
 ```
 
 **Key settings:**
+
 - `[lib]` section: Required for mobile builds
 - `crate-type`: Must include all three types for cross-platform
 
@@ -249,10 +255,10 @@ fn start_task(app: tauri::AppHandle) {
 ```
 
 ```typescript
-import { listen } from '@tauri-apps/api/event';
+import { listen } from "@tauri-apps/api/event";
 
-const unlisten = await listen('task-progress', (e) => {
-    console.log('Progress:', e.payload);
+const unlisten = await listen("task-progress", (e) => {
+  console.log("Progress:", e.payload);
 });
 // Call unlisten() when done
 ```
@@ -279,11 +285,11 @@ async fn download(url: String, on_event: Channel<DownloadEvent>) {
 ```
 
 ```typescript
-import { invoke, Channel } from '@tauri-apps/api/core';
+import { invoke, Channel } from "@tauri-apps/api/core";
 
 const channel = new Channel<DownloadEvent>();
 channel.onmessage = (msg) => console.log(msg.event, msg.data);
-await invoke('download', { url: 'https://...', onEvent: channel });
+await invoke("download", { url: "https://...", onEvent: channel });
 ```
 
 ## Bundled Resources
@@ -291,6 +297,7 @@ await invoke('download', { url: 'https://...', onEvent: channel });
 ### References
 
 Located in `references/`:
+
 - [`capabilities-reference.md`](references/capabilities-reference.md) - Permission patterns and examples
 - [`ipc-patterns.md`](references/ipc-patterns.md) - Complete IPC examples
 
@@ -300,22 +307,22 @@ Located in `references/`:
 
 ### Required
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| `@tauri-apps/cli` | ^2.0.0 | CLI tooling |
-| `@tauri-apps/api` | ^2.0.0 | Frontend APIs |
-| `tauri` | ^2.0.0 | Rust core |
-| `tauri-build` | ^2.0.0 | Build scripts |
+| Package           | Version | Purpose       |
+| ----------------- | ------- | ------------- |
+| `@tauri-apps/cli` | ^2.0.0  | CLI tooling   |
+| `@tauri-apps/api` | ^2.0.0  | Frontend APIs |
+| `tauri`           | ^2.0.0  | Rust core     |
+| `tauri-build`     | ^2.0.0  | Build scripts |
 
 ### Optional (Plugins)
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| `tauri-plugin-fs` | ^2.0.0 | File system access |
-| `tauri-plugin-dialog` | ^2.0.0 | Native dialogs |
-| `tauri-plugin-shell` | ^2.0.0 | Shell commands, open URLs |
-| `tauri-plugin-http` | ^2.0.0 | HTTP client |
-| `tauri-plugin-store` | ^2.0.0 | Key-value storage |
+| Package               | Version | Purpose                   |
+| --------------------- | ------- | ------------------------- |
+| `tauri-plugin-fs`     | ^2.0.0  | File system access        |
+| `tauri-plugin-dialog` | ^2.0.0  | Native dialogs            |
+| `tauri-plugin-shell`  | ^2.0.0  | Shell commands, open URLs |
+| `tauri-plugin-http`   | ^2.0.0  | HTTP client               |
+| `tauri-plugin-store`  | ^2.0.0  | Key-value storage         |
 
 ## Official Documentation
 
@@ -331,6 +338,7 @@ Located in `references/`:
 **Symptoms:** App launches but shows blank white screen
 
 **Solution:**
+
 1. Verify `devUrl` matches your frontend dev server port
 2. Check `beforeDevCommand` runs your dev server
 3. Open DevTools (Cmd+Option+I / Ctrl+Shift+I) to check for errors
@@ -340,6 +348,7 @@ Located in `references/`:
 **Symptoms:** `invoke()` returns undefined instead of expected value
 
 **Solution:**
+
 1. Verify command is in `generate_handler![]`
 2. Check Rust command actually returns a value
 3. Ensure argument names match (camelCase in JS, snake_case in Rust by default)
@@ -349,6 +358,7 @@ Located in `references/`:
 **Symptoms:** Android/iOS build fails with missing target
 
 **Solution:**
+
 ```bash
 # Android targets
 rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android

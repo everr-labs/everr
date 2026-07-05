@@ -27,13 +27,11 @@ export function FeaturedTestimonial() {
           <img src={skillvueLogo} alt="SkillVue" className="mt-6 h-8 w-auto" />
 
           <blockquote className="mt-6 font-heading text-2xl leading-[1.2] tracking-tight text-fd-foreground sm:text-3xl md:text-4xl">
-            “The first tool we tried took a whole team just to keep running. We
-            moved to something cheaper and still ended up paying{" "}
-            <span className="text-primary">$700 a month</span> for data I
-            couldn’t really explain. Everr is the first one the whole team
-            actually uses. And it’s not a watered-down version, it does
-            everything the big platforms did, we just don’t need anyone
-            babysitting it.
+            “The first tool we tried took a whole team just to keep running. We moved to something
+            cheaper and still ended up paying <span className="text-primary">$700 a month</span> for
+            data I couldn’t really explain. Everr is the first one the whole team actually uses. And
+            it’s not a watered-down version, it does everything the big platforms did, we just don’t
+            need anyone babysitting it.
             <br />
             <span className="text-primary">It’s how we work now</span>.”
           </blockquote>
@@ -45,9 +43,7 @@ export function FeaturedTestimonial() {
               className="size-12 rounded-full object-cover"
             />
             <div className="text-sm">
-              <div className="font-heading font-bold text-fd-foreground">
-                Marcello Roherssen
-              </div>
+              <div className="font-heading font-bold text-fd-foreground">Marcello Roherssen</div>
               <div className="text-fd-muted-foreground">CTO · SkillVue</div>
             </div>
           </figcaption>

@@ -9,25 +9,28 @@
     "dev:docs": "pnpm --filter @everr/docs dev",
     "build:desktop": "pnpm --filter @everr/desktop-app build:desktop",
     "build:desktop:ci": "pnpm --filter @everr/desktop-app build:desktop:ci",
-    "check": "biome check",
-    "check:fix": "biome check --fix",
+    "check": "vp check",
+    "check:fix": "vp check --fix",
     "changeset": "changeset",
     "changeset:version": "changeset version && node scripts/sync-desktop-app-version.mjs",
     "changeset:publish": "node scripts/publish-auto-otel-errors.mjs",
     "changeset:tag": "changeset tag",
     "postinstall": "lefthook install",
-    "test": "vitest",
-    "test:watch": "vitest --watch --ui"
+    "test": "vp test",
+    "test:watch": "vp test --watch --ui"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.15",
     "@changesets/cli": "^2.31.0",
-    "@vitest/coverage-v8": "^4.1.5",
-    "@vitest/ui": "4.1.5",
+    "@tanstack/eslint-plugin-query": "^5.101.2",
+    "@tanstack/eslint-plugin-router": "^1.162.0",
+    "@vitest/coverage-v8": "catalog:",
+    "@vitest/ui": "catalog:",
     "fallow": "^2.75.0",
     "lefthook": "^2.1.6",
     "turbo": "^2.9.12",
-    "vitest": "^4.1.5"
+    "vite": "catalog:",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
   },
   "packageManager": "pnpm@11.1.0"
 }

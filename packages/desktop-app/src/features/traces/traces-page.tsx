@@ -9,18 +9,8 @@ import {
   toTraceListSearch,
 } from "@everr/telemetry-explorer/traces";
 import { withTimeRange } from "@everr/ui/lib/time-range";
-import {
-  Link,
-  Outlet,
-  useMatch,
-  useNavigate,
-  useParams,
-  useSearch,
-} from "@tanstack/react-router";
-import {
-  DetailRouteDialog,
-  useDetailRouteDialogClose,
-} from "@/components/detail-route-dialog";
+import { Link, Outlet, useMatch, useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import { DetailRouteDialog, useDetailRouteDialogClose } from "@/components/detail-route-dialog";
 import { ExploreSearchShape } from "../explore/explore-search";
 import { ExploreShell } from "../explore/explore-shell";
 import { LocalTelemetryGate } from "../local-telemetry/collector-status";
@@ -28,10 +18,8 @@ import { localSqlClient } from "../logs/local-sql-client";
 
 // service/environment live in the shared Explore topbar but must also be in the
 // route schemas so the leaf route's validateSearch doesn't strip them.
-export const TracesListSearchSchema =
-  TraceSearchParamsSchema.extend(ExploreSearchShape);
-export const TraceDetailSearchSchema =
-  TraceDetailParamsSchema.extend(ExploreSearchShape);
+export const TracesListSearchSchema = TraceSearchParamsSchema.extend(ExploreSearchShape);
+export const TraceDetailSearchSchema = TraceDetailParamsSchema.extend(ExploreSearchShape);
 
 const localTracesRepo = new TracesRepository(localSqlClient);
 
@@ -40,7 +28,7 @@ export function TracesPage() {
     from: "/shell/traces/$traceId",
     shouldThrow: false,
   });
-  const search = useSearch({ strict: false }) as TraceDetailParams;
+  const search: TraceDetailParams = useSearch({ strict: false });
   const navigate = useNavigate();
 
   // Always keep the list mounted in the same position so opening/closing the
@@ -52,9 +40,7 @@ export function TracesPage() {
       {traceDetailMatch && (
         <DetailRouteDialog
           title="Trace detail"
-          onClose={() =>
-            navigate({ to: "/traces", search: toTraceListSearch(search) })
-          }
+          onClose={() => navigate({ to: "/traces", search: toTraceListSearch(search) })}
         >
           <Outlet />
         </DetailRouteDialog>
@@ -64,10 +50,10 @@ export function TracesPage() {
 }
 
 function TracesListView() {
-  const search = useSearch({ strict: false }) as TraceSearchParams & {
+  const search: TraceSearchParams & {
     service?: string[];
     environment?: string[];
-  };
+  } = useSearch({ strict: false });
   const navigate = useNavigate();
   const { timeRange } = withTimeRange(search);
   const refresh = search.refresh ?? "";
@@ -82,28 +68,28 @@ function TracesListView() {
       service={service}
       environment={environment}
       onTimeRangeChange={(range) =>
-        navigate({
+        void navigate({
           to: "/traces",
           search: (prev) => ({ ...prev, from: range.from, to: range.to }),
           replace: true,
         })
       }
       onRefreshChange={(value) =>
-        navigate({
+        void navigate({
           to: "/traces",
           search: (prev) => ({ ...prev, refresh: value || undefined }),
           replace: true,
         })
       }
       onServiceChange={(values) =>
-        navigate({
+        void navigate({
           to: "/traces",
           search: (prev) => ({ ...prev, service: values }),
           replace: true,
         })
       }
       onEnvironmentChange={(values) =>
-        navigate({
+        void navigate({
           to: "/traces",
           search: (prev) => ({ ...prev, environment: values }),
           replace: true,
@@ -127,7 +113,7 @@ function TracesListView() {
           environment={environment}
           hideSharedFilters
           onSearchChange={(patch) =>
-            navigate({
+            void navigate({
               to: "/traces",
               search: (prev) => ({ ...prev, ...patch }),
               replace: true,
@@ -150,8 +136,8 @@ function TracesListView() {
 }
 
 export function TraceDetailPage() {
-  const { traceId } = useParams({ strict: false }) as { traceId: string };
-  const search = useSearch({ strict: false }) as TraceDetailParams;
+  const { traceId }: { traceId: string } = useParams({ strict: false });
+  const search: TraceDetailParams = useSearch({ strict: false });
   const navigate = useNavigate();
   // Inside the modal, ask the dialog to close through the route owner so the
   // dialog stays open until navigation removes it.
@@ -167,10 +153,10 @@ export function TraceDetailPage() {
             closeDialog();
             return;
           }
-          navigate({ to: "/traces", search: toTraceListSearch(search) });
+          void navigate({ to: "/traces", search: toTraceListSearch(search) });
         }}
         onSpanChange={(spanId) =>
-          navigate({
+          void navigate({
             to: "/traces/$traceId",
             params: { traceId },
             search: (prev) => ({ ...prev, span: spanId }),

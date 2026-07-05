@@ -1,8 +1,4 @@
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@everr/ui/components/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
 import { GitBranch, LogOut } from "lucide-react";
 import { usePreview } from "@/hooks/use-preview";
 
@@ -14,14 +10,12 @@ export function PreviewIndicator() {
 
   return (
     <Tooltip>
-      {/* Trigger renders as the pill div (not the default button) so the exit
-          button can nest inside without button-in-button markup. */}
+      {/* Trigger renders as the pill (an <output>, implicit role="status", not
+          the default button) so the exit button can nest inside without
+          button-in-button markup. */}
       <TooltipTrigger
         render={
-          <div
-            role="status"
-            className="flex h-8 items-center gap-1 rounded-md bg-amber-500/10 pl-2 pr-1 text-xs/relaxed font-medium text-amber-300 ring-1 ring-inset ring-amber-500/25"
-          />
+          <output className="flex h-8 items-center gap-1 rounded-md bg-amber-500/10 pl-2 pr-1 text-xs/relaxed font-medium text-amber-300 ring-1 ring-inset ring-amber-500/25" />
         }
       >
         <GitBranch className="size-3.5 shrink-0 text-amber-400" />
@@ -36,7 +30,7 @@ export function PreviewIndicator() {
           <LogOut className="size-3.5" />
         </button>
       </TooltipTrigger>
-      <TooltipContent>Previewing "{preview}" — not live</TooltipContent>
+      <TooltipContent>Previewing &quot;{preview}&quot; — not live</TooltipContent>
     </Tooltip>
   );
 }

@@ -14,26 +14,15 @@
 // earlier attempts just log a warning with the attempt count.
 
 import { z } from "zod";
-import type {
-  AlertDeliveryTargets,
-  StoredDeliverySettings,
-} from "@/data/alerts/delivery-settings";
+import type { AlertDeliveryTargets, StoredDeliverySettings } from "@/data/alerts/delivery-settings";
 import { findSilenceForInstance, type Matcher } from "@/data/alerts/matchers";
 import { env } from "@/env";
 import { sendSlackMessage } from "@/lib/slack.server";
 import { sendTelegramMessage } from "@/lib/telegram.server";
 import { addWorkerJob } from "@/server/worker/jobs";
-import {
-  errorMessage,
-  exceptionAttributes,
-  serverLogger,
-} from "@/telemetry/logger";
+import { errorMessage, exceptionAttributes, serverLogger } from "@/telemetry/logger";
 import { buildDeliveryFailureEvent, recordAlertEvents } from "./03-events";
-import type {
-  DeliveryInput,
-  DeliveryKind,
-  NotifiableInstance,
-} from "./04-format";
+import type { DeliveryInput, DeliveryKind, NotifiableInstance } from "./04-format";
 import { buildSlackMessage, type SlackMessage } from "./04-slack";
 import { buildTelegramText } from "./04-telegram";
 
@@ -79,10 +68,7 @@ const SlackSendSchema = SendBaseSchema.extend({
   message: z.custom<SlackMessage>(),
 });
 
-const DeliverySendSchema = z.discriminatedUnion("channel", [
-  TelegramSendSchema,
-  SlackSendSchema,
-]);
+const DeliverySendSchema = z.discriminatedUnion("channel", [TelegramSendSchema, SlackSendSchema]);
 
 export type DeliverySend = z.infer<typeof DeliverySendSchema>;
 
@@ -107,10 +93,7 @@ function alertUrl(alertId: string): string {
 }
 
 function runbookUrl(project: string, slug: string): string {
-  return new URL(
-    `/runbooks/${project}/${slug}`,
-    env.BETTER_AUTH_URL,
-  ).toString();
+  return new URL(`/runbooks/${project}/${slug}`, env.BETTER_AUTH_URL).toString();
 }
 
 function instanceKind(instance: NotifiableInstance): NotificationKind {
@@ -141,16 +124,10 @@ export async function enqueueAlertNotification(
   const silences = context.silences;
 
   const deliveryTargets: AlertDeliveryTargets = {};
-  const telegramEntries = delivery.telegram?.enabled
-    ? (delivery.telegram.entries ?? [])
-    : [];
-  const slackWebhooks = delivery.slack?.enabled
-    ? (delivery.slack.webhooks ?? [])
-    : [];
-  if (telegramEntries.length > 0)
-    deliveryTargets.telegram = telegramEntries.map((e) => e.chatId);
-  if (slackWebhooks.length > 0)
-    deliveryTargets.slack = slackWebhooks.map((w) => w.id);
+  const telegramEntries = delivery.telegram?.enabled ? (delivery.telegram.entries ?? []) : [];
+  const slackWebhooks = delivery.slack?.enabled ? (delivery.slack.webhooks ?? []) : [];
+  if (telegramEntries.length > 0) deliveryTargets.telegram = telegramEntries.map((e) => e.chatId);
+  if (slackWebhooks.length > 0) deliveryTargets.slack = slackWebhooks.map((w) => w.id);
   if (Object.keys(deliveryTargets).length === 0) return null;
 
   // Resolve each instance's silence once, then derive the per-kind outcome and
@@ -169,9 +146,7 @@ export async function enqueueAlertNotification(
     if (ofKind.length === 0) continue;
     const suppressed = ofKind.every((r) => r.silence);
     perKind[kind] = {
-      silenceId: suppressed
-        ? (ofKind.find((r) => r.silence)?.silence?.id ?? "")
-        : "",
+      silenceId: suppressed ? (ofKind.find((r) => r.silence)?.silence?.id ?? "") : "",
     };
   }
 

@@ -27,12 +27,10 @@ import {
 export const remoteRepo: LogsRepositoryLike = {
   explorer: (input: LogsExplorerInput): Promise<LogsExplorerResult> =>
     getLogsExplorer({ data: input }),
-  totals: (input: LogsTotalsInput): Promise<LogsTotalsResult> =>
-    getLogsTotals({ data: input }),
+  totals: (input: LogsTotalsInput): Promise<LogsTotalsResult> => getLogsTotals({ data: input }),
   histogram: (input: LogHistogramInput): Promise<LogHistogramBucket[]> =>
     getLogsHistogram({ data: input }),
-  detail: (identity: LogIdentity): Promise<LogDetail> =>
-    getLogDetail({ data: identity }),
+  detail: (identity: LogIdentity): Promise<LogDetail> => getLogDetail({ data: identity }),
   filterOptions: (input: { timeRange: TimeRange }): Promise<LogFilterOptions> =>
     getLogFilterOptions({ data: input }),
   attributeKeys: (input: LogAttributeKeysInput): Promise<LogAttributeKey[]> =>

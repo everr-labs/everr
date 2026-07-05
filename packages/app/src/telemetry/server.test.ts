@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const telemetryMocks = vi.hoisted(() => {
   const span = {
@@ -12,10 +12,7 @@ const telemetryMocks = vi.hoisted(() => {
       async (
         _name: string,
         _options: unknown,
-        run: (span: {
-          end: () => void;
-          setAttribute: () => void;
-        }) => Promise<Response>,
+        run: (span: { end: () => void; setAttribute: () => void }) => Promise<Response>,
       ) => run(span),
     ),
     span,
@@ -47,17 +44,14 @@ describe("instrumentServerFetch", () => {
     );
 
     expect(response.status).toBe(500);
-    expect(telemetryMocks.captureError).toHaveBeenCalledWith(
-      expect.any(Error),
-      {
-        "error.handled": false,
-        "error.source": "server.response",
-        "http.request.method": "POST",
-        "http.response.status_code": 500,
-        "http.route": "/api/cli/sql",
-        "url.path": "/api/cli/sql",
-      },
-    );
+    expect(telemetryMocks.captureError).toHaveBeenCalledWith(expect.any(Error), {
+      "error.handled": false,
+      "error.source": "server.response",
+      "http.request.method": "POST",
+      "http.response.status_code": 500,
+      "http.route": "/api/cli/sql",
+      "url.path": "/api/cli/sql",
+    });
     expect(telemetryMocks.span.end).toHaveBeenCalledOnce();
   });
 

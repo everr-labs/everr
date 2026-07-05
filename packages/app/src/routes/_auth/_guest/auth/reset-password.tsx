@@ -47,10 +47,7 @@ function ResetPassword() {
         });
 
         if (result.error) {
-          setError(
-            result.error.message ??
-              "Failed to reset password. Please try again.",
-          );
+          setError(result.error.message ?? "Failed to reset password. Please try again.");
           return;
         }
 
@@ -65,10 +62,7 @@ function ResetPassword() {
 
   return (
     <>
-      <AuthPageHeader
-        title="Reset your password"
-        subtitle="Enter your new password below"
-      />
+      <AuthPageHeader title="Reset your password" subtitle="Enter your new password below" />
 
       {searchError === "INVALID_TOKEN" ? (
         <div className="space-y-4">
@@ -81,10 +75,7 @@ function ResetPassword() {
           <p className="text-sm text-muted-foreground">
             Your password has been reset successfully.
           </p>
-          <Button
-            className="w-full"
-            onClick={() => void navigate({ to: "/auth/sign-in" })}
-          >
+          <Button className="w-full" onClick={() => void navigate({ to: "/auth/sign-in" })}>
             Sign in
           </Button>
         </div>
@@ -138,11 +129,7 @@ function ResetPassword() {
             </p>
           )}
 
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={isSubmitting || !token}
-          >
+          <Button type="submit" className="w-full" disabled={isSubmitting || !token}>
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 size-4 animate-spin" />
@@ -156,10 +143,7 @@ function ResetPassword() {
       )}
 
       <p className="text-center text-sm text-muted-foreground">
-        <Link
-          to="/auth/forgot-password"
-          className="font-medium text-foreground hover:underline"
-        >
+        <Link to="/auth/forgot-password" className="font-medium text-foreground hover:underline">
           Request a new reset link
         </Link>
       </p>

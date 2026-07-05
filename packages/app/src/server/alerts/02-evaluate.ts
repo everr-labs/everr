@@ -27,18 +27,9 @@ import { ensureDeliveryDefaults } from "@/data/alerts/delivery-settings";
 import { activeSilenceConditions } from "@/data/alerts/silences";
 import { effectiveRepoid, previewJoin } from "@/data/previews/scope";
 import { db } from "@/db/client";
-import {
-  alertDefinitions,
-  alertSettings,
-  alertSilences,
-  previews,
-} from "@/db/schema";
+import { alertDefinitions, alertSettings, alertSilences, previews } from "@/db/schema";
 import { querySqlApiWithMeta } from "@/lib/clickhouse";
-import {
-  errorMessage,
-  exceptionAttributes,
-  serverLogger,
-} from "@/telemetry/logger";
+import { errorMessage, exceptionAttributes, serverLogger } from "@/telemetry/logger";
 import type { EvaluatePayload } from "./01-scanner";
 import {
   diffInstances,
@@ -116,18 +107,13 @@ export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
       .where(activeSilenceConditions(def.organizationId, def.id)),
   ]);
   const deliveryContext: ResolvedDeliveryContext = {
-    settings: settingsRow
-      ? { delivery: ensureDeliveryDefaults(settingsRow.delivery) }
-      : null,
+    settings: settingsRow ? { delivery: ensureDeliveryDefaults(settingsRow.delivery) } : null,
     silences,
   };
 
   // 3. Concurrent ClickHouse reads.
   const [queryResult, firingResult] = await Promise.allSettled([
-    querySqlApiWithMeta<Record<string, unknown>>(
-      def.parsedQuery,
-      def.organizationId,
-    ),
+    querySqlApiWithMeta<Record<string, unknown>>(def.parsedQuery, def.organizationId),
     fetchFiringInstances(def),
   ]);
 

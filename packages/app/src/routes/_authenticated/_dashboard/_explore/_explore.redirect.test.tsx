@@ -34,7 +34,7 @@ import {
 } from "@tanstack/react-router";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { z } from "zod";
 import { Route as ExploreFileRoute } from "../_explore";
 
@@ -51,16 +51,8 @@ vi.mock("@/data/traces/remote-repo", () => ({
 }));
 
 vi.mock("@everr/telemetry-explorer/filters", () => ({
-  ExploreGlobalFilters: ({
-    onServiceChange,
-  }: {
-    onServiceChange: (v: string[]) => void;
-  }) => (
-    <button
-      type="button"
-      data-testid="set-service"
-      onClick={() => onServiceChange(["api"])}
-    >
+  ExploreGlobalFilters: ({ onServiceChange }: { onServiceChange: (v: string[]) => void }) => (
+    <button type="button" data-testid="set-service" onClick={() => onServiceChange(["api"])}>
       set
     </button>
   ),

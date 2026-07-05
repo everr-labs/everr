@@ -3,14 +3,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite dev",
-    "watch": "vite dev",
-    "build": "vite build",
+    "dev": "vp dev",
+    "watch": "vp dev",
+    "build": "vp build",
     "start": "node .output/server/index.mjs",
-    "preview": "vite preview",
-    "test": "vitest run --coverage",
-    "test:ci": "vitest run",
-    "test:watch": "vitest run --watch --coverage",
+    "preview": "vp preview",
+    "test": "vp test run --coverage",
+    "test:ci": "vp test run",
+    "test:watch": "vp test run --watch --coverage",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
@@ -96,6 +96,7 @@
     "nitro": "catalog:",
     "smee-client": "^5.0.0",
     "typescript": "catalog:",
-    "vite": "catalog:"
+    "vite": "catalog:",
+    "vite-plus": "catalog:"
   }
 }

@@ -1,14 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { db } from "@/db/client";
-import {
-  backfillRepo,
-  listInstallationRepos,
-} from "@/server/github-events/backfill";
-import {
-  CLI_TEST_ORG_ID,
-  getRouteHandler,
-  mockDbInstallations,
-} from "./-test-utils";
+import { backfillRepo, listInstallationRepos } from "@/server/github-events/backfill";
+import { CLI_TEST_ORG_ID, getRouteHandler, mockDbInstallations } from "./-test-utils";
 import { Route } from "./import";
 
 vi.mock("@/db/client", () => ({
@@ -111,9 +104,7 @@ describe("/api/cli/import", () => {
     await mockCurrentMemberRole("admin");
     mockDbInstallations(mockedDb, [{ status: "active", installationId: 99 }]);
     mockedListRepos.mockResolvedValueOnce([
-      { id: 1, full_name: "org/repo-a" } as Awaited<
-        ReturnType<typeof mockedListRepos>
-      >[number],
+      { id: 1, full_name: "org/repo-a" } as Awaited<ReturnType<typeof mockedListRepos>>[number],
     ]);
 
     async function* fakeBackfill() {

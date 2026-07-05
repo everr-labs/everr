@@ -2,20 +2,11 @@ import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { formatDurationCompact } from "@everr/ui/lib/formatting";
 import { cn } from "@everr/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
-import {
-  ChevronDown,
-  ChevronRight,
-  FlaskConical,
-  FolderOpen,
-  Package,
-} from "lucide-react";
+import { ChevronDown, ChevronRight, FlaskConical, FolderOpen, Package } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { TestPerfChild } from "@/data/test-performance/children";
 import { testNameLastSegment } from "@/lib/formatting";
-import {
-  getTestPerfHierarchyKind,
-  getTestPerfHierarchyKindLabel,
-} from "./hierarchy-kind";
+import { getTestPerfHierarchyKind, getTestPerfHierarchyKindLabel } from "./hierarchy-kind";
 
 interface ChildrenTableProps {
   data: TestPerfChild[];
@@ -23,10 +14,7 @@ interface ChildrenTableProps {
   repos?: string[];
   branches?: string[];
   timeRange: { from: string; to: string };
-  fetchChildren?: (scope: {
-    pkg?: string;
-    path?: string;
-  }) => Promise<TestPerfChild[]>;
+  fetchChildren?: (scope: { pkg?: string; path?: string }) => Promise<TestPerfChild[]>;
 }
 
 interface TreeRow {
@@ -118,15 +106,9 @@ function makeColumns(
       cell: (row) => {
         const nodeKind = getTestPerfHierarchyKind(row.row, row.scopePkg);
         const Icon =
-          nodeKind === "package"
-            ? Package
-            : nodeKind === "suite"
-              ? FolderOpen
-              : FlaskConical;
+          nodeKind === "package" ? Package : nodeKind === "suite" ? FolderOpen : FlaskConical;
         const search = buildChildSearch(row.row.name, row.scopePkg);
-        const displayName = row.scopePkg
-          ? testNameLastSegment(row.row.name)
-          : row.row.name;
+        const displayName = row.scopePkg ? testNameLastSegment(row.row.name) : row.row.name;
         const isExpanded = Boolean(expanded[row.key]);
         const nodeKindLabel = getTestPerfHierarchyKindLabel(nodeKind);
         return (
@@ -221,12 +203,8 @@ export function ChildrenTable({
   timeRange: _timeRange,
   fetchChildren,
 }: ChildrenTableProps) {
-  const [expanded, setExpanded] = useState<
-    Record<string, { pkg?: string; path?: string }>
-  >({});
-  const [nestedByKey, setNestedByKey] = useState<Map<string, TestPerfChild[]>>(
-    () => new Map(),
-  );
+  const [expanded, setExpanded] = useState<Record<string, { pkg?: string; path?: string }>>({});
+  const [nestedByKey, setNestedByKey] = useState<Map<string, TestPerfChild[]>>(() => new Map());
 
   const expandedEntries = useMemo(() => Object.entries(expanded), [expanded]);
   const expandedSet = useMemo(
@@ -237,11 +215,7 @@ export function ChildrenTable({
   const treeRows = useMemo(() => {
     const out: TreeRow[] = [];
 
-    const walk = (
-      rows: TestPerfChild[],
-      depth: number,
-      currentPkg: string | undefined,
-    ) => {
+    const walk = (rows: TestPerfChild[], depth: number, currentPkg: string | undefined) => {
       for (const row of rows) {
         const key = keyFor(currentPkg, row.name);
         const node: TreeRow = { key, row, depth, scopePkg: currentPkg };
@@ -280,12 +254,7 @@ export function ChildrenTable({
       return { ...prev, [row.key]: targetScope };
     });
 
-    if (
-      shouldExpand &&
-      fetchChildren &&
-      targetScope.pkg &&
-      !nestedByKey.has(row.key)
-    ) {
+    if (shouldExpand && fetchChildren && targetScope.pkg && !nestedByKey.has(row.key)) {
       const children = await fetchChildren(targetScope);
       setNestedByKey((prev) => {
         const next = new Map(prev);
@@ -303,9 +272,7 @@ export function ChildrenTable({
       columns={columns}
       rowKey={(row) => row.key}
       emptyState={
-        <p className="text-muted-foreground py-8 text-center">
-          No tests found at this level
-        </p>
+        <p className="text-muted-foreground py-8 text-center">No tests found at this level</p>
       }
     />
   );

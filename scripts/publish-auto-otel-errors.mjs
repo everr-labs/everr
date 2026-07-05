@@ -63,14 +63,7 @@ if (isPublished()) {
   console.log(`${packageName}@${packageVersion} is already published.`);
 } else {
   run("pnpm", ["--filter", packageName, "build"]);
-  run("pnpm", [
-    "--filter",
-    packageName,
-    "publish",
-    "--access",
-    "public",
-    "--no-git-checks",
-  ]);
+  run("pnpm", ["--filter", packageName, "publish", "--access", "public", "--no-git-checks"]);
 }
 
 run("pnpm", ["run", "changeset:tag"]);

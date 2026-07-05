@@ -10,9 +10,7 @@ import { dashboardListOptions } from "@/data/dashboards/options";
 const ASSISTANT_DASHBOARD_PROMPT =
   "/everr-setup-resources Help me build a good first dashboard based on the telemetry we have in production";
 
-export const Route = createFileRoute(
-  "/_authenticated/_dashboard/_previewable/dashboards/",
-)({
+export const Route = createFileRoute("/_authenticated/_dashboard/_previewable/dashboards/")({
   staticData: { breadcrumb: "Dashboards" },
   head: () => ({ meta: [{ title: "Everr - Dashboards" }] }),
   component: DashboardsIndexPage,
@@ -20,12 +18,7 @@ export const Route = createFileRoute(
 
 function DashboardsIndexPage() {
   const { preview } = useSearch({ from: "/_authenticated/_dashboard" });
-  const {
-    data: dashboards,
-    isLoading,
-    isError,
-    error,
-  } = useQuery(dashboardListOptions(preview));
+  const { data: dashboards, isLoading, isError, error } = useQuery(dashboardListOptions(preview));
   const [search, setSearch] = useState("");
   const isEmpty = !isLoading && !isError && (dashboards?.length ?? 0) === 0;
 
@@ -54,9 +47,7 @@ function DashboardsIndexPage() {
         <div className="flex flex-col items-center justify-center gap-3 py-16 text-muted-foreground">
           <AlertCircle className="size-10" />
           <p className="text-sm">
-            {error instanceof Error
-              ? error.message
-              : "Failed to load dashboards"}
+            {error instanceof Error ? error.message : "Failed to load dashboards"}
           </p>
         </div>
       )}

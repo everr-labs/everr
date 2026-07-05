@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 vi.mock("@/data/branch-status", () => ({
   getBranchStatus: vi.fn(),
@@ -47,9 +47,7 @@ describe("/api/cli/runs/status", () => {
       completed: [],
     });
 
-    const response = await callStatus(
-      "repo=everr-labs%2Feverr&branch=main&commit=abc123",
-    );
+    const response = await callStatus("repo=everr-labs%2Feverr&branch=main&commit=abc123");
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
@@ -83,9 +81,7 @@ describe("/api/cli/runs/status", () => {
       completed: [],
     });
 
-    const response = await callStatus(
-      "repo=everr-labs%2Feverr&branch=main&commit=abc123",
-    );
+    const response = await callStatus("repo=everr-labs%2Feverr&branch=main&commit=abc123");
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
@@ -121,9 +117,7 @@ describe("/api/cli/runs/status", () => {
       ],
     });
 
-    const response = await callStatus(
-      "repo=everr-labs%2Feverr&branch=main&commit=abc123",
-    );
+    const response = await callStatus("repo=everr-labs%2Feverr&branch=main&commit=abc123");
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
@@ -191,8 +185,7 @@ describe("/api/cli/runs/status", () => {
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({
-      error:
-        "Invalid query parameters for status. Required: repo and either commit or runId.",
+      error: "Invalid query parameters for status. Required: repo and either commit or runId.",
     });
     expect(mockedGetBranchStatus).not.toHaveBeenCalled();
   });

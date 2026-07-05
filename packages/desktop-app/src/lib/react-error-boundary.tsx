@@ -22,10 +22,6 @@ function ErrorFallback() {
 
 // The library's ErrorBoundary calls captureReactError in componentDidCatch,
 // emitting a "react" mechanism error log with the component stack attached.
-export function ReactTelemetryErrorBoundary({
-  children,
-}: {
-  children: ReactNode;
-}) {
+export function ReactTelemetryErrorBoundary({ children }: { children: ReactNode }) {
   return <ErrorBoundary fallback={<ErrorFallback />}>{children}</ErrorBoundary>;
 }

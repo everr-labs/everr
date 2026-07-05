@@ -8,11 +8,7 @@ import {
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowUpCircle } from "lucide-react";
 import { toast } from "sonner";
-import {
-  invokeCommand,
-  toErrorMessageText,
-  UPDATE_AVAILABLE_EVENT,
-} from "../../lib/tauri";
+import { invokeCommand, toErrorMessageText, UPDATE_AVAILABLE_EVENT } from "../../lib/tauri";
 import { useInvalidateOnTauriEvent } from "../../lib/tauri-events";
 import { SettingsSection } from "./ui";
 
@@ -90,9 +86,7 @@ export function AppUpdateButton() {
         >
           <ArrowUpCircle className="size-[18px]" />
         </TooltipTrigger>
-        <TooltipContent side="right">
-          Restart now to update to v{pending.version}
-        </TooltipContent>
+        <TooltipContent side="right">Restart now to update to v{pending.version}</TooltipContent>
       </Tooltip>
     </TooltipProvider>
   );
@@ -116,9 +110,7 @@ export function DeveloperUpdateSection() {
           className="min-w-[136px] max-[620px]:w-full"
           disabled={simulateMutation.isPending}
           onClick={() =>
-            void simulateMutation.mutateAsync(
-              hasUpdate ? null : SIMULATED_UPDATE_VERSION,
-            )
+            void simulateMutation.mutateAsync(hasUpdate ? null : SIMULATED_UPDATE_VERSION)
           }
         >
           {hasUpdate ? "Clear update" : "Simulate update"}

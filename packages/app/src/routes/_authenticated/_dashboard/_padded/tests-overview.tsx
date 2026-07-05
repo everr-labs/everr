@@ -1,11 +1,7 @@
 import { Card, CardContent, CardHeader } from "@everr/ui/components/card";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { Sparkline } from "@everr/ui/components/sparkline";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@everr/ui/components/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
 import { formatDurationCompact } from "@everr/ui/lib/formatting";
 import { resolveTimeRange, withTimeRange } from "@everr/ui/lib/time-range";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -19,10 +15,7 @@ import { ChildrenTable } from "@/components/test-performance/children-table";
 import { TestPerfFailuresTable } from "@/components/test-performance/failures-table";
 import { TestPerfFilterBar } from "@/components/test-performance/filter-bar";
 import { TestPerfScatterChart } from "@/components/test-performance/scatter-chart";
-import {
-  TestPerfTreemap,
-  type TreemapSizeMetric,
-} from "@/components/test-performance/treemap";
+import { TestPerfTreemap, type TreemapSizeMetric } from "@/components/test-performance/treemap";
 import {
   getTreemapMetricLabel,
   TestPerfTreemapMetricToggle,
@@ -40,9 +33,7 @@ import { testNameLastSegment } from "@/lib/formatting";
 import { buildTestPerformanceBreadcrumb } from "@/lib/test-performance-breadcrumb";
 import { TimeRangeSearchSchema } from "@/lib/time-range";
 
-export const Route = createFileRoute(
-  "/_authenticated/_dashboard/_padded/tests-overview",
-)({
+export const Route = createFileRoute("/_authenticated/_dashboard/_padded/tests-overview")({
   staticData: {
     breadcrumb: (match: { search?: { path?: string; pkg?: string } }) =>
       buildTestPerformanceBreadcrumb({
@@ -94,16 +85,14 @@ export const Route = createFileRoute(
 });
 
 function TestPerformancePage() {
-  const { timeRange, repos, pkg, testName, branches, path } =
-    Route.useLoaderDeps();
+  const { timeRange, repos, pkg, testName, branches, path } = Route.useLoaderDeps();
 
   const isRootScope = !pkg && !path;
   const { fromDate, toDate } = resolveTimeRange(timeRange);
   const filterInput = { timeRange, repos, pkg, testName, branches, path };
   const navigate = Route.useNavigate();
   const queryClient = useQueryClient();
-  const [treemapSizeMetric, setTreemapSizeMetric] =
-    useState<TreemapSizeMetric>("avgDuration");
+  const [treemapSizeMetric, setTreemapSizeMetric] = useState<TreemapSizeMetric>("avgDuration");
 
   const { data: stats } = useQuery({
     ...testPerfStatsOptions(filterInput),
@@ -172,7 +161,7 @@ function TestPerformancePage() {
   );
 
   const updateFilter = (updates: Record<string, unknown>) => {
-    navigate({ search: (prev) => ({ ...prev, ...updates }) });
+    void navigate({ search: (prev) => ({ ...prev, ...updates }) });
   };
 
   // Build page title — use last segment of hierarchy
@@ -198,9 +187,7 @@ function TestPerformancePage() {
         timeRange={timeRange}
         repos={repos}
         branches={branches}
-        onReposChange={(v) =>
-          updateFilter({ repos: v, pkg: undefined, path: undefined })
-        }
+        onReposChange={(v) => updateFilter({ repos: v, pkg: undefined, path: undefined })}
         onBranchesChange={(v) => updateFilter({ branches: v })}
       />
 
@@ -250,9 +237,7 @@ function TestPerformancePage() {
                     <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
                       Failure Rate
                     </p>
-                    <p className="font-mono text-xs">
-                      {stats ? `${stats.failureRate}%` : "--"}
-                    </p>
+                    <p className="font-mono text-xs">{stats ? `${stats.failureRate}%` : "--"}</p>
                   </div>
                 </div>
                 <div className="relative overflow-hidden rounded border px-2 py-1.5">
@@ -265,9 +250,7 @@ function TestPerformancePage() {
                     <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
                       Failed Execs
                     </p>
-                    <p className="font-mono text-xs">
-                      {stats?.failExecutions ?? "--"}
-                    </p>
+                    <p className="font-mono text-xs">{stats?.failExecutions ?? "--"}</p>
                   </div>
                 </div>
                 <div className="relative overflow-hidden rounded border px-2 py-1.5">
@@ -280,9 +263,7 @@ function TestPerformancePage() {
                     <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
                       Unique Failures
                     </p>
-                    <p className="font-mono text-xs">
-                      {stats?.uniqueFailingTests ?? "--"}
-                    </p>
+                    <p className="font-mono text-xs">{stats?.uniqueFailingTests ?? "--"}</p>
                   </div>
                 </div>
               </div>
@@ -301,9 +282,7 @@ function TestPerformancePage() {
                     Average Duration
                   </p>
                   <p className="text-2xl font-semibold tabular-nums leading-none">
-                    {stats
-                      ? formatDurationCompact(stats.avgDuration, "s")
-                      : "--"}
+                    {stats ? formatDurationCompact(stats.avgDuration, "s") : "--"}
                   </p>
                 </div>
               </div>
@@ -319,9 +298,7 @@ function TestPerformancePage() {
                       Median
                     </p>
                     <p className="font-mono text-xs">
-                      {stats
-                        ? formatDurationCompact(stats.medianDuration, "s")
-                        : "--"}
+                      {stats ? formatDurationCompact(stats.medianDuration, "s") : "--"}
                     </p>
                   </div>
                 </div>
@@ -332,13 +309,9 @@ function TestPerformancePage() {
                     color="hsl(192, 82%, 36%)"
                   />
                   <div className="relative">
-                    <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
-                      P95
-                    </p>
+                    <p className="text-muted-foreground text-[10px] uppercase tracking-wide">P95</p>
                     <p className="font-mono text-xs">
-                      {stats
-                        ? formatDurationCompact(stats.p95Duration, "s")
-                        : "--"}
+                      {stats ? formatDurationCompact(stats.p95Duration, "s") : "--"}
                     </p>
                   </div>
                 </div>
@@ -349,13 +322,9 @@ function TestPerformancePage() {
                     color="hsl(203, 84%, 40%)"
                   />
                   <div className="relative">
-                    <p className="text-muted-foreground text-[10px] uppercase tracking-wide">
-                      Max
-                    </p>
+                    <p className="text-muted-foreground text-[10px] uppercase tracking-wide">Max</p>
                     <p className="font-mono text-xs">
-                      {stats
-                        ? formatDurationCompact(stats.maxDuration, "s")
-                        : "--"}
+                      {stats ? formatDurationCompact(stats.maxDuration, "s") : "--"}
                     </p>
                   </div>
                 </div>
@@ -381,9 +350,8 @@ function TestPerformancePage() {
                           <CircleHelp className="size-3.5" />
                         </TooltipTrigger>
                         <TooltipContent className="max-w-64">
-                          Coefficient of variation (CV) = std dev / mean. It
-                          shows relative spread, so higher CV means test
-                          durations are less stable and less predictable.
+                          Coefficient of variation (CV) = std dev / mean. It shows relative spread,
+                          so higher CV means test durations are less stable and less predictable.
                         </TooltipContent>
                       </Tooltip>
                     </p>
@@ -507,6 +475,7 @@ function TestPerformanceSkeleton() {
       </div>
       <div className="flex flex-wrap gap-2">
         {Array.from({ length: 3 }).map((_, i) => (
+          // oxlint-disable-next-line react/no-array-index-key -- static placeholder skeleton list, never reordered
           <Skeleton key={i} className="h-9 w-[160px]" />
         ))}
       </div>
@@ -521,6 +490,7 @@ function TestPerformanceSkeleton() {
       </Card>
       <div className="grid gap-4 md:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
+          // oxlint-disable-next-line react/no-array-index-key -- static placeholder skeleton list, never reordered
           <Card key={i}>
             <CardHeader className="pb-2">
               <Skeleton className="h-4 w-24" />

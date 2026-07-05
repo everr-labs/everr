@@ -16,7 +16,5 @@ import type {
 export interface RunsRepositoryLike {
   explorer(input: RunsExplorerInput): Promise<RunsExplorerResult>;
   histogram(input: RunsHistogramInput): Promise<RunHistogramBucket[]>;
-  filterOptions(
-    input: Pick<RunsFilter, "timeRange">,
-  ): Promise<RunFilterOptions>;
+  filterOptions(input: Pick<RunsFilter, "timeRange">): Promise<RunFilterOptions>;
 }

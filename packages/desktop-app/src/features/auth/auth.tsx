@@ -1,25 +1,12 @@
 import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
-import {
-  type QueryClient,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import {
-  AUTH_CHANGED_EVENT,
-  invokeCommand,
-  toErrorMessageText,
-} from "../../lib/tauri";
+import { AUTH_CHANGED_EVENT, invokeCommand, toErrorMessageText } from "../../lib/tauri";
 import { useInvalidateOnTauriEvent } from "../../lib/tauri-events";
-import {
-  FeatureErrorText,
-  FeatureLoadingText,
-  SettingsSection,
-} from "../desktop-shell/ui";
+import { FeatureErrorText, FeatureLoadingText, SettingsSection } from "../desktop-shell/ui";
 import {
   notificationEmailsQueryKey,
   orgQueryKey,
@@ -244,22 +231,14 @@ function AuthContent({
   const signInMutation = useSignInMutation();
   const openBrowserMutation = useOpenSignInBrowserMutation();
   const signedIn = authStatusQuery.data?.status === "signed_in";
-  const pendingQuery = usePendingSignInQuery(
-    !signedIn && !authStatusQuery.isPending,
-  );
+  const pendingQuery = usePendingSignInQuery(!signedIn && !authStatusQuery.isPending);
   const pendingSignIn = pendingQuery.data;
   const now = useNow();
-  const expiresAtMs = pendingSignIn
-    ? new Date(pendingSignIn.expires_at).getTime()
-    : 0;
+  const expiresAtMs = pendingSignIn ? new Date(pendingSignIn.expires_at).getTime() : 0;
   const isExpired = Boolean(pendingSignIn) && now >= expiresAtMs;
 
   const pollQuery = useQuery({
-    queryKey: [
-      ...pendingSignInQueryKey,
-      "poll",
-      pendingSignIn?.user_code ?? "idle",
-    ] as const,
+    queryKey: [...pendingSignInQueryKey, "poll", pendingSignIn?.user_code ?? "idle"] as const,
     queryFn: pollSignIn,
     enabled: Boolean(pendingSignIn) && !isExpired,
     refetchInterval: pendingSignIn
@@ -300,11 +279,7 @@ function AuthContent({
   const action = showAction ? (
     <Button
       size="lg"
-      disabled={
-        authStatusQuery.isPending ||
-        signInMutation.isPending ||
-        authStatusQuery.isError
-      }
+      disabled={authStatusQuery.isPending || signInMutation.isPending || authStatusQuery.isError}
       onClick={() => void signInMutation.mutateAsync()}
     >
       {signInMutation.isPending
@@ -324,29 +299,20 @@ function AuthContent({
     <FeatureErrorText
       message={toErrorMessageText(authStatusQuery.error)}
       action={
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => void authStatusQuery.refetch()}
-        >
+        <Button variant="outline" size="sm" onClick={() => void authStatusQuery.refetch()}>
           Retry
         </Button>
       }
     />
   ) : signedIn ? (
     <p className="m-0 text-sm leading-6 text-[var(--settings-text-muted)]">
-      This desktop app is connected and ready to receive CI failure
-      notifications.
+      This desktop app is connected and ready to receive CI failure notifications.
     </p>
   ) : pendingError ? (
     <FeatureErrorText
       message={toErrorMessageText(pendingError)}
       action={
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => void pendingQuery.refetch()}
-        >
+        <Button variant="outline" size="sm" onClick={() => void pendingQuery.refetch()}>
           Retry
         </Button>
       }
@@ -404,9 +370,7 @@ function AuthContent({
       <div className="grid gap-5">
         <div className="grid gap-1.5 text-center">
           <h2 className="m-0 text-lg font-medium tracking-tight">{title}</h2>
-          <p className="m-0 text-sm leading-6 text-[var(--settings-text-muted)]">
-            {description}
-          </p>
+          <p className="m-0 text-sm leading-6 text-[var(--settings-text-muted)]">{description}</p>
         </div>
         {content}
         {action ? <div className="flex justify-center">{action}</div> : null}
@@ -428,9 +392,7 @@ export function AuthStandalone({
   title?: string;
   description?: string;
 } = {}) {
-  return (
-    <AuthContent layout="standalone" title={title} description={description} />
-  );
+  return <AuthContent layout="standalone" title={title} description={description} />;
 }
 
 export function AuthSettingsSection() {

@@ -1,8 +1,5 @@
 import { randomUUID } from "node:crypto";
-import {
-  captureError,
-  init as initErrorTracking,
-} from "@everr/auto-otel-errors/node";
+import { captureError, init as initErrorTracking } from "@everr/auto-otel-errors/node";
 import { SpanKind, trace } from "@opentelemetry/api";
 import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
@@ -37,9 +34,9 @@ declare global {
   var __everrAppTelemetry: TelemetryState | undefined;
 }
 
-const globalTelemetry = globalThis as typeof globalThis & {
+const globalTelemetry: typeof globalThis & {
   __everrAppTelemetry?: TelemetryState;
-};
+} = globalThis;
 
 if (!globalTelemetry.__everrAppTelemetry) {
   globalTelemetry.__everrAppTelemetry = startTelemetry();

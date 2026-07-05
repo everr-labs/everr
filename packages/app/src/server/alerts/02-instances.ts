@@ -28,7 +28,15 @@ export function extractInstanceLabels(
     for (const column of instanceLabelColumns) {
       const value = row[column];
       labels[column] =
-        value === undefined || value === null ? "" : String(value);
+        typeof value === "string" ||
+        typeof value === "number" ||
+        typeof value === "boolean" ||
+        typeof value === "bigint" ||
+        typeof value === "symbol"
+          ? String(value)
+          : value === undefined || value === null
+            ? ""
+            : JSON.stringify(value);
     }
     return labels;
   }
@@ -74,9 +82,7 @@ export function diffInstances(
   const currentFingerprints = new Set(current.map((i) => i.fingerprint));
   return {
     newlyFired: current.filter((i) => !previousFingerprints.has(i.fingerprint)),
-    nowResolved: previous.filter(
-      (i) => !currentFingerprints.has(i.fingerprint),
-    ),
+    nowResolved: previous.filter((i) => !currentFingerprints.has(i.fingerprint)),
   };
 }
 
@@ -84,12 +90,7 @@ export function parseLabels(json: string): Record<string, string> {
   try {
     const parsed: unknown = JSON.parse(json);
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return Object.fromEntries(
-        Object.entries(parsed as Record<string, unknown>).map(([k, v]) => [
-          k,
-          String(v),
-        ]),
-      );
+      return Object.fromEntries(Object.entries(parsed).map(([k, v]) => [k, String(v)]));
     }
   } catch {
     // fall through to empty labels

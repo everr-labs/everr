@@ -1,11 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { isNumericValue } from "@/lib/numeric";
-import {
-  detectTimeKey,
-  getValueKeys,
-  toNumber,
-  toTimestamp,
-} from "./data-utils";
+import { detectTimeKey, getValueKeys, toNumber, toTimestamp } from "./data-utils";
 
 describe("detectTimeKey", () => {
   it("matches ts, time, and timestamp exactly, case-insensitively", () => {
@@ -23,14 +18,7 @@ describe("detectTimeKey", () => {
   });
 
   it("no longer matches the retired alias names", () => {
-    for (const name of [
-      "date",
-      "datetime",
-      "created_at",
-      "period",
-      "bucket",
-      "interval",
-    ]) {
+    for (const name of ["date", "datetime", "created_at", "period", "bucket", "interval"]) {
       expect(detectTimeKey([{ [name]: "t", v: 1 }])).toBeUndefined();
     }
   });
@@ -121,9 +109,7 @@ describe("getValueKeys", () => {
   });
 
   it("includes real number columns", () => {
-    expect(getValueKeys([{ time: "t", value: 1.5 }], "time")).toEqual([
-      "value",
-    ]);
+    expect(getValueKeys([{ time: "t", value: 1.5 }], "time")).toEqual(["value"]);
   });
 
   it("detects a column that is NULL in the first row but numeric later", () => {

@@ -23,11 +23,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useCreateApiKey } from "@/components/api-keys/queries";
 import { SCOPE_ICONS } from "@/components/api-keys/scope-meta";
-import {
-  ALL_API_KEY_SCOPES,
-  API_KEY_SCOPES,
-  type ApiKeyScope,
-} from "@/lib/api-key-scopes";
+import { ALL_API_KEY_SCOPES, API_KEY_SCOPES, type ApiKeyScope } from "@/lib/api-key-scopes";
 
 const EXPIRY_OPTIONS = [
   { value: "never", label: "Never" },
@@ -43,17 +39,18 @@ type Expiry = (typeof EXPIRY_OPTIONS)[number]["value"];
 function defaultScopes(): Record<ApiKeyScope, boolean> {
   // Default to no capabilities — least privilege. The user must opt into
   // each capability the key needs, and creation requires at least one.
-  return Object.fromEntries(
-    ALL_API_KEY_SCOPES.map((scope) => [scope, false]),
-  ) as Record<ApiKeyScope, boolean>;
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- Object.fromEntries returns a string-indexed type; a Record over the finite ApiKeyScope union can't be recovered from a dynamic key list, and we derive from ALL_API_KEY_SCOPES on purpose (single source of truth)
+  return Object.fromEntries(ALL_API_KEY_SCOPES.map((scope) => [scope, false])) as Record<
+    ApiKeyScope,
+    boolean
+  >;
 }
 
 export function CreateApiKeyDialog() {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [expiry, setExpiry] = useState<Expiry>("never");
-  const [scopes, setScopes] =
-    useState<Record<ApiKeyScope, boolean>>(defaultScopes);
+  const [scopes, setScopes] = useState<Record<ApiKeyScope, boolean>>(defaultScopes);
   const [issuedKey, setIssuedKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const copyResetTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -137,8 +134,8 @@ export function CreateApiKeyDialog() {
                 Copy your key now
               </DialogTitle>
               <DialogDescription>
-                This is the only time the full key is shown. Store it in your
-                secret manager — you won't be able to retrieve it later.
+                This is the only time the full key is shown. Store it in your secret manager — you
+                won&apos;t be able to retrieve it later.
               </DialogDescription>
             </DialogHeader>
             <div className="bg-muted/40 rounded-md border p-3 font-mono text-xs break-all">
@@ -148,12 +145,8 @@ export function CreateApiKeyDialog() {
               <Button variant="outline" onClick={() => handleOpenChange(false)}>
                 Done
               </Button>
-              <Button onClick={copyKey}>
-                {copied ? (
-                  <Check className="size-4" />
-                ) : (
-                  <Copy className="size-4" />
-                )}
+              <Button onClick={() => void copyKey()}>
+                {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
                 {copied ? "Copied" : "Copy key"}
               </Button>
             </DialogFooter>
@@ -163,9 +156,8 @@ export function CreateApiKeyDialog() {
             <DialogHeader>
               <DialogTitle>New API key</DialogTitle>
               <DialogDescription>
-                Mint an organization-scoped{" "}
-                <code className="font-mono text-[0.7rem]">ek_</code> key and
-                choose what it's allowed to do.
+                Mint an organization-scoped <code className="font-mono text-[0.7rem]">ek_</code> key
+                and choose what it&apos;s allowed to do.
               </DialogDescription>
             </DialogHeader>
 
@@ -179,6 +171,7 @@ export function CreateApiKeyDialog() {
                   onChange={(e) => setName(e.target.value)}
                   placeholder="prod-api"
                   required
+                  // oxlint-disable-next-line jsx-a11y/no-autofocus -- intended focus on the primary field when this modal dialog opens
                   autoFocus
                   autoComplete="off"
                   data-1p-ignore
@@ -189,7 +182,10 @@ export function CreateApiKeyDialog() {
                 <Label htmlFor="api-key-expiry">Expiration</Label>
                 <Select
                   value={expiry}
-                  onValueChange={(v) => setExpiry(v as Expiry)}
+                  onValueChange={(v) => {
+                    const option = EXPIRY_OPTIONS.find((o) => o.value === v);
+                    if (option) setExpiry(option.value);
+                  }}
                 >
                   <SelectTrigger id="api-key-expiry" className="w-full">
                     <SelectValue>
@@ -210,8 +206,7 @@ export function CreateApiKeyDialog() {
             <fieldset className="space-y-2">
               <legend className="text-sm font-medium">Capabilities</legend>
               <p className="text-muted-foreground text-xs">
-                Grant only what this key needs — it's rejected for anything
-                else.
+                Grant only what this key needs — it&apos;s rejected for anything else.
               </p>
               <div className="space-y-2 pt-0.5">
                 {ALL_API_KEY_SCOPES.map((scope) => {
@@ -230,9 +225,7 @@ export function CreateApiKeyDialog() {
                         htmlFor={switchId}
                         className="min-w-0 flex-1 cursor-pointer space-y-0.5"
                       >
-                        <span className="block text-sm font-medium">
-                          {meta.label}
-                        </span>
+                        <span className="block text-sm font-medium">{meta.label}</span>
                         <span className="text-muted-foreground block text-xs/relaxed">
                           {meta.description}
                         </span>
@@ -257,13 +250,8 @@ export function CreateApiKeyDialog() {
               >
                 Cancel
               </Button>
-              <Button
-                type="submit"
-                disabled={create.isPending || noScopePicked}
-              >
-                {create.isPending && (
-                  <Loader2 className="size-4 animate-spin" />
-                )}
+              <Button type="submit" disabled={create.isPending || noScopePicked}>
+                {create.isPending && <Loader2 className="size-4 animate-spin" />}
                 Create key
               </Button>
             </DialogFooter>

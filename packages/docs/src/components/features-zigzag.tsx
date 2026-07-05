@@ -44,17 +44,12 @@ const FEATURES: Feature[] = [
     title: "Plain SQL from the CLI, local or cloud",
     body: (
       <>
-        Read what actually ran without learning a query language. Run{" "}
-        <Code>everr local query</Code> against your own machine or{" "}
-        <Code>everr cloud query</Code> against the shared workspace, the same
-        SQL and the same tables whether the data is on your laptop or in
-        production.
+        Read what actually ran without learning a query language. Run <Code>everr local query</Code>{" "}
+        against your own machine or <Code>everr cloud query</Code> against the shared workspace, the
+        same SQL and the same tables whether the data is on your laptop or in production.
       </>
     ),
-    points: [
-      "Plain SQL over ClickHouse, local and cloud",
-      "The same query your coding agent runs",
-    ],
+    points: ["Plain SQL over ClickHouse, local and cloud", "The same query your coding agent runs"],
     visual: (
       <Backdrop src={cliBackdrop}>
         <QueryShot />
@@ -83,10 +78,9 @@ const FEATURES: Feature[] = [
     title: "Dashboards, alerts, and runbooks as code",
     body: (
       <>
-        Define your dashboards, alerts, and runbooks as files in your repo, so
-        you and your coding agent know where to look before you even open Everr.
-        The config doubles as documentation &mdash; and as memory your agent
-        reads to find what matters.
+        Define your dashboards, alerts, and runbooks as files in your repo, so you and your coding
+        agent know where to look before you even open Everr. The config doubles as documentation
+        &mdash; and as memory your agent reads to find what matters.
       </>
     ),
     points: [
@@ -155,19 +149,14 @@ export function FeaturesZigzag() {
             See what your code actually does.
           </h2>
           <p className="mt-6 max-w-xl text-base leading-relaxed text-fd-muted-foreground md:text-lg">
-            Everything you need to go from a fast local feedback loop to
-            production observability &mdash; one OpenTelemetry pipeline, end to
-            end.
+            Everything you need to go from a fast local feedback loop to production observability
+            &mdash; one OpenTelemetry pipeline, end to end.
           </p>
         </motion.div>
 
         <div className="mt-20 flex flex-col gap-24 md:mt-32 md:gap-36">
           {FEATURES.map((feature, i) => (
-            <FeatureRow
-              key={feature.index}
-              feature={feature}
-              flip={i % 2 === 1}
-            />
+            <FeatureRow key={feature.index} feature={feature} flip={i % 2 === 1} />
           ))}
         </div>
       </div>
@@ -195,10 +184,7 @@ function FeatureRow({ feature, flip }: { feature: Feature; flip: boolean }) {
         initial={{ opacity: 0, y: 24, x: textFrom }}
         animate={inView ? { opacity: 1, y: 0, x: 0 } : undefined}
         transition={{ duration: 0.8, ease: EASE }}
-        className={cn(
-          "order-1",
-          flip ? "md:order-2 md:col-start-2" : "md:order-1 md:col-start-1",
-        )}
+        className={cn("order-1", flip ? "md:order-2 md:col-start-2" : "md:order-1 md:col-start-1")}
       >
         <div className="flex items-baseline gap-4">
           <span className="font-heading text-5xl font-bold leading-none tracking-tight text-fd-muted-foreground/15 tabular-nums sm:text-6xl md:text-7xl">
@@ -216,17 +202,9 @@ function FeatureRow({ feature, flip }: { feature: Feature; flip: boolean }) {
 
         <ul className="mt-7 flex flex-col gap-3">
           {feature.points.map((point) => (
-            <li
-              key={point}
-              className="flex items-center gap-3 text-sm text-fd-muted-foreground"
-            >
-              <span
-                className="size-1.5 shrink-0 rounded-full bg-primary"
-                aria-hidden
-              />
-              <span className="font-heading tracking-tight text-fd-foreground/90">
-                {point}
-              </span>
+            <li key={point} className="flex items-center gap-3 text-sm text-fd-muted-foreground">
+              <span className="size-1.5 shrink-0 rounded-full bg-primary" aria-hidden />
+              <span className="font-heading tracking-tight text-fd-foreground/90">{point}</span>
             </li>
           ))}
         </ul>
@@ -237,10 +215,7 @@ function FeatureRow({ feature, flip }: { feature: Feature; flip: boolean }) {
         initial={{ opacity: 0, y: 24, x: visualFrom }}
         animate={inView ? { opacity: 1, y: 0, x: 0 } : undefined}
         transition={{ duration: 0.8, delay: 0.1, ease: EASE }}
-        className={cn(
-          "order-2",
-          flip ? "md:order-1 md:col-start-1" : "md:order-2 md:col-start-2",
-        )}
+        className={cn("order-2", flip ? "md:order-1 md:col-start-1" : "md:order-2 md:col-start-2")}
       >
         {feature.visual}
       </motion.div>
@@ -311,13 +286,9 @@ function QueryShot() {
   ];
   const cell = (s: string, c: (typeof cols)[number]) =>
     c.align === "l" ? s.padEnd(c.w) : s.padStart(c.w);
-  const top = `┌${cols
-    .map((c) => `─${c.name}${"─".repeat(c.w + 1 - c.name.length)}`)
-    .join("┬")}┐`;
+  const top = `┌${cols.map((c) => `─${c.name}${"─".repeat(c.w + 1 - c.name.length)}`).join("┬")}┐`;
   const bottom = `└${cols.map((c) => "─".repeat(c.w + 2)).join("┴")}┘`;
-  const rows = data.map(
-    (r) => `│ ${cols.map((c, i) => cell(r[i], c)).join(" │ ")} │`,
-  );
+  const rows = data.map((r) => `│ ${cols.map((c, i) => cell(r[i], c)).join(" │ ")} │`);
   const table = [top, ...rows, bottom].join("\n");
 
   return (
@@ -325,8 +296,7 @@ function QueryShot() {
       <WindowChrome size="sm" title="~/checkout-service · zsh" />
       <div className="overflow-x-auto px-4 py-3.5 font-mono text-[10px] leading-[1.75] sm:text-[11px]">
         <pre className="whitespace-pre text-fd-muted-foreground">
-          <span className={kw}>$</span>{" "}
-          <span className={fg}>everr cloud query</span>
+          <span className={kw}>$</span> <span className={fg}>everr cloud query</span>
           {' "\n'}
           {"  "}
           <span className={kw}>SELECT</span>
@@ -341,12 +311,11 @@ function QueryShot() {
           <span className={kw}>FROM</span> metrics
           {"\n  "}
           <span className={kw}>WHERE</span> name ={" "}
-          <span className={fg}>'http.server.duration'</span>
+          <span className={fg}>&apos;http.server.duration&apos;</span>
           {"\n  "}
           <span className={kw}>GROUP BY</span> service
           {"\n  "}
-          <span className={kw}>ORDER BY</span> p95{" "}
-          <span className={kw}>DESC</span>
+          <span className={kw}>ORDER BY</span> p95 <span className={kw}>DESC</span>
           {'"\n\n'}
           {table}
           {"\n\n"}
@@ -598,8 +567,7 @@ function SkillPreview() {
       id: "name",
       content: (
         <>
-          <span className={cKey}>name:</span>{" "}
-          <span className={cVal}>everr-use-telemetry</span>
+          <span className={cKey}>name:</span> <span className={cVal}>everr-use-telemetry</span>
         </>
       ),
     },
@@ -608,9 +576,7 @@ function SkillPreview() {
       content: (
         <>
           <span className={cKey}>description:</span>{" "}
-          <span className={cVal}>
-            Use when investigating logs, traces, metrics, errors.
-          </span>
+          <span className={cVal}>Use when investigating logs, traces, metrics, errors.</span>
         </>
       ),
     },
@@ -628,9 +594,7 @@ function SkillPreview() {
     {
       id: "p1",
       content: (
-        <span className={cVal}>
-          Use Everr telemetry before guessing at runtime behavior.
-        </span>
+        <span className={cVal}>Use Everr telemetry before guessing at runtime behavior.</span>
       ),
     },
     { id: "gap-3", content: " " },
@@ -685,9 +649,7 @@ function SkillPreview() {
     },
     {
       id: "tbl-2",
-      content: (
-        <span className={cVal}>| Production, customer reports | cloud |</span>
-      ),
+      content: <span className={cVal}>| Production, customer reports | cloud |</span>,
     },
   ];
 
@@ -700,10 +662,8 @@ function SkillPreview() {
       <div
         className="overflow-hidden py-4 font-mono text-[11px] leading-[1.7] sm:text-xs"
         style={{
-          maskImage:
-            "linear-gradient(to bottom, black calc(100% - 64px), transparent)",
-          WebkitMaskImage:
-            "linear-gradient(to bottom, black calc(100% - 64px), transparent)",
+          maskImage: "linear-gradient(to bottom, black calc(100% - 64px), transparent)",
+          WebkitMaskImage: "linear-gradient(to bottom, black calc(100% - 64px), transparent)",
         }}
       >
         {lines.map((line, i) => (
@@ -711,9 +671,7 @@ function SkillPreview() {
             <span className="w-10 shrink-0 select-none border-r border-fd-border/60 pr-3 text-right text-fd-muted-foreground/25">
               {i + 1}
             </span>
-            <span className="overflow-hidden whitespace-pre pl-4 pr-6">
-              {line.content}
-            </span>
+            <span className="overflow-hidden whitespace-pre pl-4 pr-6">{line.content}</span>
           </div>
         ))}
       </div>

@@ -66,10 +66,7 @@ function SignIn() {
 
   return (
     <>
-      <AuthPageHeader
-        title="Sign in to Everr"
-        subtitle="Enter your credentials to continue"
-      />
+      <AuthPageHeader title="Sign in to Everr" subtitle="Enter your credentials to continue" />
 
       <div className="flex flex-col gap-4">
         <GoogleAuthButton
@@ -154,7 +151,7 @@ function SignIn() {
       </form>
 
       <p className="text-center text-sm text-muted-foreground">
-        Don't have an account?{" "}
+        Don&apos;t have an account?{" "}
         <Link
           to="/auth/sign-up"
           search={{ redirect: redirectTo, email: prefillEmail }}

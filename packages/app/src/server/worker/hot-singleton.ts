@@ -42,9 +42,9 @@ const DEFAULT_STOP_TIMEOUT_MS = 15_000;
 
 // The registry lives on globalThis so the state outlives the module that gets
 // replaced on hot update.
-const globalWithRegistry = globalThis as typeof globalThis & {
+const globalWithRegistry: typeof globalThis & {
   __everrHotSingletons?: Map<string, SingletonState>;
-};
+} = globalThis;
 globalWithRegistry.__everrHotSingletons ??= new Map();
 const registry = globalWithRegistry.__everrHotSingletons;
 
@@ -59,9 +59,7 @@ function settleWithin(promise: Promise<unknown>, ms: number): Promise<void> {
   });
 }
 
-export function hotSingleton<T>(
-  options: HotSingletonOptions<T>,
-): HotSingleton<T> {
+export function hotSingleton<T>(options: HotSingletonOptions<T>): HotSingleton<T> {
   const {
     key,
     start: startResource,
@@ -85,10 +83,12 @@ export function hotSingleton<T>(
       }
       return startResource();
     })();
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- the shared registry stores SingletonState.starting as Promise<unknown> across singletons of differing T; startResource() resolves to T by construction.
     return state.starting as Promise<T>;
   }
 
   async function stop(): Promise<void> {
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- the shared registry stores SingletonState.starting as Promise<unknown> across singletons of differing T; startResource() resolves to T by construction.
     const starting = state.starting as Promise<T> | undefined;
     state.starting = undefined;
     if (!starting) return;

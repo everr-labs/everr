@@ -33,7 +33,7 @@ export const LogsSearchSchema = z
 type LogsSearch = z.infer<typeof LogsSearchSchema>;
 
 export function LogsPage() {
-  const search = useSearch({ strict: false }) as LogsSearch;
+  const search: LogsSearch = useSearch({ strict: false });
   const navigate = useNavigate();
 
   const repo = useMemo(() => new LogsRepository(localSqlClient), []);
@@ -63,28 +63,28 @@ export function LogsPage() {
       service={service}
       environment={environment}
       onTimeRangeChange={(range) =>
-        navigate({
+        void navigate({
           to: "/logs",
           search: (prev) => ({ ...prev, from: range.from, to: range.to }),
           replace: true,
         })
       }
       onRefreshChange={(value) =>
-        navigate({
+        void navigate({
           to: "/logs",
           search: (prev) => ({ ...prev, refresh: value || undefined }),
           replace: true,
         })
       }
       onServiceChange={(values) =>
-        navigate({
+        void navigate({
           to: "/logs",
           search: (prev) => ({ ...prev, service: values }),
           replace: true,
         })
       }
       onEnvironmentChange={(values) =>
-        navigate({
+        void navigate({
           to: "/logs",
           search: (prev) => ({ ...prev, environment: values }),
           replace: true,
@@ -99,14 +99,14 @@ export function LogsPage() {
           environment={environment}
           hideSharedFilters
           onSearchChange={({ services: _ignored, ...next }) =>
-            navigate({
+            void navigate({
               to: "/logs",
               search: (prev) => ({ ...prev, ...next }),
               replace: true,
             })
           }
           onTimeRangeSelect={(from, to) =>
-            navigate({
+            void navigate({
               to: "/logs",
               search: (prev) => ({
                 ...prev,

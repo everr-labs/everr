@@ -39,18 +39,14 @@ const columns: Column<CostByWorkflow>[] = [
   {
     header: "Est. Cost",
     cell: (row) => (
-      <span className="font-mono font-medium tabular-nums">
-        {formatCost(row.estimatedCost)}
-      </span>
+      <span className="font-mono font-medium tabular-nums">{formatCost(row.estimatedCost)}</span>
     ),
     className: "pb-2 pr-4 font-medium",
   },
   {
     header: "Avg $/Run",
     cell: (row) => (
-      <span className="font-mono font-medium tabular-nums">
-        {formatCost(row.avgCostPerRun)}
-      </span>
+      <span className="font-mono font-medium tabular-nums">{formatCost(row.avgCostPerRun)}</span>
     ),
     className: "pb-2 font-medium",
   },
@@ -67,9 +63,9 @@ export function CostByWorkflowTable({ data }: CostByWorkflowTableProps) {
       rowClassName={() => "group cursor-pointer"}
       onRowClick={(row, event) => {
         // The workflow-name anchor handles its own click + keyboard activation.
-        if ((event.target as HTMLElement).closest("a")) return;
+        if (event.target instanceof Element && event.target.closest("a")) return;
         // Time range carries via the dashboard's retainSearchParams.
-        navigate({
+        void navigate({
           to: "/workflows/$repo/$workflowName",
           params: { repo: row.repo, workflowName: row.workflow },
         });

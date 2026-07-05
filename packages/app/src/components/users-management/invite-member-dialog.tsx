@@ -77,12 +77,18 @@ export function InviteMemberDialog() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                // oxlint-disable-next-line jsx-a11y/no-autofocus -- primary input of a modal dialog; focusing it on open is the intended UX
                 autoFocus
               />
             </div>
             <div className="space-y-1">
               <Label htmlFor="invite-role">Role</Label>
-              <Select value={role} onValueChange={(v) => setRole(v as OrgRole)}>
+              <Select
+                value={role}
+                onValueChange={(v) => {
+                  if (v === "member" || v === "admin" || v === "owner") setRole(v);
+                }}
+              >
                 <SelectTrigger id="invite-role">
                   <SelectValue />
                 </SelectTrigger>
@@ -104,9 +110,7 @@ export function InviteMemberDialog() {
               Cancel
             </Button>
             <Button type="submit" disabled={invite.isPending}>
-              {invite.isPending && (
-                <Loader2 className="mr-2 size-4 animate-spin" />
-              )}
+              {invite.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
               Send invite
             </Button>
           </DialogFooter>

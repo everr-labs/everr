@@ -29,16 +29,10 @@ export const githubInstallationOrganizations = pgTable(
     }).primaryKey(),
     organizationId: text("organization_id").notNull(),
     status: githubInstallationStatusEnum("status").notNull().default("active"),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [
-    index("github_installation_orgs_org_id_idx").on(table.organizationId),
-  ],
+  (table) => [index("github_installation_orgs_org_id_idx").on(table.organizationId)],
 );
 
 export const workflowStatusEnum = pgEnum("workflow_status", [
@@ -66,9 +60,7 @@ export type WorkflowRunMetadata = {
 export const workflowRuns = pgTable(
   "workflow_runs",
   {
-    id: bigint("id", { mode: "number" })
-      .primaryKey()
-      .generatedAlwaysAsIdentity(),
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
     organizationId: text("organization_id").notNull(),
     runId: bigint("run_id", { mode: "number" }).notNull(),
     attempts: integer("attempts").notNull().default(1),
@@ -85,12 +77,8 @@ export const workflowRuns = pgTable(
     lastEventAt: timestamp("last_event_at", { withTimezone: true }).notNull(),
     metadata: jsonb("metadata").$type<WorkflowRunMetadata>(),
     // These reflect our own write times, not GitHub event timestamps.
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     uniqueIndex("workflow_runs_tenant_run_attempts_uq").on(
@@ -98,20 +86,14 @@ export const workflowRuns = pgTable(
       table.runId,
       table.attempts,
     ),
-    uniqueIndex("workflow_runs_tenant_trace_id_uq").on(
-      table.organizationId,
-      table.traceId,
-    ),
+    uniqueIndex("workflow_runs_tenant_trace_id_uq").on(table.organizationId, table.traceId),
     index("workflow_runs_tenant_repo_sha_ref_idx").on(
       table.organizationId,
       table.repository,
       table.sha,
       table.ref,
     ),
-    index("workflow_runs_tenant_last_event_idx").on(
-      table.organizationId,
-      sql`last_event_at DESC`,
-    ),
+    index("workflow_runs_tenant_last_event_idx").on(table.organizationId, sql`last_event_at DESC`),
   ],
 );
 
@@ -134,9 +116,7 @@ export type WorkflowJobMetadata = {
 export const workflowJobs = pgTable(
   "workflow_jobs",
   {
-    id: bigint("id", { mode: "number" })
-      .primaryKey()
-      .generatedAlwaysAsIdentity(),
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
     organizationId: text("organization_id").notNull(),
     jobId: bigint("job_id", { mode: "number" }).notNull(),
     runId: bigint("run_id", { mode: "number" }).notNull(),
@@ -153,22 +133,12 @@ export const workflowJobs = pgTable(
     lastEventAt: timestamp("last_event_at", { withTimezone: true }).notNull(),
     metadata: jsonb("metadata").$type<WorkflowJobMetadata>(),
     // These reflect our own write times, not GitHub event timestamps.
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("workflow_jobs_tenant_job_uq").on(
-      table.organizationId,
-      table.jobId,
-    ),
-    index("workflow_jobs_tenant_trace_id_idx").on(
-      table.organizationId,
-      table.traceId,
-    ),
+    uniqueIndex("workflow_jobs_tenant_job_uq").on(table.organizationId, table.jobId),
+    index("workflow_jobs_tenant_trace_id_idx").on(table.organizationId, table.traceId),
   ],
 );
 
@@ -199,12 +169,8 @@ export const dashboards = pgTable(
     // read/apply round-trip. Identity/index data (project, slug, folderPath)
     // lives in dedicated columns above.
     document: jsonb("document").notNull().$type<Dashboard>(),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     // Every row is exactly one of: live (repoid set, no parent) or preview
@@ -223,10 +189,7 @@ export const dashboards = pgTable(
     uniqueIndex("dashboards_preview_project_slug_uq")
       .on(table.previewId, table.project, table.slug)
       .where(sql`${table.previewId} IS NOT NULL`),
-    index("dashboards_tenant_updated_idx").on(
-      table.organizationId,
-      sql`updated_at DESC`,
-    ),
+    index("dashboards_tenant_updated_idx").on(table.organizationId, sql`updated_at DESC`),
   ],
 );
 
@@ -249,12 +212,8 @@ export const runbooks = pgTable(
     // The whole document, stored verbatim so unknown fields survive a
     // read/apply round-trip. Markdown is always inlined by the CLI.
     document: jsonb("document").notNull().$type<Runbook>(),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     check(
@@ -269,10 +228,7 @@ export const runbooks = pgTable(
     uniqueIndex("runbooks_preview_project_slug_uq")
       .on(table.previewId, table.project, table.slug)
       .where(sql`${table.previewId} IS NOT NULL`),
-    index("runbooks_tenant_updated_idx").on(
-      table.organizationId,
-      sql`updated_at DESC`,
-    ),
+    index("runbooks_tenant_updated_idx").on(table.organizationId, sql`updated_at DESC`),
   ],
 );
 
@@ -292,18 +248,10 @@ export const previews = pgTable(
     // Raw preview name (usually a git branch, e.g. "gio/desktop-app"),
     // stored verbatim; URL-encoded only at the edges.
     name: text("name").notNull(),
-    lastAppliedAt: timestamp("last_applied_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    lastAppliedAt: timestamp("last_applied_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("previews_tenant_repo_name_uq").on(
-      table.organizationId,
-      table.repoid,
-      table.name,
-    ),
+    uniqueIndex("previews_tenant_repo_name_uq").on(table.organizationId, table.repoid, table.name),
   ],
 );

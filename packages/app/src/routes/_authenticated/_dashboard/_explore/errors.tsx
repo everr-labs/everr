@@ -1,7 +1,4 @@
-import {
-  ErrorIssueSearchSchema,
-  ErrorIssues,
-} from "@everr/telemetry-explorer/errors";
+import { ErrorIssueSearchSchema, ErrorIssues } from "@everr/telemetry-explorer/errors";
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import {
   createFileRoute,
@@ -17,13 +14,11 @@ import { ExploreSearchShape } from "@/lib/explore-search";
 const RouteSearchSchema = ErrorIssueSearchSchema.extend(ExploreSearchShape);
 const defaultSearch = RouteSearchSchema.parse({});
 
-export const Route = createFileRoute(
-  "/_authenticated/_dashboard/_explore/errors",
-)({
+export const Route = createFileRoute("/_authenticated/_dashboard/_explore/errors")({
   staticData: { breadcrumb: "Errors" },
-  head: () => ({ meta: [{ title: "Everr - Errors" }] }),
   validateSearch: RouteSearchSchema,
   search: { middlewares: [stripSearchParams(defaultSearch)] },
+  head: () => ({ meta: [{ title: "Everr - Errors" }] }),
   component: ErrorsRoute,
 });
 
@@ -46,8 +41,7 @@ function ErrorsPage() {
   const { service = [], environment = [] } = useSearch({
     from: "/_authenticated/_dashboard/_explore",
   });
-  const { timeRange, q, fingerprint, sort, refresh, attributes } =
-    withTimeRange(search);
+  const { timeRange, q, fingerprint, sort, refresh, attributes } = withTimeRange(search);
 
   return (
     <ErrorIssues
@@ -60,7 +54,7 @@ function ErrorsPage() {
       onSearchChange={(patch) =>
         // Push a history entry per change so Back undoes filter changes one at a
         // time (including Clear all, which routes through this same handler).
-        navigate({
+        void navigate({
           search: (prev) => ({ ...prev, ...patch }),
         })
       }

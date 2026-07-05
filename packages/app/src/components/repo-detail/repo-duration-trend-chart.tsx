@@ -30,9 +30,7 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
-const tooltipFormatter = createChartTooltipFormatter(chartConfig, (v) =>
-  formatDurationCompact(v),
-);
+const tooltipFormatter = createChartTooltipFormatter(chartConfig, (v) => formatDurationCompact(v));
 const legendFormatter = createLegendFormatter(chartConfig);
 
 export function RepoDurationTrendChart({ data }: RepoDurationTrendChartProps) {

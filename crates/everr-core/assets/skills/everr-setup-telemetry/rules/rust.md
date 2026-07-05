@@ -323,14 +323,14 @@ Prefer explicit safe fields and source-level redaction.
 
 ## Troubleshooting
 
-| Symptom | Check |
-| --- | --- |
-| No traces | `telemetry_setup::init_telemetry()` runs before work starts; `tracing_opentelemetry` layer is installed |
-| No logs | `opentelemetry-appender-tracing` layer is installed and `tracing` events are emitted |
-| No metrics | Meter provider is set globally and the process lives long enough for periodic export |
-| Endpoint errors | Base endpoint from `everr local status`, HTTP vs gRPC features, bearer header from `EVERR_INGEST_KEY` |
-| `unknown_service` | Hardcoded `service.name` missing from the resource config or setup module not loaded |
-| Duplicate logs | Both app logger and bridge emit the same event more than once |
-| Missing shutdown data | Provider handles dropped early or graceful shutdown path does not call `shutdown()` |
+| Symptom               | Check                                                                                                   |
+| --------------------- | ------------------------------------------------------------------------------------------------------- |
+| No traces             | `telemetry_setup::init_telemetry()` runs before work starts; `tracing_opentelemetry` layer is installed |
+| No logs               | `opentelemetry-appender-tracing` layer is installed and `tracing` events are emitted                    |
+| No metrics            | Meter provider is set globally and the process lives long enough for periodic export                    |
+| Endpoint errors       | Base endpoint from `everr local status`, HTTP vs gRPC features, bearer header from `EVERR_INGEST_KEY`   |
+| `unknown_service`     | Hardcoded `service.name` missing from the resource config or setup module not loaded                    |
+| Duplicate logs        | Both app logger and bridge emit the same event more than once                                           |
+| Missing shutdown data | Provider handles dropped early or graceful shutdown path does not call `shutdown()`                     |
 
 After changes, run the instrumented path and validate with `everr local query`. Filter by `ServiceName`, a recent time window, and a run/request/test marker when practical.

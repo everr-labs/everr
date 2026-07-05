@@ -1,14 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import type { AttributeFilter } from "../../attribute-filter/schemas";
-import {
-  ENVIRONMENT_ATTRIBUTE,
-  splitDedicatedAttributes,
-} from "./dedicated-attributes";
+import { ENVIRONMENT_ATTRIBUTE, splitDedicatedAttributes } from "./dedicated-attributes";
 
-const env = (
-  op: AttributeFilter["op"],
-  values: string[] = [],
-): AttributeFilter => ({
+const env = (op: AttributeFilter["op"], values: string[] = []): AttributeFilter => ({
   source: "resource",
   key: "deployment.environment",
   op,

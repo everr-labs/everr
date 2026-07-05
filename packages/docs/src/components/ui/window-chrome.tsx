@@ -6,8 +6,7 @@ import type { ReactNode } from "react";
 const SIZES = {
   sm: {
     dot: "size-2",
-    label:
-      "text-[9px] tracking-[0.05em] text-fd-muted-foreground/50 sm:text-[10px]",
+    label: "text-[9px] tracking-[0.05em] text-fd-muted-foreground/50 sm:text-[10px]",
   },
   md: {
     dot: "size-2.5",
@@ -56,16 +55,10 @@ export function WindowChrome({
         </>
       ) : null}
       {title != null ? (
-        <span className={cn("truncate font-mono", dots && "ml-2", s.label)}>
-          {title}
-        </span>
+        <span className={cn("truncate font-mono", dots && "ml-2", s.label)}>{title}</span>
       ) : null}
       {trailing == null ? null : typeof trailing === "string" ? (
-        <span
-          className={cn("ml-auto shrink-0 font-mono tabular-nums", s.label)}
-        >
-          {trailing}
-        </span>
+        <span className={cn("ml-auto shrink-0 font-mono tabular-nums", s.label)}>{trailing}</span>
       ) : (
         <span className="ml-auto shrink-0">{trailing}</span>
       )}

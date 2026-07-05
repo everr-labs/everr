@@ -1,11 +1,6 @@
 import { identityKey, stableStringify } from "@/data/as-code/reconcile";
 
-export type PreviewStatus =
-  | "added"
-  | "changed"
-  | "conflict"
-  | "removed"
-  | "unchanged";
+export type PreviewStatus = "added" | "changed" | "conflict" | "removed" | "unchanged";
 
 export interface OverlayResource {
   repoid: string;
@@ -32,8 +27,7 @@ export function overlayPreview<T extends OverlayResource>(opts: {
   const previewRows = opts.rows.filter((row) => row.previewId !== null);
 
   // NUL-joined identity key: unambiguous even if a segment contains a separator.
-  const key = (row: OverlayResource) =>
-    `${row.repoid}\u0000${row.project}\u0000${row.slug}`;
+  const key = (row: OverlayResource) => `${row.repoid}\u0000${row.project}\u0000${row.slug}`;
   // Owner-agnostic identity (project, slug): a live match under a *different*
   // owner is a cross-repo clash, not an edit.
   const liveByKey = new Map(live.map((row) => [key(row), row]));
@@ -49,9 +43,7 @@ export function overlayPreview<T extends OverlayResource>(opts: {
       // No same-owner live row. A live resource with this identity under a
       // different owner (same-owner would have matched above) means a merge
       // would collide → conflict; otherwise it's a genuine add.
-      const status: PreviewStatus = liveByIdentity.has(identityKey(row))
-        ? "conflict"
-        : "added";
+      const status: PreviewStatus = liveByIdentity.has(identityKey(row)) ? "conflict" : "added";
       out.push({ ...row, previewStatus: status });
     } else if (
       liveRow.folderPath !== row.folderPath ||

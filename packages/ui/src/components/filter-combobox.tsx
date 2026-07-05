@@ -42,6 +42,7 @@ export function FilterCombobox<TData>({
   className = "w-45",
 }: FilterComboboxProps<TData>) {
   const id = useId();
+  const listId = `${id}-list`;
   const [open, setOpen] = useState(false);
 
   const { data: items = [], isLoading } = useQuery({
@@ -74,17 +75,17 @@ export function FilterCombobox<TData>({
             <Button
               id={id}
               variant="outline"
+              // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- this is a Popover trigger button that opens a listbox popup; it renders badges and cannot be a native input or select
               role="combobox"
               aria-expanded={open}
+              aria-controls={listId}
               className={cn("h-8 justify-between", className)}
             />
           }
         >
           <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
             {isAll ? (
-              <span className="text-muted-foreground truncate text-xs">
-                {placeholder}
-              </span>
+              <span className="text-muted-foreground truncate text-xs">{placeholder}</span>
             ) : (
               <>
                 {visibleItems.map((val) => (
@@ -114,12 +115,10 @@ export function FilterCombobox<TData>({
               </>
             )}
           </div>
-          <ChevronDownIcon
-            className="text-muted-foreground size-3.5 shrink-0"
-            aria-hidden="true"
-          />
+          <ChevronDownIcon className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
         </PopoverTrigger>
         <PopoverContent
+          id={listId}
           align="start"
           className="w-(--radix-popper-anchor-width) min-w-48 p-0"
         >
@@ -130,9 +129,7 @@ export function FilterCombobox<TData>({
               placeholder={searchPlaceholder ?? `Search...`}
             />
             <CommandList>
-              <CommandEmpty>
-                {isLoading ? "Loading..." : "No results."}
-              </CommandEmpty>
+              <CommandEmpty>{isLoading ? "Loading..." : "No results."}</CommandEmpty>
               <CommandGroup>
                 <CommandItem
                   value="__all__"

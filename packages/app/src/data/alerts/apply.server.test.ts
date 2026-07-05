@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { ApplyValidationError } from "@/data/as-code/errors";
 import { db } from "@/db/client";
 import { querySqlApiWithMeta } from "@/lib/clickhouse";
@@ -167,9 +167,7 @@ describe("applyAlertSpecs", () => {
   it("reports a cross-repo conflict when another repo owns the alert name", async () => {
     mockApplySelect([]); // scope: no existing rows → create
     // The foreign-owner probe finds repo-2 already owns default/high-errors live.
-    mockApplySelect([
-      { project: "default", slug: "high-errors", owner: "repo-2" },
-    ]);
+    mockApplySelect([{ project: "default", slug: "high-errors", owner: "repo-2" }]);
     const result = await applyAlertSpecs({
       namespace: { orgId: "org-1", repoid: "repo-1", kind: "live" },
       db,
@@ -186,9 +184,7 @@ describe("applyAlertSpecs", () => {
 
   it("adopts a conflicting alert, transferring ownership and resetting runtime state", async () => {
     mockApplySelect([]); // scope
-    mockApplySelect([
-      { project: "default", slug: "high-errors", owner: "repo-2" },
-    ]);
+    mockApplySelect([{ project: "default", slug: "high-errors", owner: "repo-2" }]);
     const result = await applyAlertSpecs({
       namespace: { orgId: "org-1", repoid: "repo-1", kind: "live" },
       db,
@@ -239,8 +235,7 @@ describe("applyAlertSpecs", () => {
       notificationTitleTemplate: `\${count} errors in \${service}`,
       notificationDescriptionTemplate: `service \${service}`,
       configFilePath: "alerts/high-errors.yaml",
-      sourceLink:
-        "https://github.com/everr/example/blob/abc123/alerts/high-errors.yaml",
+      sourceLink: "https://github.com/everr/example/blob/abc123/alerts/high-errors.yaml",
       active: true,
     });
     expect(created).not.toHaveProperty("currentState");
@@ -344,9 +339,7 @@ describe("applyAlertSpecs", () => {
           { path: "b.yaml", resource: alert("same") },
         ],
       }),
-    ).rejects.toThrow(
-      /duplicate alert "same" in project "default" \(a\.yaml and b\.yaml\)/,
-    );
+    ).rejects.toThrow(/duplicate alert "same" in project "default" \(a\.yaml and b\.yaml\)/);
 
     expect(mockedQuerySqlApiWithMeta).not.toHaveBeenCalled();
   });
@@ -476,9 +469,7 @@ describe("applyAlertSpecs", () => {
           },
         ],
       }),
-    ).rejects.toThrow(
-      /labels\.yaml: instanceLabels references column "missing"/,
-    );
+    ).rejects.toThrow(/labels\.yaml: instanceLabels references column "missing"/);
   });
 
   it("persists instanceLabelColumns on create", async () => {
@@ -495,9 +486,7 @@ describe("applyAlertSpecs", () => {
       ],
     });
 
-    expect(insertValues[0]).toMatchObject([
-      { instanceLabelColumns: ["service"] },
-    ]);
+    expect(insertValues[0]).toMatchObject([{ instanceLabelColumns: ["service"] }]);
   });
 
   it("validates notification columns even when the query returns zero rows", async () => {
@@ -512,9 +501,7 @@ describe("applyAlertSpecs", () => {
         db,
         resources: [{ path: "missing-column.yaml", resource: alert() }],
       }),
-    ).rejects.toThrow(
-      /missing-column\.yaml: \$\{service\} references column "service"/,
-    );
+    ).rejects.toThrow(/missing-column\.yaml: \$\{service\} references column "service"/);
   });
 
   it("stores project and the resolved runbook ref on create", async () => {
@@ -536,8 +523,7 @@ describe("applyAlertSpecs", () => {
             spec: {
               evaluationInterval: "5m",
               notificationMessage: { title: "t" },
-              query:
-                "SELECT service, count() AS count FROM logs GROUP BY service",
+              query: "SELECT service, count() AS count FROM logs GROUP BY service",
               runbook: "db-pool-runbook",
             },
           },
@@ -581,7 +567,10 @@ describe("applyAlertSpecs", () => {
 
     expect(result.created).toEqual(["shared", "shared"]);
     const batch = insertValues[0] as Record<string, unknown>[];
-    expect(batch.map((r) => r.project).sort()).toEqual(["infra", "platform"]);
+    expect(batch.map((r) => r.project).sort((a, b) => String(a).localeCompare(String(b)))).toEqual([
+      "infra",
+      "platform",
+    ]);
   });
 
   it("wraps query errors as apply validation errors with path context", async () => {
@@ -597,9 +586,7 @@ describe("applyAlertSpecs", () => {
     } catch (error) {
       expect(error).toBeInstanceOf(ApplyValidationError);
       expect(error).toMatchObject({
-        message: expect.stringMatching(
-          /query\.yaml: query failed: syntax error/,
-        ),
+        message: expect.stringMatching(/query\.yaml: query failed: syntax error/),
       });
     }
   });

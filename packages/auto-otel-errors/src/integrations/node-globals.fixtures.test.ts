@@ -1,7 +1,7 @@
 import { execSync, spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 const TEST_FILE_DIR = dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = resolve(TEST_FILE_DIR, "../..");

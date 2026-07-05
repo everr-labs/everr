@@ -6,13 +6,6 @@ export {
   type LogsRepositoryOptions,
 } from "./data/repository";
 export * from "./schemas";
-export {
-  DEFAULT_HISTOGRAM_BUCKETS,
-  LOG_LEVEL_META,
-  PAGE_SIZE,
-} from "./ui/log-level-meta";
-export type {
-  LogsExplorerProps,
-  LogsExplorerSearch,
-} from "./ui/logs-explorer";
+export { DEFAULT_HISTOGRAM_BUCKETS, LOG_LEVEL_META, PAGE_SIZE } from "./ui/log-level-meta";
+export type { LogsExplorerProps, LogsExplorerSearch } from "./ui/logs-explorer";
 export { LogsExplorer } from "./ui/logs-explorer";

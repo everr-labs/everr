@@ -1,14 +1,15 @@
 import { Button } from "@everr/ui/components/button";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Check,
-  ExternalLink,
-  Loader2,
-} from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ExternalLink, Loader2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { getGithubAppInstallStatus } from "@/data/onboarding";
+
+// Reads the legacy single-installation `installed` flag. The current endpoint
+// returns an array, so this branch is defensive; the parameter type lets the
+// (never-typed) non-array case flow through without a type assertion.
+function readInstalledFlag(value: { installed?: boolean } | null | undefined): boolean {
+  return Boolean(value?.installed);
+}
 
 interface GithubInstallStepProps {
   installed: boolean;
@@ -30,21 +31,21 @@ export function GithubInstallStep({
   useEffect(() => {
     if (!tabOpened || installed) return;
 
-    const id = setInterval(async () => {
-      try {
-        const status = await getGithubAppInstallStatus();
-        const isInstalled = Array.isArray(status)
-          ? status.some((i) => i.status === "active")
-          : Boolean(
-              (status as { installed?: boolean } | null | undefined)?.installed,
-            );
-        if (isInstalled) {
-          onInstalled();
-          clearInterval(id);
+    const id = setInterval(() => {
+      void (async () => {
+        try {
+          const status = await getGithubAppInstallStatus();
+          const isInstalled = Array.isArray(status)
+            ? status.some((i) => i.status === "active")
+            : readInstalledFlag(status);
+          if (isInstalled) {
+            onInstalled();
+            clearInterval(id);
+          }
+        } catch {
+          // keep polling
         }
-      } catch {
-        // keep polling
-      }
+      })();
     }, 3000);
 
     return () => clearInterval(id);
@@ -90,9 +91,9 @@ export function GithubInstallStep({
     <>
       <h2 className="text-lg font-semibold">See your CI in Everr</h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        Connect the Everr GitHub App to watch your GitHub Actions runs, catch
-        failures, and read logs without leaving Everr. You choose the repos, and
-        access is read-only. You can skip and connect later from Settings.
+        Connect the Everr GitHub App to watch your GitHub Actions runs, catch failures, and read
+        logs without leaving Everr. You choose the repos, and access is read-only. You can skip and
+        connect later from Settings.
       </p>
 
       <div className="mt-8 space-y-4">

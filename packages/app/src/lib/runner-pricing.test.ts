@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { calculateCost, formatCost, getRunnerPricing } from "./runner-pricing";
 
 describe("getRunnerPricing", () => {
@@ -93,9 +93,7 @@ describe("getRunnerPricing", () => {
   });
 
   it("uses Blacksmith pricing when a Blacksmith label is mixed with self-hosted labels", () => {
-    const pricing = getRunnerPricing(
-      "self-hosted,linux,blacksmith-2vcpu-ubuntu-2404",
-    );
+    const pricing = getRunnerPricing("self-hosted,linux,blacksmith-2vcpu-ubuntu-2404");
     expect(pricing.ratePerMinute).toBe(0.004);
     expect(pricing.isSelfHosted).toBe(false);
     expect(pricing.tier).toBe("Blacksmith Ubuntu x64 2 vCPU");

@@ -1,12 +1,6 @@
 import { type ExportResult, ExportResultCode } from "@opentelemetry/core";
-import {
-  JsonLogsSerializer,
-  JsonTraceSerializer,
-} from "@opentelemetry/otlp-transformer";
-import type {
-  LogRecordExporter,
-  ReadableLogRecord,
-} from "@opentelemetry/sdk-logs";
+import { JsonLogsSerializer, JsonTraceSerializer } from "@opentelemetry/otlp-transformer";
+import type { LogRecordExporter, ReadableLogRecord } from "@opentelemetry/sdk-logs";
 import type { ReadableSpan, SpanExporter } from "@opentelemetry/sdk-trace-base";
 import { invoke } from "@tauri-apps/api/core";
 
@@ -33,20 +27,16 @@ async function proxyOtlp(
     await invoke("proxy_otlp", { signal, body: decoder.decode(payload) });
     resultCallback({ code: ExportResultCode.SUCCESS });
   } catch (error) {
-    resultCallback({ code: ExportResultCode.FAILED, error: error as Error });
+    resultCallback({
+      code: ExportResultCode.FAILED,
+      error: error instanceof Error ? error : new Error(String(error)),
+    });
   }
 }
 
 export class OtlpProxyLogExporter implements LogRecordExporter {
-  export(
-    logs: ReadableLogRecord[],
-    resultCallback: (result: ExportResult) => void,
-  ): void {
-    void proxyOtlp(
-      "logs",
-      JsonLogsSerializer.serializeRequest(logs),
-      resultCallback,
-    );
+  export(logs: ReadableLogRecord[], resultCallback: (result: ExportResult) => void): void {
+    void proxyOtlp("logs", JsonLogsSerializer.serializeRequest(logs), resultCallback);
   }
 
   async shutdown(): Promise<void> {}
@@ -55,15 +45,8 @@ export class OtlpProxyLogExporter implements LogRecordExporter {
 }
 
 export class OtlpProxySpanExporter implements SpanExporter {
-  export(
-    spans: ReadableSpan[],
-    resultCallback: (result: ExportResult) => void,
-  ): void {
-    void proxyOtlp(
-      "traces",
-      JsonTraceSerializer.serializeRequest(spans),
-      resultCallback,
-    );
+  export(spans: ReadableSpan[], resultCallback: (result: ExportResult) => void): void {
+    void proxyOtlp("traces", JsonTraceSerializer.serializeRequest(spans), resultCallback);
   }
 
   async shutdown(): Promise<void> {}

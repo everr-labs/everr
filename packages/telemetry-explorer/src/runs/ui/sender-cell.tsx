@@ -1,8 +1,4 @@
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@everr/ui/components/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@everr/ui/components/avatar";
 import { cn } from "@everr/ui/lib/utils";
 import { UserIcon } from "lucide-react";
 

@@ -1,11 +1,6 @@
 import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@everr/ui/components/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@everr/ui/components/card";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
 import {
   Dialog,
@@ -27,32 +22,12 @@ import {
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { Textarea } from "@everr/ui/components/textarea";
 import { type TimeRange, withTimeRange } from "@everr/ui/lib/time-range";
-import {
-  queryOptions,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  BellOff,
-  CircleCheck,
-  CirclePlay,
-  CircleStop,
-  NotebookText,
-  Plus,
-  X,
-} from "lucide-react";
+import { BellOff, CircleCheck, CirclePlay, CircleStop, NotebookText, Plus, X } from "lucide-react";
 import { type ReactNode, useState } from "react";
-import {
-  ALERT_CHANNELS,
-  type AlertDeliveryTargets,
-} from "@/data/alerts/delivery-settings";
-import {
-  type Matcher,
-  NO_LABELS_TEXT,
-  sortedLabelEntries,
-} from "@/data/alerts/matchers";
+import { ALERT_CHANNELS, type AlertDeliveryTargets } from "@/data/alerts/delivery-settings";
+import { type Matcher, NO_LABELS_TEXT, sortedLabelEntries } from "@/data/alerts/matchers";
 import { formatRunbookRef } from "@/data/alerts/schema";
 import {
   type AlertInstanceSummary,
@@ -100,36 +75,28 @@ const alertEventsQueryOptions = (alertId: string, timeRange: TimeRange) =>
     queryFn: () => listAlertEvents({ data: { alertId, limit: 50, timeRange } }),
   });
 
-export const Route = createFileRoute(
-  "/_authenticated/_dashboard/_previewable/alerts_/$alertId",
-)({
+export const Route = createFileRoute("/_authenticated/_dashboard/_previewable/alerts_/$alertId")({
   staticData: {
     breadcrumb: (match: { loaderData?: { slug?: string } }) => [
       { label: "Alerts", to: "/alerts" },
       { label: match.loaderData?.slug ?? "Alert" },
     ],
   },
-  head: () => ({ meta: [{ title: "Everr - Alert detail" }] }),
   loaderDeps: ({ search }) => withTimeRange(search),
   loader: async ({ context: { queryClient }, params, deps }) => {
-    const detail = await queryClient.ensureQueryData(
-      alertDetailQueryOptions(params.alertId),
-    );
+    const detail = await queryClient.ensureQueryData(alertDetailQueryOptions(params.alertId));
 
     if (!detail) return {};
 
     await Promise.all([
-      queryClient.prefetchQuery(
-        alertInstancesQueryOptions(params.alertId, deps.timeRange),
-      ),
+      queryClient.prefetchQuery(alertInstancesQueryOptions(params.alertId, deps.timeRange)),
       queryClient.prefetchQuery(alertSilencesQueryOptions(params.alertId)),
-      queryClient.prefetchQuery(
-        alertEventsQueryOptions(params.alertId, deps.timeRange),
-      ),
+      queryClient.prefetchQuery(alertEventsQueryOptions(params.alertId, deps.timeRange)),
     ]);
 
     return { slug: detail.slug };
   },
+  head: () => ({ meta: [{ title: "Everr - Alert detail" }] }),
   component: AlertDetailPage,
 });
 
@@ -171,16 +138,12 @@ function AlertDetailPage() {
     ...alertEventsQueryOptions(alertId, timeRange),
     enabled: hasAlert,
   });
-  const [silenceTarget, setSilenceTarget] = useState<SilenceTarget | null>(
-    null,
-  );
+  const [silenceTarget, setSilenceTarget] = useState<SilenceTarget | null>(null);
   const [newSilenceOpen, setNewSilenceOpen] = useState(false);
 
   const setActive = useMutation({
     mutationFn: (active: boolean) =>
-      active
-        ? activateAlert({ data: { alertId } })
-        : deactivateAlert({ data: { alertId } }),
+      active ? activateAlert({ data: { alertId } }) : deactivateAlert({ data: { alertId } }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["alerts"] });
     },
@@ -222,9 +185,7 @@ function AlertDetailPage() {
     ["Last evaluated", formatDate(detail.lastEvaluatedAt)],
   ];
 
-  const firingInstances = (instances.data ?? []).filter(
-    (row) => row.state === "firing",
-  );
+  const firingInstances = (instances.data ?? []).filter((row) => row.state === "firing");
   const showFiringSuccess = instances.isSuccess && firingInstances.length === 0;
   const silenceCount = silences.data?.length ?? 0;
 
@@ -236,13 +197,11 @@ function AlertDetailPage() {
             {detail.display.name || detail.slug}
           </h1>
           {detail.display.description && (
-            <p className="max-w-3xl text-muted-foreground">
-              {detail.display.description}
-            </p>
+            <p className="max-w-3xl text-muted-foreground">{detail.display.description}</p>
           )}
           {setActive.error && (
             <p className="text-sm text-destructive" role="alert">
-              Couldn't update evaluation. {setActive.error.message}
+              Couldn&apos;t update evaluation. {setActive.error.message}
             </p>
           )}
         </div>
@@ -275,12 +234,8 @@ function AlertDetailPage() {
           <CardContent className="flex items-center gap-3">
             <CircleCheck className="size-5 shrink-0 text-emerald-500" />
             <p className="text-sm">
-              <span className="font-medium text-foreground">
-                You're all good.
-              </span>{" "}
-              <span className="text-muted-foreground">
-                Nothing's firing right now.
-              </span>
+              <span className="font-medium text-foreground">You&apos;re all good.</span>{" "}
+              <span className="text-muted-foreground">Nothing&apos;s firing right now.</span>
             </p>
           </CardContent>
         </Card>
@@ -298,9 +253,7 @@ function AlertDetailPage() {
               <DataTable
                 stickyHeader
                 data={firingInstances}
-                rowClassName={(row) =>
-                  row.silenced ? "opacity-50" : undefined
-                }
+                rowClassName={(row) => (row.silenced ? "opacity-50" : undefined)}
                 columns={
                   [
                     {
@@ -312,9 +265,7 @@ function AlertDetailPage() {
                             aria-hidden
                           />
                           <KeyValueList values={row.labels} />
-                          {row.silenced && (
-                            <Badge variant="secondary">silenced</Badge>
-                          )}
+                          {row.silenced && <Badge variant="secondary">silenced</Badge>}
                         </div>
                       ),
                     },
@@ -371,9 +322,7 @@ function AlertDetailPage() {
               )}
 
               <div className="flex flex-col gap-1.5">
-                <span className="font-medium text-muted-foreground text-xs">
-                  Query
-                </span>
+                <span className="font-medium text-muted-foreground text-xs">Query</span>
                 <pre className="max-h-72 overflow-auto rounded-md border border-border/60 bg-muted/20 p-3 text-xs leading-relaxed">
                   {detail.parsedQuery}
                 </pre>
@@ -442,9 +391,7 @@ function AlertDetailPage() {
                 { header: "Time", cell: (row) => formatDate(row.eventTime) },
                 {
                   header: "State",
-                  cell: (row) => (
-                    <HistoryInstanceState instances={row.instances} />
-                  ),
+                  cell: (row) => <HistoryInstanceState instances={row.instances} />,
                 },
                 {
                   header: "Instance",
@@ -458,8 +405,7 @@ function AlertDetailPage() {
                   header: "",
                   cell: (row) => {
                     const instance =
-                      row.instances.find((i) => i.state === "firing") ??
-                      row.instances[0];
+                      row.instances.find((i) => i.state === "firing") ?? row.instances[0];
                     return (
                       <Button
                         variant="outline"
@@ -504,11 +450,7 @@ function AlertDetailPage() {
   );
 }
 
-function LastEvaluationResult({
-  instance,
-}: {
-  instance: AlertInstanceSummary;
-}) {
+function LastEvaluationResult({ instance }: { instance: AlertInstanceSummary }) {
   if (instance.state !== "firing" || instance.lastEvaluationRows.length === 0) {
     return "-";
   }
@@ -519,6 +461,7 @@ function LastEvaluationResult({
   return (
     <div className="flex max-w-xl flex-col gap-1 font-mono text-xs">
       {rows.map((row, index) => (
+        // oxlint-disable-next-line react/no-array-index-key -- read-only rows derived from data with no stable id (content can duplicate); list is static, never reordered
         <KeyValueList key={index} values={row} />
       ))}
     </div>
@@ -554,10 +497,7 @@ function runbookLink(project: string, slug: string): ReactNode {
   );
 }
 
-function maybeRow(
-  test: unknown,
-  row: [string, ReactNode],
-): Array<[string, ReactNode]> {
+function maybeRow(test: unknown, row: [string, ReactNode]): Array<[string, ReactNode]> {
   return test ? [row] : [];
 }
 
@@ -577,10 +517,7 @@ function DefinitionTable({ rows }: { rows: [string, ReactNode][] }) {
   );
 }
 
-function nonLabelValues(
-  row: Record<string, unknown>,
-  labels: Record<string, string>,
-) {
+function nonLabelValues(row: Record<string, unknown>, labels: Record<string, string>) {
   // With explicit instanceLabels, labels only contains those configured columns.
   // Other string columns are evidence and must remain visible in Last result.
   return Object.fromEntries(
@@ -592,18 +529,20 @@ function nonLabelValues(
 
 function formatResultValue(value: unknown): string {
   if (value === null || value === undefined) return "";
-  if (typeof value === "object") return JSON.stringify(value);
-  return String(value);
+  // Positive typeof checks so every String() receives an explicitly-narrowed
+  // primitive; objects fall through to JSON.stringify (never "[object Object]").
+  if (typeof value === "number" || typeof value === "bigint" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (typeof value === "string") return value;
+  if (typeof value === "symbol") return value.toString();
+  if (typeof value === "function") return String(value);
+  return JSON.stringify(value);
 }
 
-function formatDeliveryTargets(row: {
-  deliveryTargets: AlertDeliveryTargets;
-  silenceId: string;
-}) {
+function formatDeliveryTargets(row: { deliveryTargets: AlertDeliveryTargets; silenceId: string }) {
   if (row.silenceId) return "silenced";
-  const targets = ALERT_CHANNELS.filter(
-    (target) => (row.deliveryTargets[target]?.length ?? 0) > 0,
-  );
+  const targets = ALERT_CHANNELS.filter((target) => (row.deliveryTargets[target]?.length ?? 0) > 0);
   return targets.length > 0 ? targets.join(", ") : "-";
 }
 
@@ -619,20 +558,15 @@ function HistoryInstances({
   return (
     <div className="flex max-w-xl flex-col gap-1 font-mono text-xs">
       {instances.map((instance, index) => (
+        // oxlint-disable-next-line react/no-array-index-key -- read-only history instances with no stable id (labels can duplicate); list is static, never reordered
         <KeyValueList key={index} values={instance.labels} />
       ))}
     </div>
   );
 }
 
-function HistoryInstanceState({
-  instances,
-}: {
-  instances: { state: "firing" | "resolved" }[];
-}) {
-  const states = Array.from(
-    new Set(instances.map((instance) => instance.state)),
-  );
+function HistoryInstanceState({ instances }: { instances: { state: "firing" | "resolved" }[] }) {
+  const states = Array.from(new Set(instances.map((instance) => instance.state)));
   if (states.length === 0) return "-";
   return (
     <div className="flex flex-wrap gap-1">
@@ -686,13 +620,11 @@ function SilenceRow({ silence }: { silence: AlertSilenceSummary }) {
         </Button>
       </div>
       {silence.reason && (
-        <span className="mt-1 block text-muted-foreground text-xs">
-          {silence.reason}
-        </span>
+        <span className="mt-1 block text-muted-foreground text-xs">{silence.reason}</span>
       )}
       {cancel.error && (
         <span className="mt-1.5 block text-destructive text-xs" role="alert">
-          Couldn't cancel silence. {cancel.error.message}
+          Couldn&apos;t cancel silence. {cancel.error.message}
         </span>
       )}
     </div>
@@ -756,9 +688,7 @@ function SilenceDialog({
   }
 
   const patchMatcher = (index: number, patch: Partial<Matcher>) =>
-    setMatchers((prev) =>
-      prev.map((m, i) => (i === index ? { ...m, ...patch } : m)),
-    );
+    setMatchers((prev) => prev.map((m, i) => (i === index ? { ...m, ...patch } : m)));
 
   const create = useMutation({
     mutationFn: () =>
@@ -787,8 +717,7 @@ function SilenceDialog({
         <DialogHeader>
           <DialogTitle>Silence instances</DialogTitle>
           <DialogDescription>
-            Notifications are paused for instances matching all matchers.
-            Evaluation continues.
+            Notifications are paused for instances matching all matchers. Evaluation continues.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
@@ -800,24 +729,21 @@ function SilenceDialog({
               </p>
             )}
             {matchers.map((matcher, index) => (
-              <div
-                key={index}
-                className="grid grid-cols-[1fr_72px_1fr_28px] items-center gap-1.5"
-              >
+              // oxlint-disable-next-line react/no-array-index-key -- matchers have no stable id and duplicate blank rows would collide on a content key; all inputs are fully controlled from state, so index keys are safe on add/remove
+              <div key={index} className="grid grid-cols-[1fr_72px_1fr_28px] items-center gap-1.5">
                 <Input
                   aria-label="Label"
                   placeholder="label"
                   className="font-mono"
                   value={matcher.label}
-                  onChange={(event) =>
-                    patchMatcher(index, { label: event.target.value })
-                  }
+                  onChange={(event) => patchMatcher(index, { label: event.target.value })}
                 />
                 <Select
                   value={matcher.op}
-                  onValueChange={(op) =>
-                    patchMatcher(index, { op: op as Matcher["op"] })
-                  }
+                  onValueChange={(op) => {
+                    const matched = MATCHER_OPS.find((o) => o === op);
+                    if (matched) patchMatcher(index, { op: matched });
+                  }}
                 >
                   <SelectTrigger aria-label="Operator" className="font-mono">
                     <SelectValue />
@@ -835,18 +761,14 @@ function SilenceDialog({
                   placeholder="value"
                   className="font-mono"
                   value={matcher.value}
-                  onChange={(event) =>
-                    patchMatcher(index, { value: event.target.value })
-                  }
+                  onChange={(event) => patchMatcher(index, { value: event.target.value })}
                 />
                 <Button
                   variant="ghost"
                   size="icon"
                   aria-label="Remove matcher"
                   className="text-muted-foreground hover:text-destructive"
-                  onClick={() =>
-                    setMatchers((prev) => prev.filter((_, i) => i !== index))
-                  }
+                  onClick={() => setMatchers((prev) => prev.filter((_, i) => i !== index))}
                 >
                   <X />
                 </Button>
@@ -856,12 +778,7 @@ function SilenceDialog({
               variant="outline"
               size="sm"
               className="self-start"
-              onClick={() =>
-                setMatchers((prev) => [
-                  ...prev,
-                  { label: "", op: "=", value: "" },
-                ])
-              }
+              onClick={() => setMatchers((prev) => [...prev, { label: "", op: "=", value: "" }])}
             >
               <Plus data-icon="inline-start" />
               Add matcher
@@ -869,14 +786,9 @@ function SilenceDialog({
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="silence-duration">Duration</Label>
-            <Select
-              value={hours}
-              onValueChange={(value) => value && setHours(value)}
-            >
+            <Select value={hours} onValueChange={(value) => value && setHours(value)}>
               <SelectTrigger id="silence-duration" className="w-full">
-                <SelectValue>
-                  {SILENCE_DURATIONS.find((d) => d.value === hours)?.label}
-                </SelectValue>
+                <SelectValue>{SILENCE_DURATIONS.find((d) => d.value === hours)?.label}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {SILENCE_DURATIONS.map(({ value, label }) => (
@@ -892,10 +804,7 @@ function SilenceDialog({
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="silence-reason">
-              Reason{" "}
-              <span className="font-normal text-muted-foreground">
-                (optional)
-              </span>
+              Reason <span className="font-normal text-muted-foreground">(optional)</span>
             </Label>
             <Textarea
               id="silence-reason"
@@ -906,7 +815,7 @@ function SilenceDialog({
           </div>
           {create.error && (
             <p className="text-sm text-destructive" role="alert">
-              Couldn't create silence. {create.error.message}
+              Couldn&apos;t create silence. {create.error.message}
             </p>
           )}
         </div>
