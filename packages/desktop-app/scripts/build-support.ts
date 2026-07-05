@@ -29,7 +29,6 @@ const envFile = path.join(packageDir, ".env");
 const desktopPackageJsonPath = path.join(packageDir, "package.json");
 const desktopTauriConfigPath = path.join(packageDir, "src-tauri", "tauri.conf.json");
 const desktopTauriCargoTomlPath = path.join(packageDir, "src-tauri", "Cargo.toml");
-const desktopResourceDir = path.join(repoDir, "target", "desktop-resources");
 export const desktopReleaseDir = path.join(repoDir, "target", "desktop-release");
 const cliEmbeddedAssetsDir = path.join(repoDir, "target", "cli-embedded-assets");
 export const CHDB_RELEASE_VERSION = "v4.0.2";

@@ -29,6 +29,7 @@ export const previewNameSchema = z
   .trim()
   .min(1)
   .max(200)
+  // oxlint-disable-next-line no-control-regex -- deliberately matching control chars to reject them from preview names
   .refine((name) => !/[\u0000-\u001f\u007f-\u009f]/.test(name), {
     message: "preview name must not contain control characters",
   });

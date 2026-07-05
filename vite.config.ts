@@ -113,6 +113,12 @@ export default defineConfig({
       "promise/no-return-wrap": "error",
       "promise/valid-params": "error",
       "promise/param-names": "error",
+      // Promote these from oxlint's default warn to error so they can't silently
+      // accumulate; genuine intentional cases are inline-disabled with a reason.
+      "no-unused-vars": "error",
+      "no-control-regex": "error",
+      "unicorn/no-new-array": "error",
+      "unicorn/no-thenable": "error",
       // Accessibility (jsx-a11y recommended set).
       "jsx-a11y/alt-text": "error",
       "jsx-a11y/anchor-has-content": "error",

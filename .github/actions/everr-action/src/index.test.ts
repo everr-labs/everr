@@ -565,7 +565,7 @@ test("finalizeAndUploadResourceUsage succeeds on macOS runners", async () => {
             startedAt: "2026-03-10T10:00:00.000Z",
           }) as Record<string, string>
         )[key] || "",
-      finalizeImpl: (async (options) => {
+      finalizeImpl: (async (_options) => {
         await fsp.mkdir(outputDir, { recursive: true });
         await fsp.writeFile(path.join(outputDir, "metadata.json"), "{}\n", "utf8");
         await fsp.writeFile(path.join(outputDir, "samples.ndjson"), "", "utf8");

@@ -107,6 +107,7 @@ vi.mock("@/db/client", () => {
     // A query that stops at `.where(...)` (e.g. `getCoveredRepoids`) is
     // awaited directly rather than chained further — make the chain
     // thenable so `await` resolves it via `selectWhere`.
+    // oxlint-disable-next-line unicorn/no-thenable -- intentional thenable mock so `await` on a bare `.where(...)` chain resolves via selectWhere
     then: (resolve: (value: unknown) => void, reject: (reason: unknown) => void) =>
       Promise.resolve(mocks.selectWhere()).then(resolve, reject),
   };
