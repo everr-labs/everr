@@ -31,7 +31,8 @@ export function extractInstanceLabels(
         typeof value === "string" ||
         typeof value === "number" ||
         typeof value === "boolean" ||
-        typeof value === "bigint"
+        typeof value === "bigint" ||
+        typeof value === "symbol"
           ? String(value)
           : value === undefined || value === null
             ? ""

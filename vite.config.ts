@@ -86,9 +86,10 @@ export default defineConfig({
       "react/require-render-return": "error",
       "react/style-prop-object": "error",
       "react/no-danger": "error",
-      // Type safety: no `any` (completes the assertion/non-null ban; off in
-      // tests), and no `@ts-ignore`/`@ts-nocheck` escapes (use `@ts-expect-error`,
-      // which self-removes when the underlying error is fixed).
+      // Type safety: no `any` — completes the assertion/non-null trilogy, but
+      // unlike those two bans it stays ON in tests. Plus no `@ts-ignore`/
+      // `@ts-nocheck` escapes (use `@ts-expect-error`, which self-removes when
+      // the underlying error is fixed).
       "typescript/no-explicit-any": "error",
       "typescript/ban-ts-comment": "error",
       "typescript/consistent-type-imports": "error",
