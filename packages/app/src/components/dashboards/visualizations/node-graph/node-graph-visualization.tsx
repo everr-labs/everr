@@ -129,7 +129,6 @@ export function NodeGraphVisualization({ spec, data }: VisualizationProps<NodeGr
 
   return (
     <div className="flex h-full flex-col border-t border-border">
-      {/* biome-ignore lint/a11y/noStaticElementInteractions: chart hover tracking */}
       <div
         ref={containerRef}
         className="relative min-h-0 flex-1 overflow-hidden"
@@ -208,7 +207,6 @@ export function NodeGraphVisualization({ spec, data }: VisualizationProps<NodeGr
                     </text>
                   )}
                   {/* invisible wide hit area for the tooltip */}
-                  {/* biome-ignore lint/a11y/noStaticElementInteractions: edge hover tooltip */}
                   <line
                     x1={x1}
                     y1={y1}
@@ -236,7 +234,6 @@ export function NodeGraphVisualization({ spec, data }: VisualizationProps<NodeGr
               const r = radius(node);
               const active = isNodeActive(node);
               return (
-                // biome-ignore lint/a11y/noStaticElementInteractions: node hover tooltip
                 <g
                   key={node.id}
                   opacity={active ? 1 : 0.3}

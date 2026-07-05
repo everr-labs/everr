@@ -26,7 +26,6 @@ export function Footer() {
               >
                 <SiX className="size-5" />
               </a>
-              {/** biome-ignore lint/a11y/useAnchorContent: LinkedIn icon */}
               <a
                 href="https://www.linkedin.com/company/everr-labs"
                 target="_blank"

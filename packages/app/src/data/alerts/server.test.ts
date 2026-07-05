@@ -107,7 +107,6 @@ vi.mock("@/db/client", () => {
     // A query that stops at `.where(...)` (e.g. `getCoveredRepoids`) is
     // awaited directly rather than chained further — make the chain
     // thenable so `await` resolves it via `selectWhere`.
-    // biome-ignore lint/suspicious/noThenProperty: intentional thenable mock for a bare `.where(...)` query chain.
     then: (resolve: (value: unknown) => void, reject: (reason: unknown) => void) =>
       Promise.resolve(mocks.selectWhere()).then(resolve, reject),
   };

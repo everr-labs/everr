@@ -140,7 +140,6 @@ describe("enqueueAlertNotification", () => {
   it("repeats the title per instance for multiple firing instances", async () => {
     const result = await enqueueAlertNotification(
       {
-        // biome-ignore lint/suspicious/noTemplateCurlyInString: intentional template placeholder
         def: { ...def, notificationTitleTemplate: "${route} is lagging" },
         instances: [
           {

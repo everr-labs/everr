@@ -29,7 +29,6 @@ export const previewNameSchema = z
   .trim()
   .min(1)
   .max(200)
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: rejecting them is the point
   .refine((name) => !/[\u0000-\u001f\u007f-\u009f]/.test(name), {
     message: "preview name must not contain control characters",
   });

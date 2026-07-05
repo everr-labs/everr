@@ -27,7 +27,6 @@ function levelAccentClassName(level: LogExplorerRow["level"]) {
 
 export const LogRow = memo(function LogRow({ log, rowKey, isSelected, onSelect }: LogRowProps) {
   return (
-    // biome-ignore lint/a11y/useSemanticElements: Native buttons prevent selecting log text for copy.
     <div
       // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a native <button> would prevent selecting log text for copy
       role="button"

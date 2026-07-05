@@ -152,7 +152,6 @@ export function TimeSeriesChartVisualization({
   const tooltipTs = tooltipRow ? Number(tooltipRow[TS_KEY]) : undefined;
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: chart interaction area
     <div
       ref={containerRef}
       className="relative h-full w-full select-none"

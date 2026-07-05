@@ -133,7 +133,6 @@ export function HeatmapVisualization({
     <div className="flex h-full select-none flex-col overflow-hidden">
       {/* chart area — pointer interactions and the brush overlay cover the
           rows + axis but not the legend */}
-      {/* biome-ignore lint/a11y/noStaticElementInteractions: chart interaction area */}
       <div
         className="relative flex min-h-0 flex-1 flex-col"
         onPointerDown={handlePointerDown}
@@ -160,7 +159,6 @@ export function HeatmapVisualization({
                   {(cellsByBucket[b] ?? []).map((cell) => {
                     const { fill, dark } = cellAppearance(cell.value);
                     return (
-                      // biome-ignore lint/a11y/noStaticElementInteractions: hover target for the tooltip
                       <div
                         key={cell.start}
                         className="absolute @container flex items-center justify-center overflow-hidden"

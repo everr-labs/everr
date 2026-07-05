@@ -192,7 +192,6 @@ export function BarChartVisualization({ spec, data }: VisualizationProps<BarChar
   const tooltipX = tooltipRow ? tooltipRow[X_KEY] : undefined;
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: chart interaction area
     <div
       ref={containerRef}
       className="relative h-full w-full"

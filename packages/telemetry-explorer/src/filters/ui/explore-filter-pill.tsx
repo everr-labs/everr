@@ -111,7 +111,6 @@ export function ExploreFilterPill<TData>({
           {isActive ? (
             // A native <button> would nest inside the trigger <button> (invalid
             // HTML), so this clear affordance is a span with button semantics.
-            // biome-ignore lint/a11y/useSemanticElements: nested-button constraint
             <span
               // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a native <button> would nest inside the trigger <button> (invalid HTML), so this clear affordance is a span with button semantics
               role="button"

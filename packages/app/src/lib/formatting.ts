@@ -25,7 +25,6 @@ export function parseDuration(input: string): number | null {
   let matched = false;
   const regex = /(\d+(?:\.\d+)?)\s*(ms|s|m)/gi;
   let match: RegExpExecArray | null;
-  // biome-ignore lint/suspicious/noAssignInExpressions: Ok here
   while ((match = regex.exec(trimmed)) !== null) {
     matched = true;
     const value = Number(match[1]);

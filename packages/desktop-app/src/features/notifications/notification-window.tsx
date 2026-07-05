@@ -227,7 +227,6 @@ export function NotificationCard({ notification }: { notification: FailureNotifi
             <path d="M10 2 2 10" />
           </svg>
         </button>
-        {/** biome-ignore lint/a11y/noStaticElementInteractions: we need to track mouse enter and leave events */}
         <section
           className="group flex h-full flex-col overflow-hidden bg-card rounded-xl"
           onMouseEnter={pauseAutoDismiss}

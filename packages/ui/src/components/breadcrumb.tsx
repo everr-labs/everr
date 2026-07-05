@@ -50,8 +50,6 @@ function BreadcrumbLink({ className, render, ...props }: useRender.ComponentProp
 
 function BreadcrumbPage({ className, ...props }: React.ComponentProps<"span">) {
   return (
-    // biome-ignore lint/a11y/useFocusableInteractive:TODO: check
-    // biome-ignore lint/a11y/useSemanticElements: TODO: check
     <span
       data-slot="breadcrumb-page"
       // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- current-page indicator is deliberately non-navigable (aria-disabled/aria-current); a real <a> would imply a link destination

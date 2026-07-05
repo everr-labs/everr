@@ -157,7 +157,6 @@ export function GeoMapVisualization({ spec, data }: VisualizationProps<GeoMapSpe
       if (v === undefined) return null;
       const t = normalizeValue(v, content.domain, spec.scaleType);
       return (
-        // biome-ignore lint/a11y/noStaticElementInteractions: map region hover
         <path
           key={`v-${c.key}`}
           d={c.d}
@@ -178,7 +177,6 @@ export function GeoMapVisualization({ spec, data }: VisualizationProps<GeoMapSpe
       if (!xy) return null;
       const title = m.label ?? `${m.lat.toFixed(2)}, ${m.lon.toFixed(2)}`;
       return (
-        // biome-ignore lint/a11y/noStaticElementInteractions: marker hover
         <circle
           key={`${m.frame}-${m.lat}-${m.lon}-${m.label ?? ""}`}
           cx={xy[0]}

@@ -52,7 +52,6 @@ function TreemapCell(props: TreemapCellProps) {
   const badgeX = tileX + tileWidth - badgeWidth - 6;
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: tile hover tooltip
     <g
       onMouseEnter={(e) => props.onTileEnter?.(tile, e)}
       onMouseLeave={() => props.onTileLeave?.()}
@@ -132,7 +131,6 @@ export function TreemapChart<T extends TreemapTileDatum>({
   const [hover, setHover] = useState<{ tile: T; x: number; y: number } | null>(null);
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: chart hover tracking
     <div
       className="h-full w-full"
       onMouseMove={(e) => setHover((h) => (h ? { ...h, x: e.clientX, y: e.clientY } : h))}

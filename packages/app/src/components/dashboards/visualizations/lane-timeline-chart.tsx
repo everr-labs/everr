@@ -135,7 +135,6 @@ export function LaneTimelineChart({
     <div className="flex h-full select-none flex-col overflow-hidden">
       {/* chart area — pointer interactions and the brush overlay cover the
           lanes + axis but not the legend */}
-      {/* biome-ignore lint/a11y/noStaticElementInteractions: chart interaction area */}
       <div
         className="relative flex min-h-0 flex-1 flex-col"
         onPointerDown={handlePointerDown}
@@ -160,7 +159,6 @@ export function LaneTimelineChart({
                 </div>
                 <div className="relative min-w-0 flex-1 overflow-hidden">
                   {lane.items.map((item) => (
-                    // biome-ignore lint/a11y/noStaticElementInteractions: hover target for the tooltip
                     <div
                       key={item.key}
                       className={cn(

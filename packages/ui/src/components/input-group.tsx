@@ -6,7 +6,6 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 function InputGroup({ className, ...props }: React.ComponentProps<"div">) {
   return (
-    // biome-ignore lint/a11y/useSemanticElements: ok
     // oxlint-disable jsx-a11y/prefer-tag-over-role -- generic grouping of a styled input + addons; no semantic tag (fieldset/hgroup/etc.) fits without UA styling and legend semantics
     <div
       data-slot="input-group"
@@ -46,8 +45,6 @@ function InputGroupAddon({
   ...props
 }: React.ComponentProps<"div"> & VariantProps<typeof inputGroupAddonVariants>) {
   return (
-    // biome-ignore lint/a11y/useKeyWithClickEvents: ok
-    // biome-ignore lint/a11y/useSemanticElements: ok
     // oxlint-disable jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/prefer-tag-over-role -- click only forwards to focus the sibling input (label-like mouse affordance); keyboard users tab straight to the input, so no interactive role/key handler is appropriate, and no semantic tag fits this styled addon group
     <div
       role="group"
