@@ -27,11 +27,11 @@ function inputResolver(values: Record<string, string>): (name: string) => string
   return (name: string) => values[name] ?? "";
 }
 
-test("artifactNameForCheckRun uses the direct per-job naming contract", () => {
+void test("artifactNameForCheckRun uses the direct per-job naming contract", () => {
   assert.equal(artifactNameForCheckRun("123"), "everr-resource-usage-v2-123");
 });
 
-test("buildRuntimePaths keeps job-scoped files under RUNNER_TEMP", () => {
+void test("buildRuntimePaths keeps job-scoped files under RUNNER_TEMP", () => {
   const paths = buildRuntimePaths({
     RUNNER_TEMP: "/tmp/runner",
     GITHUB_RUN_ID: "12",
@@ -43,14 +43,14 @@ test("buildRuntimePaths keeps job-scoped files under RUNNER_TEMP", () => {
   assert.equal(paths.outputDir, "/tmp/runner/everr-resource-usage/12-3-lint/artifact");
 });
 
-test("resolveActionRoot derives the action directory from the entrypoint path", () => {
+void test("resolveActionRoot derives the action directory from the entrypoint path", () => {
   assert.equal(
     resolveActionRoot(fileURLToPath(import.meta.url)),
     path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."),
   );
 });
 
-test("normalizeCheckRunId trims valid ids and rejects malformed values", () => {
+void test("normalizeCheckRunId trims valid ids and rejects malformed values", () => {
   assert.equal(normalizeCheckRunId(" 123 "), "123");
   assert.equal(normalizeCheckRunId(""), null);
   assert.equal(normalizeCheckRunId("0"), null);
@@ -58,7 +58,7 @@ test("normalizeCheckRunId trims valid ids and rejects malformed values", () => {
   assert.equal(normalizeCheckRunId("abc"), null);
 });
 
-test("resolveCheckRunIdInput warns when the workflow does not provide a valid id", () => {
+void test("resolveCheckRunIdInput warns when the workflow does not provide a valid id", () => {
   const warnings: string[] = [];
 
   const checkRunId = resolveCheckRunIdInput({
@@ -70,7 +70,7 @@ test("resolveCheckRunIdInput warns when the workflow does not provide a valid id
   assert.match(warnings[0], /missing or invalid check-run-id input/);
 });
 
-test("isResourceUsageEnabled accepts only the literal string 'true'", () => {
+void test("isResourceUsageEnabled accepts only the literal string 'true'", () => {
   assert.equal(isResourceUsageEnabled(inputResolver({ "resource-usage": "true" })), true);
   assert.equal(isResourceUsageEnabled(inputResolver({ "resource-usage": "TRUE" })), true);
   assert.equal(isResourceUsageEnabled(inputResolver({ "resource-usage": " true " })), true);
@@ -79,7 +79,7 @@ test("isResourceUsageEnabled accepts only the literal string 'true'", () => {
   assert.equal(isResourceUsageEnabled(inputResolver({})), false);
 });
 
-test("isCliInstallEnabled accepts only the literal string 'true'", () => {
+void test("isCliInstallEnabled accepts only the literal string 'true'", () => {
   assert.equal(isCliInstallEnabled(inputResolver({ "install-cli": "true" })), true);
   assert.equal(isCliInstallEnabled(inputResolver({ "install-cli": "TRUE" })), true);
   assert.equal(isCliInstallEnabled(inputResolver({ "install-cli": " true " })), true);
@@ -88,7 +88,7 @@ test("isCliInstallEnabled accepts only the literal string 'true'", () => {
   assert.equal(isCliInstallEnabled(inputResolver({})), false);
 });
 
-test("bundledCliTargetForRuntime supports bundled release targets", () => {
+void test("bundledCliTargetForRuntime supports bundled release targets", () => {
   assert.equal(bundledCliTargetForRuntime("darwin", "arm64"), "darwin-arm64");
   assert.equal(bundledCliTargetForRuntime("linux", "arm64"), "linux-arm64");
   assert.equal(bundledCliTargetForRuntime("linux", "x64"), "linux-x64");
@@ -96,14 +96,14 @@ test("bundledCliTargetForRuntime supports bundled release targets", () => {
   assert.equal(bundledCliTargetForRuntime("win32", "x64"), null);
 });
 
-test("cliDownloadBinaryName maps targets to everr.dev asset names", () => {
+void test("cliDownloadBinaryName maps targets to everr.dev asset names", () => {
   assert.equal(cliDownloadBinaryName("darwin-arm64"), "everr");
   assert.equal(cliDownloadBinaryName("linux-arm64"), "everr-linux-arm64");
   assert.equal(cliDownloadBinaryName("linux-x64"), "everr-linux-x86_64");
   assert.equal(cliDownloadBinaryName("darwin-x64"), null);
 });
 
-test("installCli no-ops when install-cli input is disabled", async () => {
+void test("installCli no-ops when install-cli input is disabled", async () => {
   let didAddPath = false;
 
   const result = await installCli({
@@ -117,7 +117,7 @@ test("installCli no-ops when install-cli input is disabled", async () => {
   assert.equal(didAddPath, false);
 });
 
-test("installCli warns on unsupported runners", async () => {
+void test("installCli warns on unsupported runners", async () => {
   const warnings: string[] = [];
 
   const result = await installCli({
@@ -131,7 +131,7 @@ test("installCli warns on unsupported runners", async () => {
   assert.match(warnings[0], /unsupported runner win32-x64/);
 });
 
-test("installCli downloads from everr.dev and adds to PATH", async () => {
+void test("installCli downloads from everr.dev and adds to PATH", async () => {
   const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "everr-action-cli-"));
   const installDir = path.join(tempDir, "everr-cli");
   const cliPath = path.join(installDir, "everr");
@@ -198,7 +198,7 @@ test("installCli downloads from everr.dev and adds to PATH", async () => {
   }
 });
 
-test("installCli warns on download failure", async () => {
+void test("installCli warns on download failure", async () => {
   const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "everr-action-cli-"));
   const warnings: string[] = [];
 
@@ -234,7 +234,7 @@ test("installCli warns on download failure", async () => {
   }
 });
 
-test("startResourceUsage no-ops when resource-usage input is not enabled", async () => {
+void test("startResourceUsage no-ops when resource-usage input is not enabled", async () => {
   const savedState = new Map<string, string>();
   const infoMessages: string[] = [];
 
@@ -253,7 +253,7 @@ test("startResourceUsage no-ops when resource-usage input is not enabled", async
   assert.equal(infoMessages.length, 0);
 });
 
-test("startResourceUsage no-ops on unsupported runners", async () => {
+void test("startResourceUsage no-ops on unsupported runners", async () => {
   const savedState = new Map<string, string>();
   const infoMessages: string[] = [];
 
@@ -272,7 +272,7 @@ test("startResourceUsage no-ops on unsupported runners", async () => {
   assert.match(infoMessages[0], /supported only on Linux and macOS runners/);
 });
 
-test("startResourceUsage skips sampling when check-run-id is missing", async () => {
+void test("startResourceUsage skips sampling when check-run-id is missing", async () => {
   const savedState = new Map<string, string>();
   const warnings: string[] = [];
 
@@ -291,7 +291,7 @@ test("startResourceUsage skips sampling when check-run-id is missing", async () 
   assert.match(warnings[0], /missing or invalid check-run-id input/);
 });
 
-test("startResourceUsage downgrades sampler startup failures to warnings", async () => {
+void test("startResourceUsage downgrades sampler startup failures to warnings", async () => {
   const savedState = new Map<string, string>();
   const warnings: string[] = [];
   const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "everr-ru-start-"));
@@ -324,7 +324,7 @@ test("startResourceUsage downgrades sampler startup failures to warnings", async
   }
 });
 
-test("startResourceUsage resolves sampler path without GITHUB_ACTION_PATH on Linux", async () => {
+void test("startResourceUsage resolves sampler path without GITHUB_ACTION_PATH on Linux", async () => {
   const savedState = new Map<string, string>();
   const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "everr-ru-spawn-"));
   let spawnInvocation:
@@ -372,7 +372,7 @@ test("startResourceUsage resolves sampler path without GITHUB_ACTION_PATH on Lin
   }
 });
 
-test("startResourceUsage spawns node with sampler-macos.mjs on macOS", async () => {
+void test("startResourceUsage spawns node with sampler-macos.mjs on macOS", async () => {
   const savedState = new Map<string, string>();
   const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "everr-ru-macos-"));
   let spawnInvocation:
@@ -419,7 +419,7 @@ test("startResourceUsage spawns node with sampler-macos.mjs on macOS", async () 
   }
 });
 
-test("finalizeAndUploadResourceUsage uploads the per-job artifact", async () => {
+void test("finalizeAndUploadResourceUsage uploads the per-job artifact", async () => {
   const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "everr-ru-finalize-"));
   const outputDir = path.join(tempDir, "everr-resource-usage", "123-1-lint", "artifact");
   const uploaded: Array<{
@@ -494,7 +494,7 @@ test("finalizeAndUploadResourceUsage uploads the per-job artifact", async () => 
   }
 });
 
-test("finalizeAndUploadResourceUsage downgrades finalize failures to warnings", async () => {
+void test("finalizeAndUploadResourceUsage downgrades finalize failures to warnings", async () => {
   const warnings: string[] = [];
 
   const result = await finalizeAndUploadResourceUsage({
@@ -532,7 +532,7 @@ test("finalizeAndUploadResourceUsage downgrades finalize failures to warnings", 
   assert.match(warnings[0], /finalization failed: finalize boom/);
 });
 
-test("finalizeAndUploadResourceUsage succeeds on macOS runners", async () => {
+void test("finalizeAndUploadResourceUsage succeeds on macOS runners", async () => {
   const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "everr-ru-finalize-macos-"));
   const outputDir = path.join(tempDir, "everr-resource-usage", "123-1-lint", "artifact");
   const uploaded: Array<{

@@ -161,7 +161,7 @@ function TestPerformancePage() {
   );
 
   const updateFilter = (updates: Record<string, unknown>) => {
-    navigate({ search: (prev) => ({ ...prev, ...updates }) });
+    void navigate({ search: (prev) => ({ ...prev, ...updates }) });
   };
 
   // Build page title — use last segment of hierarchy

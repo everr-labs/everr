@@ -9,6 +9,7 @@
     "types": ["node"],
     "jsx": "react-jsx",
     "outDir": "./dist",
+    "rootDir": "./src",
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,

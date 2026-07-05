@@ -529,8 +529,15 @@ function nonLabelValues(row: Record<string, unknown>, labels: Record<string, str
 
 function formatResultValue(value: unknown): string {
   if (value === null || value === undefined) return "";
-  if (typeof value === "object") return JSON.stringify(value);
-  return String(value);
+  // Positive typeof checks so every String() receives an explicitly-narrowed
+  // primitive; objects fall through to JSON.stringify (never "[object Object]").
+  if (typeof value === "number" || typeof value === "bigint" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (typeof value === "string") return value;
+  if (typeof value === "symbol") return value.toString();
+  if (typeof value === "function") return String(value);
+  return JSON.stringify(value);
 }
 
 function formatDeliveryTargets(row: { deliveryTargets: AlertDeliveryTargets; silenceId: string }) {

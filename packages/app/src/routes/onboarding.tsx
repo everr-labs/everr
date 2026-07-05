@@ -431,7 +431,7 @@ function OrganizationStep({
           Your team&apos;s home on Everr. You can always change this later.
         </p>
 
-        <form className="mt-8 space-y-5" onSubmit={(e) => void handleSubmit(e)}>
+        <form className="mt-8 space-y-5" onSubmit={(e) => handleSubmit(e)}>
           <form.Field name="organizationName">
             {(field) => (
               <div className="space-y-2">

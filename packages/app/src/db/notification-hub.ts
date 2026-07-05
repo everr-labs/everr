@@ -142,7 +142,8 @@ export class NotificationHub {
 
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
-      this.connect();
+      // fire-and-forget: connect() handles its own errors and reschedules on failure
+      void this.connect();
     }, backoff);
   }
 

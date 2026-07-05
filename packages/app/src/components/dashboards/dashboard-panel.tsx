@@ -61,7 +61,7 @@ export function DashboardPanel({ panel, panelKey, action }: DashboardPanelProps)
 
   const handleTimeRangeChange = useCallback(
     (range: { from: Date; to: Date }) => {
-      navigate({
+      void navigate({
         to: ".",
         search: (prev: Record<string, unknown>) => ({
           ...prev,

@@ -80,7 +80,9 @@ function patchEventTarget(restores: Array<() => void>, wrap: (fn: AnyFn) => AnyF
   }
 
   const proto = EventTarget.prototype;
+  // oxlint-disable-next-line typescript/unbound-method -- capturing the originals to monkey-patch; always re-invoked via `.call(this, ...)` below, so `this` is never lost
   const originalAdd = proto.addEventListener;
+  // oxlint-disable-next-line typescript/unbound-method -- capturing the originals to monkey-patch; always re-invoked via `.call(this, ...)` below, so `this` is never lost
   const originalRemove = proto.removeEventListener;
 
   proto.addEventListener = function (

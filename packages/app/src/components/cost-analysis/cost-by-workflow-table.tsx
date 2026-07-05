@@ -65,7 +65,7 @@ export function CostByWorkflowTable({ data }: CostByWorkflowTableProps) {
         // The workflow-name anchor handles its own click + keyboard activation.
         if (event.target instanceof Element && event.target.closest("a")) return;
         // Time range carries via the dashboard's retainSearchParams.
-        navigate({
+        void navigate({
           to: "/workflows/$repo/$workflowName",
           params: { repo: row.repo, workflowName: row.workflow },
         });

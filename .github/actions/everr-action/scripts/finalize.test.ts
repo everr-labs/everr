@@ -5,7 +5,7 @@ import test from "node:test";
 
 import { finalizePartialArtifact, loadSamples } from "./finalize.ts";
 
-test("finalizePartialArtifact writes metadata and sanitized samples", async () => {
+void test("finalizePartialArtifact writes metadata and sanitized samples", async () => {
   const tempDir = await mkdtemp(`${tmpdir()}/everr-resource-usage-finalize-`);
 
   try {
@@ -92,7 +92,7 @@ test("finalizePartialArtifact writes metadata and sanitized samples", async () =
   }
 });
 
-test("finalizePartialArtifact handles missing sample files", async () => {
+void test("finalizePartialArtifact handles missing sample files", async () => {
   const tempDir = await mkdtemp(`${tmpdir()}/everr-resource-usage-finalize-empty-`);
 
   try {
@@ -124,7 +124,7 @@ test("finalizePartialArtifact handles missing sample files", async () => {
   }
 });
 
-test("finalizePartialArtifact rejects malformed samples with line numbers", async () => {
+void test("finalizePartialArtifact rejects malformed samples with line numbers", async () => {
   const tempDir = await mkdtemp(`${tmpdir()}/everr-resource-usage-finalize-malformed-`);
 
   try {

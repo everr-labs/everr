@@ -40,7 +40,7 @@ export const Route = createFileRoute("/_authenticated")({
   beforeLoad: async ({ context: { session }, location: { pathname, hash }, search }) => {
     if (!session?.user) {
       const redirectTo = `${pathname}?${Object.entries(search)
-        .map(([key, value]) => `${key}=${value}`)
+        .map(([key, value]) => `${key}=${String(value)}`)
         .join("&")}${hash ? `#${hash}` : ""}`;
 
       // CLI device approval is reached by people setting up a fresh machine, who
@@ -85,7 +85,7 @@ function OrgSwitcher() {
   const { data: orgs, isPending, refetch } = authClient.useListOrganizations();
 
   useEffect(() => {
-    refetch();
+    void refetch();
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- fetch a fresh org list once on mount; refetch identity from the better-auth hook isn't guaranteed stable, so re-running on its change could loop
   }, []);
 
@@ -95,7 +95,7 @@ function OrgSwitcher() {
     setSwitching(orgId);
     await authClient.organization.setActive({ organizationId: orgId });
     await queryClient.invalidateQueries();
-    router.invalidate();
+    void router.invalidate();
   }
 
   return (

@@ -270,7 +270,7 @@ export function TimeSeriesChartVisualization({
                   key,
                   color: chartConfig[key]?.color,
                   label: chartConfig[key]?.label ?? key,
-                  value: unit ? `${val}${unit}` : String(val),
+                  value: unit ? `${String(val)}${unit}` : String(val),
                 };
               })}
           />

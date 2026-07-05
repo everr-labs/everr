@@ -567,7 +567,10 @@ describe("applyAlertSpecs", () => {
 
     expect(result.created).toEqual(["shared", "shared"]);
     const batch = insertValues[0] as Record<string, unknown>[];
-    expect(batch.map((r) => r.project).sort()).toEqual(["infra", "platform"]);
+    expect(batch.map((r) => r.project).sort((a, b) => String(a).localeCompare(String(b)))).toEqual([
+      "infra",
+      "platform",
+    ]);
   });
 
   it("wraps query errors as apply validation errors with path context", async () => {

@@ -47,7 +47,7 @@ export function NavUser() {
   async function handleSwitchOrg(orgId: string) {
     await authClient.organization.setActive({ organizationId: orgId });
     await queryClient.invalidateQueries();
-    router.invalidate();
+    void router.invalidate();
   }
 
   if (!session?.user) {

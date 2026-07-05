@@ -39,7 +39,7 @@ export function CommandBar() {
 
   function handleSelect(url: string) {
     toggleCommandBar(false);
-    navigate({ to: url });
+    void navigate({ to: url });
   }
 
   const toggleCommandBar = useCallback((open: boolean) => {

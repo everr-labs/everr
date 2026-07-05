@@ -153,7 +153,7 @@ export function TraceDetailPage() {
             closeDialog();
             return;
           }
-          navigate({ to: "/traces", search: toTraceListSearch(search) });
+          void navigate({ to: "/traces", search: toTraceListSearch(search) });
         }}
         onSpanChange={(spanId) =>
           navigate({

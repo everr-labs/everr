@@ -35,7 +35,7 @@ describe("ErrorBoundary", () => {
     expect(record.eventName).toBe("exception");
     expect(record.attributes["everr.error.mechanism"]).toBe("react");
     expect(record.attributes["exception.message"]).toBe("render boom");
-    expect(String(record.attributes["react.component_stack"])).toContain("Boom");
+    expect(record.attributes["react.component_stack"]).toContain("Boom");
   });
 
   it("supports a function fallback and onError callback", () => {

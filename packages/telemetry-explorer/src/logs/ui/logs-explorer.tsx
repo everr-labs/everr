@@ -171,6 +171,7 @@ export function LogsExplorer({
 }: LogsExplorerProps) {
   // Default `attributes` to [] so a consumer that hand-builds the search object
   // without it (e.g. an external embedder) can't crash the filter UI on `.map`.
+  // oxlint-disable-next-line typescript/no-useless-default-assignment -- intentional runtime guard for untyped external embedders; the type says non-nullish but JS callers can omit it
   const { showVolume, q, levels, services, attributes = [], traceId } = search;
 
   const [selectedLogState, setSelectedLogState] = useState<{
@@ -246,7 +247,7 @@ export function LogsExplorer({
   const levelCounts = totals?.levelCounts;
 
   const handleLoadMore = useCallback(() => {
-    fetchNextPage();
+    void fetchNextPage();
   }, [fetchNextPage]);
 
   const handleSelectLog = useCallback(

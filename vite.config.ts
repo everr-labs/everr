@@ -119,6 +119,24 @@ export default defineConfig({
       "no-control-regex": "error",
       "unicorn/no-new-array": "error",
       "unicorn/no-thenable": "error",
+      // Type-aware rules (tsgolint) — the bug-catchers that need type info.
+      // no-floating-promises catches unhandled async; the rest catch
+      // "[object Object]" stringification, un-awaited thenables, bad sorts, etc.
+      "typescript/no-floating-promises": "error",
+      "typescript/no-base-to-string": "error",
+      "typescript/restrict-template-expressions": "error",
+      "typescript/await-thenable": "error",
+      "typescript/require-array-sort-compare": "error",
+      "typescript/no-meaningless-void-operator": "error",
+      "typescript/no-useless-default-assignment": "error",
+      // On in prod (catches a method reference that loses its `this`), but off in
+      // tests (see overrides) where it only ever fires on mock method references.
+      "typescript/unbound-method": "error",
+      // Off: flags the intentional `KnownLiterals | string` widening idiom
+      // (e.g. `NodeJS.Platform | string`, `"now" | string`) we use to keep
+      // autocomplete hints while accepting arbitrary strings. Stylistic, not a
+      // bug-catcher like the rules above.
+      "typescript/no-redundant-type-constituents": "off",
       // Accessibility (jsx-a11y recommended set).
       "jsx-a11y/alt-text": "error",
       "jsx-a11y/anchor-has-content": "error",
@@ -160,12 +178,16 @@ export default defineConfig({
         rules: {
           "typescript/no-non-null-assertion": "off",
           "typescript/consistent-type-assertions": "off",
+          // Only ever fires on mock/spy method references in tests; noise there.
+          "typescript/unbound-method": "off",
         },
       },
     ],
-    // Oxlint's type-aware checker (tsgolint) does not resolve our path aliases
-    // (`@/*`) or workspace subpath exports the way tsc does, producing false
-    // positives. `tsc --noEmit` per package stays the source of truth for types.
-    options: { typeAware: false, typeCheck: false },
+    // Type-aware lint (tsgolint) is ON for the rules above. typeCheck stays OFF:
+    // it surfaces raw tsc diagnostics as lint and mis-resolves our `@/*` aliases
+    // and package subpath exports (false positives) — `tsc --noEmit` per package
+    // remains the source of truth for types. The type-aware *rules* resolve types
+    // fine within each package.
+    options: { typeAware: true, typeCheck: false },
   },
 });

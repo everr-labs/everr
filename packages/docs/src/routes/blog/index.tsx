@@ -11,7 +11,7 @@ export const Route = createFileRoute("/blog/")({
 });
 
 const loadBlogPosts = createServerFn({ method: "GET" }).handler(async () => {
-  return await blogposts
+  return blogposts
     .getPages()
     .map((post) => ({
       slug: post.slugs.join("/"),

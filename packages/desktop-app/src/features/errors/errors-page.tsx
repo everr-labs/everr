@@ -162,7 +162,7 @@ export function ErrorDetailPage() {
             closeDialog();
             return;
           }
-          navigate({
+          void navigate({
             to: "/errors",
             search: { ...search, occurrence: "" },
           });

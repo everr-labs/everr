@@ -45,7 +45,7 @@ export function NotificationEmailsSection() {
   const mutation = useMutation({
     mutationFn: setNotificationEmails,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: notificationEmailsQueryKey });
+      void queryClient.invalidateQueries({ queryKey: notificationEmailsQueryKey });
     },
     onError: (error) => {
       toast.error(toErrorMessageText(error));

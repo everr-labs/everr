@@ -38,7 +38,7 @@ export function VariableBar() {
 
   const setValue = useCallback(
     (name: string, value: string | string[]) => {
-      navigate({
+      void navigate({
         to: ".",
         search: (prev) => ({
           ...prev,

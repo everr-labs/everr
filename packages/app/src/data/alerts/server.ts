@@ -471,7 +471,9 @@ function parseDeliveryTargets(json: string): AlertDeliveryTargets {
   for (const channel of ALERT_CHANNELS) {
     const value = parsed[channel];
     if (Array.isArray(value)) {
-      targets[channel] = value.map((item) => String(item));
+      targets[channel] = value.map((item) =>
+        typeof item === "object" && item !== null ? JSON.stringify(item) : String(item),
+      );
     }
   }
   return targets;

@@ -27,7 +27,15 @@ export function extractInstanceLabels(
   if (instanceLabelColumns.length > 0) {
     for (const column of instanceLabelColumns) {
       const value = row[column];
-      labels[column] = value === undefined || value === null ? "" : String(value);
+      labels[column] =
+        typeof value === "string" ||
+        typeof value === "number" ||
+        typeof value === "boolean" ||
+        typeof value === "bigint"
+          ? String(value)
+          : value === undefined || value === null
+            ? ""
+            : JSON.stringify(value);
     }
     return labels;
   }

@@ -33,6 +33,17 @@ export function renderMessage(
   return template.replace(VARIABLE_RE, (_, name: string) => {
     const value = ctx.firstRow?.[name];
     if (value === undefined || value === null) return "";
-    return String(value);
+    // Primitives stringify predictably; objects/arrays are serialized so alert
+    // messages never ship a bare "[object Object]" to users.
+    if (
+      typeof value === "string" ||
+      typeof value === "number" ||
+      typeof value === "boolean" ||
+      typeof value === "bigint" ||
+      typeof value === "symbol"
+    ) {
+      return String(value);
+    }
+    return JSON.stringify(value);
   });
 }

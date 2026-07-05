@@ -11,7 +11,7 @@ export const getTestHistory = createAuthenticatedServerFn({
   .inputValidator(TestHistoryInputSchema)
   .handler(
     async ({
-      data: { timeRange, repo, testFullName, testModule, testName, limit = 100, offset = 0 },
+      data: { timeRange, repo, testFullName, testModule, testName, limit, offset },
       context: { clickhouse },
     }) => {
       const { fromISO, toISO } = resolveTimeRange(timeRange);

@@ -80,12 +80,12 @@ export const Route = createFileRoute(
     const jobName = selectedJob?.name ?? "";
 
     if (jobName) {
-      queryClient.prefetchInfiniteQuery(
+      void queryClient.prefetchInfiniteQuery(
         stepLogsInfiniteOptions(params.traceId, jobName, params.stepNumber),
       );
     }
 
-    queryClient.prefetchQuery(
+    void queryClient.prefetchQuery(
       jobResourceUsageOptions({
         traceId: params.traceId,
         jobId: params.jobId,

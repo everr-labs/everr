@@ -33,7 +33,7 @@ export const Route = createFileRoute("/devlog/")({
 });
 
 const loadDevlogPosts = createServerFn({ method: "GET" }).handler(async () => {
-  return await devlogposts
+  return devlogposts
     .getPages()
     .filter((post) => !post.data.draft)
     .map((post) => ({

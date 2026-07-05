@@ -125,7 +125,7 @@ export function SpanDetailPanel({ span, minTime, traceId }: SpanDetailPanelProps
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  navigator.clipboard.writeText(span.headSha ?? "");
+                  void navigator.clipboard.writeText(span.headSha ?? "");
                 }}
                 className="p-0.5 rounded hover:bg-muted-foreground/20"
                 title="Copy full SHA"
