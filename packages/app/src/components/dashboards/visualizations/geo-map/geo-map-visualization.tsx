@@ -206,10 +206,12 @@ export function GeoMapVisualization({ spec, data }: VisualizationProps<GeoMapSpe
   return (
     <div className="flex h-full flex-col border-t border-border">
       <div className="relative min-h-0 flex-1 overflow-hidden">
+        {/* oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- handlers only position a hover tooltip over a static map; there is no essential interaction, so no keyboard/AT equivalent is required */}
         <svg
           viewBox={`0 0 ${VW} ${VH}`}
           preserveAspectRatio="xMidYMid meet"
           className="h-full w-full"
+          // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- inline SVG cannot become an <img>; role="img" + aria-label + <title> is the standard accessible pattern for a rendered SVG map
           role="img"
           aria-label="Geographic map"
           onMouseMove={(e) => setHover((h) => (h ? { ...h, x: e.clientX, y: e.clientY } : h))}

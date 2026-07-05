@@ -106,6 +106,7 @@ export function PricingToggle() {
           <div
             role="tablist"
             aria-label="Choose how to run Everr"
+            tabIndex={-1}
             onKeyDown={onKeyDown}
             className="inline-flex w-full max-w-md gap-1 rounded-full border border-fd-border bg-fd-card/40 p-1 sm:w-auto"
           >

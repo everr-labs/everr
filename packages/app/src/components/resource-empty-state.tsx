@@ -86,14 +86,13 @@ export function ResourceEmptyState({
             {copyState === "copied" ? "Copied" : "Copy"}
           </Button>
         </div>
-        <div
-          role="status"
+        <output
           className={cn("text-muted-foreground text-xs", copyState !== "failed" && "sr-only")}
         >
           {copyState === "copied" && "Prompt copied to clipboard."}
           {copyState === "failed" &&
             "Couldn't access the clipboard. The prompt is selected, copy it manually."}
-        </div>
+        </output>
         {docsHref && (
           <EmptyDescription>
             Or write the YAML yourself and publish it with the everr CLI.{" "}

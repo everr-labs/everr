@@ -188,6 +188,7 @@ export function AttributeFilterPill({
             <button
               type="button"
               title={filter.key}
+              aria-label={`Edit ${name} filter`}
               className="hover:bg-muted/60 flex min-w-0 flex-1 flex-col gap-0.5 px-2 py-1.5 text-left outline-none transition-colors"
             />
           }

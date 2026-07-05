@@ -54,6 +54,7 @@ function BreadcrumbPage({ className, ...props }: React.ComponentProps<"span">) {
     // biome-ignore lint/a11y/useSemanticElements: TODO: check
     <span
       data-slot="breadcrumb-page"
+      // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- current-page indicator is deliberately non-navigable (aria-disabled/aria-current); a real <a> would imply a link destination
       role="link"
       aria-disabled="true"
       aria-current="page"

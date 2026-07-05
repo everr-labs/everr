@@ -54,6 +54,7 @@ export function ExploreFilterPill<TData>({
   countNoun,
 }: ExploreFilterPillProps<TData>) {
   const id = useId();
+  const listboxId = `${id}-listbox`;
   const [open, setOpen] = useState(false);
 
   const { data: items = [], isLoading } = useQuery({
@@ -91,8 +92,10 @@ export function ExploreFilterPill<TData>({
                 <Button
                   id={id}
                   variant="outline"
+                  // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- trigger opens a searchable listbox popover (combobox pattern); a rich <button> with icon + label + chevron can't be an <input>/<select>
                   role="combobox"
                   aria-expanded={open}
+                  aria-controls={listboxId}
                   className={cn("max-w-52 gap-1.5", isActive && "border-primary/35")}
                 />
               }
@@ -110,6 +113,7 @@ export function ExploreFilterPill<TData>({
             // HTML), so this clear affordance is a span with button semantics.
             // biome-ignore lint/a11y/useSemanticElements: nested-button constraint
             <span
+              // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a native <button> would nest inside the trigger <button> (invalid HTML), so this clear affordance is a span with button semantics
               role="button"
               tabIndex={0}
               aria-label={`Clear ${label} filter`}
@@ -142,7 +146,7 @@ export function ExploreFilterPill<TData>({
             inputGroupClassName="border-none rounded-none bg-transparent h-9"
             placeholder={searchPlaceholder ?? "Search..."}
           />
-          <CommandList>
+          <CommandList id={listboxId}>
             <CommandEmpty>{isLoading ? "Loading…" : "No results."}</CommandEmpty>
             <CommandGroup>
               <CommandItem

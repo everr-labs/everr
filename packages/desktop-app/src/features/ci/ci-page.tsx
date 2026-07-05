@@ -191,6 +191,7 @@ function CiContent() {
         }
       />
       {showNoEmailNotice ? (
+        // oxlint-disable jsx-a11y/prefer-tag-over-role -- live-region banner wraps flow content (a <p> paragraph) that <output> (phrasing-only) cannot legally contain
         <div
           role="status"
           className="flex shrink-0 items-center gap-3 border-b border-amber-500/20 bg-amber-500/[0.08] px-3 py-2.5 animate-in fade-in-0 slide-in-from-top-1 duration-200"
@@ -210,7 +211,8 @@ function CiContent() {
             Add notification email
           </Button>
         </div>
-      ) : null}
+      ) : // oxlint-enable jsx-a11y/prefer-tag-over-role
+      null}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <RunsExplorer
           repo={ciRunsRepository}

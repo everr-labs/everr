@@ -19,6 +19,7 @@ export function SpanRow({ row, traceStartNs, traceEndNs, selected, onToggle, onS
   return (
     // biome-ignore lint/a11y/useSemanticElements: nested <button> for the chevron rules out a <button> outer
     <div
+      // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- outer element wraps a nested chevron <button>; a <button> here would nest interactive controls (invalid HTML), so role="button" + tabIndex + onKeyDown is used instead
       role="button"
       tabIndex={0}
       className={cn(

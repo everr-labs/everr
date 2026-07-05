@@ -141,6 +141,7 @@ export function NodeGraphVisualization({ spec, data }: VisualizationProps<NodeGr
             width={size.width}
             height={size.height}
             className="block"
+            // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- must stay an <svg> to render the graph nodes/edges; role="img" + aria-label give it an accessible name
             role="img"
             aria-label="Node graph"
           >

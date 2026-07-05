@@ -200,6 +200,7 @@ export function PricingMatrix() {
 
                 {/* CTA footer row */}
                 <tr>
+                  {/* oxlint-disable-next-line jsx-a11y/control-has-associated-label -- empty presentational spacer cell under the row-label column; not an interactive control, so a label would only add screen-reader noise */}
                   <td className="sticky left-0 z-10 bg-fd-background" />
                   {PLANS.map((plan) => (
                     <td

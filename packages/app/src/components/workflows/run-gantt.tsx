@@ -51,7 +51,7 @@ export function WorkflowJobTimeline({ workflowName, repo }: WorkflowJobTimelineP
         <CardTitle>Job timeline</CardTitle>
         {run && (
           <CardAction>
-            {/* biome-ignore lint/a11y/noStaticElementInteractions: arrow-key stepping while a nav button is focused */}
+            {/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- onKeyDown only lets arrow keys step runs while a real nav button inside is focused; the container itself exposes no pointer affordance and is not a focus target */}
             <div
               className="flex items-center gap-3 text-xs"
               onKeyDown={(e) => {

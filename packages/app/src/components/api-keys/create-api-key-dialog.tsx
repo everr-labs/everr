@@ -171,6 +171,7 @@ export function CreateApiKeyDialog() {
                   onChange={(e) => setName(e.target.value)}
                   placeholder="prod-api"
                   required
+                  // oxlint-disable-next-line jsx-a11y/no-autofocus -- intended focus on the primary field when this modal dialog opens
                   autoFocus
                   autoComplete="off"
                   data-1p-ignore

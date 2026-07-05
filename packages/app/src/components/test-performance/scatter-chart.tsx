@@ -345,7 +345,6 @@ export function TestPerfScatterChart({
                     className="w-full"
                     variant="outline"
                     nativeButton={false}
-                    role="link"
                     render={<Link to="/runs/$traceId" params={{ traceId: selected.traceId }} />}
                   >
                     <ExternalLink className="size-4" />

@@ -43,7 +43,7 @@ export function FinalCTA() {
             nativeButton={false}
             render={
               // biome-ignore lint/a11y/useAnchorContent: content is injected by Button
-              <a href="https://app.everr.dev" />
+              <a href="https://app.everr.dev" aria-label="Sign In" />
             }
             className="w-full sm:w-auto"
           >

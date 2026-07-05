@@ -121,6 +121,7 @@ export function GaugeChartVisualization({ spec, data }: VisualizationProps<Gauge
                 viewBox={VIEWBOX}
                 preserveAspectRatio="xMidYMid meet"
                 className="absolute inset-0 h-full w-full"
+                // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- must stay an <svg> to render the gauge arcs; role="img" gives it a single accessible name
                 role="img"
                 aria-label={`${label}: ${valueText}${unit ? ` ${unit}` : ""}`}
               >

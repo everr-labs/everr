@@ -35,7 +35,12 @@ export function Community() {
             className="border-2 border-primary-foreground bg-primary-foreground text-primary hover:bg-primary-foreground/90 hover:text-primary focus-visible:ring-primary-foreground ring-offset-primary focus-visible:border-primary-foreground"
             render={
               // biome-ignore lint/a11y/useAnchorContent: content is injected
-              <a href={DISCORD_URL} target="_blank" rel="noopener noreferrer" />
+              <a
+                href={DISCORD_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Join Us on Discord"
+              />
             }
           >
             <SiDiscord className="size-5" />

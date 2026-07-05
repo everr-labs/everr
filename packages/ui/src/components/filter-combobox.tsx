@@ -42,6 +42,7 @@ export function FilterCombobox<TData>({
   className = "w-45",
 }: FilterComboboxProps<TData>) {
   const id = useId();
+  const listId = `${id}-list`;
   const [open, setOpen] = useState(false);
 
   const { data: items = [], isLoading } = useQuery({
@@ -74,8 +75,10 @@ export function FilterCombobox<TData>({
             <Button
               id={id}
               variant="outline"
+              // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- this is a Popover trigger button that opens a listbox popup; it renders badges and cannot be a native input or select
               role="combobox"
               aria-expanded={open}
+              aria-controls={listId}
               className={cn("h-8 justify-between", className)}
             />
           }
@@ -114,7 +117,11 @@ export function FilterCombobox<TData>({
           </div>
           <ChevronDownIcon className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-(--radix-popper-anchor-width) min-w-48 p-0">
+        <PopoverContent
+          id={listId}
+          align="start"
+          className="w-(--radix-popper-anchor-width) min-w-48 p-0"
+        >
           <Command className="p-0 *-data-[slot=command-input-wrapper]:p-0">
             <CommandInput
               wrapperClassName="p-0 border-b"

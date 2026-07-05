@@ -77,6 +77,7 @@ export function InviteMemberDialog() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                // oxlint-disable-next-line jsx-a11y/no-autofocus -- primary input of a modal dialog; focusing it on open is the intended UX
                 autoFocus
               />
             </div>

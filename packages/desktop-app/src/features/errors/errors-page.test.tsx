@@ -23,7 +23,7 @@ vi.mock("@/features/logs/local-sql-client", () => ({
 }));
 
 vi.mock("@everr/ui/components/dialog", () => ({
-  Dialog: ({ children }: { children: ReactNode }) => <section role="dialog">{children}</section>,
+  Dialog: ({ children }: { children: ReactNode }) => <dialog open>{children}</dialog>,
   DialogContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   DialogDescription: ({ children }: { children: ReactNode }) => <p>{children}</p>,
   DialogHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,

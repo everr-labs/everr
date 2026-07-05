@@ -155,11 +155,13 @@ function TraceRow({
             <Tooltip>
               <TooltipTrigger
                 render={
+                  // oxlint-disable jsx-a11y/prefer-tag-over-role -- labeled graphic wrapping a lucide <svg> icon; <img> needs a src and cannot contain the SVG child
                   <span
                     role="img"
                     aria-label={`${row.errorCount} ${row.errorCount === 1 ? "error" : "errors"}`}
                     className="text-destructive relative z-10 flex shrink-0 items-center"
                   />
+                  // oxlint-enable jsx-a11y/prefer-tag-over-role
                 }
               >
                 <TriangleAlert className="size-3.5" />
