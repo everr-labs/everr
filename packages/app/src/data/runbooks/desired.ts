@@ -80,7 +80,8 @@ export function buildDesiredRunbookSet(inputs: InputDocument[]): DesiredResource
       );
     }
 
-    const rawSpec = (document as { spec?: unknown }).spec;
+    const rawSpec =
+      document && typeof document === "object" && "spec" in document ? document.spec : undefined;
     const specResult = runbookSpecSchemaStrict.safeParse(rawSpec);
     if (!specResult.success) {
       const issue = specResult.error.issues[0];

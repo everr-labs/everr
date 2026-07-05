@@ -63,7 +63,7 @@ export function CostByWorkflowTable({ data }: CostByWorkflowTableProps) {
       rowClassName={() => "group cursor-pointer"}
       onRowClick={(row, event) => {
         // The workflow-name anchor handles its own click + keyboard activation.
-        if ((event.target as HTMLElement).closest("a")) return;
+        if (event.target instanceof Element && event.target.closest("a")) return;
         // Time range carries via the dashboard's retainSearchParams.
         navigate({
           to: "/workflows/$repo/$workflowName",

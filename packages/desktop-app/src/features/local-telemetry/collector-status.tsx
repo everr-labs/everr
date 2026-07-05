@@ -72,9 +72,7 @@ export function LocalTelemetryGate({ children }: { children: ReactNode }) {
     <LocalTelemetryState
       title="Local telemetry unavailable"
       description={
-        status?.reason ||
-        (statusQuery.error as Error | undefined)?.message ||
-        "The local collector is not running."
+        status?.reason || statusQuery.error?.message || "The local collector is not running."
       }
       action={
         <Button

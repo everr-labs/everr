@@ -299,9 +299,7 @@ export async function findReleaseArtifacts(bundleDir: string): Promise<ReleaseAr
 
 async function readDesktopPackageVersion() {
   const packageJsonPath = path.join(packageDir, "package.json");
-  const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8")) as {
-    version?: string;
-  };
+  const packageJson: { version?: string } = JSON.parse(await readFile(packageJsonPath, "utf8"));
 
   if (!packageJson.version) {
     throw new Error(`Could not resolve desktop app version from ${packageJsonPath}.`);
@@ -312,9 +310,7 @@ async function readDesktopPackageVersion() {
 
 async function readDesktopTauriVersion() {
   const configPath = path.join(packageDir, "src-tauri", "tauri.conf.json");
-  const config = JSON.parse(await readFile(configPath, "utf8")) as {
-    version?: string;
-  };
+  const config: { version?: string } = JSON.parse(await readFile(configPath, "utf8"));
 
   if (!config.version) {
     throw new Error(`Could not resolve desktop platform version from ${configPath}.`);

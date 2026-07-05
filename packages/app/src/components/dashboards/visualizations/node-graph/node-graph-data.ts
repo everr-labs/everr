@@ -56,7 +56,7 @@ export function buildNodeGraph(frames: QueryResultRow[][], spec: NodeGraphSpec):
 
   for (const rows of frames) {
     if (!rows || rows.length === 0) continue;
-    const first = rows[0]!;
+    const first = rows[0];
     const keys = Object.keys(first);
 
     const sourceKey = spec.sourceColumn in first ? spec.sourceColumn : keys[0];
@@ -107,7 +107,7 @@ export function buildNodeGraph(frames: QueryResultRow[][], spec: NodeGraphSpec):
 
   let edges: GraphEdge[] = [];
   for (const [key, { value, hasValue }] of edgeSums) {
-    const [source, target] = key.split(SEP) as [string, string];
+    const [source, target] = key.split(SEP);
     edges.push({ source, target, value, hasValue });
     const s = node(source);
     const t = node(target);

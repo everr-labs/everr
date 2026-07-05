@@ -65,9 +65,9 @@ function hasSensitiveShortKey(lower: string, snippet: string): boolean {
 function hasDelimitedTerm(value: string, term: string): boolean {
   let index = value.indexOf(term);
   while (index !== -1) {
-    const before = index === 0 ? "" : value[index - 1]!;
+    const before = index === 0 ? "" : (value[index - 1] ?? "");
     const afterIndex = index + term.length;
-    const after = afterIndex >= value.length ? "" : value[afterIndex]!;
+    const after = afterIndex >= value.length ? "" : (value[afterIndex] ?? "");
     if (!isAlphaNumeric(before) && !isAlphaNumeric(after)) {
       return true;
     }
@@ -98,8 +98,8 @@ export function filterKeyValueData(data: Attributes, behavior: CollectBehavior):
   };
 
   const result: Attributes = {};
-  for (const key of Object.keys(data)) {
-    result[key] = shouldFilter(key.toLowerCase()) ? FILTERED : data[key]!;
+  for (const [key, value] of Object.entries(data)) {
+    result[key] = shouldFilter(key.toLowerCase()) ? FILTERED : value;
   }
   return result;
 }

@@ -4,7 +4,8 @@ import AnsiImport from "ansi-to-react";
 const Ansi =
   typeof AnsiImport === "function"
     ? AnsiImport
-    : (AnsiImport as unknown as { default: typeof AnsiImport }).default;
+    : // oxlint-disable-next-line typescript/consistent-type-assertions -- CJS/ESM interop: Vite may double-wrap ansi-to-react's default as { default: Component }, but TS types the import as the component itself.
+      (AnsiImport as unknown as { default: typeof AnsiImport }).default;
 
 import { buttonVariants } from "@everr/ui/components/button";
 import { formatTimestampTimeOfDay } from "@everr/ui/lib/timestamp";

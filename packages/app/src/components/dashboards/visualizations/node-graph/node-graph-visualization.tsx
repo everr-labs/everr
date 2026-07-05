@@ -15,7 +15,7 @@ const MAX_EDGE_WIDTH = 4;
 const ARROW_LENGTH = 9;
 const MAX_LABEL_CHARS = 16;
 
-const NODE_COLOR = SERIES_COLORS[0]!;
+const NODE_COLOR = SERIES_COLORS[0];
 
 function formatValue(value: number, unit: string): string {
   return `${formatStatValue(value, undefined)}${unit ? ` ${unit}` : ""}`;
@@ -147,7 +147,9 @@ export function NodeGraphVisualization({ spec, data }: VisualizationProps<NodeGr
             {edges.map((edge) => {
               const s = positions.get(edge.source);
               const t = positions.get(edge.target);
-              if (!s || !t) return null;
+              const sourceNode = nodeById.get(edge.source);
+              const targetNode = nodeById.get(edge.target);
+              if (!s || !t || !sourceNode || !targetNode) return null;
               const dx = t.x - s.x;
               const dy = t.y - s.y;
               const dist = Math.hypot(dx, dy) || 1;
@@ -157,8 +159,6 @@ export function NodeGraphVisualization({ spec, data }: VisualizationProps<NodeGr
               const twin = reversed.has(`${edge.source}${edge.target}`);
               const ox = twin ? -uy * 5 : 0;
               const oy = twin ? ux * 5 : 0;
-              const sourceNode = nodeById.get(edge.source)!;
-              const targetNode = nodeById.get(edge.target)!;
               const x1 = s.x + ux * (radius(sourceNode) + 2) + ox;
               const y1 = s.y + uy * (radius(sourceNode) + 2) + oy;
               const tipX = t.x - ux * (radius(targetNode) + 3) + ox;

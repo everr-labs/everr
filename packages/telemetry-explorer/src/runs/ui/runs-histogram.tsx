@@ -10,11 +10,7 @@ import { ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { Bar, BarChart, ReferenceArea, XAxis } from "recharts";
 import type { RunHistogramBucket } from "../schemas";
-import {
-  RUN_CONCLUSION_META,
-  RUN_HISTOGRAM_KEYS,
-  type RunHistogramKey,
-} from "./run-conclusion-meta";
+import { RUN_CONCLUSION_META, RUN_HISTOGRAM_KEYS } from "./run-conclusion-meta";
 
 export interface RunsHistogramProps {
   buckets: RunHistogramBucket[];
@@ -45,12 +41,11 @@ function formatBucketLabel(bucket: RunHistogramBucket | undefined) {
   return `${day} · ${time(start)} – ${time(end)}`;
 }
 
-type HistogramMouseEvent = {
-  activeTooltipIndex?: number | null;
-};
-
 function histogramEventIndex(event: unknown, data: RunHistogramBucket[]): number | null {
-  const index = (event as HistogramMouseEvent | undefined)?.activeTooltipIndex;
+  const index =
+    typeof event === "object" && event !== null && "activeTooltipIndex" in event
+      ? event.activeTooltipIndex
+      : undefined;
   if (typeof index !== "number" || index < 0 || index >= data.length) {
     return null;
   }
@@ -149,11 +144,9 @@ function RunsHistogramChart({
                     className="size-2.5 shrink-0 rounded-[2px]"
                     style={{ backgroundColor: `var(--color-${name})` }}
                   />
-                  <span className="text-muted-foreground">
-                    {chartConfig[name as RunHistogramKey]?.label}
-                  </span>
+                  <span className="text-muted-foreground">{chartConfig[name]?.label}</span>
                   <span className="ml-auto font-mono font-medium tabular-nums">
-                    {(value as number).toLocaleString()}
+                    {typeof value === "number" ? value.toLocaleString() : String(value)}
                   </span>
                 </>
               )}

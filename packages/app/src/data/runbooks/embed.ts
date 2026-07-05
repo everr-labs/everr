@@ -13,6 +13,10 @@ const heightSchema = z.number().int().min(80).max(2000).optional();
 
 const refEmbed = z.object({ ref: z.string().min(1), height: heightSchema });
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function firstIssue(error: z.ZodError): string {
   const issue = error.issues[0];
   const where = issue && issue.path.length > 0 ? ` at ${issue.path.map(String).join(".")}` : "";
@@ -31,10 +35,10 @@ export function parsePanelEmbed(source: string): PanelEmbed {
   } catch (e) {
     throw new Error(`invalid YAML: ${e instanceof Error ? e.message : String(e)}`);
   }
-  if (doc === null || typeof doc !== "object" || Array.isArray(doc)) {
+  if (!isRecord(doc)) {
     throw new Error("panel block must be a YAML mapping");
   }
-  const obj = doc as Record<string, unknown>;
+  const obj = doc;
 
   // `ref:` and an inline `kind: Panel` are distinct embed forms; a block with
   // both is an authoring mistake. Reject it rather than silently taking `ref`
@@ -102,6 +106,7 @@ export function extractPanelFences(markdown: string): PanelFence[] {
     }
     for (const child of node.children ?? []) visit(child);
   };
-  visit(fromMarkdown(markdown) as MdastNode);
+  const root: MdastNode = fromMarkdown(markdown);
+  visit(root);
   return fences;
 }

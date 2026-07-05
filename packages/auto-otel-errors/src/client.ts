@@ -210,7 +210,7 @@ function isObjectError(error: unknown): error is object {
 }
 
 function generateErrorId(): string {
-  const cryptoRef = globalThis.crypto as Crypto | undefined;
+  const cryptoRef: Crypto | undefined = globalThis.crypto;
   if (cryptoRef?.randomUUID) {
     return cryptoRef.randomUUID();
   }

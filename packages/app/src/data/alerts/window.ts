@@ -13,7 +13,11 @@ export function parseWindow(value: string): number {
     throw new Error(`invalid window "${value}": must be positive`);
   }
 
-  const seconds = amount * UNIT_SECONDS[match[2] as keyof typeof UNIT_SECONDS];
+  const unit = match[2];
+  if (unit !== "s" && unit !== "m" && unit !== "h" && unit !== "d") {
+    throw new Error(`invalid window "${value}": expected <integer><s|m|h|d>, e.g. "5m"`);
+  }
+  const seconds = amount * UNIT_SECONDS[unit];
   if (!Number.isSafeInteger(seconds)) {
     throw new Error(`invalid window "${value}": value is too large`);
   }

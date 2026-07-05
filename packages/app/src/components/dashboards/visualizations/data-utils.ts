@@ -63,7 +63,8 @@ export function generateTimeTicks(domain: [number, number], maxTicks: number): n
   if (span <= 0) return [];
 
   const ideal = span / maxTicks;
-  const interval = TICK_INTERVALS.find((i) => i >= ideal) ?? TICK_INTERVALS.at(-1)!;
+  const interval =
+    TICK_INTERVALS.find((i) => i >= ideal) ?? TICK_INTERVALS[TICK_INTERVALS.length - 1];
 
   const first = Math.ceil(domain[0] / interval) * interval;
   const ticks: number[] = [];
@@ -142,7 +143,7 @@ export function pivotByGroup(
   pivoted: QueryResultRow[];
   seriesKeys: string[];
 } {
-  const byAxis = new Map<string | number, QueryResultRow>();
+  const byAxis = new Map<string | number | boolean | null, QueryResultRow>();
   const seriesSet = new Set<string>();
 
   for (const row of rows) {
@@ -153,10 +154,10 @@ export function pivotByGroup(
     const value = toNumber(row[valueKey]);
     seriesSet.add(group);
 
-    let entry = byAxis.get(axis as string | number);
+    let entry = byAxis.get(axis);
     if (!entry) {
       entry = { [axisKey]: axis };
-      byAxis.set(axis as string | number, entry);
+      byAxis.set(axis, entry);
     }
     entry[group] = value;
   }

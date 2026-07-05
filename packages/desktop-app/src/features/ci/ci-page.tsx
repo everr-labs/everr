@@ -78,6 +78,7 @@ function CiSignInPrompt() {
 }
 
 function CiContent() {
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- useSearch({ strict: false }) returns a loose cross-route union; this route's params are validated against CiSearchSchema at the route boundary
   const search = useSearch({ strict: false }) as CiSearch;
   const navigate = useNavigate();
   const queryClient = useQueryClient();

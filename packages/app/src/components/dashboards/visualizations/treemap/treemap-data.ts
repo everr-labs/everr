@@ -72,7 +72,7 @@ export function buildTreemapTiles(frames: QueryResultRow[][], spec: TreemapSpec)
     }
   });
 
-  const fallback = SERIES_COLORS[0] as string;
+  const fallback = SERIES_COLORS[0] ?? OTHER_COLOR;
   let tiles = [...acc.values()]
     .sort((a, b) => b.value - a.value)
     .map((t, i) => {

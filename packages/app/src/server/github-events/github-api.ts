@@ -84,7 +84,7 @@ export async function getInstallationToken(installationId: number): Promise<stri
     );
   }
 
-  const data = (await resp.json()) as { token: string; expires_at: string };
+  const data: { token: string; expires_at: string } = await resp.json();
   installationTokenCache.set(installationId, data.token);
   return data.token;
 }
@@ -163,7 +163,7 @@ export async function* paginate<T>(
       );
     }
 
-    const data = (await resp.json()) as Record<string, T[]>;
+    const data: Record<string, T[]> = await resp.json();
     const items = data[itemsKey];
     if (Array.isArray(items)) {
       for (const item of items) {

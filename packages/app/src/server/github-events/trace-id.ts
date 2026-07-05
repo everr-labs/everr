@@ -11,7 +11,7 @@ export function generateWorkflowTraceId(
   runAttempt?: number | null,
 ): string {
   const normalizedAttempt =
-    Number.isInteger(runAttempt) && (runAttempt ?? 0) > 0 ? (runAttempt as number) : 1;
+    runAttempt != null && Number.isInteger(runAttempt) && runAttempt > 0 ? runAttempt : 1;
 
   return createHash("sha256")
     .update(`${repositoryId}@${runId}#${normalizedAttempt}`)

@@ -25,13 +25,10 @@ export type Invitation = RawInvitations[number];
 export type OrgRole = "member" | "admin" | "owner";
 
 function unwrapArray<T>(value: unknown, key: "members" | "invitations"): T[] {
-  if (Array.isArray(value)) return value as T[];
-  if (
-    value &&
-    typeof value === "object" &&
-    Array.isArray((value as Record<string, unknown>)[key])
-  ) {
-    return (value as Record<string, T[]>)[key];
+  if (Array.isArray(value)) return value;
+  if (value && typeof value === "object") {
+    const inner: unknown = Reflect.get(value, key);
+    if (Array.isArray(inner)) return inner;
   }
   return [];
 }
@@ -57,7 +54,7 @@ export function invitationsQueryOptions() {
       const res = await authClient.organization.listInvitations();
       if (res.error) throw new Error(res.error.message ?? "Failed to load invitations");
       const all = unwrapArray<Invitation>(res.data, "invitations");
-      return all.filter((inv) => (inv as { status?: string }).status === "pending");
+      return all.filter((inv) => "status" in inv && inv.status === "pending");
     },
   });
 }

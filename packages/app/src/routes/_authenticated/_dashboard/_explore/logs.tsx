@@ -74,10 +74,7 @@ function LogsExplorerPage() {
       }
       resolveJobId={({ traceId, jobName }) => {
         const cached = queryClient.getQueryData(runJobsOptions(traceId).queryKey);
-        return Array.isArray(cached)
-          ? (cached as Array<{ name: string; jobId: string }>).find((j) => j.name === jobName)
-              ?.jobId
-          : undefined;
+        return Array.isArray(cached) ? cached.find((j) => j.name === jobName)?.jobId : undefined;
       }}
       renderRunLink={({ traceId, jobId, stepNumber }) => (
         <Button

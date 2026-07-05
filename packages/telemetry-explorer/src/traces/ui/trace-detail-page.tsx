@@ -81,7 +81,7 @@ export function TraceDetail({
     return (
       <RetryError
         title="Failed to load trace"
-        message={(error as Error).message}
+        message={error.message}
         onRetry={() => {
           void refetch();
         }}

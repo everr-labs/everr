@@ -4,6 +4,13 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { getGithubAppInstallStatus } from "@/data/onboarding";
 
+// Reads the legacy single-installation `installed` flag. The current endpoint
+// returns an array, so this branch is defensive; the parameter type lets the
+// (never-typed) non-array case flow through without a type assertion.
+function readInstalledFlag(value: { installed?: boolean } | null | undefined): boolean {
+  return Boolean(value?.installed);
+}
+
 interface GithubInstallStepProps {
   installed: boolean;
   onInstalled: () => void;
@@ -29,7 +36,7 @@ export function GithubInstallStep({
         const status = await getGithubAppInstallStatus();
         const isInstalled = Array.isArray(status)
           ? status.some((i) => i.status === "active")
-          : Boolean((status as { installed?: boolean } | null | undefined)?.installed);
+          : readInstalledFlag(status);
         if (isInstalled) {
           onInstalled();
           clearInterval(id);

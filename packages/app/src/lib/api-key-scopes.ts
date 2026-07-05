@@ -33,6 +33,7 @@ export type ApiKeyScope = keyof typeof API_KEY_SCOPES;
  * (scope pickers) and the server (zod validation, `z.enum`) derive from, so
  * adding a capability is a single edit to `API_KEY_SCOPES`.
  */
+// oxlint-disable-next-line typescript/consistent-type-assertions -- Object.keys widens to string[]; the keys are exactly the ApiKeyScope union and the source object is non-empty, neither of which the return type can recover (z.enum needs the non-empty tuple)
 export const ALL_API_KEY_SCOPES = Object.keys(API_KEY_SCOPES) as [ApiKeyScope, ...ApiKeyScope[]];
 
 export type ApiKeyPermissions = Partial<Record<ApiKeyScope, readonly string[]>> | null | undefined;

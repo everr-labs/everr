@@ -36,7 +36,8 @@ export function collectLaneSamples(frames: QueryResultRow[][], spec: LaneSampleS
     if (!rows || rows.length === 0) continue;
     const timeKey = detectTimeKey(rows);
     if (!timeKey) continue;
-    const first = rows[0]!;
+    const first = rows[0];
+    if (first === undefined) continue;
 
     if (spec.seriesColumn !== undefined && spec.seriesColumn in first) {
       // Long format: one lane per seriesColumn value.
@@ -78,7 +79,7 @@ export function assignStateColors(
   const colorByState: Record<string, string> = {};
   let paletteIndex = 0;
   for (const state of states) {
-    colorByState[state] = colors[state] ?? SERIES_COLORS[paletteIndex++ % SERIES_COLORS.length]!;
+    colorByState[state] = colors[state] ?? SERIES_COLORS[paletteIndex++ % SERIES_COLORS.length];
   }
   return colorByState;
 }

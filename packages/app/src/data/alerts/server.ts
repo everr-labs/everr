@@ -188,7 +188,9 @@ function toAlertSummary(row: AlertSummaryRow): AlertSummary {
   return {
     ...rest,
     displayName: displayFromDocument(document).name ?? null,
-    // The one unavoidable bridge: `last_evidence_snapshot` is untyped `jsonb`.
+    // The one unavoidable bridge: `last_evidence_snapshot` is untyped `jsonb`;
+    // the recursive AlertEvidenceValue JSON type has no runtime guard to narrow to.
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- untyped jsonb column bridged to recursive AlertEvidenceValue
     lastEvidenceSnapshot: (lastEvidenceSnapshot ?? []) as AlertEvidenceValue,
     activeSilenceCount: Number(rest.activeSilenceCount ?? active_silence_count) || 0,
     activeSilenceExpiresAt: rest.activeSilenceExpiresAt ?? active_silence_expires_at ?? null,
@@ -451,11 +453,11 @@ export const listAlertEvents = createAuthenticatedServerFn({ method: "GET" })
     })) satisfies AlertEvent[];
   });
 
-function parseJsonObject(json: string): Record<string, unknown> {
+function parseJsonObject(json: string): Record<string, AlertEvidenceValue> {
   try {
     const parsed: unknown = JSON.parse(json);
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return parsed as Record<string, unknown>;
+    if (isEvidenceRecord(parsed)) {
+      return parsed;
     }
   } catch {
     // ignore malformed snapshots
@@ -487,14 +489,13 @@ function parseEventInstances(
   }));
 }
 
-function evidenceRows(
-  value: AlertEvidenceValue | null | undefined,
-): Record<string, AlertEvidenceValue>[] {
+function isEvidenceRecord(value: unknown): value is Record<string, AlertEvidenceValue> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function evidenceRows(value: unknown): Record<string, AlertEvidenceValue>[] {
   if (!Array.isArray(value)) return [];
-  return value.filter(
-    (row): row is Record<string, AlertEvidenceValue> =>
-      Boolean(row) && typeof row === "object" && !Array.isArray(row),
-  );
+  return value.filter(isEvidenceRecord);
 }
 
 export type AlertInstanceSummary = {
@@ -578,7 +579,7 @@ export const listAlertInstances = createAuthenticatedServerFn({ method: "GET" })
     // Group snapshot rows by the same fingerprint the evaluator wrote to
     // instance events, so each instance's rows are a single Map lookup.
     const snapshotRowsByFingerprint = new Map<string, Record<string, AlertEvidenceValue>[]>();
-    for (const row of evidenceRows(alert.lastEvidenceSnapshot as AlertEvidenceValue | undefined)) {
+    for (const row of evidenceRows(alert.lastEvidenceSnapshot)) {
       const fingerprint = instanceFingerprint(extractInstanceLabels(row, instanceLabelColumns));
       const group = snapshotRowsByFingerprint.get(fingerprint);
       if (group) {
@@ -600,7 +601,7 @@ export const listAlertInstances = createAuthenticatedServerFn({ method: "GET" })
         state,
         lastFiredAt: row.lastFiredAt || null,
         lastResolvedAt: row.lastResolvedAt || null,
-        lastRow: parseJsonObject(row.lastFiredEvidenceJson) as Record<string, AlertEvidenceValue>,
+        lastRow: parseJsonObject(row.lastFiredEvidenceJson),
         lastEvaluationRows,
         lastEvaluationTitle: firstEvaluationRow
           ? renderMessage(alert.notificationTitleTemplate, {

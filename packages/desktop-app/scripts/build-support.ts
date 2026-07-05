@@ -473,7 +473,7 @@ export async function writeDesktopReleaseTauriConfigOverride({
 async function readDesktopVersionJson(
   pathname: string,
 ): Promise<VersionedJsonFile & { version: string }> {
-  const file = JSON.parse(await readFile(pathname, "utf8")) as VersionedJsonFile;
+  const file: VersionedJsonFile = JSON.parse(await readFile(pathname, "utf8"));
   if (!file.version) {
     throw new Error(`Could not resolve desktop app version from ${pathname}.`);
   }

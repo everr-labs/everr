@@ -34,7 +34,7 @@ export function ErrorsPage() {
     from: "/shell/errors/$fingerprint",
     shouldThrow: false,
   });
-  const search = useSearch({ strict: false }) as ErrorIssueSearch;
+  const search: ErrorIssueSearch = useSearch({ strict: false });
   const navigate = useNavigate();
 
   // Always keep the list mounted in the same position so opening/closing the
@@ -56,9 +56,7 @@ export function ErrorsPage() {
 }
 
 function ErrorsListView() {
-  const search = useSearch({ strict: false }) as ErrorIssueSearch & {
-    environment?: string[];
-  };
+  const search: ErrorIssueSearch & { environment?: string[] } = useSearch({ strict: false });
   const navigate = useNavigate();
   const {
     timeRange,
@@ -142,10 +140,8 @@ function ErrorsListView() {
 }
 
 export function ErrorDetailPage() {
-  const { fingerprint } = useParams({ strict: false }) as {
-    fingerprint: string;
-  };
-  const search = useSearch({ strict: false }) as ErrorIssueSearch;
+  const { fingerprint }: { fingerprint: string } = useParams({ strict: false });
+  const search: ErrorIssueSearch = useSearch({ strict: false });
   const navigate = useNavigate();
   // Inside the modal, ask the dialog to close through the route owner so the
   // dialog stays open until navigation removes it.

@@ -39,6 +39,7 @@ type Expiry = (typeof EXPIRY_OPTIONS)[number]["value"];
 function defaultScopes(): Record<ApiKeyScope, boolean> {
   // Default to no capabilities — least privilege. The user must opt into
   // each capability the key needs, and creation requires at least one.
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- Object.fromEntries returns a string-indexed type; a Record over the finite ApiKeyScope union can't be recovered from a dynamic key list, and we derive from ALL_API_KEY_SCOPES on purpose (single source of truth)
   return Object.fromEntries(ALL_API_KEY_SCOPES.map((scope) => [scope, false])) as Record<
     ApiKeyScope,
     boolean
@@ -178,7 +179,13 @@ export function CreateApiKeyDialog() {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="api-key-expiry">Expiration</Label>
-                <Select value={expiry} onValueChange={(v) => setExpiry(v as Expiry)}>
+                <Select
+                  value={expiry}
+                  onValueChange={(v) => {
+                    const option = EXPIRY_OPTIONS.find((o) => o.value === v);
+                    if (option) setExpiry(option.value);
+                  }}
+                >
                   <SelectTrigger id="api-key-expiry" className="w-full">
                     <SelectValue>
                       {EXPIRY_OPTIONS.find((o) => o.value === expiry)?.label}

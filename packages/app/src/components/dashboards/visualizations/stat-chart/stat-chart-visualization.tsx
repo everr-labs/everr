@@ -64,7 +64,7 @@ export function StatChartVisualization({ spec, data }: VisualizationProps<StatCh
         const background = colorMode === "background" && color !== undefined;
         const sparklineColor = background
           ? "rgba(255, 255, 255, 0.9)"
-          : (color ?? SERIES_COLORS[0]!);
+          : (color ?? SERIES_COLORS[0]);
         return (
           <div
             key={`${tile.frame}-${tile.label}`}

@@ -76,6 +76,10 @@ export function baseOptions(): BaseLayoutProps {
 export function docsOptions(): DocsLayoutOptions {
   const options = baseOptions();
 
+  const containerStyle: CSSProperties & Record<`--${string}`, string | number | undefined> = {
+    "--fd-banner-height": docsTopNavHeight,
+  };
+
   return {
     ...options,
     searchToggle: {
@@ -86,9 +90,7 @@ export function docsOptions(): DocsLayoutOptions {
       collapsible: false,
     },
     containerProps: {
-      style: {
-        "--fd-banner-height": docsTopNavHeight,
-      } as CSSProperties,
+      style: containerStyle,
     },
     slots: {
       ...options.slots,

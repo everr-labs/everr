@@ -239,7 +239,7 @@ export const noopBuildPhases: BuildPhases = {
 
 export function createBuildTelemetry({
   buildName,
-  env = process.env as BuildTelemetryEnv,
+  env = process.env satisfies BuildTelemetryEnv,
 }: {
   buildName: string;
   env?: BuildTelemetryEnv;

@@ -20,8 +20,9 @@ function makeServerFnChain(wrapHandler: (fn: AnyFn) => AnyFn) {
     inputValidator: (schema: unknown) => {
       validate =
         typeof schema === "function"
-          ? (input) => (schema as AnyFn)(input)
-          : (input) => (schema as { parse: (input: unknown) => unknown }).parse(input);
+          ? (input) => schema(input)
+          : // oxlint-disable-next-line typescript/consistent-type-assertions -- inputValidator receives either a function or a Zod-like schema; the non-function branch is always the latter, which TS can't infer from `unknown`.
+            (input) => (schema as { parse: (input: unknown) => unknown }).parse(input);
       return chain;
     },
     handler: (fn: AnyFn) =>

@@ -79,11 +79,11 @@ export const createApiKey = createAuthenticatedServerFn({ method: "POST" })
       },
     });
 
-    const created = result as {
+    const created: {
       key?: string | null;
       id?: string;
       permissions?: Record<string, string[]> | null;
-    } | null;
+    } | null = result;
 
     // The full key is only ever returned at creation; a missing/null one means
     // creation didn't actually succeed, so fail loudly rather than handing the
@@ -112,6 +112,7 @@ export const listApiKeys = createAuthenticatedServerFn({
     },
     headers: getRequestHeaders(),
   });
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- better-auth's listApiKeys row type isn't structurally the app's ApiKey (this endpoint serializes timestamp columns to strings and parses `permissions` into an object); reconciled at runtime
   const keys = (result?.apiKeys ?? []) as ApiKey[];
   // Defense-in-depth: the query already scopes to our configId, but pin it.
   return keys.filter((k) => k.configId === API_KEY_CONFIG_ID);

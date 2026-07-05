@@ -155,8 +155,8 @@ function OnboardingWizard() {
     if (!el) return;
 
     const measure = () => {
-      const child = el.firstElementChild as HTMLElement | null;
-      if (child) setContentHeight(child.offsetHeight);
+      const child = el.firstElementChild;
+      if (child instanceof HTMLElement) setContentHeight(child.offsetHeight);
     };
 
     measure();

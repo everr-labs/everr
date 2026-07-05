@@ -89,6 +89,7 @@ export const applyRunbookSpecs: Reconciler = async ({
       project: d.project,
       slug: d.slug,
       folderPath: d.folderPath,
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- shared reconcile diff carries documents as `unknown` (verbatim passthrough); the runbooks column is `$type<Runbook>()` and documents are validated in buildDesiredRunbookSet
       document: d.document as Runbook,
     });
   }
@@ -99,6 +100,7 @@ export const applyRunbookSpecs: Reconciler = async ({
       .update(runbooks)
       .set({
         repoid: namespace.repoid,
+        // oxlint-disable-next-line typescript/consistent-type-assertions -- shared reconcile diff carries documents as `unknown` (verbatim passthrough); the runbooks column is `$type<Runbook>()` and documents are validated in buildDesiredRunbookSet
         document: d.document as Runbook,
         folderPath: d.folderPath,
         updatedAt: new Date(),
@@ -116,6 +118,7 @@ export const applyRunbookSpecs: Reconciler = async ({
     await exec
       .update(runbooks)
       .set({
+        // oxlint-disable-next-line typescript/consistent-type-assertions -- shared reconcile diff carries documents as `unknown` (verbatim passthrough); the runbooks column is `$type<Runbook>()` and documents are validated in buildDesiredRunbookSet
         document: d.document as Runbook,
         folderPath: d.folderPath,
         updatedAt: new Date(),

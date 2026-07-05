@@ -34,9 +34,9 @@ declare global {
   var __everrAppTelemetry: TelemetryState | undefined;
 }
 
-const globalTelemetry = globalThis as typeof globalThis & {
+const globalTelemetry: typeof globalThis & {
   __everrAppTelemetry?: TelemetryState;
-};
+} = globalThis;
 
 if (!globalTelemetry.__everrAppTelemetry) {
   globalTelemetry.__everrAppTelemetry = startTelemetry();

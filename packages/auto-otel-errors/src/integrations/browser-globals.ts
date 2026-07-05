@@ -2,7 +2,7 @@ import type { Integration } from "../types.js";
 
 export function browserGlobalHandlersIntegration(): Integration {
   let onError: ((event: globalThis.ErrorEvent) => void) | null = null;
-  let onRejection: ((event: Event) => void) | null = null;
+  let onRejection: ((event: PromiseRejectionEvent) => void) | null = null;
 
   return {
     name: "browserGlobalHandlers",
@@ -20,7 +20,7 @@ export function browserGlobalHandlersIntegration(): Integration {
         });
       };
       onRejection = (event) => {
-        const reason = (event as { reason?: unknown }).reason;
+        const reason: unknown = event.reason;
         if (client.wasCaptured(reason)) {
           return;
         }

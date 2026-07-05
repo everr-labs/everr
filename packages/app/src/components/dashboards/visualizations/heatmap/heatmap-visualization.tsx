@@ -10,7 +10,7 @@ import { heatmapColor, heatmapColorRgb, isDarkColor } from "./heatmap-colors";
 import { buildHeatmapModel, type HeatmapCell } from "./heatmap-data";
 import type { HeatmapSpec } from "./spec";
 
-const BRUSH_COLOR = SERIES_COLORS[0]!;
+const [BRUSH_COLOR] = SERIES_COLORS;
 const MAX_X_TICKS = 6;
 /** Bucket label gutter width — the axis row and brush overlay offset by the
  * same amount so they stay aligned with the cell tracks. */
@@ -86,7 +86,7 @@ export function HeatmapVisualization({
       trackRectRef.current = rect;
       setBrushStart(pxToTimestamp(e.clientX, rect));
       setBrushEnd(null);
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      if (e.target instanceof HTMLElement) e.target.setPointerCapture(e.pointerId);
     },
     [pxToTimestamp],
   );
@@ -157,7 +157,7 @@ export function HeatmapVisualization({
                   {bucket}
                 </div>
                 <div className="relative min-w-0 flex-1 overflow-hidden">
-                  {cellsByBucket[b]!.map((cell) => {
+                  {(cellsByBucket[b] ?? []).map((cell) => {
                     const { fill, dark } = cellAppearance(cell.value);
                     return (
                       // biome-ignore lint/a11y/noStaticElementInteractions: hover target for the tooltip

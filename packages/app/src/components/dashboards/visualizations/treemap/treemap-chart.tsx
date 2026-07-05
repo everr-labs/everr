@@ -1,3 +1,4 @@
+// oxlint-disable typescript/consistent-type-assertions -- every assertion here bridges recharts' erased tile types: it injects each leaf's concrete datum as flat props on the cell (typed only as the base props) and passes the datum back through onClick as `unknown`. These casts recover the concrete generic tile `T` that is provably present at runtime but that recharts' own types can't carry.
 import { type ReactNode, useState } from "react";
 import { ResponsiveContainer, Treemap } from "recharts";
 import { CursorTooltip } from "@/components/cursor-tooltip";

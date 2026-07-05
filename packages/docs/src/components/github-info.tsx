@@ -20,17 +20,20 @@ export interface GithubInfoProps extends ComponentProps<"a">, FetchRepositoryInf
   locale?: Intl.LocalesArgument;
 }
 
+// default revalidate options for Next.js (optional). `next` is a Next.js
+// augmentation of RequestInit, so widen the type to keep it well-typed.
+const DEFAULT_FETCH_OPTIONS: RequestInit & { next?: { revalidate?: number } } = {
+  next: {
+    revalidate: 60,
+  },
+};
+
 async function fetchRepositoryInfo({
   owner,
   repo,
   token,
   baseUrl = "https://api.github.com",
-  fetchOptions = {
-    // default revalidate options for Next.js (optional)
-    next: {
-      revalidate: 60,
-    },
-  } as RequestInit,
+  fetchOptions = DEFAULT_FETCH_OPTIONS,
 }: FetchRepositoryInfoOptions): Promise<RepositoryInfo> {
   const endpoint = `${baseUrl}/repos/${owner}/${repo}`;
   const headers = new Headers(fetchOptions.headers);
@@ -41,7 +44,7 @@ async function fetchRepositoryInfo({
   const response = await fetch(endpoint, {
     ...fetchOptions,
     headers,
-  } as RequestInit);
+  });
 
   if (!response.ok) {
     const message = await response.text();

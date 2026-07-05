@@ -27,7 +27,10 @@ async function proxyOtlp(
     await invoke("proxy_otlp", { signal, body: decoder.decode(payload) });
     resultCallback({ code: ExportResultCode.SUCCESS });
   } catch (error) {
-    resultCallback({ code: ExportResultCode.FAILED, error: error as Error });
+    resultCallback({
+      code: ExportResultCode.FAILED,
+      error: error instanceof Error ? error : new Error(String(error)),
+    });
   }
 }
 

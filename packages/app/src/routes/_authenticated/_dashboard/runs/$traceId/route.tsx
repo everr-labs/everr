@@ -147,7 +147,7 @@ function RunDetailLayout() {
                   jobs={jobs ?? []}
                   stepsByJobId={stepsByJobId ?? {}}
                   traceId={traceId}
-                  selectedJobId={(params as { jobId?: string }).jobId}
+                  selectedJobId={"jobId" in params ? params.jobId : undefined}
                 />
               </CardContent>
             </Card>

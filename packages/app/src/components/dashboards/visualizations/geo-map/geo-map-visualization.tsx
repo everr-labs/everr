@@ -44,12 +44,12 @@ const SCHEME_SERIES_INDEX: Record<GeoColorScheme, number> = {
 
 /** Per-scheme secondary palette (SERIES_COLORS minus the scheme's own hue),
  *  precomputed once instead of filtered per marker per render. */
-const SECONDARY_COLORS = Object.fromEntries(
-  (Object.keys(SCHEME_SERIES_INDEX) as GeoColorScheme[]).map((scheme) => [
-    scheme,
-    SERIES_COLORS.filter((_, i) => i !== SCHEME_SERIES_INDEX[scheme]),
-  ]),
-) as Record<GeoColorScheme, string[]>;
+const SECONDARY_COLORS: Record<GeoColorScheme, string[]> = {
+  blue: SERIES_COLORS.filter((_, i) => i !== SCHEME_SERIES_INDEX.blue),
+  green: SERIES_COLORS.filter((_, i) => i !== SCHEME_SERIES_INDEX.green),
+  red: SERIES_COLORS.filter((_, i) => i !== SCHEME_SERIES_INDEX.red),
+  orange: SERIES_COLORS.filter((_, i) => i !== SCHEME_SERIES_INDEX.orange),
+};
 
 /** Marker color encodes which query: frame 0 = scheme base; later frames use
  *  the shared palette, skipping the hue closest to the scheme color. */

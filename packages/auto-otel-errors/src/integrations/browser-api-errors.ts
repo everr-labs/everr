@@ -2,6 +2,9 @@ import type { Integration } from "../types.js";
 
 type AnyFn = (...args: unknown[]) => unknown;
 
+// Narrows an unknown value to a callable without a type assertion.
+const isFn = (value: unknown): value is AnyFn => typeof value === "function";
+
 // Wrapped event listeners keyed by the original function, so removeEventListener
 // can find the wrapper and re-adds reuse one — without mutating user functions.
 const wrappedListeners = new WeakMap<AnyFn, AnyFn>();
@@ -52,15 +55,16 @@ function patchGlobalCallback(
   name: "setTimeout" | "setInterval" | "requestAnimationFrame",
   wrap: (fn: AnyFn) => AnyFn,
 ): void {
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- globalThis has no string index signature; monkey-patching global builtins by name needs an indexable view
   const host = globalThis as unknown as Record<string, unknown>;
   const original = host[name];
-  if (typeof original !== "function") {
+  if (!isFn(original)) {
     return;
   }
 
   host[name] = function (this: unknown, handler: unknown, ...rest: unknown[]) {
-    const callback = typeof handler === "function" ? wrap(handler as AnyFn) : handler;
-    return (original as AnyFn).call(this, callback, ...rest);
+    const callback = isFn(handler) ? wrap(handler) : handler;
+    return original.call(this, callback, ...rest);
   };
   restores.push(() => {
     host[name] = original;
@@ -86,14 +90,14 @@ function patchEventTarget(restores: Array<() => void>, wrap: (fn: AnyFn) => AnyF
     options?: boolean | AddEventListenerOptions,
   ) {
     // Only wrap plain function listeners; pass handleEvent objects through.
-    if (typeof listener === "function") {
-      const fn = listener as AnyFn;
+    if (isFn(listener)) {
+      const fn = listener;
       let wrapped = wrappedListeners.get(fn);
       if (!wrapped) {
         wrapped = wrap(fn);
         wrappedListeners.set(fn, wrapped);
       }
-      return originalAdd.call(this, type, wrapped as EventListener, options);
+      return originalAdd.call(this, type, wrapped, options);
     }
     return originalAdd.call(this, type, listener, options);
   };
@@ -104,10 +108,10 @@ function patchEventTarget(restores: Array<() => void>, wrap: (fn: AnyFn) => AnyF
     listener: EventListenerOrEventListenerObject | null,
     options?: boolean | EventListenerOptions,
   ) {
-    if (typeof listener === "function") {
-      const wrapped = wrappedListeners.get(listener as AnyFn);
+    if (isFn(listener)) {
+      const wrapped = wrappedListeners.get(listener);
       if (wrapped) {
-        return originalRemove.call(this, type, wrapped as EventListener, options);
+        return originalRemove.call(this, type, wrapped, options);
       }
     }
     return originalRemove.call(this, type, listener, options);

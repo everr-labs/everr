@@ -103,11 +103,13 @@ export function MembersTable({ members, currentUserId }: MembersTableProps) {
           <Select
             value={row.role}
             onValueChange={(value) => {
+              // oxlint-disable-next-line typescript/consistent-type-assertions -- Select only emits the OrgRole option values; better-auth types the role as a plain string.
               const next = value as OrgRole;
               if (next === row.role) return;
               setRolePending({
                 memberId: row.id,
                 memberName: row.user?.name ?? row.user?.email ?? "Member",
+                // oxlint-disable-next-line typescript/consistent-type-assertions -- better-auth types the member role as a plain string; it is always one of the OrgRole values.
                 currentRole: row.role as OrgRole,
                 nextRole: next,
               });

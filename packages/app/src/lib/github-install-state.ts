@@ -47,9 +47,7 @@ export function parseInstallState(
 
   let payload: InstallStatePayload;
   try {
-    payload = JSON.parse(
-      Buffer.from(encodedPayload, "base64url").toString("utf8"),
-    ) as InstallStatePayload;
+    payload = JSON.parse(Buffer.from(encodedPayload, "base64url").toString("utf8"));
   } catch {
     throw new Error("Invalid state payload.");
   }

@@ -66,9 +66,13 @@ const REGISTRY: {
   { key: "alerts", kind: "AlertRule", reconcile: applyAlertSpecs },
 ];
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
 function validateResourceKind(resources: ApplyResourceEntry[], expectedKind: string): void {
   for (const resource of resources) {
-    const value = resource.resource as { kind?: unknown } | null | undefined;
+    const value = isRecord(resource.resource) ? resource.resource : undefined;
     const ok =
       value?.kind === expectedKind ||
       // `Notebook` is the legacy alias for `Runbook` (ADR 0002).

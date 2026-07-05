@@ -238,13 +238,17 @@ function stableStringify(value: unknown): string {
   return JSON.stringify(sortKeys(value));
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
 function sortKeys(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(sortKeys);
-  if (value && typeof value === "object") {
+  if (isRecord(value)) {
     return Object.fromEntries(
-      Object.keys(value as Record<string, unknown>)
+      Object.keys(value)
         .sort()
-        .map((key) => [key, sortKeys((value as Record<string, unknown>)[key])]),
+        .map((key) => [key, sortKeys(value[key])]),
     );
   }
   return value;

@@ -24,6 +24,7 @@ export function mockDbInstallations(
     })),
   );
   const from = vi.fn().mockReturnValue({ where });
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- vi.mocked types the return as the full Drizzle query builder; the test stubs only the .from() step used by the code under test.
   vi.mocked(mockedDb.select).mockReturnValue({ from } as never);
 }
 
@@ -34,6 +35,7 @@ type HandlerMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
  * Throws with a descriptive error if the handler is not registered.
  */
 export function getRouteHandler<T>(route: RouteLike, method: HandlerMethod, label?: string): T {
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- route.options is typed unknown; extracting the caller-supplied handler type T from a TanStack route's runtime shape needs an assertion no type guard can express.
   const routeOptions = route.options as unknown as {
     server?: { handlers?: Partial<Record<HandlerMethod, T>> };
   };

@@ -86,6 +86,9 @@ export const applyDashboardSpecs: Reconciler = async ({
       project: d.project,
       slug: d.slug,
       folderPath: d.folderPath,
+      // The reconciler carries documents as opaque `unknown`; the jsonb column is
+      // typed `Dashboard` and there is no runtime guard for the full spec shape.
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- unknown reconcile document bridged to typed jsonb column
       document: d.document as Dashboard,
     });
   }
@@ -97,6 +100,7 @@ export const applyDashboardSpecs: Reconciler = async ({
       .update(dashboards)
       .set({
         repoid: namespace.repoid,
+        // oxlint-disable-next-line typescript/consistent-type-assertions -- unknown reconcile document bridged to typed jsonb column
         document: d.document as Dashboard,
         folderPath: d.folderPath,
         updatedAt: new Date(),
@@ -114,6 +118,7 @@ export const applyDashboardSpecs: Reconciler = async ({
     await exec
       .update(dashboards)
       .set({
+        // oxlint-disable-next-line typescript/consistent-type-assertions -- unknown reconcile document bridged to typed jsonb column
         document: d.document as Dashboard,
         folderPath: d.folderPath,
         updatedAt: new Date(),

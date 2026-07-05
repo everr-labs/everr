@@ -82,7 +82,12 @@ export function InviteMemberDialog() {
             </div>
             <div className="space-y-1">
               <Label htmlFor="invite-role">Role</Label>
-              <Select value={role} onValueChange={(v) => setRole(v as OrgRole)}>
+              <Select
+                value={role}
+                onValueChange={(v) => {
+                  if (v === "member" || v === "admin" || v === "owner") setRole(v);
+                }}
+              >
                 <SelectTrigger id="invite-role">
                   <SelectValue />
                 </SelectTrigger>

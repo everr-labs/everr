@@ -35,6 +35,7 @@ export function DataPanel<const TQueries extends readonly unknown[]>({
     );
   }
 
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- useQueries erases the per-query tuple types; after the all-success guard, mapping .data yields the InferQueriesData<TQueries> tuple, which isn't expressible via annotation.
   const data = results.map((r) => r.data) as InferQueriesData<TQueries>;
 
   if (variant === "stat" && background) {

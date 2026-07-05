@@ -303,7 +303,7 @@ export function LogsExplorer({
                 ) : isError ? (
                   <RetryError
                     title="Failed to load logs"
-                    message={(error as Error).message}
+                    message={error instanceof Error ? error.message : String(error)}
                     onRetry={() => {
                       void refetch();
                     }}

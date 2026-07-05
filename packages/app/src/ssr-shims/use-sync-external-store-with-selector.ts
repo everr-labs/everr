@@ -24,6 +24,7 @@ export function useSyncExternalStoreWithSelector<Snapshot, Selection>(
         memoizedSnapshot = nextSnapshot;
         const nextSelection = selector(nextSnapshot);
         if (isEqual !== undefined && inst.hasValue) {
+          // oxlint-disable-next-line typescript/consistent-type-assertions -- faithful port of React's useSyncExternalStoreWithSelector shim: inst.value holds a Selection once inst.hasValue is true, but the null-initialized generic slot can't express that.
           const currentSelection = inst.value as Selection;
           if (isEqual(currentSelection, nextSelection)) {
             memoizedSelection = currentSelection;

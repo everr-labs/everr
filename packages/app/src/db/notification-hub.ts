@@ -98,7 +98,8 @@ export class NotificationHub {
       client.on("notification", (msg) => {
         if (!msg.payload) return;
         try {
-          this.dispatch(JSON.parse(msg.payload) as NotifyPayload);
+          const payload: NotifyPayload = JSON.parse(msg.payload);
+          this.dispatch(payload);
         } catch {
           // ignore unparseable payloads
         }

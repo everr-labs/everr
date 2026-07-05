@@ -86,7 +86,7 @@ function attachGraphileWorkerEventLogging(events: WorkerEvents): void {
 
 async function startRunner(): Promise<Runner> {
   serverLogger.info("worker.runtime.start");
-  const events = new EventEmitter() as WorkerEvents;
+  const events: WorkerEvents = new EventEmitter();
   attachGraphileWorkerEventLogging(events);
 
   return run({

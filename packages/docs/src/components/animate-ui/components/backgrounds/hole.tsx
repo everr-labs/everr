@@ -78,11 +78,13 @@ function HoleBackground({
     discs: [],
     lines: [],
     particles: [],
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- placeholder for a mutable ref; populated by setDiscs()/setSize() before first read
     clip: {} as Clip,
     startDisc: { x: 0, y: 0, w: 0, h: 0 },
     endDisc: { x: 0, y: 0, w: 0, h: 0 },
     rect: { width: 0, height: 0 },
     render: { width: 0, height: 0, dpi: 1 },
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- placeholder for a mutable ref; populated before first read
     particleArea: {} as ParticleArea,
     linesCanvas: null,
   });
@@ -140,6 +142,7 @@ function HoleBackground({
       h: 0,
     };
     let prevBottom = height;
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- reset placeholder for a mutable ref; repopulated in the loop below before first read
     stateRef.current.clip = {} as Clip;
     for (let i = 0; i < numberOfDiscs; i++) {
       const p = i / numberOfDiscs;

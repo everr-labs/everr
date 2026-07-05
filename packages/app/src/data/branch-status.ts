@@ -147,9 +147,9 @@ export async function getBranchStatus({
 
   const activeTraceIds = runs.filter((run) => run.status !== "completed").map((run) => run.traceId);
 
-  const jobs =
+  const jobs: { rows: WorkflowJobRow[] } =
     activeTraceIds.length === 0
-      ? { rows: [] as WorkflowJobRow[] }
+      ? { rows: [] }
       : await pool.query<WorkflowJobRow>(
           `
             SELECT
@@ -171,9 +171,9 @@ export async function getBranchStatus({
     .filter((run) => run.status === "completed" && run.conclusion === "failure")
     .map((run) => run.traceId);
 
-  const failedJobs =
+  const failedJobs: { rows: FailedJobRow[] } =
     failedTraceIds.length === 0
-      ? { rows: [] as FailedJobRow[] }
+      ? { rows: [] }
       : await pool.query<FailedJobRow>(
           `
             SELECT

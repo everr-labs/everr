@@ -20,7 +20,7 @@ export interface LogHistogramProps {
   onShowVolumeChange: (show: boolean) => void;
 }
 
-const chartConfig = {
+const chartConfig: ChartConfig = {
   unknown: {
     label: LOG_LEVEL_META.unknown.label,
     color: LOG_LEVEL_META.unknown.chartColor,
@@ -45,7 +45,7 @@ const chartConfig = {
     label: LOG_LEVEL_META.error.label,
     color: LOG_LEVEL_META.error.chartColor,
   },
-} satisfies ChartConfig;
+};
 
 const histogramStack = [
   "unknown",
@@ -67,12 +67,11 @@ function formatBucketLabel(bucket: LogHistogramBucket | undefined) {
   return `${day} · ${time(start)} – ${time(end)}`;
 }
 
-type HistogramMouseEvent = {
-  activeTooltipIndex?: number | null;
-};
-
 function histogramEventIndex(event: unknown, data: LogHistogramBucket[]): number | null {
-  const index = (event as HistogramMouseEvent | undefined)?.activeTooltipIndex;
+  const index =
+    event && typeof event === "object" && "activeTooltipIndex" in event
+      ? event.activeTooltipIndex
+      : undefined;
   if (typeof index !== "number" || index < 0 || index >= data.length) {
     return null;
   }
@@ -174,11 +173,9 @@ function LogHistogramChart({
                     className="size-2.5 shrink-0 rounded-[2px]"
                     style={{ backgroundColor: `var(--color-${name})` }}
                   />
-                  <span className="text-muted-foreground">
-                    {chartConfig[name as keyof typeof chartConfig]?.label}
-                  </span>
+                  <span className="text-muted-foreground">{chartConfig[String(name)]?.label}</span>
                   <span className="ml-auto font-mono font-medium tabular-nums">
-                    {(value as number).toLocaleString()}
+                    {value.toLocaleString()}
                   </span>
                 </>
               )}

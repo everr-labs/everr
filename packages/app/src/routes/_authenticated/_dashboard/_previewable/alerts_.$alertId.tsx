@@ -730,7 +730,10 @@ function SilenceDialog({
                 />
                 <Select
                   value={matcher.op}
-                  onValueChange={(op) => patchMatcher(index, { op: op as Matcher["op"] })}
+                  onValueChange={(op) => {
+                    const matched = MATCHER_OPS.find((o) => o === op);
+                    if (matched) patchMatcher(index, { op: matched });
+                  }}
                 >
                   <SelectTrigger aria-label="Operator" className="font-mono">
                     <SelectValue />

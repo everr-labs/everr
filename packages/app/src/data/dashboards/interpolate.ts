@@ -46,7 +46,7 @@ export function interpolateVariables(
   return sql.replace(TOKEN_RE, (match, braced, modifier, bare) => {
     const name: string = braced ?? bare;
     if (!(name in values)) return match;
-    const value = values[name]!;
+    const value = values[name];
     const raw = modifier === "raw";
 
     // The sentinel only means "All" for variables the caller supplied All

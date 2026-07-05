@@ -5,7 +5,7 @@ import { createTimeTickFormatter, generateTimeTicks, SERIES_COLORS } from "./dat
 import type { ResolvedTimeRange } from "./index";
 import { SeriesTooltipContent } from "./series-tooltip";
 
-const BRUSH_COLOR = SERIES_COLORS[0]!;
+const BRUSH_COLOR = SERIES_COLORS[0];
 const MAX_X_TICKS = 6;
 /** Lane label gutter width — the axis row and brush overlay offset by the same
  * amount so they stay aligned with the segment tracks. */
@@ -94,7 +94,9 @@ export function LaneTimelineChart({
       trackRectRef.current = rect;
       setBrushStart(pxToTimestamp(e.clientX, rect));
       setBrushEnd(null);
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      if (e.target instanceof HTMLElement) {
+        e.target.setPointerCapture(e.pointerId);
+      }
     },
     [pxToTimestamp],
   );

@@ -177,7 +177,7 @@ export function sortVariableOptions(options: string[], sort: ListVariableSort): 
 export function pickByNames<T>(record: Record<string, T>, names: string[]): Record<string, T> {
   const result: Record<string, T> = {};
   for (const name of names) {
-    if (name in record) result[name] = record[name]!;
+    if (name in record) result[name] = record[name];
   }
   return result;
 }

@@ -31,9 +31,7 @@ export function nodeGlobalHandlersIntegration(): Integration {
               return;
             }
 
-            const others = process
-              .listeners(eventName)
-              .filter((listener) => listener !== (handler as unknown));
+            const others = process.listeners(eventName).filter((listener) => listener !== handler);
             if (others.length === 0) {
               process.exit(1);
             }
@@ -57,16 +55,16 @@ export function nodeGlobalHandlersIntegration(): Integration {
 }
 
 async function flushLogs(): Promise<void> {
-  const provider = logs.getLoggerProvider() as {
-    forceFlush?: () => Promise<void>;
-  };
+  const provider = logs.getLoggerProvider();
 
-  if (typeof provider.forceFlush !== "function") {
+  if (!("forceFlush" in provider) || typeof provider.forceFlush !== "function") {
     return;
   }
 
   await Promise.race([
-    provider.forceFlush().catch((err) => diag.error(`${PKG_NAME}: flush on fatal failed`, err)),
+    provider
+      .forceFlush()
+      .catch((err: unknown) => diag.error(`${PKG_NAME}: flush on fatal failed`, err)),
     new Promise<void>((resolve) => setTimeout(resolve, FLUSH_TIMEOUT_MS)),
   ]);
 }

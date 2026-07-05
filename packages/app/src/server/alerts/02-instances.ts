@@ -81,9 +81,7 @@ export function parseLabels(json: string): Record<string, string> {
   try {
     const parsed: unknown = JSON.parse(json);
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return Object.fromEntries(
-        Object.entries(parsed as Record<string, unknown>).map(([k, v]) => [k, String(v)]),
-      );
+      return Object.fromEntries(Object.entries(parsed).map(([k, v]) => [k, String(v)]));
     }
   } catch {
     // fall through to empty labels

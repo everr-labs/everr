@@ -123,10 +123,9 @@ export async function querySqlApiWithMeta<T>(
   // JSON (not JSONEachRow) so column metadata is present even for empty results.
   const result = await runSqlApiQuery(query, organizationId, query_params, "JSON");
 
-  const body = (await result.json()) as {
-    meta?: { name: string }[];
-    data?: T[];
-  };
+  // JSON format resolves `json<T>()` to a ResponseJSON<T> wrapper with `data`
+  // rows and column `meta`.
+  const body = await result.json<T>();
   return {
     rows: body.data ?? [],
     columns: (body.meta ?? []).map((m) => m.name),

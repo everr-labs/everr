@@ -27,10 +27,9 @@ export function createChartTooltipFormatter(
           backgroundColor: `var(--color-${String(name)})`,
         }}
       />
-      <span className="text-muted-foreground">
-        {config[String(name) as keyof typeof config]?.label}
-      </span>
+      <span className="text-muted-foreground">{config[String(name)]?.label}</span>
       <span className="font-mono font-medium tabular-nums ml-auto">
+        {/* oxlint-disable-next-line typescript/consistent-type-assertions -- recharts hands the tooltip a numeric value here, but its formatter type widens to string | number | array which valueFormatter's number contract can't express */}
         {valueFormatter ? valueFormatter(value as number, name) : value}
       </span>
     </>
@@ -48,5 +47,5 @@ export function chartTooltipLabelFormatter(
 }
 
 export function createLegendFormatter(config: ChartConfig) {
-  return (value: string) => config[value as keyof typeof config]?.label ?? value;
+  return (value: string) => config[value]?.label ?? value;
 }

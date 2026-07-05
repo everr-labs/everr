@@ -61,7 +61,23 @@ export default defineConfig({
       "query/infinite-query-property-order": "error",
       "query/no-void-query-fn": "error",
       "query/mutation-property-order": "error",
+      // No type assertions and no non-null assertions in production code: both
+      // erode the guarantees tsc gives us. Use type annotations, `satisfies`,
+      // narrowing, or `?.`/`??` instead. Disabled in tests (see overrides).
+      "typescript/no-non-null-assertion": "error",
+      "typescript/consistent-type-assertions": ["error", { assertionStyle: "never" }],
     },
+    overrides: [
+      {
+        // Tests lean on assertions for mocks/fixtures where the type is known
+        // by construction; the assertion bans apply to production code only.
+        files: ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx", "**/tests/**"],
+        rules: {
+          "typescript/no-non-null-assertion": "off",
+          "typescript/consistent-type-assertions": "off",
+        },
+      },
+    ],
     // Oxlint's type-aware checker (tsgolint) does not resolve our path aliases
     // (`@/*`) or workspace subpath exports the way tsc does, producing false
     // positives. `tsc --noEmit` per package stays the source of truth for types.

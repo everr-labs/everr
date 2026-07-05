@@ -36,4 +36,4 @@ export function errorTrackingPlugin(
   done();
 }
 
-(errorTrackingPlugin as unknown as Record<symbol, boolean>)[Symbol.for("skip-override")] = true;
+Reflect.set(errorTrackingPlugin, Symbol.for("skip-override"), true);

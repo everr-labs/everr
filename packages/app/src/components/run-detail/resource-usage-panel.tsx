@@ -164,7 +164,7 @@ function MiniChart({
                   />
                   <span className="text-muted-foreground">{config[String(name)]?.label}</span>
                   <span className="ml-auto font-mono font-medium tabular-nums">
-                    {tooltipFormatter(value as number, String(name))}
+                    {typeof value === "number" ? tooltipFormatter(value, String(name)) : null}
                   </span>
                 </>
               )}

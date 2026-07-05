@@ -34,6 +34,7 @@ function makeWebhookTask(
   action: WebhookTaskAction,
 ): Task {
   return async (payload, helpers) => {
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- graphile-worker types the job payload as `unknown`; the enqueue side guarantees the WebhookJobData shape
     const data = payload as WebhookJobData;
     const eventType = firstHeader(data.headers, "x-github-event") ?? "";
     const body = Buffer.from(data.body, "base64");
@@ -133,6 +134,7 @@ const processStatusTask = makeWebhookTask(
   "github_events.jobs.handle_status_terminal_error",
   ({ organizationId, parsed }) =>
     // biome-ignore lint/suspicious/noExplicitAny: db is badly typed
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- drizzle NodePgDatabase schema generic variance: the app db isn't assignable to AnyDb's Record<string, never> schema
     handleStatusEvent(db as any, organizationId, parsed),
 );
 

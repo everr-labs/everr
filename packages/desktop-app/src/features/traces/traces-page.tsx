@@ -28,7 +28,7 @@ export function TracesPage() {
     from: "/shell/traces/$traceId",
     shouldThrow: false,
   });
-  const search = useSearch({ strict: false }) as TraceDetailParams;
+  const search: TraceDetailParams = useSearch({ strict: false });
   const navigate = useNavigate();
 
   // Always keep the list mounted in the same position so opening/closing the
@@ -50,10 +50,10 @@ export function TracesPage() {
 }
 
 function TracesListView() {
-  const search = useSearch({ strict: false }) as TraceSearchParams & {
+  const search: TraceSearchParams & {
     service?: string[];
     environment?: string[];
-  };
+  } = useSearch({ strict: false });
   const navigate = useNavigate();
   const { timeRange } = withTimeRange(search);
   const refresh = search.refresh ?? "";
@@ -136,8 +136,8 @@ function TracesListView() {
 }
 
 export function TraceDetailPage() {
-  const { traceId } = useParams({ strict: false }) as { traceId: string };
-  const search = useSearch({ strict: false }) as TraceDetailParams;
+  const { traceId }: { traceId: string } = useParams({ strict: false });
+  const search: TraceDetailParams = useSearch({ strict: false });
   const navigate = useNavigate();
   // Inside the modal, ask the dialog to close through the route owner so the
   // dialog stays open until navigation removes it.

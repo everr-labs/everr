@@ -19,10 +19,14 @@ import type { LogsRepositoryLike } from "../data/repository";
 import type { LogDetail, LogExplorerRow } from "../schemas";
 import { LOG_LEVEL_META } from "./log-level-meta";
 
+// ESM/CJS interop: some bundlers expose `ansi-to-react`'s component under
+// `.default`; TS types the import as the component only, so the runtime fallback
+// needs an assertion that TS can't express.
 const Ansi =
   typeof AnsiImport === "function"
     ? AnsiImport
-    : (AnsiImport as unknown as { default: typeof AnsiImport }).default;
+    : // oxlint-disable-next-line typescript/consistent-type-assertions -- ESM/CJS interop default-export unwrap
+      (AnsiImport as unknown as { default: typeof AnsiImport }).default;
 
 export interface LogInspectorProps {
   detail: LogDetail;

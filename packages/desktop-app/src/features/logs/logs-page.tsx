@@ -33,7 +33,7 @@ export const LogsSearchSchema = z
 type LogsSearch = z.infer<typeof LogsSearchSchema>;
 
 export function LogsPage() {
-  const search = useSearch({ strict: false }) as LogsSearch;
+  const search: LogsSearch = useSearch({ strict: false });
   const navigate = useNavigate();
 
   const repo = useMemo(() => new LogsRepository(localSqlClient), []);

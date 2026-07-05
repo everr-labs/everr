@@ -159,7 +159,7 @@ export function BarChartVisualization({ spec, data }: VisualizationProps<BarChar
   const last = chartData.at(-1);
   const spanMs =
     isTimeAxis && first && last && chartData.length > 1
-      ? (last[X_KEY] as number) - (first[X_KEY] as number)
+      ? Number(last[X_KEY]) - Number(first[X_KEY])
       : 0;
   const formatXTick = isTimeAxis
     ? createTimeTickFormatter(spanMs)
@@ -254,7 +254,7 @@ export function BarChartVisualization({ spec, data }: VisualizationProps<BarChar
                 key,
                 color: chartConfig[key]?.color,
                 label: chartConfig[key]?.label ?? key,
-                value: formatValue(tooltipRow[key] as number),
+                value: formatValue(Number(tooltipRow[key])),
               }))}
           />
         </CursorTooltip>

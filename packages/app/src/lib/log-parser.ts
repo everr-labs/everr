@@ -16,23 +16,21 @@ export interface LogGroup {
   endIndex: number;
 }
 
-// Parse GitHub workflow command markers
+// Parse GitHub workflow command markers. Keep GROUP_MARKER_TYPES in sync with
+// the alternation in MARKER_REGEX so the captured group narrows to MarkerType.
+const GROUP_MARKER_TYPES = ["group", "endgroup", "error", "warning", "notice", "debug"] as const;
 const MARKER_REGEX = /^##\[(group|endgroup|error|warning|notice|debug)\](.*)$/;
 const COMMAND_REGEX = /^\[command\](.*)$/;
 
-export type MarkerType =
-  | "group"
-  | "endgroup"
-  | "error"
-  | "warning"
-  | "notice"
-  | "debug"
-  | "command";
+export type MarkerType = (typeof GROUP_MARKER_TYPES)[number] | "command";
 
 export function parseGitHubMarker(line: string): { type: MarkerType; message?: string } | null {
   const match = line.match(MARKER_REGEX);
   if (match) {
-    return { type: match[1] as MarkerType, message: match[2] || undefined };
+    const type = GROUP_MARKER_TYPES.find((t) => t === match[1]);
+    if (type) {
+      return { type, message: match[2] || undefined };
+    }
   }
 
   const commandMatch = line.match(COMMAND_REGEX);

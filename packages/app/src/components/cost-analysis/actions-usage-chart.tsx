@@ -121,11 +121,13 @@ export function ActionsUsageChart({ data, metric }: ActionsUsageChartProps) {
           content={
             <ChartTooltipContent
               labelFormatter={(_, payload) => {
-                const date = (payload?.[0]?.payload as { date?: string })?.date;
+                const date = payload?.[0]?.payload?.date;
                 return date ? formatBucket(date, data.granularity, "tooltip") : "";
               }}
               formatter={(value, name) => {
-                const label = config[String(name) as keyof typeof config]?.label ?? name;
+                const label = config[String(name)]?.label ?? name;
+                // oxlint-disable-next-line typescript/consistent-type-assertions -- recharts types the tooltip formatter value as ValueType (number | string | array); this bar chart's series values are always numbers.
+                const numericValue = value as number;
                 return (
                   <>
                     <div
@@ -136,7 +138,7 @@ export function ActionsUsageChart({ data, metric }: ActionsUsageChartProps) {
                     />
                     <span className="text-muted-foreground">{label}</span>
                     <span className="font-mono font-medium tabular-nums ml-auto">
-                      {formatValue(value as number)}
+                      {formatValue(numericValue)}
                     </span>
                   </>
                 );
@@ -156,7 +158,7 @@ export function ActionsUsageChart({ data, metric }: ActionsUsageChartProps) {
               }))}
             />
           }
-          formatter={(value: string) => config[value as keyof typeof config]?.label ?? value}
+          formatter={(value: string) => config[value]?.label ?? value}
         />
         {seriesKeys.map((key, i) => (
           <Bar

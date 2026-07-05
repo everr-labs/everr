@@ -58,28 +58,25 @@ export function VariableBar() {
 
   return (
     <div className="mb-3 flex flex-wrap items-end gap-3">
-      {visible.map((variable) =>
-        variable.kind === "TextVariable" ? (
+      {visible.map((variable) => {
+        const rawValue = values[variable.spec.name];
+        return variable.kind === "TextVariable" ? (
           <TextVariableField
             key={variable.spec.name}
             variable={variable}
-            value={
-              typeof values[variable.spec.name] === "string"
-                ? (values[variable.spec.name] as string)
-                : ""
-            }
+            value={typeof rawValue === "string" ? rawValue : ""}
             onCommit={(value) => setValue(variable.spec.name, value)}
           />
         ) : (
           <ListVariableField
             key={variable.spec.name}
             variable={variable}
-            value={values[variable.spec.name]}
+            value={rawValue}
             optionsState={optionsState[variable.spec.name]}
             onChange={(value) => setValue(variable.spec.name, value)}
           />
-        ),
-      )}
+        );
+      })}
     </div>
   );
 }

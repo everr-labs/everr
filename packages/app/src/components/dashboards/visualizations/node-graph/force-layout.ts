@@ -28,7 +28,7 @@ export function layoutGraph(
   const cx = width / 2;
   const cy = height / 2;
   if (n === 1) {
-    positions.set(nodeIds[0]!, { x: cx, y: cy });
+    positions.set(nodeIds[0], { x: cx, y: cy });
     return positions;
   }
 
@@ -39,7 +39,7 @@ export function layoutGraph(
   const index = new Map<string, number>();
   const r0 = Math.min(width, height) * 0.35;
   for (let i = 0; i < n; i++) {
-    index.set(nodeIds[i]!, i);
+    index.set(nodeIds[i], i);
     const angle = (i / n) * 2 * Math.PI - Math.PI / 2;
     xs[i] = cx + r0 * Math.cos(angle);
     ys[i] = cy + r0 * Math.sin(angle);
@@ -60,8 +60,8 @@ export function layoutGraph(
 
     for (let i = 0; i < n; i++) {
       for (let j = i + 1; j < n; j++) {
-        let ddx = xs[i]! - xs[j]!;
-        let ddy = ys[i]! - ys[j]!;
+        let ddx = xs[i] - xs[j];
+        let ddy = ys[i] - ys[j];
         let d = Math.hypot(ddx, ddy);
         if (d < 0.01) {
           // Coincident points have no direction — nudge apart along an
@@ -71,32 +71,32 @@ export function layoutGraph(
           d = 0.01;
         }
         const force = (k * k) / d;
-        dx[i]! += (ddx / d) * force;
-        dy[i]! += (ddy / d) * force;
-        dx[j]! -= (ddx / d) * force;
-        dy[j]! -= (ddy / d) * force;
+        dx[i] += (ddx / d) * force;
+        dy[i] += (ddy / d) * force;
+        dx[j] -= (ddx / d) * force;
+        dy[j] -= (ddy / d) * force;
       }
     }
 
     for (const [s, t] of edgeIdx) {
-      const ddx = xs[s]! - xs[t]!;
-      const ddy = ys[s]! - ys[t]!;
+      const ddx = xs[s] - xs[t];
+      const ddy = ys[s] - ys[t];
       const d = Math.max(Math.hypot(ddx, ddy), 0.01);
       const force = (d * d) / k;
-      dx[s]! -= (ddx / d) * force;
-      dy[s]! -= (ddy / d) * force;
-      dx[t]! += (ddx / d) * force;
-      dy[t]! += (ddy / d) * force;
+      dx[s] -= (ddx / d) * force;
+      dy[s] -= (ddy / d) * force;
+      dx[t] += (ddx / d) * force;
+      dy[t] += (ddy / d) * force;
     }
 
     for (let i = 0; i < n; i++) {
-      dx[i]! += (cx - xs[i]!) * GRAVITY;
-      dy[i]! += (cy - ys[i]!) * GRAVITY;
-      const d = Math.hypot(dx[i]!, dy[i]!);
+      dx[i] += (cx - xs[i]) * GRAVITY;
+      dy[i] += (cy - ys[i]) * GRAVITY;
+      const d = Math.hypot(dx[i], dy[i]);
       if (d > 0) {
         const step = Math.min(d, temperature);
-        xs[i]! += (dx[i]! / d) * step;
-        ys[i]! += (dy[i]! / d) * step;
+        xs[i] += (dx[i] / d) * step;
+        ys[i] += (dy[i] / d) * step;
       }
     }
     temperature *= COOLING;
@@ -108,10 +108,10 @@ export function layoutGraph(
   let minY = Infinity;
   let maxY = -Infinity;
   for (let i = 0; i < n; i++) {
-    minX = Math.min(minX, xs[i]!);
-    maxX = Math.max(maxX, xs[i]!);
-    minY = Math.min(minY, ys[i]!);
-    maxY = Math.max(maxY, ys[i]!);
+    minX = Math.min(minX, xs[i]);
+    maxX = Math.max(maxX, xs[i]);
+    minY = Math.min(minY, ys[i]);
+    maxY = Math.max(maxY, ys[i]);
   }
   const spanX = Math.max(maxX - minX, 1);
   const spanY = Math.max(maxY - minY, 1);
@@ -119,9 +119,9 @@ export function layoutGraph(
   const offsetX = cx - ((minX + maxX) / 2) * scale;
   const offsetY = cy - ((minY + maxY) / 2) * scale;
   for (let i = 0; i < n; i++) {
-    positions.set(nodeIds[i]!, {
-      x: xs[i]! * scale + offsetX,
-      y: ys[i]! * scale + offsetY,
+    positions.set(nodeIds[i], {
+      x: xs[i] * scale + offsetX,
+      y: ys[i] * scale + offsetY,
     });
   }
   return positions;

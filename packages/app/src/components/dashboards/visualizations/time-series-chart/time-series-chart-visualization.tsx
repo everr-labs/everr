@@ -19,7 +19,7 @@ import { SeriesTooltipContent } from "../series-tooltip";
 import type { TimeSeriesChartSpec } from "./spec";
 import { buildChartModel, buildStackedData, TS_KEY } from "./time-series-data";
 
-const BRUSH_COLOR = SERIES_COLORS[0]!;
+const BRUSH_COLOR = SERIES_COLORS[0];
 const MAX_X_TICKS = 6;
 
 function getPlotArea(container: HTMLElement): DOMRect | null {
@@ -74,9 +74,9 @@ export function TimeSeriesChartVisualization({
       if (!plotRect) return;
       const ts = pxToTimestamp(e.clientX, plotRect, domain);
       let nearest = 0;
-      let minDist = Math.abs((chartData[0]![TS_KEY] as number) - ts);
+      let minDist = Math.abs(Number(chartData[0]?.[TS_KEY]) - ts);
       for (let i = 1; i < chartData.length; i++) {
-        const dist = Math.abs((chartData[i]![TS_KEY] as number) - ts);
+        const dist = Math.abs(Number(chartData[i]?.[TS_KEY]) - ts);
         if (dist < minDist) {
           minDist = dist;
           nearest = i;
@@ -104,7 +104,7 @@ export function TimeSeriesChartVisualization({
       const ts = pxToTimestamp(e.clientX, plotRect, domain);
       setBrushStart(ts);
       setBrushEnd(null);
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      if (e.target instanceof Element) e.target.setPointerCapture(e.pointerId);
     },
     [domain],
   );
@@ -149,7 +149,7 @@ export function TimeSeriesChartVisualization({
   }
 
   const tooltipRow = tooltipState ? chartData[tooltipState.index] : undefined;
-  const tooltipTs = tooltipRow ? (tooltipRow[TS_KEY] as number) : undefined;
+  const tooltipTs = tooltipRow ? Number(tooltipRow[TS_KEY]) : undefined;
 
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: chart interaction area
@@ -259,10 +259,10 @@ export function TimeSeriesChartVisualization({
           )}
         </ComposedChart>
       </ChartContainer>
-      {tooltipRow && (
-        <CursorTooltip x={tooltipState!.clientX} y={tooltipState!.clientY}>
+      {tooltipRow && tooltipState && tooltipTs !== undefined && (
+        <CursorTooltip x={tooltipState.clientX} y={tooltipState.clientY}>
           <SeriesTooltipContent
-            title={new Date(tooltipTs!).toLocaleString()}
+            title={new Date(tooltipTs).toLocaleString()}
             rows={valueKeys
               .filter((key) => tooltipRow[key] != null)
               .map((key) => {

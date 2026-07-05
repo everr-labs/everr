@@ -172,7 +172,7 @@ export function RunsExplorer({
                   totalCount={totalCount}
                   isPending={isPending}
                   isError={isError}
-                  error={error as Error | null}
+                  error={error}
                   refetch={refetch}
                   hasMore={hasNextPage}
                   isLoadingMore={isFetchingNextPage}

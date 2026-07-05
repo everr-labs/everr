@@ -11,6 +11,7 @@ export const alertTaskList: TaskList = {
     await scanDueAlerts();
   }),
   [ALERT_EVALUATE_TASK]: context.bind(ROOT_CONTEXT, async (payload) => {
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- graphile-worker types the job payload as `unknown`; the enqueue side guarantees the EvaluatePayload shape
     await evaluateAlert(payload as EvaluatePayload);
   }),
   [ALERT_DELIVER_TASK]: context.bind(ROOT_CONTEXT, async (payload, helpers) => {
