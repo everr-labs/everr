@@ -33,13 +33,13 @@ function TraceDetailRoute() {
       traceId={traceId}
       search={search}
       onBack={() =>
-        navigate({
+        void navigate({
           to: "/traces",
           search: toTraceListSearch(search),
         })
       }
       onSpanChange={(spanId) =>
-        navigate({
+        void navigate({
           to: "/traces/$traceId",
           params: { traceId },
           search: (prev) => ({ ...prev, span: spanId }),

@@ -138,7 +138,7 @@ export function QuickstartFriction() {
               <div className="flex items-center justify-end border-b border-fd-border px-3 py-2">
                 <button
                   type="button"
-                  onClick={copy}
+                  onClick={() => void copy()}
                   aria-label={copied ? "Copied" : "Copy command"}
                   className={cn(
                     "group inline-flex items-center gap-2 rounded-md border px-3 py-1.5 font-heading text-xs font-bold tracking-tight outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-fd-background",

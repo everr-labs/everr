@@ -28,7 +28,7 @@ function ErrorDetailModalPage() {
         fingerprint={fingerprint}
         search={search}
         detailTo="/errors/$fingerprint/modal"
-        onClose={close}
+        onClose={() => void close()}
       />
     </DetailRouteDialog>
   );

@@ -115,7 +115,7 @@ function ApiKeysPage() {
                   ? keys.error.message
                   : "Something went wrong fetching your keys."
               }
-              onRetry={() => keys.refetch()}
+              onRetry={() => void keys.refetch()}
             />
           ) : isEmpty ? (
             <ApiKeysEmpty />

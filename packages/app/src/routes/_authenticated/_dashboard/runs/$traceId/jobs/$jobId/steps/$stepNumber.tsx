@@ -155,8 +155,8 @@ function StepDetailPage() {
             key={stepNumber} // Need to reset the internal state when navigating to a new step
             logs={allLogs}
             stepName={stepName}
-            onLoadPrevious={hasPreviousPage ? fetchPreviousPage : undefined}
-            onLoadNext={hasNextPage ? fetchNextPage : undefined}
+            onLoadPrevious={hasPreviousPage ? () => void fetchPreviousPage() : undefined}
+            onLoadNext={hasNextPage ? () => void fetchNextPage() : undefined}
             isLoadingPrevious={isFetchingPreviousPage}
             isLoadingNext={isFetchingNextPage}
             lineOffset={lineOffset}

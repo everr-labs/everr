@@ -170,7 +170,7 @@ function Consent() {
                         <button
                           type="button"
                           disabled={switchingId !== null}
-                          onClick={() => switchOrg(org.id)}
+                          onClick={() => void switchOrg(org.id)}
                           className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60"
                         >
                           <span className="flex size-7 shrink-0 items-center justify-center rounded bg-primary/15 font-heading text-xs font-semibold text-primary">
@@ -208,7 +208,7 @@ function Consent() {
           size="lg"
           className="flex-1"
           disabled={busy !== null}
-          onClick={() => decide(false)}
+          onClick={() => void decide(false)}
         >
           {busy === "deny" ? <Loader2 className="animate-spin" /> : null}
           Deny
@@ -218,7 +218,7 @@ function Consent() {
           size="lg"
           className="flex-1"
           disabled={busy !== null}
-          onClick={() => decide(true)}
+          onClick={() => void decide(true)}
         >
           {busy === "approve" ? <Loader2 className="animate-spin" /> : null}
           Approve

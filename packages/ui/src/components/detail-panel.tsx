@@ -64,7 +64,7 @@ export function CopyValueButton({ value, className }: { value: string; className
       type="button"
       aria-label={copied ? "Copied" : "Copy value"}
       title={copied ? "Copied" : "Copy value"}
-      onClick={handleCopy}
+      onClick={(e) => void handleCopy(e)}
       className={cn(
         "text-muted-foreground hover:text-foreground hover:bg-muted-foreground/20 inline-flex size-5 items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none",
         className,

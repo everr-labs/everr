@@ -109,11 +109,11 @@ export function TracesSearch({
               isPending={isPending}
               isError={isError}
               error={error}
-              refetch={refetch}
+              refetch={() => void refetch()}
               hasMore={hasNextPage}
               isLoadingMore={isFetchingNextPage}
               renderTraceLink={renderTraceLink}
-              onLoadMore={() => fetchNextPage()}
+              onLoadMore={() => void fetchNextPage()}
               onClearFilters={() =>
                 onSearchChange({
                   namespace: [],

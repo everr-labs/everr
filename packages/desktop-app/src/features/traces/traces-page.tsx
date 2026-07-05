@@ -68,28 +68,28 @@ function TracesListView() {
       service={service}
       environment={environment}
       onTimeRangeChange={(range) =>
-        navigate({
+        void navigate({
           to: "/traces",
           search: (prev) => ({ ...prev, from: range.from, to: range.to }),
           replace: true,
         })
       }
       onRefreshChange={(value) =>
-        navigate({
+        void navigate({
           to: "/traces",
           search: (prev) => ({ ...prev, refresh: value || undefined }),
           replace: true,
         })
       }
       onServiceChange={(values) =>
-        navigate({
+        void navigate({
           to: "/traces",
           search: (prev) => ({ ...prev, service: values }),
           replace: true,
         })
       }
       onEnvironmentChange={(values) =>
-        navigate({
+        void navigate({
           to: "/traces",
           search: (prev) => ({ ...prev, environment: values }),
           replace: true,
@@ -113,7 +113,7 @@ function TracesListView() {
           environment={environment}
           hideSharedFilters
           onSearchChange={(patch) =>
-            navigate({
+            void navigate({
               to: "/traces",
               search: (prev) => ({ ...prev, ...patch }),
               replace: true,
@@ -156,7 +156,7 @@ export function TraceDetailPage() {
           void navigate({ to: "/traces", search: toTraceListSearch(search) });
         }}
         onSpanChange={(spanId) =>
-          navigate({
+          void navigate({
             to: "/traces/$traceId",
             params: { traceId },
             search: (prev) => ({ ...prev, span: spanId }),

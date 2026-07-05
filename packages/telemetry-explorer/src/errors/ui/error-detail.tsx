@@ -81,7 +81,7 @@ export function ErrorDetail({
         </EmptyHeader>
         <EmptyContent>
           <div className="flex items-center gap-2">
-            <Button type="button" variant="outline" onClick={() => issueQuery.refetch()}>
+            <Button type="button" variant="outline" onClick={() => void issueQuery.refetch()}>
               <RefreshCw data-icon="inline-start" />
               Retry
             </Button>

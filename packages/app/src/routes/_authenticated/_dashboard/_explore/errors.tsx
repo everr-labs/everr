@@ -54,7 +54,7 @@ function ErrorsPage() {
       onSearchChange={(patch) =>
         // Push a history entry per change so Back undoes filter changes one at a
         // time (including Clear all, which routes through this same handler).
-        navigate({
+        void navigate({
           search: (prev) => ({ ...prev, ...patch }),
         })
       }

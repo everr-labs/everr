@@ -80,28 +80,28 @@ function ErrorsListView() {
       service={service}
       environment={environment}
       onTimeRangeChange={(range) =>
-        navigate({
+        void navigate({
           to: "/errors",
           search: { ...search, from: range.from, to: range.to },
           replace: true,
         })
       }
       onRefreshChange={(value) =>
-        navigate({
+        void navigate({
           to: "/errors",
           search: { ...search, refresh: value || undefined },
           replace: true,
         })
       }
       onServiceChange={(values) =>
-        navigate({
+        void navigate({
           to: "/errors",
           search: { ...search, service: values },
           replace: true,
         })
       }
       onEnvironmentChange={(values) =>
-        navigate({
+        void navigate({
           to: "/errors",
           search: { ...search, environment: values },
           replace: true,
@@ -117,7 +117,7 @@ function ErrorsListView() {
           environment={environment}
           hideSharedFilters
           onSearchChange={(patch) =>
-            navigate({
+            void navigate({
               to: "/errors",
               search: { ...search, ...patch },
               replace: true,

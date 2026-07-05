@@ -31,19 +31,21 @@ export function GithubInstallStep({
   useEffect(() => {
     if (!tabOpened || installed) return;
 
-    const id = setInterval(async () => {
-      try {
-        const status = await getGithubAppInstallStatus();
-        const isInstalled = Array.isArray(status)
-          ? status.some((i) => i.status === "active")
-          : readInstalledFlag(status);
-        if (isInstalled) {
-          onInstalled();
-          clearInterval(id);
+    const id = setInterval(() => {
+      void (async () => {
+        try {
+          const status = await getGithubAppInstallStatus();
+          const isInstalled = Array.isArray(status)
+            ? status.some((i) => i.status === "active")
+            : readInstalledFlag(status);
+          if (isInstalled) {
+            onInstalled();
+            clearInterval(id);
+          }
+        } catch {
+          // keep polling
         }
-      } catch {
-        // keep polling
-      }
+      })();
     }, 3000);
 
     return () => clearInterval(id);

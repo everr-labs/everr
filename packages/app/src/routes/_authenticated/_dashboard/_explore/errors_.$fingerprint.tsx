@@ -22,7 +22,7 @@ function ErrorDetailPage() {
       search={search}
       detailTo="/errors/$fingerprint"
       onBack={() =>
-        navigate({
+        void navigate({
           to: "/errors",
           search: { ...search, occurrence: "" },
         })

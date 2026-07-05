@@ -173,10 +173,10 @@ export function RunsExplorer({
                   isPending={isPending}
                   isError={isError}
                   error={error}
-                  refetch={refetch}
+                  refetch={() => void refetch()}
                   hasMore={hasNextPage}
                   isLoadingMore={isFetchingNextPage}
-                  onLoadMore={fetchNextPage}
+                  onLoadMore={() => void fetchNextPage()}
                   onClearFilters={clearFilters}
                   renderRunLink={renderRunLink}
                   renderRowActions={renderRowActions}

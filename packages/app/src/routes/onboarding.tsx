@@ -344,9 +344,11 @@ function OnboardingWizard() {
                     ) : (
                       <AppStep
                         onBack={goToPriorStep}
-                        onFinish={async () => {
-                          await markOnboardingComplete();
-                          await navigate({ to: redirectTo ?? "/" });
+                        onFinish={() => {
+                          void (async () => {
+                            await markOnboardingComplete();
+                            await navigate({ to: redirectTo ?? "/" });
+                          })();
                         }}
                       />
                     ))}

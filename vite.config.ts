@@ -123,6 +123,7 @@ export default defineConfig({
       // no-floating-promises catches unhandled async; the rest catch
       // "[object Object]" stringification, un-awaited thenables, bad sorts, etc.
       "typescript/no-floating-promises": "error",
+      "typescript/no-misused-promises": "error",
       "typescript/no-base-to-string": "error",
       "typescript/restrict-template-expressions": "error",
       "typescript/await-thenable": "error",

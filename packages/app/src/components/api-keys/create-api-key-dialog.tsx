@@ -145,7 +145,7 @@ export function CreateApiKeyDialog() {
               <Button variant="outline" onClick={() => handleOpenChange(false)}>
                 Done
               </Button>
-              <Button onClick={copyKey}>
+              <Button onClick={() => void copyKey()}>
                 {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
                 {copied ? "Copied" : "Copy key"}
               </Button>

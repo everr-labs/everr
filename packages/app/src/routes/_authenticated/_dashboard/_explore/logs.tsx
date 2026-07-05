@@ -58,12 +58,12 @@ function LogsExplorerPage() {
       onSearchChange={({ services: _ignored, ...next }) =>
         // Push a history entry per change so Back undoes filter changes one at a
         // time (the time-range brush below stays on replace — it's continuous).
-        navigate({
+        void navigate({
           search: (prev) => ({ ...prev, ...next }),
         })
       }
       onTimeRangeSelect={(from, to) =>
-        navigate({
+        void navigate({
           search: (prev) => ({
             ...prev,
             from: from.toISOString(),

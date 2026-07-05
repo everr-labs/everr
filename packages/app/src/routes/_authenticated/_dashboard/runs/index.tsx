@@ -47,9 +47,9 @@ function RunsListPage() {
       }}
       // Each filter mutation pushes a history entry so Back undoes one change at
       // a time; the histogram brush replaces (it's a continuous adjustment).
-      onSearchChange={(patch) => navigate({ search: (prev) => ({ ...prev, ...patch }) })}
+      onSearchChange={(patch) => void navigate({ search: (prev) => ({ ...prev, ...patch }) })}
       onTimeRangeSelect={(from, to) =>
-        navigate({
+        void navigate({
           search: (prev) => ({
             ...prev,
             from: from.toISOString(),

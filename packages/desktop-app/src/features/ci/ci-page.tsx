@@ -164,7 +164,7 @@ function CiContent() {
             <TimeRangePicker
               value={timeRange}
               onChange={(range) =>
-                navigate({
+                void navigate({
                   to: "/ci",
                   search: (prev) => ({
                     ...prev,
@@ -178,7 +178,7 @@ function CiContent() {
             <RefreshPicker
               value={refresh}
               onChange={(value) =>
-                navigate({
+                void navigate({
                   to: "/ci",
                   search: (prev) => ({ ...prev, refresh: value || undefined }),
                   replace: true,
@@ -205,7 +205,7 @@ function CiContent() {
             variant="outline"
             size="sm"
             className="shrink-0"
-            onClick={() => navigate({ to: "/settings" })}
+            onClick={() => void navigate({ to: "/settings" })}
           >
             <Mail className="size-3.5" />
             Add notification email
@@ -220,14 +220,14 @@ function CiContent() {
           search={explorerSearch}
           showMineFilter
           onSearchChange={(patch) =>
-            navigate({
+            void navigate({
               to: "/ci",
               search: (prev) => ({ ...prev, ...patch }),
               replace: true,
             })
           }
           onTimeRangeSelect={(from, to) =>
-            navigate({
+            void navigate({
               to: "/ci",
               search: (prev) => ({
                 ...prev,
