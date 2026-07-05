@@ -56,16 +56,16 @@ Create one telemetry context at startup, set up the main-process SDK + error cap
 
 ```ts
 // main/telemetry.ts
-import { randomUUID } from 'node:crypto';
-import { app, ipcMain, net } from 'electron';
-import { init as initErrorTracking } from '@everr/auto-otel-errors/node';
+import { randomUUID } from "node:crypto";
+import { app, ipcMain, net } from "electron";
+import { init as initErrorTracking } from "@everr/auto-otel-errors/node";
 // ... plus the NodeSDK setup from nodejs.md ...
 
-const SERVICE_NAME = '<service-name>';
+const SERVICE_NAME = "<service-name>";
 const MAX_OTLP_BODY_BYTES = 4 * 1024 * 1024;
 
 type TelemetryConfig = { endpoint: string; headers: Record<string, string> } | null;
-type ProcessType = 'main' | 'renderer';
+type ProcessType = "main" | "renderer";
 
 export type TelemetryContext = {
   serviceName: string;
@@ -80,25 +80,25 @@ export function setupMainTelemetry(): void {
     serviceName: SERVICE_NAME,
     serviceVersion: app.getVersion(),
     serviceInstanceId: randomUUID(),
-    deploymentEnvironment: app.isPackaged ? 'production' : 'development',
+    deploymentEnvironment: app.isPackaged ? "production" : "development",
   };
 
   // Main-process SDK uses the nodejs.md NodeSDK setup with SERVICE_NAME, and must
   // add process.type = main to its resource (nodejs.md does not add it by default).
-  startMainSdk({ ...baseContext, processType: 'main' });
+  startMainSdk({ ...baseContext, processType: "main" });
   initErrorTracking();
 
   const rendererContext: TelemetryContext = {
     ...baseContext,
-    processType: 'renderer',
+    processType: "renderer",
   };
   registerTelemetryIpc(resolveTelemetryConfig(process.env), rendererContext);
 }
 
 function registerTelemetryIpc(config: TelemetryConfig, context: TelemetryContext) {
-  ipcMain.handle('everr:telemetry-context', () => context);
+  ipcMain.handle("everr:telemetry-context", () => context);
 
-  ipcMain.handle('everr:proxy-otlp-logs', async (_event, body: string) => {
+  ipcMain.handle("everr:proxy-otlp-logs", async (_event, body: string) => {
     if (!config) return; // telemetry disabled
     if (body.length > MAX_OTLP_BODY_BYTES) {
       throw new Error(`otlp payload too large: ${body.length} bytes`);
@@ -107,8 +107,8 @@ function registerTelemetryIpc(config: TelemetryConfig, context: TelemetryContext
     // net.fetch respects the app's proxy/cert configuration. OTLP/JSON is UTF-8
     // text, so body is forwarded as-is with content-type application/json.
     const response = await net.fetch(logsUrl(config.endpoint), {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', ...config.headers },
+      method: "POST",
+      headers: { "content-type": "application/json", ...config.headers },
       body,
     });
     if (!response.ok) {
@@ -118,8 +118,8 @@ function registerTelemetryIpc(config: TelemetryConfig, context: TelemetryContext
 }
 
 function logsUrl(endpoint: string) {
-  const base = endpoint.replace(/\/+$/, '');
-  return base.endsWith('/v1/logs') ? base : `${base}/v1/logs`;
+  const base = endpoint.replace(/\/+$/, "");
+  return base.endsWith("/v1/logs") ? base : `${base}/v1/logs`;
 }
 ```
 
@@ -131,12 +131,11 @@ With `contextIsolation: true` and `nodeIntegration: false` (required), expose on
 
 ```ts
 // preload.ts
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer } from "electron";
 
-contextBridge.exposeInMainWorld('everrTelemetry', {
-  getContext: () => ipcRenderer.invoke('everr:telemetry-context'),
-  proxyOtlpLogs: (body: string) =>
-    ipcRenderer.invoke('everr:proxy-otlp-logs', body),
+contextBridge.exposeInMainWorld("everrTelemetry", {
+  getContext: () => ipcRenderer.invoke("everr:telemetry-context"),
+  proxyOtlpLogs: (body: string) => ipcRenderer.invoke("everr:proxy-otlp-logs", body),
 });
 ```
 
@@ -157,17 +156,17 @@ declare global {
 The exporter serializes each log batch to OTLP/JSON with `@opentelemetry/otlp-transformer` and hands the bytes to `window.everrTelemetry.proxyOtlpLogs`. No body allowlist, no attribute mapping — the encoded request carries the log's body, severity, and attributes.
 
 ```ts
-import { type ExportResult, ExportResultCode } from '@opentelemetry/core';
-import { JsonLogsSerializer } from '@opentelemetry/otlp-transformer';
-import { logs } from '@opentelemetry/api-logs';
-import { resourceFromAttributes } from '@opentelemetry/resources';
+import { type ExportResult, ExportResultCode } from "@opentelemetry/core";
+import { JsonLogsSerializer } from "@opentelemetry/otlp-transformer";
+import { logs } from "@opentelemetry/api-logs";
+import { resourceFromAttributes } from "@opentelemetry/resources";
 import {
   BatchLogRecordProcessor,
   LoggerProvider,
   type LogRecordExporter,
   type ReadableLogRecord,
-} from '@opentelemetry/sdk-logs';
-import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
+} from "@opentelemetry/sdk-logs";
+import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 
 const decoder = new TextDecoder();
 
@@ -190,15 +189,20 @@ class OtlpProxyLogExporter implements LogRecordExporter {
 
 export async function initRendererTelemetry() {
   const context = await window.everrTelemetry.getContext();
-  const batch = { maxQueueSize: 100, maxExportBatchSize: 32, scheduledDelayMillis: 5_000, exportTimeoutMillis: 30_000 };
+  const batch = {
+    maxQueueSize: 100,
+    maxExportBatchSize: 32,
+    scheduledDelayMillis: 5_000,
+    exportTimeoutMillis: 30_000,
+  };
 
   const loggerProvider = new LoggerProvider({
     resource: resourceFromAttributes({
       [ATTR_SERVICE_NAME]: context.serviceName,
-      'service.version': context.serviceVersion,
-      'service.instance.id': context.serviceInstanceId,
-      'deployment.environment.name': context.deploymentEnvironment,
-      'process.type': context.processType,
+      "service.version": context.serviceVersion,
+      "service.instance.id": context.serviceInstanceId,
+      "deployment.environment.name": context.deploymentEnvironment,
+      "process.type": context.processType,
     }),
     processors: [new BatchLogRecordProcessor(new OtlpProxyLogExporter(), batch)],
   });
@@ -211,7 +215,7 @@ export async function initRendererTelemetry() {
 Capture renderer errors with `@everr/auto-otel-errors/browser` (and `/react` for React), emitting through the `LoggerProvider` above. Set the global providers, then call `init()`:
 
 ```ts
-import { init as initErrorTracking } from '@everr/auto-otel-errors/browser';
+import { init as initErrorTracking } from "@everr/auto-otel-errors/browser";
 
 await initRendererTelemetry();
 initErrorTracking();

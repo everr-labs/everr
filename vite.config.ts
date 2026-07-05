@@ -7,22 +7,17 @@ const ignorePatterns = [
   "**/.nitro/**",
   "**/.tanstack/**",
   "**/tests/fixtures/**",
-  // Keep the formatter to code only (as Biome was scoped). Oxfmt otherwise
-  // reflows docs and Rust/config files: markdown, MDX docs content, and TOML
-  // (e.g. collapsing Cargo.toml arrays). YAML is left to its own tooling too.
-  "**/*.md",
-  "**/*.mdx",
+  // TOML stays out: oxfmt collapses Cargo.toml arrays and there is no separate
+  // Rust/TOML formatter wired up here.
   "**/*.toml",
-  "**/*.yaml",
-  "**/*.yml",
-  // Generated / tool-managed JSON: Drizzle snapshots must match drizzle-kit's
+  // Generated / tool-managed files: Drizzle snapshots must match drizzle-kit's
   // output byte-for-byte (CI regenerates and diffs them), and these others are
-  // written by their own tooling.
+  // written by their own tooling. (JS/TS/JSON/CSS/YAML/Markdown are formatted.)
   "**/drizzle/**",
   "**/.cta.json",
   "**/tauri.conf.json",
   "**/.vscode/**",
-  "packages/docs/content/**",
+  "packages/docs/content/**/*.json",
   "packages/docs/cli.json",
 ];
 

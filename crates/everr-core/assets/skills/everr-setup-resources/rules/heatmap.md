@@ -4,18 +4,18 @@ A **time × bucket grid of color-intensity cells** — request-duration histogra
 
 ## Options (`plugin.spec`)
 
-| Option | Type | Default | Values | Effect |
-| --- | --- | --- | --- | --- |
-| `yColumn` | string | first non-time column | column name | Y-bucket column. |
-| `valueColumn` | string | first remaining numeric column | column name | Cell intensity column. |
-| `unit` | string | `""` | any | Value formatting in cells, tooltip and legend. |
-| `showLegend` | boolean | `true` | `false` | Color ramp legend (min → max) below the grid. |
-| `showValues` | boolean | `false` | `true` | Render the value inside cells wide enough to fit it. |
-| `colorScheme` | enum | `spectral` | `spectral`, `greenYellowRed`, `blues`, `greens`, `oranges`, `reds` | Cell color ramp. `spectral` = cool blue → yellow → hot red; `greenYellowRed` = green → amber → red; the rest are single-hue light→dark. |
-| `scaleType` | enum | `linear` | `sqrt`, `log` | Value→color curve. `log` spreads heavily skewed data (histogram counts) so sparse cells stay visible. |
-| `min` | number | `0` (data min if negative) | any | Lower bound of the color domain — cells at or below it clamp to the ramp's low-end color. |
-| `max` | number | data max | any | Upper bound of the color domain. Set it (an expected ceiling) for colors that don't shift with the time window. |
-| `cellGap` | number | `1` | `0`–`4` | Gap between cells in px. |
+| Option        | Type    | Default                        | Values                                                             | Effect                                                                                                                                  |
+| ------------- | ------- | ------------------------------ | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `yColumn`     | string  | first non-time column          | column name                                                        | Y-bucket column.                                                                                                                        |
+| `valueColumn` | string  | first remaining numeric column | column name                                                        | Cell intensity column.                                                                                                                  |
+| `unit`        | string  | `""`                           | any                                                                | Value formatting in cells, tooltip and legend.                                                                                          |
+| `showLegend`  | boolean | `true`                         | `false`                                                            | Color ramp legend (min → max) below the grid.                                                                                           |
+| `showValues`  | boolean | `false`                        | `true`                                                             | Render the value inside cells wide enough to fit it.                                                                                    |
+| `colorScheme` | enum    | `spectral`                     | `spectral`, `greenYellowRed`, `blues`, `greens`, `oranges`, `reds` | Cell color ramp. `spectral` = cool blue → yellow → hot red; `greenYellowRed` = green → amber → red; the rest are single-hue light→dark. |
+| `scaleType`   | enum    | `linear`                       | `sqrt`, `log`                                                      | Value→color curve. `log` spreads heavily skewed data (histogram counts) so sparse cells stay visible.                                   |
+| `min`         | number  | `0` (data min if negative)     | any                                                                | Lower bound of the color domain — cells at or below it clamp to the ramp's low-end color.                                               |
+| `max`         | number  | data max                       | any                                                                | Upper bound of the color domain. Set it (an expected ceiling) for colors that don't shift with the time window.                         |
+| `cellGap`     | number  | `1`                            | `0`–`4`                                                            | Gap between cells in px.                                                                                                                |
 
 ```yaml
 plugin:

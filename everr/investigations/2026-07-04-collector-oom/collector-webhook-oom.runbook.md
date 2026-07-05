@@ -222,7 +222,7 @@ stdout logs are not ingested. See fix 4.
   `Last State: Terminated, Reason: OOMKilled` about a minute after each slow
   replay.
 - The run being ingested: `kubectl logs -n collector <pod> --previous | grep
-  "Processing WorkflowRunEvent"` shows repo, workflow name, and run id.
+"Processing WorkflowRunEvent"` shows repo, workflow name, and run id.
 
 ## Fixes
 

@@ -26,11 +26,11 @@ That's it. Everr automatically detects and parses Go test output from workflow l
 
 The parser recognizes the standard Go test verbose output patterns:
 
-| Pattern | Meaning |
-|---------|---------|
-| `=== RUN   TestName` | Test started |
-| `--- PASS: TestName (0.05s)` | Test passed |
-| `--- FAIL: TestName (0.12s)` | Test failed |
+| Pattern                      | Meaning      |
+| ---------------------------- | ------------ |
+| `=== RUN   TestName`         | Test started |
+| `--- PASS: TestName (0.05s)` | Test passed  |
+| `--- FAIL: TestName (0.12s)` | Test failed  |
 | `--- SKIP: TestName (0.00s)` | Test skipped |
 
 ## Subtests
@@ -41,13 +41,13 @@ Each subtest becomes its own span with `everr.test.is_subtest` set to `true` and
 
 ## Generated span attributes
 
-| Attribute | Value |
-|-----------|-------|
-| `everr.test.name` | Full test name (e.g. `TestParser/valid_input`) |
-| `everr.test.result` | `pass`, `fail`, or `skip` |
-| `everr.test.duration_seconds` | Duration from the test output |
-| `everr.test.framework` | `go` |
-| `everr.test.package` | Go package path |
-| `everr.test.is_suite` | `true` for tests that contain child subtests |
-| `everr.test.is_subtest` | `true` for subtests |
-| `everr.test.parent_test` | Parent test name (for subtests) |
+| Attribute                     | Value                                          |
+| ----------------------------- | ---------------------------------------------- |
+| `everr.test.name`             | Full test name (e.g. `TestParser/valid_input`) |
+| `everr.test.result`           | `pass`, `fail`, or `skip`                      |
+| `everr.test.duration_seconds` | Duration from the test output                  |
+| `everr.test.framework`        | `go`                                           |
+| `everr.test.package`          | Go package path                                |
+| `everr.test.is_suite`         | `true` for tests that contain child subtests   |
+| `everr.test.is_subtest`       | `true` for subtests                            |
+| `everr.test.parent_test`      | Parent test name (for subtests)                |

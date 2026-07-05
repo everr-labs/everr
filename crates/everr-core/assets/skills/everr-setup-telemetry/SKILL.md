@@ -23,21 +23,21 @@ Local telemetry lets development match production behavior closely, and debug te
 
 Always read the relevant rule files before editing instrumentation. Use the table below to load the minimum guidance for the code path being changed.
 
-| Use case / rule | Description |
-| --- | --- |
-| `resolve-values` | Resolve configuration values from the codebase before hardcoding or asking |
-| `resources` | Resource attributes: service identity, version, environment, instance |
-| `spans` | Spans: naming, kind, status, attributes, and hygiene |
-| `logs` | Logs: structured logging, severity, trace correlation, delivery |
-| `metrics` | Metrics: instrument types, naming, units, and cardinality |
-| `error-tracking` | Error tracking: exceptions, release context, crash capture |
-| `sensitive-data` | PII prevention, sanitization, hashing, redaction |
-| `validation` | Telemetry validation locally and after deployment |
-| `nodejs` | Node.js instrumentation setup and runtime pitfalls |
-| `nextjs` | Next.js App Router, server/client split, trace propagation |
-| `tauri` | Tauri v2 desktop/mobile: Rust backend + browser frontend proxying telemetry through IPC |
-| `electron` | Electron desktop: Node main process + Chromium renderer proxying telemetry through IPC |
-| `rust` | Rust tracing-based OpenTelemetry setup and runtime pitfalls |
+| Use case / rule  | Description                                                                             |
+| ---------------- | --------------------------------------------------------------------------------------- |
+| `resolve-values` | Resolve configuration values from the codebase before hardcoding or asking              |
+| `resources`      | Resource attributes: service identity, version, environment, instance                   |
+| `spans`          | Spans: naming, kind, status, attributes, and hygiene                                    |
+| `logs`           | Logs: structured logging, severity, trace correlation, delivery                         |
+| `metrics`        | Metrics: instrument types, naming, units, and cardinality                               |
+| `error-tracking` | Error tracking: exceptions, release context, crash capture                              |
+| `sensitive-data` | PII prevention, sanitization, hashing, redaction                                        |
+| `validation`     | Telemetry validation locally and after deployment                                       |
+| `nodejs`         | Node.js instrumentation setup and runtime pitfalls                                      |
+| `nextjs`         | Next.js App Router, server/client split, trace propagation                              |
+| `tauri`          | Tauri v2 desktop/mobile: Rust backend + browser frontend proxying telemetry through IPC |
+| `electron`       | Electron desktop: Node main process + Chromium renderer proxying telemetry through IPC  |
+| `rust`           | Rust tracing-based OpenTelemetry setup and runtime pitfalls                             |
 
 For most runtime work, read `resolve-values`, `resources`, `error-tracking`, `sensitive-data`, `validation`, and the signal/runtime rules that match the task.
 
@@ -58,13 +58,13 @@ For most runtime work, read `resolve-values`, `resources`, `error-tracking`, `se
 
 ## Command Choice
 
-| Need | Command |
-| --- | --- |
-| Check collector state | `everr local status` |
-| Start the CLI collector | `everr local start` |
-| Get the OTLP/HTTP endpoint | `everr local status` |
-| Verify telemetry arrived | `everr local query "<SQL>"` |
-| Capture build/lint output | `everr wrap -- <command>` |
+| Need                       | Command                     |
+| -------------------------- | --------------------------- |
+| Check collector state      | `everr local status`        |
+| Start the CLI collector    | `everr local start`         |
+| Get the OTLP/HTTP endpoint | `everr local status`        |
+| Verify telemetry arrived   | `everr local query "<SQL>"` |
+| Capture build/lint output  | `everr wrap -- <command>`   |
 
 In plans and example commands, keep the endpoint as `<otlp-url-from-status>` until you have actual status output.
 
@@ -138,10 +138,10 @@ See `rules/validation.md` for the full validation checklist.
 
 ## Common Mistakes
 
-| Mistake | Fix |
-| --- | --- |
-| Naming a likely collector URL such as a default localhost port before reading status | Use `<otlp-url-from-status>` in plans and examples until `everr local status` returns the actual endpoint. |
-| Adding a run, request, or test marker but querying only by service and time | Filter the query by the marker too, or do not claim the marker proved freshness. |
-| Mirroring every `console.*` call into logs | Prefer targeted OTel logs or the app's structured logger; any bridge must be temporary, gated, redacted, and bounded. |
-| Verifying by UI visibility or absence of exporter errors | Run `everr local query` and show rows from the exercised path. |
-| Exposing `EVERR_INGEST_KEY` to the browser | Route browser telemetry through a backend or collector that attaches credentials server-side. |
+| Mistake                                                                              | Fix                                                                                                                   |
+| ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| Naming a likely collector URL such as a default localhost port before reading status | Use `<otlp-url-from-status>` in plans and examples until `everr local status` returns the actual endpoint.            |
+| Adding a run, request, or test marker but querying only by service and time          | Filter the query by the marker too, or do not claim the marker proved freshness.                                      |
+| Mirroring every `console.*` call into logs                                           | Prefer targeted OTel logs or the app's structured logger; any bridge must be temporary, gated, redacted, and bounded. |
+| Verifying by UI visibility or absence of exporter errors                             | Run `everr local query` and show rows from the exercised path.                                                        |
+| Exposing `EVERR_INGEST_KEY` to the browser                                           | Route browser telemetry through a backend or collector that attaches credentials server-side.                         |

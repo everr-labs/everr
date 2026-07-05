@@ -30,7 +30,7 @@ ref: eventloop-utilization
   the main thread (large JSON parse/stringify, synchronous crypto/zlib,
   tight loops, regex backtracking). Move it off the loop — stream/chunk it,
   or push it to `worker_threads`.
-- **Low utilization but high delay** → the loop is *blocked*, not busy:
+- **Low utilization but high delay** → the loop is _blocked_, not busy:
   synchronous filesystem calls, a native addon, or GC pauses. Check memory
   next.
 
@@ -47,13 +47,13 @@ if the working set is legitimately large, or fix the leak.
 
 ## 4. Common causes & what to do
 
-| Signal | Likely cause | Action |
-| --- | --- | --- |
-| High utilization, high delay | CPU-bound work on the main thread | Offload to `worker_threads`; chunk/stream heavy work |
-| Low utilization, high delay | Synchronous I/O or native call blocking the loop | Replace sync `fs`/crypto with async; audit native addons |
-| Heap sawtooth near the limit | GC pauses | Reduce allocations; raise heap; check for leaks |
-| Delay tracks request bursts | Overload | Scale out or shed load |
-| One service only, after a deploy | Regression in that release | Correlate with deploy history; roll back |
+| Signal                           | Likely cause                                     | Action                                                   |
+| -------------------------------- | ------------------------------------------------ | -------------------------------------------------------- |
+| High utilization, high delay     | CPU-bound work on the main thread                | Offload to `worker_threads`; chunk/stream heavy work     |
+| Low utilization, high delay      | Synchronous I/O or native call blocking the loop | Replace sync `fs`/crypto with async; audit native addons |
+| Heap sawtooth near the limit     | GC pauses                                        | Reduce allocations; raise heap; check for leaks          |
+| Delay tracks request bursts      | Overload                                         | Scale out or shed load                                   |
+| One service only, after a deploy | Regression in that release                       | Correlate with deploy history; roll back                 |
 
 ## 5. Related
 

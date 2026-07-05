@@ -4,19 +4,27 @@ A line chart over time (or a stacked area chart with `stacked: true`). It infers
 
 ## Options (`plugin.spec`)
 
-| Option | Type | Default | Values | Effect |
-| --- | --- | --- | --- | --- |
-| `unit` | string | `""` | any string | Suffix on y-axis ticks and tooltip values. Raw concatenation, **no space** — `unit: ms` renders `123ms`. |
-| `showLegend` | boolean | `false` | `true` | Show the series legend. Only the literal `true` enables it. |
-| `lineWidth` | number | `1.5` | any number | Line stroke width. |
-| `curveType` | string | `monotone` | `monotone`, `linear`, `natural`, `stepBefore`, `stepAfter` | Line interpolation. An unknown value falls back to the renderer default. |
-| `connectNulls` | boolean | `false` | `true` | Bridge gaps instead of breaking the line at them. |
-| `stacked` | boolean | `false` | `true` | Render the series as stacked filled areas instead of overlaid lines. A series with no sample at a timestamp contributes 0 there; `connectNulls` has no effect. |
+| Option         | Type    | Default    | Values                                                     | Effect                                                                                                                                                         |
+| -------------- | ------- | ---------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `unit`         | string  | `""`       | any string                                                 | Suffix on y-axis ticks and tooltip values. Raw concatenation, **no space** — `unit: ms` renders `123ms`.                                                       |
+| `showLegend`   | boolean | `false`    | `true`                                                     | Show the series legend. Only the literal `true` enables it.                                                                                                    |
+| `lineWidth`    | number  | `1.5`      | any number                                                 | Line stroke width.                                                                                                                                             |
+| `curveType`    | string  | `monotone` | `monotone`, `linear`, `natural`, `stepBefore`, `stepAfter` | Line interpolation. An unknown value falls back to the renderer default.                                                                                       |
+| `connectNulls` | boolean | `false`    | `true`                                                     | Bridge gaps instead of breaking the line at them.                                                                                                              |
+| `stacked`      | boolean | `false`    | `true`                                                     | Render the series as stacked filled areas instead of overlaid lines. A series with no sample at a timestamp contributes 0 there; `connectNulls` has no effect. |
 
 ```yaml
 plugin:
   kind: TimeSeriesChart
-  spec: { unit: ms, showLegend: true, lineWidth: 1.5, curveType: monotone, connectNulls: false, stacked: false }
+  spec:
+    {
+      unit: ms,
+      showLegend: true,
+      lineWidth: 1.5,
+      curveType: monotone,
+      connectNulls: false,
+      stacked: false,
+    }
 ```
 
 These six are the complete set. There is **no** `yAxis` / `min` / `max`, `legend` object, separate area / fill option, `thresholds`, `decimals`, `pointRadius`, or per-series color. Series colors come from a fixed 6-color palette assigned by order (wrapping after 6) and are not configurable.
@@ -42,7 +50,7 @@ GROUP BY ts, ServiceName ORDER BY ts
 
 **The pivot fires only when the query returns exactly one numeric column.** With two or more numeric columns the string column is **ignored** and each numeric column becomes one line. So `SELECT ts, ServiceName, p50, p95, p99 ...` does **not** produce per-service lines — it produces three lines (p50/p95/p99) aggregated across services, and `ServiceName` is dropped.
 
-To break **multiple** metrics out per service, use **one query per metric** (each returning that single metric + the string column); the queries overlay on one timeline. The label column can be any non-numeric string expression, including a computed one — e.g. `concat(ServiceName, ' p95') AS series` — which is the idiomatic way to keep the lines distinct across the overlaid per-metric queries. Multiple string columns concatenate into one label joined with ` · `.
+To break **multiple** metrics out per service, use **one query per metric** (each returning that single metric + the string column); the queries overlay on one timeline. The label column can be any non-numeric string expression, including a computed one — e.g. `concat(ServiceName, ' p95') AS series` — which is the idiomatic way to keep the lines distinct across the overlaid per-metric queries. Multiple string columns concatenate into one label joined with `·`.
 
 ## Behaviors to know
 

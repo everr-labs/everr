@@ -8,33 +8,33 @@ Runbooks reuse the exact same panel, variable, and query model as dashboards —
 
 The `.md` source on disk is the canonical artifact. **There is no fetch/get command** — agents run on the user's machine and read the source files directly with the normal file tools. To investigate with a runbook, open its `.md` file(s).
 
-Each ```panel fence contains a runnable panel whose query is **ClickHouse SQL**. To use a runbook's panel during an investigation, extract the `query:` from the fence (or from the panel it `ref:`s in the YAML) and run or adapt it — via `everr cloud query "<sql>"` or the **`everr-use-telemetry`** skill. Queries use `{from:String}`/`{to:String}`/`{step:UInt32}` time params and `$variable` tokens; substitute concrete values when running ad hoc.
+Each ```panel fence contains a runnable panel whose query is **ClickHouse SQL**. To use a runbook's panel during an investigation, extract the `query:`from the fence (or from the panel it`ref:`s in the YAML) and run or adapt it — via `everr cloud query "<sql>"` or the **`everr-use-telemetry`** skill. Queries use `{from:String}`/`{to:String}`/`{step:UInt32}`time params and`$variable` tokens; substitute concrete values when running ad hoc.
 
 ## The Runbook YAML schema
 
 ```yaml
 kind: Runbook
 metadata:
-  name: high-error-rate          # slug + URL segment; set it explicitly. File stem mirrors it: high-error-rate.runbook.yaml
-  project: demo                  # optional; defaults to "default"; namespaces identity + URL
+  name: high-error-rate # slug + URL segment; set it explicitly. File stem mirrors it: high-error-rate.runbook.yaml
+  project: demo # optional; defaults to "default"; namespaces identity + URL
 spec:
   display:
     name: "High error rate runbook"
     description: "Triage steps for 5xx spikes"
-  duration: 24h                  # optional; seeds the time-range picker (same as dashboards)
-  refreshInterval: 1m            # optional; seeds auto-refresh
-  variables: [ ... ]             # optional; identical schema to dashboard variables
-  panels:                        # optional; shared panels referenced from markdown via `ref:`
+  duration: 24h # optional; seeds the time-range picker (same as dashboards)
+  refreshInterval: 1m # optional; seeds auto-refresh
+  variables: [...] # optional; identical schema to dashboard variables
+  panels: # optional; shared panels referenced from markdown via `ref:`
     error-rate:
       kind: Panel
-      spec: { ... }              # exactly a dashboard Panel spec
-  markdown:                      # REQUIRED — the index page
-    file: ./high-error-rate.runbook.md  # path relative to this YAML; inlined by the CLI at apply time
-  pages:                         # optional; recursive child pages
-    - name: triage               # page slug; unique among its siblings
+      spec: { ... } # exactly a dashboard Panel spec
+  markdown: # REQUIRED — the index page
+    file: ./high-error-rate.runbook.md # path relative to this YAML; inlined by the CLI at apply time
+  pages: # optional; recursive child pages
+    - name: triage # page slug; unique among its siblings
       display: { name: Triage }
       markdown: { file: ./triage/index.runbook.md }
-      pages:                     # pages nest arbitrarily deep
+      pages: # pages nest arbitrarily deep
         - name: network
           markdown: { file: ./triage/network.runbook.md }
     - name: rollback

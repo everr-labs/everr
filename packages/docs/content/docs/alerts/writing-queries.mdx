@@ -25,7 +25,7 @@ metadata:
   name: api-error-rate
   project: platform
 spec:
-  runbook: api-error-rate-runbook   # platform/api-error-rate-runbook
+  runbook: api-error-rate-runbook # platform/api-error-rate-runbook
   evaluationInterval: 1m
   notificationMessage:
     title: "${ServiceName} error rate is high"
@@ -95,7 +95,7 @@ Set `spec.instanceLabels` to pin the identity to just the service, keeping `wors
 
 ```yaml
 spec:
-  instanceLabels: [ServiceName]   # identity is the service, regardless of host
+  instanceLabels: [ServiceName] # identity is the service, regardless of host
 ```
 
 The columns you list become the entire identity; any other string column is carried along only for the message. Make sure the query returns a single row per identity, if two rows share the same identity, they collapse into one instance.
@@ -108,6 +108,6 @@ Everr notifies on the firing and resolved edges as soon as the rule evaluates. T
 
 ## Keep results small
 
-The firing set *is* the rows the query returns, so return only what's firing, push the filtering and the threshold into the SQL with `WHERE` and `HAVING`. Emit one row per instance, avoid `SELECT *` on large sets, and add a `LIMIT` for safety on broad queries.
+The firing set _is_ the rows the query returns, so return only what's firing, push the filtering and the threshold into the SQL with `WHERE` and `HAVING`. Emit one row per instance, avoid `SELECT *` on large sets, and add a `LIMIT` for safety on broad queries.
 
 Return the columns needed for identity, message templates, and the measured values that explain why the alert fired. Extra high-cardinality string columns can create extra instances unless you override `spec.instanceLabels`.

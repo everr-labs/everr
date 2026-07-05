@@ -9,27 +9,26 @@ An `AlertRule` is a resource with three top-level keys. Everr validates it on `e
 kind: AlertRule
 metadata:
   name: <slug>
-spec:
-  { ... }
+spec: { ... }
 ```
 
-| Key | Type | Notes |
-| --- | --- | --- |
-| `kind` | `"AlertRule"` | Selects the reconciler. Required. |
-| `metadata.name` | string | The rule's **slug** and identity. Required, non-empty. |
-| `spec` | object | The rule contents, below. |
+| Key             | Type          | Notes                                                  |
+| --------------- | ------------- | ------------------------------------------------------ |
+| `kind`          | `"AlertRule"` | Selects the reconciler. Required.                      |
+| `metadata.name` | string        | The rule's **slug** and identity. Required, non-empty. |
+| `spec`          | object        | The rule contents, below.                              |
 
 ## `spec`
 
-| Field | Type | Required | Notes |
-| --- | --- | --- | --- |
-| `evaluationInterval` | string | yes | How often the query runs. `<int><s\|m\|h\|d>`, **minimum `1m`**. |
-| `query` | string | yes | ClickHouse SQL. Every returned row is a firing instance; empty = resolved. **No `${...}` templating.** |
-| `notificationMessage` | object | yes | The notification text. See below. |
-| `notificationMessage.title` | string | yes | Supports `${column}`. Non-empty. |
-| `notificationMessage.description` | string | no | Supports `${column}`. |
-| `instanceLabels` | [string] | no | Override for instance identity; ≥1 entry when present. Default identity is all string columns the query returns. |
-| `display` | object | no | `name` and/or `description`, both optional. Human-facing labels. |
+| Field                             | Type     | Required | Notes                                                                                                            |
+| --------------------------------- | -------- | -------- | ---------------------------------------------------------------------------------------------------------------- |
+| `evaluationInterval`              | string   | yes      | How often the query runs. `<int><s\|m\|h\|d>`, **minimum `1m`**.                                                 |
+| `query`                           | string   | yes      | ClickHouse SQL. Every returned row is a firing instance; empty = resolved. **No `${...}` templating.**           |
+| `notificationMessage`             | object   | yes      | The notification text. See below.                                                                                |
+| `notificationMessage.title`       | string   | yes      | Supports `${column}`. Non-empty.                                                                                 |
+| `notificationMessage.description` | string   | no       | Supports `${column}`.                                                                                            |
+| `instanceLabels`                  | [string] | no       | Override for instance identity; ≥1 entry when present. Default identity is all string columns the query returns. |
+| `display`                         | object   | no       | `name` and/or `description`, both optional. Human-facing labels.                                                 |
 
 ## Message templating
 
@@ -46,8 +45,8 @@ The apply directory — by convention an `everr/` directory at your repo root �
 repoid: "2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1"
 ```
 
-| Field | Type | Notes |
-| --- | --- | --- |
+| Field    | Type          | Notes                                                                                                                                                     |
+| -------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `repoid` | string (UUID) | Stable identifier you choose once. It's the reconcile/prune boundary, apply only touches resources under this repoid. The manifest rejects any other key. |
 
 Declarations sit flat in `everr/`, named by kind: `*.alert.yaml`, `*.dashboard.yaml`, `*.runbook.yaml` (the legacy `*.notebook.yaml` suffix is still recognized). `everr apply ./everr` discovers every `kind: Dashboard`, `kind: AlertRule`, and `kind: Runbook` document under the directory and makes the live resources for that repoid exactly match the tree: new documents are created, changed ones updated, and removed ones **deleted**. The kind suffix is a naming convention only — apply routes by the `kind:` field. Use `--dry-run` to preview the changes without applying them. See the [`everr apply` reference](/docs/reference/cli#dashboards-gitops).

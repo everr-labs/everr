@@ -23,12 +23,12 @@ The ONLY query command is `everr cloud query "<SQL>"` or `everr local query "<SQ
 
 ## Choose The Source
 
-| Question | Use |
-| --- | --- |
-| Production, deployed services, customer reports, cloud CI history | `everr cloud query "<SQL>"` |
-| Local app, dev server, local tests, wrapped command output | `everr local query "<SQL>"` |
-| Current CI run, branch status, failed jobs, workflow logs | Use the `everr-working-with-ci` skill |
-| Missing or stale local telemetry | Use the `everr-setup-telemetry` skill |
+| Question                                                          | Use                                   |
+| ----------------------------------------------------------------- | ------------------------------------- |
+| Production, deployed services, customer reports, cloud CI history | `everr cloud query "<SQL>"`           |
+| Local app, dev server, local tests, wrapped command output        | `everr local query "<SQL>"`           |
+| Current CI run, branch status, failed jobs, workflow logs         | Use the `everr-working-with-ci` skill |
+| Missing or stale local telemetry                                  | Use the `everr-setup-telemetry` skill |
 
 If an Everr command fails, investigate why: collector stopped, stale app, wrong repo, missing auth, missing import, bad query, or CLI bug. **Follow the error message literally** — if it says run `everr local start`, run that. Do not invent alternative explanations for the error or silently replace real telemetry with guesses.
 
@@ -73,11 +73,13 @@ Useful log columns: `Timestamp`, `TraceId`, `SpanId`, `ServiceName`, `ScopeName`
 ## Useful Queries
 
 Check freshness:
+
 ```sql
 SELECT max(Timestamp) FROM traces
 ```
 
 Discover what spans exist:
+
 ```sql
 SELECT SpanName, ServiceName, count() AS c
 FROM traces
@@ -88,6 +90,7 @@ LIMIT 20
 ```
 
 Recent errors:
+
 ```sql
 SELECT Timestamp, ServiceName, SeverityText, Body, TraceId
 FROM logs
@@ -98,6 +101,7 @@ LIMIT 50
 ```
 
 Slow spans:
+
 ```sql
 SELECT Timestamp, ServiceName, SpanName, Duration, TraceId
 FROM traces
@@ -107,6 +111,7 @@ LIMIT 20
 ```
 
 Full trace:
+
 ```sql
 SELECT Timestamp, ServiceName, SpanName, Duration, StatusCode, StatusMessage
 FROM traces
@@ -117,6 +122,7 @@ LIMIT 200
 ```
 
 Correlated logs for a trace:
+
 ```sql
 SELECT Timestamp, SeverityText, Body
 FROM logs
@@ -127,6 +133,7 @@ LIMIT 200
 ```
 
 Recent failed spans:
+
 ```sql
 SELECT Timestamp, ServiceName, SpanName, StatusCode, StatusMessage, TraceId
 FROM traces
@@ -137,6 +144,7 @@ LIMIT 50
 ```
 
 Failure count by service:
+
 ```sql
 SELECT ServiceName, count() AS errors
 FROM logs
@@ -149,36 +157,38 @@ LIMIT 20
 
 ## Error Troubleshooting
 
-| Error | Action |
-| --- | --- |
-| `telemetry collector isn't running` | Run `everr local start` or open Everr Desktop |
+| Error                                                                         | Action                                                                         |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `telemetry collector isn't running`                                           | Run `everr local start` or open Everr Desktop                                  |
 | `can't reach the telemetry collector because local network access is blocked` | Allow local network access for the tool or run the command outside the sandbox |
-| `telemetry collector is busy` | Wait a moment and retry |
-| `no active session` | Run `everr cloud login` |
-| `Session expired` | Run `everr cloud login` |
+| `telemetry collector is busy`                                                 | Wait a moment and retry                                                        |
+| `no active session`                                                           | Run `everr cloud login`                                                        |
+| `Session expired`                                                             | Run `everr cloud login`                                                        |
 
 When a local query fails, always run `everr local status` to diagnose the collector state before trying workarounds.
 
 ## Common Mistakes
 
-| Mistake | Fix |
-| --- | --- |
+| Mistake                                                                 | Fix                                                                                                                      |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | Inventing subcommands or flags (`query traces`, `--filter`, `--window`) | Only `everr cloud query "<SQL>"` or `everr local query "<SQL>"` with optional `--format`. Everything else is in the SQL. |
-| Writing queries without a time window | Always add `WHERE Timestamp > now() - INTERVAL N HOUR/MINUTE`. |
-| Writing cloud queries without LIMIT | Cloud enforces 1000-row limit. Always include `LIMIT`. |
-| Assuming attribute names without discovering them | Run `DESCRIBE TABLE` or sample rows first. Conventions vary. |
-| Getting "collector isn't running" but not running `everr local start` | Follow the error message literally. |
-| Diagnosing without checking freshness | Query `max(Timestamp)` first. If data is hours old, it's stale. |
+| Writing queries without a time window                                   | Always add `WHERE Timestamp > now() - INTERVAL N HOUR/MINUTE`.                                                           |
+| Writing cloud queries without LIMIT                                     | Cloud enforces 1000-row limit. Always include `LIMIT`.                                                                   |
+| Assuming attribute names without discovering them                       | Run `DESCRIBE TABLE` or sample rows first. Conventions vary.                                                             |
+| Getting "collector isn't running" but not running `everr local start`   | Follow the error message literally.                                                                                      |
+| Diagnosing without checking freshness                                   | Query `max(Timestamp)` first. If data is hours old, it's stale.                                                          |
 
 ## Integrated Examples
 
 For "production users are seeing errors":
+
 1. Query cloud logs for recent errors with a time window.
 2. Pick a representative `TraceId` and query cloud traces for the full request.
 3. Compare errors by service, route, version, or deploy-related attributes if available.
 4. Explain whether the data points to one service, one path, one release, or a broad outage.
 
 For "my local request is slow":
+
 1. Run `everr local status`. If stopped, run `everr local start`.
 2. Check freshness: `SELECT max(Timestamp) FROM traces`.
 3. Query recent slow spans from `traces`.
@@ -186,6 +196,7 @@ For "my local request is slow":
 5. If spans are missing around the slow boundary, use `everr-setup-telemetry` to add the next targeted signal.
 
 For "debug this failing local test":
+
 1. Check whether the test or app emits logs, traces, metrics, or wrapped command output.
 2. If yes, rerun the test and query fresh local logs or traces with a filter for the test name or run id.
 3. If no useful telemetry exists, add targeted debug telemetry or explain why telemetry cannot help and debug with the test output and code path.

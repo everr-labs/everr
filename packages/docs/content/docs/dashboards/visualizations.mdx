@@ -25,14 +25,14 @@ plugin:
     stacked: false
 ```
 
-| Option | Type | Default | Notes |
-| --- | --- | --- | --- |
-| `unit` | string | `""` | Suffix appended to axis/values. |
-| `showLegend` | boolean | `false` | Show the series legend. |
-| `lineWidth` | number | `1.5` | Stroke width. |
-| `curveType` | enum | `monotone` | One of `monotone`, `linear`, `natural`, `stepBefore`, `stepAfter`. |
-| `connectNulls` | boolean | `false` | Bridge gaps instead of breaking the line. |
-| `stacked` | boolean | `false` | Stack series on top of each other as filled areas. A series with no sample at a timestamp contributes 0 there, and `connectNulls` has no effect. |
+| Option         | Type    | Default    | Notes                                                                                                                                            |
+| -------------- | ------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `unit`         | string  | `""`       | Suffix appended to axis/values.                                                                                                                  |
+| `showLegend`   | boolean | `false`    | Show the series legend.                                                                                                                          |
+| `lineWidth`    | number  | `1.5`      | Stroke width.                                                                                                                                    |
+| `curveType`    | enum    | `monotone` | One of `monotone`, `linear`, `natural`, `stepBefore`, `stepAfter`.                                                                               |
+| `connectNulls` | boolean | `false`    | Bridge gaps instead of breaking the line.                                                                                                        |
+| `stacked`      | boolean | `false`    | Stack series on top of each other as filled areas. A series with no sample at a timestamp contributes 0 there, and `connectNulls` has no effect. |
 
 ## BarChart
 
@@ -49,13 +49,13 @@ plugin:
     showValues: false
 ```
 
-| Option | Type | Default | Notes |
-| --- | --- | --- | --- |
-| `unit` | string | `""` | Suffix appended to axis/values. |
-| `showLegend` | boolean | `false` | Show the series legend. |
-| `stacking` | enum | `none` | `none` draws series side by side; `stacked` piles them into one bar per x value; `percent` additionally normalizes each stack to 100% (the value axis becomes percentages, tooltips keep raw values). |
-| `orientation` | enum | `vertical` | `vertical` draws bars bottom-up; `horizontal` draws them left-to-right with categories on the y-axis (best for categorical data with long labels). |
-| `showValues` | boolean | `false` | Draw the value on each bar (on top/right of grouped bars, centered inside stacked segments). |
+| Option        | Type    | Default    | Notes                                                                                                                                                                                                 |
+| ------------- | ------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `unit`        | string  | `""`       | Suffix appended to axis/values.                                                                                                                                                                       |
+| `showLegend`  | boolean | `false`    | Show the series legend.                                                                                                                                                                               |
+| `stacking`    | enum    | `none`     | `none` draws series side by side; `stacked` piles them into one bar per x value; `percent` additionally normalizes each stack to 100% (the value axis becomes percentages, tooltips keep raw values). |
+| `orientation` | enum    | `vertical` | `vertical` draws bars bottom-up; `horizontal` draws them left-to-right with categories on the y-axis (best for categorical data with long labels).                                                    |
+| `showValues`  | boolean | `false`    | Draw the value on each bar (on top/right of grouped bars, centered inside stacked segments).                                                                                                          |
 
 ## Table
 
@@ -68,8 +68,8 @@ plugin:
     stickyHeader: true
 ```
 
-| Option | Type | Default | Notes |
-| --- | --- | --- | --- |
+| Option         | Type    | Default | Notes                                    |
+| -------------- | ------- | ------- | ---------------------------------------- |
 | `stickyHeader` | boolean | `false` | Keep the header visible while scrolling. |
 
 ## StatChart
@@ -95,20 +95,20 @@ plugin:
         - { value: 80, color: "#ef4444" }
 ```
 
-| Option | Type | Default | Notes |
-| --- | --- | --- | --- |
-| `calculation` | enum | `last` | One of `last`, `first`, `mean`, `min`, `max`, `sum`, `count`, `range`, `diff`. |
-| `unit` | string | `""` | Suffix appended to the value. |
-| `decimals` | number | — | Fixed fraction digits (0–10). Omitted: up to 2, trailing zeros dropped. |
-| `sparkline` | boolean | `false` | Draw a sparkline (in time order, or row order without a time column). |
-| `colorMode` | enum | `value` | `value` tints the number; `background` fills the whole tile with the threshold color. |
-| `showLabel` | boolean | `false` | Show the series label on a single-tile panel too. |
-| `noValue` | string | `–` | Text shown for a query that produced no value. |
-| `thresholds` | object | — | Color the value (and sparkline) by thresholds. |
-| `thresholds.mode` | enum | `absolute` | `absolute` compares the raw value; `percent` compares against `thresholds.max`. |
-| `thresholds.max` | number | series max | Reference for `percent` mode. Set it (e.g. an SLA ceiling) for percentages that don't shift with the time window. |
-| `thresholds.defaultColor` | string | — | Color when no step is crossed. |
-| `thresholds.steps[]` | `{ value, color }` | — | Ascending thresholds; the highest crossed step's color wins. |
+| Option                    | Type               | Default    | Notes                                                                                                             |
+| ------------------------- | ------------------ | ---------- | ----------------------------------------------------------------------------------------------------------------- |
+| `calculation`             | enum               | `last`     | One of `last`, `first`, `mean`, `min`, `max`, `sum`, `count`, `range`, `diff`.                                    |
+| `unit`                    | string             | `""`       | Suffix appended to the value.                                                                                     |
+| `decimals`                | number             | —          | Fixed fraction digits (0–10). Omitted: up to 2, trailing zeros dropped.                                           |
+| `sparkline`               | boolean            | `false`    | Draw a sparkline (in time order, or row order without a time column).                                             |
+| `colorMode`               | enum               | `value`    | `value` tints the number; `background` fills the whole tile with the threshold color.                             |
+| `showLabel`               | boolean            | `false`    | Show the series label on a single-tile panel too.                                                                 |
+| `noValue`                 | string             | `–`        | Text shown for a query that produced no value.                                                                    |
+| `thresholds`              | object             | —          | Color the value (and sparkline) by thresholds.                                                                    |
+| `thresholds.mode`         | enum               | `absolute` | `absolute` compares the raw value; `percent` compares against `thresholds.max`.                                   |
+| `thresholds.max`          | number             | series max | Reference for `percent` mode. Set it (e.g. an SLA ceiling) for percentages that don't shift with the time window. |
+| `thresholds.defaultColor` | string             | —          | Color when no step is crossed.                                                                                    |
+| `thresholds.steps[]`      | `{ value, color }` | —          | Ascending thresholds; the highest crossed step's color wins.                                                      |
 
 ## GaugeChart
 
@@ -131,20 +131,20 @@ plugin:
         - { value: 90, color: "#ef4444" }
 ```
 
-| Option | Type | Default | Notes |
-| --- | --- | --- | --- |
-| `calculation` | enum | `last` | One of `last`, `first`, `mean`, `min`, `max`, `sum`, `count`, `range`, `diff`. |
-| `unit` | string | `""` | Suffix appended to the value. |
-| `decimals` | number | — | Fixed fraction digits (0–10). Omitted: up to 2, trailing zeros dropped. |
-| `min` | number | `0` | Gauge axis lower bound. |
-| `max` | number | `100` | Gauge axis upper bound. Set it to the metric's real ceiling — the arc reads as value ÷ range. |
-| `showLabel` | boolean | `false` | Show the series label on a single-gauge panel too. |
-| `noValue` | string | `–` | Text shown for a query that produced no value. |
-| `thresholds` | object | — | Color the arc and mark step positions on the gauge. |
-| `thresholds.mode` | enum | `absolute` | `absolute` compares the raw value; `percent` compares against `thresholds.max`. |
-| `thresholds.max` | number | gauge `max` | Reference for `percent` mode. |
-| `thresholds.defaultColor` | string | — | Arc color when no step is crossed. |
-| `thresholds.steps[]` | `{ value, color }` | — | Ascending thresholds; the highest crossed step's color wins. Each step also draws a tick on the gauge. |
+| Option                    | Type               | Default     | Notes                                                                                                  |
+| ------------------------- | ------------------ | ----------- | ------------------------------------------------------------------------------------------------------ |
+| `calculation`             | enum               | `last`      | One of `last`, `first`, `mean`, `min`, `max`, `sum`, `count`, `range`, `diff`.                         |
+| `unit`                    | string             | `""`        | Suffix appended to the value.                                                                          |
+| `decimals`                | number             | —           | Fixed fraction digits (0–10). Omitted: up to 2, trailing zeros dropped.                                |
+| `min`                     | number             | `0`         | Gauge axis lower bound.                                                                                |
+| `max`                     | number             | `100`       | Gauge axis upper bound. Set it to the metric's real ceiling — the arc reads as value ÷ range.          |
+| `showLabel`               | boolean            | `false`     | Show the series label on a single-gauge panel too.                                                     |
+| `noValue`                 | string             | `–`         | Text shown for a query that produced no value.                                                         |
+| `thresholds`              | object             | —           | Color the arc and mark step positions on the gauge.                                                    |
+| `thresholds.mode`         | enum               | `absolute`  | `absolute` compares the raw value; `percent` compares against `thresholds.max`.                        |
+| `thresholds.max`          | number             | gauge `max` | Reference for `percent` mode.                                                                          |
+| `thresholds.defaultColor` | string             | —           | Arc color when no step is crossed.                                                                     |
+| `thresholds.steps[]`      | `{ value, color }` | —           | Ascending thresholds; the highest crossed step's color wins. Each step also draws a tick on the gauge. |
 
 ## GeoMap
 
@@ -163,24 +163,24 @@ plugin:
     colorScheme: blue
 ```
 
-| Option | Type | Default | Notes |
-| --- | --- | --- | --- |
-| `mode` | enum | `points` | `points` plots lat/lon markers; `choropleth` shades countries. |
-| `latColumn` | string | `lat` | Latitude column (points mode). |
-| `lonColumn` | string | `lon` | Longitude column (points mode). |
-| `regionColumn` | string | `region` | ISO-3166 alpha-2/alpha-3 column (choropleth mode). |
-| `valueColumn` | string | `value` | Sizes markers / shades regions. |
-| `labelColumn` | string | — | Tooltip title; falls back to the region or coordinates. |
-| `aggregation` | enum | `sum` | Choropleth mode: how rows that map to the same region combine — `sum`, `avg`, `min`, `max`, or `last`. Use `avg`/`max` for non-additive metrics like latency percentiles or error rates; `sum` is only correct for additive metrics like request counts. |
-| `unit` | string | `""` | Value formatting in the tooltip and legend. |
-| `showLegend` | boolean | `true` | Points: the value→marker-size mapping, plus per-query swatches when the panel has multiple queries. Choropleth: the color ramp. |
-| `colorScheme` | enum | `blue` | One of `blue`, `green`, `orange`, `red` — marker base / choropleth ramp. |
-| `projection` | enum | `naturalEarth1` | Map projection — `naturalEarth1`, `mercator`, or `equalEarth`. |
-| `scaleType` | enum | `linear` | Value→color/size curve, applied to marker radius (points) and color intensity (choropleth). `sqrt` keeps marker **area** proportional to the value (perceptually honest proportional symbols); `log` spreads heavily skewed data (e.g. one country dominating traffic) so smaller values stay visible. For `log`, when the domain minimum is ≤ 0 the scale spans the top three decades below the maximum. |
-| `minRadius` | number | `3` | Points mode: smallest marker radius in viewBox units (the map viewBox is 980×500). |
-| `maxRadius` | number | `22` | Points mode: largest marker radius in viewBox units. |
-| `min` | number | — | Lower bound of the color/size domain. When unset: 0 in choropleth mode, so the ramp and legend read 0→max and no shaded region fades out entirely (the data minimum is used instead if values go negative); the data minimum in points mode. |
-| `max` | number | — | Upper bound of the color/size domain. Auto-derived from data when unset. |
+| Option         | Type    | Default         | Notes                                                                                                                                                                                                                                                                                                                                                                                                     |
+| -------------- | ------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mode`         | enum    | `points`        | `points` plots lat/lon markers; `choropleth` shades countries.                                                                                                                                                                                                                                                                                                                                            |
+| `latColumn`    | string  | `lat`           | Latitude column (points mode).                                                                                                                                                                                                                                                                                                                                                                            |
+| `lonColumn`    | string  | `lon`           | Longitude column (points mode).                                                                                                                                                                                                                                                                                                                                                                           |
+| `regionColumn` | string  | `region`        | ISO-3166 alpha-2/alpha-3 column (choropleth mode).                                                                                                                                                                                                                                                                                                                                                        |
+| `valueColumn`  | string  | `value`         | Sizes markers / shades regions.                                                                                                                                                                                                                                                                                                                                                                           |
+| `labelColumn`  | string  | —               | Tooltip title; falls back to the region or coordinates.                                                                                                                                                                                                                                                                                                                                                   |
+| `aggregation`  | enum    | `sum`           | Choropleth mode: how rows that map to the same region combine — `sum`, `avg`, `min`, `max`, or `last`. Use `avg`/`max` for non-additive metrics like latency percentiles or error rates; `sum` is only correct for additive metrics like request counts.                                                                                                                                                  |
+| `unit`         | string  | `""`            | Value formatting in the tooltip and legend.                                                                                                                                                                                                                                                                                                                                                               |
+| `showLegend`   | boolean | `true`          | Points: the value→marker-size mapping, plus per-query swatches when the panel has multiple queries. Choropleth: the color ramp.                                                                                                                                                                                                                                                                           |
+| `colorScheme`  | enum    | `blue`          | One of `blue`, `green`, `orange`, `red` — marker base / choropleth ramp.                                                                                                                                                                                                                                                                                                                                  |
+| `projection`   | enum    | `naturalEarth1` | Map projection — `naturalEarth1`, `mercator`, or `equalEarth`.                                                                                                                                                                                                                                                                                                                                            |
+| `scaleType`    | enum    | `linear`        | Value→color/size curve, applied to marker radius (points) and color intensity (choropleth). `sqrt` keeps marker **area** proportional to the value (perceptually honest proportional symbols); `log` spreads heavily skewed data (e.g. one country dominating traffic) so smaller values stay visible. For `log`, when the domain minimum is ≤ 0 the scale spans the top three decades below the maximum. |
+| `minRadius`    | number  | `3`             | Points mode: smallest marker radius in viewBox units (the map viewBox is 980×500).                                                                                                                                                                                                                                                                                                                        |
+| `maxRadius`    | number  | `22`            | Points mode: largest marker radius in viewBox units.                                                                                                                                                                                                                                                                                                                                                      |
+| `min`          | number  | —               | Lower bound of the color/size domain. When unset: 0 in choropleth mode, so the ramp and legend read 0→max and no shaded region fades out entirely (the data minimum is used instead if values go negative); the data minimum in points mode.                                                                                                                                                              |
+| `max`          | number  | —               | Upper bound of the color/size domain. Auto-derived from data when unset.                                                                                                                                                                                                                                                                                                                                  |
 
 ## Treemap
 
@@ -200,15 +200,15 @@ plugin:
     showLegend: true
 ```
 
-| Option | Type | Default | Notes |
-| --- | --- | --- | --- |
-| `nameColumn` | string | `name` | Tile label column. |
-| `valueColumn` | string | `value` | Tile size column — must be positive; rows at or below 0 are dropped. |
-| `groupColumn` | string | — | Group tiles by this column: one color per group, legend lists the groups. Rows with a null group are dropped. |
-| `maxTiles` | number | — | Cap the tile count (≥ 2): the largest `maxTiles - 1` tiles stay, the rest merge into a single muted "Other (n)" tile so long tails don't render as slivers. Unset renders every row. |
-| `unit` | string | `""` | Value formatting in tiles and the tooltip. |
-| `showValues` | boolean | `true` | Render the value inside tiles that are large enough to fit it. |
-| `showLegend` | boolean | `true` | Group color legend — only shown when there are groups (from `groupColumn` or multiple queries). |
+| Option        | Type    | Default | Notes                                                                                                                                                                                |
+| ------------- | ------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `nameColumn`  | string  | `name`  | Tile label column.                                                                                                                                                                   |
+| `valueColumn` | string  | `value` | Tile size column — must be positive; rows at or below 0 are dropped.                                                                                                                 |
+| `groupColumn` | string  | —       | Group tiles by this column: one color per group, legend lists the groups. Rows with a null group are dropped.                                                                        |
+| `maxTiles`    | number  | —       | Cap the tile count (≥ 2): the largest `maxTiles - 1` tiles stay, the rest merge into a single muted "Other (n)" tile so long tails don't render as slivers. Unset renders every row. |
+| `unit`        | string  | `""`    | Value formatting in tiles and the tooltip.                                                                                                                                           |
+| `showValues`  | boolean | `true`  | Render the value inside tiles that are large enough to fit it.                                                                                                                       |
+| `showLegend`  | boolean | `true`  | Group color legend — only shown when there are groups (from `groupColumn` or multiple queries).                                                                                      |
 
 ## StateTimeline
 
@@ -230,21 +230,21 @@ plugin:
       error: "#ef4444"
 ```
 
-| Option | Type | Default | Notes |
-| --- | --- | --- | --- |
-| `seriesColumn` | string | — | Long-format input: one lane per distinct value of this column. Unset, every non-time column is its own lane. |
-| `stateColumn` | string | first remaining column | State column for long-format input. Ignored without `seriesColumn`. |
-| `mergeConsecutive` | boolean | `true` | Merge consecutive samples with the same state into one segment. `false` renders one box per sample — though if that's what you want, [StatusHistory](#statushistory) is usually the better fit. |
-| `showValues` | boolean | `true` | Render the state text inside segments wide enough to fit it. |
-| `showLegend` | boolean | `true` | State color legend below the timeline. |
-| `colors` | object | `{}` | Fixed state → CSS color mapping (e.g. `{ ok: "#22c55e" }`); unmapped states cycle the shared palette. |
-| `rowHeight` | number | `0.9` | Segment thickness as a fraction of the lane height (0.2–1). |
+| Option             | Type    | Default                | Notes                                                                                                                                                                                           |
+| ------------------ | ------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `seriesColumn`     | string  | —                      | Long-format input: one lane per distinct value of this column. Unset, every non-time column is its own lane.                                                                                    |
+| `stateColumn`      | string  | first remaining column | State column for long-format input. Ignored without `seriesColumn`.                                                                                                                             |
+| `mergeConsecutive` | boolean | `true`                 | Merge consecutive samples with the same state into one segment. `false` renders one box per sample — though if that's what you want, [StatusHistory](#statushistory) is usually the better fit. |
+| `showValues`       | boolean | `true`                 | Render the state text inside segments wide enough to fit it.                                                                                                                                    |
+| `showLegend`       | boolean | `true`                 | State color legend below the timeline.                                                                                                                                                          |
+| `colors`           | object  | `{}`                   | Fixed state → CSS color mapping (e.g. `{ ok: "#22c55e" }`); unmapped states cycle the shared palette.                                                                                           |
+| `rowHeight`        | number  | `0.9`                  | Segment thickness as a fraction of the lane height (0.2–1).                                                                                                                                     |
 
 ## StatusHistory
 
 Horizontal lanes of discrete colored cells, one per sample — periodic health checks, cron-job runs, CI builds per interval, SLO probes. The query's time column (detected by exact name, case-insensitive: `ts`, `time`, or `timestamp`) is the x-axis. Each sample renders as a fixed-width cell centered on its timestamp, sized to the sampling interval (the smallest gap between distinct timestamps), so a missing sample shows as a visible empty slot. A `NULL` status also draws nothing. Supports drag-to-zoom (writes the new range to the URL).
 
-**StatusHistory vs StateTimeline:** they share the same data shapes but answer different questions. StateTimeline treats samples as *state transitions* — a state holds until the next sample, segments stretch to fill time, and consecutive equal states merge into one band. Use it for things that are continuously *in* a state (service up/down, deploy phases, leader/follower) where "how long was it in state X, and when did it change?" is the question. StatusHistory treats samples as *independent observations* — each one is its own cell, nothing extends or merges, and a gap in sampling stays visibly empty instead of being painted over by the previous result. Use it for periodic checks and runs (health probes, cron jobs, per-bucket CI status) where "what did each check return — and did it run at all?" is the question.
+**StatusHistory vs StateTimeline:** they share the same data shapes but answer different questions. StateTimeline treats samples as _state transitions_ — a state holds until the next sample, segments stretch to fill time, and consecutive equal states merge into one band. Use it for things that are continuously _in_ a state (service up/down, deploy phases, leader/follower) where "how long was it in state X, and when did it change?" is the question. StatusHistory treats samples as _independent observations_ — each one is its own cell, nothing extends or merges, and a gap in sampling stays visibly empty instead of being painted over by the previous result. Use it for periodic checks and runs (health probes, cron jobs, per-bucket CI status) where "what did each check return — and did it run at all?" is the question.
 
 Two data shapes are supported. **Wide** (the default): every non-time column is its own lane, with the cell value as the status. **Long**: set `seriesColumn` to pivot `GROUP BY`-style rows into one lane per value of that column, with the status read from `stateColumn`.
 
@@ -261,15 +261,15 @@ plugin:
       fail: "#ef4444"
 ```
 
-| Option | Type | Default | Notes |
-| --- | --- | --- | --- |
-| `seriesColumn` | string | — | Long-format input: one lane per distinct value of this column. Unset, every non-time column is its own lane. |
-| `stateColumn` | string | first remaining column | Status column for long-format input. Ignored without `seriesColumn`. |
-| `showValues` | boolean | `false` | Render the status text inside cells wide enough to fit it. |
-| `showLegend` | boolean | `true` | Status color legend below the lanes. |
-| `colors` | object | `{}` | Fixed status → CSS color mapping (e.g. `{ pass: "#22c55e" }`); unmapped statuses cycle the shared palette. |
-| `rowHeight` | number | `0.9` | Cell height as a fraction of the lane height (0.2–1). |
-| `colWidth` | number | `0.9` | Cell width as a fraction of the sampling-interval slot (0.2–1) — lower values add horizontal breathing room between cells. |
+| Option         | Type    | Default                | Notes                                                                                                                      |
+| -------------- | ------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `seriesColumn` | string  | —                      | Long-format input: one lane per distinct value of this column. Unset, every non-time column is its own lane.               |
+| `stateColumn`  | string  | first remaining column | Status column for long-format input. Ignored without `seriesColumn`.                                                       |
+| `showValues`   | boolean | `false`                | Render the status text inside cells wide enough to fit it.                                                                 |
+| `showLegend`   | boolean | `true`                 | Status color legend below the lanes.                                                                                       |
+| `colors`       | object  | `{}`                   | Fixed status → CSS color mapping (e.g. `{ pass: "#22c55e" }`); unmapped statuses cycle the shared palette.                 |
+| `rowHeight`    | number  | `0.9`                  | Cell height as a fraction of the lane height (0.2–1).                                                                      |
+| `colWidth`     | number  | `0.9`                  | Cell width as a fraction of the sampling-interval slot (0.2–1) — lower values add horizontal breathing room between cells. |
 
 ## Heatmap
 
@@ -288,18 +288,18 @@ plugin:
     scaleType: log
 ```
 
-| Option | Type | Default | Notes |
-| --- | --- | --- | --- |
-| `yColumn` | string | first non-time column | Y-bucket column. |
-| `valueColumn` | string | first remaining numeric column | Cell intensity column. |
-| `unit` | string | `""` | Value formatting in cells, tooltip and legend. |
-| `showLegend` | boolean | `true` | Color ramp legend (min → max) below the grid. |
-| `showValues` | boolean | `false` | Render the value inside cells wide enough to fit it. |
-| `colorScheme` | enum | `spectral` | Cell color ramp. Multi-hue: `spectral` (cool blue → yellow → hot red), `greenYellowRed`. Single-hue light→dark: `blues`, `greens`, `oranges`, `reds`. |
-| `scaleType` | enum | `linear` | Value→color curve. `sqrt` lifts the low end; `log` spreads heavily skewed data (e.g. histogram counts) so sparse cells stay visible. |
-| `min` | number | `0` (or the data minimum if negative) | Lower bound of the color domain — cells at or below it clamp to the ramp's low-end color. |
-| `max` | number | data maximum | Upper bound of the color domain. Set it (e.g. an expected ceiling) for colors that don't shift with the time window. |
-| `cellGap` | number | `1` | Gap between cells in px (0–4). |
+| Option        | Type    | Default                               | Notes                                                                                                                                                 |
+| ------------- | ------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `yColumn`     | string  | first non-time column                 | Y-bucket column.                                                                                                                                      |
+| `valueColumn` | string  | first remaining numeric column        | Cell intensity column.                                                                                                                                |
+| `unit`        | string  | `""`                                  | Value formatting in cells, tooltip and legend.                                                                                                        |
+| `showLegend`  | boolean | `true`                                | Color ramp legend (min → max) below the grid.                                                                                                         |
+| `showValues`  | boolean | `false`                               | Render the value inside cells wide enough to fit it.                                                                                                  |
+| `colorScheme` | enum    | `spectral`                            | Cell color ramp. Multi-hue: `spectral` (cool blue → yellow → hot red), `greenYellowRed`. Single-hue light→dark: `blues`, `greens`, `oranges`, `reds`. |
+| `scaleType`   | enum    | `linear`                              | Value→color curve. `sqrt` lifts the low end; `log` spreads heavily skewed data (e.g. histogram counts) so sparse cells stay visible.                  |
+| `min`         | number  | `0` (or the data minimum if negative) | Lower bound of the color domain — cells at or below it clamp to the ramp's low-end color.                                                             |
+| `max`         | number  | data maximum                          | Upper bound of the color domain. Set it (e.g. an expected ceiling) for colors that don't shift with the time window.                                  |
+| `cellGap`     | number  | `1`                                   | Gap between cells in px (0–4).                                                                                                                        |
 
 ## NodeGraph
 
@@ -318,12 +318,12 @@ plugin:
     directed: true
 ```
 
-| Option | Type | Default | Notes |
-| --- | --- | --- | --- |
-| `sourceColumn` | string | `source` | Edge source column; falls back to the first column when absent. |
-| `targetColumn` | string | `target` | Edge target column; falls back to the second column when absent. |
-| `valueColumn` | string | `value` | Edge weight column — drives edge thickness and node size. Falls back to the first remaining numeric column; without one every edge weighs 1. |
-| `unit` | string | `""` | Value formatting in tooltips and edge labels. |
-| `directed` | boolean | `true` | Draw arrowheads pointing at each edge's target. |
-| `showValues` | boolean | `false` | Render the edge's value at its midpoint. |
-| `maxNodes` | number | — | Cap the node count (≥ 2): the highest-value nodes stay, the rest (and their edges) are hidden behind the "not shown" badge. The layout also has a built-in 250-node limit. |
+| Option         | Type    | Default  | Notes                                                                                                                                                                      |
+| -------------- | ------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sourceColumn` | string  | `source` | Edge source column; falls back to the first column when absent.                                                                                                            |
+| `targetColumn` | string  | `target` | Edge target column; falls back to the second column when absent.                                                                                                           |
+| `valueColumn`  | string  | `value`  | Edge weight column — drives edge thickness and node size. Falls back to the first remaining numeric column; without one every edge weighs 1.                               |
+| `unit`         | string  | `""`     | Value formatting in tooltips and edge labels.                                                                                                                              |
+| `directed`     | boolean | `true`   | Draw arrowheads pointing at each edge's target.                                                                                                                            |
+| `showValues`   | boolean | `false`  | Render the edge's value at its midpoint.                                                                                                                                   |
+| `maxNodes`     | number  | —        | Cap the node count (≥ 2): the highest-value nodes stay, the rest (and their edges) are hidden behind the "not shown" badge. The layout also has a built-in 250-node limit. |

@@ -9,15 +9,15 @@ A dashboard's `spec.panels` is a map of panel keys to panel objects, and `spec.l
 
 ```yaml
 panels:
-  error-rate:                 # panel key — referenced by the layout
+  error-rate: # panel key — referenced by the layout
     kind: Panel
     spec:
       display:
         name: Error rate
-        description: 5xx responses per minute   # optional
+        description: 5xx responses per minute # optional
       plugin:
-        kind: TimeSeriesChart                   # the visualization
-        spec: { unit: "%", showLegend: true }   # visualization options
+        kind: TimeSeriesChart # the visualization
+        spec: { unit: "%", showLegend: true } # visualization options
       queries:
         - kind: ClickHouseSQL
           spec:
@@ -45,7 +45,7 @@ layouts:
   - kind: Grid
     spec:
       items:
-        - { x: 0,  y: 0, width: 12, height: 8, content: { $ref: "#/spec/panels/error-rate" } }
+        - { x: 0, y: 0, width: 12, height: 8, content: { $ref: "#/spec/panels/error-rate" } }
         - { x: 12, y: 0, width: 12, height: 8, content: { $ref: "#/spec/panels/latency" } }
 ```
 
@@ -74,11 +74,11 @@ ORDER BY ts
 This produces one line per service.
 
 <Callout type="warn">
-  The label column must be a **non-numeric** string. ClickHouse returns 64-bit
-  integers and string columns identically in its JSON output, so a label cast to
-  a numeric string — e.g. `toString(StatusCode)` — can't be told apart from a
-  value column and renders as its own line instead of pivoting. Make the label
-  unambiguous, for example `concat('status-', toString(StatusCode))`.
+  The label column must be a **non-numeric** string. ClickHouse returns 64-bit integers and string
+  columns identically in its JSON output, so a label cast to a numeric string — e.g.
+  `toString(StatusCode)` — can't be told apart from a value column and renders as its own line
+  instead of pivoting. Make the label unambiguous, for example `concat('status-',
+  toString(StatusCode))`.
 </Callout>
 
 ### Bar
@@ -201,14 +201,12 @@ GROUP BY ts ORDER BY ts
 The width snaps to clock-aligned values so bucket boundaries land on clean axis lines — see [Query parameters](/docs/dashboards/dashboard-spec#query-parameters) for the exact widths. Like `from`/`to`, the parameter is always bound; queries that don't reference it are unaffected.
 
 <Callout type="info">
-  The first and last buckets of a range are usually **partial** — the picker's
-  edges rarely fall on a bucket boundary, so the leading bucket starts before
-  `from` and the trailing one ends before a full `step` has elapsed. An
-  aggregate like `count()` or `sum()` therefore reads lower at the edges: the
-  time-series chart clips the leading partial bucket at the left edge and shows
-  the trailing one as a dip. This is inherent to time bucketing (Grafana behaves
-  the same) — read edge values as approximate, and don't mistake the trailing
-  dip for a real drop.
+  The first and last buckets of a range are usually **partial** — the picker's edges rarely fall on
+  a bucket boundary, so the leading bucket starts before `from` and the trailing one ends before a
+  full `step` has elapsed. An aggregate like `count()` or `sum()` therefore reads lower at the
+  edges: the time-series chart clips the leading partial bucket at the left edge and shows the
+  trailing one as a dip. This is inherent to time bucketing (Grafana behaves the same) — read edge
+  values as approximate, and don't mistake the trailing dip for a real drop.
 </Callout>
 
 ### Variables
@@ -230,26 +228,26 @@ resolved time range and adaptive `{step}`, so time-series scenarios span
 
 Numeric time series (or row-indexed series) — for charts and stat tiles.
 
-| Field | Default | Meaning |
-| --- | --- | --- |
-| `series` | — | list of `{ name, start, noise, min?, max?, nullChance?, round? }`; one numeric column each |
-| `seed` | `1` | deterministic generation |
-| `labelColumn` | — | when set, emit long output (`ts`, `<labelColumn>`, `<valueColumn>`) → one series per label (grouped pivot) |
-| `valueColumn` | `value` | value column name for long output |
-| `timeColumn` | `true` | `false` omits `ts` and emits `points` rows (row-order sparkline) |
-| `points` | `50` | row count when `timeColumn: false` |
+| Field         | Default | Meaning                                                                                                    |
+| ------------- | ------- | ---------------------------------------------------------------------------------------------------------- |
+| `series`      | —       | list of `{ name, start, noise, min?, max?, nullChance?, round? }`; one numeric column each                 |
+| `seed`        | `1`     | deterministic generation                                                                                   |
+| `labelColumn` | —       | when set, emit long output (`ts`, `<labelColumn>`, `<valueColumn>`) → one series per label (grouped pivot) |
+| `valueColumn` | `value` | value column name for long output                                                                          |
+| `timeColumn`  | `true`  | `false` omits `ts` and emits `points` rows (row-order sparkline)                                           |
+| `points`      | `50`    | row count when `timeColumn: false`                                                                         |
 
 ### `table`
 
 Generated tabular rows. `rows: 0` yields an empty frame.
 
-| Column field | Meaning |
-| --- | --- |
-| `time: true` | timestamp spread across `[from, to]` |
-| `values: [...]` | cycled categorical values (may include `null`) |
-| `walk: { start, noise, min?, max?, round? }` | numeric random walk |
-| `seq: true` | ascending integer (1-based) |
-| `const: <value>` | constant for every row |
+| Column field                                 | Meaning                                        |
+| -------------------------------------------- | ---------------------------------------------- |
+| `time: true`                                 | timestamp spread across `[from, to]`           |
+| `values: [...]`                              | cycled categorical values (may include `null`) |
+| `walk: { start, noise, min?, max?, round? }` | numeric random walk                            |
+| `seq: true`                                  | ascending integer (1-based)                    |
+| `const: <value>`                             | constant for every row                         |
 
 ### `csv`
 
@@ -274,16 +272,16 @@ aligned to `columns`, and may be `null`.
 Generated geographic rows for the `GeoMap` visualization. `shape: points` emits
 lat/lon/value rows; `shape: regions` emits region/value rows.
 
-| Field | Default | Meaning |
-| --- | --- | --- |
-| `shape` | `points` | `points` → lat/lon/value rows; `regions` → region/value rows |
-| `seed` | `1` | deterministic generation |
-| `points` | `20` | number of point rows (`points` shape) |
-| `count` | `12` | number of region rows (`regions` shape) |
-| `latColumn` | `lat` | latitude column name (`points` shape) |
-| `lonColumn` | `lon` | longitude column name (`points` shape) |
-| `regionColumn` | `region` | region column name (`regions` shape) |
-| `valueColumn` | `value` | value column name |
+| Field          | Default  | Meaning                                                      |
+| -------------- | -------- | ------------------------------------------------------------ |
+| `shape`        | `points` | `points` → lat/lon/value rows; `regions` → region/value rows |
+| `seed`         | `1`      | deterministic generation                                     |
+| `points`       | `20`     | number of point rows (`points` shape)                        |
+| `count`        | `12`     | number of region rows (`regions` shape)                      |
+| `latColumn`    | `lat`    | latitude column name (`points` shape)                        |
+| `lonColumn`    | `lon`    | longitude column name (`points` shape)                       |
+| `regionColumn` | `region` | region column name (`regions` shape)                         |
+| `valueColumn`  | `value`  | value column name                                            |
 
 ```yaml
 - kind: TestData

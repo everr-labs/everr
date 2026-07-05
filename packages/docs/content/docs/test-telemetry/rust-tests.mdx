@@ -26,13 +26,13 @@ Everr automatically detects and parses Rust test output from workflow logs. Plai
 
 The parser recognizes the Rust libtest output patterns:
 
-| Pattern | Meaning |
-|---------|---------|
-| `Running unittests src/lib.rs (target/debug/deps/my_crate-...)` | Starts a new Rust test target |
-| `test my_module::tests::works ... ok <0.055s>` | Test passed with duration |
-| `test my_module::tests::fails ... FAILED <0.250s>` | Test failed with duration |
-| `test my_module::tests::ignored_case ... ignored <0.000s>` | Test skipped/ignored |
-| `Doc-tests my_crate` | Starts doctest output for a crate |
+| Pattern                                                         | Meaning                           |
+| --------------------------------------------------------------- | --------------------------------- |
+| `Running unittests src/lib.rs (target/debug/deps/my_crate-...)` | Starts a new Rust test target     |
+| `test my_module::tests::works ... ok <0.055s>`                  | Test passed with duration         |
+| `test my_module::tests::fails ... FAILED <0.250s>`              | Test failed with duration         |
+| `test my_module::tests::ignored_case ... ignored <0.000s>`      | Test skipped/ignored              |
+| `Doc-tests my_crate`                                            | Starts doctest output for a crate |
 
 ## Module hierarchy
 
@@ -43,6 +43,7 @@ test parser::tests::parses_config ... ok <0.055s>
 ```
 
 This is parsed as:
+
 - **Package**: `my_crate` or the current cargo test target
 - **Module path**: `parser::tests`
 - **Test name**: `parses_config`
@@ -51,13 +52,13 @@ Everr synthesizes module nodes from the `::` hierarchy, so modules can be browse
 
 ## Generated span attributes
 
-| Attribute | Value |
-|-----------|-------|
-| `everr.test.name` | Full test name (e.g. `parser::tests::parses_config`) |
-| `everr.test.result` | `pass`, `fail`, or `skip` |
-| `everr.test.duration_seconds` | Duration from `--report-time` output |
-| `everr.test.framework` | `rust` |
-| `everr.test.package` | Cargo test target or doctest crate name |
-| `everr.test.is_suite` | `true` for synthesized module nodes that contain child tests |
-| `everr.test.is_subtest` | `true` for nested module nodes and tests |
-| `everr.test.parent_test` | Parent module path |
+| Attribute                     | Value                                                        |
+| ----------------------------- | ------------------------------------------------------------ |
+| `everr.test.name`             | Full test name (e.g. `parser::tests::parses_config`)         |
+| `everr.test.result`           | `pass`, `fail`, or `skip`                                    |
+| `everr.test.duration_seconds` | Duration from `--report-time` output                         |
+| `everr.test.framework`        | `rust`                                                       |
+| `everr.test.package`          | Cargo test target or doctest crate name                      |
+| `everr.test.is_suite`         | `true` for synthesized module nodes that contain child tests |
+| `everr.test.is_subtest`       | `true` for nested module nodes and tests                     |
+| `everr.test.parent_test`      | Parent module path                                           |

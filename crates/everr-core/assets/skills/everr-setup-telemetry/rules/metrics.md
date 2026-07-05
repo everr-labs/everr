@@ -16,25 +16,25 @@ Duplicating an auto-instrumented metric creates conflicting data and usually mak
 
 Check the project's dependencies and runtime startup path:
 
-| Language | Where to check | Example instrumentation |
-| --- | --- | --- |
-| Node.js | `dependencies` in `package.json`, `NODE_OPTIONS`, instrumentation file | `@opentelemetry/instrumentation-http`, `@opentelemetry/instrumentation-express` |
-| Python | `requirements.txt`, `pyproject.toml`, `setup.cfg` | Flask, Django, requests, SQLAlchemy instrumentation |
-| Go | `go.mod`, imports under `go.opentelemetry.io/contrib/instrumentation/` | `otelhttp`, gRPC, database wrappers |
-| PHP | `composer.json` | framework and HTTP instrumentation packages |
+| Language | Where to check                                                         | Example instrumentation                                                         |
+| -------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Node.js  | `dependencies` in `package.json`, `NODE_OPTIONS`, instrumentation file | `@opentelemetry/instrumentation-http`, `@opentelemetry/instrumentation-express` |
+| Python   | `requirements.txt`, `pyproject.toml`, `setup.cfg`                      | Flask, Django, requests, SQLAlchemy instrumentation                             |
+| Go       | `go.mod`, imports under `go.opentelemetry.io/contrib/instrumentation/` | `otelhttp`, gRPC, database wrappers                                             |
+| PHP      | `composer.json`                                                        | framework and HTTP instrumentation packages                                     |
 
 ### Common Auto-Instrumented Metrics
 
 When these instrumentations are present, expect metrics in these domains before writing custom ones:
 
-| Domain | Common metric names |
-| --- | --- |
-| HTTP server | `http.server.request.duration`, `http.server.active_requests` |
-| HTTP client | `http.client.request.duration` |
-| Database client | `db.client.operation.duration` |
-| Messaging | `messaging.process.duration`, `messaging.publish.duration` |
-| RPC | `rpc.server.duration`, `rpc.client.duration` |
-| Runtime/process | `process.runtime.*`, `process.cpu.*`, `process.memory.*` |
+| Domain          | Common metric names                                           |
+| --------------- | ------------------------------------------------------------- |
+| HTTP server     | `http.server.request.duration`, `http.server.active_requests` |
+| HTTP client     | `http.client.request.duration`                                |
+| Database client | `db.client.operation.duration`                                |
+| Messaging       | `messaging.process.duration`, `messaging.publish.duration`    |
+| RPC             | `rpc.server.duration`, `rpc.client.duration`                  |
+| Runtime/process | `process.runtime.*`, `process.cpu.*`, `process.memory.*`      |
 
 Exact names can vary by SDK version and semantic convention stability setting. If a service depends on a metric for alerts or dashboards, test the emitted shape instead of assuming the library uses the current stable name.
 
@@ -51,13 +51,13 @@ Follow this order before creating a metric:
 
 ```javascript
 // BAD: duplicates common HTTP instrumentation.
-const requestDuration = meter.createHistogram('http.server.request.duration', {
-  unit: 's',
+const requestDuration = meter.createHistogram("http.server.request.duration", {
+  unit: "s",
 });
 
 // GOOD: domain-specific metric not covered by HTTP instrumentation.
-const orderValue = meter.createHistogram('orders.value', {
-  unit: '{USD}',
+const orderValue = meter.createHistogram("orders.value", {
+  unit: "{USD}",
 });
 ```
 
@@ -125,12 +125,12 @@ my_app.request.duration.seconds
 
 Always set a unit with UCUM notation. Metrics without units are ambiguous.
 
-| Unit | Meaning |
-| --- | --- |
-| `s` | seconds |
-| `ms` | milliseconds |
-| `By` | bytes |
-| `1` | dimensionless count or ratio |
+| Unit    | Meaning                        |
+| ------- | ------------------------------ |
+| `s`     | seconds                        |
+| `ms`    | milliseconds                   |
+| `By`    | bytes                          |
+| `1`     | dimensionless count or ratio   |
 | `{USD}` | annotation unit for US dollars |
 
 Rules:
@@ -157,14 +157,14 @@ Total: `5 * 50 * 5 * 10 = 12,500` time series.
 
 Use this rough scale:
 
-| Series count | Zone | Action |
-| --- | --- | --- |
-| `< 1,000` | Minimal | Safe for most services |
-| `1,000 - 10,000` | Healthy | Good detail/cost balance |
-| `10,000 - 50,000` | Acceptable | Monitor growth |
-| `50,000 - 100,000` | Caution | Review attributes |
-| `> 100,000` | Danger | Remove unbounded attributes |
-| `> 1,000,000` | Critical | Fix before production use |
+| Series count       | Zone       | Action                      |
+| ------------------ | ---------- | --------------------------- |
+| `< 1,000`          | Minimal    | Safe for most services      |
+| `1,000 - 10,000`   | Healthy    | Good detail/cost balance    |
+| `10,000 - 50,000`  | Acceptable | Monitor growth              |
+| `50,000 - 100,000` | Caution    | Review attributes           |
+| `> 100,000`        | Danger     | Remove unbounded attributes |
+| `> 1,000,000`      | Critical   | Fix before production use   |
 
 Never use these as metric attributes:
 
@@ -199,10 +199,10 @@ Normalize high-cardinality values before considering them for metric attributes.
 
 ```javascript
 // URL path: /users/123/orders/456 -> /users/{id}/orders/{id}
-path.replace(/\/\d+/g, '/{id}');
+path.replace(/\/\d+/g, "/{id}");
 
 // SQL text: SELECT * FROM orders WHERE id=99 -> SELECT orders
-query.replace(/\bWHERE\b.*/i, '').trim();
+query.replace(/\bWHERE\b.*/i, "").trim();
 ```
 
 Prefer framework route templates (`http.route`) over regex normalization when available.
@@ -211,11 +211,11 @@ Prefer framework route templates (`http.route`) over regex normalization when av
 
 Signals have different cardinality tolerance:
 
-| Signal | Attribute guidance |
-| --- | --- |
-| Metrics | Small, bounded attributes only |
-| Spans | Higher-cardinality values are acceptable when safe and useful |
-| Logs | Best for detailed, rare, high-cardinality facts |
+| Signal  | Attribute guidance                                            |
+| ------- | ------------------------------------------------------------- |
+| Metrics | Small, bounded attributes only                                |
+| Spans   | Higher-cardinality values are acceptable when safe and useful |
+| Logs    | Best for detailed, rare, high-cardinality facts               |
 
 Values such as user ids, order ids, request ids, and trace ids usually belong on spans or logs, not metrics.
 
@@ -257,7 +257,7 @@ async function assertAllMetricsHaveUnits() {
   }
 
   if (missing.length > 0) {
-    throw new Error(`Metrics without a unit: ${missing.join(', ')}`);
+    throw new Error(`Metrics without a unit: ${missing.join(", ")}`);
   }
 }
 ```
@@ -297,15 +297,15 @@ function findMetricShape(name: string) {
   return undefined;
 }
 
-it('orders.value has the expected shape', async () => {
-  await placeOrder({ method: 'credit_card', total: 49.99 });
+it("orders.value has the expected shape", async () => {
+  await placeOrder({ method: "credit_card", total: 49.99 });
   await reader.forceFlush();
 
-  expect(findMetricShape('orders.value')).toEqual({
-    name: 'orders.value',
-    type: 'HISTOGRAM',
-    unit: '{USD}',
-    attributeKeys: ['payment.method'],
+  expect(findMetricShape("orders.value")).toEqual({
+    name: "orders.value",
+    type: "HISTOGRAM",
+    unit: "{USD}",
+    attributeKeys: ["payment.method"],
   });
 });
 ```
@@ -323,19 +323,15 @@ When a metric-shape test fails:
 Auto-instrumentation can lag behind stable semantic conventions. For metrics the service depends on, assert the emitted semantic convention shape.
 
 ```typescript
-it('http.server.request.duration has the expected shape', async () => {
-  await sendRequest('GET', '/health');
+it("http.server.request.duration has the expected shape", async () => {
+  await sendRequest("GET", "/health");
   await reader.forceFlush();
 
-  expect(findMetricShape('http.server.request.duration')).toEqual({
-    name: 'http.server.request.duration',
-    type: 'HISTOGRAM',
-    unit: 's',
-    attributeKeys: [
-      'http.request.method',
-      'http.response.status_code',
-      'http.route',
-    ],
+  expect(findMetricShape("http.server.request.duration")).toEqual({
+    name: "http.server.request.duration",
+    type: "HISTOGRAM",
+    unit: "s",
+    attributeKeys: ["http.request.method", "http.response.status_code", "http.route"],
   });
 });
 ```
@@ -359,17 +355,17 @@ Do not solve outdated auto-instrumented metrics by silently changing dashboard q
 counter.add(1, { user_id: userId });
 
 // GOOD: small bounded set.
-counter.add(1, { user_tier: 'premium' });
+counter.add(1, { user_tier: "premium" });
 ```
 
 ### Unit In Metric Name
 
 ```javascript
 // BAD
-meter.createHistogram('checkout.duration.ms', { unit: 'ms' });
+meter.createHistogram("checkout.duration.ms", { unit: "ms" });
 
 // GOOD
-meter.createHistogram('checkout.duration', { unit: 'ms' });
+meter.createHistogram("checkout.duration", { unit: "ms" });
 ```
 
 ### Metric Per Outcome String
@@ -379,5 +375,5 @@ meter.createHistogram('checkout.duration', { unit: 'ms' });
 meter.createCounter(`orders.${status}`);
 
 // GOOD: one metric with bounded status attribute.
-meter.createCounter('orders.processed').add(1, { 'order.status': status });
+meter.createCounter("orders.processed").add(1, { "order.status": status });
 ```

@@ -28,14 +28,14 @@ init();
 
 ## Options
 
-| Option | Description |
-| --- | --- |
-| `integrations` | Replaces the runtime defaults with explicit integrations. |
-| `beforeSend` | Mutate an event or return `null` to drop it before emit. |
-| `redactPatterns` | RegExp list applied to messages and string attributes. |
-| `redactKeys` | Controls key-based sensitive data filtering. `true` (default) filters keys matching built-in denylist. `{ deny: ["custom"] }` or `{ allow: ["safe"] }` for custom filtering. `false` disables key filtering. |
-| `rateLimit` | `{ count, windowMs }` per error key, or `false`. Default is 5 per 5 seconds. |
-| `onFatal` | Node crash behavior for global handlers: `exit` or `continue`. Default is `exit`. |
+| Option           | Description                                                                                                                                                                                                  |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `integrations`   | Replaces the runtime defaults with explicit integrations.                                                                                                                                                    |
+| `beforeSend`     | Mutate an event or return `null` to drop it before emit.                                                                                                                                                     |
+| `redactPatterns` | RegExp list applied to messages and string attributes.                                                                                                                                                       |
+| `redactKeys`     | Controls key-based sensitive data filtering. `true` (default) filters keys matching built-in denylist. `{ deny: ["custom"] }` or `{ allow: ["safe"] }` for custom filtering. `false` disables key filtering. |
+| `rateLimit`      | `{ count, windowMs }` per error key, or `false`. Default is 5 per 5 seconds.                                                                                                                                 |
+| `onFatal`        | Node crash behavior for global handlers: `exit` or `continue`. Default is `exit`.                                                                                                                            |
 
 ## Manual Capture
 

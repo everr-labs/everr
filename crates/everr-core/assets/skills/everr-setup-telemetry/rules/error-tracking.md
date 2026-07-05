@@ -1,6 +1,7 @@
 # Error Tracking
 
 Error tracking is the combination of:
+
 - Span status on the failed operation.
 - Structured exception logs with trace correlation.
 
@@ -75,6 +76,7 @@ Use a browser or an API call to trigger the error using a public path.
 VALIDATION IS IMPORTANT, don't skip it.
 
 Validate error tracking from multiple sourcers:
+
 - API handlers
 - UI components in SSR
 - Server functions

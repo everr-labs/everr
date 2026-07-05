@@ -7,24 +7,25 @@ Prerequisite: telemetry already flowing into Everr (traces, logs, or metrics).
 ## AlertRule Schema
 
 ```yaml
-kind: AlertRule              # required literal
+kind: AlertRule # required literal
 metadata:
-  name: <slug>               # required; stable alert identity
-  project: <slug>            # optional; namespace, default "default"
+  name: <slug> # required; stable alert identity
+  project: <slug> # optional; namespace, default "default"
 spec:
-  runbook: <slug>            # optional; links a runbook. "slug" = same
-                             #   project; "project/slug" = another project.
-                             #   (legacy `notebook:` still accepted.)
-  display:                   # optional
+  runbook:
+    <slug> # optional; links a runbook. "slug" = same
+    #   project; "project/slug" = another project.
+    #   (legacy `notebook:` still accepted.)
+  display: # optional
     name: <human name>
     description: <text>
-  evaluationInterval: 5m     # required; format: <int><s|m|h|d>, minimum 1m
+  evaluationInterval: 5m # required; format: <int><s|m|h|d>, minimum 1m
   notificationMessage:
-    title: "${ServiceName} is failing"  # required; supports ${column} templates
-    description: "${n} errors in the last window"  # optional; supports ${column}
-  query: |                   # required; ClickHouse SQL, no ${...} templating
+    title: "${ServiceName} is failing" # required; supports ${column} templates
+    description: "${n} errors in the last window" # optional; supports ${column}
+  query: | # required; ClickHouse SQL, no ${...} templating
     SELECT ...
-  instanceLabels: [col]      # optional override; ≥1 entry when present
+  instanceLabels: [col] # optional override; ≥1 entry when present
 ```
 
 All fields are strict — unknown keys are rejected.
@@ -37,12 +38,12 @@ Do not create alert rules for interesting, weird, or purely diagnostic signals; 
 
 For user-facing services, start with the four golden signals:
 
-| Signal | Prefer alerting on | Avoid |
-| --- | --- | --- |
-| Latency | Tail latency such as p95/p99 over a recent window, separated by success/failure when possible | Mean latency, or mixing fast failures into successful request latency |
-| Traffic | Sudden drop to near-zero when traffic is expected, impossible spikes, or missing expected work | Raw high traffic unless it is causing a user-visible problem |
-| Errors | Error rate with a minimum-volume guard | A single error log row or every error occurrence |
-| Saturation | Resource near exhaustion, or expected to exhaust soon | Short CPU/memory blips without user impact |
+| Signal     | Prefer alerting on                                                                             | Avoid                                                                 |
+| ---------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Latency    | Tail latency such as p95/p99 over a recent window, separated by success/failure when possible  | Mean latency, or mixing fast failures into successful request latency |
+| Traffic    | Sudden drop to near-zero when traffic is expected, impossible spikes, or missing expected work | Raw high traffic unless it is causing a user-visible problem          |
+| Errors     | Error rate with a minimum-volume guard                                                         | A single error log row or every error occurrence                      |
+| Saturation | Resource near exhaustion, or expected to exhaust soon                                          | Short CPU/memory blips without user impact                            |
 
 Keep notification rules simple. A future reader should be able to understand why the query fires, what value crossed the threshold, and what made it stop firing.
 
@@ -92,7 +93,7 @@ metadata:
   name: db-pool-exhausted
   project: platform
 spec:
-  runbook: db-pool-runbook         # → platform/db-pool-runbook
+  runbook: db-pool-runbook # → platform/db-pool-runbook
   evaluationInterval: 1m
   notificationMessage:
     title: "DB connection pool exhausted"
@@ -153,7 +154,7 @@ Each returned row becomes a firing instance. By default, Everr infers identity f
 Override with `instanceLabels` when the inferred set is wrong — most often when the query returns a string column you want in the message but not in the identity. A string whose value changes between evaluations (a host or pod name, a sample message) would otherwise fragment the identity and churn: the old instance resolves and a new one fires every time the value changes, even though the service never recovered.
 
 ```yaml
-instanceLabels: [ServiceName]  # identity is exactly these columns; other strings ride along for the message
+instanceLabels: [ServiceName] # identity is exactly these columns; other strings ride along for the message
 ```
 
 Every listed column must exist in the result set, and the query must return a single row per identity — rows that share an identity collapse into one instance.
@@ -189,14 +190,14 @@ Per-instance values come from that instance's firing row. If the query returns `
 
 ## Common Mistakes
 
-| Mistake | Fix |
-| --- | --- |
-| `${...}` in the query | Queries are plain SQL; use `${...}` only in `notificationMessage` |
-| `instanceLabels` references a missing column | Every label must exist in the query result set |
-| `evaluationInterval` below `1m` | Use `1m` or higher |
-| Query returns thousands of rows | Add `LIMIT` and tighten the `WHERE`/`HAVING` |
-| Error-rate alert without a minimum-volume guard | Add `HAVING total >= <baseline>` so tiny samples do not fire |
-| Alerting on mean latency | Prefer p95/p99 or another tail-latency signal |
-| Template variable `${Foo}` but query returns `foo` (case mismatch) | Match column names exactly |
-| Notification channel enabled but no recipients | Add at least one Telegram chat ID |
-| Expecting re-notification on every evaluation | Notifications fire on transitions, not every tick |
+| Mistake                                                            | Fix                                                               |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| `${...}` in the query                                              | Queries are plain SQL; use `${...}` only in `notificationMessage` |
+| `instanceLabels` references a missing column                       | Every label must exist in the query result set                    |
+| `evaluationInterval` below `1m`                                    | Use `1m` or higher                                                |
+| Query returns thousands of rows                                    | Add `LIMIT` and tighten the `WHERE`/`HAVING`                      |
+| Error-rate alert without a minimum-volume guard                    | Add `HAVING total >= <baseline>` so tiny samples do not fire      |
+| Alerting on mean latency                                           | Prefer p95/p99 or another tail-latency signal                     |
+| Template variable `${Foo}` but query returns `foo` (case mismatch) | Match column names exactly                                        |
+| Notification channel enabled but no recipients                     | Add at least one Telegram chat ID                                 |
+| Expecting re-notification on every evaluation                      | Notifications fire on transitions, not every tick                 |

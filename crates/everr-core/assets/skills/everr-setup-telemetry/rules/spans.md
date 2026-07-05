@@ -6,12 +6,12 @@ For every span, decide its name, kind, status behavior, attributes, and whether 
 
 Span names must be low-cardinality. Use operation templates, not concrete identifiers.
 
-| Bad | Better |
-| --- | --- |
-| `GET /api/users/123` | `GET /api/users/:id` |
-| `SELECT * FROM orders WHERE id=99` | `SELECT orders` |
-| `process_payment_for_user_alice` | `process payment` |
-| `send_invoice_98765` | `send invoice` |
+| Bad                                | Better               |
+| ---------------------------------- | -------------------- |
+| `GET /api/users/123`               | `GET /api/users/:id` |
+| `SELECT * FROM orders WHERE id=99` | `SELECT orders`      |
+| `process_payment_for_user_alice`   | `process payment`    |
+| `send_invoice_98765`               | `send invoice`       |
 
 Common formats:
 
@@ -31,8 +31,8 @@ Use framework route templates when available. If not, replace dynamic path segme
 ```javascript
 function parameterizePath(path) {
   return path
-    .replace(/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '/{uuid}')
-    .replace(/\/\d+/g, '/{id}');
+    .replace(/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, "/{uuid}")
+    .replace(/\/\d+/g, "/{id}");
 }
 ```
 
@@ -67,7 +67,7 @@ Add business attributes to auto-instrumented spans by retrieving the active span
 Cron jobs, background workers, CLI commands, startup tasks, and batch jobs often have no inbound request span. Wrap the unit of work in a manual root span so outbound database or HTTP spans do not become root `CLIENT` spans.
 
 ```javascript
-await tracer.startActiveSpan('process daily orders', async (span) => {
+await tracer.startActiveSpan("process daily orders", async (span) => {
   try {
     await processDailyOrders();
   } finally {

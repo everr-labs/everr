@@ -35,9 +35,9 @@ The visualization component receives its **parsed spec** (the output of its sche
 ```ts
 // From visualizations/index.tsx
 interface VisualizationProps<TSpec = unknown> {
-  spec: TSpec;                // parsed output of the visualization's spec schema
-  data?: QueryResultRow[][];  // one frame (row[]) per panel query; undefined while loading
-  timeRange?: ResolvedTimeRange;                 // { from: Date; to: Date }
+  spec: TSpec; // parsed output of the visualization's spec schema
+  data?: QueryResultRow[][]; // one frame (row[]) per panel query; undefined while loading
+  timeRange?: ResolvedTimeRange; // { from: Date; to: Date }
   onTimeRangeChange?: (range: ResolvedTimeRange) => void; // e.g. drag-to-zoom
 }
 ```
@@ -112,11 +112,13 @@ const [hover, setHover] = useState<{ datum: D; x: number; y: number } | null>(nu
 //                onMouseLeave={() => setHover(null)}
 // on the chart container, keep the position tracking the pointer:
 //                onMouseMove={(e) => setHover((h) => (h ? { ...h, x: e.clientX, y: e.clientY } : h))}
-{hover && (
-  <CursorTooltip x={hover.x} y={hover.y}>
-    {/* time-series-style content: muted header, then swatch · label · tabular-nums value */}
-  </CursorTooltip>
-)}
+{
+  hover && (
+    <CursorTooltip x={hover.x} y={hover.y}>
+      {/* time-series-style content: muted header, then swatch · label · tabular-nums value */}
+    </CursorTooltip>
+  );
+}
 ```
 
 The TimeSeriesChart, GeoMap, and Treemap visualizations all use it — match
@@ -126,9 +128,7 @@ their tooltip content structure for visual consistency.
 
 ```tsx
 <div className="flex h-full flex-col">
-  <div className="min-h-0 flex-1 overflow-auto">
-    {/* visualization content */}
-  </div>
+  <div className="min-h-0 flex-1 overflow-auto">{/* visualization content */}</div>
 </div>
 ```
 
@@ -138,9 +138,7 @@ For `flush-content` visualizations that need a top border separating the header 
 
 ```tsx
 <div className="flex h-full flex-col border-t border-border">
-  <div className="min-h-0 flex-1 overflow-auto">
-    {/* content */}
-  </div>
+  <div className="min-h-0 flex-1 overflow-auto">{/* content */}</div>
 </div>
 ```
 
@@ -163,6 +161,7 @@ const registry: Record<string, VisualizationEntry> = {
 ```
 
 The `inset` option controls padding inside the panel card:
+
 - `"default"` — standard padding (use for charts, stats)
 - `"flush-content"` — no horizontal padding or bottom padding (use for tables, maps)
 
@@ -214,8 +213,8 @@ spec:
       spec:
         display: { name: Panel Title, description: Optional description }
         plugin:
-          kind: <Kind>            # matches the registry key from step 4
-          spec: { showLegend: true }   # validated against the spec schema from step 2
+          kind: <Kind> # matches the registry key from step 4
+          spec: { showLegend: true } # validated against the spec schema from step 2
         queries:
           - kind: ClickHouseSQL
             spec:
