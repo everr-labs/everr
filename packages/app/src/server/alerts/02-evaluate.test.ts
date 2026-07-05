@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import type * as AlertInstances from "./02-instances";
 
 const sqlApi = vi.fn();
 const insertEvents = vi.fn();
@@ -16,7 +17,7 @@ vi.mock("./04-delivery", () => ({
 
 const fetchFiring = vi.fn();
 vi.mock("./02-instances", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./02-instances")>();
+  const actual = await importOriginal<typeof AlertInstances>();
   return {
     ...actual,
     fetchFiringInstances: (...args: unknown[]) => fetchFiring(...args),

@@ -133,9 +133,12 @@ const processStatusTask = makeWebhookTask(
   "github_events.jobs.handle_status_event",
   "github_events.jobs.handle_status_terminal_error",
   ({ organizationId, parsed }) =>
-    // biome-ignore lint/suspicious/noExplicitAny: db is badly typed
-    // oxlint-disable-next-line typescript/consistent-type-assertions -- drizzle NodePgDatabase schema generic variance: the app db isn't assignable to AnyDb's Record<string, never> schema
-    handleStatusEvent(db as any, organizationId, parsed),
+    handleStatusEvent(
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- drizzle NodePgDatabase schema generic variance: the app db isn't assignable to handleStatusEvent's AnyDb (Record<string, never>) schema
+      db as unknown as Parameters<typeof handleStatusEvent>[0],
+      organizationId,
+      parsed,
+    ),
 );
 
 export const githubEventsTaskList: TaskList = {

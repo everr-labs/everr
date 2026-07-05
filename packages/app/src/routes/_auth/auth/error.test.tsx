@@ -1,3 +1,4 @@
+import type * as ReactRouter from "@tanstack/react-router";
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
@@ -7,7 +8,7 @@ const routeSearch = vi.hoisted(() => ({
 }));
 
 vi.mock("@tanstack/react-router", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@tanstack/react-router")>();
+  const actual = await importOriginal<typeof ReactRouter>();
   return {
     ...actual,
     createFileRoute: (_path: string) => (options: Record<string, unknown>) => ({

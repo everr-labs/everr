@@ -1,3 +1,5 @@
+import type * as TelemetryErrors from "@everr/telemetry-explorer/errors";
+import type * as TelemetryTraces from "@everr/telemetry-explorer/traces";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createMemoryHistory,
@@ -29,7 +31,7 @@ vi.mock("@everr/ui/components/dialog", () => ({
 }));
 
 vi.mock("@everr/telemetry-explorer/errors", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@everr/telemetry-explorer/errors")>();
+  const actual = await importOriginal<typeof TelemetryErrors>();
 
   return {
     ...actual,
@@ -40,7 +42,7 @@ vi.mock("@everr/telemetry-explorer/errors", async (importOriginal) => {
 });
 
 vi.mock("@everr/telemetry-explorer/traces", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@everr/telemetry-explorer/traces")>();
+  const actual = await importOriginal<typeof TelemetryTraces>();
 
   return {
     ...actual,

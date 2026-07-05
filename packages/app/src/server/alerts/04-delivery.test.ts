@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import type * as AlertEvents from "./03-events";
 
 const sendTelegram = vi.fn();
 vi.mock("@/lib/telegram.server", () => ({
@@ -17,7 +18,7 @@ vi.mock("@/server/worker/jobs", () => ({
 
 const recordEvents = vi.fn();
 vi.mock("./03-events", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./03-events")>();
+  const actual = await importOriginal<typeof AlertEvents>();
   return {
     ...actual,
     recordAlertEvents: (...args: unknown[]) => recordEvents(...args),

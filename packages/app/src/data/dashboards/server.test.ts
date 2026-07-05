@@ -1,4 +1,5 @@
 import { isNotFound } from "@tanstack/react-router";
+import type * as DrizzleOrm from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { db } from "@/db/client";
 import { querySqlApi } from "@/lib/clickhouse";
@@ -7,7 +8,7 @@ import { querySqlApi } from "@/lib/clickhouse";
 // the live-mode filter (`isNull(dashboards.previewId)`) is assertable without
 // hand-rolling a fake SQL builder for the rest of the query.
 vi.mock("drizzle-orm", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("drizzle-orm")>();
+  const actual = await importOriginal<typeof DrizzleOrm>();
   return { ...actual, eq: vi.fn(actual.eq), isNull: vi.fn(actual.isNull) };
 });
 

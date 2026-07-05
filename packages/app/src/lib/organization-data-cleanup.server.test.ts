@@ -1,3 +1,4 @@
+import type * as DrizzleOrm from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const { mockAnd, mockDelete, mockEq, mockTransaction, whereCalls } = vi.hoisted(() => ({
@@ -19,7 +20,7 @@ vi.mock("@/db/client", () => ({
 }));
 
 vi.mock("drizzle-orm", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("drizzle-orm")>();
+  const actual = await importOriginal<typeof DrizzleOrm>();
   return {
     ...actual,
     and: mockAnd,

@@ -4,11 +4,11 @@ import { createLimiter } from "./limiter";
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((res) => {
-    resolve = res;
+  let resolveFn!: (value: T) => void;
+  const promise = new Promise<T>((resolve) => {
+    resolveFn = resolve;
   });
-  return { promise, resolve };
+  return { promise, resolve: resolveFn };
 }
 
 describe("createLimiter", () => {

@@ -1,3 +1,4 @@
+import type * as TelemetryErrors from "@everr/telemetry-explorer/errors";
 import { ErrorIssueSearchSchema, type ErrorIssuesProps } from "@everr/telemetry-explorer/errors";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -59,7 +60,7 @@ vi.mock("@/hooks/use-realtime-subscription", async () => {
 });
 
 vi.mock("@everr/telemetry-explorer/errors", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@everr/telemetry-explorer/errors")>();
+  const actual = await importOriginal<typeof TelemetryErrors>();
   return {
     ...actual,
     ErrorDetail: ({ fingerprint }: { fingerprint: string }) => (

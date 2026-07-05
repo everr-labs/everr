@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
+import type { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import * as fsp from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import type { finalizePartialArtifact } from "../scripts/finalize.ts";
 
 import {
   artifactNameForCheckRun,
@@ -158,7 +160,7 @@ test("installCli downloads from everr.dev and adds to PATH", async () => {
     writeFile: async (p: string, data: Buffer) => {
       fileStore.set(p, data);
     },
-    readFile: async (p: string, _encoding?: any) => {
+    readFile: async (p: string, _encoding?: BufferEncoding) => {
       if (p.endsWith("everr.sha256")) {
         const content = `${binaryHash}  everr\n`;
         return _encoding ? content : Buffer.from(content);
@@ -175,7 +177,7 @@ test("installCli downloads from everr.dev and adds to PATH", async () => {
     const result = await installCli({
       env: { RUNNER_TEMP: tempDir },
       fetchImpl,
-      fspModule: fspMock as any,
+      fspModule: fspMock as unknown as typeof fsp,
       getInput: inputResolver({ "install-cli": "true" }),
       platform: "darwin",
       arch: "arm64",
@@ -214,7 +216,7 @@ test("installCli warns on download failure", async () => {
     const result = await installCli({
       env: { RUNNER_TEMP: tempDir },
       fetchImpl,
-      fspModule: fspMock as any,
+      fspModule: fspMock as unknown as typeof fsp,
       getInput: inputResolver({ "install-cli": "true" }),
       platform: "linux",
       arch: "x64",
@@ -352,8 +354,8 @@ test("startResourceUsage resolves sampler path without GITHUB_ACTION_PATH on Lin
         return {
           pid: 321,
           unref() {},
-        } as any;
-      }) as typeof import("node:child_process").spawn,
+        } as unknown as ReturnType<typeof spawn>;
+      }) as typeof spawn,
     });
 
     assert.equal(result.enabled, true);
@@ -400,8 +402,8 @@ test("startResourceUsage spawns node with sampler-macos.mjs on macOS", async () 
         return {
           pid: 456,
           unref() {},
-        } as any;
-      }) as typeof import("node:child_process").spawn,
+        } as unknown as ReturnType<typeof spawn>;
+      }) as typeof spawn,
     });
 
     assert.equal(result.enabled, true);
@@ -427,9 +429,7 @@ test("finalizeAndUploadResourceUsage uploads the per-job artifact", async () => 
     rootDirectory: string;
   }> = [];
   const infos: string[] = [];
-  let finalizeInvocation:
-    | Parameters<typeof import("../scripts/finalize.ts").finalizePartialArtifact>[0]
-    | undefined;
+  let finalizeInvocation: Parameters<typeof finalizePartialArtifact>[0] | undefined;
 
   try {
     const result = await finalizeAndUploadResourceUsage({
@@ -458,8 +458,8 @@ test("finalizeAndUploadResourceUsage uploads the per-job artifact", async () => 
         await fsp.mkdir(outputDir, { recursive: true });
         await fsp.writeFile(path.join(outputDir, "metadata.json"), "{}\n", "utf8");
         await fsp.writeFile(path.join(outputDir, "samples.ndjson"), "", "utf8");
-        return {} as any;
-      }) as typeof import("../scripts/finalize.ts").finalizePartialArtifact,
+        return {} as unknown as Awaited<ReturnType<typeof finalizePartialArtifact>>;
+      }) as typeof finalizePartialArtifact,
       resolveFilesystemInfo: async () => ({
         device: "/dev/root",
         mountpoint: "/",
@@ -517,7 +517,7 @@ test("finalizeAndUploadResourceUsage downgrades finalize failures to warnings", 
       )[key] || "",
     finalizeImpl: (async () => {
       throw new Error("finalize boom");
-    }) as typeof import("../scripts/finalize.ts").finalizePartialArtifact,
+    }) as typeof finalizePartialArtifact,
     resolveFilesystemInfo: async () => ({
       device: "/dev/root",
       mountpoint: "/",
@@ -569,8 +569,8 @@ test("finalizeAndUploadResourceUsage succeeds on macOS runners", async () => {
         await fsp.mkdir(outputDir, { recursive: true });
         await fsp.writeFile(path.join(outputDir, "metadata.json"), "{}\n", "utf8");
         await fsp.writeFile(path.join(outputDir, "samples.ndjson"), "", "utf8");
-        return {} as any;
-      }) as typeof import("../scripts/finalize.ts").finalizePartialArtifact,
+        return {} as unknown as Awaited<ReturnType<typeof finalizePartialArtifact>>;
+      }) as typeof finalizePartialArtifact,
       resolveFilesystemInfo: async () => ({
         device: "/dev/disk3s1",
         mountpoint: "/",

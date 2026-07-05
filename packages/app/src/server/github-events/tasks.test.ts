@@ -1,4 +1,5 @@
 // @vitest-environment node
+import type { JobHelpers } from "graphile-worker";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import type { WebhookJobData } from "./types";
 
@@ -125,8 +126,7 @@ async function runTask(
   if (!task) {
     throw new Error(`missing ${taskIdentifier} task`);
   }
-  // biome-ignore lint/suspicious/noExplicitAny: helpers are mocked minimally
-  await task(data, { job: { id: jobId } } as any);
+  await task(data, { job: { id: jobId } } as unknown as JobHelpers);
 }
 
 beforeEach(() => {

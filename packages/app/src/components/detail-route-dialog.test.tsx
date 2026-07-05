@@ -27,12 +27,12 @@ vi.mock("@everr/ui/components/dialog", () => ({
 }));
 
 function createDeferred() {
-  let resolve!: () => void;
-  const promise = new Promise<void>((resolvePromise) => {
-    resolve = resolvePromise;
+  let resolveFn!: () => void;
+  const promise = new Promise<void>((resolve) => {
+    resolveFn = resolve;
   });
 
-  return { promise, resolve };
+  return { promise, resolve: resolveFn };
 }
 
 function ContextCloseButton() {

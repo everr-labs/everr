@@ -8,6 +8,7 @@ import { composeMiddleware, type FunctionMiddlewareHandler } from "./lib/test-mi
 // ---------------------------------------------------------------------------
 
 // biome-ignore lint/suspicious/noExplicitAny: Shared test harness needs a loose function signature.
+// oxlint-disable-next-line typescript/no-explicit-any -- one alias covers both the handler (called with { data, context }) and the server-fn invoker (called with { data }); `unknown` params are contravariantly incompatible with both and break the mock chain.
 type AnyFn = (...args: any[]) => any;
 
 /** Build a fluent chain where handler(fn) wraps fn with `wrapHandler`. */

@@ -1,9 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const mockExecute = vi.fn().mockResolvedValue(undefined);
-const mockDb = { execute: mockExecute } as unknown as Parameters<
-  typeof import("./notify").notifyWorkflowUpdate
->[0];
+const mockDb = { execute: mockExecute } as unknown as Parameters<typeof notifyWorkflowUpdate>[0];
 
 vi.mock("drizzle-orm", () => ({
   sql: vi.fn(

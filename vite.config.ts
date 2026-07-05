@@ -2,6 +2,7 @@ import { defineConfig } from "vite-plus";
 
 const ignorePatterns = [
   "**/routeTree.gen.ts",
+  "**/.source/**",
   "**/dist/**",
   "**/.output/**",
   "**/.nitro/**",
@@ -83,12 +84,42 @@ export default defineConfig({
       "react/require-render-return": "error",
       "react/style-prop-object": "error",
       "react/no-danger": "error",
+      // Type safety: no `any` (completes the assertion/non-null ban; off in
+      // tests), and no `@ts-ignore`/`@ts-nocheck` escapes (use `@ts-expect-error`,
+      // which self-removes when the underlying error is fixed).
+      "typescript/no-explicit-any": "error",
+      "typescript/ban-ts-comment": "error",
+      "typescript/consistent-type-imports": "error",
+      "typescript/no-import-type-side-effects": "error",
+      // Import hygiene: no circular deps, no duplicate or self imports. The
+      // resolution-based rules (default/named/namespace/no-unresolved) stay off:
+      // oxlint's import resolver mis-handles our path aliases and package subpath
+      // exports (same reason type-aware is off), so they false-positive.
+      "import/no-cycle": "error",
+      "import/no-duplicates": "error",
+      "import/no-self-import": "error",
+      "import/default": "off",
+      "import/named": "off",
+      "import/namespace": "off",
+      // Enforce `===`, but keep the deliberate `== null` / `!= null` nullish idiom.
+      eqeqeq: ["error", "always", { null: "ignore" }],
+      // Modernization / small correctness wins.
+      "unicorn/prefer-node-protocol": "error",
+      "unicorn/throw-new-error": "error",
+      "unicorn/error-message": "error",
+      "unicorn/prefer-string-slice": "error",
+      "unicorn/no-instanceof-array": "error",
+      "unicorn/prefer-array-flat-map": "error",
+      "promise/no-return-wrap": "error",
+      "promise/valid-params": "error",
+      "promise/param-names": "error",
     },
-    plugins: ["react", "react-hooks", "typescript", "oxc", "unicorn"],
+    plugins: ["react", "react-hooks", "typescript", "oxc", "unicorn", "import", "promise"],
     overrides: [
       {
-        // Tests lean on assertions for mocks/fixtures where the type is known
-        // by construction; the assertion bans apply to production code only.
+        // Tests lean on assertions for mocks/fixtures where the type is known by
+        // construction; only the assertion bans are relaxed here. Everything else
+        // (including no-explicit-any) stays on in tests.
         files: ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx", "**/tests/**"],
         rules: {
           "typescript/no-non-null-assertion": "off",

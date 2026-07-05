@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import type * as ServerFnModule from "./serverFn";
 import { composeMiddleware, type FunctionMiddlewareHandler } from "./test-middleware";
 
 const mocked = vi.hoisted(() => ({
@@ -78,7 +79,7 @@ async function loadModule() {
     },
   }));
 
-  return vi.importActual<typeof import("./serverFn")>("./serverFn");
+  return vi.importActual<typeof ServerFnModule>("./serverFn");
 }
 
 describe("createAuthenticatedServerFn", () => {
