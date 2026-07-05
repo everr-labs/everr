@@ -22,7 +22,6 @@ const SearchSchema = TimeRangeSearchSchema.extend({
 });
 
 export const Route = createFileRoute("/_authenticated/_dashboard/runs/")({
-  staticData: { fullBleed: true },
   validateSearch: SearchSchema,
   component: RunsListPage,
 });

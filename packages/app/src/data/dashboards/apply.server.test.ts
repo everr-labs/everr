@@ -1,11 +1,13 @@
-import { eq } from "drizzle-orm";
+import { eq, isNull } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/client";
 
 // ---------------------------------------------------------------------------
-// Mock the db client with a chainable fluent builder.
-// applyDashboardSpecs ends the read chain at .where() (not .limit()), so tests
-// override db.select per-case via `mockApplySelect`.
+// Mock the db client with a chainable fluent builder. The reconciler runs on
+// the executor passed in `opts.db` (the registry's transaction in production);
+// tests pass this mocked `db` and override its `select` per-case via
+// `mockApplySelect`. The registry — not the reconciler — owns the transaction,
+// so writes are asserted directly on insert/update/delete.
 // ---------------------------------------------------------------------------
 
 let insertImpl: () => unknown = () => [{ slug: "aaaaaaaaaaaa" }];
@@ -15,7 +17,8 @@ let deleteImpl: () => unknown = () => [];
 vi.mock("@/db/client", () => {
   const selectChain = {
     from: vi.fn(() => selectChain),
-    where: vi.fn(() => selectChain),
+    // Un-queued selects (e.g. the cross-repo conflict probe) resolve to no rows.
+    where: vi.fn(() => Promise.resolve([])),
     limit: vi.fn(() => undefined),
   };
   const updateChain = {
@@ -35,13 +38,6 @@ vi.mock("@/db/client", () => {
       update: vi.fn(() => updateChain),
       insert: vi.fn(() => insertChain),
       delete: vi.fn(() => deleteChain),
-      transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
-        fn({
-          insert: vi.fn(() => insertChain),
-          update: vi.fn(() => updateChain),
-          delete: vi.fn(() => deleteChain),
-        }),
-      ),
     },
   };
 });
@@ -49,6 +45,10 @@ vi.mock("@/db/client", () => {
 vi.mock("drizzle-orm", () => ({
   and: vi.fn((...conditions: unknown[]) => ({ op: "and", conditions })),
   eq: vi.fn((left: unknown, right: unknown) => ({ op: "eq", left, right })),
+  ne: vi.fn((left: unknown, right: unknown) => ({ op: "ne", left, right })),
+  or: vi.fn((...conditions: unknown[]) => ({ op: "or", conditions })),
+  isNull: vi.fn((col: unknown) => ({ op: "isNull", col })),
+  sql: vi.fn(() => ({ op: "sql" })),
 }));
 
 vi.mock("@/db/schema", () => ({
@@ -56,6 +56,7 @@ vi.mock("@/db/schema", () => ({
     id: "id",
     organizationId: "organization_id",
     repoid: "repoid",
+    previewId: "preview_id",
     slug: "slug",
     project: "project",
     folderPath: "folder_path",
@@ -92,12 +93,15 @@ const dash = (name: string, project?: string) => ({
   spec: { panels: {}, layouts: [] },
 });
 
+// Shared executor + live-namespace default; each test overrides what it needs.
+const live = { orgId: "org-1", repoid: "repo-1", kind: "live" } as const;
+const base = { namespace: live, db };
+
 describe("applyDashboardSpecs", () => {
   it("accepts a defaulted doc under the repo scope", async () => {
     mockApplySelect([]);
     const result = await applyDashboardSpecs({
-      orgId: "org-1",
-      repoid: "repo-1",
+      ...base,
       dryRun: true,
       resources: [{ path: "cpu.yaml", resource: dash("cpu") }],
     });
@@ -114,8 +118,7 @@ describe("applyDashboardSpecs", () => {
       },
     ]);
     const result = await applyDashboardSpecs({
-      orgId: "org-1",
-      repoid: "repo-1",
+      ...base,
       dryRun: true,
       resources: [],
     });
@@ -123,6 +126,8 @@ describe("applyDashboardSpecs", () => {
       created: [],
       updated: [],
       deleted: ["old"],
+      adopted: [],
+      conflicts: [],
     });
   });
 
@@ -136,8 +141,7 @@ describe("applyDashboardSpecs", () => {
       },
     ]);
     const result = await applyDashboardSpecs({
-      orgId: "org-1",
-      repoid: "repo-1",
+      ...base,
       dryRun: true,
       resources: [{ path: "cpu.yaml", resource: dash("cpu", "platform") }],
     });
@@ -155,16 +159,15 @@ describe("applyDashboardSpecs", () => {
       },
     ]);
     const first = await applyDashboardSpecs({
-      orgId: "org-1",
-      repoid: "repo-1",
+      ...base,
       dryRun: true,
       resources: [{ path: "cpu.yaml", resource: dash("cpu") }],
     });
 
     mockApplySelect([]);
     const second = await applyDashboardSpecs({
-      orgId: "org-1",
-      repoid: "repo-2",
+      ...base,
+      namespace: { orgId: "org-1", repoid: "repo-2", kind: "live" },
       dryRun: true,
       resources: [{ path: "cpu.yaml", resource: dash("cpu") }],
     });
@@ -174,29 +177,98 @@ describe("applyDashboardSpecs", () => {
     expect(second.deleted).toEqual([]);
     expect(eq).toHaveBeenCalledWith("repoid", "repo-1");
     expect(eq).toHaveBeenCalledWith("repoid", "repo-2");
+    // Live rows are scoped by a NULL preview_id, never the repoid alone.
+    expect(isNull).toHaveBeenCalledWith("preview_id");
   });
 
-  it("applies the diff inside a transaction when not a dry run", async () => {
+  it("writes preview rows under previewId with a null repoid", async () => {
     mockApplySelect([]);
     const result = await applyDashboardSpecs({
-      orgId: "org-1",
-      repoid: "repo-1",
+      db,
+      namespace: {
+        orgId: "org-1",
+        repoid: "repo-1",
+        kind: "preview",
+        id: "prev-1",
+      },
+      resources: [{ path: "cpu.yaml", resource: dash("cpu") }],
+    });
+    expect(result.created).toEqual(["cpu"]);
+    // Preview rows hang off the registry id; repoid stays null (schema CHECK).
+    expect(mockedDb.insert).toHaveBeenCalled();
+    const insertChain = mockedDb.insert.mock.results[0]?.value as {
+      values: ReturnType<typeof vi.fn>;
+    };
+    expect(insertChain.values).toHaveBeenCalledWith(
+      expect.objectContaining({ previewId: "prev-1", repoid: null }),
+    );
+    // The preview scope keys off previewId, not (org, repoid, isNull).
+    expect(eq).toHaveBeenCalledWith("preview_id", "prev-1");
+  });
+
+  it("writes the diff on the executor when not a dry run", async () => {
+    mockApplySelect([]);
+    const result = await applyDashboardSpecs({
+      ...base,
       resources: [{ path: "a.yaml", resource: dash("a", "team") }],
     });
     expect(result.created).toEqual(["a"]);
-    expect(mockedDb.transaction).toHaveBeenCalledOnce();
+    expect(mockedDb.insert).toHaveBeenCalledOnce();
+    // Live creates carry the repoid and a null previewId (schema CHECK).
+    const insertChain = mockedDb.insert.mock.results[0]?.value as {
+      values: ReturnType<typeof vi.fn>;
+    };
+    expect(insertChain.values).toHaveBeenCalledWith(
+      expect.objectContaining({ repoid: "repo-1", previewId: null }),
+    );
   });
 
   it("rejects the apply when a document is invalid", async () => {
     await expect(
       applyDashboardSpecs({
-        orgId: "org-1",
-        repoid: "repo-1",
+        ...base,
         resources: [
           { path: "bad.yaml", resource: { kind: "Dashboard", spec: {} } },
         ],
       }),
     ).rejects.toThrow(/bad\.yaml/);
-    expect(mockedDb.transaction).not.toHaveBeenCalled();
+    expect(mockedDb.insert).not.toHaveBeenCalled();
+  });
+
+  it("reports a cross-repo conflict for a create whose identity another repo owns", async () => {
+    mockApplySelect([]); // scope: no existing rows → cpu is a create
+    // The foreign-owner probe finds repo-2 already owns default/cpu live.
+    mockApplySelect([{ project: "default", slug: "cpu", owner: "repo-2" }]);
+    const result = await applyDashboardSpecs({
+      ...base,
+      dryRun: true,
+      resources: [{ path: "cpu.yaml", resource: dash("cpu") }],
+    });
+    expect(result.created).toEqual([]);
+    expect(result.adopted).toEqual([]);
+    expect(result.conflicts).toEqual([
+      { project: "default", slug: "cpu", owner: "repo-2" },
+    ]);
+  });
+
+  it("adopts a conflicting create, transferring ownership via an update", async () => {
+    mockApplySelect([]); // scope
+    mockApplySelect([{ project: "default", slug: "cpu", owner: "repo-2" }]);
+    const result = await applyDashboardSpecs({
+      ...base,
+      adopt: true,
+      resources: [{ path: "cpu.yaml", resource: dash("cpu") }],
+    });
+    expect(result.adopted).toEqual(["cpu"]);
+    expect(result.conflicts).toEqual([]);
+    expect(result.created).toEqual([]);
+    // Ownership transfer is an update setting the new repoid, not an insert.
+    expect(mockedDb.insert).not.toHaveBeenCalled();
+    const updateChain = mockedDb.update.mock.results[0]?.value as {
+      set: ReturnType<typeof vi.fn>;
+    };
+    expect(updateChain.set).toHaveBeenCalledWith(
+      expect.objectContaining({ repoid: "repo-1" }),
+    );
   });
 });

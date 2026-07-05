@@ -1,10 +1,17 @@
 import { bucketSeconds } from "@everr/ui/lib/bucket";
 import { DEFAULT_TIME_RANGE, resolveTimeRange } from "@everr/ui/lib/time-range";
 import { notFound } from "@tanstack/react-router";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import * as z from "zod";
+import { overlayPreview, type PreviewStatus } from "@/data/previews/overlay";
+import { getCoveredRepoids } from "@/data/previews/repoids";
+import {
+  effectiveRepoid,
+  liveOrPreview,
+  previewJoin,
+} from "@/data/previews/scope";
 import { db } from "@/db/client";
-import { dashboards } from "@/db/schema";
+import { dashboards, previews } from "@/db/schema";
 import { querySqlApi } from "@/lib/clickhouse";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { interpolateVariables } from "./interpolate";
@@ -38,58 +45,137 @@ function dashboardQueryParams(range: { from?: string; to?: string }) {
 }
 
 export const getDashboard = createAuthenticatedServerFn({ method: "GET" })
-  .inputValidator(z.object({ project: z.string(), slug: z.string() }))
-  .handler(async ({ data: { project, slug }, context }) => {
+  .inputValidator(
+    z.object({
+      project: z.string(),
+      slug: z.string(),
+      preview: z.string().optional(),
+    }),
+  )
+  .handler(async ({ data: { project, slug, ...rest }, context }) => {
     const orgId = context.session.session.activeOrganizationId;
+    const preview = rest.preview ?? null;
 
-    const [row] = await db
-      .select({ document: dashboards.document })
-      .from(dashboards)
-      .where(
-        and(
-          eq(dashboards.organizationId, orgId),
-          eq(dashboards.project, project),
-          eq(dashboards.slug, slug),
-        ),
-      )
-      .limit(1);
+    const identity = and(
+      eq(dashboards.organizationId, orgId),
+      eq(dashboards.project, project),
+      eq(dashboards.slug, slug),
+    );
 
-    if (!row) {
-      // Throw a framework notFound so only a genuinely-missing dashboard shows
-      // the not-found UI; real errors (auth, server, invalid spec) surface as
-      // errors instead.
-      throw notFound();
+    if (preview === null) {
+      const [row] = await db
+        .select({ document: dashboards.document })
+        .from(dashboards)
+        .where(and(identity, isNull(dashboards.previewId)))
+        .limit(1);
+      if (!row) throw notFound();
+      dashboardSpecSchema.parse(row.document.spec);
+      // Typed binding (not an assertion) so the live and preview branches share
+      // one return shape without widening `undefined` via a cast.
+      const previewStatus: PreviewStatus | undefined = undefined;
+      return { document: row.document satisfies Dashboard, previewStatus };
     }
 
-    // Validate the spec shape on read; return the stored document verbatim so
-    // unknown Perses fields survive.
+    // Live rows (previewId NULL) plus this preview's rows; `previewId` is the
+    // overlay's live/preview discriminator.
+    const [covered, rows] = await Promise.all([
+      getCoveredRepoids(orgId, preview),
+      db
+        .select({
+          repoid: effectiveRepoid(dashboards),
+          previewId: dashboards.previewId,
+          project: dashboards.project,
+          slug: dashboards.slug,
+          folderPath: dashboards.folderPath,
+          document: dashboards.document,
+        })
+        .from(dashboards)
+        .leftJoin(previews, previewJoin(dashboards))
+        .where(and(identity, liveOrPreview(dashboards, preview))),
+    ]);
+    const overlaid = overlayPreview({ rows, coveredRepoids: covered });
+    // Prefer a surviving row; a shadowed-by-deletion live row still renders,
+    // marked "removed", instead of 404ing mid-review.
+    const row =
+      overlaid.find((r) => r.previewStatus !== "removed") ??
+      overlaid.find((r) => r.previewStatus === "removed");
+    if (!row) throw notFound();
     dashboardSpecSchema.parse(row.document.spec);
-
-    return row.document satisfies Dashboard;
+    return {
+      document: row.document satisfies Dashboard,
+      previewStatus: row.previewStatus,
+    };
   });
 
-export const listDashboards = createAuthenticatedServerFn({
-  method: "GET",
-}).handler(async ({ context }) => {
-  const orgId = context.session.session.activeOrganizationId;
+export const listDashboards = createAuthenticatedServerFn({ method: "GET" })
+  .inputValidator(z.object({ preview: z.string().optional() }).optional())
+  .handler(async ({ data, context }) => {
+    const orgId = context.session.session.activeOrganizationId;
+    const preview = data?.preview ?? null;
 
-  const rows = await db
-    .select({
+    // Live path never diffs against anything, so it only needs the scalar
+    // columns `toItem` returns — no `document` (expensive JSONB) fetch. The
+    // preview path feeds `overlayPreview`, which diffs `document` and keys off
+    // `repoid`/`previewId`, so it keeps those.
+    const liveSelect = {
       slug: dashboards.slug,
       project: dashboards.project,
       folderPath: dashboards.folderPath,
       displayName: sql<string>`document->'spec'->'display'->>'name'`,
-    })
-    .from(dashboards)
-    .where(eq(dashboards.organizationId, orgId));
+    };
 
-  return rows.map((r) => ({
-    slug: r.slug,
-    project: r.project,
-    name: r.displayName ?? r.slug,
-    folderPath: r.folderPath,
-  }));
-});
+    const previewSelect = {
+      repoid: effectiveRepoid(dashboards),
+      previewId: dashboards.previewId,
+      slug: dashboards.slug,
+      project: dashboards.project,
+      folderPath: dashboards.folderPath,
+      document: dashboards.document,
+      displayName: sql<string>`document->'spec'->'display'->>'name'`,
+    };
+
+    const toItem = (row: {
+      slug: string;
+      project: string;
+      folderPath: string;
+      displayName: string | null;
+      previewStatus?: PreviewStatus;
+    }) => ({
+      slug: row.slug,
+      project: row.project,
+      name: row.displayName ?? row.slug,
+      folderPath: row.folderPath,
+      previewStatus: row.previewStatus,
+    });
+
+    if (preview === null) {
+      const rows = await db
+        .select(liveSelect)
+        .from(dashboards)
+        .where(
+          and(
+            eq(dashboards.organizationId, orgId),
+            isNull(dashboards.previewId),
+          ),
+        );
+      return rows.map(toItem);
+    }
+
+    const [covered, rows] = await Promise.all([
+      getCoveredRepoids(orgId, preview),
+      db
+        .select(previewSelect)
+        .from(dashboards)
+        .leftJoin(previews, previewJoin(dashboards))
+        .where(
+          and(
+            eq(dashboards.organizationId, orgId),
+            liveOrPreview(dashboards, preview),
+          ),
+        ),
+    ]);
+    return overlayPreview({ rows, coveredRepoids: covered }).map(toItem);
+  });
 
 type QueryRow = Record<string, string | number | boolean | null>;
 

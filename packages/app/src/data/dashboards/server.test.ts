@@ -3,6 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/client";
 import { querySqlApi } from "@/lib/clickhouse";
 
+// Spy on `eq`/`isNull` while keeping every other drizzle-orm export real, so
+// the live-mode filter (`isNull(dashboards.previewId)`) is assertable without
+// hand-rolling a fake SQL builder for the rest of the query.
+vi.mock("drizzle-orm", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("drizzle-orm")>();
+  return { ...actual, eq: vi.fn(actual.eq), isNull: vi.fn(actual.isNull) };
+});
+
 // ---------------------------------------------------------------------------
 // Mock the db client with a chainable fluent builder.
 // Individual tests configure `selectImpl` / `updateImpl` / `insertImpl` /
@@ -17,6 +25,7 @@ let deleteImpl: () => unknown = () => [];
 vi.mock("@/db/client", () => {
   const selectChain = {
     from: vi.fn(() => selectChain),
+    leftJoin: vi.fn(() => selectChain),
     where: vi.fn(() => selectChain),
     limit: vi.fn(() => selectImpl()),
   };
@@ -52,11 +61,20 @@ vi.mock("@/db/schema", () => ({
   dashboards: {
     id: "id",
     organizationId: "organization_id",
+    repoid: "repoid",
+    previewId: "preview_id",
     slug: "slug",
     project: "project",
     folderPath: "folder_path",
     updatedAt: "updated_at",
     document: "document",
+  },
+  previews: {
+    id: "previews.id",
+    organizationId: "organization_id",
+    repoid: "repoid",
+    name: "name",
+    lastAppliedAt: "last_applied_at",
   },
 }));
 
@@ -262,7 +280,7 @@ describe("getDashboard (project/slug)", () => {
     const result = await getDashboard({
       data: { project: "team", slug: "cpu" },
     });
-    expect(result).toEqual(document);
+    expect(result).toEqual({ document, previewStatus: undefined });
   });
 
   it("throws a notFound when the dashboard is missing", async () => {
@@ -274,6 +292,86 @@ describe("getDashboard (project/slug)", () => {
       (e) => e,
     );
     expect(isNotFound(error)).toBe(true);
+  });
+
+  it("in live mode, only reads rows with preview = ''", async () => {
+    const document = {
+      kind: "Dashboard",
+      metadata: { name: "cpu" },
+      spec: { panels: {}, layouts: [] },
+      apiVersion: "perses.dev/v1",
+    };
+    selectImpl = () => [{ document }];
+    const { isNull } = await import("drizzle-orm");
+    await getDashboard({ data: { project: "team", slug: "cpu" } });
+
+    expect(isNull).toHaveBeenCalledWith("preview_id");
+  });
+
+  it("in preview mode, overlays preview rows and tags a 'changed' result", async () => {
+    mockedDb.select
+      // getCoveredRepoids
+      .mockImplementationOnce(
+        () =>
+          ({
+            from: () => ({
+              where: () => Promise.resolve([{ repoid: "repo-1" }]),
+            }),
+          }) as unknown as ReturnType<typeof mockedDb.select>,
+      )
+      // dashboards rows (live + preview): repoid/preview come coalesced from the
+      // registry join, so the read path uses .from().leftJoin().where().
+      .mockImplementationOnce(
+        () =>
+          ({
+            from: () => ({
+              leftJoin: () => ({
+                where: () =>
+                  Promise.resolve([
+                    {
+                      repoid: "repo-1",
+                      previewId: null,
+                      project: "team",
+                      slug: "cpu",
+                      folderPath: "",
+                      document: {
+                        kind: "Dashboard",
+                        metadata: { name: "cpu" },
+                        spec: {
+                          panels: {},
+                          layouts: [],
+                          display: { name: "v1" },
+                        },
+                      },
+                    },
+                    {
+                      repoid: "repo-1",
+                      previewId: "prev-1",
+                      project: "team",
+                      slug: "cpu",
+                      folderPath: "",
+                      document: {
+                        kind: "Dashboard",
+                        metadata: { name: "cpu" },
+                        spec: {
+                          panels: {},
+                          layouts: [],
+                          display: { name: "v2" },
+                        },
+                      },
+                    },
+                  ]),
+              }),
+            }),
+          }) as unknown as ReturnType<typeof mockedDb.select>,
+      );
+
+    const result = await getDashboard({
+      data: { project: "team", slug: "cpu", preview: "gio/branch" },
+    });
+
+    expect(result.previewStatus).toBe("changed");
+    expect(result.document.spec.display?.name).toBe("v2");
   });
 });
 
@@ -303,6 +401,19 @@ describe("listDashboards (with project + folderPath)", () => {
     expect(rows).toEqual([
       { slug: "cpu", project: "team", name: "CPU", folderPath: "Infra" },
     ]);
+  });
+
+  it("in live mode, only reads rows with preview = ''", async () => {
+    mockedDb.select.mockImplementationOnce(
+      () =>
+        ({
+          from: () => ({ where: () => Promise.resolve([]) }),
+        }) as unknown as ReturnType<typeof mockedDb.select>,
+    );
+    const { isNull } = await import("drizzle-orm");
+    await listDashboards();
+
+    expect(isNull).toHaveBeenCalledWith("preview_id");
   });
 });
 

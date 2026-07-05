@@ -509,6 +509,60 @@ fn update_replaces_installed_legacy_skill_with_new_skill() {
 }
 
 #[test]
+fn update_replaces_installed_notebooks_skill_with_setup_resources() {
+    let repo = tempdir().expect("repo tempdir");
+    let home = tempdir().expect("home tempdir");
+    let legacy_canonical = repo.path().join(".agents/skills/everr-write-notebooks");
+    fs::create_dir_all(&legacy_canonical).expect("create legacy skill");
+    fs::write(
+        legacy_canonical.join("SKILL.md"),
+        "name: everr-write-notebooks",
+    )
+    .expect("write legacy skill");
+
+    #[cfg(unix)]
+    {
+        let legacy_provider = repo.path().join(".claude/skills/everr-write-notebooks");
+        fs::create_dir_all(legacy_provider.parent().expect("provider parent"))
+            .expect("create provider parent");
+        std::os::unix::fs::symlink(&legacy_canonical, &legacy_provider)
+            .expect("create legacy provider symlink");
+    }
+
+    let options = SkillOperationOptions {
+        scope: SkillScope::Project,
+        cwd: repo.path().to_path_buf(),
+        home_dir: home.path().to_path_buf(),
+        providers: vec![SkillProvider::ClaudeCode],
+        skill_names: Vec::new(),
+        all: false,
+        dry_run: false,
+    };
+
+    let summary = update_bundled_skills(&options).expect("update notebooks skill");
+
+    assert_eq!(summary.skills, vec!["everr-setup-resources"]);
+    assert!(!legacy_canonical.exists());
+    let new_canonical = repo.path().join(".agents/skills/everr-setup-resources");
+    assert!(new_canonical.join("SKILL.md").is_file());
+    let content = fs::read_to_string(new_canonical.join("SKILL.md")).expect("read new skill");
+    assert!(content.contains("name: everr-setup-resources"));
+    #[cfg(unix)]
+    {
+        assert!(
+            !repo
+                .path()
+                .join(".claude/skills/everr-write-notebooks")
+                .exists()
+        );
+        assert_symlink_to(
+            &repo.path().join(".claude/skills/everr-setup-resources"),
+            &new_canonical,
+        );
+    }
+}
+
+#[test]
 fn install_overwrites_modified_skill() {
     let repo = tempdir().expect("repo tempdir");
     let home = tempdir().expect("home tempdir");

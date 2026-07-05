@@ -2,8 +2,20 @@ import { resolveTimeRange, TimeRangeSchema } from "@everr/ui/lib/time-range";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
+import { overlayPreview, type PreviewStatus } from "@/data/previews/overlay";
+import { getCoveredRepoids } from "@/data/previews/repoids";
+import {
+  effectiveRepoid,
+  liveOrPreview,
+  previewJoin,
+} from "@/data/previews/scope";
 import { db } from "@/db/client";
-import { alertDefinitions, alertSettings, alertSilences } from "@/db/schema";
+import {
+  alertDefinitions,
+  alertSettings,
+  alertSilences,
+  previews,
+} from "@/db/schema";
 import { auth } from "@/lib/auth.server";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import {
@@ -72,6 +84,7 @@ export type AlertSummary = {
   firingInstanceCount: number;
   activeSilenceCount: number;
   activeSilenceExpiresAt: Date | string | null;
+  previewStatus?: PreviewStatus;
 };
 
 type AlertDetail = AlertSummary & {
@@ -101,12 +114,14 @@ type AlertEvent = {
 
 type AlertSummaryRow = Omit<
   AlertSummary,
-  "activeSilenceCount" | "displayName"
+  "activeSilenceCount" | "displayName" | "lastEvidenceSnapshot"
 > & {
   activeSilenceCount?: number | string;
   active_silence_count?: number | string;
   activeSilenceExpiresAt?: Date | string | null;
   active_silence_expires_at?: Date | string | null;
+  // Untyped `jsonb` on the row; `toAlertSummary` narrows it to `AlertEvidenceValue`.
+  lastEvidenceSnapshot: unknown;
   document: unknown;
 };
 
@@ -136,9 +151,13 @@ const activeSilenceExpiresAtSql = sql<Date | null>`(
     and s.cancelled_at is null
 )`.as("activeSilenceExpiresAt");
 
+// Every consumer of these columns must `.leftJoin(previews, previewJoin(...))`:
+// `repoid` is the effective repoid (the row's own for live, the preview parent's
+// for preview rows), which reads `previews.repoid`. In return it is non-null —
+// the column itself is nullable (a preview row keeps repoid only on its parent).
 const alertListColumns = {
   id: alertDefinitions.id,
-  repoid: alertDefinitions.repoid,
+  repoid: effectiveRepoid(alertDefinitions),
   slug: alertDefinitions.slug,
   project: alertDefinitions.project,
   evaluationIntervalSeconds: alertDefinitions.evaluationIntervalSeconds,
@@ -173,12 +192,18 @@ async function ensureOrgAdmin() {
 }
 
 function toAlertSummary(row: AlertSummaryRow): AlertSummary {
-  const { active_silence_count, active_silence_expires_at, document, ...rest } =
-    row;
+  const {
+    active_silence_count,
+    active_silence_expires_at,
+    document,
+    lastEvidenceSnapshot,
+    ...rest
+  } = row;
   return {
     ...rest,
     displayName: displayFromDocument(document).name ?? null,
-    lastEvidenceSnapshot: rest.lastEvidenceSnapshot ?? [],
+    // The one unavoidable bridge: `last_evidence_snapshot` is untyped `jsonb`.
+    lastEvidenceSnapshot: (lastEvidenceSnapshot ?? []) as AlertEvidenceValue,
     activeSilenceCount:
       Number(rest.activeSilenceCount ?? active_silence_count) || 0,
     activeSilenceExpiresAt:
@@ -222,6 +247,7 @@ async function getAlertRow(alertId: string, organizationId: string) {
       instanceLabelColumns: alertDefinitions.instanceLabelColumns,
     })
     .from(alertDefinitions)
+    .leftJoin(previews, previewJoin(alertDefinitions))
     .where(
       and(
         eq(alertDefinitions.organizationId, organizationId),
@@ -233,28 +259,70 @@ async function getAlertRow(alertId: string, organizationId: string) {
   return row;
 }
 
-export const listAlerts = createAuthenticatedServerFn({
-  method: "GET",
-}).handler(async ({ context: { session } }) => {
-  const organizationId = session.session.activeOrganizationId;
-  const rows = await db
-    .select({ ...alertListColumns, document: alertDefinitions.document })
-    .from(alertDefinitions)
-    .where(
-      and(
-        eq(alertDefinitions.organizationId, organizationId),
-        isNull(alertDefinitions.deletedAt),
-      ),
-    )
-    .orderBy(
+export const listAlerts = createAuthenticatedServerFn({ method: "GET" })
+  .inputValidator(z.object({ preview: z.string().optional() }).optional())
+  .handler(async ({ data, context: { session } }) => {
+    const organizationId = session.session.activeOrganizationId;
+    const preview = data?.preview ?? null;
+
+    const orderBy = [
       desc(alertDefinitions.active),
       desc(alertDefinitions.lastEvaluatedAt),
       alertDefinitions.repoid,
       alertDefinitions.slug,
-    );
+    ] as const;
 
-  return rows.map((row) => toAlertSummary(row as AlertSummaryRow));
-});
+    if (preview === null) {
+      const rows = await db
+        .select({ ...alertListColumns, document: alertDefinitions.document })
+        .from(alertDefinitions)
+        .leftJoin(previews, previewJoin(alertDefinitions))
+        .where(
+          and(
+            eq(alertDefinitions.organizationId, organizationId),
+            isNull(alertDefinitions.deletedAt),
+            isNull(alertDefinitions.previewId),
+          ),
+        )
+        .orderBy(...orderBy);
+
+      return rows.map((row) => toAlertSummary(row));
+    }
+
+    const query = db
+      .select({
+        ...alertListColumns,
+        // `document`/`previewId`/`folderPath` extend the shared list columns for
+        // the overlay diff; keep them out of `alertListColumns` so these explicit
+        // keys never collide with a spread key (last-write-wins). `previewId` is
+        // the overlay's live/preview discriminator.
+        document: alertDefinitions.document,
+        previewId: alertDefinitions.previewId,
+        // Alert rows have no folderPath; the constant satisfies
+        // `OverlayResource` and never differs, so it never drives a "changed".
+        folderPath: sql<string>`''`,
+      })
+      .from(alertDefinitions)
+      .leftJoin(previews, previewJoin(alertDefinitions))
+      .where(
+        and(
+          eq(alertDefinitions.organizationId, organizationId),
+          isNull(alertDefinitions.deletedAt),
+          liveOrPreview(alertDefinitions, preview),
+        ),
+      )
+      .orderBy(...orderBy);
+
+    const [covered, rows] = await Promise.all([
+      getCoveredRepoids(organizationId, preview),
+      query,
+    ]);
+    const overlaid = overlayPreview({ rows, coveredRepoids: covered });
+    return overlaid.map((row) => ({
+      ...toAlertSummary(row),
+      previewStatus: row.previewStatus,
+    }));
+  });
 
 export const getAlert = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(alertIdInput)
@@ -265,7 +333,7 @@ export const getAlert = createAuthenticatedServerFn({ method: "GET" })
     );
     if (!row) return null;
     return {
-      ...toAlertSummary(row as AlertSummaryRow),
+      ...toAlertSummary(row),
       display: displayFromDocument(row.document),
       document: row.document,
       parsedQuery: row.parsedQuery,

@@ -72,7 +72,7 @@ spec:
       spec:
         display:
           name: Webhook replay duration (worst per interval)
-          description: Max duration of github_events.jobs.replay_webhook_to_collector spans. With async ingestion deployed this should stay flat in the low milliseconds; a return of 20-30s spikes means the webhook handler is doing heavy work inline again.
+          description: Max duration of github_events.jobs.replay_webhook_to_collector spans. With the 15 MiB archive cap, ingestion is bounded and replays should stay in the low seconds; spikes toward the 30s timeout mean the cap is not being enforced.
         plugin:
           kind: TimeSeriesChart
           spec:
@@ -259,6 +259,62 @@ spec:
                       AND ResourceAttributes['k8s.namespace.name'] = 'collector'
                     ORDER BY mem_mib DESC
                     LIMIT 10
+    post-release-memory-scrapes:
+      kind: Panel
+      spec:
+        display:
+          name: Highest collector memory scrapes after the chunked-emitter release (pinned)
+          description: Top kubelet scrapes of collector pod working set between the b78b1fc3 rollout (2026-07-04 13:15 UTC) and 15:00 UTC. The multi-GiB rows show the exporter queue absorbing the run despite chunked emission. Does not follow the time picker.
+        plugin:
+          kind: Table
+          spec:
+            stickyHeader: true
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT
+                      formatDateTime(TimeUnix, '%m-%d %H:%i:%S') AS scraped,
+                      ResourceAttributes['k8s.pod.name'] AS pod,
+                      round(Value / 1048576, 1) AS mem_mib
+                    FROM metrics_gauge
+                    WHERE TimeUnix >= '2026-07-04 13:15:00' AND TimeUnix <= '2026-07-04 15:00:00'
+                      AND MetricName = 'k8s.pod.memory.working_set'
+                      AND ResourceAttributes['k8s.namespace.name'] = 'collector'
+                    ORDER BY mem_mib DESC
+                    LIMIT 10
+    post-release-slow-replays:
+      kind: Panel
+      spec:
+        display:
+          name: Replay retry storm after the chunked-emitter release (pinned)
+          description: Replays over 5s between the b78b1fc3 rollout (2026-07-04 13:15 UTC) and 15:00 UTC. Every attempt fails at exactly 30s (the app replay timeout), and each retry started another overlapping ingestion of the same run. Does not follow the time picker.
+        plugin:
+          kind: Table
+          spec:
+            stickyHeader: true
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT
+                      formatDateTime(Timestamp, '%m-%d %H:%i:%S') AS started,
+                      SpanAttributes['github.event.type'] AS event_type,
+                      round(Duration / 1e6, 1) AS duration_ms,
+                      StatusCode AS status,
+                      TraceId AS trace_id
+                    FROM traces
+                    WHERE Timestamp >= '2026-07-04 13:15:00' AND Timestamp <= '2026-07-04 15:00:00'
+                      AND SpanName = 'github_events.jobs.replay_webhook_to_collector'
+                      AND Duration > 5e9
+                    ORDER BY Timestamp ASC
+                    LIMIT 20
   markdown:
     file: ./collector-oom.runbook.md
   pages:

@@ -89,6 +89,9 @@ function ExploreLayout() {
           />
         </div>
       ) : null}
+      {/* Each Explore leaf (LogsExplorer/TracesExplorer/…) is a full-height,
+          self-scrolling shell, so this column intentionally has no overflow —
+          a document-flow page added here would need to scroll itself. */}
       <div className="flex min-h-0 flex-1 flex-col">
         <Outlet />
       </div>

@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   bigint,
+  check,
   index,
   integer,
   jsonb,
@@ -176,9 +177,14 @@ export const dashboards = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     organizationId: text("organization_id").notNull(),
-    // Stable repository identifier from everr.yaml — the apply ownership and
-    // prune boundary. Dashboards are unreleased, so identity changes directly.
-    repoid: text("repoid").notNull().default(""),
+    // Live rows carry `repoid` (the apply/prune boundary) and no preview parent.
+    // Preview rows carry `previewId` and derive repoid/name from the `previews`
+    // row; the CHECK below enforces exactly one of the two. ON DELETE CASCADE
+    // means retention deleting a preview also removes its resource rows.
+    repoid: text("repoid"),
+    previewId: uuid("preview_id").references(() => previews.id, {
+      onDelete: "cascade",
+    }),
     // Perses project namespace inside the repository. Denormalized from the
     // document's metadata.project (default "default") so identity/indexing
     // never reads from JSONB.
@@ -201,14 +207,22 @@ export const dashboards = pgTable(
       .defaultNow(),
   },
   (table) => [
-    // Identity is (org, repoid, project, slug); project is only the Perses
-    // namespace inside the repository, not the prune boundary.
-    uniqueIndex("dashboards_tenant_repo_project_slug_uq").on(
-      table.organizationId,
-      table.repoid,
-      table.project,
-      table.slug,
+    // Every row is exactly one of: live (repoid set, no parent) or preview
+    // (parent set, no repoid).
+    check(
+      "dashboards_live_xor_preview",
+      sql`(${table.previewId} IS NULL) <> (${table.repoid} IS NULL)`,
     ),
+    // Live identity is the global address (org, project, slug); `repoid` is the
+    // owning repo (reconcile scope + provenance), NOT part of identity — two
+    // repos can't both hold the same live (project, slug). Preview identity:
+    // repoid/name are implied by the parent, so (preview_id, project, slug) fits.
+    uniqueIndex("dashboards_live_project_slug_uq")
+      .on(table.organizationId, table.project, table.slug)
+      .where(sql`${table.previewId} IS NULL`),
+    uniqueIndex("dashboards_preview_project_slug_uq")
+      .on(table.previewId, table.project, table.slug)
+      .where(sql`${table.previewId} IS NOT NULL`),
     index("dashboards_tenant_updated_idx").on(
       table.organizationId,
       sql`updated_at DESC`,
@@ -221,10 +235,12 @@ export const runbooks = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     organizationId: text("organization_id").notNull(),
-    // Stable repository identifier from everr.yaml — the apply ownership and
-    // prune boundary, like dashboards. Runbooks from other repoids are never
-    // touched on apply.
-    repoid: text("repoid").notNull().default(""),
+    // Live/preview split mirrors dashboards: live rows carry `repoid`, preview
+    // rows carry `previewId` (cascade-deleted with the preview). See the CHECK.
+    repoid: text("repoid"),
+    previewId: uuid("preview_id").references(() => previews.id, {
+      onDelete: "cascade",
+    }),
     // Perses project namespace that owns this runbook (identity), denormalized
     // from metadata.project like dashboards.
     project: text("project").notNull(),
@@ -241,17 +257,53 @@ export const runbooks = pgTable(
       .defaultNow(),
   },
   (table) => [
-    // Identity is (org, repoid, project, slug); project is only the Perses
-    // namespace inside the repository, not the prune boundary.
-    uniqueIndex("runbooks_tenant_repo_project_slug_uq").on(
-      table.organizationId,
-      table.repoid,
-      table.project,
-      table.slug,
+    check(
+      "runbooks_live_xor_preview",
+      sql`(${table.previewId} IS NULL) <> (${table.repoid} IS NULL)`,
     ),
+    // Live identity is the global address (org, project, slug); `repoid` owns
+    // (reconcile scope), not identity. Preview identity via the parent.
+    uniqueIndex("runbooks_live_project_slug_uq")
+      .on(table.organizationId, table.project, table.slug)
+      .where(sql`${table.previewId} IS NULL`),
+    uniqueIndex("runbooks_preview_project_slug_uq")
+      .on(table.previewId, table.project, table.slug)
+      .where(sql`${table.previewId} IS NOT NULL`),
     index("runbooks_tenant_updated_idx").on(
       table.organizationId,
       sql`updated_at DESC`,
+    ),
+  ],
+);
+
+/**
+ * Registry of applied previews: one row per (org, repoid, preview name).
+ * Powers the web app's preview switcher (which repoids a preview covers is
+ * the overlay boundary) and the retention job. `lastAppliedAt` is touched on
+ * every apply; rows older than the retention window are hard-deleted along
+ * with their resource rows.
+ */
+export const previews = pgTable(
+  "previews",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: text("organization_id").notNull(),
+    repoid: text("repoid").notNull(),
+    // Raw preview name (usually a git branch, e.g. "gio/desktop-app"),
+    // stored verbatim; URL-encoded only at the edges.
+    name: text("name").notNull(),
+    lastAppliedAt: timestamp("last_applied_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("previews_tenant_repo_name_uq").on(
+      table.organizationId,
+      table.repoid,
+      table.name,
     ),
   ],
 );

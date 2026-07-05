@@ -22,6 +22,10 @@ export const env = createEnv({
     RESEND_API_KEY: z.string(),
     // TODO: this should be a string so we can alo set the sender name, ie. Everr "Team <hello@everr.dev>"
     EMAIL_FROM: z.email(),
+    // Preview apply controls: the alert-evaluation kill-switch ("off" stops
+    // scheduling preview alert rows) and the hard-delete retention window.
+    EVERR_PREVIEW_ALERTS: z.enum(["on", "off"]).default("on"),
+    EVERR_PREVIEW_RETENTION_DAYS: z.coerce.number().int().positive().default(7),
   },
 
   /**
@@ -40,6 +44,8 @@ export const env = createEnv({
     NODE_ENV: process.env.NODE_ENV,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     EMAIL_FROM: process.env.EMAIL_FROM,
+    EVERR_PREVIEW_ALERTS: process.env.EVERR_PREVIEW_ALERTS,
+    EVERR_PREVIEW_RETENTION_DAYS: process.env.EVERR_PREVIEW_RETENTION_DAYS,
   },
 
   /**

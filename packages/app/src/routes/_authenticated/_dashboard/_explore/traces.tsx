@@ -25,7 +25,7 @@ const defaultSearch = RouteSearchSchema.parse({});
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_explore/traces",
 )({
-  staticData: { breadcrumb: "Traces", fullBleed: true },
+  staticData: { breadcrumb: "Traces" },
   head: () => ({ meta: [{ title: "Everr - Traces" }] }),
   validateSearch: RouteSearchSchema,
   search: { middlewares: [stripSearchParams(defaultSearch)] },

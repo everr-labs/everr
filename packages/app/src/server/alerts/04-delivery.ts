@@ -55,6 +55,7 @@ const SendDefSchema = z.object({
   organizationId: z.string(),
   repoid: z.string(),
   slug: z.string(),
+  preview: z.string(),
 });
 
 // The full payload of one `alerts/deliver` job: everything the send needs,

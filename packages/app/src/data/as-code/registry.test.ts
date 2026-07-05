@@ -20,16 +20,41 @@ vi.mock("@/data/alerts/runbook-links.server", () => ({
   validateAlertRunbookLinks: (...a: unknown[]) => validateRunbookLinks(...a),
 }));
 
+const upsertPreview = vi.fn();
+const findPreviewId = vi.fn();
+vi.mock("@/data/previews/apply.server", () => ({
+  upsertPreview: (...a: unknown[]) => upsertPreview(...a),
+  findPreviewId: (...a: unknown[]) => findPreviewId(...a),
+}));
+
+// The real apply pass runs inside one db.transaction; the mock just invokes
+// the callback with a stand-in executor so the reconcilers (also mocked) run.
+vi.mock("@/db/client", () => ({
+  db: {
+    transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
+      fn({ tx: true }),
+    ),
+  },
+}));
+
 import { ApplyValidationError } from "./errors";
 import { applyResources } from "./registry";
 
-const empty = { created: [], updated: [], deleted: [] };
+const empty = {
+  created: [],
+  updated: [],
+  deleted: [],
+  adopted: [],
+  conflicts: [],
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
   dashboardReconciler.mockResolvedValue(empty);
   runbookReconciler.mockResolvedValue(empty);
   alertReconciler.mockResolvedValue(empty);
+  upsertPreview.mockResolvedValue("prev-1");
+  findPreviewId.mockResolvedValue(null);
 });
 
 describe("applyResources", () => {
@@ -41,11 +66,15 @@ describe("applyResources", () => {
       created: ["cpu"],
       updated: [],
       deleted: [],
+      adopted: [],
+      conflicts: [],
     });
     runbookReconciler.mockResolvedValue({
       created: ["runbook"],
       updated: [],
       deleted: [],
+      adopted: [],
+      conflicts: [],
     });
     const out = await applyResources({
       orgId: "org-1",
@@ -53,33 +82,40 @@ describe("applyResources", () => {
       state: { dashboards: [dash], runbooks: [runbook], alerts: [alert] },
       dryRun: false,
     });
+    const liveNs = { orgId: "org-1", repoid: "repo-1", kind: "live" };
     expect(dashboardReconciler).toHaveBeenCalledWith(
-      expect.objectContaining({
-        orgId: "org-1",
-        repoid: "repo-1",
-        resources: [dash],
-      }),
+      expect.objectContaining({ namespace: liveNs, resources: [dash] }),
     );
     expect(runbookReconciler).toHaveBeenCalledWith(
-      expect.objectContaining({
-        orgId: "org-1",
-        repoid: "repo-1",
-        resources: [runbook],
-      }),
+      expect.objectContaining({ namespace: liveNs, resources: [runbook] }),
     );
     expect(alertReconciler).toHaveBeenCalledWith(
-      expect.objectContaining({
-        orgId: "org-1",
-        repoid: "repo-1",
-        resources: [alert],
-      }),
+      expect.objectContaining({ namespace: liveNs, resources: [alert] }),
     );
     expect(out).toEqual({
       dryRun: false,
       results: [
-        { kind: "Dashboard", created: ["cpu"], updated: [], deleted: [] },
-        { kind: "Runbook", created: ["runbook"], updated: [], deleted: [] },
-        { kind: "AlertRule", created: [], updated: [], deleted: [] },
+        {
+          kind: "Dashboard",
+          created: ["cpu"],
+          updated: [],
+          deleted: [],
+          adopted: [],
+        },
+        {
+          kind: "Runbook",
+          created: ["runbook"],
+          updated: [],
+          deleted: [],
+          adopted: [],
+        },
+        {
+          kind: "AlertRule",
+          created: [],
+          updated: [],
+          deleted: [],
+          adopted: [],
+        },
       ],
     });
   });
@@ -116,6 +152,8 @@ describe("applyResources", () => {
       created: ["cpu"],
       updated: [],
       deleted: [],
+      adopted: [],
+      conflicts: [],
     });
     const out = await applyResources({
       orgId: "org-1",
@@ -133,6 +171,7 @@ describe("applyResources", () => {
       created: ["cpu"],
       updated: [],
       deleted: [],
+      adopted: [],
     });
   });
 
@@ -212,5 +251,94 @@ describe("applyResources", () => {
     expect(dashboardReconciler).not.toHaveBeenCalled();
     expect(runbookReconciler).not.toHaveBeenCalled();
     expect(alertReconciler).not.toHaveBeenCalled();
+  });
+
+  it("passes preview to every reconciler and registers the preview once", async () => {
+    await applyResources({
+      orgId: "org-1",
+      repoid: "repo-1",
+      preview: "gio/x",
+      state: { dashboards: [], runbooks: [], alerts: [] },
+    });
+    for (const reconciler of [
+      dashboardReconciler,
+      runbookReconciler,
+      alertReconciler,
+    ]) {
+      expect(reconciler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          namespace: {
+            orgId: "org-1",
+            repoid: "repo-1",
+            kind: "preview",
+            id: "prev-1",
+          },
+          dryRun: false,
+        }),
+      );
+    }
+    expect(upsertPreview).toHaveBeenCalledTimes(1);
+    // Registered first, inside the shared transaction (the executor arg).
+    expect(upsertPreview).toHaveBeenCalledWith(expect.anything(), {
+      orgId: "org-1",
+      repoid: "repo-1",
+      name: "gio/x",
+    });
+  });
+
+  it("does not register a preview for live or dry-run applies", async () => {
+    await applyResources({
+      orgId: "org-1",
+      repoid: "repo-1",
+      state: { dashboards: [], runbooks: [], alerts: [] },
+    });
+    await applyResources({
+      orgId: "org-1",
+      repoid: "repo-1",
+      preview: "gio/x",
+      dryRun: true,
+      state: { dashboards: [], runbooks: [], alerts: [] },
+    });
+    expect(upsertPreview).not.toHaveBeenCalled();
+  });
+
+  it("aborts, listing every conflict, when a reconciler reports an ownership clash", async () => {
+    dashboardReconciler.mockResolvedValue({
+      created: [],
+      updated: [],
+      deleted: [],
+      adopted: [],
+      conflicts: [{ project: "default", slug: "cpu", owner: "repo-2" }],
+    });
+    await expect(
+      applyResources({
+        orgId: "org-1",
+        repoid: "repo-1",
+        state: {
+          dashboards: [{ path: "d.yaml", resource: { kind: "Dashboard" } }],
+          runbooks: [],
+          alerts: [],
+        },
+        dryRun: false,
+      }),
+    ).rejects.toThrow(/default\/cpu \(owned by repo-2\)[\s\S]*--adopt/);
+    // Fail-fast: aborts in the validation pass, before the real apply's
+    // transaction ever registers or writes.
+    expect(upsertPreview).not.toHaveBeenCalled();
+  });
+
+  it("passes adopt through to every reconciler", async () => {
+    await applyResources({
+      orgId: "org-1",
+      repoid: "repo-1",
+      adopt: true,
+      state: { dashboards: [], runbooks: [], alerts: [] },
+    });
+    expect(dashboardReconciler).toHaveBeenCalledWith(
+      expect.objectContaining({ adopt: true }),
+    );
+    expect(alertReconciler).toHaveBeenCalledWith(
+      expect.objectContaining({ adopt: true }),
+    );
   });
 });

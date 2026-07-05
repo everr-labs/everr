@@ -598,10 +598,36 @@ fn push_pagination(query: &mut Vec<(&str, String)>, limit: u32, offset: u32) {
     query.push(("offset", offset.to_string()));
 }
 
+/// Renders a cliclack prompt like a warning — a yellow `▲` and matching side
+/// bar — to flag that a live apply is about to write. Scoped around the live
+/// confirmation via `set_theme`/`reset_theme`.
+struct WarnTheme;
+
+impl cliclack::Theme for WarnTheme {
+    fn bar_color(&self, state: &cliclack::ThemeState) -> console::Style {
+        use cliclack::ThemeState::*;
+        match state {
+            Active | Error(_) => console::Style::new().yellow(),
+            Cancel => console::Style::new().red(),
+            Submit => console::Style::new().bright().black(),
+        }
+    }
+
+    fn state_symbol(&self, state: &cliclack::ThemeState) -> String {
+        use cliclack::ThemeState::*;
+        let symbol = match state {
+            Active | Error(_) => console::Emoji("▲", "x"),
+            Cancel => console::Emoji("■", "x"),
+            Submit => console::Emoji("◇", "o"),
+        };
+        self.state_symbol_color(state).apply_to(symbol).to_string()
+    }
+}
+
 pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
     use everr_core::apply::{
         ApplyRequest, classify_documents, detect_git_source, load_apply_manifest,
-        load_resource_documents,
+        load_resource_documents, resolve_preview_name,
     };
 
     let dir = std::path::Path::new(&args.dir);
@@ -622,6 +648,10 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
 
     let state = classify_documents(documents)?.into_wire();
     let source = detect_git_source(dir);
+    let preview = match args.preview.as_deref() {
+        Some(flag) => Some(resolve_preview_name(dir, flag)?),
+        None => None,
+    };
 
     // Credential precedence: an API key in EVERR_API_KEY (CI) wins;
     // otherwise fall back to the logged-in session (`cloud login`).
@@ -662,7 +692,9 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
             repoid: repoid.clone(),
             state: state.clone(),
             source: source.clone(),
+            preview: preview.clone(),
             dry_run: true,
+            adopt: args.adopt,
         })
         .await?;
     print_apply_summary(&plan, true);
@@ -680,18 +712,25 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    // Confirm the (destructive) change before writing.
-    if !args.yes {
+    // Previews are cheap and disposable, so they apply without confirmation.
+    // A live apply is the real thing: gate it behind an explicit, warning-styled
+    // confirmation.
+    if preview.is_none() && !args.yes {
         if std::io::stdin().is_terminal() && std::io::stdout().is_terminal() {
-            let proceed =
-                cliclack::confirm(format!("Apply to «{}»?", plan.organization.name)).interact()?;
-            if !proceed {
+            let org = console::style(&plan.organization.name).color256(208).bold();
+            cliclack::set_theme(WarnTheme);
+            let proceed = cliclack::confirm(format!(
+                "Are you sure you want to apply this change to {org}?"
+            ))
+            .interact();
+            cliclack::reset_theme();
+            if !proceed? {
                 println!("Aborted.");
                 return Ok(());
             }
         } else {
             anyhow::bail!(
-                "refusing to apply to «{}» without confirmation; re-run with --yes",
+                "refusing to apply to {} without confirmation; re-run with --yes",
                 plan.organization.name
             );
         }
@@ -702,11 +741,52 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
             repoid,
             state,
             source,
+            preview: preview.clone(),
             dry_run: false,
+            adopt: args.adopt,
         })
         .await?;
     print_apply_summary(&summary, false);
+    if let Some(name) = &preview {
+        let url = format!(
+            "{}/dashboards?preview={}",
+            client.base_url(),
+            percent_encode(name)
+        );
+        println!("Preview: {}", preview_link(&url));
+    }
     Ok(())
+}
+
+/// Render a URL as a clickable terminal hyperlink (OSC 8). A bare printed URL is
+/// only clickable if the terminal happens to auto-detect it — many don't, or
+/// mangle the `?`/`%2F` query — so we emit an explicit hyperlink instead. Falls
+/// back to the plain URL when stdout isn't a TTY (pipes, CI) or NO_COLOR is set,
+/// so scripts still get a clean, copyable address.
+fn preview_link(url: &str) -> String {
+    if std::io::stdout().is_terminal() && std::env::var_os("NO_COLOR").is_none() {
+        osc8_hyperlink(url)
+    } else {
+        url.to_string()
+    }
+}
+
+/// Wrap a URL in an OSC 8 hyperlink escape, using the URL itself as the visible
+/// text so it stays readable and copyable in terminals that don't support OSC 8.
+fn osc8_hyperlink(url: &str) -> String {
+    format!("\x1b]8;;{url}\x1b\\{url}\x1b]8;;\x1b\\")
+}
+
+/// Minimal RFC 3986 query-component encoding for the preview deep link.
+fn percent_encode(s: &str) -> String {
+    s.bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                (b as char).to_string()
+            }
+            _ => format!("%{b:02X}"),
+        })
+        .collect()
 }
 
 fn print_apply_summary(summary: &everr_core::apply::ApplySummary, plan: bool) {
@@ -714,11 +794,16 @@ fn print_apply_summary(summary: &everr_core::apply::ApplySummary, plan: bool) {
     println!("{label}Destination org: «{}»", summary.organization.name);
     for r in &summary.results {
         println!(
-            "{label}{}: {} created, {} updated, {} deleted",
+            "{label}{}: {} created, {} updated, {} deleted{}",
             r.kind,
             r.created.len(),
             r.updated.len(),
-            r.deleted.len()
+            r.deleted.len(),
+            if r.adopted.is_empty() {
+                String::new()
+            } else {
+                format!(", {} adopted", r.adopted.len())
+            }
         );
         for s in &r.created {
             println!("  + {s}");
@@ -728,6 +813,9 @@ fn print_apply_summary(summary: &everr_core::apply::ApplySummary, plan: bool) {
         }
         for s in &r.deleted {
             println!("  - {s}");
+        }
+        for s in &r.adopted {
+            println!("  ⇄ {s}");
         }
     }
 }
@@ -795,6 +883,24 @@ mod tests {
         assert_eq!(
             super::format_watch_event_line(&event),
             "Run completed: CI  success"
+        );
+    }
+
+    #[test]
+    fn percent_encode_escapes_slashes_in_branch_names() {
+        assert_eq!(
+            super::percent_encode("gio/apply-previews"),
+            "gio%2Fapply-previews"
+        );
+        assert_eq!(super::percent_encode("a b&c"), "a%20b%26c");
+        assert_eq!(super::percent_encode("safe-_.~AZ09"), "safe-_.~AZ09");
+    }
+
+    #[test]
+    fn osc8_hyperlink_wraps_url_as_clickable_link() {
+        assert_eq!(
+            super::osc8_hyperlink("https://app.everr.dev/dashboards?preview=x"),
+            "\x1b]8;;https://app.everr.dev/dashboards?preview=x\x1b\\https://app.everr.dev/dashboards?preview=x\x1b]8;;\x1b\\"
         );
     }
 

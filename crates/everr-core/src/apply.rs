@@ -314,14 +314,42 @@ pub fn detect_git_source(dir: &Path) -> Option<ApplySource> {
     })
 }
 
+/// Resolve the preview name for `--preview [NAME]`: an explicit non-empty
+/// NAME wins; otherwise the current branch. Detached HEAD and non-git
+/// directories are errors — pass an explicit name there (e.g. in CI).
+pub fn resolve_preview_name(dir: &Path, flag: &str) -> Result<String> {
+    let explicit = flag.trim();
+    if !explicit.is_empty() {
+        return Ok(explicit.to_string());
+    }
+    // `symbolic-ref` (rather than `rev-parse --abbrev-ref`) also resolves on
+    // an unborn branch (a freshly-initialized repo with no commits yet),
+    // where `rev-parse HEAD` has no object to resolve.
+    match git_output(dir, &["symbolic-ref", "--short", "-q", "HEAD"]) {
+        Some(branch) => Ok(branch),
+        None if git_output(dir, &["rev-parse", "HEAD"]).is_some() => {
+            anyhow::bail!("HEAD is detached; pass an explicit preview name: --preview <name>")
+        }
+        None => anyhow::bail!(
+            "{} is not a git repository; pass an explicit preview name: --preview <name>",
+            dir.display()
+        ),
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ApplyRequest {
     pub repoid: String,
     pub state: ApplyState,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<ApplySource>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub preview: Option<String>,
     #[serde(rename = "dryRun")]
     pub dry_run: bool,
+    /// Take over live resources owned by another repo instead of failing on the
+    /// cross-repo ownership conflict.
+    pub adopt: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
@@ -330,6 +358,9 @@ pub struct KindResult {
     pub created: Vec<String>,
     pub updated: Vec<String>,
     pub deleted: Vec<String>,
+    /// Live resources taken over from another owning repo (only with `--adopt`).
+    #[serde(default)]
+    pub adopted: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
@@ -494,8 +525,7 @@ mod tests {
             path: "a.yaml".into(),
             document: serde_json::json!({"kind": "AlertRule"}),
         };
-        let state =
-            classify_documents(vec![dash.clone(), runbook.clone(), alert.clone()]).unwrap();
+        let state = classify_documents(vec![dash.clone(), runbook.clone(), alert.clone()]).unwrap();
         assert_eq!(state.dashboards, vec![dash]);
         assert_eq!(state.runbooks, vec![runbook]);
         assert_eq!(state.alerts, vec![alert]);
@@ -545,11 +575,14 @@ mod tests {
                 commit_sha: Some("abc".into()),
                 remote: Some("git@example.com:acme/repo.git".into()),
             }),
+            preview: None,
             dry_run: false,
+            adopt: false,
         };
         let v = serde_json::to_value(&req).unwrap();
         assert_eq!(v["repoid"], "repo-1");
         assert_eq!(v["dryRun"], false);
+        assert_eq!(v["adopt"], false);
         assert_eq!(v["state"]["dashboards"][0]["path"], "cpu.yaml");
         assert_eq!(
             v["state"]["dashboards"][0]["resource"],
@@ -558,6 +591,61 @@ mod tests {
         assert_eq!(v["state"]["runbooks"][0]["path"], "runbooks/triage.yaml");
         assert_eq!(v["state"]["alerts"][0]["path"], "alerts/error-rate.yaml");
         assert_eq!(v["source"]["commitSha"], "abc");
+    }
+
+    #[test]
+    fn apply_request_serializes_preview_only_when_set() {
+        let mut req = ApplyRequest {
+            repoid: "repo-1".into(),
+            state: ApplyState::default(),
+            source: None,
+            preview: None,
+            dry_run: true,
+            adopt: false,
+        };
+        let v = serde_json::to_value(&req).unwrap();
+        assert!(v.get("preview").is_none());
+        req.preview = Some("gio/x".into());
+        let v = serde_json::to_value(&req).unwrap();
+        assert_eq!(v["preview"], "gio/x");
+    }
+
+    #[test]
+    fn resolve_preview_name_prefers_explicit_name() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(
+            resolve_preview_name(dir.path(), " gio/x ").unwrap(),
+            "gio/x"
+        );
+    }
+
+    #[test]
+    fn resolve_preview_name_errors_outside_git_without_a_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let err = resolve_preview_name(dir.path(), "").unwrap_err();
+        assert!(err.to_string().contains("--preview"), "got: {err}");
+    }
+
+    #[test]
+    fn resolve_preview_name_uses_the_current_branch() {
+        let dir = tempfile::tempdir().unwrap();
+        let git = |args: &[&str]| {
+            assert!(
+                std::process::Command::new("git")
+                    .arg("-C")
+                    .arg(dir.path())
+                    .args(args)
+                    .output()
+                    .unwrap()
+                    .status
+                    .success()
+            );
+        };
+        git(&["init", "-q", "-b", "gio/preview-test"]);
+        assert_eq!(
+            resolve_preview_name(dir.path(), "").unwrap(),
+            "gio/preview-test"
+        );
     }
 
     #[test]

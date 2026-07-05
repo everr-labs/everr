@@ -5,6 +5,10 @@ import { type Runner, run, type WorkerEvents } from "graphile-worker";
 import { pool } from "@/db/client";
 import { alertCronItems, alertTaskList } from "@/server/alerts/00-runtime";
 import { githubEventsTaskList } from "@/server/github-events/tasks";
+import {
+  previewsCronItems,
+  previewsTaskList,
+} from "@/server/previews/00-runtime";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 import { hotSingleton } from "./hot-singleton";
 
@@ -100,9 +104,13 @@ async function startRunner(): Promise<Runner> {
     concurrency: WORKER_CONCURRENCY,
     events,
     noHandleSignals: true,
-    parsedCronItems: alertCronItems,
+    parsedCronItems: [...alertCronItems, ...previewsCronItems],
     pgPool: pool,
-    taskList: { ...githubEventsTaskList, ...alertTaskList },
+    taskList: {
+      ...githubEventsTaskList,
+      ...alertTaskList,
+      ...previewsTaskList,
+    },
   });
 }
 

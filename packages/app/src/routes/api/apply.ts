@@ -46,9 +46,12 @@ export const Route = createFileRoute("/api/apply")({
             state: parsed.data.state,
             source: parsed.data.source,
             dryRun: parsed.data.dryRun,
+            preview: parsed.data.preview,
+            adopt: parsed.data.adopt,
           });
           return Response.json({
             ...summary,
+            preview: parsed.data.preview ?? "",
             organization: context.organization,
           });
         } catch (error) {

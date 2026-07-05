@@ -19,6 +19,21 @@ const applySourceSchema = z
 
 export type ApplySource = z.infer<typeof applySourceSchema>;
 
+/**
+ * Preview namespace name (usually a git branch). '' is reserved for the live
+ * state, so the wire field must be non-empty when present. Control characters
+ * are rejected because the name round-trips into URLs and UI labels.
+ */
+export const previewNameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(200)
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: rejecting them is the point
+  .refine((name) => !/[\u0000-\u001f\u007f-\u009f]/.test(name), {
+    message: "preview name must not contain control characters",
+  });
+
 export const applyInput = z
   .object({
     // Stable repository identifier from everr.yaml — the apply ownership and
@@ -32,8 +47,13 @@ export const applyInput = z
       })
       .strict(),
     source: applySourceSchema.optional(),
+    /** Apply into this preview namespace instead of the live state. */
+    preview: previewNameSchema.optional(),
     /** When true, compute and return the diff without writing. */
     dryRun: z.boolean().default(false),
+    /** Take over live resources owned by another repo instead of failing on the
+     * cross-repo ownership conflict. */
+    adopt: z.boolean().default(false),
   })
   .strict();
 
