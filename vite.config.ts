@@ -44,16 +44,12 @@ export default defineConfig({
     ],
     rules: {
       "vite-plus/prefer-vite-plus-imports": "error",
-      // @tanstack/eslint-plugin-query — flat/recommended severities, except
-      // rules with pre-existing violations are ratcheted to "warn" so they
-      // surface without blocking CI. Promote to "error" once the backlog is
-      // cleared. `exhaustive-deps` mostly flags our query-options-factory
-      // convention (spreading an input object's primitive fields into the key),
-      // which is deliberate, so it stays a warning.
-      // Kept on to catch genuinely missing queryKey deps in new code. The
-      // current hits are all false positives from our query-options-factory
-      // convention (dependency-injected repos, rest-spread keys, `refresh`
-      // deliberately excluded) and are suppressed inline at each site.
+      // @tanstack/eslint-plugin-query, all at error. `exhaustive-deps` mostly
+      // flags our query-options-factory convention (spreading an input object's
+      // primitive fields into the key, dependency-injected repos, `refresh`
+      // deliberately excluded from the key); those are false positives suppressed
+      // inline at each site, so the rule still catches genuinely missing queryKey
+      // deps in new code.
       "query/exhaustive-deps": "error",
       "query/no-rest-destructuring": "error",
       "query/stable-query-client": "error",
