@@ -37,14 +37,16 @@ export default defineConfig({
       // way to load scoped (`@tanstack/...`) ESLint plugins, so rules are
       // referenced as `query/*` below.
       { name: "query", specifier: "@tanstack/eslint-plugin-query" },
-      // NOTE: @tanstack/eslint-plugin-router is intentionally omitted. Its
-      // `create-route-property-order` rule crashes under oxlint's (alpha)
-      // JS-plugin runtime on valid conditional-spread syntax
-      // (`Unsupported spread element`). Revisit when oxlint gains native
-      // TanStack Router support or the plugin's oxlint compat is fixed.
+      // create-route-property-order still throws "Unsupported spread element" on
+      // createRouter calls that use an object spread, so it's turned off for the
+      // router-setup + test files (see overrides); it runs fine on the actual
+      // createFileRoute route files, which is where it matters.
+      { name: "router", specifier: "@tanstack/eslint-plugin-router" },
     ],
     rules: {
       "vite-plus/prefer-vite-plus-imports": "error",
+      "router/create-route-property-order": "error",
+      "router/route-param-names": "error",
       // @tanstack/eslint-plugin-query, all at error. `exhaustive-deps` mostly
       // flags our query-options-factory convention (spreading an input object's
       // primitive fields into the key, dependency-injected repos, `refresh`
@@ -190,7 +192,18 @@ export default defineConfig({
           "typescript/consistent-type-assertions": "off",
           // Only ever fires on mock/spy method references in tests; noise there.
           "typescript/unbound-method": "off",
+          // Test harnesses build a router with createRouter + spreads, which
+          // crashes the rule's visitor (see the router-setup override below).
+          "router/create-route-property-order": "off",
         },
+      },
+      {
+        // The router-setup files use createRouter with an object spread, and the
+        // plugin's create-route-property-order visitor throws "Unsupported spread
+        // element" on it (it over-matches createRouter, not just createFileRoute).
+        // The rule still runs on the actual createFileRoute route files.
+        files: ["**/router.ts", "**/router.tsx"],
+        rules: { "router/create-route-property-order": "off" },
       },
     ],
     // Type-aware lint (tsgolint) is ON for the rules above. typeCheck stays OFF:

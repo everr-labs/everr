@@ -34,15 +34,15 @@ const ensureOrgAdmin = createAuthenticatedServerFn.handler(async ({ context: { s
 
 export const Route = createFileRoute("/_authenticated/_dashboard/_padded/api-keys")({
   staticData: { breadcrumb: "API keys", hideTimeRangePicker: true },
-  head: () => ({
-    meta: [{ title: "Everr - API keys" }],
-  }),
   beforeLoad: async () => {
     const { allowed } = await ensureOrgAdmin();
     if (!allowed) {
       throw redirect({ to: "/" });
     }
   },
+  head: () => ({
+    meta: [{ title: "Everr - API keys" }],
+  }),
   component: ApiKeysPage,
 });
 

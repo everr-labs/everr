@@ -39,12 +39,12 @@ type Entitlement = {
 
 export const Route = createFileRoute("/_authenticated/_dashboard/_padded/billing")({
   staticData: { breadcrumb: "Billing", hideTimeRangePicker: true },
-  head: () => ({
-    meta: [{ title: "Everr - Billing" }],
-  }),
   beforeLoad: async () => {
     await ensureOrgBillingAdmin();
   },
+  head: () => ({
+    meta: [{ title: "Everr - Billing" }],
+  }),
   errorComponent: ({ error }) => {
     if (error instanceof NotBillingAdminError || error.name === "NotBillingAdminError") {
       return <NotAdminMessage />;

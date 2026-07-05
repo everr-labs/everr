@@ -31,11 +31,11 @@ export const Route = createFileRoute(
       },
     ],
   },
+  validateSearch: TimeRangeSearchSchema,
+  component: WorkflowCostDetailPage,
   head: ({ params }) => ({
     meta: [{ title: `Everr - ${decodeURIComponent(params.workflowName)}` }],
   }),
-  component: WorkflowCostDetailPage,
-  validateSearch: TimeRangeSearchSchema,
 });
 
 function WorkflowCostDetailPage() {

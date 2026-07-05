@@ -10,6 +10,9 @@ const DEVLOG_DESCRIPTION =
 
 export const Route = createFileRoute("/devlog/")({
   component: DevlogIndex,
+  loader: async () => {
+    return await loadDevlogPosts();
+  },
   head: () => {
     const base = getBaseUrl();
     return {
@@ -26,9 +29,6 @@ export const Route = createFileRoute("/devlog/")({
         { name: "twitter:description", content: DEVLOG_DESCRIPTION },
       ],
     };
-  },
-  loader: async () => {
-    return await loadDevlogPosts();
   },
 });
 

@@ -16,10 +16,10 @@ const SearchSchema = z.object({
 
 export const Route = createFileRoute("/_authenticated/_dashboard/_padded/checkout/success")({
   staticData: { breadcrumb: "Checkout", hideTimeRangePicker: true },
+  validateSearch: SearchSchema,
   head: () => ({
     meta: [{ title: "Everr - Checkout complete" }],
   }),
-  validateSearch: SearchSchema,
   component: CheckoutSuccessPage,
 });
 

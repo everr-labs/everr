@@ -24,8 +24,8 @@ const SearchSchema = TimeRangeSearchSchema.extend({
 
 export const Route = createFileRoute("/_authenticated/_dashboard/_explore/logs")({
   staticData: { breadcrumb: "Logs" },
-  head: () => ({ meta: [{ title: "Everr - Logs" }] }),
   validateSearch: SearchSchema,
+  head: () => ({ meta: [{ title: "Everr - Logs" }] }),
   component: LogsExplorerPage,
 });
 

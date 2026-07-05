@@ -25,13 +25,14 @@
     // packages/app/vite.config.ts (use-sync-external-store/shim).
     "packages/app/src/ssr-shims/**",
   ],
-  // Vite+ toolchain deps fallow cannot trace: @tanstack/eslint-plugin-query is
+  // Vite+ toolchain deps fallow cannot trace: the @tanstack/eslint-plugin-* are
   // referenced by string specifier in vite.config.ts (loaded by oxlint, never
   // imported), and `vite` is a pnpm-catalog alias for @voidzero-dev/vite-plus-core
   // so both the alias name and target read as unlisted.
   "ignoreDependencies": [
     "@everr/auto-otel-errors",
     "@tanstack/eslint-plugin-query",
+    "@tanstack/eslint-plugin-router",
     "vite-plus",
     "@voidzero-dev/vite-plus-core",
   ],

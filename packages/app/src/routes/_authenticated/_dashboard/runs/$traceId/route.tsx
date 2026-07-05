@@ -24,9 +24,6 @@ export const Route = createFileRoute("/_authenticated/_dashboard/runs/$traceId")
       match.loaderData?.workflowName ?? "Run Details",
     hideTimeRangePicker: true,
   },
-  head: () => ({
-    meta: [{ title: "Everr - Run Details" }],
-  }),
   loader: async ({ context: { queryClient }, params }) => {
     const [runDetails, jobs] = await Promise.all([
       queryClient.ensureQueryData(runDetailsOptions(params.traceId)),
@@ -42,6 +39,9 @@ export const Route = createFileRoute("/_authenticated/_dashboard/runs/$traceId")
 
     return { traceId: params.traceId, workflowName: runDetails?.workflowName };
   },
+  head: () => ({
+    meta: [{ title: "Everr - Run Details" }],
+  }),
   component: RunDetailLayout,
   pendingComponent: RunDetailSkeleton,
   errorComponent: RunDetailError,

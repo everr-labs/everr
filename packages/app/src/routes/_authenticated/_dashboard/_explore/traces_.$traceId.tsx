@@ -9,7 +9,6 @@ import {
 
 export const Route = createFileRoute("/_authenticated/_dashboard/_explore/traces_/$traceId")({
   staticData: { breadcrumb: "Trace", hideExploreBar: true },
-  head: () => ({ meta: [{ title: "Everr - Trace" }] }),
   validateSearch: TraceDetailParamsSchema,
   loaderDeps: ({ search }) => getTraceDetailLoaderDeps(search),
   loader: async ({ context: { queryClient }, params, deps }) => {
@@ -19,6 +18,7 @@ export const Route = createFileRoute("/_authenticated/_dashboard/_explore/traces
       deps,
     });
   },
+  head: () => ({ meta: [{ title: "Everr - Trace" }] }),
   component: TraceDetailRoute,
   errorComponent: TraceDetailError,
 });

@@ -82,7 +82,6 @@ export const Route = createFileRoute("/_authenticated/_dashboard/_previewable/al
       { label: match.loaderData?.slug ?? "Alert" },
     ],
   },
-  head: () => ({ meta: [{ title: "Everr - Alert detail" }] }),
   loaderDeps: ({ search }) => withTimeRange(search),
   loader: async ({ context: { queryClient }, params, deps }) => {
     const detail = await queryClient.ensureQueryData(alertDetailQueryOptions(params.alertId));
@@ -97,6 +96,7 @@ export const Route = createFileRoute("/_authenticated/_dashboard/_previewable/al
 
     return { slug: detail.slug };
   },
+  head: () => ({ meta: [{ title: "Everr - Alert detail" }] }),
   component: AlertDetailPage,
 });
 

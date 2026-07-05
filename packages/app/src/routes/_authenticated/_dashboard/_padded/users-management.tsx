@@ -29,15 +29,15 @@ const ensureOrgAdmin = createAuthenticatedServerFn.handler(async ({ context: { s
 
 export const Route = createFileRoute("/_authenticated/_dashboard/_padded/users-management")({
   staticData: { breadcrumb: "Users Management", hideTimeRangePicker: true },
-  head: () => ({
-    meta: [{ title: "Everr - Users Management" }],
-  }),
   beforeLoad: async () => {
     const { allowed } = await ensureOrgAdmin();
     if (!allowed) {
       throw redirect({ to: "/" });
     }
   },
+  head: () => ({
+    meta: [{ title: "Everr - Users Management" }],
+  }),
   component: UsersManagementPage,
 });
 

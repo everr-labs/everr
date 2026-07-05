@@ -7,8 +7,8 @@ export const Route = createFileRoute(
   "/_authenticated/_dashboard/_explore/errors/$fingerprint/modal",
 )({
   staticData: { breadcrumb: "Detail" },
-  head: () => ({ meta: [{ title: "Everr - Error detail" }] }),
   validateSearch: ErrorIssueSearchSchema,
+  head: () => ({ meta: [{ title: "Everr - Error detail" }] }),
   component: ErrorDetailModalPage,
 });
 

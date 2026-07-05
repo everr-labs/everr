@@ -21,11 +21,8 @@ import { TimeRangeSearchSchema } from "@/lib/time-range";
 
 export const Route = createFileRoute("/_authenticated/_dashboard/_padded/cost-analysis")({
   staticData: { breadcrumb: "Cost Analysis" },
-  head: () => ({
-    meta: [{ title: "Everr - Cost Analysis" }],
-  }),
-  component: CostAnalysisPage,
   validateSearch: TimeRangeSearchSchema,
+  component: CostAnalysisPage,
   loaderDeps: ({ search }) => withTimeRange(search),
   loader: async ({ context: { queryClient }, deps: { timeRange } }) => {
     const input = { timeRange };
@@ -35,6 +32,9 @@ export const Route = createFileRoute("/_authenticated/_dashboard/_padded/cost-an
       queryClient.prefetchQuery(costByWorkflowOptions(input)),
     ]);
   },
+  head: () => ({
+    meta: [{ title: "Everr - Cost Analysis" }],
+  }),
 });
 
 function MetricToggle({

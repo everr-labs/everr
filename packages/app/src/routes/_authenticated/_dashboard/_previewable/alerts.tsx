@@ -158,7 +158,6 @@ function AlertFilterButton({
 
 export const Route = createFileRoute("/_authenticated/_dashboard/_previewable/alerts")({
   staticData: { breadcrumb: "Alerts", hideTimeRangePicker: true },
-  head: () => ({ meta: [{ title: "Everr - Alerts" }] }),
   loaderDeps: ({ search: { preview } }) => ({ preview }),
   loader: async ({ context: { queryClient }, deps: { preview } }) => {
     await Promise.all([
@@ -166,6 +165,7 @@ export const Route = createFileRoute("/_authenticated/_dashboard/_previewable/al
       queryClient.prefetchQuery(alertSettingsQueryOptions()),
     ]);
   },
+  head: () => ({ meta: [{ title: "Everr - Alerts" }] }),
   component: AlertsPage,
 });
 
