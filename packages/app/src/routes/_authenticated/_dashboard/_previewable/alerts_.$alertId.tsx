@@ -367,7 +367,9 @@ function AlertDetailPage() {
                   <div className="flex flex-col gap-1.5">
                     <span className="flex items-center gap-2 text-xs text-muted-foreground">
                       Firing on
-                      {row.silenced && <Badge variant="secondary">muted</Badge>}
+                      {row.silenced && (
+                        <Badge variant="secondary">silenced</Badge>
+                      )}
                     </span>
                     <LabelSet labels={row.labels} />
                     <LastEvaluationResult instance={row} />
@@ -386,7 +388,7 @@ function AlertDetailPage() {
                         }}
                       >
                         <BellOff data-icon="inline-start" />
-                        Mute
+                        Silence
                       </Button>
                     )}
                   </div>
@@ -471,7 +473,7 @@ function AlertDetailPage() {
         <CardHeader>
           <span className="flex items-center gap-1.5">
             <CardTitle>Notifies</CardTitle>
-            <HelpTip text="This is resolved from your default channels plus the first custom notification rule whose conditions match this alert." />
+            <HelpTip text="This is resolved from your default receivers plus the first route whose matchers match this alert." />
           </span>
         </CardHeader>
         <CardContent>
@@ -483,7 +485,7 @@ function AlertDetailPage() {
             <p className="text-sm">Notifies {joinWithAnd(notifiesChannels)}.</p>
           ) : (
             <p className="text-sm text-muted-foreground">
-              No channels configured.{" "}
+              No receivers configured.{" "}
               <Link
                 to="/alerts/notifications"
                 className="underline underline-offset-4"
@@ -495,17 +497,17 @@ function AlertDetailPage() {
         </CardContent>
       </Card>
 
-      {/* 5. Mutes: active mutes + the one-click mute dialog. */}
+      {/* 5. Silences: active silences + the one-click silence dialog. */}
       <Card inset="flush-content">
         <CardHeader>
-          <CardTitle>Mutes</CardTitle>
+          <CardTitle>Silences</CardTitle>
           {!isPreviewRule && (
             <CardAction>
               <Button
                 size="icon"
                 variant="ghost"
                 className="size-6 cursor-pointer"
-                aria-label="Add mute"
+                aria-label="Add silence"
                 onClick={() => {
                   setMuteTarget(null);
                   setNewMuteOpen(true);
@@ -518,7 +520,7 @@ function AlertDetailPage() {
         </CardHeader>
         <CardContent>
           {silences.isError ? (
-            <QueryErrorMessage message="Unable to load mutes." />
+            <QueryErrorMessage message="Unable to load silences." />
           ) : silences.isPending ? (
             <Skeleton className="h-10 w-full" />
           ) : muteCount > 0 ? (
@@ -529,7 +531,7 @@ function AlertDetailPage() {
             </div>
           ) : (
             <p className="px-3 py-3 text-xs text-muted-foreground">
-              No mutes active.
+              No silences active.
             </p>
           )}
         </CardContent>
@@ -789,7 +791,7 @@ function MuteRow({ mute }: { mute: AlertSilenceSummary }) {
           variant="ghost"
           size="icon"
           className="shrink-0 cursor-pointer text-muted-foreground hover:text-destructive"
-          aria-label="Cancel mute"
+          aria-label="Cancel silence"
           disabled={cancel.isPending}
           onClick={() => cancel.mutate()}
         >
@@ -892,9 +894,10 @@ function MuteDialog({
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Mute alert</DialogTitle>
+          <DialogTitle>Silence alert</DialogTitle>
           <DialogDescription>
-            Notifications pause while conditions match. Evaluation continues.
+            Notifications pause while these matchers match. Evaluation
+            continues.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
@@ -917,7 +920,7 @@ function MuteDialog({
               <div className="flex flex-col gap-2 pt-2">
                 {matchers.length === 0 && (
                   <p className="text-xs text-muted-foreground">
-                    No conditions: mutes every alert from this rule.
+                    No matchers: silences every alert from this rule.
                   </p>
                 )}
                 {matchers.map((matcher, index) => (
@@ -966,7 +969,7 @@ function MuteDialog({
                     <Button
                       variant="ghost"
                       size="icon"
-                      aria-label="Remove condition"
+                      aria-label="Remove matcher"
                       className="text-muted-foreground hover:text-destructive"
                       onClick={() =>
                         setMatchers((prev) =>
@@ -990,7 +993,7 @@ function MuteDialog({
                   }
                 >
                   <Plus data-icon="inline-start" />
-                  Add condition
+                  Add matcher
                 </Button>
               </div>
             </CollapsibleContent>
@@ -1005,7 +1008,7 @@ function MuteDialog({
             </Label>
             <Textarea
               id="mute-reason"
-              placeholder="Why mute these alerts?"
+              placeholder="Why silence these alerts?"
               value={reason}
               onChange={(event) => setReason(event.target.value)}
             />
@@ -1035,7 +1038,7 @@ function MuteDialog({
             onClick={() => create.mutate()}
           >
             <BellOff data-icon="inline-start" />
-            Create mute
+            Create silence
           </Button>
         </DialogFooter>
       </DialogContent>

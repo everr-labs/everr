@@ -149,8 +149,8 @@ function NotificationsPage() {
       <div>
         <h1 className="text-xl font-bold tracking-tight">Notifications</h1>
         <p className="text-muted-foreground">
-          Where alerts go, the custom rules that redirect them, and advanced
-          delivery controls.
+          Where alerts go, the routes that redirect them, and advanced delivery
+          controls.
         </p>
       </div>
       <WhereAlertsGoCard />
@@ -168,7 +168,7 @@ function WhereAlertsGoCard() {
     <Card>
       <CardHeader>
         <CardTitle>Where alerts go</CardTitle>
-        <CardDescription>All alerts notify these channels.</CardDescription>
+        <CardDescription>All alerts notify these receivers.</CardDescription>
       </CardHeader>
       <CardContent>
         {settings.isError ? (
@@ -471,7 +471,7 @@ function DeliverySettingsForm({
   );
 }
 
-// ── 2. Custom notification rules ────────────────────────────────────────────
+// ── 2. Routes ────────────────────────────────────────────────────────────────
 
 const CHANNEL_TYPE_LABEL: Record<CcReceiver["channel"]["type"], string> = {
   slack: "Slack",
@@ -554,7 +554,7 @@ function RuleRow({
           <Button
             variant="ghost"
             size="icon-sm"
-            aria-label="Edit notification rule"
+            aria-label="Edit route"
             onClick={onEdit}
           >
             <Pencil />
@@ -562,7 +562,7 @@ function RuleRow({
           <Button
             variant="ghost"
             size="icon-sm"
-            aria-label="Delete notification rule"
+            aria-label="Delete route"
             disabled={deleting}
             onClick={onDelete}
           >
@@ -585,7 +585,7 @@ function CustomRulesCard() {
     mutationFn: (id: string) => deleteCcRoute({ data: { id } }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["cc", "routes"] });
-      toast.success("Notification rule deleted");
+      toast.success("Route deleted");
     },
     onError: (e) => toast.error(ccErrorMessage(e)),
   });
@@ -601,17 +601,17 @@ function CustomRulesCard() {
     <Card id="routes" inset="flush-content" className="scroll-mt-4">
       <CardHeader className="px-3">
         <span className="flex items-center gap-1.5">
-          <CardTitle>Custom notification rules</CardTitle>
-          <HelpTip text="A rule redirects alerts matching its conditions to a specific channel, ahead of the defaults." />
+          <CardTitle>Routes</CardTitle>
+          <HelpTip text="A route redirects alerts matching its matchers to a specific receiver, ahead of the defaults." />
         </span>
         <CardDescription>
-          Send specific alerts to a specific channel. Checked top-to-bottom by
+          Send specific alerts to a specific receiver. Checked top-to-bottom by
           priority; the first match wins.
         </CardDescription>
         <CardAction>
           <Button onClick={() => setEditing("new")}>
             <Plus data-icon="inline-start" />
-            New rule
+            New route
           </Button>
         </CardAction>
       </CardHeader>
@@ -625,8 +625,8 @@ function CustomRulesCard() {
         ) : rules.length === 0 ? (
           <CcEmptyState
             icon={Waypoints}
-            title="No custom notification rules"
-            hint="Add a rule to send specific alerts to a specific channel."
+            title="No routes configured"
+            hint="Add a route to send specific alerts to a specific receiver."
           />
         ) : (
           <ul className="divide-y divide-border/60">
@@ -695,7 +695,7 @@ function DependencyMutesSection() {
     mutationFn: (id: string) => deleteCcInhibition({ data: { id } }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["cc", "inhibitions"] });
-      toast.success("Dependency mute deleted");
+      toast.success("Inhibition deleted");
     },
     onError: (e) => toast.error(ccErrorMessage(e)),
   });
@@ -705,17 +705,17 @@ function DependencyMutesSection() {
       <div className="flex items-center justify-between gap-2">
         <div>
           <span className="flex items-center gap-1.5">
-            <h3 className="text-sm font-medium">Dependency mutes</h3>
-            <HelpTip text="While the higher-level alert you pick is firing, this mutes the downstream one you chose." />
+            <h3 className="text-sm font-medium">Inhibitions</h3>
+            <HelpTip text="While the higher-level alert you pick is firing, this suppresses the downstream one you chose." />
           </span>
           <p className="text-xs text-muted-foreground">
-            Mute noisy downstream alerts while a related, higher-level alert is
-            already firing.
+            Suppress noisy downstream alerts while a related, higher-level alert
+            is already firing.
           </p>
         </div>
         <Button size="sm" onClick={() => setOpen(true)}>
           <Plus data-icon="inline-start" />
-          New dependency mute
+          New inhibition
         </Button>
       </div>
       {isError ? (
@@ -725,8 +725,8 @@ function DependencyMutesSection() {
       ) : (data ?? []).length === 0 ? (
         <CcEmptyState
           icon={BellMinus}
-          title="No dependency mutes"
-          hint="Add one to mute downstream alerts while a higher-level alert is already firing."
+          title="No inhibition rules"
+          hint="Add a rule to mute downstream alerts while a higher-level alert is already firing."
         />
       ) : (
         <ul className="divide-y divide-border/60">
@@ -740,7 +740,7 @@ function DependencyMutesSection() {
                 <span className="inline-flex flex-wrap items-center gap-1 align-middle">
                   <Conditions matchers={r.source_matchers} />
                 </span>{" "}
-                fires, mute{" "}
+                fires, suppress{" "}
                 <span className="inline-flex flex-wrap items-center gap-1 align-middle">
                   <Conditions matchers={r.target_matchers} />
                 </span>
@@ -758,7 +758,7 @@ function DependencyMutesSection() {
               <Button
                 variant="ghost"
                 size="icon-sm"
-                aria-label="Delete dependency mute"
+                aria-label="Delete inhibition"
                 disabled={remove.isPending}
                 onClick={() => remove.mutate(r.id)}
               >
@@ -782,7 +782,7 @@ function WebhookFeedSection() {
     mutationFn: () => createCcSubscription({ data: { webhookUrl: url } }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["cc", "subscriptions"] });
-      toast.success("Webhook added");
+      toast.success("Subscription created");
       setUrl("");
     },
     onError: (e) => toast.error(ccErrorMessage(e)),
@@ -792,7 +792,7 @@ function WebhookFeedSection() {
     mutationFn: (id: string) => deleteCcSubscription({ data: { id } }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["cc", "subscriptions"] });
-      toast.success("Webhook removed");
+      toast.success("Subscription deleted");
     },
     onError: (e) => toast.error(ccErrorMessage(e)),
   });
@@ -804,12 +804,12 @@ function WebhookFeedSection() {
     >
       <div>
         <span className="flex items-center gap-1.5">
-          <h3 className="text-sm font-medium">Webhook feed</h3>
+          <h3 className="text-sm font-medium">Firehose</h3>
           <HelpTip text="Every alert event is POSTed to each webhook URL below, as it happens." />
         </span>
         <p className="text-xs text-muted-foreground">
-          The fallback: alerts that match no custom notification rule are
-          delivered to every webhook below.
+          The fallback: alerts that match no route are delivered to every
+          firehose webhook.
         </p>
       </div>
       {isError ? (
@@ -819,8 +819,8 @@ function WebhookFeedSection() {
       ) : (data ?? []).length === 0 ? (
         <CcEmptyState
           icon={Webhook}
-          title="No webhooks"
-          hint="Add a webhook URL below to receive every alert that matches no custom notification rule."
+          title="No firehose subscriptions"
+          hint="Add a webhook URL below to receive every alert that matches no route."
         />
       ) : (
         <ul className="divide-y divide-border/60">
@@ -840,7 +840,7 @@ function WebhookFeedSection() {
               <Button
                 variant="ghost"
                 size="icon-sm"
-                aria-label="Delete webhook"
+                aria-label="Delete subscription"
                 disabled={remove.isPending}
                 onClick={() => remove.mutate(s.id)}
               >
@@ -914,8 +914,8 @@ function ChannelsSection() {
     >
       <div>
         <span className="flex items-center gap-1.5">
-          <h3 className="text-sm font-medium">Channels</h3>
-          <HelpTip text="Channels are managed as code; add one by declaring it in your repo and running everr apply." />
+          <h3 className="text-sm font-medium">Receivers</h3>
+          <HelpTip text="Receivers are managed as code; add one by declaring it in your repo and running everr apply." />
         </span>
         <p className="text-xs text-muted-foreground">
           Ones managed as code with{" "}
@@ -923,7 +923,7 @@ function ChannelsSection() {
             everr apply
           </code>{" "}
           are marked <span className="font-medium">as code</span>; secrets are
-          redacted here. Not editable in the UI.
+          redacted here. Receivers are not editable in the UI.
         </p>
       </div>
       {isError ? (
@@ -933,7 +933,7 @@ function ChannelsSection() {
       ) : (data ?? []).length === 0 ? (
         <CcEmptyState
           icon={Inbox}
-          title="No channels defined"
+          title="No receivers defined"
           hint="Define Slack, webhook, PagerDuty, or email channels as code, then apply them."
         />
       ) : (
@@ -976,8 +976,8 @@ function AdvancedSection() {
           <div>
             <CardTitle>Advanced</CardTitle>
             <CardDescription>
-              The delivery pipeline, dependency mutes, the webhook feed, and
-              read-only channels.
+              The delivery pipeline, inhibitions, the firehose, and read-only
+              receivers.
             </CardDescription>
           </div>
           <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[panel-open]:rotate-180" />

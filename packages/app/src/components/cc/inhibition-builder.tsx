@@ -51,7 +51,7 @@ export function InhibitionBuilder({
       setSource([]);
       setTarget([]);
       setEqual("");
-      toast.success("Dependency mute created");
+      toast.success("Inhibition created");
     },
     onError: (e) => toast.error(ccErrorMessage(e)),
   });
@@ -65,7 +65,7 @@ export function InhibitionBuilder({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>New dependency mute</DialogTitle>
+          <DialogTitle>New inhibition</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <CcConceptNote>
@@ -116,7 +116,7 @@ export function InhibitionBuilder({
             Cancel
           </Button>
           <Button disabled={create.isPending} onClick={() => create.mutate()}>
-            Create dependency mute
+            Create inhibition
           </Button>
         </DialogFooter>
       </DialogContent>

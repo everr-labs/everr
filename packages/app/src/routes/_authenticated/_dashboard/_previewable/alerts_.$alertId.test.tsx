@@ -276,7 +276,7 @@ describe("/alerts/$alertId route", () => {
     listCcRoutes.mockImplementation(() => Promise.resolve([]));
   });
 
-  it("renders the sections in order: Status, Timeline, Definition, Notifies, Mutes", async () => {
+  it("renders the sections in order: Status, Timeline, Definition, Notifies, Silences", async () => {
     getAlertMock.mockImplementation(() => Promise.resolve(alertDetail()));
 
     renderDetailRoute();
@@ -291,7 +291,7 @@ describe("/alerts/$alertId route", () => {
       "Timeline",
       "Definition",
       "Notifies",
-      "Mutes",
+      "Silences",
     ]);
   });
 
@@ -386,15 +386,15 @@ describe("/alerts/$alertId route", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows the mute dialog presets and creates a mute with the chosen duration", async () => {
+  it("shows the silence dialog presets and creates a silence with the chosen duration", async () => {
     getAlertMock.mockImplementation(() => Promise.resolve(alertDetail()));
     const user = userEvent.setup();
 
     renderDetailRoute();
     await screen.findByRole("heading", { name: "High error rate" });
 
-    await user.click(screen.getByRole("button", { name: "Add mute" }));
-    await screen.findByText("Mute alert");
+    await user.click(screen.getByRole("button", { name: "Add silence" }));
+    await screen.findByText("Silence alert");
 
     expect(screen.getByRole("button", { name: "1h" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "8h" })).toBeInTheDocument();
@@ -403,7 +403,7 @@ describe("/alerts/$alertId route", () => {
 
     const before = Date.now();
     await user.click(screen.getByRole("button", { name: "8h" }));
-    await user.click(screen.getByRole("button", { name: "Create mute" }));
+    await user.click(screen.getByRole("button", { name: "Create silence" }));
 
     await waitFor(() => expect(createSilence).toHaveBeenCalledTimes(1));
     const call = createSilence.mock.calls[0]?.[0] as {
@@ -416,18 +416,18 @@ describe("/alerts/$alertId route", () => {
     expect(durationMs).toBeLessThan(8 * 3_600_000 + 10_000);
   });
 
-  it("disables Create mute for an unparsable or non-positive custom hours value", async () => {
+  it("disables Create silence for an unparsable or non-positive custom hours value", async () => {
     getAlertMock.mockImplementation(() => Promise.resolve(alertDetail()));
     const user = userEvent.setup();
 
     renderDetailRoute();
     await screen.findByRole("heading", { name: "High error rate" });
 
-    await user.click(screen.getByRole("button", { name: "Add mute" }));
-    await screen.findByText("Mute alert");
+    await user.click(screen.getByRole("button", { name: "Add silence" }));
+    await screen.findByText("Silence alert");
     await user.click(screen.getByRole("button", { name: "Custom" }));
 
-    const createButton = screen.getByRole("button", { name: "Create mute" });
+    const createButton = screen.getByRole("button", { name: "Create silence" });
     const customHoursInput = screen.getByLabelText("Custom duration in hours");
 
     // A non-empty but unparsable/non-positive value must stay disabled: the
@@ -474,7 +474,7 @@ describe("/alerts/$alertId route", () => {
     expect(notifies.textContent).toBe("Notifies email.");
   });
 
-  it("prefills match specific labels from a firing row's mute action", async () => {
+  it("prefills match specific labels from a firing row's silence action", async () => {
     getAlertMock.mockImplementation(() => Promise.resolve(alertDetail()));
     listAlertInstances.mockImplementation(() =>
       Promise.resolve([alertInstance({ labels: { team: "pay" } })]),
@@ -484,8 +484,8 @@ describe("/alerts/$alertId route", () => {
     renderDetailRoute();
     await screen.findByText("Firing on");
 
-    await user.click(screen.getByRole("button", { name: "Mute" }));
-    await screen.findByText("Mute alert");
+    await user.click(screen.getByRole("button", { name: "Silence" }));
+    await screen.findByText("Silence alert");
 
     expect(screen.getByDisplayValue("team")).toBeInTheDocument();
     expect(screen.getByDisplayValue("pay")).toBeInTheDocument();
@@ -527,21 +527,21 @@ describe("/alerts/$alertId route", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows 'No channels configured' with a link when nothing matches", async () => {
+  it("shows 'No receivers configured' with a link when nothing matches", async () => {
     getAlertMock.mockImplementation(() => Promise.resolve(alertDetail()));
 
     renderDetailRoute();
     await screen.findByRole("heading", { name: "High error rate" });
 
     expect(
-      await screen.findByText(/no channels configured/i),
+      await screen.findByText(/no receivers configured/i),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /configure notifications/i }),
     ).toHaveAttribute("href", "/alerts/notifications");
   });
 
-  it("never renders the words 'silence' or 'instance'", async () => {
+  it("never renders the word 'instance'", async () => {
     getAlertMock.mockImplementation(() => Promise.resolve(alertDetail()));
     listAlertInstances.mockImplementation(() =>
       Promise.resolve([alertInstance()]),
@@ -564,7 +564,8 @@ describe("/alerts/$alertId route", () => {
     await screen.findByText((content) => content.includes("maintenance"));
 
     const text = document.body.textContent?.toLowerCase() ?? "";
-    expect(text).not.toContain("silence");
+    // "silence"/"Silences" is now the correct vocabulary here (the section
+    // above is titled "Silences"), so only "instance" stays banned.
     expect(text).not.toContain("instance");
   });
 });

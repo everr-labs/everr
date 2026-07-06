@@ -467,7 +467,7 @@ function AlertsPage() {
             value,
           })),
           endsAt: new Date(Date.now() + MUTE_DURATION_MS).toISOString(),
-          reason: "Muted from alerts list",
+          reason: "Silenced from alerts list",
         },
       }),
     onSuccess: () =>
@@ -518,7 +518,7 @@ function AlertsPage() {
         count: summary.degraded,
         tone: "warning",
       },
-      { value: "silenced", label: "Muted", count: summary.silenced },
+      { value: "silenced", label: "Silenced", count: summary.silenced },
       { value: "resolved", label: "Resolved", count: summary.resolved },
       { value: "inactive", label: "Inactive", count: summary.inactive },
     ];
@@ -714,12 +714,12 @@ function AlertsPage() {
             >
               <BellOff data-icon="inline-start" />
               {activeMutes.length > 0
-                ? `${activeMutes.length} ${activeMutes.length === 1 ? "mute" : "mutes"} active`
-                : "Mutes"}
+                ? `${activeMutes.length} ${activeMutes.length === 1 ? "silence" : "silences"} active`
+                : "Silences"}
             </PopoverTrigger>
             <PopoverContent align="end" className="w-80">
               <PopoverHeader className="flex-row items-center justify-between gap-2">
-                <PopoverTitle>Active mutes</PopoverTitle>
+                <PopoverTitle>Active silences</PopoverTitle>
                 <Button
                   type="button"
                   variant="outline"
@@ -730,7 +730,7 @@ function AlertsPage() {
                   }}
                 >
                   <Plus data-icon="inline-start" />
-                  New mute
+                  New silence
                 </Button>
               </PopoverHeader>
               {activeMutes.length > 0 ? (
@@ -768,7 +768,7 @@ function AlertsPage() {
                 </ul>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  No mutes active.
+                  No silences active.
                 </p>
               )}
             </PopoverContent>
@@ -830,8 +830,7 @@ function AlertsPage() {
         <>
           {settings.data && !hasChannel && (
             <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
-              No notification channels are configured, so firing alerts won't
-              reach anyone.{" "}
+              No receivers are configured, so firing alerts won't reach anyone.{" "}
               <Link
                 to="/alerts/notifications"
                 className="font-medium underline underline-offset-4"
@@ -1132,7 +1131,7 @@ function FlatFiringTable({
                   >
                     {row.displayName}
                   </Link>
-                  {row.muted && <Badge variant="secondary">muted</Badge>}
+                  {row.muted && <Badge variant="secondary">silenced</Badge>}
                 </span>
               </td>
               <td className="py-2 pr-4">
@@ -1147,7 +1146,7 @@ function FlatFiringTable({
                   <span>{joinWithAnd(row.notifies)}</span>
                 ) : (
                   <span className="text-muted-foreground">
-                    No channels configured
+                    No receivers configured
                   </span>
                 )}
               </td>
@@ -1230,7 +1229,7 @@ function FiringRowDetail({
             onClick={() => onMute(instance)}
           >
             <BellOff data-icon="inline-start" />
-            Mute
+            Silence
           </Button>
         </div>
       ))}
@@ -1313,10 +1312,10 @@ function StandaloneMuteDialog({
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>New mute</DialogTitle>
+          <DialogTitle>New silence</DialogTitle>
           <DialogDescription>
-            Mutes any firing instance, from any rule, whose labels satisfy these
-            conditions until the window ends. Evaluation continues.
+            Silences any firing instance, from any rule, whose labels satisfy
+            these matchers until the window ends. Evaluation continues.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
@@ -1336,7 +1335,7 @@ function StandaloneMuteDialog({
             </Label>
             <Textarea
               id="standalone-mute-reason"
-              placeholder="Why mute these alerts?"
+              placeholder="Why silence these alerts?"
               value={reason}
               onChange={(event) => setReason(event.target.value)}
             />
@@ -1364,7 +1363,7 @@ function StandaloneMuteDialog({
             onClick={() => create.mutate()}
           >
             <BellOff data-icon="inline-start" />
-            Create mute
+            Create silence
           </Button>
         </DialogFooter>
       </DialogContent>

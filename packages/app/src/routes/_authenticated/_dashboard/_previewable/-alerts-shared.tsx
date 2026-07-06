@@ -178,7 +178,7 @@ export function MuteDurationFieldset({
         </div>
       )}
       <p className="text-xs text-muted-foreground">
-        Muted until {formatDate(muteEndFromHours(effectiveHours))}
+        Silenced until {formatDate(muteEndFromHours(effectiveHours))}
       </p>
     </fieldset>
   );
@@ -197,7 +197,7 @@ export function AlertStateBadges({
   activeSilenceCount: number;
   activeSilenceExpiresAt: Date | string | null;
 }) {
-  const silenceLabel = activeSilenceCount === 1 ? "mute" : "mutes";
+  const silenceLabel = activeSilenceCount === 1 ? "silence" : "silences";
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
@@ -214,7 +214,7 @@ export function AlertStateBadges({
           title={`${activeSilenceCount} active ${silenceLabel}`}
         >
           <BellOff data-icon="inline-start" />
-          {`muted${activeSilenceCount > 1 ? ` · ${activeSilenceCount}` : ""}`}
+          {`silenced${activeSilenceCount > 1 ? ` · ${activeSilenceCount}` : ""}`}
           {activeSilenceExpiresAt && (
             <>
               {" · expires "}

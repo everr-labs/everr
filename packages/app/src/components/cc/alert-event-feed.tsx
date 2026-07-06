@@ -61,7 +61,7 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   instance_resolved: "Resolved",
   delivery: "Delivery",
   rule_health: "Rule health",
-  silenced: "Muted",
+  silenced: "Silenced",
 };
 
 const HISTORY_LIMIT = 200;
@@ -210,7 +210,7 @@ export function AlertEventFeed({
                 <SelectItem value="instance_resolved">Resolved</SelectItem>
                 <SelectItem value="delivery">Delivery</SelectItem>
                 <SelectItem value="rule_health">Rule health</SelectItem>
-                <SelectItem value="silenced">Muted</SelectItem>
+                <SelectItem value="silenced">Silenced</SelectItem>
               </SelectContent>
             </Select>
             <Select

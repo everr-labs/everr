@@ -1,7 +1,6 @@
 // packages/app/src/components/cc/route-builder.tsx
 //
-// Backs the unified /alerts/notifications page's "Custom notification rules"
-// section.
+// Backs the unified /alerts/notifications page's "Routes" section.
 import { Button } from "@everr/ui/components/button";
 import {
   Dialog,
@@ -144,9 +143,7 @@ export function RouteBuilder({
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["cc", "routes"] });
       onOpenChange(false);
-      toast.success(
-        isEdit ? "Notification rule updated" : "Notification rule created",
-      );
+      toast.success(isEdit ? "Route updated" : "Route created");
     },
     onError: (e) => toast.error(ccErrorMessage(e)),
   });
@@ -155,14 +152,12 @@ export function RouteBuilder({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>
-            {isEdit ? "Edit notification rule" : "New notification rule"}
-          </DialogTitle>
+          <DialogTitle>{isEdit ? "Edit route" : "New route"}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <CcConceptNote>
-            A notification rule sends matching alerts to one channel. Lower
-            priority numbers are checked first; the first matching rule wins.
+            A route sends matching alerts to one receiver. Lower priority
+            numbers are checked first; the first matching route wins.
           </CcConceptNote>
           <MatchersEditor
             label="When an alert matches"
@@ -171,14 +166,14 @@ export function RouteBuilder({
           />
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="route-receiver">Send to channel</Label>
+              <Label htmlFor="route-receiver">Send to receiver</Label>
               {receivers.length > 0 ? (
                 <Select
                   value={receiver}
                   onValueChange={(v) => setReceiver(v ?? "")}
                 >
                   <SelectTrigger id="route-receiver" className="w-full">
-                    <SelectValue placeholder="Pick a channel" />
+                    <SelectValue placeholder="Pick a receiver" />
                   </SelectTrigger>
                   <SelectContent>
                     {receivers.map((r) => (
@@ -255,7 +250,7 @@ export function RouteBuilder({
           <PreviewLine>
             Alerts where <strong>{matchersPhrase(matchers)}</strong>{" "}
             <ArrowRight className="inline size-3 text-muted-foreground" />{" "}
-            notify <strong>{receiver || "a channel"}</strong>.
+            notify <strong>{receiver || "a receiver"}</strong>.
           </PreviewLine>
         </div>
         <DialogFooter>
@@ -266,7 +261,7 @@ export function RouteBuilder({
             disabled={!receiver || hasErrors || save.isPending}
             onClick={() => save.mutate()}
           >
-            {isEdit ? "Save changes" : "Create notification rule"}
+            {isEdit ? "Save changes" : "Create route"}
           </Button>
         </DialogFooter>
       </DialogContent>

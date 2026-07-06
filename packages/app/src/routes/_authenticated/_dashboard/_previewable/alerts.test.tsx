@@ -303,7 +303,7 @@ describe("/alerts route", () => {
     expect(router.state.location.search).toEqual({ view: "activity" });
   });
 
-  it("expands a firing alert row to show its firing instance with a mute action", async () => {
+  it("expands a firing alert row to show its firing instance with a silence action", async () => {
     alertsData = [
       alertSummary({
         currentState: "firing",
@@ -327,7 +327,7 @@ describe("/alerts route", () => {
     expect(screen.getByText(/firing on/i)).toBeInTheDocument();
 
     const before = Date.now();
-    const muteButton = screen.getByRole("button", { name: "Mute" });
+    const muteButton = screen.getByRole("button", { name: "Silence" });
     await user.click(muteButton);
 
     await waitFor(() => expect(createSilence).toHaveBeenCalledTimes(1));
@@ -341,12 +341,12 @@ describe("/alerts route", () => {
     };
     // Rule-scoped: the server fn stamps the synthetic rule matcher itself, so
     // the client sends only the rule id plus the instance's labels as `=`
-    // conditions (no synthetic matcher client-side).
+    // matchers (no synthetic matcher client-side).
     expect(call.data.alertId).toBe("rule-1");
     expect(call.data.matchers).toEqual([
       { label: "team", op: "=", value: "pay" },
     ]);
-    expect(call.data.reason).toBe("Muted from alerts list");
+    expect(call.data.reason).toBe("Silenced from alerts list");
     const durationMs = new Date(call.data.endsAt).getTime() - before;
     expect(durationMs).toBeGreaterThanOrEqual(2 * 60 * 60 * 1000);
     expect(durationMs).toBeLessThan(2 * 60 * 60 * 1000 + 10_000);
@@ -363,17 +363,19 @@ describe("/alerts route", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows the mutes pill and cancels an active mute from the panel", async () => {
+  it("shows the silences pill and cancels an active silence from the panel", async () => {
     alertsData = [alertSummary()];
     ccSilencesData = [ccSilence()];
     const user = userEvent.setup();
 
     renderAlertsRoute(["/alerts"]);
 
-    const pill = await screen.findByRole("button", { name: /1 mute active/i });
+    const pill = await screen.findByRole("button", {
+      name: /1 silence active/i,
+    });
     await user.click(pill);
 
-    const panel = await screen.findByText("Active mutes");
+    const panel = await screen.findByText("Active silences");
     const panelContainer = panel.closest('[data-slot="popover-content"]');
     expect(panelContainer).not.toBeNull();
     expect(
@@ -393,12 +395,12 @@ describe("/alerts route", () => {
     );
     await waitFor(() =>
       expect(
-        screen.queryByRole("button", { name: /mute active/i }),
+        screen.queryByRole("button", { name: /silence active/i }),
       ).not.toBeInTheDocument(),
     );
   });
 
-  it("renders the mutes control as a quiet outline button when no mutes are active", async () => {
+  it("renders the silences control as a quiet outline button when no silences are active", async () => {
     alertsData = [alertSummary()];
     ccSilencesData = [];
 
@@ -406,24 +408,26 @@ describe("/alerts route", () => {
     await screen.findByText("high-error-rate");
 
     expect(
-      await screen.findByRole("button", { name: "Mutes" }),
+      await screen.findByRole("button", { name: "Silences" }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: /mute active/i }),
+      screen.queryByRole("button", { name: /silence active/i }),
     ).not.toBeInTheDocument();
   });
 
-  describe("New mute dialog", () => {
+  describe("New silence dialog", () => {
     async function openNewMuteDialog(user: ReturnType<typeof userEvent.setup>) {
       const pill = await screen.findByRole("button", {
-        name: /^mutes$|mute active/i,
+        name: /^silences$|silence active/i,
       });
       await user.click(pill);
-      await user.click(await screen.findByRole("button", { name: "New mute" }));
-      expect(await screen.findByText("New mute")).toBeInTheDocument();
+      await user.click(
+        await screen.findByRole("button", { name: "New silence" }),
+      );
+      expect(await screen.findByText("New silence")).toBeInTheDocument();
     }
 
-    it("disables Create mute until at least one condition is set, then creates it with the built matchers and window", async () => {
+    it("disables Create silence until at least one matcher is set, then creates it with the built matchers and window", async () => {
       alertsData = [alertSummary()];
       const user = userEvent.setup();
 
@@ -431,17 +435,19 @@ describe("/alerts route", () => {
       await screen.findByText("high-error-rate");
       await openNewMuteDialog(user);
 
-      const createButton = screen.getByRole("button", { name: /create mute/i });
+      const createButton = screen.getByRole("button", {
+        name: /create silence/i,
+      });
       expect(createButton).toBeDisabled();
 
       await user.click(screen.getByRole("button", { name: "Add" }));
-      await user.type(screen.getByLabelText("Condition label"), "namespace");
-      // Label alone is not a complete condition: a blank-value row would be
-      // an accidentally-broad org-wide mute (blank-value `ne` matches nearly
+      await user.type(screen.getByLabelText("Matcher label"), "namespace");
+      // Label alone is not a complete matcher: a blank-value row would be an
+      // accidentally-broad org-wide silence (blank-value `ne` matches nearly
       // everything), so Create must stay disabled until the value is filled.
       expect(createButton).toBeDisabled();
 
-      await user.type(screen.getByLabelText("Condition value"), "staging");
+      await user.type(screen.getByLabelText("Matcher value"), "staging");
 
       expect(createButton).toBeEnabled();
 
@@ -469,11 +475,11 @@ describe("/alerts route", () => {
       expect(durationMs).toBeLessThan(8 * 60 * 60 * 1000 + 10_000);
 
       await waitFor(() =>
-        expect(screen.queryByText("New mute")).not.toBeInTheDocument(),
+        expect(screen.queryByText("New silence")).not.toBeInTheDocument(),
       );
     });
 
-    it("never calls createCcSilence with zero conditions", async () => {
+    it("never calls createCcSilence with zero matchers", async () => {
       alertsData = [alertSummary()];
       const user = userEvent.setup();
 
@@ -481,7 +487,7 @@ describe("/alerts route", () => {
       await screen.findByText("high-error-rate");
       await openNewMuteDialog(user);
 
-      await user.click(screen.getByRole("button", { name: /create mute/i }));
+      await user.click(screen.getByRole("button", { name: /create silence/i }));
 
       expect(createCcSilence).not.toHaveBeenCalled();
     });
@@ -583,7 +589,7 @@ describe("/alerts route", () => {
     expect(screen.getByText(/last active/i)).toBeInTheDocument();
   });
 
-  it("never renders the word 'silence' in the alerts home", async () => {
+  it("renders 'silence' vocabulary in the alerts home", async () => {
     alertsData = [
       alertSummary({
         currentState: "firing",
@@ -592,8 +598,8 @@ describe("/alerts route", () => {
       }),
       alertSummary({
         id: "rule-2",
-        slug: "muted-rule",
-        displayName: "Muted rule",
+        slug: "noisy-rule",
+        displayName: "Noisy rule",
         activeSilenceCount: 1,
       }),
     ];
@@ -603,13 +609,15 @@ describe("/alerts route", () => {
     renderAlertsRoute(["/alerts"]);
 
     await screen.findByText("high-error-rate");
-    await screen.findByRole("button", { name: /1 mute active/i });
-    // The state badge (rendered from the rule with an active mute) and the
-    // filter chip both use the renamed "muted"/"Muted" vocabulary.
-    expect(screen.getByText("muted")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Muted/ })).toBeInTheDocument();
-
-    expect(document.body.textContent?.toLowerCase()).not.toContain("silence");
+    await screen.findByRole("button", { name: /1 silence active/i });
+    // The state badge (rendered from the rule with an active silence) and the
+    // filter chip both use the "silenced"/"Silenced" vocabulary.
+    expect(screen.getByText("silenced")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Silenced/ }),
+    ).toBeInTheDocument();
+    // The retired "mute" noun vocabulary must not linger anywhere on the page.
+    expect(document.body.textContent?.toLowerCase()).not.toContain("mute");
   });
 
   describe("flat firing view toggle", () => {
@@ -695,7 +703,7 @@ describe("/alerts route", () => {
       expect(screen.getByText("core")).toBeInTheDocument();
       expect(screen.getByText("oncall")).toBeInTheDocument();
       expect(
-        screen.getAllByText("No channels configured").length,
+        screen.getAllByText("No receivers configured").length,
       ).toBeGreaterThan(0);
 
       // Group mode stays the default and unaffected: switching back shows the
@@ -706,7 +714,7 @@ describe("/alerts route", () => {
       ).toBeInTheDocument();
     });
 
-    it("shows a muted indicator for a row an active mute matches", async () => {
+    it("shows a silenced indicator for a row an active silence matches", async () => {
       alertsData = [
         alertSummary({
           currentState: "firing",
@@ -725,10 +733,10 @@ describe("/alerts route", () => {
       await user.click(screen.getByRole("button", { name: /Firing/ }));
       await user.click(await screen.findByRole("tab", { name: "Flat" }));
 
-      expect(await screen.findByText("muted")).toBeInTheDocument();
+      expect(await screen.findByText("silenced")).toBeInTheDocument();
     });
 
-    it("scopes a rule-scoped mute's label conditions to the matching label set only", async () => {
+    it("scopes a rule-scoped silence's label matchers to the matching label set only", async () => {
       alertsData = [
         alertSummary({
           currentState: "firing",
@@ -740,9 +748,10 @@ describe("/alerts route", () => {
         ccAlert({ key: "rule-1|team=pay", labels: { team: "pay" } }),
         ccAlert({ key: "rule-1|team=core", labels: { team: "core" } }),
       ];
-      // A mute created from this app's mute actions: the synthetic RULE_LABEL
-      // matcher rides ALONGSIDE the instance's label conditions. It must badge
-      // only the label set it was created from, not every set of the rule.
+      // A silence created from this app's silence actions: the synthetic
+      // RULE_LABEL matcher rides ALONGSIDE the instance's label matchers. It
+      // must badge only the label set it was created from, not every set of
+      // the rule.
       ccSilencesData = [
         ccSilence({
           matchers: [
@@ -763,10 +772,10 @@ describe("/alerts route", () => {
       expect(payRow).not.toBeNull();
       expect(coreRow).not.toBeNull();
       expect(
-        within(payRow as HTMLElement).getByText("muted"),
+        within(payRow as HTMLElement).getByText("silenced"),
       ).toBeInTheDocument();
       expect(
-        within(coreRow as HTMLElement).queryByText("muted"),
+        within(coreRow as HTMLElement).queryByText("silenced"),
       ).not.toBeInTheDocument();
     });
 

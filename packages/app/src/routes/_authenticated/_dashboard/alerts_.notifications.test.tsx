@@ -229,22 +229,18 @@ describe("/alerts/notifications route", () => {
     await screen.findByText("Where alerts go");
     // Sections 1-2 are expanded by default; wait for their async content.
     await screen.findByText("Email");
-    await screen.findByText("No custom notification rules");
+    await screen.findByText("No routes configured");
 
-    expect(cardTitles()).toEqual([
-      "Where alerts go",
-      "Custom notification rules",
-      "Advanced",
-    ]);
+    expect(cardTitles()).toEqual(["Where alerts go", "Routes", "Advanced"]);
     expect(screen.getByText("Remind every")).toBeInTheDocument();
 
     // Advanced is collapsed: its content isn't mounted.
-    expect(screen.queryByText("Dependency mutes")).not.toBeInTheDocument();
-    expect(screen.queryByText("Webhook feed")).not.toBeInTheDocument();
-    expect(screen.queryByText("Channels")).not.toBeInTheDocument();
+    expect(screen.queryByText("Inhibitions")).not.toBeInTheDocument();
+    expect(screen.queryByText("Firehose")).not.toBeInTheDocument();
+    expect(screen.queryByText("Receivers")).not.toBeInTheDocument();
   });
 
-  it("expands Advanced to reveal the pipeline, mutes, webhook feed, and channels", async () => {
+  it("expands Advanced to reveal the pipeline, inhibitions, firehose, and receivers", async () => {
     receiversData = [ccReceiver()];
     const user = userEvent.setup();
 
@@ -253,9 +249,9 @@ describe("/alerts/notifications route", () => {
 
     await user.click(screen.getByRole("button", { name: /Advanced/i }));
 
-    expect(await screen.findByText("Dependency mutes")).toBeInTheDocument();
-    expect(screen.getByText("Webhook feed")).toBeInTheDocument();
-    expect(screen.getByText("Channels")).toBeInTheDocument();
+    expect(await screen.findByText("Inhibitions")).toBeInTheDocument();
+    expect(screen.getByText("Firehose")).toBeInTheDocument();
+    expect(screen.getByText("Receivers")).toBeInTheDocument();
   });
 
   it("renders a non-managed rule's sentence via matchersPhrase and excludes managed catch-all routes", async () => {
@@ -321,7 +317,7 @@ describe("/alerts/notifications route", () => {
     });
   });
 
-  it("never renders receiver/matcher/inhibition/firehose/silence/Clickety-Clack vocabulary by default", async () => {
+  it("speaks receiver/matcher/route/inhibition/firehose vocabulary by default, but keeps silence collapsed until Advanced opens (and never renders Clickety-Clack)", async () => {
     routesData = [
       ccRoute({
         id: "route-critical",
@@ -336,16 +332,30 @@ describe("/alerts/notifications route", () => {
     await screen.findByText("Where alerts go");
     await screen.findByText(/also notify oncall/);
 
+    // The routes section speaks engine vocabulary even before Advanced opens.
+    expect(screen.getByText("Routes")).toBeInTheDocument();
+    expect(
+      screen.getByText(/send specific alerts to a specific receiver/i),
+    ).toBeInTheDocument();
+
     const text = document.body.textContent?.toLowerCase() ?? "";
-    for (const banned of [
-      "receiver",
-      "matcher",
-      "inhibition",
-      "firehose",
-      "silence",
-      "clickety-clack",
+    // The (always-visible) Advanced accordion header previews what it holds,
+    // so "inhibition"/"firehose" are already in the DOM; only the silences
+    // vocabulary stays out of sight until the collapsed content is mounted.
+    expect(text).toContain("inhibition");
+    expect(text).toContain("firehose");
+    expect(text).not.toContain("silence");
+    // Never leaks the internal codename, regardless of section state.
+    expect(text).not.toContain("clickety-clack");
+    // The retired soft vocabulary must be fully gone from the default view.
+    for (const retired of [
+      "channel",
+      "notification rule",
+      "condition",
+      "dependency mute",
+      "webhook feed",
     ]) {
-      expect(text).not.toContain(banned);
+      expect(text).not.toContain(retired);
     }
   });
 });
