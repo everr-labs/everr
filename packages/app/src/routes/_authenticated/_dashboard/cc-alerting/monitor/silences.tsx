@@ -167,8 +167,22 @@ function CcMonitorSilences() {
     { header: "Ends", cell: (s) => ccFormatTs(s.ends_at) },
     {
       header: "Comment",
-      cell: (s) =>
-        s.comment ?? <span className="text-muted-foreground">—</span>,
+      cell: (s) => (
+        <div className="space-y-0.5">
+          <div>
+            {s.comment ?? <span className="text-muted-foreground">—</span>}
+          </div>
+          {/* Provenance: who created the silence, and when. */}
+          <div className="text-xs text-muted-foreground">
+            {[
+              s.author ? `by ${s.author}` : null,
+              s.created_at ? `created ${ccFormatTs(s.created_at)}` : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </div>
+        </div>
+      ),
     },
     {
       header: "",

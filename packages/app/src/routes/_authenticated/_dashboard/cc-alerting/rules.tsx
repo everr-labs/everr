@@ -7,16 +7,17 @@ import {
   CardTitle,
 } from "@everr/ui/components/card";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
+import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import {
-  queryOptions,
+  infiniteQueryOptions,
+  useInfiniteQuery,
   useMutation,
-  useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Pause, Play, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
-import { listCcRules, pauseCcRule, resumeCcRule } from "@/data/cc/server";
+import { listCcRulesPage, pauseCcRule, resumeCcRule } from "@/data/cc/server";
 import type { CcRuleView } from "@/data/cc/types";
 import {
   CcConceptNote,
@@ -27,10 +28,27 @@ import {
   CcStatusDot,
   CcTableSkeleton,
   ccErrorMessage,
+  ccFormatTs,
 } from "./-cc-shared";
 
+const RULES_PAGE_LIMIT = 100;
+
+// Keyset-paginated listing: each page is CC's {items, next_cursor} envelope,
+// and a null next_cursor is the last page. The key stays under ["cc", "rules"]
+// so the pause/resume invalidation below keeps matching by prefix.
 const ccRulesQuery = () =>
-  queryOptions({ queryKey: ["cc", "rules"], queryFn: () => listCcRules() });
+  infiniteQueryOptions({
+    queryKey: ["cc", "rules", "page"],
+    queryFn: ({ pageParam }) =>
+      listCcRulesPage({
+        data: {
+          limit: RULES_PAGE_LIMIT,
+          ...(pageParam ? { cursor: pageParam } : {}),
+        },
+      }),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.next_cursor,
+  });
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/cc-alerting/rules",
@@ -38,13 +56,22 @@ export const Route = createFileRoute(
   staticData: { breadcrumb: "Rules" },
   head: () => ({ meta: [{ title: "Everr - Advanced Alerting Rules" }] }),
   loader: ({ context: { queryClient } }) =>
-    queryClient.prefetchQuery(ccRulesQuery()),
+    queryClient.prefetchInfiniteQuery(ccRulesQuery()),
   component: CcRulesPage,
 });
 
 function CcRulesPage() {
   const qc = useQueryClient();
-  const { data, isPending, isError, error } = useQuery(ccRulesQuery());
+  const {
+    data,
+    isPending,
+    isError,
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery(ccRulesQuery());
+  const rules = data?.pages.flatMap((p) => p.items) ?? [];
 
   const toggle = useMutation({
     mutationFn: (rule: CcRuleView) =>
@@ -82,6 +109,42 @@ function CcRulesPage() {
           {r.spec.interval_secs}s
         </span>
       ),
+    },
+    {
+      // The rolled-up alert state CC computes per rule. Distinct from the
+      // paused/active "State" column below: this is what the alert is doing,
+      // not whether the rule is scheduled. Optional for rollout safety (a CC
+      // without rollups omits the field).
+      header: "Alert state",
+      cell: (r) =>
+        r.rollup ? (
+          r.rollup.alert_state === "firing" ? (
+            <span className="inline-flex items-center gap-1.5 text-destructive">
+              <CcStatusDot tone="firing" pulse />
+              firing · {r.rollup.firing_instance_count}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">
+              {r.rollup.alert_state}
+            </span>
+          )
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
+    },
+    {
+      header: "Last fired",
+      cell: (r) =>
+        r.rollup?.last_fired_at ? (
+          <span
+            className="whitespace-nowrap text-muted-foreground"
+            title={ccFormatTs(r.rollup.last_fired_at)}
+          >
+            {formatRelativeTime(r.rollup.last_fired_at)}
+          </span>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
     },
     {
       header: "Health",
@@ -145,23 +208,37 @@ function CcRulesPage() {
           {isPending ? (
             <CcTableSkeleton rows={5} />
           ) : (
-            <DataTable
-              data={data ?? []}
-              columns={columns}
-              rowKey={(r) => r.id}
-              emptyState={
-                <CcEmptyState
-                  icon={SlidersHorizontal}
-                  title="No rules defined"
-                  hint={
-                    <>
-                      Define alerting rules as code and apply them with{" "}
-                      <code>everr apply</code>.
-                    </>
-                  }
-                />
-              }
-            />
+            <>
+              <DataTable
+                data={rules}
+                columns={columns}
+                rowKey={(r) => r.id}
+                emptyState={
+                  <CcEmptyState
+                    icon={SlidersHorizontal}
+                    title="No rules defined"
+                    hint={
+                      <>
+                        Define alerting rules as code and apply them with{" "}
+                        <code>everr apply</code>.
+                      </>
+                    }
+                  />
+                }
+              />
+              {hasNextPage && (
+                <div className="flex justify-center px-3 py-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={isFetchingNextPage}
+                    onClick={() => fetchNextPage()}
+                  >
+                    {isFetchingNextPage ? "Loading…" : "Load more"}
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>

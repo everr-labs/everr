@@ -165,6 +165,11 @@ function ReceiversSection() {
           <ul className="divide-y divide-border/60">
             {(data ?? []).map((r) => {
               const Icon = CHANNEL_ICON[r.channel.type];
+              // Free-form annotations minus the `everr.`-prefixed ownership
+              // markers (those drive the as-code badge above).
+              const customAnnotations = Object.entries(
+                r.annotations ?? {},
+              ).filter(([k]) => !k.startsWith("everr."));
               return (
                 <li
                   key={r.name}
@@ -183,6 +188,13 @@ function ReceiversSection() {
                     <div className="truncate font-mono text-xs text-muted-foreground">
                       {channelTarget(r.channel) || r.channel.type}
                     </div>
+                    {customAnnotations.length > 0 && (
+                      <div className="truncate text-xs text-muted-foreground">
+                        {customAnnotations
+                          .map(([k, v]) => `${k}: ${v}`)
+                          .join(", ")}
+                      </div>
+                    )}
                   </div>
                   <span className="shrink-0 text-xs text-muted-foreground">
                     {r.channel.type}

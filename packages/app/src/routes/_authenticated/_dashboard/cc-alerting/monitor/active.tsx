@@ -6,6 +6,7 @@ import {
   CardTitle,
 } from "@everr/ui/components/card";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
+import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { queryOptions, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { BellOff } from "lucide-react";
@@ -129,6 +130,17 @@ function CcMonitorActive() {
     },
     { header: "Notifies", cell: destination },
     { header: "Active since", cell: (r) => ccFormatTs(r.active_since) },
+    {
+      // absent_count is consecutive evaluations without the row — the
+      // instance is on its way to resolving.
+      header: "Last seen",
+      cell: (r) => (
+        <span className="whitespace-nowrap text-xs text-muted-foreground">
+          {r.last_seen ? formatRelativeTime(r.last_seen) : "—"}
+          {r.absent_count > 0 && ` · absent x${r.absent_count}`}
+        </span>
+      ),
+    },
     {
       header: "",
       cell: (r) => (
