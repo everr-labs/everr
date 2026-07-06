@@ -51,6 +51,7 @@ import {
   listAlerts,
   updateAlertSettings,
 } from "@/data/alerts/server";
+import { useCcInvalidation } from "@/hooks/use-cc-invalidation";
 import {
   AlertStateBadges,
   formatInterval,
@@ -188,6 +189,7 @@ export const Route = createFileRoute(
 });
 
 function AlertsPage() {
+  useCcInvalidation();
   const { preview } = useSearch({ from: "/_authenticated/_dashboard" });
   const alerts = useQuery(alertsQueryOptions(preview));
   const settings = useQuery(alertSettingsQueryOptions());

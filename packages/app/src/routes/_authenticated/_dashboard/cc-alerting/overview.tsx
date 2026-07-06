@@ -16,6 +16,7 @@ import {
   listCcRules,
   listCcSilences,
 } from "@/data/cc/server";
+import { useCcInvalidation } from "@/hooks/use-cc-invalidation";
 
 const q = {
   rules: () =>
@@ -116,6 +117,7 @@ function Term({ name, children }: { name: string; children: React.ReactNode }) {
 }
 
 function CcOverviewPage() {
+  useCcInvalidation();
   const rules = useQuery(q.rules());
   const alerts = useQuery(q.alerts());
   const routes = useQuery(q.routes());

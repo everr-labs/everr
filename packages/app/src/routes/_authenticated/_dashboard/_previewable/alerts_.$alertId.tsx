@@ -67,6 +67,7 @@ import {
   listAlertInstances,
   listAlertSilences,
 } from "@/data/alerts/server";
+import { useCcInvalidation } from "@/hooks/use-cc-invalidation";
 import { useTimeRange } from "@/hooks/use-time-range";
 import {
   formatDate,
@@ -150,6 +151,7 @@ type SilenceTarget = {
 type AlertEventRow = Awaited<ReturnType<typeof listAlertEvents>>[number];
 
 function AlertDetailPage() {
+  useCcInvalidation();
   const { alertId } = Route.useParams();
   const { preview } = useSearch({ from: "/_authenticated/_dashboard" });
   const queryClient = useQueryClient();
