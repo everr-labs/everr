@@ -1,4 +1,6 @@
 import { Badge } from "@everr/ui/components/badge";
+import { Button } from "@everr/ui/components/button";
+import { Input } from "@everr/ui/components/input";
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { BellOff } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -97,6 +99,89 @@ export function SeverityBadge({
         ? ("secondary" as const)
         : ("outline" as const);
   return <Badge variant={variant}>{severity}</Badge>;
+}
+
+// Shared duration idiom for mute dialogs: 1h/8h/24h presets plus a
+// custom-hours fallback, with a live preview of the resulting end time. Used
+// by both the rule-scoped mute dialog (alerts_.$alertId.tsx) and the
+// standalone org-wide mute dialog (alerts.tsx).
+const MUTE_DURATION_PRESETS = [
+  { hours: "1", label: "1h" },
+  { hours: "8", label: "8h" },
+  { hours: "24", label: "24h" },
+] as const;
+
+// `hours` only ever holds a MUTE_DURATION_PRESETS value or a custom hour count.
+export function muteEndFromHours(hours: string): Date {
+  const n = Number(hours);
+  return new Date(Date.now() + (Number.isFinite(n) ? n : 0) * 3_600_000);
+}
+
+export function isCustomHoursInvalid(
+  duration: string,
+  customHours: string,
+): boolean {
+  if (duration !== "custom") return false;
+  const n = Number(customHours);
+  return !Number.isFinite(n) || n <= 0;
+}
+
+export function MuteDurationFieldset({
+  duration,
+  onDurationChange,
+  customHours,
+  onCustomHoursChange,
+}: {
+  duration: string;
+  onDurationChange: (hours: string) => void;
+  customHours: string;
+  onCustomHoursChange: (hours: string) => void;
+}) {
+  const effectiveHours = duration === "custom" ? customHours : duration;
+  return (
+    <fieldset className="flex flex-col gap-2 border-0 p-0 m-0">
+      <legend className="p-0 text-xs/relaxed font-medium">Duration</legend>
+      <div className="flex flex-wrap gap-1.5">
+        {MUTE_DURATION_PRESETS.map((preset) => (
+          <Button
+            key={preset.hours}
+            type="button"
+            variant={duration === preset.hours ? "default" : "outline"}
+            size="sm"
+            aria-pressed={duration === preset.hours}
+            onClick={() => onDurationChange(preset.hours)}
+          >
+            {preset.label}
+          </Button>
+        ))}
+        <Button
+          type="button"
+          variant={duration === "custom" ? "default" : "outline"}
+          size="sm"
+          aria-pressed={duration === "custom"}
+          onClick={() => onDurationChange("custom")}
+        >
+          Custom
+        </Button>
+      </div>
+      {duration === "custom" && (
+        <div className="flex items-center gap-2">
+          <Input
+            aria-label="Custom duration in hours"
+            type="number"
+            min={1}
+            className="w-20 tabular-nums"
+            value={customHours}
+            onChange={(event) => onCustomHoursChange(event.target.value)}
+          />
+          <span className="text-xs text-muted-foreground">hours</span>
+        </div>
+      )}
+      <p className="text-xs text-muted-foreground">
+        Muted until {formatDate(muteEndFromHours(effectiveHours))}
+      </p>
+    </fieldset>
+  );
 }
 
 export function AlertStateBadges({

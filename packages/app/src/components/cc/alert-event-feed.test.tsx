@@ -216,4 +216,73 @@ describe("AlertEventFeed", () => {
 
     expect(screen.queryByText(/truncated/i)).not.toBeInTheDocument();
   });
+
+  it("filters by event type, hiding non-matching rows", async () => {
+    mockUseQuery.mockReturnValue({
+      data: [
+        historyRow({ slug: "beta", eventType: "instance_fired" }),
+        historyRow({ slug: "gamma", eventType: "delivery" }),
+        historyRow({ slug: "delta", eventType: "rule_health" }),
+      ],
+      isPending: false,
+      isError: false,
+      error: null,
+    });
+    const user = userEvent.setup();
+
+    render(<AlertEventFeed />);
+    expect(screen.getByText("beta")).toBeInTheDocument();
+    expect(screen.getByText("gamma")).toBeInTheDocument();
+    expect(screen.getByText("delta")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("combobox", { name: "Event type" }));
+    await user.click(await screen.findByRole("option", { name: "Delivery" }));
+
+    expect(screen.queryByText("beta")).not.toBeInTheDocument();
+    expect(screen.getByText("gamma")).toBeInTheDocument();
+    expect(screen.queryByText("delta")).not.toBeInTheDocument();
+  });
+
+  it("composes the event-type filter with severity (AND)", async () => {
+    mockUseQuery.mockReturnValue({
+      data: [
+        historyRow({
+          slug: "beta",
+          eventType: "instance_fired",
+          severity: "critical",
+        }),
+        historyRow({
+          slug: "gamma",
+          eventType: "instance_fired",
+          severity: "warning",
+        }),
+        historyRow({
+          slug: "delta",
+          eventType: "delivery",
+          severity: "critical",
+        }),
+      ],
+      isPending: false,
+      isError: false,
+      error: null,
+    });
+    const user = userEvent.setup();
+
+    render(<AlertEventFeed />);
+
+    await user.click(screen.getByRole("combobox", { name: "Event type" }));
+    await user.click(await screen.findByRole("option", { name: "Fired" }));
+    // Both fired rows survive the event-type filter alone.
+    expect(screen.getByText("beta")).toBeInTheDocument();
+    expect(screen.getByText("gamma")).toBeInTheDocument();
+    expect(screen.queryByText("delta")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("combobox", { name: "Severity" }));
+    await user.click(await screen.findByRole("option", { name: "Critical" }));
+
+    // Only the row matching BOTH filters remains.
+    expect(screen.getByText("beta")).toBeInTheDocument();
+    expect(screen.queryByText("gamma")).not.toBeInTheDocument();
+    expect(screen.queryByText("delta")).not.toBeInTheDocument();
+  });
 });

@@ -2,7 +2,16 @@ import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
 import { Card, CardContent } from "@everr/ui/components/card";
 import type { Column } from "@everr/ui/components/data-table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@everr/ui/components/dialog";
 import { Input } from "@everr/ui/components/input";
+import { Label } from "@everr/ui/components/label";
 import {
   Popover,
   PopoverContent,
@@ -11,6 +20,7 @@ import {
   PopoverTrigger,
 } from "@everr/ui/components/popover";
 import { Skeleton } from "@everr/ui/components/skeleton";
+import { Textarea } from "@everr/ui/components/textarea";
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { cn } from "@everr/ui/lib/utils";
 import {
@@ -30,6 +40,7 @@ import {
   ChevronDown,
   ChevronRight,
   NotebookText,
+  Plus,
   SearchIcon,
   Settings,
   XIcon,
@@ -37,6 +48,7 @@ import {
 import { Fragment, useMemo, useState } from "react";
 import { z } from "zod";
 import { AlertEventFeed } from "@/components/cc/alert-event-feed";
+import { MatchersEditor } from "@/components/cc/matchers-editor";
 import { computeNotifiesChannels, joinWithAnd } from "@/components/cc/notifies";
 import { ccMatcherMatches } from "@/components/cc/route-resolution";
 import {
@@ -55,17 +67,21 @@ import {
   RULE_LABEL,
 } from "@/data/alerts/server";
 import {
+  createCcSilence,
   deleteCcSilence,
   listCcAlerts,
   listCcRoutes,
   listCcSilences,
 } from "@/data/cc/server";
-import type { CcAlert, CcSilence } from "@/data/cc/types";
+import type { CcAlert, CcMatcher, CcSilence } from "@/data/cc/types";
 import { useCcInvalidation } from "@/hooks/use-cc-invalidation";
 import {
   AlertStateBadges,
   formatInterval,
+  isCustomHoursInvalid,
   isEvaluationStale,
+  MuteDurationFieldset,
+  muteEndFromHours,
   QueryErrorMessage,
   RelativeTime,
   SeverityBadge,
@@ -319,6 +335,7 @@ function AlertsPage() {
     [mutes.data],
   );
   const [mutesOpen, setMutesOpen] = useState(false);
+  const [newMuteOpen, setNewMuteOpen] = useState(false);
   const cancelMute = useMutation({
     mutationFn: (id: string) => deleteCcSilence({ data: { id } }),
     onSuccess: () =>
@@ -684,19 +701,32 @@ function AlertsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {activeMutes.length > 0 && (
-            <Popover open={mutesOpen} onOpenChange={setMutesOpen}>
-              <PopoverTrigger
-                render={<Button type="button" variant="outline" size="sm" />}
-              >
-                <BellOff data-icon="inline-start" />
-                {activeMutes.length}{" "}
-                {activeMutes.length === 1 ? "mute" : "mutes"} active
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-80">
-                <PopoverHeader>
-                  <PopoverTitle>Active mutes</PopoverTitle>
-                </PopoverHeader>
+          <Popover open={mutesOpen} onOpenChange={setMutesOpen}>
+            <PopoverTrigger
+              render={<Button type="button" variant="outline" size="sm" />}
+            >
+              <BellOff data-icon="inline-start" />
+              {activeMutes.length > 0
+                ? `${activeMutes.length} ${activeMutes.length === 1 ? "mute" : "mutes"} active`
+                : "Mutes"}
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-80">
+              <PopoverHeader className="flex-row items-center justify-between gap-2">
+                <PopoverTitle>Active mutes</PopoverTitle>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setMutesOpen(false);
+                    setNewMuteOpen(true);
+                  }}
+                >
+                  <Plus data-icon="inline-start" />
+                  New mute
+                </Button>
+              </PopoverHeader>
+              {activeMutes.length > 0 ? (
                 <ul className="flex flex-col gap-2">
                   {activeMutes.map((mute) => (
                     <li
@@ -729,9 +759,13 @@ function AlertsPage() {
                     </li>
                   ))}
                 </ul>
-              </PopoverContent>
-            </Popover>
-          )}
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  No mutes active.
+                </p>
+              )}
+            </PopoverContent>
+          </Popover>
           <Button
             variant="outline"
             nativeButton={false}
@@ -742,6 +776,11 @@ function AlertsPage() {
           </Button>
         </div>
       </div>
+
+      <StandaloneMuteDialog
+        open={newMuteOpen}
+        onClose={() => setNewMuteOpen(false)}
+      />
 
       <div
         role="tablist"
@@ -1181,5 +1220,132 @@ function FiringRowDetail({
         </div>
       ))}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Standalone mutes: a raw-conditions, org-wide mute not scoped to any one
+// rule (the old cc-alerting monitor/silences page's capability). This is
+// deliberately the one legitimate call site for createCcSilence's raw
+// matchers in this app: a standalone org-wide mute, matching any instance
+// (of any rule) whose labels satisfy the conditions, e.g. "mute
+// namespace=staging for 2h before a deploy." Every other mute action in this
+// app (row/rule mute buttons, the detail page's mute dialog) goes through the
+// rule-scoped `createSilence`, which stamps its own synthetic rule matcher so
+// the mute can't bleed into other rules that happen to share those labels.
+// ---------------------------------------------------------------------------
+
+function StandaloneMuteDialog({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [matchers, setMatchers] = useState<CcMatcher[]>([]);
+  const [duration, setDuration] = useState<string>("1");
+  const [customHours, setCustomHours] = useState("2");
+  const [reason, setReason] = useState("");
+
+  function reset() {
+    setMatchers([]);
+    setDuration("1");
+    setCustomHours("2");
+    setReason("");
+  }
+
+  const effectiveHours = duration === "custom" ? customHours : duration;
+  const customHoursInvalid = isCustomHoursInvalid(duration, customHours);
+  // Blank-label rows (an in-progress condition the author hasn't finished
+  // typing into) don't count toward the "at least one condition" gate.
+  const conditions = matchers.filter((m) => m.label.trim() !== "");
+
+  const create = useMutation({
+    mutationFn: () =>
+      createCcSilence({
+        data: {
+          matchers: conditions,
+          starts_at: new Date().toISOString(),
+          ends_at: muteEndFromHours(effectiveHours).toISOString(),
+          comment: reason || undefined,
+        },
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["cc", "silences"] });
+      await queryClient.invalidateQueries({ queryKey: ["alerts"] });
+      onClose();
+      reset();
+    },
+  });
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(dialogOpen) => {
+        if (!dialogOpen) {
+          onClose();
+          reset();
+        }
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>New mute</DialogTitle>
+          <DialogDescription>
+            Mutes any firing instance, from any rule, whose labels satisfy these
+            conditions until the window ends. Evaluation continues.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-4">
+          <MatchersEditor value={matchers} onChange={setMatchers} />
+          <MuteDurationFieldset
+            duration={duration}
+            onDurationChange={setDuration}
+            customHours={customHours}
+            onCustomHoursChange={setCustomHours}
+          />
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="standalone-mute-reason">
+              Reason{" "}
+              <span className="font-normal text-muted-foreground">
+                (optional)
+              </span>
+            </Label>
+            <Textarea
+              id="standalone-mute-reason"
+              placeholder="Why mute these alerts?"
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+            />
+          </div>
+          {create.error && (
+            <p className="text-sm text-destructive" role="alert">
+              {create.error.message}
+            </p>
+          )}
+        </div>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => {
+              onClose();
+              reset();
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            disabled={
+              create.isPending || conditions.length === 0 || customHoursInvalid
+            }
+            onClick={() => create.mutate()}
+          >
+            <BellOff data-icon="inline-start" />
+            Create mute
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -52,6 +52,18 @@ const SEVERITY_LABELS: Record<string, string> = {
   critical: "Critical",
 };
 
+// The real alert.event_type values CC writes (unified-events' liveToUnified/
+// historyToUnified and history.server.ts's readers): instance fire/resolve,
+// notification delivery, rule evaluation health, and dispatcher mutes.
+const EVENT_TYPE_LABELS: Record<string, string> = {
+  all: "All types",
+  instance_fired: "Fired",
+  instance_resolved: "Resolved",
+  delivery: "Delivery",
+  rule_health: "Rule health",
+  silenced: "Muted",
+};
+
 const HISTORY_LIMIT = 200;
 
 const ccEventHistoryQueryOptions = (timeRange: TimeRange) =>
@@ -71,6 +83,7 @@ export function AlertEventFeed({
   const { events, connected, clear, setPaused } = useCcEvents();
   const [paused, setLocalPaused] = useState(false);
   const [severity, setSeverity] = useState<string>("all");
+  const [eventType, setEventType] = useState<string>("all");
   const { timeRange } = useTimeRange();
   const history = useQuery(ccEventHistoryQueryOptions(timeRange));
 
@@ -91,12 +104,14 @@ export function AlertEventFeed({
     [merged, scopeSlug],
   );
 
+  // Event-type and severity compose with AND: each narrows independently of
+  // the other ("all" is a no-op filter on that axis).
   const filtered = useMemo(
     () =>
-      severity === "all"
-        ? scoped
-        : scoped.filter((e) => e.severity === severity),
-    [scoped, severity],
+      scoped
+        .filter((e) => eventType === "all" || e.eventType === eventType)
+        .filter((e) => severity === "all" || e.severity === severity),
+    [scoped, eventType, severity],
   );
 
   const columns: Column<CcUnifiedEvent>[] = [
@@ -181,10 +196,28 @@ export function AlertEventFeed({
         <CardAction>
           <div className="flex items-center gap-1.5">
             <Select
+              value={eventType}
+              onValueChange={(v) => setEventType(v ?? "all")}
+            >
+              <SelectTrigger size="sm" className="w-36" aria-label="Event type">
+                <SelectValue>
+                  {(v) => EVENT_TYPE_LABELS[v as string] ?? "All types"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All types</SelectItem>
+                <SelectItem value="instance_fired">Fired</SelectItem>
+                <SelectItem value="instance_resolved">Resolved</SelectItem>
+                <SelectItem value="delivery">Delivery</SelectItem>
+                <SelectItem value="rule_health">Rule health</SelectItem>
+                <SelectItem value="silenced">Muted</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
               value={severity}
               onValueChange={(v) => setSeverity(v ?? "all")}
             >
-              <SelectTrigger size="sm" className="w-36">
+              <SelectTrigger size="sm" className="w-36" aria-label="Severity">
                 <SelectValue>
                   {(v) => SEVERITY_LABELS[v as string] ?? "All severities"}
                 </SelectValue>

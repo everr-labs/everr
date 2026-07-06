@@ -82,6 +82,9 @@ import { useTimeRange } from "@/hooks/use-time-range";
 import {
   formatDate,
   formatInterval,
+  isCustomHoursInvalid,
+  MuteDurationFieldset,
+  muteEndFromHours,
   QueryErrorMessage,
   RelativeTime,
   SeverityBadge,
@@ -733,18 +736,6 @@ function MuteRow({ mute }: { mute: AlertSilenceSummary }) {
 
 const MATCHER_OPS = ["=", "!=", "=~", "!~"] as const;
 
-const MUTE_PRESETS = [
-  { hours: "1", label: "1h" },
-  { hours: "8", label: "8h" },
-  { hours: "24", label: "24h" },
-] as const;
-
-// `hours` only ever holds a MUTE_PRESETS value or a custom hour count.
-function muteEnd(hours: string): Date {
-  const n = Number(hours);
-  return new Date(Date.now() + (Number.isFinite(n) ? n : 0) * 3_600_000);
-}
-
 function MuteDialog({
   alertId,
   instance,
@@ -779,10 +770,7 @@ function MuteDialog({
   }
 
   const effectiveHours = duration === "custom" ? customHours : duration;
-  const parsedCustomHours = Number(customHours);
-  const customHoursInvalid =
-    duration === "custom" &&
-    (!Number.isFinite(parsedCustomHours) || parsedCustomHours <= 0);
+  const customHoursInvalid = isCustomHoursInvalid(duration, customHours);
 
   const patchMatcher = (index: number, patch: Partial<Matcher>) =>
     setMatchers((prev) =>
@@ -803,7 +791,7 @@ function MuteDialog({
       createSilence({
         data: {
           alertId,
-          endsAt: muteEnd(effectiveHours).toISOString(),
+          endsAt: muteEndFromHours(effectiveHours).toISOString(),
           reason,
           matchers,
         },
@@ -835,50 +823,12 @@ function MuteDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
-          <fieldset className="flex flex-col gap-2 border-0 p-0 m-0">
-            <legend className="p-0 text-xs/relaxed font-medium">
-              Duration
-            </legend>
-            <div className="flex flex-wrap gap-1.5">
-              {MUTE_PRESETS.map((preset) => (
-                <Button
-                  key={preset.hours}
-                  type="button"
-                  variant={duration === preset.hours ? "default" : "outline"}
-                  size="sm"
-                  aria-pressed={duration === preset.hours}
-                  onClick={() => setDuration(preset.hours)}
-                >
-                  {preset.label}
-                </Button>
-              ))}
-              <Button
-                type="button"
-                variant={duration === "custom" ? "default" : "outline"}
-                size="sm"
-                aria-pressed={duration === "custom"}
-                onClick={() => setDuration("custom")}
-              >
-                Custom
-              </Button>
-            </div>
-            {duration === "custom" && (
-              <div className="flex items-center gap-2">
-                <Input
-                  aria-label="Custom duration in hours"
-                  type="number"
-                  min={1}
-                  className="w-20 tabular-nums"
-                  value={customHours}
-                  onChange={(event) => setCustomHours(event.target.value)}
-                />
-                <span className="text-xs text-muted-foreground">hours</span>
-              </div>
-            )}
-            <p className="text-xs text-muted-foreground">
-              Muted until {formatDate(muteEnd(effectiveHours))}
-            </p>
-          </fieldset>
+          <MuteDurationFieldset
+            duration={duration}
+            onDurationChange={setDuration}
+            customHours={customHours}
+            onCustomHoursChange={setCustomHours}
+          />
 
           <Collapsible
             open={labelsOpen}

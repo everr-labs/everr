@@ -33,6 +33,7 @@ const mocks = vi.hoisted(() => ({
   getAlertSettings: vi.fn(),
   updateAlertSettings: vi.fn(),
   createSilence: vi.fn(),
+  createCcSilence: vi.fn(),
   listCcAlerts: vi.fn(),
   listCcSilences: vi.fn(),
   deleteCcSilence: vi.fn(),
@@ -48,6 +49,7 @@ vi.mock("@/data/alerts/server", () => ({
 }));
 
 vi.mock("@/data/cc/server", () => ({
+  createCcSilence: mocks.createCcSilence,
   listCcAlerts: mocks.listCcAlerts,
   listCcSilences: mocks.listCcSilences,
   deleteCcSilence: mocks.deleteCcSilence,
@@ -82,6 +84,7 @@ mocks.listCcAlerts.mockImplementation(() => Promise.resolve(ccAlertsData));
 mocks.listCcSilences.mockImplementation(() => Promise.resolve(ccSilencesData));
 mocks.listCcRoutes.mockImplementation(() => Promise.resolve(ccRoutesData));
 mocks.createSilence.mockImplementation(() => Promise.resolve(undefined));
+mocks.createCcSilence.mockImplementation(() => Promise.resolve(undefined));
 mocks.deleteCcSilence.mockImplementation((opts: { data: { id: string } }) => {
   ccSilencesData = ccSilencesData.filter((s) => s.id !== opts.data.id);
   return Promise.resolve(undefined);
@@ -92,6 +95,7 @@ const {
   getAlertSettings,
   updateAlertSettings,
   createSilence,
+  createCcSilence,
   listCcAlerts,
   listCcSilences,
   deleteCcSilence,
@@ -255,6 +259,7 @@ describe("/alerts route", () => {
     getAlertSettings.mockClear();
     updateAlertSettings.mockClear();
     createSilence.mockClear();
+    createCcSilence.mockClear();
     listCcAlerts.mockClear();
     listCcSilences.mockClear();
     deleteCcSilence.mockClear();
@@ -391,6 +396,90 @@ describe("/alerts route", () => {
         screen.queryByRole("button", { name: /mute active/i }),
       ).not.toBeInTheDocument(),
     );
+  });
+
+  it("renders the mutes control as a quiet outline button when no mutes are active", async () => {
+    alertsData = [alertSummary()];
+    ccSilencesData = [];
+
+    renderAlertsRoute(["/alerts"]);
+    await screen.findByText("high-error-rate");
+
+    expect(
+      await screen.findByRole("button", { name: "Mutes" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /mute active/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  describe("New mute dialog", () => {
+    async function openNewMuteDialog(user: ReturnType<typeof userEvent.setup>) {
+      const pill = await screen.findByRole("button", {
+        name: /^mutes$|mute active/i,
+      });
+      await user.click(pill);
+      await user.click(await screen.findByRole("button", { name: "New mute" }));
+      expect(await screen.findByText("New mute")).toBeInTheDocument();
+    }
+
+    it("disables Create mute until at least one condition is set, then creates it with the built matchers and window", async () => {
+      alertsData = [alertSummary()];
+      const user = userEvent.setup();
+
+      renderAlertsRoute(["/alerts"]);
+      await screen.findByText("high-error-rate");
+      await openNewMuteDialog(user);
+
+      const createButton = screen.getByRole("button", { name: /create mute/i });
+      expect(createButton).toBeDisabled();
+
+      await user.click(screen.getByRole("button", { name: "Add" }));
+      await user.type(screen.getByLabelText("Condition label"), "namespace");
+      await user.type(screen.getByLabelText("Condition value"), "staging");
+
+      expect(createButton).toBeEnabled();
+
+      await user.click(screen.getByRole("button", { name: "8h" }));
+      await user.type(screen.getByLabelText(/reason/i), "Muting before deploy");
+
+      const before = Date.now();
+      await user.click(createButton);
+
+      await waitFor(() => expect(createCcSilence).toHaveBeenCalledTimes(1));
+      const call = createCcSilence.mock.calls[0]?.[0] as {
+        data: {
+          matchers: { label: string; op: string; value: string }[];
+          starts_at: string;
+          ends_at: string;
+          comment?: string;
+        };
+      };
+      expect(call.data.matchers).toEqual([
+        { label: "namespace", op: "eq", value: "staging" },
+      ]);
+      expect(call.data.comment).toBe("Muting before deploy");
+      const durationMs = new Date(call.data.ends_at).getTime() - before;
+      expect(durationMs).toBeGreaterThanOrEqual(8 * 60 * 60 * 1000 - 5_000);
+      expect(durationMs).toBeLessThan(8 * 60 * 60 * 1000 + 10_000);
+
+      await waitFor(() =>
+        expect(screen.queryByText("New mute")).not.toBeInTheDocument(),
+      );
+    });
+
+    it("never calls createCcSilence with zero conditions", async () => {
+      alertsData = [alertSummary()];
+      const user = userEvent.setup();
+
+      renderAlertsRoute(["/alerts"]);
+      await screen.findByText("high-error-rate");
+      await openNewMuteDialog(user);
+
+      await user.click(screen.getByRole("button", { name: /create mute/i }));
+
+      expect(createCcSilence).not.toHaveBeenCalled();
+    });
   });
 
   it("shows a health dot per rule, amber and detailed when degraded", async () => {
