@@ -436,6 +436,11 @@ describe("/alerts route", () => {
 
       await user.click(screen.getByRole("button", { name: "Add" }));
       await user.type(screen.getByLabelText("Condition label"), "namespace");
+      // Label alone is not a complete condition: a blank-value row would be
+      // an accidentally-broad org-wide mute (blank-value `ne` matches nearly
+      // everything), so Create must stay disabled until the value is filled.
+      expect(createButton).toBeDisabled();
+
       await user.type(screen.getByLabelText("Condition value"), "staging");
 
       expect(createButton).toBeEnabled();

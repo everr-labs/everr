@@ -1257,9 +1257,16 @@ function StandaloneMuteDialog({
 
   const effectiveHours = duration === "custom" ? customHours : duration;
   const customHoursInvalid = isCustomHoursInvalid(duration, customHours);
-  // Blank-label rows (an in-progress condition the author hasn't finished
-  // typing into) don't count toward the "at least one condition" gate.
-  const conditions = matchers.filter((m) => m.label.trim() !== "");
+  // Only complete rows (label AND value both non-blank) count toward the
+  // "at least one condition" gate, and only they are sent. An in-progress row
+  // with a blank value is not a narrower condition — it's a broader one:
+  // blank-value `ne` matches virtually every instance (a label that isn't ""
+  // or is absent), and blank-value `regex` matches any instance carrying the
+  // label. The editor offers no valueless op, so there is no legitimate
+  // blank-value condition to preserve.
+  const conditions = matchers.filter(
+    (m) => m.label.trim() !== "" && m.value.trim() !== "",
+  );
 
   const create = useMutation({
     mutationFn: () =>
