@@ -18,7 +18,6 @@ const mockedAdopt = vi.mocked(adoptResource);
 
 type Ctx = {
   session: { session: { activeOrganizationId: string } };
-  applyActions: readonly string[] | null;
 };
 type Handler = (args: {
   request: Request;
@@ -30,11 +29,6 @@ const url = "http://localhost/api/cli/resources/dashboard/default/errors/adopt";
 const params = { kind: "dashboard", project: "default", slug: "errors" };
 const rwCtx: Ctx = {
   session: { session: { activeOrganizationId: "org-42" } },
-  applyActions: null,
-};
-const roCtx: Ctx = {
-  session: { session: { activeOrganizationId: "org-42" } },
-  applyActions: ["read"],
 };
 
 function post(body: unknown, context: Ctx, p = params): Promise<Response> {
@@ -97,12 +91,6 @@ describe("POST .../adopt", () => {
   it("400s on empty repoid", async () => {
     const res = await post({ repoid: "" }, rwCtx);
     expect(res.status).toBe(400);
-    expect(mockedAdopt).not.toHaveBeenCalled();
-  });
-
-  it("403s a read-only API key", async () => {
-    const res = await post({ repoid: "github.com/acme/app" }, roCtx);
-    expect(res.status).toBe(403);
     expect(mockedAdopt).not.toHaveBeenCalled();
   });
 });

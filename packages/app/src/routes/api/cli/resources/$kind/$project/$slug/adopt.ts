@@ -1,10 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import {
-  canApplyMutate,
-  requireOrgOrApiKeyMiddleware,
-} from "@/data/as-code/apply-auth.server";
-import {
   adoptResource,
   isResourceKind,
   RESOURCE_KINDS,
@@ -12,11 +8,12 @@ import {
 
 const BodySchema = z.object({ repoid: z.string().min(1) });
 
+// Auth + org context comes from the parent `/api/cli` route
+// (requireOrgMiddleware); this is a session-authenticated CLI endpoint.
 export const Route = createFileRoute(
   "/api/cli/resources/$kind/$project/$slug/adopt",
 )({
   server: {
-    middleware: [requireOrgOrApiKeyMiddleware],
     handlers: {
       POST: async ({ request, params, context }) => {
         const { kind, project, slug } = params;
@@ -28,15 +25,6 @@ export const Route = createFileRoute(
               )}`,
             },
             { status: 400 },
-          );
-        }
-        if (!canApplyMutate(context.applyActions)) {
-          return Response.json(
-            {
-              error:
-                "API key is read-only: grant the apply write capability to modify resources",
-            },
-            { status: 403 },
           );
         }
         const parsed = BodySchema.safeParse(await request.json());

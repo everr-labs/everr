@@ -1,14 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { requireOrgOrApiKeyMiddleware } from "@/data/as-code/apply-auth.server";
 import {
   isResourceKind,
   listResources,
   RESOURCE_KINDS,
 } from "@/data/as-code/resource-admin.server";
 
+// Auth + org context comes from the parent `/api/cli` route
+// (requireOrgMiddleware): these are session-authenticated CLI endpoints, so the
+// handler reads context.session.session.activeOrganizationId directly.
 export const Route = createFileRoute("/api/cli/resources")({
   server: {
-    middleware: [requireOrgOrApiKeyMiddleware],
     handlers: {
       GET: async ({ request, context }) => {
         const url = new URL(request.url);

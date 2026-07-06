@@ -23,7 +23,6 @@ const mockedDelete = vi.mocked(deleteResource);
 
 type Ctx = {
   session: { session: { activeOrganizationId: string } };
-  applyActions: readonly string[] | null;
 };
 type Handler = (args: {
   request: Request;
@@ -35,11 +34,6 @@ const url = "http://localhost/api/cli/resources/dashboard/default/errors";
 const params = { kind: "dashboard", project: "default", slug: "errors" };
 const rwCtx: Ctx = {
   session: { session: { activeOrganizationId: "org-42" } },
-  applyActions: null,
-};
-const roCtx: Ctx = {
-  session: { session: { activeOrganizationId: "org-42" } },
-  applyActions: ["read"],
 };
 
 beforeEach(() => vi.clearAllMocks());
@@ -116,15 +110,5 @@ describe("DELETE .../$kind/$project/$slug", () => {
       params,
     });
     expect(res.status).toBe(404);
-  });
-
-  it("403s a read-only API key", async () => {
-    const res = await del()({
-      request: new Request(url, { method: "DELETE" }),
-      context: roCtx,
-      params,
-    });
-    expect(res.status).toBe(403);
-    expect(mockedDelete).not.toHaveBeenCalled();
   });
 });

@@ -1,9 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import {
-  canApplyMutate,
-  requireOrgOrApiKeyMiddleware,
-} from "@/data/as-code/apply-auth.server";
-import {
   deleteResource,
   getResource,
   isResourceKind,
@@ -26,13 +22,11 @@ function notFound(kind: string, project: string, slug: string): Response {
   );
 }
 
-const READ_ONLY_KEY =
-  "API key is read-only: grant the apply write capability to modify resources";
-
+// Auth + org context comes from the parent `/api/cli` route
+// (requireOrgMiddleware); these are session-authenticated CLI endpoints.
 export const Route = createFileRoute("/api/cli/resources/$kind/$project/$slug")(
   {
     server: {
-      middleware: [requireOrgOrApiKeyMiddleware],
       handlers: {
         GET: async ({ params, context }) => {
           const { kind, project, slug } = params;
@@ -49,9 +43,6 @@ export const Route = createFileRoute("/api/cli/resources/$kind/$project/$slug")(
         DELETE: async ({ params, context }) => {
           const { kind, project, slug } = params;
           if (!isResourceKind(kind)) return badKind(kind);
-          if (!canApplyMutate(context.applyActions)) {
-            return Response.json({ error: READ_ONLY_KEY }, { status: 403 });
-          }
           const deleted = await deleteResource(
             context.session.session.activeOrganizationId,
             kind,

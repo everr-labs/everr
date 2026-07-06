@@ -20,7 +20,6 @@ type Handler = (args: {
   request: Request;
   context: {
     session: { session: { activeOrganizationId: string } };
-    applyActions: readonly string[] | null;
   };
 }) => Promise<Response>;
 
@@ -30,7 +29,6 @@ function handler(): Handler {
 
 const context = {
   session: { session: { activeOrganizationId: "org-42" } },
-  applyActions: null,
 };
 
 beforeEach(() => vi.clearAllMocks());
