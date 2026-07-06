@@ -60,6 +60,7 @@ import { InhibitionBuilder } from "@/components/cc/inhibition-builder";
 import { matchersPhrase } from "@/components/cc/matchers-editor";
 import { RouteBuilder } from "@/components/cc/route-builder";
 import {
+  CcAlertingTabs,
   CcEmptyState,
   CcQueryError,
   CcTableSkeleton,
@@ -130,8 +131,9 @@ export const Route = createFileRoute(
 
 function NotificationsPage() {
   return (
-    <div className="flex w-full flex-col gap-6">
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
       <h1 className="text-xl font-bold tracking-tight">Notifications</h1>
+      <CcAlertingTabs />
       <WhereAlertsGoCard />
       <NotificationRulesCard />
       <DependencyMutesCard />
@@ -141,9 +143,10 @@ function NotificationsPage() {
   );
 }
 
-/** Muted count beside a section title; hidden until the data is in. */
+/** Muted count beside a section title; hidden until the data is in, and once
+ * it's zero (the section's own empty state already carries that). */
 function SectionCount({ value }: { value: number | undefined }) {
-  if (value === undefined) return null;
+  if (!value) return null;
   return (
     <span className="text-sm font-normal text-muted-foreground tabular-nums">
       {value}
@@ -244,7 +247,7 @@ function DeliverySettingsForm({
 
   return (
     <form
-      className="flex flex-col gap-4"
+      className="flex max-w-xl flex-col gap-4"
       onSubmit={(event) => {
         event.preventDefault();
         void form.handleSubmit();
@@ -440,9 +443,6 @@ function DeliverySettingsForm({
                   <SelectItem value="86400">24 hours</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-muted-foreground text-xs">
-                Re-send notifications while an alert stays firing
-              </p>
             </div>
           )}
         </form.Field>
@@ -608,7 +608,7 @@ function NotificationRulesCard() {
           <SectionCount value={routesQuery.data ? rules.length : undefined} />
         </span>
         <CardAction>
-          <Button onClick={() => setEditing("new")}>
+          <Button variant="outline" onClick={() => setEditing("new")}>
             <Plus data-icon="inline-start" />
             New rule
           </Button>
@@ -679,7 +679,7 @@ function DependencyMutesCard() {
           <SectionCount value={data?.length} />
         </span>
         <CardAction>
-          <Button onClick={() => setOpen(true)}>
+          <Button variant="outline" onClick={() => setOpen(true)}>
             <Plus data-icon="inline-start" />
             New dependency mute
           </Button>
@@ -837,7 +837,11 @@ function WebhookFeedCard() {
               placeholder="https://example.com/hook"
             />
           </div>
-          <Button type="submit" disabled={!url || create.isPending}>
+          <Button
+            type="submit"
+            variant="outline"
+            disabled={!url || create.isPending}
+          >
             <Plus data-icon="inline-start" />
             Add
           </Button>

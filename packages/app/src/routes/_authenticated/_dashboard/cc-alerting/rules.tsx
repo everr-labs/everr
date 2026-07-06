@@ -22,9 +22,10 @@ import {
   CcQueryError,
   CcRuleHealthDot,
   CcSeverityBadge,
-  CcStatusDot,
   CcTableSkeleton,
   ccErrorMessage,
+  formatInterval,
+  ruleDisplayName,
 } from "./-cc-shared";
 
 const ccRulesQuery = () =>
@@ -59,15 +60,26 @@ function CcRulesPage() {
   const columns: Column<CcRuleView>[] = [
     {
       header: "Rule",
-      cell: (r) => (
-        <Link
-          to="/cc-alerting/rules/$ruleId"
-          params={{ ruleId: r.id }}
-          className="font-mono text-primary hover:underline"
-        >
-          {r.id.slice(0, 8)}
-        </Link>
-      ),
+      cell: (r) => {
+        const name = ruleDisplayName(r.spec, r.id);
+        const idPrefix = r.id.slice(0, 8);
+        return (
+          <Link
+            to="/cc-alerting/rules/$ruleId"
+            params={{ ruleId: r.id }}
+            className="underline-offset-4 hover:underline"
+          >
+            <span className="flex items-baseline gap-2">
+              <span className="font-medium">{name}</span>
+              {name !== idPrefix && (
+                <span className="font-mono text-muted-foreground text-xs">
+                  {idPrefix}
+                </span>
+              )}
+            </span>
+          </Link>
+        );
+      },
     },
     {
       header: "Severity",
@@ -77,7 +89,7 @@ function CcRulesPage() {
       header: "Interval",
       cell: (r) => (
         <span className="tabular-nums text-muted-foreground">
-          {r.spec.interval_secs}s
+          {formatInterval(r.spec.interval_secs)}
         </span>
       ),
     },
@@ -89,15 +101,9 @@ function CcRulesPage() {
       header: "State",
       cell: (r) =>
         r.paused ? (
-          <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-            <CcStatusDot tone="inactive" />
-            paused
-          </span>
+          <span className="text-amber-600 dark:text-amber-400">paused</span>
         ) : (
-          <span className="inline-flex items-center gap-1.5">
-            <CcStatusDot tone="healthy" />
-            active
-          </span>
+          <span className="text-muted-foreground">active</span>
         ),
     },
     {

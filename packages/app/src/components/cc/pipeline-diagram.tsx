@@ -103,21 +103,15 @@ export function CcPipelineDiagram({
           hash="receivers"
         />
       </div>
-      <p className="text-xs leading-relaxed text-muted-foreground">
-        Alerts matching no notification rule fall through to the{" "}
-        <Link
-          to="/alerts/notifications"
-          hash="firehose"
-          className="text-foreground underline-offset-2 hover:underline"
-        >
-          webhook feed
-        </Link>
-        .
-        {silenceCount > 0 &&
-          ` ${silenceCount} active ${plural(silenceCount, "mute")} apply to matching alerts.`}
-        {inhibitionCount > 0 &&
-          ` ${inhibitionCount} ${plural(inhibitionCount, "dependency mute")} can suppress downstream alerts.`}
-      </p>
+      {(silenceCount > 0 || inhibitionCount > 0) && (
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          {silenceCount > 0 &&
+            `${silenceCount} active ${plural(silenceCount, "mute")} apply to matching alerts.`}
+          {silenceCount > 0 && inhibitionCount > 0 && " "}
+          {inhibitionCount > 0 &&
+            `${inhibitionCount} ${plural(inhibitionCount, "dependency mute")} can suppress downstream alerts.`}
+        </p>
+      )}
     </div>
   );
 }

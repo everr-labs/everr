@@ -2,6 +2,7 @@ import {
   Card,
   CardAction,
   CardContent,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@everr/ui/components/card";
@@ -23,7 +24,13 @@ import {
 import type { CcAlert, CcRuleView } from "@/data/cc/types";
 import { useCcInvalidation } from "@/hooks/use-cc-invalidation";
 import { alertSettingsQueryOptions } from "../_previewable/alerts";
-import { CcQueryError, CcStatusDot, ccFormatTs, LabelSet } from "./-cc-shared";
+import {
+  CcQueryError,
+  CcStatusDot,
+  LabelSet,
+  RelativeTime,
+  ruleDisplayName,
+} from "./-cc-shared";
 
 const q = {
   rules: () =>
@@ -110,39 +117,43 @@ function StatCell({
   );
 }
 
-// One line of rule health, in the alerts home's dot idiom: a green all-clear,
-// or the degraded rules listed by id with the amber warning dot.
-function RuleHealthStrip({ rules }: { rules: CcRuleView[] }) {
+// Compact footer row on "System at a glance", in the alerts home's dot idiom:
+// a green all-clear, or the degraded rules named with the amber warning dot.
+function RuleHealthFooter({ rules }: { rules: CcRuleView[] }) {
   if (rules.length === 0) return null;
   const degraded = rules.filter((r) => r.health.status === "degraded");
   if (degraded.length === 0) {
     return (
-      <p className="flex items-center gap-1.5 px-1 text-xs text-muted-foreground">
-        <CcStatusDot tone="healthy" />
-        {rules.length === 1
-          ? "1 rule healthy"
-          : `${rules.length} rules healthy`}
-      </p>
+      <CardFooter className="border-t border-border text-xs">
+        <p className="flex items-center gap-1.5 text-muted-foreground">
+          <CcStatusDot tone="healthy" />
+          {rules.length === 1
+            ? "1 rule healthy"
+            : `${rules.length} rules healthy`}
+        </p>
+      </CardFooter>
     );
   }
   return (
-    <p className="flex flex-wrap items-center gap-1.5 px-1 text-xs">
-      <CcStatusDot tone="degraded" pulse />
-      <span className="text-amber-600 dark:text-amber-400">
-        {degraded.length} of {rules.length}{" "}
-        {rules.length === 1 ? "rule" : "rules"} degraded:
-      </span>
-      {degraded.map((r) => (
-        <Link
-          key={r.id}
-          to="/cc-alerting/rules/$ruleId"
-          params={{ ruleId: r.id }}
-          className="font-mono text-foreground underline-offset-2 hover:underline"
-        >
-          {r.id.slice(0, 8)}
-        </Link>
-      ))}
-    </p>
+    <CardFooter className="border-t border-border text-xs">
+      <p className="flex flex-wrap items-center gap-1.5">
+        <CcStatusDot tone="degraded" pulse />
+        <span className="text-amber-600 dark:text-amber-400">
+          {degraded.length} of {rules.length}{" "}
+          {rules.length === 1 ? "rule" : "rules"} degraded:
+        </span>
+        {degraded.map((r) => (
+          <Link
+            key={r.id}
+            to="/cc-alerting/rules/$ruleId"
+            params={{ ruleId: r.id }}
+            className="text-foreground underline-offset-2 hover:underline"
+          >
+            {ruleDisplayName(r.spec, r.id)}
+          </Link>
+        ))}
+      </p>
+    </CardFooter>
   );
 }
 
@@ -150,26 +161,43 @@ const FIRING_ROWS = 5;
 
 function FiringNowCard({
   firing,
+  rulesById,
   notifies,
 }: {
   firing: CcAlert[];
+  rulesById: Map<string, CcRuleView>;
   notifies: (a: CcAlert) => string[];
 }) {
   const columns: Column<CcAlert>[] = [
     {
       header: "Alert",
-      cell: (a) => (
-        <Link
-          to="/cc-alerting/rules/$ruleId"
-          params={{ ruleId: a.rule }}
-          className="font-mono text-primary hover:underline"
-        >
-          {a.rule.slice(0, 8)}
-        </Link>
-      ),
+      cell: (a) => {
+        const idPrefix = a.rule.slice(0, 8);
+        const rule = rulesById.get(a.rule);
+        const name = rule ? ruleDisplayName(rule.spec, a.rule) : idPrefix;
+        return (
+          <Link
+            to="/cc-alerting/rules/$ruleId"
+            params={{ ruleId: a.rule }}
+            className="underline-offset-4 hover:underline"
+          >
+            <span className="flex items-baseline gap-2">
+              <span className="font-medium">{name}</span>
+              {name !== idPrefix && (
+                <span className="font-mono text-muted-foreground text-xs">
+                  {idPrefix}
+                </span>
+              )}
+            </span>
+          </Link>
+        );
+      },
     },
     { header: "Labels", cell: (a) => <LabelSet labels={a.labels} /> },
-    { header: "Since", cell: (a) => ccFormatTs(a.active_since) },
+    {
+      header: "Since",
+      cell: (a) => <RelativeTime value={a.active_since} />,
+    },
     {
       header: "Notifies",
       cell: (a) => {
@@ -238,6 +266,7 @@ function CcOverviewPage() {
   if (errored) return <CcQueryError error={errored.error} />;
 
   const ruleList = rules.data ?? [];
+  const rulesById = new Map(ruleList.map((r) => [r.id, r]));
   const paused = ruleList.filter((r) => r.paused).length;
   const degraded = ruleList.filter(
     (r) => r.health.status === "degraded",
@@ -302,11 +331,13 @@ function CcOverviewPage() {
             />
           </div>
         </CardContent>
+        <RuleHealthFooter rules={ruleList} />
       </Card>
 
       {firing.length > 0 && (
         <FiringNowCard
           firing={firing}
+          rulesById={rulesById}
           notifies={(a) =>
             computeNotifiesChannels({
               delivery: settings.data?.delivery,
@@ -316,8 +347,6 @@ function CcOverviewPage() {
           }
         />
       )}
-
-      <RuleHealthStrip rules={ruleList} />
 
       <Card>
         <CardHeader>

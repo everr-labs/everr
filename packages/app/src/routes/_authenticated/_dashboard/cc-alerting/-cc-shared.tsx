@@ -11,6 +11,7 @@ export {
   ccRouteMatches,
 } from "@/components/cc/route-resolution";
 export {
+  CcAlertingTabs,
   CcConceptNote,
   CcConnectionBadge,
   CcEmptyState,
@@ -25,5 +26,8 @@ export {
   Conditions as Matchers,
   ccErrorMessage,
   ccFormatTs,
+  formatInterval,
   LabelSet,
+  RelativeTime,
+  ruleDisplayName,
 } from "@/components/cc/shared";
