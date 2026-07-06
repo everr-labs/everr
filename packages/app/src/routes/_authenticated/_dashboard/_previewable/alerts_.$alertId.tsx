@@ -39,6 +39,8 @@ import {
   CircleCheck,
   CirclePlay,
   CircleStop,
+  FlaskConical,
+  Loader2,
   NotebookText,
   Plus,
   X,
@@ -66,7 +68,9 @@ import {
   listAlertEvents,
   listAlertInstances,
   listAlertSilences,
+  testAlert,
 } from "@/data/alerts/server";
+import type { CcTestResult } from "@/data/cc/types";
 import { useCcInvalidation } from "@/hooks/use-cc-invalidation";
 import { useTimeRange } from "@/hooks/use-time-range";
 import {
@@ -119,10 +123,13 @@ export const Route = createFileRoute(
     preview: search.preview,
   }),
   loader: async ({ context: { queryClient }, params, deps }) => {
-    const [detail] = await Promise.all([
-      queryClient.ensureQueryData(
-        alertDetailQueryOptions(params.alertId, deps.preview),
-      ),
+    const detailQuery = alertDetailQueryOptions(params.alertId, deps.preview);
+    // Prefetch (non-throwing) rather than `ensureQueryData` so a failed load
+    // renders the component's friendly "Alert not found." / "Unable to load
+    // alert." branch instead of throwing to the route error boundary — matching
+    // how the sibling CC pages prefetch.
+    await Promise.all([
+      queryClient.prefetchQuery(detailQuery),
       queryClient.prefetchQuery(
         alertInstancesQueryOptions(params.alertId, deps.timeRange),
       ),
@@ -132,8 +139,11 @@ export const Route = createFileRoute(
       ),
     ]);
     // `previewStatus` rides the loaderData up to the `_previewable` layout,
-    // which reads the deepest match carrying it to tone the preview bar.
-    return { slug: detail.slug, previewStatus: detail.previewStatus };
+    // which reads the deepest match carrying it to tone the preview bar. Read
+    // it back from cache (undefined when the prefetch failed) so the loader
+    // never throws.
+    const detail = queryClient.getQueryData(detailQuery.queryKey);
+    return { slug: detail?.slug, previewStatus: detail?.previewStatus };
   },
   component: AlertDetailPage,
 });
@@ -164,6 +174,7 @@ function AlertDetailPage() {
     null,
   );
   const [newSilenceOpen, setNewSilenceOpen] = useState(false);
+  const [testResult, setTestResult] = useState<CcTestResult | null>(null);
 
   const setActive = useMutation({
     mutationFn: (active: boolean) =>
@@ -173,6 +184,13 @@ function AlertDetailPage() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["alerts"] });
     },
+  });
+
+  // Ad-hoc evaluation of the alert's current spec: no state change, so the
+  // result is held in local state rather than the query cache.
+  const runTest = useMutation({
+    mutationFn: () => testAlert({ data: { alertId } }),
+    onSuccess: (result) => setTestResult(result),
   });
 
   if (alert.isPending) {
@@ -407,6 +425,15 @@ function AlertDetailPage() {
                   {detail.parsedQuery}
                 </pre>
               </div>
+
+              {!isPreviewRule && (
+                <RunTest
+                  isPending={runTest.isPending}
+                  error={runTest.error}
+                  onRun={() => runTest.mutate()}
+                  result={testResult}
+                />
+              )}
             </div>
 
             <div className="grid h-fit grid-cols-[auto_1fr] items-start gap-x-3 gap-y-2 text-xs">
@@ -528,6 +555,82 @@ function AlertDetailPage() {
           }}
         />
       )}
+    </div>
+  );
+}
+
+// Run an ad-hoc evaluation of the alert's spec against ClickHouse without
+// changing any state, mirroring the power-user rule page's "Run test": a button,
+// a matched-row count, and a compact result table. An empty match is a
+// first-class result (the alert would not fire), distinct from an error.
+function RunTest({
+  isPending,
+  error,
+  onRun,
+  result,
+}: {
+  isPending: boolean;
+  error: Error | null;
+  onRun: () => void;
+  result: CcTestResult | null;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-2">
+        <span className="text-muted-foreground text-xs">Test evaluation</span>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={isPending}
+          onClick={onRun}
+        >
+          {isPending ? (
+            <Loader2 data-icon="inline-start" className="animate-spin" />
+          ) : (
+            <FlaskConical data-icon="inline-start" />
+          )}
+          {isPending ? "Running…" : "Run test"}
+        </Button>
+      </div>
+      {error && (
+        <p className="text-sm text-destructive" role="alert">
+          {error.message}
+        </p>
+      )}
+      {result &&
+        (result.rows.length === 0 ? (
+          <p className="text-xs text-muted-foreground">
+            0 rows — the alert would not fire. No state changed.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <p className="text-xs text-muted-foreground">
+              Matched{" "}
+              <span className="font-medium text-foreground tabular-nums">
+                {result.matched}
+              </span>{" "}
+              row(s) — no state changed.
+            </p>
+            <DataTable
+              data={result.rows}
+              columns={[
+                {
+                  header: "Labels",
+                  cell: (row) => <KeyValueList values={row.labels} />,
+                },
+                {
+                  header: "Value",
+                  cell: (row) => (
+                    <span className="font-mono text-xs tabular-nums">
+                      {row.value ?? "-"}
+                    </span>
+                  ),
+                },
+              ]}
+              rowKey={(_, i) => String(i)}
+            />
+          </div>
+        ))}
     </div>
   );
 }
