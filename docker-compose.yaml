@@ -129,7 +129,9 @@ services:
       CC_NODE_ID: node-1
       CC_PG_URL: postgres://postgres:postgres@postgres:5432/clickety_clack
       CC_REDIS_URL: redis://redis:6379
-      CC_CH_URL: http://clickhouse:8123
+      # database=app: rule SQL uses unqualified table names (logs, metrics_gauge, ...)
+      # that live in the app database, matching the SQL API's CLICKHOUSE_DATABASE.
+      CC_CH_URL: http://clickhouse:8123/?database=app
       CC_CH_USER: default
       CC_CH_PASSWORD: everr
       CC_CH_AUTH_MODE: shared
