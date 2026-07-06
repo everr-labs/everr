@@ -1,17 +1,16 @@
 // packages/app/src/routes/_authenticated/_dashboard/alerts_.notifications.tsx
 //
-// The single layered home for alert delivery configuration: where alerts go
-// by default, the custom rules that redirect specific alerts elsewhere, and
-// (collapsed) the advanced dependency-mute / webhook-feed / channel controls.
-// Replaces the alerts list's notification-settings dialog and the retired
-// power-user CC routing page.
+// The single home for alert delivery configuration, five sections deep: where
+// alerts go by default, the notification rules that redirect specific alerts,
+// dependency mutes, the webhook feed, and the read-only channel list. Replaces
+// the alerts list's notification-settings dialog and the retired power-user CC
+// routing page.
 import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
 import {
   Card,
   CardAction,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@everr/ui/components/card";
@@ -42,7 +41,6 @@ import {
 import { createFileRoute } from "@tanstack/react-router";
 import {
   BellMinus,
-  ChevronDown,
   ChevronRight,
   Inbox,
   type LucideIcon,
@@ -58,10 +56,8 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { HelpTip } from "@/components/cc/help-tip";
 import { InhibitionBuilder } from "@/components/cc/inhibition-builder";
 import { matchersPhrase } from "@/components/cc/matchers-editor";
-import { CcPipelineDiagram } from "@/components/cc/pipeline-diagram";
 import { RouteBuilder } from "@/components/cc/route-builder";
 import {
   CcEmptyState,
@@ -88,11 +84,9 @@ import {
   deleteCcInhibition,
   deleteCcRoute,
   deleteCcSubscription,
-  listCcAlerts,
   listCcInhibitions,
   listCcReceivers,
   listCcRoutes,
-  listCcSilences,
   listCcSubscriptions,
 } from "@/data/cc/server";
 import type { CcReceiver, CcRoute } from "@/data/cc/types";
@@ -116,13 +110,6 @@ const q = {
       queryKey: ["cc", "subscriptions"],
       queryFn: () => listCcSubscriptions(),
     }),
-  alerts: () =>
-    queryOptions({ queryKey: ["cc", "alerts"], queryFn: () => listCcAlerts() }),
-  silences: () =>
-    queryOptions({
-      queryKey: ["cc", "silences"],
-      queryFn: () => listCcSilences(),
-    }),
 };
 
 export const Route = createFileRoute(
@@ -137,26 +124,30 @@ export const Route = createFileRoute(
       queryClient.prefetchQuery(q.receivers()),
       queryClient.prefetchQuery(q.inhibitions()),
       queryClient.prefetchQuery(q.subscriptions()),
-      queryClient.prefetchQuery(q.alerts()),
-      queryClient.prefetchQuery(q.silences()),
     ]),
   component: NotificationsPage,
 });
 
 function NotificationsPage() {
   return (
-    <div className="flex w-full max-w-3xl flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-bold tracking-tight">Notifications</h1>
-        <p className="text-muted-foreground">
-          Where alerts go, the custom rules that redirect them, and advanced
-          delivery controls.
-        </p>
-      </div>
+    <div className="flex w-full flex-col gap-6">
+      <h1 className="text-xl font-bold tracking-tight">Notifications</h1>
       <WhereAlertsGoCard />
-      <CustomRulesCard />
-      <AdvancedSection />
+      <NotificationRulesCard />
+      <DependencyMutesCard />
+      <WebhookFeedCard />
+      <ChannelsCard />
     </div>
+  );
+}
+
+/** Muted count beside a section title; hidden until the data is in. */
+function SectionCount({ value }: { value: number | undefined }) {
+  if (value === undefined) return null;
+  return (
+    <span className="text-sm font-normal text-muted-foreground tabular-nums">
+      {value}
+    </span>
   );
 }
 
@@ -168,7 +159,6 @@ function WhereAlertsGoCard() {
     <Card>
       <CardHeader>
         <CardTitle>Where alerts go</CardTitle>
-        <CardDescription>All alerts notify these channels.</CardDescription>
       </CardHeader>
       <CardContent>
         {settings.isError ? (
@@ -471,7 +461,7 @@ function DeliverySettingsForm({
   );
 }
 
-// ── 2. Custom notification rules ────────────────────────────────────────────
+// ── 2. Notification rules ────────────────────────────────────────────────────
 
 const CHANNEL_TYPE_LABEL: Record<CcReceiver["channel"]["type"], string> = {
   slack: "Slack",
@@ -504,7 +494,7 @@ function RuleTiming({ route }: { route: CcRoute }) {
         Timing
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <dl className="mt-1.5 grid grid-cols-3 gap-3 text-xs">
+        <dl className="mt-1.5 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
           <div>
             <dt className="text-muted-foreground">wait</dt>
             <dd className="tabular-nums">{fmtTiming(route.group_wait_secs)}</dd>
@@ -521,7 +511,18 @@ function RuleTiming({ route }: { route: CcRoute }) {
               {fmtTiming(route.repeat_interval_secs)}
             </dd>
           </div>
+          <div>
+            <dt className="text-muted-foreground">bundle by</dt>
+            <dd className="font-mono">
+              {route.group_by?.join(", ") || "default"}
+            </dd>
+          </div>
         </dl>
+        {route.continue && (
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            Keeps checking later rules after this one matches.
+          </p>
+        )}
       </CollapsibleContent>
     </Collapsible>
   );
@@ -546,8 +547,10 @@ function RuleRow({
         <div className="min-w-0 space-y-1.5">
           <p className="text-sm">{ruleSentence(route, receivers)}</p>
           <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline" className="tabular-nums">
+              #{route.priority}
+            </Badge>
             <Conditions matchers={route.matchers} emptyLabel="any alert" />
-            <Badge variant="outline">Priority #{route.priority}</Badge>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
@@ -575,7 +578,7 @@ function RuleRow({
   );
 }
 
-function CustomRulesCard() {
+function NotificationRulesCard() {
   const qc = useQueryClient();
   const routesQuery = useQuery(q.routes());
   const receiversQuery = useQuery(q.receivers());
@@ -600,14 +603,10 @@ function CustomRulesCard() {
   return (
     <Card id="routes" inset="flush-content" className="scroll-mt-4">
       <CardHeader className="px-3">
-        <span className="flex items-center gap-1.5">
-          <CardTitle>Custom notification rules</CardTitle>
-          <HelpTip text="A rule redirects alerts matching its conditions to a specific channel, ahead of the defaults." />
+        <span className="flex items-center gap-2">
+          <CardTitle>Notification rules</CardTitle>
+          <SectionCount value={routesQuery.data ? rules.length : undefined} />
         </span>
-        <CardDescription>
-          Send specific alerts to a specific channel. Checked top-to-bottom by
-          priority; the first match wins.
-        </CardDescription>
         <CardAction>
           <Button onClick={() => setEditing("new")}>
             <Plus data-icon="inline-start" />
@@ -625,8 +624,8 @@ function CustomRulesCard() {
         ) : rules.length === 0 ? (
           <CcEmptyState
             icon={Waypoints}
-            title="No custom notification rules"
-            hint="Add a rule to send specific alerts to a specific channel."
+            title="No notification rules"
+            hint="A rule sends specific alerts to a specific channel; rules are checked in priority order and the first match wins."
           />
         ) : (
           <ul className="divide-y divide-border/60">
@@ -656,37 +655,9 @@ function CustomRulesCard() {
   );
 }
 
-// ── 3. Advanced ──────────────────────────────────────────────────────────────
+// ── 3. Dependency mutes ──────────────────────────────────────────────────────
 
-function PipelineOverview() {
-  const routesQuery = useQuery(q.routes());
-  const receiversQuery = useQuery(q.receivers());
-  const inhibitionsQuery = useQuery(q.inhibitions());
-  const alertsQuery = useQuery(q.alerts());
-  const silencesQuery = useQuery(q.silences());
-
-  const now = Date.now();
-  const firing = (alertsQuery.data ?? []).filter(
-    (a) => a.status === "firing",
-  ).length;
-  const activeMutes = (silencesQuery.data ?? []).filter(
-    (s) =>
-      new Date(s.starts_at).getTime() <= now &&
-      now < new Date(s.ends_at).getTime(),
-  ).length;
-
-  return (
-    <CcPipelineDiagram
-      firing={firing}
-      routeCount={(routesQuery.data ?? []).length}
-      receiverCount={(receiversQuery.data ?? []).length}
-      silenceCount={activeMutes}
-      inhibitionCount={(inhibitionsQuery.data ?? []).length}
-    />
-  );
-}
-
-function DependencyMutesSection() {
+function DependencyMutesCard() {
   const qc = useQueryClient();
   const { data, isPending, isError, error } = useQuery(q.inhibitions());
   const [open, setOpen] = useState(false);
@@ -701,79 +672,81 @@ function DependencyMutesSection() {
   });
 
   return (
-    <div className="space-y-3 rounded-md border border-border/60 p-3">
-      <div className="flex items-center justify-between gap-2">
-        <div>
-          <span className="flex items-center gap-1.5">
-            <h3 className="text-sm font-medium">Dependency mutes</h3>
-            <HelpTip text="While the higher-level alert you pick is firing, this mutes the downstream one you chose." />
-          </span>
-          <p className="text-xs text-muted-foreground">
-            Mute noisy downstream alerts while a related, higher-level alert is
-            already firing.
-          </p>
-        </div>
-        <Button size="sm" onClick={() => setOpen(true)}>
-          <Plus data-icon="inline-start" />
-          New dependency mute
-        </Button>
-      </div>
-      {isError ? (
-        <CcQueryError error={error} />
-      ) : isPending ? (
-        <CcTableSkeleton rows={2} />
-      ) : (data ?? []).length === 0 ? (
-        <CcEmptyState
-          icon={BellMinus}
-          title="No dependency mutes"
-          hint="Add one to mute downstream alerts while a higher-level alert is already firing."
-        />
-      ) : (
-        <ul className="divide-y divide-border/60">
-          {(data ?? []).map((r) => (
-            <li
-              key={r.id}
-              className="flex items-start gap-3 py-2.5 text-xs leading-relaxed"
-            >
-              <div className="min-w-0 flex-1">
-                While{" "}
-                <span className="inline-flex flex-wrap items-center gap-1 align-middle">
-                  <Conditions matchers={r.source_matchers} />
-                </span>{" "}
-                fires, mute{" "}
-                <span className="inline-flex flex-wrap items-center gap-1 align-middle">
-                  <Conditions matchers={r.target_matchers} />
-                </span>
-                {(r.equal ?? []).length > 0 && (
-                  <>
-                    {" "}
-                    sharing{" "}
-                    <span className="font-mono text-muted-foreground">
-                      {(r.equal ?? []).join(", ")}
-                    </span>
-                  </>
-                )}
-                .
-              </div>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Delete dependency mute"
-                disabled={remove.isPending}
-                onClick={() => remove.mutate(r.id)}
+    <Card id="inhibitions" inset="flush-content" className="scroll-mt-4">
+      <CardHeader className="px-3">
+        <span className="flex items-center gap-2">
+          <CardTitle>Dependency mutes</CardTitle>
+          <SectionCount value={data?.length} />
+        </span>
+        <CardAction>
+          <Button onClick={() => setOpen(true)}>
+            <Plus data-icon="inline-start" />
+            New dependency mute
+          </Button>
+        </CardAction>
+      </CardHeader>
+      <CardContent>
+        {isError ? (
+          <div className="px-3 pb-3">
+            <CcQueryError error={error} />
+          </div>
+        ) : isPending ? (
+          <CcTableSkeleton rows={2} />
+        ) : (data ?? []).length === 0 ? (
+          <CcEmptyState
+            icon={BellMinus}
+            title="No dependency mutes"
+            hint="Add one to mute downstream alerts while a higher-level alert is already firing."
+          />
+        ) : (
+          <ul className="divide-y divide-border/60">
+            {(data ?? []).map((r) => (
+              <li
+                key={r.id}
+                className="flex items-start gap-3 px-3 py-2.5 text-xs leading-relaxed"
               >
-                <Trash2 />
-              </Button>
-            </li>
-          ))}
-        </ul>
-      )}
+                <div className="min-w-0 flex-1">
+                  While{" "}
+                  <span className="inline-flex flex-wrap items-center gap-1 align-middle">
+                    <Conditions matchers={r.source_matchers} />
+                  </span>{" "}
+                  fires, mute{" "}
+                  <span className="inline-flex flex-wrap items-center gap-1 align-middle">
+                    <Conditions matchers={r.target_matchers} />
+                  </span>
+                  {(r.equal ?? []).length > 0 && (
+                    <>
+                      {" "}
+                      sharing{" "}
+                      <span className="font-mono text-muted-foreground">
+                        {(r.equal ?? []).join(", ")}
+                      </span>
+                    </>
+                  )}
+                  .
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Delete dependency mute"
+                  disabled={remove.isPending}
+                  onClick={() => remove.mutate(r.id)}
+                >
+                  <Trash2 />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
       <InhibitionBuilder open={open} onOpenChange={setOpen} />
-    </div>
+    </Card>
   );
 }
 
-function WebhookFeedSection() {
+// ── 4. Webhook feed ──────────────────────────────────────────────────────────
+
+function WebhookFeedCard() {
   const qc = useQueryClient();
   const { data, isPending, isError, error } = useQuery(q.subscriptions());
   const [url, setUrl] = useState("");
@@ -798,84 +771,83 @@ function WebhookFeedSection() {
   });
 
   return (
-    <div
-      id="firehose"
-      className="scroll-mt-4 space-y-3 rounded-md border border-border/60 p-3"
-    >
-      <div>
-        <span className="flex items-center gap-1.5">
-          <h3 className="text-sm font-medium">Webhook feed</h3>
-          <HelpTip text="Every alert event is POSTed to each webhook URL below, as it happens." />
+    <Card id="firehose" inset="flush-content" className="scroll-mt-4">
+      <CardHeader className="px-3">
+        <span className="flex items-center gap-2">
+          <CardTitle>Webhook feed</CardTitle>
+          <SectionCount value={data?.length} />
         </span>
-        <p className="text-xs text-muted-foreground">
-          The fallback: alerts that match no custom notification rule are
-          delivered to every webhook below.
-        </p>
-      </div>
-      {isError ? (
-        <CcQueryError error={error} />
-      ) : isPending ? (
-        <CcTableSkeleton rows={2} />
-      ) : (data ?? []).length === 0 ? (
-        <CcEmptyState
-          icon={Webhook}
-          title="No webhooks"
-          hint="Add a webhook URL below to receive every alert that matches no custom notification rule."
-        />
-      ) : (
-        <ul className="divide-y divide-border/60">
-          {(data ?? []).map((s) => (
-            <li key={s.id} className="flex items-center gap-3 py-2.5">
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                <Webhook className="size-3.5" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="truncate font-mono text-xs">
-                  {s.webhook_url}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  Added {ccFormatTs(s.created_at)}
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Delete webhook"
-                disabled={remove.isPending}
-                onClick={() => remove.mutate(s.id)}
-              >
-                <Trash2 />
-              </Button>
-            </li>
-          ))}
-        </ul>
-      )}
-      <form
-        className="flex items-end gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (url && !create.isPending) create.mutate();
-        }}
-      >
-        <div className="flex-1 space-y-1.5">
-          <Label htmlFor="webhook-feed-url">Webhook URL</Label>
-          <Input
-            id="webhook-feed-url"
-            type="url"
-            className="font-mono"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://example.com/hook"
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {isError ? (
+          <div className="px-3">
+            <CcQueryError error={error} />
+          </div>
+        ) : isPending ? (
+          <CcTableSkeleton rows={2} />
+        ) : (data ?? []).length === 0 ? (
+          <CcEmptyState
+            icon={Webhook}
+            title="No webhooks"
+            hint="Add a webhook URL below to receive every alert that matches no notification rule."
           />
-        </div>
-        <Button type="submit" disabled={!url || create.isPending}>
-          <Plus data-icon="inline-start" />
-          Add
-        </Button>
-      </form>
-    </div>
+        ) : (
+          <ul className="divide-y divide-border/60">
+            {(data ?? []).map((s) => (
+              <li key={s.id} className="flex items-center gap-3 px-3 py-2.5">
+                <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                  <Webhook className="size-3.5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-mono text-xs">
+                    {s.webhook_url}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Added {ccFormatTs(s.created_at)}
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Delete webhook"
+                  disabled={remove.isPending}
+                  onClick={() => remove.mutate(s.id)}
+                >
+                  <Trash2 />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <form
+          className="flex items-end gap-2 px-3 pb-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (url && !create.isPending) create.mutate();
+          }}
+        >
+          <div className="flex-1 space-y-1.5">
+            <Label htmlFor="webhook-feed-url">Webhook URL</Label>
+            <Input
+              id="webhook-feed-url"
+              type="url"
+              className="font-mono"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://example.com/hook"
+            />
+          </div>
+          <Button type="submit" disabled={!url || create.isPending}>
+            <Plus data-icon="inline-start" />
+            Add
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
+
+// ── 5. Channels ──────────────────────────────────────────────────────────────
 
 // Ownership marker the as-code receiver reconciler stamps (data/cc/apply.server.ts).
 const RECEIVER_MANAGED_KEY = "everr.managed";
@@ -905,92 +877,66 @@ function channelTarget(c: CcReceiver["channel"]): string {
   }
 }
 
-function ChannelsSection() {
+function ChannelsCard() {
   const { data, isPending, isError, error } = useQuery(q.receivers());
   return (
-    <div
-      id="receivers"
-      className="scroll-mt-4 space-y-2 rounded-md border border-border/60 p-3"
-    >
-      <div>
-        <span className="flex items-center gap-1.5">
-          <h3 className="text-sm font-medium">Channels</h3>
-          <HelpTip text="Channels are managed as code; add one by declaring it in your repo and running everr apply." />
+    <Card id="receivers" inset="flush-content" className="scroll-mt-4">
+      <CardHeader className="px-3">
+        <span className="flex items-center gap-2">
+          <CardTitle>Channels</CardTitle>
+          <SectionCount value={data?.length} />
         </span>
-        <p className="text-xs text-muted-foreground">
-          Ones managed as code with{" "}
-          <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.6875rem]">
-            everr apply
-          </code>{" "}
-          are marked <span className="font-medium">as code</span>; secrets are
-          redacted here. Not editable in the UI.
-        </p>
-      </div>
-      {isError ? (
-        <CcQueryError error={error} />
-      ) : isPending ? (
-        <CcTableSkeleton rows={3} />
-      ) : (data ?? []).length === 0 ? (
-        <CcEmptyState
-          icon={Inbox}
-          title="No channels defined"
-          hint="Define Slack, webhook, PagerDuty, or email channels as code, then apply them."
-        />
-      ) : (
-        <ul className="divide-y divide-border/60">
-          {(data ?? []).map((r) => {
-            const Icon = CHANNEL_ICON[r.channel.type];
-            return (
-              <li key={r.name} className="flex items-center gap-3 py-2.5">
-                <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                  <Icon className="size-3.5" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">{r.name}</span>
-                    {isAsCodeReceiver(r) ? (
-                      <Badge variant="outline">as code</Badge>
-                    ) : null}
-                  </div>
-                  <div className="truncate font-mono text-xs text-muted-foreground">
-                    {channelTarget(r.channel) || r.channel.type}
-                  </div>
-                </div>
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {r.channel.type}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-function AdvancedSection() {
-  return (
-    <Collapsible defaultOpen={false}>
-      <Card inset="flush-content">
-        <CollapsibleTrigger className="group flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left hover:bg-muted/30">
-          <div>
-            <CardTitle>Advanced</CardTitle>
-            <CardDescription>
-              The delivery pipeline, dependency mutes, the webhook feed, and
-              read-only channels.
-            </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {isError ? (
+          <div className="px-3 pb-3">
+            <CcQueryError error={error} />
           </div>
-          <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[panel-open]:rotate-180" />
-        </CollapsibleTrigger>
-        <CollapsibleContent>
-          <CardContent className="space-y-4 pb-3 pt-1">
-            <PipelineOverview />
-            <DependencyMutesSection />
-            <WebhookFeedSection />
-            <ChannelsSection />
-          </CardContent>
-        </CollapsibleContent>
-      </Card>
-    </Collapsible>
+        ) : isPending ? (
+          <CcTableSkeleton rows={3} />
+        ) : (data ?? []).length === 0 ? (
+          <CcEmptyState
+            icon={Inbox}
+            title="No channels defined"
+            hint={
+              <>
+                Define Slack, webhook, PagerDuty, or email channels as code,
+                then apply them with <code>everr apply</code>.
+              </>
+            }
+          />
+        ) : (
+          <ul className="divide-y divide-border/60">
+            {(data ?? []).map((r) => {
+              const Icon = CHANNEL_ICON[r.channel.type];
+              return (
+                <li
+                  key={r.name}
+                  className="flex items-center gap-3 px-3 py-2.5"
+                >
+                  <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                    <Icon className="size-3.5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">{r.name}</span>
+                      {isAsCodeReceiver(r) ? (
+                        <Badge variant="outline">as code</Badge>
+                      ) : null}
+                    </div>
+                    <div className="truncate font-mono text-xs text-muted-foreground">
+                      {channelTarget(r.channel) || r.channel.type}
+                    </div>
+                  </div>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {r.channel.type}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
   );
 }

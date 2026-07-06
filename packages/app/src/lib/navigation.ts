@@ -43,7 +43,7 @@ export const navMain: NavItem[] = [
       { title: "Overview", url: "/cc-alerting/overview" },
       { title: "Monitor", url: "/cc-alerting/monitor" },
       { title: "Rules", url: "/cc-alerting/rules" },
-      { title: "Routing", url: "/cc-alerting/routing" },
+      { title: "Notifications", url: "/alerts/notifications" },
     ],
   },
   {

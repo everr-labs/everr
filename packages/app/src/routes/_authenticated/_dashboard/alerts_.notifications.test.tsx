@@ -223,39 +223,34 @@ describe("/alerts/notifications route", () => {
     listCcSilences.mockClear();
   });
 
-  it("renders the three layered sections in order, with Advanced collapsed", async () => {
+  it("renders the five sections in order, all visible", async () => {
+    receiversData = [ccReceiver()];
     renderNotificationsRoute();
 
     await screen.findByText("Where alerts go");
-    // Sections 1-2 are expanded by default; wait for their async content.
+    // Async section content settles before the order assertion.
     await screen.findByText("Email");
-    await screen.findByText("No custom notification rules");
+    await screen.findByText("No notification rules");
+    await screen.findByText("No dependency mutes");
+    await screen.findByText("No webhooks");
 
     expect(cardTitles()).toEqual([
       "Where alerts go",
-      "Custom notification rules",
-      "Advanced",
+      "Notification rules",
+      "Dependency mutes",
+      "Webhook feed",
+      "Channels",
     ]);
     expect(screen.getByText("Remind every")).toBeInTheDocument();
-
-    // Advanced is collapsed: its content isn't mounted.
-    expect(screen.queryByText("Dependency mutes")).not.toBeInTheDocument();
-    expect(screen.queryByText("Webhook feed")).not.toBeInTheDocument();
-    expect(screen.queryByText("Channels")).not.toBeInTheDocument();
   });
 
-  it("expands Advanced to reveal the pipeline, mutes, webhook feed, and channels", async () => {
-    receiversData = [ccReceiver()];
-    const user = userEvent.setup();
-
+  it("keeps the section anchors existing links point at", async () => {
     renderNotificationsRoute();
     await screen.findByText("Where alerts go");
 
-    await user.click(screen.getByRole("button", { name: /Advanced/i }));
-
-    expect(await screen.findByText("Dependency mutes")).toBeInTheDocument();
-    expect(screen.getByText("Webhook feed")).toBeInTheDocument();
-    expect(screen.getByText("Channels")).toBeInTheDocument();
+    for (const anchor of ["routes", "inhibitions", "firehose", "receivers"]) {
+      expect(document.getElementById(anchor)).toBeInTheDocument();
+    }
   });
 
   it("renders a non-managed rule's sentence via matchersPhrase and excludes managed catch-all routes", async () => {

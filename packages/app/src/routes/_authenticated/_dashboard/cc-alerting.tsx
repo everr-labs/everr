@@ -10,12 +10,13 @@ import { PageContainer } from "@/components/page-container";
 type CcNavItem = { label: string; to: string };
 
 // Four intent-named destinations, collapsed from the original eight facets:
-// learn the model, watch what's happening, see what's watched, configure delivery.
+// learn the model, watch what's happening, see what's watched, configure
+// delivery (delivery lives on the unified notifications page).
 const NAV_ITEMS: CcNavItem[] = [
   { label: "Overview", to: "/cc-alerting/overview" },
   { label: "Monitor", to: "/cc-alerting/monitor" },
   { label: "Rules", to: "/cc-alerting/rules" },
-  { label: "Routing", to: "/cc-alerting/routing" },
+  { label: "Notifications", to: "/alerts/notifications" },
 ];
 
 export const Route = createFileRoute("/_authenticated/_dashboard/cc-alerting")({
