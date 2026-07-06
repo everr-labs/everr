@@ -89,7 +89,9 @@ const TONE_DOT: Record<Tone, string> = {
 
 const TONE_TEXT: Record<Tone, string> = {
   firing: "text-destructive",
-  degraded: "text-destructive",
+  // Matches the amber degraded dot above — degraded is a health warning, not
+  // the firing red.
+  degraded: "text-amber-600 dark:text-amber-400",
   pending: "text-foreground",
   live: "text-foreground",
   healthy: "text-muted-foreground",

@@ -110,6 +110,7 @@ function alertSummary(overrides: Partial<AlertSummary> = {}): AlertSummary {
     health: "healthy",
     healthError: null,
     healthConsecutiveFailures: 0,
+    healthLastErrorAt: null,
     lastFiredAt: null,
     lastResolvedAt: "2026-07-05T00:00:00.000Z",
     lastSeenAt: "2026-07-05T00:00:00.000Z",
@@ -379,6 +380,7 @@ describe("/alerts route", () => {
         health: "degraded",
         healthError: "boom",
         healthConsecutiveFailures: 3,
+        healthLastErrorAt: "2026-07-05T00:00:00.000Z",
         lastSeenAt: "2026-07-05T00:00:00.000Z",
         evaluationIntervalSeconds: 60,
       }),
@@ -387,13 +389,20 @@ describe("/alerts route", () => {
     renderAlertsRoute(["/alerts"]);
     await screen.findByText("healthy-rule");
 
-    // The degraded rule's dot carries the diagnostic detail in its tooltip.
+    // The degraded rule's dot carries the diagnostic detail in its tooltip:
+    // failure streak, last error, when it last FAILED (CC stamps last_error_at
+    // on every failed attempt — lastSeenAt freezes during a degraded streak so
+    // it must not be presented as evaluation recency), and cadence.
     const degradedDot = screen.getByTitle(/3 consecutive failures/i);
     expect(degradedDot.title).toMatch(/boom/i);
+    expect(degradedDot.title).toMatch(/last failed/i);
     expect(degradedDot.title).toMatch(/checks every 1m/i);
+    expect(degradedDot.title).not.toMatch(/last evaluated|last active/i);
 
-    // The healthy rule's dot stays calm: no failure detail.
+    // The healthy rule's dot stays calm: recency labeled honestly as activity
+    // (lastSeenAt only advances when the query returns rows), no failure detail.
     const healthyDot = screen.getByTitle(/^healthy/i);
+    expect(healthyDot.title).toMatch(/last active/i);
     expect(healthyDot.title).not.toMatch(/consecutive failures/i);
   });
 
@@ -433,7 +442,7 @@ describe("/alerts route", () => {
     expect(screen.queryByText("healthy-rule")).not.toBeInTheDocument();
   });
 
-  it("shows checks-every and last-evaluated facts in the expanded firing row", async () => {
+  it("shows checks-every and last-active facts in the expanded firing row", async () => {
     alertsData = [
       alertSummary({
         currentState: "firing",
@@ -454,7 +463,7 @@ describe("/alerts route", () => {
     );
 
     expect(await screen.findByText(/checks every 5m/i)).toBeInTheDocument();
-    expect(screen.getByText(/last evaluated/i)).toBeInTheDocument();
+    expect(screen.getByText(/last active/i)).toBeInTheDocument();
   });
 
   it("never renders the word 'silence' in the alerts home", async () => {

@@ -11,6 +11,7 @@ import {
   PopoverTrigger,
 } from "@everr/ui/components/popover";
 import { Skeleton } from "@everr/ui/components/skeleton";
+import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { cn } from "@everr/ui/lib/utils";
 import {
   queryOptions,
@@ -60,7 +61,6 @@ import type { CcAlert, CcSilence } from "@/data/cc/types";
 import { useCcInvalidation } from "@/hooks/use-cc-invalidation";
 import {
   AlertStateBadges,
-  formatDate,
   formatInterval,
   isEvaluationStale,
   QueryErrorMessage,
@@ -149,21 +149,28 @@ function alertMatchesFilter(alert: AlertSummary, filter: AlertListFilter) {
 
 // The health dot's tooltip: always names checks-every (the baseline cadence),
 // and, once degraded, layers in the diagnostic facts (consecutive failures,
-// last error, last evaluation) that explain why. CC's health object only
-// timestamps failures (not every attempt), so "last evaluated" here is the
-// rule's last recorded activity (`lastSeenAt`) rather than a dedicated field.
+// last error, when it last failed) that explain why. Recency is sourced
+// honestly per state: while degraded, `healthLastErrorAt` — CC stamps it on
+// every failed attempt, whereas `lastSeenAt` (rollup.last_seen_at) only
+// advances when the query returns rows and freezes mid-streak; while healthy,
+// `lastSeenAt` labeled as "last active" (activity-gated, not eval-gated).
 function healthTooltip(alert: AlertSummary): string {
   const checksEvery = `checks every ${formatInterval(alert.evaluationIntervalSeconds)}`;
   if (alert.health === "healthy") {
-    return `Healthy · ${checksEvery}`;
+    const parts = ["Healthy"];
+    if (alert.lastSeenAt) {
+      parts.push(`last active ${formatRelativeTime(alert.lastSeenAt)}`);
+    }
+    parts.push(checksEvery);
+    return parts.join(" · ");
   }
   const failures = alert.healthConsecutiveFailures;
   const parts = [
     `Degraded · ${failures} consecutive ${failures === 1 ? "failure" : "failures"}`,
   ];
   if (alert.healthError) parts.push(`last error: ${alert.healthError}`);
-  if (alert.lastSeenAt) {
-    parts.push(`last evaluated ${formatDate(alert.lastSeenAt)}`);
+  if (alert.healthLastErrorAt) {
+    parts.push(`last failed ${formatRelativeTime(alert.healthLastErrorAt)}`);
   }
   parts.push(checksEvery);
   return parts.join(" · ");
@@ -825,7 +832,7 @@ function AlertsPage() {
                                     checksEverySeconds={
                                       alert.evaluationIntervalSeconds
                                     }
-                                    lastEvaluatedAt={alert.lastSeenAt}
+                                    lastActiveAt={alert.lastSeenAt}
                                   />
                                 </td>
                               </tr>
@@ -852,7 +859,7 @@ function FiringRowDetail({
   onMute,
   mutingKey,
   checksEverySeconds,
-  lastEvaluatedAt,
+  lastActiveAt,
 }: {
   instances: CcAlert[];
   isLoading: boolean;
@@ -860,7 +867,7 @@ function FiringRowDetail({
   onMute: (instance: CcAlert) => void;
   mutingKey?: string;
   checksEverySeconds: number;
-  lastEvaluatedAt: string | null;
+  lastActiveAt: string | null;
 }) {
   if (isError) {
     return (
@@ -881,8 +888,11 @@ function FiringRowDetail({
     <div className="flex flex-col gap-2 px-3 py-3">
       <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
         <span>checks every {formatInterval(checksEverySeconds)}</span>
+        {/* "last active", not "last evaluated": rollup.last_seen_at only
+            advances when the query returns rows, so it measures activity,
+            not evaluation attempts. */}
         <span>
-          last evaluated <RelativeTime value={lastEvaluatedAt} />
+          last active <RelativeTime value={lastActiveAt} />
         </span>
       </div>
       {instances.length === 0 && (

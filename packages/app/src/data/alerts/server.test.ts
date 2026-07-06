@@ -236,6 +236,7 @@ describe("listAlerts", () => {
     expect(out[0].health).toBe("degraded");
     expect(out[0].healthError).toBe("boom");
     expect(out[0].healthConsecutiveFailures).toBe(3);
+    expect(out[0].healthLastErrorAt).toBe("2026-01-01T00:00:00Z");
     expect(out[0].runbookProject).toBe("web");
     expect(out[0].runbookSlug).toBe("db-latency");
     expect(out[0].lastSeenAt).toBe("2026-06-01T00:00:00Z");
@@ -248,6 +249,7 @@ describe("listAlerts", () => {
     const out = await listAlerts();
     expect(out[0].health).toBe("healthy");
     expect(out[0].healthConsecutiveFailures).toBe(0);
+    expect(out[0].healthLastErrorAt).toBeNull();
   });
 
   it("excludes preview rules from the live list", async () => {
