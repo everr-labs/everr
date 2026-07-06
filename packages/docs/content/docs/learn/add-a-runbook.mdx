@@ -13,7 +13,7 @@ Everr ships the `everr-setup-resources` skill. Ask your Agent to draft the runbo
 /everr-setup-resources Add a runbook for the alert I just created: when to act, an embedded panel of the metric it fires on, and the steps to take
 ```
 
-The Agent inspects your telemetry, picks panels and queries that fit what you actually emit, writes the files, and validates them with `everr apply --dry-run`.
+The Agent inspects your telemetry, picks panels and queries that fit what you actually emit, writes the files, and stages them with `everr apply --preview`.
 
 ## Alternative: write it by hand
 
@@ -71,7 +71,7 @@ spec:
 3. If the delay keeps climbing, roll back the most recent change.
 ````
 
-The ```panel``` block is a full dashboard [Panel](/docs/dashboards/dashboard-spec), so swap the table and columns for whatever your telemetry uses.
+The ```panel``` block is a full dashboard [Panel](/docs/reference/dashboard-spec), so swap the table and columns for whatever your telemetry uses.
 
 ## Link it to the alert
 
@@ -86,15 +86,15 @@ spec:
   # ...the rest of the rule from step 5
 ```
 
-See the [AlertRule spec](/docs/alerts/alert-spec) for `spec.runbook` and every other field.
+See the [AlertRule spec](/docs/reference/alert-spec) for `spec.runbook` and every other field.
 
 ## Apply and view
 
 Apply reconciles the whole directory, so this creates the runbook and updates the alert in one step:
 
 ```sh
-everr apply ./everr --dry-run
-everr apply ./everr
+everr apply ./everr --preview     # stage and review via the printed link
+everr apply ./everr               # publish live
 ```
 
 Open Everr and go to **Runbooks**, or navigate directly to `/runbooks/default/eventloop-delay`. It renders read-only, with the panel running live against the time-range picker. When the alert fires, its notification now links straight to it.
@@ -103,6 +103,6 @@ Open Everr and go to **Runbooks**, or navigate directly to `/runbooks/default/ev
 
 You've completed getting started: install, instrument your app, production telemetry, first dashboard, first alert, and add a runbook. From here, go deeper in whichever area matches what you're doing next:
 
-- **Guides**: [CI insights](/docs/ci-insights/setup-new-repo), [dashboards](/docs/dashboards), and [alerts](/docs/alerts).
+- **Guides**: [connect a repo](/docs/guides/setup-new-repo), [observability as code](/docs/concepts/observability-as-code), and [how alerts evaluate](/docs/concepts/how-alerts-evaluate).
 - **Concepts**: [How Everr works](/docs).
-- **Reference**: the [CLI](/docs/reference/cli), the [AlertRule spec](/docs/alerts/alert-spec), and the [dashboard spec](/docs/dashboards/dashboard-spec).
+- **Reference**: the [CLI](/docs/reference/cli), the [AlertRule spec](/docs/reference/alert-spec), and the [dashboard spec](/docs/reference/dashboard-spec).
