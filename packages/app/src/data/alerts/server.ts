@@ -28,6 +28,7 @@ import {
   fromCcRuleSpec,
   isOwnedRule,
   OWN_PREVIEW,
+  OWN_REPO,
   previewIdOf,
 } from "./mapping";
 import {
@@ -128,6 +129,11 @@ export type AlertSummary = {
   previewId: string | null;
   // Set only by the preview-overlay read (listAlerts/getAlert with `preview`).
   previewStatus?: PreviewStatus;
+  // The `everr.repoid` annotation, verbatim, or null when the rule carries no
+  // everr ownership annotations at all (a power-user/bare CC rule). Distinct
+  // from `repoid` above, which falls back to `""` for display/identity
+  // purposes; this field exists so the UI can badge as-code rules.
+  ownedByRepo: string | null;
 };
 
 // CC RuleView → AlertSummary. The rolled-up alert state lives under the nested
@@ -162,6 +168,7 @@ function toSummary(r: CcRuleView, silence: ActiveSilenceInfo): AlertSummary {
     runbookProject: v.runbookProject,
     runbookSlug: v.runbookSlug,
     previewId: v.previewId,
+    ownedByRepo: r.spec.annotations?.[OWN_REPO] ?? null,
   };
 }
 
@@ -232,14 +239,14 @@ export const listAlerts = createAuthenticatedServerFn({ method: "GET" })
       cc.listRules(org),
       cc.listSilences(org),
     ]);
-    const managed = rules.filter((r) => isOwnedRule(r.spec));
     const summarize = (r: CcRuleView): AlertSummary =>
       toSummary(r, activeSilencesForRule(silences, r.id));
 
     if (preview === null) {
-      // Live list: preview rules (suppressed, everr.preview-tagged) belong to
+      // Live list: every tenant rule (everr-owned and bare alike), except
+      // preview rules (suppressed, everr.preview-tagged), which belong to
       // their preview's overlay and never show up here.
-      return managed.filter((r) => previewIdOf(r.spec) === null).map(summarize);
+      return rules.filter((r) => previewIdOf(r.spec) === null).map(summarize);
     }
 
     // Preview overlay, mirroring the dashboards/runbooks reads: this preview's
@@ -249,7 +256,7 @@ export const listAlerts = createAuthenticatedServerFn({ method: "GET" })
     // (id → repoid) rows and the overlay runs in memory over the CC listing.
     const registry = await getPreviewRegistry(org, preview);
     const overlaid = overlayPreview({
-      rows: managed
+      rows: rules
         // Live rules plus THIS preview's; other previews stay invisible.
         .filter((r) => {
           const pid = previewIdOf(r.spec);
@@ -302,8 +309,9 @@ export const getAlert = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(alertIdInput.extend({ preview: z.string().optional() }))
   .handler(async ({ data: { alertId, preview }, context: { session } }) => {
     const org = session.session.activeOrganizationId;
+    // Any tenant rule id works, everr-owned or bare: a nonexistent id surfaces
+    // as the CC 404 raised by getRule, not a managed-ownership guard here.
     const rule = await cc.getRule(org, alertId);
-    if (!isOwnedRule(rule.spec)) throw new Error("Alert not found");
     const view = fromCcRuleSpec(rule.spec);
     const [silences, previewStatus] = await Promise.all([
       cc.listSilences(org),
@@ -661,15 +669,16 @@ export const activateAlert = createAuthenticatedServerFn({ method: "POST" })
 
 // Ad-hoc evaluation of the alert's current spec against ClickHouse, changing no
 // state (no instances, events, or notifications). Gated like the pause/resume
-// mutations: the simplified page never exposes the raw CC spec, so — unlike the
-// power-user testCcRule — the spec is loaded here from the managed rule rather
+// mutations: the simplified page never exposes the raw CC spec, so, unlike the
+// power-user testCcRule, the spec is loaded here from the rule itself rather
 // than trusted from the client.
 export const testAlert = createAuthenticatedServerFn({ method: "POST" })
   .inputValidator(alertIdInput)
   .handler(async ({ data: { alertId }, context: { session } }) => {
     const org = session.session.activeOrganizationId;
     await ensureOrgAdmin();
+    // Any tenant rule id works, everr-owned or bare: a nonexistent id surfaces
+    // as the CC 404 raised by getRule, not a managed-ownership guard here.
     const rule = await cc.getRule(org, alertId);
-    if (!isOwnedRule(rule.spec)) throw new Error("Alert not found");
     return cc.testRule(org, alertId, rule.spec);
   });

@@ -127,18 +127,26 @@ beforeEach(() => {
 });
 
 describe("listAlerts", () => {
-  it("returns only everr-managed rules", async () => {
+  it("returns every tenant rule, everr-owned and bare alike", async () => {
     mock(cc.listRules).mockResolvedValue([
       ruleView(),
       ruleView({ id: "power", spec: { ...ruleView().spec, annotations: {} } }),
     ]);
     mock(cc.listSilences).mockResolvedValue([]);
     const out = await listAlerts();
-    expect(out.map((a) => a.id)).toEqual(["rule-1"]);
-    expect(out[0].slug).toBe("high-5xx");
-    expect(out[0].active).toBe(true);
-    expect(out[0].severity).toBe("info");
-    expect(out[0].currentState).toBe("resolved");
+    expect(out.map((a) => a.id)).toEqual(["rule-1", "power"]);
+    const owned = out.find((a) => a.id === "rule-1");
+    expect(owned?.slug).toBe("high-5xx");
+    expect(owned?.active).toBe(true);
+    expect(owned?.severity).toBe("info");
+    expect(owned?.currentState).toBe("resolved");
+    expect(owned?.ownedByRepo).toBe("repo-1");
+    // Bare CC rule (no everr annotations at all): fromCcRuleSpec's tolerant
+    // fallback, not a synthesized name.
+    const bare = out.find((a) => a.id === "power");
+    expect(bare?.slug).toBe("");
+    expect(bare?.displayName).toBeNull();
+    expect(bare?.ownedByRepo).toBeNull();
   });
 
   it("counts only active silences scoped by the rule label", async () => {
@@ -301,18 +309,16 @@ describe("listAlerts preview overlay", () => {
 });
 
 describe("getAlert", () => {
-  it("rejects non-managed rules", async () => {
+  it("returns non-managed (bare) rules", async () => {
     mock(cc.getRule).mockResolvedValue(
       ruleView({ spec: { ...ruleView().spec, annotations: {} } }),
     );
     mock(cc.listSilences).mockResolvedValue([]);
-    try {
-      await getAlert({ data: { alertId: "x" } });
-      expect.fail("expected getAlert to reject a non-managed rule");
-    } catch (error) {
-      expect(error).toBeInstanceOf(Error);
-      expect((error as Error).message).toBe("Alert not found");
-    }
+    const out = await getAlert({ data: { alertId: "x" } });
+    expect(out.slug).toBe("");
+    expect(out.displayName).toBeNull();
+    expect(out.ownedByRepo).toBeNull();
+    expect(out.display.name).toBeUndefined();
   });
 
   it("computes the overlay status of a preview rule in a preview context", async () => {
@@ -601,18 +607,16 @@ describe("testAlert", () => {
     expect(out).toEqual(testResult);
   });
 
-  it("rejects non-managed rules without testing", async () => {
-    mock(cc.getRule).mockResolvedValue(
-      ruleView({ spec: { ...ruleView().spec, annotations: {} } }),
-    );
-    try {
-      await testAlert({ data: { alertId: "x" } });
-      expect.fail("expected testAlert to reject a non-managed rule");
-    } catch (error) {
-      expect(error).toBeInstanceOf(Error);
-      expect((error as Error).message).toBe("Alert not found");
-    }
-    expect(cc.testRule).not.toHaveBeenCalled();
+  it("runs non-managed (bare) rules", async () => {
+    const bare = ruleView({
+      id: "x",
+      spec: { ...ruleView().spec, annotations: {} },
+    });
+    mock(cc.getRule).mockResolvedValue(bare);
+    mock(cc.testRule).mockResolvedValue(testResult);
+    const out = await testAlert({ data: { alertId: "x" } });
+    expect(cc.testRule).toHaveBeenCalledWith("test_org", "x", bare.spec);
+    expect(out).toEqual(testResult);
   });
 
   it("is gated to org admins, like pause/resume", async () => {
