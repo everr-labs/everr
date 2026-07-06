@@ -656,6 +656,149 @@ pub async fn build_api_client() -> anyhow::Result<everr_core::api::ApiClient> {
     }
 }
 
+pub async fn run_resources(cmd: crate::cli::ResourcesSubcommand) -> anyhow::Result<()> {
+    use crate::cli::ResourcesSubcommand as R;
+    let client = build_api_client().await?;
+    match cmd {
+        R::List(args) => resources_list(&client, args).await,
+        R::Show(args) => resources_show(&client, args).await,
+        R::Delete(args) => resources_delete(&client, args).await,
+        R::Adopt(args) => resources_adopt(&client, args).await,
+    }
+}
+
+/// Best-effort repoid for the current directory; None when it cannot be resolved
+/// (used only to star "this repo's" rows in `list`).
+fn current_repoid() -> Option<String> {
+    let dir = std::path::Path::new(".");
+    let source = everr_core::apply::detect_git_source(dir);
+    everr_core::apply::resolve_repoid(dir, source.as_ref().and_then(|s| s.remote.as_deref())).ok()
+}
+
+async fn resources_list(
+    client: &everr_core::api::ApiClient,
+    args: crate::cli::ResourcesListArgs,
+) -> anyhow::Result<()> {
+    let kind = args.kind.map(|k| k.as_str());
+    let resources = client.list_resources(kind, args.repoid.as_deref()).await?;
+
+    if args.json {
+        println!("{}", serde_json::to_string_pretty(&resources)?);
+        return Ok(());
+    }
+    if resources.is_empty() {
+        println!("No resources.");
+        return Ok(());
+    }
+    let mine = current_repoid();
+    println!(
+        "{:<10}  {:<10}  {:<28}  {:<24}  UPDATED",
+        "KIND", "PROJECT", "SLUG", "OWNER"
+    );
+    for r in &resources {
+        let owner = if r.repoid.is_empty() {
+            "(ui)".to_string()
+        } else {
+            r.repoid.clone()
+        };
+        let star = match &mine {
+            Some(m) if *m == r.repoid && !r.repoid.is_empty() => "*",
+            _ => " ",
+        };
+        println!(
+            "{star}{:<9}  {:<10}  {:<28}  {:<24}  {}",
+            r.kind, r.project, r.slug, owner, r.updated_at
+        );
+    }
+    if mine.is_some() {
+        println!("\n* owned by this repository");
+    }
+    Ok(())
+}
+
+async fn resources_show(
+    client: &everr_core::api::ApiClient,
+    args: crate::cli::ResourcesShowArgs,
+) -> anyhow::Result<()> {
+    let document = client
+        .get_resource(args.kind.as_str(), &args.project, &args.slug)
+        .await?;
+    if args.json {
+        println!("{}", serde_json::to_string_pretty(&document)?);
+    } else {
+        print!("{}", serde_yaml::to_string(&document)?);
+    }
+    Ok(())
+}
+
+async fn resources_delete(
+    client: &everr_core::api::ApiClient,
+    args: crate::cli::ResourcesTargetArgs,
+) -> anyhow::Result<()> {
+    let target = format!("{}/{}/{}", args.kind.as_str(), args.project, args.slug);
+    if !confirm_resource_action(&format!("Delete {target}?"), args.yes)? {
+        println!("Aborted.");
+        return Ok(());
+    }
+    client
+        .delete_resource(args.kind.as_str(), &args.project, &args.slug)
+        .await?;
+    println!("Deleted {target}.");
+    println!(
+        "note: if this resource is still defined in your as-code tree, the next `everr apply` will recreate it."
+    );
+    Ok(())
+}
+
+async fn resources_adopt(
+    client: &everr_core::api::ApiClient,
+    args: crate::cli::ResourcesTargetArgs,
+) -> anyhow::Result<()> {
+    let dir = std::path::Path::new(".");
+    let source = everr_core::apply::detect_git_source(dir);
+    let repoid = everr_core::apply::resolve_repoid(
+        dir,
+        source.as_ref().and_then(|s| s.remote.as_deref()),
+    )?;
+
+    let target = format!("{}/{}/{}", args.kind.as_str(), args.project, args.slug);
+    if !confirm_resource_action(&format!("Adopt {target} into «{repoid}»?"), args.yes)? {
+        println!("Aborted.");
+        return Ok(());
+    }
+    let outcome = client
+        .adopt_resource(args.kind.as_str(), &args.project, &args.slug, &repoid)
+        .await?;
+    if outcome.already_owned {
+        println!("{target} is already owned by «{repoid}». Nothing to do.");
+        return Ok(());
+    }
+    println!("Adopted {target} into «{repoid}».");
+    println!(
+        "note: if this resource is not in your local tree, the next `everr apply` will delete it.\n      save it first: everr resources show {} {} --project {} > everr/{}.{}.yaml",
+        args.kind.as_str(),
+        args.slug,
+        args.project,
+        args.slug,
+        args.kind.as_str()
+    );
+    Ok(())
+}
+
+/// Prompt to confirm a destructive/ownership action, honoring `--yes` and
+/// non-interactive contexts (mirrors run_apply's confirmation).
+fn confirm_resource_action(question: &str, yes: bool) -> anyhow::Result<bool> {
+    if yes {
+        return Ok(true);
+    }
+    if std::io::stdin().is_terminal() && std::io::stdout().is_terminal() {
+        let proceed = cliclack::confirm(question.to_string()).interact()?;
+        Ok(proceed)
+    } else {
+        anyhow::bail!("refusing to proceed without confirmation; re-run with --yes")
+    }
+}
+
 pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
     use everr_core::apply::{
         ApplyRequest, classify_documents, detect_git_source, load_resource_documents,
@@ -1009,5 +1152,13 @@ mod tests {
             query,
             vec![("limit", "25".to_string()), ("offset", "50".to_string())]
         );
+    }
+
+    #[test]
+    fn resource_kind_arg_maps_to_wire_string() {
+        use crate::cli::ResourceKindArg;
+        assert_eq!(ResourceKindArg::Dashboard.as_str(), "dashboard");
+        assert_eq!(ResourceKindArg::Runbook.as_str(), "runbook");
+        assert_eq!(ResourceKindArg::Alert.as_str(), "alert");
     }
 }

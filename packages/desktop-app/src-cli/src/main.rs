@@ -60,6 +60,7 @@ async fn run_command(command: Commands) -> Result<()> {
         Commands::Init => init::run().await?,
         Commands::Skills(args) => skills::run(args)?,
         Commands::Apply(args) => core::run_apply(args).await?,
+        Commands::Resources(args) => core::run_resources(args.command).await?,
     }
 
     Ok(())
