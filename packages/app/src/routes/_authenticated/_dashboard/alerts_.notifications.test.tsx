@@ -312,9 +312,11 @@ describe("/alerts/notifications route", () => {
     const call = updateAlertSettings.mock.calls[0]?.[0] as {
       data: { delivery: typeof defaultDelivery };
     };
-    expect(call.data.delivery.email).toEqual({
-      enabled: true,
-      to: ["team@example.com"],
+    expect(call.data.delivery).toEqual({
+      email: { enabled: true, to: ["team@example.com"] },
+      telegram: { enabled: false, botToken: "", chatIds: [] },
+      slack: { enabled: false, webhookUrl: "" },
+      remindEverySeconds: null,
     });
   });
 
