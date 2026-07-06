@@ -3,7 +3,7 @@ title: Link alerts to runbooks
 description: Point spec.runbook at a runbook so every notification lands responders on live panels, not a wall of prose.
 ---
 
-Set `spec.runbook` on the alert, and ship a runbook whose panels show exactly what the alert measured:
+Set `spec.runbook` on the alert, and ship a runbook whose panels show exactly what the alert measured. The alert — `error-spike.alert.yaml`:
 
 ```yaml
 kind: AlertRule
@@ -20,6 +20,8 @@ spec:
     SELECT ServiceName, ... FROM logs ...
 ```
 
+The runbook it points at — `error-spike.runbook.yaml`:
+
 ```yaml
 kind: Runbook
 metadata:
@@ -28,6 +30,8 @@ spec:
   markdown:
     file: ./error-spike.runbook.md
 ```
+
+And the markdown it renders — `error-spike.runbook.md`:
 
 ````md
 # Error spike
@@ -47,14 +51,15 @@ spec:
           spec:
             query: |
               SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                     ServiceName,
                      countIf(SeverityNumber >= 17) / count() * 100 AS error_pct
               FROM logs
               WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
-              GROUP BY ts ORDER BY ts
+              GROUP BY ts, ServiceName ORDER BY ts
 ```
 
 1. Read the firing `ServiceName` off the notification.
-2. Check whether the rate is still climbing on the panel above.
+2. Find that service's line on the panel above — is its rate still climbing?
 3. If the spike lines up with a deploy, follow [Rollback](./rollback).
 ````
 
