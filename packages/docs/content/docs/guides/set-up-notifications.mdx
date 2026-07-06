@@ -21,8 +21,8 @@ Entries are immutable — add or delete, no in-place edit. The bot token is writ
 1. Open the [Slack app dashboard](https://api.slack.com/apps) and select the app that should post alerts.
 2. Go to **Incoming Webhooks** and turn on **Activate Incoming Webhooks** if needed.
 3. Click **Add New Webhook to Workspace**, choose the channel, and authorize the app.
-4. Copy the `https://hooks.slack.com/services/...` URL from **Webhook URLs for Your Workspace** and paste it into the Everr alerts notification settings.
-5. Save — give the webhook an optional name so you can remember which channel it targets.
+4. Copy the `https://hooks.slack.com/services/...` URL from **Webhook URLs for Your Workspace**, paste it into the Everr alerts notification settings, and give it an optional name so you can remember which channel it targets.
+5. Save.
 
 Each webhook posts to one Slack channel and receives every alert notification for the org. Webhook URLs are write-only: after saving, Everr never shows the URL again — to change one, delete it and add a new one.
 
