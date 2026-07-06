@@ -21,9 +21,7 @@ export const OWN_PREVIEW = "everr.preview";
 // Annotation keys we pack the simple-alert UI fields into.
 const ANN_TITLE = "everr.notification.title";
 const ANN_DESCRIPTION = "everr.notification.description";
-// Exported so display-name resolution (src/components/cc/shared.tsx
-// ruleDisplayName) reads the same annotation key rather than duplicating it.
-export const ANN_DISPLAY_NAME = "everr.display.name";
+const ANN_DISPLAY_NAME = "everr.display.name";
 const ANN_DISPLAY_DESCRIPTION = "everr.display.description";
 const ANN_LABEL_PREFIX = "everr.label."; // metadata.labels.<k> → everr.label.<k>
 // A linked runbook (project/slug), stored canonically so the alert detail can

@@ -34,14 +34,13 @@ import {
 import type { CcAlert, CcTestResult } from "@/data/cc/types";
 import {
   CcEmptyState,
+  CcHealthBadge,
   CcInstanceStatusBadge,
   CcQueryError,
-  CcRuleHealthDot,
   CcSeverityBadge,
   ccErrorMessage,
   ccFormatTs,
   LabelSet,
-  ruleDisplayName,
 } from "./-cc-shared";
 
 const ccRuleQuery = (ruleId: string) =>
@@ -132,8 +131,6 @@ function CcRuleDetailPage() {
     (a: CcAlert) => a.rule === ruleId,
   );
   const annotations = Object.entries(r.spec.annotations ?? {});
-  const ruleName = ruleDisplayName(r.spec, r.id);
-  const idPrefix = r.id.slice(0, 8);
 
   const instCols: Column<CcAlert>[] = [
     {
@@ -161,16 +158,11 @@ function CcRuleDetailPage() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-3">
           <BackLink />
-          <span className="flex items-baseline gap-2">
-            <h2 className="text-base font-semibold">{ruleName}</h2>
-            {ruleName !== idPrefix && (
-              <span className="font-mono text-xs text-muted-foreground">
-                {idPrefix}
-              </span>
-            )}
-          </span>
+          <h2 className="font-mono text-base font-semibold">
+            {r.id.slice(0, 8)}
+          </h2>
           <CcSeverityBadge severity={r.spec.severity} />
-          <CcRuleHealthDot rule={r} />
+          <CcHealthBadge status={r.health.status} />
         </div>
         <Button
           variant="outline"

@@ -1,90 +1,12 @@
 // packages/app/src/components/cc/shared.tsx
 import { Badge } from "@everr/ui/components/badge";
 import { Skeleton } from "@everr/ui/components/skeleton";
-import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { cn } from "@everr/ui/lib/utils";
-import { Link, useLocation } from "@tanstack/react-router";
 import { Info, type LucideIcon } from "lucide-react";
-import { type ReactNode, useEffect, useState } from "react";
-import { SegmentedTab, SegmentedTabs } from "@/components/segmented-tabs";
-import { ANN_DISPLAY_NAME, OWN_NAME } from "@/data/alerts/mapping";
+import type { ReactNode } from "react";
 import { sortedLabelEntries } from "@/data/alerts/matchers";
-import type { CcMatcher, CcRuleSpec, CcRuleView } from "@/data/cc/types";
+import type { CcMatcher } from "@/data/cc/types";
 import { ccOpSymbol } from "./route-resolution";
-
-// ── Rule display name ────────────────────────────────────────────────────────
-// One resolution order for every surface that names a rule: the author-set
-// display name, else the as-code slug (everr.name), else the rule id's own
-// short prefix. Mirrors the fallback data/alerts/mapping.ts fromCcRuleSpec
-// uses for the simple-alert view, so the advanced pages and the alerts home
-// never disagree on what a rule is called.
-export function ruleDisplayName(spec: CcRuleSpec, ruleId: string): string {
-  const ann = spec.annotations ?? {};
-  return ann[ANN_DISPLAY_NAME] ?? ann[OWN_NAME] ?? ruleId.slice(0, 8);
-}
-
-// ── Durations & relative time ────────────────────────────────────────────────
-
-export function formatInterval(seconds: number) {
-  if (seconds % 3600 === 0) return `${seconds / 3600}h`;
-  if (seconds % 60 === 0) return `${seconds / 60}m`;
-  return `${seconds}s`;
-}
-
-function formatDate(value: Date | string | null) {
-  if (!value) return "-";
-  const date = typeof value === "string" ? new Date(value) : value;
-  if (Number.isNaN(date.getTime())) return "-";
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
-}
-
-// Re-renders every minute so the elapsed time keeps ticking without a refetch
-// (formatRelativeTime's granularity is minutes/hours/days).
-export function RelativeTime({ value }: { value: Date | string | null }) {
-  const [, tick] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => tick((n) => n + 1), 60_000);
-    return () => clearInterval(id);
-  }, []);
-  const iso = value instanceof Date ? value.toISOString() : (value ?? "");
-  return <span title={formatDate(value)}>{formatRelativeTime(iso)}</span>;
-}
-
-// ── Section navigation ───────────────────────────────────────────────────────
-// The four advanced-alerting destinations, shared by the /cc-alerting layout
-// (which nests Overview/Monitor/Rules under it) and the /alerts/notifications
-// page (which isn't part of that route tree but still wants the same section
-// switcher, active on Notifications). Active state rides on the current
-// pathname, not a prop, so the same component works unmodified from both
-// mount points.
-const CC_ALERTING_NAV_ITEMS: { label: string; to: string }[] = [
-  { label: "Overview", to: "/cc-alerting/overview" },
-  { label: "Monitor", to: "/cc-alerting/monitor" },
-  { label: "Rules", to: "/cc-alerting/rules" },
-  { label: "Notifications", to: "/alerts/notifications" },
-];
-
-export function CcAlertingTabs() {
-  const { pathname } = useLocation();
-  const isActive = (to: string) =>
-    pathname === to || pathname.startsWith(`${to}/`);
-  return (
-    <SegmentedTabs label="Advanced alerting sections">
-      {CC_ALERTING_NAV_ITEMS.map((item) => (
-        <SegmentedTab
-          key={item.to}
-          active={isActive(item.to)}
-          render={<Link to={item.to} />}
-        >
-          {item.label}
-        </SegmentedTab>
-      ))}
-    </SegmentedTabs>
-  );
-}
 
 // ── Guidance ──────────────────────────────────────────────────────────────────
 // Plain-language, always-visible explainers. Alerting is hard; the UI should
@@ -270,32 +192,12 @@ export function CcInstanceStatusBadge({ status }: { status: string }) {
   );
 }
 
-// Rule health rides on the same dot-plus-tooltip idiom the alerts home uses
-// (a CcStatusDot wrapped in a `title`d span): the dot carries the state, the
-// title carries the facts, joined with the home's " · " separator.
-function ccRuleHealthTitle(rule: CcRuleView): string {
-  const checksEvery = `checks every ${rule.spec.interval_secs}s`;
-  if (rule.health.status !== "degraded") {
-    return `Healthy · ${checksEvery}`;
-  }
-  const parts = ["Degraded"];
-  if (rule.health.degraded_since) {
-    parts.push(`since ${ccFormatTs(rule.health.degraded_since)}`);
-  }
-  if (rule.health.last_error) {
-    parts.push(`last error: ${rule.health.last_error}`);
-  }
-  parts.push(checksEvery);
-  return parts.join(" · ");
-}
-
-export function CcRuleHealthDot({ rule }: { rule: CcRuleView }) {
+export function CcHealthBadge({ status }: { status: string }) {
+  const degraded = status === "degraded";
   return (
-    <span title={ccRuleHealthTitle(rule)} className="inline-flex items-center">
-      <CcStatusDot
-        tone={rule.health.status === "degraded" ? "degraded" : "healthy"}
-      />
-    </span>
+    <CcStatusLabel tone={degraded ? "degraded" : "healthy"} pulse={degraded}>
+      {status}
+    </CcStatusLabel>
   );
 }
 

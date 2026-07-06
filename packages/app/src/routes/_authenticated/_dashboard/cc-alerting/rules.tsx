@@ -2,6 +2,7 @@ import { Button } from "@everr/ui/components/button";
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
 } from "@everr/ui/components/card";
@@ -18,14 +19,14 @@ import { toast } from "sonner";
 import { listCcRules, pauseCcRule, resumeCcRule } from "@/data/cc/server";
 import type { CcRuleView } from "@/data/cc/types";
 import {
+  CcConceptNote,
   CcEmptyState,
+  CcHealthBadge,
   CcQueryError,
-  CcRuleHealthDot,
   CcSeverityBadge,
+  CcStatusDot,
   CcTableSkeleton,
   ccErrorMessage,
-  formatInterval,
-  ruleDisplayName,
 } from "./-cc-shared";
 
 const ccRulesQuery = () =>
@@ -60,26 +61,15 @@ function CcRulesPage() {
   const columns: Column<CcRuleView>[] = [
     {
       header: "Rule",
-      cell: (r) => {
-        const name = ruleDisplayName(r.spec, r.id);
-        const idPrefix = r.id.slice(0, 8);
-        return (
-          <Link
-            to="/cc-alerting/rules/$ruleId"
-            params={{ ruleId: r.id }}
-            className="underline-offset-4 hover:underline"
-          >
-            <span className="flex items-baseline gap-2">
-              <span className="font-medium">{name}</span>
-              {name !== idPrefix && (
-                <span className="font-mono text-muted-foreground text-xs">
-                  {idPrefix}
-                </span>
-              )}
-            </span>
-          </Link>
-        );
-      },
+      cell: (r) => (
+        <Link
+          to="/cc-alerting/rules/$ruleId"
+          params={{ ruleId: r.id }}
+          className="font-mono text-primary hover:underline"
+        >
+          {r.id.slice(0, 8)}
+        </Link>
+      ),
     },
     {
       header: "Severity",
@@ -89,21 +79,27 @@ function CcRulesPage() {
       header: "Interval",
       cell: (r) => (
         <span className="tabular-nums text-muted-foreground">
-          {formatInterval(r.spec.interval_secs)}
+          {r.spec.interval_secs}s
         </span>
       ),
     },
     {
       header: "Health",
-      cell: (r) => <CcRuleHealthDot rule={r} />,
+      cell: (r) => <CcHealthBadge status={r.health.status} />,
     },
     {
       header: "State",
       cell: (r) =>
         r.paused ? (
-          <span className="text-amber-600 dark:text-amber-400">paused</span>
+          <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+            <CcStatusDot tone="inactive" />
+            paused
+          </span>
         ) : (
-          <span className="text-muted-foreground">active</span>
+          <span className="inline-flex items-center gap-1.5">
+            <CcStatusDot tone="healthy" />
+            active
+          </span>
         ),
     },
     {
@@ -130,9 +126,20 @@ function CcRulesPage() {
 
   return (
     <div className="space-y-3">
+      <CcConceptNote>
+        A rule is a SQL query the alerting engine evaluates on a schedule. Each
+        row it returns becomes an <strong>alert instance</strong>; if rows
+        persist past the rule&rsquo;s <code>for</code> duration, the alert
+        starts <strong>firing</strong>. Rules are defined as code and applied
+        with <code>everr apply</code> — here you can inspect, test, and pause
+        them.
+      </CcConceptNote>
       <Card inset="flush-content">
         <CardHeader>
           <CardTitle>Rules</CardTitle>
+          <CardDescription>
+            Open a rule to see its query, health, and run an ad-hoc test.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {isPending ? (

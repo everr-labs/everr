@@ -49,6 +49,7 @@ import {
 import { Fragment, useMemo, useState } from "react";
 import { z } from "zod";
 import { AlertEventFeed } from "@/components/cc/alert-event-feed";
+import { HelpTip } from "@/components/cc/help-tip";
 import { MatchersEditor } from "@/components/cc/matchers-editor";
 import { computeNotifiesChannels, joinWithAnd } from "@/components/cc/notifies";
 import { ccMatcherMatches } from "@/components/cc/route-resolution";
@@ -59,7 +60,6 @@ import {
   LabelSet,
 } from "@/components/cc/shared";
 import { PreviewStatusBadge } from "@/components/preview-status-badge";
-import { SegmentedTab, SegmentedTabs } from "@/components/segmented-tabs";
 import { formatRunbookRef } from "@/data/alerts/schema";
 import {
   type AlertSummary,
@@ -556,7 +556,12 @@ function AlertsPage() {
   const columns = useMemo<Column<AlertSummary>[]>(
     () => [
       {
-        header: "Health",
+        header: (
+          <span className="inline-flex items-center gap-1">
+            Health
+            <HelpTip text="Healthy means recent scheduled evaluations succeeded; degraded means they've been failing (a query error, most often)." />
+          </span>
+        ),
         cell: (row) => (
           <span title={healthTooltip(row)} className="inline-flex items-center">
             <CcStatusDot
@@ -792,22 +797,32 @@ function AlertsPage() {
         onClose={() => setNewMuteOpen(false)}
       />
 
-      <SegmentedTabs label="Alerts view">
-        {ALERTS_VIEW_TABS.map((tab) => (
-          <SegmentedTab
-            key={tab.value}
-            active={view === tab.value}
-            render={
-              <Link
-                to="/alerts"
-                search={(prev) => ({ ...prev, view: tab.value })}
-              />
-            }
-          >
-            {tab.label}
-          </SegmentedTab>
-        ))}
-      </SegmentedTabs>
+      <div
+        role="tablist"
+        aria-label="Alerts view"
+        className="inline-flex w-fit rounded-md border border-border bg-muted/20 p-0.5"
+      >
+        {ALERTS_VIEW_TABS.map((tab) => {
+          const active = view === tab.value;
+          return (
+            <Link
+              key={tab.value}
+              to="/alerts"
+              search={(prev) => ({ ...prev, view: tab.value })}
+              role="tab"
+              aria-selected={active}
+              className={cn(
+                "rounded-[0.3rem] px-3 py-1 text-xs font-medium outline-2 outline-dotted outline-transparent outline-offset-[-2px] transition-colors duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] focus-visible:outline-primary",
+                active
+                  ? "bg-card text-foreground ring-1 ring-foreground/10"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {tab.label}
+            </Link>
+          );
+        })}
+      </div>
 
       {view === "activity" ? (
         <AlertEventFeed />
@@ -876,22 +891,37 @@ function AlertsPage() {
           )}
 
           {showFiringViewToggle && (
-            <SegmentedTabs label="Firing view">
+            <div
+              role="tablist"
+              aria-label="Firing view"
+              className="inline-flex w-fit rounded-md border border-border bg-muted/20 p-0.5"
+            >
               {(
                 [
                   { value: "grouped", label: "Group by alert" },
                   { value: "flat", label: "Flat" },
                 ] as const
-              ).map((tab) => (
-                <SegmentedTab
-                  key={tab.value}
-                  active={firingViewMode === tab.value}
-                  onClick={() => setFiringViewMode(tab.value)}
-                >
-                  {tab.label}
-                </SegmentedTab>
-              ))}
-            </SegmentedTabs>
+              ).map((tab) => {
+                const active = firingViewMode === tab.value;
+                return (
+                  <button
+                    key={tab.value}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setFiringViewMode(tab.value)}
+                    className={cn(
+                      "rounded-[0.3rem] px-3 py-1 text-xs font-medium outline-2 outline-dotted outline-transparent outline-offset-[-2px] transition-colors duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] focus-visible:outline-primary",
+                      active
+                        ? "bg-card text-foreground ring-1 ring-foreground/10"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
           )}
 
           <Card inset="flush-content">

@@ -54,6 +54,7 @@ import {
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { AlertEventFeed } from "@/components/cc/alert-event-feed";
+import { HelpTip } from "@/components/cc/help-tip";
 import { computeNotifiesChannels, joinWithAnd } from "@/components/cc/notifies";
 import { LabelSet } from "@/components/cc/shared";
 import { PreviewStatusBadge } from "@/components/preview-status-badge";
@@ -468,7 +469,10 @@ function AlertDetailPage() {
       {/* 4. Notifies: default channels + the first matching custom rule. */}
       <Card>
         <CardHeader>
-          <CardTitle>Notifies</CardTitle>
+          <span className="flex items-center gap-1.5">
+            <CardTitle>Notifies</CardTitle>
+            <HelpTip text="This is resolved from your default channels plus the first custom notification rule whose conditions match this alert." />
+          </span>
         </CardHeader>
         <CardContent>
           {settings.isError || routes.isError ? (

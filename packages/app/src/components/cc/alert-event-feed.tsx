@@ -138,13 +138,11 @@ export function AlertEventFeed({
           {e.status ? (
             <CcEventStatusBadge status={e.status} />
           ) : (
-            <span className="text-xs text-muted-foreground">
-              {EVENT_TYPE_LABELS[e.eventType] ?? e.eventType}
-            </span>
+            <span className="text-xs text-muted-foreground">{e.eventType}</span>
           )}
           {e.suppressed && (
             <span className="text-[0.6875rem] text-muted-foreground/70">
-              muted
+              suppressed
             </span>
           )}
         </span>

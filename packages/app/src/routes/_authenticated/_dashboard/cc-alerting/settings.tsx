@@ -1,11 +1,10 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
-// Webhook-feed subscriptions moved into the unified notifications page.
-// Kept for bookmarks.
+// Firehose subscriptions moved into the Routing page. Kept for bookmarks.
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/cc-alerting/settings",
 )({
   beforeLoad: () => {
-    throw redirect({ to: "/alerts/notifications", hash: "firehose" });
+    throw redirect({ to: "/cc-alerting/routing", hash: "firehose" });
   },
 });

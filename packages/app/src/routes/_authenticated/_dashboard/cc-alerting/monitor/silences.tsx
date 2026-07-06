@@ -10,7 +10,6 @@ import { type Column, DataTable } from "@everr/ui/components/data-table";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -35,11 +34,11 @@ import {
 } from "@/data/cc/server";
 import type { CcMatcher, CcSilence } from "@/data/cc/types";
 import {
+  CcConceptNote,
   CcEmptyState,
   CcQueryError,
   CcStatusDot,
   CcTableSkeleton,
-  Conditions,
   ccErrorMessage,
   ccFormatTs,
 } from "../-cc-shared";
@@ -122,7 +121,7 @@ function CcMonitorSilences() {
       setStarts("");
       setEnds("");
       setComment("");
-      toast.success("Mute created");
+      toast.success("Silence created");
     },
     onError: (e) => toast.error(ccErrorMessage(e)),
   });
@@ -130,7 +129,7 @@ function CcMonitorSilences() {
     mutationFn: (id: string) => deleteCcSilence({ data: { id } }),
     onSuccess: () => {
       invalidate();
-      toast.success("Mute cancelled");
+      toast.success("Silence cancelled");
     },
     onError: (e) => toast.error(ccErrorMessage(e)),
   });
@@ -157,8 +156,12 @@ function CcMonitorSilences() {
         ),
     },
     {
-      header: "Conditions",
-      cell: (s) => <Conditions matchers={s.matchers} />,
+      header: "Matchers",
+      cell: (s) => (
+        <span className="font-mono text-xs">
+          {s.matchers.map((m) => `${m.label}${m.op}${m.value}`).join(", ")}
+        </span>
+      ),
     },
     { header: "Starts", cell: (s) => ccFormatTs(s.starts_at) },
     { header: "Ends", cell: (s) => ccFormatTs(s.ends_at) },
@@ -186,13 +189,18 @@ function CcMonitorSilences() {
 
   return (
     <div className="space-y-3">
+      <CcConceptNote>
+        Silences mute alerts whose labels match a set of matchers, for a time
+        window — use them for maintenance and known noise. You can also silence
+        any firing alert directly from the <strong>Active</strong> view.
+      </CcConceptNote>
       <Card inset="flush-content">
         <CardHeader>
-          <CardTitle>Mutes</CardTitle>
+          <CardTitle>Silences</CardTitle>
           <CardAction>
             <Button onClick={() => openForLabels({})}>
               <Plus data-icon="inline-start" />
-              New mute
+              New silence
             </Button>
           </CardAction>
         </CardHeader>
@@ -207,8 +215,8 @@ function CcMonitorSilences() {
               emptyState={
                 <CcEmptyState
                   icon={BellOff}
-                  title="No mutes"
-                  hint="Mute a firing alert from the Active view, or create one here to mute matching alerts for a window."
+                  title="No silences"
+                  hint="Silence a firing alert from the Active view, or create one here to mute matching alerts for a window."
                 />
               }
             />
@@ -219,13 +227,14 @@ function CcMonitorSilences() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>New mute</DialogTitle>
-            <DialogDescription>
-              Mutes any alert whose labels match all of these conditions until
-              the window ends. Evaluation continues.
-            </DialogDescription>
+            <DialogTitle>New silence</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            <CcConceptNote>
+              Alerts whose labels match <em>all</em> of these matchers will be
+              muted for the window below. An empty matcher set matches every
+              alert.
+            </CcConceptNote>
             <MatchersEditor value={matchers} onChange={setMatchers} />
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -267,7 +276,7 @@ function CcMonitorSilences() {
               }
               onClick={() => create.mutate()}
             >
-              Create mute
+              Create silence
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -11,14 +11,13 @@ export {
   ccRouteMatches,
 } from "@/components/cc/route-resolution";
 export {
-  CcAlertingTabs,
   CcConceptNote,
   CcConnectionBadge,
   CcEmptyState,
   CcEventStatusBadge,
+  CcHealthBadge,
   CcInstanceStatusBadge,
   CcQueryError,
-  CcRuleHealthDot,
   CcSeverityBadge,
   CcStatusDot,
   CcTableSkeleton,
@@ -26,8 +25,5 @@ export {
   Conditions as Matchers,
   ccErrorMessage,
   ccFormatTs,
-  formatInterval,
   LabelSet,
-  RelativeTime,
-  ruleDisplayName,
 } from "@/components/cc/shared";

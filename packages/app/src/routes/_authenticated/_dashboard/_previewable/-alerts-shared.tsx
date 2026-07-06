@@ -1,14 +1,9 @@
 import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
 import { Input } from "@everr/ui/components/input";
+import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { BellOff } from "lucide-react";
 import { useEffect, useState } from "react";
-
-// Re-exported here so this file's existing callers (this route tree's alerts
-// list and alert detail pages) keep their current import path; the canonical
-// definitions live in components/cc/shared.tsx, shared with the advanced
-// alerting pages.
-export { formatInterval, RelativeTime } from "@/components/cc/shared";
 
 // Centered load-failure message for a card or table body whose query errored.
 export function QueryErrorMessage({ message }: { message: string }) {
@@ -27,6 +22,24 @@ export function formatDate(value: Date | string | null) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
+}
+
+export function formatInterval(seconds: number) {
+  if (seconds % 3600 === 0) return `${seconds / 3600}h`;
+  if (seconds % 60 === 0) return `${seconds / 60}m`;
+  return `${seconds}s`;
+}
+
+// Re-renders every minute so the elapsed time keeps ticking without a refetch
+// (formatRelativeTime's granularity is minutes/hours/days).
+export function RelativeTime({ value }: { value: Date | string | null }) {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => tick((n) => n + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  const iso = value instanceof Date ? value.toISOString() : (value ?? "");
+  return <span title={formatDate(value)}>{formatRelativeTime(iso)}</span>;
 }
 
 function formatTimeUntil(value: Date | string | null) {
