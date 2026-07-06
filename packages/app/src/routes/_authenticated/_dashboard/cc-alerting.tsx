@@ -1,4 +1,3 @@
-import { cn } from "@everr/ui/lib/utils";
 import {
   createFileRoute,
   Link,
@@ -6,6 +5,7 @@ import {
   useLocation,
 } from "@tanstack/react-router";
 import { PageContainer } from "@/components/page-container";
+import { SegmentedTab, SegmentedTabs } from "@/components/segmented-tabs";
 
 type CcNavItem = { label: string; to: string };
 
@@ -41,29 +41,17 @@ function CcAlertingLayout() {
           <h1 className="text-xl font-bold tracking-tight">
             Advanced alerting
           </h1>
-          <nav
-            aria-label="Advanced alerting sections"
-            className="flex flex-wrap items-center gap-1 border-b border-border pb-3"
-          >
-            {NAV_ITEMS.map((item) => {
-              const active = isActive(item.to);
-              return (
-                <Link
-                  key={item.to}
-                  to={item.to}
-                  aria-current={active ? "page" : undefined}
-                  className={cn(
-                    "rounded-md px-2.5 py-1 text-xs font-medium outline-2 outline-dotted outline-transparent outline-offset-2 transition-colors duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] focus-visible:outline-primary",
-                    active
-                      ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
-                  )}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
+          <SegmentedTabs label="Advanced alerting sections">
+            {NAV_ITEMS.map((item) => (
+              <SegmentedTab
+                key={item.to}
+                active={isActive(item.to)}
+                render={<Link to={item.to} />}
+              >
+                {item.label}
+              </SegmentedTab>
+            ))}
+          </SegmentedTabs>
         </div>
         <Outlet />
       </PageContainer>

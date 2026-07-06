@@ -5,7 +5,7 @@ import { cn } from "@everr/ui/lib/utils";
 import { Info, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { sortedLabelEntries } from "@/data/alerts/matchers";
-import type { CcMatcher } from "@/data/cc/types";
+import type { CcMatcher, CcRuleView } from "@/data/cc/types";
 import { ccOpSymbol } from "./route-resolution";
 
 // ── Guidance ──────────────────────────────────────────────────────────────────
@@ -192,12 +192,32 @@ export function CcInstanceStatusBadge({ status }: { status: string }) {
   );
 }
 
-export function CcHealthBadge({ status }: { status: string }) {
-  const degraded = status === "degraded";
+// Rule health rides on the same dot-plus-tooltip idiom the alerts home uses
+// (a CcStatusDot wrapped in a `title`d span): the dot carries the state, the
+// title carries the facts, joined with the home's " · " separator.
+function ccRuleHealthTitle(rule: CcRuleView): string {
+  const checksEvery = `checks every ${rule.spec.interval_secs}s`;
+  if (rule.health.status !== "degraded") {
+    return `Healthy · ${checksEvery}`;
+  }
+  const parts = ["Degraded"];
+  if (rule.health.degraded_since) {
+    parts.push(`since ${ccFormatTs(rule.health.degraded_since)}`);
+  }
+  if (rule.health.last_error) {
+    parts.push(`last error: ${rule.health.last_error}`);
+  }
+  parts.push(checksEvery);
+  return parts.join(" · ");
+}
+
+export function CcRuleHealthDot({ rule }: { rule: CcRuleView }) {
   return (
-    <CcStatusLabel tone={degraded ? "degraded" : "healthy"} pulse={degraded}>
-      {status}
-    </CcStatusLabel>
+    <span title={ccRuleHealthTitle(rule)} className="inline-flex items-center">
+      <CcStatusDot
+        tone={rule.health.status === "degraded" ? "degraded" : "healthy"}
+      />
+    </span>
   );
 }
 

@@ -34,9 +34,9 @@ import {
 import type { CcAlert, CcTestResult } from "@/data/cc/types";
 import {
   CcEmptyState,
-  CcHealthBadge,
   CcInstanceStatusBadge,
   CcQueryError,
+  CcRuleHealthDot,
   CcSeverityBadge,
   ccErrorMessage,
   ccFormatTs,
@@ -162,7 +162,7 @@ function CcRuleDetailPage() {
             {r.id.slice(0, 8)}
           </h2>
           <CcSeverityBadge severity={r.spec.severity} />
-          <CcHealthBadge status={r.health.status} />
+          <CcRuleHealthDot rule={r} />
         </div>
         <Button
           variant="outline"

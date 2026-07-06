@@ -13,7 +13,6 @@ import { listCcAlerts, listCcRoutes, listCcSilences } from "@/data/cc/server";
 import type { CcAlert } from "@/data/cc/types";
 import { useCcInvalidation } from "@/hooks/use-cc-invalidation";
 import {
-  CcConceptNote,
   CcEmptyState,
   CcInstanceStatusBadge,
   CcQueryError,
@@ -96,11 +95,11 @@ function CcMonitorActive() {
       <span className="font-mono text-xs">{route.receiver}</span>
     ) : (
       <Link
-        to="/cc-alerting/routing"
+        to="/alerts/notifications"
         hash="firehose"
         className="text-xs text-muted-foreground hover:text-foreground hover:underline"
       >
-        firehose
+        webhook feed
       </Link>
     );
   };
@@ -143,7 +142,7 @@ function CcMonitorActive() {
           }
         >
           <BellOff data-icon="inline-start" />
-          Silence
+          Mute
         </Button>
       ),
     },
@@ -153,13 +152,6 @@ function CcMonitorActive() {
 
   return (
     <div className="space-y-3">
-      <CcConceptNote>
-        Alerts move through <strong>pending</strong> → <strong>firing</strong> →{" "}
-        <strong>resolved</strong>. A pending alert has matched its rule but not
-        yet for the rule&rsquo;s <code>for</code> duration; firing alerts are
-        actively notifying. The <strong>Notifies</strong> column shows where
-        each alert is delivered right now.
-      </CcConceptNote>
       <Card inset="flush-content">
         <CardHeader>
           <CardTitle>Alert instances</CardTitle>
@@ -180,7 +172,7 @@ function CcMonitorActive() {
                 <span className="font-semibold tabular-nums text-foreground">
                   {activeSilences}
                 </span>
-                <span className="text-muted-foreground">silenced</span>
+                <span className="text-muted-foreground">muted</span>
               </span>
             </div>
           )}

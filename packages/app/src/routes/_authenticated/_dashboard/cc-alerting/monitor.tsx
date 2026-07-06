@@ -1,15 +1,15 @@
-import { cn } from "@everr/ui/lib/utils";
 import {
   createFileRoute,
   Link,
   Outlet,
   useLocation,
 } from "@tanstack/react-router";
+import { SegmentedTab, SegmentedTabs } from "@/components/segmented-tabs";
 
 const TABS = [
   { label: "Active", to: "/cc-alerting/monitor/active" },
   { label: "Stream", to: "/cc-alerting/monitor/stream" },
-  { label: "Silences", to: "/cc-alerting/monitor/silences" },
+  { label: "Mutes", to: "/cc-alerting/monitor/silences" },
 ] as const;
 
 export const Route = createFileRoute(
@@ -25,31 +25,17 @@ function CcMonitorLayout() {
 
   return (
     <div className="space-y-3">
-      <div
-        role="tablist"
-        aria-label="Monitor view"
-        className="inline-flex rounded-md border border-border bg-muted/20 p-0.5"
-      >
-        {TABS.map((tab) => {
-          const active = pathname === tab.to;
-          return (
-            <Link
-              key={tab.to}
-              to={tab.to}
-              role="tab"
-              aria-selected={active}
-              className={cn(
-                "rounded-[0.3rem] px-3 py-1 text-xs font-medium outline-2 outline-dotted outline-transparent outline-offset-[-2px] transition-colors duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] focus-visible:outline-primary",
-                active
-                  ? "bg-card text-foreground ring-1 ring-foreground/10"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {tab.label}
-            </Link>
-          );
-        })}
-      </div>
+      <SegmentedTabs label="Monitor view">
+        {TABS.map((tab) => (
+          <SegmentedTab
+            key={tab.to}
+            active={pathname === tab.to}
+            render={<Link to={tab.to} />}
+          >
+            {tab.label}
+          </SegmentedTab>
+        ))}
+      </SegmentedTabs>
 
       <Outlet />
     </div>
