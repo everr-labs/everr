@@ -727,6 +727,9 @@ function MuteRow({ mute }: { mute: AlertSilenceSummary }) {
   const cancel = useMutation({
     mutationFn: () => cancelSilence({ data: { silenceId: mute.id } }),
     onSuccess: async () => {
+      // Both keys: the home mutes pill reads ["cc","silences"], which the SSE
+      // invalidation wave deliberately skips for config queries.
+      await queryClient.invalidateQueries({ queryKey: ["cc", "silences"] });
       await queryClient.invalidateQueries({ queryKey: ["alerts"] });
     },
   });
@@ -852,6 +855,8 @@ function MuteDialog({
         },
       }),
     onSuccess: async () => {
+      // Both keys: keeps the home mutes pill in sync (see MuteRow cancel).
+      await queryClient.invalidateQueries({ queryKey: ["cc", "silences"] });
       await queryClient.invalidateQueries({ queryKey: ["alerts"] });
       onClose();
       reset();
