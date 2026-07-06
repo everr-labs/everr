@@ -28,7 +28,7 @@ vi.mock("@/data/previews/repoids", () => ({ getPreviewRegistry: vi.fn() }));
 import * as cc from "@/data/cc/client";
 import { getPreviewRegistry } from "@/data/previews/repoids";
 import { auth } from "@/lib/auth.server";
-import { MANAGED_SIMPLE, OWN_MANAGED, OWN_NAME, OWN_REPO } from "./mapping";
+import { OWN_NAME, OWN_REPO } from "./mapping";
 import {
   activateAlert,
   createSilence,
@@ -75,7 +75,6 @@ const ruleView = (over: Record<string, unknown> = {}) => ({
     annotations: {
       [OWN_NAME]: "high-5xx",
       [OWN_REPO]: "repo-1",
-      [OWN_MANAGED]: MANAGED_SIMPLE,
     },
   },
   ...over,
@@ -104,7 +103,6 @@ function rule(
       annotations: {
         [OWN_NAME]: slug,
         [OWN_REPO]: opts.repoid ?? "repo-1",
-        [OWN_MANAGED]: MANAGED_SIMPLE,
         ...(opts.previewId ? { "everr.preview": opts.previewId } : {}),
         ...opts.annotations,
       },

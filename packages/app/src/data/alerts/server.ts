@@ -26,7 +26,7 @@ import { type AlertEvidence, queryAlertHistory } from "./history.server";
 import {
   ANN_CC_LINK_ALERT,
   fromCcRuleSpec,
-  isManagedSimple,
+  isOwnedRule,
   OWN_PREVIEW,
   previewIdOf,
 } from "./mapping";
@@ -169,8 +169,8 @@ function toSummary(r: CcRuleView, silence: ActiveSilenceInfo): AlertSummary {
 // namespace bookkeeping. `suppressed` and the everr.preview annotation ARE the
 // namespace split, and link.alert embeds the rule's own CC id — a live rule
 // and its preview copy necessarily differ on all three, so none of them is a
-// real edit. The ownership annotations (name/repo/managed) are identical
-// across the pair by construction and can stay.
+// real edit. The ownership annotations (name/repo) are identical across the
+// pair by construction and can stay.
 function comparableSpec(spec: CcRuleSpec): Record<string, unknown> {
   const { suppressed: _suppressed, annotations, ...rest } = spec;
   const comparable = { ...annotations };
@@ -232,7 +232,7 @@ export const listAlerts = createAuthenticatedServerFn({ method: "GET" })
       cc.listRules(org),
       cc.listSilences(org),
     ]);
-    const managed = rules.filter((r) => isManagedSimple(r.spec));
+    const managed = rules.filter((r) => isOwnedRule(r.spec));
     const summarize = (r: CcRuleView): AlertSummary =>
       toSummary(r, activeSilencesForRule(silences, r.id));
 
@@ -285,7 +285,7 @@ async function detailPreviewStatus(
   const overlaid = overlayPreview({
     rows: rules
       .filter((r) => {
-        if (!isManagedSimple(r.spec)) return false;
+        if (!isOwnedRule(r.spec)) return false;
         const v = fromCcRuleSpec(r.spec);
         if (v.repoid !== identity.repoid || v.slug !== identity.slug)
           return false;
@@ -303,7 +303,7 @@ export const getAlert = createAuthenticatedServerFn({ method: "GET" })
   .handler(async ({ data: { alertId, preview }, context: { session } }) => {
     const org = session.session.activeOrganizationId;
     const rule = await cc.getRule(org, alertId);
-    if (!isManagedSimple(rule.spec)) throw new Error("Alert not found");
+    if (!isOwnedRule(rule.spec)) throw new Error("Alert not found");
     const view = fromCcRuleSpec(rule.spec);
     const [silences, previewStatus] = await Promise.all([
       cc.listSilences(org),
@@ -350,7 +350,7 @@ export const listAlertInstances = createAuthenticatedServerFn({ method: "GET" })
       cc.listAlerts(org),
       cc.listSilences(org),
     ]);
-    if (!isManagedSimple(rule.spec)) throw new Error("Alert not found");
+    if (!isOwnedRule(rule.spec)) throw new Error("Alert not found");
     // Only this rule's silences scope its instances.
     const scoped = silences
       .filter((s) => silenceScopedToRule(s, alertId))
@@ -443,7 +443,7 @@ export const listAlertEvents = createAuthenticatedServerFn({ method: "GET" })
     }) => {
       const org = session.session.activeOrganizationId;
       const rule = await cc.getRule(org, alertId);
-      if (!isManagedSimple(rule.spec)) throw new Error("Alert not found");
+      if (!isOwnedRule(rule.spec)) throw new Error("Alert not found");
       const slug = fromCcRuleSpec(rule.spec).slug;
       const { fromISO, toISO } = resolveTimeRange(timeRange);
       const rows = await queryAlertHistory(clickhouse.query, slug, {
@@ -490,7 +490,7 @@ export const listAlertSilences = createAuthenticatedServerFn({ method: "GET" })
   .handler(async ({ data: { alertId }, context: { session } }) => {
     const org = session.session.activeOrganizationId;
     const rule = await cc.getRule(org, alertId);
-    if (!isManagedSimple(rule.spec)) throw new Error("Alert not found");
+    if (!isOwnedRule(rule.spec)) throw new Error("Alert not found");
     const silences = await cc.listSilences(org);
     return silences
       .filter((s) => silenceScopedToRule(s, alertId))
@@ -523,7 +523,7 @@ export const createSilence = createAuthenticatedServerFn({ method: "POST" })
       const org = session.session.activeOrganizationId;
       await ensureOrgAdmin();
       const rule = await cc.getRule(org, alertId);
-      if (!isManagedSimple(rule.spec)) throw new Error("Alert not found");
+      if (!isOwnedRule(rule.spec)) throw new Error("Alert not found");
       validateMatchers(matchers);
       const startsAt = new Date();
       if (new Date(endsAt) <= startsAt) {
@@ -670,6 +670,6 @@ export const testAlert = createAuthenticatedServerFn({ method: "POST" })
     const org = session.session.activeOrganizationId;
     await ensureOrgAdmin();
     const rule = await cc.getRule(org, alertId);
-    if (!isManagedSimple(rule.spec)) throw new Error("Alert not found");
+    if (!isOwnedRule(rule.spec)) throw new Error("Alert not found");
     return cc.testRule(org, alertId, rule.spec);
   });
