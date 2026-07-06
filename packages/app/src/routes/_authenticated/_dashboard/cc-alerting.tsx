@@ -38,15 +38,9 @@ function CcAlertingLayout() {
     <div className="flex min-h-0 flex-1 flex-col overflow-auto overscroll-y-contain">
       <PageContainer>
         <div className="flex flex-col gap-3">
-          <div>
-            <h1 className="text-xl font-bold tracking-tight">
-              Advanced alerting
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Prometheus-style alerting over your telemetry — rules, routing,
-              and silences, evaluated against ClickHouse.
-            </p>
-          </div>
+          <h1 className="text-xl font-bold tracking-tight">
+            Advanced alerting
+          </h1>
           <nav
             aria-label="Advanced alerting sections"
             className="flex flex-wrap items-center gap-1 border-b border-border pb-3"

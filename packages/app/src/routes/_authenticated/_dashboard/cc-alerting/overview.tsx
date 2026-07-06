@@ -1,13 +1,17 @@
 import {
   Card,
+  CardAction,
   CardContent,
   CardHeader,
   CardTitle,
 } from "@everr/ui/components/card";
+import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { cn } from "@everr/ui/lib/utils";
 import { queryOptions, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { computeNotifiesChannels, joinWithAnd } from "@/components/cc/notifies";
 import { CcPipelineDiagram } from "@/components/cc/pipeline-diagram";
+import { isManagedCatchAllRoute } from "@/data/alerts/delivery-settings";
 import {
   listCcAlerts,
   listCcInhibitions,
@@ -16,8 +20,10 @@ import {
   listCcRules,
   listCcSilences,
 } from "@/data/cc/server";
+import type { CcAlert, CcRuleView } from "@/data/cc/types";
 import { useCcInvalidation } from "@/hooks/use-cc-invalidation";
-import { CcQueryError } from "./-cc-shared";
+import { alertSettingsQueryOptions } from "../_previewable/alerts";
+import { CcQueryError, CcStatusDot, ccFormatTs, LabelSet } from "./-cc-shared";
 
 const q = {
   rules: () =>
@@ -56,6 +62,7 @@ export const Route = createFileRoute(
       queryClient.prefetchQuery(q.receivers()),
       queryClient.prefetchQuery(q.inhibitions()),
       queryClient.prefetchQuery(q.silences()),
+      queryClient.prefetchQuery(alertSettingsQueryOptions()),
     ]),
   component: CcOverviewPage,
 });
@@ -64,11 +71,10 @@ type CcLinkTo =
   | "/cc-alerting/rules"
   | "/cc-alerting/monitor/active"
   | "/cc-alerting/monitor/silences"
-  | "/cc-alerting/routing";
+  | "/alerts/notifications";
 
 function StatCell({
   to,
-  search,
   hash,
   label,
   value,
@@ -76,7 +82,6 @@ function StatCell({
   emphasis,
 }: {
   to: CcLinkTo;
-  search?: Record<string, string>;
   hash?: string;
   label: string;
   value: number;
@@ -86,7 +91,6 @@ function StatCell({
   return (
     <Link
       to={to}
-      search={search}
       hash={hash}
       className="flex flex-col gap-0.5 bg-card p-3 outline-2 outline-dotted outline-transparent outline-offset-[-2px] transition-colors duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] hover:bg-muted/40 focus-visible:outline-primary"
     >
@@ -106,14 +110,107 @@ function StatCell({
   );
 }
 
-function Term({ name, children }: { name: string; children: React.ReactNode }) {
+// One line of rule health, in the alerts home's dot idiom: a green all-clear,
+// or the degraded rules listed by id with the amber warning dot.
+function RuleHealthStrip({ rules }: { rules: CcRuleView[] }) {
+  if (rules.length === 0) return null;
+  const degraded = rules.filter((r) => r.health.status === "degraded");
+  if (degraded.length === 0) {
+    return (
+      <p className="flex items-center gap-1.5 px-1 text-xs text-muted-foreground">
+        <CcStatusDot tone="healthy" />
+        {rules.length === 1
+          ? "1 rule healthy"
+          : `${rules.length} rules healthy`}
+      </p>
+    );
+  }
   return (
-    <div>
-      <dt className="text-sm font-medium text-foreground">{name}</dt>
-      <dd className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-        {children}
-      </dd>
-    </div>
+    <p className="flex flex-wrap items-center gap-1.5 px-1 text-xs">
+      <CcStatusDot tone="degraded" pulse />
+      <span className="text-amber-600 dark:text-amber-400">
+        {degraded.length} of {rules.length}{" "}
+        {rules.length === 1 ? "rule" : "rules"} degraded:
+      </span>
+      {degraded.map((r) => (
+        <Link
+          key={r.id}
+          to="/cc-alerting/rules/$ruleId"
+          params={{ ruleId: r.id }}
+          className="font-mono text-foreground underline-offset-2 hover:underline"
+        >
+          {r.id.slice(0, 8)}
+        </Link>
+      ))}
+    </p>
+  );
+}
+
+const FIRING_ROWS = 5;
+
+function FiringNowCard({
+  firing,
+  notifies,
+}: {
+  firing: CcAlert[];
+  notifies: (a: CcAlert) => string[];
+}) {
+  const columns: Column<CcAlert>[] = [
+    {
+      header: "Alert",
+      cell: (a) => (
+        <Link
+          to="/cc-alerting/rules/$ruleId"
+          params={{ ruleId: a.rule }}
+          className="font-mono text-primary hover:underline"
+        >
+          {a.rule.slice(0, 8)}
+        </Link>
+      ),
+    },
+    { header: "Labels", cell: (a) => <LabelSet labels={a.labels} /> },
+    { header: "Since", cell: (a) => ccFormatTs(a.active_since) },
+    {
+      header: "Notifies",
+      cell: (a) => {
+        const channels = notifies(a);
+        return channels.length > 0 ? (
+          <span className="text-xs">{joinWithAnd(channels)}</span>
+        ) : (
+          <span className="text-xs text-muted-foreground">
+            No channels configured
+          </span>
+        );
+      },
+    },
+  ];
+
+  return (
+    <Card inset="flush-content">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <CcStatusDot tone="firing" pulse />
+          Firing now
+        </CardTitle>
+        {firing.length > FIRING_ROWS && (
+          <CardAction>
+            <Link
+              to="/cc-alerting/monitor/active"
+              className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+            >
+              View all {firing.length}
+            </Link>
+          </CardAction>
+        )}
+      </CardHeader>
+      <CardContent>
+        <DataTable
+          data={firing.slice(0, FIRING_ROWS)}
+          columns={columns}
+          rowKey={(a) => a.key}
+        />
+      </CardContent>
+    </Card>
   );
 }
 
@@ -125,6 +222,7 @@ function CcOverviewPage() {
   const receivers = useQuery(q.receivers());
   const inhibitions = useQuery(q.inhibitions());
   const silences = useQuery(q.silences());
+  const settings = useQuery(alertSettingsQueryOptions());
 
   // On a CC outage every stat would render 0 — actively misleading (a false
   // "all clear"). Any errored core query fails the whole page to the shared
@@ -144,15 +242,18 @@ function CcOverviewPage() {
   const degraded = ruleList.filter(
     (r) => r.health.status === "degraded",
   ).length;
-  const firing = (alerts.data ?? []).filter(
-    (a) => a.status === "firing",
-  ).length;
+  const firing = (alerts.data ?? []).filter((a) => a.status === "firing");
   const now = Date.now();
-  const activeSilences = (silences.data ?? []).filter(
+  const activeMutes = (silences.data ?? []).filter(
     (s) =>
       new Date(s.starts_at).getTime() <= now &&
       now < new Date(s.ends_at).getTime(),
   ).length;
+  // The managed catch-all routes back the default channels; only the custom
+  // rules count here, matching what the notifications page lists.
+  const notificationRules = (routes.data ?? []).filter(
+    (r) => !isManagedCatchAllRoute(r),
+  );
 
   const rulesHint = [
     paused ? `${paused} paused` : null,
@@ -172,9 +273,9 @@ function CcOverviewPage() {
             <StatCell
               to="/cc-alerting/monitor/active"
               label="Firing now"
-              value={firing}
+              value={firing.length}
               emphasis
-              hint={firing > 0 ? "needs attention" : "all clear"}
+              hint={firing.length > 0 ? "needs attention" : "all clear"}
             />
             <StatCell
               to="/cc-alerting/rules"
@@ -183,86 +284,53 @@ function CcOverviewPage() {
               hint={rulesHint}
             />
             <StatCell
-              to="/cc-alerting/routing"
+              to="/alerts/notifications"
               hash="routes"
-              label="Routes"
-              value={(routes.data ?? []).length}
+              label="Notification rules"
+              value={notificationRules.length}
             />
             <StatCell
-              to="/cc-alerting/routing"
+              to="/alerts/notifications"
               hash="receivers"
-              label="Receivers"
+              label="Channels"
               value={(receivers.data ?? []).length}
             />
             <StatCell
               to="/cc-alerting/monitor/silences"
-              label="Active silences"
-              value={activeSilences}
+              label="Active mutes"
+              value={activeMutes}
             />
           </div>
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>How alerting works</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
-            The alerting engine watches your telemetry with{" "}
-            <span className="text-foreground">rules</span> — SQL queries
-            evaluated on a schedule. When a rule matches, it raises an{" "}
-            <span className="text-foreground">alert</span>, which is routed to
-            the right people and channels. Here&rsquo;s the path every alert
-            takes:
-          </p>
-          <CcPipelineDiagram
-            firing={firing}
-            routeCount={(routes.data ?? []).length}
-            receiverCount={(receivers.data ?? []).length}
-            silenceCount={activeSilences}
-            inhibitionCount={(inhibitions.data ?? []).length}
-          />
-        </CardContent>
-      </Card>
+      {firing.length > 0 && (
+        <FiringNowCard
+          firing={firing}
+          notifies={(a) =>
+            computeNotifiesChannels({
+              delivery: settings.data?.delivery,
+              routes: routes.data ?? [],
+              labelSets: [a.labels],
+            })
+          }
+        />
+      )}
+
+      <RuleHealthStrip rules={ruleList} />
 
       <Card>
         <CardHeader>
-          <CardTitle>Concepts</CardTitle>
+          <CardTitle>Delivery pipeline</CardTitle>
         </CardHeader>
         <CardContent>
-          <dl className="grid gap-x-8 gap-y-4 sm:grid-cols-2">
-            <Term name="Rule">
-              A SQL query evaluated on a schedule. When it returns rows, each
-              becomes an alert instance. Defined as code with{" "}
-              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.6875rem]">
-                everr apply
-              </code>
-              .
-            </Term>
-            <Term name="Alert">
-              A single firing condition — one label set from a rule. It moves
-              through <span className="text-foreground">pending</span> →{" "}
-              <span className="text-foreground">firing</span> →{" "}
-              <span className="text-foreground">resolved</span>.
-            </Term>
-            <Term name="Route">
-              A matcher that decides which receiver an alert reaches. Routes are
-              checked in priority order; the first match wins.
-            </Term>
-            <Term name="Receiver">
-              A delivery channel — Slack, webhook, PagerDuty, or email. Defined
-              as code alongside rules.
-            </Term>
-            <Term name="Silence">
-              A temporary mute for alerts whose labels match — for maintenance
-              windows and known noise.
-            </Term>
-            <Term name="Inhibition">
-              A rule that suppresses downstream alerts while a related,
-              higher-level alert is already firing.
-            </Term>
-          </dl>
+          <CcPipelineDiagram
+            firing={firing.length}
+            routeCount={notificationRules.length}
+            receiverCount={(receivers.data ?? []).length}
+            silenceCount={activeMutes}
+            inhibitionCount={(inhibitions.data ?? []).length}
+          />
         </CardContent>
       </Card>
     </div>
