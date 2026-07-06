@@ -1,0 +1,49 @@
+---
+title: What's OpenTelemetry
+description: The open standard for emitting traces, logs, and metrics from your code — one instrumentation, any backend.
+---
+
+**OpenTelemetry (OTel) is an open standard from the CNCF (Cloud Native Computing Foundation), plus SDKs, for emitting telemetry from your code.** You instrument once against the standard and send the data anywhere — the wire format and the attribute names are vendor-neutral, so no backend owns your instrumentation.
+
+## The three signals
+
+**Traces** record the path of a request as a tree of **spans**. A span has a name, a start and duration, a status, and attributes; each carries the id of its parent, so spans link into one trace across services. Context is **propagated** over the wire (an HTTP header, a queue message) so a child service attaches its spans to the same trace.
+
+```
+span  name=GET /checkout  trace_id=a1b2…  span_id=9f…  parent_id=∅ (root)
+      duration=142ms  status=OK
+      attributes: { http.request.method: GET, http.response.status_code: 200 }
+```
+
+**Logs** are structured records: a timestamp, a severity, a body, and attributes. When emitted in a traced context they carry the `trace_id` and `span_id`, which is what correlates a log line to the exact span that produced it.
+
+```
+log  severity=ERROR  body="payment declined"
+     trace_id=a1b2…  span_id=9f…  attributes: { user.id: u_42 }
+```
+
+**Metrics** are numeric timeseries with attributes. The instruments are **counters** (monotonic totals), **up/down counters** (totals that can decrease), **gauges** (a value sampled now), and **histograms** (a distribution, for latencies and sizes). Attributes split one instrument into per-label series.
+
+```
+metric  name=http.server.request.duration  histogram  unit=s
+        record(0.142)  attributes: { http.request.method: GET, http.route: /checkout }
+```
+
+## Semantic conventions
+
+The signals above are only queryable across tools because the attribute names are **standardized**. `http.response.status_code`, `service.name`, `db.system` mean the same thing whatever emitted them — so a query written against one service works against the next, and against any backend that ingests OTLP (the wire protocol, below).
+
+```
+service.name          http.request.method     db.system
+service.version       http.response.status_code   db.query.text
+```
+
+## OTLP and the Collector
+
+**OTLP** is the wire protocol — the standard encoding SDKs use to ship traces, logs, and metrics over gRPC or HTTP.
+
+The **Collector** is an agent that sits between your SDKs and your backends. It **receives** OTLP, **processes** it (batch, filter, redact, enrich), and **exports** it onward — so you reconfigure routing and add backends in one place instead of redeploying every service.
+
+## Where this goes next
+
+Telemetry that follows these conventions is exactly what the rest of these docs query — see [Observability as code](/docs/concepts/observability-as-code). For the full specification, see [opentelemetry.io](https://opentelemetry.io).
