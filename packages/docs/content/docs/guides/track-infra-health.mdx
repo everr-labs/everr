@@ -43,6 +43,27 @@ spec:
                     FROM metrics_gauge
                     WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
                       AND MetricName = 'k8s.node.cpu.usage'
+    ingest-rate:
+      kind: Panel
+      spec:
+        display: { name: Datapoints ingested }
+        plugin:
+          kind: TimeSeriesChart
+          spec: { unit: " dp" }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts,
+                           count() AS datapoints
+                    FROM metrics_gauge
+                    WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
+                      AND (MetricName LIKE 'k8s.node.%' OR MetricName LIKE 'k8s.pod.%')
+                    GROUP BY ts
+                    ORDER BY ts
   markdown:
     file: ./infra-health.runbook.md
   pages:
@@ -66,11 +87,18 @@ height: 180
 ## 2. Is ingestion steady?
 
 A flat, continuous line is healthy; a drop toward zero means the collector is crashing or losing its export path.
+
+```panel
+ref: ingest-rate
+height: 200
+```
 ````
+
+The freshness stat reads correctly on a now-anchored window (the seeded `duration` default); panning the time picker to a past window caps `max(TimeUnix)` and skews the number.
 
 ## Why shared panels
 
-Declare a panel once under `spec.panels`, then `ref:` it from any page in the tree. Edit the query or thresholds once and it propagates everywhere it's embedded.
+Declare a panel once under `spec.panels`, then `ref:` it from any page in the tree — the `collector` child page can embed the same `ref: freshness` again. Edit the query or thresholds once and it propagates everywhere it's embedded.
 
 ## Structuring the page tree
 
@@ -95,4 +123,4 @@ Link between pages by relative markdown path or page path (`[Collector not repor
 
 A triage runbook wants a short window and auto-refresh: `duration: 1h` frames "right now" and `refreshInterval: 30s` repolls without a manual reload.
 
-Full format and validation: [Runbook spec](/docs/reference/runbook-spec).
+Give the runbook to responders: [Link alerts to runbooks](/docs/guides/link-alerts-to-runbooks) · full format: [Runbook spec](/docs/reference/runbook-spec).
