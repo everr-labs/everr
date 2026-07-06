@@ -353,12 +353,13 @@ export const listAlertInstances = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(alertIdInput.extend({ timeRange: TimeRangeSchema }))
   .handler(async ({ data: { alertId }, context: { session } }) => {
     const org = session.session.activeOrganizationId;
-    const [rule, alerts, silences] = await Promise.all([
+    // Any tenant rule id works, everr-owned or bare: a nonexistent id
+    // surfaces as the CC 404 raised by getRule.
+    const [, alerts, silences] = await Promise.all([
       cc.getRule(org, alertId),
       cc.listAlerts(org),
       cc.listSilences(org),
     ]);
-    if (!isOwnedRule(rule.spec)) throw new Error("Alert not found");
     // Only this rule's silences scope its instances.
     const scoped = silences
       .filter((s) => silenceScopedToRule(s, alertId))
@@ -450,8 +451,9 @@ export const listAlertEvents = createAuthenticatedServerFn({ method: "GET" })
       context: { session, clickhouse },
     }) => {
       const org = session.session.activeOrganizationId;
+      // Any tenant rule id works, everr-owned or bare: a nonexistent id
+      // surfaces as the CC 404 raised by getRule.
       const rule = await cc.getRule(org, alertId);
-      if (!isOwnedRule(rule.spec)) throw new Error("Alert not found");
       const slug = fromCcRuleSpec(rule.spec).slug;
       const { fromISO, toISO } = resolveTimeRange(timeRange);
       const rows = await queryAlertHistory(clickhouse.query, slug, {
@@ -497,8 +499,9 @@ export const listAlertSilences = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(alertIdInput)
   .handler(async ({ data: { alertId }, context: { session } }) => {
     const org = session.session.activeOrganizationId;
-    const rule = await cc.getRule(org, alertId);
-    if (!isOwnedRule(rule.spec)) throw new Error("Alert not found");
+    // Any tenant rule id works, everr-owned or bare: a nonexistent id
+    // surfaces as the CC 404 raised by getRule.
+    await cc.getRule(org, alertId);
     const silences = await cc.listSilences(org);
     return silences
       .filter((s) => silenceScopedToRule(s, alertId))
@@ -530,8 +533,9 @@ export const createSilence = createAuthenticatedServerFn({ method: "POST" })
     }) => {
       const org = session.session.activeOrganizationId;
       await ensureOrgAdmin();
-      const rule = await cc.getRule(org, alertId);
-      if (!isOwnedRule(rule.spec)) throw new Error("Alert not found");
+      // Any tenant rule id works, everr-owned or bare: a nonexistent id
+      // surfaces as the CC 404 raised by getRule.
+      await cc.getRule(org, alertId);
       validateMatchers(matchers);
       const startsAt = new Date();
       if (new Date(endsAt) <= startsAt) {

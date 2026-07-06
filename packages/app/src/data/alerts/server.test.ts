@@ -25,9 +25,13 @@ vi.mock("@/data/cc/client", () => ({
 // overlay tests feed it directly.
 vi.mock("@/data/previews/repoids", () => ({ getPreviewRegistry: vi.fn() }));
 
+// The events read queries ClickHouse alert history; the tests feed rows in.
+vi.mock("./history.server", () => ({ queryAlertHistory: vi.fn() }));
+
 import * as cc from "@/data/cc/client";
 import { getPreviewRegistry } from "@/data/previews/repoids";
 import { auth } from "@/lib/auth.server";
+import { queryAlertHistory } from "./history.server";
 import { OWN_NAME, OWN_REPO } from "./mapping";
 import {
   activateAlert,
@@ -35,6 +39,8 @@ import {
   deactivateAlert,
   getAlert,
   getAlertSettings,
+  listAlertEvents,
+  listAlertInstances,
   listAlertSilences,
   listAlerts,
   testAlert,
@@ -109,6 +115,10 @@ function rule(
     },
   };
 }
+
+// A bare (power-user) CC rule: no everr annotations at all.
+const bareRule = (id = "power") =>
+  ruleView({ id, spec: { ...ruleView().spec, annotations: {} } });
 
 // An active (currently in-window) silence scoped to rule-1 by default.
 const silence = (over: Record<string, unknown> = {}) => ({
@@ -350,6 +360,66 @@ describe("getAlert", () => {
   });
 });
 
+describe("listAlertInstances", () => {
+  it("lists firing instances of a bare CC rule", async () => {
+    mock(cc.getRule).mockResolvedValue(bareRule());
+    mock(cc.listAlerts).mockResolvedValue([
+      {
+        rule: "power",
+        status: "firing",
+        key: "fp-1",
+        labels: { route: "/x" },
+        active_since: "2026-01-01T00:00:00Z",
+        value: 7,
+      },
+      // Another rule's instance stays out.
+      {
+        rule: "other",
+        status: "firing",
+        key: "fp-2",
+        labels: {},
+        active_since: "2026-01-01T00:00:00Z",
+        value: null,
+      },
+    ]);
+    mock(cc.listSilences).mockResolvedValue([]);
+    const out = await listAlertInstances({
+      data: { alertId: "power", timeRange: { from: "now-1h", to: "now" } },
+    });
+    expect(out).toHaveLength(1);
+    expect(out[0].fingerprint).toBe("fp-1");
+    expect(out[0].labels).toEqual({ route: "/x" });
+    expect(out[0].state).toBe("firing");
+  });
+});
+
+describe("listAlertEvents", () => {
+  it("lists history events of a bare CC rule", async () => {
+    mock(cc.getRule).mockResolvedValue(bareRule());
+    mock(queryAlertHistory).mockResolvedValue([
+      {
+        timestamp: "2026-01-01T00:00:00Z",
+        instanceFingerprint: "fp-1",
+        eventType: "instance_fired",
+        rowCount: "3",
+        deliveryTargetsJson: "{}",
+        silenced: "false",
+        instanceLabelsJson: '{"route":"/x"}',
+        evidence: null,
+        evidenceTruncated: false,
+      },
+    ]);
+    const out = await listAlertEvents({
+      data: { alertId: "power", timeRange: { from: "now-1h", to: "now" } },
+    });
+    expect(out).toHaveLength(1);
+    expect(out[0].eventType).toBe("instance_fired");
+    // A bare rule has no everr.name; the tolerant slug fallback is "".
+    expect(out[0].slug).toBe("");
+    expect(out[0].instances[0].labels).toEqual({ route: "/x" });
+  });
+});
+
 describe("listAlertSilences", () => {
   it("hides the synthetic rule matcher", async () => {
     mock(cc.getRule).mockResolvedValue(ruleView());
@@ -369,6 +439,16 @@ describe("listAlertSilences", () => {
     const out = await listAlertSilences({ data: { alertId: "rule-1" } });
     expect(out).toHaveLength(1);
     expect(out[0].matchers).toEqual([{ label: "route", op: "=", value: "/x" }]);
+  });
+
+  it("lists silences of a bare CC rule", async () => {
+    mock(cc.getRule).mockResolvedValue(bareRule());
+    mock(cc.listSilences).mockResolvedValue([
+      silence({ matchers: [{ label: "rule", op: "eq", value: "power" }] }),
+    ]);
+    const out = await listAlertSilences({ data: { alertId: "power" } });
+    expect(out).toHaveLength(1);
+    expect(out[0].id).toBe("s1");
   });
 });
 
@@ -408,6 +488,25 @@ describe("createSilence", () => {
       label: "route",
       op: "regex",
       value: "/api/.*",
+    });
+  });
+
+  it("silences a bare CC rule", async () => {
+    mock(cc.getRule).mockResolvedValue(bareRule());
+    mock(cc.createSilence).mockResolvedValue({ id: "s1" });
+    await createSilence({
+      data: {
+        alertId: "power",
+        endsAt: "2030-01-01T00:00:00.000Z",
+        reason: "",
+        matchers: [],
+      },
+    });
+    const body = mock(cc.createSilence).mock.calls[0][1];
+    expect(body.matchers).toContainEqual({
+      label: "rule",
+      op: "eq",
+      value: "power",
     });
   });
 });
