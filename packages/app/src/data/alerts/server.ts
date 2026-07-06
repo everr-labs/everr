@@ -2,20 +2,34 @@ import { resolveTimeRange, TimeRangeSchema } from "@everr/ui/lib/time-range";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { z } from "zod";
 import * as cc from "@/data/cc/client";
-import type { CcMatcher, CcRuleView, CcSilence } from "@/data/cc/types";
+import type {
+  CcMatcher,
+  CcRuleSpec,
+  CcRuleView,
+  CcSilence,
+} from "@/data/cc/types";
+import { overlayPreview, type PreviewStatus } from "@/data/previews/overlay";
+import { getPreviewRegistry } from "@/data/previews/repoids";
 import { auth } from "@/lib/auth.server";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import {
   ALERT_CHANNELS,
   type AlertDeliveryTargets,
   DEFAULT_EMAIL_RECEIVER,
+  DEFAULT_SLACK_RECEIVER,
   DEFAULT_TELEGRAM_RECEIVER,
   DeliverySettingsSchema,
   normalizeDeliverySettings,
   receiversToDeliverySettings,
 } from "./delivery-settings";
-import { queryAlertHistory } from "./history.server";
-import { fromCcRuleSpec, isManagedSimple } from "./mapping";
+import { type AlertEvidence, queryAlertHistory } from "./history.server";
+import {
+  ANN_CC_LINK_ALERT,
+  fromCcRuleSpec,
+  isManagedSimple,
+  OWN_PREVIEW,
+  previewIdOf,
+} from "./mapping";
 import {
   findSilenceForInstance,
   type Matcher,
@@ -57,6 +71,39 @@ function silenceScopedToRule(s: CcSilence, ruleId: string): boolean {
   );
 }
 
+type ActiveSilenceInfo = {
+  activeSilenceCount: number;
+  // ISO of the latest end among the active silences — when the alert un-mutes.
+  activeSilenceExpiresAt: string | null;
+};
+
+// Count only this rule's silences that are currently in their active window
+// (started, not yet ended) and report when the alert un-silences: the latest
+// end among them (overlapping silences keep it muted until the last one lifts).
+function activeSilencesForRule(
+  silences: CcSilence[],
+  ruleId: string,
+  now: number = Date.now(),
+): ActiveSilenceInfo {
+  let count = 0;
+  let maxEnds: number | null = null;
+  for (const s of silences) {
+    if (!silenceScopedToRule(s, ruleId)) continue;
+    const starts = new Date(s.starts_at).getTime();
+    const ends = new Date(s.ends_at).getTime();
+    if (Number.isNaN(starts) || Number.isNaN(ends)) continue;
+    if (starts <= now && ends > now) {
+      count += 1;
+      if (maxEnds === null || ends > maxEnds) maxEnds = ends;
+    }
+  }
+  return {
+    activeSilenceCount: count,
+    activeSilenceExpiresAt:
+      maxEnds === null ? null : new Date(maxEnds).toISOString(),
+  };
+}
+
 export type AlertSummary = {
   id: string; // CC rule id
   repoid: string;
@@ -73,12 +120,20 @@ export type AlertSummary = {
   lastSeenAt: string | null;
   firingInstanceCount: number;
   activeSilenceCount: number;
+  activeSilenceExpiresAt: string | null;
+  runbookProject: string | null;
+  runbookSlug: string | null;
+  // The owning preview registry id (null = live rule). Preview rules are
+  // suppressed in CC: fully evaluated, never notifying.
+  previewId: string | null;
+  // Set only by the preview-overlay read (listAlerts/getAlert with `preview`).
+  previewStatus?: PreviewStatus;
 };
 
 // CC RuleView → AlertSummary. The rolled-up alert state lives under the nested
 // (optional) `rollup` object — read it defensively (a CC not yet on SP2 2a
 // omits it).
-function toSummary(r: CcRuleView, silenceCount: number): AlertSummary {
+function toSummary(r: CcRuleView, silence: ActiveSilenceInfo): AlertSummary {
   const v = fromCcRuleSpec(r.spec);
   const state =
     r.rollup?.alert_state === "firing"
@@ -102,7 +157,43 @@ function toSummary(r: CcRuleView, silenceCount: number): AlertSummary {
     lastResolvedAt: r.rollup?.last_resolved_at ?? null,
     lastSeenAt: r.rollup?.last_seen_at ?? null,
     firingInstanceCount: r.rollup?.firing_instance_count ?? 0,
-    activeSilenceCount: silenceCount,
+    activeSilenceCount: silence.activeSilenceCount,
+    activeSilenceExpiresAt: silence.activeSilenceExpiresAt,
+    runbookProject: v.runbookProject,
+    runbookSlug: v.runbookSlug,
+    previewId: v.previewId,
+  };
+}
+
+// What "changed" means for the live-vs-preview overlay: the spec minus the
+// namespace bookkeeping. `suppressed` and the everr.preview annotation ARE the
+// namespace split, and link.alert embeds the rule's own CC id — a live rule
+// and its preview copy necessarily differ on all three, so none of them is a
+// real edit. The ownership annotations (name/repo/managed) are identical
+// across the pair by construction and can stay.
+function comparableSpec(spec: CcRuleSpec): Record<string, unknown> {
+  const { suppressed: _suppressed, annotations, ...rest } = spec;
+  const comparable = { ...annotations };
+  delete comparable[OWN_PREVIEW];
+  delete comparable[ANN_CC_LINK_ALERT];
+  return { ...rest, annotations: comparable };
+}
+
+// A CC rule as the generic preview overlay sees it. An alert's identity is
+// (repoid, slug): there is no project and no cross-repo ownership (two repos
+// may declare the same slug). Feeding the repoid as the overlay's `project`
+// keeps its owner-agnostic identity per-repo, so the cross-repo "conflict"
+// status can never fire on legitimately coexisting same-slug rules.
+function toOverlayRow(rule: CcRuleView) {
+  const v = fromCcRuleSpec(rule.spec);
+  return {
+    rule,
+    repoid: v.repoid,
+    project: v.repoid,
+    slug: v.slug,
+    folderPath: "",
+    previewId: v.previewId,
+    document: comparableSpec(rule.spec),
   };
 }
 
@@ -114,6 +205,9 @@ type AlertDetail = AlertSummary & {
   notificationTitleTemplate: string;
   notificationDescriptionTemplate: string;
   instanceLabelColumns: string[];
+  forSeconds: number;
+  resolveAfter: number;
+  valueColumn: string | null;
   runbookProject: string | null;
   runbookSlug: string | null;
 };
@@ -129,35 +223,95 @@ async function ensureOrgAdmin() {
   }
 }
 
-export const listAlerts = createAuthenticatedServerFn({
-  method: "GET",
-}).handler(async ({ context: { session } }) => {
-  const org = session.session.activeOrganizationId;
-  const [rules, silences] = await Promise.all([
-    cc.listRules(org),
-    cc.listSilences(org),
-  ]);
-  return rules
-    .filter((r) => isManagedSimple(r.spec))
-    .map((r) => {
-      const count = silences.filter((s) => silenceScopedToRule(s, r.id)).length;
-      return toSummary(r, count);
+export const listAlerts = createAuthenticatedServerFn({ method: "GET" })
+  .inputValidator(z.object({ preview: z.string().optional() }).optional())
+  .handler(async ({ data, context: { session } }) => {
+    const org = session.session.activeOrganizationId;
+    const preview = data?.preview ?? null;
+    const [rules, silences] = await Promise.all([
+      cc.listRules(org),
+      cc.listSilences(org),
+    ]);
+    const managed = rules.filter((r) => isManagedSimple(r.spec));
+    const summarize = (r: CcRuleView): AlertSummary =>
+      toSummary(r, activeSilencesForRule(silences, r.id));
+
+    if (preview === null) {
+      // Live list: preview rules (suppressed, everr.preview-tagged) belong to
+      // their preview's overlay and never show up here.
+      return managed.filter((r) => previewIdOf(r.spec) === null).map(summarize);
+    }
+
+    // Preview overlay, mirroring the dashboards/runbooks reads: this preview's
+    // rules replace the live ones for the repoids it covers (added / changed /
+    // unchanged per rule, live-only rules marked removed). CC rules can't join
+    // the previews table, so the registry resolves the preview name to its
+    // (id → repoid) rows and the overlay runs in memory over the CC listing.
+    const registry = await getPreviewRegistry(org, preview);
+    const overlaid = overlayPreview({
+      rows: managed
+        // Live rules plus THIS preview's; other previews stay invisible.
+        .filter((r) => {
+          const pid = previewIdOf(r.spec);
+          return pid === null || registry.has(pid);
+        })
+        .map(toOverlayRow),
+      coveredRepoids: new Set(registry.values()),
     });
-});
+    return overlaid.map((row) => ({
+      ...summarize(row.rule),
+      previewStatus: row.previewStatus,
+    }));
+  });
+
+// The detail-page analogue of the list overlay, scoped to one rule's
+// (repoid, slug) identity: how the viewed rule relates to its counterpart on
+// the other side of the live/preview split. Outside a preview context there is
+// no status. Mirrors getDashboard: the status rides the loaderData up to the
+// _previewable layout's preview bar. A live rule shadowed by a preview copy
+// resolves to no status (the overlay keeps only the preview copy, which is
+// where the /alerts list links while previewing).
+async function detailPreviewStatus(
+  org: string,
+  rule: CcRuleView,
+  preview: string | null,
+): Promise<PreviewStatus | undefined> {
+  if (preview === null) return undefined;
+  const [registry, rules] = await Promise.all([
+    getPreviewRegistry(org, preview),
+    cc.listRules(org),
+  ]);
+  const identity = fromCcRuleSpec(rule.spec);
+  const overlaid = overlayPreview({
+    rows: rules
+      .filter((r) => {
+        if (!isManagedSimple(r.spec)) return false;
+        const v = fromCcRuleSpec(r.spec);
+        if (v.repoid !== identity.repoid || v.slug !== identity.slug)
+          return false;
+        const pid = previewIdOf(r.spec);
+        return pid === null || registry.has(pid);
+      })
+      .map(toOverlayRow),
+    coveredRepoids: new Set(registry.values()),
+  });
+  return overlaid.find((row) => row.rule.id === rule.id)?.previewStatus;
+}
 
 export const getAlert = createAuthenticatedServerFn({ method: "GET" })
-  .inputValidator(alertIdInput)
-  .handler(async ({ data: { alertId }, context: { session } }) => {
+  .inputValidator(alertIdInput.extend({ preview: z.string().optional() }))
+  .handler(async ({ data: { alertId, preview }, context: { session } }) => {
     const org = session.session.activeOrganizationId;
     const rule = await cc.getRule(org, alertId);
     if (!isManagedSimple(rule.spec)) throw new Error("Alert not found");
     const view = fromCcRuleSpec(rule.spec);
-    const silences = await cc.listSilences(org);
-    const count = silences.filter((s) =>
-      silenceScopedToRule(s, alertId),
-    ).length;
+    const [silences, previewStatus] = await Promise.all([
+      cc.listSilences(org),
+      detailPreviewStatus(org, rule, preview ?? null),
+    ]);
     return {
-      ...toSummary(rule, count),
+      ...toSummary(rule, activeSilencesForRule(silences, alertId)),
+      previewStatus,
       display: {
         name: view.displayName ?? undefined,
         description: view.displayDescription ?? undefined,
@@ -166,6 +320,9 @@ export const getAlert = createAuthenticatedServerFn({ method: "GET" })
       notificationTitleTemplate: view.notificationTitleTemplate,
       notificationDescriptionTemplate: view.notificationDescriptionTemplate,
       instanceLabelColumns: view.instanceLabelColumns,
+      forSeconds: view.forSeconds,
+      resolveAfter: view.resolveAfter,
+      valueColumn: view.valueColumn,
       runbookProject: view.runbookProject,
       runbookSlug: view.runbookSlug,
     } satisfies AlertDetail;
@@ -226,7 +383,13 @@ type AlertEvent = {
   rowCount: number;
   deliveryTargets: AlertDeliveryTargets;
   silenceId: string;
-  instances: { state: "firing" | "resolved"; labels: Record<string, string> }[];
+  instances: {
+    state: "firing" | "resolved";
+    labels: Record<string, string>;
+    // Source-row columns beyond the identity labels (from CC's alert.evidence_json).
+    evidence: AlertEvidence | null;
+    evidenceTruncated: boolean;
+  }[];
 };
 
 function parseJsonObject(json: string): Record<string, unknown> {
@@ -300,7 +463,14 @@ export const listAlertEvents = createAuthenticatedServerFn({ method: "GET" })
           rowCount: Number(row.rowCount) || 0,
           deliveryTargets: parseDeliveryTargets(row.deliveryTargetsJson),
           silenceId: row.silenced === "true" ? "silenced" : "",
-          instances: [{ state, labels: stringifyValues(labels) }],
+          instances: [
+            {
+              state,
+              labels: stringifyValues(labels),
+              evidence: row.evidence,
+              evidenceTruncated: row.evidenceTruncated,
+            },
+          ],
         } satisfies AlertEvent;
       });
     },
@@ -386,26 +556,38 @@ export const cancelSilence = createAuthenticatedServerFn({ method: "POST" })
 export const getAlertSettings = createAuthenticatedServerFn({
   method: "GET",
 }).handler(async ({ context: { session } }) => {
-  const receivers = await cc.listReceivers(
-    session.session.activeOrganizationId,
-  );
-  return { delivery: receiversToDeliverySettings(receivers) };
+  const org = session.session.activeOrganizationId;
+  const [receivers, routes] = await Promise.all([
+    cc.listReceivers(org),
+    cc.listRoutes(org),
+  ]);
+  // The re-notify cadence rides on the managed catch-all routes, so read it
+  // back alongside the receivers.
+  return { delivery: receiversToDeliverySettings(receivers, routes) };
 });
 
-// Ensure one catch-all route (empty matchers) per managed receiver. Each route
-// has `continue: true` so both managed receivers fire, and distinct high
-// priority numbers so lower-priority power-user routes evaluate first.
-async function ensureCatchAllRoutes(org: string) {
+// Ensure one catch-all route (empty matchers) per managed receiver, each
+// carrying the chosen re-notify cadence. Each route has `continue: true` so
+// both managed receivers fire, and distinct high priority numbers so
+// lower-priority power-user routes evaluate first. A missing route is created;
+// an existing one is reconciled in place via updateRoute (never delete +
+// recreate, whose gap would misroute events), touching only
+// repeat_interval_secs and carrying every other field over unchanged.
+async function ensureCatchAllRoutes(
+  org: string,
+  repeatIntervalSecs: number | null,
+) {
   const routes = await cc.listRoutes(org);
   const wanted: [string, number][] = [
     [DEFAULT_EMAIL_RECEIVER, 1000],
     [DEFAULT_TELEGRAM_RECEIVER, 1001],
+    [DEFAULT_SLACK_RECEIVER, 1002],
   ];
   for (const [receiver, priority] of wanted) {
-    const has = routes.some(
+    const existing = routes.find(
       (r) => r.matchers.length === 0 && r.receiver === receiver,
     );
-    if (!has) {
+    if (!existing) {
       await cc.createRoute(org, {
         matchers: [],
         receiver,
@@ -414,6 +596,18 @@ async function ensureCatchAllRoutes(org: string) {
         group_by: null,
         group_wait_secs: null,
         group_interval_secs: null,
+        repeat_interval_secs: repeatIntervalSecs,
+      });
+    } else if (existing.repeat_interval_secs !== repeatIntervalSecs) {
+      await cc.updateRoute(org, existing.id, {
+        matchers: existing.matchers,
+        receiver: existing.receiver,
+        continue: existing.continue,
+        priority: existing.priority,
+        group_by: existing.group_by,
+        group_wait_secs: existing.group_wait_secs,
+        group_interval_secs: existing.group_interval_secs,
+        repeat_interval_secs: repeatIntervalSecs,
       });
     }
   }
@@ -440,7 +634,14 @@ export const updateAlertSettings = createAuthenticatedServerFn({
         chat_ids: n.telegram.enabled ? n.telegram.chatIds : [],
       },
     });
-    await ensureCatchAllRoutes(org);
+    await cc.upsertReceiver(org, {
+      name: DEFAULT_SLACK_RECEIVER,
+      channel: {
+        type: "slack",
+        url: n.slack.enabled ? n.slack.webhookUrl : "",
+      },
+    });
+    await ensureCatchAllRoutes(org, n.remindEverySeconds);
     return { delivery: n };
   });
 

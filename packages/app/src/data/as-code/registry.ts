@@ -19,6 +19,10 @@ export interface KindResult {
   deleted: string[];
   /** Live resources taken over from another owning repo (only with `adopt`). */
   adopted: string[];
+  /** Non-fatal advisory about how this kind was reconciled (e.g. preview
+   * AlertRules are evaluated as suppressed CC rules: real instances and
+   * history, but no notifications). */
+  note?: string;
 }
 
 export interface ApplyResourcesResult {
@@ -47,6 +51,8 @@ export type Reconciler = (opts: {
   adopted: string[];
   /** Creates colliding with another repo's live resource; empty when adopting. */
   conflicts: OwnershipConflict[];
+  /** Optional non-fatal advisory surfaced in the per-kind result. */
+  note?: string;
 }>;
 
 /**
@@ -120,6 +126,7 @@ export async function applyResources(opts: {
       updated: string[];
       deleted: string[];
       adopted: string[];
+      note?: string;
     },
   ): KindResult => ({
     kind,
@@ -127,6 +134,7 @@ export async function applyResources(opts: {
     updated: r.updated,
     deleted: r.deleted,
     adopted: r.adopted,
+    ...(r.note ? { note: r.note } : {}),
   });
 
   // Live, or the preview resolved to its registry id via the given resolver.

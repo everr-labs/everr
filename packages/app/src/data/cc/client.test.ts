@@ -76,3 +76,78 @@ it("createSilence POSTs body and validates response", async () => {
   expect(spy).toHaveBeenCalledWith("org1", "POST", "/v1/silences", body);
   expect(out.id).toBe("s1");
 });
+
+const route = {
+  id: "rt1",
+  tenant: "t",
+  matchers: [{ label: "severity", op: "eq", value: "critical" }],
+  receiver: "oncall",
+  continue: true,
+  priority: 5,
+  group_by: ["rule", "severity"],
+  group_wait_secs: 15,
+  group_interval_secs: 600,
+  repeat_interval_secs: 3600,
+};
+
+it("createRoute POSTs body and round-trips repeat_interval_secs", async () => {
+  const spy = vi.spyOn(transport, "ccRequest").mockResolvedValue(route);
+  const input = {
+    matchers: [{ label: "severity", op: "eq" as const, value: "critical" }],
+    receiver: "oncall",
+    continue: true,
+    priority: 5,
+    group_by: ["rule", "severity"],
+    group_wait_secs: 15,
+    group_interval_secs: 600,
+    repeat_interval_secs: 3600,
+  };
+  const out = await cc.createRoute("org1", input);
+  expect(spy).toHaveBeenCalledWith("org1", "POST", "/v1/routes", input);
+  expect(out.repeat_interval_secs).toBe(3600);
+  expect(out.continue).toBe(true);
+});
+
+it("updateRoute PUTs the id path and validates", async () => {
+  const spy = vi
+    .spyOn(transport, "ccRequest")
+    .mockResolvedValue({ ...route, repeat_interval_secs: null });
+  const input = {
+    matchers: [{ label: "severity", op: "eq" as const, value: "critical" }],
+    receiver: "oncall",
+    continue: false,
+    priority: 5,
+    group_by: null,
+    group_wait_secs: null,
+    group_interval_secs: null,
+    repeat_interval_secs: null,
+  };
+  const out = await cc.updateRoute("org1", "rt1", input);
+  expect(spy).toHaveBeenCalledWith("org1", "PUT", "/v1/routes/rt1", input);
+  expect(out.repeat_interval_secs).toBeNull();
+});
+
+it("listSubscriptions GETs /v1/subscriptions and validates", async () => {
+  const subs = [
+    {
+      id: "sub1",
+      tenant: "t",
+      webhook_url: "https://example.com/hook",
+      created_at: "2026-06-14T12:00:00Z",
+    },
+  ];
+  const spy = vi.spyOn(transport, "ccRequest").mockResolvedValue(subs);
+  const out = await cc.listSubscriptions("org1");
+  expect(spy).toHaveBeenCalledWith("org1", "GET", "/v1/subscriptions");
+  expect(out[0].webhook_url).toBe("https://example.com/hook");
+  expect(out[0].created_at).toBe("2026-06-14T12:00:00Z");
+});
+
+it("deleteSubscription DELETEs the id path and validates", async () => {
+  const spy = vi
+    .spyOn(transport, "ccRequest")
+    .mockResolvedValue({ deleted: true });
+  const out = await cc.deleteSubscription("org1", "sub1");
+  expect(spy).toHaveBeenCalledWith("org1", "DELETE", "/v1/subscriptions/sub1");
+  expect(out.deleted).toBe(true);
+});

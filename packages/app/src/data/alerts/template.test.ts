@@ -2,8 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   extractVariables,
   renderMessage,
-  validateMessageColumns,
-  validateMessageTemplate,
+  validateMessageRefs,
   validateQueryTemplate,
 } from "./template";
 
@@ -28,25 +27,38 @@ describe("validateQueryTemplate", () => {
   });
 });
 
-describe("validateMessageTemplate", () => {
-  it("allows column variables", () => {
-    expect(() => validateMessageTemplate(`\${route}`)).not.toThrow();
-    expect(() => validateMessageTemplate(`\${window}`)).not.toThrow();
-    expect(() => validateMessageTemplate(`\${whatever}`)).not.toThrow();
-  });
-});
-
-describe("validateMessageColumns", () => {
-  it("rejects column variables missing from the result schema", () => {
+describe("validateMessageRefs", () => {
+  it("allows any query result column, and the value placeholder when a value column is set", () => {
     expect(() =>
-      validateMessageColumns(`\${route}`, ["route", "n"]),
+      validateMessageRefs(`\${route} at \${value}`, ["route"], true),
     ).not.toThrow();
-    expect(() => validateMessageColumns(`\${missing}`, ["route"])).toThrow(
-      /missing/,
+    // Non-label columns resolve from the event's evidence at render time.
+    expect(() =>
+      validateMessageRefs(`\${errors} on \${route}`, ["route", "errors"], true),
+    ).not.toThrow();
+    expect(() => validateMessageRefs("no refs", [], false)).not.toThrow();
+  });
+
+  it("rejects refs to columns the query does not return, listing the columns", () => {
+    expect(() =>
+      validateMessageRefs(`\${n}`, ["route", "errors"], false),
+    ).toThrow(
+      /\$\{n\} is not a column of the query result.*\(available: route, errors\)/,
     );
-    expect(() => validateMessageColumns(`\${row_count}`, ["route"])).toThrow(
-      /row_count/,
+    expect(() => validateMessageRefs(`\${n}`, [], false)).toThrow(
+      /the query returned no columns/,
     );
+  });
+
+  it("rejects the value placeholder when the rule has no value column", () => {
+    expect(() => validateMessageRefs(`\${value}`, ["route"], false)).toThrow(
+      /requires spec\.valueColumn/,
+    );
+    // A result column literally named "value" is fine: CC falls through to it
+    // (via labels or evidence) when the rule has no value column.
+    expect(() =>
+      validateMessageRefs(`\${value}`, ["value"], false),
+    ).not.toThrow();
   });
 });
 

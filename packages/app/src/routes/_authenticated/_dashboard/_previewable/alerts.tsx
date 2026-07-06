@@ -1,3 +1,4 @@
+import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
 import { Card, CardContent } from "@everr/ui/components/card";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
@@ -11,9 +12,17 @@ import {
 } from "@everr/ui/components/dialog";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@everr/ui/components/select";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { Switch } from "@everr/ui/components/switch";
 import { TagsInput } from "@everr/ui/components/tags-input";
+import { cn } from "@everr/ui/lib/utils";
 import { useForm } from "@tanstack/react-form";
 import {
   queryOptions,
@@ -21,18 +30,21 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { Settings } from "lucide-react";
+import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
+import { NotebookText, SearchIcon, Settings, XIcon } from "lucide-react";
 import { useMemo, useState } from "react";
+import { PreviewStatusBadge } from "@/components/preview-status-badge";
 import {
   emptyChannelError,
   type NormalizedAlertDeliverySettings,
+  slackWebhookUrlError,
   telegramBotTokenError,
 } from "@/data/alerts/delivery-settings";
 import {
   validateEmailRecipient,
   validateTelegramChatId,
 } from "@/data/alerts/recipients";
+import { formatRunbookRef } from "@/data/alerts/schema";
 import {
   type AlertSummary,
   getAlertSettings,
@@ -42,13 +54,19 @@ import {
 import {
   AlertStateBadges,
   formatInterval,
+  isEvaluationStale,
   QueryErrorMessage,
   RelativeTime,
   SeverityBadge,
 } from "./-alerts-shared";
 
-const alertsQueryOptions = () =>
-  queryOptions({ queryKey: ["alerts"], queryFn: () => listAlerts() });
+const alertsQueryOptions = (preview?: string) =>
+  queryOptions({
+    // Keyed under the shared "alerts" prefix so mutation invalidations hit
+    // every preview variant of the list.
+    queryKey: ["alerts", "list", preview ?? ""],
+    queryFn: () => listAlerts({ data: { preview } }),
+  });
 
 const alertSettingsQueryOptions = () =>
   queryOptions({
@@ -56,14 +74,113 @@ const alertSettingsQueryOptions = () =>
     queryFn: () => getAlertSettings(),
   });
 
+type AlertListFilter =
+  | "all"
+  | "firing"
+  | "errored"
+  | "silenced"
+  | "resolved"
+  | "inactive";
+
+interface AlertFilterOption {
+  value: AlertListFilter;
+  label: string;
+  count: number;
+  tone?: "destructive" | "warning";
+}
+
+function alertMatchesFilter(alert: AlertSummary, filter: AlertListFilter) {
+  switch (filter) {
+    case "all":
+      return true;
+    case "firing":
+      return alert.active && alert.currentState === "firing";
+    case "errored":
+      return alert.active && alert.health !== "healthy";
+    case "silenced":
+      return alert.activeSilenceCount > 0;
+    case "resolved":
+      return alert.active && alert.currentState === "resolved";
+    case "inactive":
+      return !alert.active;
+  }
+}
+
+function alertMatchesSearch(alert: AlertSummary, query: string) {
+  if (!query) return true;
+  return [
+    alert.displayName,
+    alert.slug,
+    alert.repoid,
+    alert.runbookProject,
+    alert.runbookSlug,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+    .includes(query);
+}
+
+function AlertFilterButton({
+  option,
+  active,
+  onSelect,
+}: {
+  option: AlertFilterOption;
+  active: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="xs"
+      aria-pressed={active}
+      onClick={onSelect}
+      className={cn(
+        "h-6 gap-1.5 rounded-md px-1.5 text-[0.6875rem] transition-colors",
+        active
+          ? "border-border bg-muted/70 text-foreground shadow-none hover:bg-muted"
+          : "border-border/60 bg-transparent text-muted-foreground hover:border-border hover:bg-muted/40 hover:text-foreground",
+        active &&
+          option.tone === "destructive" &&
+          "border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/15",
+        active &&
+          option.tone === "warning" &&
+          "border-amber-500/30 bg-amber-500/10 text-amber-600 hover:bg-amber-500/15 dark:text-amber-400",
+      )}
+    >
+      <span className="font-medium">{option.label}</span>
+      <span
+        className={cn(
+          "inline-flex min-w-4 items-center justify-center rounded-sm px-1 font-semibold tabular-nums",
+          active ? "bg-background/70" : "bg-muted/50 text-foreground",
+          active &&
+            option.tone === "destructive" &&
+            "bg-destructive/15 text-destructive",
+          active &&
+            option.tone === "warning" &&
+            "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+        )}
+      >
+        {option.count}
+      </span>
+    </Button>
+  );
+}
+
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_previewable/alerts",
 )({
   staticData: { breadcrumb: "Alerts", hideTimeRangePicker: true },
   head: () => ({ meta: [{ title: "Everr - Alerts" }] }),
-  loader: async ({ context: { queryClient } }) => {
+  // Preview is app-wide search state; declaring it as a loader dep keys the
+  // prefetch to the same preview the component reads, so switching previews
+  // refetches instead of serving the wrong overlay.
+  loaderDeps: ({ search: { preview } }) => ({ preview }),
+  loader: async ({ context: { queryClient }, deps: { preview } }) => {
     await Promise.all([
-      queryClient.prefetchQuery(alertsQueryOptions()),
+      queryClient.prefetchQuery(alertsQueryOptions(preview)),
       queryClient.prefetchQuery(alertSettingsQueryOptions()),
     ]);
   },
@@ -71,23 +188,78 @@ export const Route = createFileRoute(
 });
 
 function AlertsPage() {
-  const alerts = useQuery(alertsQueryOptions());
+  const { preview } = useSearch({ from: "/_authenticated/_dashboard" });
+  const alerts = useQuery(alertsQueryOptions(preview));
   const settings = useQuery(alertSettingsQueryOptions());
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [alertFilter, setAlertFilter] = useState<AlertListFilter>("all");
+  const [alertSearch, setAlertSearch] = useState("");
 
   const summary = useMemo(() => {
     let firing = 0;
     let errored = 0;
-    let ok = 0;
+    let resolved = 0;
     let inactive = 0;
+    let silenced = 0;
     for (const a of alerts.data ?? []) {
+      if (a.activeSilenceCount > 0) silenced += 1;
       if (!a.active) inactive += 1;
-      else if (a.health !== "healthy") errored += 1;
-      else if (a.currentState === "firing") firing += 1;
-      else ok += 1;
+      else {
+        if (a.health !== "healthy") errored += 1;
+        if (a.currentState === "firing") firing += 1;
+        else if (a.currentState === "resolved") resolved += 1;
+      }
     }
-    return { firing, errored, ok, inactive };
+    return {
+      total: alerts.data?.length ?? 0,
+      firing,
+      errored,
+      resolved,
+      inactive,
+      silenced,
+    };
   }, [alerts.data]);
+
+  const filterOptions = useMemo<AlertFilterOption[]>(() => {
+    const all: AlertFilterOption[] = [
+      { value: "all", label: "All", count: summary.total },
+      {
+        value: "firing",
+        label: "Firing",
+        count: summary.firing,
+        tone: "destructive",
+      },
+      {
+        value: "errored",
+        label: "Errored",
+        count: summary.errored,
+        tone: "warning",
+      },
+      { value: "silenced", label: "Silenced", count: summary.silenced },
+      { value: "resolved", label: "Resolved", count: summary.resolved },
+      { value: "inactive", label: "Inactive", count: summary.inactive },
+    ];
+    // Hide empty categories, but always keep "All" and whichever chip is the
+    // active filter (so the current selection never vanishes from the row).
+    return all.filter(
+      (o) => o.value === "all" || o.count > 0 || o.value === alertFilter,
+    );
+  }, [alertFilter, summary]);
+
+  const filteredAlerts = useMemo(() => {
+    const query = alertSearch.trim().toLowerCase();
+    return (alerts.data ?? []).filter(
+      (alert) =>
+        alertMatchesFilter(alert, alertFilter) &&
+        alertMatchesSearch(alert, query),
+    );
+  }, [alertFilter, alertSearch, alerts.data]);
+  const hasActiveListFilters =
+    alertFilter !== "all" || alertSearch.trim().length > 0;
+  const clearAlertFilters = () => {
+    setAlertFilter("all");
+    setAlertSearch("");
+  };
 
   const delivery = settings.data?.delivery;
   const hasChannel =
@@ -95,29 +267,33 @@ function AlertsPage() {
     ((delivery.email.enabled && delivery.email.to.length > 0) ||
       (delivery.telegram.enabled &&
         delivery.telegram.chatIds.length > 0 &&
-        delivery.telegram.botToken.length > 0));
+        delivery.telegram.botToken.length > 0) ||
+      (delivery.slack.enabled && delivery.slack.webhookUrl.length > 0));
 
   const columns = useMemo<Column<AlertSummary>[]>(
     () => [
       {
         header: "Alert",
         cell: (row) => (
-          <Link
-            to="/alerts/$alertId"
-            params={{ alertId: row.id }}
-            className="block underline-offset-4 hover:underline"
-          >
-            {row.displayName ? (
-              <span className="flex items-baseline gap-2">
-                <span className="font-medium">{row.displayName}</span>
-                <span className="font-mono text-muted-foreground text-xs">
-                  {row.slug}
+          <span className="flex items-center gap-2">
+            <Link
+              to="/alerts/$alertId"
+              params={{ alertId: row.id }}
+              className="min-w-0 underline-offset-4 hover:underline"
+            >
+              {row.displayName ? (
+                <span className="flex items-baseline gap-2">
+                  <span className="font-medium">{row.displayName}</span>
+                  <span className="font-mono text-muted-foreground text-xs">
+                    {row.slug}
+                  </span>
                 </span>
-              </span>
-            ) : (
-              <span className="font-mono">{row.slug}</span>
-            )}
-          </Link>
+              ) : (
+                <span className="font-mono">{row.slug}</span>
+              )}
+            </Link>
+            <PreviewStatusBadge status={row.previewStatus} />
+          </span>
         ),
       },
       {
@@ -127,9 +303,8 @@ function AlertsPage() {
             state={row.currentState}
             active={row.active}
             firingInstanceCount={row.firingInstanceCount}
-            silenced={
-              row.currentState === "firing" && row.activeSilenceCount > 0
-            }
+            activeSilenceCount={row.activeSilenceCount}
+            activeSilenceExpiresAt={row.activeSilenceExpiresAt}
           />
         ),
       },
@@ -139,7 +314,28 @@ function AlertsPage() {
       },
       {
         header: "Last seen",
-        cell: (row) => <RelativeTime value={row.lastSeenAt} />,
+        cell: (row) => {
+          const stale = isEvaluationStale(
+            row.lastSeenAt,
+            row.evaluationIntervalSeconds,
+          );
+          return (
+            <span className="flex items-center gap-1.5">
+              <span className={stale ? "text-amber-500" : undefined}>
+                <RelativeTime value={row.lastSeenAt} />
+              </span>
+              {stale && (
+                <Badge
+                  variant="outline"
+                  className="border-amber-500/40 text-amber-500"
+                  title="Evaluation overdue — this rule hasn't run recently"
+                >
+                  overdue
+                </Badge>
+              )}
+            </span>
+          );
+        },
       },
       {
         header: "Firing since",
@@ -153,6 +349,23 @@ function AlertsPage() {
       {
         header: "Interval",
         cell: (row) => formatInterval(row.evaluationIntervalSeconds),
+      },
+      {
+        header: "Runbook",
+        cell: (row) =>
+          row.runbookProject && row.runbookSlug ? (
+            <Link
+              to="/runbooks/$project/$slug"
+              params={{ project: row.runbookProject, slug: row.runbookSlug }}
+              className="inline-flex items-center text-muted-foreground hover:text-foreground"
+              title={formatRunbookRef(row.runbookProject, row.runbookSlug)}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <NotebookText className="size-4" />
+            </Link>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
       },
     ],
     [],
@@ -189,33 +402,48 @@ function AlertsPage() {
       )}
 
       {alerts.data && alerts.data.length > 0 && (
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-muted-foreground text-sm">
-          <span>
-            <span
-              className={`font-semibold ${summary.firing > 0 ? "text-destructive" : "text-foreground"}`}
-            >
-              {summary.firing}
-            </span>{" "}
-            firing
-          </span>
-          <span>
-            <span
-              className={`font-semibold ${summary.errored > 0 ? "text-amber-500" : "text-foreground"}`}
-            >
-              {summary.errored}
-            </span>{" "}
-            errored
-          </span>
-          <span>
-            <span className="font-semibold text-foreground">{summary.ok}</span>{" "}
-            ok
-          </span>
-          <span>
-            <span className="font-semibold text-foreground">
-              {summary.inactive}
-            </span>{" "}
-            inactive
-          </span>
+        <div className="flex flex-col gap-2.5">
+          <fieldset className="flex flex-wrap items-center gap-1.5">
+            <legend className="sr-only">Alert summary filters</legend>
+            {filterOptions.map((option) => (
+              <AlertFilterButton
+                key={option.value}
+                option={option}
+                active={alertFilter === option.value}
+                onSelect={() => setAlertFilter(option.value)}
+              />
+            ))}
+          </fieldset>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative w-full sm:max-w-sm">
+              <SearchIcon className="absolute left-2.5 top-1/2 size-3 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                aria-label="Search alerts"
+                placeholder="Search alerts..."
+                value={alertSearch}
+                onChange={(e) => setAlertSearch(e.target.value)}
+                className="h-7 rounded-lg border-border/70 bg-transparent pl-7 text-xs placeholder:text-muted-foreground/80 hover:bg-muted/20 focus-visible:bg-background"
+              />
+            </div>
+            <div className="flex items-center gap-2 text-muted-foreground text-xs">
+              <span>
+                {hasActiveListFilters
+                  ? `Showing ${filteredAlerts.length} of ${summary.total}`
+                  : `${summary.total} alert ${summary.total === 1 ? "rule" : "rules"}`}
+              </span>
+              {hasActiveListFilters && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearAlertFilters}
+                >
+                  <XIcon data-icon="inline-start" />
+                  Clear
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -231,23 +459,41 @@ function AlertsPage() {
             </div>
           ) : (
             <DataTable
-              data={alerts.data ?? []}
+              data={filteredAlerts}
               columns={columns}
               rowKey={(row) => row.id}
+              rowClassName={(row) =>
+                row.previewStatus === "removed" ? "opacity-50" : undefined
+              }
               emptyState={
-                <div className="px-3 py-8 text-center text-muted-foreground">
-                  <p>No alerts have been applied for this organization.</p>
-                  <p className="mt-1">
-                    <a
-                      className="underline underline-offset-4"
-                      href="https://everr.dev/docs/alerts/first-alert"
-                      target="_blank"
-                      rel="noreferrer"
+                hasActiveListFilters ? (
+                  <div className="flex flex-col items-center gap-2 px-3 py-8 text-center text-muted-foreground">
+                    <p>No alerts match these filters.</p>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearAlertFilters}
                     >
-                      Create your first alert
-                    </a>
-                  </p>
-                </div>
+                      <XIcon data-icon="inline-start" />
+                      Clear filters
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="px-3 py-8 text-center text-muted-foreground">
+                    <p>No alerts have been applied for this organization.</p>
+                    <p className="mt-1">
+                      <a
+                        className="underline underline-offset-4"
+                        href="https://everr.dev/docs/alerts/first-alert"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Create your first alert
+                      </a>
+                    </p>
+                  </div>
+                )
               }
             />
           )}
@@ -494,6 +740,89 @@ function NotificationSettingsForm({
                   </div>
                 )}
               </form.Field>
+            </div>
+          )}
+        </form.Field>
+        <form.Field
+          name="slack.enabled"
+          listeners={{
+            onChange: ({ fieldApi }) =>
+              fieldApi.form.validateField("slack.webhookUrl", "change"),
+          }}
+        >
+          {(enabledField) => (
+            <div className="flex flex-col gap-2">
+              <Label className="flex items-center gap-2">
+                <Switch
+                  checked={enabledField.state.value}
+                  onCheckedChange={enabledField.handleChange}
+                />
+                Slack
+              </Label>
+              <form.Field
+                name="slack.webhookUrl"
+                validators={{
+                  onChange: ({ value, fieldApi }) =>
+                    slackWebhookUrlError(
+                      fieldApi.form.state.values.slack.enabled,
+                      value,
+                    ),
+                }}
+              >
+                {(webhookUrlField) => (
+                  <div className="flex flex-col gap-1">
+                    <Label htmlFor="slack-webhook-url">Slack webhook URL</Label>
+                    <Input
+                      id="slack-webhook-url"
+                      type="password"
+                      autoComplete="off"
+                      disabled={!enabledField.state.value}
+                      placeholder="https://hooks.slack.com/services/..."
+                      value={webhookUrlField.state.value}
+                      onChange={(event) =>
+                        webhookUrlField.handleChange(event.target.value)
+                      }
+                      onBlur={webhookUrlField.handleBlur}
+                      aria-invalid={
+                        webhookUrlField.state.meta.errors.length > 0
+                      }
+                    />
+                    {webhookUrlField.state.meta.errors[0] && (
+                      <p className="text-destructive text-xs" role="alert">
+                        {webhookUrlField.state.meta.errors[0]}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </form.Field>
+            </div>
+          )}
+        </form.Field>
+        <form.Field name="remindEverySeconds">
+          {(field) => (
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="remind-every">Remind every</Label>
+              <Select
+                value={
+                  field.state.value === null ? "off" : String(field.state.value)
+                }
+                onValueChange={(value) =>
+                  field.handleChange(value === "off" ? null : Number(value))
+                }
+              >
+                <SelectTrigger id="remind-every">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="off">Off</SelectItem>
+                  <SelectItem value="3600">1 hour</SelectItem>
+                  <SelectItem value="14400">4 hours</SelectItem>
+                  <SelectItem value="86400">24 hours</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-muted-foreground text-xs">
+                Re-send notifications while an alert stays firing
+              </p>
             </div>
           )}
         </form.Field>

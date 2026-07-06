@@ -15,3 +15,21 @@ export async function getCoveredRepoids(
     .where(and(eq(previews.organizationId, orgId), eq(previews.name, preview)));
   return new Set(rows.map((row) => row.repoid));
 }
+
+/**
+ * A preview's registry rows as id → repoid. Resources that live OUTSIDE
+ * Postgres (CC alert rules, tagged with the registry id in their everr.preview
+ * annotation) can't join the previews table, so their overlay reads resolve
+ * the covered ids/repoids through this map instead. Same server-only caveat
+ * as above.
+ */
+export async function getPreviewRegistry(
+  orgId: string,
+  preview: string,
+): Promise<Map<string, string>> {
+  const rows = await db
+    .select({ id: previews.id, repoid: previews.repoid })
+    .from(previews)
+    .where(and(eq(previews.organizationId, orgId), eq(previews.name, preview)));
+  return new Map(rows.map((row) => [row.id, row.repoid]));
+}

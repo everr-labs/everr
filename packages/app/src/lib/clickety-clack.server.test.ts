@@ -1,9 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ccRequest } from "./clickety-clack.server";
 
-vi.mock("@/env", () => ({
-  env: { CLICKETY_CLACK_BASE_URL: "http://cc.test" },
-}));
+const mockEnv = vi.hoisted(
+  (): { CLICKETY_CLACK_BASE_URL: string; CLICKETY_CLACK_API_KEY?: string } => ({
+    CLICKETY_CLACK_BASE_URL: "http://cc.test",
+  }),
+);
+
+vi.mock("@/env", () => ({ env: mockEnv }));
 
 function mockFetch(status: number, body: unknown) {
   return vi.fn().mockResolvedValue(
@@ -14,7 +18,10 @@ function mockFetch(status: number, body: unknown) {
   );
 }
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  delete mockEnv.CLICKETY_CLACK_API_KEY;
+});
 
 describe("ccRequest", () => {
   it("sends X-CC-Tenant and returns parsed JSON on 200", async () => {
@@ -28,6 +35,31 @@ describe("ccRequest", () => {
     expect(url).toBe("http://cc.test/v1/rules");
     expect((init.headers as Record<string, string>)["X-CC-Tenant"]).toBe(
       "org_abc",
+    );
+  });
+
+  it("sends a bearer Authorization header when the API key is configured", async () => {
+    mockEnv.CLICKETY_CLACK_API_KEY = "cc-key-1";
+    const fetchMock = mockFetch(200, { ok: 1 });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await ccRequest("org_abc", "GET", "/v1/rules");
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect((init.headers as Record<string, string>).authorization).toBe(
+      "Bearer cc-key-1",
+    );
+  });
+
+  it("omits the Authorization header when no API key is configured", async () => {
+    const fetchMock = mockFetch(200, { ok: 1 });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await ccRequest("org_abc", "GET", "/v1/rules");
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.headers as Record<string, string>).not.toHaveProperty(
+      "authorization",
     );
   });
 

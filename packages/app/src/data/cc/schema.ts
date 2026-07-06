@@ -44,6 +44,12 @@ export const CcRuleSpecSchema = z.object({
   severity: CcSeveritySchema,
   annotations: z.record(z.string(), z.string()).default({}),
   resolve_after: z.number().int().default(1),
+  // Preview mode: CC evaluates the rule fully (instances, events, history) but
+  // the dispatcher never notifies on it. Defaulted so pre-suppression CC
+  // responses still parse. Keep this key AFTER resolve_after: the reconcilers'
+  // JSON fingerprints rely on the parsed spec's key order matching CC's
+  // serialization order (RuleSpec in crates/domain/src/rule.rs).
+  suppressed: z.boolean().default(false),
 });
 
 export const CcRuleHealthSchema = z.object({
@@ -109,6 +115,12 @@ export const CcReceiverSchema = z.object({
   tenant: z.string(),
   name: z.string(),
   channel: CcChannelSchema,
+  // Free-form, non-secret metadata (ownership markers, team, links, ...). CC
+  // always serializes it (empty map when unset), so it is effectively always
+  // present; kept `.optional()` rather than `.default({})` so the inferred
+  // output type does not force every hand-built CcReceiver literal (tests,
+  // fixtures) to carry the field. All readers use optional chaining.
+  annotations: z.record(z.string(), z.string()).optional(),
 });
 
 export const CcRouteSchema = z.object({
@@ -121,6 +133,7 @@ export const CcRouteSchema = z.object({
   group_by: z.array(z.string()).nullable(),
   group_wait_secs: z.number().int().nullable(),
   group_interval_secs: z.number().int().nullable(),
+  repeat_interval_secs: z.number().int().nullable(),
 });
 
 export const CcSilenceSchema = z.object({
@@ -147,6 +160,7 @@ export const CcSubscriptionSchema = z.object({
   id: z.string(),
   tenant: z.string(),
   webhook_url: z.string(),
+  created_at: CcTimestampSchema,
 });
 
 export const CcEventSchema = z.object({

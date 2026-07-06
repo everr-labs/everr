@@ -1,6 +1,7 @@
 import { ApplyValidationError } from "@/data/as-code/errors";
 import type { Reconciler } from "@/data/as-code/registry";
 import * as cc from "@/data/cc/client";
+import { authEnv } from "@/env/auth";
 import { querySqlApiWithMeta, type SqlApiResult } from "@/lib/clickhouse";
 import { errorMessage } from "@/telemetry/logger";
 import {
@@ -8,15 +9,17 @@ import {
   OWN_MANAGED,
   OWN_NAME,
   OWN_REPO,
+  previewIdOf,
   toSimpleRuleSpec,
+  withAlertLink,
 } from "./mapping";
 import { type AlertRuleYaml, AlertRuleYamlSchema } from "./schema";
 import {
-  validateMessageColumns,
-  validateMessageTemplate,
+  extractVariables,
+  validateMessageRefs,
   validateQueryTemplate,
 } from "./template";
-import { parseEvaluationInterval } from "./window";
+import { parseEvaluationInterval, parseForDuration } from "./window";
 
 interface ApplyAlertsResult {
   created: string[];
@@ -24,19 +27,15 @@ interface ApplyAlertsResult {
   deleted: string[];
   adopted: string[];
   conflicts: never[];
+  note?: string;
 }
 
-// A simple alert is stored as a CC rule scoped by its `everr.repoid` marker, so
-// it has no cross-repo (project, slug) ownership and no Postgres preview overlay
-// to diff against. Returned by the reconciler for both the "nothing to adopt"
-// and the "previews are a no-op" paths.
-const NO_ALERT_CHANGES: ApplyAlertsResult = {
-  created: [],
-  updated: [],
-  deleted: [],
-  adopted: [],
-  conflicts: [],
-};
+// Surfaced on every preview apply: the rules ARE registered and evaluated in
+// CC (instances, state, history) as suppressed rules, so a reviewer can watch
+// what they would have done — but the dispatcher never notifies on them.
+const PREVIEW_NOTE =
+  "preview alert rules are fully evaluated by clickety-clack (suppressed): " +
+  "instances and history are real, but no notifications are sent.";
 
 function validationError(path: string, error: unknown): ApplyValidationError {
   const message = errorMessage(error);
@@ -58,11 +57,11 @@ function parseAlertRule(path: string, resource: unknown) {
     evaluationIntervalSeconds = parseEvaluationInterval(
       rule.spec.evaluationInterval,
     );
+    parseForDuration(rule.spec.for);
     validateQueryTemplate(rule.spec.query);
-    validateMessageTemplate(rule.spec.notificationMessage.title);
-    if (rule.spec.notificationMessage.description) {
-      validateMessageTemplate(rule.spec.notificationMessage.description);
-    }
+    // Message templates are validated result-dependently (any query result
+    // column is a legal ref) in validateAlertRuleQuery, once the columns are
+    // known.
   } catch (error) {
     throw validationError(path, error);
   }
@@ -70,13 +69,23 @@ function parseAlertRule(path: string, resource: unknown) {
   return { rule, slug: rule.metadata.name, evaluationIntervalSeconds };
 }
 
+// CC's evidence caps (pinned contract with clickety-clack's evaluator): events
+// carry at most 16 non-label columns, and only when their compact JSON fits in
+// 4096 bytes. Message refs beyond the column cap may render empty.
+const EVIDENCE_COLUMN_CAP = 16;
+
 // Result-dependent validation: run the rule's query against the org's data and
-// check template/instance-label columns against the result schema.
+// check the instance-label, value, and message-template columns against the
+// result schema. Message refs are legal for ANY result column: CC resolves
+// them from the event's instance labels first, then ${value}, then the
+// evidence (the remaining result columns). Returns a warning when a message
+// references evidence but the query has more non-label columns than CC's
+// evidence cap keeps.
 async function validateAlertRuleQuery(
   path: string,
   rule: AlertRuleYaml,
   organizationId: string,
-): Promise<{ instanceLabelColumns: string[] }> {
+): Promise<{ warning?: string }> {
   let queryResult: SqlApiResult<Record<string, unknown>>;
   try {
     queryResult = await querySqlApiWithMeta<Record<string, unknown>>(
@@ -89,21 +98,6 @@ async function validateAlertRuleQuery(
     );
   }
 
-  try {
-    validateMessageColumns(
-      rule.spec.notificationMessage.title,
-      queryResult.columns,
-    );
-    if (rule.spec.notificationMessage.description) {
-      validateMessageColumns(
-        rule.spec.notificationMessage.description,
-        queryResult.columns,
-      );
-    }
-  } catch (error) {
-    throw validationError(path, error);
-  }
-
   const instanceLabelColumns = rule.spec.instanceLabels ?? [];
   const columnNames = new Set(queryResult.columns);
   for (const column of instanceLabelColumns) {
@@ -113,8 +107,53 @@ async function validateAlertRuleQuery(
       );
     }
   }
+  if (
+    rule.spec.valueColumn !== undefined &&
+    !columnNames.has(rule.spec.valueColumn)
+  ) {
+    throw new ApplyValidationError(
+      `${path}: valueColumn references column "${rule.spec.valueColumn}" which the query does not return`,
+    );
+  }
 
-  return { instanceLabelColumns };
+  const hasValueColumn = rule.spec.valueColumn !== undefined;
+  try {
+    validateMessageRefs(
+      rule.spec.notificationMessage.title,
+      queryResult.columns,
+      hasValueColumn,
+    );
+    if (rule.spec.notificationMessage.description) {
+      validateMessageRefs(
+        rule.spec.notificationMessage.description,
+        queryResult.columns,
+        hasValueColumn,
+      );
+    }
+  } catch (error) {
+    throw validationError(path, error);
+  }
+
+  // Refs that CC resolves from evidence (not a label, not the rule value) are
+  // only reliable while the query's non-label columns fit the evidence cap;
+  // past it, CC keeps the first 16 in column-name order and a referenced
+  // column may be cut. Surface that as a warning, not an error.
+  const labelSet = new Set(instanceLabelColumns);
+  const nonLabelColumns = queryResult.columns.filter((c) => !labelSet.has(c));
+  const evidenceRefs = [
+    rule.spec.notificationMessage.title,
+    rule.spec.notificationMessage.description ?? "",
+  ]
+    .flatMap(extractVariables)
+    .filter(
+      (name) => !labelSet.has(name) && !(name === "value" && hasValueColumn),
+    );
+  const warning =
+    evidenceRefs.length > 0 && nonLabelColumns.length > EVIDENCE_COLUMN_CAP
+      ? `${path}: the query returns ${nonLabelColumns.length} non-label columns but alert events keep at most ${EVIDENCE_COLUMN_CAP} as evidence, so \${${evidenceRefs[0]}} may render empty in notifications`
+      : undefined;
+
+  return { ...(warning ? { warning } : {}) };
 }
 
 // One repo can declare many alerts; firing every validation query at ClickHouse
@@ -165,13 +204,29 @@ function specFingerprint(spec: Record<string, unknown>): string {
   return JSON.stringify({ ...spec, annotations: sortedAnnotations });
 }
 
+// True for CC's optimistic-concurrency failure (PUT with a stale `version`).
+// Matched structurally instead of importing CcApiError so this module does not
+// pull the transport (and its env validation) into the test import graph.
+function isCcVersionConflict(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    error.name === "CcApiError" &&
+    (error as { status?: unknown }).status === 409
+  );
+}
+
 /**
- * Reconcile `kind: AlertRule` (simple) alerts for one repo against CC. A simple
- * alert IS a CC rule tagged everr.managed="simple" (+ everr.name, everr.repoid).
- * We list CC rules, scope to THIS repo's managed-simple rules only — so
- * power-user `CCAlertRule` rules in the same repo are never touched — and
- * converge to the applied set. CC rules are immutable, so a changed rule is
- * delete+recreate; a managed rule absent from config is deleted.
+ * Reconcile `kind: AlertRule` (simple) alerts for one namespace against CC. A
+ * simple alert IS a CC rule tagged everr.managed="simple" (+ everr.name,
+ * everr.repoid). We list CC rules, scope to THIS namespace's managed-simple
+ * rules only — this repo's, and within it the live rules (no everr.preview
+ * annotation) or exactly this preview's (everr.preview = its registry id) — so
+ * power-user `CCAlertRule` rules, other repos' rules, and the other side of
+ * the live/preview split are never touched — and converge to the applied set.
+ * A changed rule is updated in place (PUT, with the rule's `version` as an
+ * optimistic-concurrency guard, so instance state survives); a scoped rule
+ * absent from config is deleted. Preview rules are created `suppressed`: CC
+ * evaluates them fully but never notifies on them.
  */
 export const applyAlertSpecs: Reconciler = async ({
   namespace,
@@ -179,13 +234,16 @@ export const applyAlertSpecs: Reconciler = async ({
   dryRun,
 }): Promise<ApplyAlertsResult> => {
   const { orgId, repoid } = namespace;
-  // Simple alerts live in CC, which has no preview concept: a preview apply must
-  // never mutate the shared CC state. Reconcile CC only for the live namespace;
-  // preview applies of AlertRule resources are a no-op (reported as no changes).
-  if (namespace.kind === "preview") return NO_ALERT_CHANGES;
+  // The preview registry id scoping this reconcile; null = the live namespace.
+  // A preview id can itself be null during the dry-run of a first apply (no
+  // registry row exists yet), which correctly scopes to zero existing rules.
+  const previewId = namespace.kind === "preview" ? namespace.id : null;
 
   // 1. Parse + statically validate, then run the result-dependent query
-  // validation; finally map each rule to its desired CC spec.
+  // validation; finally map each rule to its desired CC spec. This full
+  // pipeline runs for every namespace, including previews, so a preview apply
+  // catches broken queries, bad `${column}` message refs, and missing
+  // instanceLabels columns before the change is merged.
   const seen = new Map<string, string>();
   const parsed = resources.map(({ path, resource }) => {
     const p = parseAlertRule(path, resource);
@@ -205,18 +263,46 @@ export const applyAlertSpecs: Reconciler = async ({
     (p) => validateAlertRuleQuery(p.path, p.rule, orgId),
   );
 
+  // Non-fatal validation findings (e.g. evidence-cap overruns), surfaced on
+  // the apply result's note alongside the preview note.
+  const warnings = validations.flatMap((v) =>
+    v.status === "fulfilled" && v.value.warning ? [v.value.warning] : [],
+  );
+
+  // The everr app origin: notification links (link.alert / link.runbook) must
+  // be absolute for CC's dispatcher to render them.
+  const appBaseUrl = authEnv.BETTER_AUTH_URL;
+
   const desired = parsed.map((p, i) => {
     const v = validations[i];
     if (v.status === "rejected") throw v.reason;
-    return { name: p.slug, spec: toSimpleRuleSpec(p.rule, repoid) };
+    return {
+      name: p.slug,
+      path: p.path,
+      spec: toSimpleRuleSpec(p.rule, repoid, {
+        appBaseUrl,
+        previewId: previewId ?? undefined,
+      }),
+    };
   });
 
-  // 2. Reconcile against CC, scoped to this repo's MANAGED-SIMPLE rules only.
-  const existing = (await cc.listRules(orgId)).filter((r) =>
-    isManagedSimple(r.spec, repoid),
-  );
+  // 2. Reconcile against CC, scoped to this namespace's MANAGED-SIMPLE rules
+  // only: this repo's, and matching this namespace's preview id (null = live).
+  // The previewIdOf check cuts both ways — a live apply never adopts or prunes
+  // a preview's suppressed rules, and a preview apply never touches live ones.
+  // A first-apply dry run has no preview registry row yet (previewId null on a
+  // preview namespace would alias the LIVE scope), so it skips the listing:
+  // nothing tagged with a not-yet-minted id can exist in CC.
+  const existing =
+    namespace.kind === "preview" && namespace.id === null
+      ? []
+      : (await cc.listRules(orgId)).filter(
+          (r) =>
+            isManagedSimple(r.spec, repoid) &&
+            previewIdOf(r.spec) === previewId,
+        );
   const existingByName = new Map(
-    existing.map((r) => [(r.spec.annotations ?? {})[OWN_NAME] ?? "", r]),
+    existing.map((r) => [r.spec.annotations?.[OWN_NAME] ?? "", r]),
   );
 
   const created: string[] = [];
@@ -226,18 +312,44 @@ export const applyAlertSpecs: Reconciler = async ({
   for (const d of desired) {
     const cur = existingByName.get(d.name);
     if (!cur) {
-      if (!dryRun) await cc.createRule(orgId, d.spec);
-      created.push(d.name);
-    } else if (
-      specFingerprint(cur.spec as Record<string, unknown>) !==
-      specFingerprint(d.spec as unknown as Record<string, unknown>)
-    ) {
-      // CC rules are immutable: delete + recreate.
       if (!dryRun) {
-        await cc.deleteRule(orgId, cur.id);
-        await cc.createRule(orgId, d.spec);
+        // link.alert needs the CC rule id, which only exists after create:
+        // create first, then immediately stamp the link with a follow-up PUT
+        // (guarded by the fresh version, so nothing can race in between).
+        const createdRule = await cc.createRule(orgId, d.spec);
+        await cc.updateRule(
+          orgId,
+          createdRule.id,
+          withAlertLink(d.spec, appBaseUrl, createdRule.id),
+          createdRule.version,
+        );
       }
-      updated.push(d.name);
+      created.push(d.name);
+    } else {
+      // The id is known, so the desired spec carries its link.alert; this also
+      // keeps the fingerprint stable against the stored rule's annotation.
+      const next = withAlertLink(d.spec, appBaseUrl, cur.id);
+      if (
+        specFingerprint(cur.spec as Record<string, unknown>) !==
+        specFingerprint(next as unknown as Record<string, unknown>)
+      ) {
+        // Update in place: preserves the rule id and instance state (CC clears
+        // instances only when the label_columns set changes). The stored
+        // version guards against concurrent edits.
+        if (!dryRun) {
+          try {
+            await cc.updateRule(orgId, cur.id, next, cur.version);
+          } catch (error) {
+            if (isCcVersionConflict(error)) {
+              throw new ApplyValidationError(
+                `${d.path}: alert "${d.name}" was modified concurrently in the alert engine (version conflict); re-run apply`,
+              );
+            }
+            throw error;
+          }
+        }
+        updated.push(d.name);
+      }
     }
     existingByName.delete(d.name);
   }
@@ -246,5 +358,16 @@ export const applyAlertSpecs: Reconciler = async ({
     deleted.push(name);
   }
 
-  return { created, updated, deleted, adopted: [], conflicts: [] };
+  const notes = [
+    ...(namespace.kind === "preview" ? [PREVIEW_NOTE] : []),
+    ...warnings,
+  ];
+  return {
+    created,
+    updated,
+    deleted,
+    adopted: [],
+    conflicts: [],
+    ...(notes.length > 0 ? { note: notes.join("; ") } : {}),
+  };
 };

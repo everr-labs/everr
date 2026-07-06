@@ -24,18 +24,26 @@ spec:
 | Field | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `evaluationInterval` | string | yes | How often the query runs. `<int><s\|m\|h\|d>`, **minimum `1m`**. |
+| `for` | string | no | How long the condition must hold continuously before firing. `<int><s\|m\|h\|d>`; default `0s` (fire on the first matching evaluation). While waiting, the instance is pending and sends nothing. |
+| `resolveAfter` | int | no | Consecutive empty evaluations required before a firing instance resolves. Default `1`; raise it (for example `3`) to tolerate gaps in the data. Must be ≥ 1. |
 | `query` | string | yes | ClickHouse SQL. Every returned row is a firing instance; empty = resolved. **No `${...}` templating.** |
 | `notificationMessage` | object | yes | The notification text. See below. |
-| `notificationMessage.title` | string | yes | Supports `${column}`. Non-empty. |
-| `notificationMessage.description` | string | no | Supports `${column}`. |
-| `instanceLabels` | [string] | no | Override for instance identity; ≥1 entry when present. Default identity is all string columns the query returns. |
+| `notificationMessage.title` | string | yes | Supports `${column}` (any query result column) and `${value}`. Non-empty. |
+| `notificationMessage.description` | string | no | Supports `${column}` and `${value}`. |
+| `instanceLabels` | [string] | no | The columns that form instance identity; ≥1 entry when present. Each must be a column the query returns. Without it, all returned rows collapse into a single instance. |
+| `valueColumn` | string | no | A numeric result column carried onto instances and notifications as the alert's value; referenced in messages as `${value}`. Must be a column the query returns. |
 | `display` | object | no | `name` and/or `description`, both optional. Human-facing labels. |
 
 ## Message templating
 
-`notificationMessage.title` and `notificationMessage.description` support `${column}` placeholders. Each placeholder is replaced with that firing instance's value for the named column, so one query produces one tailored message per instance.
+`notificationMessage.title` and `notificationMessage.description` support `${...}` placeholders, substituted per firing instance when the notification is rendered:
 
-Every referenced name must be a column the `query` returns; this is validated on apply. A missing or null value renders as empty text. The `query` SQL itself does **not** support templating, placeholders work only in the notification message fields.
+- `${<column>}` expands to that instance's value for any column the query returns: an `instanceLabels` column resolves from the instance's labels, and every other column resolves from the event's evidence (the source row's remaining columns).
+- `${value}` expands to the instance's `valueColumn` value (or, when `valueColumn` is not set, to a result column literally named `value`).
+
+Referencing a column the query does not return is an apply-time error. `${value}` requires `spec.valueColumn` to be set unless the query returns a `value` column. A missing value renders as empty text.
+
+Evidence is capped: an event carries at most 16 non-label columns, and only while their compact JSON stays under 4096 bytes; past the caps, refs to non-label columns may render empty (apply warns when a message depends on columns beyond the 16-column cap). The `query` SQL itself does **not** support templating, placeholders work only in the notification message fields.
 
 ## Manifest
 
@@ -55,8 +63,12 @@ Declarations sit flat in `everr/`, named by kind: `*.alert.yaml`, `*.dashboard.y
 ## Constraints and errors
 
 - `evaluationInterval` must be ≥ `1m`.
+- `for` must be a valid duration (`0s` is allowed).
+- `resolveAfter` must be an integer ≥ 1.
 - `notificationMessage.title` is required and non-empty.
-- `${column}` must reference a column the `query` returns.
-- `instanceLabels` needs ≥1 entry when present.
+- `${...}` in messages must reference a column the `query` returns or be `${value}`.
+- `${value}` requires `valueColumn` to be set (or a result column named `value`).
+- `instanceLabels` needs ≥1 entry when present; every entry must be a column the `query` returns.
+- `valueColumn` must be a column the `query` returns.
 - `query` rejects `${...}`.
 - Supported document kinds for apply are `Dashboard` and `AlertRule`.

@@ -1,3 +1,4 @@
+import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
 import {
   Card,
@@ -23,6 +24,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@everr/ui/components/select";
+import { Switch } from "@everr/ui/components/switch";
+import { TagsInput } from "@everr/ui/components/tags-input";
 import {
   queryOptions,
   useMutation,
@@ -37,6 +40,7 @@ import {
   type LucideIcon,
   Mail,
   MessageSquare,
+  Pencil,
   Plus,
   Send,
   Siren,
@@ -57,11 +61,14 @@ import {
   createCcSubscription,
   deleteCcInhibition,
   deleteCcRoute,
+  deleteCcSubscription,
   listCcAlerts,
   listCcInhibitions,
   listCcReceivers,
   listCcRoutes,
   listCcSilences,
+  listCcSubscriptions,
+  updateCcRoute,
 } from "@/data/cc/server";
 import type {
   CcInhibition,
@@ -75,8 +82,15 @@ import {
   CcQueryError,
   CcTableSkeleton,
   ccErrorMessage,
+  ccFormatTs,
   Matchers,
 } from "./-cc-shared";
+
+// Ownership markers the as-code receiver reconciler stamps (data/cc/apply.server.ts).
+const RECEIVER_MANAGED_KEY = "everr.managed";
+const RECEIVER_MANAGED_AS_CODE = "as-code";
+const isAsCodeReceiver = (r: CcReceiver): boolean =>
+  r.annotations?.[RECEIVER_MANAGED_KEY] === RECEIVER_MANAGED_AS_CODE;
 
 const q = {
   routes: () =>
@@ -98,6 +112,11 @@ const q = {
       queryKey: ["cc", "silences"],
       queryFn: () => listCcSilences(),
     }),
+  subscriptions: () =>
+    queryOptions({
+      queryKey: ["cc", "subscriptions"],
+      queryFn: () => listCcSubscriptions(),
+    }),
 };
 
 export const Route = createFileRoute(
@@ -112,6 +131,7 @@ export const Route = createFileRoute(
       queryClient.prefetchQuery(q.inhibitions()),
       queryClient.prefetchQuery(q.alerts()),
       queryClient.prefetchQuery(q.silences()),
+      queryClient.prefetchQuery(q.subscriptions()),
     ]),
   component: CcRoutingPage,
 });
@@ -148,40 +168,113 @@ function PreviewLine({ children }: { children: React.ReactNode }) {
 
 // ── Route builder ─────────────────────────────────────────────────────────────
 
+/** Parse a numeric duration field. Empty ⇒ null (CC default). */
+function parseDuration(
+  raw: string,
+  min: number,
+): { value: number | null; error: string | null } {
+  const trimmed = raw.trim();
+  if (trimmed === "") return { value: null, error: null };
+  if (!/^\d+$/.test(trimmed))
+    return { value: null, error: "Must be a whole number" };
+  const value = Number(trimmed);
+  if (value < min)
+    return { value: null, error: `Must be at least ${min} seconds` };
+  return { value, error: null };
+}
+
+function DurationField({
+  id,
+  label,
+  placeholder,
+  value,
+  onChange,
+  error,
+}: {
+  id: string;
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (v: string) => void;
+  error: string | null;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <Input
+        id={id}
+        type="number"
+        min={0}
+        className="tabular-nums"
+        value={value}
+        placeholder={placeholder}
+        aria-invalid={error ? true : undefined}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      {error && (
+        <p className="text-destructive text-xs" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function RouteBuilder({
   open,
   onOpenChange,
   receivers,
+  route,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   receivers: CcReceiver[];
+  route: CcRoute | null;
 }) {
   const qc = useQueryClient();
-  const [matchers, setMatchers] = useState<CcMatcher[]>([]);
-  const [receiver, setReceiver] = useState("");
-  const [priority, setPriority] = useState(0);
+  const isEdit = route !== null;
+  const [matchers, setMatchers] = useState<CcMatcher[]>(route?.matchers ?? []);
+  const [receiver, setReceiver] = useState(route?.receiver ?? "");
+  const [priority, setPriority] = useState(route?.priority ?? 0);
+  const [continueFlag, setContinueFlag] = useState(route?.continue ?? false);
+  const [groupBy, setGroupBy] = useState<string[]>(route?.group_by ?? []);
+  const [groupWait, setGroupWait] = useState(
+    route?.group_wait_secs != null ? String(route.group_wait_secs) : "",
+  );
+  const [groupInterval, setGroupInterval] = useState(
+    route?.group_interval_secs != null ? String(route.group_interval_secs) : "",
+  );
+  const [repeatInterval, setRepeatInterval] = useState(
+    route?.repeat_interval_secs != null
+      ? String(route.repeat_interval_secs)
+      : "",
+  );
 
-  const create = useMutation({
-    mutationFn: () =>
-      createCcRoute({
-        data: {
-          matchers,
-          receiver,
-          continue: false,
-          priority,
-          group_by: null,
-          group_wait_secs: null,
-          group_interval_secs: null,
-        },
-      }),
+  const wait = parseDuration(groupWait, 0);
+  const interval = parseDuration(groupInterval, 0);
+  const repeat = parseDuration(repeatInterval, 60);
+  const hasErrors = !!(wait.error || interval.error || repeat.error);
+
+  const save = useMutation({
+    mutationFn: () => {
+      const input = {
+        matchers,
+        receiver,
+        continue: continueFlag,
+        priority,
+        group_by: groupBy.length > 0 ? groupBy : null,
+        group_wait_secs: wait.value,
+        group_interval_secs: interval.value,
+        repeat_interval_secs: repeat.value,
+      };
+      return isEdit
+        ? updateCcRoute({ data: { id: route.id, input } })
+        : createCcRoute({ data: input });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["cc", "routes"] });
       onOpenChange(false);
-      setMatchers([]);
-      setReceiver("");
-      setPriority(0);
-      toast.success("Route created");
+      toast.success(isEdit ? "Route updated" : "Route created");
     },
     onError: (e) => toast.error(ccErrorMessage(e)),
   });
@@ -190,7 +283,7 @@ function RouteBuilder({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>New route</DialogTitle>
+          <DialogTitle>{isEdit ? "Edit route" : "New route"}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <CcConceptNote>
@@ -241,6 +334,50 @@ function RouteBuilder({
               />
             </div>
           </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="route-group-by">
+              Group by{" "}
+              <span className="font-normal text-muted-foreground">
+                (empty uses the default: rule, severity)
+              </span>
+            </Label>
+            <TagsInput
+              aria-label="Group by labels"
+              placeholder="rule, severity"
+              value={groupBy}
+              onValueChange={setGroupBy}
+            />
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <DurationField
+              id="route-group-wait"
+              label="Group wait (s)"
+              placeholder="10"
+              value={groupWait}
+              onChange={setGroupWait}
+              error={wait.error}
+            />
+            <DurationField
+              id="route-group-interval"
+              label="Group interval (s)"
+              placeholder="300"
+              value={groupInterval}
+              onChange={setGroupInterval}
+              error={interval.error}
+            />
+            <DurationField
+              id="route-repeat-interval"
+              label="Repeat interval (s)"
+              placeholder="never"
+              value={repeatInterval}
+              onChange={setRepeatInterval}
+              error={repeat.error}
+            />
+          </div>
+          <Label className="flex items-center gap-2">
+            <Switch checked={continueFlag} onCheckedChange={setContinueFlag} />
+            Continue matching later routes
+          </Label>
           <PreviewLine>
             Alerts where <strong>{matchersPhrase(matchers)}</strong>{" "}
             <ArrowRight className="inline size-3 text-muted-foreground" />{" "}
@@ -252,10 +389,10 @@ function RouteBuilder({
             Cancel
           </Button>
           <Button
-            disabled={!receiver || create.isPending}
-            onClick={() => create.mutate()}
+            disabled={!receiver || hasErrors || save.isPending}
+            onClick={() => save.mutate()}
           >
-            Create route
+            {isEdit ? "Save changes" : "Create route"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -377,11 +514,12 @@ function ReceiversSection() {
       <CardHeader>
         <CardTitle>Receivers</CardTitle>
         <CardDescription>
-          The channels alerts can be delivered to. Defined as code with{" "}
+          The channels alerts can be delivered to. Ones managed as code with{" "}
           <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.6875rem]">
             everr apply
           </code>{" "}
-          — secrets are redacted here.
+          are marked <span className="font-medium">as code</span>; secrets are
+          redacted here. Receivers are not editable in the UI.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -410,7 +548,12 @@ function ReceiversSection() {
                     <Icon className="size-3.5" />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <div className="text-sm font-medium">{r.name}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">{r.name}</span>
+                      {isAsCodeReceiver(r) ? (
+                        <Badge variant="outline">as code</Badge>
+                      ) : null}
+                    </div>
                     <div className="truncate font-mono text-xs text-muted-foreground">
                       {channelTarget(r.channel) || r.channel.type}
                     </div>
@@ -428,10 +571,23 @@ function ReceiversSection() {
   );
 }
 
+function routeGroupingSummary(r: CcRoute): string[] {
+  const parts: string[] = [];
+  if (r.group_by && r.group_by.length > 0)
+    parts.push(`group by ${r.group_by.join(", ")}`);
+  if (r.group_wait_secs != null) parts.push(`wait ${r.group_wait_secs}s`);
+  if (r.group_interval_secs != null)
+    parts.push(`interval ${r.group_interval_secs}s`);
+  if (r.repeat_interval_secs != null)
+    parts.push(`repeat ${r.repeat_interval_secs}s`);
+  if (r.continue) parts.push("continue");
+  return parts;
+}
+
 function RoutesSection({ receivers }: { receivers: CcReceiver[] }) {
   const qc = useQueryClient();
   const { data, isPending, isError, error } = useQuery(q.routes());
-  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<CcRoute | "new" | null>(null);
 
   const remove = useMutation({
     mutationFn: (id: string) => deleteCcRoute({ data: { id } }),
@@ -453,7 +609,7 @@ function RoutesSection({ receivers }: { receivers: CcReceiver[] }) {
           receiver. Alerts matching no route fall through to the firehose below.
         </CardDescription>
         <CardAction>
-          <Button onClick={() => setOpen(true)}>
+          <Button onClick={() => setEditing("new")}>
             <Plus data-icon="inline-start" />
             New route
           </Button>
@@ -474,31 +630,57 @@ function RoutesSection({ receivers }: { receivers: CcReceiver[] }) {
           />
         ) : (
           <ul className="divide-y divide-border/60">
-            {sorted.map((r: CcRoute) => (
-              <li key={r.id} className="flex items-center gap-3 px-3 py-2.5">
-                <span className="w-8 shrink-0 text-center font-mono text-xs text-muted-foreground tabular-nums">
-                  #{r.priority}
-                </span>
-                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-                  <Matchers matchers={r.matchers} emptyLabel="any alert" />
-                  <ArrowRight className="size-3.5 shrink-0 text-muted-foreground/60" />
-                  <span className="font-mono text-xs">{r.receiver}</span>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Delete route"
-                  disabled={remove.isPending}
-                  onClick={() => remove.mutate(r.id)}
-                >
-                  <Trash2 />
-                </Button>
-              </li>
-            ))}
+            {sorted.map((r: CcRoute) => {
+              const summary = routeGroupingSummary(r);
+              return (
+                <li key={r.id} className="flex items-center gap-3 px-3 py-2.5">
+                  <span className="w-8 shrink-0 text-center font-mono text-xs text-muted-foreground tabular-nums">
+                    #{r.priority}
+                  </span>
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Matchers matchers={r.matchers} emptyLabel="any alert" />
+                      <ArrowRight className="size-3.5 shrink-0 text-muted-foreground/60" />
+                      <span className="font-mono text-xs">{r.receiver}</span>
+                    </div>
+                    {summary.length > 0 && (
+                      <div className="text-xs text-muted-foreground">
+                        {summary.join(" · ")}
+                      </div>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Edit route"
+                    onClick={() => setEditing(r)}
+                  >
+                    <Pencil />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Delete route"
+                    disabled={remove.isPending}
+                    onClick={() => remove.mutate(r.id)}
+                  >
+                    <Trash2 />
+                  </Button>
+                </li>
+              );
+            })}
           </ul>
         )}
       </CardContent>
-      <RouteBuilder open={open} onOpenChange={setOpen} receivers={receivers} />
+      <RouteBuilder
+        key={editing === "new" ? "new" : (editing?.id ?? "closed")}
+        open={editing !== null}
+        route={editing === "new" ? null : editing}
+        onOpenChange={(o) => {
+          if (!o) setEditing(null);
+        }}
+        receivers={receivers}
+      />
     </Card>
   );
 }
@@ -592,29 +774,81 @@ function InhibitionsSection() {
 }
 
 function FirehoseSection() {
+  const qc = useQueryClient();
+  const { data, isPending, isError, error } = useQuery(q.subscriptions());
   const [url, setUrl] = useState("");
+
   const create = useMutation({
     mutationFn: () => createCcSubscription({ data: { webhookUrl: url } }),
     onSuccess: (s) => {
+      qc.invalidateQueries({ queryKey: ["cc", "subscriptions"] });
       toast.success(`Subscription created (${s.id.slice(0, 8)})`);
       setUrl("");
     },
     onError: (e) => toast.error(ccErrorMessage(e)),
   });
 
+  const remove = useMutation({
+    mutationFn: (id: string) => deleteCcSubscription({ data: { id } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cc", "subscriptions"] });
+      toast.success("Subscription deleted");
+    },
+    onError: (e) => toast.error(ccErrorMessage(e)),
+  });
+
   return (
-    <Card id="firehose" className="scroll-mt-4">
+    <Card id="firehose" inset="flush-content" className="scroll-mt-4">
       <CardHeader>
         <CardTitle>Firehose subscriptions</CardTitle>
         <CardDescription>
           The fallback: alerts that match no route are delivered to every
-          firehose webhook. CC exposes create only — existing subscriptions
-          can&rsquo;t be listed or removed here.
+          firehose webhook.
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-3">
+        {isError ? (
+          <div className="px-3">
+            <CcQueryError error={error} />
+          </div>
+        ) : isPending ? (
+          <CcTableSkeleton rows={2} />
+        ) : (data ?? []).length === 0 ? (
+          <CcEmptyState
+            icon={Webhook}
+            title="No firehose subscriptions"
+            hint="Add a webhook URL below to receive every alert that matches no route."
+          />
+        ) : (
+          <ul className="divide-y divide-border/60">
+            {(data ?? []).map((s) => (
+              <li key={s.id} className="flex items-center gap-3 px-3 py-2.5">
+                <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                  <Webhook className="size-3.5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-mono text-xs">
+                    {s.webhook_url}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Added {ccFormatTs(s.created_at)}
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Delete subscription"
+                  disabled={remove.isPending}
+                  onClick={() => remove.mutate(s.id)}
+                >
+                  <Trash2 />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
         <form
-          className="flex items-end gap-2"
+          className="flex items-end gap-2 px-3"
           onSubmit={(e) => {
             e.preventDefault();
             if (url && !create.isPending) create.mutate();

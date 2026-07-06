@@ -5,10 +5,14 @@ export const clicketyClackEnv = createEnv({
   server: {
     // Base URL of the clickety-clack `api` role, e.g. http://localhost:8080
     CLICKETY_CLACK_BASE_URL: z.url(),
-    // CC Phase 1 is header-trust only (no API key). When CC adds real auth,
-    // add CLICKETY_CLACK_API_KEY here and send it from the transport client.
+    // Static bearer key for CC's `/v1` API (one of the keys in CC's
+    // `CC_API_KEYS`). Sent as `Authorization: Bearer <key>` by the transport
+    // client and the SSE proxy. Optional: when unset, requests carry no
+    // Authorization header, matching a CC instance with auth disabled.
+    CLICKETY_CLACK_API_KEY: z.string().min(1).optional(),
   },
   runtimeEnv: {
     CLICKETY_CLACK_BASE_URL: process.env.CLICKETY_CLACK_BASE_URL,
+    CLICKETY_CLACK_API_KEY: process.env.CLICKETY_CLACK_API_KEY,
   },
 });

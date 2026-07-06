@@ -122,6 +122,10 @@ services:
     environment:
       CC_ROLE: all
       CC_HTTP_ADDR: 0.0.0.0:8080
+      # Static bearer key(s) gating CC's /v1 API. The everr app sends the same
+      # value as `Authorization: Bearer <key>` (CLICKETY_CLACK_API_KEY in the
+      # app's .env). Comma-separated for rotation. Dev-only value.
+      CC_API_KEYS: cc-api-dev-Qr8mXz31TkVfLpN2yBhC
       CC_NODE_ID: node-1
       CC_PG_URL: postgres://postgres:postgres@postgres:5432/clickety_clack
       CC_REDIS_URL: redis://redis:6379

@@ -3,17 +3,30 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/data/cc/client", () => ({
   listRules: vi.fn(),
   createRule: vi.fn(),
+  updateRule: vi.fn(),
   deleteRule: vi.fn(),
 }));
 
 vi.mock("@/lib/clickhouse", () => ({ querySqlApiWithMeta: vi.fn() }));
+
+// The reconciler builds absolute notification links from the app origin; tests
+// must not depend on real (validated) server env.
+vi.mock("@/env/auth", () => ({
+  authEnv: { BETTER_AUTH_URL: "https://app.example.com" },
+}));
 
 import { ApplyValidationError } from "@/data/as-code/errors";
 import * as cc from "@/data/cc/client";
 import type { DbExecutor } from "@/db/client";
 import { querySqlApiWithMeta } from "@/lib/clickhouse";
 import { applyAlertSpecs } from "./apply.server";
-import { MANAGED_SIMPLE, OWN_MANAGED, OWN_NAME, OWN_REPO } from "./mapping";
+import {
+  MANAGED_SIMPLE,
+  OWN_MANAGED,
+  OWN_NAME,
+  OWN_PREVIEW,
+  OWN_REPO,
+} from "./mapping";
 
 // The simple-alert reconciler talks to CC over HTTP and never touches Postgres,
 // so the Reconciler contract's `db` is unused here — a stub satisfies the type.
@@ -22,6 +35,7 @@ const db = {} as unknown as DbExecutor;
 const ch = vi.mocked(querySqlApiWithMeta);
 const mockedListRules = cc.listRules as ReturnType<typeof vi.fn>;
 const mockedCreateRule = cc.createRule as ReturnType<typeof vi.fn>;
+const mockedUpdateRule = cc.updateRule as ReturnType<typeof vi.fn>;
 const mockedDeleteRule = cc.deleteRule as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
@@ -31,6 +45,10 @@ beforeEach(() => {
     columns: ["service", "count"],
   });
   mockedListRules.mockResolvedValue([]);
+  // A live create is followed by a PUT stamping link.alert, which needs the
+  // freshly minted id + version.
+  mockedCreateRule.mockResolvedValue({ id: "new-rule", version: 1 });
+  mockedUpdateRule.mockResolvedValue({ id: "new-rule", version: 2 });
 });
 
 function alert(name = "high-errors", overrides = {}) {
@@ -39,39 +57,70 @@ function alert(name = "high-errors", overrides = {}) {
     metadata: { name },
     spec: {
       evaluationInterval: "5m",
-      notificationMessage: { title: `\${count} errors in \${service}` },
+      // CC substitutes labels, ${value}, and evidence columns in notifications.
+      notificationMessage: { title: `\${value} errors in \${service}` },
       query: "SELECT service, count() AS count FROM logs GROUP BY service",
+      instanceLabels: ["service"],
+      valueColumn: "count",
       ...overrides,
     },
   };
 }
 
-// A CC rule view shape as returned by listRules (only the fields the reconciler
-// reads: id + spec.annotations).
+// A CC rule view shape as returned by listRules, matching what applying the
+// default alert() fixture stores (so the fingerprints are equal).
 function managedRule(name: string, over: Record<string, unknown> = {}) {
   return {
     id: `rule-${name}`,
+    version: 3,
     spec: {
       sql: "SELECT service, count() AS count FROM logs GROUP BY service",
       interval_secs: 300,
       for_secs: 0,
-      label_columns: [],
-      value_column: null,
+      label_columns: ["service"],
+      value_column: "count",
       severity: "info",
       annotations: {
         [OWN_NAME]: name,
         [OWN_REPO]: "repo-1",
         [OWN_MANAGED]: MANAGED_SIMPLE,
-        "everr.notification.title": "${count} errors in ${service}",
+        "everr.notification.title": `\${value} errors in \${service}`,
+        summary: `\${value} errors in \${service}`,
+        "link.alert": `https://app.example.com/alerts/rule-${name}`,
       },
       resolve_after: 1,
+      suppressed: false,
+      ...over,
+    },
+  };
+}
+
+// A stored PREVIEW copy of the alert() fixture: suppressed and tagged with its
+// owning preview registry id, link.alert pointing at its own rule id.
+function previewRule(
+  name: string,
+  previewId: string,
+  over: Record<string, unknown> = {},
+) {
+  const base = managedRule(name);
+  return {
+    ...base,
+    id: `prev-rule-${name}`,
+    spec: {
+      ...base.spec,
+      annotations: {
+        ...base.spec.annotations,
+        [OWN_PREVIEW]: previewId,
+        "link.alert": `https://app.example.com/alerts/prev-rule-${name}`,
+      },
+      suppressed: true,
       ...over,
     },
   };
 }
 
 describe("applyAlertSpecs", () => {
-  it("creates a managed CC rule with ownership annotations", async () => {
+  it("creates a managed CC rule, then stamps link.alert with the new id", async () => {
     await applyAlertSpecs({
       namespace: { orgId: "o", repoid: "repo-1", kind: "live" },
       db,
@@ -84,7 +133,21 @@ describe("applyAlertSpecs", () => {
     expect(spec.annotations[OWN_NAME]).toBe("high-errors");
     expect(spec.annotations[OWN_REPO]).toBe("repo-1");
     expect(spec.annotations[OWN_MANAGED]).toBe(MANAGED_SIMPLE);
+    expect(spec.annotations.summary).toBe(`\${value} errors in \${service}`);
     expect(spec.interval_secs).toBe(300);
+    expect(spec.value_column).toBe("count");
+
+    // The alert-detail URL requires the CC rule id, which exists only after
+    // create: an immediate follow-up PUT (guarded by the fresh version) sets it.
+    expect(mockedUpdateRule).toHaveBeenCalledTimes(1);
+    const [uOrg, uId, uSpec, uVersion] = mockedUpdateRule.mock.calls[0];
+    expect(uOrg).toBe("o");
+    expect(uId).toBe("new-rule");
+    expect(uVersion).toBe(1);
+    expect(uSpec.annotations["link.alert"]).toBe(
+      "https://app.example.com/alerts/new-rule",
+    );
+    expect(mockedDeleteRule).not.toHaveBeenCalled();
   });
 
   it("dry-run plans without mutating", async () => {
@@ -103,29 +166,249 @@ describe("applyAlertSpecs", () => {
       conflicts: [],
     });
     expect(mockedCreateRule).not.toHaveBeenCalled();
+    expect(mockedUpdateRule).not.toHaveBeenCalled();
     expect(mockedDeleteRule).not.toHaveBeenCalled();
   });
 
-  it("is a no-op on a preview namespace (CC has no preview overlay)", async () => {
+  it("preview apply creates a suppressed rule tagged with the preview id", async () => {
     const res = await applyAlertSpecs({
       namespace: { orgId: "o", repoid: "repo-1", kind: "preview", id: "p1" },
       db,
       resources: [{ path: "a.yaml", resource: alert() }],
     });
 
-    expect(res).toEqual({
-      created: [],
-      updated: [],
-      deleted: [],
-      adopted: [],
-      conflicts: [],
+    // Full validation ran (the query was checked against ClickHouse)...
+    expect(ch).toHaveBeenCalledTimes(1);
+    // ...and the rule was REALLY registered, exactly like a live create but
+    // suppressed (evaluated, never notifying) and preview-tagged.
+    expect(mockedCreateRule).toHaveBeenCalledTimes(1);
+    const [org, spec] = mockedCreateRule.mock.calls[0];
+    expect(org).toBe("o");
+    expect(spec.suppressed).toBe(true);
+    expect(spec.annotations[OWN_PREVIEW]).toBe("p1");
+    expect(spec.annotations[OWN_REPO]).toBe("repo-1");
+    expect(spec.annotations[OWN_MANAGED]).toBe(MANAGED_SIMPLE);
+
+    // The link.alert stamp works exactly like the live path: a follow-up PUT
+    // with the freshly minted id, still suppressed.
+    expect(mockedUpdateRule).toHaveBeenCalledTimes(1);
+    const [, uId, uSpec, uVersion] = mockedUpdateRule.mock.calls[0];
+    expect(uId).toBe("new-rule");
+    expect(uVersion).toBe(1);
+    expect(uSpec.annotations["link.alert"]).toBe(
+      "https://app.example.com/alerts/new-rule",
+    );
+    expect(uSpec.suppressed).toBe(true);
+
+    expect(res.created).toEqual(["high-errors"]);
+    expect(res.deleted).toEqual([]);
+    expect(res.note).toMatch(/suppressed/);
+  });
+
+  it("scopes a preview reconcile to rules tagged with ITS preview id", async () => {
+    mockedListRules.mockResolvedValue([
+      // Live rule in the same repo: invisible to the preview reconcile.
+      managedRule("high-errors"),
+      // This preview's rule, absent from config: pruned.
+      previewRule("stale", "p1"),
+      // Another preview's rule: never touched.
+      previewRule("other", "p2"),
+    ]);
+
+    const res = await applyAlertSpecs({
+      namespace: { orgId: "o", repoid: "repo-1", kind: "preview", id: "p1" },
+      db,
+      resources: [],
     });
+
+    expect(res.deleted).toEqual(["stale"]);
+    expect(mockedDeleteRule).toHaveBeenCalledTimes(1);
+    expect(mockedDeleteRule).toHaveBeenCalledWith("o", "prev-rule-stale");
+  });
+
+  it("leaves an unchanged preview rule alone and updates a changed one in place", async () => {
+    mockedListRules.mockResolvedValue([previewRule("high-errors", "p1")]);
+    const unchanged = await applyAlertSpecs({
+      namespace: { orgId: "o", repoid: "repo-1", kind: "preview", id: "p1" },
+      db,
+      resources: [{ path: "a.yaml", resource: alert() }],
+    });
+    expect(unchanged.created).toEqual([]);
+    expect(unchanged.updated).toEqual([]);
+    expect(unchanged.deleted).toEqual([]);
+    expect(mockedCreateRule).not.toHaveBeenCalled();
+    expect(mockedUpdateRule).not.toHaveBeenCalled();
+
+    mockedListRules.mockResolvedValue([
+      previewRule("high-errors", "p1", {
+        sql: "SELECT service, count() AS count FROM old_logs GROUP BY service",
+      }),
+    ]);
+    const changed = await applyAlertSpecs({
+      namespace: { orgId: "o", repoid: "repo-1", kind: "preview", id: "p1" },
+      db,
+      resources: [{ path: "a.yaml", resource: alert() }],
+    });
+    expect(changed.updated).toEqual(["high-errors"]);
+    const [, id, spec, version] = mockedUpdateRule.mock.calls[0];
+    expect(id).toBe("prev-rule-high-errors");
+    expect(version).toBe(3);
+    expect(spec.suppressed).toBe(true);
+    expect(spec.annotations[OWN_PREVIEW]).toBe("p1");
+  });
+
+  it("live apply never adopts or deletes preview rules (and vice versa creates fresh)", async () => {
+    // Only a preview copy of "high-errors" exists: a live apply must not adopt
+    // it — it creates its own live rule — and an empty live apply must not
+    // prune it.
+    mockedListRules.mockResolvedValue([previewRule("high-errors", "p1")]);
+
+    const empty = await applyAlertSpecs({
+      namespace: { orgId: "o", repoid: "repo-1", kind: "live" },
+      db,
+      resources: [],
+    });
+    expect(empty.deleted).toEqual([]);
+    expect(mockedDeleteRule).not.toHaveBeenCalled();
+
+    const res = await applyAlertSpecs({
+      namespace: { orgId: "o", repoid: "repo-1", kind: "live" },
+      db,
+      resources: [{ path: "a.yaml", resource: alert() }],
+    });
+    expect(res.created).toEqual(["high-errors"]);
+    const [, spec] = mockedCreateRule.mock.calls[0];
+    expect(spec.suppressed).toBe(false);
+    expect(spec.annotations[OWN_PREVIEW]).toBeUndefined();
+  });
+
+  it("dry-run of a first preview apply (no registry row) plans creates without listing CC", async () => {
+    const res = await applyAlertSpecs({
+      namespace: { orgId: "o", repoid: "repo-1", kind: "preview", id: null },
+      db,
+      dryRun: true,
+      resources: [{ path: "a.yaml", resource: alert() }],
+    });
+
+    expect(res.created).toEqual(["high-errors"]);
+    expect(res.deleted).toEqual([]);
+    // A null preview id would alias the live scope; the reconciler must not
+    // even list CC (nothing can be tagged with a not-yet-minted id).
     expect(mockedListRules).not.toHaveBeenCalled();
+    expect(mockedCreateRule).not.toHaveBeenCalled();
+    expect(mockedUpdateRule).not.toHaveBeenCalled();
+    expect(mockedDeleteRule).not.toHaveBeenCalled();
+  });
+
+  it("fails a preview apply whose query is broken (validation still runs)", async () => {
+    ch.mockRejectedValueOnce(new Error("syntax error"));
+
+    try {
+      await applyAlertSpecs({
+        namespace: { orgId: "o", repoid: "repo-1", kind: "preview", id: "p1" },
+        db,
+        resources: [{ path: "broken.yaml", resource: alert() }],
+      });
+      expect.fail("expected preview validation to fail");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ApplyValidationError);
+      expect(error).toMatchObject({
+        message: expect.stringMatching(
+          /broken\.yaml: query failed: syntax error/,
+        ),
+      });
+    }
+
     expect(mockedCreateRule).not.toHaveBeenCalled();
     expect(mockedDeleteRule).not.toHaveBeenCalled();
   });
 
-  it("leaves an unchanged managed rule alone (no delete+recreate)", async () => {
+  it("fails a preview apply whose template references a column the query does not return", async () => {
+    try {
+      await applyAlertSpecs({
+        namespace: { orgId: "o", repoid: "repo-1", kind: "preview", id: "p1" },
+        db,
+        resources: [
+          {
+            path: "labels.yaml",
+            resource: alert("bad-ref", {
+              notificationMessage: { title: `\${nope} errors` },
+            }),
+          },
+        ],
+      });
+      expect.fail("expected preview validation to fail");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ApplyValidationError);
+      expect(error).toMatchObject({
+        message: expect.stringMatching(
+          /labels\.yaml: \$\{nope\} is not a column of the query result.*\(available: service, count\)/,
+        ),
+      });
+    }
+
+    expect(mockedCreateRule).not.toHaveBeenCalled();
+  });
+
+  it("accepts a rule with no instanceLabels whose template references result columns", async () => {
+    ch.mockResolvedValue({
+      rows: [{ failed_replays: 3, last_error: "boom" }],
+      columns: ["failed_replays", "last_error"],
+    });
+
+    const res = await applyAlertSpecs({
+      namespace: { orgId: "o", repoid: "repo-1", kind: "live" },
+      db,
+      resources: [
+        {
+          path: "replays.yaml",
+          resource: alert("replays", {
+            instanceLabels: undefined,
+            valueColumn: undefined,
+            notificationMessage: {
+              title: `\${failed_replays} replays failed`,
+              description: `last error: \${last_error}`,
+            },
+            query: "SELECT count() AS failed_replays, any(e) AS last_error",
+          }),
+        },
+      ],
+    });
+
+    // Non-label columns resolve from CC's event evidence at render time; the
+    // rule maps to empty label_columns (all rows collapse into one instance).
+    expect(res.created).toEqual(["replays"]);
+    expect(res.note).toBeUndefined();
+    const [, spec] = mockedCreateRule.mock.calls[0];
+    expect(spec.label_columns).toEqual([]);
+  });
+
+  it("warns (without failing) when evidence refs exceed CC's 16-column evidence cap", async () => {
+    const columns = Array.from({ length: 17 }, (_, i) => `c${i}`);
+    ch.mockResolvedValue({ rows: [], columns: ["service", ...columns] });
+
+    const res = await applyAlertSpecs({
+      namespace: { orgId: "o", repoid: "repo-1", kind: "live" },
+      db,
+      dryRun: true,
+      resources: [
+        {
+          path: "wide.yaml",
+          resource: alert("wide", {
+            valueColumn: undefined,
+            notificationMessage: { title: `\${c3} things on \${service}` },
+          }),
+        },
+      ],
+    });
+
+    expect(res.created).toEqual(["wide"]);
+    expect(res.note).toMatch(
+      /wide\.yaml: the query returns 17 non-label columns but alert events keep at most 16 as evidence, so \$\{c3\} may render empty/,
+    );
+  });
+
+  it("leaves an unchanged managed rule alone (no update)", async () => {
     mockedListRules.mockResolvedValue([managedRule("high-errors")]);
 
     const res = await applyAlertSpecs({
@@ -142,10 +425,11 @@ describe("applyAlertSpecs", () => {
       conflicts: [],
     });
     expect(mockedCreateRule).not.toHaveBeenCalled();
+    expect(mockedUpdateRule).not.toHaveBeenCalled();
     expect(mockedDeleteRule).not.toHaveBeenCalled();
   });
 
-  it("updates a changed managed rule via delete + recreate", async () => {
+  it("updates a changed managed rule in place with its version", async () => {
     mockedListRules.mockResolvedValue([
       managedRule("high-errors", {
         // Different SQL → fingerprint changes.
@@ -166,8 +450,51 @@ describe("applyAlertSpecs", () => {
       adopted: [],
       conflicts: [],
     });
-    expect(mockedDeleteRule).toHaveBeenCalledWith("o", "rule-high-errors");
-    expect(mockedCreateRule).toHaveBeenCalledTimes(1);
+    // In-place PUT guarded by the stored version — never delete + recreate,
+    // which would reset instance state.
+    expect(mockedUpdateRule).toHaveBeenCalledTimes(1);
+    const [org, id, spec, version] = mockedUpdateRule.mock.calls[0];
+    expect(org).toBe("o");
+    expect(id).toBe("rule-high-errors");
+    expect(version).toBe(3);
+    expect(spec.sql).toBe(
+      "SELECT service, count() AS count FROM logs GROUP BY service",
+    );
+    expect(spec.annotations["link.alert"]).toBe(
+      "https://app.example.com/alerts/rule-high-errors",
+    );
+    expect(mockedDeleteRule).not.toHaveBeenCalled();
+    expect(mockedCreateRule).not.toHaveBeenCalled();
+  });
+
+  it("fails the resource clearly when CC reports a version conflict", async () => {
+    mockedListRules.mockResolvedValue([
+      managedRule("high-errors", {
+        sql: "SELECT service, count() AS count FROM old_logs GROUP BY service",
+      }),
+    ]);
+    mockedUpdateRule.mockRejectedValueOnce(
+      Object.assign(new Error("rule version mismatch: expected 3, current 4"), {
+        name: "CcApiError",
+        status: 409,
+      }),
+    );
+
+    try {
+      await applyAlertSpecs({
+        namespace: { orgId: "o", repoid: "repo-1", kind: "live" },
+        db,
+        resources: [{ path: "a.yaml", resource: alert() }],
+      });
+      expect.fail("expected the version conflict to fail the apply");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ApplyValidationError);
+      expect(error).toMatchObject({
+        message: expect.stringMatching(
+          /a\.yaml: alert "high-errors" was modified concurrently .* re-run apply/,
+        ),
+      });
+    }
   });
 
   it("deletes a managed rule absent from config", async () => {
@@ -238,86 +565,137 @@ describe("applyAlertSpecs", () => {
   });
 
   it("rejects duplicate alert names before querying ClickHouse", async () => {
-    await expect(
-      applyAlertSpecs({
+    try {
+      await applyAlertSpecs({
         namespace: { orgId: "o", repoid: "repo-1", kind: "live" },
         db,
         resources: [
           { path: "a.yaml", resource: alert("same") },
           { path: "b.yaml", resource: alert("same") },
         ],
-      }),
-    ).rejects.toThrow(/duplicate alert "same" \(a\.yaml and b\.yaml\)/);
+      });
+      expect.fail("expected duplicate names to fail");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ApplyValidationError);
+      expect(error).toMatchObject({
+        message: expect.stringMatching(
+          /duplicate alert "same" \(a\.yaml and b\.yaml\)/,
+        ),
+      });
+    }
 
     expect(ch).not.toHaveBeenCalled();
     expect(mockedCreateRule).not.toHaveBeenCalled();
   });
 
-  it("rejects invalid schema, intervals, and unsupported variables with path context", async () => {
-    await expect(
-      applyAlertSpecs({
-        namespace: { orgId: "o", repoid: "repo-1", kind: "live" },
-        db,
-        resources: [{ path: "bad.yaml", resource: { kind: "AlertRule" } }],
-      }),
-    ).rejects.toThrow(/bad\.yaml: invalid alert rule/);
+  it("rejects invalid schema, intervals, durations, and unsupported variables with path context", async () => {
+    const cases: [string, unknown, RegExp][] = [
+      ["bad.yaml", { kind: "AlertRule" }, /bad\.yaml: invalid alert rule/],
+      [
+        "fast.yaml",
+        alert("fast", { evaluationInterval: "30s" }),
+        /fast\.yaml: invalid evaluationInterval/,
+      ],
+      [
+        "bad-for.yaml",
+        alert("bad-for", { for: "5x" }),
+        /bad-for\.yaml: invalid for duration "5x"/,
+      ],
+      [
+        "bad-resolve.yaml",
+        alert("bad-resolve", { resolveAfter: 0 }),
+        /bad-resolve\.yaml: invalid alert rule/,
+      ],
+      [
+        "bad-var.yaml",
+        alert("bad", { query: `SELECT \${tenant}` }),
+        /bad-var\.yaml: unsupported query variable/,
+      ],
+    ];
+    for (const [path, resource, pattern] of cases) {
+      try {
+        await applyAlertSpecs({
+          namespace: { orgId: "o", repoid: "repo-1", kind: "live" },
+          db,
+          resources: [{ path, resource }],
+        });
+        expect.fail(`expected ${path} to fail validation`);
+      } catch (error) {
+        expect(error).toBeInstanceOf(ApplyValidationError);
+        expect(error).toMatchObject({
+          message: expect.stringMatching(pattern),
+        });
+      }
+    }
+  });
 
-    await expect(
-      applyAlertSpecs({
+  it("rejects the value placeholder in messages when valueColumn is not set", async () => {
+    try {
+      await applyAlertSpecs({
         namespace: { orgId: "o", repoid: "repo-1", kind: "live" },
         db,
         resources: [
           {
-            path: "fast.yaml",
-            resource: alert("fast", { evaluationInterval: "30s" }),
+            path: "no-value.yaml",
+            resource: alert("no-value", { valueColumn: undefined }),
           },
         ],
-      }),
-    ).rejects.toThrow(/fast\.yaml: invalid evaluationInterval/);
-
-    await expect(
-      applyAlertSpecs({
-        namespace: { orgId: "o", repoid: "repo-1", kind: "live" },
-        db,
-        resources: [
-          {
-            path: "bad-var.yaml",
-            resource: alert("bad", { query: `SELECT \${tenant}` }),
-          },
-        ],
-      }),
-    ).rejects.toThrow(/bad-var\.yaml: unsupported query variable/);
+      });
+      expect.fail("expected the value ref to fail validation");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ApplyValidationError);
+      expect(error).toMatchObject({
+        message: expect.stringMatching(
+          /no-value\.yaml: \$\{value\} requires spec\.valueColumn/,
+        ),
+      });
+    }
   });
 
   it("rejects instanceLabels columns the query does not return", async () => {
-    await expect(
-      applyAlertSpecs({
+    try {
+      await applyAlertSpecs({
         namespace: { orgId: "o", repoid: "repo-1", kind: "live" },
         db,
         resources: [
           {
             path: "labels.yaml",
-            resource: alert("labels", { instanceLabels: ["missing"] }),
+            resource: alert("labels", {
+              instanceLabels: ["missing"],
+              notificationMessage: { title: "plain title" },
+            }),
           },
         ],
-      }),
-    ).rejects.toThrow(
-      /labels\.yaml: instanceLabels references column "missing"/,
-    );
+      });
+      expect.fail("expected the missing label column to fail validation");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ApplyValidationError);
+      expect(error).toMatchObject({
+        message: expect.stringMatching(
+          /labels\.yaml: instanceLabels references column "missing"/,
+        ),
+      });
+    }
   });
 
-  it("validates notification columns even when the query returns zero rows", async () => {
-    ch.mockResolvedValueOnce({ rows: [], columns: ["count"] });
+  it("rejects a valueColumn the query does not return", async () => {
+    ch.mockResolvedValueOnce({ rows: [], columns: ["service"] });
 
-    await expect(
-      applyAlertSpecs({
+    try {
+      await applyAlertSpecs({
         namespace: { orgId: "o", repoid: "repo-1", kind: "live" },
         db,
-        resources: [{ path: "missing-column.yaml", resource: alert() }],
-      }),
-    ).rejects.toThrow(
-      /missing-column\.yaml: \$\{service\} references column "service"/,
-    );
+        resources: [{ path: "value.yaml", resource: alert() }],
+      });
+      expect.fail("expected the missing value column to fail validation");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ApplyValidationError);
+      expect(error).toMatchObject({
+        message: expect.stringMatching(
+          /value\.yaml: valueColumn references column "count"/,
+        ),
+      });
+    }
   });
 
   it("wraps query errors as apply validation errors with path context", async () => {

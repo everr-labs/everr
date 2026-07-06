@@ -33,7 +33,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
 import {
   BellOff,
   CircleCheck,
@@ -44,6 +44,7 @@ import {
   X,
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
+import { PreviewStatusBadge } from "@/components/preview-status-badge";
 import {
   ALERT_CHANNELS,
   type AlertDeliveryTargets,
@@ -76,10 +77,10 @@ import {
   stateVariant,
 } from "./-alerts-shared";
 
-const alertDetailQueryOptions = (alertId: string) =>
+const alertDetailQueryOptions = (alertId: string, preview?: string) =>
   queryOptions({
-    queryKey: ["alerts", alertId],
-    queryFn: () => getAlert({ data: { alertId } }),
+    queryKey: ["alerts", alertId, "detail", preview ?? ""],
+    queryFn: () => getAlert({ data: { alertId, preview } }),
   });
 
 const alertInstancesQueryOptions = (alertId: string, timeRange: TimeRange) =>
@@ -110,10 +111,17 @@ export const Route = createFileRoute(
     ],
   },
   head: () => ({ meta: [{ title: "Everr - Alert detail" }] }),
-  loaderDeps: ({ search }) => withTimeRange(search),
+  // `preview` keys the detail query alongside the time range so the overlay
+  // status refetches when the active preview changes.
+  loaderDeps: ({ search }) => ({
+    ...withTimeRange(search),
+    preview: search.preview,
+  }),
   loader: async ({ context: { queryClient }, params, deps }) => {
     const [detail] = await Promise.all([
-      queryClient.ensureQueryData(alertDetailQueryOptions(params.alertId)),
+      queryClient.ensureQueryData(
+        alertDetailQueryOptions(params.alertId, deps.preview),
+      ),
       queryClient.prefetchQuery(
         alertInstancesQueryOptions(params.alertId, deps.timeRange),
       ),
@@ -122,7 +130,9 @@ export const Route = createFileRoute(
         alertEventsQueryOptions(params.alertId, deps.timeRange),
       ),
     ]);
-    return { slug: detail.slug };
+    // `previewStatus` rides the loaderData up to the `_previewable` layout,
+    // which reads the deepest match carrying it to tone the preview bar.
+    return { slug: detail.slug, previewStatus: detail.previewStatus };
   },
   component: AlertDetailPage,
 });
@@ -134,11 +144,17 @@ type SilenceTarget = {
   labels: Record<string, string>;
 };
 
+// A history-table row. Named because the silence column is now conditionally
+// spread into the columns array, where the cell parameter is no longer
+// inferred from the DataTable generic.
+type AlertEventRow = Awaited<ReturnType<typeof listAlertEvents>>[number];
+
 function AlertDetailPage() {
   const { alertId } = Route.useParams();
+  const { preview } = useSearch({ from: "/_authenticated/_dashboard" });
   const queryClient = useQueryClient();
   const { timeRange } = useTimeRange();
-  const alert = useQuery(alertDetailQueryOptions(alertId));
+  const alert = useQuery(alertDetailQueryOptions(alertId, preview));
   const instances = useQuery(alertInstancesQueryOptions(alertId, timeRange));
   const silences = useQuery(alertSilencesQueryOptions(alertId));
   const events = useQuery(alertEventsQueryOptions(alertId, timeRange));
@@ -175,10 +191,30 @@ function AlertDetailPage() {
     );
   }
   const detail = alert.data;
+  // A preview rule is a suppressed dress rehearsal owned by its preview:
+  // read-only here (like dashboards/runbooks in preview), so the pause and
+  // silence affordances are hidden — CC never notifies on it anyway.
+  const isPreviewRule = detail.previewId !== null;
   const definitionRows: [string, ReactNode][] = [
     ["Repository", detail.repoid],
     ["Severity", <SeverityBadge key="sev" severity={detail.severity} />],
     ["Evaluation interval", formatInterval(detail.evaluationIntervalSeconds)],
+    // Anti-flap knobs and the value column only appear when they deviate from
+    // the defaults (fire immediately, resolve after one empty evaluation).
+    ...(detail.forSeconds > 0
+      ? ([["For", formatInterval(detail.forSeconds)]] satisfies [
+          string,
+          ReactNode,
+        ][])
+      : []),
+    ...(detail.resolveAfter > 1
+      ? ([
+          ["Resolve after", `${detail.resolveAfter} empty evaluations`],
+        ] satisfies [string, ReactNode][])
+      : []),
+    ...(detail.valueColumn
+      ? ([["Value column", detail.valueColumn]] satisfies [string, ReactNode][])
+      : []),
     ["Notification title", detail.notificationTitleTemplate],
     ["Notification description", detail.notificationDescriptionTemplate || "-"],
     ...(detail.instanceLabelColumns.length > 0
@@ -207,9 +243,20 @@ function AlertDetailPage() {
     <div className="flex w-full flex-col gap-6">
       <div className="flex items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <h1 className="font-mono text-xl font-bold tracking-tight">
-            {detail.display.name || detail.slug}
-          </h1>
+          <span className="flex items-center gap-2">
+            <h1 className="font-mono text-xl font-bold tracking-tight">
+              {detail.display.name || detail.slug}
+            </h1>
+            {isPreviewRule && (
+              <Badge
+                variant="secondary"
+                title="Preview rule: evaluated by the alert engine, but notifications are suppressed."
+              >
+                preview
+              </Badge>
+            )}
+            <PreviewStatusBadge status={detail.previewStatus} />
+          </span>
           {detail.display.description && (
             <p className="max-w-3xl text-muted-foreground">
               {detail.display.description}
@@ -221,28 +268,29 @@ function AlertDetailPage() {
             </p>
           )}
         </div>
-        {detail.active ? (
-          <Button
-            variant="destructive"
-            size="sm"
-            className="hidden md:inline-flex"
-            disabled={setActive.isPending}
-            onClick={() => setActive.mutate(false)}
-          >
-            <CircleStop data-icon="inline-start" />
-            Pause Evaluation
-          </Button>
-        ) : (
-          <Button
-            size="sm"
-            className="hidden md:inline-flex"
-            disabled={setActive.isPending}
-            onClick={() => setActive.mutate(true)}
-          >
-            <CirclePlay data-icon="inline-start" />
-            Resume Evaluation
-          </Button>
-        )}
+        {!isPreviewRule &&
+          (detail.active ? (
+            <Button
+              variant="destructive"
+              size="sm"
+              className="hidden md:inline-flex"
+              disabled={setActive.isPending}
+              onClick={() => setActive.mutate(false)}
+            >
+              <CircleStop data-icon="inline-start" />
+              Pause Evaluation
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              className="hidden md:inline-flex"
+              disabled={setActive.isPending}
+              onClick={() => setActive.mutate(true)}
+            >
+              <CirclePlay data-icon="inline-start" />
+              Resume Evaluation
+            </Button>
+          ))}
       </div>
 
       {showFiringSuccess ? (
@@ -306,23 +354,32 @@ function AlertDetailPage() {
                       header: "Firing since",
                       cell: (row) => <RelativeTime value={row.lastFiredAt} />,
                     },
-                    {
-                      header: "",
-                      cell: (row) => (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          aria-label="Silence"
-                          onClick={() => {
-                            setSilenceTarget(row);
-                            setNewSilenceOpen(false);
-                          }}
-                        >
-                          <BellOff data-icon="inline-start" />
-                          <span className="hidden md:inline">Silence</span>
-                        </Button>
-                      ),
-                    },
+                    // Preview rules never notify, so there is nothing to
+                    // silence — the action column disappears with the rest of
+                    // the mutation affordances.
+                    ...(isPreviewRule
+                      ? []
+                      : [
+                          {
+                            header: "",
+                            cell: (row: AlertInstanceSummary) => (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                aria-label="Silence"
+                                onClick={() => {
+                                  setSilenceTarget(row);
+                                  setNewSilenceOpen(false);
+                                }}
+                              >
+                                <BellOff data-icon="inline-start" />
+                                <span className="hidden md:inline">
+                                  Silence
+                                </span>
+                              </Button>
+                            ),
+                          },
+                        ]),
                   ] satisfies Column<AlertInstanceSummary>[]
                 }
                 rowKey={(row) => row.fingerprint}
@@ -353,18 +410,20 @@ function AlertDetailPage() {
             <div className="grid h-fit grid-cols-[auto_1fr] items-start gap-x-3 gap-y-2 text-xs">
               <dt className="flex items-center gap-1 text-muted-foreground">
                 Silences
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="size-5 cursor-pointer"
-                  aria-label="Add silence"
-                  onClick={() => {
-                    setSilenceTarget(null);
-                    setNewSilenceOpen(true);
-                  }}
-                >
-                  <Plus className="size-3" />
-                </Button>
+                {!isPreviewRule && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="size-5 cursor-pointer"
+                    aria-label="Add silence"
+                    onClick={() => {
+                      setSilenceTarget(null);
+                      setNewSilenceOpen(true);
+                    }}
+                  >
+                    <Plus className="size-3" />
+                  </Button>
+                )}
               </dt>
               <dd className="min-w-0">
                 {silences.isError ? (
@@ -413,31 +472,37 @@ function AlertDetailPage() {
                   header: "Delivery",
                   cell: (row) => formatDeliveryTargets(row),
                 },
-                {
-                  header: "",
-                  cell: (row) => {
-                    const instance =
-                      row.instances.find((i) => i.state === "firing") ??
-                      row.instances[0];
-                    return (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="cursor-pointer"
-                        aria-label="Silence"
-                        onClick={() => {
-                          setSilenceTarget({
-                            fingerprint: row.eventId,
-                            labels: instance?.labels ?? {},
-                          });
-                          setNewSilenceOpen(false);
-                        }}
-                      >
-                        <BellOff />
-                      </Button>
-                    );
-                  },
-                },
+                // See the firing-instances table: no silencing on preview
+                // rules.
+                ...(isPreviewRule
+                  ? []
+                  : [
+                      {
+                        header: "",
+                        cell: (row: AlertEventRow) => {
+                          const instance =
+                            row.instances.find((i) => i.state === "firing") ??
+                            row.instances[0];
+                          return (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="cursor-pointer"
+                              aria-label="Silence"
+                              onClick={() => {
+                                setSilenceTarget({
+                                  fingerprint: row.eventId,
+                                  labels: instance?.labels ?? {},
+                                });
+                                setNewSilenceOpen(false);
+                              }}
+                            >
+                              <BellOff />
+                            </Button>
+                          );
+                        },
+                      },
+                    ]),
               ]}
               rowKey={(row) => row.eventId}
               emptyState={
@@ -450,15 +515,17 @@ function AlertDetailPage() {
         </CardContent>
       </Card>
 
-      <SilenceDialog
-        alertId={alertId}
-        instance={silenceTarget}
-        open={newSilenceOpen}
-        onClose={() => {
-          setSilenceTarget(null);
-          setNewSilenceOpen(false);
-        }}
-      />
+      {!isPreviewRule && (
+        <SilenceDialog
+          alertId={alertId}
+          instance={silenceTarget}
+          open={newSilenceOpen}
+          onClose={() => {
+            setSilenceTarget(null);
+            setNewSilenceOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -564,16 +631,68 @@ function HistoryInstances({
   instances: {
     state: "firing" | "resolved";
     labels: Record<string, string>;
+    evidence: Record<string, unknown> | null;
+    evidenceTruncated: boolean;
   }[];
 }) {
   if (instances.length === 0) return "-";
   return (
-    <div className="flex max-w-xl flex-col gap-1 font-mono text-xs">
+    <div className="flex max-w-xl flex-col gap-1.5 font-mono text-xs">
       {instances.map((instance, index) => (
-        <KeyValueList key={index} values={instance.labels} />
+        <div key={index} className="flex flex-col gap-1">
+          <KeyValueList values={instance.labels} />
+          <EvidenceChips
+            evidence={instance.evidence}
+            truncated={instance.evidenceTruncated}
+          />
+        </div>
       ))}
     </div>
   );
+}
+
+// CC evidence (source-row columns beyond the identity labels) rendered as compact
+// key=value pills below an event's instance labels, mirroring the silence matcher
+// chips so the History table stays visually consistent.
+function EvidenceChips({
+  evidence,
+  truncated,
+}: {
+  evidence: Record<string, unknown> | null;
+  truncated: boolean;
+}) {
+  const entries = evidence
+    ? sortedLabelEntries(
+        Object.fromEntries(
+          Object.entries(evidence).map(([key, value]) => [
+            key,
+            formatEvidenceValue(value),
+          ]),
+        ),
+      )
+    : [];
+  if (entries.length === 0 && !truncated) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      {entries.map(([key, value]) => (
+        <Badge key={key} variant="secondary" className="font-mono font-normal">
+          {key}={value}
+        </Badge>
+      ))}
+      {truncated && (
+        <span className="text-muted-foreground">evidence truncated</span>
+      )}
+    </div>
+  );
+}
+
+function formatEvidenceValue(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value.toLocaleString("en-US", { maximumFractionDigits: 4 });
+  }
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
 }
 
 function HistoryInstanceState({

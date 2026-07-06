@@ -37,6 +37,10 @@ export const listCcSilences = createAuthenticatedServerFn({
   method: "GET",
 }).handler(({ context: { session } }) => cc.listSilences(orgId(session)));
 
+export const listCcSubscriptions = createAuthenticatedServerFn({
+  method: "GET",
+}).handler(({ context: { session } }) => cc.listSubscriptions(orgId(session)));
+
 // ---- Rule operations ----
 export const pauseCcRule = createAuthenticatedServerFn({ method: "POST" })
   .inputValidator(z.object({ ruleId: z.string() }))
@@ -63,14 +67,21 @@ const RouteInputSchema = z.object({
   continue: z.boolean(),
   priority: z.number().int(),
   group_by: z.array(z.string()).nullable(),
-  group_wait_secs: z.number().int().nullable(),
-  group_interval_secs: z.number().int().nullable(),
+  group_wait_secs: z.number().int().min(0).nullable(),
+  group_interval_secs: z.number().int().min(0).nullable(),
+  repeat_interval_secs: z.number().int().min(60).nullable(),
 });
 
 export const createCcRoute = createAuthenticatedServerFn({ method: "POST" })
   .inputValidator(RouteInputSchema)
   .handler(({ data, context: { session } }) =>
     cc.createRoute(orgId(session), data),
+  );
+
+export const updateCcRoute = createAuthenticatedServerFn({ method: "POST" })
+  .inputValidator(z.object({ id: z.string(), input: RouteInputSchema }))
+  .handler(({ data: { id, input }, context: { session } }) =>
+    cc.updateRoute(orgId(session), id, input),
   );
 
 export const deleteCcRoute = createAuthenticatedServerFn({ method: "POST" })
@@ -130,4 +141,12 @@ export const createCcSubscription = createAuthenticatedServerFn({
   .inputValidator(z.object({ webhookUrl: z.url() }))
   .handler(({ data: { webhookUrl }, context: { session } }) =>
     cc.createSubscription(orgId(session), webhookUrl),
+  );
+
+export const deleteCcSubscription = createAuthenticatedServerFn({
+  method: "POST",
+})
+  .inputValidator(z.object({ id: z.string() }))
+  .handler(({ data: { id }, context: { session } }) =>
+    cc.deleteSubscription(orgId(session), id),
   );

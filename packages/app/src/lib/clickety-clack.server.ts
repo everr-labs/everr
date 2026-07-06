@@ -14,11 +14,22 @@ export class CcApiError extends Error {
   }
 }
 
-export type CcMethod = "GET" | "POST" | "DELETE";
+export type CcMethod = "GET" | "POST" | "PUT" | "DELETE";
 
 /**
- * Raw transport to the clickety-clack API. Injects the tenant header, enforces a
- * timeout, and maps CC's problem+json error shape to `CcApiError`. Returns the
+ * Bearer-key header for CC's static API-key gate (`CC_API_KEYS` on the CC
+ * side). Empty when no key is configured, for a CC instance with auth off.
+ */
+export function ccAuthHeaders(): Record<string, string> {
+  return env.CLICKETY_CLACK_API_KEY
+    ? { authorization: `Bearer ${env.CLICKETY_CLACK_API_KEY}` }
+    : {};
+}
+
+/**
+ * Raw transport to the clickety-clack API. Injects the tenant header and the
+ * API-key bearer header (when configured), enforces a timeout, and maps CC's
+ * problem+json error shape to `CcApiError`. Returns the
  * parsed JSON body (callers validate with Zod). Server-side only — the tenant
  * header is trusted and must never be set from the browser.
  */
@@ -33,6 +44,7 @@ export async function ccRequest(
     headers: {
       "content-type": "application/json",
       "X-CC-Tenant": orgId,
+      ...ccAuthHeaders(),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
     signal: AbortSignal.timeout(CC_TIMEOUT_MS),

@@ -115,10 +115,19 @@ export const AlertRuleYamlSchema = z
         // config for back-compat and folded into `runbook` by the transform.
         notebook: runbookRefSchema.optional(),
         evaluationInterval: nonEmptyString,
+        // How long the condition must hold before firing. Duration string
+        // (<int><s|m|h|d>); "0s" fires on the first matching evaluation.
+        for: nonEmptyString.default("0s"),
+        // Consecutive empty evaluations required before a firing instance
+        // resolves. Raise it to tolerate gaps in the data.
+        resolveAfter: z.number().int().min(1).default(1),
         severity: z.enum(["info", "warning", "critical"]).default("info"),
         notificationMessage: notificationMessageSchema,
         query: nonEmptyString,
         instanceLabels: z.array(nonEmptyString).min(1).optional(),
+        // Numeric result column carried onto instances/notifications as the
+        // alert value; referenced in messages as ${value}.
+        valueColumn: nonEmptyString.optional(),
       })
       .strict()
       .superRefine((spec, ctx) => {

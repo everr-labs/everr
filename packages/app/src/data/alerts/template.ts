@@ -13,19 +13,40 @@ export function validateQueryTemplate(query: string): void {
   }
 }
 
-export function validateMessageTemplate(template: string): void {
-  extractVariables(template);
-}
-
-export function validateMessageColumns(
+/**
+ * Notification templates are rendered by clickety-clack, which resolves
+ * `${x}` against the event's instance labels first, then `${value}` (the
+ * rule's `value_column`), then the event's evidence: every remaining query
+ * result column, capped at 16 columns / 4096 bytes of compact JSON (over the
+ * byte cap the evidence is dropped and refs into it render empty). Any query
+ * result column is therefore a valid reference; anything else would silently
+ * render as empty text, so it is rejected here against the columns the query
+ * actually returned at apply time.
+ */
+export function validateMessageRefs(
   template: string,
   columns: readonly string[],
+  hasValueColumn: boolean,
 ): void {
-  const names = new Set(columns);
+  const known = new Set(columns);
   for (const name of extractVariables(template)) {
-    if (!names.has(name)) {
+    if (name === "value") {
+      // ${value} resolves to the rule's value column, or (when valueColumn is
+      // not set) falls through to a result column literally named "value".
+      if (!hasValueColumn && !known.has("value")) {
+        throw new Error(
+          `\${value} requires spec.valueColumn: set valueColumn to the numeric column the alert should carry`,
+        );
+      }
+      continue;
+    }
+    if (!known.has(name)) {
+      const available =
+        columns.length > 0
+          ? ` (available: ${columns.join(", ")})`
+          : " (the query returned no columns)";
       throw new Error(
-        `\${${name}} references column "${name}" which the query does not return`,
+        `\${${name}} is not a column of the query result: notification templates can reference any query result column${available} or \${value}`,
       );
     }
   }

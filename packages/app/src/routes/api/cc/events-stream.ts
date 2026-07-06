@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { env } from "@/env";
 import { auth } from "@/lib/auth.server";
+import { ccAuthHeaders } from "@/lib/clickety-clack.server";
 import { createSSEStream } from "@/lib/sse";
 
 // Server-side proxy for clickety-clack's SSE event stream. The browser cannot
@@ -24,7 +25,11 @@ export const Route = createFileRoute("/api/cc/events-stream")({
           `${env.CLICKETY_CLACK_BASE_URL}/v1/events/stream`,
           {
             method: "GET",
-            headers: { "X-CC-Tenant": orgId, accept: "text/event-stream" },
+            headers: {
+              "X-CC-Tenant": orgId,
+              accept: "text/event-stream",
+              ...ccAuthHeaders(),
+            },
             signal: request.signal,
           },
         );
@@ -37,11 +42,13 @@ export const Route = createFileRoute("/api/cc/events-stream")({
         }
 
         const sse = createSSEStream(request);
+        // Narrowed above; capture so the closure below keeps the non-null type.
+        const upstreamBody = upstream.body;
 
         // Pump the upstream CC stream: parse `data:` frames and forward the JSON
         // payload to the client. Runs until upstream ends or the client aborts.
         void (async () => {
-          const reader = upstream.body!.getReader();
+          const reader = upstreamBody.getReader();
           const decoder = new TextDecoder();
           let buf = "";
           try {
