@@ -66,7 +66,7 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
 
 const HISTORY_LIMIT = 200;
 
-const ccEventHistoryQueryOptions = (timeRange: TimeRange) =>
+export const ccEventHistoryQueryOptions = (timeRange: TimeRange) =>
   queryOptions({
     queryKey: ["cc", "event-history", timeRange],
     queryFn: () =>

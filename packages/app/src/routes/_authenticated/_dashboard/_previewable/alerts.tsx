@@ -43,6 +43,7 @@ import {
   Plus,
   SearchIcon,
   Settings,
+  SlidersHorizontal,
   XIcon,
 } from "lucide-react";
 import { Fragment, useMemo, useState } from "react";
@@ -779,6 +780,14 @@ function AlertsPage() {
           >
             <Settings data-icon="inline-start" />
             Notifications
+          </Button>
+          <Button
+            variant="outline"
+            nativeButton={false}
+            render={<Link to="/cc-alerting/overview" />}
+          >
+            <SlidersHorizontal data-icon="inline-start" />
+            Advanced
           </Button>
         </div>
       </div>
