@@ -4,6 +4,7 @@ import {
   CcEventSchema,
   CcReceiverSchema,
   CcRouteSchema,
+  CcRuleSpecSchema,
   CcRuleViewSchema,
   CcSilenceSchema,
   CcSubscriptionSchema,
@@ -287,4 +288,25 @@ it("normalizes a subscription's array created_at to an ISO string", () => {
     created_at: [2026, 167, 15, 53, 50, 186382000, 0, 0, 0],
   });
   expect(s.created_at).toBe("2026-06-16T15:53:50.186Z");
+});
+
+it("parses a rule spec with max_interval_secs and omits it when absent", () => {
+  const minimal = {
+    sql: "SELECT 1",
+    interval_secs: 30,
+    for_secs: 0,
+    label_columns: [],
+    severity: "info",
+  };
+
+  // With max_interval_secs present, it should round-trip
+  const withMaxInterval = CcRuleSpecSchema.parse({
+    ...minimal,
+    max_interval_secs: 3600,
+  });
+  expect(withMaxInterval.max_interval_secs).toBe(3600);
+
+  // Without max_interval_secs, it should be undefined
+  const withoutMaxInterval = CcRuleSpecSchema.parse(minimal);
+  expect(withoutMaxInterval.max_interval_secs).toBeUndefined();
 });

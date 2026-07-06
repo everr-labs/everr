@@ -44,6 +44,7 @@ export const CcRuleSpecSchema = z.object({
   severity: CcSeveritySchema,
   annotations: z.record(z.string(), z.string()).default({}),
   resolve_after: z.number().int().default(1),
+  max_interval_secs: z.number().int().positive().optional(),
   // Preview mode: CC evaluates the rule fully (instances, events, history) but
   // the dispatcher never notifies on it. Defaulted so pre-suppression CC
   // responses still parse. Keep this key AFTER resolve_after: the reconcilers'
