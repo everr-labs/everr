@@ -1,0 +1,97 @@
+---
+title: Observability as code
+description: Dashboards, alerts, and runbooks are YAML in your Git repo, reconciled with everr apply, and rendered read-only.
+---
+
+Dashboards, alerts, and runbooks are **one system**: YAML files in a Git repository, reconciled into Everr with `everr apply`, rendered read-only by the app. Git is the source of truth — there is no click-to-edit, no save button, no in-app authoring. A resource changes when a file changes and you apply it.
+
+## Three kinds, one lifecycle
+
+```yaml
+kind: Dashboard
+metadata:
+  name: api-latency
+spec:
+  panels:
+    p99:
+      kind: Panel
+      spec:
+        plugin: { kind: TimeSeriesChart, spec: { unit: ms } }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts, quantile(0.99)(Duration) / 1e6 AS p99_ms FROM traces GROUP BY ts
+  layouts:
+    - kind: Grid
+      spec:
+        items:
+          - { x: 0, y: 0, width: 24, height: 8, content: { $ref: "#/spec/panels/p99" } }
+```
+
+The app **renders** it: runs the panel queries and draws the charts.
+
+```yaml
+kind: AlertRule
+metadata:
+  name: eventloop-delay
+spec:
+  evaluationInterval: 1m
+  query: |
+    SELECT ServiceName, round(avg(Value) * 1000, 1) AS p99_delay_ms
+    FROM metrics_gauge
+    WHERE MetricName = 'nodejs.eventloop.delay.p99'
+      AND TimeUnix >= now() - INTERVAL 5 MINUTE
+    GROUP BY ServiceName
+    HAVING p99_delay_ms > 100
+```
+
+The app **evaluates** it: runs the query on a schedule, and every row it returns is a firing instance.
+
+```yaml
+kind: Runbook
+metadata:
+  name: high-error-rate
+spec:
+  markdown:
+    file: ./high-error-rate.runbook.md
+```
+
+The app **renders** it: the markdown read-only, with any embedded panels live.
+
+## Why as-code
+
+- **Reviewable in pull requests** — changes land through the same review as your code.
+- **Versioned with your code** — history, blame, and rollback come for free.
+- **Reproducible across environments** — the same files produce the same resources anywhere.
+
+## How apply works
+
+Your declarations live in an `everr/` directory at your repo root, flat and named by kind — `*.dashboard.yaml`, `*.alert.yaml`, `*.runbook.yaml`. Apply routes by the `kind:` field; the suffix is convention. A file's subdirectory becomes its folder in the UI.
+
+```
+everr/
+  everr.yaml                       -> manifest (declares the repoid)
+  api-latency.dashboard.yaml
+  eventloop-delay.alert.yaml
+  high-error-rate.runbook.yaml
+  high-error-rate.runbook.md
+```
+
+The `everr.yaml` manifest declares a stable `repoid` (`repoid: "2f8e3f90-..."`) — the reconcile scope and apply ownership boundary. `everr apply` makes the resources under that `repoid` exactly match the tree: a new file is **created**, a changed file **updated**, a removed file **deleted**. Nothing outside the `repoid` is touched. Stage with `everr apply ./everr --preview` before writing to live state.
+
+## Where each piece is documented
+
+Guides for the scenarios:
+
+- **[Monitor HTTP traffic](/docs/guides/monitor-http-traffic)** — build a dashboard.
+- **[Alert on error spikes](/docs/guides/alert-on-error-spikes)** — write a query-driven rule.
+- **[Link alerts to runbooks](/docs/guides/link-alerts-to-runbooks)** — connect the two.
+
+Reference for the formats:
+
+- **[Dashboard spec](/docs/reference/dashboard-spec)**
+- **[AlertRule spec](/docs/reference/alert-spec)**
+- **[Runbook spec](/docs/reference/runbook-spec)**
