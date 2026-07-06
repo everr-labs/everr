@@ -5,6 +5,7 @@ import {
   CcReceiverSchema,
   CcRouteSchema,
   CcRuleSpecSchema,
+  CcRulesPageSchema,
   CcRuleViewSchema,
   CcSilenceSchema,
   CcSubscriptionSchema,
@@ -267,6 +268,79 @@ it("parses a silence and an SSE event", () => {
       eval_ts: "2026-06-14T12:03:00Z",
     }).status,
   ).toBe("firing");
+});
+
+it("parses an SSE event carrying suppression and evidence", () => {
+  const e = CcEventSchema.parse({
+    tenant: "t",
+    rule: "r",
+    instance_key: "k",
+    status: "firing",
+    labels: { host: "web-1" },
+    value: 1,
+    severity: "warning",
+    annotations: {},
+    eval_ts: "2026-06-14T12:03:00Z",
+    suppressed: true,
+    evidence: { status_code: 500, path: "/checkout" },
+    evidence_truncated: true,
+  });
+  expect(e.suppressed).toBe(true);
+  expect(e.evidence).toEqual({ status_code: 500, path: "/checkout" });
+  expect(e.evidence_truncated).toBe(true);
+});
+
+it("defaults suppression/evidence on SSE frames from an older CC", () => {
+  const e = CcEventSchema.parse({
+    tenant: "t",
+    rule: "r",
+    instance_key: "k",
+    status: "resolved",
+    labels: {},
+    value: null,
+    severity: "info",
+    annotations: {},
+    eval_ts: "2026-06-14T12:03:00Z",
+  });
+  expect(e.suppressed).toBe(false);
+  expect(e.evidence).toBeNull();
+  expect(e.evidence_truncated).toBe(false);
+});
+
+it("parses the paginated rules envelope with and without a next cursor", () => {
+  const item = {
+    id: "11111111-1111-1111-1111-111111111111",
+    tenant: "org_abc",
+    spec: {
+      sql: "SELECT 1",
+      interval_secs: 30,
+      for_secs: 0,
+      label_columns: [],
+      value_column: null,
+      severity: "info",
+      annotations: {},
+      resolve_after: 1,
+    },
+    version: 1,
+    paused: false,
+    health: {
+      status: "healthy",
+      consecutive_failures: 0,
+      degraded_since: null,
+      last_error: null,
+      last_error_at: null,
+    },
+  };
+  const page = CcRulesPageSchema.parse({
+    items: [item],
+    next_cursor: "djE6MTIzOmFiYw",
+  });
+  expect(page.items).toHaveLength(1);
+  expect(page.next_cursor).toBe("djE6MTIzOmFiYw");
+
+  const last = CcRulesPageSchema.parse({ items: [], next_cursor: null });
+  expect(last.items).toEqual([]);
+  expect(last.next_cursor).toBeNull();
 });
 
 it("parses a subscription with an RFC-3339 created_at", () => {

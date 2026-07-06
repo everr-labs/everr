@@ -87,6 +87,15 @@ export const CcRuleViewSchema = CcRuleSchema.extend({
   rollup: CcRuleRollupSchema.optional(),
 });
 
+// Paginated `GET /v1/rules`: passing `limit`/`cursor` opts into this
+// `{items, next_cursor}` envelope (the bare call keeps returning the legacy
+// unbounded array). `next_cursor` is an opaque keyset token; null means the
+// last page.
+export const CcRulesPageSchema = z.object({
+  items: z.array(CcRuleViewSchema),
+  next_cursor: z.string().nullable(),
+});
+
 export const CcAlertSchema = z.object({
   key: z.string(),
   rule: z.string(),
@@ -175,6 +184,13 @@ export const CcEventSchema = z.object({
   severity: CcSeveritySchema,
   annotations: z.record(z.string(), z.string()),
   eval_ts: CcTimestampSchema,
+  // Trailing fields CC serde-defaults on Event (src/domain/event.rs): defaulted
+  // here too so SSE frames from an older CC (or replayed pre-upgrade payloads)
+  // still parse. `evidence` is the bounded source-row context (columns beyond
+  // the identity labels); null for resolved-by-absence or byte-capped events.
+  suppressed: z.boolean().default(false),
+  evidence: z.record(z.string(), z.unknown()).nullable().default(null),
+  evidence_truncated: z.boolean().default(false),
 });
 
 export const CcTestResultSchema = z.object({

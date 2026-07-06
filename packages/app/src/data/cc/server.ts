@@ -13,6 +13,21 @@ export const listCcRules = createAuthenticatedServerFn({
   method: "GET",
 }).handler(({ context: { session } }) => cc.listRules(orgId(session)));
 
+// Paginated rules listing (CC's {items, next_cursor} envelope) with an
+// optional server-side health filter. listCcRules above stays the bare-array
+// path for callers that want everything in one shot.
+export const listCcRulesPage = createAuthenticatedServerFn({ method: "GET" })
+  .inputValidator(
+    z.object({
+      limit: z.number().int().min(1).max(500).default(100),
+      cursor: z.string().optional(),
+      health: z.enum(["degraded", "healthy"]).optional(),
+    }),
+  )
+  .handler(({ data, context: { session } }) =>
+    cc.listRulesPage(orgId(session), data),
+  );
+
 export const getCcRule = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(z.object({ ruleId: z.string() }))
   .handler(({ data: { ruleId }, context: { session } }) =>

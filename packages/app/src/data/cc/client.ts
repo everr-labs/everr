@@ -8,6 +8,7 @@ import {
   CcRouteSchema,
   CcRuleSchema,
   CcRuleSpecSchema,
+  CcRulesPageSchema,
   CcRuleViewSchema,
   CcSilenceSchema,
   CcSubscriptionSchema,
@@ -20,6 +21,27 @@ export async function listRules(orgId: string) {
   return z
     .array(CcRuleViewSchema)
     .parse(await ccRequest(orgId, "GET", "/v1/rules"));
+}
+/**
+ * Paginated listing: sending `limit` (1..=500, CC defaults 100) opts into the
+ * `{items, next_cursor}` envelope; `cursor` resumes from a previous page's
+ * `next_cursor`. `health` filters server-side by evaluation health. The bare
+ * `listRules` above keeps the legacy unbounded-array shape for its callers.
+ */
+export async function listRulesPage(
+  orgId: string,
+  opts: {
+    limit?: number;
+    cursor?: string;
+    health?: "degraded" | "healthy";
+  } = {},
+) {
+  const params = new URLSearchParams({ limit: String(opts.limit ?? 100) });
+  if (opts.cursor) params.set("cursor", opts.cursor);
+  if (opts.health) params.set("health", opts.health);
+  return CcRulesPageSchema.parse(
+    await ccRequest(orgId, "GET", `/v1/rules?${params.toString()}`),
+  );
 }
 export async function getRule(orgId: string, id: string) {
   return CcRuleViewSchema.parse(

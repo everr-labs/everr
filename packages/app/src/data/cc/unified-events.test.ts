@@ -20,6 +20,9 @@ function liveEvent(overrides: Partial<CcEvent> = {}): CcEvent {
     severity: "critical",
     annotations: {},
     eval_ts: "2026-06-10T12:00:00.000Z",
+    suppressed: false,
+    evidence: null,
+    evidence_truncated: false,
     ...overrides,
   };
 }
@@ -102,6 +105,26 @@ describe("liveToUnified", () => {
     const u = liveToUnified(liveEvent());
     expect(u.source).toBe("live");
     expect(u.severity).toBe("critical");
+  });
+
+  it("carries suppression and evidence through from the live frame", () => {
+    const u = liveToUnified(
+      liveEvent({
+        suppressed: true,
+        evidence: { status_code: 500 },
+        evidence_truncated: true,
+      }),
+    );
+    expect(u.suppressed).toBe(true);
+    expect(u.evidence).toEqual({ status_code: 500 });
+    expect(u.evidenceTruncated).toBe(true);
+  });
+
+  it("defaults to unsuppressed with null evidence", () => {
+    const u = liveToUnified(liveEvent());
+    expect(u.suppressed).toBe(false);
+    expect(u.evidence).toBeNull();
+    expect(u.evidenceTruncated).toBe(false);
   });
 });
 

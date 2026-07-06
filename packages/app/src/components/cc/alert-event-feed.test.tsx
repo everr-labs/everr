@@ -79,6 +79,9 @@ function liveEvent(overrides: Partial<CcEvent> = {}): CcEvent {
     severity: "critical",
     annotations: { "everr.name": "alpha" },
     eval_ts: "2024-01-01T00:05:00Z",
+    suppressed: false,
+    evidence: null,
+    evidence_truncated: false,
     ...overrides,
   };
 }
@@ -201,6 +204,22 @@ describe("AlertEventFeed", () => {
 
     render(<AlertEventFeed />);
 
+    expect(screen.getByText(/truncated/i)).toBeInTheDocument();
+  });
+
+  it("renders evidence chips and the suppressed marker for a live frame", () => {
+    liveEvents = [
+      liveEvent({
+        suppressed: true,
+        evidence: { status_code: 500 },
+        evidence_truncated: true,
+      }),
+    ];
+
+    render(<AlertEventFeed />);
+
+    expect(screen.getByText("status_code=500")).toBeInTheDocument();
+    expect(screen.getByText("suppressed")).toBeInTheDocument();
     expect(screen.getByText(/truncated/i)).toBeInTheDocument();
   });
 
