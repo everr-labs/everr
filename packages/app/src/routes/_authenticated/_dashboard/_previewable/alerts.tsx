@@ -44,6 +44,7 @@ import {
   createSilence,
   getAlertSettings,
   listAlerts,
+  RULE_LABEL,
 } from "@/data/alerts/server";
 import {
   deleteCcSilence,
@@ -356,7 +357,7 @@ function AlertsPage() {
         count: summary.errored,
         tone: "warning",
       },
-      { value: "silenced", label: "Silenced", count: summary.silenced },
+      { value: "silenced", label: "Muted", count: summary.silenced },
       { value: "resolved", label: "Resolved", count: summary.resolved },
       { value: "inactive", label: "Inactive", count: summary.inactive },
     ];
@@ -550,7 +551,11 @@ function AlertsPage() {
                       key={mute.id}
                       className="flex flex-col gap-1.5 rounded-md border border-border/60 px-2.5 py-2"
                     >
-                      <Conditions matchers={mute.matchers} />
+                      <Conditions
+                        matchers={mute.matchers.filter(
+                          (m) => m.label !== RULE_LABEL,
+                        )}
+                      />
                       <div className="flex items-center justify-between gap-2 text-muted-foreground">
                         <span>until {ccFormatTs(mute.ends_at)}</span>
                         {mute.comment && (

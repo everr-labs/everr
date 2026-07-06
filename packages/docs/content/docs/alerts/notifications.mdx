@@ -1,33 +1,58 @@
 ---
 title: Notifications
-description: Send firing and resolved alerts to Telegram and Slack, with one notification per evaluation.
+description: Send firing and resolved alerts to Email, Telegram, and Slack, with one notification per evaluation.
 ---
 
-When an alert evaluates, Everr sends one notification summarizing all instance changes. Channels are configured in the app, not as code, and apply to every rule in the org. Currently Telegram and Slack are supported.
+When an alert evaluates, Everr sends one notification summarizing all instance changes. Notifications are configured in the app, not as code, and apply across the whole organization.
 
-## Open notification settings
+## Open Notifications
 
-In Everr, go to **Alerts** and click **Notification settings** (top-right of the Alerts list). Each channel has an enable toggle and its recipients. An enabled channel must have at least one recipient before you can save.
+In Everr, go to **Alerts** and click **Notifications** (top right of the Alerts page). The page has three layers: where alerts go by default, the custom rules that redirect specific alerts elsewhere, and an Advanced section for less common controls.
 
-## Send to Telegram
+## Where alerts go
 
-Enable **Telegram** and add one or more entries. Each entry pairs a **bot token** (like `123456789:ABC...`) with a **chat ID** (e.g. `-1001234567890` for a group) and an optional **name**. To create a bot and get its token, follow Telegram's [BotFather guide](https://core.telegram.org/bots/features#botfather).
+The top card lists your organization's default channels: Email, Telegram, and Slack. Each has an enable toggle and its recipients. An enabled channel must have at least one recipient before you can save.
 
-Entries are immutable: you add or delete them, you do not edit them in place. The bot token is **write-only** — after saving, Everr never shows it again. To change a token, delete the entry and add a new one. The chat ID remains visible.
+### Email
 
-To find a chat ID:
+Turn on **Email** and add one or more recipient addresses.
 
-- Add your bot to the chat and read the ID from the Telegram Bot API [`getUpdates`](https://core.telegram.org/bots/api#getupdates) response, or
-- Open the channel or group in the [Telegram web app](https://web.telegram.org) and copy the number from the URL, for channels and supergroups it's the `-100…` value, which is the chat ID.
+### Telegram
 
-## Send to Slack
+Turn on **Telegram**, then set a **bot token** (like `123456789:ABC...`) and one or more **chat IDs** (for example `-1001234567890` for a group). To create a bot and get its token, follow Telegram's [BotFather guide](https://core.telegram.org/bots/features#botfather).
 
-Enable **Slack** and add one or more **Incoming Webhook** URLs. In Slack, open the [Slack app dashboard](https://api.slack.com/apps), select the app that should post alerts, then go to **Incoming Webhooks**. Turn on **Activate Incoming Webhooks** if needed, click **Add New Webhook to Workspace**, choose the channel, and authorize the app. Slack sends you back to the app settings page, where the URL appears under **Webhook URLs for Your Workspace**. Copy the `https://hooks.slack.com/services/...` URL and paste it the Everr alerts notification settings.
+The bot token is write-only: after saving, Everr never shows it again. To change it, clear the field and paste in a new one.
 
-Each webhook posts to one Slack channel. Give each webhook an optional name so you can remember which channel it targets.
+To find a chat ID, add your bot to the chat and read the ID from the Telegram Bot API [`getUpdates`](https://core.telegram.org/bots/api#getupdates) response, or open the channel or group in the [Telegram web app](https://web.telegram.org) and copy the number from the URL. For channels and supergroups it's the `-100...` value.
 
-Webhook URLs are write-only: after saving, Everr never shows the URL again — to change one, delete it and add a new one. Each enabled webhook receives every alert notification for the organization.
+### Slack
 
-## Silence during maintenance
+Turn on **Slack** and paste an **Incoming Webhook** URL. In Slack, open the [Slack app dashboard](https://api.slack.com/apps), select the app that should post alerts, then go to **Incoming Webhooks**. Turn on **Activate Incoming Webhooks** if needed, click **Add New Webhook to Workspace**, choose the channel, and authorize the app. Copy the resulting `https://hooks.slack.com/services/...` URL and paste it into the field.
 
-To stop notifications for a known issue or maintenance window without deleting the rule, silence it from the alert's detail page. Use the **Silence** action on a firing instance and set a time window. The rule keeps evaluating; silenced instances are filtered out of notifications. If all instances are silenced, no notification is sent.
+### Remind every
+
+Choose how often a still-firing alert re-sends its notification: off, every hour, every 4 hours, or every 24 hours.
+
+## Custom notification rules
+
+By default every alert notifies the channels above. Add a custom notification rule to send specific alerts somewhere else instead: a condition (for example `severity = critical`), a target channel, and a priority. Rules are checked top to bottom by priority, and the first match wins.
+
+## Advanced
+
+The Advanced section is collapsed by default. Expand it for a pipeline overview and three less common controls: dependency mutes, the webhook feed, and read-only channels.
+
+### Dependency mutes
+
+Mute noisy downstream alerts while a related, higher-level alert is already firing. While alerts matching a source condition are firing, alerts matching a target condition are muted, optionally scoped so it only applies when both share the same value for chosen labels.
+
+### Webhook feed
+
+The fallback: alerts that match no custom notification rule are delivered to every webhook URL added here.
+
+### Channels
+
+A read-only list of the underlying delivery channels, including any defined as code with `everr apply` (marked **as code**, with secrets redacted). Edit the default channels above or manage these as code; they are not editable directly in the UI.
+
+## Mute during maintenance
+
+To stop notifications for a known issue or maintenance window without deleting the rule, mute it from the alert's detail page or from the Alerts page. Use the **Mute** action on a firing instance and set a time window, or mute an entire rule from the mutes pill at the top of the Alerts page. The rule keeps evaluating, muted instances are filtered out of notifications. If every instance is muted, no notification is sent.

@@ -38,8 +38,10 @@ import {
 // A simple alert's silences are scoped to the rule by a synthetic `rule` label
 // carrying the rule's id (CC does not stamp the slug as a label, so an
 // `alertname` matcher never matches). The create path writes this matcher; the
-// list/count paths filter on it; the UI never sees it.
-const RULE_LABEL = "rule";
+// list/count paths filter on it; the UI never sees it. Exported so other
+// client-facing views (e.g. the alerts list's org-wide mutes panel, which
+// reads raw CC silences directly) can filter it out too.
+export const RULE_LABEL = "rule";
 
 const CC_OP_TO_UI: Record<CcMatcher["op"], Matcher["op"]> = {
   eq: "=",

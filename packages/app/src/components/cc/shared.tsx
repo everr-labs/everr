@@ -41,7 +41,7 @@ export function CcConceptNote({
 export function ccErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     if (/fetch failed|timeout|ECONNREFUSED/i.test(error.message)) {
-      return "clickety-clack API unavailable";
+      return "Alerting service unavailable";
     }
     return error.message;
   }

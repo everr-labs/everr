@@ -89,8 +89,8 @@ export function CcPipelineDiagram({
         <Arrow />
         <Stage
           icon={Waypoints}
-          title="Matched by route"
-          sub={`${routeCount} ${plural(routeCount, "route")} · first match wins`}
+          title="Matched by notification rule"
+          sub={`${routeCount} ${plural(routeCount, "notification rule")} · first match wins`}
           to="/alerts/notifications"
           hash="routes"
         />
@@ -98,25 +98,25 @@ export function CcPipelineDiagram({
         <Stage
           icon={Send}
           title="Delivered"
-          sub={`${receiverCount} ${plural(receiverCount, "receiver")}`}
+          sub={`${receiverCount} ${plural(receiverCount, "channel")}`}
           to="/alerts/notifications"
           hash="receivers"
         />
       </div>
       <p className="text-xs leading-relaxed text-muted-foreground">
-        Alerts matching no route fall through to the{" "}
+        Alerts matching no notification rule fall through to the{" "}
         <Link
           to="/alerts/notifications"
           hash="firehose"
           className="text-foreground underline-offset-2 hover:underline"
         >
-          firehose
+          webhook feed
         </Link>
         .
         {silenceCount > 0 &&
-          ` ${silenceCount} active ${plural(silenceCount, "silence")} can mute matching alerts.`}
+          ` ${silenceCount} active ${plural(silenceCount, "mute")} apply to matching alerts.`}
         {inhibitionCount > 0 &&
-          ` ${inhibitionCount} ${plural(inhibitionCount, "inhibition")} can suppress downstream alerts.`}
+          ` ${inhibitionCount} ${plural(inhibitionCount, "dependency mute")} can suppress downstream alerts.`}
       </p>
     </div>
   );

@@ -64,6 +64,7 @@ vi.mock("@/data/alerts/server", () => ({
   testAlert: mocks.testAlert,
   getAlertSettings: mocks.getAlertSettings,
   listAlerts: mocks.listAlerts,
+  RULE_LABEL: "rule",
 }));
 
 vi.mock("@/data/cc/server", () => ({

@@ -112,7 +112,7 @@ export function AlertStateBadges({
   activeSilenceCount: number;
   activeSilenceExpiresAt: Date | string | null;
 }) {
-  const silenceLabel = activeSilenceCount === 1 ? "silence" : "silences";
+  const silenceLabel = activeSilenceCount === 1 ? "mute" : "mutes";
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
@@ -129,7 +129,7 @@ export function AlertStateBadges({
           title={`${activeSilenceCount} active ${silenceLabel}`}
         >
           <BellOff data-icon="inline-start" />
-          {`silenced${activeSilenceCount > 1 ? ` · ${activeSilenceCount}` : ""}`}
+          {`muted${activeSilenceCount > 1 ? ` · ${activeSilenceCount}` : ""}`}
           {activeSilenceExpiresAt && (
             <>
               {" · expires "}

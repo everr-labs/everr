@@ -144,7 +144,9 @@ export function RouteBuilder({
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["cc", "routes"] });
       onOpenChange(false);
-      toast.success(isEdit ? "Route updated" : "Route created");
+      toast.success(
+        isEdit ? "Notification rule updated" : "Notification rule created",
+      );
     },
     onError: (e) => toast.error(ccErrorMessage(e)),
   });
@@ -153,12 +155,14 @@ export function RouteBuilder({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{isEdit ? "Edit route" : "New route"}</DialogTitle>
+          <DialogTitle>
+            {isEdit ? "Edit notification rule" : "New notification rule"}
+          </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <CcConceptNote>
-            A route sends matching alerts to one receiver. Lower priority
-            numbers are checked first; the first matching route wins.
+            A notification rule sends matching alerts to one channel. Lower
+            priority numbers are checked first; the first matching rule wins.
           </CcConceptNote>
           <MatchersEditor
             label="When an alert matches"
@@ -167,14 +171,14 @@ export function RouteBuilder({
           />
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="route-receiver">Send to receiver</Label>
+              <Label htmlFor="route-receiver">Send to channel</Label>
               {receivers.length > 0 ? (
                 <Select
                   value={receiver}
                   onValueChange={(v) => setReceiver(v ?? "")}
                 >
                   <SelectTrigger id="route-receiver" className="w-full">
-                    <SelectValue placeholder="Pick a receiver" />
+                    <SelectValue placeholder="Pick a channel" />
                   </SelectTrigger>
                   <SelectContent>
                     {receivers.map((r) => (
@@ -246,12 +250,12 @@ export function RouteBuilder({
           </div>
           <Label className="flex items-center gap-2">
             <Switch checked={continueFlag} onCheckedChange={setContinueFlag} />
-            Continue matching later routes
+            Continue matching later rules
           </Label>
           <PreviewLine>
             Alerts where <strong>{matchersPhrase(matchers)}</strong>{" "}
             <ArrowRight className="inline size-3 text-muted-foreground" />{" "}
-            notify <strong>{receiver || "a receiver"}</strong>.
+            notify <strong>{receiver || "a channel"}</strong>.
           </PreviewLine>
         </div>
         <DialogFooter>
@@ -262,7 +266,7 @@ export function RouteBuilder({
             disabled={!receiver || hasErrors || save.isPending}
             onClick={() => save.mutate()}
           >
-            {isEdit ? "Save changes" : "Create route"}
+            {isEdit ? "Save changes" : "Create notification rule"}
           </Button>
         </DialogFooter>
       </DialogContent>

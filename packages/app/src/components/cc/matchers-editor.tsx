@@ -50,7 +50,7 @@ export function updateMatcher(
 export function MatchersEditor({
   value,
   onChange,
-  label = "Matchers",
+  label = "Conditions",
 }: {
   value: CcMatcher[];
   onChange: (m: CcMatcher[]) => void;
@@ -75,7 +75,7 @@ export function MatchersEditor({
         <div key={i} className="flex items-center gap-2">
           <Input
             placeholder="label"
-            aria-label="Matcher label"
+            aria-label="Condition label"
             className="font-mono"
             value={row.label}
             onChange={(e) =>
@@ -89,7 +89,7 @@ export function MatchersEditor({
             }
           >
             <SelectTrigger
-              aria-label="Matcher operator"
+              aria-label="Condition operator"
               className="w-16 shrink-0"
             >
               <SelectValue>
@@ -110,7 +110,7 @@ export function MatchersEditor({
           </Select>
           <Input
             placeholder="value"
-            aria-label="Matcher value"
+            aria-label="Condition value"
             className="font-mono"
             value={row.value}
             onChange={(e) =>
@@ -121,7 +121,7 @@ export function MatchersEditor({
             type="button"
             variant="ghost"
             size="icon"
-            aria-label="Remove matcher"
+            aria-label="Remove condition"
             onClick={() => onChange(removeMatcher(value, i))}
           >
             <X />
@@ -130,7 +130,7 @@ export function MatchersEditor({
       ))}
       {value.length === 0 && (
         <p className="text-xs text-muted-foreground">
-          No matchers — matches everything.
+          No conditions, matches everything.
         </p>
       )}
     </div>

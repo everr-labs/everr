@@ -43,6 +43,7 @@ vi.mock("@/data/alerts/server", () => ({
   getAlertSettings: mocks.getAlertSettings,
   updateAlertSettings: mocks.updateAlertSettings,
   createSilence: mocks.createSilence,
+  RULE_LABEL: "rule",
 }));
 
 vi.mock("@/data/cc/server", () => ({
@@ -374,6 +375,12 @@ describe("/alerts route", () => {
         lastFiredAt: "2026-07-05T00:00:00.000Z",
         firingInstanceCount: 1,
       }),
+      alertSummary({
+        id: "rule-2",
+        slug: "muted-rule",
+        displayName: "Muted rule",
+        activeSilenceCount: 1,
+      }),
     ];
     ccAlertsData = [ccAlert()];
     ccSilencesData = [ccSilence()];
@@ -382,6 +389,10 @@ describe("/alerts route", () => {
 
     await screen.findByText("high-error-rate");
     await screen.findByRole("button", { name: /1 mute active/i });
+    // The state badge (rendered from the rule with an active mute) and the
+    // filter chip both use the renamed "muted"/"Muted" vocabulary.
+    expect(screen.getByText("muted")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Muted/ })).toBeInTheDocument();
 
     expect(document.body.textContent?.toLowerCase()).not.toContain("silence");
   });
