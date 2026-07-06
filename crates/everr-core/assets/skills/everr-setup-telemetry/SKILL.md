@@ -35,6 +35,7 @@ Always read the relevant rule files before editing instrumentation. Use the tabl
 | `validation` | Telemetry validation locally and after deployment |
 | `nodejs` | Node.js instrumentation setup and runtime pitfalls |
 | `nextjs` | Next.js App Router, server/client split, trace propagation |
+| `browser` | Web frontends exporting OTLP directly from the browser with a public origin-bound key |
 | `tauri` | Tauri v2 desktop/mobile: Rust backend + browser frontend proxying telemetry through IPC |
 | `electron` | Electron desktop: Node main process + Chromium renderer proxying telemetry through IPC |
 | `rust` | Rust tracing-based OpenTelemetry setup and runtime pitfalls |
@@ -127,7 +128,7 @@ Implementation expectations:
 - Use hosted ingest only when `EVERR_INGEST_KEY` is set.
 - Keep production telemetry lower-noise than local debug telemetry.
 - Keep secrets, tokens, emails, request bodies, and raw customer payloads out of attributes and log bodies.
-- Do not expose `EVERR_INGEST_KEY` in browser bundles. Browser production telemetry should go through a backend or collector that can attach the ingest key server-side.
+- Do not expose `EVERR_INGEST_KEY` in browser bundles. Browser production telemetry authenticates with a public origin-bound ingest key instead; see `rules/browser.md`.
 - Preserve normal crash and shutdown behavior while flushing telemetry.
 
 ## Validation
@@ -144,4 +145,4 @@ See `rules/validation.md` for the full validation checklist.
 | Adding a run, request, or test marker but querying only by service and time | Filter the query by the marker too, or do not claim the marker proved freshness. |
 | Mirroring every `console.*` call into logs | Prefer targeted OTel logs or the app's structured logger; any bridge must be temporary, gated, redacted, and bounded. |
 | Verifying by UI visibility or absence of exporter errors | Run `everr local query` and show rows from the exercised path. |
-| Exposing `EVERR_INGEST_KEY` to the browser | Route browser telemetry through a backend or collector that attaches credentials server-side. |
+| Exposing `EVERR_INGEST_KEY` to the browser | Browsers use a public origin-bound ingest key (`rules/browser.md`); secret keys stay server-side. |
