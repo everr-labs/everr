@@ -16,6 +16,8 @@ import {
   listCcRules,
   listCcSilences,
 } from "@/data/cc/server";
+import { useCcInvalidation } from "@/hooks/use-cc-invalidation";
+import { CcQueryError } from "./-cc-shared";
 
 const q = {
   rules: () =>
@@ -116,12 +118,26 @@ function Term({ name, children }: { name: string; children: React.ReactNode }) {
 }
 
 function CcOverviewPage() {
+  useCcInvalidation();
   const rules = useQuery(q.rules());
   const alerts = useQuery(q.alerts());
   const routes = useQuery(q.routes());
   const receivers = useQuery(q.receivers());
   const inhibitions = useQuery(q.inhibitions());
   const silences = useQuery(q.silences());
+
+  // On a CC outage every stat would render 0 — actively misleading (a false
+  // "all clear"). Any errored core query fails the whole page to the shared
+  // "clickety-clack API unavailable" card, matching the sibling pages.
+  const errored = [
+    rules,
+    alerts,
+    routes,
+    receivers,
+    inhibitions,
+    silences,
+  ].find((query) => query.isError);
+  if (errored) return <CcQueryError error={errored.error} />;
 
   const ruleList = rules.data ?? [];
   const paused = ruleList.filter((r) => r.paused).length;

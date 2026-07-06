@@ -11,6 +11,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { BellOff } from "lucide-react";
 import { listCcAlerts, listCcRoutes, listCcSilences } from "@/data/cc/server";
 import type { CcAlert } from "@/data/cc/types";
+import { useCcInvalidation } from "@/hooks/use-cc-invalidation";
 import {
   CcConceptNote,
   CcEmptyState,
@@ -68,6 +69,7 @@ function Stat({
 }
 
 function CcMonitorActive() {
+  useCcInvalidation();
   const navigate = useNavigate();
   const { data, isPending, isError, error } = useQuery(alertsQuery());
   const routes = useQuery(routesQuery());

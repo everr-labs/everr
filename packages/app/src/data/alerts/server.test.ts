@@ -13,6 +13,7 @@ vi.mock("@/data/cc/client", () => ({
   deleteSilence: vi.fn(),
   pauseRule: vi.fn(),
   resumeRule: vi.fn(),
+  testRule: vi.fn(),
   listReceivers: vi.fn(),
   upsertReceiver: vi.fn(),
   listRoutes: vi.fn(),
@@ -36,6 +37,7 @@ import {
   getAlertSettings,
   listAlertSilences,
   listAlerts,
+  testAlert,
   updateAlertSettings,
 } from "./server";
 
@@ -306,9 +308,13 @@ describe("getAlert", () => {
       ruleView({ spec: { ...ruleView().spec, annotations: {} } }),
     );
     mock(cc.listSilences).mockResolvedValue([]);
-    await expect(getAlert({ data: { alertId: "x" } })).rejects.toThrow(
-      "Alert not found",
-    );
+    try {
+      await getAlert({ data: { alertId: "x" } });
+      expect.fail("expected getAlert to reject a non-managed rule");
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toBe("Alert not found");
+    }
   });
 
   it("computes the overlay status of a preview rule in a preview context", async () => {
@@ -576,5 +582,55 @@ describe("activate/deactivate", () => {
     mock(cc.pauseRule).mockResolvedValue({ id: "rule-1" });
     await deactivateAlert({ data: { alertId: "rule-1" } });
     expect(cc.pauseRule).toHaveBeenCalledWith("test_org", "rule-1");
+  });
+});
+
+describe("testAlert", () => {
+  const testResult = {
+    matched: 2,
+    rows: [{ labels: { route: "/x" }, value: 5 }],
+  };
+
+  it("tests the CC rule with the loaded spec", async () => {
+    mock(cc.getRule).mockResolvedValue(ruleView());
+    mock(cc.testRule).mockResolvedValue(testResult);
+    const out = await testAlert({ data: { alertId: "rule-1" } });
+    expect(cc.testRule).toHaveBeenCalledWith(
+      "test_org",
+      "rule-1",
+      ruleView().spec,
+    );
+    expect(out).toEqual(testResult);
+  });
+
+  it("rejects non-managed rules without testing", async () => {
+    mock(cc.getRule).mockResolvedValue(
+      ruleView({ spec: { ...ruleView().spec, annotations: {} } }),
+    );
+    try {
+      await testAlert({ data: { alertId: "x" } });
+      expect.fail("expected testAlert to reject a non-managed rule");
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toBe("Alert not found");
+    }
+    expect(cc.testRule).not.toHaveBeenCalled();
+  });
+
+  it("is gated to org admins, like pause/resume", async () => {
+    vi.mocked(auth.api.getActiveMemberRole).mockResolvedValue({
+      role: "member",
+    } as never);
+    mock(cc.getRule).mockResolvedValue(ruleView());
+    try {
+      await testAlert({ data: { alertId: "rule-1" } });
+      expect.fail("expected testAlert to reject a non-admin");
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toBe(
+        "Only organization admins can manage alerts",
+      );
+    }
+    expect(cc.testRule).not.toHaveBeenCalled();
   });
 });
