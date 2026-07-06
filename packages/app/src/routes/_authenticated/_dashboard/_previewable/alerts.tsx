@@ -37,6 +37,8 @@ import {
 import { Fragment, useMemo, useState } from "react";
 import { z } from "zod";
 import { AlertEventFeed } from "@/components/cc/alert-event-feed";
+import { computeNotifiesChannels, joinWithAnd } from "@/components/cc/notifies";
+import { ccMatcherMatches } from "@/components/cc/route-resolution";
 import {
   CcStatusDot,
   Conditions,
@@ -55,6 +57,7 @@ import {
 import {
   deleteCcSilence,
   listCcAlerts,
+  listCcRoutes,
   listCcSilences,
 } from "@/data/cc/server";
 import type { CcAlert, CcSilence } from "@/data/cc/types";
@@ -95,10 +98,38 @@ const ccSilencesQueryOptions = () =>
     queryFn: () => listCcSilences(),
   });
 
+// Same cache key alerts_.$alertId.tsx/route-builder.tsx/notifications.tsx use,
+// so a route created/edited there is reflected here without a page reload.
+// Only fetched in the flat firing view, which is the only place this page
+// resolves Notifies per instance.
+const ccRoutesQueryOptions = () =>
+  queryOptions({ queryKey: ["cc", "routes"], queryFn: () => listCcRoutes() });
+
 function isActiveMute(silence: CcSilence, now: number = Date.now()) {
   const starts = new Date(silence.starts_at).getTime();
   const ends = new Date(silence.ends_at).getTime();
   return starts <= now && now < ends;
+}
+
+// Client-side approximation of "does this active mute apply to this
+// instance": exact when the mute was created rule-scoped (the RULE_LABEL
+// matcher every mute action on this page and the detail page stamps), and an
+// approximation otherwise — ANDs the raw CC matchers against the instance's
+// labels. That doesn't replicate alertmanager's full route/group semantics,
+// but is enough for a "muted" hint in this flat, org-wide view.
+function ccSilenceMatchesInstance(
+  silence: CcSilence,
+  ruleId: string,
+  labels: Record<string, string>,
+): boolean {
+  if (
+    silence.matchers.some(
+      (m) => m.label === RULE_LABEL && m.op === "eq" && m.value === ruleId,
+    )
+  ) {
+    return true;
+  }
+  return silence.matchers.every((m) => ccMatcherMatches(m, labels));
 }
 
 // A rule-scoped mute defaults to this window; the alerts list keeps things
@@ -314,6 +345,56 @@ function AlertsPage() {
     }
     return map;
   }, [instances.data]);
+
+  // Flat firing view: one row per active label set across every rule (the
+  // old cc-alerting monitor/active page's org-wide table), toggled in as an
+  // alternative to the grouped-by-rule list above. Component state, not a
+  // search param — this is a transient viewing preference, not shareable
+  // navigation state.
+  const [firingViewMode, setFiringViewMode] = useState<"grouped" | "flat">(
+    "grouped",
+  );
+  const allFiringInstances = useMemo(
+    () => (instances.data ?? []).filter((i) => i.status === "firing"),
+    [instances.data],
+  );
+  const showFiringViewToggle =
+    alertFilter === "firing" && allFiringInstances.length > 0;
+  // Only the flat view resolves Notifies per instance, so the routes list is
+  // fetched lazily rather than unconditionally on every alerts-home visit.
+  const routes = useQuery({
+    ...ccRoutesQueryOptions(),
+    enabled: alertFilter === "firing" && firingViewMode === "flat",
+  });
+  const flatFiringRows = useMemo(() => {
+    const alertsById = new Map(alerts.data?.map((a) => [a.id, a]));
+    return allFiringInstances.map((instance) => {
+      const alert = alertsById.get(instance.rule);
+      return {
+        key: instance.key,
+        ruleId: instance.rule,
+        displayName: alert?.displayName || alert?.slug || instance.rule,
+        labels: instance.labels,
+        value: instance.value,
+        activeSince: instance.active_since,
+        muted: activeMutes.some((mute) =>
+          ccSilenceMatchesInstance(mute, instance.rule, instance.labels),
+        ),
+        notifies: computeNotifiesChannels({
+          delivery: settings.data?.delivery,
+          routes: routes.data ?? [],
+          labelSets: [instance.labels],
+        }),
+      };
+    });
+  }, [
+    allFiringInstances,
+    alerts.data,
+    activeMutes,
+    settings.data,
+    routes.data,
+  ]);
+
   const [expandedRuleIds, setExpandedRuleIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -727,9 +808,49 @@ function AlertsPage() {
             </div>
           )}
 
+          {showFiringViewToggle && (
+            <div
+              role="tablist"
+              aria-label="Firing view"
+              className="inline-flex w-fit rounded-md border border-border bg-muted/20 p-0.5"
+            >
+              {(
+                [
+                  { value: "grouped", label: "Group by alert" },
+                  { value: "flat", label: "Flat" },
+                ] as const
+              ).map((tab) => {
+                const active = firingViewMode === tab.value;
+                return (
+                  <button
+                    key={tab.value}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setFiringViewMode(tab.value)}
+                    className={cn(
+                      "rounded-[0.3rem] px-3 py-1 text-xs font-medium outline-2 outline-dotted outline-transparent outline-offset-[-2px] transition-colors duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] focus-visible:outline-primary",
+                      active
+                        ? "bg-card text-foreground ring-1 ring-foreground/10"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           <Card inset="flush-content">
             <CardContent>
-              {alerts.isError ? (
+              {showFiringViewToggle && firingViewMode === "flat" ? (
+                <FlatFiringTable
+                  rows={flatFiringRows}
+                  isLoading={instances.isPending}
+                  isError={instances.isError}
+                />
+              ) : alerts.isError ? (
                 <QueryErrorMessage message="Unable to load alerts." />
               ) : alerts.isPending ? (
                 <div className="flex flex-col gap-2 px-3 py-2">
@@ -848,6 +969,105 @@ function AlertsPage() {
           </Card>
         </>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Flat firing view: one row per active label set across every rule, restoring
+// the old cc-alerting monitor/active page's org-wide table as a toggle on the
+// Firing filter.
+// ---------------------------------------------------------------------------
+
+type FlatFiringRow = {
+  key: string;
+  ruleId: string;
+  displayName: string;
+  labels: Record<string, string>;
+  value: number | null;
+  activeSince: string | null;
+  muted: boolean;
+  notifies: string[];
+};
+
+function FlatFiringTable({
+  rows,
+  isLoading,
+  isError,
+}: {
+  rows: FlatFiringRow[];
+  isLoading: boolean;
+  isError: boolean;
+}) {
+  if (isError) {
+    return <QueryErrorMessage message="Unable to load firing detail." />;
+  }
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-2 px-3 py-2">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <Skeleton key={index} className="h-8 w-full" />
+        ))}
+      </div>
+    );
+  }
+  if (rows.length === 0) {
+    return (
+      <p className="px-3 py-8 text-center text-muted-foreground">
+        No label sets are firing right now.
+      </p>
+    );
+  }
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left text-muted-foreground">
+            <th className="whitespace-nowrap pb-2 pl-3 pr-4">Alert</th>
+            <th className="whitespace-nowrap pb-2 pr-4">Labels</th>
+            <th className="whitespace-nowrap pb-2 pr-4">Value</th>
+            <th className="whitespace-nowrap pb-2 pr-4">Since</th>
+            <th className="whitespace-nowrap pb-2 pr-3">Notifies</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr
+              key={row.key}
+              className="border-b last:border-0 hover:bg-muted/50"
+            >
+              <td className="py-2 pl-3 pr-4">
+                <span className="flex flex-wrap items-center gap-2">
+                  <Link
+                    to="/alerts/$alertId"
+                    params={{ alertId: row.ruleId }}
+                    className="min-w-0 font-medium underline-offset-4 hover:underline"
+                  >
+                    {row.displayName}
+                  </Link>
+                  {row.muted && <Badge variant="secondary">muted</Badge>}
+                </span>
+              </td>
+              <td className="py-2 pr-4">
+                <LabelSet labels={row.labels} />
+              </td>
+              <td className="py-2 pr-4 tabular-nums">{row.value ?? "—"}</td>
+              <td className="py-2 pr-4">
+                <RelativeTime value={row.activeSince} />
+              </td>
+              <td className="py-2 pr-3">
+                {row.notifies.length > 0 ? (
+                  <span>{joinWithAnd(row.notifies)}</span>
+                ) : (
+                  <span className="text-muted-foreground">
+                    No channels configured
+                  </span>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

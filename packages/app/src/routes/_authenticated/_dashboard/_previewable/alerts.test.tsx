@@ -12,7 +12,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import type { AlertSummary } from "@/data/alerts/server";
-import type { CcAlert, CcSilence } from "@/data/cc/types";
+import type { CcAlert, CcRoute, CcSilence } from "@/data/cc/types";
 import { Route as AlertsFileRoute } from "./alerts";
 
 // ---------------------------------------------------------------------------
@@ -36,6 +36,7 @@ const mocks = vi.hoisted(() => ({
   listCcAlerts: vi.fn(),
   listCcSilences: vi.fn(),
   deleteCcSilence: vi.fn(),
+  listCcRoutes: vi.fn(),
 }));
 
 vi.mock("@/data/alerts/server", () => ({
@@ -50,6 +51,7 @@ vi.mock("@/data/cc/server", () => ({
   listCcAlerts: mocks.listCcAlerts,
   listCcSilences: mocks.listCcSilences,
   deleteCcSilence: mocks.deleteCcSilence,
+  listCcRoutes: mocks.listCcRoutes,
 }));
 
 vi.mock("@/components/cc/alert-event-feed", () => ({
@@ -75,8 +77,10 @@ mocks.getAlertSettings.mockImplementation(() =>
 
 let ccAlertsData: CcAlert[] = [];
 let ccSilencesData: CcSilence[] = [];
+let ccRoutesData: CcRoute[] = [];
 mocks.listCcAlerts.mockImplementation(() => Promise.resolve(ccAlertsData));
 mocks.listCcSilences.mockImplementation(() => Promise.resolve(ccSilencesData));
+mocks.listCcRoutes.mockImplementation(() => Promise.resolve(ccRoutesData));
 mocks.createSilence.mockImplementation(() => Promise.resolve(undefined));
 mocks.deleteCcSilence.mockImplementation((opts: { data: { id: string } }) => {
   ccSilencesData = ccSilencesData.filter((s) => s.id !== opts.data.id);
@@ -91,6 +95,7 @@ const {
   listCcAlerts,
   listCcSilences,
   deleteCcSilence,
+  listCcRoutes,
 } = mocks;
 
 // ---------------------------------------------------------------------------
@@ -136,6 +141,22 @@ function ccAlert(overrides: Partial<CcAlert> = {}): CcAlert {
     active_since: "2026-07-05T00:00:00.000Z",
     last_seen: "2026-07-05T00:00:00.000Z",
     absent_count: 0,
+    ...overrides,
+  };
+}
+
+function ccRoute(overrides: Partial<CcRoute> = {}): CcRoute {
+  return {
+    id: "route-1",
+    tenant: "t1",
+    matchers: [],
+    receiver: "oncall",
+    continue: false,
+    priority: 0,
+    group_by: null,
+    group_wait_secs: null,
+    group_interval_secs: null,
+    repeat_interval_secs: null,
     ...overrides,
   };
 }
@@ -229,6 +250,7 @@ describe("/alerts route", () => {
     alertsData = [];
     ccAlertsData = [];
     ccSilencesData = [];
+    ccRoutesData = [];
     listAlerts.mockClear();
     getAlertSettings.mockClear();
     updateAlertSettings.mockClear();
@@ -236,6 +258,7 @@ describe("/alerts route", () => {
     listCcAlerts.mockClear();
     listCcSilences.mockClear();
     deleteCcSilence.mockClear();
+    listCcRoutes.mockClear();
   });
 
   it("renders the alerts list by default", async () => {
@@ -493,5 +516,122 @@ describe("/alerts route", () => {
     expect(screen.getByRole("button", { name: /Muted/ })).toBeInTheDocument();
 
     expect(document.body.textContent?.toLowerCase()).not.toContain("silence");
+  });
+
+  describe("flat firing view toggle", () => {
+    it("stays hidden when the Firing chip isn't the active filter", async () => {
+      alertsData = [
+        alertSummary({
+          currentState: "firing",
+          lastFiredAt: "2026-07-05T00:00:00.000Z",
+          firingInstanceCount: 1,
+        }),
+      ];
+      ccAlertsData = [ccAlert()];
+
+      renderAlertsRoute(["/alerts"]);
+      await screen.findByText("high-error-rate");
+
+      expect(
+        screen.queryByRole("tab", { name: "Flat" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("stays hidden when Firing is active but no instance is reported", async () => {
+      alertsData = [
+        alertSummary({
+          currentState: "firing",
+          lastFiredAt: "2026-07-05T00:00:00.000Z",
+          firingInstanceCount: 1,
+        }),
+      ];
+      ccAlertsData = [];
+      const user = userEvent.setup();
+
+      renderAlertsRoute(["/alerts"]);
+      await screen.findByText("high-error-rate");
+      await user.click(screen.getByRole("button", { name: /Firing/ }));
+
+      expect(
+        screen.queryByRole("tab", { name: "Flat" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows the toggle once Firing is active with an instance, and switching to Flat renders one row per label set with resolved Notifies text", async () => {
+      alertsData = [
+        alertSummary({
+          currentState: "firing",
+          lastFiredAt: "2026-07-05T00:00:00.000Z",
+          firingInstanceCount: 2,
+        }),
+      ];
+      ccAlertsData = [
+        ccAlert({
+          key: "rule-1|team=pay",
+          labels: { team: "pay" },
+          value: 42,
+        }),
+        ccAlert({
+          key: "rule-1|team=core",
+          labels: { team: "core" },
+          value: 7,
+        }),
+      ];
+      ccRoutesData = [
+        ccRoute({
+          id: "custom",
+          receiver: "oncall",
+          matchers: [{ label: "team", op: "eq", value: "pay" }],
+        }),
+      ];
+      const user = userEvent.setup();
+
+      renderAlertsRoute(["/alerts"]);
+      await screen.findByText("high-error-rate");
+      await user.click(screen.getByRole("button", { name: /Firing/ }));
+
+      const toggle = await screen.findByRole("tab", { name: "Flat" });
+      await user.click(toggle);
+
+      const rows = await screen.findAllByRole("link", {
+        name: "High error rate",
+      });
+      expect(rows).toHaveLength(2);
+      expect(screen.getByText("pay")).toBeInTheDocument();
+      expect(screen.getByText("core")).toBeInTheDocument();
+      expect(screen.getByText("oncall")).toBeInTheDocument();
+      expect(
+        screen.getAllByText("No channels configured").length,
+      ).toBeGreaterThan(0);
+
+      // Group mode stays the default and unaffected: switching back shows the
+      // existing grouped/expandable row instead of the flat table.
+      await user.click(screen.getByRole("tab", { name: "Group by alert" }));
+      expect(
+        screen.getByRole("button", { name: /expand firing detail/i }),
+      ).toBeInTheDocument();
+    });
+
+    it("shows a muted indicator for a row an active mute matches", async () => {
+      alertsData = [
+        alertSummary({
+          currentState: "firing",
+          lastFiredAt: "2026-07-05T00:00:00.000Z",
+          firingInstanceCount: 1,
+        }),
+      ];
+      ccAlertsData = [ccAlert({ labels: { team: "pay" } })];
+      ccSilencesData = [
+        ccSilence({ matchers: [{ label: "team", op: "eq", value: "pay" }] }),
+      ];
+      const user = userEvent.setup();
+
+      renderAlertsRoute(["/alerts"]);
+      await screen.findByText("high-error-rate");
+      await user.click(screen.getByRole("button", { name: /Firing/ }));
+      await user.click(await screen.findByRole("tab", { name: "Flat" }));
+
+      expect(await screen.findByText("muted")).toBeInTheDocument();
+    });
   });
 });

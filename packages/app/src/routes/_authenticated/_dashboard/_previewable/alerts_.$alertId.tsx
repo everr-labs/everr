@@ -54,10 +54,9 @@ import {
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { AlertEventFeed } from "@/components/cc/alert-event-feed";
-import { ccFirstRoute } from "@/components/cc/route-resolution";
+import { computeNotifiesChannels, joinWithAnd } from "@/components/cc/notifies";
 import { LabelSet } from "@/components/cc/shared";
 import { PreviewStatusBadge } from "@/components/preview-status-badge";
-import { isManagedCatchAllRoute } from "@/data/alerts/delivery-settings";
 import {
   type Matcher,
   NO_LABELS_TEXT,
@@ -77,7 +76,7 @@ import {
   testAlert,
 } from "@/data/alerts/server";
 import { listCcRoutes } from "@/data/cc/server";
-import type { CcRoute, CcTestResult } from "@/data/cc/types";
+import type { CcTestResult } from "@/data/cc/types";
 import { useCcInvalidation } from "@/hooks/use-cc-invalidation";
 import { useTimeRange } from "@/hooks/use-time-range";
 import {
@@ -671,51 +670,6 @@ function formatResultValue(value: unknown): string {
   if (value === null || value === undefined) return "";
   if (typeof value === "object") return JSON.stringify(value);
   return String(value);
-}
-
-// ---------------------------------------------------------------------------
-// Notifies: enabled default channels + the first matching custom rule per
-// firing label set (or the alert's severity label when nothing is firing).
-// Managed catch-all routes (the org-default channels themselves) are excluded
-// so they aren't double-counted as "custom" matches.
-// ---------------------------------------------------------------------------
-
-type NotifiesDelivery = {
-  email: { enabled: boolean };
-  telegram: { enabled: boolean };
-  slack: { enabled: boolean };
-};
-
-function computeNotifiesChannels({
-  delivery,
-  routes,
-  labelSets,
-}: {
-  delivery: NotifiesDelivery | undefined;
-  routes: CcRoute[];
-  labelSets: Record<string, string>[];
-}): string[] {
-  const defaults: string[] = [];
-  if (delivery?.email.enabled) defaults.push("email");
-  if (delivery?.telegram.enabled) defaults.push("telegram");
-  if (delivery?.slack.enabled) defaults.push("slack");
-
-  const customRoutes = routes.filter((r) => !isManagedCatchAllRoute(r));
-  const custom: string[] = [];
-  for (const labels of labelSets) {
-    const match = ccFirstRoute(customRoutes, labels);
-    if (match && !custom.includes(match.receiver)) custom.push(match.receiver);
-  }
-  // A custom route can be named after a default channel (e.g. a receiver
-  // literally called "email"), so dedupe across both lists rather than just
-  // within `custom`.
-  return Array.from(new Set([...defaults, ...custom]));
-}
-
-function joinWithAnd(items: string[]): string {
-  if (items.length <= 1) return items[0] ?? "";
-  if (items.length === 2) return `${items[0]} and ${items[1]}`;
-  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 }
 
 // ---------------------------------------------------------------------------
