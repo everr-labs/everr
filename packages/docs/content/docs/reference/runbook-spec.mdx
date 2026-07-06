@@ -113,10 +113,6 @@ height: 200
 
 A panel inside a runbook is a dashboard [Panel](/docs/reference/dashboard-spec), byte for byte: same plugins, same ClickHouse SQL, same `{from:String}`, `{to:String}`, and `{step:UInt32}` time parameters, and `$name` tokens from `spec.variables` (the dashboard [variable](/docs/reference/variables) schema, verbatim).
 
-### Panels, not SQL blocks
-
-Never put a raw ```sql``` block in the prose for a responder to run by hand. Panels render live against the selected time range; SQL blocks in prose are dead text.
-
 ## Manifest
 
 Runbooks reconcile through the same apply tree as dashboards and alerts:
