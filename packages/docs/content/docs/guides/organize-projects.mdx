@@ -1,6 +1,6 @@
 ---
 title: Organize resources into projects
-description: Folders come from directories, isolation comes from metadata.project, and multi-repo ownership comes from the repoid in everr.yaml.
+description: Directory layout, project namespaces, and the repoid boundary — how as-code resources stay organized as they multiply.
 ---
 
 Folders come from directories; isolation comes from `metadata.project`; multi-repo ownership comes from the `repoid` in `everr.yaml`.
@@ -21,25 +21,33 @@ everr/
       funnel.dashboard.yaml           -> folder "team payments / checkout"
 ```
 
-## If two teams share an org
+## If you share one org across teams
 
 Every resource may declare `metadata.project` (defaults to `default`), independent of the repoid. A project is an identifier you choose per team (`platform`, `team-payments`). It namespaces identity: full identity is `project` + `slug`, URL is `/dashboards/<project>/<slug>`, so two projects can each have an `overview` dashboard without colliding. It's optional and doesn't need to appear in the manifest.
 
 ## If you apply from more than one repo
 
-The `everr/` directory must contain an `everr.yaml` (or `.yml`) at its root declaring a stable `repoid` — the apply ownership boundary: `everr apply` reconciles exactly what was previously applied under this id, nothing else. Use one stable id per repo (a UUID is a good default); never reuse one across unrelated repos, and never change it on an existing setup (that orphans everything applied under the old id — the old resources stay live but unmanaged). It's the only key the manifest accepts. Give each repo its own `repoid` and applies never collide — `everr apply` can never touch another repo's (or org's) resources:
+The `everr/` directory must contain an `everr.yaml` (or `.yml`) at its root declaring a stable `repoid` — the only key the manifest accepts. The repoid is the apply ownership boundary: `everr apply` reconciles exactly what was previously applied under this id, nothing else. Use one id per repo (a UUID is a good default) and never reuse it across unrelated repos. Never change the repoid on an existing setup — that orphans everything applied under the old id, leaving the old resources live but unmanaged.
+
+Give each repo its own `repoid` and applies never collide — `everr apply` can never touch another repo's (or org's) resources. The platform repo — `everr/everr.yaml`:
 
 ```yaml
-# platform repo — everr/everr.yaml
 repoid: "0b6c1f4e-8a21-4d3b-9f17-2c5e7a9d6b04"
 # api-latency.dashboard.yaml -> metadata.project: platform
+```
 
-# payments repo — everr/everr.yaml
+The payments repo — `everr/everr.yaml`:
+
+```yaml
 repoid: "9d2a77c3-1e54-4f8a-b6d0-3a8c1f2e5b97"
 # checkout-funnel.dashboard.yaml -> metadata.project: team-payments
 ```
 
-Apply each repo independently with `everr apply ./everr` — once in the platform repo, once in the payments repo, entirely separately. Within a repoid, `everr apply` reconciles live state to match the files exactly — creates new resources, updates changed ones, deletes removed ones, no separate prune step; moving a file relocates its resource, emptying the tree removes its last resource. This is safe because reconciliation only ever touches the declared repoid — see [Observability as code](/docs/concepts/observability-as-code) for the full apply model. Always stage into a preview first:
+Apply each repo independently with `everr apply ./everr` — once in the platform repo, once in the payments repo, entirely separately.
+
+## If you want to preview before it ships
+
+Apply is a full sync of files to live state within the repoid: new files create resources, changed files update them, removed files delete them — no separate prune step; moving a file relocates its resource, emptying the tree removes its last one (see [Observability as code](/docs/concepts/observability-as-code) for the full apply model). Always stage into a preview first:
 
 ```sh
 $ everr apply ./everr --preview
@@ -56,7 +64,7 @@ The preview is a full copy of the tree under a name (your git branch by default)
 
 ## If you apply from CI
 
-By default `everr apply` uses your `everr cloud login` session and prints the destination org before writing. CI runners don't include the CLI by default — install it with `everr-action` before calling `everr apply`. For CI and other non-interactive contexts, set `EVERR_API_KEY` to an org API key with the `apply` scope (the same `ek_` keys you mint for ingest — the Capabilities column shows what each key can do). Legacy `EVERR_API_TOKEN` is still accepted. If `EVERR_API_URL` isn't set, the base URL falls back to the one saved by a prior `everr cloud login`.
+Install the CLI with `everr-action` (CI runners don't include it), then set `EVERR_API_KEY` to an org API key with the `apply` scope — the same `ek_` keys you mint for ingest; the Capabilities column shows what each key can do (the legacy `EVERR_API_TOKEN` is still accepted). Outside CI, `everr apply` uses your `everr cloud login` session and prints the destination org before writing; if `EVERR_API_URL` isn't set, the base URL falls back to the one saved by that login.
 
 ```yaml
 # .github/workflows/dashboards.yml
@@ -81,4 +89,6 @@ jobs:
 everr apply ./everr --preview "pr-${{ github.event.number }}"
 ```
 
-The preview expires on its own 7 days after its last apply; merging triggers the main-branch workflow above, shipping the changes live. See the [`everr apply` CLI reference](/docs/reference/cli#dashboards-gitops) for the full flag and environment list.
+Merging triggers the main-branch workflow above, shipping the changes live.
+
+Full flag and environment list: [`everr apply` CLI reference](/docs/reference/cli#dashboards-gitops).
