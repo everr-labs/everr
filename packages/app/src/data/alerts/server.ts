@@ -658,3 +658,18 @@ export const activateAlert = createAuthenticatedServerFn({ method: "POST" })
     await ensureOrgAdmin();
     return cc.resumeRule(session.session.activeOrganizationId, alertId);
   });
+
+// Ad-hoc evaluation of the alert's current spec against ClickHouse, changing no
+// state (no instances, events, or notifications). Gated like the pause/resume
+// mutations: the simplified page never exposes the raw CC spec, so — unlike the
+// power-user testCcRule — the spec is loaded here from the managed rule rather
+// than trusted from the client.
+export const testAlert = createAuthenticatedServerFn({ method: "POST" })
+  .inputValidator(alertIdInput)
+  .handler(async ({ data: { alertId }, context: { session } }) => {
+    const org = session.session.activeOrganizationId;
+    await ensureOrgAdmin();
+    const rule = await cc.getRule(org, alertId);
+    if (!isManagedSimple(rule.spec)) throw new Error("Alert not found");
+    return cc.testRule(org, alertId, rule.spec);
+  });
