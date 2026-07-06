@@ -48,6 +48,7 @@ import {
 import { Fragment, useMemo, useState } from "react";
 import { z } from "zod";
 import { AlertEventFeed } from "@/components/cc/alert-event-feed";
+import { HelpTip } from "@/components/cc/help-tip";
 import { MatchersEditor } from "@/components/cc/matchers-editor";
 import { computeNotifiesChannels, joinWithAnd } from "@/components/cc/notifies";
 import { ccMatcherMatches } from "@/components/cc/route-resolution";
@@ -554,7 +555,12 @@ function AlertsPage() {
   const columns = useMemo<Column<AlertSummary>[]>(
     () => [
       {
-        header: "Health",
+        header: (
+          <span className="inline-flex items-center gap-1">
+            Health
+            <HelpTip text="Healthy means recent scheduled evaluations succeeded; degraded means they've been failing (a query error, most often)." />
+          </span>
+        ),
         cell: (row) => (
           <span title={healthTooltip(row)} className="inline-flex items-center">
             <CcStatusDot

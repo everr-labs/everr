@@ -58,6 +58,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { HelpTip } from "@/components/cc/help-tip";
 import { InhibitionBuilder } from "@/components/cc/inhibition-builder";
 import { matchersPhrase } from "@/components/cc/matchers-editor";
 import { CcPipelineDiagram } from "@/components/cc/pipeline-diagram";
@@ -599,7 +600,10 @@ function CustomRulesCard() {
   return (
     <Card id="routes" inset="flush-content" className="scroll-mt-4">
       <CardHeader className="px-3">
-        <CardTitle>Custom notification rules</CardTitle>
+        <span className="flex items-center gap-1.5">
+          <CardTitle>Custom notification rules</CardTitle>
+          <HelpTip text="A rule redirects alerts matching its conditions to a specific channel, ahead of the defaults." />
+        </span>
         <CardDescription>
           Send specific alerts to a specific channel. Checked top-to-bottom by
           priority; the first match wins.
@@ -700,7 +704,10 @@ function DependencyMutesSection() {
     <div className="space-y-3 rounded-md border border-border/60 p-3">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <h3 className="text-sm font-medium">Dependency mutes</h3>
+          <span className="flex items-center gap-1.5">
+            <h3 className="text-sm font-medium">Dependency mutes</h3>
+            <HelpTip text="While the higher-level alert you pick is firing, this mutes the downstream one you chose." />
+          </span>
           <p className="text-xs text-muted-foreground">
             Mute noisy downstream alerts while a related, higher-level alert is
             already firing.
@@ -796,7 +803,10 @@ function WebhookFeedSection() {
       className="scroll-mt-4 space-y-3 rounded-md border border-border/60 p-3"
     >
       <div>
-        <h3 className="text-sm font-medium">Webhook feed</h3>
+        <span className="flex items-center gap-1.5">
+          <h3 className="text-sm font-medium">Webhook feed</h3>
+          <HelpTip text="Every alert event is POSTed to each webhook URL below, as it happens." />
+        </span>
         <p className="text-xs text-muted-foreground">
           The fallback: alerts that match no custom notification rule are
           delivered to every webhook below.
@@ -903,7 +913,10 @@ function ChannelsSection() {
       className="scroll-mt-4 space-y-2 rounded-md border border-border/60 p-3"
     >
       <div>
-        <h3 className="text-sm font-medium">Channels</h3>
+        <span className="flex items-center gap-1.5">
+          <h3 className="text-sm font-medium">Channels</h3>
+          <HelpTip text="Channels are managed as code; add one by declaring a receiver and applying it with everr apply." />
+        </span>
         <p className="text-xs text-muted-foreground">
           Ones managed as code with{" "}
           <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.6875rem]">

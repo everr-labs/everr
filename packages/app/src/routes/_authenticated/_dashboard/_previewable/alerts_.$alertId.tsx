@@ -54,6 +54,7 @@ import {
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { AlertEventFeed } from "@/components/cc/alert-event-feed";
+import { HelpTip } from "@/components/cc/help-tip";
 import { computeNotifiesChannels, joinWithAnd } from "@/components/cc/notifies";
 import { LabelSet } from "@/components/cc/shared";
 import { PreviewStatusBadge } from "@/components/preview-status-badge";
@@ -264,6 +265,13 @@ function AlertDetailPage() {
   const firingInstances = (instances.data ?? []).filter(
     (row) => row.state === "firing",
   );
+  // Matched the condition, but not yet for `resolveAfter`/`for_secs` long
+  // enough to actually fire (and never notifies while pending) — CC's
+  // anti-flap window. Shown separately, muted, so it reads as "not yet" rather
+  // than "firing".
+  const pendingInstances = (instances.data ?? []).filter(
+    (row) => row.state === "pending",
+  );
   const muteCount = silences.data?.length ?? 0;
 
   const notifiesChannels = computeNotifiesChannels({
@@ -339,7 +347,7 @@ function AlertDetailPage() {
             <QueryErrorMessage message="Unable to load current status." />
           ) : instances.isPending ? (
             <Skeleton className="m-3 h-24 w-full" />
-          ) : firingInstances.length === 0 ? (
+          ) : firingInstances.length === 0 && pendingInstances.length === 0 ? (
             <div className="flex items-center gap-3 px-3 py-3">
               <CircleCheck className="size-5 shrink-0 text-emerald-500" />
               <p className="text-sm">
@@ -384,6 +392,17 @@ function AlertDetailPage() {
                   </div>
                 </li>
               ))}
+              {pendingInstances.map((row) => (
+                <li
+                  key={row.fingerprint}
+                  className="flex flex-wrap items-center justify-between gap-3 px-3 py-3 text-muted-foreground"
+                >
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-xs">about to fire (pending)</span>
+                    <LabelSet labels={row.labels} />
+                  </div>
+                </li>
+              ))}
             </ul>
           )}
         </CardContent>
@@ -421,6 +440,20 @@ function AlertDetailPage() {
               </CollapsibleContent>
             </Collapsible>
 
+            {/* Raw rule spec + health forensics: everything the plain-language
+                rows above summarize away, for power users and support triage. */}
+            <Collapsible defaultOpen={false}>
+              <CollapsibleTrigger className="group inline-flex w-fit items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+                <ChevronRight className="size-3 transition-transform group-data-[panel-open]:rotate-90" />
+                Advanced
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div data-testid="advanced-definition" className="mt-1.5">
+                  <DefinitionTable rows={advancedRows(detail)} />
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+
             {!isPreviewRule && (
               <RunTest
                 isPending={runTest.isPending}
@@ -436,7 +469,10 @@ function AlertDetailPage() {
       {/* 4. Notifies: default channels + the first matching custom rule. */}
       <Card>
         <CardHeader>
-          <CardTitle>Notifies</CardTitle>
+          <span className="flex items-center gap-1.5">
+            <CardTitle>Notifies</CardTitle>
+            <HelpTip text="This is resolved from your default channels plus the first custom notification rule whose conditions match this alert." />
+          </span>
         </CardHeader>
         <CardContent>
           {settings.isError || routes.isError ? (
@@ -625,6 +661,45 @@ function KeyValueList({ values }: { values: Record<string, string> }) {
       ))}
     </span>
   );
+}
+
+// The raw rule spec/version + health forensics behind the plain-language
+// Definition rows above, for the collapsed Advanced block. "Last failed" reads
+// health.last_error_at (CC stamps it on every failed attempt, so it's honest
+// while degraded); "Last seen" above already reports rollup.last_seen_at
+// ("last active" wording, see the alerts home health tooltip) — not repeated
+// here.
+function advancedRows(
+  detail: Awaited<ReturnType<typeof getAlert>>,
+): [string, ReactNode][] {
+  return [
+    ["Rule ID", <span className="font-mono">{detail.id}</span>],
+    ["Version", String(detail.version)],
+    [
+      "Label columns",
+      detail.instanceLabelColumns.length > 0
+        ? detail.instanceLabelColumns.join(", ")
+        : "-",
+    ],
+    ["Value column", detail.valueColumn ?? "-"],
+    ["Resolve after", `${detail.resolveAfter} empty evaluations`],
+    [
+      "Max interval",
+      detail.maxIntervalSecs ? formatInterval(detail.maxIntervalSecs) : "-",
+    ],
+    ["Suppressed", detail.suppressed ? "Yes" : "No"],
+    ["Health status", detail.health],
+    ["Consecutive failures", String(detail.healthConsecutiveFailures)],
+    ["Last error", detail.healthError ?? "-"],
+    [
+      "Last failed",
+      detail.healthLastErrorAt ? (
+        <RelativeTime value={detail.healthLastErrorAt} />
+      ) : (
+        "-"
+      ),
+    ],
+  ];
 }
 
 function DefinitionTable({ rows }: { rows: [string, ReactNode][] }) {

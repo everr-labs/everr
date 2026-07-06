@@ -225,6 +225,12 @@ type AlertDetail = AlertSummary & {
   valueColumn: string | null;
   runbookProject: string | null;
   runbookSlug: string | null;
+  // Raw CC spec/version facts the plain-language Definition card summarizes
+  // away, surfaced verbatim in the detail page's collapsed Advanced block for
+  // power users and support triage.
+  version: number;
+  maxIntervalSecs: number | null;
+  suppressed: boolean;
 };
 
 // The caller's role in the active organization — every call site gates a
@@ -341,13 +347,18 @@ export const getAlert = createAuthenticatedServerFn({ method: "GET" })
       valueColumn: view.valueColumn,
       runbookProject: view.runbookProject,
       runbookSlug: view.runbookSlug,
+      version: rule.version,
+      maxIntervalSecs: rule.spec.max_interval_secs ?? null,
+      suppressed: view.suppressed,
     } satisfies AlertDetail;
   });
 
 export type AlertInstanceSummary = {
   fingerprint: string;
   labels: Record<string, string>;
-  state: "firing" | "resolved";
+  // "pending": the rule's condition matched, but not for `for_secs` yet, so it
+  // has not started firing (and never notifies) — CC's anti-flap window.
+  state: "firing" | "pending" | "resolved";
   lastFiredAt: string | null;
   lastResolvedAt: string | null;
   lastRow: Record<string, unknown>;
@@ -377,11 +388,15 @@ export const listAlertInstances = createAuthenticatedServerFn({ method: "GET" })
         ),
       }));
     return alerts
-      .filter((a) => a.rule === alertId && a.status === "firing")
+      .filter(
+        (a) =>
+          a.rule === alertId &&
+          (a.status === "firing" || a.status === "pending"),
+      )
       .map((a) => ({
         fingerprint: a.key,
         labels: a.labels,
-        state: "firing" as const,
+        state: a.status as "firing" | "pending",
         lastFiredAt: a.active_since,
         lastResolvedAt: null,
         lastRow: a.value === null ? {} : { value: a.value },

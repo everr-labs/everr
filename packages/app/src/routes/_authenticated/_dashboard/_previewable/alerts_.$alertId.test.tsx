@@ -7,7 +7,7 @@ import {
   Outlet,
   RouterProvider,
 } from "@tanstack/react-router";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
@@ -146,6 +146,9 @@ function alertDetail(overrides: Partial<AlertDetail> = {}): AlertDetail {
     forSeconds: 0,
     resolveAfter: 1,
     valueColumn: null,
+    version: 1,
+    maxIntervalSecs: null,
+    suppressed: false,
     ...overrides,
   } as AlertDetail;
 }
@@ -290,6 +293,71 @@ describe("/alerts/$alertId route", () => {
       "Notifies",
       "Mutes",
     ]);
+  });
+
+  it("reveals the spec facts and health forensics in the collapsed Advanced block", async () => {
+    getAlertMock.mockImplementation(() =>
+      Promise.resolve(
+        alertDetail({
+          id: "rule-42",
+          version: 7,
+          instanceLabelColumns: ["team", "region"],
+          valueColumn: "error_rate",
+          resolveAfter: 3,
+          maxIntervalSecs: 900,
+          suppressed: true,
+          health: "degraded",
+          healthConsecutiveFailures: 4,
+          healthError: "connection refused",
+          healthLastErrorAt: "2026-07-04T23:00:00.000Z",
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+
+    renderDetailRoute();
+    await screen.findByRole("heading", { name: "High error rate" });
+
+    // Collapsed by default: the facts aren't in the DOM yet.
+    expect(screen.queryByText("rule-42")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Advanced" }));
+
+    const advanced = within(await screen.findByTestId("advanced-definition"));
+    expect(advanced.getByText("rule-42")).toBeInTheDocument();
+    expect(advanced.getByText("7")).toBeInTheDocument();
+    expect(advanced.getByText("team, region")).toBeInTheDocument();
+    expect(advanced.getByText("error_rate")).toBeInTheDocument();
+    expect(advanced.getByText("3 empty evaluations")).toBeInTheDocument();
+    expect(advanced.getByText("15m")).toBeInTheDocument();
+    expect(advanced.getByText("Yes")).toBeInTheDocument();
+    expect(advanced.getByText("degraded")).toBeInTheDocument();
+    expect(advanced.getByText("4")).toBeInTheDocument();
+    expect(advanced.getByText("connection refused")).toBeInTheDocument();
+  });
+
+  it("renders a pending label set in Status, muted and separate from firing", async () => {
+    getAlertMock.mockImplementation(() => Promise.resolve(alertDetail()));
+    listAlertInstances.mockImplementation(() =>
+      Promise.resolve([
+        alertInstance({
+          fingerprint: "rule-1|team=pay",
+          labels: { team: "pay" },
+          state: "firing",
+        }),
+        alertInstance({
+          fingerprint: "rule-1|team=eng",
+          labels: { team: "eng" },
+          state: "pending",
+        }),
+      ]),
+    );
+
+    renderDetailRoute();
+
+    expect(await screen.findByText("Firing on")).toBeInTheDocument();
+    expect(screen.getByText("about to fire (pending)")).toBeInTheDocument();
+    expect(screen.getByText("eng")).toBeInTheDocument();
   });
 
   it("mounts the timeline scoped to the alert's slug for an owned rule", async () => {
