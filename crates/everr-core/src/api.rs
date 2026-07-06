@@ -316,6 +316,88 @@ impl ApiClient {
         self.get("/repos", &[]).await
     }
 
+    pub async fn list_resources(
+        &self,
+        kind: Option<&str>,
+        repoid: Option<&str>,
+    ) -> Result<Vec<ResourceSummary>> {
+        let mut query: Vec<(&str, String)> = Vec::new();
+        if let Some(k) = kind {
+            query.push(("kind", k.to_string()));
+        }
+        if let Some(r) = repoid {
+            query.push(("repoid", r.to_string()));
+        }
+        self.get("/resources", &query).await
+    }
+
+    pub async fn get_resource(
+        &self,
+        kind: &str,
+        project: &str,
+        slug: &str,
+    ) -> Result<serde_json::Value> {
+        self.get(&format!("/resources/{kind}/{project}/{slug}"), &[])
+            .await
+    }
+
+    pub async fn delete_resource(
+        &self,
+        kind: &str,
+        project: &str,
+        slug: &str,
+    ) -> Result<()> {
+        let response = self
+            .http
+            .delete(format!(
+                "{}/resources/{}/{}/{}",
+                self.base_endpoint, kind, project, slug
+            ))
+            .send()
+            .await
+            .context("delete resource request failed")?;
+        if !response.status().is_success() {
+            let status = response.status();
+            let text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "<failed to read body>".to_string());
+            return Err(http_status_error(status, text, "delete resource"));
+        }
+        Ok(())
+    }
+
+    pub async fn adopt_resource(
+        &self,
+        kind: &str,
+        project: &str,
+        slug: &str,
+        repoid: &str,
+    ) -> Result<AdoptOutcome> {
+        let response = self
+            .http
+            .post(format!(
+                "{}/resources/{}/{}/{}/adopt",
+                self.base_endpoint, kind, project, slug
+            ))
+            .json(&serde_json::json!({ "repoid": repoid }))
+            .send()
+            .await
+            .context("adopt resource request failed")?;
+        if !response.status().is_success() {
+            let status = response.status();
+            let text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "<failed to read body>".to_string());
+            return Err(http_status_error(status, text, "adopt resource"));
+        }
+        response
+            .json()
+            .await
+            .context("failed to decode adopt response")
+    }
+
     /// Calls POST /api/cli/import and returns once the server acknowledges the import has started.
     pub async fn start_import_repos(&self, repos: &[String]) -> Result<()> {
         let response = self
@@ -515,6 +597,26 @@ impl OrgResponse {
 pub struct RepoEntry {
     pub id: i64,
     pub full_name: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResourceSummary {
+    pub kind: String,
+    pub project: String,
+    pub slug: String,
+    pub repoid: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AdoptOutcome {
+    pub kind: String,
+    pub project: String,
+    pub slug: String,
+    pub repoid: String,
+    pub already_owned: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -859,6 +961,114 @@ data: {"tenantId":1,"traceId":"trace-1","runId":"42","sha":"deadbeef","repo":"ev
         assert_eq!(payload.trace_id, "trace-1");
         assert_eq!(payload.event_type, "run");
         assert_eq!(payload.conclusion.as_deref(), Some("success"));
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn list_resources_parses_and_sends_filters() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("GET", "/api/cli/resources")
+            .match_query(mockito::Matcher::UrlEncoded("kind".into(), "runbook".into()))
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                r#"[{"kind":"runbook","project":"default","slug":"oom","repoid":"github.com/acme/app","updatedAt":"2026-07-01T00:00:00.000Z"}]"#,
+            )
+            .create_async()
+            .await;
+
+        let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
+        let out = client.list_resources(Some("runbook"), None).await.unwrap();
+
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].kind, "runbook");
+        assert_eq!(out[0].slug, "oom");
+        assert_eq!(out[0].repoid, "github.com/acme/app");
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn get_resource_returns_document_json() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("GET", "/api/cli/resources/dashboard/default/errors")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"kind":"Dashboard","metadata":{"name":"errors"}}"#)
+            .create_async()
+            .await;
+
+        let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
+        let doc = client
+            .get_resource("dashboard", "default", "errors")
+            .await
+            .unwrap();
+
+        assert_eq!(doc["kind"], "Dashboard");
+        assert_eq!(doc["metadata"]["name"], "errors");
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn delete_resource_succeeds_on_2xx() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("DELETE", "/api/cli/resources/dashboard/default/errors")
+            .with_status(200)
+            .with_body(r#"{"ok":true}"#)
+            .create_async()
+            .await;
+
+        let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
+        client
+            .delete_resource("dashboard", "default", "errors")
+            .await
+            .unwrap();
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn delete_resource_surfaces_404() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("DELETE", "/api/cli/resources/dashboard/default/nope")
+            .with_status(404)
+            .with_body(r#"{"error":"resource not found: dashboard/default/nope"}"#)
+            .create_async()
+            .await;
+
+        let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
+        let err = client
+            .delete_resource("dashboard", "default", "nope")
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("404"), "got: {err}");
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn adopt_resource_sends_repoid_and_parses_outcome() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("POST", "/api/cli/resources/dashboard/default/errors/adopt")
+            .match_body(r#"{"repoid":"github.com/acme/app"}"#)
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                r#"{"kind":"dashboard","project":"default","slug":"errors","repoid":"github.com/acme/app","alreadyOwned":false}"#,
+            )
+            .create_async()
+            .await;
+
+        let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
+        let outcome = client
+            .adopt_resource("dashboard", "default", "errors", "github.com/acme/app")
+            .await
+            .unwrap();
+
+        assert_eq!(outcome.repoid, "github.com/acme/app");
+        assert!(!outcome.already_owned);
         mock.assert_async().await;
     }
 }
