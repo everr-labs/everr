@@ -915,7 +915,7 @@ function ChannelsSection() {
       <div>
         <span className="flex items-center gap-1.5">
           <h3 className="text-sm font-medium">Channels</h3>
-          <HelpTip text="Channels are managed as code; add one by declaring a receiver and applying it with everr apply." />
+          <HelpTip text="Channels are managed as code; add one by declaring it in your repo and running everr apply." />
         </span>
         <p className="text-xs text-muted-foreground">
           Ones managed as code with{" "}
