@@ -3,11 +3,11 @@
   "defaultOpen": true,
   "pages": [
     "---Observability---",
+    "publishing-resources",
     "monitor-http-traffic",
-    "alert-on-error-spikes",
+    "writing-good-alerts",
     "link-alerts-to-runbooks",
     "track-infra-health",
-    "organize-projects",
     "set-up-notifications",
     "---CI---",
     "setup-new-repo",

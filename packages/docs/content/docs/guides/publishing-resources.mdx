@@ -1,9 +1,9 @@
 ---
-title: Organize resources into projects
-description: Directory layout, project namespaces, and the repoid boundary — how as-code resources stay organized as they multiply.
+title: Publishing resources
+description: everr apply from your machine and CI, PR previews, and how folders, projects, and the repoid organize what you publish.
 ---
 
-Folders come from directories; isolation comes from `metadata.project`; multi-repo ownership comes from the `repoid` in `everr.yaml`.
+`everr apply` publishes the resources in your `everr/` directory — from your machine, from CI, or as a shareable preview on a pull request. Folders come from directories; isolation comes from `metadata.project`; multi-repo ownership comes from the `repoid` in `everr.yaml`.
 
 ## If you want folders
 
@@ -45,23 +45,6 @@ repoid: "9d2a77c3-1e54-4f8a-b6d0-3a8c1f2e5b97"
 
 Apply each repo independently with `everr apply ./everr` — once in the platform repo, once in the payments repo, entirely separately.
 
-## If you want to preview before it ships
-
-Apply is a full sync of files to live state within the repoid: new files create resources, changed files update them, removed files delete them — no separate prune step; moving a file relocates its resource, emptying the tree removes its last one (see [Observability as code](/docs/concepts/observability-as-code) for the full apply model). Always stage into a preview first:
-
-```sh
-$ everr apply ./everr --preview
-Destination org: «Acme Corp»
-Dashboard: 4 created, 0 updated, 0 deleted
-  + db-health
-  + api-latency
-  + overview
-  + payments
-Preview: https://app.everr.dev/dashboards?preview=my-branch
-```
-
-The preview is a full copy of the tree under a name (your git branch by default), deployed without touching live resources. Open the link: each resource is badged added, changed, removed, or unchanged against live state, and the link is shareable with anyone in the org. Previews expire on their own 7 days after their last apply.
-
 ## If you apply from CI
 
 Install the CLI with `everr-action` (CI runners don't include it), then set `EVERR_API_KEY` to an org API key with the `apply` scope — the same `ek_` keys you mint for ingest; the Capabilities column shows what each key can do (the legacy `EVERR_API_TOKEN` is still accepted). Outside CI, `everr apply` uses your `everr cloud login` session and prints the destination org before writing; if `EVERR_API_URL` isn't set, the base URL falls back to the one saved by that login.
@@ -90,5 +73,22 @@ everr apply ./everr --preview "pr-${{ github.event.number }}"
 ```
 
 Merging triggers the main-branch workflow above, shipping the changes live.
+
+## If you want to preview before it ships
+
+Apply is a full sync of files to live state within the repoid: new files create resources, changed files update them, removed files delete them — no separate prune step; moving a file relocates its resource, emptying the tree removes its last one (see [Observability as code](/docs/concepts/observability-as-code) for the full apply model). Always stage into a preview first:
+
+```sh
+$ everr apply ./everr --preview
+Destination org: «Acme Corp»
+Dashboard: 4 created, 0 updated, 0 deleted
+  + db-health
+  + api-latency
+  + overview
+  + payments
+Preview: https://app.everr.dev/dashboards?preview=my-branch
+```
+
+The preview is a full copy of the tree under a name (your git branch by default), deployed without touching live resources. Open the link: each resource is badged added, changed, removed, or unchanged against live state, and the link is shareable with anyone in the org. Previews expire on their own 7 days after their last apply.
 
 Full flag and environment list: [`everr apply` CLI reference](/docs/reference/cli#dashboards-gitops).

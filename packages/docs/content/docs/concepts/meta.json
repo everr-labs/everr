@@ -1,5 +1,5 @@
 {
   "title": "Concepts",
   "defaultOpen": true,
-  "pages": ["observability-as-code", "how-alerts-evaluate", "how-ci-cost-is-estimated"]
+  "pages": ["whats-opentelemetry", "observability-as-code", "how-alerts-work", "how-ci-cost-is-estimated"]
 }

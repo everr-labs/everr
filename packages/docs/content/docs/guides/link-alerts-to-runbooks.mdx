@@ -15,7 +15,7 @@ spec:
   notificationMessage:
     title: "${ServiceName} error rate is high"
   query: |
-    # same error-rate query as the alert-on-error-spikes guide:
+    # same error-rate query as the writing good alerts guide:
     # countIf(SeverityNumber >= 17) / total over 15 minutes, per service
     SELECT ServiceName, ... FROM logs ...
 ```

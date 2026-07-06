@@ -1,9 +1,9 @@
 ---
-title: Alert on error spikes
-description: An AlertRule that fires per service when the error rate crosses a threshold with enough volume to matter.
+title: Writing good alerts
+description: A worked error-spike rule that fires per service with enough volume to matter — and what makes an alert worth having.
 ---
 
-This rule fires one instance per service whose error rate exceeds 5% over 15 minutes — and stays quiet on tiny samples:
+A good alert is a query that stays quiet until a human should act. This rule fires one instance per service whose error rate exceeds 5% over 15 minutes — and stays quiet on tiny samples:
 
 ```yaml
 kind: AlertRule
@@ -30,7 +30,7 @@ spec:
     LIMIT 50
 ```
 
-Every row is a firing instance; empty result = resolved ([how alerts evaluate](/docs/concepts/how-alerts-evaluate)).
+Every row is a firing instance; empty result = resolved ([how alerts work](/docs/concepts/how-alerts-work)).
 
 ## Choosing the threshold and window
 
