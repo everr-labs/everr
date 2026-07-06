@@ -32,9 +32,9 @@ const mocks = vi.hoisted(() => ({
   listAlerts: vi.fn(),
   getAlertSettings: vi.fn(),
   updateAlertSettings: vi.fn(),
+  createSilence: vi.fn(),
   listCcAlerts: vi.fn(),
   listCcSilences: vi.fn(),
-  createCcSilence: vi.fn(),
   deleteCcSilence: vi.fn(),
 }));
 
@@ -42,12 +42,12 @@ vi.mock("@/data/alerts/server", () => ({
   listAlerts: mocks.listAlerts,
   getAlertSettings: mocks.getAlertSettings,
   updateAlertSettings: mocks.updateAlertSettings,
+  createSilence: mocks.createSilence,
 }));
 
 vi.mock("@/data/cc/server", () => ({
   listCcAlerts: mocks.listCcAlerts,
   listCcSilences: mocks.listCcSilences,
-  createCcSilence: mocks.createCcSilence,
   deleteCcSilence: mocks.deleteCcSilence,
 }));
 
@@ -76,29 +76,7 @@ let ccAlertsData: CcAlert[] = [];
 let ccSilencesData: CcSilence[] = [];
 mocks.listCcAlerts.mockImplementation(() => Promise.resolve(ccAlertsData));
 mocks.listCcSilences.mockImplementation(() => Promise.resolve(ccSilencesData));
-mocks.createCcSilence.mockImplementation(
-  (opts: {
-    data: {
-      matchers: { label: string; op: string; value: string }[];
-      starts_at: string;
-      ends_at: string;
-      comment?: string;
-    };
-  }) => {
-    const created: CcSilence = {
-      id: `silence-${ccSilencesData.length + 1}`,
-      tenant: "t1",
-      matchers: opts.data.matchers as CcSilence["matchers"],
-      starts_at: opts.data.starts_at,
-      ends_at: opts.data.ends_at,
-      comment: opts.data.comment ?? null,
-      author: null,
-      created_at: new Date().toISOString(),
-    };
-    ccSilencesData = [...ccSilencesData, created];
-    return Promise.resolve(created);
-  },
-);
+mocks.createSilence.mockImplementation(() => Promise.resolve(undefined));
 mocks.deleteCcSilence.mockImplementation((opts: { data: { id: string } }) => {
   ccSilencesData = ccSilencesData.filter((s) => s.id !== opts.data.id);
   return Promise.resolve(undefined);
@@ -108,9 +86,9 @@ const {
   listAlerts,
   getAlertSettings,
   updateAlertSettings,
+  createSilence,
   listCcAlerts,
   listCcSilences,
-  createCcSilence,
   deleteCcSilence,
 } = mocks;
 
@@ -251,9 +229,9 @@ describe("/alerts route", () => {
     listAlerts.mockClear();
     getAlertSettings.mockClear();
     updateAlertSettings.mockClear();
+    createSilence.mockClear();
     listCcAlerts.mockClear();
     listCcSilences.mockClear();
-    createCcSilence.mockClear();
     deleteCcSilence.mockClear();
   });
 
@@ -317,26 +295,30 @@ describe("/alerts route", () => {
     expect(screen.getByText(/value 42/)).toBeInTheDocument();
     expect(screen.getByText(/firing on/i)).toBeInTheDocument();
 
+    const before = Date.now();
     const muteButton = screen.getByRole("button", { name: "Mute" });
     await user.click(muteButton);
 
-    await waitFor(() => expect(createCcSilence).toHaveBeenCalledTimes(1));
-    const call = createCcSilence.mock.calls[0]?.[0] as {
+    await waitFor(() => expect(createSilence).toHaveBeenCalledTimes(1));
+    const call = createSilence.mock.calls[0]?.[0] as {
       data: {
+        alertId: string;
         matchers: { label: string; op: string; value: string }[];
-        starts_at: string;
-        ends_at: string;
-        comment?: string;
+        endsAt: string;
+        reason: string;
       };
     };
+    // Rule-scoped: the server fn stamps the synthetic rule matcher itself, so
+    // the client sends only the rule id plus the instance's labels as `=`
+    // conditions (no synthetic matcher client-side).
+    expect(call.data.alertId).toBe("rule-1");
     expect(call.data.matchers).toEqual([
-      { label: "team", op: "eq", value: "pay" },
+      { label: "team", op: "=", value: "pay" },
     ]);
-    expect(call.data.comment).toBe("Muted from alerts list");
-    const durationMs =
-      new Date(call.data.ends_at).getTime() -
-      new Date(call.data.starts_at).getTime();
-    expect(durationMs).toBe(2 * 60 * 60 * 1000);
+    expect(call.data.reason).toBe("Muted from alerts list");
+    const durationMs = new Date(call.data.endsAt).getTime() - before;
+    expect(durationMs).toBeGreaterThanOrEqual(2 * 60 * 60 * 1000);
+    expect(durationMs).toBeLessThan(2 * 60 * 60 * 1000 + 10_000);
   });
 
   it("does not offer expansion on non-firing rows", async () => {

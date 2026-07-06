@@ -70,12 +70,12 @@ import {
 import { formatRunbookRef } from "@/data/alerts/schema";
 import {
   type AlertSummary,
+  createSilence,
   getAlertSettings,
   listAlerts,
   updateAlertSettings,
 } from "@/data/alerts/server";
 import {
-  createCcSilence,
   deleteCcSilence,
   listCcAlerts,
   listCcSilences,
@@ -279,7 +279,11 @@ function AlertsPage() {
   const cancelMute = useMutation({
     mutationFn: (id: string) => deleteCcSilence({ data: { id } }),
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["cc", "silences"] }),
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["cc", "silences"] }),
+        // Cancelling a rule-scoped mute changes that rule's mute count.
+        queryClient.invalidateQueries({ queryKey: ["alerts"] }),
+      ]),
   });
 
   // Expandable firing rows: org alert instances, grouped by rule id, fetched
@@ -314,24 +318,31 @@ function AlertsPage() {
       return next;
     });
   };
+  // Rule-scoped mute (same server fn as the detail page's mute flow, admin
+  // gated there too): `createSilence` stamps the synthetic rule matcher
+  // server-side, so the mute stays scoped to this rule — raw label conditions
+  // alone could mute OTHER rules sharing those labels — and shows up in the
+  // rule's own mute count on the list.
   const muteInstance = useMutation({
-    mutationFn: (instance: CcAlert) => {
-      const now = Date.now();
-      return createCcSilence({
+    mutationFn: (instance: CcAlert) =>
+      createSilence({
         data: {
+          alertId: instance.rule,
           matchers: Object.entries(instance.labels).map(([label, value]) => ({
             label,
-            op: "eq" as const,
+            op: "=" as const,
             value,
           })),
-          starts_at: new Date(now).toISOString(),
-          ends_at: new Date(now + MUTE_DURATION_MS).toISOString(),
-          comment: "Muted from alerts list",
+          endsAt: new Date(Date.now() + MUTE_DURATION_MS).toISOString(),
+          reason: "Muted from alerts list",
         },
-      });
-    },
+      }),
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["cc", "silences"] }),
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["cc", "silences"] }),
+        // The rule's activeSilenceCount ("muted" chip) reads from listAlerts.
+        queryClient.invalidateQueries({ queryKey: ["alerts"] }),
+      ]),
   });
 
   const summary = useMemo(() => {
