@@ -1,4 +1,6 @@
+import { resolveTimeRange, TimeRangeSchema } from "@everr/ui/lib/time-range";
 import { z } from "zod";
+import { queryAlertEventLog } from "@/data/alerts/history.server";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import * as cc from "./client";
 import { CcMatcherSchema, CcRuleSpecSchema } from "./schema";
@@ -40,6 +42,21 @@ export const listCcSilences = createAuthenticatedServerFn({
 export const listCcSubscriptions = createAuthenticatedServerFn({
   method: "GET",
 }).handler(({ context: { session } }) => cc.listSubscriptions(orgId(session)));
+
+// Stored CC event history (all rules, all event types) from ClickHouse app.logs.
+// Tenancy rides on the org-scoped clickhouse context (row-level policy), not on a
+// SQL organization filter. Backs the monitor stream's historical page.
+export const listCcEventHistory = createAuthenticatedServerFn({ method: "GET" })
+  .inputValidator(
+    z.object({
+      limit: z.number().int().min(1).max(500).default(200),
+      timeRange: TimeRangeSchema,
+    }),
+  )
+  .handler(({ data: { limit, timeRange }, context: { clickhouse } }) => {
+    const { fromISO, toISO } = resolveTimeRange(timeRange);
+    return queryAlertEventLog(clickhouse.query, { limit, fromISO, toISO });
+  });
 
 // ---- Rule operations ----
 export const pauseCcRule = createAuthenticatedServerFn({ method: "POST" })
