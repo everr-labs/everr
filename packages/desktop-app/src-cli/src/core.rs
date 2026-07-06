@@ -624,6 +624,38 @@ impl cliclack::Theme for WarnTheme {
     }
 }
 
+/// Build an API client using the same credential precedence as apply: an
+/// `EVERR_API_KEY` (or deprecated `EVERR_API_TOKEN`) in the environment wins
+/// (CI); otherwise fall back to the logged-in session (`cloud login`).
+pub async fn build_api_client() -> anyhow::Result<everr_core::api::ApiClient> {
+    let token_env = std::env::var("EVERR_API_KEY")
+        .ok()
+        .filter(|t| !t.is_empty())
+        .map(|t| ("EVERR_API_KEY", t))
+        .or_else(|| {
+            std::env::var("EVERR_API_TOKEN")
+                .ok()
+                .filter(|t| !t.is_empty())
+                .map(|t| ("EVERR_API_TOKEN", t))
+        });
+    match token_env {
+        Some((var_name, token)) => {
+            let base_url = std::env::var("EVERR_API_URL")
+                .ok()
+                .filter(|u| !u.is_empty())
+                .or_else(persisted_api_base_url)
+                .ok_or_else(|| {
+                    anyhow::anyhow!("{var_name} is set but no base URL; set EVERR_API_URL")
+                })?;
+            everr_core::api::ApiClient::from_token(&base_url, &token)
+        }
+        None => {
+            let session = crate::auth::require_session_with_refresh().await?;
+            everr_core::api::ApiClient::from_session(&session)
+        }
+    }
+}
+
 pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
     use everr_core::apply::{
         ApplyRequest, classify_documents, detect_git_source, load_resource_documents,
@@ -655,38 +687,7 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
         None => None,
     };
 
-    // Credential precedence: an API key in EVERR_API_KEY (CI) wins;
-    // otherwise fall back to the logged-in session (`cloud login`).
-    // EVERR_API_TOKEN is accepted as a deprecated alias for older CI setups
-    // — the server treats both names identically, and the key is the same
-    // `ek_` type that the collector uses for telemetry, gated by the
-    // `apply` scope on the server side.
-    let token_env = std::env::var("EVERR_API_KEY")
-        .ok()
-        .filter(|t| !t.is_empty())
-        .map(|t| ("EVERR_API_KEY", t))
-        .or_else(|| {
-            std::env::var("EVERR_API_TOKEN")
-                .ok()
-                .filter(|t| !t.is_empty())
-                .map(|t| ("EVERR_API_TOKEN", t))
-        });
-    let client = match token_env {
-        Some((var_name, token)) => {
-            let base_url = std::env::var("EVERR_API_URL")
-                .ok()
-                .filter(|u| !u.is_empty())
-                .or_else(persisted_api_base_url)
-                .ok_or_else(|| {
-                    anyhow::anyhow!("{var_name} is set but no base URL; set EVERR_API_URL")
-                })?;
-            everr_core::api::ApiClient::from_token(&base_url, &token)?
-        }
-        None => {
-            let session = crate::auth::require_session_with_refresh().await?;
-            everr_core::api::ApiClient::from_session(&session)?
-        }
-    };
+    let client = build_api_client().await?;
 
     // Plan first (dry run) to learn the destination org and the change set.
     let plan = client
