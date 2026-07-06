@@ -3,7 +3,8 @@ import { z } from "zod";
 import {
   adoptResource,
   isResourceKind,
-  RESOURCE_KINDS,
+  notFoundResponse,
+  unknownKindResponse,
 } from "@/data/as-code/resource-admin.server";
 
 const BodySchema = z.object({ repoid: z.string().min(1) });
@@ -17,16 +18,7 @@ export const Route = createFileRoute(
     handlers: {
       POST: async ({ request, params, context }) => {
         const { kind, project, slug } = params;
-        if (!isResourceKind(kind)) {
-          return Response.json(
-            {
-              error: `unknown kind "${kind}"; expected one of ${RESOURCE_KINDS.join(
-                ", ",
-              )}`,
-            },
-            { status: 400 },
-          );
-        }
+        if (!isResourceKind(kind)) return unknownKindResponse(kind);
         const parsed = BodySchema.safeParse(await request.json());
         if (!parsed.success) {
           return Response.json(
@@ -41,12 +33,7 @@ export const Route = createFileRoute(
           slug,
           parsed.data.repoid,
         );
-        if (!result.found) {
-          return Response.json(
-            { error: `resource not found: ${kind}/${project}/${slug}` },
-            { status: 404 },
-          );
-        }
+        if (!result.found) return notFoundResponse(kind, project, slug);
         return Response.json({
           kind,
           project,

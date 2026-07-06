@@ -341,29 +341,40 @@ impl ApiClient {
             .await
     }
 
-    pub async fn delete_resource(
+    /// Send a request and return the response, mapping any non-2xx status to a
+    /// `http_status_error` (reading the body for the message). `context` labels
+    /// the operation in the error, e.g. "delete resource".
+    async fn send_checked(
         &self,
-        kind: &str,
-        project: &str,
-        slug: &str,
-    ) -> Result<()> {
-        let response = self
-            .http
-            .delete(format!(
-                "{}/resources/{}/{}/{}",
-                self.base_endpoint, kind, project, slug
-            ))
+        request: reqwest::RequestBuilder,
+        context: &'static str,
+    ) -> Result<reqwest::Response> {
+        let response = request
             .send()
             .await
-            .context("delete resource request failed")?;
+            .with_context(|| format!("{context} request failed"))?;
         if !response.status().is_success() {
             let status = response.status();
             let text = response
                 .text()
                 .await
                 .unwrap_or_else(|_| "<failed to read body>".to_string());
-            return Err(http_status_error(status, text, "delete resource"));
+            return Err(http_status_error(status, text, context));
         }
+        Ok(response)
+    }
+
+    pub async fn delete_resource(
+        &self,
+        kind: &str,
+        project: &str,
+        slug: &str,
+    ) -> Result<()> {
+        let request = self.http.delete(format!(
+            "{}/resources/{}/{}/{}",
+            self.base_endpoint, kind, project, slug
+        ));
+        self.send_checked(request, "delete resource").await?;
         Ok(())
     }
 
@@ -374,24 +385,14 @@ impl ApiClient {
         slug: &str,
         repoid: &str,
     ) -> Result<AdoptOutcome> {
-        let response = self
+        let request = self
             .http
             .post(format!(
                 "{}/resources/{}/{}/{}/adopt",
                 self.base_endpoint, kind, project, slug
             ))
-            .json(&serde_json::json!({ "repoid": repoid }))
-            .send()
-            .await
-            .context("adopt resource request failed")?;
-        if !response.status().is_success() {
-            let status = response.status();
-            let text = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "<failed to read body>".to_string());
-            return Err(http_status_error(status, text, "adopt resource"));
-        }
+            .json(&serde_json::json!({ "repoid": repoid }));
+        let response = self.send_checked(request, "adopt resource").await?;
         response
             .json()
             .await

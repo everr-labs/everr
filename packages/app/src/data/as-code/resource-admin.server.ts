@@ -10,6 +10,28 @@ export function isResourceKind(value: string): value is ResourceKind {
   return (RESOURCE_KINDS as readonly string[]).includes(value);
 }
 
+/** 400 response for a `kind` path/query segment that is not a ResourceKind. */
+export function unknownKindResponse(kind: string): Response {
+  return Response.json(
+    {
+      error: `unknown kind "${kind}"; expected one of ${RESOURCE_KINDS.join(", ")}`,
+    },
+    { status: 400 },
+  );
+}
+
+/** 404 response for a resource that does not exist. */
+export function notFoundResponse(
+  kind: string,
+  project: string,
+  slug: string,
+): Response {
+  return Response.json(
+    { error: `resource not found: ${kind}/${project}/${slug}` },
+    { status: 404 },
+  );
+}
+
 /** The Drizzle table backing each kind. */
 const TABLE = {
   dashboard: dashboards,
@@ -51,6 +73,21 @@ function liveScope(kind: ResourceKind, table: LiveTable, orgId: string) {
   const conds = [eq(table.organizationId, orgId), isNull(table.previewId)];
   if (kind === "alert") conds.push(isNull(alertDefinitions.deletedAt));
   return conds;
+}
+
+/** The full `(org, live, project, slug)` identity match for one live row. */
+function scopedRow(
+  kind: ResourceKind,
+  table: LiveTable,
+  orgId: string,
+  project: string,
+  slug: string,
+) {
+  return and(
+    ...liveScope(kind, table, orgId),
+    eq(table.project, project),
+    eq(table.slug, slug),
+  );
 }
 
 async function listOneKind(
@@ -101,13 +138,7 @@ export async function getResource(
   const [row] = await db
     .select({ document: table.document })
     .from(table)
-    .where(
-      and(
-        ...liveScope(kind, table, orgId),
-        eq(table.project, project),
-        eq(table.slug, slug),
-      ),
-    )
+    .where(scopedRow(kind, table, orgId, project, slug))
     .limit(1);
   return row?.document ?? null;
 }
@@ -122,13 +153,7 @@ export async function deleteResource(
   const table = TABLE[kind] as LiveTable;
   const deleted = await db
     .delete(table)
-    .where(
-      and(
-        ...liveScope(kind, table, orgId),
-        eq(table.project, project),
-        eq(table.slug, slug),
-      ),
-    )
+    .where(scopedRow(kind, table, orgId, project, slug))
     .returning({ slug: table.slug });
   return deleted.length > 0;
 }
@@ -152,11 +177,7 @@ export async function adoptResource(
   destRepoid: string,
 ): Promise<AdoptResult> {
   const table = TABLE[kind] as LiveTable;
-  const where = and(
-    ...liveScope(kind, table, orgId),
-    eq(table.project, project),
-    eq(table.slug, slug),
-  );
+  const where = scopedRow(kind, table, orgId, project, slug);
   const [existing] = await db
     .select({ repoid: table.repoid })
     .from(table)

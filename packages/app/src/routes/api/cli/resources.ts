@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import {
   isResourceKind,
   listResources,
-  RESOURCE_KINDS,
+  unknownKindResponse,
 } from "@/data/as-code/resource-admin.server";
 
 // Auth + org context comes from the parent `/api/cli` route
@@ -15,14 +15,7 @@ export const Route = createFileRoute("/api/cli/resources")({
         const url = new URL(request.url);
         const kindParam = url.searchParams.get("kind") ?? undefined;
         if (kindParam !== undefined && !isResourceKind(kindParam)) {
-          return Response.json(
-            {
-              error: `unknown kind "${kindParam}"; expected one of ${RESOURCE_KINDS.join(
-                ", ",
-              )}`,
-            },
-            { status: 400 },
-          );
+          return unknownKindResponse(kindParam);
         }
         const repoid = url.searchParams.get("repoid") ?? undefined;
         const resources = await listResources(

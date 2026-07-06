@@ -658,7 +658,12 @@ pub async fn build_api_client() -> anyhow::Result<everr_core::api::ApiClient> {
 
 pub async fn run_resources(cmd: crate::cli::ResourcesSubcommand) -> anyhow::Result<()> {
     use crate::cli::ResourcesSubcommand as R;
-    let client = build_api_client().await?;
+    // `everr resources` targets the session-authenticated /api/cli routes, so it
+    // uses the logged-in session only. Unlike `apply`, it does NOT accept
+    // EVERR_API_KEY (those routes have no API-key path), so authenticate with the
+    // session directly rather than via apply's token-first `build_api_client`.
+    let session = crate::auth::require_session_with_refresh().await?;
+    let client = everr_core::api::ApiClient::from_session(&session)?;
     match cmd {
         R::List(args) => resources_list(&client, args).await,
         R::Show(args) => resources_show(&client, args).await,
@@ -667,12 +672,17 @@ pub async fn run_resources(cmd: crate::cli::ResourcesSubcommand) -> anyhow::Resu
     }
 }
 
+/// Resolve this repository's repoid from `dir` (manifest, else inferred origin
+/// remote), the same way `apply` does.
+fn resolve_repoid_for_dir(dir: &std::path::Path) -> anyhow::Result<String> {
+    let source = everr_core::apply::detect_git_source(dir);
+    everr_core::apply::resolve_repoid(dir, source.as_ref().and_then(|s| s.remote.as_deref()))
+}
+
 /// Best-effort repoid for the current directory; None when it cannot be resolved
 /// (used only to star "this repo's" rows in `list`).
 fn current_repoid() -> Option<String> {
-    let dir = std::path::Path::new(".");
-    let source = everr_core::apply::detect_git_source(dir);
-    everr_core::apply::resolve_repoid(dir, source.as_ref().and_then(|s| s.remote.as_deref())).ok()
+    resolve_repoid_for_dir(std::path::Path::new(".")).ok()
 }
 
 async fn resources_list(
@@ -754,12 +764,7 @@ async fn resources_adopt(
     client: &everr_core::api::ApiClient,
     args: crate::cli::ResourcesTargetArgs,
 ) -> anyhow::Result<()> {
-    let dir = std::path::Path::new(".");
-    let source = everr_core::apply::detect_git_source(dir);
-    let repoid = everr_core::apply::resolve_repoid(
-        dir,
-        source.as_ref().and_then(|s| s.remote.as_deref()),
-    )?;
+    let repoid = resolve_repoid_for_dir(std::path::Path::new("."))?;
 
     let target = format!("{}/{}/{}", args.kind.as_str(), args.project, args.slug);
     if !confirm_resource_action(&format!("Adopt {target} into «{repoid}»?"), args.yes)? {
