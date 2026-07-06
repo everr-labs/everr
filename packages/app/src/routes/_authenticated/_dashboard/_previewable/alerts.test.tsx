@@ -633,5 +633,80 @@ describe("/alerts route", () => {
 
       expect(await screen.findByText("muted")).toBeInTheDocument();
     });
+
+    it("scopes a rule-scoped mute's label conditions to the matching label set only", async () => {
+      alertsData = [
+        alertSummary({
+          currentState: "firing",
+          lastFiredAt: "2026-07-05T00:00:00.000Z",
+          firingInstanceCount: 2,
+        }),
+      ];
+      ccAlertsData = [
+        ccAlert({ key: "rule-1|team=pay", labels: { team: "pay" } }),
+        ccAlert({ key: "rule-1|team=core", labels: { team: "core" } }),
+      ];
+      // A mute created from this app's mute actions: the synthetic RULE_LABEL
+      // matcher rides ALONGSIDE the instance's label conditions. It must badge
+      // only the label set it was created from, not every set of the rule.
+      ccSilencesData = [
+        ccSilence({
+          matchers: [
+            { label: "rule", op: "eq", value: "rule-1" },
+            { label: "team", op: "eq", value: "pay" },
+          ],
+        }),
+      ];
+      const user = userEvent.setup();
+
+      renderAlertsRoute(["/alerts"]);
+      await screen.findByText("high-error-rate");
+      await user.click(screen.getByRole("button", { name: /Firing/ }));
+      await user.click(await screen.findByRole("tab", { name: "Flat" }));
+
+      const payRow = (await screen.findByText("pay")).closest("tr");
+      const coreRow = screen.getByText("core").closest("tr");
+      expect(payRow).not.toBeNull();
+      expect(coreRow).not.toBeNull();
+      expect(
+        within(payRow as HTMLElement).getByText("muted"),
+      ).toBeInTheDocument();
+      expect(
+        within(coreRow as HTMLElement).queryByText("muted"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("applies the search box to flat rows and reflects them in the summary", async () => {
+      alertsData = [
+        alertSummary({
+          currentState: "firing",
+          lastFiredAt: "2026-07-05T00:00:00.000Z",
+          firingInstanceCount: 2,
+        }),
+      ];
+      ccAlertsData = [
+        ccAlert({ key: "rule-1|team=pay", labels: { team: "pay" } }),
+        ccAlert({ key: "rule-1|team=core", labels: { team: "core" } }),
+      ];
+      const user = userEvent.setup();
+
+      renderAlertsRoute(["/alerts"]);
+      await screen.findByText("high-error-rate");
+      await user.click(screen.getByRole("button", { name: /Firing/ }));
+      await user.click(await screen.findByRole("tab", { name: "Flat" }));
+
+      expect(
+        await screen.findAllByRole("link", { name: "High error rate" }),
+      ).toHaveLength(2);
+
+      await user.type(screen.getByLabelText("Search alerts"), "core");
+
+      expect(
+        screen.getAllByRole("link", { name: "High error rate" }),
+      ).toHaveLength(1);
+      expect(screen.getByText("core")).toBeInTheDocument();
+      expect(screen.queryByText("pay")).not.toBeInTheDocument();
+      expect(screen.getByText("Showing 1 of 2")).toBeInTheDocument();
+    });
   });
 });

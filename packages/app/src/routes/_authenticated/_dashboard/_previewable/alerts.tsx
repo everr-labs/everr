@@ -112,24 +112,29 @@ function isActiveMute(silence: CcSilence, now: number = Date.now()) {
 }
 
 // Client-side approximation of "does this active mute apply to this
-// instance": exact when the mute was created rule-scoped (the RULE_LABEL
-// matcher every mute action on this page and the detail page stamps), and an
-// approximation otherwise — ANDs the raw CC matchers against the instance's
-// labels. That doesn't replicate alertmanager's full route/group semantics,
-// but is enough for a "muted" hint in this flat, org-wide view.
+// instance", not a full replica of alertmanager's route/group semantics —
+// enough for a "muted" hint in the flat, org-wide view. The matchers are
+// partitioned because instance labels never carry the synthetic RULE_LABEL
+// key (naively ANDing every matcher against the labels would match nothing):
+// any RULE_LABEL matcher must pin this instance's rule id, AND every
+// remaining condition must match the instance's labels. `createSilence`
+// stamps RULE_LABEL ALONGSIDE the instance's label conditions, so a mute
+// created from one label set badges only that set; a RULE_LABEL-only mute
+// (no other conditions) mutes every label set of the rule.
 function ccSilenceMatchesInstance(
   silence: CcSilence,
   ruleId: string,
   labels: Record<string, string>,
 ): boolean {
-  if (
-    silence.matchers.some(
-      (m) => m.label === RULE_LABEL && m.op === "eq" && m.value === ruleId,
-    )
-  ) {
-    return true;
-  }
-  return silence.matchers.every((m) => ccMatcherMatches(m, labels));
+  const ruleScoped = silence.matchers.every(
+    (m) => m.label !== RULE_LABEL || (m.op === "eq" && m.value === ruleId),
+  );
+  return (
+    ruleScoped &&
+    silence.matchers
+      .filter((m) => m.label !== RULE_LABEL)
+      .every((m) => ccMatcherMatches(m, labels))
+  );
 }
 
 // A rule-scoped mute defaults to this window; the alerts list keeps things
@@ -374,6 +379,16 @@ function AlertsPage() {
         key: instance.key,
         ruleId: instance.rule,
         displayName: alert?.displayName || alert?.slug || instance.rule,
+        // Same feel as the grouped list's search: the alert's name and slug,
+        // plus this row's own label values (its distinguishing facts here).
+        searchText: [
+          alert?.displayName,
+          alert?.slug,
+          ...Object.values(instance.labels),
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase(),
         labels: instance.labels,
         value: instance.value,
         activeSince: instance.active_since,
@@ -394,6 +409,17 @@ function AlertsPage() {
     settings.data,
     routes.data,
   ]);
+  const flatSearchQuery = alertSearch.trim().toLowerCase();
+  const filteredFlatRows = useMemo(
+    () =>
+      flatSearchQuery
+        ? flatFiringRows.filter((row) =>
+            row.searchText.includes(flatSearchQuery),
+          )
+        : flatFiringRows,
+    [flatFiringRows, flatSearchQuery],
+  );
+  const flatViewActive = showFiringViewToggle && firingViewMode === "flat";
 
   const [expandedRuleIds, setExpandedRuleIds] = useState<Set<string>>(
     () => new Set(),
@@ -788,9 +814,11 @@ function AlertsPage() {
                 </div>
                 <div className="flex items-center gap-2 text-muted-foreground text-xs">
                   <span>
-                    {hasActiveListFilters
-                      ? `Showing ${filteredAlerts.length} of ${summary.total}`
-                      : `${summary.total} alert ${summary.total === 1 ? "rule" : "rules"}`}
+                    {flatViewActive
+                      ? `Showing ${filteredFlatRows.length} of ${flatFiringRows.length}`
+                      : hasActiveListFilters
+                        ? `Showing ${filteredAlerts.length} of ${summary.total}`
+                        : `${summary.total} alert ${summary.total === 1 ? "rule" : "rules"}`}
                   </span>
                   {hasActiveListFilters && (
                     <Button
@@ -844,9 +872,10 @@ function AlertsPage() {
 
           <Card inset="flush-content">
             <CardContent>
-              {showFiringViewToggle && firingViewMode === "flat" ? (
+              {flatViewActive ? (
                 <FlatFiringTable
-                  rows={flatFiringRows}
+                  rows={filteredFlatRows}
+                  searchActive={flatSearchQuery.length > 0}
                   isLoading={instances.isPending}
                   isError={instances.isError}
                 />
@@ -992,10 +1021,12 @@ type FlatFiringRow = {
 
 function FlatFiringTable({
   rows,
+  searchActive,
   isLoading,
   isError,
 }: {
   rows: FlatFiringRow[];
+  searchActive: boolean;
   isLoading: boolean;
   isError: boolean;
 }) {
@@ -1014,7 +1045,9 @@ function FlatFiringTable({
   if (rows.length === 0) {
     return (
       <p className="px-3 py-8 text-center text-muted-foreground">
-        No label sets are firing right now.
+        {searchActive
+          ? "No firing label sets match this search."
+          : "No label sets are firing right now."}
       </p>
     );
   }
