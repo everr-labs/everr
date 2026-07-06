@@ -163,6 +163,136 @@ describe("AlertRuleYamlSchema", () => {
   });
 });
 
+describe("AlertRuleYamlSchema spec.sql alias", () => {
+  it("accepts spec.sql and normalizes it onto query", () => {
+    const { query: _query, ...specWithoutQuery } = valid.spec;
+    const parsed = AlertRuleYamlSchema.safeParse({
+      ...valid,
+      spec: { ...specWithoutQuery, sql: "SELECT 2" },
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.spec.query).toBe("SELECT 2");
+      expect("sql" in parsed.data.spec).toBe(false);
+    }
+  });
+
+  it("rejects setting both spec.query and spec.sql", () => {
+    const result = AlertRuleYamlSchema.safeParse({
+      ...valid,
+      spec: { ...valid.spec, sql: "SELECT 2" },
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const message = result.error.issues[0]?.message ?? "";
+      expect(message).toContain("query");
+      expect(message).toContain("sql");
+    }
+  });
+
+  it("rejects when neither spec.query nor spec.sql is set", () => {
+    const { query: _query, ...specWithoutQuery } = valid.spec;
+    const result = AlertRuleYamlSchema.safeParse({
+      ...valid,
+      spec: specWithoutQuery,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message ?? "").toContain("query");
+    }
+  });
+});
+
+describe("AlertRuleYamlSchema spec.labelColumns alias", () => {
+  it("accepts spec.labelColumns and normalizes it onto instanceLabels", () => {
+    const parsed = AlertRuleYamlSchema.safeParse({
+      ...valid,
+      spec: { ...valid.spec, labelColumns: ["route"] },
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.spec.instanceLabels).toEqual(["route"]);
+      expect("labelColumns" in parsed.data.spec).toBe(false);
+    }
+  });
+
+  it("rejects setting both spec.instanceLabels and spec.labelColumns", () => {
+    const result = AlertRuleYamlSchema.safeParse({
+      ...valid,
+      spec: {
+        ...valid.spec,
+        instanceLabels: ["route"],
+        labelColumns: ["route"],
+      },
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const message = result.error.issues[0]?.message ?? "";
+      expect(message).toContain("instanceLabels");
+      expect(message).toContain("labelColumns");
+    }
+  });
+});
+
+describe("AlertRuleYamlSchema spec.maxInterval", () => {
+  it("accepts a maxInterval at or above evaluationInterval", () => {
+    const parsed = AlertRuleYamlSchema.safeParse({
+      ...valid,
+      spec: { ...valid.spec, evaluationInterval: "1m", maxInterval: "1h" },
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.spec.maxInterval).toBe("1h");
+    }
+  });
+
+  it("rejects a maxInterval shorter than evaluationInterval", () => {
+    const result = AlertRuleYamlSchema.safeParse({
+      ...valid,
+      spec: { ...valid.spec, evaluationInterval: "5m", maxInterval: "1m" },
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const message = result.error.issues[0]?.message ?? "";
+      expect(message).toContain("1m");
+      expect(message).toContain("5m");
+    }
+  });
+});
+
+describe("AlertRuleYamlSchema spec.annotations", () => {
+  it("passes through arbitrary annotations", () => {
+    const parsed = AlertRuleYamlSchema.safeParse({
+      ...valid,
+      spec: { ...valid.spec, annotations: { team: "core" } },
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.spec.annotations).toEqual({ team: "core" });
+    }
+  });
+
+  it("rejects annotation keys reserved for generated sugar", () => {
+    for (const key of [
+      "everr.name",
+      "everr.anything",
+      "summary",
+      "description",
+      "link.alert",
+      "link.runbook",
+    ]) {
+      const result = AlertRuleYamlSchema.safeParse({
+        ...valid,
+        spec: { ...valid.spec, annotations: { [key]: "x" } },
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues[0]?.message ?? "").toContain(key);
+      }
+    }
+  });
+});
+
 describe("parseRunbookRef", () => {
   it("defaults the project to the alert's project for a bare slug", () => {
     expect(parseRunbookRef("db-pool-runbook", "platform")).toEqual({
