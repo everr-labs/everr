@@ -1,0 +1,22 @@
+{
+  "title": "Guides",
+  "defaultOpen": true,
+  "pages": [
+    "---Observability---",
+    "monitor-http-traffic",
+    "alert-on-error-spikes",
+    "link-alerts-to-runbooks",
+    "track-infra-health",
+    "organize-projects",
+    "set-up-notifications",
+    "---CI---",
+    "connect-a-repo",
+    "debug-ci",
+    "monitor-ci-resources",
+    "cut-ci-cost",
+    "---Test telemetry---",
+    "vitest",
+    "go-tests",
+    "rust-tests"
+  ]
+}
