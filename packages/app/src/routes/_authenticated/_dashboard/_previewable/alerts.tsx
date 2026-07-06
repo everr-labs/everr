@@ -2,16 +2,7 @@ import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
 import { Card, CardContent } from "@everr/ui/components/card";
 import type { Column } from "@everr/ui/components/data-table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@everr/ui/components/dialog";
 import { Input } from "@everr/ui/components/input";
-import { Label } from "@everr/ui/components/label";
 import {
   Popover,
   PopoverContent,
@@ -19,18 +10,8 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "@everr/ui/components/popover";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@everr/ui/components/select";
 import { Skeleton } from "@everr/ui/components/skeleton";
-import { Switch } from "@everr/ui/components/switch";
-import { TagsInput } from "@everr/ui/components/tags-input";
 import { cn } from "@everr/ui/lib/utils";
-import { useForm } from "@tanstack/react-form";
 import {
   queryOptions,
   useMutation,
@@ -57,23 +38,12 @@ import { z } from "zod";
 import { AlertEventFeed } from "@/components/cc/alert-event-feed";
 import { Conditions, ccFormatTs, LabelSet } from "@/components/cc/shared";
 import { PreviewStatusBadge } from "@/components/preview-status-badge";
-import {
-  emptyChannelError,
-  type NormalizedAlertDeliverySettings,
-  slackWebhookUrlError,
-  telegramBotTokenError,
-} from "@/data/alerts/delivery-settings";
-import {
-  validateEmailRecipient,
-  validateTelegramChatId,
-} from "@/data/alerts/recipients";
 import { formatRunbookRef } from "@/data/alerts/schema";
 import {
   type AlertSummary,
   createSilence,
   getAlertSettings,
   listAlerts,
-  updateAlertSettings,
 } from "@/data/alerts/server";
 import {
   deleteCcSilence,
@@ -99,7 +69,9 @@ const alertsQueryOptions = (preview?: string) =>
     queryFn: () => listAlerts({ data: { preview } }),
   });
 
-const alertSettingsQueryOptions = () =>
+// Exported so the /alerts/notifications page's settings form reads and
+// invalidates the exact same cache entry as this list's "no channels" banner.
+export const alertSettingsQueryOptions = () =>
   queryOptions({
     queryKey: ["alerts", "settings"],
     queryFn: () => getAlertSettings(),
@@ -264,7 +236,6 @@ function AlertsPage() {
   const queryClient = useQueryClient();
   const alerts = useQuery(alertsQueryOptions(preview));
   const settings = useQuery(alertSettingsQueryOptions());
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [alertFilter, setAlertFilter] = useState<AlertListFilter>("all");
   const [alertSearch, setAlertSearch] = useState("");
 
@@ -604,9 +575,13 @@ function AlertsPage() {
               </PopoverContent>
             </Popover>
           )}
-          <Button variant="outline" onClick={() => setSettingsOpen(true)}>
+          <Button
+            variant="outline"
+            nativeButton={false}
+            render={<Link to="/alerts/notifications" />}
+          >
             <Settings data-icon="inline-start" />
-            Notification settings
+            Notifications
           </Button>
         </div>
       </div>
@@ -646,13 +621,12 @@ function AlertsPage() {
             <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
               No notification channels are configured, so firing alerts won't
               reach anyone.{" "}
-              <button
-                type="button"
+              <Link
+                to="/alerts/notifications"
                 className="font-medium underline underline-offset-4"
-                onClick={() => setSettingsOpen(true)}
               >
                 Configure notifications
-              </button>
+              </Link>
               .
             </div>
           )}
@@ -820,11 +794,6 @@ function AlertsPage() {
           </Card>
         </>
       )}
-
-      <NotificationSettingsDialog
-        open={settingsOpen}
-        onOpenChange={setSettingsOpen}
-      />
     </div>
   );
 }
@@ -894,346 +863,5 @@ function FiringRowDetail({
         </div>
       ))}
     </div>
-  );
-}
-
-function ChannelField({
-  label,
-  recipientsLabel,
-  placeholder,
-  enabled,
-  onEnabledChange,
-  recipients,
-  onRecipientsChange,
-  validate,
-  error,
-}: {
-  label: string;
-  recipientsLabel: string;
-  placeholder: string;
-  enabled: boolean;
-  onEnabledChange: (enabled: boolean) => void;
-  recipients: string[];
-  onRecipientsChange: (recipients: string[]) => void;
-  validate: (value: string) => string | null;
-  error?: string;
-}) {
-  return (
-    <div className="flex flex-col gap-2">
-      <Label className="flex items-center gap-2">
-        <Switch checked={enabled} onCheckedChange={onEnabledChange} />
-        {label}
-      </Label>
-      <TagsInput
-        aria-label={recipientsLabel}
-        placeholder={placeholder}
-        disabled={!enabled}
-        value={recipients}
-        onValueChange={onRecipientsChange}
-        validate={validate}
-      />
-      {error && (
-        <p className="text-destructive text-xs" role="alert">
-          {error}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function NotificationSettingsDialog({
-  open,
-  onOpenChange,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const settings = useQuery(alertSettingsQueryOptions());
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Notification settings</DialogTitle>
-          <DialogDescription>
-            Organization-level delivery for alert notifications.{" "}
-            <a
-              className="underline underline-offset-4"
-              href="https://everr.dev/docs/alerts/notifications"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Learn more
-            </a>
-            .
-          </DialogDescription>
-        </DialogHeader>
-        {settings.isError ? (
-          <p className="text-destructive text-sm" role="alert">
-            Unable to load notification settings.
-          </p>
-        ) : settings.data ? (
-          // Mounted fresh on every dialog open (the popup unmounts on close),
-          // so the form reads its defaults once — no effect syncing state.
-          <NotificationSettingsForm
-            initial={settings.data.delivery}
-            onClose={() => onOpenChange(false)}
-          />
-        ) : (
-          <Skeleton className="h-48 w-full" />
-        )}
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function NotificationSettingsForm({
-  initial,
-  onClose,
-}: {
-  initial: NormalizedAlertDeliverySettings;
-  onClose: () => void;
-}) {
-  const queryClient = useQueryClient();
-
-  const update = useMutation({
-    mutationFn: (delivery: NormalizedAlertDeliverySettings) =>
-      updateAlertSettings({ data: { delivery } }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["alerts", "settings"] });
-      onClose();
-    },
-  });
-
-  const form = useForm({
-    defaultValues: initial,
-    // Failures stay in the mutation state and render inline.
-    onSubmit: ({ value }) => update.mutate(value),
-  });
-
-  return (
-    <form
-      className="flex flex-col gap-4"
-      onSubmit={(event) => {
-        event.preventDefault();
-        void form.handleSubmit();
-      }}
-    >
-      <div className="flex flex-col gap-4">
-        <form.Field
-          name="email.enabled"
-          listeners={{
-            // Re-check the recipients rule when the channel is toggled.
-            onChange: ({ fieldApi }) =>
-              fieldApi.form.validateField("email.to", "change"),
-          }}
-        >
-          {(enabledField) => (
-            <form.Field
-              name="email.to"
-              validators={{
-                onChange: ({ value, fieldApi }) =>
-                  emptyChannelError(
-                    "email",
-                    fieldApi.form.state.values.email.enabled,
-                    value,
-                  ),
-              }}
-            >
-              {(toField) => (
-                <ChannelField
-                  label="Email"
-                  recipientsLabel="Email recipients"
-                  placeholder="team@example.com"
-                  enabled={enabledField.state.value}
-                  onEnabledChange={enabledField.handleChange}
-                  recipients={toField.state.value}
-                  onRecipientsChange={toField.handleChange}
-                  validate={validateEmailRecipient}
-                  error={toField.state.meta.errors[0]}
-                />
-              )}
-            </form.Field>
-          )}
-        </form.Field>
-        <form.Field
-          name="telegram.enabled"
-          listeners={{
-            onChange: ({ fieldApi }) =>
-              void Promise.all([
-                fieldApi.form.validateField("telegram.chatIds", "change"),
-                fieldApi.form.validateField("telegram.botToken", "change"),
-              ]),
-          }}
-        >
-          {(enabledField) => (
-            <div className="flex flex-col gap-2">
-              <form.Field
-                name="telegram.chatIds"
-                validators={{
-                  onChange: ({ value, fieldApi }) =>
-                    emptyChannelError(
-                      "telegram",
-                      fieldApi.form.state.values.telegram.enabled,
-                      value,
-                    ),
-                }}
-              >
-                {(chatIdsField) => (
-                  <ChannelField
-                    label="Telegram"
-                    recipientsLabel="Telegram chat IDs"
-                    placeholder="-1001234567890"
-                    enabled={enabledField.state.value}
-                    onEnabledChange={enabledField.handleChange}
-                    recipients={chatIdsField.state.value}
-                    onRecipientsChange={chatIdsField.handleChange}
-                    validate={validateTelegramChatId}
-                    error={chatIdsField.state.meta.errors[0]}
-                  />
-                )}
-              </form.Field>
-              <form.Field
-                name="telegram.botToken"
-                validators={{
-                  onChange: ({ value, fieldApi }) =>
-                    telegramBotTokenError(
-                      fieldApi.form.state.values.telegram.enabled,
-                      value,
-                    ),
-                }}
-              >
-                {(botTokenField) => (
-                  <div className="flex flex-col gap-1">
-                    <Label htmlFor="telegram-bot-token">
-                      Telegram bot token
-                    </Label>
-                    <Input
-                      id="telegram-bot-token"
-                      type="password"
-                      autoComplete="off"
-                      disabled={!enabledField.state.value}
-                      placeholder="123456789:ABC..."
-                      value={botTokenField.state.value}
-                      onChange={(event) =>
-                        botTokenField.handleChange(event.target.value)
-                      }
-                      onBlur={botTokenField.handleBlur}
-                      aria-invalid={botTokenField.state.meta.errors.length > 0}
-                    />
-                    {botTokenField.state.meta.errors[0] && (
-                      <p className="text-destructive text-xs" role="alert">
-                        {botTokenField.state.meta.errors[0]}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </form.Field>
-            </div>
-          )}
-        </form.Field>
-        <form.Field
-          name="slack.enabled"
-          listeners={{
-            onChange: ({ fieldApi }) =>
-              fieldApi.form.validateField("slack.webhookUrl", "change"),
-          }}
-        >
-          {(enabledField) => (
-            <div className="flex flex-col gap-2">
-              <Label className="flex items-center gap-2">
-                <Switch
-                  checked={enabledField.state.value}
-                  onCheckedChange={enabledField.handleChange}
-                />
-                Slack
-              </Label>
-              <form.Field
-                name="slack.webhookUrl"
-                validators={{
-                  onChange: ({ value, fieldApi }) =>
-                    slackWebhookUrlError(
-                      fieldApi.form.state.values.slack.enabled,
-                      value,
-                    ),
-                }}
-              >
-                {(webhookUrlField) => (
-                  <div className="flex flex-col gap-1">
-                    <Label htmlFor="slack-webhook-url">Slack webhook URL</Label>
-                    <Input
-                      id="slack-webhook-url"
-                      type="password"
-                      autoComplete="off"
-                      disabled={!enabledField.state.value}
-                      placeholder="https://hooks.slack.com/services/..."
-                      value={webhookUrlField.state.value}
-                      onChange={(event) =>
-                        webhookUrlField.handleChange(event.target.value)
-                      }
-                      onBlur={webhookUrlField.handleBlur}
-                      aria-invalid={
-                        webhookUrlField.state.meta.errors.length > 0
-                      }
-                    />
-                    {webhookUrlField.state.meta.errors[0] && (
-                      <p className="text-destructive text-xs" role="alert">
-                        {webhookUrlField.state.meta.errors[0]}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </form.Field>
-            </div>
-          )}
-        </form.Field>
-        <form.Field name="remindEverySeconds">
-          {(field) => (
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="remind-every">Remind every</Label>
-              <Select
-                value={
-                  field.state.value === null ? "off" : String(field.state.value)
-                }
-                onValueChange={(value) =>
-                  field.handleChange(value === "off" ? null : Number(value))
-                }
-              >
-                <SelectTrigger id="remind-every">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="off">Off</SelectItem>
-                  <SelectItem value="3600">1 hour</SelectItem>
-                  <SelectItem value="14400">4 hours</SelectItem>
-                  <SelectItem value="86400">24 hours</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-muted-foreground text-xs">
-                Re-send notifications while an alert stays firing
-              </p>
-            </div>
-          )}
-        </form.Field>
-        {update.error && (
-          <p className="text-destructive text-sm" role="alert">
-            {update.error.message}
-          </p>
-        )}
-      </div>
-      <DialogFooter>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onClose}
-          disabled={update.isPending}
-        >
-          Cancel
-        </Button>
-        <Button type="submit" disabled={update.isPending}>
-          Save
-        </Button>
-      </DialogFooter>
-    </form>
   );
 }

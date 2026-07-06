@@ -62,6 +62,7 @@ import { Route as AuthenticatedDashboardCcAlertingMonitorRouteImport } from './r
 import { Route as AuthenticatedDashboardCcAlertingInhibitionsRouteImport } from './routes/_authenticated/_dashboard/cc-alerting/inhibitions'
 import { Route as AuthenticatedDashboardCcAlertingEventsRouteImport } from './routes/_authenticated/_dashboard/cc-alerting/events'
 import { Route as AuthenticatedDashboardCcAlertingAlertsRouteImport } from './routes/_authenticated/_dashboard/cc-alerting/alerts'
+import { Route as AuthenticatedDashboardAlertsNotificationsRouteImport } from './routes/_authenticated/_dashboard/alerts_.notifications'
 import { Route as AuthenticatedDashboardPreviewableAlertsRouteImport } from './routes/_authenticated/_dashboard/_previewable/alerts'
 import { Route as AuthenticatedDashboardPaddedUsersManagementRouteImport } from './routes/_authenticated/_dashboard/_padded/users-management'
 import { Route as AuthenticatedDashboardPaddedTestsOverviewRouteImport } from './routes/_authenticated/_dashboard/_padded/tests-overview'
@@ -382,6 +383,12 @@ const AuthenticatedDashboardCcAlertingAlertsRoute =
     path: '/alerts',
     getParentRoute: () => AuthenticatedDashboardCcAlertingRoute,
   } as any)
+const AuthenticatedDashboardAlertsNotificationsRoute =
+  AuthenticatedDashboardAlertsNotificationsRouteImport.update({
+    id: '/alerts_/notifications',
+    path: '/alerts/notifications',
+    getParentRoute: () => AuthenticatedDashboardRoute,
+  } as any)
 const AuthenticatedDashboardPreviewableAlertsRoute =
   AuthenticatedDashboardPreviewableAlertsRouteImport.update({
     id: '/alerts',
@@ -658,6 +665,7 @@ export interface FileRoutesByFullPath {
   '/tests-overview': typeof AuthenticatedDashboardPaddedTestsOverviewRoute
   '/users-management': typeof AuthenticatedDashboardPaddedUsersManagementRoute
   '/alerts': typeof AuthenticatedDashboardPreviewableAlertsRoute
+  '/alerts/notifications': typeof AuthenticatedDashboardAlertsNotificationsRoute
   '/cc-alerting/alerts': typeof AuthenticatedDashboardCcAlertingAlertsRoute
   '/cc-alerting/events': typeof AuthenticatedDashboardCcAlertingEventsRoute
   '/cc-alerting/inhibitions': typeof AuthenticatedDashboardCcAlertingInhibitionsRoute
@@ -742,6 +750,7 @@ export interface FileRoutesByTo {
   '/tests-overview': typeof AuthenticatedDashboardPaddedTestsOverviewRoute
   '/users-management': typeof AuthenticatedDashboardPaddedUsersManagementRoute
   '/alerts': typeof AuthenticatedDashboardPreviewableAlertsRoute
+  '/alerts/notifications': typeof AuthenticatedDashboardAlertsNotificationsRoute
   '/cc-alerting/alerts': typeof AuthenticatedDashboardCcAlertingAlertsRoute
   '/cc-alerting/events': typeof AuthenticatedDashboardCcAlertingEventsRoute
   '/cc-alerting/inhibitions': typeof AuthenticatedDashboardCcAlertingInhibitionsRoute
@@ -835,6 +844,7 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/_padded/tests-overview': typeof AuthenticatedDashboardPaddedTestsOverviewRoute
   '/_authenticated/_dashboard/_padded/users-management': typeof AuthenticatedDashboardPaddedUsersManagementRoute
   '/_authenticated/_dashboard/_previewable/alerts': typeof AuthenticatedDashboardPreviewableAlertsRoute
+  '/_authenticated/_dashboard/alerts_/notifications': typeof AuthenticatedDashboardAlertsNotificationsRoute
   '/_authenticated/_dashboard/cc-alerting/alerts': typeof AuthenticatedDashboardCcAlertingAlertsRoute
   '/_authenticated/_dashboard/cc-alerting/events': typeof AuthenticatedDashboardCcAlertingEventsRoute
   '/_authenticated/_dashboard/cc-alerting/inhibitions': typeof AuthenticatedDashboardCcAlertingInhibitionsRoute
@@ -925,6 +935,7 @@ export interface FileRouteTypes {
     | '/tests-overview'
     | '/users-management'
     | '/alerts'
+    | '/alerts/notifications'
     | '/cc-alerting/alerts'
     | '/cc-alerting/events'
     | '/cc-alerting/inhibitions'
@@ -1009,6 +1020,7 @@ export interface FileRouteTypes {
     | '/tests-overview'
     | '/users-management'
     | '/alerts'
+    | '/alerts/notifications'
     | '/cc-alerting/alerts'
     | '/cc-alerting/events'
     | '/cc-alerting/inhibitions'
@@ -1101,6 +1113,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/_padded/tests-overview'
     | '/_authenticated/_dashboard/_padded/users-management'
     | '/_authenticated/_dashboard/_previewable/alerts'
+    | '/_authenticated/_dashboard/alerts_/notifications'
     | '/_authenticated/_dashboard/cc-alerting/alerts'
     | '/_authenticated/_dashboard/cc-alerting/events'
     | '/_authenticated/_dashboard/cc-alerting/inhibitions'
@@ -1538,6 +1551,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/cc-alerting/alerts'
       preLoaderRoute: typeof AuthenticatedDashboardCcAlertingAlertsRouteImport
       parentRoute: typeof AuthenticatedDashboardCcAlertingRoute
+    }
+    '/_authenticated/_dashboard/alerts_/notifications': {
+      id: '/_authenticated/_dashboard/alerts_/notifications'
+      path: '/alerts/notifications'
+      fullPath: '/alerts/notifications'
+      preLoaderRoute: typeof AuthenticatedDashboardAlertsNotificationsRouteImport
+      parentRoute: typeof AuthenticatedDashboardRoute
     }
     '/_authenticated/_dashboard/_previewable/alerts': {
       id: '/_authenticated/_dashboard/_previewable/alerts'
@@ -2101,6 +2121,7 @@ interface AuthenticatedDashboardRouteChildren {
   AuthenticatedDashboardPreviewableRoute: typeof AuthenticatedDashboardPreviewableRouteWithChildren
   AuthenticatedDashboardCcAlertingRoute: typeof AuthenticatedDashboardCcAlertingRouteWithChildren
   AuthenticatedDashboardRunsRoute: typeof AuthenticatedDashboardRunsRouteWithChildren
+  AuthenticatedDashboardAlertsNotificationsRoute: typeof AuthenticatedDashboardAlertsNotificationsRoute
 }
 
 const AuthenticatedDashboardRouteChildren: AuthenticatedDashboardRouteChildren =
@@ -2115,6 +2136,8 @@ const AuthenticatedDashboardRouteChildren: AuthenticatedDashboardRouteChildren =
       AuthenticatedDashboardCcAlertingRouteWithChildren,
     AuthenticatedDashboardRunsRoute:
       AuthenticatedDashboardRunsRouteWithChildren,
+    AuthenticatedDashboardAlertsNotificationsRoute:
+      AuthenticatedDashboardAlertsNotificationsRoute,
   }
 
 const AuthenticatedDashboardRouteWithChildren =

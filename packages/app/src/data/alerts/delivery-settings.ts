@@ -146,7 +146,7 @@ const MANAGED_RECEIVERS = new Set<string>([
   DEFAULT_SLACK_RECEIVER,
 ]);
 
-function isManagedCatchAllRoute(route: {
+export function isManagedCatchAllRoute(route: {
   matchers: unknown[];
   receiver: string;
 }): boolean {
