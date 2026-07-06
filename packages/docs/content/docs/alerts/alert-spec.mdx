@@ -36,6 +36,8 @@ spec:
 | `annotations` | map (string to string) | no | Free-form key/value pairs passed straight through to the clickety-clack rule alongside Everr's own generated annotations. Keys starting with `everr.`, and the exact keys `summary`, `description`, `link.alert`, and `link.runbook`, are reserved for Everr's generated sugar and rejected here. |
 | `display` | object | no | `name` and/or `description`, both optional. Human-facing labels. |
 
+A rule created directly through the engine API that carries `everr.name` and a matching `everr.repoid` is treated as owned by that repo's config: the next `everr apply` adopts it, and prunes it if no YAML file declares it.
+
 ## Message templating
 
 `notificationMessage.title` and `notificationMessage.description` support `${...}` placeholders, substituted per firing instance when the notification is rendered:

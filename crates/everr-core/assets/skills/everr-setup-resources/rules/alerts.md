@@ -211,6 +211,8 @@ annotations:
   runbook.ticket: OPS-1234
 ```
 
+A rule created directly through the engine API that carries `everr.name` and a matching `everr.repoid` is treated as owned by that repo's config: the next `everr apply` adopts it, and prunes it if no YAML file declares it.
+
 ### Keep Result Sets Small
 
 The firing set is the rows. Every returned row is tracked, fingerprinted, and potentially notified.

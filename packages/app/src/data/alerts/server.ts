@@ -27,6 +27,7 @@ import {
   ANN_CC_LINK_ALERT,
   fromCcRuleSpec,
   isOwnedRule,
+  OWN_NAME,
   OWN_PREVIEW,
   OWN_REPO,
   previewIdOf,
@@ -454,7 +455,11 @@ export const listAlertEvents = createAuthenticatedServerFn({ method: "GET" })
       // Any tenant rule id works, everr-owned or bare: a nonexistent id
       // surfaces as the CC 404 raised by getRule.
       const rule = await cc.getRule(org, alertId);
-      const slug = fromCcRuleSpec(rule.spec).slug;
+      // The CC emitter (slug_for) writes history keyed by everr.name when
+      // present, and falls back to the rule id for bare rules. Mirror that
+      // fallback here instead of the empty mapping slug, or bare-rule
+      // history never matches.
+      const slug = rule.spec.annotations?.[OWN_NAME] ?? alertId;
       const { fromISO, toISO } = resolveTimeRange(timeRange);
       const rows = await queryAlertHistory(clickhouse.query, slug, {
         limit,
