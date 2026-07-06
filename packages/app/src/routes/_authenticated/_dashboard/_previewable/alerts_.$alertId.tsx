@@ -119,10 +119,13 @@ export const Route = createFileRoute(
     preview: search.preview,
   }),
   loader: async ({ context: { queryClient }, params, deps }) => {
-    const [detail] = await Promise.all([
-      queryClient.ensureQueryData(
-        alertDetailQueryOptions(params.alertId, deps.preview),
-      ),
+    const detailQuery = alertDetailQueryOptions(params.alertId, deps.preview);
+    // Prefetch (non-throwing) rather than `ensureQueryData` so a failed load
+    // renders the component's friendly "Alert not found." / "Unable to load
+    // alert." branch instead of throwing to the route error boundary — matching
+    // how the sibling CC pages prefetch.
+    await Promise.all([
+      queryClient.prefetchQuery(detailQuery),
       queryClient.prefetchQuery(
         alertInstancesQueryOptions(params.alertId, deps.timeRange),
       ),
@@ -132,8 +135,11 @@ export const Route = createFileRoute(
       ),
     ]);
     // `previewStatus` rides the loaderData up to the `_previewable` layout,
-    // which reads the deepest match carrying it to tone the preview bar.
-    return { slug: detail.slug, previewStatus: detail.previewStatus };
+    // which reads the deepest match carrying it to tone the preview bar. Read
+    // it back from cache (undefined when the prefetch failed) so the loader
+    // never throws.
+    const detail = queryClient.getQueryData(detailQuery.queryKey);
+    return { slug: detail?.slug, previewStatus: detail?.previewStatus };
   },
   component: AlertDetailPage,
 });

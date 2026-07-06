@@ -306,9 +306,13 @@ describe("getAlert", () => {
       ruleView({ spec: { ...ruleView().spec, annotations: {} } }),
     );
     mock(cc.listSilences).mockResolvedValue([]);
-    await expect(getAlert({ data: { alertId: "x" } })).rejects.toThrow(
-      "Alert not found",
-    );
+    try {
+      await getAlert({ data: { alertId: "x" } });
+      expect.fail("expected getAlert to reject a non-managed rule");
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toBe("Alert not found");
+    }
   });
 
   it("computes the overlay status of a preview rule in a preview context", async () => {
