@@ -599,7 +599,7 @@ pub struct RepoEntry {
     pub full_name: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResourceSummary {
     pub kind: String,
@@ -609,7 +609,7 @@ pub struct ResourceSummary {
     pub updated_at: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AdoptOutcome {
     pub kind: String,
