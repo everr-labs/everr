@@ -1,6 +1,6 @@
 ---
 title: Visualizations
-description: The built-in panel visualizations and the spec options each one accepts.
+description: The built-in visualizations, the spec options each accepts, how each shapes query results, and the time-range parameters panels receive.
 ---
 
 A panel's `plugin.kind` selects its visualization and `plugin.spec` configures it. Everr ships eleven visualizations. An unrecognized `kind` renders an "Unknown visualization" placeholder rather than breaking the dashboard.
@@ -11,7 +11,7 @@ Options are validated: `everr apply` rejects a dashboard whose option values don
 
 ## TimeSeriesChart
 
-Line chart over time. The query's time column (detected by exact name, case-insensitive: `ts`, `time`, or `timestamp`) is the x-axis; numeric columns become series, and a string column pivots a value column into one line per label. Supports drag-to-zoom (writes the new range to the URL).
+Line chart over time. Supports drag-to-zoom (writes the new range to the URL). Data shape: see [Time series](#time-series).
 
 ```yaml
 plugin:
@@ -36,7 +36,7 @@ plugin:
 
 ## BarChart
 
-Bar chart over time or over categories. When the query returns a time column (detected like the time-series chart: `ts`, `time`, or `timestamp`), each bucket becomes one bar group; without one, the first string column becomes the category axis. Numeric columns become series, and any remaining string column pivots a single value column into one series per label — same pivot rule as `TimeSeriesChart`. Multiple queries merge onto one axis.
+Bar chart over time or over categories. Data shape: see [Bar](#bar).
 
 ```yaml
 plugin:
@@ -59,7 +59,7 @@ plugin:
 
 ## Table
 
-Renders every column the query returns, in order, as a table. With multiple queries it shows a per-query selector.
+Renders query results as a table. Data shape: see [Table](#shaping-table).
 
 ```yaml
 plugin:
@@ -74,7 +74,7 @@ plugin:
 
 ## StatChart
 
-Reduces a numeric column to a single big value via a calculation, with an optional sparkline and threshold coloring. Return one numeric column; the sparkline follows the time column when there is one, or the row order otherwise. Multiple resulting series render as multiple tiles; a query that returns no value renders its tile with the `noValue` text instead of disappearing.
+Reduces a numeric column to a single big value via a calculation, with an optional sparkline and threshold coloring. Data shape: see [Stat and gauge](#stat-and-gauge).
 
 Values at or above one million abbreviate (`1234567` → `1.23M`); smaller values keep thousands grouping. The tile label is shown automatically with multiple tiles and hidden for a single tile unless `showLabel` is set.
 
@@ -112,7 +112,7 @@ plugin:
 
 ## GaugeChart
 
-Reduces a numeric column to a single value — same calculations and data shape as StatChart — and renders it as a semicircular arc filled proportionally between `min` and `max`. Values outside the bounds clamp the arc to empty/full while the centered text still shows the real value. Multiple resulting series render as multiple gauges; a query that returns no value renders its gauge empty with the `noValue` text.
+Reduces a numeric column to a single value — same calculations as StatChart — and renders it as a semicircular arc filled proportionally between `min` and `max`. Values outside the bounds clamp the arc to empty/full while the centered text still shows the real value. Data shape: see [Stat and gauge](#stat-and-gauge).
 
 Threshold steps color the filled arc and draw a tick mark on the gauge at each step's position, so the at-a-glance read is "how close to the next band am I".
 
@@ -148,7 +148,7 @@ plugin:
 
 ## GeoMap
 
-Plots geographic data on a world map, either as latitude/longitude markers (`points`) or by shading countries (`choropleth`). In points mode it renders **all** query frames, giving each query its own marker color; in choropleth mode it merges every frame by combining the value of each region with the configured `aggregation` (`sum` by default). Region codes that don't resolve to a known country and points with invalid coordinates are dropped — when any rows are skipped, the panel shows a small "N rows not mapped" badge in its top-right corner.
+Plots geographic data on a world map, either as latitude/longitude markers (`points`) or by shading countries (`choropleth`). Data shape: see [Geo map](#geo-map).
 
 ```yaml
 plugin:
@@ -184,7 +184,7 @@ plugin:
 
 ## Treemap
 
-Tiles whose areas are proportional to a numeric column — good for part-of-whole breakdowns like requests per route or storage per table. Return one label column and one positive numeric column; rows sharing the same label are summed. Rows with a missing label or a non-positive value can't be tiled and are dropped — when any are, the panel shows a small "N rows not shown" badge in its top-right corner.
+Tiles whose areas are proportional to a numeric column — good for part-of-whole breakdowns like requests per route or storage per table. Data shape: see [Treemap](#shaping-treemap).
 
 With `groupColumn`, tiles are colored by that column's value and the legend lists the groups (a label can appear once per group). Without it, a multi-query panel colors tiles by query, and a single ungrouped query cycles the palette per tile.
 
@@ -212,9 +212,7 @@ plugin:
 
 ## StateTimeline
 
-Horizontal lanes of colored segments showing discrete states over time — service health, deploy status, CI results. The query's time column (detected by exact name, case-insensitive: `ts`, `time`, or `timestamp`) is the x-axis. Each sample's state holds until the lane's next sample; the last sample holds to the end of the time range, and a `NULL` state renders as a gap. Supports drag-to-zoom (writes the new range to the URL).
-
-Two data shapes are supported. **Wide** (the default): every non-time column is its own lane, with the cell value as the state. **Long**: set `seriesColumn` to pivot `GROUP BY`-style rows into one lane per value of that column, with the state read from `stateColumn`.
+Horizontal lanes of colored segments showing discrete states over time — service health, deploy status, CI results. Supports drag-to-zoom (writes the new range to the URL). Data shape: see [State timeline](#state-timeline).
 
 ```yaml
 plugin:
@@ -242,11 +240,9 @@ plugin:
 
 ## StatusHistory
 
-Horizontal lanes of discrete colored cells, one per sample — periodic health checks, cron-job runs, CI builds per interval, SLO probes. The query's time column (detected by exact name, case-insensitive: `ts`, `time`, or `timestamp`) is the x-axis. Each sample renders as a fixed-width cell centered on its timestamp, sized to the sampling interval (the smallest gap between distinct timestamps), so a missing sample shows as a visible empty slot. A `NULL` status also draws nothing. Supports drag-to-zoom (writes the new range to the URL).
+Horizontal lanes of discrete colored cells, one per sample — periodic health checks, cron-job runs, CI builds per interval, SLO probes. Supports drag-to-zoom (writes the new range to the URL). Data shape: see [Status history](#status-history).
 
 **StatusHistory vs StateTimeline:** they share the same data shapes but answer different questions. StateTimeline treats samples as *state transitions* — a state holds until the next sample, segments stretch to fill time, and consecutive equal states merge into one band. Use it for things that are continuously *in* a state (service up/down, deploy phases, leader/follower) where "how long was it in state X, and when did it change?" is the question. StatusHistory treats samples as *independent observations* — each one is its own cell, nothing extends or merges, and a gap in sampling stays visibly empty instead of being painted over by the previous result. Use it for periodic checks and runs (health probes, cron jobs, per-bucket CI status) where "what did each check return — and did it run at all?" is the question.
-
-Two data shapes are supported. **Wide** (the default): every non-time column is its own lane, with the cell value as the status. **Long**: set `seriesColumn` to pivot `GROUP BY`-style rows into one lane per value of that column, with the status read from `stateColumn`.
 
 ```yaml
 plugin:
@@ -273,9 +269,9 @@ plugin:
 
 ## Heatmap
 
-A time × bucket grid of color-intensity cells — request-duration histograms over time, status-code distributions, per-entity activity. The query's time column (detected by exact name, case-insensitive: `ts`, `time`, or `timestamp`) is the x-axis; a bucket column is the y-axis and a numeric column drives the cell color. Rows landing on the same (time, bucket) cell are summed — within a query and across queries. Supports drag-to-zoom (writes the new range to the URL).
+A time × bucket grid of color-intensity cells — request-duration histograms over time, status-code distributions, per-entity activity. Supports drag-to-zoom (writes the new range to the URL). Data shape: see [Heatmap](#shaping-heatmap).
 
-Buckets that are all numeric (histogram bounds) sort like a y-axis with the largest at the top; categorical buckets keep their first-seen order top-down. Cells are opaque — a cell at the domain minimum gets the ramp's low-end color, while a cell with no rows draws nothing (the panel background shows through).
+Cells are opaque — a cell at the domain minimum gets the ramp's low-end color, while a cell with no rows draws nothing (the panel background shows through).
 
 ```yaml
 plugin:
@@ -303,9 +299,7 @@ plugin:
 
 ## NodeGraph
 
-A directed graph of nodes and weighted edges laid out with a deterministic force-directed layout — service dependency maps, call graphs, data flows. The query returns an **edge list**: one row per edge with a source column, a target column, and an optional numeric weight. Nodes are derived from the distinct endpoints, sized by the total weight flowing through them; edge thickness tracks the edge's weight. Hovering a node highlights its neighborhood; hovering a node or edge shows a tooltip with the value and (for nodes) the in/out edge counts.
-
-Rows with the same (source, target) pair are summed — within a query and across queries — and the reverse direction is a separate edge (drawn offset so both stay visible). Rows missing either endpoint, and self-loops, are dropped — when any are, the panel shows a small "not shown" badge in its top-right corner. Without a numeric column every edge weighs 1, so a plain `SELECT client, server` edge list still sizes by row count.
+A directed graph of nodes and weighted edges laid out with a deterministic force-directed layout — service dependency maps, call graphs, data flows. Edge thickness tracks the edge's weight; hovering a node highlights its neighborhood, and hovering a node or edge shows a tooltip with the value and (for nodes) the in/out edge counts. Data shape: see [Node graph](#node-graph).
 
 ```yaml
 plugin:
@@ -371,9 +365,9 @@ ORDER BY spans DESC
 LIMIT 10
 ```
 
-This produces one bar per service, in the query's order.
+This produces one bar per service, in the query's order. Multiple queries merge onto one axis.
 
-### Table
+### Table [#shaping-table]
 
 Renders every column as-is, in query order. No special column naming is required — return whatever you want to display:
 
@@ -386,9 +380,19 @@ ORDER BY spans DESC
 LIMIT 50
 ```
 
+With multiple queries the panel shows a per-query selector.
+
+### Geo map
+
+`GeoMap` takes latitude/longitude rows in points mode or region rows in choropleth mode (the column names are options — see [GeoMap](#geomap)). In points mode it renders **all** query frames, giving each query its own marker color; in choropleth mode it merges every frame by combining the value of each region with the configured `aggregation` (`sum` by default). Region codes that don't resolve to a known country and points with invalid coordinates are dropped — when any rows are skipped, the panel shows a small "N rows not mapped" badge in its top-right corner.
+
+### Treemap [#shaping-treemap]
+
+`Treemap` takes one label column and one positive numeric column; rows sharing the same label are summed. Rows with a missing label or a non-positive value can't be tiled and are dropped — when any are, the panel shows a small "N rows not shown" badge in its top-right corner.
+
 ### State timeline
 
-`StateTimeline` needs the same time column as a time series (alias to `ts`, `time`, or `timestamp`). By default every other column is its own lane and the cell value is the state; for `GROUP BY`-style rows, set `seriesColumn` (and optionally `stateColumn`) in the spec to pivot one lane per label:
+`StateTimeline` needs the same time column as a time series (alias to `ts`, `time`, or `timestamp`). Two data shapes are supported. **Wide** (the default): every non-time column is its own lane, with the cell value as the state. **Long**: set `seriesColumn` (and optionally `stateColumn`) in the spec to pivot `GROUP BY`-style rows into one lane per label:
 
 ```sql
 SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
@@ -406,7 +410,9 @@ Each state holds until the lane's next sample (the last one holds to the end of 
 
 `StatusHistory` takes the same data shapes as `StateTimeline` (wide or long, same `seriesColumn`/`stateColumn` pivot) but with the opposite sample semantics: each sample is an independent observation drawn as one discrete cell, nothing holds until the next sample, and a missing sample stays visibly empty. Reach for it when each row is a periodic check or run (health probes, cron jobs, CI builds per bucket) and "did it run, and what did it return?" matters; reach for `StateTimeline` when rows are state transitions and duration matters.
 
-### Heatmap
+Each sample renders as a fixed-width cell centered on its timestamp, sized to the sampling interval (the smallest gap between distinct timestamps), so a missing sample shows as a visible empty slot. A `NULL` status also draws nothing.
+
+### Heatmap [#shaping-heatmap]
 
 `Heatmap` needs the same time column (alias to `ts`, `time`, or `timestamp`), plus a bucket column for the y-axis and a numeric column for the cell intensity — `GROUP BY` time and bucket:
 
@@ -422,7 +428,7 @@ GROUP BY ts, bucket
 ORDER BY ts
 ```
 
-Rows that land on the same (time, bucket) cell are summed. All-numeric buckets sort largest-at-top like a y-axis; categorical buckets keep first-seen order.
+Rows that land on the same (time, bucket) cell are summed — within a query and across queries. Buckets that are all numeric (histogram bounds) sort like a y-axis with the largest at the top; categorical buckets keep their first-seen order top-down.
 
 ### Node graph
 
@@ -440,7 +446,7 @@ ORDER BY value DESC
 LIMIT 200
 ```
 
-Nodes are the distinct endpoints, sized by the total weight through them; duplicate (source, target) rows sum, and self-loops are dropped.
+Nodes are derived from the distinct endpoints, sized by the total weight flowing through them. Rows with the same (source, target) pair are summed — within a query and across queries — and the reverse direction is a separate edge (drawn offset so both stay visible). Rows missing either endpoint, and self-loops, are dropped — when any are, the panel shows a small "not shown" badge in its top-right corner. Without a numeric column every edge weighs 1, so a plain `SELECT client, server` edge list still sizes by row count.
 
 ### Stat and gauge
 
@@ -452,6 +458,8 @@ FROM traces
 WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
 GROUP BY ts ORDER BY ts
 ```
+
+Multiple resulting series render as multiple tiles or gauges; a query that returns no value renders its tile (or an empty gauge) with the `noValue` text instead of disappearing.
 
 ## Time range parameters
 
