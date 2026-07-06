@@ -42,7 +42,7 @@ The `error-spike` alert is firing. Is it still happening?
 kind: Panel
 spec:
   display: { name: Error rate }
-  plugin: { kind: TimeSeriesChart, spec: { unit: "%" } }
+  plugin: { kind: TimeSeriesChart, spec: { unit: "%", showLegend: true } }
   queries:
     - kind: ClickHouseSQL
       spec:
