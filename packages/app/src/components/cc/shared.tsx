@@ -1,8 +1,10 @@
 // packages/app/src/components/cc/shared.tsx
+import { Badge } from "@everr/ui/components/badge";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { cn } from "@everr/ui/lib/utils";
 import { Info, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
+import { sortedLabelEntries } from "@/data/alerts/matchers";
 import type { CcMatcher } from "@/data/cc/types";
 import { ccOpSymbol } from "./route-resolution";
 
@@ -254,6 +256,52 @@ export function LabelSet({
         </Pill>
       ))}
     </span>
+  );
+}
+
+// CC evidence (source-row columns beyond the identity labels) rendered as
+// compact key=value pills, mirroring the silence matcher chips so the
+// timeline stays visually consistent with LabelSet above it.
+function formatEvidenceValue(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value.toLocaleString("en-US", { maximumFractionDigits: 4 });
+  }
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+export function EvidenceChips({
+  evidence,
+  truncated,
+}: {
+  evidence: Record<string, unknown> | null | undefined;
+  truncated?: boolean;
+}) {
+  const entries = evidence
+    ? sortedLabelEntries(
+        Object.fromEntries(
+          Object.entries(evidence).map(([key, value]) => [
+            key,
+            formatEvidenceValue(value),
+          ]),
+        ),
+      )
+    : [];
+  if (entries.length === 0 && !truncated) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      {entries.map(([key, value]) => (
+        <Badge key={key} variant="secondary" className="font-mono font-normal">
+          {key}={value}
+        </Badge>
+      ))}
+      {truncated && (
+        <span className="text-xs text-muted-foreground">
+          evidence truncated
+        </span>
+      )}
+    </div>
   );
 }
 

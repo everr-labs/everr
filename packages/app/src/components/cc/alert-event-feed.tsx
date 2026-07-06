@@ -41,6 +41,7 @@ import {
   CcTableSkeleton,
   ccErrorMessage,
   ccFormatTs,
+  EvidenceChips,
   LabelSet,
 } from "./shared";
 
@@ -141,7 +142,18 @@ export function AlertEventFeed({
           <span className="text-xs text-muted-foreground">—</span>
         ),
     },
-    { header: "Labels", cell: (e) => <LabelSet labels={e.labels} /> },
+    {
+      header: "Labels",
+      cell: (e) => (
+        <div className="flex flex-col gap-1">
+          <LabelSet labels={e.labels} />
+          <EvidenceChips
+            evidence={e.evidence}
+            truncated={e.evidenceTruncated}
+          />
+        </div>
+      ),
+    },
     {
       header: "Rule",
       cell: (e) => (

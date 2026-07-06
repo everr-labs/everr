@@ -345,6 +345,64 @@ describe("/alerts/$alertId route", () => {
     expect(durationMs).toBeLessThan(8 * 3_600_000 + 10_000);
   });
 
+  it("disables Create mute for an unparsable or non-positive custom hours value", async () => {
+    getAlertMock.mockImplementation(() => Promise.resolve(alertDetail()));
+    const user = userEvent.setup();
+
+    renderDetailRoute();
+    await screen.findByRole("heading", { name: "High error rate" });
+
+    await user.click(screen.getByRole("button", { name: "Add mute" }));
+    await screen.findByText("Mute alert");
+    await user.click(screen.getByRole("button", { name: "Custom" }));
+
+    const createButton = screen.getByRole("button", { name: "Create mute" });
+    const customHoursInput = screen.getByLabelText("Custom duration in hours");
+
+    // A non-empty but unparsable/non-positive value must stay disabled: the
+    // fix guards on the parsed number, not on emptiness.
+    await user.clear(customHoursInput);
+    await user.type(customHoursInput, "abc");
+    expect(createButton).toBeDisabled();
+
+    await user.clear(customHoursInput);
+    await user.type(customHoursInput, "0");
+    expect(createButton).toBeDisabled();
+
+    await user.clear(customHoursInput);
+    await user.type(customHoursInput, "-5");
+    expect(createButton).toBeDisabled();
+
+    await user.clear(customHoursInput);
+    await user.type(customHoursInput, "3");
+    expect(createButton).not.toBeDisabled();
+  });
+
+  it("dedupes Notifies when a custom route's receiver names a default channel", async () => {
+    getAlertMock.mockImplementation(() =>
+      Promise.resolve(alertDetail({ severity: "critical" })),
+    );
+    getAlertSettings.mockImplementation(() =>
+      Promise.resolve({
+        delivery: { ...defaultDelivery, email: { enabled: true, to: [] } },
+      }),
+    );
+    listCcRoutes.mockImplementation(() =>
+      Promise.resolve([
+        ccRoute({
+          id: "route-email",
+          receiver: "email",
+          matchers: [{ label: "severity", op: "eq", value: "critical" }],
+        }),
+      ]),
+    );
+
+    renderDetailRoute();
+
+    const notifies = await screen.findByText(/^Notifies /);
+    expect(notifies.textContent).toBe("Notifies email.");
+  });
+
   it("prefills match specific labels from a firing row's mute action", async () => {
     getAlertMock.mockImplementation(() => Promise.resolve(alertDetail()));
     listAlertInstances.mockImplementation(() =>

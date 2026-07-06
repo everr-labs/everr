@@ -63,6 +63,7 @@ function historyRow(
     silenced: false,
     deliveryTargets: [],
     evidence: null,
+    evidenceTruncated: false,
     ...overrides,
   };
 }
@@ -163,5 +164,56 @@ describe("AlertEventFeed", () => {
     await user.click(screen.getByRole("button", { name: /pause/i }));
 
     expect(screen.getByRole("button", { name: /resume/i })).toBeInTheDocument();
+  });
+
+  it("renders evidence chips for a history row that carries evidence", () => {
+    mockUseQuery.mockReturnValue({
+      data: [
+        historyRow({
+          slug: "beta",
+          evidence: { status_code: 500 },
+          evidenceTruncated: false,
+        }),
+      ],
+      isPending: false,
+      isError: false,
+      error: null,
+    });
+
+    render(<AlertEventFeed />);
+
+    expect(screen.getByText("status_code=500")).toBeInTheDocument();
+  });
+
+  it("hints at truncation when evidenceTruncated is set", () => {
+    mockUseQuery.mockReturnValue({
+      data: [
+        historyRow({
+          slug: "beta",
+          evidence: { status_code: 500 },
+          evidenceTruncated: true,
+        }),
+      ],
+      isPending: false,
+      isError: false,
+      error: null,
+    });
+
+    render(<AlertEventFeed />);
+
+    expect(screen.getByText(/truncated/i)).toBeInTheDocument();
+  });
+
+  it("renders no evidence chips for a row without evidence", () => {
+    mockUseQuery.mockReturnValue({
+      data: [historyRow({ slug: "beta", evidence: null })],
+      isPending: false,
+      isError: false,
+      error: null,
+    });
+
+    render(<AlertEventFeed />);
+
+    expect(screen.queryByText(/truncated/i)).not.toBeInTheDocument();
   });
 });

@@ -706,7 +706,10 @@ function computeNotifiesChannels({
     const match = ccFirstRoute(customRoutes, labels);
     if (match && !custom.includes(match.receiver)) custom.push(match.receiver);
   }
-  return [...defaults, ...custom];
+  // A custom route can be named after a default channel (e.g. a receiver
+  // literally called "email"), so dedupe across both lists rather than just
+  // within `custom`.
+  return Array.from(new Set([...defaults, ...custom]));
 }
 
 function joinWithAnd(items: string[]): string {
@@ -819,6 +822,10 @@ function MuteDialog({
   }
 
   const effectiveHours = duration === "custom" ? customHours : duration;
+  const parsedCustomHours = Number(customHours);
+  const customHoursInvalid =
+    duration === "custom" &&
+    (!Number.isFinite(parsedCustomHours) || parsedCustomHours <= 0);
 
   const patchMatcher = (index: number, patch: Partial<Matcher>) =>
     setMatchers((prev) =>
@@ -1039,7 +1046,7 @@ function MuteDialog({
             disabled={
               create.isPending ||
               matchers.some((m) => !m.label) ||
-              (duration === "custom" && !customHours.trim())
+              customHoursInvalid
             }
             onClick={() => create.mutate()}
           >

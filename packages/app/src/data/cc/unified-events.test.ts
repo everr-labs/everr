@@ -38,6 +38,7 @@ function historyRow(
     silenced: false,
     deliveryTargets: [],
     evidence: null,
+    evidenceTruncated: false,
     ...overrides,
   };
 }
@@ -132,6 +133,20 @@ describe("historyToUnified", () => {
       ccEventDedupKey("fp1", "2026-06-10T12:00:00Z", "instance_fired"),
     );
   });
+
+  it("carries evidence and evidenceTruncated through from the stored row", () => {
+    const withEvidence = historyToUnified(
+      historyRow({ evidence: { status_code: 500 }, evidenceTruncated: true }),
+    );
+    expect(withEvidence.evidence).toEqual({ status_code: 500 });
+    expect(withEvidence.evidenceTruncated).toBe(true);
+  });
+
+  it("maps a null/absent evidence row to null, not undefined", () => {
+    const u = historyToUnified(historyRow());
+    expect(u.evidence).toBeNull();
+    expect(u.evidenceTruncated).toBe(false);
+  });
 });
 
 describe("mergeCcEvents", () => {
@@ -144,6 +159,17 @@ describe("mergeCcEvents", () => {
     expect(merged).toHaveLength(1);
     expect(merged[0].source).toBe("live");
     expect(merged[0].severity).toBe("critical");
+  });
+
+  it("preserves evidence on stored rows carried through the merge", () => {
+    const hist = [
+      historyToUnified(
+        historyRow({ evidence: { status_code: 500 }, evidenceTruncated: true }),
+      ),
+    ];
+    const merged = mergeCcEvents([], hist);
+    expect(merged[0].evidence).toEqual({ status_code: 500 });
+    expect(merged[0].evidenceTruncated).toBe(true);
   });
 
   it("keeps stored rows with a different second, type, or fingerprint", () => {

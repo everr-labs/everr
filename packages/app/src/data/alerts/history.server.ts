@@ -162,6 +162,7 @@ export type AlertEventLogRow = {
   silenced: boolean; // alert.silenced === "true" (only on dispatcher records)
   deliveryTargets: string[]; // alert.delivery_targets decoded (only on delivery records)
   evidence: AlertEvidence | null;
+  evidenceTruncated: boolean; // alert.evidence_truncated === "true"
 };
 
 type AlertEventLogRawRow = {
@@ -175,6 +176,7 @@ type AlertEventLogRawRow = {
   silenced: string;
   deliveryTargetsRaw: string;
   evidenceJson: string;
+  evidenceTruncated: string;
 };
 
 /**
@@ -210,7 +212,8 @@ export async function queryAlertEventLog(
         LogAttributes['alert.suppressed']           AS suppressed,
         LogAttributes['alert.silenced']             AS silenced,
         LogAttributes['alert.delivery_targets']     AS deliveryTargetsRaw,
-        LogAttributes['alert.evidence_json']        AS evidenceJson
+        LogAttributes['alert.evidence_json']        AS evidenceJson,
+        LogAttributes['alert.evidence_truncated']   AS evidenceTruncated
       FROM app.logs
       WHERE ServiceName = 'alert'
         AND ScopeName = 'everr.alerting'
@@ -232,6 +235,7 @@ export async function queryAlertEventLog(
       silenced,
       deliveryTargetsRaw,
       evidenceJson,
+      evidenceTruncated,
       ...row
     }) => ({
       ...row,
@@ -240,6 +244,7 @@ export async function queryAlertEventLog(
       silenced: silenced === "true",
       deliveryTargets: parseDeliveryTargets(deliveryTargetsRaw),
       evidence: parseEvidence(evidenceJson),
+      evidenceTruncated: evidenceTruncated === "true",
     }),
   );
 }
