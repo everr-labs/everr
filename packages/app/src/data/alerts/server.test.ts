@@ -235,10 +235,19 @@ describe("listAlerts", () => {
     const out = await listAlerts();
     expect(out[0].health).toBe("degraded");
     expect(out[0].healthError).toBe("boom");
+    expect(out[0].healthConsecutiveFailures).toBe(3);
     expect(out[0].runbookProject).toBe("web");
     expect(out[0].runbookSlug).toBe("db-latency");
     expect(out[0].lastSeenAt).toBe("2026-06-01T00:00:00Z");
     expect(out[0].evaluationIntervalSeconds).toBe(300);
+  });
+
+  it("reports zero consecutive failures for a healthy rule", async () => {
+    mock(cc.listRules).mockResolvedValue([ruleView()]);
+    mock(cc.listSilences).mockResolvedValue([]);
+    const out = await listAlerts();
+    expect(out[0].health).toBe("healthy");
+    expect(out[0].healthConsecutiveFailures).toBe(0);
   });
 
   it("excludes preview rules from the live list", async () => {

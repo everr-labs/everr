@@ -36,7 +36,12 @@ import {
 import { Fragment, useMemo, useState } from "react";
 import { z } from "zod";
 import { AlertEventFeed } from "@/components/cc/alert-event-feed";
-import { Conditions, ccFormatTs, LabelSet } from "@/components/cc/shared";
+import {
+  CcStatusDot,
+  Conditions,
+  ccFormatTs,
+  LabelSet,
+} from "@/components/cc/shared";
 import { PreviewStatusBadge } from "@/components/preview-status-badge";
 import { formatRunbookRef } from "@/data/alerts/schema";
 import {
@@ -55,6 +60,7 @@ import type { CcAlert, CcSilence } from "@/data/cc/types";
 import { useCcInvalidation } from "@/hooks/use-cc-invalidation";
 import {
   AlertStateBadges,
+  formatDate,
   formatInterval,
   isEvaluationStale,
   QueryErrorMessage,
@@ -112,7 +118,7 @@ const ALERTS_VIEW_TABS: { value: "alerts" | "activity"; label: string }[] = [
 type AlertListFilter =
   | "all"
   | "firing"
-  | "errored"
+  | "degraded"
   | "silenced"
   | "resolved"
   | "inactive";
@@ -130,7 +136,7 @@ function alertMatchesFilter(alert: AlertSummary, filter: AlertListFilter) {
       return true;
     case "firing":
       return alert.active && alert.currentState === "firing";
-    case "errored":
+    case "degraded":
       return alert.active && alert.health !== "healthy";
     case "silenced":
       return alert.activeSilenceCount > 0;
@@ -139,6 +145,28 @@ function alertMatchesFilter(alert: AlertSummary, filter: AlertListFilter) {
     case "inactive":
       return !alert.active;
   }
+}
+
+// The health dot's tooltip: always names checks-every (the baseline cadence),
+// and, once degraded, layers in the diagnostic facts (consecutive failures,
+// last error, last evaluation) that explain why. CC's health object only
+// timestamps failures (not every attempt), so "last evaluated" here is the
+// rule's last recorded activity (`lastSeenAt`) rather than a dedicated field.
+function healthTooltip(alert: AlertSummary): string {
+  const checksEvery = `checks every ${formatInterval(alert.evaluationIntervalSeconds)}`;
+  if (alert.health === "healthy") {
+    return `Healthy · ${checksEvery}`;
+  }
+  const failures = alert.healthConsecutiveFailures;
+  const parts = [
+    `Degraded · ${failures} consecutive ${failures === 1 ? "failure" : "failures"}`,
+  ];
+  if (alert.healthError) parts.push(`last error: ${alert.healthError}`);
+  if (alert.lastSeenAt) {
+    parts.push(`last evaluated ${formatDate(alert.lastSeenAt)}`);
+  }
+  parts.push(checksEvery);
+  return parts.join(" · ");
 }
 
 function alertMatchesSearch(alert: AlertSummary, query: string) {
@@ -319,7 +347,7 @@ function AlertsPage() {
 
   const summary = useMemo(() => {
     let firing = 0;
-    let errored = 0;
+    let degraded = 0;
     let resolved = 0;
     let inactive = 0;
     let silenced = 0;
@@ -327,7 +355,7 @@ function AlertsPage() {
       if (a.activeSilenceCount > 0) silenced += 1;
       if (!a.active) inactive += 1;
       else {
-        if (a.health !== "healthy") errored += 1;
+        if (a.health !== "healthy") degraded += 1;
         if (a.currentState === "firing") firing += 1;
         else if (a.currentState === "resolved") resolved += 1;
       }
@@ -335,7 +363,7 @@ function AlertsPage() {
     return {
       total: alerts.data?.length ?? 0,
       firing,
-      errored,
+      degraded,
       resolved,
       inactive,
       silenced,
@@ -352,9 +380,9 @@ function AlertsPage() {
         tone: "destructive",
       },
       {
-        value: "errored",
-        label: "Errored",
-        count: summary.errored,
+        value: "degraded",
+        label: "Degraded",
+        count: summary.degraded,
         tone: "warning",
       },
       { value: "silenced", label: "Muted", count: summary.silenced },
@@ -394,6 +422,16 @@ function AlertsPage() {
 
   const columns = useMemo<Column<AlertSummary>[]>(
     () => [
+      {
+        header: "Health",
+        cell: (row) => (
+          <span title={healthTooltip(row)} className="inline-flex items-center">
+            <CcStatusDot
+              tone={row.health === "healthy" ? "healthy" : "degraded"}
+            />
+          </span>
+        ),
+      },
       {
         header: "Alert",
         cell: (row) => (
@@ -784,6 +822,10 @@ function AlertsPage() {
                                         ? muteInstance.variables?.key
                                         : undefined
                                     }
+                                    checksEverySeconds={
+                                      alert.evaluationIntervalSeconds
+                                    }
+                                    lastEvaluatedAt={alert.lastSeenAt}
                                   />
                                 </td>
                               </tr>
@@ -809,12 +851,16 @@ function FiringRowDetail({
   isError,
   onMute,
   mutingKey,
+  checksEverySeconds,
+  lastEvaluatedAt,
 }: {
   instances: CcAlert[];
   isLoading: boolean;
   isError: boolean;
   onMute: (instance: CcAlert) => void;
   mutingKey?: string;
+  checksEverySeconds: number;
+  lastEvaluatedAt: string | null;
 }) {
   if (isError) {
     return (
@@ -831,15 +877,19 @@ function FiringRowDetail({
       </div>
     );
   }
-  if (instances.length === 0) {
-    return (
-      <p className="px-3 py-3 text-xs text-muted-foreground">
-        No firing instances reported.
-      </p>
-    );
-  }
   return (
     <div className="flex flex-col gap-2 px-3 py-3">
+      <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+        <span>checks every {formatInterval(checksEverySeconds)}</span>
+        <span>
+          last evaluated <RelativeTime value={lastEvaluatedAt} />
+        </span>
+      </div>
+      {instances.length === 0 && (
+        <p className="text-xs text-muted-foreground">
+          No firing instances reported.
+        </p>
+      )}
       {instances.map((instance) => (
         <div
           key={instance.key}

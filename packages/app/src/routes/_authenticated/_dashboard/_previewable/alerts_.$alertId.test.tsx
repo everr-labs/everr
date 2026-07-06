@@ -125,6 +125,7 @@ function alertDetail(overrides: Partial<AlertDetail> = {}): AlertDetail {
     active: true,
     health: "healthy",
     healthError: null,
+    healthConsecutiveFailures: 0,
     lastFiredAt: null,
     lastResolvedAt: null,
     lastSeenAt: "2026-07-05T00:00:00.000Z",

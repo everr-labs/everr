@@ -115,6 +115,12 @@ export type AlertSummary = {
   active: boolean; // !paused
   health: string; // CcRuleHealth.status
   healthError: string | null;
+  // Consecutive failed evaluations at the current health status. Paired with
+  // `lastSeenAt` (last recorded evaluation activity) and
+  // `evaluationIntervalSeconds` (checks-every), it's enough for the list's
+  // health dot tooltip without a dedicated "last eval" timestamp (CC's health
+  // object only timestamps failures, not every evaluation attempt).
+  healthConsecutiveFailures: number;
   lastFiredAt: string | null;
   lastResolvedAt: string | null;
   lastSeenAt: string | null;
@@ -158,6 +164,7 @@ function toSummary(r: CcRuleView, silence: ActiveSilenceInfo): AlertSummary {
     active: !r.paused,
     health: r.health.status,
     healthError: r.health.last_error ?? null,
+    healthConsecutiveFailures: r.health.consecutive_failures,
     lastFiredAt: r.rollup?.last_fired_at ?? null,
     lastResolvedAt: r.rollup?.last_resolved_at ?? null,
     lastSeenAt: r.rollup?.last_seen_at ?? null,

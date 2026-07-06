@@ -75,10 +75,13 @@ type Tone =
 
 const TONE_DOT: Record<Tone, string> = {
   firing: "bg-destructive",
-  degraded: "bg-destructive",
+  // Rule health (evaluation success), distinct from alert/instance state
+  // above: green/amber rather than the firing red, so a degraded rule reads
+  // as "needs attention" without being confused with an actual firing alert.
+  degraded: "bg-amber-500",
   pending: "bg-primary",
   live: "bg-primary",
-  healthy: "bg-muted-foreground/40",
+  healthy: "bg-emerald-500",
   inactive: "bg-muted-foreground/50",
   disconnected: "bg-muted-foreground/50",
   resolved: "bg-muted-foreground/50",

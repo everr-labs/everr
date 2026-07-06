@@ -109,6 +109,7 @@ function alertSummary(overrides: Partial<AlertSummary> = {}): AlertSummary {
     active: true,
     health: "healthy",
     healthError: null,
+    healthConsecutiveFailures: 0,
     lastFiredAt: null,
     lastResolvedAt: "2026-07-05T00:00:00.000Z",
     lastSeenAt: "2026-07-05T00:00:00.000Z",
@@ -366,6 +367,94 @@ describe("/alerts route", () => {
         screen.queryByRole("button", { name: /mute active/i }),
       ).not.toBeInTheDocument(),
     );
+  });
+
+  it("shows a health dot per rule, amber and detailed when degraded", async () => {
+    alertsData = [
+      alertSummary({ id: "rule-1", slug: "healthy-rule" }),
+      alertSummary({
+        id: "rule-2",
+        slug: "degraded-rule",
+        displayName: "Degraded rule",
+        health: "degraded",
+        healthError: "boom",
+        healthConsecutiveFailures: 3,
+        lastSeenAt: "2026-07-05T00:00:00.000Z",
+        evaluationIntervalSeconds: 60,
+      }),
+    ];
+
+    renderAlertsRoute(["/alerts"]);
+    await screen.findByText("healthy-rule");
+
+    // The degraded rule's dot carries the diagnostic detail in its tooltip.
+    const degradedDot = screen.getByTitle(/3 consecutive failures/i);
+    expect(degradedDot.title).toMatch(/boom/i);
+    expect(degradedDot.title).toMatch(/checks every 1m/i);
+
+    // The healthy rule's dot stays calm: no failure detail.
+    const healthyDot = screen.getByTitle(/^healthy/i);
+    expect(healthyDot.title).not.toMatch(/consecutive failures/i);
+  });
+
+  it("hides the Degraded filter chip when every rule is healthy", async () => {
+    alertsData = [alertSummary({ id: "rule-1", slug: "healthy-rule" })];
+
+    renderAlertsRoute(["/alerts"]);
+    await screen.findByText("healthy-rule");
+
+    // All rules healthy: the default view stays calm, no Degraded chip.
+    expect(
+      screen.queryByRole("button", { name: /Degraded/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows a Degraded filter chip that filters to degraded rules", async () => {
+    alertsData = [
+      alertSummary({ id: "rule-1", slug: "healthy-rule" }),
+      alertSummary({
+        id: "rule-2",
+        slug: "degraded-rule",
+        health: "degraded",
+        healthError: "boom",
+        healthConsecutiveFailures: 2,
+      }),
+    ];
+    const user = userEvent.setup();
+
+    renderAlertsRoute(["/alerts"]);
+    await screen.findByText("healthy-rule");
+
+    const chip = await screen.findByRole("button", { name: /Degraded/ });
+    expect(within(chip).getByText("1")).toBeInTheDocument();
+
+    await user.click(chip);
+    expect(await screen.findByText("degraded-rule")).toBeInTheDocument();
+    expect(screen.queryByText("healthy-rule")).not.toBeInTheDocument();
+  });
+
+  it("shows checks-every and last-evaluated facts in the expanded firing row", async () => {
+    alertsData = [
+      alertSummary({
+        currentState: "firing",
+        lastFiredAt: "2026-07-05T00:00:00.000Z",
+        firingInstanceCount: 1,
+        evaluationIntervalSeconds: 300,
+        lastSeenAt: "2026-07-05T00:00:00.000Z",
+      }),
+    ];
+    ccAlertsData = [ccAlert()];
+    const user = userEvent.setup();
+
+    renderAlertsRoute(["/alerts"]);
+    await screen.findByText("high-error-rate");
+
+    await user.click(
+      screen.getByRole("button", { name: /expand firing detail/i }),
+    );
+
+    expect(await screen.findByText(/checks every 5m/i)).toBeInTheDocument();
+    expect(screen.getByText(/last evaluated/i)).toBeInTheDocument();
   });
 
   it("never renders the word 'silence' in the alerts home", async () => {
