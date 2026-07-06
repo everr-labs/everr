@@ -79,7 +79,7 @@ export function isEvaluationStale(
   return Date.now() - last.getTime() > overdueMs;
 }
 
-export function stateVariant(state: "unknown" | "resolved" | "firing") {
+function stateVariant(state: "unknown" | "resolved" | "firing") {
   if (state === "firing") return "destructive" as const;
   if (state === "resolved") return "secondary" as const;
   return "outline" as const;

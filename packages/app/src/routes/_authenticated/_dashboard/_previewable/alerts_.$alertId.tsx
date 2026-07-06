@@ -2,11 +2,17 @@ import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
 import {
   Card,
+  CardAction,
   CardContent,
   CardHeader,
   CardTitle,
 } from "@everr/ui/components/card";
-import { type Column, DataTable } from "@everr/ui/components/data-table";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@everr/ui/components/collapsible";
+import { DataTable } from "@everr/ui/components/data-table";
 import {
   Dialog,
   DialogContent,
@@ -36,6 +42,7 @@ import {
 import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
 import {
   BellOff,
+  ChevronRight,
   CircleCheck,
   CirclePlay,
   CircleStop,
@@ -46,11 +53,11 @@ import {
   X,
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
+import { AlertEventFeed } from "@/components/cc/alert-event-feed";
+import { ccFirstRoute } from "@/components/cc/route-resolution";
+import { LabelSet } from "@/components/cc/shared";
 import { PreviewStatusBadge } from "@/components/preview-status-badge";
-import {
-  ALERT_CHANNELS,
-  type AlertDeliveryTargets,
-} from "@/data/alerts/delivery-settings";
+import { isManagedCatchAllRoute } from "@/data/alerts/delivery-settings";
 import {
   type Matcher,
   NO_LABELS_TEXT,
@@ -65,12 +72,12 @@ import {
   createSilence,
   deactivateAlert,
   getAlert,
-  listAlertEvents,
   listAlertInstances,
   listAlertSilences,
   testAlert,
 } from "@/data/alerts/server";
-import type { CcTestResult } from "@/data/cc/types";
+import { listCcRoutes } from "@/data/cc/server";
+import type { CcRoute, CcTestResult } from "@/data/cc/types";
 import { useCcInvalidation } from "@/hooks/use-cc-invalidation";
 import { useTimeRange } from "@/hooks/use-time-range";
 import {
@@ -79,8 +86,8 @@ import {
   QueryErrorMessage,
   RelativeTime,
   SeverityBadge,
-  stateVariant,
 } from "./-alerts-shared";
+import { alertSettingsQueryOptions } from "./alerts";
 
 const alertDetailQueryOptions = (alertId: string, preview?: string) =>
   queryOptions({
@@ -100,11 +107,10 @@ const alertSilencesQueryOptions = (alertId: string) =>
     queryFn: () => listAlertSilences({ data: { alertId } }),
   });
 
-const alertEventsQueryOptions = (alertId: string, timeRange: TimeRange) =>
-  queryOptions({
-    queryKey: ["alerts", alertId, "events", timeRange],
-    queryFn: () => listAlertEvents({ data: { alertId, limit: 50, timeRange } }),
-  });
+// Same cache key route-builder.tsx/notifications.tsx use, so a route
+// created/edited there is reflected here without a page reload.
+const ccRoutesQueryOptions = () =>
+  queryOptions({ queryKey: ["cc", "routes"], queryFn: () => listCcRoutes() });
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_previewable/alerts_/$alertId",
@@ -134,9 +140,8 @@ export const Route = createFileRoute(
         alertInstancesQueryOptions(params.alertId, deps.timeRange),
       ),
       queryClient.prefetchQuery(alertSilencesQueryOptions(params.alertId)),
-      queryClient.prefetchQuery(
-        alertEventsQueryOptions(params.alertId, deps.timeRange),
-      ),
+      queryClient.prefetchQuery(alertSettingsQueryOptions()),
+      queryClient.prefetchQuery(ccRoutesQueryOptions()),
     ]);
     // `previewStatus` rides the loaderData up to the `_previewable` layout,
     // which reads the deepest match carrying it to tone the preview bar. Read
@@ -148,17 +153,12 @@ export const Route = createFileRoute(
   component: AlertDetailPage,
 });
 
-// What SilenceDialog needs to prefill matchers: an instance's fingerprint and
-// labels. Both the firing-instances row and a history event can produce one.
-type SilenceTarget = {
+// What MuteDialog needs to prefill matchers: a firing instance's fingerprint
+// and labels.
+type MuteTarget = {
   fingerprint: string;
   labels: Record<string, string>;
 };
-
-// A history-table row. Named because the silence column is now conditionally
-// spread into the columns array, where the cell parameter is no longer
-// inferred from the DataTable generic.
-type AlertEventRow = Awaited<ReturnType<typeof listAlertEvents>>[number];
 
 function AlertDetailPage() {
   useCcInvalidation();
@@ -169,11 +169,10 @@ function AlertDetailPage() {
   const alert = useQuery(alertDetailQueryOptions(alertId, preview));
   const instances = useQuery(alertInstancesQueryOptions(alertId, timeRange));
   const silences = useQuery(alertSilencesQueryOptions(alertId));
-  const events = useQuery(alertEventsQueryOptions(alertId, timeRange));
-  const [silenceTarget, setSilenceTarget] = useState<SilenceTarget | null>(
-    null,
-  );
-  const [newSilenceOpen, setNewSilenceOpen] = useState(false);
+  const settings = useQuery(alertSettingsQueryOptions());
+  const routes = useQuery(ccRoutesQueryOptions());
+  const [muteTarget, setMuteTarget] = useState<MuteTarget | null>(null);
+  const [newMuteOpen, setNewMuteOpen] = useState(false);
   const [testResult, setTestResult] = useState<CcTestResult | null>(null);
 
   const setActive = useMutation({
@@ -213,23 +212,29 @@ function AlertDetailPage() {
   const detail = alert.data;
   // A preview rule is a suppressed dress rehearsal owned by its preview:
   // read-only here (like dashboards/runbooks in preview), so the pause and
-  // silence affordances are hidden — CC never notifies on it anyway.
+  // mute affordances are hidden — CC never notifies on it anyway.
   const isPreviewRule = detail.previewId !== null;
+  // The CC emitter (slug_for) writes/reads history keyed by everr.name when
+  // present, and falls back to the rule id for bare rules (mirrors
+  // listAlertEvents' server-side fallback) — the timeline must scope on the
+  // same identity or a bare rule's events never match.
+  const scopeSlug = detail.slug || detail.id;
+
   const definitionRows: [string, ReactNode][] = [
     ["Repository", detail.repoid],
     ["Severity", <SeverityBadge key="sev" severity={detail.severity} />],
-    ["Evaluation interval", formatInterval(detail.evaluationIntervalSeconds)],
+    ["Checks every", formatInterval(detail.evaluationIntervalSeconds)],
     // Anti-flap knobs and the value column only appear when they deviate from
     // the defaults (fire immediately, resolve after one empty evaluation).
     ...(detail.forSeconds > 0
-      ? ([["For", formatInterval(detail.forSeconds)]] satisfies [
+      ? ([["Must persist for", formatInterval(detail.forSeconds)]] satisfies [
           string,
           ReactNode,
         ][])
       : []),
     ...(detail.resolveAfter > 1
       ? ([
-          ["Resolve after", `${detail.resolveAfter} empty evaluations`],
+          ["Resolves after", `${detail.resolveAfter} empty evaluations`],
         ] satisfies [string, ReactNode][])
       : []),
     ...(detail.valueColumn
@@ -238,9 +243,10 @@ function AlertDetailPage() {
     ["Notification title", detail.notificationTitleTemplate],
     ["Notification description", detail.notificationDescriptionTemplate || "-"],
     ...(detail.instanceLabelColumns.length > 0
-      ? ([
-          ["Instance labels", detail.instanceLabelColumns.join(", ")],
-        ] satisfies [string, ReactNode][])
+      ? ([["Label columns", detail.instanceLabelColumns.join(", ")]] satisfies [
+          string,
+          ReactNode,
+        ][])
       : []),
     ...(detail.runbookSlug
       ? ([
@@ -256,8 +262,16 @@ function AlertDetailPage() {
   const firingInstances = (instances.data ?? []).filter(
     (row) => row.state === "firing",
   );
-  const showFiringSuccess = instances.isSuccess && firingInstances.length === 0;
-  const silenceCount = silences.data?.length ?? 0;
+  const muteCount = silences.data?.length ?? 0;
+
+  const notifiesChannels = computeNotifiesChannels({
+    delivery: settings.data?.delivery,
+    routes: routes.data ?? [],
+    labelSets:
+      firingInstances.length > 0
+        ? firingInstances.map((row) => row.labels)
+        : [{ severity: detail.severity }],
+  });
 
   return (
     <div className="flex w-full flex-col gap-6">
@@ -265,7 +279,7 @@ function AlertDetailPage() {
         <div className="flex flex-col gap-1">
           <span className="flex items-center gap-2">
             <h1 className="font-mono text-xl font-bold tracking-tight">
-              {detail.display.name || detail.slug}
+              {detail.display.name || detail.slug || detail.id}
             </h1>
             {isPreviewRule && (
               <Badge
@@ -313,245 +327,184 @@ function AlertDetailPage() {
           ))}
       </div>
 
-      {showFiringSuccess ? (
-        <Card className="border-emerald-500/30 bg-emerald-500/5 py-3">
-          <CardContent className="flex items-center gap-3">
-            <CircleCheck className="size-5 shrink-0 text-emerald-500" />
-            <p className="text-sm">
-              <span className="font-medium text-foreground">
-                You're all good.
-              </span>{" "}
-              <span className="text-muted-foreground">
-                Nothing's firing right now.
-              </span>
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card inset="flush-content">
-          <CardHeader>
-            <CardTitle>Firing instances</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {instances.isError ? (
-              <QueryErrorMessage message="Unable to load alert instances." />
-            ) : instances.isPending ? (
-              <Skeleton className="m-3 h-36 w-full" />
-            ) : (
-              <DataTable
-                stickyHeader
-                data={firingInstances}
-                rowClassName={(row) =>
-                  row.silenced ? "opacity-50" : undefined
-                }
-                columns={
-                  [
-                    {
-                      header: "Labels",
-                      cell: (row) => (
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="size-1.5 shrink-0 rounded-full bg-destructive"
-                            aria-hidden
-                          />
-                          <KeyValueList values={row.labels} />
-                          {row.silenced && (
-                            <Badge variant="secondary">silenced</Badge>
-                          )}
-                        </div>
-                      ),
-                    },
-                    {
-                      header: "Matched values",
-                      // Column className replaces the DataTable defaults, so the
-                      // middle-column padding is restated alongside the
-                      // responsive hiding.
-                      className: "hidden pb-2 pr-4 md:table-cell",
-                      cellClassName: "hidden py-2 pr-4 md:table-cell",
-                      cell: (row) => <LastEvaluationResult instance={row} />,
-                    },
-                    {
-                      header: "Firing since",
-                      cell: (row) => <RelativeTime value={row.lastFiredAt} />,
-                    },
-                    // Preview rules never notify, so there is nothing to
-                    // silence — the action column disappears with the rest of
-                    // the mutation affordances.
-                    ...(isPreviewRule
-                      ? []
-                      : [
-                          {
-                            header: "",
-                            cell: (row: AlertInstanceSummary) => (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                aria-label="Silence"
-                                onClick={() => {
-                                  setSilenceTarget(row);
-                                  setNewSilenceOpen(false);
-                                }}
-                              >
-                                <BellOff data-icon="inline-start" />
-                                <span className="hidden md:inline">
-                                  Silence
-                                </span>
-                              </Button>
-                            ),
-                          },
-                        ]),
-                  ] satisfies Column<AlertInstanceSummary>[]
-                }
-                rowKey={(row) => row.fingerprint}
-              />
-            )}
-          </CardContent>
-        </Card>
-      )}
-      <Card>
+      {/* 1. Status: "Firing on ..." per label set, or "All clear". */}
+      <Card inset="flush-content">
+        <CardHeader>
+          <CardTitle>Status</CardTitle>
+        </CardHeader>
         <CardContent>
-          <div className="grid gap-4 xl:grid-cols-2">
-            <div className="flex flex-col gap-3">
-              <DefinitionTable rows={definitionRows} />
-              {detail.healthError && (
-                <pre className="max-h-32 overflow-auto rounded bg-muted/30 p-2 text-xs text-destructive">
-                  {detail.healthError}
-                </pre>
-              )}
+          {instances.isError ? (
+            <QueryErrorMessage message="Unable to load current status." />
+          ) : instances.isPending ? (
+            <Skeleton className="m-3 h-24 w-full" />
+          ) : firingInstances.length === 0 ? (
+            <div className="flex items-center gap-3 px-3 py-3">
+              <CircleCheck className="size-5 shrink-0 text-emerald-500" />
+              <p className="text-sm">
+                <span className="font-medium text-foreground">All clear.</span>{" "}
+                <span className="text-muted-foreground">
+                  Nothing's firing right now.
+                </span>
+              </p>
+            </div>
+          ) : (
+            <ul className="flex flex-col divide-y">
+              {firingInstances.map((row) => (
+                <li
+                  key={row.fingerprint}
+                  className="flex flex-wrap items-center justify-between gap-3 px-3 py-3"
+                >
+                  <div className="flex flex-col gap-1.5">
+                    <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                      Firing on
+                      {row.silenced && <Badge variant="secondary">muted</Badge>}
+                    </span>
+                    <LabelSet labels={row.labels} />
+                    <LastEvaluationResult instance={row} />
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                    <span>
+                      since <RelativeTime value={row.lastFiredAt} />
+                    </span>
+                    {!isPreviewRule && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setMuteTarget(row);
+                          setNewMuteOpen(false);
+                        }}
+                      >
+                        <BellOff data-icon="inline-start" />
+                        Mute
+                      </Button>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
 
-              <div className="flex flex-col gap-1">
-                <span className="text-muted-foreground text-xs">Query</span>
-                <pre className="max-h-72 overflow-auto rounded bg-muted/30 p-2 text-xs">
+      {/* 2. Timeline: stored+live merged event feed, scoped to this alert. */}
+      <div className="flex flex-col gap-2">
+        <CardTitle>Timeline</CardTitle>
+        <AlertEventFeed scopeSlug={scopeSlug} />
+      </div>
+
+      {/* 3. Definition: plain-language spec facts, SQL collapsed. */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Definition</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-3">
+            <DefinitionTable rows={definitionRows} />
+            {detail.healthError && (
+              <pre className="max-h-32 overflow-auto rounded bg-muted/30 p-2 text-xs text-destructive">
+                {detail.healthError}
+              </pre>
+            )}
+
+            <Collapsible defaultOpen={false}>
+              <CollapsibleTrigger className="group inline-flex w-fit items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+                <ChevronRight className="size-3 transition-transform group-data-[panel-open]:rotate-90" />
+                SQL
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <pre className="mt-1.5 max-h-72 overflow-auto rounded bg-muted/30 p-2 text-xs">
                   {detail.parsedQuery}
                 </pre>
-              </div>
+              </CollapsibleContent>
+            </Collapsible>
 
-              {!isPreviewRule && (
-                <RunTest
-                  isPending={runTest.isPending}
-                  error={runTest.error}
-                  onRun={() => runTest.mutate()}
-                  result={testResult}
-                />
-              )}
-            </div>
-
-            <div className="grid h-fit grid-cols-[auto_1fr] items-start gap-x-3 gap-y-2 text-xs">
-              <dt className="flex items-center gap-1 text-muted-foreground">
-                Silences
-                {!isPreviewRule && (
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="size-5 cursor-pointer"
-                    aria-label="Add silence"
-                    onClick={() => {
-                      setSilenceTarget(null);
-                      setNewSilenceOpen(true);
-                    }}
-                  >
-                    <Plus className="size-3" />
-                  </Button>
-                )}
-              </dt>
-              <dd className="min-w-0">
-                {silences.isError ? (
-                  <QueryErrorMessage message="Unable to load silences." />
-                ) : silences.isPending ? (
-                  <Skeleton className="h-5 w-full" />
-                ) : silenceCount > 0 ? (
-                  <div className="flex flex-col divide-y">
-                    {silences.data?.map((silence) => (
-                      <SilenceRow key={silence.id} silence={silence} />
-                    ))}
-                  </div>
-                ) : null}
-              </dd>
-            </div>
+            {!isPreviewRule && (
+              <RunTest
+                isPending={runTest.isPending}
+                error={runTest.error}
+                onRun={() => runTest.mutate()}
+                result={testResult}
+              />
+            )}
           </div>
         </CardContent>
       </Card>
 
-      <Card inset="flush-content">
+      {/* 4. Notifies: default channels + the first matching custom rule. */}
+      <Card>
         <CardHeader>
-          <CardTitle>History</CardTitle>
+          <CardTitle>Notifies</CardTitle>
         </CardHeader>
         <CardContent>
-          {events.isError ? (
-            <QueryErrorMessage message="Unable to load alert history." />
-          ) : events.isPending ? (
-            <Skeleton className="m-3 h-36 w-full" />
+          {settings.isError || routes.isError ? (
+            <QueryErrorMessage message="Unable to load notification settings." />
+          ) : settings.isPending || routes.isPending ? (
+            <Skeleton className="h-5 w-full" />
+          ) : notifiesChannels.length > 0 ? (
+            <p className="text-sm">Notifies {joinWithAnd(notifiesChannels)}.</p>
           ) : (
-            <DataTable
-              stickyHeader
-              data={events.data ?? []}
-              columns={[
-                { header: "Time", cell: (row) => formatDate(row.eventTime) },
-                {
-                  header: "State",
-                  cell: (row) => (
-                    <HistoryInstanceState instances={row.instances} />
-                  ),
-                },
-                {
-                  header: "Instance",
-                  cell: (row) => <HistoryInstances instances={row.instances} />,
-                },
-                {
-                  header: "Delivery",
-                  cell: (row) => formatDeliveryTargets(row),
-                },
-                // See the firing-instances table: no silencing on preview
-                // rules.
-                ...(isPreviewRule
-                  ? []
-                  : [
-                      {
-                        header: "",
-                        cell: (row: AlertEventRow) => {
-                          const instance =
-                            row.instances.find((i) => i.state === "firing") ??
-                            row.instances[0];
-                          return (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="cursor-pointer"
-                              aria-label="Silence"
-                              onClick={() => {
-                                setSilenceTarget({
-                                  fingerprint: row.eventId,
-                                  labels: instance?.labels ?? {},
-                                });
-                                setNewSilenceOpen(false);
-                              }}
-                            >
-                              <BellOff />
-                            </Button>
-                          );
-                        },
-                      },
-                    ]),
-              ]}
-              rowKey={(row) => row.eventId}
-              emptyState={
-                <div className="px-3 py-6 text-center text-muted-foreground">
-                  No alert events yet.
-                </div>
-              }
-            />
+            <p className="text-sm text-muted-foreground">
+              No channels configured.{" "}
+              <Link
+                to="/alerts/notifications"
+                className="underline underline-offset-4"
+              >
+                Configure notifications
+              </Link>
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 5. Mutes: active mutes + the one-click mute dialog. */}
+      <Card inset="flush-content">
+        <CardHeader>
+          <CardTitle>Mutes</CardTitle>
+          {!isPreviewRule && (
+            <CardAction>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="size-6 cursor-pointer"
+                aria-label="Add mute"
+                onClick={() => {
+                  setMuteTarget(null);
+                  setNewMuteOpen(true);
+                }}
+              >
+                <Plus className="size-3.5" />
+              </Button>
+            </CardAction>
+          )}
+        </CardHeader>
+        <CardContent>
+          {silences.isError ? (
+            <QueryErrorMessage message="Unable to load mutes." />
+          ) : silences.isPending ? (
+            <Skeleton className="h-10 w-full" />
+          ) : muteCount > 0 ? (
+            <div className="flex flex-col divide-y px-3">
+              {silences.data?.map((mute) => (
+                <MuteRow key={mute.id} mute={mute} />
+              ))}
+            </div>
+          ) : (
+            <p className="px-3 py-3 text-xs text-muted-foreground">
+              No mutes active.
+            </p>
           )}
         </CardContent>
       </Card>
 
       {!isPreviewRule && (
-        <SilenceDialog
+        <MuteDialog
           alertId={alertId}
-          instance={silenceTarget}
-          open={newSilenceOpen}
+          instance={muteTarget}
+          open={newMuteOpen}
           onClose={() => {
-            setSilenceTarget(null);
-            setNewSilenceOpen(false);
+            setMuteTarget(null);
+            setNewMuteOpen(false);
           }}
         />
       )}
@@ -641,12 +594,12 @@ function LastEvaluationResult({
   instance: AlertInstanceSummary;
 }) {
   if (instance.state !== "firing" || instance.lastEvaluationRows.length === 0) {
-    return "-";
+    return null;
   }
   const rows = instance.lastEvaluationRows
     .map((row) => nonLabelValues(row, instance.labels))
     .filter((row) => Object.keys(row).length > 0);
-  if (rows.length === 0) return "-";
+  if (rows.length === 0) return null;
   return (
     <div className="flex max-w-xl flex-col gap-1 font-mono text-xs">
       {rows.map((row, index) => (
@@ -705,7 +658,8 @@ function nonLabelValues(
   labels: Record<string, string>,
 ) {
   // With explicit instanceLabels, labels only contains those configured columns.
-  // Other string columns are evidence and must remain visible in Last result.
+  // Other string columns are evidence and must remain visible in the last
+  // evaluation's result.
   return Object.fromEntries(
     Object.entries(row)
       .filter(([key]) => !(key in labels))
@@ -719,111 +673,56 @@ function formatResultValue(value: unknown): string {
   return String(value);
 }
 
-function formatDeliveryTargets(row: {
-  deliveryTargets: AlertDeliveryTargets;
-  silenceId: string;
-}) {
-  if (row.silenceId) return "silenced";
-  const targets = ALERT_CHANNELS.filter(
-    (target) => (row.deliveryTargets[target]?.length ?? 0) > 0,
-  );
-  return targets.length > 0 ? targets.join(", ") : "-";
-}
+// ---------------------------------------------------------------------------
+// Notifies: enabled default channels + the first matching custom rule per
+// firing label set (or the alert's severity label when nothing is firing).
+// Managed catch-all routes (the org-default channels themselves) are excluded
+// so they aren't double-counted as "custom" matches.
+// ---------------------------------------------------------------------------
 
-function HistoryInstances({
-  instances,
+type NotifiesDelivery = {
+  email: { enabled: boolean };
+  telegram: { enabled: boolean };
+  slack: { enabled: boolean };
+};
+
+function computeNotifiesChannels({
+  delivery,
+  routes,
+  labelSets,
 }: {
-  instances: {
-    state: "firing" | "resolved";
-    labels: Record<string, string>;
-    evidence: Record<string, unknown> | null;
-    evidenceTruncated: boolean;
-  }[];
-}) {
-  if (instances.length === 0) return "-";
-  return (
-    <div className="flex max-w-xl flex-col gap-1.5 font-mono text-xs">
-      {instances.map((instance, index) => (
-        <div key={index} className="flex flex-col gap-1">
-          <KeyValueList values={instance.labels} />
-          <EvidenceChips
-            evidence={instance.evidence}
-            truncated={instance.evidenceTruncated}
-          />
-        </div>
-      ))}
-    </div>
-  );
-}
+  delivery: NotifiesDelivery | undefined;
+  routes: CcRoute[];
+  labelSets: Record<string, string>[];
+}): string[] {
+  const defaults: string[] = [];
+  if (delivery?.email.enabled) defaults.push("email");
+  if (delivery?.telegram.enabled) defaults.push("telegram");
+  if (delivery?.slack.enabled) defaults.push("slack");
 
-// CC evidence (source-row columns beyond the identity labels) rendered as compact
-// key=value pills below an event's instance labels, mirroring the silence matcher
-// chips so the History table stays visually consistent.
-function EvidenceChips({
-  evidence,
-  truncated,
-}: {
-  evidence: Record<string, unknown> | null;
-  truncated: boolean;
-}) {
-  const entries = evidence
-    ? sortedLabelEntries(
-        Object.fromEntries(
-          Object.entries(evidence).map(([key, value]) => [
-            key,
-            formatEvidenceValue(value),
-          ]),
-        ),
-      )
-    : [];
-  if (entries.length === 0 && !truncated) return null;
-  return (
-    <div className="flex flex-wrap items-center gap-1">
-      {entries.map(([key, value]) => (
-        <Badge key={key} variant="secondary" className="font-mono font-normal">
-          {key}={value}
-        </Badge>
-      ))}
-      {truncated && (
-        <span className="text-muted-foreground">evidence truncated</span>
-      )}
-    </div>
-  );
-}
-
-function formatEvidenceValue(value: unknown): string {
-  if (value === null || value === undefined) return "";
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value.toLocaleString("en-US", { maximumFractionDigits: 4 });
+  const customRoutes = routes.filter((r) => !isManagedCatchAllRoute(r));
+  const custom: string[] = [];
+  for (const labels of labelSets) {
+    const match = ccFirstRoute(customRoutes, labels);
+    if (match && !custom.includes(match.receiver)) custom.push(match.receiver);
   }
-  if (typeof value === "object") return JSON.stringify(value);
-  return String(value);
+  return [...defaults, ...custom];
 }
 
-function HistoryInstanceState({
-  instances,
-}: {
-  instances: { state: "firing" | "resolved" }[];
-}) {
-  const states = Array.from(
-    new Set(instances.map((instance) => instance.state)),
-  );
-  if (states.length === 0) return "-";
-  return (
-    <div className="flex flex-wrap gap-1">
-      {states.map((state) => (
-        <Badge key={state} variant={stateVariant(state)}>
-          {state}
-        </Badge>
-      ))}
-    </div>
-  );
+function joinWithAnd(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 }
 
-function SilenceRow({ silence }: { silence: AlertSilenceSummary }) {
+// ---------------------------------------------------------------------------
+// Mutes
+// ---------------------------------------------------------------------------
+
+function MuteRow({ mute }: { mute: AlertSilenceSummary }) {
   const queryClient = useQueryClient();
   const cancel = useMutation({
-    mutationFn: () => cancelSilence({ data: { silenceId: silence.id } }),
+    mutationFn: () => cancelSilence({ data: { silenceId: mute.id } }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["alerts"] });
     },
@@ -832,10 +731,10 @@ function SilenceRow({ silence }: { silence: AlertSilenceSummary }) {
     <div className="flex flex-col gap-1 py-2 first:pt-0">
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 flex-wrap items-center gap-1">
-          {silence.matchers.length === 0 ? (
-            <Badge variant="secondary">all instances</Badge>
+          {mute.matchers.length === 0 ? (
+            <Badge variant="secondary">all alerts</Badge>
           ) : (
-            silence.matchers.map((m, i) => (
+            mute.matchers.map((m, i) => (
               <Badge
                 key={i}
                 variant="secondary"
@@ -852,7 +751,7 @@ function SilenceRow({ silence }: { silence: AlertSilenceSummary }) {
           variant="ghost"
           size="icon"
           className="shrink-0 cursor-pointer text-muted-foreground hover:text-destructive"
-          aria-label="Cancel silence"
+          aria-label="Cancel mute"
           disabled={cancel.isPending}
           onClick={() => cancel.mutate()}
         >
@@ -860,8 +759,8 @@ function SilenceRow({ silence }: { silence: AlertSilenceSummary }) {
         </Button>
       </div>
       <span className="text-muted-foreground text-xs">
-        Until {formatDate(silence.endsAt)}
-        {silence.reason ? ` · ${silence.reason}` : ""}
+        Until {formatDate(mute.endsAt)}
+        {mute.reason ? ` · ${mute.reason}` : ""}
       </span>
       {cancel.error && (
         <span className="text-destructive text-xs" role="alert">
@@ -874,36 +773,35 @@ function SilenceRow({ silence }: { silence: AlertSilenceSummary }) {
 
 const MATCHER_OPS = ["=", "!=", "=~", "!~"] as const;
 
-const SILENCE_DURATIONS = [
-  { value: "1", label: "1 hour" },
-  { value: "2", label: "2 hours" },
-  { value: "4", label: "4 hours" },
-  { value: "8", label: "8 hours" },
-  { value: "24", label: "1 day" },
-  { value: "72", label: "3 days" },
-  { value: "168", label: "7 days" },
+const MUTE_PRESETS = [
+  { hours: "1", label: "1h" },
+  { hours: "8", label: "8h" },
+  { hours: "24", label: "24h" },
 ] as const;
 
-// `hours` only ever holds a SILENCE_DURATIONS value.
-function silenceEnd(hours: string): Date {
-  return new Date(Date.now() + Number(hours) * 3_600_000);
+// `hours` only ever holds a MUTE_PRESETS value or a custom hour count.
+function muteEnd(hours: string): Date {
+  const n = Number(hours);
+  return new Date(Date.now() + (Number.isFinite(n) ? n : 0) * 3_600_000);
 }
 
-function SilenceDialog({
+function MuteDialog({
   alertId,
   instance,
   open,
   onClose,
 }: {
   alertId: string;
-  instance: SilenceTarget | null;
+  instance: MuteTarget | null;
   open?: boolean;
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
   const [matchers, setMatchers] = useState<Matcher[]>([]);
-  const [hours, setHours] = useState("2");
+  const [duration, setDuration] = useState<string>("1");
+  const [customHours, setCustomHours] = useState("2");
   const [reason, setReason] = useState("");
+  const [labelsOpen, setLabelsOpen] = useState(false);
   const [initializedFor, setInitializedFor] = useState<string | null>(null);
 
   if (instance && initializedFor !== instance.fingerprint) {
@@ -914,22 +812,34 @@ function SilenceDialog({
         value,
       })),
     );
-    setHours("2");
+    setDuration("1");
     setReason("");
+    setLabelsOpen(true);
     setInitializedFor(instance.fingerprint);
   }
+
+  const effectiveHours = duration === "custom" ? customHours : duration;
 
   const patchMatcher = (index: number, patch: Partial<Matcher>) =>
     setMatchers((prev) =>
       prev.map((m, i) => (i === index ? { ...m, ...patch } : m)),
     );
 
+  function reset() {
+    setMatchers([]);
+    setDuration("1");
+    setCustomHours("2");
+    setReason("");
+    setLabelsOpen(false);
+    setInitializedFor(null);
+  }
+
   const create = useMutation({
     mutationFn: () =>
       createSilence({
         data: {
           alertId,
-          endsAt: silenceEnd(hours).toISOString(),
+          endsAt: muteEnd(effectiveHours).toISOString(),
           reason,
           matchers,
         },
@@ -937,7 +847,7 @@ function SilenceDialog({
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["alerts"] });
       onClose();
-      setInitializedFor(null);
+      reset();
     },
   });
 
@@ -947,127 +857,164 @@ function SilenceDialog({
       onOpenChange={(dialogOpen) => {
         if (!dialogOpen) {
           onClose();
-          setInitializedFor(null);
+          reset();
         }
       }}
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Silence instances</DialogTitle>
+          <DialogTitle>Mute alert</DialogTitle>
           <DialogDescription>
-            Notifications are paused for instances matching all matchers.
-            Evaluation continues.
+            Notifications pause while conditions match. Evaluation continues.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-2">
-            <Label>Matchers</Label>
-            {matchers.length === 0 && (
-              <p className="text-xs text-muted-foreground">
-                No matchers: silences every instance of this rule.
-              </p>
-            )}
-            {matchers.map((matcher, index) => (
-              <div
-                key={index}
-                className="grid grid-cols-[1fr_72px_1fr_28px] items-center gap-1.5"
-              >
-                <Input
-                  aria-label="Label"
-                  placeholder="label"
-                  className="font-mono"
-                  value={matcher.label}
-                  onChange={(event) =>
-                    patchMatcher(index, { label: event.target.value })
-                  }
-                />
-                <Select
-                  value={matcher.op}
-                  onValueChange={(op) =>
-                    patchMatcher(index, { op: op as Matcher["op"] })
-                  }
-                >
-                  <SelectTrigger aria-label="Operator" className="font-mono">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MATCHER_OPS.map((op) => (
-                      <SelectItem key={op} value={op} className="font-mono">
-                        {op}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Input
-                  aria-label="Value"
-                  placeholder="value"
-                  className="font-mono"
-                  value={matcher.value}
-                  onChange={(event) =>
-                    patchMatcher(index, { value: event.target.value })
-                  }
-                />
+          <fieldset className="flex flex-col gap-2 border-0 p-0 m-0">
+            <legend className="p-0 text-xs/relaxed font-medium">
+              Duration
+            </legend>
+            <div className="flex flex-wrap gap-1.5">
+              {MUTE_PRESETS.map((preset) => (
                 <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Remove matcher"
-                  className="text-muted-foreground hover:text-destructive"
+                  key={preset.hours}
+                  type="button"
+                  variant={duration === preset.hours ? "default" : "outline"}
+                  size="sm"
+                  aria-pressed={duration === preset.hours}
+                  onClick={() => setDuration(preset.hours)}
+                >
+                  {preset.label}
+                </Button>
+              ))}
+              <Button
+                type="button"
+                variant={duration === "custom" ? "default" : "outline"}
+                size="sm"
+                aria-pressed={duration === "custom"}
+                onClick={() => setDuration("custom")}
+              >
+                Custom
+              </Button>
+            </div>
+            {duration === "custom" && (
+              <div className="flex items-center gap-2">
+                <Input
+                  aria-label="Custom duration in hours"
+                  type="number"
+                  min={1}
+                  className="w-20 tabular-nums"
+                  value={customHours}
+                  onChange={(event) => setCustomHours(event.target.value)}
+                />
+                <span className="text-xs text-muted-foreground">hours</span>
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Muted until {formatDate(muteEnd(effectiveHours))}
+            </p>
+          </fieldset>
+
+          <Collapsible
+            open={labelsOpen}
+            onOpenChange={(next) => setLabelsOpen(next)}
+          >
+            <CollapsibleTrigger className="group inline-flex w-fit items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+              <ChevronRight className="size-3 transition-transform group-data-[panel-open]:rotate-90" />
+              Match specific labels
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="flex flex-col gap-2 pt-2">
+                {matchers.length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    No conditions: mutes every alert from this rule.
+                  </p>
+                )}
+                {matchers.map((matcher, index) => (
+                  <div
+                    key={index}
+                    className="grid grid-cols-[1fr_72px_1fr_28px] items-center gap-1.5"
+                  >
+                    <Input
+                      aria-label="Label"
+                      placeholder="label"
+                      className="font-mono"
+                      value={matcher.label}
+                      onChange={(event) =>
+                        patchMatcher(index, { label: event.target.value })
+                      }
+                    />
+                    <Select
+                      value={matcher.op}
+                      onValueChange={(op) =>
+                        patchMatcher(index, { op: op as Matcher["op"] })
+                      }
+                    >
+                      <SelectTrigger
+                        aria-label="Operator"
+                        className="font-mono"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {MATCHER_OPS.map((op) => (
+                          <SelectItem key={op} value={op} className="font-mono">
+                            {op}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      aria-label="Value"
+                      placeholder="value"
+                      className="font-mono"
+                      value={matcher.value}
+                      onChange={(event) =>
+                        patchMatcher(index, { value: event.target.value })
+                      }
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Remove condition"
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={() =>
+                        setMatchers((prev) =>
+                          prev.filter((_, i) => i !== index),
+                        )
+                      }
+                    >
+                      <X />
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="self-start"
                   onClick={() =>
-                    setMatchers((prev) => prev.filter((_, i) => i !== index))
+                    setMatchers((prev) => [
+                      ...prev,
+                      { label: "", op: "=", value: "" },
+                    ])
                   }
                 >
-                  <X />
+                  <Plus data-icon="inline-start" />
+                  Add condition
                 </Button>
               </div>
-            ))}
-            <Button
-              variant="outline"
-              size="sm"
-              className="self-start"
-              onClick={() =>
-                setMatchers((prev) => [
-                  ...prev,
-                  { label: "", op: "=", value: "" },
-                ])
-              }
-            >
-              <Plus data-icon="inline-start" />
-              Add matcher
-            </Button>
-          </div>
+            </CollapsibleContent>
+          </Collapsible>
+
           <div className="flex flex-col gap-2">
-            <Label htmlFor="silence-duration">Duration</Label>
-            <Select
-              value={hours}
-              onValueChange={(value) => value && setHours(value)}
-            >
-              <SelectTrigger id="silence-duration" className="w-full">
-                <SelectValue>
-                  {SILENCE_DURATIONS.find((d) => d.value === hours)?.label}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {SILENCE_DURATIONS.map(({ value, label }) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Silenced until {formatDate(silenceEnd(hours))}
-            </p>
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="silence-reason">
+            <Label htmlFor="mute-reason">
               Reason{" "}
               <span className="font-normal text-muted-foreground">
                 (optional)
               </span>
             </Label>
             <Textarea
-              id="silence-reason"
-              placeholder="Why are these instances silenced?"
+              id="mute-reason"
+              placeholder="Why mute these alerts?"
               value={reason}
               onChange={(event) => setReason(event.target.value)}
             />
@@ -1079,15 +1026,25 @@ function SilenceDialog({
           )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+          <Button
+            variant="outline"
+            onClick={() => {
+              onClose();
+              reset();
+            }}
+          >
             Cancel
           </Button>
           <Button
-            disabled={create.isPending || matchers.some((m) => !m.label)}
+            disabled={
+              create.isPending ||
+              matchers.some((m) => !m.label) ||
+              (duration === "custom" && !customHours.trim())
+            }
             onClick={() => create.mutate()}
           >
             <BellOff data-icon="inline-start" />
-            Create silence
+            Create mute
           </Button>
         </DialogFooter>
       </DialogContent>
