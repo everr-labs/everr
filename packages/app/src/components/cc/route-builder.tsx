@@ -1,8 +1,7 @@
 // packages/app/src/components/cc/route-builder.tsx
 //
-// Shared between the power-user CC routing page (cc-alerting/routing.tsx) and
-// the unified /alerts/notifications page's "Custom notification rules"
-// section, until the cc-alerting pages are retired.
+// Backs the unified /alerts/notifications page's "Custom notification rules"
+// section.
 import { Button } from "@everr/ui/components/button";
 import {
   Dialog,

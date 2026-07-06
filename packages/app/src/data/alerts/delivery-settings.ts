@@ -15,9 +15,8 @@ export const DEFAULT_SLACK_RECEIVER = "everr-default-slack";
 
 // Single definition of the notification channels. Adding a channel means
 // extending this array, the schema below, and the managed CC receiver mapping.
-export const ALERT_CHANNELS = ["email", "telegram"] as const;
+const ALERT_CHANNELS = ["email", "telegram"] as const;
 export type AlertChannel = (typeof ALERT_CHANNELS)[number];
-export type AlertDeliveryTargets = Partial<Record<AlertChannel, string[]>>;
 
 // The "enabled channels need at least one recipient" rule, stated once and
 // consumed by both the server schema below and the settings form's inline

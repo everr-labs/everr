@@ -146,29 +146,6 @@ function CcStatusLabel({
   );
 }
 
-export function CcInstanceStatusBadge({ status }: { status: string }) {
-  const tone: Tone =
-    status === "firing"
-      ? "firing"
-      : status === "pending"
-        ? "pending"
-        : "inactive";
-  return (
-    <CcStatusLabel tone={tone} pulse={tone === "firing"}>
-      {status}
-    </CcStatusLabel>
-  );
-}
-
-export function CcHealthBadge({ status }: { status: string }) {
-  const degraded = status === "degraded";
-  return (
-    <CcStatusLabel tone={degraded ? "degraded" : "healthy"} pulse={degraded}>
-      {status}
-    </CcStatusLabel>
-  );
-}
-
 export function CcSeverityBadge({ severity }: { severity: string }) {
   const tone: Tone =
     severity === "critical"

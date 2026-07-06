@@ -5,7 +5,6 @@ import {
   type LucideIcon,
   NotebookText,
   Telescope,
-  Zap,
 } from "lucide-react";
 
 export type NavItem = {
@@ -34,17 +33,6 @@ export const navMain: NavItem[] = [
     title: "Alerts",
     url: "/alerts",
     icon: Bell,
-  },
-  {
-    title: "Clickety-Clack",
-    url: "/cc-alerting/overview",
-    icon: Zap,
-    items: [
-      { title: "Overview", url: "/cc-alerting/overview" },
-      { title: "Monitor", url: "/cc-alerting/monitor" },
-      { title: "Rules", url: "/cc-alerting/rules" },
-      { title: "Routing", url: "/cc-alerting/routing" },
-    ],
   },
   {
     title: "Explore",

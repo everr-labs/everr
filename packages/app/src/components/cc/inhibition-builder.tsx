@@ -1,8 +1,7 @@
 // packages/app/src/components/cc/inhibition-builder.tsx
 //
-// Shared between the power-user CC routing page (cc-alerting/routing.tsx) and
-// the unified /alerts/notifications page's "Advanced" dependency-mutes
-// section, until the cc-alerting pages are retired.
+// Backs the unified /alerts/notifications page's "Advanced" dependency-mutes
+// section.
 import { Button } from "@everr/ui/components/button";
 import {
   Dialog,

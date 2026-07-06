@@ -54,7 +54,7 @@ const SEVERITY_LABELS: Record<string, string> = {
 
 const HISTORY_LIMIT = 200;
 
-export const ccEventHistoryQueryOptions = (timeRange: TimeRange) =>
+const ccEventHistoryQueryOptions = (timeRange: TimeRange) =>
   queryOptions({
     queryKey: ["cc", "event-history", timeRange],
     queryFn: () =>

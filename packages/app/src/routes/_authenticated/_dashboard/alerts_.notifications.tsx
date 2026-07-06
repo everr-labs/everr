@@ -3,8 +3,8 @@
 // The single layered home for alert delivery configuration: where alerts go
 // by default, the custom rules that redirect specific alerts elsewhere, and
 // (collapsed) the advanced dependency-mute / webhook-feed / channel controls.
-// Replaces the alerts list's notification-settings dialog; supersedes
-// cc-alerting/routing once that page is retired.
+// Replaces the alerts list's notification-settings dialog and the retired
+// power-user CC routing page.
 import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
 import {
@@ -597,7 +597,7 @@ function CustomRulesCard() {
     .sort((a, b) => a.priority - b.priority);
 
   return (
-    <Card inset="flush-content">
+    <Card id="routes" inset="flush-content" className="scroll-mt-4">
       <CardHeader className="px-3">
         <CardTitle>Custom notification rules</CardTitle>
         <CardDescription>
@@ -791,7 +791,10 @@ function WebhookFeedSection() {
   });
 
   return (
-    <div className="space-y-3 rounded-md border border-border/60 p-3">
+    <div
+      id="firehose"
+      className="scroll-mt-4 space-y-3 rounded-md border border-border/60 p-3"
+    >
       <div>
         <h3 className="text-sm font-medium">Webhook feed</h3>
         <p className="text-xs text-muted-foreground">
@@ -895,7 +898,10 @@ function channelTarget(c: CcReceiver["channel"]): string {
 function ChannelsSection() {
   const { data, isPending, isError, error } = useQuery(q.receivers());
   return (
-    <div className="space-y-2 rounded-md border border-border/60 p-3">
+    <div
+      id="receivers"
+      className="scroll-mt-4 space-y-2 rounded-md border border-border/60 p-3"
+    >
       <div>
         <h3 className="text-sm font-medium">Channels</h3>
         <p className="text-xs text-muted-foreground">

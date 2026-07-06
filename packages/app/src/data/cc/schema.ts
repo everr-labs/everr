@@ -82,8 +82,8 @@ export const CcRuleRollupSchema = z.object({
 export const CcRuleViewSchema = CcRuleSchema.extend({
   health: CcRuleHealthSchema,
   // Optional for rollout safety: a CC not yet on SP2 2a omits `rollup`, and
-  // requiring it would break the whole rule-list parse (and /cc-alerting + the
-  // as-code reconciler). Consumers read it defensively.
+  // requiring it would break the whole rule-list parse (and the alerts
+  // surface + the as-code reconciler). Consumers read it defensively.
   rollup: CcRuleRollupSchema.optional(),
 });
 

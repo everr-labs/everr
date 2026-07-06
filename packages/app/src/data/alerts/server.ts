@@ -1,4 +1,4 @@
-import { resolveTimeRange, TimeRangeSchema } from "@everr/ui/lib/time-range";
+import { TimeRangeSchema } from "@everr/ui/lib/time-range";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { z } from "zod";
 import * as cc from "@/data/cc/client";
@@ -13,8 +13,6 @@ import { getPreviewRegistry } from "@/data/previews/repoids";
 import { auth } from "@/lib/auth.server";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import {
-  ALERT_CHANNELS,
-  type AlertDeliveryTargets,
   DEFAULT_EMAIL_RECEIVER,
   DEFAULT_SLACK_RECEIVER,
   DEFAULT_TELEGRAM_RECEIVER,
@@ -22,12 +20,10 @@ import {
   normalizeDeliverySettings,
   receiversToDeliverySettings,
 } from "./delivery-settings";
-import { type AlertEvidence, queryAlertHistory } from "./history.server";
 import {
   ANN_CC_LINK_ALERT,
   fromCcRuleSpec,
   isOwnedRule,
-  OWN_NAME,
   OWN_PREVIEW,
   OWN_REPO,
   previewIdOf,
@@ -384,112 +380,6 @@ export const listAlertInstances = createAuthenticatedServerFn({ method: "GET" })
         silenced: Boolean(findSilenceForInstance(scoped, a.labels)),
       })) satisfies AlertInstanceSummary[];
   });
-
-type AlertEvent = {
-  eventId: string;
-  slug: string;
-  eventType: string;
-  eventTime: string;
-  rowCount: number;
-  deliveryTargets: AlertDeliveryTargets;
-  silenceId: string;
-  instances: {
-    state: "firing" | "resolved";
-    labels: Record<string, string>;
-    // Source-row columns beyond the identity labels (from CC's alert.evidence_json).
-    evidence: AlertEvidence | null;
-    evidenceTruncated: boolean;
-  }[];
-};
-
-function parseJsonObject(json: string): Record<string, unknown> {
-  try {
-    const parsed: unknown = JSON.parse(json);
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return parsed as Record<string, unknown>;
-    }
-  } catch {
-    // ignore malformed snapshots
-  }
-  return {};
-}
-
-function parseDeliveryTargets(json: string): AlertDeliveryTargets {
-  const parsed = parseJsonObject(json);
-  const targets: AlertDeliveryTargets = {};
-  for (const channel of ALERT_CHANNELS) {
-    const value = parsed[channel];
-    if (Array.isArray(value)) {
-      targets[channel] = value.map((item) => String(item));
-    }
-  }
-  return targets;
-}
-
-function stringifyValues(obj: Record<string, unknown>): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(obj).map(([k, v]) => [
-      k,
-      v === null || v === undefined
-        ? ""
-        : typeof v === "object"
-          ? JSON.stringify(v)
-          : String(v),
-    ]),
-  );
-}
-
-export const listAlertEvents = createAuthenticatedServerFn({ method: "GET" })
-  .inputValidator(
-    alertIdInput.extend({
-      limit: z.number().int().min(1).max(100).default(50),
-      timeRange: TimeRangeSchema,
-    }),
-  )
-  .handler(
-    async ({
-      data: { alertId, limit, timeRange },
-      context: { session, clickhouse },
-    }) => {
-      const org = session.session.activeOrganizationId;
-      // Any tenant rule id works, everr-owned or bare: a nonexistent id
-      // surfaces as the CC 404 raised by getRule.
-      const rule = await cc.getRule(org, alertId);
-      // The CC emitter (slug_for) writes history keyed by everr.name when
-      // present, and falls back to the rule id for bare rules. Mirror that
-      // fallback here instead of the empty mapping slug, or bare-rule
-      // history never matches.
-      const slug = rule.spec.annotations?.[OWN_NAME] ?? alertId;
-      const { fromISO, toISO } = resolveTimeRange(timeRange);
-      const rows = await queryAlertHistory(clickhouse.query, slug, {
-        limit,
-        fromISO,
-        toISO,
-      });
-      return rows.map((row, i) => {
-        const labels = parseJsonObject(row.instanceLabelsJson);
-        const state =
-          row.eventType === "instance_resolved" ? "resolved" : "firing";
-        return {
-          eventId: `${row.timestamp}:${row.instanceFingerprint || i}`,
-          slug,
-          eventType: row.eventType,
-          eventTime: row.timestamp,
-          rowCount: Number(row.rowCount) || 0,
-          deliveryTargets: parseDeliveryTargets(row.deliveryTargetsJson),
-          silenceId: row.silenced === "true" ? "silenced" : "",
-          instances: [
-            {
-              state,
-              labels: stringifyValues(labels),
-              evidence: row.evidence,
-              evidenceTruncated: row.evidenceTruncated,
-            },
-          ],
-        } satisfies AlertEvent;
-      });
-    },
-  );
 
 export type AlertSilenceSummary = {
   id: string;

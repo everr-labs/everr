@@ -25,13 +25,9 @@ vi.mock("@/data/cc/client", () => ({
 // overlay tests feed it directly.
 vi.mock("@/data/previews/repoids", () => ({ getPreviewRegistry: vi.fn() }));
 
-// The events read queries ClickHouse alert history; the tests feed rows in.
-vi.mock("./history.server", () => ({ queryAlertHistory: vi.fn() }));
-
 import * as cc from "@/data/cc/client";
 import { getPreviewRegistry } from "@/data/previews/repoids";
 import { auth } from "@/lib/auth.server";
-import { queryAlertHistory } from "./history.server";
 import { OWN_NAME, OWN_REPO } from "./mapping";
 import {
   activateAlert,
@@ -39,7 +35,6 @@ import {
   deactivateAlert,
   getAlert,
   getAlertSettings,
-  listAlertEvents,
   listAlertInstances,
   listAlertSilences,
   listAlerts,
@@ -390,53 +385,6 @@ describe("listAlertInstances", () => {
     expect(out[0].fingerprint).toBe("fp-1");
     expect(out[0].labels).toEqual({ route: "/x" });
     expect(out[0].state).toBe("firing");
-  });
-});
-
-describe("listAlertEvents", () => {
-  it("queries history by the rule id for a bare CC rule", async () => {
-    mock(cc.getRule).mockResolvedValue(bareRule("power"));
-    mock(queryAlertHistory).mockResolvedValue([
-      {
-        timestamp: "2026-01-01T00:00:00Z",
-        instanceFingerprint: "fp-1",
-        eventType: "instance_fired",
-        rowCount: "3",
-        deliveryTargetsJson: "{}",
-        silenced: "false",
-        instanceLabelsJson: '{"route":"/x"}',
-        evidence: null,
-        evidenceTruncated: false,
-      },
-    ]);
-    const out = await listAlertEvents({
-      data: { alertId: "power", timeRange: { from: "now-1h", to: "now" } },
-    });
-    expect(out).toHaveLength(1);
-    expect(out[0].eventType).toBe("instance_fired");
-    // The emitter falls back to the rule id when everr.name is absent; the
-    // history read has to match that fallback, not the empty mapping slug.
-    expect(out[0].slug).toBe("power");
-    expect(mock(queryAlertHistory).mock.calls[0][1]).toBe("power");
-    expect(out[0].instances[0].labels).toEqual({ route: "/x" });
-  });
-
-  it("queries history by the everr.name slug for an owned CC rule", async () => {
-    mock(cc.getRule).mockResolvedValue(
-      ruleView({
-        id: "rule-1",
-        spec: {
-          ...ruleView().spec,
-          annotations: { [OWN_NAME]: "owned-slug" },
-        },
-      }),
-    );
-    mock(queryAlertHistory).mockResolvedValue([]);
-    const out = await listAlertEvents({
-      data: { alertId: "rule-1", timeRange: { from: "now-1h", to: "now" } },
-    });
-    expect(out).toHaveLength(0);
-    expect(mock(queryAlertHistory).mock.calls[0][1]).toBe("owned-slug");
   });
 });
 

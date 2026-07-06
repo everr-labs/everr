@@ -35,14 +35,12 @@ import { Route as ApiCliImportRouteImport } from './routes/api/cli/import'
 import { Route as ApiCcEventsStreamRouteImport } from './routes/api/cc/events-stream'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as AuthenticatedDashboardRunsRouteImport } from './routes/_authenticated/_dashboard/runs'
-import { Route as AuthenticatedDashboardCcAlertingRouteImport } from './routes/_authenticated/_dashboard/cc-alerting'
 import { Route as AuthenticatedDashboardPreviewableRouteImport } from './routes/_authenticated/_dashboard/_previewable'
 import { Route as AuthenticatedDashboardPaddedRouteImport } from './routes/_authenticated/_dashboard/_padded'
 import { Route as AuthenticatedDashboardExploreRouteImport } from './routes/_authenticated/_dashboard/_explore'
 import { Route as AuthInviteInvitationIdRouteImport } from './routes/_auth/invite.$invitationId'
 import { Route as AuthAuthErrorRouteImport } from './routes/_auth/auth/error'
 import { Route as AuthenticatedDashboardRunsIndexRouteImport } from './routes/_authenticated/_dashboard/runs/index'
-import { Route as AuthenticatedDashboardCcAlertingIndexRouteImport } from './routes/_authenticated/_dashboard/cc-alerting/index'
 import { Route as AuthenticatedDashboardPaddedIndexRouteImport } from './routes/_authenticated/_dashboard/_padded/index'
 import { Route as ApiGithubInstallStartRouteImport } from './routes/api/github/install/start'
 import { Route as ApiGithubInstallCallbackRouteImport } from './routes/api/github/install/callback'
@@ -51,17 +49,6 @@ import { Route as ApiCliRunsHistogramRouteImport } from './routes/api/cli/runs/h
 import { Route as ApiCliRunsFilterOptionsRouteImport } from './routes/api/cli/runs/filter-options'
 import { Route as ApiCliRunsTraceIdRouteImport } from './routes/api/cli/runs/$traceId'
 import { Route as ApiCliOrgNameRouteImport } from './routes/api/cli/org/name'
-import { Route as AuthenticatedDashboardCcAlertingSilencesRouteImport } from './routes/_authenticated/_dashboard/cc-alerting/silences'
-import { Route as AuthenticatedDashboardCcAlertingSettingsRouteImport } from './routes/_authenticated/_dashboard/cc-alerting/settings'
-import { Route as AuthenticatedDashboardCcAlertingRulesRouteImport } from './routes/_authenticated/_dashboard/cc-alerting/rules'
-import { Route as AuthenticatedDashboardCcAlertingRoutingRouteImport } from './routes/_authenticated/_dashboard/cc-alerting/routing'
-import { Route as AuthenticatedDashboardCcAlertingRoutesRouteImport } from './routes/_authenticated/_dashboard/cc-alerting/routes'
-import { Route as AuthenticatedDashboardCcAlertingReceiversRouteImport } from './routes/_authenticated/_dashboard/cc-alerting/receivers'
-import { Route as AuthenticatedDashboardCcAlertingOverviewRouteImport } from './routes/_authenticated/_dashboard/cc-alerting/overview'
-import { Route as AuthenticatedDashboardCcAlertingMonitorRouteImport } from './routes/_authenticated/_dashboard/cc-alerting/monitor'
-import { Route as AuthenticatedDashboardCcAlertingInhibitionsRouteImport } from './routes/_authenticated/_dashboard/cc-alerting/inhibitions'
-import { Route as AuthenticatedDashboardCcAlertingEventsRouteImport } from './routes/_authenticated/_dashboard/cc-alerting/events'
-import { Route as AuthenticatedDashboardCcAlertingAlertsRouteImport } from './routes/_authenticated/_dashboard/cc-alerting/alerts'
 import { Route as AuthenticatedDashboardAlertsNotificationsRouteImport } from './routes/_authenticated/_dashboard/alerts_.notifications'
 import { Route as AuthenticatedDashboardPreviewableAlertsRouteImport } from './routes/_authenticated/_dashboard/_previewable/alerts'
 import { Route as AuthenticatedDashboardPaddedUsersManagementRouteImport } from './routes/_authenticated/_dashboard/_padded/users-management'
@@ -81,15 +68,10 @@ import { Route as AuthGuestAuthForgotPasswordRouteImport } from './routes/_auth/
 import { Route as DotwellKnownOauthAuthorizationServerApiAuthRouteImport } from './routes/[.]well-known/oauth-authorization-server/api/auth'
 import { Route as AuthenticatedDashboardRunsTraceIdRouteRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/route'
 import { Route as AuthenticatedDashboardRunsTraceIdIndexRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/index'
-import { Route as AuthenticatedDashboardCcAlertingMonitorIndexRouteImport } from './routes/_authenticated/_dashboard/cc-alerting/monitor/index'
 import { Route as AuthenticatedDashboardPreviewableRunbooksIndexRouteImport } from './routes/_authenticated/_dashboard/_previewable/runbooks/index'
 import { Route as AuthenticatedDashboardPreviewableDashboardsIndexRouteImport } from './routes/_authenticated/_dashboard/_previewable/dashboards/index'
 import { Route as ApiCliRunsTraceIdLogsRouteImport } from './routes/api/cli/runs/$traceId/logs'
 import { Route as AuthenticatedDashboardRunsTraceIdTraceRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/trace'
-import { Route as AuthenticatedDashboardCcAlertingRulesRuleIdRouteImport } from './routes/_authenticated/_dashboard/cc-alerting/rules_.$ruleId'
-import { Route as AuthenticatedDashboardCcAlertingMonitorStreamRouteImport } from './routes/_authenticated/_dashboard/cc-alerting/monitor/stream'
-import { Route as AuthenticatedDashboardCcAlertingMonitorSilencesRouteImport } from './routes/_authenticated/_dashboard/cc-alerting/monitor/silences'
-import { Route as AuthenticatedDashboardCcAlertingMonitorActiveRouteImport } from './routes/_authenticated/_dashboard/cc-alerting/monitor/active'
 import { Route as AuthenticatedDashboardPreviewableAlertsAlertIdRouteImport } from './routes/_authenticated/_dashboard/_previewable/alerts_.$alertId'
 import { Route as AuthenticatedDashboardPaddedCheckoutSuccessRouteImport } from './routes/_authenticated/_dashboard/_padded/checkout.success'
 import { Route as AuthenticatedDashboardExploreTracesTraceIdRouteImport } from './routes/_authenticated/_dashboard/_explore/traces_.$traceId'
@@ -232,12 +214,6 @@ const AuthenticatedDashboardRunsRoute =
     path: '/runs',
     getParentRoute: () => AuthenticatedDashboardRoute,
   } as any)
-const AuthenticatedDashboardCcAlertingRoute =
-  AuthenticatedDashboardCcAlertingRouteImport.update({
-    id: '/cc-alerting',
-    path: '/cc-alerting',
-    getParentRoute: () => AuthenticatedDashboardRoute,
-  } as any)
 const AuthenticatedDashboardPreviewableRoute =
   AuthenticatedDashboardPreviewableRouteImport.update({
     id: '/_previewable',
@@ -268,12 +244,6 @@ const AuthenticatedDashboardRunsIndexRoute =
     id: '/',
     path: '/',
     getParentRoute: () => AuthenticatedDashboardRunsRoute,
-  } as any)
-const AuthenticatedDashboardCcAlertingIndexRoute =
-  AuthenticatedDashboardCcAlertingIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => AuthenticatedDashboardCcAlertingRoute,
   } as any)
 const AuthenticatedDashboardPaddedIndexRoute =
   AuthenticatedDashboardPaddedIndexRouteImport.update({
@@ -317,72 +287,6 @@ const ApiCliOrgNameRoute = ApiCliOrgNameRouteImport.update({
   path: '/name',
   getParentRoute: () => ApiCliOrgRoute,
 } as any)
-const AuthenticatedDashboardCcAlertingSilencesRoute =
-  AuthenticatedDashboardCcAlertingSilencesRouteImport.update({
-    id: '/silences',
-    path: '/silences',
-    getParentRoute: () => AuthenticatedDashboardCcAlertingRoute,
-  } as any)
-const AuthenticatedDashboardCcAlertingSettingsRoute =
-  AuthenticatedDashboardCcAlertingSettingsRouteImport.update({
-    id: '/settings',
-    path: '/settings',
-    getParentRoute: () => AuthenticatedDashboardCcAlertingRoute,
-  } as any)
-const AuthenticatedDashboardCcAlertingRulesRoute =
-  AuthenticatedDashboardCcAlertingRulesRouteImport.update({
-    id: '/rules',
-    path: '/rules',
-    getParentRoute: () => AuthenticatedDashboardCcAlertingRoute,
-  } as any)
-const AuthenticatedDashboardCcAlertingRoutingRoute =
-  AuthenticatedDashboardCcAlertingRoutingRouteImport.update({
-    id: '/routing',
-    path: '/routing',
-    getParentRoute: () => AuthenticatedDashboardCcAlertingRoute,
-  } as any)
-const AuthenticatedDashboardCcAlertingRoutesRoute =
-  AuthenticatedDashboardCcAlertingRoutesRouteImport.update({
-    id: '/routes',
-    path: '/routes',
-    getParentRoute: () => AuthenticatedDashboardCcAlertingRoute,
-  } as any)
-const AuthenticatedDashboardCcAlertingReceiversRoute =
-  AuthenticatedDashboardCcAlertingReceiversRouteImport.update({
-    id: '/receivers',
-    path: '/receivers',
-    getParentRoute: () => AuthenticatedDashboardCcAlertingRoute,
-  } as any)
-const AuthenticatedDashboardCcAlertingOverviewRoute =
-  AuthenticatedDashboardCcAlertingOverviewRouteImport.update({
-    id: '/overview',
-    path: '/overview',
-    getParentRoute: () => AuthenticatedDashboardCcAlertingRoute,
-  } as any)
-const AuthenticatedDashboardCcAlertingMonitorRoute =
-  AuthenticatedDashboardCcAlertingMonitorRouteImport.update({
-    id: '/monitor',
-    path: '/monitor',
-    getParentRoute: () => AuthenticatedDashboardCcAlertingRoute,
-  } as any)
-const AuthenticatedDashboardCcAlertingInhibitionsRoute =
-  AuthenticatedDashboardCcAlertingInhibitionsRouteImport.update({
-    id: '/inhibitions',
-    path: '/inhibitions',
-    getParentRoute: () => AuthenticatedDashboardCcAlertingRoute,
-  } as any)
-const AuthenticatedDashboardCcAlertingEventsRoute =
-  AuthenticatedDashboardCcAlertingEventsRouteImport.update({
-    id: '/events',
-    path: '/events',
-    getParentRoute: () => AuthenticatedDashboardCcAlertingRoute,
-  } as any)
-const AuthenticatedDashboardCcAlertingAlertsRoute =
-  AuthenticatedDashboardCcAlertingAlertsRouteImport.update({
-    id: '/alerts',
-    path: '/alerts',
-    getParentRoute: () => AuthenticatedDashboardCcAlertingRoute,
-  } as any)
 const AuthenticatedDashboardAlertsNotificationsRoute =
   AuthenticatedDashboardAlertsNotificationsRouteImport.update({
     id: '/alerts_/notifications',
@@ -495,12 +399,6 @@ const AuthenticatedDashboardRunsTraceIdIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedDashboardRunsTraceIdRouteRoute,
   } as any)
-const AuthenticatedDashboardCcAlertingMonitorIndexRoute =
-  AuthenticatedDashboardCcAlertingMonitorIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => AuthenticatedDashboardCcAlertingMonitorRoute,
-  } as any)
 const AuthenticatedDashboardPreviewableRunbooksIndexRoute =
   AuthenticatedDashboardPreviewableRunbooksIndexRouteImport.update({
     id: '/runbooks/',
@@ -523,30 +421,6 @@ const AuthenticatedDashboardRunsTraceIdTraceRoute =
     id: '/trace',
     path: '/trace',
     getParentRoute: () => AuthenticatedDashboardRunsTraceIdRouteRoute,
-  } as any)
-const AuthenticatedDashboardCcAlertingRulesRuleIdRoute =
-  AuthenticatedDashboardCcAlertingRulesRuleIdRouteImport.update({
-    id: '/rules_/$ruleId',
-    path: '/rules/$ruleId',
-    getParentRoute: () => AuthenticatedDashboardCcAlertingRoute,
-  } as any)
-const AuthenticatedDashboardCcAlertingMonitorStreamRoute =
-  AuthenticatedDashboardCcAlertingMonitorStreamRouteImport.update({
-    id: '/stream',
-    path: '/stream',
-    getParentRoute: () => AuthenticatedDashboardCcAlertingMonitorRoute,
-  } as any)
-const AuthenticatedDashboardCcAlertingMonitorSilencesRoute =
-  AuthenticatedDashboardCcAlertingMonitorSilencesRouteImport.update({
-    id: '/silences',
-    path: '/silences',
-    getParentRoute: () => AuthenticatedDashboardCcAlertingMonitorRoute,
-  } as any)
-const AuthenticatedDashboardCcAlertingMonitorActiveRoute =
-  AuthenticatedDashboardCcAlertingMonitorActiveRouteImport.update({
-    id: '/active',
-    path: '/active',
-    getParentRoute: () => AuthenticatedDashboardCcAlertingMonitorRoute,
   } as any)
 const AuthenticatedDashboardPreviewableAlertsAlertIdRoute =
   AuthenticatedDashboardPreviewableAlertsAlertIdRouteImport.update({
@@ -635,7 +509,6 @@ export interface FileRoutesByFullPath {
   '/webhook/github': typeof WebhookGithubRoute
   '/auth/error': typeof AuthAuthErrorRoute
   '/invite/$invitationId': typeof AuthInviteInvitationIdRoute
-  '/cc-alerting': typeof AuthenticatedDashboardCcAlertingRouteWithChildren
   '/runs': typeof AuthenticatedDashboardRunsRouteWithChildren
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cc/events-stream': typeof ApiCcEventsStreamRoute
@@ -666,17 +539,6 @@ export interface FileRoutesByFullPath {
   '/users-management': typeof AuthenticatedDashboardPaddedUsersManagementRoute
   '/alerts': typeof AuthenticatedDashboardPreviewableAlertsRoute
   '/alerts/notifications': typeof AuthenticatedDashboardAlertsNotificationsRoute
-  '/cc-alerting/alerts': typeof AuthenticatedDashboardCcAlertingAlertsRoute
-  '/cc-alerting/events': typeof AuthenticatedDashboardCcAlertingEventsRoute
-  '/cc-alerting/inhibitions': typeof AuthenticatedDashboardCcAlertingInhibitionsRoute
-  '/cc-alerting/monitor': typeof AuthenticatedDashboardCcAlertingMonitorRouteWithChildren
-  '/cc-alerting/overview': typeof AuthenticatedDashboardCcAlertingOverviewRoute
-  '/cc-alerting/receivers': typeof AuthenticatedDashboardCcAlertingReceiversRoute
-  '/cc-alerting/routes': typeof AuthenticatedDashboardCcAlertingRoutesRoute
-  '/cc-alerting/routing': typeof AuthenticatedDashboardCcAlertingRoutingRoute
-  '/cc-alerting/rules': typeof AuthenticatedDashboardCcAlertingRulesRoute
-  '/cc-alerting/settings': typeof AuthenticatedDashboardCcAlertingSettingsRoute
-  '/cc-alerting/silences': typeof AuthenticatedDashboardCcAlertingSilencesRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/filter-options': typeof ApiCliRunsFilterOptionsRoute
@@ -684,21 +546,15 @@ export interface FileRoutesByFullPath {
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
-  '/cc-alerting/': typeof AuthenticatedDashboardCcAlertingIndexRoute
   '/runs/': typeof AuthenticatedDashboardRunsIndexRoute
   '/errors/$fingerprint': typeof AuthenticatedDashboardExploreErrorsFingerprintRoute
   '/traces/$traceId': typeof AuthenticatedDashboardExploreTracesTraceIdRoute
   '/checkout/success': typeof AuthenticatedDashboardPaddedCheckoutSuccessRoute
   '/alerts/$alertId': typeof AuthenticatedDashboardPreviewableAlertsAlertIdRoute
-  '/cc-alerting/monitor/active': typeof AuthenticatedDashboardCcAlertingMonitorActiveRoute
-  '/cc-alerting/monitor/silences': typeof AuthenticatedDashboardCcAlertingMonitorSilencesRoute
-  '/cc-alerting/monitor/stream': typeof AuthenticatedDashboardCcAlertingMonitorStreamRoute
-  '/cc-alerting/rules/$ruleId': typeof AuthenticatedDashboardCcAlertingRulesRuleIdRoute
   '/runs/$traceId/trace': typeof AuthenticatedDashboardRunsTraceIdTraceRoute
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/dashboards/': typeof AuthenticatedDashboardPreviewableDashboardsIndexRoute
   '/runbooks/': typeof AuthenticatedDashboardPreviewableRunbooksIndexRoute
-  '/cc-alerting/monitor/': typeof AuthenticatedDashboardCcAlertingMonitorIndexRoute
   '/runs/$traceId/': typeof AuthenticatedDashboardRunsTraceIdIndexRoute
   '/errors/$fingerprint/modal': typeof AuthenticatedDashboardExploreErrorsFingerprintModalRoute
   '/traces/$traceId/modal': typeof AuthenticatedDashboardExploreTracesTraceIdModalRoute
@@ -751,16 +607,6 @@ export interface FileRoutesByTo {
   '/users-management': typeof AuthenticatedDashboardPaddedUsersManagementRoute
   '/alerts': typeof AuthenticatedDashboardPreviewableAlertsRoute
   '/alerts/notifications': typeof AuthenticatedDashboardAlertsNotificationsRoute
-  '/cc-alerting/alerts': typeof AuthenticatedDashboardCcAlertingAlertsRoute
-  '/cc-alerting/events': typeof AuthenticatedDashboardCcAlertingEventsRoute
-  '/cc-alerting/inhibitions': typeof AuthenticatedDashboardCcAlertingInhibitionsRoute
-  '/cc-alerting/overview': typeof AuthenticatedDashboardCcAlertingOverviewRoute
-  '/cc-alerting/receivers': typeof AuthenticatedDashboardCcAlertingReceiversRoute
-  '/cc-alerting/routes': typeof AuthenticatedDashboardCcAlertingRoutesRoute
-  '/cc-alerting/routing': typeof AuthenticatedDashboardCcAlertingRoutingRoute
-  '/cc-alerting/rules': typeof AuthenticatedDashboardCcAlertingRulesRoute
-  '/cc-alerting/settings': typeof AuthenticatedDashboardCcAlertingSettingsRoute
-  '/cc-alerting/silences': typeof AuthenticatedDashboardCcAlertingSilencesRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/filter-options': typeof ApiCliRunsFilterOptionsRoute
@@ -768,21 +614,15 @@ export interface FileRoutesByTo {
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
-  '/cc-alerting': typeof AuthenticatedDashboardCcAlertingIndexRoute
   '/runs': typeof AuthenticatedDashboardRunsIndexRoute
   '/errors/$fingerprint': typeof AuthenticatedDashboardExploreErrorsFingerprintRoute
   '/traces/$traceId': typeof AuthenticatedDashboardExploreTracesTraceIdRoute
   '/checkout/success': typeof AuthenticatedDashboardPaddedCheckoutSuccessRoute
   '/alerts/$alertId': typeof AuthenticatedDashboardPreviewableAlertsAlertIdRoute
-  '/cc-alerting/monitor/active': typeof AuthenticatedDashboardCcAlertingMonitorActiveRoute
-  '/cc-alerting/monitor/silences': typeof AuthenticatedDashboardCcAlertingMonitorSilencesRoute
-  '/cc-alerting/monitor/stream': typeof AuthenticatedDashboardCcAlertingMonitorStreamRoute
-  '/cc-alerting/rules/$ruleId': typeof AuthenticatedDashboardCcAlertingRulesRuleIdRoute
   '/runs/$traceId/trace': typeof AuthenticatedDashboardRunsTraceIdTraceRoute
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/dashboards': typeof AuthenticatedDashboardPreviewableDashboardsIndexRoute
   '/runbooks': typeof AuthenticatedDashboardPreviewableRunbooksIndexRoute
-  '/cc-alerting/monitor': typeof AuthenticatedDashboardCcAlertingMonitorIndexRoute
   '/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdIndexRoute
   '/errors/$fingerprint/modal': typeof AuthenticatedDashboardExploreErrorsFingerprintModalRoute
   '/traces/$traceId/modal': typeof AuthenticatedDashboardExploreTracesTraceIdModalRoute
@@ -814,7 +654,6 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/_explore': typeof AuthenticatedDashboardExploreRouteWithChildren
   '/_authenticated/_dashboard/_padded': typeof AuthenticatedDashboardPaddedRouteWithChildren
   '/_authenticated/_dashboard/_previewable': typeof AuthenticatedDashboardPreviewableRouteWithChildren
-  '/_authenticated/_dashboard/cc-alerting': typeof AuthenticatedDashboardCcAlertingRouteWithChildren
   '/_authenticated/_dashboard/runs': typeof AuthenticatedDashboardRunsRouteWithChildren
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cc/events-stream': typeof ApiCcEventsStreamRoute
@@ -845,17 +684,6 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/_padded/users-management': typeof AuthenticatedDashboardPaddedUsersManagementRoute
   '/_authenticated/_dashboard/_previewable/alerts': typeof AuthenticatedDashboardPreviewableAlertsRoute
   '/_authenticated/_dashboard/alerts_/notifications': typeof AuthenticatedDashboardAlertsNotificationsRoute
-  '/_authenticated/_dashboard/cc-alerting/alerts': typeof AuthenticatedDashboardCcAlertingAlertsRoute
-  '/_authenticated/_dashboard/cc-alerting/events': typeof AuthenticatedDashboardCcAlertingEventsRoute
-  '/_authenticated/_dashboard/cc-alerting/inhibitions': typeof AuthenticatedDashboardCcAlertingInhibitionsRoute
-  '/_authenticated/_dashboard/cc-alerting/monitor': typeof AuthenticatedDashboardCcAlertingMonitorRouteWithChildren
-  '/_authenticated/_dashboard/cc-alerting/overview': typeof AuthenticatedDashboardCcAlertingOverviewRoute
-  '/_authenticated/_dashboard/cc-alerting/receivers': typeof AuthenticatedDashboardCcAlertingReceiversRoute
-  '/_authenticated/_dashboard/cc-alerting/routes': typeof AuthenticatedDashboardCcAlertingRoutesRoute
-  '/_authenticated/_dashboard/cc-alerting/routing': typeof AuthenticatedDashboardCcAlertingRoutingRoute
-  '/_authenticated/_dashboard/cc-alerting/rules': typeof AuthenticatedDashboardCcAlertingRulesRoute
-  '/_authenticated/_dashboard/cc-alerting/settings': typeof AuthenticatedDashboardCcAlertingSettingsRoute
-  '/_authenticated/_dashboard/cc-alerting/silences': typeof AuthenticatedDashboardCcAlertingSilencesRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/filter-options': typeof ApiCliRunsFilterOptionsRoute
@@ -864,21 +692,15 @@ export interface FileRoutesById {
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
   '/_authenticated/_dashboard/_padded/': typeof AuthenticatedDashboardPaddedIndexRoute
-  '/_authenticated/_dashboard/cc-alerting/': typeof AuthenticatedDashboardCcAlertingIndexRoute
   '/_authenticated/_dashboard/runs/': typeof AuthenticatedDashboardRunsIndexRoute
   '/_authenticated/_dashboard/_explore/errors_/$fingerprint': typeof AuthenticatedDashboardExploreErrorsFingerprintRoute
   '/_authenticated/_dashboard/_explore/traces_/$traceId': typeof AuthenticatedDashboardExploreTracesTraceIdRoute
   '/_authenticated/_dashboard/_padded/checkout/success': typeof AuthenticatedDashboardPaddedCheckoutSuccessRoute
   '/_authenticated/_dashboard/_previewable/alerts_/$alertId': typeof AuthenticatedDashboardPreviewableAlertsAlertIdRoute
-  '/_authenticated/_dashboard/cc-alerting/monitor/active': typeof AuthenticatedDashboardCcAlertingMonitorActiveRoute
-  '/_authenticated/_dashboard/cc-alerting/monitor/silences': typeof AuthenticatedDashboardCcAlertingMonitorSilencesRoute
-  '/_authenticated/_dashboard/cc-alerting/monitor/stream': typeof AuthenticatedDashboardCcAlertingMonitorStreamRoute
-  '/_authenticated/_dashboard/cc-alerting/rules_/$ruleId': typeof AuthenticatedDashboardCcAlertingRulesRuleIdRoute
   '/_authenticated/_dashboard/runs/$traceId/trace': typeof AuthenticatedDashboardRunsTraceIdTraceRoute
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/_authenticated/_dashboard/_previewable/dashboards/': typeof AuthenticatedDashboardPreviewableDashboardsIndexRoute
   '/_authenticated/_dashboard/_previewable/runbooks/': typeof AuthenticatedDashboardPreviewableRunbooksIndexRoute
-  '/_authenticated/_dashboard/cc-alerting/monitor/': typeof AuthenticatedDashboardCcAlertingMonitorIndexRoute
   '/_authenticated/_dashboard/runs/$traceId/': typeof AuthenticatedDashboardRunsTraceIdIndexRoute
   '/_authenticated/_dashboard/_explore/errors/$fingerprint/modal': typeof AuthenticatedDashboardExploreErrorsFingerprintModalRoute
   '/_authenticated/_dashboard/_explore/traces/$traceId/modal': typeof AuthenticatedDashboardExploreTracesTraceIdModalRoute
@@ -905,7 +727,6 @@ export interface FileRouteTypes {
     | '/webhook/github'
     | '/auth/error'
     | '/invite/$invitationId'
-    | '/cc-alerting'
     | '/runs'
     | '/api/auth/$'
     | '/api/cc/events-stream'
@@ -936,17 +757,6 @@ export interface FileRouteTypes {
     | '/users-management'
     | '/alerts'
     | '/alerts/notifications'
-    | '/cc-alerting/alerts'
-    | '/cc-alerting/events'
-    | '/cc-alerting/inhibitions'
-    | '/cc-alerting/monitor'
-    | '/cc-alerting/overview'
-    | '/cc-alerting/receivers'
-    | '/cc-alerting/routes'
-    | '/cc-alerting/routing'
-    | '/cc-alerting/rules'
-    | '/cc-alerting/settings'
-    | '/cc-alerting/silences'
     | '/api/cli/org/name'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/filter-options'
@@ -954,21 +764,15 @@ export interface FileRouteTypes {
     | '/api/cli/runs/status'
     | '/api/github/install/callback'
     | '/api/github/install/start'
-    | '/cc-alerting/'
     | '/runs/'
     | '/errors/$fingerprint'
     | '/traces/$traceId'
     | '/checkout/success'
     | '/alerts/$alertId'
-    | '/cc-alerting/monitor/active'
-    | '/cc-alerting/monitor/silences'
-    | '/cc-alerting/monitor/stream'
-    | '/cc-alerting/rules/$ruleId'
     | '/runs/$traceId/trace'
     | '/api/cli/runs/$traceId/logs'
     | '/dashboards/'
     | '/runbooks/'
-    | '/cc-alerting/monitor/'
     | '/runs/$traceId/'
     | '/errors/$fingerprint/modal'
     | '/traces/$traceId/modal'
@@ -1021,16 +825,6 @@ export interface FileRouteTypes {
     | '/users-management'
     | '/alerts'
     | '/alerts/notifications'
-    | '/cc-alerting/alerts'
-    | '/cc-alerting/events'
-    | '/cc-alerting/inhibitions'
-    | '/cc-alerting/overview'
-    | '/cc-alerting/receivers'
-    | '/cc-alerting/routes'
-    | '/cc-alerting/routing'
-    | '/cc-alerting/rules'
-    | '/cc-alerting/settings'
-    | '/cc-alerting/silences'
     | '/api/cli/org/name'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/filter-options'
@@ -1038,21 +832,15 @@ export interface FileRouteTypes {
     | '/api/cli/runs/status'
     | '/api/github/install/callback'
     | '/api/github/install/start'
-    | '/cc-alerting'
     | '/runs'
     | '/errors/$fingerprint'
     | '/traces/$traceId'
     | '/checkout/success'
     | '/alerts/$alertId'
-    | '/cc-alerting/monitor/active'
-    | '/cc-alerting/monitor/silences'
-    | '/cc-alerting/monitor/stream'
-    | '/cc-alerting/rules/$ruleId'
     | '/runs/$traceId/trace'
     | '/api/cli/runs/$traceId/logs'
     | '/dashboards'
     | '/runbooks'
-    | '/cc-alerting/monitor'
     | '/runs/$traceId'
     | '/errors/$fingerprint/modal'
     | '/traces/$traceId/modal'
@@ -1083,7 +871,6 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/_explore'
     | '/_authenticated/_dashboard/_padded'
     | '/_authenticated/_dashboard/_previewable'
-    | '/_authenticated/_dashboard/cc-alerting'
     | '/_authenticated/_dashboard/runs'
     | '/api/auth/$'
     | '/api/cc/events-stream'
@@ -1114,17 +901,6 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/_padded/users-management'
     | '/_authenticated/_dashboard/_previewable/alerts'
     | '/_authenticated/_dashboard/alerts_/notifications'
-    | '/_authenticated/_dashboard/cc-alerting/alerts'
-    | '/_authenticated/_dashboard/cc-alerting/events'
-    | '/_authenticated/_dashboard/cc-alerting/inhibitions'
-    | '/_authenticated/_dashboard/cc-alerting/monitor'
-    | '/_authenticated/_dashboard/cc-alerting/overview'
-    | '/_authenticated/_dashboard/cc-alerting/receivers'
-    | '/_authenticated/_dashboard/cc-alerting/routes'
-    | '/_authenticated/_dashboard/cc-alerting/routing'
-    | '/_authenticated/_dashboard/cc-alerting/rules'
-    | '/_authenticated/_dashboard/cc-alerting/settings'
-    | '/_authenticated/_dashboard/cc-alerting/silences'
     | '/api/cli/org/name'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/filter-options'
@@ -1133,21 +909,15 @@ export interface FileRouteTypes {
     | '/api/github/install/callback'
     | '/api/github/install/start'
     | '/_authenticated/_dashboard/_padded/'
-    | '/_authenticated/_dashboard/cc-alerting/'
     | '/_authenticated/_dashboard/runs/'
     | '/_authenticated/_dashboard/_explore/errors_/$fingerprint'
     | '/_authenticated/_dashboard/_explore/traces_/$traceId'
     | '/_authenticated/_dashboard/_padded/checkout/success'
     | '/_authenticated/_dashboard/_previewable/alerts_/$alertId'
-    | '/_authenticated/_dashboard/cc-alerting/monitor/active'
-    | '/_authenticated/_dashboard/cc-alerting/monitor/silences'
-    | '/_authenticated/_dashboard/cc-alerting/monitor/stream'
-    | '/_authenticated/_dashboard/cc-alerting/rules_/$ruleId'
     | '/_authenticated/_dashboard/runs/$traceId/trace'
     | '/api/cli/runs/$traceId/logs'
     | '/_authenticated/_dashboard/_previewable/dashboards/'
     | '/_authenticated/_dashboard/_previewable/runbooks/'
-    | '/_authenticated/_dashboard/cc-alerting/monitor/'
     | '/_authenticated/_dashboard/runs/$traceId/'
     | '/_authenticated/_dashboard/_explore/errors/$fingerprint/modal'
     | '/_authenticated/_dashboard/_explore/traces/$traceId/modal'
@@ -1363,13 +1133,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRunsRouteImport
       parentRoute: typeof AuthenticatedDashboardRoute
     }
-    '/_authenticated/_dashboard/cc-alerting': {
-      id: '/_authenticated/_dashboard/cc-alerting'
-      path: '/cc-alerting'
-      fullPath: '/cc-alerting'
-      preLoaderRoute: typeof AuthenticatedDashboardCcAlertingRouteImport
-      parentRoute: typeof AuthenticatedDashboardRoute
-    }
     '/_authenticated/_dashboard/_previewable': {
       id: '/_authenticated/_dashboard/_previewable'
       path: ''
@@ -1411,13 +1174,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/runs/'
       preLoaderRoute: typeof AuthenticatedDashboardRunsIndexRouteImport
       parentRoute: typeof AuthenticatedDashboardRunsRoute
-    }
-    '/_authenticated/_dashboard/cc-alerting/': {
-      id: '/_authenticated/_dashboard/cc-alerting/'
-      path: '/'
-      fullPath: '/cc-alerting/'
-      preLoaderRoute: typeof AuthenticatedDashboardCcAlertingIndexRouteImport
-      parentRoute: typeof AuthenticatedDashboardCcAlertingRoute
     }
     '/_authenticated/_dashboard/_padded/': {
       id: '/_authenticated/_dashboard/_padded/'
@@ -1474,83 +1230,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/cli/org/name'
       preLoaderRoute: typeof ApiCliOrgNameRouteImport
       parentRoute: typeof ApiCliOrgRoute
-    }
-    '/_authenticated/_dashboard/cc-alerting/silences': {
-      id: '/_authenticated/_dashboard/cc-alerting/silences'
-      path: '/silences'
-      fullPath: '/cc-alerting/silences'
-      preLoaderRoute: typeof AuthenticatedDashboardCcAlertingSilencesRouteImport
-      parentRoute: typeof AuthenticatedDashboardCcAlertingRoute
-    }
-    '/_authenticated/_dashboard/cc-alerting/settings': {
-      id: '/_authenticated/_dashboard/cc-alerting/settings'
-      path: '/settings'
-      fullPath: '/cc-alerting/settings'
-      preLoaderRoute: typeof AuthenticatedDashboardCcAlertingSettingsRouteImport
-      parentRoute: typeof AuthenticatedDashboardCcAlertingRoute
-    }
-    '/_authenticated/_dashboard/cc-alerting/rules': {
-      id: '/_authenticated/_dashboard/cc-alerting/rules'
-      path: '/rules'
-      fullPath: '/cc-alerting/rules'
-      preLoaderRoute: typeof AuthenticatedDashboardCcAlertingRulesRouteImport
-      parentRoute: typeof AuthenticatedDashboardCcAlertingRoute
-    }
-    '/_authenticated/_dashboard/cc-alerting/routing': {
-      id: '/_authenticated/_dashboard/cc-alerting/routing'
-      path: '/routing'
-      fullPath: '/cc-alerting/routing'
-      preLoaderRoute: typeof AuthenticatedDashboardCcAlertingRoutingRouteImport
-      parentRoute: typeof AuthenticatedDashboardCcAlertingRoute
-    }
-    '/_authenticated/_dashboard/cc-alerting/routes': {
-      id: '/_authenticated/_dashboard/cc-alerting/routes'
-      path: '/routes'
-      fullPath: '/cc-alerting/routes'
-      preLoaderRoute: typeof AuthenticatedDashboardCcAlertingRoutesRouteImport
-      parentRoute: typeof AuthenticatedDashboardCcAlertingRoute
-    }
-    '/_authenticated/_dashboard/cc-alerting/receivers': {
-      id: '/_authenticated/_dashboard/cc-alerting/receivers'
-      path: '/receivers'
-      fullPath: '/cc-alerting/receivers'
-      preLoaderRoute: typeof AuthenticatedDashboardCcAlertingReceiversRouteImport
-      parentRoute: typeof AuthenticatedDashboardCcAlertingRoute
-    }
-    '/_authenticated/_dashboard/cc-alerting/overview': {
-      id: '/_authenticated/_dashboard/cc-alerting/overview'
-      path: '/overview'
-      fullPath: '/cc-alerting/overview'
-      preLoaderRoute: typeof AuthenticatedDashboardCcAlertingOverviewRouteImport
-      parentRoute: typeof AuthenticatedDashboardCcAlertingRoute
-    }
-    '/_authenticated/_dashboard/cc-alerting/monitor': {
-      id: '/_authenticated/_dashboard/cc-alerting/monitor'
-      path: '/monitor'
-      fullPath: '/cc-alerting/monitor'
-      preLoaderRoute: typeof AuthenticatedDashboardCcAlertingMonitorRouteImport
-      parentRoute: typeof AuthenticatedDashboardCcAlertingRoute
-    }
-    '/_authenticated/_dashboard/cc-alerting/inhibitions': {
-      id: '/_authenticated/_dashboard/cc-alerting/inhibitions'
-      path: '/inhibitions'
-      fullPath: '/cc-alerting/inhibitions'
-      preLoaderRoute: typeof AuthenticatedDashboardCcAlertingInhibitionsRouteImport
-      parentRoute: typeof AuthenticatedDashboardCcAlertingRoute
-    }
-    '/_authenticated/_dashboard/cc-alerting/events': {
-      id: '/_authenticated/_dashboard/cc-alerting/events'
-      path: '/events'
-      fullPath: '/cc-alerting/events'
-      preLoaderRoute: typeof AuthenticatedDashboardCcAlertingEventsRouteImport
-      parentRoute: typeof AuthenticatedDashboardCcAlertingRoute
-    }
-    '/_authenticated/_dashboard/cc-alerting/alerts': {
-      id: '/_authenticated/_dashboard/cc-alerting/alerts'
-      path: '/alerts'
-      fullPath: '/cc-alerting/alerts'
-      preLoaderRoute: typeof AuthenticatedDashboardCcAlertingAlertsRouteImport
-      parentRoute: typeof AuthenticatedDashboardCcAlertingRoute
     }
     '/_authenticated/_dashboard/alerts_/notifications': {
       id: '/_authenticated/_dashboard/alerts_/notifications'
@@ -1685,13 +1364,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRunsTraceIdIndexRouteImport
       parentRoute: typeof AuthenticatedDashboardRunsTraceIdRouteRoute
     }
-    '/_authenticated/_dashboard/cc-alerting/monitor/': {
-      id: '/_authenticated/_dashboard/cc-alerting/monitor/'
-      path: '/'
-      fullPath: '/cc-alerting/monitor/'
-      preLoaderRoute: typeof AuthenticatedDashboardCcAlertingMonitorIndexRouteImport
-      parentRoute: typeof AuthenticatedDashboardCcAlertingMonitorRoute
-    }
     '/_authenticated/_dashboard/_previewable/runbooks/': {
       id: '/_authenticated/_dashboard/_previewable/runbooks/'
       path: '/runbooks'
@@ -1719,34 +1391,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/runs/$traceId/trace'
       preLoaderRoute: typeof AuthenticatedDashboardRunsTraceIdTraceRouteImport
       parentRoute: typeof AuthenticatedDashboardRunsTraceIdRouteRoute
-    }
-    '/_authenticated/_dashboard/cc-alerting/rules_/$ruleId': {
-      id: '/_authenticated/_dashboard/cc-alerting/rules_/$ruleId'
-      path: '/rules/$ruleId'
-      fullPath: '/cc-alerting/rules/$ruleId'
-      preLoaderRoute: typeof AuthenticatedDashboardCcAlertingRulesRuleIdRouteImport
-      parentRoute: typeof AuthenticatedDashboardCcAlertingRoute
-    }
-    '/_authenticated/_dashboard/cc-alerting/monitor/stream': {
-      id: '/_authenticated/_dashboard/cc-alerting/monitor/stream'
-      path: '/stream'
-      fullPath: '/cc-alerting/monitor/stream'
-      preLoaderRoute: typeof AuthenticatedDashboardCcAlertingMonitorStreamRouteImport
-      parentRoute: typeof AuthenticatedDashboardCcAlertingMonitorRoute
-    }
-    '/_authenticated/_dashboard/cc-alerting/monitor/silences': {
-      id: '/_authenticated/_dashboard/cc-alerting/monitor/silences'
-      path: '/silences'
-      fullPath: '/cc-alerting/monitor/silences'
-      preLoaderRoute: typeof AuthenticatedDashboardCcAlertingMonitorSilencesRouteImport
-      parentRoute: typeof AuthenticatedDashboardCcAlertingMonitorRoute
-    }
-    '/_authenticated/_dashboard/cc-alerting/monitor/active': {
-      id: '/_authenticated/_dashboard/cc-alerting/monitor/active'
-      path: '/active'
-      fullPath: '/cc-alerting/monitor/active'
-      preLoaderRoute: typeof AuthenticatedDashboardCcAlertingMonitorActiveRouteImport
-      parentRoute: typeof AuthenticatedDashboardCcAlertingMonitorRoute
     }
     '/_authenticated/_dashboard/_previewable/alerts_/$alertId': {
       id: '/_authenticated/_dashboard/_previewable/alerts_/$alertId'
@@ -1999,81 +1643,6 @@ const AuthenticatedDashboardPreviewableRouteWithChildren =
     AuthenticatedDashboardPreviewableRouteChildren,
   )
 
-interface AuthenticatedDashboardCcAlertingMonitorRouteChildren {
-  AuthenticatedDashboardCcAlertingMonitorActiveRoute: typeof AuthenticatedDashboardCcAlertingMonitorActiveRoute
-  AuthenticatedDashboardCcAlertingMonitorSilencesRoute: typeof AuthenticatedDashboardCcAlertingMonitorSilencesRoute
-  AuthenticatedDashboardCcAlertingMonitorStreamRoute: typeof AuthenticatedDashboardCcAlertingMonitorStreamRoute
-  AuthenticatedDashboardCcAlertingMonitorIndexRoute: typeof AuthenticatedDashboardCcAlertingMonitorIndexRoute
-}
-
-const AuthenticatedDashboardCcAlertingMonitorRouteChildren: AuthenticatedDashboardCcAlertingMonitorRouteChildren =
-  {
-    AuthenticatedDashboardCcAlertingMonitorActiveRoute:
-      AuthenticatedDashboardCcAlertingMonitorActiveRoute,
-    AuthenticatedDashboardCcAlertingMonitorSilencesRoute:
-      AuthenticatedDashboardCcAlertingMonitorSilencesRoute,
-    AuthenticatedDashboardCcAlertingMonitorStreamRoute:
-      AuthenticatedDashboardCcAlertingMonitorStreamRoute,
-    AuthenticatedDashboardCcAlertingMonitorIndexRoute:
-      AuthenticatedDashboardCcAlertingMonitorIndexRoute,
-  }
-
-const AuthenticatedDashboardCcAlertingMonitorRouteWithChildren =
-  AuthenticatedDashboardCcAlertingMonitorRoute._addFileChildren(
-    AuthenticatedDashboardCcAlertingMonitorRouteChildren,
-  )
-
-interface AuthenticatedDashboardCcAlertingRouteChildren {
-  AuthenticatedDashboardCcAlertingAlertsRoute: typeof AuthenticatedDashboardCcAlertingAlertsRoute
-  AuthenticatedDashboardCcAlertingEventsRoute: typeof AuthenticatedDashboardCcAlertingEventsRoute
-  AuthenticatedDashboardCcAlertingInhibitionsRoute: typeof AuthenticatedDashboardCcAlertingInhibitionsRoute
-  AuthenticatedDashboardCcAlertingMonitorRoute: typeof AuthenticatedDashboardCcAlertingMonitorRouteWithChildren
-  AuthenticatedDashboardCcAlertingOverviewRoute: typeof AuthenticatedDashboardCcAlertingOverviewRoute
-  AuthenticatedDashboardCcAlertingReceiversRoute: typeof AuthenticatedDashboardCcAlertingReceiversRoute
-  AuthenticatedDashboardCcAlertingRoutesRoute: typeof AuthenticatedDashboardCcAlertingRoutesRoute
-  AuthenticatedDashboardCcAlertingRoutingRoute: typeof AuthenticatedDashboardCcAlertingRoutingRoute
-  AuthenticatedDashboardCcAlertingRulesRoute: typeof AuthenticatedDashboardCcAlertingRulesRoute
-  AuthenticatedDashboardCcAlertingSettingsRoute: typeof AuthenticatedDashboardCcAlertingSettingsRoute
-  AuthenticatedDashboardCcAlertingSilencesRoute: typeof AuthenticatedDashboardCcAlertingSilencesRoute
-  AuthenticatedDashboardCcAlertingIndexRoute: typeof AuthenticatedDashboardCcAlertingIndexRoute
-  AuthenticatedDashboardCcAlertingRulesRuleIdRoute: typeof AuthenticatedDashboardCcAlertingRulesRuleIdRoute
-}
-
-const AuthenticatedDashboardCcAlertingRouteChildren: AuthenticatedDashboardCcAlertingRouteChildren =
-  {
-    AuthenticatedDashboardCcAlertingAlertsRoute:
-      AuthenticatedDashboardCcAlertingAlertsRoute,
-    AuthenticatedDashboardCcAlertingEventsRoute:
-      AuthenticatedDashboardCcAlertingEventsRoute,
-    AuthenticatedDashboardCcAlertingInhibitionsRoute:
-      AuthenticatedDashboardCcAlertingInhibitionsRoute,
-    AuthenticatedDashboardCcAlertingMonitorRoute:
-      AuthenticatedDashboardCcAlertingMonitorRouteWithChildren,
-    AuthenticatedDashboardCcAlertingOverviewRoute:
-      AuthenticatedDashboardCcAlertingOverviewRoute,
-    AuthenticatedDashboardCcAlertingReceiversRoute:
-      AuthenticatedDashboardCcAlertingReceiversRoute,
-    AuthenticatedDashboardCcAlertingRoutesRoute:
-      AuthenticatedDashboardCcAlertingRoutesRoute,
-    AuthenticatedDashboardCcAlertingRoutingRoute:
-      AuthenticatedDashboardCcAlertingRoutingRoute,
-    AuthenticatedDashboardCcAlertingRulesRoute:
-      AuthenticatedDashboardCcAlertingRulesRoute,
-    AuthenticatedDashboardCcAlertingSettingsRoute:
-      AuthenticatedDashboardCcAlertingSettingsRoute,
-    AuthenticatedDashboardCcAlertingSilencesRoute:
-      AuthenticatedDashboardCcAlertingSilencesRoute,
-    AuthenticatedDashboardCcAlertingIndexRoute:
-      AuthenticatedDashboardCcAlertingIndexRoute,
-    AuthenticatedDashboardCcAlertingRulesRuleIdRoute:
-      AuthenticatedDashboardCcAlertingRulesRuleIdRoute,
-  }
-
-const AuthenticatedDashboardCcAlertingRouteWithChildren =
-  AuthenticatedDashboardCcAlertingRoute._addFileChildren(
-    AuthenticatedDashboardCcAlertingRouteChildren,
-  )
-
 interface AuthenticatedDashboardRunsTraceIdRouteRouteChildren {
   AuthenticatedDashboardRunsTraceIdTraceRoute: typeof AuthenticatedDashboardRunsTraceIdTraceRoute
   AuthenticatedDashboardRunsTraceIdIndexRoute: typeof AuthenticatedDashboardRunsTraceIdIndexRoute
@@ -2119,7 +1688,6 @@ interface AuthenticatedDashboardRouteChildren {
   AuthenticatedDashboardExploreRoute: typeof AuthenticatedDashboardExploreRouteWithChildren
   AuthenticatedDashboardPaddedRoute: typeof AuthenticatedDashboardPaddedRouteWithChildren
   AuthenticatedDashboardPreviewableRoute: typeof AuthenticatedDashboardPreviewableRouteWithChildren
-  AuthenticatedDashboardCcAlertingRoute: typeof AuthenticatedDashboardCcAlertingRouteWithChildren
   AuthenticatedDashboardRunsRoute: typeof AuthenticatedDashboardRunsRouteWithChildren
   AuthenticatedDashboardAlertsNotificationsRoute: typeof AuthenticatedDashboardAlertsNotificationsRoute
 }
@@ -2132,8 +1700,6 @@ const AuthenticatedDashboardRouteChildren: AuthenticatedDashboardRouteChildren =
       AuthenticatedDashboardPaddedRouteWithChildren,
     AuthenticatedDashboardPreviewableRoute:
       AuthenticatedDashboardPreviewableRouteWithChildren,
-    AuthenticatedDashboardCcAlertingRoute:
-      AuthenticatedDashboardCcAlertingRouteWithChildren,
     AuthenticatedDashboardRunsRoute:
       AuthenticatedDashboardRunsRouteWithChildren,
     AuthenticatedDashboardAlertsNotificationsRoute:
