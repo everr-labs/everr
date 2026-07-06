@@ -7,7 +7,6 @@ import {
 // Single source of truth for the ownership annotation keys (shared with the
 // simple-alert reconciler in data/alerts/mapping.ts).
 import {
-  isManagedSimple,
   OWN_MANAGED,
   OWN_NAME,
   OWN_REPO,

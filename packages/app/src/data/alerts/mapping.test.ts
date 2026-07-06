@@ -1,14 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   fromCcRuleSpec,
-  isManagedSimple,
-  MANAGED_SIMPLE,
-  OWN_MANAGED,
+  isOwnedRule,
   OWN_NAME,
   OWN_PREVIEW,
   OWN_REPO,
   previewIdOf,
-  toSimpleRuleSpec,
+  toRuleSpec,
   withAlertLink,
 } from "./mapping";
 import { AlertRuleYamlSchema } from "./schema";
@@ -46,9 +44,9 @@ function parseRule(
 
 const rule = parseRule();
 
-describe("toSimpleRuleSpec", () => {
+describe("toRuleSpec", () => {
   it("maps fields, defaults, and ownership annotations", () => {
-    const spec = toSimpleRuleSpec(rule, "repo-1");
+    const spec = toRuleSpec(rule, "repo-1");
     expect(spec.sql).toBe(rule.spec.query);
     expect(spec.interval_secs).toBe(300);
     expect(spec.for_secs).toBe(0);
@@ -58,13 +56,13 @@ describe("toSimpleRuleSpec", () => {
     expect(spec.severity).toBe("warning");
     expect(spec.annotations[OWN_NAME]).toBe("high-5xx");
     expect(spec.annotations[OWN_REPO]).toBe("repo-1");
-    expect(spec.annotations[OWN_MANAGED]).toBe(MANAGED_SIMPLE);
+    expect(spec.annotations["everr.managed"]).toBeUndefined();
     expect(spec.annotations["everr.notification.title"]).toBe(TITLE_TEMPLATE);
     expect(spec.annotations["everr.label.team"]).toBe("platform");
   });
 
   it("maps for/resolveAfter/valueColumn onto the CC spec", () => {
-    const spec = toSimpleRuleSpec(
+    const spec = toRuleSpec(
       parseRule({ for: "10m", resolveAfter: 3, valueColumn: "count" }),
       "repo-1",
     );
@@ -74,7 +72,7 @@ describe("toSimpleRuleSpec", () => {
   });
 
   it("packs the CC notification-rendering annotations", () => {
-    const spec = toSimpleRuleSpec(rule, "repo-1");
+    const spec = toRuleSpec(rule, "repo-1");
     // The dispatcher renders `summary` as the headline and `description` as an
     // extra body line, substituting ${label} / ${value}.
     expect(spec.annotations.summary).toBe(TITLE_TEMPLATE);
@@ -82,7 +80,7 @@ describe("toSimpleRuleSpec", () => {
   });
 
   it("omits the description annotations when the message has none", () => {
-    const spec = toSimpleRuleSpec(
+    const spec = toRuleSpec(
       parseRule({ notificationMessage: { title: TITLE_TEMPLATE } }),
       "repo-1",
     );
@@ -91,22 +89,24 @@ describe("toSimpleRuleSpec", () => {
   });
 
   it("builds an absolute link.runbook when appBaseUrl is provided", () => {
-    const spec = toSimpleRuleSpec(
+    const spec = toRuleSpec(
       parseRule({ runbook: "payments/triage-5xx" }),
       "repo-1",
-      { appBaseUrl: "https://app.example.com" },
+      {
+        appBaseUrl: "https://app.example.com",
+      },
     );
     expect(spec.annotations["link.runbook"]).toBe(
       "https://app.example.com/runbooks/payments/triage-5xx",
     );
 
     // No base URL (or no runbook) -> no link annotation.
-    const without = toSimpleRuleSpec(
+    const without = toRuleSpec(
       parseRule({ runbook: "payments/triage-5xx" }),
       "repo-1",
     );
     expect(without.annotations["link.runbook"]).toBeUndefined();
-    const noRunbook = toSimpleRuleSpec(rule, "repo-1", {
+    const noRunbook = toRuleSpec(rule, "repo-1", {
       appBaseUrl: "https://app.example.com",
     });
     expect(noRunbook.annotations["link.runbook"]).toBeUndefined();
@@ -114,7 +114,7 @@ describe("toSimpleRuleSpec", () => {
 
   it("round-trips through fromCcRuleSpec", () => {
     const view = fromCcRuleSpec(
-      toSimpleRuleSpec(
+      toRuleSpec(
         parseRule({ for: "1d", resolveAfter: 2, valueColumn: "count" }),
         "repo-1",
       ),
@@ -135,10 +135,7 @@ describe("toSimpleRuleSpec", () => {
 
   it("carries a linked runbook via the everr.runbook annotation", () => {
     // Bare slug resolves against the alert's own project ("default" here).
-    const bare = toSimpleRuleSpec(
-      parseRule({ runbook: "triage-5xx" }),
-      "repo-1",
-    );
+    const bare = toRuleSpec(parseRule({ runbook: "triage-5xx" }), "repo-1");
     expect(bare.annotations["everr.runbook"]).toBe("triage-5xx");
     expect(fromCcRuleSpec(bare)).toMatchObject({
       runbookProject: "default",
@@ -146,7 +143,7 @@ describe("toSimpleRuleSpec", () => {
     });
 
     // A project-qualified ref is stored and read back canonically.
-    const scoped = toSimpleRuleSpec(
+    const scoped = toRuleSpec(
       parseRule({ runbook: "payments/triage-5xx" }, { project: "payments" }),
       "repo-1",
     );
@@ -158,20 +155,20 @@ describe("toSimpleRuleSpec", () => {
   });
 
   it("leaves the runbook unset when the alert links none", () => {
-    const view = fromCcRuleSpec(toSimpleRuleSpec(rule, "repo-1"));
+    const view = fromCcRuleSpec(toRuleSpec(rule, "repo-1"));
     expect(view.runbookProject).toBeNull();
     expect(view.runbookSlug).toBeNull();
   });
 
   it("builds a suppressed, preview-tagged spec for a preview namespace", () => {
-    const spec = toSimpleRuleSpec(rule, "repo-1", { previewId: "prev-1" });
+    const spec = toRuleSpec(rule, "repo-1", { previewId: "prev-1" });
     // CC evaluates the rule fully but the dispatcher never notifies on it.
     expect(spec.suppressed).toBe(true);
     expect(spec.annotations[OWN_PREVIEW]).toBe("prev-1");
     expect(previewIdOf(spec)).toBe("prev-1");
-    // Ownership is unchanged: same repo, same name, still managed-simple.
+    // Ownership is unchanged: same repo, same name, still owned.
     expect(spec.annotations[OWN_REPO]).toBe("repo-1");
-    expect(isManagedSimple(spec, "repo-1")).toBe(true);
+    expect(isOwnedRule(spec, "repo-1")).toBe(true);
     // Round-trip.
     const view = fromCcRuleSpec(spec);
     expect(view.previewId).toBe("prev-1");
@@ -179,7 +176,7 @@ describe("toSimpleRuleSpec", () => {
   });
 
   it("live specs are not suppressed and carry no preview annotation", () => {
-    const spec = toSimpleRuleSpec(rule, "repo-1");
+    const spec = toRuleSpec(rule, "repo-1");
     expect(spec.suppressed).toBe(false);
     expect(spec.annotations[OWN_PREVIEW]).toBeUndefined();
     expect(previewIdOf(spec)).toBeNull();
@@ -187,11 +184,31 @@ describe("toSimpleRuleSpec", () => {
     expect(view.previewId).toBeNull();
     expect(view.suppressed).toBe(false);
   });
+
+  it("sets max_interval_secs when maxInterval is set, else omits it", () => {
+    const withMax = toRuleSpec(parseRule({ maxInterval: "1h" }), "repo-1");
+    expect(withMax.max_interval_secs).toBe(3600);
+
+    const withoutMax = toRuleSpec(rule, "repo-1");
+    expect(withoutMax.max_interval_secs).toBeUndefined();
+  });
+
+  it("merges user annotations, generated keys always winning", () => {
+    const spec = toRuleSpec(
+      parseRule({ annotations: { team: "platform-eng", owner: "gio" } }),
+      "repo-1",
+    );
+    expect(spec.annotations.team).toBe("platform-eng");
+    expect(spec.annotations.owner).toBe("gio");
+    // Generated keys are untouched by the merge.
+    expect(spec.annotations[OWN_NAME]).toBe("high-5xx");
+    expect(spec.annotations[OWN_REPO]).toBe("repo-1");
+  });
 });
 
 describe("withAlertLink", () => {
   it("stamps link.alert with the alert detail URL, keeping the rest intact", () => {
-    const spec = toSimpleRuleSpec(rule, "repo-1");
+    const spec = toRuleSpec(rule, "repo-1");
     const linked = withAlertLink(spec, "https://app.example.com", "rule-123");
     expect(linked.annotations["link.alert"]).toBe(
       "https://app.example.com/alerts/rule-123",
@@ -203,12 +220,16 @@ describe("withAlertLink", () => {
   });
 });
 
-describe("isManagedSimple", () => {
-  it("requires the managed marker and (optionally) the repo", () => {
-    const spec = toSimpleRuleSpec(rule, "repo-1");
-    expect(isManagedSimple(spec)).toBe(true);
-    expect(isManagedSimple(spec, "repo-1")).toBe(true);
-    expect(isManagedSimple(spec, "repo-2")).toBe(false);
-    expect(isManagedSimple({ ...spec, annotations: {} } as never)).toBe(false);
+describe("isOwnedRule", () => {
+  it("requires everr.name and (optionally) a matching repo", () => {
+    const spec = toRuleSpec(rule, "repo-1");
+    expect(isOwnedRule(spec)).toBe(true);
+    expect(isOwnedRule(spec, "repo-1")).toBe(true);
+    expect(isOwnedRule(spec, "repo-2")).toBe(false);
+    // A bare CC rule (no everr.name) is never owned, regardless of repoid.
+    expect(isOwnedRule({ ...spec, annotations: {} } as never)).toBe(false);
+    expect(isOwnedRule({ ...spec, annotations: {} } as never, "repo-1")).toBe(
+      false,
+    );
   });
 });
