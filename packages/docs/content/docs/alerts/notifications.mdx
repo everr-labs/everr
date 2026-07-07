@@ -1,58 +1,47 @@
 ---
 title: Notifications
-description: Send firing and resolved alerts to Email, Telegram, and Slack, with one notification per evaluation.
+description: Route firing and resolved alerts to receivers with matchers, and control grouping, repeats, silences, and inhibitions.
 ---
 
-When an alert evaluates, Everr sends one notification summarizing all instance changes. Notifications are configured in the app, not as code, and apply across the whole organization.
+Alert rules are defined as code, but delivery is configured in the app and applies across the whole organization. Everything below lives under **Alerts** in Everr: routing on the **Routing** tab, silences under **Monitor**.
 
-## Open Notifications
+## The delivery pipeline
 
-In Everr, go to **Alerts** and click **Notifications** (top right of the Alerts page). The page has three layers: where alerts go by default, the custom rules that redirect specific alerts elsewhere, and an Advanced section for less common controls.
+When an alert fires or resolves, it walks a fixed path:
 
-## Where alerts go
+1. **Routes** are checked top to bottom by priority; the first route whose matchers fit the alert's labels decides the receiver.
+2. The matched **receiver** delivers the notification (Slack, email, webhook, PagerDuty, or Telegram).
+3. Alerts that match **no route** fall through to the **firehose**: every subscribed webhook receives them.
 
-The top card lists your organization's default channels: Email, Telegram, and Slack. Each has an enable toggle and its recipients. An enabled channel must have at least one recipient before you can save.
+Silences and inhibitions suppress delivery without stopping evaluation.
 
-### Email
+## Receivers
 
-Turn on **Email** and add one or more recipient addresses.
+A receiver is a named delivery target. Create and delete receivers on the Routing tab; routes reference them by name.
 
-### Telegram
+Channel types: **email** (recipient addresses), **Slack** (an [Incoming Webhook](https://api.slack.com/messaging/webhooks) URL), **webhook** (any HTTPS endpoint), **PagerDuty** (an integration key), and **Telegram** (a bot token and chat ID, see Telegram's [BotFather guide](https://core.telegram.org/bots/features#botfather)).
 
-Turn on **Telegram**, then set a **bot token** (like `123456789:ABC...`) and one or more **chat IDs** (for example `-1001234567890` for a group). To create a bot and get its token, follow Telegram's [BotFather guide](https://core.telegram.org/bots/features#botfather).
+Secret fields (webhook URLs, tokens, keys) are write-only: after saving, Everr shows them redacted. To change one, create the receiver again under the same name with the new value.
 
-The bot token is write-only: after saving, Everr never shows it again. To change it, clear the field and paste in a new one.
+## Routes
 
-To find a chat ID, add your bot to the chat and read the ID from the Telegram Bot API [`getUpdates`](https://core.telegram.org/bots/api#getupdates) response, or open the channel or group in the [Telegram web app](https://web.telegram.org) and copy the number from the URL. For channels and supergroups it's the `-100...` value.
+A route is a set of **matchers** (label comparisons such as `severity = critical`, with equals, not-equals, and regex operators), a target receiver, and a priority. Routes are checked in priority order and the first match wins.
 
-### Slack
+Each route also controls timing:
 
-Turn on **Slack** and paste an **Incoming Webhook** URL. In Slack, open the [Slack app dashboard](https://api.slack.com/apps), select the app that should post alerts, then go to **Incoming Webhooks**. Turn on **Activate Incoming Webhooks** if needed, click **Add New Webhook to Workspace**, choose the channel, and authorize the app. Copy the resulting `https://hooks.slack.com/services/...` URL and paste it into the field.
+- **Group by** collects instances that share the chosen labels into one notification.
+- **Group wait** is how long to hold a new group before the first send, letting related instances batch together.
+- **Group interval** is the minimum time between updates for an already-notified group.
+- **Repeat interval** re-sends the notification while the alert stays firing, so a long-lived incident is not silent after the first message.
 
-### Remind every
+## Inhibitions
 
-Choose how often a still-firing alert re-sends its notification: off, every hour, every 4 hours, or every 24 hours.
+An inhibition suppresses downstream alerts while a related, higher-level alert is already firing: while alerts matching the **source** matchers fire, alerts matching the **target** matchers are suppressed. Optional **equal labels** scope it to pairs that share the same value for those labels, so a database outage in `region=eu` only inhibits alerts from the same region.
 
-## Custom notification rules
+## Firehose
 
-By default every alert notifies the channels above. Add a custom notification rule to send specific alerts somewhere else instead: a condition (for example `severity = critical`), a target channel, and a priority. Rules are checked top to bottom by priority, and the first match wins.
+The firehose is the fallback and the integration point: every alert that matches no route is delivered to every webhook URL subscribed here. Point it at an internal service to build custom fan-out without defining routes.
 
-## Advanced
+## Silences
 
-The Advanced section is collapsed by default. Expand it for a pipeline overview and three less common controls: dependency mutes, the webhook feed, and read-only channels.
-
-### Dependency mutes
-
-Mute noisy downstream alerts while a related, higher-level alert is already firing. While alerts matching a source condition are firing, alerts matching a target condition are muted, optionally scoped so it only applies when both share the same value for chosen labels.
-
-### Webhook feed
-
-The fallback: alerts that match no custom notification rule are delivered to every webhook URL added here.
-
-### Channels
-
-The underlying delivery channels, with secret fields redacted. Add or delete channels directly in the UI; custom notification rules deliver to them by name. Channels are not defined as code: `kind: AlertRule` is the only alerting resource `everr apply` reconciles, and channels, custom notification rules, dependency mutes, and webhook feeds are all managed in the app.
-
-## Mute during maintenance
-
-To stop notifications for a known issue or maintenance window without deleting the rule, mute it from the alert's detail page or from the Alerts page. Use the **Mute** action on a firing instance and set a time window, or mute an entire rule from the mutes pill at the top of the Alerts page. The rule keeps evaluating, muted instances are filtered out of notifications. If every instance is muted, no notification is sent.
+To stop notifications for a known issue or maintenance window without touching the rule, create a **silence** under **Monitor**: matchers select the alerts, a time window bounds the suppression, and a comment records why. Silences can be scheduled ahead of a maintenance window. The rule keeps evaluating the whole time; silenced alerts are suppressed from delivery and recorded in the event stream.
