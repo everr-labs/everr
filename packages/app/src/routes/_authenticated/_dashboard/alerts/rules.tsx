@@ -50,15 +50,15 @@ const ccRulesQuery = () =>
     getNextPageParam: (last) => last.next_cursor,
   });
 
-export const Route = createFileRoute(
-  "/_authenticated/_dashboard/cc-alerting/rules",
-)({
-  staticData: { breadcrumb: "Rules" },
-  head: () => ({ meta: [{ title: "Everr - Advanced Alerting Rules" }] }),
-  loader: ({ context: { queryClient } }) =>
-    queryClient.prefetchInfiniteQuery(ccRulesQuery()),
-  component: CcRulesPage,
-});
+export const Route = createFileRoute("/_authenticated/_dashboard/alerts/rules")(
+  {
+    staticData: { breadcrumb: "Rules" },
+    head: () => ({ meta: [{ title: "Everr - Alerts Rules" }] }),
+    loader: ({ context: { queryClient } }) =>
+      queryClient.prefetchInfiniteQuery(ccRulesQuery()),
+    component: CcRulesPage,
+  },
+);
 
 function CcRulesPage() {
   const qc = useQueryClient();
@@ -90,7 +90,7 @@ function CcRulesPage() {
       header: "Rule",
       cell: (r) => (
         <Link
-          to="/cc-alerting/rules/$ruleId"
+          to="/alerts/rules/$ruleId"
           params={{ ruleId: r.id }}
           className="font-mono text-primary hover:underline"
         >

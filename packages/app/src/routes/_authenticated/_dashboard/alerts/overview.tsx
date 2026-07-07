@@ -44,10 +44,10 @@ const q = {
 };
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/cc-alerting/overview",
+  "/_authenticated/_dashboard/alerts/overview",
 )({
   staticData: { breadcrumb: "Overview" },
-  head: () => ({ meta: [{ title: "Everr - Advanced Alerting" }] }),
+  head: () => ({ meta: [{ title: "Everr - Alerts" }] }),
   loader: ({ context: { queryClient } }) =>
     Promise.all([
       queryClient.prefetchQuery(q.rules()),
@@ -61,10 +61,10 @@ export const Route = createFileRoute(
 });
 
 type CcLinkTo =
-  | "/cc-alerting/rules"
-  | "/cc-alerting/monitor/active"
-  | "/cc-alerting/monitor/silences"
-  | "/cc-alerting/routing";
+  | "/alerts/rules"
+  | "/alerts/monitor/active"
+  | "/alerts/monitor/silences"
+  | "/alerts/routing";
 
 function StatCell({
   to,
@@ -170,32 +170,32 @@ function CcOverviewPage() {
         <CardContent>
           <div className="grid grid-cols-2 gap-px border-t border-border bg-border sm:grid-cols-3 lg:grid-cols-5">
             <StatCell
-              to="/cc-alerting/monitor/active"
+              to="/alerts/monitor/active"
               label="Firing now"
               value={firing}
               emphasis
               hint={firing > 0 ? "needs attention" : "all clear"}
             />
             <StatCell
-              to="/cc-alerting/rules"
+              to="/alerts/rules"
               label="Rules"
               value={ruleList.length}
               hint={rulesHint}
             />
             <StatCell
-              to="/cc-alerting/routing"
+              to="/alerts/routing"
               hash="routes"
               label="Routes"
               value={(routes.data ?? []).length}
             />
             <StatCell
-              to="/cc-alerting/routing"
+              to="/alerts/routing"
               hash="receivers"
               label="Receivers"
               value={(receivers.data ?? []).length}
             />
             <StatCell
-              to="/cc-alerting/monitor/silences"
+              to="/alerts/monitor/silences"
               label="Active silences"
               value={activeSilences}
             />

@@ -50,7 +50,7 @@ const silencesQuery = () =>
   });
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/cc-alerting/monitor/silences",
+  "/_authenticated/_dashboard/alerts/monitor/silences",
 )({
   loader: ({ context: { queryClient } }) =>
     queryClient.prefetchQuery(silencesQuery()),

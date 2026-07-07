@@ -41,7 +41,7 @@ const ANN_CC_LINK_RUNBOOK = "link.runbook";
 
 /** Absolute URL of the everr rule detail page for a CC rule id. */
 function alertDetailUrl(appBaseUrl: string, ruleId: string): string {
-  return new URL(`/cc-alerting/rules/${ruleId}`, appBaseUrl).toString();
+  return new URL(`/alerts/rules/${ruleId}`, appBaseUrl).toString();
 }
 
 /**

@@ -54,7 +54,7 @@ const ccAlertsQuery = () =>
   queryOptions({ queryKey: ["cc", "alerts"], queryFn: () => listCcAlerts() });
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/cc-alerting/rules_/$ruleId",
+  "/_authenticated/_dashboard/alerts/rules_/$ruleId",
 )({
   staticData: { breadcrumb: "Rule" },
   loader: ({ context: { queryClient }, params }) =>
@@ -68,7 +68,7 @@ export const Route = createFileRoute(
 function BackLink() {
   return (
     <Link
-      to="/cc-alerting/rules"
+      to="/alerts/rules"
       className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] hover:bg-muted/50 hover:text-foreground"
       aria-label="Back to rules"
     >

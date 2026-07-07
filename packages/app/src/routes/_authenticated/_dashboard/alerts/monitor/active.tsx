@@ -36,7 +36,7 @@ const silencesQuery = () =>
   });
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/cc-alerting/monitor/active",
+  "/_authenticated/_dashboard/alerts/monitor/active",
 )({
   loader: ({ context: { queryClient } }) =>
     Promise.all([
@@ -97,7 +97,7 @@ function CcMonitorActive() {
       <span className="font-mono text-xs">{route.receiver}</span>
     ) : (
       <Link
-        to="/cc-alerting/routing"
+        to="/alerts/routing"
         hash="firehose"
         className="text-xs text-muted-foreground hover:text-foreground hover:underline"
       >
@@ -120,7 +120,7 @@ function CcMonitorActive() {
       header: "Rule",
       cell: (r) => (
         <Link
-          to="/cc-alerting/rules/$ruleId"
+          to="/alerts/rules/$ruleId"
           params={{ ruleId: r.rule }}
           className="font-mono text-primary hover:underline"
         >
@@ -149,7 +149,7 @@ function CcMonitorActive() {
           size="sm"
           onClick={() =>
             navigate({
-              to: "/cc-alerting/monitor/silences",
+              to: "/alerts/monitor/silences",
               state: { silencePrefill: r.labels } as never,
             })
           }

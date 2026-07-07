@@ -1,6 +1,6 @@
 // packages/app/src/components/cc/inhibition-builder.tsx
 //
-// Backs the /cc-alerting/routing page's dependency-mutes (inhibitions)
+// Backs the /alerts/routing page's dependency-mutes (inhibitions)
 // section.
 import { Button } from "@everr/ui/components/button";
 import {

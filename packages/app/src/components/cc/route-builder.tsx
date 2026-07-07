@@ -1,6 +1,6 @@
 // packages/app/src/components/cc/route-builder.tsx
 //
-// Backs the /cc-alerting/routing page's "Routes" section.
+// Backs the /alerts/routing page's "Routes" section.
 import { Button } from "@everr/ui/components/button";
 import {
   Dialog,

@@ -6,9 +6,9 @@ import {
 } from "@/components/cc/alert-event-feed";
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/cc-alerting/monitor/stream",
+  "/_authenticated/_dashboard/alerts/monitor/stream",
 )({
-  // The cc-alerting section hides the global time-range picker; this page reads
+  // The alerts section hides the global time-range picker; this page reads
   // stored history, so it opts back in (the deepest staticData value wins).
   staticData: { hideTimeRangePicker: false },
   loaderDeps: ({ search }) => ({ timeRange: withTimeRange(search).timeRange }),

@@ -211,7 +211,7 @@ describe("withAlertLink", () => {
     const spec = toRuleSpec(rule, "repo-1");
     const linked = withAlertLink(spec, "https://app.example.com", "rule-123");
     expect(linked.annotations["link.alert"]).toBe(
-      "https://app.example.com/cc-alerting/rules/rule-123",
+      "https://app.example.com/alerts/rules/rule-123",
     );
     // Non-mutating, and everything else is unchanged.
     expect(spec.annotations["link.alert"]).toBeUndefined();

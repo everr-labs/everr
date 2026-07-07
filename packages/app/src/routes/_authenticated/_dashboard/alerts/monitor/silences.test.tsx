@@ -64,7 +64,7 @@ function renderSilencesRoute() {
   });
   const silencesRoute = createRoute({
     getParentRoute: () => dashboardRoute,
-    path: "cc-alerting/monitor/silences",
+    path: "alerts/monitor/silences",
     component: SilencesFileRoute.options.component,
   });
 
@@ -75,7 +75,7 @@ function renderSilencesRoute() {
   ]);
 
   const history = createMemoryHistory({
-    initialEntries: ["/cc-alerting/monitor/silences"],
+    initialEntries: ["/alerts/monitor/silences"],
   });
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -94,7 +94,7 @@ function renderSilencesRoute() {
   return { router, queryClient };
 }
 
-describe("/cc-alerting/monitor/silences route", () => {
+describe("/alerts/monitor/silences route", () => {
   beforeEach(() => {
     mocks.listCcSilences.mockReset();
     mocks.createCcSilence.mockReset();

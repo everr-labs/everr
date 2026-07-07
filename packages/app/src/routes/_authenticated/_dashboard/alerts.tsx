@@ -12,21 +12,21 @@ type CcNavItem = { label: string; to: string };
 // Four intent-named destinations, collapsed from the original eight facets:
 // learn the model, watch what's happening, see what's watched, configure delivery.
 const NAV_ITEMS: CcNavItem[] = [
-  { label: "Overview", to: "/cc-alerting/overview" },
-  { label: "Monitor", to: "/cc-alerting/monitor" },
-  { label: "Rules", to: "/cc-alerting/rules" },
-  { label: "Routing", to: "/cc-alerting/routing" },
+  { label: "Overview", to: "/alerts/overview" },
+  { label: "Monitor", to: "/alerts/monitor" },
+  { label: "Rules", to: "/alerts/rules" },
+  { label: "Routing", to: "/alerts/routing" },
 ];
 
-export const Route = createFileRoute("/_authenticated/_dashboard/cc-alerting")({
-  staticData: { breadcrumb: "Advanced alerting", hideTimeRangePicker: true },
-  head: () => ({ meta: [{ title: "Everr - Advanced Alerting" }] }),
+export const Route = createFileRoute("/_authenticated/_dashboard/alerts")({
+  staticData: { breadcrumb: "Alerts", hideTimeRangePicker: true },
+  head: () => ({ meta: [{ title: "Everr - Alerts" }] }),
   component: CcAlertingLayout,
 });
 
 function CcAlertingLayout() {
   const { pathname } = useLocation();
-  // `/cc-alerting/rules/$ruleId` should keep the "Rules" facet lit.
+  // `/alerts/rules/$ruleId` should keep the "Rules" facet lit.
   const isActive = (to: string) =>
     pathname === to || pathname.startsWith(`${to}/`);
 
@@ -38,16 +38,14 @@ function CcAlertingLayout() {
       <PageContainer>
         <div className="flex flex-col gap-3">
           <div>
-            <h1 className="text-xl font-bold tracking-tight">
-              Advanced alerting
-            </h1>
+            <h1 className="text-xl font-bold tracking-tight">Alerts</h1>
             <p className="text-sm text-muted-foreground">
               Prometheus-style alerting over your telemetry — rules, routing,
               and silences, evaluated against ClickHouse.
             </p>
           </div>
           <nav
-            aria-label="Advanced alerting sections"
+            aria-label="Alerts sections"
             className="flex flex-wrap items-center gap-1 border-b border-border pb-3"
           >
             {NAV_ITEMS.map((item) => {

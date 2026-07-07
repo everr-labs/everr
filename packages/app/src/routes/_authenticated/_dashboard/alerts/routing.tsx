@@ -93,10 +93,10 @@ const q = {
 };
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/cc-alerting/routing",
+  "/_authenticated/_dashboard/alerts/routing",
 )({
   staticData: { breadcrumb: "Routing" },
-  head: () => ({ meta: [{ title: "Everr - Advanced Alerting Routing" }] }),
+  head: () => ({ meta: [{ title: "Everr - Alerts Routing" }] }),
   loader: ({ context: { queryClient } }) =>
     Promise.all([
       queryClient.prefetchQuery(q.routes()),

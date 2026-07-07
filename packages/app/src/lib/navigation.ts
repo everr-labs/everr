@@ -30,14 +30,14 @@ export const navMain: NavItem[] = [
     icon: NotebookText,
   },
   {
-    title: "Advanced alerting",
-    url: "/cc-alerting/overview",
+    title: "Alerts",
+    url: "/alerts/overview",
     icon: Zap,
     items: [
-      { title: "Overview", url: "/cc-alerting/overview" },
-      { title: "Monitor", url: "/cc-alerting/monitor" },
-      { title: "Rules", url: "/cc-alerting/rules" },
-      { title: "Routing", url: "/cc-alerting/routing" },
+      { title: "Overview", url: "/alerts/overview" },
+      { title: "Monitor", url: "/alerts/monitor" },
+      { title: "Rules", url: "/alerts/rules" },
+      { title: "Routing", url: "/alerts/routing" },
     ],
   },
   {

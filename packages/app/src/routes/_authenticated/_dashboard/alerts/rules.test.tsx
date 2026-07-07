@@ -93,13 +93,13 @@ function renderRulesRoute() {
   });
   const rulesRoute = createRoute({
     getParentRoute: () => dashboardRoute,
-    path: "cc-alerting/rules",
+    path: "alerts/rules",
     component: RulesFileRoute.options.component,
   });
   // Link target for the per-rule detail; never rendered here.
   const ruleDetailRoute = createRoute({
     getParentRoute: () => dashboardRoute,
-    path: "cc-alerting/rules/$ruleId",
+    path: "alerts/rules/$ruleId",
     component: () => null,
   });
 
@@ -110,7 +110,7 @@ function renderRulesRoute() {
   ]);
 
   const history = createMemoryHistory({
-    initialEntries: ["/cc-alerting/rules"],
+    initialEntries: ["/alerts/rules"],
   });
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -129,7 +129,7 @@ function renderRulesRoute() {
   return { router, queryClient };
 }
 
-describe("/cc-alerting/rules route", () => {
+describe("/alerts/rules route", () => {
   beforeEach(() => {
     mocks.listCcRulesPage.mockReset();
     mocks.pauseCcRule.mockReset();
