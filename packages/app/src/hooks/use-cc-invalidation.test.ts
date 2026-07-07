@@ -104,11 +104,13 @@ describe("createCcInvalidationStream", () => {
     for (const key of CC_INVALIDATION_KEYS) {
       expect(invalidate).toHaveBeenCalledWith(key);
     }
-    // The exact set: alerts tree + cc active alerts + cc rule rollups.
+    // The exact set: alerts tree + cc active alerts + cc rule rollups + the
+    // stored CC event log (evidence/transitions on Triage and History).
     expect(CC_INVALIDATION_KEYS).toEqual([
       ["alerts"],
       ["cc", "alerts"],
       ["cc", "rules"],
+      ["cc", "event-history"],
     ]);
   });
 

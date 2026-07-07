@@ -10,19 +10,22 @@ const CC_EVENTS_STREAM_URL = "/api/cc/events-stream";
 // pages live without a refetch storm.
 export const CC_INVALIDATION_DEBOUNCE_MS = 2000;
 
-// A CC alert event (firing/resolved) changes exactly three query families:
+// A CC alert event (firing/resolved) changes exactly four query families:
 //   - the everr-native alerts views (list + detail all live under the
 //     ["alerts", …] prefix),
 //   - the CC active-alert instances (["cc", "alerts"]),
 //   - the CC rule rollups, which carry alert_state / firing_instance_count
-//     (["cc", "rules"]).
+//     (["cc", "rules"]),
+//   - the stored CC event log (["cc", "event-history"]) — every event lands a
+//     row there, and Triage reads it for evidence and recent transitions.
 // Config queries (routes, receivers, inhibitions, silences) are NOT touched by
 // alert events, so they are deliberately left out. TanStack matches by key
-// prefix, so these three cover every derived query on all four mount points.
+// prefix, so these four cover every derived query on all mount points.
 export const CC_INVALIDATION_KEYS: QueryKey[] = [
   ["alerts"],
   ["cc", "alerts"],
   ["cc", "rules"],
+  ["cc", "event-history"],
 ];
 
 export interface TrailingDebounce {
