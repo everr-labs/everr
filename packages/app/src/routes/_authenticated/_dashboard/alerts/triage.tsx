@@ -32,7 +32,7 @@ import {
   EvidenceChips,
   LabelSet,
 } from "@/components/cc/shared";
-import { fromCcRuleSpec } from "@/data/alerts/mapping";
+import { ccRuleIdentity } from "@/data/alerts/rule-identity";
 import {
   createCcSilence,
   listCcAlerts,
@@ -125,20 +125,14 @@ const STATUS_RANK: Record<string, number> = {
 };
 
 function ruleDisplayName(rule: CcRuleView | undefined, ruleId: string): string {
-  if (!rule) return ruleId.slice(0, 8);
-  const view = fromCcRuleSpec(rule.spec);
-  return view.displayName || view.slug || rule.id.slice(0, 8);
+  return rule ? ccRuleIdentity(rule).name : ruleId.slice(0, 8);
 }
 
 /** /runbooks/$project/$slug params when the rule links a runbook, else null. */
 function runbookParams(
   rule: CcRuleView | undefined,
 ): { project: string; slug: string } | null {
-  if (!rule) return null;
-  const view = fromCcRuleSpec(rule.spec);
-  return view.runbookSlug
-    ? { project: view.runbookProject ?? "default", slug: view.runbookSlug }
-    : null;
+  return rule ? ccRuleIdentity(rule).runbook : null;
 }
 
 /**

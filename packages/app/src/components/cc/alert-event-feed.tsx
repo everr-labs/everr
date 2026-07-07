@@ -97,7 +97,12 @@ export function AlertEventFeed({
   showTypeLens = false,
   resolveRuleName,
 }: {
-  scopeSlug?: string;
+  /**
+   * Scope the feed to one rule. Event rows carry the rule's slug when CC
+   * knows it and the bare rule id otherwise, so callers that know both pass
+   * both and either handle matches.
+   */
+  scopeSlug?: string | readonly string[];
   className?: string;
   /** Render the coarse All/Transitions/Deliveries/Silence-audits lens. */
   showTypeLens?: boolean;
@@ -127,10 +132,13 @@ export function AlertEventFeed({
     [events, history.data],
   );
 
-  const scoped = useMemo(
-    () => (scopeSlug ? merged.filter((e) => e.rule === scopeSlug) : merged),
-    [merged, scopeSlug],
-  );
+  const scoped = useMemo(() => {
+    if (!scopeSlug) return merged;
+    const handles = new Set(
+      typeof scopeSlug === "string" ? [scopeSlug] : scopeSlug,
+    );
+    return merged.filter((e) => handles.has(e.rule));
+  }, [merged, scopeSlug]);
 
   // Lens, event-type, and severity compose with AND: each narrows
   // independently of the others ("all" is a no-op filter on that axis).

@@ -96,16 +96,21 @@ function renderRulesRoute() {
     path: "alerts/rules",
     component: RulesFileRoute.options.component,
   });
-  // Link target for the per-rule detail; never rendered here.
+  // Link targets (per-rule detail, runbooks); never rendered here.
   const ruleDetailRoute = createRoute({
     getParentRoute: () => dashboardRoute,
     path: "alerts/rules/$ruleId",
     component: () => null,
   });
+  const runbookRoute = createRoute({
+    getParentRoute: () => dashboardRoute,
+    path: "runbooks/$project/$slug",
+    component: () => null,
+  });
 
   const routeTree = rootRoute.addChildren([
     authenticatedRoute.addChildren([
-      dashboardRoute.addChildren([rulesRoute, ruleDetailRoute]),
+      dashboardRoute.addChildren([rulesRoute, ruleDetailRoute, runbookRoute]),
     ]),
   ]);
 
@@ -161,6 +166,64 @@ describe("/alerts/rules route", () => {
     expect(mocks.listCcRulesPage).toHaveBeenCalledWith({
       data: { limit: 100 },
     });
+  });
+
+  it("names rules by display name with the id as muted secondary", async () => {
+    mocks.listCcRulesPage.mockResolvedValue(
+      page(
+        [
+          ccRuleView({
+            spec: {
+              ...ccRuleView().spec,
+              annotations: {
+                "everr.name": "flapping",
+                "everr.display.name": "Flapping Detector",
+              },
+            },
+          }),
+        ],
+        null,
+      ),
+    );
+
+    renderRulesRoute();
+
+    expect(
+      await screen.findByRole("link", { name: "Flapping Detector" }),
+    ).toBeInTheDocument();
+    // The id survives as the muted secondary line.
+    expect(screen.getByText("11111111")).toBeInTheDocument();
+  });
+
+  it("shows a runbook icon link only when the rule links a runbook", async () => {
+    mocks.listCcRulesPage.mockResolvedValue(
+      page(
+        [
+          ccRuleView({
+            spec: {
+              ...ccRuleView().spec,
+              annotations: {
+                "everr.name": "flapping",
+                "everr.runbook": "demo/flapping-runbook",
+              },
+            },
+          }),
+          ccRuleView({ id: "22222222-2222-2222-2222-222222222222" }),
+        ],
+        null,
+      ),
+    );
+
+    renderRulesRoute();
+
+    const runbookLinks = await screen.findAllByRole("link", {
+      name: /Open runbook/,
+    });
+    expect(runbookLinks).toHaveLength(1);
+    expect(runbookLinks[0]).toHaveAttribute(
+      "href",
+      "/runbooks/demo/flapping-runbook",
+    );
   });
 
   it("renders the non-firing rollup state as muted text", async () => {

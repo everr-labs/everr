@@ -8,6 +8,7 @@ import {
 } from "@everr/ui/components/card";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
+import { cn } from "@everr/ui/lib/utils";
 import {
   infiniteQueryOptions,
   useInfiniteQuery,
@@ -15,9 +16,10 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Pause, Play, SlidersHorizontal } from "lucide-react";
+import { BookOpenText, Pause, Play, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
+import { ccRuleIdentity } from "@/data/alerts/rule-identity";
 import { listCcRulesPage, pauseCcRule, resumeCcRule } from "@/data/cc/server";
 import type { CcRuleView } from "@/data/cc/types";
 import {
@@ -101,15 +103,47 @@ function CcRulesPage() {
   const columns: Column<CcRuleView>[] = [
     {
       header: "Rule",
-      cell: (r) => (
-        <Link
-          to="/alerts/rules/$ruleId"
-          params={{ ruleId: r.id }}
-          className="font-mono text-primary hover:underline"
-        >
-          {r.id.slice(0, 8)}
-        </Link>
-      ),
+      cell: (r) => {
+        const identity = ccRuleIdentity(r);
+        return (
+          <span className="flex flex-col">
+            <Link
+              to="/alerts/rules/$ruleId"
+              params={{ ruleId: r.id }}
+              className={cn(
+                "font-medium text-foreground underline-offset-2 hover:underline",
+                identity.name === identity.shortId && "font-mono",
+              )}
+            >
+              {identity.name}
+            </Link>
+            {/* The id stays reachable (copy/grep against as-code specs) but
+                steps back; suppressed entirely when it IS the name. */}
+            {identity.name !== identity.shortId && (
+              <span className="font-mono text-[0.6875rem] text-muted-foreground">
+                {identity.shortId}
+              </span>
+            )}
+          </span>
+        );
+      },
+    },
+    {
+      header: "",
+      cell: (r) => {
+        const { runbook, name } = ccRuleIdentity(r);
+        return runbook ? (
+          <Link
+            to="/runbooks/$project/$slug"
+            params={runbook}
+            aria-label={`Open runbook for ${name}`}
+            title="Open runbook"
+            className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground outline-2 outline-dotted outline-transparent transition-colors duration-150 hover:bg-muted/50 hover:text-foreground focus-visible:outline-primary"
+          >
+            <BookOpenText className="size-3.5" />
+          </Link>
+        ) : null;
+      },
     },
     {
       header: "Severity",
