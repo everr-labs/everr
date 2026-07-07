@@ -3,6 +3,7 @@ import {
   dashboardProjectSchema,
   dashboardSlugSchema,
 } from "@/data/dashboards/schema";
+import { parseWindow } from "./window";
 
 const nonEmptyString = z.string().min(1);
 
@@ -91,6 +92,21 @@ export function formatRunbookRef(project: string, slug: string): string {
   return project === "default" ? slug : `${project}/${slug}`;
 }
 
+// Annotation keys reserved for CC-consumable sugar the mapping layer derives
+// from other AlertRule fields (notification templates, runbook links, ...).
+// A hand-authored spec.annotations entry would silently be clobbered by that
+// generated value, so it is rejected at parse time instead.
+const RESERVED_ANNOTATION_KEYS = new Set([
+  "summary",
+  "description",
+  "link.alert",
+  "link.runbook",
+]);
+
+function isReservedAnnotationKey(key: string): boolean {
+  return key.startsWith("everr.") || RESERVED_ANNOTATION_KEYS.has(key);
+}
+
 export const EverrConfigYamlSchema = z
   .object({
     repoid: nonEmptyString,
@@ -123,11 +139,26 @@ export const AlertRuleYamlSchema = z
         resolveAfter: z.number().int().min(1).default(1),
         severity: z.enum(["info", "warning", "critical"]).default("info"),
         notificationMessage: notificationMessageSchema,
-        query: nonEmptyString,
+        query: nonEmptyString.optional(),
+        // `sql` is the clickety-clack-native alias for `query`, accepted for
+        // parity with the engine's own RuleSpec vocabulary and folded into
+        // `query` by the transform.
+        sql: nonEmptyString.optional(),
         instanceLabels: z.array(nonEmptyString).min(1).optional(),
+        // `labelColumns` is the clickety-clack-native alias for
+        // `instanceLabels`, folded into it by the transform.
+        labelColumns: z.array(nonEmptyString).min(1).optional(),
         // Numeric result column carried onto instances/notifications as the
         // alert value; referenced in messages as ${value}.
         valueColumn: nonEmptyString.optional(),
+        // Upper bound on how long CC may go without evaluating the rule
+        // before flagging it degraded (duration string, engine defaults when
+        // unset). Must be >= evaluationInterval when both are set.
+        maxInterval: nonEmptyString.optional(),
+        // Pass-through annotations merged onto the CC rule alongside the
+        // generated ones; reserved keys (see isReservedAnnotationKey) are
+        // rejected here so they can never shadow generated sugar.
+        annotations: z.record(nonEmptyString, z.string()).optional(),
       })
       .strict()
       .superRefine((spec, ctx) => {
@@ -139,10 +170,77 @@ export const AlertRuleYamlSchema = z
             path: ["runbook"],
           });
         }
+        if (spec.query !== undefined && spec.sql !== undefined) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'set only one of "query" or its alias "sql", not both',
+            path: ["query"],
+          });
+        } else if (spec.query === undefined && spec.sql === undefined) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: '"query" is required (or its alias "sql")',
+            path: ["query"],
+          });
+        }
+        if (
+          spec.instanceLabels !== undefined &&
+          spec.labelColumns !== undefined
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message:
+              'set only one of "instanceLabels" or its alias "labelColumns", not both',
+            path: ["instanceLabels"],
+          });
+        }
+        if (spec.maxInterval !== undefined) {
+          let maxIntervalSeconds: number | undefined;
+          try {
+            maxIntervalSeconds = parseWindow(spec.maxInterval);
+          } catch (error) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message:
+                error instanceof Error
+                  ? error.message
+                  : `invalid maxInterval "${spec.maxInterval}"`,
+              path: ["maxInterval"],
+            });
+          }
+          if (maxIntervalSeconds !== undefined && spec.evaluationInterval) {
+            try {
+              const evaluationIntervalSeconds = parseWindow(
+                spec.evaluationInterval,
+              );
+              if (maxIntervalSeconds < evaluationIntervalSeconds) {
+                ctx.addIssue({
+                  code: z.ZodIssueCode.custom,
+                  message: `maxInterval "${spec.maxInterval}" must be >= evaluationInterval "${spec.evaluationInterval}"`,
+                  path: ["maxInterval"],
+                });
+              }
+            } catch {
+              // A malformed evaluationInterval is reported at apply time
+              // (parseEvaluationInterval); nothing to compare against here.
+            }
+          }
+        }
+        for (const key of Object.keys(spec.annotations ?? {})) {
+          if (isReservedAnnotationKey(key)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `spec.annotations key "${key}" is reserved (generated from other fields)`,
+              path: ["annotations", key],
+            });
+          }
+        }
       })
-      .transform(({ notebook, ...spec }) => ({
+      .transform(({ notebook, sql, labelColumns, ...spec }) => ({
         ...spec,
         runbook: spec.runbook ?? notebook,
+        query: (spec.query ?? sql) as string,
+        instanceLabels: spec.instanceLabels ?? labelColumns,
       })),
   })
   .strict();

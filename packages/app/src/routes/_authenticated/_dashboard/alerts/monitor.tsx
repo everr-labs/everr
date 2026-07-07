@@ -7,16 +7,16 @@ import {
 } from "@tanstack/react-router";
 
 const TABS = [
-  { label: "Active", to: "/cc-alerting/monitor/active" },
-  { label: "Stream", to: "/cc-alerting/monitor/stream" },
-  { label: "Silences", to: "/cc-alerting/monitor/silences" },
+  { label: "Active", to: "/alerts/monitor/active" },
+  { label: "Stream", to: "/alerts/monitor/stream" },
+  { label: "Silences", to: "/alerts/monitor/silences" },
 ] as const;
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/cc-alerting/monitor",
+  "/_authenticated/_dashboard/alerts/monitor",
 )({
   staticData: { breadcrumb: "Monitor" },
-  head: () => ({ meta: [{ title: "Everr - Clickety-Clack Monitor" }] }),
+  head: () => ({ meta: [{ title: "Everr - Alerts Monitor" }] }),
   component: CcMonitorLayout,
 });
 

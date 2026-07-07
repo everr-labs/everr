@@ -44,11 +44,6 @@ export const applyInput = z
         dashboards: z.array(resourceEntrySchema),
         runbooks: z.array(resourceEntrySchema),
         alerts: z.array(resourceEntrySchema),
-        // Clickety-clack resources, classified CLI-side (CCAlertRule/CCReceiver).
-        // Defaulted so callers/tests that omit them stay valid; the everr CLI
-        // always sends both (possibly empty) arrays.
-        ccRules: z.array(resourceEntrySchema).default([]),
-        ccReceivers: z.array(resourceEntrySchema).default([]),
       })
       .strict(),
     source: applySourceSchema.optional(),

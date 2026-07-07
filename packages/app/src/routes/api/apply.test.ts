@@ -113,8 +113,6 @@ describe("POST /api/apply", () => {
         ],
         runbooks: [],
         alerts: [],
-        ccRules: [],
-        ccReceivers: [],
       },
       source: {
         branch: "main",
@@ -128,6 +126,26 @@ describe("POST /api/apply", () => {
 
   it("returns 400 on an invalid body", async () => {
     const res = await POST({ request: req({}), context: ctx });
+    expect(res.status).toBe(400);
+    expect(applyResources).not.toHaveBeenCalled();
+  });
+
+  // The receiver as-code kind was retired: receivers are UI-managed, and the
+  // strict state schema rejects the old wire key instead of silently ignoring
+  // whatever an outdated CLI would have sent under it.
+  it("returns 400 on the retired ccReceivers state key", async () => {
+    const res = await POST({
+      request: req({
+        repoid: "repo-1",
+        state: {
+          dashboards: [],
+          runbooks: [],
+          alerts: [],
+          ccReceivers: [],
+        },
+      }),
+      context: ctx,
+    });
     expect(res.status).toBe(400);
     expect(applyResources).not.toHaveBeenCalled();
   });

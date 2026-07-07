@@ -1,5 +1,4 @@
 import {
-  Bell,
   GitBranch,
   LayoutDashboard,
   type LucideIcon,
@@ -32,18 +31,14 @@ export const navMain: NavItem[] = [
   },
   {
     title: "Alerts",
-    url: "/alerts",
-    icon: Bell,
-  },
-  {
-    title: "Clickety-Clack",
-    url: "/cc-alerting/overview",
+    url: "/alerts/overview",
     icon: Zap,
+    isActive: true,
     items: [
-      { title: "Overview", url: "/cc-alerting/overview" },
-      { title: "Monitor", url: "/cc-alerting/monitor" },
-      { title: "Rules", url: "/cc-alerting/rules" },
-      { title: "Routing", url: "/cc-alerting/routing" },
+      { title: "Overview", url: "/alerts/overview" },
+      { title: "Monitor", url: "/alerts/monitor" },
+      { title: "Rules", url: "/alerts/rules" },
+      { title: "Routing", url: "/alerts/routing" },
     ],
   },
   {

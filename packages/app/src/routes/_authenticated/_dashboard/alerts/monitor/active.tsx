@@ -6,6 +6,7 @@ import {
   CardTitle,
 } from "@everr/ui/components/card";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
+import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { queryOptions, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { BellOff } from "lucide-react";
@@ -35,7 +36,7 @@ const silencesQuery = () =>
   });
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/cc-alerting/monitor/active",
+  "/_authenticated/_dashboard/alerts/monitor/active",
 )({
   loader: ({ context: { queryClient } }) =>
     Promise.all([
@@ -96,7 +97,7 @@ function CcMonitorActive() {
       <span className="font-mono text-xs">{route.receiver}</span>
     ) : (
       <Link
-        to="/cc-alerting/routing"
+        to="/alerts/routing"
         hash="firehose"
         className="text-xs text-muted-foreground hover:text-foreground hover:underline"
       >
@@ -119,7 +120,7 @@ function CcMonitorActive() {
       header: "Rule",
       cell: (r) => (
         <Link
-          to="/cc-alerting/rules/$ruleId"
+          to="/alerts/rules/$ruleId"
           params={{ ruleId: r.rule }}
           className="font-mono text-primary hover:underline"
         >
@@ -130,6 +131,17 @@ function CcMonitorActive() {
     { header: "Notifies", cell: destination },
     { header: "Active since", cell: (r) => ccFormatTs(r.active_since) },
     {
+      // absent_count is consecutive evaluations without the row — the
+      // instance is on its way to resolving.
+      header: "Last seen",
+      cell: (r) => (
+        <span className="whitespace-nowrap text-xs text-muted-foreground">
+          {r.last_seen ? formatRelativeTime(r.last_seen) : "—"}
+          {r.absent_count > 0 && ` · absent x${r.absent_count}`}
+        </span>
+      ),
+    },
+    {
       header: "",
       cell: (r) => (
         <Button
@@ -137,7 +149,7 @@ function CcMonitorActive() {
           size="sm"
           onClick={() =>
             navigate({
-              to: "/cc-alerting/monitor/silences",
+              to: "/alerts/monitor/silences",
               state: { silencePrefill: r.labels } as never,
             })
           }

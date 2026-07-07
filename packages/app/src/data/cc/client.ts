@@ -2,24 +2,47 @@ import { z } from "zod";
 import { ccRequest } from "@/lib/clickety-clack.server";
 import {
   CcAlertSchema,
+  CcChannelSchema,
   CcDeletedSchema,
   CcInhibitionSchema,
   CcReceiverSchema,
   CcRouteSchema,
   CcRuleSchema,
   CcRuleSpecSchema,
+  CcRulesPageSchema,
   CcRuleViewSchema,
   CcSilenceSchema,
   CcSubscriptionSchema,
   CcTestResultSchema,
 } from "./schema";
-import type { CcMatcher, CcRuleSpec } from "./types";
+import type { CcChannelConfig, CcMatcher, CcRuleSpec } from "./types";
 
 // ---- Rules ----
 export async function listRules(orgId: string) {
   return z
     .array(CcRuleViewSchema)
     .parse(await ccRequest(orgId, "GET", "/v1/rules"));
+}
+/**
+ * Paginated listing: sending `limit` (1..=500, CC defaults 100) opts into the
+ * `{items, next_cursor}` envelope; `cursor` resumes from a previous page's
+ * `next_cursor`. `health` filters server-side by evaluation health. The bare
+ * `listRules` above keeps the legacy unbounded-array shape for its callers.
+ */
+export async function listRulesPage(
+  orgId: string,
+  opts: {
+    limit?: number;
+    cursor?: string;
+    health?: "degraded" | "healthy";
+  } = {},
+) {
+  const params = new URLSearchParams({ limit: String(opts.limit ?? 100) });
+  if (opts.cursor) params.set("cursor", opts.cursor);
+  if (opts.health) params.set("health", opts.health);
+  return CcRulesPageSchema.parse(
+    await ccRequest(orgId, "GET", `/v1/rules?${params.toString()}`),
+  );
 }
 export async function getRule(orgId: string, id: string) {
   return CcRuleViewSchema.parse(
@@ -85,6 +108,32 @@ export async function listAlerts(orgId: string) {
     .parse(await ccRequest(orgId, "GET", "/v1/alerts"));
 }
 
+// ---- Channels ----
+export async function listChannels(orgId: string) {
+  return z
+    .array(CcChannelSchema)
+    .parse(await ccRequest(orgId, "GET", "/v1/channels"));
+}
+/** CC's POST /v1/channels is an upsert by name (also the secret-rotation path). */
+export async function upsertChannel(
+  orgId: string,
+  body: { name: string; config: CcChannelConfig },
+) {
+  return CcChannelSchema.parse(
+    await ccRequest(orgId, "POST", "/v1/channels", body),
+  );
+}
+/** CC answers 409 (CcApiError naming the referring receivers) while referenced. */
+export async function deleteChannel(orgId: string, name: string) {
+  return CcDeletedSchema.parse(
+    await ccRequest(
+      orgId,
+      "DELETE",
+      `/v1/channels/${encodeURIComponent(name)}`,
+    ),
+  );
+}
+
 // ---- Receivers ----
 export async function listReceivers(orgId: string) {
   return z
@@ -93,7 +142,7 @@ export async function listReceivers(orgId: string) {
 }
 export async function upsertReceiver(
   orgId: string,
-  body: { name: string; channel: unknown },
+  body: { name: string; channels: string[] },
 ) {
   return CcReceiverSchema.parse(
     await ccRequest(orgId, "POST", "/v1/receivers", body),

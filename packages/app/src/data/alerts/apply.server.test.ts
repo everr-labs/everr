@@ -20,13 +20,7 @@ import * as cc from "@/data/cc/client";
 import type { DbExecutor } from "@/db/client";
 import { querySqlApiWithMeta } from "@/lib/clickhouse";
 import { applyAlertSpecs } from "./apply.server";
-import {
-  MANAGED_SIMPLE,
-  OWN_MANAGED,
-  OWN_NAME,
-  OWN_PREVIEW,
-  OWN_REPO,
-} from "./mapping";
+import { isOwnedRule, OWN_NAME, OWN_PREVIEW, OWN_REPO } from "./mapping";
 
 // The simple-alert reconciler talks to CC over HTTP and never touches Postgres,
 // so the Reconciler contract's `db` is unused here — a stub satisfies the type.
@@ -83,10 +77,9 @@ function managedRule(name: string, over: Record<string, unknown> = {}) {
       annotations: {
         [OWN_NAME]: name,
         [OWN_REPO]: "repo-1",
-        [OWN_MANAGED]: MANAGED_SIMPLE,
         "everr.notification.title": `\${value} errors in \${service}`,
         summary: `\${value} errors in \${service}`,
-        "link.alert": `https://app.example.com/alerts/rule-${name}`,
+        "link.alert": `https://app.example.com/alerts/rules/rule-${name}`,
       },
       resolve_after: 1,
       suppressed: false,
@@ -111,7 +104,7 @@ function previewRule(
       annotations: {
         ...base.spec.annotations,
         [OWN_PREVIEW]: previewId,
-        "link.alert": `https://app.example.com/alerts/prev-rule-${name}`,
+        "link.alert": `https://app.example.com/alerts/rules/prev-rule-${name}`,
       },
       suppressed: true,
       ...over,
@@ -132,7 +125,7 @@ describe("applyAlertSpecs", () => {
     expect(org).toBe("o");
     expect(spec.annotations[OWN_NAME]).toBe("high-errors");
     expect(spec.annotations[OWN_REPO]).toBe("repo-1");
-    expect(spec.annotations[OWN_MANAGED]).toBe(MANAGED_SIMPLE);
+    expect(isOwnedRule(spec, "repo-1")).toBe(true);
     expect(spec.annotations.summary).toBe(`\${value} errors in \${service}`);
     expect(spec.interval_secs).toBe(300);
     expect(spec.value_column).toBe("count");
@@ -145,7 +138,7 @@ describe("applyAlertSpecs", () => {
     expect(uId).toBe("new-rule");
     expect(uVersion).toBe(1);
     expect(uSpec.annotations["link.alert"]).toBe(
-      "https://app.example.com/alerts/new-rule",
+      "https://app.example.com/alerts/rules/new-rule",
     );
     expect(mockedDeleteRule).not.toHaveBeenCalled();
   });
@@ -187,7 +180,7 @@ describe("applyAlertSpecs", () => {
     expect(spec.suppressed).toBe(true);
     expect(spec.annotations[OWN_PREVIEW]).toBe("p1");
     expect(spec.annotations[OWN_REPO]).toBe("repo-1");
-    expect(spec.annotations[OWN_MANAGED]).toBe(MANAGED_SIMPLE);
+    expect(isOwnedRule(spec, "repo-1")).toBe(true);
 
     // The link.alert stamp works exactly like the live path: a follow-up PUT
     // with the freshly minted id, still suppressed.
@@ -196,7 +189,7 @@ describe("applyAlertSpecs", () => {
     expect(uId).toBe("new-rule");
     expect(uVersion).toBe(1);
     expect(uSpec.annotations["link.alert"]).toBe(
-      "https://app.example.com/alerts/new-rule",
+      "https://app.example.com/alerts/rules/new-rule",
     );
     expect(uSpec.suppressed).toBe(true);
 
@@ -408,6 +401,52 @@ describe("applyAlertSpecs", () => {
     );
   });
 
+  // Dev-migration path: an existing CC rule stamped only with everr.name +
+  // everr.repoid (no everr.managed, since the marker is retired) must still be
+  // recognized as owned and reconciled in place, not treated as a bare
+  // power-user rule and left alone / duplicated.
+  it("adopts an existing rule tagged everr.name + everr.repoid with no everr.managed marker", async () => {
+    mockedListRules.mockResolvedValue([
+      {
+        id: "rule-high-errors",
+        version: 7,
+        spec: {
+          sql: "SELECT service, count() AS count FROM old_logs GROUP BY service",
+          interval_secs: 300,
+          for_secs: 0,
+          label_columns: ["service"],
+          value_column: "count",
+          severity: "info",
+          annotations: {
+            [OWN_NAME]: "high-errors",
+            [OWN_REPO]: "repo-1",
+            "everr.notification.title": `\${value} errors in \${service}`,
+            summary: `\${value} errors in \${service}`,
+          },
+          resolve_after: 1,
+          suppressed: false,
+        },
+      },
+    ]);
+
+    const res = await applyAlertSpecs({
+      namespace: { orgId: "o", repoid: "repo-1", kind: "live" },
+      db,
+      resources: [{ path: "a.yaml", resource: alert() }],
+    });
+
+    // Recognized as this rule (matched by name), updated in place rather than
+    // deleted + recreated: the id and version are preserved.
+    expect(res.created).toEqual([]);
+    expect(res.updated).toEqual(["high-errors"]);
+    expect(res.deleted).toEqual([]);
+    expect(mockedCreateRule).not.toHaveBeenCalled();
+    expect(mockedDeleteRule).not.toHaveBeenCalled();
+    const [, id, , version] = mockedUpdateRule.mock.calls[0];
+    expect(id).toBe("rule-high-errors");
+    expect(version).toBe(7);
+  });
+
   it("leaves an unchanged managed rule alone (no update)", async () => {
     mockedListRules.mockResolvedValue([managedRule("high-errors")]);
 
@@ -461,7 +500,7 @@ describe("applyAlertSpecs", () => {
       "SELECT service, count() AS count FROM logs GROUP BY service",
     );
     expect(spec.annotations["link.alert"]).toBe(
-      "https://app.example.com/alerts/rule-high-errors",
+      "https://app.example.com/alerts/rules/rule-high-errors",
     );
     expect(mockedDeleteRule).not.toHaveBeenCalled();
     expect(mockedCreateRule).not.toHaveBeenCalled();
@@ -505,7 +544,6 @@ describe("applyAlertSpecs", () => {
           annotations: {
             [OWN_NAME]: "gone",
             [OWN_REPO]: "repo-1",
-            [OWN_MANAGED]: MANAGED_SIMPLE,
           },
         },
       },
@@ -521,11 +559,12 @@ describe("applyAlertSpecs", () => {
     expect(res.deleted).toEqual(["gone"]);
   });
 
-  it("never deletes a power-user rule (no managed marker) in the same repo", async () => {
+  it("never deletes a bare CC rule (no everr.name) in the same repo", async () => {
     mockedListRules.mockResolvedValue([
       {
         id: "p",
-        // Owned by repo-1 but NOT everr.managed="simple" — a CCAlertRule.
+        // Owned by repo-1 but no everr.name — a power-user CC rule, never
+        // adopted or touched by the AlertRule reconciler.
         spec: { annotations: { [OWN_REPO]: "repo-1" }, severity: "info" },
       },
     ]);
@@ -548,7 +587,6 @@ describe("applyAlertSpecs", () => {
           annotations: {
             [OWN_NAME]: "elsewhere",
             [OWN_REPO]: "repo-2",
-            [OWN_MANAGED]: MANAGED_SIMPLE,
           },
         },
       },

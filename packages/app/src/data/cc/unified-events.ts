@@ -26,6 +26,10 @@ export type CcUnifiedEvent = {
   fingerprint: string; // instance_key (live) === alert.instance_fingerprint (stored)
   suppressed: boolean;
   deliveryTargets: string[];
+  // Source-row columns beyond the instance's identity labels; carried by both
+  // stored records and live SSE frames (CC's Event.evidence).
+  evidence?: Record<string, unknown> | null;
+  evidenceTruncated?: boolean;
   /** Identity for live/history dedup: see {@link ccEventDedupKey}. */
   key: string;
 };
@@ -64,8 +68,10 @@ export function liveToUnified(e: CcEvent): CcUnifiedEvent {
     labels: e.labels,
     rule: e.annotations["everr.name"] || e.rule,
     fingerprint: e.instance_key,
-    suppressed: false, // the SSE payload has no suppression flag
+    suppressed: e.suppressed,
     deliveryTargets: [],
+    evidence: e.evidence,
+    evidenceTruncated: e.evidence_truncated,
     key: ccEventDedupKey(e.instance_key, e.eval_ts, eventType),
   };
 }
@@ -88,6 +94,8 @@ export function historyToUnified(r: AlertEventLogRow): CcUnifiedEvent {
     fingerprint: r.instanceFingerprint,
     suppressed: r.suppressed,
     deliveryTargets: r.deliveryTargets,
+    evidence: r.evidence,
+    evidenceTruncated: r.evidenceTruncated,
     key: ccEventDedupKey(r.instanceFingerprint, r.timestamp, r.eventType),
   };
 }

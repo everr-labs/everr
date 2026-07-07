@@ -1,3 +1,7 @@
+// packages/app/src/components/cc/alert-event-feed.tsx
+// Self-contained stored+live merged event feed: stored CC history from
+// ClickHouse layered under the live SSE tail. Mounted unscoped (home Activity
+// tab) or scoped to one alert (`scopeSlug`, e.g. the detail timeline).
 import { Button } from "@everr/ui/components/button";
 import {
   Card,
@@ -15,9 +19,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@everr/ui/components/select";
-import { type TimeRange, withTimeRange } from "@everr/ui/lib/time-range";
+import type { TimeRange } from "@everr/ui/lib/time-range";
 import { queryOptions, useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
 import { Pause, Play, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { listCcEventHistory } from "@/data/cc/server";
@@ -38,8 +41,9 @@ import {
   CcTableSkeleton,
   ccErrorMessage,
   ccFormatTs,
+  EvidenceChips,
   LabelSet,
-} from "../-cc-shared";
+} from "./shared";
 
 const SEVERITY_LABELS: Record<string, string> = {
   all: "All severities",
@@ -48,33 +52,40 @@ const SEVERITY_LABELS: Record<string, string> = {
   critical: "Critical",
 };
 
+// The real alert.event_type values CC writes (unified-events' liveToUnified/
+// historyToUnified and history.server.ts's readers): instance fire/resolve,
+// notification delivery, rule evaluation health, and dispatcher mutes.
+const EVENT_TYPE_LABELS: Record<string, string> = {
+  all: "All types",
+  instance_fired: "Fired",
+  instance_resolved: "Resolved",
+  delivery: "Delivery",
+  rule_health: "Rule health",
+  silenced: "Silenced",
+};
+
 const HISTORY_LIMIT = 200;
 
-const historyQuery = (timeRange: TimeRange) =>
+export const ccEventHistoryQueryOptions = (timeRange: TimeRange) =>
   queryOptions({
     queryKey: ["cc", "event-history", timeRange],
     queryFn: () =>
       listCcEventHistory({ data: { limit: HISTORY_LIMIT, timeRange } }),
   });
 
-export const Route = createFileRoute(
-  "/_authenticated/_dashboard/cc-alerting/monitor/stream",
-)({
-  // The cc-alerting section hides the global time-range picker; this page reads
-  // stored history, so it opts back in (the deepest staticData value wins).
-  staticData: { hideTimeRangePicker: false },
-  loaderDeps: ({ search }) => ({ timeRange: withTimeRange(search).timeRange }),
-  loader: ({ context: { queryClient }, deps }) =>
-    queryClient.prefetchQuery(historyQuery(deps.timeRange)),
-  component: CcMonitorStream,
-});
-
-function CcMonitorStream() {
+export function AlertEventFeed({
+  scopeSlug,
+  className,
+}: {
+  scopeSlug?: string;
+  className?: string;
+}) {
   const { events, connected, clear, setPaused } = useCcEvents();
   const [paused, setLocalPaused] = useState(false);
   const [severity, setSeverity] = useState<string>("all");
+  const [eventType, setEventType] = useState<string>("all");
   const { timeRange } = useTimeRange();
-  const history = useQuery(historyQuery(timeRange));
+  const history = useQuery(ccEventHistoryQueryOptions(timeRange));
 
   // Live SSE frames layered over stored history, deduped on (fingerprint,
   // eval second, event type) with the live frame winning. Bounded memory: the
@@ -88,12 +99,19 @@ function CcMonitorStream() {
     [events, history.data],
   );
 
+  const scoped = useMemo(
+    () => (scopeSlug ? merged.filter((e) => e.rule === scopeSlug) : merged),
+    [merged, scopeSlug],
+  );
+
+  // Event-type and severity compose with AND: each narrows independently of
+  // the other ("all" is a no-op filter on that axis).
   const filtered = useMemo(
     () =>
-      severity === "all"
-        ? merged
-        : merged.filter((e) => e.severity === severity),
-    [merged, severity],
+      scoped
+        .filter((e) => eventType === "all" || e.eventType === eventType)
+        .filter((e) => severity === "all" || e.severity === severity),
+    [scoped, eventType, severity],
   );
 
   const columns: Column<CcUnifiedEvent>[] = [
@@ -139,7 +157,18 @@ function CcMonitorStream() {
           <span className="text-xs text-muted-foreground">—</span>
         ),
     },
-    { header: "Labels", cell: (e) => <LabelSet labels={e.labels} /> },
+    {
+      header: "Labels",
+      cell: (e) => (
+        <div className="flex flex-col gap-1">
+          <LabelSet labels={e.labels} />
+          <EvidenceChips
+            evidence={e.evidence}
+            truncated={e.evidenceTruncated}
+          />
+        </div>
+      ),
+    },
     {
       header: "Rule",
       cell: (e) => (
@@ -154,7 +183,7 @@ function CcMonitorStream() {
   ];
 
   return (
-    <Card inset="flush-content">
+    <Card inset="flush-content" className={className}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           Event stream
@@ -167,10 +196,28 @@ function CcMonitorStream() {
         <CardAction>
           <div className="flex items-center gap-1.5">
             <Select
+              value={eventType}
+              onValueChange={(v) => setEventType(v ?? "all")}
+            >
+              <SelectTrigger size="sm" className="w-36" aria-label="Event type">
+                <SelectValue>
+                  {(v) => EVENT_TYPE_LABELS[v as string] ?? "All types"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All types</SelectItem>
+                <SelectItem value="instance_fired">Fired</SelectItem>
+                <SelectItem value="instance_resolved">Resolved</SelectItem>
+                <SelectItem value="delivery">Delivery</SelectItem>
+                <SelectItem value="rule_health">Rule health</SelectItem>
+                <SelectItem value="silenced">Silenced</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
               value={severity}
               onValueChange={(v) => setSeverity(v ?? "all")}
             >
-              <SelectTrigger size="sm" className="w-36">
+              <SelectTrigger size="sm" className="w-36" aria-label="Severity">
                 <SelectValue>
                   {(v) => SEVERITY_LABELS[v as string] ?? "All severities"}
                 </SelectValue>

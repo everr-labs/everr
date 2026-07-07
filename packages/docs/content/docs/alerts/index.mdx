@@ -55,13 +55,13 @@ Notifications fire on the **edges** of that transition, when an instance newly s
 
 ## Notifications
 
-When an alert evaluates, Everr sends one notification summarizing all instance changes via the channels your organization has configured in-app (Telegram). The message lists each firing or resolved instance. In-app silences let you suppress individual instances from notifications during maintenance. See [Notifications](/docs/alerts/notifications).
+Firing and resolved alerts are delivered through routes to receivers (Slack, email, webhooks, PagerDuty, Telegram), configured in the app on the Alerts page. Silences suppress delivery during maintenance windows without stopping evaluation. See [Notifications](/docs/alerts/notifications).
 
 Every alert should be actionable: if no one would do anything when a rule fires, it shouldn't exist.
 
 ## Where to go next
 
-- **[Your first alert](/docs/learn/first-alert)** — write one rule and watch it fire (tutorial).
-- **[Notifications](/docs/alerts/notifications)** — send firing/resolved alerts to Telegram.
-- **[Writing good alerts](/docs/alerts/writing-queries)** — actionability, runbooks, thresholds, per-instance alerts, and intervals.
-- **[AlertRule spec](/docs/alerts/alert-spec)** — the full file format and evaluation model.
+- **[Your first alert](/docs/learn/first-alert)**: write one rule and watch it fire (tutorial).
+- **[Notifications](/docs/alerts/notifications)**: routes, receivers, silences, and inhibitions.
+- **[Writing good alerts](/docs/alerts/writing-queries)**: actionability, runbooks, thresholds, per-instance alerts, and intervals.
+- **[AlertRule spec](/docs/alerts/alert-spec)**: the full file format and evaluation model.

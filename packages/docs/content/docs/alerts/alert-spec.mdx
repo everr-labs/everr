@@ -26,13 +26,17 @@ spec:
 | `evaluationInterval` | string | yes | How often the query runs. `<int><s\|m\|h\|d>`, **minimum `1m`**. |
 | `for` | string | no | How long the condition must hold continuously before firing. `<int><s\|m\|h\|d>`; default `0s` (fire on the first matching evaluation). While waiting, the instance is pending and sends nothing. |
 | `resolveAfter` | int | no | Consecutive empty evaluations required before a firing instance resolves. Default `1`; raise it (for example `3`) to tolerate gaps in the data. Must be ≥ 1. |
-| `query` | string | yes | ClickHouse SQL. Every returned row is a firing instance; empty = resolved. **No `${...}` templating.** |
+| `query` (alias `sql`) | string | yes | ClickHouse SQL. Every returned row is a firing instance; empty = resolved. **No `${...}` templating.** Set exactly one of `query` or `sql`, they are the same field: `query` is Everr's name, `sql` is the clickety-clack-native name, kept for parity with the engine's own vocabulary. |
 | `notificationMessage` | object | yes | The notification text. See below. |
 | `notificationMessage.title` | string | yes | Supports `${column}` (any query result column) and `${value}`. Non-empty. |
 | `notificationMessage.description` | string | no | Supports `${column}` and `${value}`. |
-| `instanceLabels` | [string] | no | The columns that form instance identity; ≥1 entry when present. Each must be a column the query returns. Without it, all returned rows collapse into a single instance. |
+| `instanceLabels` (alias `labelColumns`) | [string] | no | The columns that form instance identity; ≥1 entry when present. Each must be a column the query returns. Without it, all returned rows collapse into a single instance. Set at most one of `instanceLabels` or `labelColumns`, the clickety-clack-native alias for the same field. |
 | `valueColumn` | string | no | A numeric result column carried onto instances and notifications as the alert's value; referenced in messages as `${value}`. Must be a column the query returns. |
+| `maxInterval` | string | no | Duration string (`<int><s\|m\|h\|d>`), the ceiling for clickety-clack's adaptive evaluation backoff: the interval it may widen out to before flagging the rule degraded. When both parse, it must be greater than or equal to `evaluationInterval`. Omit it to use the engine's default. |
+| `annotations` | map (string to string) | no | Free-form key/value pairs passed straight through to the clickety-clack rule alongside Everr's own generated annotations. Keys starting with `everr.`, and the exact keys `summary`, `description`, `link.alert`, and `link.runbook`, are reserved for Everr's generated sugar and rejected here. |
 | `display` | object | no | `name` and/or `description`, both optional. Human-facing labels. |
+
+A rule created directly through the engine API that carries `everr.name` and a matching `everr.repoid` is treated as owned by that repo's config: the next `everr apply` adopts it, and prunes it if no YAML file declares it.
 
 ## Message templating
 
@@ -47,7 +51,7 @@ Evidence is capped: an event carries at most 16 non-label columns, and only whil
 
 ## Manifest
 
-The apply directory — by convention an `everr/` directory at your repo root — needs an `everr.yaml` (or `everr.yml`) file at its root with exactly one key:
+The apply directory (by convention an `everr/` directory at your repo root) needs an `everr.yaml` (or `everr.yml`) file at its root with exactly one key:
 
 ```yaml
 # everr/everr.yaml
@@ -58,7 +62,7 @@ repoid: "2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1"
 | --- | --- | --- |
 | `repoid` | string (UUID) | Stable identifier you choose once. It's the reconcile/prune boundary, apply only touches resources under this repoid. The manifest rejects any other key. |
 
-Declarations sit flat in `everr/`, named by kind: `*.alert.yaml`, `*.dashboard.yaml`, `*.runbook.yaml` (the legacy `*.notebook.yaml` suffix is still recognized). `everr apply ./everr` discovers every `kind: Dashboard`, `kind: AlertRule`, and `kind: Runbook` document under the directory and makes the live resources for that repoid exactly match the tree: new documents are created, changed ones updated, and removed ones **deleted**. The kind suffix is a naming convention only — apply routes by the `kind:` field. Use `--dry-run` to preview the changes without applying them. See the [`everr apply` reference](/docs/reference/cli#dashboards-gitops).
+Declarations sit flat in `everr/`, named by kind: `*.alert.yaml`, `*.dashboard.yaml`, `*.runbook.yaml` (the legacy `*.notebook.yaml` suffix is still recognized). `everr apply ./everr` discovers every `kind: Dashboard`, `kind: AlertRule`, and `kind: Runbook` document under the directory and makes the live resources for that repoid exactly match the tree: new documents are created, changed ones updated, and removed ones **deleted**. The kind suffix is a naming convention only: apply routes by the `kind:` field. Use `--dry-run` to preview the changes without applying them. See the [`everr apply` reference](/docs/reference/cli#dashboards-gitops).
 
 ## Constraints and errors
 
@@ -71,4 +75,8 @@ Declarations sit flat in `everr/`, named by kind: `*.alert.yaml`, `*.dashboard.y
 - `instanceLabels` needs ≥1 entry when present; every entry must be a column the `query` returns.
 - `valueColumn` must be a column the `query` returns.
 - `query` rejects `${...}`.
+- Set exactly one of `query` or `sql`, never both and never neither.
+- Set at most one of `instanceLabels` or `labelColumns`, never both.
+- `maxInterval`, when set, must be a valid duration and, when `evaluationInterval` also parses, greater than or equal to it.
+- `annotations` keys starting with `everr.`, and the exact keys `summary`, `description`, `link.alert`, and `link.runbook`, are rejected: those are reserved for Everr's own generated annotations.
 - Supported document kinds for apply are `Dashboard` and `AlertRule`.

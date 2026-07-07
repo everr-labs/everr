@@ -1,9 +1,12 @@
 import { expect, it } from "vitest";
 import {
   CcAlertSchema,
+  CcChannelSchema,
   CcEventSchema,
   CcReceiverSchema,
   CcRouteSchema,
+  CcRuleSpecSchema,
+  CcRulesPageSchema,
   CcRuleViewSchema,
   CcSilenceSchema,
   CcSubscriptionSchema,
@@ -154,23 +157,38 @@ it("parses an alert instance with nullable value/timestamps", () => {
   expect(a.value).toBeNull();
 });
 
-it("parses a receiver channel tagged union", () => {
-  expect(
+it("parses receiver channels as a list of channel names", () => {
+  const multi = CcReceiverSchema.parse({
+    id: "i",
+    tenant: "t",
+    name: "oncall",
+    channels: ["team-slack", "ops-mail"],
+  });
+  expect(multi.channels).toEqual(["team-slack", "ops-mail"]);
+});
+
+it("rejects a receiver with an empty channels list", () => {
+  expect(() =>
     CcReceiverSchema.parse({
       id: "i",
       tenant: "t",
       name: "oncall",
-      channel: { type: "slack", url: "***" },
-    }).channel.type,
-  ).toBe("slack");
-  expect(
+      channels: [],
+    }),
+  ).toThrow();
+});
+
+it("rejects pre-named-channels inline config objects in receiver channels", () => {
+  // The engine's receivers carry channel NAMES now; a payload from before the
+  // migration (inline config objects) must fail loudly, not half-parse.
+  expect(() =>
     CcReceiverSchema.parse({
       id: "i",
       tenant: "t",
-      name: "ops",
-      channel: { type: "email", to: ["a@b.c"] },
-    }).channel.type,
-  ).toBe("email");
+      name: "oncall",
+      channels: [{ type: "slack", url: "***" }],
+    }),
+  ).toThrow();
 });
 
 it("parses receiver annotations (absent stays undefined, present round-trips)", () => {
@@ -180,30 +198,61 @@ it("parses receiver annotations (absent stays undefined, present round-trips)", 
       id: "i",
       tenant: "t",
       name: "oncall",
-      channel: { type: "slack", url: "***" },
+      channels: ["team-slack"],
     }).annotations,
   ).toBeUndefined();
-  // Ownership markers stamped by the as-code reconciler round-trip verbatim.
+  // A present map round-trips verbatim (including markers stamped by the
+  // retired as-code receiver flow, which existing receivers may still carry).
   expect(
     CcReceiverSchema.parse({
       id: "i",
       tenant: "t",
       name: "oncall",
-      channel: { type: "slack", url: "***" },
-      annotations: { "everr.repoid": "repo1", "everr.managed": "as-code" },
+      channels: ["team-slack"],
+      annotations: { "everr.repoid": "repo1", team: "core" },
     }).annotations,
-  ).toEqual({ "everr.repoid": "repo1", "everr.managed": "as-code" });
+  ).toEqual({ "everr.repoid": "repo1", team: "core" });
 });
 
-it("parses a telegram channel", () => {
+it("parses a named channel with its tagged config (redacted secrets included)", () => {
+  const ch = CcChannelSchema.parse({
+    id: "c",
+    tenant: "t",
+    name: "team-slack",
+    config: { type: "slack", url: "***" },
+  });
+  expect(ch.name).toBe("team-slack");
+  expect(ch.config.type).toBe("slack");
   expect(
-    CcReceiverSchema.parse({
-      id: "r",
+    CcChannelSchema.parse({
+      id: "c",
+      tenant: "t",
+      name: "ops-mail",
+      config: { type: "email", to: ["a@b.c"] },
+    }).config.type,
+  ).toBe("email");
+});
+
+it("parses a telegram channel config", () => {
+  expect(
+    CcChannelSchema.parse({
+      id: "c",
       tenant: "t",
       name: "everr-default-telegram",
-      channel: { type: "telegram", bot_token: "x", chat_ids: ["-100"] },
-    }).channel.type,
+      config: { type: "telegram", bot_token: "x", chat_ids: ["-100"] },
+    }).config.type,
   ).toBe("telegram");
+});
+
+it("rejects a channel with an unknown config type", () => {
+  expect(() =>
+    CcChannelSchema.parse({
+      id: "c",
+      tenant: "t",
+      name: "pigeon",
+      config: { type: "carrier-pigeon" },
+    }),
+  ).toThrow();
 });
 
 it("parses a route with nullable group settings", () => {
@@ -268,6 +317,79 @@ it("parses a silence and an SSE event", () => {
   ).toBe("firing");
 });
 
+it("parses an SSE event carrying suppression and evidence", () => {
+  const e = CcEventSchema.parse({
+    tenant: "t",
+    rule: "r",
+    instance_key: "k",
+    status: "firing",
+    labels: { host: "web-1" },
+    value: 1,
+    severity: "warning",
+    annotations: {},
+    eval_ts: "2026-06-14T12:03:00Z",
+    suppressed: true,
+    evidence: { status_code: 500, path: "/checkout" },
+    evidence_truncated: true,
+  });
+  expect(e.suppressed).toBe(true);
+  expect(e.evidence).toEqual({ status_code: 500, path: "/checkout" });
+  expect(e.evidence_truncated).toBe(true);
+});
+
+it("defaults suppression/evidence on SSE frames from an older CC", () => {
+  const e = CcEventSchema.parse({
+    tenant: "t",
+    rule: "r",
+    instance_key: "k",
+    status: "resolved",
+    labels: {},
+    value: null,
+    severity: "info",
+    annotations: {},
+    eval_ts: "2026-06-14T12:03:00Z",
+  });
+  expect(e.suppressed).toBe(false);
+  expect(e.evidence).toBeNull();
+  expect(e.evidence_truncated).toBe(false);
+});
+
+it("parses the paginated rules envelope with and without a next cursor", () => {
+  const item = {
+    id: "11111111-1111-1111-1111-111111111111",
+    tenant: "org_abc",
+    spec: {
+      sql: "SELECT 1",
+      interval_secs: 30,
+      for_secs: 0,
+      label_columns: [],
+      value_column: null,
+      severity: "info",
+      annotations: {},
+      resolve_after: 1,
+    },
+    version: 1,
+    paused: false,
+    health: {
+      status: "healthy",
+      consecutive_failures: 0,
+      degraded_since: null,
+      last_error: null,
+      last_error_at: null,
+    },
+  };
+  const page = CcRulesPageSchema.parse({
+    items: [item],
+    next_cursor: "djE6MTIzOmFiYw",
+  });
+  expect(page.items).toHaveLength(1);
+  expect(page.next_cursor).toBe("djE6MTIzOmFiYw");
+
+  const last = CcRulesPageSchema.parse({ items: [], next_cursor: null });
+  expect(last.items).toEqual([]);
+  expect(last.next_cursor).toBeNull();
+});
+
 it("parses a subscription with an RFC-3339 created_at", () => {
   const s = CcSubscriptionSchema.parse({
     id: "sub1",
@@ -287,4 +409,25 @@ it("normalizes a subscription's array created_at to an ISO string", () => {
     created_at: [2026, 167, 15, 53, 50, 186382000, 0, 0, 0],
   });
   expect(s.created_at).toBe("2026-06-16T15:53:50.186Z");
+});
+
+it("parses a rule spec with max_interval_secs and omits it when absent", () => {
+  const minimal = {
+    sql: "SELECT 1",
+    interval_secs: 30,
+    for_secs: 0,
+    label_columns: [],
+    severity: "info",
+  };
+
+  // With max_interval_secs present, it should round-trip
+  const withMaxInterval = CcRuleSpecSchema.parse({
+    ...minimal,
+    max_interval_secs: 3600,
+  });
+  expect(withMaxInterval.max_interval_secs).toBe(3600);
+
+  // Without max_interval_secs, it should be undefined
+  const withoutMaxInterval = CcRuleSpecSchema.parse(minimal);
+  expect(withoutMaxInterval.max_interval_secs).toBeUndefined();
 });

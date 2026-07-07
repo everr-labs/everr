@@ -19,7 +19,7 @@ vi.mock("@/telemetry/logger", () => ({
 
 import * as cc from "@/data/cc/client";
 import { serverLogger } from "@/telemetry/logger";
-import { MANAGED_SIMPLE, OWN_MANAGED, OWN_PREVIEW, OWN_REPO } from "./mapping";
+import { OWN_PREVIEW, OWN_REPO } from "./mapping";
 import {
   deletePreviewCcRules,
   type OrphanSweepDb,
@@ -35,7 +35,6 @@ function ccRule(id: string, previewId?: string) {
     spec: {
       annotations: {
         [OWN_REPO]: "repo-1",
-        [OWN_MANAGED]: MANAGED_SIMPLE,
         ...(previewId ? { [OWN_PREVIEW]: previewId } : {}),
       },
     },

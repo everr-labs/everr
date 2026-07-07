@@ -1,33 +1,53 @@
 ---
 title: Notifications
-description: Send firing and resolved alerts to Telegram and Slack, with one notification per evaluation.
+description: Route firing and resolved alerts to receivers with matchers, and control grouping, repeats, silences, and inhibitions.
 ---
 
-When an alert evaluates, Everr sends one notification summarizing all instance changes. Channels are configured in the app, not as code, and apply to every rule in the org. Currently Telegram and Slack are supported.
+Alert rules are defined as code, but delivery is configured in the app and applies across the whole organization. Everything below lives under **Alerts** in Everr: routing on the **Routing** tab, silences under **Monitor**.
 
-## Open notification settings
+## The delivery pipeline
 
-In Everr, go to **Alerts** and click **Notification settings** (top-right of the Alerts list). Each channel has an enable toggle and its recipients. An enabled channel must have at least one recipient before you can save.
+When an alert fires or resolves, it walks a fixed path:
 
-## Send to Telegram
+1. **Routes** are checked top to bottom by priority; the first route whose matchers fit the alert's labels decides the receiver.
+2. The matched **receiver** fans the notification out to every **channel** it references (Slack, email, webhook, PagerDuty, or Telegram).
+3. Alerts that match **no route** fall through to the **firehose**: every subscribed webhook receives them.
 
-Enable **Telegram** and add one or more entries. Each entry pairs a **bot token** (like `123456789:ABC...`) with a **chat ID** (e.g. `-1001234567890` for a group) and an optional **name**. To create a bot and get its token, follow Telegram's [BotFather guide](https://core.telegram.org/bots/features#botfather).
+Silences and inhibitions suppress delivery without stopping evaluation.
 
-Entries are immutable: you add or delete them, you do not edit them in place. The bot token is **write-only** — after saving, Everr never shows it again. To change a token, delete the entry and add a new one. The chat ID remains visible.
+## Channels
 
-To find a chat ID:
+A channel is a named delivery endpoint, created and deleted on the Routing tab. Channels are reusable: any number of receivers can reference the same channel by name.
 
-- Add your bot to the chat and read the ID from the Telegram Bot API [`getUpdates`](https://core.telegram.org/bots/api#getupdates) response, or
-- Open the channel or group in the [Telegram web app](https://web.telegram.org) and copy the number from the URL, for channels and supergroups it's the `-100…` value, which is the chat ID.
+Channel types: **email** (recipient addresses), **Slack** (an [Incoming Webhook](https://api.slack.com/messaging/webhooks) URL), **webhook** (any HTTPS endpoint), **PagerDuty** (an integration key), and **Telegram** (a bot token and chat ID, see Telegram's [BotFather guide](https://core.telegram.org/bots/features#botfather)).
 
-## Send to Slack
+Secret fields (webhook URLs, tokens, keys) are write-only: after saving, Everr shows them redacted. To rotate one, create the channel again under the same name with the new value; every receiver that references it picks up the new secret, no receiver edits needed.
 
-Enable **Slack** and add one or more **Incoming Webhook** URLs. In Slack, open the [Slack app dashboard](https://api.slack.com/apps), select the app that should post alerts, then go to **Incoming Webhooks**. Turn on **Activate Incoming Webhooks** if needed, click **Add New Webhook to Workspace**, choose the channel, and authorize the app. Slack sends you back to the app settings page, where the URL appears under **Webhook URLs for Your Workspace**. Copy the `https://hooks.slack.com/services/...` URL and paste it the Everr alerts notification settings.
+A channel that is still referenced cannot be deleted: Everr surfaces the engine's refusal, naming the receivers that still use it. Delete or repoint those receivers first.
 
-Each webhook posts to one Slack channel. Give each webhook an optional name so you can remember which channel it targets.
+## Receivers
 
-Webhook URLs are write-only: after saving, Everr never shows the URL again — to change one, delete it and add a new one. Each enabled webhook receives every alert notification for the organization.
+A receiver is a named set of channels; routes reference receivers by name, and a notification for the receiver is delivered to every channel in the set. Create a receiver on the Routing tab by picking from your existing channels (at least one). Receivers carry no secrets themselves, only channel names.
 
-## Silence during maintenance
+## Routes
 
-To stop notifications for a known issue or maintenance window without deleting the rule, silence it from the alert's detail page. Use the **Silence** action on a firing instance and set a time window. The rule keeps evaluating; silenced instances are filtered out of notifications. If all instances are silenced, no notification is sent.
+A route is a set of **matchers** (label comparisons such as `severity = critical`, with equals, not-equals, and regex operators), a target receiver, and a priority. Routes are checked in priority order and the first match wins.
+
+Each route also controls timing:
+
+- **Group by** collects instances that share the chosen labels into one notification.
+- **Group wait** is how long to hold a new group before the first send, letting related instances batch together.
+- **Group interval** is the minimum time between updates for an already-notified group.
+- **Repeat interval** re-sends the notification while the alert stays firing, so a long-lived incident is not silent after the first message.
+
+## Inhibitions
+
+An inhibition suppresses downstream alerts while a related, higher-level alert is already firing: while alerts matching the **source** matchers fire, alerts matching the **target** matchers are suppressed. Optional **equal labels** scope it to pairs that share the same value for those labels, so a database outage in `region=eu` only inhibits alerts from the same region.
+
+## Firehose
+
+The firehose is the fallback and the integration point: every alert that matches no route is delivered to every webhook URL subscribed here. Point it at an internal service to build custom fan-out without defining routes.
+
+## Silences
+
+To stop notifications for a known issue or maintenance window without touching the rule, create a **silence** under **Monitor**: matchers select the alerts, a time window bounds the suppression, and a comment records why. Silences can be scheduled ahead of a maintenance window. The rule keeps evaluating the whole time; silenced alerts are suppressed from delivery and recorded in the event stream.

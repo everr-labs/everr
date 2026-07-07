@@ -25,7 +25,7 @@ function Stage({
   title: string;
   sub: string;
   live?: boolean;
-  to: "/cc-alerting/rules" | "/cc-alerting/routing";
+  to: "/alerts/monitor/active" | "/alerts/routing";
   hash?: string;
 }) {
   return (
@@ -84,14 +84,14 @@ export function CcPipelineDiagram({
           title="Alert fires"
           sub={`${firing} firing now`}
           live={firing > 0}
-          to="/cc-alerting/rules"
+          to="/alerts/monitor/active"
         />
         <Arrow />
         <Stage
           icon={Waypoints}
           title="Matched by route"
           sub={`${routeCount} ${plural(routeCount, "route")} · first match wins`}
-          to="/cc-alerting/routing"
+          to="/alerts/routing"
           hash="routes"
         />
         <Arrow />
@@ -99,14 +99,14 @@ export function CcPipelineDiagram({
           icon={Send}
           title="Delivered"
           sub={`${receiverCount} ${plural(receiverCount, "receiver")}`}
-          to="/cc-alerting/routing"
+          to="/alerts/routing"
           hash="receivers"
         />
       </div>
       <p className="text-xs leading-relaxed text-muted-foreground">
         Alerts matching no route fall through to the{" "}
         <Link
-          to="/cc-alerting/routing"
+          to="/alerts/routing"
           hash="firehose"
           className="text-foreground underline-offset-2 hover:underline"
         >
@@ -114,7 +114,7 @@ export function CcPipelineDiagram({
         </Link>
         .
         {silenceCount > 0 &&
-          ` ${silenceCount} active ${plural(silenceCount, "silence")} can mute matching alerts.`}
+          ` ${silenceCount} active ${plural(silenceCount, "silence")} apply to matching alerts.`}
         {inhibitionCount > 0 &&
           ` ${inhibitionCount} ${plural(inhibitionCount, "inhibition")} can suppress downstream alerts.`}
       </p>

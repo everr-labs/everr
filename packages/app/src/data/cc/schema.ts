@@ -44,6 +44,7 @@ export const CcRuleSpecSchema = z.object({
   severity: CcSeveritySchema,
   annotations: z.record(z.string(), z.string()).default({}),
   resolve_after: z.number().int().default(1),
+  max_interval_secs: z.number().int().positive().optional(),
   // Preview mode: CC evaluates the rule fully (instances, events, history) but
   // the dispatcher never notifies on it. Defaulted so pre-suppression CC
   // responses still parse. Keep this key AFTER resolve_after: the reconcilers'
@@ -81,9 +82,18 @@ export const CcRuleRollupSchema = z.object({
 export const CcRuleViewSchema = CcRuleSchema.extend({
   health: CcRuleHealthSchema,
   // Optional for rollout safety: a CC not yet on SP2 2a omits `rollup`, and
-  // requiring it would break the whole rule-list parse (and /cc-alerting + the
-  // as-code reconciler). Consumers read it defensively.
+  // requiring it would break the whole rule-list parse (and the alerts
+  // surface + the as-code reconciler). Consumers read it defensively.
   rollup: CcRuleRollupSchema.optional(),
+});
+
+// Paginated `GET /v1/rules`: passing `limit`/`cursor` opts into this
+// `{items, next_cursor}` envelope (the bare call keeps returning the legacy
+// unbounded array). `next_cursor` is an opaque keyset token; null means the
+// last page.
+export const CcRulesPageSchema = z.object({
+  items: z.array(CcRuleViewSchema),
+  next_cursor: z.string().nullable(),
 });
 
 export const CcAlertSchema = z.object({
@@ -98,7 +108,9 @@ export const CcAlertSchema = z.object({
   absent_count: z.number().int(),
 });
 
-export const CcChannelSchema = z.discriminatedUnion("type", [
+// The engine's per-type endpoint config (ChannelConfig in clickety-clack's
+// domain/channel.rs). Secret fields come back redacted ("***") on read.
+export const CcChannelConfigSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("webhook"), url: z.string() }),
   z.object({ type: z.literal("slack"), url: z.string() }),
   z.object({ type: z.literal("pagerduty"), routing_key: z.string() }),
@@ -110,11 +122,24 @@ export const CcChannelSchema = z.discriminatedUnion("type", [
   }),
 ]);
 
+// A named, reusable channel: the secret-bearing endpoint config, unique by
+// name per tenant. Receivers reference channels by name.
+export const CcChannelSchema = z.object({
+  id: z.string(),
+  tenant: z.string(),
+  name: z.string(),
+  config: CcChannelConfigSchema,
+});
+
 export const CcReceiverSchema = z.object({
   id: z.string(),
   tenant: z.string(),
   name: z.string(),
-  channel: CcChannelSchema,
+  // A receiver is a named set of channel REFERENCES (channel names); the
+  // engine rejects empty lists and validates every name against the tenant's
+  // channels, so a parsed receiver always has at least one element and never
+  // carries a secret.
+  channels: z.array(z.string()).min(1),
   // Free-form, non-secret metadata (ownership markers, team, links, ...). CC
   // always serializes it (empty map when unset), so it is effectively always
   // present; kept `.optional()` rather than `.default({})` so the inferred
@@ -174,6 +199,13 @@ export const CcEventSchema = z.object({
   severity: CcSeveritySchema,
   annotations: z.record(z.string(), z.string()),
   eval_ts: CcTimestampSchema,
+  // Trailing fields CC serde-defaults on Event (src/domain/event.rs): defaulted
+  // here too so SSE frames from an older CC (or replayed pre-upgrade payloads)
+  // still parse. `evidence` is the bounded source-row context (columns beyond
+  // the identity labels); null for resolved-by-absence or byte-capped events.
+  suppressed: z.boolean().default(false),
+  evidence: z.record(z.string(), z.unknown()).nullable().default(null),
+  evidence_truncated: z.boolean().default(false),
 });
 
 export const CcTestResultSchema = z.object({

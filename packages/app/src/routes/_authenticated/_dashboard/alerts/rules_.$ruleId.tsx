@@ -1,3 +1,4 @@
+import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
 import {
   Card,
@@ -8,6 +9,7 @@ import {
 } from "@everr/ui/components/card";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { Skeleton } from "@everr/ui/components/skeleton";
+import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import {
   queryOptions,
   useMutation,
@@ -52,7 +54,7 @@ const ccAlertsQuery = () =>
   queryOptions({ queryKey: ["cc", "alerts"], queryFn: () => listCcAlerts() });
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/cc-alerting/rules_/$ruleId",
+  "/_authenticated/_dashboard/alerts/rules_/$ruleId",
 )({
   staticData: { breadcrumb: "Rule" },
   loader: ({ context: { queryClient }, params }) =>
@@ -66,7 +68,7 @@ export const Route = createFileRoute(
 function BackLink() {
   return (
     <Link
-      to="/cc-alerting/rules"
+      to="/alerts/rules"
       className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] hover:bg-muted/50 hover:text-foreground"
       aria-label="Back to rules"
     >
@@ -143,6 +145,17 @@ function CcRuleDetailPage() {
       cell: (a) => <span className="tabular-nums">{a.value ?? "—"}</span>,
     },
     { header: "Active since", cell: (a) => ccFormatTs(a.active_since) },
+    {
+      // absent_count is consecutive evaluations without the row — the
+      // instance is on its way to resolving.
+      header: "Last seen",
+      cell: (a) => (
+        <span className="whitespace-nowrap text-xs text-muted-foreground">
+          {a.last_seen ? formatRelativeTime(a.last_seen) : "—"}
+          {a.absent_count > 0 && ` · absent x${a.absent_count}`}
+        </span>
+      ),
+    },
   ];
 
   const testCols: Column<CcTestResult["rows"][number]>[] = [
@@ -163,6 +176,11 @@ function CcRuleDetailPage() {
           </h2>
           <CcSeverityBadge severity={r.spec.severity} />
           <CcHealthBadge status={r.health.status} />
+          {r.spec.suppressed && (
+            // A suppressed rule evaluates fully but the dispatcher never
+            // notifies on it — worth a loud flag, or the silence is invisible.
+            <Badge variant="destructive">suppressed</Badge>
+          )}
         </div>
         <Button
           variant="outline"
@@ -193,6 +211,22 @@ function CcRuleDetailPage() {
                 {r.health.last_error}
               </p>
             )}
+            {(r.health.consecutive_failures > 0 || r.health.last_error_at) && (
+              <p className="mt-0.5 text-xs opacity-90">
+                {[
+                  r.health.consecutive_failures > 0
+                    ? `${r.health.consecutive_failures} consecutive failure${
+                        r.health.consecutive_failures === 1 ? "" : "s"
+                      }`
+                    : null,
+                  r.health.last_error_at
+                    ? `last error at ${ccFormatTs(r.health.last_error_at)}`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -207,6 +241,9 @@ function CcRuleDetailPage() {
           </pre>
           <dl className="divide-y divide-border/60">
             <DefRow label="Interval">{r.spec.interval_secs}s</DefRow>
+            {r.spec.max_interval_secs != null && (
+              <DefRow label="Max interval">{r.spec.max_interval_secs}s</DefRow>
+            )}
             <DefRow label="For">{r.spec.for_secs}s</DefRow>
             <DefRow label="Resolve after">{r.spec.resolve_after}</DefRow>
             <DefRow label="Label columns">
@@ -223,6 +260,22 @@ function CcRuleDetailPage() {
                   ))}
                 </span>
               </DefRow>
+            )}
+            {r.rollup && (
+              <>
+                <DefRow label="Last fired">
+                  {ccFormatTs(r.rollup.last_fired_at)}
+                </DefRow>
+                <DefRow label="Last resolved">
+                  {ccFormatTs(r.rollup.last_resolved_at)}
+                </DefRow>
+                <DefRow label="Last seen">
+                  {ccFormatTs(r.rollup.last_seen_at)}
+                </DefRow>
+                <DefRow label="Last row count">
+                  {r.rollup.last_row_count ?? "—"}
+                </DefRow>
+              </>
             )}
           </dl>
         </CardContent>

@@ -5,12 +5,11 @@ import { authEnv } from "@/env/auth";
 import { querySqlApiWithMeta, type SqlApiResult } from "@/lib/clickhouse";
 import { errorMessage } from "@/telemetry/logger";
 import {
-  isManagedSimple,
-  OWN_MANAGED,
+  isOwnedRule,
   OWN_NAME,
   OWN_REPO,
   previewIdOf,
-  toSimpleRuleSpec,
+  toRuleSpec,
   withAlertLink,
 } from "./mapping";
 import { type AlertRuleYaml, AlertRuleYamlSchema } from "./schema";
@@ -186,18 +185,15 @@ async function mapSettledWithConcurrency<T, R>(
   return results;
 }
 
-// Stable identity for change detection: everything except ownership/management
+// Stable identity for change detection: everything except ownership
 // annotations. Annotation key order is NOT stable across the YAML source and
 // CC's response, so we sort the annotation entries before hashing — otherwise a
 // rule with 2+ annotations would look "changed" on every apply and be needlessly
-// deleted+recreated. Mirrors data/cc/apply.server.ts's fingerprint (intentionally
-// duplicated per the no-dedupe-reconciler-boilerplate convention), additionally
-// stripping the everr.managed marker.
+// deleted+recreated.
 function specFingerprint(spec: Record<string, unknown>): string {
   const ann = { ...(spec.annotations as Record<string, string> | undefined) };
   delete ann[OWN_NAME];
   delete ann[OWN_REPO];
-  delete ann[OWN_MANAGED];
   const sortedAnnotations = Object.fromEntries(
     Object.entries(ann).sort(([a], [b]) => a.localeCompare(b)),
   );
@@ -217,12 +213,12 @@ function isCcVersionConflict(error: unknown): boolean {
 
 /**
  * Reconcile `kind: AlertRule` (simple) alerts for one namespace against CC. A
- * simple alert IS a CC rule tagged everr.managed="simple" (+ everr.name,
- * everr.repoid). We list CC rules, scope to THIS namespace's managed-simple
- * rules only — this repo's, and within it the live rules (no everr.preview
- * annotation) or exactly this preview's (everr.preview = its registry id) — so
- * power-user `CCAlertRule` rules, other repos' rules, and the other side of
- * the live/preview split are never touched — and converge to the applied set.
+ * simple alert IS a CC rule tagged everr.name + everr.repoid. We list CC
+ * rules, scope to THIS namespace's owned rules only — this repo's, and within
+ * it the live rules (no everr.preview annotation) or exactly this preview's
+ * (everr.preview = its registry id) — so other repos' rules and the other
+ * side of the live/preview split are never touched — and converge to the
+ * applied set.
  * A changed rule is updated in place (PUT, with the rule's `version` as an
  * optimistic-concurrency guard, so instance state survives); a scoped rule
  * absent from config is deleted. Preview rules are created `suppressed`: CC
@@ -279,17 +275,17 @@ export const applyAlertSpecs: Reconciler = async ({
     return {
       name: p.slug,
       path: p.path,
-      spec: toSimpleRuleSpec(p.rule, repoid, {
+      spec: toRuleSpec(p.rule, repoid, {
         appBaseUrl,
         previewId: previewId ?? undefined,
       }),
     };
   });
 
-  // 2. Reconcile against CC, scoped to this namespace's MANAGED-SIMPLE rules
-  // only: this repo's, and matching this namespace's preview id (null = live).
-  // The previewIdOf check cuts both ways — a live apply never adopts or prunes
-  // a preview's suppressed rules, and a preview apply never touches live ones.
+  // 2. Reconcile against CC, scoped to this namespace's OWNED rules only: this
+  // repo's, and matching this namespace's preview id (null = live). The
+  // previewIdOf check cuts both ways — a live apply never adopts or prunes a
+  // preview's suppressed rules, and a preview apply never touches live ones.
   // A first-apply dry run has no preview registry row yet (previewId null on a
   // preview namespace would alias the LIVE scope), so it skips the listing:
   // nothing tagged with a not-yet-minted id can exist in CC.
@@ -298,8 +294,7 @@ export const applyAlertSpecs: Reconciler = async ({
       ? []
       : (await cc.listRules(orgId)).filter(
           (r) =>
-            isManagedSimple(r.spec, repoid) &&
-            previewIdOf(r.spec) === previewId,
+            isOwnedRule(r.spec, repoid) && previewIdOf(r.spec) === previewId,
         );
   const existingByName = new Map(
     existing.map((r) => [r.spec.annotations?.[OWN_NAME] ?? "", r]),

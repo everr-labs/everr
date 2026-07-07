@@ -41,6 +41,33 @@ it("listRules GETs /v1/rules and validates", async () => {
   expect(out[0].health.status).toBe("healthy");
 });
 
+it("listRulesPage GETs the paginated envelope with limit/cursor/health", async () => {
+  const spy = vi
+    .spyOn(transport, "ccRequest")
+    .mockResolvedValue({ items: [ruleView], next_cursor: "tok" });
+  const out = await cc.listRulesPage("org1", {
+    limit: 100,
+    cursor: "prev",
+    health: "degraded",
+  });
+  expect(spy).toHaveBeenCalledWith(
+    "org1",
+    "GET",
+    "/v1/rules?limit=100&cursor=prev&health=degraded",
+  );
+  expect(out.items[0].id).toBe("r1");
+  expect(out.next_cursor).toBe("tok");
+});
+
+it("listRulesPage defaults the limit and passes no cursor on the first page", async () => {
+  const spy = vi
+    .spyOn(transport, "ccRequest")
+    .mockResolvedValue({ items: [], next_cursor: null });
+  const out = await cc.listRulesPage("org1");
+  expect(spy).toHaveBeenCalledWith("org1", "GET", "/v1/rules?limit=100");
+  expect(out.next_cursor).toBeNull();
+});
+
 it("pauseRule POSTs the pause path", async () => {
   vi.spyOn(transport, "ccRequest").mockResolvedValue({
     ...ruleView,

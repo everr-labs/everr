@@ -26,13 +26,26 @@ spec:
   notificationMessage:
     title: "${ServiceName} is failing"  # required; supports ${column} and ${value}
     description: "${value} errors in the last window"  # optional; same templating
-  query: |                   # required; ClickHouse SQL, no ${...} templating
+  query: |                   # required (or its alias `sql`); ClickHouse SQL,
+                             #   no ${...} templating. Set exactly one of
+                             #   `query` or `sql`, not both.
     SELECT ...
-  instanceLabels: [ServiceName]  # optional; instance identity columns, ≥1 entry
-                                 #   when present. Without it, all rows collapse
-                                 #   into one instance.
+  instanceLabels: [ServiceName]  # optional (or its alias `labelColumns`); instance
+                                 #   identity columns, ≥1 entry when present.
+                                 #   Set at most one of `instanceLabels` or
+                                 #   `labelColumns`, not both. Without either,
+                                 #   all rows collapse into one instance.
   valueColumn: n             # optional; numeric column carried as the alert
                              #   value, rendered in messages as ${value}
+  maxInterval: 15m           # optional; duration string, ceiling for clickety-clack's
+                             #   adaptive evaluation backoff before the rule is
+                             #   flagged degraded. Must be >= evaluationInterval
+                             #   when both parse. Defaults to the engine's own value.
+  annotations:               # optional; free string map passed through to the
+    team: core               #   clickety-clack rule. Keys starting with `everr.`,
+                             #   and the exact keys `summary`, `description`,
+                             #   `link.alert`, `link.runbook`, are reserved for
+                             #   Everr's generated annotations and rejected.
 ```
 
 All fields are strict — unknown keys are rejected.
@@ -182,6 +195,24 @@ The `evaluationInterval` controls how often the rule runs. Minimum `1m`. Align t
 
 Do not use `${...}` templates in queries. Queries are plain SQL. Template variables (`${column}`) are only for `notificationMessage`.
 
+### `maxInterval`
+
+`maxInterval` caps clickety-clack's adaptive evaluation backoff: the longest interval the engine may widen out to before the rule is flagged degraded. Set it as a duration string (`<int><s|m|h|d>`), and keep it at or above `evaluationInterval` (apply rejects it otherwise, when both parse). Leave it unset to use the engine's default.
+
+### `annotations`
+
+`annotations` is a free string map merged onto the underlying clickety-clack rule alongside the annotations Everr generates for you (the notification templates, the runbook link). Use it for metadata your own tooling reads, such as a team name or a ticket link.
+
+Keys starting with `everr.`, and the exact keys `summary`, `description`, `link.alert`, and `link.runbook`, are reserved for that generated sugar and rejected at apply time: an authored value there would otherwise be silently overwritten by the generated one.
+
+```yaml
+annotations:
+  team: core
+  runbook.ticket: OPS-1234
+```
+
+A rule created directly through the engine API that carries `everr.name` and a matching `everr.repoid` is treated as owned by that repo's config: the next `everr apply` adopts it, and prunes it if no YAML file declares it.
+
 ### Keep Result Sets Small
 
 The firing set is the rows. Every returned row is tracked, fingerprinted, and potentially notified.
@@ -226,3 +257,6 @@ valueColumn: n
 | Alert flaps on gappy data | Raise `resolveAfter` (and consider `for`) instead of loosening the query |
 | Notification channel enabled but no recipients | Add at least one Telegram chat ID |
 | Expecting re-notification on every evaluation | Notifications fire on transitions, not every tick |
+| Both `query` and `sql` set (or both `instanceLabels` and `labelColumns`) | Set exactly one of each pair, they are aliases for the same field |
+| `maxInterval` shorter than `evaluationInterval` | Raise `maxInterval` to at least `evaluationInterval`, or drop it to use the default |
+| `annotations` key rejected at apply time | Rename it: `everr.*` and the exact keys `summary`, `description`, `link.alert`, `link.runbook` are reserved for generated annotations |

@@ -1,4 +1,3 @@
-import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
 import {
   Card,
@@ -8,24 +7,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@everr/ui/components/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@everr/ui/components/dialog";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@everr/ui/components/select";
-import { Switch } from "@everr/ui/components/switch";
-import { TagsInput } from "@everr/ui/components/tags-input";
 import {
   queryOptions,
   useMutation,
@@ -50,34 +33,34 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import {
-  MatchersEditor,
-  matchersPhrase,
-} from "@/components/cc/matchers-editor";
+import { ChannelBuilder } from "@/components/cc/channel-builder";
+import { InhibitionBuilder } from "@/components/cc/inhibition-builder";
 import { CcPipelineDiagram } from "@/components/cc/pipeline-diagram";
+import { ReceiverBuilder } from "@/components/cc/receiver-builder";
+import { RouteBuilder } from "@/components/cc/route-builder";
 import {
-  createCcInhibition,
-  createCcRoute,
   createCcSubscription,
+  deleteCcChannel,
   deleteCcInhibition,
+  deleteCcReceiver,
   deleteCcRoute,
   deleteCcSubscription,
   listCcAlerts,
+  listCcChannels,
   listCcInhibitions,
   listCcReceivers,
   listCcRoutes,
   listCcSilences,
   listCcSubscriptions,
-  updateCcRoute,
 } from "@/data/cc/server";
 import type {
+  CcChannel,
+  CcChannelConfig,
   CcInhibition,
-  CcMatcher,
   CcReceiver,
   CcRoute,
 } from "@/data/cc/types";
 import {
-  CcConceptNote,
   CcEmptyState,
   CcQueryError,
   CcTableSkeleton,
@@ -86,12 +69,6 @@ import {
   Matchers,
 } from "./-cc-shared";
 
-// Ownership markers the as-code receiver reconciler stamps (data/cc/apply.server.ts).
-const RECEIVER_MANAGED_KEY = "everr.managed";
-const RECEIVER_MANAGED_AS_CODE = "as-code";
-const isAsCodeReceiver = (r: CcReceiver): boolean =>
-  r.annotations?.[RECEIVER_MANAGED_KEY] === RECEIVER_MANAGED_AS_CODE;
-
 const q = {
   routes: () =>
     queryOptions({ queryKey: ["cc", "routes"], queryFn: () => listCcRoutes() }),
@@ -99,6 +76,11 @@ const q = {
     queryOptions({
       queryKey: ["cc", "receivers"],
       queryFn: () => listCcReceivers(),
+    }),
+  channels: () =>
+    queryOptions({
+      queryKey: ["cc", "channels"],
+      queryFn: () => listCcChannels(),
     }),
   inhibitions: () =>
     queryOptions({
@@ -120,14 +102,15 @@ const q = {
 };
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/cc-alerting/routing",
+  "/_authenticated/_dashboard/alerts/routing",
 )({
   staticData: { breadcrumb: "Routing" },
-  head: () => ({ meta: [{ title: "Everr - Clickety-Clack Routing" }] }),
+  head: () => ({ meta: [{ title: "Everr - Alerts Routing" }] }),
   loader: ({ context: { queryClient } }) =>
     Promise.all([
       queryClient.prefetchQuery(q.routes()),
       queryClient.prefetchQuery(q.receivers()),
+      queryClient.prefetchQuery(q.channels()),
       queryClient.prefetchQuery(q.inhibitions()),
       queryClient.prefetchQuery(q.alerts()),
       queryClient.prefetchQuery(q.silences()),
@@ -136,7 +119,7 @@ export const Route = createFileRoute(
   component: CcRoutingPage,
 });
 
-const CHANNEL_ICON: Record<CcReceiver["channel"]["type"], LucideIcon> = {
+const CHANNEL_ICON: Record<CcChannelConfig["type"], LucideIcon> = {
   slack: MessageSquare,
   webhook: Webhook,
   pagerduty: Siren,
@@ -144,7 +127,7 @@ const CHANNEL_ICON: Record<CcReceiver["channel"]["type"], LucideIcon> = {
   telegram: Send,
 };
 
-function channelTarget(c: CcReceiver["channel"]): string {
+function channelTarget(c: CcChannelConfig): string {
   switch (c.type) {
     case "slack":
     case "webhook":
@@ -158,369 +141,38 @@ function channelTarget(c: CcReceiver["channel"]): string {
   }
 }
 
-function PreviewLine({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="rounded-md border border-primary/20 bg-primary/5 p-3 text-xs leading-relaxed [&_strong]:font-medium [&_strong]:text-foreground">
-      {children}
-    </div>
-  );
-}
-
-// ── Route builder ─────────────────────────────────────────────────────────────
-
-/** Parse a numeric duration field. Empty ⇒ null (CC default). */
-function parseDuration(
-  raw: string,
-  min: number,
-): { value: number | null; error: string | null } {
-  const trimmed = raw.trim();
-  if (trimmed === "") return { value: null, error: null };
-  if (!/^\d+$/.test(trimmed))
-    return { value: null, error: "Must be a whole number" };
-  const value = Number(trimmed);
-  if (value < min)
-    return { value: null, error: `Must be at least ${min} seconds` };
-  return { value, error: null };
-}
-
-function DurationField({
-  id,
-  label,
-  placeholder,
-  value,
-  onChange,
-  error,
-}: {
-  id: string;
-  label: string;
-  placeholder: string;
-  value: string;
-  onChange: (v: string) => void;
-  error: string | null;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <Label htmlFor={id}>{label}</Label>
-      <Input
-        id={id}
-        type="number"
-        min={0}
-        className="tabular-nums"
-        value={value}
-        placeholder={placeholder}
-        aria-invalid={error ? true : undefined}
-        onChange={(e) => onChange(e.target.value)}
-      />
-      {error && (
-        <p className="text-destructive text-xs" role="alert">
-          {error}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function RouteBuilder({
-  open,
-  onOpenChange,
-  receivers,
-  route,
-}: {
-  open: boolean;
-  onOpenChange: (o: boolean) => void;
-  receivers: CcReceiver[];
-  route: CcRoute | null;
-}) {
-  const qc = useQueryClient();
-  const isEdit = route !== null;
-  const [matchers, setMatchers] = useState<CcMatcher[]>(route?.matchers ?? []);
-  const [receiver, setReceiver] = useState(route?.receiver ?? "");
-  const [priority, setPriority] = useState(route?.priority ?? 0);
-  const [continueFlag, setContinueFlag] = useState(route?.continue ?? false);
-  const [groupBy, setGroupBy] = useState<string[]>(route?.group_by ?? []);
-  const [groupWait, setGroupWait] = useState(
-    route?.group_wait_secs != null ? String(route.group_wait_secs) : "",
-  );
-  const [groupInterval, setGroupInterval] = useState(
-    route?.group_interval_secs != null ? String(route.group_interval_secs) : "",
-  );
-  const [repeatInterval, setRepeatInterval] = useState(
-    route?.repeat_interval_secs != null
-      ? String(route.repeat_interval_secs)
-      : "",
-  );
-
-  const wait = parseDuration(groupWait, 0);
-  const interval = parseDuration(groupInterval, 0);
-  const repeat = parseDuration(repeatInterval, 60);
-  const hasErrors = !!(wait.error || interval.error || repeat.error);
-
-  const save = useMutation({
-    mutationFn: () => {
-      const input = {
-        matchers,
-        receiver,
-        continue: continueFlag,
-        priority,
-        group_by: groupBy.length > 0 ? groupBy : null,
-        group_wait_secs: wait.value,
-        group_interval_secs: interval.value,
-        repeat_interval_secs: repeat.value,
-      };
-      return isEdit
-        ? updateCcRoute({ data: { id: route.id, input } })
-        : createCcRoute({ data: input });
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["cc", "routes"] });
-      onOpenChange(false);
-      toast.success(isEdit ? "Route updated" : "Route created");
-    },
-    onError: (e) => toast.error(ccErrorMessage(e)),
-  });
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{isEdit ? "Edit route" : "New route"}</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          <CcConceptNote>
-            A route sends matching alerts to one receiver. Lower priority
-            numbers are checked first; the first matching route wins.
-          </CcConceptNote>
-          <MatchersEditor
-            label="When an alert matches"
-            value={matchers}
-            onChange={setMatchers}
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="route-receiver">Send to receiver</Label>
-              {receivers.length > 0 ? (
-                <Select
-                  value={receiver}
-                  onValueChange={(v) => setReceiver(v ?? "")}
-                >
-                  <SelectTrigger id="route-receiver" className="w-full">
-                    <SelectValue placeholder="Pick a receiver" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {receivers.map((r) => (
-                      <SelectItem key={r.name} value={r.name}>
-                        {r.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Input
-                  id="route-receiver"
-                  value={receiver}
-                  onChange={(e) => setReceiver(e.target.value)}
-                  placeholder="oncall"
-                />
-              )}
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="route-priority">Priority</Label>
-              <Input
-                id="route-priority"
-                type="number"
-                className="tabular-nums"
-                value={priority}
-                onChange={(e) => setPriority(Number(e.target.value))}
-              />
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="route-group-by">
-              Group by{" "}
-              <span className="font-normal text-muted-foreground">
-                (empty uses the default: rule, severity)
-              </span>
-            </Label>
-            <TagsInput
-              aria-label="Group by labels"
-              placeholder="rule, severity"
-              value={groupBy}
-              onValueChange={setGroupBy}
-            />
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            <DurationField
-              id="route-group-wait"
-              label="Group wait (s)"
-              placeholder="10"
-              value={groupWait}
-              onChange={setGroupWait}
-              error={wait.error}
-            />
-            <DurationField
-              id="route-group-interval"
-              label="Group interval (s)"
-              placeholder="300"
-              value={groupInterval}
-              onChange={setGroupInterval}
-              error={interval.error}
-            />
-            <DurationField
-              id="route-repeat-interval"
-              label="Repeat interval (s)"
-              placeholder="never"
-              value={repeatInterval}
-              onChange={setRepeatInterval}
-              error={repeat.error}
-            />
-          </div>
-          <Label className="flex items-center gap-2">
-            <Switch checked={continueFlag} onCheckedChange={setContinueFlag} />
-            Continue matching later routes
-          </Label>
-          <PreviewLine>
-            Alerts where <strong>{matchersPhrase(matchers)}</strong>{" "}
-            <ArrowRight className="inline size-3 text-muted-foreground" />{" "}
-            notify <strong>{receiver || "a receiver"}</strong>.
-          </PreviewLine>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            disabled={!receiver || hasErrors || save.isPending}
-            onClick={() => save.mutate()}
-          >
-            {isEdit ? "Save changes" : "Create route"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// ── Inhibition builder ────────────────────────────────────────────────────────
-
-function InhibitionBuilder({
-  open,
-  onOpenChange,
-}: {
-  open: boolean;
-  onOpenChange: (o: boolean) => void;
-}) {
-  const qc = useQueryClient();
-  const [source, setSource] = useState<CcMatcher[]>([]);
-  const [target, setTarget] = useState<CcMatcher[]>([]);
-  const [equal, setEqual] = useState("");
-
-  const create = useMutation({
-    mutationFn: () =>
-      createCcInhibition({
-        data: {
-          source_matchers: source,
-          target_matchers: target,
-          equal: equal
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean),
-        },
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["cc", "inhibitions"] });
-      onOpenChange(false);
-      setSource([]);
-      setTarget([]);
-      setEqual("");
-      toast.success("Inhibition created");
-    },
-    onError: (e) => toast.error(ccErrorMessage(e)),
-  });
-
-  const equalLabels = equal
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>New inhibition</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          <CcConceptNote>
-            While a <strong>source</strong> alert is firing, matching{" "}
-            <strong>target</strong> alerts are suppressed — as long as they
-            share the same values for the <strong>equal</strong> labels.
-          </CcConceptNote>
-          <MatchersEditor
-            label="Source — while this is firing"
-            value={source}
-            onChange={setSource}
-          />
-          <MatchersEditor
-            label="Target — suppress these"
-            value={target}
-            onChange={setTarget}
-          />
-          <div className="space-y-1.5">
-            <Label htmlFor="inhibition-equal">
-              Equal labels{" "}
-              <span className="font-normal text-muted-foreground">
-                (comma-separated)
-              </span>
-            </Label>
-            <Input
-              id="inhibition-equal"
-              className="font-mono"
-              value={equal}
-              onChange={(e) => setEqual(e.target.value)}
-              placeholder="cluster, namespace"
-            />
-          </div>
-          <PreviewLine>
-            While an alert matching <strong>{matchersPhrase(source)}</strong> is
-            firing, suppress alerts matching{" "}
-            <strong>{matchersPhrase(target)}</strong>
-            {equalLabels.length > 0 ? (
-              <>
-                {" "}
-                that share <strong>{equalLabels.join(", ")}</strong>
-              </>
-            ) : null}
-            .
-          </PreviewLine>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button disabled={create.isPending} onClick={() => create.mutate()}>
-            Create inhibition
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 // ── Sections ──────────────────────────────────────────────────────────────────
 
-function ReceiversSection() {
+function ReceiversSection({ channels }: { channels: CcChannel[] }) {
+  const qc = useQueryClient();
   const { data, isPending, isError, error } = useQuery(q.receivers());
+  const [open, setOpen] = useState(false);
+
+  const remove = useMutation({
+    mutationFn: (name: string) => deleteCcReceiver({ data: { name } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cc", "receivers"] });
+      toast.success("Receiver deleted");
+    },
+    onError: (e) => toast.error(ccErrorMessage(e)),
+  });
+
+  const channelByName = new Map(channels.map((c) => [c.name, c]));
+
   return (
     <Card id="receivers" inset="flush-content" className="scroll-mt-4">
       <CardHeader>
         <CardTitle>Receivers</CardTitle>
         <CardDescription>
-          The channels alerts can be delivered to. Ones managed as code with{" "}
-          <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.6875rem]">
-            everr apply
-          </code>{" "}
-          are marked <span className="font-medium">as code</span>; secrets are
-          redacted here. Receivers are not editable in the UI.
+          Named sets of channels routes deliver to; one receiver fans out to
+          every channel it references.
         </CardDescription>
+        <CardAction>
+          <Button onClick={() => setOpen(true)}>
+            <Plus data-icon="inline-start" />
+            New receiver
+          </Button>
+        </CardAction>
       </CardHeader>
       <CardContent>
         {isError ? (
@@ -533,12 +185,22 @@ function ReceiversSection() {
           <CcEmptyState
             icon={Inbox}
             title="No receivers defined"
-            hint="Define Slack, webhook, PagerDuty, or email channels as code, then apply them."
+            hint="Add a receiver that references one or more channels for routes to deliver alerts to."
           />
         ) : (
           <ul className="divide-y divide-border/60">
             {(data ?? []).map((r) => {
-              const Icon = CHANNEL_ICON[r.channel.type];
+              const resolved = r.channels.map((name) => ({
+                name,
+                channel: channelByName.get(name),
+              }));
+              const Icon =
+                CHANNEL_ICON[resolved[0]?.channel?.config.type ?? "webhook"];
+              // Free-form annotations minus `everr.`-prefixed internal markers
+              // (stamped by older flows; not user metadata).
+              const customAnnotations = Object.entries(
+                r.annotations ?? {},
+              ).filter(([k]) => !k.startsWith("everr."));
               return (
                 <li
                   key={r.name}
@@ -550,23 +212,138 @@ function ReceiversSection() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium">{r.name}</span>
-                      {isAsCodeReceiver(r) ? (
-                        <Badge variant="outline">as code</Badge>
-                      ) : null}
                     </div>
-                    <div className="truncate font-mono text-xs text-muted-foreground">
-                      {channelTarget(r.channel) || r.channel.type}
-                    </div>
+                    {resolved.map(({ name, channel }) => (
+                      <div
+                        key={name}
+                        className="truncate font-mono text-xs text-muted-foreground"
+                      >
+                        {name}
+                        {channel ? ` (${channel.config.type})` : ""}
+                      </div>
+                    ))}
+                    {customAnnotations.length > 0 && (
+                      <div className="truncate text-xs text-muted-foreground">
+                        {customAnnotations
+                          .map(([k, v]) => `${k}: ${v}`)
+                          .join(", ")}
+                      </div>
+                    )}
                   </div>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {r.channel.type}
-                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Delete receiver"
+                    disabled={remove.isPending}
+                    onClick={() => remove.mutate(r.name)}
+                  >
+                    <Trash2 />
+                  </Button>
                 </li>
               );
             })}
           </ul>
         )}
       </CardContent>
+      <ReceiverBuilder
+        key={open ? "open" : "closed"}
+        open={open}
+        onOpenChange={setOpen}
+        existingNames={(data ?? []).map((r) => r.name)}
+        channels={channels}
+      />
+    </Card>
+  );
+}
+
+function ChannelsSection() {
+  const qc = useQueryClient();
+  const { data, isPending, isError, error } = useQuery(q.channels());
+  const [open, setOpen] = useState(false);
+
+  const remove = useMutation({
+    mutationFn: (name: string) => deleteCcChannel({ data: { name } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cc", "channels"] });
+      toast.success("Channel deleted");
+    },
+    // A referenced channel deletes with a 409 naming the referring receivers;
+    // the engine's message is surfaced verbatim.
+    onError: (e) => toast.error(ccErrorMessage(e)),
+  });
+
+  return (
+    <Card id="channels" inset="flush-content" className="scroll-mt-4">
+      <CardHeader>
+        <CardTitle>Channels</CardTitle>
+        <CardDescription>
+          Named delivery endpoints receivers reference; reusable across
+          receivers. Secret fields are redacted here.
+        </CardDescription>
+        <CardAction>
+          <Button onClick={() => setOpen(true)}>
+            <Plus data-icon="inline-start" />
+            New channel
+          </Button>
+        </CardAction>
+      </CardHeader>
+      <CardContent>
+        {isError ? (
+          <div className="px-3 pb-3">
+            <CcQueryError error={error} />
+          </div>
+        ) : isPending ? (
+          <CcTableSkeleton rows={3} />
+        ) : (data ?? []).length === 0 ? (
+          <CcEmptyState
+            icon={Inbox}
+            title="No channels defined"
+            hint="Add a Slack, webhook, PagerDuty, email, or Telegram endpoint for receivers to deliver through."
+          />
+        ) : (
+          <ul className="divide-y divide-border/60">
+            {(data ?? []).map((c) => {
+              const Icon = CHANNEL_ICON[c.config.type];
+              return (
+                <li
+                  key={c.name}
+                  className="flex items-center gap-3 px-3 py-2.5"
+                >
+                  <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                    <Icon className="size-3.5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">{c.name}</span>
+                    </div>
+                    <div className="truncate font-mono text-xs text-muted-foreground">
+                      {channelTarget(c.config) || c.config.type}
+                    </div>
+                  </div>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {c.config.type}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Delete channel"
+                    disabled={remove.isPending}
+                    onClick={() => remove.mutate(c.name)}
+                  >
+                    <Trash2 />
+                  </Button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </CardContent>
+      <ChannelBuilder
+        key={open ? "open" : "closed"}
+        open={open}
+        onOpenChange={setOpen}
+        existingNames={(data ?? []).map((c) => c.name)}
+      />
     </Card>
   );
 }
@@ -878,6 +655,7 @@ function FirehoseSection() {
 function CcRoutingPage() {
   const routes = useQuery(q.routes());
   const receivers = useQuery(q.receivers());
+  const channels = useQuery(q.channels());
   const inhibitions = useQuery(q.inhibitions());
   const alerts = useQuery(q.alerts());
   const silences = useQuery(q.silences());
@@ -913,7 +691,8 @@ function CcRoutingPage() {
         </CardContent>
       </Card>
 
-      <ReceiversSection />
+      <ReceiversSection channels={channels.data ?? []} />
+      <ChannelsSection />
       <RoutesSection receivers={receivers.data ?? []} />
       <InhibitionsSection />
       <FirehoseSection />

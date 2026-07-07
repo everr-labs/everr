@@ -116,6 +116,7 @@ describe("queryAlertEventLog", () => {
     expect(sql).toContain("TimestampTime >= {fromTime:DateTime64(3)}");
     expect(sql).toContain("TimestampTime <= {toTime:DateTime64(3)}");
     expect(sql).toContain("LIMIT {limit:UInt32}");
+    expect(sql).toContain("LogAttributes['alert.evidence_truncated']");
     expect(params).toMatchObject({
       limit: 200,
       fromTime: "2026-06-01T00:00:00Z",
@@ -134,6 +135,7 @@ describe("queryAlertEventLog", () => {
     silenced: "",
     deliveryTargetsRaw: "",
     evidenceJson: "",
+    evidenceTruncated: "false",
   };
 
   async function runWithRawRow(overrides: Record<string, string>) {
@@ -159,6 +161,7 @@ describe("queryAlertEventLog", () => {
       silenced: false,
       deliveryTargets: [],
       evidence: null,
+      evidenceTruncated: false,
     });
   });
 
@@ -218,6 +221,15 @@ describe("queryAlertEventLog", () => {
     expect(
       (await runWithRawRow({ evidenceJson: "{oops" })).evidence,
     ).toBeNull();
+  });
+
+  it("maps the evidence_truncated flag to a boolean", async () => {
+    expect(
+      (await runWithRawRow({ evidenceTruncated: "true" })).evidenceTruncated,
+    ).toBe(true);
+    expect(
+      (await runWithRawRow({ evidenceTruncated: "false" })).evidenceTruncated,
+    ).toBe(false);
   });
 
   it("does not leak raw projection fields onto the mapped row", async () => {

@@ -19,13 +19,6 @@ const validateRunbookLinks = vi.fn();
 vi.mock("@/data/alerts/runbook-links.server", () => ({
   validateAlertRunbookLinks: (...a: unknown[]) => validateRunbookLinks(...a),
 }));
-const ccRuleReconciler = vi.fn();
-const ccReceiverReconciler = vi.fn();
-vi.mock("@/data/cc/apply.server", () => ({
-  applyCcRuleSpecs: (...a: unknown[]) => ccRuleReconciler(...a),
-  applyCcReceiverSpecs: (...a: unknown[]) => ccReceiverReconciler(...a),
-}));
-
 const upsertPreview = vi.fn();
 const findPreviewId = vi.fn();
 vi.mock("@/data/previews/apply.server", () => ({
@@ -59,8 +52,6 @@ beforeEach(() => {
   dashboardReconciler.mockResolvedValue(empty);
   runbookReconciler.mockResolvedValue(empty);
   alertReconciler.mockResolvedValue(empty);
-  ccRuleReconciler.mockResolvedValue(empty);
-  ccReceiverReconciler.mockResolvedValue(empty);
   upsertPreview.mockResolvedValue("prev-1");
   findPreviewId.mockResolvedValue(null);
 });
@@ -91,8 +82,6 @@ describe("applyResources", () => {
         dashboards: [dash],
         runbooks: [runbook],
         alerts: [alert],
-        ccRules: [],
-        ccReceivers: [],
       },
       dryRun: false,
     });
@@ -130,20 +119,6 @@ describe("applyResources", () => {
           deleted: [],
           adopted: [],
         },
-        {
-          kind: "CCAlertRule",
-          created: [],
-          updated: [],
-          deleted: [],
-          adopted: [],
-        },
-        {
-          kind: "CCReceiver",
-          created: [],
-          updated: [],
-          deleted: [],
-          adopted: [],
-        },
       ],
     });
   });
@@ -155,20 +130,21 @@ describe("applyResources", () => {
       new ApplyValidationError("bad runbook"),
     );
 
-    await expect(
-      applyResources({
+    try {
+      await applyResources({
         orgId: "org-1",
         repoid: "repo-1",
         state: {
           dashboards: [{ path: "d.yaml", resource: { kind: "Dashboard" } }],
           runbooks: [{ path: "n.yaml", resource: { kind: "Runbook" } }],
           alerts: [],
-          ccRules: [],
-          ccReceivers: [],
         },
         dryRun: false,
-      }),
-    ).rejects.toThrow(/bad runbook/);
+      });
+      expect.fail("expected the invalid runbook to fail the apply");
+    } catch (error) {
+      expect((error as Error).message).toMatch(/bad runbook/);
+    }
 
     // Dashboard was only ever validated (dryRun: true) — never applied for real,
     // so it cannot have pruned the repo before Runbook validation threw.
@@ -192,8 +168,6 @@ describe("applyResources", () => {
         dashboards: [],
         runbooks: [],
         alerts: [],
-        ccRules: [],
-        ccReceivers: [],
       },
       dryRun: true,
     });
@@ -219,8 +193,6 @@ describe("applyResources", () => {
         dashboards: [],
         runbooks: [],
         alerts: [],
-        ccRules: [],
-        ccReceivers: [],
       },
     });
     expect(dashboardReconciler).toHaveBeenCalledWith(
@@ -235,22 +207,50 @@ describe("applyResources", () => {
   });
 
   it("rejects resources placed under the wrong state key", async () => {
-    await expect(
-      applyResources({
+    try {
+      await applyResources({
         orgId: "org-1",
         repoid: "repo-1",
         state: {
           dashboards: [{ path: "alert.yaml", resource: { kind: "AlertRule" } }],
           runbooks: [],
           alerts: [],
-          ccRules: [],
-          ccReceivers: [],
         },
-      }),
-    ).rejects.toThrow('alert.yaml: expected kind "Dashboard"');
+      });
+      expect.fail("expected the misplaced resource to be rejected");
+    } catch (error) {
+      expect((error as Error).message).toBe(
+        'alert.yaml: expected kind "Dashboard"',
+      );
+    }
 
     expect(dashboardReconciler).not.toHaveBeenCalled();
     expect(runbookReconciler).not.toHaveBeenCalled();
+    expect(alertReconciler).not.toHaveBeenCalled();
+  });
+
+  // The rule reconciler was collapsed into the single AlertRule kind: there is
+  // no more CCAlertRule bucket in the registry, so a document still carrying
+  // that kind fails the same standard kind-mismatch check every other unknown
+  // kind hits (not a special-cased "unknown kind" message).
+  it("rejects a CCAlertRule-kinded document with the standard kind-mismatch error naming AlertRule", async () => {
+    try {
+      await applyResources({
+        orgId: "org-1",
+        repoid: "repo-1",
+        state: {
+          dashboards: [],
+          runbooks: [],
+          alerts: [{ path: "rule.yaml", resource: { kind: "CCAlertRule" } }],
+        },
+      });
+      expect.fail("expected the CCAlertRule kind to be rejected");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ApplyValidationError);
+      expect((error as Error).message).toBe(
+        'rule.yaml: expected kind "AlertRule"',
+      );
+    }
     expect(alertReconciler).not.toHaveBeenCalled();
   });
 
@@ -268,8 +268,6 @@ describe("applyResources", () => {
           dashboards: [],
           runbooks: [{ path: "rb.yaml", resource: { kind } }],
           alerts: [],
-          ccRules: [],
-          ccReceivers: [],
         },
         dryRun: true,
       }),
@@ -282,19 +280,24 @@ describe("applyResources", () => {
   });
 
   it("honors the Notebook alias only for runbooks — rejects it under dashboards", async () => {
-    await expect(
-      applyResources({
+    try {
+      await applyResources({
         orgId: "org-1",
         repoid: "repo-1",
         state: {
           dashboards: [{ path: "nb.yaml", resource: { kind: "Notebook" } }],
           runbooks: [],
           alerts: [],
-          ccRules: [],
-          ccReceivers: [],
         },
-      }),
-    ).rejects.toThrow('nb.yaml: expected kind "Dashboard"');
+      });
+      expect.fail(
+        "expected the Notebook alias to be rejected under dashboards",
+      );
+    } catch (error) {
+      expect((error as Error).message).toBe(
+        'nb.yaml: expected kind "Dashboard"',
+      );
+    }
 
     expect(dashboardReconciler).not.toHaveBeenCalled();
     expect(runbookReconciler).not.toHaveBeenCalled();
@@ -310,8 +313,6 @@ describe("applyResources", () => {
         dashboards: [],
         runbooks: [],
         alerts: [],
-        ccRules: [],
-        ccReceivers: [],
       },
     });
     for (const reconciler of [
@@ -348,8 +349,6 @@ describe("applyResources", () => {
         dashboards: [],
         runbooks: [],
         alerts: [],
-        ccRules: [],
-        ccReceivers: [],
       },
     });
     await applyResources({
@@ -361,8 +360,6 @@ describe("applyResources", () => {
         dashboards: [],
         runbooks: [],
         alerts: [],
-        ccRules: [],
-        ccReceivers: [],
       },
     });
     expect(upsertPreview).not.toHaveBeenCalled();
@@ -376,20 +373,23 @@ describe("applyResources", () => {
       adopted: [],
       conflicts: [{ project: "default", slug: "cpu", owner: "repo-2" }],
     });
-    await expect(
-      applyResources({
+    try {
+      await applyResources({
         orgId: "org-1",
         repoid: "repo-1",
         state: {
           dashboards: [{ path: "d.yaml", resource: { kind: "Dashboard" } }],
           runbooks: [],
           alerts: [],
-          ccRules: [],
-          ccReceivers: [],
         },
         dryRun: false,
-      }),
-    ).rejects.toThrow(/default\/cpu \(owned by repo-2\)[\s\S]*--adopt/);
+      });
+      expect.fail("expected the ownership conflict to fail the apply");
+    } catch (error) {
+      expect((error as Error).message).toMatch(
+        /default\/cpu \(owned by repo-2\)[\s\S]*--adopt/,
+      );
+    }
     // Fail-fast: aborts in the validation pass, before the real apply's
     // transaction ever registers or writes.
     expect(upsertPreview).not.toHaveBeenCalled();
@@ -404,8 +404,6 @@ describe("applyResources", () => {
         dashboards: [],
         runbooks: [],
         alerts: [],
-        ccRules: [],
-        ccReceivers: [],
       },
     });
     expect(dashboardReconciler).toHaveBeenCalledWith(

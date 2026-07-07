@@ -1,9 +1,38 @@
-// packages/app/src/routes/_authenticated/_dashboard/cc-alerting/-cc-shared.tsx
+// packages/app/src/components/cc/shared.tsx
+import { Badge } from "@everr/ui/components/badge";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { cn } from "@everr/ui/lib/utils";
 import { Info, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
-import type { CcMatcher, CcRoute } from "@/data/cc/types";
+import { sortedLabelEntries } from "@/data/alerts/matchers";
+import type { CcMatcher } from "@/data/cc/types";
+import { ccOpSymbol } from "./route-resolution";
+
+// ── Guidance ──────────────────────────────────────────────────────────────────
+// Plain-language, always-visible explainers. Alerting is hard; the UI should
+// teach the concept in place rather than expose a raw control and hope.
+
+export function CcConceptNote({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex items-start gap-2 rounded-md border border-border bg-muted/30 p-3 text-xs leading-relaxed text-muted-foreground",
+        className,
+      )}
+    >
+      <Info className="mt-px size-3.5 shrink-0 text-muted-foreground/70" />
+      <div className="[&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.6875rem] [&_strong]:font-medium [&_strong]:text-foreground">
+        {children}
+      </div>
+    </div>
+  );
+}
 
 // CC server-fn errors (incl. CcApiError) are serialized across the server→client
 // boundary and arrive as plain Errors, so we match on `error.message` here rather
@@ -12,7 +41,7 @@ import type { CcMatcher, CcRoute } from "@/data/cc/types";
 export function ccErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     if (/fetch failed|timeout|ECONNREFUSED/i.test(error.message)) {
-      return "clickety-clack API unavailable";
+      return "Alerting service unavailable";
     }
     return error.message;
   }
@@ -46,10 +75,13 @@ type Tone =
 
 const TONE_DOT: Record<Tone, string> = {
   firing: "bg-destructive",
-  degraded: "bg-destructive",
+  // Rule health (evaluation success), distinct from alert/instance state
+  // above: green/amber rather than the firing red, so a degraded rule reads
+  // as "needs attention" without being confused with an actual firing alert.
+  degraded: "bg-amber-500",
   pending: "bg-primary",
   live: "bg-primary",
-  healthy: "bg-muted-foreground/40",
+  healthy: "bg-emerald-500",
   inactive: "bg-muted-foreground/50",
   disconnected: "bg-muted-foreground/50",
   resolved: "bg-muted-foreground/50",
@@ -57,7 +89,9 @@ const TONE_DOT: Record<Tone, string> = {
 
 const TONE_TEXT: Record<Tone, string> = {
   firing: "text-destructive",
-  degraded: "text-destructive",
+  // Matches the amber degraded dot above — degraded is a health warning, not
+  // the firing red.
+  degraded: "text-amber-600 dark:text-amber-400",
   pending: "text-foreground",
   live: "text-foreground",
   healthy: "text-muted-foreground",
@@ -117,29 +151,6 @@ function CcStatusLabel({
   );
 }
 
-export function CcInstanceStatusBadge({ status }: { status: string }) {
-  const tone: Tone =
-    status === "firing"
-      ? "firing"
-      : status === "pending"
-        ? "pending"
-        : "inactive";
-  return (
-    <CcStatusLabel tone={tone} pulse={tone === "firing"}>
-      {status}
-    </CcStatusLabel>
-  );
-}
-
-export function CcHealthBadge({ status }: { status: string }) {
-  const degraded = status === "degraded";
-  return (
-    <CcStatusLabel tone={degraded ? "degraded" : "healthy"} pulse={degraded}>
-      {status}
-    </CcStatusLabel>
-  );
-}
-
 export function CcSeverityBadge({ severity }: { severity: string }) {
   const tone: Tone =
     severity === "critical"
@@ -167,19 +178,31 @@ export function CcConnectionBadge({ connected }: { connected: boolean }) {
   );
 }
 
-// ── Matchers & labels ─────────────────────────────────────────────────────────
-// Rendered as scannable pills instead of a comma-run-on mono string.
-
-const OP_SYMBOL: Record<CcMatcher["op"], string> = {
-  eq: "=",
-  ne: "≠",
-  regex: "=~",
-  notregex: "!~",
-};
-
-export function ccOpSymbol(op: CcMatcher["op"]): string {
-  return OP_SYMBOL[op];
+export function CcInstanceStatusBadge({ status }: { status: string }) {
+  const tone: Tone =
+    status === "firing"
+      ? "firing"
+      : status === "pending"
+        ? "pending"
+        : "inactive";
+  return (
+    <CcStatusLabel tone={tone} pulse={tone === "firing"}>
+      {status}
+    </CcStatusLabel>
+  );
 }
+
+export function CcHealthBadge({ status }: { status: string }) {
+  const degraded = status === "degraded";
+  return (
+    <CcStatusLabel tone={degraded ? "degraded" : "healthy"} pulse={degraded}>
+      {status}
+    </CcStatusLabel>
+  );
+}
+
+// ── Conditions & labels ───────────────────────────────────────────────────────
+// Rendered as scannable pills instead of a comma-run-on mono string.
 
 function Pill({ children }: { children: ReactNode }) {
   return (
@@ -189,7 +212,7 @@ function Pill({ children }: { children: ReactNode }) {
   );
 }
 
-export function Matchers({
+export function Conditions({
   matchers,
   emptyLabel = "*",
 }: {
@@ -209,7 +232,7 @@ export function Matchers({
         // biome-ignore lint/suspicious/noArrayIndexKey: matchers are positional, no stable id
         <Pill key={i}>
           <span className="text-foreground">{m.label}</span>
-          <span className="text-muted-foreground">{OP_SYMBOL[m.op]}</span>
+          <span className="text-muted-foreground">{ccOpSymbol(m.op)}</span>
           <span className="text-foreground">{m.value}</span>
         </Pill>
       ))}
@@ -241,77 +264,49 @@ export function LabelSet({
   );
 }
 
-// ── Guidance ──────────────────────────────────────────────────────────────────
-// Plain-language, always-visible explainers. Alerting is hard; the UI should
-// teach the concept in place rather than expose a raw control and hope.
-
-export function CcConceptNote({
-  children,
-  className,
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div
-      className={cn(
-        "flex items-start gap-2 rounded-md border border-border bg-muted/30 p-3 text-xs leading-relaxed text-muted-foreground",
-        className,
-      )}
-    >
-      <Info className="mt-px size-3.5 shrink-0 text-muted-foreground/70" />
-      <div className="[&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.6875rem] [&_strong]:font-medium [&_strong]:text-foreground">
-        {children}
-      </div>
-    </div>
-  );
-}
-
-// ── Route matching ────────────────────────────────────────────────────────────
-// Pure, mirrors CC's matcher semantics. Used to show "where does this alert go"
-// and to drive the routing pipeline preview. First match by ascending priority.
-
-export function ccMatcherMatches(
-  m: CcMatcher,
-  labels: Record<string, string>,
-): boolean {
-  const v = labels[m.label];
-  switch (m.op) {
-    case "eq":
-      return v === m.value;
-    case "ne":
-      return v !== m.value;
-    case "regex":
-      try {
-        return v != null && new RegExp(m.value).test(v);
-      } catch {
-        return false;
-      }
-    case "notregex":
-      try {
-        return v == null || !new RegExp(m.value).test(v);
-      } catch {
-        return false;
-      }
+// CC evidence (source-row columns beyond the identity labels) rendered as
+// compact key=value pills, mirroring the silence matcher chips so the
+// timeline stays visually consistent with LabelSet above it.
+function formatEvidenceValue(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value.toLocaleString("en-US", { maximumFractionDigits: 4 });
   }
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
 }
 
-export function ccRouteMatches(
-  matchers: CcMatcher[],
-  labels: Record<string, string>,
-): boolean {
-  return matchers.every((m) => ccMatcherMatches(m, labels));
-}
-
-/** First route matching `labels`, by ascending priority (first match wins). */
-export function ccFirstRoute(
-  routes: CcRoute[],
-  labels: Record<string, string>,
-): CcRoute | null {
+export function EvidenceChips({
+  evidence,
+  truncated,
+}: {
+  evidence: Record<string, unknown> | null | undefined;
+  truncated?: boolean;
+}) {
+  const entries = evidence
+    ? sortedLabelEntries(
+        Object.fromEntries(
+          Object.entries(evidence).map(([key, value]) => [
+            key,
+            formatEvidenceValue(value),
+          ]),
+        ),
+      )
+    : [];
+  if (entries.length === 0 && !truncated) return null;
   return (
-    [...routes]
-      .sort((a, b) => a.priority - b.priority)
-      .find((r) => ccRouteMatches(r.matchers, labels)) ?? null
+    <div className="flex flex-wrap items-center gap-1">
+      {entries.map(([key, value]) => (
+        <Badge key={key} variant="secondary" className="font-mono font-normal">
+          {key}={value}
+        </Badge>
+      ))}
+      {truncated && (
+        <span className="text-xs text-muted-foreground">
+          evidence truncated
+        </span>
+      )}
+    </div>
   );
 }
 

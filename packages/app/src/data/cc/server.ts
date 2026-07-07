@@ -3,7 +3,11 @@ import { z } from "zod";
 import { queryAlertEventLog } from "@/data/alerts/history.server";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import * as cc from "./client";
-import { CcMatcherSchema, CcRuleSpecSchema } from "./schema";
+import {
+  CcChannelConfigSchema,
+  CcMatcherSchema,
+  CcRuleSpecSchema,
+} from "./schema";
 
 const orgId = (session: { session: { activeOrganizationId: string } }) =>
   session.session.activeOrganizationId;
@@ -12,6 +16,21 @@ const orgId = (session: { session: { activeOrganizationId: string } }) =>
 export const listCcRules = createAuthenticatedServerFn({
   method: "GET",
 }).handler(({ context: { session } }) => cc.listRules(orgId(session)));
+
+// Paginated rules listing (CC's {items, next_cursor} envelope) with an
+// optional server-side health filter. listCcRules above stays the bare-array
+// path for callers that want everything in one shot.
+export const listCcRulesPage = createAuthenticatedServerFn({ method: "GET" })
+  .inputValidator(
+    z.object({
+      limit: z.number().int().min(1).max(500).default(100),
+      cursor: z.string().optional(),
+      health: z.enum(["degraded", "healthy"]).optional(),
+    }),
+  )
+  .handler(({ data, context: { session } }) =>
+    cc.listRulesPage(orgId(session), data),
+  );
 
 export const getCcRule = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(z.object({ ruleId: z.string() }))
@@ -22,6 +41,10 @@ export const getCcRule = createAuthenticatedServerFn({ method: "GET" })
 export const listCcAlerts = createAuthenticatedServerFn({
   method: "GET",
 }).handler(({ context: { session } }) => cc.listAlerts(orgId(session)));
+
+export const listCcChannels = createAuthenticatedServerFn({
+  method: "GET",
+}).handler(({ context: { session } }) => cc.listChannels(orgId(session)));
 
 export const listCcReceivers = createAuthenticatedServerFn({
   method: "GET",
@@ -75,6 +98,49 @@ export const testCcRule = createAuthenticatedServerFn({ method: "POST" })
   .inputValidator(z.object({ ruleId: z.string(), spec: CcRuleSpecSchema }))
   .handler(({ data: { ruleId, spec }, context: { session } }) =>
     cc.testRule(orgId(session), ruleId, spec),
+  );
+
+// ---- Channels ----
+// CC's POST /v1/channels is an upsert by name; the UI guards against
+// clobbering an existing channel by checking the listed names client-side.
+export const createCcChannel = createAuthenticatedServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      name: z.string().min(1),
+      config: CcChannelConfigSchema,
+    }),
+  )
+  .handler(({ data, context: { session } }) =>
+    cc.upsertChannel(orgId(session), data),
+  );
+
+// CC refuses to delete a referenced channel: a 409 whose message names the
+// referring receivers, surfaced verbatim in the UI toast.
+export const deleteCcChannel = createAuthenticatedServerFn({ method: "POST" })
+  .inputValidator(z.object({ name: z.string().min(1) }))
+  .handler(({ data: { name }, context: { session } }) =>
+    cc.deleteChannel(orgId(session), name),
+  );
+
+// ---- Receivers ----
+// CC's POST /v1/receivers is an upsert by name; the UI guards against
+// clobbering an existing receiver by checking the listed names client-side.
+// `channels` is a list of channel NAMES; the engine 422s unknown ones.
+export const createCcReceiver = createAuthenticatedServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      name: z.string().min(1),
+      channels: z.array(z.string().min(1)).min(1),
+    }),
+  )
+  .handler(({ data, context: { session } }) =>
+    cc.upsertReceiver(orgId(session), data),
+  );
+
+export const deleteCcReceiver = createAuthenticatedServerFn({ method: "POST" })
+  .inputValidator(z.object({ name: z.string().min(1) }))
+  .handler(({ data: { name }, context: { session } }) =>
+    cc.deleteReceiver(orgId(session), name),
   );
 
 // ---- Routes ----

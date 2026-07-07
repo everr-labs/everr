@@ -130,7 +130,7 @@ export function MatchersEditor({
       ))}
       {value.length === 0 && (
         <p className="text-xs text-muted-foreground">
-          No matchers — matches everything.
+          No matchers, matches everything.
         </p>
       )}
     </div>

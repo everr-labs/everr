@@ -4,13 +4,15 @@ import {
   formatRunbookRef,
   parseRunbookRef,
 } from "./schema";
-import { parseEvaluationInterval, parseForDuration } from "./window";
+import {
+  parseEvaluationInterval,
+  parseForDuration,
+  parseWindow,
+} from "./window";
 
-// Ownership + management annotations on a CC rule.
+// Ownership annotations on a CC rule.
 export const OWN_NAME = "everr.name";
 export const OWN_REPO = "everr.repoid";
-export const OWN_MANAGED = "everr.managed";
-export const MANAGED_SIMPLE = "simple";
 // The preview registry id (previews.id) owning a preview rule. Live rules never
 // carry it: it is the live/preview namespace discriminator on CC rules, the CC
 // analogue of the Postgres resource tables' preview_id column.
@@ -34,15 +36,12 @@ const ANN_RUNBOOK = "everr.runbook";
 // they are http(s) URLs.
 const ANN_CC_SUMMARY = "summary";
 const ANN_CC_DESCRIPTION = "description";
-// Exported for the /alerts preview overlay: link.alert embeds the rule's own
-// CC id, so a live rule and its preview copy always differ on it and the
-// overlay's change detection must ignore it.
-export const ANN_CC_LINK_ALERT = "link.alert";
+const ANN_CC_LINK_ALERT = "link.alert";
 const ANN_CC_LINK_RUNBOOK = "link.runbook";
 
-/** Absolute URL of the everr alert detail page for a CC rule id. */
+/** Absolute URL of the everr rule detail page for a CC rule id. */
 function alertDetailUrl(appBaseUrl: string, ruleId: string): string {
-  return new URL(`/alerts/${ruleId}`, appBaseUrl).toString();
+  return new URL(`/alerts/rules/${ruleId}`, appBaseUrl).toString();
 }
 
 /**
@@ -72,16 +71,20 @@ export function withAlertLink(
  * A `previewId` builds the rule for that preview namespace: suppressed (CC
  * evaluates it fully but never notifies) and tagged with the everr.preview
  * annotation so live and preview reconciles never touch each other's rules.
+ * `rule.spec.annotations` (user-supplied pass-through) is merged in BEFORE the
+ * generated keys below, so the generated `everr.*`/`summary`/`description`/
+ * link keys always win (the schema already rejects reserved keys, so this
+ * merge order never actually needs to resolve a collision).
  */
-export function toSimpleRuleSpec(
+export function toRuleSpec(
   rule: AlertRuleYaml,
   repoid: string,
   opts: { appBaseUrl?: string; previewId?: string } = {},
 ): CcRuleSpec {
   const annotations: Record<string, string> = {
+    ...rule.spec.annotations,
     [OWN_NAME]: rule.metadata.name,
     [OWN_REPO]: repoid,
-    [OWN_MANAGED]: MANAGED_SIMPLE,
     [ANN_TITLE]: rule.spec.notificationMessage.title,
     // The same templates drive CC's own notification rendering.
     [ANN_CC_SUMMARY]: rule.spec.notificationMessage.title,
@@ -121,6 +124,11 @@ export function toSimpleRuleSpec(
     severity: rule.spec.severity,
     annotations,
     resolve_after: rule.spec.resolveAfter,
+    // Absent unless the rule sets maxInterval: CC applies its own default
+    // when the key is missing from the spec.
+    ...(rule.spec.maxInterval !== undefined
+      ? { max_interval_secs: parseWindow(rule.spec.maxInterval) }
+      : {}),
     // Preview rules are a full dress rehearsal: evaluated, stateful, and
     // visible in history/SSE, but the dispatcher never notifies on them.
     suppressed: opts.previewId !== undefined,
@@ -175,10 +183,10 @@ export function fromCcRuleSpec(spec: CcRuleSpec): SimpleAlertView {
   };
 }
 
-/** True if a CC rule is a simple (everr-managed) alert owned by this repo (or any repo). */
-export function isManagedSimple(spec: CcRuleSpec, repoid?: string): boolean {
+/** True if a CC rule is everr-owned (carries `everr.name`), owned by this repo (or any repo). */
+export function isOwnedRule(spec: CcRuleSpec, repoid?: string): boolean {
   const ann = spec.annotations ?? {};
-  if (ann[OWN_MANAGED] !== MANAGED_SIMPLE) return false;
+  if (ann[OWN_NAME] === undefined) return false;
   return repoid === undefined || ann[OWN_REPO] === repoid;
 }
 
