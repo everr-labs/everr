@@ -25,7 +25,7 @@ function Stage({
   title: string;
   sub: string;
   live?: boolean;
-  to: "/alerts" | "/alerts/notifications";
+  to: "/cc-alerting/monitor/active" | "/cc-alerting/routing";
   hash?: string;
 }) {
   return (
@@ -84,14 +84,14 @@ export function CcPipelineDiagram({
           title="Alert fires"
           sub={`${firing} firing now`}
           live={firing > 0}
-          to="/alerts"
+          to="/cc-alerting/monitor/active"
         />
         <Arrow />
         <Stage
           icon={Waypoints}
           title="Matched by route"
           sub={`${routeCount} ${plural(routeCount, "route")} · first match wins`}
-          to="/alerts/notifications"
+          to="/cc-alerting/routing"
           hash="routes"
         />
         <Arrow />
@@ -99,14 +99,14 @@ export function CcPipelineDiagram({
           icon={Send}
           title="Delivered"
           sub={`${receiverCount} ${plural(receiverCount, "receiver")}`}
-          to="/alerts/notifications"
+          to="/cc-alerting/routing"
           hash="receivers"
         />
       </div>
       <p className="text-xs leading-relaxed text-muted-foreground">
         Alerts matching no route fall through to the{" "}
         <Link
-          to="/alerts/notifications"
+          to="/cc-alerting/routing"
           hash="firehose"
           className="text-foreground underline-offset-2 hover:underline"
         >

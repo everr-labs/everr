@@ -79,7 +79,7 @@ function managedRule(name: string, over: Record<string, unknown> = {}) {
         [OWN_REPO]: "repo-1",
         "everr.notification.title": `\${value} errors in \${service}`,
         summary: `\${value} errors in \${service}`,
-        "link.alert": `https://app.example.com/alerts/rule-${name}`,
+        "link.alert": `https://app.example.com/cc-alerting/rules/rule-${name}`,
       },
       resolve_after: 1,
       suppressed: false,
@@ -104,7 +104,7 @@ function previewRule(
       annotations: {
         ...base.spec.annotations,
         [OWN_PREVIEW]: previewId,
-        "link.alert": `https://app.example.com/alerts/prev-rule-${name}`,
+        "link.alert": `https://app.example.com/cc-alerting/rules/prev-rule-${name}`,
       },
       suppressed: true,
       ...over,
@@ -138,7 +138,7 @@ describe("applyAlertSpecs", () => {
     expect(uId).toBe("new-rule");
     expect(uVersion).toBe(1);
     expect(uSpec.annotations["link.alert"]).toBe(
-      "https://app.example.com/alerts/new-rule",
+      "https://app.example.com/cc-alerting/rules/new-rule",
     );
     expect(mockedDeleteRule).not.toHaveBeenCalled();
   });
@@ -189,7 +189,7 @@ describe("applyAlertSpecs", () => {
     expect(uId).toBe("new-rule");
     expect(uVersion).toBe(1);
     expect(uSpec.annotations["link.alert"]).toBe(
-      "https://app.example.com/alerts/new-rule",
+      "https://app.example.com/cc-alerting/rules/new-rule",
     );
     expect(uSpec.suppressed).toBe(true);
 
@@ -500,7 +500,7 @@ describe("applyAlertSpecs", () => {
       "SELECT service, count() AS count FROM logs GROUP BY service",
     );
     expect(spec.annotations["link.alert"]).toBe(
-      "https://app.example.com/alerts/rule-high-errors",
+      "https://app.example.com/cc-alerting/rules/rule-high-errors",
     );
     expect(mockedDeleteRule).not.toHaveBeenCalled();
     expect(mockedCreateRule).not.toHaveBeenCalled();

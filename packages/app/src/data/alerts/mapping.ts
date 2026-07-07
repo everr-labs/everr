@@ -36,15 +36,12 @@ const ANN_RUNBOOK = "everr.runbook";
 // they are http(s) URLs.
 const ANN_CC_SUMMARY = "summary";
 const ANN_CC_DESCRIPTION = "description";
-// Exported for the /alerts preview overlay: link.alert embeds the rule's own
-// CC id, so a live rule and its preview copy always differ on it and the
-// overlay's change detection must ignore it.
-export const ANN_CC_LINK_ALERT = "link.alert";
+const ANN_CC_LINK_ALERT = "link.alert";
 const ANN_CC_LINK_RUNBOOK = "link.runbook";
 
-/** Absolute URL of the everr alert detail page for a CC rule id. */
+/** Absolute URL of the everr rule detail page for a CC rule id. */
 function alertDetailUrl(appBaseUrl: string, ruleId: string): string {
-  return new URL(`/alerts/${ruleId}`, appBaseUrl).toString();
+  return new URL(`/cc-alerting/rules/${ruleId}`, appBaseUrl).toString();
 }
 
 /**

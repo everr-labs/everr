@@ -62,8 +62,6 @@ import { Route as AuthenticatedDashboardCcAlertingMonitorRouteImport } from './r
 import { Route as AuthenticatedDashboardCcAlertingInhibitionsRouteImport } from './routes/_authenticated/_dashboard/cc-alerting/inhibitions'
 import { Route as AuthenticatedDashboardCcAlertingEventsRouteImport } from './routes/_authenticated/_dashboard/cc-alerting/events'
 import { Route as AuthenticatedDashboardCcAlertingAlertsRouteImport } from './routes/_authenticated/_dashboard/cc-alerting/alerts'
-import { Route as AuthenticatedDashboardAlertsNotificationsRouteImport } from './routes/_authenticated/_dashboard/alerts_.notifications'
-import { Route as AuthenticatedDashboardPreviewableAlertsRouteImport } from './routes/_authenticated/_dashboard/_previewable/alerts'
 import { Route as AuthenticatedDashboardPaddedUsersManagementRouteImport } from './routes/_authenticated/_dashboard/_padded/users-management'
 import { Route as AuthenticatedDashboardPaddedTestsOverviewRouteImport } from './routes/_authenticated/_dashboard/_padded/tests-overview'
 import { Route as AuthenticatedDashboardPaddedReposRouteImport } from './routes/_authenticated/_dashboard/_padded/repos'
@@ -90,7 +88,6 @@ import { Route as AuthenticatedDashboardCcAlertingRulesRuleIdRouteImport } from 
 import { Route as AuthenticatedDashboardCcAlertingMonitorStreamRouteImport } from './routes/_authenticated/_dashboard/cc-alerting/monitor/stream'
 import { Route as AuthenticatedDashboardCcAlertingMonitorSilencesRouteImport } from './routes/_authenticated/_dashboard/cc-alerting/monitor/silences'
 import { Route as AuthenticatedDashboardCcAlertingMonitorActiveRouteImport } from './routes/_authenticated/_dashboard/cc-alerting/monitor/active'
-import { Route as AuthenticatedDashboardPreviewableAlertsAlertIdRouteImport } from './routes/_authenticated/_dashboard/_previewable/alerts_.$alertId'
 import { Route as AuthenticatedDashboardPaddedCheckoutSuccessRouteImport } from './routes/_authenticated/_dashboard/_padded/checkout.success'
 import { Route as AuthenticatedDashboardExploreTracesTraceIdRouteImport } from './routes/_authenticated/_dashboard/_explore/traces_.$traceId'
 import { Route as AuthenticatedDashboardExploreErrorsFingerprintRouteImport } from './routes/_authenticated/_dashboard/_explore/errors_.$fingerprint'
@@ -383,18 +380,6 @@ const AuthenticatedDashboardCcAlertingAlertsRoute =
     path: '/alerts',
     getParentRoute: () => AuthenticatedDashboardCcAlertingRoute,
   } as any)
-const AuthenticatedDashboardAlertsNotificationsRoute =
-  AuthenticatedDashboardAlertsNotificationsRouteImport.update({
-    id: '/alerts_/notifications',
-    path: '/alerts/notifications',
-    getParentRoute: () => AuthenticatedDashboardRoute,
-  } as any)
-const AuthenticatedDashboardPreviewableAlertsRoute =
-  AuthenticatedDashboardPreviewableAlertsRouteImport.update({
-    id: '/alerts',
-    path: '/alerts',
-    getParentRoute: () => AuthenticatedDashboardPreviewableRoute,
-  } as any)
 const AuthenticatedDashboardPaddedUsersManagementRoute =
   AuthenticatedDashboardPaddedUsersManagementRouteImport.update({
     id: '/users-management',
@@ -548,12 +533,6 @@ const AuthenticatedDashboardCcAlertingMonitorActiveRoute =
     path: '/active',
     getParentRoute: () => AuthenticatedDashboardCcAlertingMonitorRoute,
   } as any)
-const AuthenticatedDashboardPreviewableAlertsAlertIdRoute =
-  AuthenticatedDashboardPreviewableAlertsAlertIdRouteImport.update({
-    id: '/alerts_/$alertId',
-    path: '/alerts/$alertId',
-    getParentRoute: () => AuthenticatedDashboardPreviewableRoute,
-  } as any)
 const AuthenticatedDashboardPaddedCheckoutSuccessRoute =
   AuthenticatedDashboardPaddedCheckoutSuccessRouteImport.update({
     id: '/checkout/success',
@@ -664,8 +643,6 @@ export interface FileRoutesByFullPath {
   '/repos': typeof AuthenticatedDashboardPaddedReposRoute
   '/tests-overview': typeof AuthenticatedDashboardPaddedTestsOverviewRoute
   '/users-management': typeof AuthenticatedDashboardPaddedUsersManagementRoute
-  '/alerts': typeof AuthenticatedDashboardPreviewableAlertsRoute
-  '/alerts/notifications': typeof AuthenticatedDashboardAlertsNotificationsRoute
   '/cc-alerting/alerts': typeof AuthenticatedDashboardCcAlertingAlertsRoute
   '/cc-alerting/events': typeof AuthenticatedDashboardCcAlertingEventsRoute
   '/cc-alerting/inhibitions': typeof AuthenticatedDashboardCcAlertingInhibitionsRoute
@@ -689,7 +666,6 @@ export interface FileRoutesByFullPath {
   '/errors/$fingerprint': typeof AuthenticatedDashboardExploreErrorsFingerprintRoute
   '/traces/$traceId': typeof AuthenticatedDashboardExploreTracesTraceIdRoute
   '/checkout/success': typeof AuthenticatedDashboardPaddedCheckoutSuccessRoute
-  '/alerts/$alertId': typeof AuthenticatedDashboardPreviewableAlertsAlertIdRoute
   '/cc-alerting/monitor/active': typeof AuthenticatedDashboardCcAlertingMonitorActiveRoute
   '/cc-alerting/monitor/silences': typeof AuthenticatedDashboardCcAlertingMonitorSilencesRoute
   '/cc-alerting/monitor/stream': typeof AuthenticatedDashboardCcAlertingMonitorStreamRoute
@@ -749,8 +725,6 @@ export interface FileRoutesByTo {
   '/repos': typeof AuthenticatedDashboardPaddedReposRoute
   '/tests-overview': typeof AuthenticatedDashboardPaddedTestsOverviewRoute
   '/users-management': typeof AuthenticatedDashboardPaddedUsersManagementRoute
-  '/alerts': typeof AuthenticatedDashboardPreviewableAlertsRoute
-  '/alerts/notifications': typeof AuthenticatedDashboardAlertsNotificationsRoute
   '/cc-alerting/alerts': typeof AuthenticatedDashboardCcAlertingAlertsRoute
   '/cc-alerting/events': typeof AuthenticatedDashboardCcAlertingEventsRoute
   '/cc-alerting/inhibitions': typeof AuthenticatedDashboardCcAlertingInhibitionsRoute
@@ -773,7 +747,6 @@ export interface FileRoutesByTo {
   '/errors/$fingerprint': typeof AuthenticatedDashboardExploreErrorsFingerprintRoute
   '/traces/$traceId': typeof AuthenticatedDashboardExploreTracesTraceIdRoute
   '/checkout/success': typeof AuthenticatedDashboardPaddedCheckoutSuccessRoute
-  '/alerts/$alertId': typeof AuthenticatedDashboardPreviewableAlertsAlertIdRoute
   '/cc-alerting/monitor/active': typeof AuthenticatedDashboardCcAlertingMonitorActiveRoute
   '/cc-alerting/monitor/silences': typeof AuthenticatedDashboardCcAlertingMonitorSilencesRoute
   '/cc-alerting/monitor/stream': typeof AuthenticatedDashboardCcAlertingMonitorStreamRoute
@@ -843,8 +816,6 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/_padded/repos': typeof AuthenticatedDashboardPaddedReposRoute
   '/_authenticated/_dashboard/_padded/tests-overview': typeof AuthenticatedDashboardPaddedTestsOverviewRoute
   '/_authenticated/_dashboard/_padded/users-management': typeof AuthenticatedDashboardPaddedUsersManagementRoute
-  '/_authenticated/_dashboard/_previewable/alerts': typeof AuthenticatedDashboardPreviewableAlertsRoute
-  '/_authenticated/_dashboard/alerts_/notifications': typeof AuthenticatedDashboardAlertsNotificationsRoute
   '/_authenticated/_dashboard/cc-alerting/alerts': typeof AuthenticatedDashboardCcAlertingAlertsRoute
   '/_authenticated/_dashboard/cc-alerting/events': typeof AuthenticatedDashboardCcAlertingEventsRoute
   '/_authenticated/_dashboard/cc-alerting/inhibitions': typeof AuthenticatedDashboardCcAlertingInhibitionsRoute
@@ -869,7 +840,6 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/_explore/errors_/$fingerprint': typeof AuthenticatedDashboardExploreErrorsFingerprintRoute
   '/_authenticated/_dashboard/_explore/traces_/$traceId': typeof AuthenticatedDashboardExploreTracesTraceIdRoute
   '/_authenticated/_dashboard/_padded/checkout/success': typeof AuthenticatedDashboardPaddedCheckoutSuccessRoute
-  '/_authenticated/_dashboard/_previewable/alerts_/$alertId': typeof AuthenticatedDashboardPreviewableAlertsAlertIdRoute
   '/_authenticated/_dashboard/cc-alerting/monitor/active': typeof AuthenticatedDashboardCcAlertingMonitorActiveRoute
   '/_authenticated/_dashboard/cc-alerting/monitor/silences': typeof AuthenticatedDashboardCcAlertingMonitorSilencesRoute
   '/_authenticated/_dashboard/cc-alerting/monitor/stream': typeof AuthenticatedDashboardCcAlertingMonitorStreamRoute
@@ -934,8 +904,6 @@ export interface FileRouteTypes {
     | '/repos'
     | '/tests-overview'
     | '/users-management'
-    | '/alerts'
-    | '/alerts/notifications'
     | '/cc-alerting/alerts'
     | '/cc-alerting/events'
     | '/cc-alerting/inhibitions'
@@ -959,7 +927,6 @@ export interface FileRouteTypes {
     | '/errors/$fingerprint'
     | '/traces/$traceId'
     | '/checkout/success'
-    | '/alerts/$alertId'
     | '/cc-alerting/monitor/active'
     | '/cc-alerting/monitor/silences'
     | '/cc-alerting/monitor/stream'
@@ -1019,8 +986,6 @@ export interface FileRouteTypes {
     | '/repos'
     | '/tests-overview'
     | '/users-management'
-    | '/alerts'
-    | '/alerts/notifications'
     | '/cc-alerting/alerts'
     | '/cc-alerting/events'
     | '/cc-alerting/inhibitions'
@@ -1043,7 +1008,6 @@ export interface FileRouteTypes {
     | '/errors/$fingerprint'
     | '/traces/$traceId'
     | '/checkout/success'
-    | '/alerts/$alertId'
     | '/cc-alerting/monitor/active'
     | '/cc-alerting/monitor/silences'
     | '/cc-alerting/monitor/stream'
@@ -1112,8 +1076,6 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/_padded/repos'
     | '/_authenticated/_dashboard/_padded/tests-overview'
     | '/_authenticated/_dashboard/_padded/users-management'
-    | '/_authenticated/_dashboard/_previewable/alerts'
-    | '/_authenticated/_dashboard/alerts_/notifications'
     | '/_authenticated/_dashboard/cc-alerting/alerts'
     | '/_authenticated/_dashboard/cc-alerting/events'
     | '/_authenticated/_dashboard/cc-alerting/inhibitions'
@@ -1138,7 +1100,6 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/_explore/errors_/$fingerprint'
     | '/_authenticated/_dashboard/_explore/traces_/$traceId'
     | '/_authenticated/_dashboard/_padded/checkout/success'
-    | '/_authenticated/_dashboard/_previewable/alerts_/$alertId'
     | '/_authenticated/_dashboard/cc-alerting/monitor/active'
     | '/_authenticated/_dashboard/cc-alerting/monitor/silences'
     | '/_authenticated/_dashboard/cc-alerting/monitor/stream'
@@ -1552,20 +1513,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardCcAlertingAlertsRouteImport
       parentRoute: typeof AuthenticatedDashboardCcAlertingRoute
     }
-    '/_authenticated/_dashboard/alerts_/notifications': {
-      id: '/_authenticated/_dashboard/alerts_/notifications'
-      path: '/alerts/notifications'
-      fullPath: '/alerts/notifications'
-      preLoaderRoute: typeof AuthenticatedDashboardAlertsNotificationsRouteImport
-      parentRoute: typeof AuthenticatedDashboardRoute
-    }
-    '/_authenticated/_dashboard/_previewable/alerts': {
-      id: '/_authenticated/_dashboard/_previewable/alerts'
-      path: '/alerts'
-      fullPath: '/alerts'
-      preLoaderRoute: typeof AuthenticatedDashboardPreviewableAlertsRouteImport
-      parentRoute: typeof AuthenticatedDashboardPreviewableRoute
-    }
     '/_authenticated/_dashboard/_padded/users-management': {
       id: '/_authenticated/_dashboard/_padded/users-management'
       path: '/users-management'
@@ -1747,13 +1694,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/cc-alerting/monitor/active'
       preLoaderRoute: typeof AuthenticatedDashboardCcAlertingMonitorActiveRouteImport
       parentRoute: typeof AuthenticatedDashboardCcAlertingMonitorRoute
-    }
-    '/_authenticated/_dashboard/_previewable/alerts_/$alertId': {
-      id: '/_authenticated/_dashboard/_previewable/alerts_/$alertId'
-      path: '/alerts/$alertId'
-      fullPath: '/alerts/$alertId'
-      preLoaderRoute: typeof AuthenticatedDashboardPreviewableAlertsAlertIdRouteImport
-      parentRoute: typeof AuthenticatedDashboardPreviewableRoute
     }
     '/_authenticated/_dashboard/_padded/checkout/success': {
       id: '/_authenticated/_dashboard/_padded/checkout/success'
@@ -1967,8 +1907,6 @@ const AuthenticatedDashboardPaddedRouteWithChildren =
   )
 
 interface AuthenticatedDashboardPreviewableRouteChildren {
-  AuthenticatedDashboardPreviewableAlertsRoute: typeof AuthenticatedDashboardPreviewableAlertsRoute
-  AuthenticatedDashboardPreviewableAlertsAlertIdRoute: typeof AuthenticatedDashboardPreviewableAlertsAlertIdRoute
   AuthenticatedDashboardPreviewableDashboardsIndexRoute: typeof AuthenticatedDashboardPreviewableDashboardsIndexRoute
   AuthenticatedDashboardPreviewableRunbooksIndexRoute: typeof AuthenticatedDashboardPreviewableRunbooksIndexRoute
   AuthenticatedDashboardPreviewableDashboardsProjectSlugRoute: typeof AuthenticatedDashboardPreviewableDashboardsProjectSlugRoute
@@ -1978,10 +1916,6 @@ interface AuthenticatedDashboardPreviewableRouteChildren {
 
 const AuthenticatedDashboardPreviewableRouteChildren: AuthenticatedDashboardPreviewableRouteChildren =
   {
-    AuthenticatedDashboardPreviewableAlertsRoute:
-      AuthenticatedDashboardPreviewableAlertsRoute,
-    AuthenticatedDashboardPreviewableAlertsAlertIdRoute:
-      AuthenticatedDashboardPreviewableAlertsAlertIdRoute,
     AuthenticatedDashboardPreviewableDashboardsIndexRoute:
       AuthenticatedDashboardPreviewableDashboardsIndexRoute,
     AuthenticatedDashboardPreviewableRunbooksIndexRoute:
@@ -2121,7 +2055,6 @@ interface AuthenticatedDashboardRouteChildren {
   AuthenticatedDashboardPreviewableRoute: typeof AuthenticatedDashboardPreviewableRouteWithChildren
   AuthenticatedDashboardCcAlertingRoute: typeof AuthenticatedDashboardCcAlertingRouteWithChildren
   AuthenticatedDashboardRunsRoute: typeof AuthenticatedDashboardRunsRouteWithChildren
-  AuthenticatedDashboardAlertsNotificationsRoute: typeof AuthenticatedDashboardAlertsNotificationsRoute
 }
 
 const AuthenticatedDashboardRouteChildren: AuthenticatedDashboardRouteChildren =
@@ -2136,8 +2069,6 @@ const AuthenticatedDashboardRouteChildren: AuthenticatedDashboardRouteChildren =
       AuthenticatedDashboardCcAlertingRouteWithChildren,
     AuthenticatedDashboardRunsRoute:
       AuthenticatedDashboardRunsRouteWithChildren,
-    AuthenticatedDashboardAlertsNotificationsRoute:
-      AuthenticatedDashboardAlertsNotificationsRoute,
   }
 
 const AuthenticatedDashboardRouteWithChildren =

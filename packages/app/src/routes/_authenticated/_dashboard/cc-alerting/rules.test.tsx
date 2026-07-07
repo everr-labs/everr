@@ -14,8 +14,8 @@ import type { CcRulesPage, CcRuleView } from "@/data/cc/types";
 import { Route as RulesFileRoute } from "./rules";
 
 // ---------------------------------------------------------------------------
-// Mocks, at the same module boundary as alerts_.notifications.test.tsx: the
-// data module the route talks to, built with `vi.hoisted` so the `vi.mock`
+// Mocks at the module boundary the route talks to: the data module, built
+// with `vi.hoisted` so the `vi.mock`
 // factory (hoisted above these declarations) can reference them safely.
 // ---------------------------------------------------------------------------
 

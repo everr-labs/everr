@@ -1,5 +1,4 @@
 import {
-  Bell,
   GitBranch,
   LayoutDashboard,
   type LucideIcon,
@@ -29,11 +28,6 @@ export const navMain: NavItem[] = [
     title: "Runbooks",
     url: "/runbooks",
     icon: NotebookText,
-  },
-  {
-    title: "Alerts",
-    url: "/alerts",
-    icon: Bell,
   },
   {
     title: "Advanced alerting",
