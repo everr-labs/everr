@@ -19,11 +19,6 @@ const validateRunbookLinks = vi.fn();
 vi.mock("@/data/alerts/runbook-links.server", () => ({
   validateAlertRunbookLinks: (...a: unknown[]) => validateRunbookLinks(...a),
 }));
-const ccReceiverReconciler = vi.fn();
-vi.mock("@/data/cc/apply.server", () => ({
-  applyCcReceiverSpecs: (...a: unknown[]) => ccReceiverReconciler(...a),
-}));
-
 const upsertPreview = vi.fn();
 const findPreviewId = vi.fn();
 vi.mock("@/data/previews/apply.server", () => ({
@@ -57,7 +52,6 @@ beforeEach(() => {
   dashboardReconciler.mockResolvedValue(empty);
   runbookReconciler.mockResolvedValue(empty);
   alertReconciler.mockResolvedValue(empty);
-  ccReceiverReconciler.mockResolvedValue(empty);
   upsertPreview.mockResolvedValue("prev-1");
   findPreviewId.mockResolvedValue(null);
 });
@@ -88,7 +82,6 @@ describe("applyResources", () => {
         dashboards: [dash],
         runbooks: [runbook],
         alerts: [alert],
-        ccReceivers: [],
       },
       dryRun: false,
     });
@@ -126,13 +119,6 @@ describe("applyResources", () => {
           deleted: [],
           adopted: [],
         },
-        {
-          kind: "CCReceiver",
-          created: [],
-          updated: [],
-          deleted: [],
-          adopted: [],
-        },
       ],
     });
   });
@@ -152,7 +138,6 @@ describe("applyResources", () => {
           dashboards: [{ path: "d.yaml", resource: { kind: "Dashboard" } }],
           runbooks: [{ path: "n.yaml", resource: { kind: "Runbook" } }],
           alerts: [],
-          ccReceivers: [],
         },
         dryRun: false,
       });
@@ -183,7 +168,6 @@ describe("applyResources", () => {
         dashboards: [],
         runbooks: [],
         alerts: [],
-        ccReceivers: [],
       },
       dryRun: true,
     });
@@ -209,7 +193,6 @@ describe("applyResources", () => {
         dashboards: [],
         runbooks: [],
         alerts: [],
-        ccReceivers: [],
       },
     });
     expect(dashboardReconciler).toHaveBeenCalledWith(
@@ -232,7 +215,6 @@ describe("applyResources", () => {
           dashboards: [{ path: "alert.yaml", resource: { kind: "AlertRule" } }],
           runbooks: [],
           alerts: [],
-          ccReceivers: [],
         },
       });
       expect.fail("expected the misplaced resource to be rejected");
@@ -260,7 +242,6 @@ describe("applyResources", () => {
           dashboards: [],
           runbooks: [],
           alerts: [{ path: "rule.yaml", resource: { kind: "CCAlertRule" } }],
-          ccReceivers: [],
         },
       });
       expect.fail("expected the CCAlertRule kind to be rejected");
@@ -287,7 +268,6 @@ describe("applyResources", () => {
           dashboards: [],
           runbooks: [{ path: "rb.yaml", resource: { kind } }],
           alerts: [],
-          ccReceivers: [],
         },
         dryRun: true,
       }),
@@ -308,7 +288,6 @@ describe("applyResources", () => {
           dashboards: [{ path: "nb.yaml", resource: { kind: "Notebook" } }],
           runbooks: [],
           alerts: [],
-          ccReceivers: [],
         },
       });
       expect.fail(
@@ -334,7 +313,6 @@ describe("applyResources", () => {
         dashboards: [],
         runbooks: [],
         alerts: [],
-        ccReceivers: [],
       },
     });
     for (const reconciler of [
@@ -371,7 +349,6 @@ describe("applyResources", () => {
         dashboards: [],
         runbooks: [],
         alerts: [],
-        ccReceivers: [],
       },
     });
     await applyResources({
@@ -383,7 +360,6 @@ describe("applyResources", () => {
         dashboards: [],
         runbooks: [],
         alerts: [],
-        ccReceivers: [],
       },
     });
     expect(upsertPreview).not.toHaveBeenCalled();
@@ -405,7 +381,6 @@ describe("applyResources", () => {
           dashboards: [{ path: "d.yaml", resource: { kind: "Dashboard" } }],
           runbooks: [],
           alerts: [],
-          ccReceivers: [],
         },
         dryRun: false,
       });
@@ -429,7 +404,6 @@ describe("applyResources", () => {
         dashboards: [],
         runbooks: [],
         alerts: [],
-        ccReceivers: [],
       },
     });
     expect(dashboardReconciler).toHaveBeenCalledWith(

@@ -1,4 +1,3 @@
-import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
 import {
   Card,
@@ -36,10 +35,12 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { InhibitionBuilder } from "@/components/cc/inhibition-builder";
 import { CcPipelineDiagram } from "@/components/cc/pipeline-diagram";
+import { ReceiverBuilder } from "@/components/cc/receiver-builder";
 import { RouteBuilder } from "@/components/cc/route-builder";
 import {
   createCcSubscription,
   deleteCcInhibition,
+  deleteCcReceiver,
   deleteCcRoute,
   deleteCcSubscription,
   listCcAlerts,
@@ -58,12 +59,6 @@ import {
   ccFormatTs,
   Matchers,
 } from "./-cc-shared";
-
-// Ownership markers the as-code receiver reconciler stamps (data/cc/apply.server.ts).
-const RECEIVER_MANAGED_KEY = "everr.managed";
-const RECEIVER_MANAGED_AS_CODE = "as-code";
-const isAsCodeReceiver = (r: CcReceiver): boolean =>
-  r.annotations?.[RECEIVER_MANAGED_KEY] === RECEIVER_MANAGED_AS_CODE;
 
 const q = {
   routes: () =>
@@ -134,19 +129,33 @@ function channelTarget(c: CcReceiver["channel"]): string {
 // ── Sections ──────────────────────────────────────────────────────────────────
 
 function ReceiversSection() {
+  const qc = useQueryClient();
   const { data, isPending, isError, error } = useQuery(q.receivers());
+  const [open, setOpen] = useState(false);
+
+  const remove = useMutation({
+    mutationFn: (name: string) => deleteCcReceiver({ data: { name } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cc", "receivers"] });
+      toast.success("Receiver deleted");
+    },
+    onError: (e) => toast.error(ccErrorMessage(e)),
+  });
+
   return (
     <Card id="receivers" inset="flush-content" className="scroll-mt-4">
       <CardHeader>
         <CardTitle>Receivers</CardTitle>
         <CardDescription>
-          The channels alerts can be delivered to. Ones managed as code with{" "}
-          <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.6875rem]">
-            everr apply
-          </code>{" "}
-          are marked <span className="font-medium">as code</span>; secrets are
-          redacted here. Receivers are not editable in the UI.
+          The channels alerts can be delivered to. Secret fields are redacted
+          here.
         </CardDescription>
+        <CardAction>
+          <Button onClick={() => setOpen(true)}>
+            <Plus data-icon="inline-start" />
+            New receiver
+          </Button>
+        </CardAction>
       </CardHeader>
       <CardContent>
         {isError ? (
@@ -159,14 +168,14 @@ function ReceiversSection() {
           <CcEmptyState
             icon={Inbox}
             title="No receivers defined"
-            hint="Define Slack, webhook, PagerDuty, or email channels as code, then apply them."
+            hint="Add a Slack, webhook, PagerDuty, email, or Telegram channel for routes to deliver alerts to."
           />
         ) : (
           <ul className="divide-y divide-border/60">
             {(data ?? []).map((r) => {
               const Icon = CHANNEL_ICON[r.channel.type];
-              // Free-form annotations minus the `everr.`-prefixed ownership
-              // markers (those drive the as-code badge above).
+              // Free-form annotations minus `everr.`-prefixed internal markers
+              // (stamped by older flows; not user metadata).
               const customAnnotations = Object.entries(
                 r.annotations ?? {},
               ).filter(([k]) => !k.startsWith("everr."));
@@ -181,9 +190,6 @@ function ReceiversSection() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium">{r.name}</span>
-                      {isAsCodeReceiver(r) ? (
-                        <Badge variant="outline">as code</Badge>
-                      ) : null}
                     </div>
                     <div className="truncate font-mono text-xs text-muted-foreground">
                       {channelTarget(r.channel) || r.channel.type}
@@ -199,12 +205,27 @@ function ReceiversSection() {
                   <span className="shrink-0 text-xs text-muted-foreground">
                     {r.channel.type}
                   </span>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Delete receiver"
+                    disabled={remove.isPending}
+                    onClick={() => remove.mutate(r.name)}
+                  >
+                    <Trash2 />
+                  </Button>
                 </li>
               );
             })}
           </ul>
         )}
       </CardContent>
+      <ReceiverBuilder
+        key={open ? "open" : "closed"}
+        open={open}
+        onOpenChange={setOpen}
+        existingNames={(data ?? []).map((r) => r.name)}
+      />
     </Card>
   );
 }

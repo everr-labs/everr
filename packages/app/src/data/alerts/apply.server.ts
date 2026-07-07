@@ -189,8 +189,7 @@ async function mapSettledWithConcurrency<T, R>(
 // annotations. Annotation key order is NOT stable across the YAML source and
 // CC's response, so we sort the annotation entries before hashing — otherwise a
 // rule with 2+ annotations would look "changed" on every apply and be needlessly
-// deleted+recreated. Mirrors data/cc/apply.server.ts's fingerprint (intentionally
-// duplicated per the no-dedupe-reconciler-boilerplate convention).
+// deleted+recreated.
 function specFingerprint(spec: Record<string, unknown>): string {
   const ann = { ...(spec.annotations as Record<string, string> | undefined) };
   delete ann[OWN_NAME];

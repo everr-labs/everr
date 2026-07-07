@@ -185,16 +185,17 @@ it("parses receiver annotations (absent stays undefined, present round-trips)", 
       channel: { type: "slack", url: "***" },
     }).annotations,
   ).toBeUndefined();
-  // Ownership markers stamped by the as-code reconciler round-trip verbatim.
+  // A present map round-trips verbatim (including markers stamped by the
+  // retired as-code receiver flow, which existing receivers may still carry).
   expect(
     CcReceiverSchema.parse({
       id: "i",
       tenant: "t",
       name: "oncall",
       channel: { type: "slack", url: "***" },
-      annotations: { "everr.repoid": "repo1", "everr.managed": "as-code" },
+      annotations: { "everr.repoid": "repo1", team: "core" },
     }).annotations,
-  ).toEqual({ "everr.repoid": "repo1", "everr.managed": "as-code" });
+  ).toEqual({ "everr.repoid": "repo1", team: "core" });
 });
 
 it("parses a telegram channel", () => {

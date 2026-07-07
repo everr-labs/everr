@@ -1,6 +1,5 @@
 import { applyAlertSpecs } from "@/data/alerts/apply.server";
 import { validateAlertRunbookLinks } from "@/data/alerts/runbook-links.server";
-import { applyCcReceiverSpecs } from "@/data/cc/apply.server";
 import { applyDashboardSpecs } from "@/data/dashboards/apply.server";
 import { findPreviewId, upsertPreview } from "@/data/previews/apply.server";
 import type { Namespace } from "@/data/previews/scope";
@@ -71,7 +70,6 @@ const REGISTRY: {
   { key: "dashboards", kind: "Dashboard", reconcile: applyDashboardSpecs },
   { key: "runbooks", kind: "Runbook", reconcile: applyRunbookSpecs },
   { key: "alerts", kind: "AlertRule", reconcile: applyAlertSpecs },
-  { key: "ccReceivers", kind: "CCReceiver", reconcile: applyCcReceiverSpecs },
 ];
 
 function validateResourceKind(

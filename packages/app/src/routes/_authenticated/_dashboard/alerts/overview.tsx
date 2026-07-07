@@ -251,8 +251,8 @@ function CcOverviewPage() {
               checked in priority order; the first match wins.
             </Term>
             <Term name="Receiver">
-              A delivery channel — Slack, webhook, PagerDuty, or email. Defined
-              as code alongside rules.
+              A delivery channel — Slack, webhook, PagerDuty, email, or
+              Telegram. Managed on the Routing page.
             </Term>
             <Term name="Silence">
               A temporary mute for alerts whose labels match — for maintenance

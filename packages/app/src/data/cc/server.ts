@@ -3,7 +3,7 @@ import { z } from "zod";
 import { queryAlertEventLog } from "@/data/alerts/history.server";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import * as cc from "./client";
-import { CcMatcherSchema, CcRuleSpecSchema } from "./schema";
+import { CcChannelSchema, CcMatcherSchema, CcRuleSpecSchema } from "./schema";
 
 const orgId = (session: { session: { activeOrganizationId: string } }) =>
   session.session.activeOrganizationId;
@@ -90,6 +90,23 @@ export const testCcRule = createAuthenticatedServerFn({ method: "POST" })
   .inputValidator(z.object({ ruleId: z.string(), spec: CcRuleSpecSchema }))
   .handler(({ data: { ruleId, spec }, context: { session } }) =>
     cc.testRule(orgId(session), ruleId, spec),
+  );
+
+// ---- Receivers ----
+// CC's POST /v1/receivers is an upsert by name; the UI guards against
+// clobbering an existing receiver by checking the listed names client-side.
+export const createCcReceiver = createAuthenticatedServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({ name: z.string().min(1), channel: CcChannelSchema }),
+  )
+  .handler(({ data, context: { session } }) =>
+    cc.upsertReceiver(orgId(session), data),
+  );
+
+export const deleteCcReceiver = createAuthenticatedServerFn({ method: "POST" })
+  .inputValidator(z.object({ name: z.string().min(1) }))
+  .handler(({ data: { name }, context: { session } }) =>
+    cc.deleteReceiver(orgId(session), name),
   );
 
 // ---- Routes ----
