@@ -1,13 +1,25 @@
 ---
 title: What's OpenTelemetry
-description: The open standard for emitting traces, logs, and metrics from your code — one instrumentation, any backend.
+description: OpenTelemetry is a free, open standard for the traces, logs, and metrics your software produces. Instrument once, send the data to any tool.
 ---
 
-**OpenTelemetry (OTel) is an open standard from the CNCF (Cloud Native Computing Foundation), plus SDKs, for emitting telemetry from your code.** You instrument once against the standard and send the data anywhere — the wire format and the attribute names are vendor-neutral, so no backend owns your instrumentation.
+OpenTelemetry, or OTel, is built and maintained in the open by a broad group of companies, not by a single vendor. No one product owns it.
 
-## The three signals
+## Why it exists
 
-**Traces** record the path of a request as a tree of **spans**. A span has a name, a start and duration, a status, and attributes; each carries the id of its parent, so spans link into one trace across services. Context is **propagated** over the wire (an HTTP header, a queue message) so a child service attaches its spans to the same trace.
+Before OpenTelemetry, every monitoring tool shipped its own agent, its own data format, and its own names for the same things. Sending your data somewhere new, or to two tools at once, meant re-instrumenting your code. Your telemetry was tied to whichever tool you set up first.
+
+OpenTelemetry fixes that with one standard everyone agrees on:
+
+- **Instrument once.** Add it to your code a single time, then point the data at any tool that supports it.
+- **No lock-in.** Move between tools, or run several at once, without touching your instrumentation.
+- **Everything lines up.** Because the format and the names are shared, your traces, logs, and metrics connect to each other on their own.
+
+## The three kinds of signal
+
+OpenTelemetry describes three kinds of signal.
+
+**Traces** are the story of one request as it moves through your system. A trace is a tree of **spans**, and each span is a single step: a name, when it started, how long it took, whether it succeeded, and some attributes. Each span points at its parent, and that link travels from one service to the next (in an HTTP header, say), so the steps join into a single trace.
 
 ```
 span  name=GET /checkout  trace_id=a1b2…  span_id=9f…  parent_id=∅ (root)
@@ -15,35 +27,33 @@ span  name=GET /checkout  trace_id=a1b2…  span_id=9f…  parent_id=∅ (root)
       attributes: { http.request.method: GET, http.response.status_code: 200 }
 ```
 
-**Logs** are structured records: a timestamp, a severity, a body, and attributes. When emitted in a traced context they carry the `trace_id` and `span_id`, which is what correlates a log line to the exact span that produced it.
+**Logs** are timestamped notes your code writes: a time, a severity, a message, and attributes. When a log happens inside a request it carries that request's `trace_id` and `span_id`, which is what ties a log line to the exact step that produced it.
 
 ```
 log  severity=ERROR  body="payment declined"
      trace_id=a1b2…  span_id=9f…  attributes: { user.id: u_42 }
 ```
 
-**Metrics** are numeric timeseries with attributes. The instruments are **counters** (monotonic totals), **up/down counters** (totals that can decrease), **gauges** (a value sampled now), and **histograms** (a distribution, for latencies and sizes). Attributes split one instrument into per-label series.
+**Metrics** are numbers measured over time, like how many requests came in or how long they took. Attributes split one metric into separate series (per route, per method). The common shapes are counts that only go up, values sampled right now, and distributions for things like latency.
 
 ```
 metric  name=http.server.request.duration  histogram  unit=s
         record(0.142)  attributes: { http.request.method: GET, http.route: /checkout }
 ```
 
-## Semantic conventions
+## Why the names matter
 
-The signals above are only queryable across tools because the attribute names are **standardized**. `http.response.status_code`, `service.name`, `db.system` mean the same thing whatever emitted them — so a query written against one service works against the next, and against any backend that ingests OTLP (the wire protocol, below).
+The signals only line up across tools because everyone agrees on the attribute names. `service.name`, `http.response.status_code`, and `db.system` mean the same thing whatever emitted them, so a query written for one service works for the next. These agreed names are called **semantic conventions**.
 
 ```
-service.name          http.request.method     db.system
-service.version       http.response.status_code   db.query.text
+service.name          http.request.method       db.system
+service.version       http.response.status_code  db.query.text
 ```
 
-## OTLP and the Collector
+## Getting it out of your code
 
-**OTLP** is the wire protocol — the standard encoding SDKs use to ship traces, logs, and metrics over gRPC or HTTP.
+**OTLP** is the shared format the standard uses to send traces, logs, and metrics over the network. The **Collector** is a small middleman that receives that data and forwards it on, so you can change where telemetry goes, or add another destination, in one place instead of editing every service.
 
-The **Collector** is an agent that sits between your SDKs and your backends. It **receives** OTLP, **processes** it (batch, filter, redact, enrich), and **exports** it onward — so you reconfigure routing and add backends in one place instead of redeploying every service.
+## Learn more
 
-## Where this goes next
-
-Telemetry that follows these conventions is exactly what the rest of these docs query — see [Observability as code](/docs/concepts/observability-as-code). For the full specification, see [opentelemetry.io](https://opentelemetry.io).
+The full standard, SDKs, and language guides live at [opentelemetry.io](https://opentelemetry.io).
