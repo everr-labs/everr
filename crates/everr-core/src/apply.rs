@@ -225,8 +225,6 @@ pub struct ApplyState {
     pub dashboards: Vec<ResourceEntry>,
     pub runbooks: Vec<ResourceEntry>,
     pub alerts: Vec<ResourceEntry>,
-    #[serde(rename = "ccReceivers")]
-    pub cc_receivers: Vec<ResourceEntry>,
 }
 
 /// classify_documents output before wire conversion (keeps ResourceDocument
@@ -236,7 +234,6 @@ pub struct ApplyStateDocs {
     pub dashboards: Vec<ResourceDocument>,
     pub runbooks: Vec<ResourceDocument>,
     pub alerts: Vec<ResourceDocument>,
-    pub cc_receivers: Vec<ResourceDocument>,
 }
 
 impl ApplyStateDocs {
@@ -245,7 +242,6 @@ impl ApplyStateDocs {
             dashboards: self.dashboards.into_iter().map(Into::into).collect(),
             runbooks: self.runbooks.into_iter().map(Into::into).collect(),
             alerts: self.alerts.into_iter().map(Into::into).collect(),
-            cc_receivers: self.cc_receivers.into_iter().map(Into::into).collect(),
         }
     }
 }
@@ -258,16 +254,14 @@ pub fn classify_documents(docs: Vec<ResourceDocument>) -> Result<ApplyStateDocs>
     let mut dashboards = Vec::new();
     let mut runbooks = Vec::new();
     let mut alerts = Vec::new();
-    let mut cc_receivers = Vec::new();
     for doc in docs {
         match doc.document.get("kind").and_then(|k| k.as_str()) {
             Some("Dashboard") => dashboards.push(doc),
             // `Notebook` is the legacy alias for `Runbook` (ADR 0002).
             Some("Runbook") | Some("Notebook") => runbooks.push(doc),
             Some("AlertRule") => alerts.push(doc),
-            Some("CCReceiver") => cc_receivers.push(doc),
             Some(other) => anyhow::bail!(
-                "{}: unsupported kind \"{other}\" (supported: Dashboard, Runbook, AlertRule, CCReceiver)",
+                "{}: unsupported kind \"{other}\" (supported: Dashboard, Runbook, AlertRule)",
                 doc.path
             ),
             None => anyhow::bail!("{}: document is missing a string \"kind\"", doc.path),
@@ -277,7 +271,6 @@ pub fn classify_documents(docs: Vec<ResourceDocument>) -> Result<ApplyStateDocs>
         dashboards,
         runbooks,
         alerts,
-        cc_receivers,
     })
 }
 
@@ -532,21 +525,10 @@ mod tests {
             path: "a.yaml".into(),
             document: serde_json::json!({"kind": "AlertRule"}),
         };
-        let cc_receiver = ResourceDocument {
-            path: "cc-receiver.yaml".into(),
-            document: serde_json::json!({"kind": "CCReceiver"}),
-        };
-        let state = classify_documents(vec![
-            dash.clone(),
-            runbook.clone(),
-            alert.clone(),
-            cc_receiver.clone(),
-        ])
-        .unwrap();
+        let state = classify_documents(vec![dash.clone(), runbook.clone(), alert.clone()]).unwrap();
         assert_eq!(state.dashboards, vec![dash]);
         assert_eq!(state.runbooks, vec![runbook]);
         assert_eq!(state.alerts, vec![alert]);
-        assert_eq!(state.cc_receivers, vec![cc_receiver]);
 
         let settings = ResourceDocument {
             path: "s.yaml".into(),
@@ -564,10 +546,20 @@ mod tests {
         };
         let err = classify_documents(vec![cc_rule]).unwrap_err().to_string();
         assert!(err.contains("CCAlertRule"), "got: {err}");
-        assert!(
-            err.contains("Dashboard, Runbook, AlertRule, CCReceiver"),
-            "got: {err}"
-        );
+        assert!(err.contains("Dashboard, Runbook, AlertRule"), "got: {err}");
+    }
+
+    #[test]
+    fn classify_rejects_cc_receiver_as_unsupported() {
+        let cc_receiver = ResourceDocument {
+            path: "cc-receiver.yaml".into(),
+            document: serde_json::json!({"kind": "CCReceiver"}),
+        };
+        let err = classify_documents(vec![cc_receiver])
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("CCReceiver"), "got: {err}");
+        assert!(err.contains("Dashboard, Runbook, AlertRule"), "got: {err}");
     }
 
     #[test]
@@ -601,10 +593,6 @@ mod tests {
                     path: "alerts/error-rate.yaml".into(),
                     resource: serde_json::json!({"kind": "AlertRule"}),
                 }],
-                cc_receivers: vec![ResourceEntry {
-                    path: "cc/my-receiver.yaml".into(),
-                    resource: serde_json::json!({"kind": "CCReceiver"}),
-                }],
             },
             source: Some(ApplySource {
                 branch: Some("main".into()),
@@ -626,11 +614,6 @@ mod tests {
         );
         assert_eq!(v["state"]["runbooks"][0]["path"], "runbooks/triage.yaml");
         assert_eq!(v["state"]["alerts"][0]["path"], "alerts/error-rate.yaml");
-        assert_eq!(v["state"]["ccReceivers"][0]["path"], "cc/my-receiver.yaml");
-        assert_eq!(
-            v["state"]["ccReceivers"][0]["resource"],
-            serde_json::json!({"kind": "CCReceiver"})
-        );
         assert_eq!(v["source"]["commitSha"], "abc");
     }
 
