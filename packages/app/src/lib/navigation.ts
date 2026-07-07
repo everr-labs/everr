@@ -31,14 +31,16 @@ export const navMain: NavItem[] = [
   },
   {
     title: "Alerts",
-    url: "/alerts/overview",
+    url: "/alerts/triage",
     icon: Zap,
     isActive: true,
     items: [
-      { title: "Overview", url: "/alerts/overview" },
-      { title: "Monitor", url: "/alerts/monitor" },
+      { title: "Triage", url: "/alerts/triage" },
+      { title: "History", url: "/alerts/history" },
       { title: "Rules", url: "/alerts/rules" },
-      { title: "Routing", url: "/alerts/routing" },
+      // Delivery still lands on the routing page; wave 2 renames the route.
+      { title: "Delivery", url: "/alerts/routing" },
+      { title: "Silences", url: "/alerts/silences" },
     ],
   },
   {

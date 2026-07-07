@@ -17,6 +17,7 @@ import {
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Pause, Play, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
+import { z } from "zod";
 import { listCcRulesPage, pauseCcRule, resumeCcRule } from "@/data/cc/server";
 import type { CcRuleView } from "@/data/cc/types";
 import {
@@ -33,35 +34,47 @@ import {
 
 const RULES_PAGE_LIMIT = 100;
 
+type RuleHealthFilter = "degraded" | "healthy";
+
 // Keyset-paginated listing: each page is CC's {items, next_cursor} envelope,
 // and a null next_cursor is the last page. The key stays under ["cc", "rules"]
 // so the pause/resume invalidation below keeps matching by prefix.
-const ccRulesQuery = () =>
+const ccRulesQuery = (health?: RuleHealthFilter) =>
   infiniteQueryOptions({
-    queryKey: ["cc", "rules", "page"],
+    queryKey: ["cc", "rules", "page", health ?? "all"],
     queryFn: ({ pageParam }) =>
       listCcRulesPage({
         data: {
           limit: RULES_PAGE_LIMIT,
           ...(pageParam ? { cursor: pageParam } : {}),
+          ...(health ? { health } : {}),
         },
       }),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.next_cursor,
   });
 
+// `health` narrows the listing server-side (CC's rule-health filter); Triage's
+// degraded-rules count links here with ?health=degraded.
+const RulesSearchSchema = z.object({
+  health: z.enum(["degraded", "healthy"]).optional().catch(undefined),
+});
+
 export const Route = createFileRoute("/_authenticated/_dashboard/alerts/rules")(
   {
     staticData: { breadcrumb: "Rules" },
     head: () => ({ meta: [{ title: "Everr - Alerts Rules" }] }),
-    loader: ({ context: { queryClient } }) =>
-      queryClient.prefetchInfiniteQuery(ccRulesQuery()),
+    validateSearch: RulesSearchSchema,
+    loaderDeps: ({ search }) => ({ health: search.health }),
+    loader: ({ context: { queryClient }, deps }) =>
+      queryClient.prefetchInfiniteQuery(ccRulesQuery(deps.health)),
     component: CcRulesPage,
   },
 );
 
 function CcRulesPage() {
   const qc = useQueryClient();
+  const { health } = Route.useSearch();
   const {
     data,
     isPending,
@@ -70,7 +83,7 @@ function CcRulesPage() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useInfiniteQuery(ccRulesQuery());
+  } = useInfiniteQuery(ccRulesQuery(health));
   const rules = data?.pages.flatMap((p) => p.items) ?? [];
 
   const toggle = useMutation({
@@ -201,7 +214,19 @@ function CcRulesPage() {
         <CardHeader>
           <CardTitle>Rules</CardTitle>
           <CardDescription>
-            Open a rule to see its query, health, and run an ad-hoc test.
+            {health ? (
+              <>
+                Showing {health} rules only ·{" "}
+                <Link
+                  to="/alerts/rules"
+                  className="text-foreground underline-offset-2 hover:underline"
+                >
+                  clear filter
+                </Link>
+              </>
+            ) : (
+              "Open a rule to see its query, health, and run an ad-hoc test."
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent>

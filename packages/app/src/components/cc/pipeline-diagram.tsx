@@ -25,7 +25,7 @@ function Stage({
   title: string;
   sub: string;
   live?: boolean;
-  to: "/alerts/monitor/active" | "/alerts/routing";
+  to: "/alerts/triage" | "/alerts/routing";
   hash?: string;
 }) {
   return (
@@ -84,7 +84,7 @@ export function CcPipelineDiagram({
           title="Alert fires"
           sub={`${firing} firing now`}
           live={firing > 0}
-          to="/alerts/monitor/active"
+          to="/alerts/triage"
         />
         <Arrow />
         <Stage
