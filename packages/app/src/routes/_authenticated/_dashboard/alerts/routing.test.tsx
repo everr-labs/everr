@@ -72,7 +72,7 @@ function receiver(overrides: Partial<CcReceiver> = {}): CcReceiver {
     id: "11111111-1111-1111-1111-111111111111",
     tenant: "org1",
     name: "oncall",
-    channel: { type: "webhook", url: "https://example.com/hook" },
+    channels: [{ type: "webhook", url: "https://example.com/hook" }],
     annotations: {},
     ...overrides,
   };
@@ -136,7 +136,7 @@ describe("/alerts/routing receivers section", () => {
     mocks.listCcReceivers.mockResolvedValue([
       receiver({
         name: "slack-oncall",
-        channel: { type: "slack", url: "***" },
+        channels: [{ type: "slack", url: "***" }],
       }),
     ]);
 
@@ -146,6 +146,25 @@ describe("/alerts/routing receivers section", () => {
     expect(screen.getByText("***")).toBeInTheDocument();
     // The retired as-code marker no longer renders a badge.
     expect(screen.queryByText("as code")).not.toBeInTheDocument();
+  });
+
+  it("lists every channel of a multi-channel receiver on its row", async () => {
+    mocks.listCcReceivers.mockResolvedValue([
+      receiver({
+        name: "multi",
+        channels: [
+          { type: "webhook", url: "https://example.com/hook" },
+          { type: "email", to: ["oncall@example.com"] },
+        ],
+      }),
+    ]);
+
+    renderRoutingRoute();
+
+    expect(await screen.findByText("multi")).toBeInTheDocument();
+    expect(screen.getByText("https://example.com/hook")).toBeInTheDocument();
+    expect(screen.getByText("oncall@example.com")).toBeInTheDocument();
+    expect(screen.getByText("webhook, email")).toBeInTheDocument();
   });
 
   it("creates a webhook receiver from the dialog with the engine payload shape", async () => {
@@ -178,13 +197,95 @@ describe("/alerts/routing receivers section", () => {
       expect(mocks.createCcReceiver).toHaveBeenCalledWith({
         data: {
           name: "hook",
-          channel: { type: "webhook", url: "https://example.com/hook" },
+          channels: [{ type: "webhook", url: "https://example.com/hook" }],
         },
       }),
     );
     await waitFor(() =>
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
     );
+  });
+
+  it("creates a multi-channel receiver with every channel in the payload", async () => {
+    mocks.createCcReceiver.mockResolvedValue(
+      receiver({
+        name: "multi",
+        channels: [
+          { type: "webhook", url: "https://example.com/hook" },
+          { type: "email", to: ["oncall@example.com"] },
+        ],
+      }),
+    );
+    const user = userEvent.setup();
+
+    renderRoutingRoute();
+
+    await user.click(
+      await screen.findByRole("button", { name: "New receiver" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    await user.type(within(dialog).getByLabelText("Name"), "multi");
+    await user.type(
+      within(dialog).getByLabelText("Webhook URL"),
+      "https://example.com/hook",
+    );
+
+    // Add a second channel and switch it to email.
+    await user.click(
+      within(dialog).getByRole("button", { name: "Add channel" }),
+    );
+    const create = within(dialog).getByRole("button", {
+      name: "Create receiver",
+    });
+    // The new entry is incomplete, so create stays disabled.
+    expect(create).toBeDisabled();
+    const selects = within(dialog).getAllByRole("combobox");
+    const second = selects[selects.length - 1];
+    if (!second) throw new Error("second channel select not found");
+    await user.click(second);
+    await user.click(await screen.findByRole("option", { name: "Email" }));
+    await user.type(
+      within(dialog).getByLabelText("Recipient addresses"),
+      "oncall@example.com{enter}",
+    );
+
+    expect(create).toBeEnabled();
+    await user.click(create);
+
+    await waitFor(() =>
+      expect(mocks.createCcReceiver).toHaveBeenCalledWith({
+        data: {
+          name: "multi",
+          channels: [
+            { type: "webhook", url: "https://example.com/hook" },
+            { type: "email", to: ["oncall@example.com"] },
+          ],
+        },
+      }),
+    );
+  });
+
+  it("requires at least one channel and says so when all are removed", async () => {
+    const user = userEvent.setup();
+
+    renderRoutingRoute();
+
+    await user.click(
+      await screen.findByRole("button", { name: "New receiver" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    await user.type(within(dialog).getByLabelText("Name"), "empty");
+    await user.click(
+      within(dialog).getByRole("button", { name: "Remove channel 1" }),
+    );
+
+    expect(
+      within(dialog).getByText("At least one channel is required"),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: "Create receiver" }),
+    ).toBeDisabled();
+    expect(mocks.createCcReceiver).not.toHaveBeenCalled();
   });
 
   it("blocks a duplicate name (CC's create is an upsert that would replace it)", async () => {

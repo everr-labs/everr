@@ -115,7 +115,7 @@ export async function listReceivers(orgId: string) {
 }
 export async function upsertReceiver(
   orgId: string,
-  body: { name: string; channel: unknown },
+  body: { name: string; channels: unknown[] },
 ) {
   return CcReceiverSchema.parse(
     await ccRequest(orgId, "POST", "/v1/receivers", body),

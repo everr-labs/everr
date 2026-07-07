@@ -124,7 +124,9 @@ export const CcReceiverSchema = z.object({
   id: z.string(),
   tenant: z.string(),
   name: z.string(),
-  channel: CcChannelSchema,
+  // A receiver bundles one or more channels; the engine rejects empty lists,
+  // so a parsed receiver always has at least one element.
+  channels: z.array(CcChannelSchema).min(1),
   // Free-form, non-secret metadata (ownership markers, team, links, ...). CC
   // always serializes it (empty map when unset), so it is effectively always
   // present; kept `.optional()` rather than `.default({})` so the inferred

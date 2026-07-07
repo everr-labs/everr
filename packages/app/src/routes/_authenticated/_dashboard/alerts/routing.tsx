@@ -104,15 +104,16 @@ export const Route = createFileRoute(
   component: CcRoutingPage,
 });
 
-const CHANNEL_ICON: Record<CcReceiver["channel"]["type"], LucideIcon> = {
-  slack: MessageSquare,
-  webhook: Webhook,
-  pagerduty: Siren,
-  email: Mail,
-  telegram: Send,
-};
+const CHANNEL_ICON: Record<CcReceiver["channels"][number]["type"], LucideIcon> =
+  {
+    slack: MessageSquare,
+    webhook: Webhook,
+    pagerduty: Siren,
+    email: Mail,
+    telegram: Send,
+  };
 
-function channelTarget(c: CcReceiver["channel"]): string {
+function channelTarget(c: CcReceiver["channels"][number]): string {
   switch (c.type) {
     case "slack":
     case "webhook":
@@ -173,7 +174,7 @@ function ReceiversSection() {
         ) : (
           <ul className="divide-y divide-border/60">
             {(data ?? []).map((r) => {
-              const Icon = CHANNEL_ICON[r.channel.type];
+              const Icon = CHANNEL_ICON[r.channels[0]?.type ?? "webhook"];
               // Free-form annotations minus `everr.`-prefixed internal markers
               // (stamped by older flows; not user metadata).
               const customAnnotations = Object.entries(
@@ -191,9 +192,14 @@ function ReceiversSection() {
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium">{r.name}</span>
                     </div>
-                    <div className="truncate font-mono text-xs text-muted-foreground">
-                      {channelTarget(r.channel) || r.channel.type}
-                    </div>
+                    {r.channels.map((c, i) => (
+                      <div
+                        key={`${c.type}-${channelTarget(c)}-${i}`}
+                        className="truncate font-mono text-xs text-muted-foreground"
+                      >
+                        {channelTarget(c) || c.type}
+                      </div>
+                    ))}
                     {customAnnotations.length > 0 && (
                       <div className="truncate text-xs text-muted-foreground">
                         {customAnnotations
@@ -203,7 +209,7 @@ function ReceiversSection() {
                     )}
                   </div>
                   <span className="shrink-0 text-xs text-muted-foreground">
-                    {r.channel.type}
+                    {r.channels.map((c) => c.type).join(", ")}
                   </span>
                   <Button
                     variant="ghost"

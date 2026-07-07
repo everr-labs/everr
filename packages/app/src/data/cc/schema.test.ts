@@ -156,23 +156,36 @@ it("parses an alert instance with nullable value/timestamps", () => {
   expect(a.value).toBeNull();
 });
 
-it("parses a receiver channel tagged union", () => {
-  expect(
-    CcReceiverSchema.parse({
-      id: "i",
-      tenant: "t",
-      name: "oncall",
-      channel: { type: "slack", url: "***" },
-    }).channel.type,
-  ).toBe("slack");
+it("parses receiver channels as a tagged-union list", () => {
+  const multi = CcReceiverSchema.parse({
+    id: "i",
+    tenant: "t",
+    name: "oncall",
+    channels: [
+      { type: "slack", url: "***" },
+      { type: "email", to: ["a@b.c"] },
+    ],
+  });
+  expect(multi.channels.map((c) => c.type)).toEqual(["slack", "email"]);
   expect(
     CcReceiverSchema.parse({
       id: "i",
       tenant: "t",
       name: "ops",
-      channel: { type: "email", to: ["a@b.c"] },
-    }).channel.type,
+      channels: [{ type: "email", to: ["a@b.c"] }],
+    }).channels[0]?.type,
   ).toBe("email");
+});
+
+it("rejects a receiver with an empty channels list", () => {
+  expect(() =>
+    CcReceiverSchema.parse({
+      id: "i",
+      tenant: "t",
+      name: "oncall",
+      channels: [],
+    }),
+  ).toThrow();
 });
 
 it("parses receiver annotations (absent stays undefined, present round-trips)", () => {
@@ -182,7 +195,7 @@ it("parses receiver annotations (absent stays undefined, present round-trips)", 
       id: "i",
       tenant: "t",
       name: "oncall",
-      channel: { type: "slack", url: "***" },
+      channels: [{ type: "slack", url: "***" }],
     }).annotations,
   ).toBeUndefined();
   // A present map round-trips verbatim (including markers stamped by the
@@ -192,7 +205,7 @@ it("parses receiver annotations (absent stays undefined, present round-trips)", 
       id: "i",
       tenant: "t",
       name: "oncall",
-      channel: { type: "slack", url: "***" },
+      channels: [{ type: "slack", url: "***" }],
       annotations: { "everr.repoid": "repo1", team: "core" },
     }).annotations,
   ).toEqual({ "everr.repoid": "repo1", team: "core" });
@@ -204,8 +217,8 @@ it("parses a telegram channel", () => {
       id: "r",
       tenant: "t",
       name: "everr-default-telegram",
-      channel: { type: "telegram", bot_token: "x", chat_ids: ["-100"] },
-    }).channel.type,
+      channels: [{ type: "telegram", bot_token: "x", chat_ids: ["-100"] }],
+    }).channels[0]?.type,
   ).toBe("telegram");
 });
 

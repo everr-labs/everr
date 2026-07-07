@@ -97,7 +97,10 @@ export const testCcRule = createAuthenticatedServerFn({ method: "POST" })
 // clobbering an existing receiver by checking the listed names client-side.
 export const createCcReceiver = createAuthenticatedServerFn({ method: "POST" })
   .inputValidator(
-    z.object({ name: z.string().min(1), channel: CcChannelSchema }),
+    z.object({
+      name: z.string().min(1),
+      channels: z.array(CcChannelSchema).min(1),
+    }),
   )
   .handler(({ data, context: { session } }) =>
     cc.upsertReceiver(orgId(session), data),
