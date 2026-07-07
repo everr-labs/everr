@@ -51,7 +51,7 @@ The fallback: alerts that match no custom notification rule are delivered to eve
 
 ### Channels
 
-A read-only list of the underlying delivery channels, including any defined as code with `everr apply` (marked **as code**, with secrets redacted). Edit the default channels above or manage these as code; they are not editable directly in the UI.
+The underlying delivery channels, with secret fields redacted. Add or delete channels directly in the UI; custom notification rules deliver to them by name. Channels are not defined as code: `kind: AlertRule` is the only alerting resource `everr apply` reconciles, and channels, custom notification rules, dependency mutes, and webhook feeds are all managed in the app.
 
 ## Mute during maintenance
 
