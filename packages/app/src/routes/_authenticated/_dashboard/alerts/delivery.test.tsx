@@ -31,6 +31,8 @@ const mocks = vi.hoisted(() => ({
   listCcAlerts: vi.fn(),
   listCcRules: vi.fn(),
   listCcSubscriptions: vi.fn(),
+  listCcLabelKeys: vi.fn(),
+  listCcLabelValues: vi.fn(),
   createCcChannel: vi.fn(),
   deleteCcChannel: vi.fn(),
   createCcReceiver: vi.fn(),
@@ -54,6 +56,8 @@ vi.mock("@/data/cc/server", () => ({
   listCcAlerts: mocks.listCcAlerts,
   listCcRules: mocks.listCcRules,
   listCcSubscriptions: mocks.listCcSubscriptions,
+  listCcLabelKeys: mocks.listCcLabelKeys,
+  listCcLabelValues: mocks.listCcLabelValues,
   createCcChannel: mocks.createCcChannel,
   deleteCcChannel: mocks.deleteCcChannel,
   createCcReceiver: mocks.createCcReceiver,
@@ -175,7 +179,30 @@ beforeEach(() => {
   mocks.listCcAlerts.mockResolvedValue([]);
   mocks.listCcRules.mockResolvedValue([]);
   mocks.listCcSubscriptions.mockResolvedValue([]);
+  // No canned suggestions: the preview helper below always goes through the
+  // custom-entry row, proving a pair outside the suggestion list previews too.
+  mocks.listCcLabelKeys.mockResolvedValue([]);
+  mocks.listCcLabelValues.mockResolvedValue([]);
 });
+
+/**
+ * Build one preview label through the key/value comboboxes: type the key,
+ * then type the value (committing a value commits the pair as a chip).
+ */
+async function addPreviewLabel(
+  user: ReturnType<typeof userEvent.setup>,
+  key: string,
+  value: string,
+) {
+  await user.click(screen.getByRole("combobox", { name: "Preview label key" }));
+  await user.type(screen.getByPlaceholderText("Search or type..."), key);
+  await user.click(await screen.findByText(`"${key}"`));
+  await user.click(
+    screen.getByRole("combobox", { name: "Preview label value" }),
+  );
+  await user.type(screen.getByPlaceholderText("Search or type..."), value);
+  await user.click(await screen.findByText(`"${value}"`));
+}
 
 describe("/alerts/delivery pipeline", () => {
   it("renders a route as its flow: priority, matchers, receiver, resolved channels", async () => {
@@ -242,8 +269,7 @@ describe("/alerts/delivery route preview", () => {
     renderDeliveryRoute();
     await screen.findByText("#0");
 
-    const input = screen.getByLabelText("Add preview label (key=value)");
-    await user.type(input, "severity=critical{Enter}");
+    await addPreviewLabel(user, "severity", "critical");
 
     // The engine-true selection: the route row lights up...
     expect(document.querySelectorAll('[data-matched="true"]')).toHaveLength(1);
@@ -263,8 +289,7 @@ describe("/alerts/delivery route preview", () => {
     renderDeliveryRoute();
     await screen.findByText("#0");
 
-    const input = screen.getByLabelText("Add preview label (key=value)");
-    await user.type(input, "severity=info{Enter}");
+    await addPreviewLabel(user, "severity", "info");
 
     expect(screen.getByText(/no route matches/)).toBeInTheDocument();
     // The terminal firehose node is the highlighted one, not the route.
@@ -287,29 +312,33 @@ describe("/alerts/delivery route preview", () => {
     renderDeliveryRoute();
     await screen.findByText("#0");
 
-    await user.type(
-      screen.getByLabelText("Add preview label (key=value)"),
-      "severity=critical{Enter}",
-    );
+    await addPreviewLabel(user, "severity", "critical");
 
     expect(document.querySelectorAll('[data-matched="true"]')).toHaveLength(2);
   });
 
-  it("rejects an entry without key=value shape", async () => {
+  it("builds the label set as chips and gates the value picker on a key", async () => {
     const user = userEvent.setup();
 
     renderDeliveryRoute();
     await screen.findByText("no match");
 
-    await user.type(
-      screen.getByLabelText("Add preview label (key=value)"),
-      "not-a-label{Enter}",
-    );
-
+    // No key yet: a value on its own cannot form a label.
     expect(
-      screen.getByText("Labels are entered as key=value."),
+      screen.getByRole("combobox", { name: "Preview label value" }),
+    ).toBeDisabled();
+
+    await addPreviewLabel(user, "team", "pay");
+
+    // The committed pair renders as a removable chip and the builder resets.
+    expect(screen.getByText("team")).toBeInTheDocument();
+    expect(screen.getByText("pay")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Remove label team" }),
     ).toBeInTheDocument();
-    expect(document.querySelectorAll('[data-matched="true"]')).toHaveLength(0);
+    expect(
+      screen.getByRole("combobox", { name: "Preview label value" }),
+    ).toBeDisabled();
   });
 });
 

@@ -1,25 +1,19 @@
 // packages/app/src/components/cc/route-preview.tsx
 //
-// The Delivery page's confidence feature: type a label set (key=value chips)
-// and see exactly which route(s) the dispatcher would select and which
-// channels the alert would reach. Evaluation happens in the page with the
-// engine-true helpers (route-resolution.ts); this component owns the chip
-// input and the fan-out readout, and the page mirrors the match into the
-// pipeline highlight.
+// The Delivery page's confidence feature: build a label set (key/value
+// comboboxes prepopulated from real alerts, custom entries welcome) and see
+// exactly which route(s) the dispatcher would select and which channels the
+// alert would reach. Evaluation happens in the page with the engine-true
+// helpers (route-resolution.ts); this component owns the label builder and
+// the fan-out readout, and the page mirrors the match into the pipeline
+// highlight.
 import { Button } from "@everr/ui/components/button";
+import { SuggestCombobox } from "@everr/ui/components/suggest-combobox";
 import { cn } from "@everr/ui/lib/utils";
 import { ArrowRight, X, Zap } from "lucide-react";
 import { useState } from "react";
 import type { CcChannel, CcReceiver, CcRoute } from "@/data/cc/types";
-
-/** Parse one `key=value` entry; the first `=` splits, so values may hold `=`. */
-function parsePreviewEntry(raw: string): { key: string; value: string } | null {
-  const idx = raw.indexOf("=");
-  if (idx <= 0) return null;
-  const key = raw.slice(0, idx).trim();
-  if (!key) return null;
-  return { key, value: raw.slice(idx + 1).trim() };
-}
+import { ccLabelKeyOptions, ccLabelValueOptions } from "./matchers-editor";
 
 export function RoutePreview({
   labels,
@@ -41,23 +35,12 @@ export function RoutePreview({
   /** A firing instance's dispatch-time (synthetic) label set, when one exists. */
   prefill: Record<string, string> | null;
 }) {
-  const [draft, setDraft] = useState("");
-  const [invalid, setInvalid] = useState(false);
+  // The pair under construction: pick (or type) a key, then picking a value
+  // commits the pair as a chip and resets for the next one.
+  const [draftKey, setDraftKey] = useState("");
 
   const entries = Object.entries(labels);
   const active = entries.length > 0;
-
-  const commit = () => {
-    if (draft.trim() === "") return;
-    const parsed = parsePreviewEntry(draft);
-    if (!parsed) {
-      setInvalid(true);
-      return;
-    }
-    onLabelsChange({ ...labels, [parsed.key]: parsed.value });
-    setDraft("");
-    setInvalid(false);
-  };
 
   const removeKey = (key: string) => {
     const next = { ...labels };
@@ -90,33 +73,26 @@ export function RoutePreview({
             </button>
           </span>
         ))}
-        <input
-          value={draft}
-          onChange={(e) => {
-            setDraft(e.target.value);
-            if (invalid) setInvalid(false);
+        <SuggestCombobox
+          label="Preview label key"
+          placeholder="label"
+          className="w-36"
+          value={draftKey}
+          onChange={setDraftKey}
+          options={ccLabelKeyOptions()}
+        />
+        <SuggestCombobox
+          label="Preview label value"
+          placeholder="value"
+          className="w-36"
+          disabled={draftKey === ""}
+          value=""
+          onChange={(value) => {
+            if (draftKey === "") return;
+            onLabelsChange({ ...labels, [draftKey]: value });
+            setDraftKey("");
           }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              commit();
-            } else if (
-              e.key === "Backspace" &&
-              draft === "" &&
-              entries.length > 0
-            ) {
-              removeKey(entries[entries.length - 1][0]);
-            }
-          }}
-          onBlur={commit}
-          aria-label="Add preview label (key=value)"
-          aria-invalid={invalid ? true : undefined}
-          placeholder="severity=critical"
-          className={cn(
-            "h-8 w-44 rounded-md border border-input bg-transparent px-2 font-mono text-xs outline-none",
-            "placeholder:text-muted-foreground/60 focus-visible:border-primary/60 focus-visible:ring-1 focus-visible:ring-primary/40",
-            invalid && "border-destructive",
-          )}
+          options={ccLabelValueOptions(draftKey)}
         />
         {prefill && (
           <Button
@@ -134,11 +110,6 @@ export function RoutePreview({
           </Button>
         )}
       </div>
-      {invalid && (
-        <p className="text-xs text-destructive" role="alert">
-          Labels are entered as key=value.
-        </p>
-      )}
       {/* The verdict: who finds out. aria-live so keyboard entry reads back. */}
       <div aria-live="polite" className="text-xs">
         {!active ? (

@@ -21,12 +21,16 @@ const mocks = vi.hoisted(() => ({
   listCcSilences: vi.fn(),
   createCcSilence: vi.fn(),
   deleteCcSilence: vi.fn(),
+  listCcLabelKeys: vi.fn().mockResolvedValue([]),
+  listCcLabelValues: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("@/data/cc/server", () => ({
   listCcSilences: mocks.listCcSilences,
   createCcSilence: mocks.createCcSilence,
   deleteCcSilence: mocks.deleteCcSilence,
+  listCcLabelKeys: mocks.listCcLabelKeys,
+  listCcLabelValues: mocks.listCcLabelValues,
 }));
 
 // ---------------------------------------------------------------------------
