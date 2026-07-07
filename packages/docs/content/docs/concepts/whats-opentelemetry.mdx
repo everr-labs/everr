@@ -3,7 +3,7 @@ title: What's OpenTelemetry
 description: OpenTelemetry is a free, open standard for the traces, logs, and metrics your software produces. Instrument once, send the data to any tool.
 ---
 
-OpenTelemetry, or OTel, is built and maintained in the open by a broad group of companies, not by a single vendor. No one product owns it.
+OpenTelemetry, or OTel, is built and maintained in the open by a broad group of companies, in order to give telemetry one shared standard that no single vendor owns.
 
 ## Why it exists
 
@@ -19,22 +19,26 @@ OpenTelemetry fixes that with one standard everyone agrees on:
 
 OpenTelemetry describes three kinds of signal.
 
-**Traces** are the story of one request as it moves through your system. A trace is a tree of **spans**, and each span is a single step: a name, when it started, how long it took, whether it succeeded, and some attributes. Each span points at its parent, and that link travels from one service to the next (in an HTTP header, say), so the steps join into a single trace.
+**[Traces](https://opentelemetry.io/docs/concepts/signals/traces/)** are the story of one request as it moves through your system. A trace is a tree of **spans**, and each span is a single step: a name, when it started, how long it took, whether it succeeded, and some attributes. Each span points at its parent, and that link travels from one service to the next (in an HTTP header, say), so the steps join into a single trace.
 
 ```
-span  name=GET /checkout  trace_id=a1b2…  span_id=9f…  parent_id=∅ (root)
-      duration=142ms  status=OK
-      attributes: { http.request.method: GET, http.response.status_code: 200 }
+GET /checkout                    142ms   (root span: the whole trace)
+├─ authorize                      12ms
+├─ SELECT cart_items              38ms
+└─ POST /payments                 86ms   (another service; the trace continues here)
+   └─ charge card                 71ms
 ```
 
-**Logs** are timestamped notes your code writes: a time, a severity, a message, and attributes. When a log happens inside a request it carries that request's `trace_id` and `span_id`, which is what ties a log line to the exact step that produced it.
+Each row is a span, carrying its name, duration, status, and attributes such as `http.response.status_code`.
+
+**[Logs](https://opentelemetry.io/docs/concepts/signals/logs/)** are timestamped notes your code writes: a time, a severity, a message, and attributes. When a log happens inside a request it carries that request's `trace_id` and `span_id`, which is what ties a log line to the exact step that produced it.
 
 ```
 log  severity=ERROR  body="payment declined"
      trace_id=a1b2…  span_id=9f…  attributes: { user.id: u_42 }
 ```
 
-**Metrics** are numbers measured over time, like how many requests came in or how long they took. Attributes split one metric into separate series (per route, per method). The common shapes are counts that only go up, values sampled right now, and distributions for things like latency.
+**[Metrics](https://opentelemetry.io/docs/concepts/signals/metrics/)** are numbers measured over time, like how many requests came in or how long they took. Attributes split one metric into separate series (per route, per method). The common shapes are counts that only go up, values sampled right now, and distributions for things like latency.
 
 ```
 metric  name=http.server.request.duration  histogram  unit=s
@@ -43,7 +47,7 @@ metric  name=http.server.request.duration  histogram  unit=s
 
 ## Why the names matter
 
-The signals only line up across tools because everyone agrees on the attribute names. `service.name`, `http.response.status_code`, and `db.system` mean the same thing whatever emitted them, so a query written for one service works for the next. These agreed names are called **semantic conventions**.
+The signals only line up across tools because everyone agrees on the attribute names. `service.name`, `http.response.status_code`, and `db.system` mean the same thing whatever emitted them, so a query written for one service works for the next. These agreed names are called **[semantic conventions](https://opentelemetry.io/docs/concepts/semantic-conventions/)**.
 
 ```
 service.name          http.request.method       db.system
