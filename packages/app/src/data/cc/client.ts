@@ -2,6 +2,7 @@ import { z } from "zod";
 import { ccRequest } from "@/lib/clickety-clack.server";
 import {
   CcAlertSchema,
+  CcChannelSchema,
   CcDeletedSchema,
   CcInhibitionSchema,
   CcReceiverSchema,
@@ -14,7 +15,7 @@ import {
   CcSubscriptionSchema,
   CcTestResultSchema,
 } from "./schema";
-import type { CcMatcher, CcRuleSpec } from "./types";
+import type { CcChannelConfig, CcMatcher, CcRuleSpec } from "./types";
 
 // ---- Rules ----
 export async function listRules(orgId: string) {
@@ -107,6 +108,32 @@ export async function listAlerts(orgId: string) {
     .parse(await ccRequest(orgId, "GET", "/v1/alerts"));
 }
 
+// ---- Channels ----
+export async function listChannels(orgId: string) {
+  return z
+    .array(CcChannelSchema)
+    .parse(await ccRequest(orgId, "GET", "/v1/channels"));
+}
+/** CC's POST /v1/channels is an upsert by name (also the secret-rotation path). */
+export async function upsertChannel(
+  orgId: string,
+  body: { name: string; config: CcChannelConfig },
+) {
+  return CcChannelSchema.parse(
+    await ccRequest(orgId, "POST", "/v1/channels", body),
+  );
+}
+/** CC answers 409 (CcApiError naming the referring receivers) while referenced. */
+export async function deleteChannel(orgId: string, name: string) {
+  return CcDeletedSchema.parse(
+    await ccRequest(
+      orgId,
+      "DELETE",
+      `/v1/channels/${encodeURIComponent(name)}`,
+    ),
+  );
+}
+
 // ---- Receivers ----
 export async function listReceivers(orgId: string) {
   return z
@@ -115,7 +142,7 @@ export async function listReceivers(orgId: string) {
 }
 export async function upsertReceiver(
   orgId: string,
-  body: { name: string; channels: unknown[] },
+  body: { name: string; channels: string[] },
 ) {
   return CcReceiverSchema.parse(
     await ccRequest(orgId, "POST", "/v1/receivers", body),

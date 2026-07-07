@@ -33,24 +33,33 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { ChannelBuilder } from "@/components/cc/channel-builder";
 import { InhibitionBuilder } from "@/components/cc/inhibition-builder";
 import { CcPipelineDiagram } from "@/components/cc/pipeline-diagram";
 import { ReceiverBuilder } from "@/components/cc/receiver-builder";
 import { RouteBuilder } from "@/components/cc/route-builder";
 import {
   createCcSubscription,
+  deleteCcChannel,
   deleteCcInhibition,
   deleteCcReceiver,
   deleteCcRoute,
   deleteCcSubscription,
   listCcAlerts,
+  listCcChannels,
   listCcInhibitions,
   listCcReceivers,
   listCcRoutes,
   listCcSilences,
   listCcSubscriptions,
 } from "@/data/cc/server";
-import type { CcInhibition, CcReceiver, CcRoute } from "@/data/cc/types";
+import type {
+  CcChannel,
+  CcChannelConfig,
+  CcInhibition,
+  CcReceiver,
+  CcRoute,
+} from "@/data/cc/types";
 import {
   CcEmptyState,
   CcQueryError,
@@ -67,6 +76,11 @@ const q = {
     queryOptions({
       queryKey: ["cc", "receivers"],
       queryFn: () => listCcReceivers(),
+    }),
+  channels: () =>
+    queryOptions({
+      queryKey: ["cc", "channels"],
+      queryFn: () => listCcChannels(),
     }),
   inhibitions: () =>
     queryOptions({
@@ -96,6 +110,7 @@ export const Route = createFileRoute(
     Promise.all([
       queryClient.prefetchQuery(q.routes()),
       queryClient.prefetchQuery(q.receivers()),
+      queryClient.prefetchQuery(q.channels()),
       queryClient.prefetchQuery(q.inhibitions()),
       queryClient.prefetchQuery(q.alerts()),
       queryClient.prefetchQuery(q.silences()),
@@ -104,16 +119,15 @@ export const Route = createFileRoute(
   component: CcRoutingPage,
 });
 
-const CHANNEL_ICON: Record<CcReceiver["channels"][number]["type"], LucideIcon> =
-  {
-    slack: MessageSquare,
-    webhook: Webhook,
-    pagerduty: Siren,
-    email: Mail,
-    telegram: Send,
-  };
+const CHANNEL_ICON: Record<CcChannelConfig["type"], LucideIcon> = {
+  slack: MessageSquare,
+  webhook: Webhook,
+  pagerduty: Siren,
+  email: Mail,
+  telegram: Send,
+};
 
-function channelTarget(c: CcReceiver["channels"][number]): string {
+function channelTarget(c: CcChannelConfig): string {
   switch (c.type) {
     case "slack":
     case "webhook":
@@ -129,7 +143,7 @@ function channelTarget(c: CcReceiver["channels"][number]): string {
 
 // ── Sections ──────────────────────────────────────────────────────────────────
 
-function ReceiversSection() {
+function ReceiversSection({ channels }: { channels: CcChannel[] }) {
   const qc = useQueryClient();
   const { data, isPending, isError, error } = useQuery(q.receivers());
   const [open, setOpen] = useState(false);
@@ -143,13 +157,15 @@ function ReceiversSection() {
     onError: (e) => toast.error(ccErrorMessage(e)),
   });
 
+  const channelByName = new Map(channels.map((c) => [c.name, c]));
+
   return (
     <Card id="receivers" inset="flush-content" className="scroll-mt-4">
       <CardHeader>
         <CardTitle>Receivers</CardTitle>
         <CardDescription>
-          The channels alerts can be delivered to. Secret fields are redacted
-          here.
+          Named sets of channels routes deliver to; one receiver fans out to
+          every channel it references.
         </CardDescription>
         <CardAction>
           <Button onClick={() => setOpen(true)}>
@@ -169,12 +185,17 @@ function ReceiversSection() {
           <CcEmptyState
             icon={Inbox}
             title="No receivers defined"
-            hint="Add a Slack, webhook, PagerDuty, email, or Telegram channel for routes to deliver alerts to."
+            hint="Add a receiver that references one or more channels for routes to deliver alerts to."
           />
         ) : (
           <ul className="divide-y divide-border/60">
             {(data ?? []).map((r) => {
-              const Icon = CHANNEL_ICON[r.channels[0]?.type ?? "webhook"];
+              const resolved = r.channels.map((name) => ({
+                name,
+                channel: channelByName.get(name),
+              }));
+              const Icon =
+                CHANNEL_ICON[resolved[0]?.channel?.config.type ?? "webhook"];
               // Free-form annotations minus `everr.`-prefixed internal markers
               // (stamped by older flows; not user metadata).
               const customAnnotations = Object.entries(
@@ -192,12 +213,13 @@ function ReceiversSection() {
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium">{r.name}</span>
                     </div>
-                    {r.channels.map((c, i) => (
+                    {resolved.map(({ name, channel }) => (
                       <div
-                        key={`${c.type}-${channelTarget(c)}-${i}`}
+                        key={name}
                         className="truncate font-mono text-xs text-muted-foreground"
                       >
-                        {channelTarget(c) || c.type}
+                        {name}
+                        {channel ? ` (${channel.config.type})` : ""}
                       </div>
                     ))}
                     {customAnnotations.length > 0 && (
@@ -208,9 +230,6 @@ function ReceiversSection() {
                       </div>
                     )}
                   </div>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {r.channels.map((c) => c.type).join(", ")}
-                  </span>
                   <Button
                     variant="ghost"
                     size="icon-sm"
@@ -231,6 +250,99 @@ function ReceiversSection() {
         open={open}
         onOpenChange={setOpen}
         existingNames={(data ?? []).map((r) => r.name)}
+        channels={channels}
+      />
+    </Card>
+  );
+}
+
+function ChannelsSection() {
+  const qc = useQueryClient();
+  const { data, isPending, isError, error } = useQuery(q.channels());
+  const [open, setOpen] = useState(false);
+
+  const remove = useMutation({
+    mutationFn: (name: string) => deleteCcChannel({ data: { name } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cc", "channels"] });
+      toast.success("Channel deleted");
+    },
+    // A referenced channel deletes with a 409 naming the referring receivers;
+    // the engine's message is surfaced verbatim.
+    onError: (e) => toast.error(ccErrorMessage(e)),
+  });
+
+  return (
+    <Card id="channels" inset="flush-content" className="scroll-mt-4">
+      <CardHeader>
+        <CardTitle>Channels</CardTitle>
+        <CardDescription>
+          Named delivery endpoints receivers reference; reusable across
+          receivers. Secret fields are redacted here.
+        </CardDescription>
+        <CardAction>
+          <Button onClick={() => setOpen(true)}>
+            <Plus data-icon="inline-start" />
+            New channel
+          </Button>
+        </CardAction>
+      </CardHeader>
+      <CardContent>
+        {isError ? (
+          <div className="px-3 pb-3">
+            <CcQueryError error={error} />
+          </div>
+        ) : isPending ? (
+          <CcTableSkeleton rows={3} />
+        ) : (data ?? []).length === 0 ? (
+          <CcEmptyState
+            icon={Inbox}
+            title="No channels defined"
+            hint="Add a Slack, webhook, PagerDuty, email, or Telegram endpoint for receivers to deliver through."
+          />
+        ) : (
+          <ul className="divide-y divide-border/60">
+            {(data ?? []).map((c) => {
+              const Icon = CHANNEL_ICON[c.config.type];
+              return (
+                <li
+                  key={c.name}
+                  className="flex items-center gap-3 px-3 py-2.5"
+                >
+                  <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                    <Icon className="size-3.5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">{c.name}</span>
+                    </div>
+                    <div className="truncate font-mono text-xs text-muted-foreground">
+                      {channelTarget(c.config) || c.config.type}
+                    </div>
+                  </div>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {c.config.type}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Delete channel"
+                    disabled={remove.isPending}
+                    onClick={() => remove.mutate(c.name)}
+                  >
+                    <Trash2 />
+                  </Button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </CardContent>
+      <ChannelBuilder
+        key={open ? "open" : "closed"}
+        open={open}
+        onOpenChange={setOpen}
+        existingNames={(data ?? []).map((c) => c.name)}
       />
     </Card>
   );
@@ -543,6 +655,7 @@ function FirehoseSection() {
 function CcRoutingPage() {
   const routes = useQuery(q.routes());
   const receivers = useQuery(q.receivers());
+  const channels = useQuery(q.channels());
   const inhibitions = useQuery(q.inhibitions());
   const alerts = useQuery(q.alerts());
   const silences = useQuery(q.silences());
@@ -578,7 +691,8 @@ function CcRoutingPage() {
         </CardContent>
       </Card>
 
-      <ReceiversSection />
+      <ReceiversSection channels={channels.data ?? []} />
+      <ChannelsSection />
       <RoutesSection receivers={receivers.data ?? []} />
       <InhibitionsSection />
       <FirehoseSection />

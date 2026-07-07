@@ -10,18 +10,24 @@ Alert rules are defined as code, but delivery is configured in the app and appli
 When an alert fires or resolves, it walks a fixed path:
 
 1. **Routes** are checked top to bottom by priority; the first route whose matchers fit the alert's labels decides the receiver.
-2. The matched **receiver** delivers the notification (Slack, email, webhook, PagerDuty, or Telegram).
+2. The matched **receiver** fans the notification out to every **channel** it references (Slack, email, webhook, PagerDuty, or Telegram).
 3. Alerts that match **no route** fall through to the **firehose**: every subscribed webhook receives them.
 
 Silences and inhibitions suppress delivery without stopping evaluation.
 
-## Receivers
+## Channels
 
-A receiver is a named delivery target. Create and delete receivers on the Routing tab; routes reference them by name.
+A channel is a named delivery endpoint, created and deleted on the Routing tab. Channels are reusable: any number of receivers can reference the same channel by name.
 
 Channel types: **email** (recipient addresses), **Slack** (an [Incoming Webhook](https://api.slack.com/messaging/webhooks) URL), **webhook** (any HTTPS endpoint), **PagerDuty** (an integration key), and **Telegram** (a bot token and chat ID, see Telegram's [BotFather guide](https://core.telegram.org/bots/features#botfather)).
 
-Secret fields (webhook URLs, tokens, keys) are write-only: after saving, Everr shows them redacted. To change one, create the receiver again under the same name with the new value.
+Secret fields (webhook URLs, tokens, keys) are write-only: after saving, Everr shows them redacted. To rotate one, create the channel again under the same name with the new value; every receiver that references it picks up the new secret, no receiver edits needed.
+
+A channel that is still referenced cannot be deleted: Everr surfaces the engine's refusal, naming the receivers that still use it. Delete or repoint those receivers first.
+
+## Receivers
+
+A receiver is a named set of channels; routes reference receivers by name, and a notification for the receiver is delivered to every channel in the set. Create a receiver on the Routing tab by picking from your existing channels (at least one). Receivers carry no secrets themselves, only channel names.
 
 ## Routes
 

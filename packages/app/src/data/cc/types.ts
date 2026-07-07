@@ -1,6 +1,8 @@
 import type { z } from "zod";
 import type {
   CcAlertSchema,
+  CcChannelConfigSchema,
+  CcChannelSchema,
   CcEventSchema,
   CcInhibitionSchema,
   CcMatcherSchema,
@@ -21,6 +23,8 @@ export type CcRuleRollup = z.infer<typeof CcRuleRollupSchema>;
 export type CcRuleView = z.infer<typeof CcRuleViewSchema>;
 export type CcRulesPage = z.infer<typeof CcRulesPageSchema>;
 export type CcAlert = z.infer<typeof CcAlertSchema>;
+export type CcChannelConfig = z.infer<typeof CcChannelConfigSchema>;
+export type CcChannel = z.infer<typeof CcChannelSchema>;
 export type CcReceiver = z.infer<typeof CcReceiverSchema>;
 export type CcRoute = z.infer<typeof CcRouteSchema>;
 export type CcSilence = z.infer<typeof CcSilenceSchema>;

@@ -1,6 +1,7 @@
 import { expect, it } from "vitest";
 import {
   CcAlertSchema,
+  CcChannelSchema,
   CcEventSchema,
   CcReceiverSchema,
   CcRouteSchema,
@@ -156,25 +157,14 @@ it("parses an alert instance with nullable value/timestamps", () => {
   expect(a.value).toBeNull();
 });
 
-it("parses receiver channels as a tagged-union list", () => {
+it("parses receiver channels as a list of channel names", () => {
   const multi = CcReceiverSchema.parse({
     id: "i",
     tenant: "t",
     name: "oncall",
-    channels: [
-      { type: "slack", url: "***" },
-      { type: "email", to: ["a@b.c"] },
-    ],
+    channels: ["team-slack", "ops-mail"],
   });
-  expect(multi.channels.map((c) => c.type)).toEqual(["slack", "email"]);
-  expect(
-    CcReceiverSchema.parse({
-      id: "i",
-      tenant: "t",
-      name: "ops",
-      channels: [{ type: "email", to: ["a@b.c"] }],
-    }).channels[0]?.type,
-  ).toBe("email");
+  expect(multi.channels).toEqual(["team-slack", "ops-mail"]);
 });
 
 it("rejects a receiver with an empty channels list", () => {
@@ -188,6 +178,19 @@ it("rejects a receiver with an empty channels list", () => {
   ).toThrow();
 });
 
+it("rejects pre-named-channels inline config objects in receiver channels", () => {
+  // The engine's receivers carry channel NAMES now; a payload from before the
+  // migration (inline config objects) must fail loudly, not half-parse.
+  expect(() =>
+    CcReceiverSchema.parse({
+      id: "i",
+      tenant: "t",
+      name: "oncall",
+      channels: [{ type: "slack", url: "***" }],
+    }),
+  ).toThrow();
+});
+
 it("parses receiver annotations (absent stays undefined, present round-trips)", () => {
   // An absent map (older CC, or a receiver written before the field existed).
   expect(
@@ -195,7 +198,7 @@ it("parses receiver annotations (absent stays undefined, present round-trips)", 
       id: "i",
       tenant: "t",
       name: "oncall",
-      channels: [{ type: "slack", url: "***" }],
+      channels: ["team-slack"],
     }).annotations,
   ).toBeUndefined();
   // A present map round-trips verbatim (including markers stamped by the
@@ -205,21 +208,51 @@ it("parses receiver annotations (absent stays undefined, present round-trips)", 
       id: "i",
       tenant: "t",
       name: "oncall",
-      channels: [{ type: "slack", url: "***" }],
+      channels: ["team-slack"],
       annotations: { "everr.repoid": "repo1", team: "core" },
     }).annotations,
   ).toEqual({ "everr.repoid": "repo1", team: "core" });
 });
 
-it("parses a telegram channel", () => {
+it("parses a named channel with its tagged config (redacted secrets included)", () => {
+  const ch = CcChannelSchema.parse({
+    id: "c",
+    tenant: "t",
+    name: "team-slack",
+    config: { type: "slack", url: "***" },
+  });
+  expect(ch.name).toBe("team-slack");
+  expect(ch.config.type).toBe("slack");
   expect(
-    CcReceiverSchema.parse({
-      id: "r",
+    CcChannelSchema.parse({
+      id: "c",
+      tenant: "t",
+      name: "ops-mail",
+      config: { type: "email", to: ["a@b.c"] },
+    }).config.type,
+  ).toBe("email");
+});
+
+it("parses a telegram channel config", () => {
+  expect(
+    CcChannelSchema.parse({
+      id: "c",
       tenant: "t",
       name: "everr-default-telegram",
-      channels: [{ type: "telegram", bot_token: "x", chat_ids: ["-100"] }],
-    }).channels[0]?.type,
+      config: { type: "telegram", bot_token: "x", chat_ids: ["-100"] },
+    }).config.type,
   ).toBe("telegram");
+});
+
+it("rejects a channel with an unknown config type", () => {
+  expect(() =>
+    CcChannelSchema.parse({
+      id: "c",
+      tenant: "t",
+      name: "pigeon",
+      config: { type: "carrier-pigeon" },
+    }),
+  ).toThrow();
 });
 
 it("parses a route with nullable group settings", () => {

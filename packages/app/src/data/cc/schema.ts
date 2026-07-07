@@ -108,7 +108,9 @@ export const CcAlertSchema = z.object({
   absent_count: z.number().int(),
 });
 
-export const CcChannelSchema = z.discriminatedUnion("type", [
+// The engine's per-type endpoint config (ChannelConfig in clickety-clack's
+// domain/channel.rs). Secret fields come back redacted ("***") on read.
+export const CcChannelConfigSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("webhook"), url: z.string() }),
   z.object({ type: z.literal("slack"), url: z.string() }),
   z.object({ type: z.literal("pagerduty"), routing_key: z.string() }),
@@ -120,13 +122,24 @@ export const CcChannelSchema = z.discriminatedUnion("type", [
   }),
 ]);
 
+// A named, reusable channel: the secret-bearing endpoint config, unique by
+// name per tenant. Receivers reference channels by name.
+export const CcChannelSchema = z.object({
+  id: z.string(),
+  tenant: z.string(),
+  name: z.string(),
+  config: CcChannelConfigSchema,
+});
+
 export const CcReceiverSchema = z.object({
   id: z.string(),
   tenant: z.string(),
   name: z.string(),
-  // A receiver bundles one or more channels; the engine rejects empty lists,
-  // so a parsed receiver always has at least one element.
-  channels: z.array(CcChannelSchema).min(1),
+  // A receiver is a named set of channel REFERENCES (channel names); the
+  // engine rejects empty lists and validates every name against the tenant's
+  // channels, so a parsed receiver always has at least one element and never
+  // carries a secret.
+  channels: z.array(z.string()).min(1),
   // Free-form, non-secret metadata (ownership markers, team, links, ...). CC
   // always serializes it (empty map when unset), so it is effectively always
   // present; kept `.optional()` rather than `.default({})` so the inferred
