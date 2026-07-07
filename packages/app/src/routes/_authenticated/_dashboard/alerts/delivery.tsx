@@ -1,0 +1,1018 @@
+// The Delivery page answers one question: will the right people find out?
+// The route list is rendered as the flow it is (matchers → receiver →
+// channels, firehose fallback last), a label-set preview evaluates the
+// dispatcher's real matching semantics against it, and everything is edited
+// in drawers so the pipeline stays visible.
+import { Button } from "@everr/ui/components/button";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@everr/ui/components/card";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@everr/ui/components/collapsible";
+import { Input } from "@everr/ui/components/input";
+import { Label } from "@everr/ui/components/label";
+import { cn } from "@everr/ui/lib/utils";
+import {
+  queryOptions,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { createFileRoute, useLocation } from "@tanstack/react-router";
+import {
+  ArrowRight,
+  BellMinus,
+  ChevronRight,
+  CornerDownRight,
+  Inbox,
+  type LucideIcon,
+  Mail,
+  MessageSquare,
+  Pencil,
+  Plus,
+  Send,
+  Siren,
+  Trash2,
+  Webhook,
+} from "lucide-react";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
+import { ChannelBuilder } from "@/components/cc/channel-builder";
+import { InhibitionBuilder } from "@/components/cc/inhibition-builder";
+import { ReceiverBuilder } from "@/components/cc/receiver-builder";
+import { RouteBuilder } from "@/components/cc/route-builder";
+import { RoutePreview } from "@/components/cc/route-preview";
+import {
+  ccSelectRoutes,
+  ccSyntheticLabels,
+} from "@/components/cc/route-resolution";
+import {
+  createCcSubscription,
+  deleteCcChannel,
+  deleteCcInhibition,
+  deleteCcReceiver,
+  deleteCcRoute,
+  deleteCcSubscription,
+  listCcAlerts,
+  listCcChannels,
+  listCcInhibitions,
+  listCcReceivers,
+  listCcRoutes,
+  listCcRules,
+  listCcSubscriptions,
+} from "@/data/cc/server";
+import type {
+  CcChannel,
+  CcChannelConfig,
+  CcInhibition,
+  CcReceiver,
+  CcRoute,
+} from "@/data/cc/types";
+import {
+  CcEmptyState,
+  CcQueryError,
+  CcTableSkeleton,
+  ccErrorMessage,
+  ccFormatTs,
+  Matchers,
+} from "./-cc-shared";
+
+const q = {
+  routes: () =>
+    queryOptions({ queryKey: ["cc", "routes"], queryFn: () => listCcRoutes() }),
+  receivers: () =>
+    queryOptions({
+      queryKey: ["cc", "receivers"],
+      queryFn: () => listCcReceivers(),
+    }),
+  channels: () =>
+    queryOptions({
+      queryKey: ["cc", "channels"],
+      queryFn: () => listCcChannels(),
+    }),
+  inhibitions: () =>
+    queryOptions({
+      queryKey: ["cc", "inhibitions"],
+      queryFn: () => listCcInhibitions(),
+    }),
+  alerts: () =>
+    queryOptions({ queryKey: ["cc", "alerts"], queryFn: () => listCcAlerts() }),
+  rules: () =>
+    queryOptions({ queryKey: ["cc", "rules"], queryFn: () => listCcRules() }),
+  subscriptions: () =>
+    queryOptions({
+      queryKey: ["cc", "subscriptions"],
+      queryFn: () => listCcSubscriptions(),
+    }),
+};
+
+export const Route = createFileRoute(
+  "/_authenticated/_dashboard/alerts/delivery",
+)({
+  staticData: { breadcrumb: "Delivery" },
+  head: () => ({ meta: [{ title: "Everr - Alerts Delivery" }] }),
+  loader: ({ context: { queryClient } }) =>
+    Promise.all([
+      queryClient.prefetchQuery(q.routes()),
+      queryClient.prefetchQuery(q.receivers()),
+      queryClient.prefetchQuery(q.channels()),
+      queryClient.prefetchQuery(q.inhibitions()),
+      queryClient.prefetchQuery(q.alerts()),
+      queryClient.prefetchQuery(q.rules()),
+      queryClient.prefetchQuery(q.subscriptions()),
+    ]),
+  component: CcDeliveryPage,
+});
+
+const CHANNEL_ICON: Record<CcChannelConfig["type"], LucideIcon> = {
+  slack: MessageSquare,
+  webhook: Webhook,
+  pagerduty: Siren,
+  email: Mail,
+  telegram: Send,
+};
+
+function channelTarget(c: CcChannelConfig): string {
+  switch (c.type) {
+    case "slack":
+    case "webhook":
+      return c.url ?? "";
+    case "pagerduty":
+      return c.routing_key ?? "";
+    case "email":
+      return (c.to ?? []).join(", ");
+    case "telegram":
+      return (c.chat_ids ?? []).join(", ");
+  }
+}
+
+// ── How delivery works ────────────────────────────────────────────────────────
+// The page's only explanatory prose: the whole flow in three sentences,
+// collapsed by default. (Re-homed from the old Overview glossary.)
+
+function HowDeliveryWorks() {
+  const [open, setOpen] = useState(false);
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger className="flex items-center gap-1.5 rounded-md px-1 py-0.5 text-xs text-muted-foreground outline-2 outline-dotted outline-transparent outline-offset-[-2px] transition-colors duration-150 hover:text-foreground focus-visible:outline-primary">
+        <ChevronRight
+          className={cn(
+            "size-3.5 transition-transform duration-150",
+            open && "rotate-90",
+          )}
+        />
+        How delivery works
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <p className="max-w-3xl px-1 pt-1 pb-1.5 text-xs leading-relaxed text-muted-foreground">
+          A firing alert&rsquo;s labels are checked against each route&rsquo;s
+          matchers, top to bottom by priority; the first match hands it to that
+          route&rsquo;s receiver, which fans out to its channels, and a route
+          marked <span className="font-mono text-foreground">continue</span>{" "}
+          lets later routes match too. Alerts matching no route are sent to
+          every firehose webhook instead. Silences mute matching alerts for a
+          window; inhibitions suppress downstream alerts while a related source
+          alert is firing.
+        </p>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+// ── Live pipeline ─────────────────────────────────────────────────────────────
+// The hero: routes rendered as the flow the dispatcher walks. While the
+// preview is active, the selected route chain lights up and the rest dims.
+
+function ChannelChip({
+  name,
+  channel,
+  emphasized,
+}: {
+  name: string;
+  channel: CcChannel | undefined;
+  emphasized: boolean;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-mono text-[0.6875rem] leading-none",
+        emphasized
+          ? "border-primary/40 bg-primary/10 text-foreground"
+          : "border-border bg-muted/40",
+      )}
+    >
+      <span className="text-foreground">{name}</span>
+      <span className="text-muted-foreground">
+        {channel ? channel.config.type : "missing"}
+      </span>
+    </span>
+  );
+}
+
+/** Custom timing only: routes on engine defaults keep a single-line row. */
+function routeTimingSummary(r: CcRoute): string[] {
+  const parts: string[] = [];
+  if (r.group_by && r.group_by.length > 0)
+    parts.push(`group by ${r.group_by.join(", ")}`);
+  if (r.group_wait_secs != null) parts.push(`wait ${r.group_wait_secs}s`);
+  if (r.group_interval_secs != null)
+    parts.push(`interval ${r.group_interval_secs}s`);
+  if (r.repeat_interval_secs != null)
+    parts.push(`repeat ${r.repeat_interval_secs}s`);
+  return parts;
+}
+
+function PipelineRoute({
+  route,
+  receiver,
+  channelsByName,
+  previewActive,
+  matched,
+  onEdit,
+  onDelete,
+  deletePending,
+}: {
+  route: CcRoute;
+  receiver: CcReceiver | undefined;
+  channelsByName: Map<string, CcChannel>;
+  previewActive: boolean;
+  matched: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+  deletePending: boolean;
+}) {
+  const timing = routeTimingSummary(route);
+  return (
+    <li
+      data-matched={previewActive && matched ? "true" : undefined}
+      className={cn(
+        "flex items-start gap-3 px-3 py-2 transition-opacity duration-200",
+        previewActive &&
+          (matched
+            ? "bg-primary/5 ring-1 ring-primary/40 ring-inset"
+            : "opacity-40"),
+      )}
+    >
+      <span className="w-8 shrink-0 pt-0.5 text-center font-mono text-xs text-muted-foreground tabular-nums">
+        #{route.priority}
+      </span>
+      <div className="min-w-0 flex-1 space-y-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <Matchers matchers={route.matchers} emptyLabel="any alert" />
+          <ArrowRight
+            aria-hidden
+            className={cn(
+              "size-3.5 shrink-0",
+              previewActive && matched
+                ? "text-primary"
+                : "text-muted-foreground/60",
+            )}
+          />
+          <span className="font-mono text-xs font-medium text-foreground">
+            {route.receiver}
+          </span>
+          <ArrowRight
+            aria-hidden
+            className={cn(
+              "size-3.5 shrink-0",
+              previewActive && matched
+                ? "text-primary"
+                : "text-muted-foreground/60",
+            )}
+          />
+          {receiver ? (
+            receiver.channels.map((name) => (
+              <ChannelChip
+                key={name}
+                name={name}
+                channel={channelsByName.get(name)}
+                emphasized={previewActive && matched}
+              />
+            ))
+          ) : (
+            <span className="text-xs text-amber-600 dark:text-amber-400">
+              receiver not found
+            </span>
+          )}
+          {route.continue && (
+            <span
+              title="This route keeps matching: later routes are checked too"
+              className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/20 px-1.5 py-0.5 font-mono text-[0.6875rem] leading-none text-muted-foreground"
+            >
+              continue
+              <CornerDownRight aria-hidden className="size-3" />
+            </span>
+          )}
+          {previewActive && matched && (
+            <span className="font-mono text-[0.6875rem] text-primary">
+              matched
+            </span>
+          )}
+        </div>
+        {timing.length > 0 && (
+          <div className="text-xs text-muted-foreground">
+            {timing.join(" · ")}
+          </div>
+        )}
+      </div>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label="Edit route"
+        onClick={onEdit}
+      >
+        <Pencil />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label="Delete route"
+        disabled={deletePending}
+        onClick={onDelete}
+      >
+        <Trash2 />
+      </Button>
+    </li>
+  );
+}
+
+function PipelineSection({
+  receivers,
+  channels,
+  previewLabels,
+  matchedRouteIds,
+  subscriberCount,
+  onFirehoseClick,
+}: {
+  receivers: CcReceiver[];
+  channels: CcChannel[];
+  /** Preview label set; empty object = preview inactive. */
+  previewLabels: Record<string, string>;
+  /** Ids of the routes ccSelectRoutes picked for the preview labels. */
+  matchedRouteIds: Set<string>;
+  subscriberCount: number;
+  onFirehoseClick: () => void;
+}) {
+  const qc = useQueryClient();
+  const { data, isPending, isError, error } = useQuery(q.routes());
+  const [editing, setEditing] = useState<CcRoute | "new" | null>(null);
+
+  const remove = useMutation({
+    mutationFn: (id: string) => deleteCcRoute({ data: { id } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cc", "routes"] });
+      toast.success("Route deleted");
+    },
+    onError: (e) => toast.error(ccErrorMessage(e)),
+  });
+
+  const previewActive = Object.keys(previewLabels).length > 0;
+  const sorted = [...(data ?? [])].sort((a, b) => a.priority - b.priority);
+  const receiverByName = new Map(receivers.map((r) => [r.name, r]));
+  const channelsByName = new Map(channels.map((c) => [c.name, c]));
+  const fellThrough = previewActive && matchedRouteIds.size === 0;
+
+  return (
+    <Card id="routes" inset="flush-content" className="scroll-mt-4">
+      <CardHeader>
+        <CardTitle>Delivery pipeline</CardTitle>
+        <CardDescription>
+          Routes are checked top to bottom; the first match decides, unless it
+          continues.
+        </CardDescription>
+        <CardAction>
+          <Button onClick={() => setEditing("new")}>
+            <Plus data-icon="inline-start" />
+            New route
+          </Button>
+        </CardAction>
+      </CardHeader>
+      <CardContent>
+        {isError ? (
+          <div className="px-3 pb-3">
+            <CcQueryError error={error} />
+          </div>
+        ) : isPending ? (
+          <CcTableSkeleton rows={3} />
+        ) : (
+          <ul className="divide-y divide-border/60">
+            {sorted.length === 0 && (
+              <li className="px-3 py-2 text-xs text-muted-foreground">
+                No routes yet: every alert is delivered to all firehose
+                subscriptions below.
+              </li>
+            )}
+            {sorted.map((r) => (
+              <PipelineRoute
+                key={r.id}
+                route={r}
+                receiver={receiverByName.get(r.receiver)}
+                channelsByName={channelsByName}
+                previewActive={previewActive}
+                matched={matchedRouteIds.has(r.id)}
+                onEdit={() => setEditing(r)}
+                onDelete={() => remove.mutate(r.id)}
+                deletePending={remove.isPending}
+              />
+            ))}
+            {/* Terminal node: the engine's fallback when no route matches. */}
+            <li
+              data-matched={fellThrough ? "true" : undefined}
+              className={cn(
+                "flex items-center gap-3 px-3 py-2 transition-opacity duration-200",
+                previewActive &&
+                  (fellThrough
+                    ? "bg-primary/5 ring-1 ring-primary/40 ring-inset"
+                    : "opacity-40"),
+              )}
+            >
+              <span
+                aria-hidden
+                className="w-8 shrink-0 text-center font-mono text-xs text-muted-foreground"
+              >
+                ∅
+              </span>
+              <span className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="text-muted-foreground">no match</span>
+                <ArrowRight
+                  aria-hidden
+                  className={cn(
+                    "size-3.5 shrink-0",
+                    fellThrough ? "text-primary" : "text-muted-foreground/60",
+                  )}
+                />
+                <button
+                  type="button"
+                  onClick={onFirehoseClick}
+                  className="font-mono text-foreground underline-offset-2 outline-2 outline-dotted outline-transparent transition-colors duration-150 hover:underline focus-visible:outline-primary"
+                >
+                  firehose
+                </button>
+                <span
+                  className={cn(
+                    "font-mono",
+                    subscriberCount === 0
+                      ? "text-amber-600 dark:text-amber-400"
+                      : "text-muted-foreground",
+                  )}
+                >
+                  ·{" "}
+                  {subscriberCount === 0
+                    ? "no subscribers"
+                    : `${subscriberCount} webhook${subscriberCount === 1 ? "" : "s"}`}
+                </span>
+                {fellThrough && (
+                  <span className="font-mono text-[0.6875rem] text-primary">
+                    matched
+                  </span>
+                )}
+              </span>
+            </li>
+          </ul>
+        )}
+      </CardContent>
+      <RouteBuilder
+        key={editing === "new" ? "new" : (editing?.id ?? "closed")}
+        open={editing !== null}
+        route={editing === "new" ? null : editing}
+        onOpenChange={(o) => {
+          if (!o) setEditing(null);
+        }}
+        receivers={receivers}
+      />
+    </Card>
+  );
+}
+
+// ── Address book ──────────────────────────────────────────────────────────────
+
+function ReceiversSection({ channels }: { channels: CcChannel[] }) {
+  const qc = useQueryClient();
+  const { data, isPending, isError, error } = useQuery(q.receivers());
+  const [open, setOpen] = useState(false);
+
+  const remove = useMutation({
+    mutationFn: (name: string) => deleteCcReceiver({ data: { name } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cc", "receivers"] });
+      toast.success("Receiver deleted");
+    },
+    onError: (e) => toast.error(ccErrorMessage(e)),
+  });
+
+  const channelByName = new Map(channels.map((c) => [c.name, c]));
+
+  return (
+    <Card id="receivers" inset="flush-content" className="scroll-mt-4">
+      <CardHeader>
+        <CardTitle>Receivers</CardTitle>
+        <CardAction>
+          <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+            <Plus data-icon="inline-start" />
+            New receiver
+          </Button>
+        </CardAction>
+      </CardHeader>
+      <CardContent>
+        {isError ? (
+          <div className="px-3 pb-3">
+            <CcQueryError error={error} />
+          </div>
+        ) : isPending ? (
+          <CcTableSkeleton rows={3} />
+        ) : (data ?? []).length === 0 ? (
+          <CcEmptyState
+            icon={Inbox}
+            title="No receivers defined"
+            hint="Add a receiver that references one or more channels for routes to deliver alerts to."
+          />
+        ) : (
+          <ul className="divide-y divide-border/60">
+            {(data ?? []).map((r) => {
+              const resolved = r.channels.map((name) => ({
+                name,
+                channel: channelByName.get(name),
+              }));
+              const Icon =
+                CHANNEL_ICON[resolved[0]?.channel?.config.type ?? "webhook"];
+              // Free-form annotations minus `everr.`-prefixed internal markers
+              // (stamped by older flows; not user metadata).
+              const customAnnotations = Object.entries(
+                r.annotations ?? {},
+              ).filter(([k]) => !k.startsWith("everr."));
+              return (
+                <li
+                  key={r.name}
+                  className="flex items-center gap-3 px-3 py-2.5"
+                >
+                  <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                    <Icon className="size-3.5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">{r.name}</span>
+                    </div>
+                    {resolved.map(({ name, channel }) => (
+                      <div
+                        key={name}
+                        className="truncate font-mono text-xs text-muted-foreground"
+                      >
+                        {name}
+                        {channel ? ` (${channel.config.type})` : ""}
+                      </div>
+                    ))}
+                    {customAnnotations.length > 0 && (
+                      <div className="truncate text-xs text-muted-foreground">
+                        {customAnnotations
+                          .map(([k, v]) => `${k}: ${v}`)
+                          .join(", ")}
+                      </div>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Delete receiver"
+                    disabled={remove.isPending}
+                    onClick={() => remove.mutate(r.name)}
+                  >
+                    <Trash2 />
+                  </Button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </CardContent>
+      <ReceiverBuilder
+        key={open ? "open" : "closed"}
+        open={open}
+        onOpenChange={setOpen}
+        existingNames={(data ?? []).map((r) => r.name)}
+        channels={channels}
+      />
+    </Card>
+  );
+}
+
+function ChannelsSection() {
+  const qc = useQueryClient();
+  const { data, isPending, isError, error } = useQuery(q.channels());
+  const [open, setOpen] = useState(false);
+
+  const remove = useMutation({
+    mutationFn: (name: string) => deleteCcChannel({ data: { name } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cc", "channels"] });
+      toast.success("Channel deleted");
+    },
+    // A referenced channel deletes with a 409 naming the referring receivers;
+    // the engine's message is surfaced verbatim.
+    onError: (e) => toast.error(ccErrorMessage(e)),
+  });
+
+  return (
+    <Card id="channels" inset="flush-content" className="scroll-mt-4">
+      <CardHeader>
+        <CardTitle>Channels</CardTitle>
+        <CardDescription>Secrets are redacted on read.</CardDescription>
+        <CardAction>
+          <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+            <Plus data-icon="inline-start" />
+            New channel
+          </Button>
+        </CardAction>
+      </CardHeader>
+      <CardContent>
+        {isError ? (
+          <div className="px-3 pb-3">
+            <CcQueryError error={error} />
+          </div>
+        ) : isPending ? (
+          <CcTableSkeleton rows={3} />
+        ) : (data ?? []).length === 0 ? (
+          <CcEmptyState
+            icon={Inbox}
+            title="No channels defined"
+            hint="Add a Slack, webhook, PagerDuty, email, or Telegram endpoint for receivers to deliver through."
+          />
+        ) : (
+          <ul className="divide-y divide-border/60">
+            {(data ?? []).map((c) => {
+              const Icon = CHANNEL_ICON[c.config.type];
+              return (
+                <li
+                  key={c.name}
+                  className="flex items-center gap-3 px-3 py-2.5"
+                >
+                  <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                    <Icon className="size-3.5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">{c.name}</span>
+                    </div>
+                    <div className="truncate font-mono text-xs text-muted-foreground">
+                      {channelTarget(c.config) || c.config.type}
+                    </div>
+                  </div>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {c.config.type}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Delete channel"
+                    disabled={remove.isPending}
+                    onClick={() => remove.mutate(c.name)}
+                  >
+                    <Trash2 />
+                  </Button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </CardContent>
+      <ChannelBuilder
+        key={open ? "open" : "closed"}
+        open={open}
+        onOpenChange={setOpen}
+        existingNames={(data ?? []).map((c) => c.name)}
+      />
+    </Card>
+  );
+}
+
+// ── Advanced delivery ─────────────────────────────────────────────────────────
+
+function InhibitionsSection() {
+  const qc = useQueryClient();
+  const { data, isPending, isError, error } = useQuery(q.inhibitions());
+  const [open, setOpen] = useState(false);
+
+  const remove = useMutation({
+    mutationFn: (id: string) => deleteCcInhibition({ data: { id } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cc", "inhibitions"] });
+      toast.success("Inhibition deleted");
+    },
+    onError: (e) => toast.error(ccErrorMessage(e)),
+  });
+
+  return (
+    <Card id="inhibitions" inset="flush-content" className="scroll-mt-4">
+      <CardHeader>
+        <CardTitle>Inhibitions</CardTitle>
+        <CardDescription>
+          Suppress noisy downstream alerts while a related, higher-level alert
+          is already firing.
+        </CardDescription>
+        <CardAction>
+          <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+            <Plus data-icon="inline-start" />
+            New inhibition
+          </Button>
+        </CardAction>
+      </CardHeader>
+      <CardContent>
+        {isError ? (
+          <div className="px-3 pb-3">
+            <CcQueryError error={error} />
+          </div>
+        ) : isPending ? (
+          <CcTableSkeleton rows={2} />
+        ) : (data ?? []).length === 0 ? (
+          <CcEmptyState
+            icon={BellMinus}
+            title="No inhibition rules"
+            hint="Add a rule to mute downstream alerts while a higher-level alert is already firing."
+          />
+        ) : (
+          <ul className="divide-y divide-border/60">
+            {(data ?? []).map((r: CcInhibition) => (
+              <li
+                key={r.id}
+                className="flex items-start gap-3 px-3 py-2.5 text-xs leading-relaxed"
+              >
+                <div className="min-w-0 flex-1">
+                  While{" "}
+                  <span className="inline-flex flex-wrap items-center gap-1 align-middle">
+                    <Matchers matchers={r.source_matchers} />
+                  </span>{" "}
+                  fires, suppress{" "}
+                  <span className="inline-flex flex-wrap items-center gap-1 align-middle">
+                    <Matchers matchers={r.target_matchers} />
+                  </span>
+                  {(r.equal ?? []).length > 0 && (
+                    <>
+                      {" "}
+                      sharing{" "}
+                      <span className="font-mono text-muted-foreground">
+                        {(r.equal ?? []).join(", ")}
+                      </span>
+                    </>
+                  )}
+                  .
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Delete inhibition"
+                  disabled={remove.isPending}
+                  onClick={() => remove.mutate(r.id)}
+                >
+                  <Trash2 />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+      <InhibitionBuilder open={open} onOpenChange={setOpen} />
+    </Card>
+  );
+}
+
+function FirehoseSection() {
+  const qc = useQueryClient();
+  const { data, isPending, isError, error } = useQuery(q.subscriptions());
+  const [url, setUrl] = useState("");
+
+  const create = useMutation({
+    mutationFn: () => createCcSubscription({ data: { webhookUrl: url } }),
+    onSuccess: (s) => {
+      qc.invalidateQueries({ queryKey: ["cc", "subscriptions"] });
+      toast.success(`Subscription created (${s.id.slice(0, 8)})`);
+      setUrl("");
+    },
+    onError: (e) => toast.error(ccErrorMessage(e)),
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: string) => deleteCcSubscription({ data: { id } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cc", "subscriptions"] });
+      toast.success("Subscription deleted");
+    },
+    onError: (e) => toast.error(ccErrorMessage(e)),
+  });
+
+  return (
+    <Card id="firehose" inset="flush-content" className="scroll-mt-4">
+      <CardHeader>
+        <CardTitle>Firehose subscriptions</CardTitle>
+        <CardDescription>
+          The fallback: alerts that match no route are delivered to every
+          firehose webhook.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {isError ? (
+          <div className="px-3">
+            <CcQueryError error={error} />
+          </div>
+        ) : isPending ? (
+          <CcTableSkeleton rows={2} />
+        ) : (data ?? []).length === 0 ? (
+          <CcEmptyState
+            icon={Webhook}
+            title="No firehose subscriptions"
+            hint="Add a webhook URL below to receive every alert that matches no route."
+          />
+        ) : (
+          <ul className="divide-y divide-border/60">
+            {(data ?? []).map((s) => (
+              <li key={s.id} className="flex items-center gap-3 px-3 py-2.5">
+                <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                  <Webhook className="size-3.5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-mono text-xs">
+                    {s.webhook_url}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Added {ccFormatTs(s.created_at)}
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Delete subscription"
+                  disabled={remove.isPending}
+                  onClick={() => remove.mutate(s.id)}
+                >
+                  <Trash2 />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <form
+          className="flex items-end gap-2 px-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (url && !create.isPending) create.mutate();
+          }}
+        >
+          <div className="flex-1 space-y-1.5">
+            <Label htmlFor="firehose-url">Webhook URL</Label>
+            <Input
+              id="firehose-url"
+              type="url"
+              className="font-mono"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://example.com/hook"
+            />
+          </div>
+          <Button type="submit" disabled={!url || create.isPending}>
+            <Plus data-icon="inline-start" />
+            Add
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
+function CcDeliveryPage() {
+  const location = useLocation();
+  const routes = useQuery(q.routes());
+  const receivers = useQuery(q.receivers());
+  const channels = useQuery(q.channels());
+  const alerts = useQuery(q.alerts());
+  const rules = useQuery(q.rules());
+  const subscriptions = useQuery(q.subscriptions());
+
+  // The preview's label set; {} = inactive. Evaluated with the dispatcher's
+  // own semantics (ccSelectRoutes over exactly these labels), so what the
+  // pipeline highlights is what the engine would do.
+  const [previewLabels, setPreviewLabels] = useState<Record<string, string>>(
+    {},
+  );
+  // Deep links (#firehose, #inhibitions) land inside the collapsed Advanced
+  // section, so those hashes open it from the start.
+  const [advancedOpen, setAdvancedOpen] = useState(() =>
+    ["firehose", "inhibitions"].includes(location.hash),
+  );
+
+  const matchedRoutes = useMemo(
+    () =>
+      Object.keys(previewLabels).length > 0
+        ? ccSelectRoutes(routes.data ?? [], previewLabels)
+        : [],
+    [routes.data, previewLabels],
+  );
+  const matchedRouteIds = useMemo(
+    () => new Set(matchedRoutes.map((r) => r.id)),
+    [matchedRoutes],
+  );
+
+  // Prefill: the dispatch-time (synthetic) label set of a currently-firing
+  // instance, when one exists — the fastest honest answer to "where does the
+  // thing that's firing right now go?".
+  const prefill = useMemo(() => {
+    const firing = (alerts.data ?? []).find((a) => a.status === "firing");
+    if (!firing) return null;
+    const rule = (rules.data ?? []).find((r) => r.id === firing.rule);
+    return ccSyntheticLabels(firing.labels, {
+      severity: rule?.spec.severity ?? "info",
+      status: "firing",
+      rule: firing.rule,
+    });
+  }, [alerts.data, rules.data]);
+
+  const receiversByName = useMemo(
+    () => new Map((receivers.data ?? []).map((r) => [r.name, r])),
+    [receivers.data],
+  );
+  const channelsByName = useMemo(
+    () => new Map((channels.data ?? []).map((c) => [c.name, c])),
+    [channels.data],
+  );
+  const subscriberCount = (subscriptions.data ?? []).length;
+
+  return (
+    <div className="space-y-3">
+      <HowDeliveryWorks />
+
+      <PipelineSection
+        receivers={receivers.data ?? []}
+        channels={channels.data ?? []}
+        previewLabels={previewLabels}
+        matchedRouteIds={matchedRouteIds}
+        subscriberCount={subscriberCount}
+        onFirehoseClick={() => {
+          setAdvancedOpen(true);
+          // Next frame: the section must exist before it can be scrolled to.
+          requestAnimationFrame(() => {
+            document
+              .getElementById("firehose")
+              ?.scrollIntoView({ behavior: "smooth", block: "start" });
+          });
+        }}
+      />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Route preview</CardTitle>
+          <CardDescription>
+            Evaluates a label set against the pipeline above with the
+            dispatcher&rsquo;s exact matching rules.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <RoutePreview
+            labels={previewLabels}
+            onLabelsChange={setPreviewLabels}
+            matchedRoutes={matchedRoutes}
+            receiversByName={receiversByName}
+            channelsByName={channelsByName}
+            subscriberCount={subscriberCount}
+            prefill={prefill}
+          />
+        </CardContent>
+      </Card>
+
+      <div className="grid items-start gap-3 lg:grid-cols-2">
+        <ReceiversSection channels={channels.data ?? []} />
+        <ChannelsSection />
+      </div>
+
+      <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+        <CollapsibleTrigger className="flex w-full items-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 text-left outline-2 outline-dotted outline-transparent outline-offset-[-2px] transition-colors duration-150 hover:bg-muted/40 focus-visible:outline-primary">
+          <ChevronRight
+            className={cn(
+              "size-3.5 shrink-0 text-muted-foreground transition-transform duration-150",
+              advancedOpen && "rotate-90",
+            )}
+          />
+          <span className="text-xs font-medium">Advanced delivery</span>
+          <span className="text-xs text-muted-foreground">
+            inhibitions · firehose subscriptions
+          </span>
+          <span className="ml-auto rounded border border-border px-1 py-px text-[0.625rem] font-medium tracking-wide text-muted-foreground uppercase">
+            pro
+          </span>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="space-y-3 pt-3">
+            <InhibitionsSection />
+            <FirehoseSection />
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+    </div>
+  );
+}

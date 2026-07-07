@@ -38,8 +38,7 @@ export const navMain: NavItem[] = [
       { title: "Triage", url: "/alerts/triage" },
       { title: "History", url: "/alerts/history" },
       { title: "Rules", url: "/alerts/rules" },
-      // Delivery still lands on the routing page; wave 2 renames the route.
-      { title: "Delivery", url: "/alerts/routing" },
+      { title: "Delivery", url: "/alerts/delivery" },
       { title: "Silences", url: "/alerts/silences" },
     ],
   },

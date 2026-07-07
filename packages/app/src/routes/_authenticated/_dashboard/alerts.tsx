@@ -7,11 +7,11 @@ export const Route = createFileRoute("/_authenticated/_dashboard/alerts")({
   component: CcAlertingLayout,
 });
 
-// Section navigation (Overview/Monitor/Rules/Routing) lives in the sidebar;
-// this layout only carries the header and the scroll container.
+// Section navigation (Triage/History/Rules/Delivery/Silences) lives in the
+// sidebar; this layout only carries the header and the scroll container.
 function CcAlertingLayout() {
   // The shared `_dashboard` column is `overflow-hidden`; like `_padded`, this
-  // layout owns its own scroll so tall pages (routing, rule detail) scroll
+  // layout owns its own scroll so tall pages (delivery, rule detail) scroll
   // instead of clipping.
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-auto overscroll-y-contain">
@@ -19,8 +19,8 @@ function CcAlertingLayout() {
         <div className="border-b border-border pb-3">
           <h1 className="text-xl font-bold tracking-tight">Alerts</h1>
           <p className="text-sm text-muted-foreground">
-            Prometheus-style alerting over your telemetry — rules, routing, and
-            silences, evaluated against ClickHouse.
+            Prometheus-style alerting over your telemetry: triage, history,
+            rules, delivery, and silences, evaluated against ClickHouse.
           </p>
         </div>
         <Outlet />

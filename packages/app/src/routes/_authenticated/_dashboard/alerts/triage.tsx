@@ -215,7 +215,7 @@ function DeliveryFact({
   if (matchedRoutes.length === 0) {
     return (
       <Link
-        to="/alerts/routing"
+        to="/alerts/delivery"
         hash="firehose"
         onClick={(e) => e.stopPropagation()}
         className="whitespace-nowrap text-xs text-amber-600 underline-offset-2 hover:underline dark:text-amber-400"

@@ -54,8 +54,8 @@ import { Route as ApiCliOrgNameRouteImport } from './routes/api/cli/org/name'
 import { Route as AuthenticatedDashboardAlertsTriageRouteImport } from './routes/_authenticated/_dashboard/alerts/triage'
 import { Route as AuthenticatedDashboardAlertsSilencesRouteImport } from './routes/_authenticated/_dashboard/alerts/silences'
 import { Route as AuthenticatedDashboardAlertsRulesRouteImport } from './routes/_authenticated/_dashboard/alerts/rules'
-import { Route as AuthenticatedDashboardAlertsRoutingRouteImport } from './routes/_authenticated/_dashboard/alerts/routing'
 import { Route as AuthenticatedDashboardAlertsHistoryRouteImport } from './routes/_authenticated/_dashboard/alerts/history'
+import { Route as AuthenticatedDashboardAlertsDeliveryRouteImport } from './routes/_authenticated/_dashboard/alerts/delivery'
 import { Route as AuthenticatedDashboardPaddedUsersManagementRouteImport } from './routes/_authenticated/_dashboard/_padded/users-management'
 import { Route as AuthenticatedDashboardPaddedTestsOverviewRouteImport } from './routes/_authenticated/_dashboard/_padded/tests-overview'
 import { Route as AuthenticatedDashboardPaddedReposRouteImport } from './routes/_authenticated/_dashboard/_padded/repos'
@@ -322,16 +322,16 @@ const AuthenticatedDashboardAlertsRulesRoute =
     path: '/rules',
     getParentRoute: () => AuthenticatedDashboardAlertsRoute,
   } as any)
-const AuthenticatedDashboardAlertsRoutingRoute =
-  AuthenticatedDashboardAlertsRoutingRouteImport.update({
-    id: '/routing',
-    path: '/routing',
-    getParentRoute: () => AuthenticatedDashboardAlertsRoute,
-  } as any)
 const AuthenticatedDashboardAlertsHistoryRoute =
   AuthenticatedDashboardAlertsHistoryRouteImport.update({
     id: '/history',
     path: '/history',
+    getParentRoute: () => AuthenticatedDashboardAlertsRoute,
+  } as any)
+const AuthenticatedDashboardAlertsDeliveryRoute =
+  AuthenticatedDashboardAlertsDeliveryRouteImport.update({
+    id: '/delivery',
+    path: '/delivery',
     getParentRoute: () => AuthenticatedDashboardAlertsRoute,
   } as any)
 const AuthenticatedDashboardPaddedUsersManagementRoute =
@@ -573,8 +573,8 @@ export interface FileRoutesByFullPath {
   '/repos': typeof AuthenticatedDashboardPaddedReposRoute
   '/tests-overview': typeof AuthenticatedDashboardPaddedTestsOverviewRoute
   '/users-management': typeof AuthenticatedDashboardPaddedUsersManagementRoute
+  '/alerts/delivery': typeof AuthenticatedDashboardAlertsDeliveryRoute
   '/alerts/history': typeof AuthenticatedDashboardAlertsHistoryRoute
-  '/alerts/routing': typeof AuthenticatedDashboardAlertsRoutingRoute
   '/alerts/rules': typeof AuthenticatedDashboardAlertsRulesRoute
   '/alerts/silences': typeof AuthenticatedDashboardAlertsSilencesRoute
   '/alerts/triage': typeof AuthenticatedDashboardAlertsTriageRoute
@@ -645,8 +645,8 @@ export interface FileRoutesByTo {
   '/repos': typeof AuthenticatedDashboardPaddedReposRoute
   '/tests-overview': typeof AuthenticatedDashboardPaddedTestsOverviewRoute
   '/users-management': typeof AuthenticatedDashboardPaddedUsersManagementRoute
+  '/alerts/delivery': typeof AuthenticatedDashboardAlertsDeliveryRoute
   '/alerts/history': typeof AuthenticatedDashboardAlertsHistoryRoute
-  '/alerts/routing': typeof AuthenticatedDashboardAlertsRoutingRoute
   '/alerts/rules': typeof AuthenticatedDashboardAlertsRulesRoute
   '/alerts/silences': typeof AuthenticatedDashboardAlertsSilencesRoute
   '/alerts/triage': typeof AuthenticatedDashboardAlertsTriageRoute
@@ -727,8 +727,8 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/_padded/repos': typeof AuthenticatedDashboardPaddedReposRoute
   '/_authenticated/_dashboard/_padded/tests-overview': typeof AuthenticatedDashboardPaddedTestsOverviewRoute
   '/_authenticated/_dashboard/_padded/users-management': typeof AuthenticatedDashboardPaddedUsersManagementRoute
+  '/_authenticated/_dashboard/alerts/delivery': typeof AuthenticatedDashboardAlertsDeliveryRoute
   '/_authenticated/_dashboard/alerts/history': typeof AuthenticatedDashboardAlertsHistoryRoute
-  '/_authenticated/_dashboard/alerts/routing': typeof AuthenticatedDashboardAlertsRoutingRoute
   '/_authenticated/_dashboard/alerts/rules': typeof AuthenticatedDashboardAlertsRulesRoute
   '/_authenticated/_dashboard/alerts/silences': typeof AuthenticatedDashboardAlertsSilencesRoute
   '/_authenticated/_dashboard/alerts/triage': typeof AuthenticatedDashboardAlertsTriageRoute
@@ -805,8 +805,8 @@ export interface FileRouteTypes {
     | '/repos'
     | '/tests-overview'
     | '/users-management'
+    | '/alerts/delivery'
     | '/alerts/history'
-    | '/alerts/routing'
     | '/alerts/rules'
     | '/alerts/silences'
     | '/alerts/triage'
@@ -877,8 +877,8 @@ export interface FileRouteTypes {
     | '/repos'
     | '/tests-overview'
     | '/users-management'
+    | '/alerts/delivery'
     | '/alerts/history'
-    | '/alerts/routing'
     | '/alerts/rules'
     | '/alerts/silences'
     | '/alerts/triage'
@@ -958,8 +958,8 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/_padded/repos'
     | '/_authenticated/_dashboard/_padded/tests-overview'
     | '/_authenticated/_dashboard/_padded/users-management'
+    | '/_authenticated/_dashboard/alerts/delivery'
     | '/_authenticated/_dashboard/alerts/history'
-    | '/_authenticated/_dashboard/alerts/routing'
     | '/_authenticated/_dashboard/alerts/rules'
     | '/_authenticated/_dashboard/alerts/silences'
     | '/_authenticated/_dashboard/alerts/triage'
@@ -1329,18 +1329,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardAlertsRulesRouteImport
       parentRoute: typeof AuthenticatedDashboardAlertsRoute
     }
-    '/_authenticated/_dashboard/alerts/routing': {
-      id: '/_authenticated/_dashboard/alerts/routing'
-      path: '/routing'
-      fullPath: '/alerts/routing'
-      preLoaderRoute: typeof AuthenticatedDashboardAlertsRoutingRouteImport
-      parentRoute: typeof AuthenticatedDashboardAlertsRoute
-    }
     '/_authenticated/_dashboard/alerts/history': {
       id: '/_authenticated/_dashboard/alerts/history'
       path: '/history'
       fullPath: '/alerts/history'
       preLoaderRoute: typeof AuthenticatedDashboardAlertsHistoryRouteImport
+      parentRoute: typeof AuthenticatedDashboardAlertsRoute
+    }
+    '/_authenticated/_dashboard/alerts/delivery': {
+      id: '/_authenticated/_dashboard/alerts/delivery'
+      path: '/delivery'
+      fullPath: '/alerts/delivery'
+      preLoaderRoute: typeof AuthenticatedDashboardAlertsDeliveryRouteImport
       parentRoute: typeof AuthenticatedDashboardAlertsRoute
     }
     '/_authenticated/_dashboard/_padded/users-management': {
@@ -1736,8 +1736,8 @@ const AuthenticatedDashboardPreviewableRouteWithChildren =
   )
 
 interface AuthenticatedDashboardAlertsRouteChildren {
+  AuthenticatedDashboardAlertsDeliveryRoute: typeof AuthenticatedDashboardAlertsDeliveryRoute
   AuthenticatedDashboardAlertsHistoryRoute: typeof AuthenticatedDashboardAlertsHistoryRoute
-  AuthenticatedDashboardAlertsRoutingRoute: typeof AuthenticatedDashboardAlertsRoutingRoute
   AuthenticatedDashboardAlertsRulesRoute: typeof AuthenticatedDashboardAlertsRulesRoute
   AuthenticatedDashboardAlertsSilencesRoute: typeof AuthenticatedDashboardAlertsSilencesRoute
   AuthenticatedDashboardAlertsTriageRoute: typeof AuthenticatedDashboardAlertsTriageRoute
@@ -1747,10 +1747,10 @@ interface AuthenticatedDashboardAlertsRouteChildren {
 
 const AuthenticatedDashboardAlertsRouteChildren: AuthenticatedDashboardAlertsRouteChildren =
   {
+    AuthenticatedDashboardAlertsDeliveryRoute:
+      AuthenticatedDashboardAlertsDeliveryRoute,
     AuthenticatedDashboardAlertsHistoryRoute:
       AuthenticatedDashboardAlertsHistoryRoute,
-    AuthenticatedDashboardAlertsRoutingRoute:
-      AuthenticatedDashboardAlertsRoutingRoute,
     AuthenticatedDashboardAlertsRulesRoute:
       AuthenticatedDashboardAlertsRulesRoute,
     AuthenticatedDashboardAlertsSilencesRoute:
