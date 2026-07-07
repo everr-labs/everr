@@ -390,4 +390,105 @@ describe("AlertEventFeed", () => {
     expect(screen.queryByText("gamma")).not.toBeInTheDocument();
     expect(screen.queryByText("delta")).not.toBeInTheDocument();
   });
+
+  it("hideRuleColumns drops the Severity and Rule columns and the severity filter", () => {
+    mockUseQuery.mockReturnValue({
+      data: [historyRow({ slug: "beta" })],
+      isPending: false,
+      isError: false,
+      error: null,
+    });
+
+    render(<AlertEventFeed hideRuleColumns />);
+
+    expect(
+      screen.queryByRole("columnheader", { name: "Severity" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("columnheader", { name: "Rule" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("combobox", { name: "Severity" }),
+    ).not.toBeInTheDocument();
+    // The row's own slug ("beta") no longer renders anywhere: it was the
+    // Rule column's content.
+    expect(screen.queryByText("beta")).not.toBeInTheDocument();
+    // Type filter and pause/clear survive: a scoped feed still narrows by
+    // event kind and can be paused.
+    expect(
+      screen.getByRole("combobox", { name: "Event type" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /pause/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /clear live/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the full column set (including Severity and Rule) without hideRuleColumns", () => {
+    mockUseQuery.mockReturnValue({
+      data: [historyRow({ slug: "beta" })],
+      isPending: false,
+      isError: false,
+      error: null,
+    });
+
+    render(<AlertEventFeed />);
+
+    expect(
+      screen.getByRole("columnheader", { name: "Severity" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("columnheader", { name: "Rule" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("combobox", { name: "Severity" }),
+    ).toBeInTheDocument();
+  });
+
+  it("falls back to the rule's severity for a fire/resolve transition whose own severity is a stored-history gap", () => {
+    mockUseQuery.mockReturnValue({
+      data: [
+        historyRow({
+          slug: "beta",
+          eventType: "instance_fired",
+          severity: "", // CC doesn't stamp alert.severity on stored records yet
+        }),
+      ],
+      isPending: false,
+      isError: false,
+      error: null,
+    });
+
+    render(
+      <AlertEventFeed
+        resolveRuleSeverity={(handle) =>
+          handle === "beta" ? "critical" : undefined
+        }
+      />,
+    );
+
+    expect(screen.getByText("critical")).toBeInTheDocument();
+  });
+
+  it('leaves a genuine data gap as "—" for a non-transition event kind, even with resolveRuleSeverity available', () => {
+    mockUseQuery.mockReturnValue({
+      data: [
+        historyRow({
+          slug: "beta",
+          eventType: "delivery",
+          severity: "",
+        }),
+      ],
+      isPending: false,
+      isError: false,
+      error: null,
+    });
+
+    render(<AlertEventFeed resolveRuleSeverity={() => "critical"} />);
+
+    // A delivery record carries no status, so it isn't a fire/resolve
+    // transition: no rule-severity fallback applies, and the gap is real.
+    expect(screen.queryByText("critical")).not.toBeInTheDocument();
+    expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+  });
 });

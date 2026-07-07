@@ -35,19 +35,33 @@ function CcHistoryPage() {
   const rules = useQuery(rulesQuery());
 
   // Event rows carry a rule handle: the slug (everr.name) when CC knows it,
-  // otherwise the bare rule id. Resolve both to the rule's display name; an
-  // unknown handle renders as-is.
-  const resolveRuleName = useMemo(() => {
-    const byHandle = new Map<string, string>();
+  // otherwise the bare rule id. Resolve both to the rule's display name and
+  // (for events whose own severity is a genuine stored-history gap) its
+  // severity; an unknown handle renders as-is.
+  const { resolveRuleName, resolveRuleSeverity } = useMemo(() => {
+    const nameByHandle = new Map<string, string>();
+    const severityByHandle = new Map<string, string>();
     for (const rule of rules.data ?? []) {
       const view = fromCcRuleSpec(rule.spec);
       const name = view.displayName || view.slug;
-      if (!name) continue;
-      byHandle.set(rule.id, name);
-      if (view.slug) byHandle.set(view.slug, name);
+      if (name) {
+        nameByHandle.set(rule.id, name);
+        if (view.slug) nameByHandle.set(view.slug, name);
+      }
+      severityByHandle.set(rule.id, rule.spec.severity);
+      if (view.slug) severityByHandle.set(view.slug, rule.spec.severity);
     }
-    return (handle: string) => byHandle.get(handle) ?? handle;
+    return {
+      resolveRuleName: (handle: string) => nameByHandle.get(handle) ?? handle,
+      resolveRuleSeverity: (handle: string) => severityByHandle.get(handle),
+    };
   }, [rules.data]);
 
-  return <AlertEventFeed showTypeLens resolveRuleName={resolveRuleName} />;
+  return (
+    <AlertEventFeed
+      showTypeLens
+      resolveRuleName={resolveRuleName}
+      resolveRuleSeverity={resolveRuleSeverity}
+    />
+  );
 }

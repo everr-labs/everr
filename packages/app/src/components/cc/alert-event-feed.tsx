@@ -95,7 +95,9 @@ export function AlertEventFeed({
   scopeSlug,
   className,
   showTypeLens = false,
+  hideRuleColumns = false,
   resolveRuleName,
+  resolveRuleSeverity,
 }: {
   /**
    * Scope the feed to one rule. Event rows carry the rule's slug when CC
@@ -107,10 +109,25 @@ export function AlertEventFeed({
   /** Render the coarse All/Transitions/Deliveries/Silence-audits lens. */
   showTypeLens?: boolean;
   /**
+   * Drop the Severity and Rule columns and the severity filter. Every row in
+   * a single-rule scoped feed shares the same rule, so those columns are
+   * constant noise; callers scoping to one rule (e.g. the rule detail page)
+   * pass this.
+   */
+  hideRuleColumns?: boolean;
+  /**
    * Map a row's rule handle (slug or bare rule id) to a display name. Rows the
    * resolver leaves unchanged render the handle as before.
    */
   resolveRuleName?: (handle: string) => string;
+  /**
+   * Map a row's rule handle to that rule's severity, used when the event
+   * itself carries none. Stored history doesn't stamp `alert.severity` on
+   * every event kind yet, so this only backs the events a rule's severity
+   * actually describes (fire/resolve transitions, via `status`); other kinds
+   * still render "—" for severity.
+   */
+  resolveRuleSeverity?: (handle: string) => string | undefined;
 }) {
   const { events, connected, clear, setPaused } = useCcEvents();
   const [paused, setLocalPaused] = useState(false);
@@ -140,6 +157,18 @@ export function AlertEventFeed({
     return merged.filter((e) => handles.has(e.rule));
   }, [merged, scopeSlug]);
 
+  // Stored history doesn't stamp severity on every event kind yet (see
+  // AlertEventLogRow.severity), so a fire/resolve transition missing its own
+  // severity falls back to its rule's — `status` is only set on transitions,
+  // so other event kinds (delivery, rule health, silence audits) are left as
+  // a genuine gap and still render "—".
+  const eventSeverity = useMemo(
+    () => (e: CcUnifiedEvent) =>
+      e.severity ??
+      (e.status !== null ? (resolveRuleSeverity?.(e.rule) ?? null) : null),
+    [resolveRuleSeverity],
+  );
+
   // Lens, event-type, and severity compose with AND: each narrows
   // independently of the others ("all" is a no-op filter on that axis).
   const lensTypes = TYPE_LENSES.find((l) => l.key === typeLens)?.types ?? null;
@@ -152,11 +181,11 @@ export function AlertEventFeed({
             (lensTypes as readonly string[]).includes(e.eventType),
         )
         .filter((e) => eventType === "all" || e.eventType === eventType)
-        .filter((e) => severity === "all" || e.severity === severity),
-    [scoped, lensTypes, eventType, severity],
+        .filter((e) => severity === "all" || eventSeverity(e) === severity),
+    [scoped, lensTypes, eventType, severity, eventSeverity],
   );
 
-  const columns: Column<CcUnifiedEvent>[] = [
+  const allColumns: Column<CcUnifiedEvent>[] = [
     {
       header: "Time",
       cell: (e) => (
@@ -192,12 +221,14 @@ export function AlertEventFeed({
     },
     {
       header: "Severity",
-      cell: (e) =>
-        e.severity ? (
-          <CcSeverityBadge severity={e.severity} />
+      cell: (e) => {
+        const severity = eventSeverity(e);
+        return severity ? (
+          <CcSeverityBadge severity={severity} />
         ) : (
           <span className="text-xs text-muted-foreground">—</span>
-        ),
+        );
+      },
     },
     {
       header: "Labels",
@@ -226,6 +257,12 @@ export function AlertEventFeed({
       },
     },
   ];
+
+  // A feed scoped to one rule shows the same rule and (once resolved) the
+  // same severity on every row: constant noise, so hideRuleColumns drops both.
+  const columns = hideRuleColumns
+    ? allColumns.filter((c) => c.header !== "Severity" && c.header !== "Rule")
+    : allColumns;
 
   return (
     <Card inset="flush-content" className={className}>
@@ -258,22 +295,24 @@ export function AlertEventFeed({
                 <SelectItem value="silenced">Silenced</SelectItem>
               </SelectContent>
             </Select>
-            <Select
-              value={severity}
-              onValueChange={(v) => setSeverity(v ?? "all")}
-            >
-              <SelectTrigger size="sm" className="w-36" aria-label="Severity">
-                <SelectValue>
-                  {(v) => SEVERITY_LABELS[v as string] ?? "All severities"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All severities</SelectItem>
-                <SelectItem value="info">Info</SelectItem>
-                <SelectItem value="warning">Warning</SelectItem>
-                <SelectItem value="critical">Critical</SelectItem>
-              </SelectContent>
-            </Select>
+            {!hideRuleColumns && (
+              <Select
+                value={severity}
+                onValueChange={(v) => setSeverity(v ?? "all")}
+              >
+                <SelectTrigger size="sm" className="w-36" aria-label="Severity">
+                  <SelectValue>
+                    {(v) => SEVERITY_LABELS[v as string] ?? "All severities"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All severities</SelectItem>
+                  <SelectItem value="info">Info</SelectItem>
+                  <SelectItem value="warning">Warning</SelectItem>
+                  <SelectItem value="critical">Critical</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
             <Button
               variant="outline"
               size="sm"

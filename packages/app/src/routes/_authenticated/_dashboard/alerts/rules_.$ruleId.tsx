@@ -398,19 +398,31 @@ function CcRuleDetailPage() {
             <dl className="flex flex-wrap gap-x-6 gap-y-1 px-3 pb-2">
               {(
                 [
-                  ["Last fired", ccFormatTs(r.rollup.last_fired_at)],
-                  ["Last resolved", ccFormatTs(r.rollup.last_resolved_at)],
-                  ["Last seen", ccFormatTs(r.rollup.last_seen_at)],
-                  ["Last row count", String(r.rollup.last_row_count ?? "—")],
+                  ["Last fired", r.rollup.last_fired_at],
+                  ["Last resolved", r.rollup.last_resolved_at],
+                  ["Last seen", r.rollup.last_seen_at],
                 ] as const
-              ).map(([label, value]) => (
+              ).map(([label, ts]) => (
                 <div key={label} className="flex items-baseline gap-1.5">
                   <dt className="text-[0.625rem] font-medium tracking-wide text-muted-foreground uppercase">
                     {label}
                   </dt>
-                  <dd className="font-mono text-xs tabular-nums">{value}</dd>
+                  <dd
+                    className="font-mono text-xs tabular-nums"
+                    title={ccFormatTs(ts)}
+                  >
+                    {ts ? formatRelativeTime(ts) : "—"}
+                  </dd>
                 </div>
               ))}
+              <div className="flex items-baseline gap-1.5">
+                <dt className="text-[0.625rem] font-medium tracking-wide text-muted-foreground uppercase">
+                  Last row count
+                </dt>
+                <dd className="font-mono text-xs tabular-nums">
+                  {String(r.rollup.last_row_count ?? "—")}
+                </dd>
+              </div>
             </dl>
           )}
           {alerts.isPending ? (
@@ -435,8 +447,12 @@ function CcRuleDetailPage() {
 
       <AlertEventFeed
         scopeSlug={scopeHandles}
+        hideRuleColumns
         resolveRuleName={(handle) =>
           scopeHandles.includes(handle) ? identity.name : handle
+        }
+        resolveRuleSeverity={(handle) =>
+          scopeHandles.includes(handle) ? r.spec.severity : undefined
         }
       />
 

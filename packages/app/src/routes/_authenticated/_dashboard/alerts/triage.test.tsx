@@ -401,6 +401,52 @@ describe("/alerts/triage route", () => {
     ).toHaveAttribute("aria-expanded", "true");
   });
 
+  it("shows recent transitions as relative time with the absolute timestamp in a title", async () => {
+    // eventRow() defaults to a stored transition one minute in the past.
+    const user = userEvent.setup();
+    renderTriageRoute();
+
+    await expandRowByLabel(user, "web-1");
+
+    const relative = await screen.findByText("1m ago");
+    // Live surfaces read relative; the absolute datetime is still available,
+    // parked in the title (same idiom as the row's "since" cell).
+    expect(relative.getAttribute("title")).toMatch(/\d{4}/);
+    expect(relative.getAttribute("title")).not.toBe("1m ago");
+  });
+
+  it('labels the triage value column with the rule\'s value_column, falling back to "value"', async () => {
+    mocks.listCcRules.mockResolvedValue([
+      ccRule(), // value_column: null -> falls back to "value"
+      ccRule({
+        id: "rule-2",
+        spec: {
+          ...ccRule().spec,
+          value_column: "val",
+          severity: "warning",
+          annotations: { "everr.name": "api-errors" },
+        },
+      }),
+    ]);
+    mocks.listCcAlerts.mockResolvedValue([
+      ccAlert(),
+      ccAlert({
+        key: "fp-3",
+        rule: "rule-2",
+        labels: { svc: "api" },
+        value: 7,
+      }),
+    ]);
+    // The seeded silence matches svc=api, which would hide rule-2's instance
+    // under the default Firing lens; not what this test is about.
+    mocks.listCcSilences.mockResolvedValue([]);
+
+    renderTriageRoute();
+
+    expect(await screen.findByText("value")).toBeInTheDocument();
+    expect(screen.getByText("val")).toBeInTheDocument();
+  });
+
   it("creates a rule-scoped silence from the row actions", async () => {
     const user = userEvent.setup();
     renderTriageRoute();

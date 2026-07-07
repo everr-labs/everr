@@ -398,6 +398,18 @@ describe("/alerts/delivery advanced disclosure", () => {
       screen.getByRole("button", { name: "New inhibition" }),
     ).toBeInTheDocument();
   });
+
+  it("carries no invented pro-tier label; the summary alone describes its contents", async () => {
+    renderDeliveryRoute();
+    await screen.findByText("no match");
+
+    // The trigger's own summary already says what's inside; there's no tier
+    // to gate it behind.
+    expect(
+      screen.getByText("inhibitions · firehose subscriptions"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/^pro$/i)).not.toBeInTheDocument();
+  });
 });
 
 describe("/alerts/delivery channels section", () => {

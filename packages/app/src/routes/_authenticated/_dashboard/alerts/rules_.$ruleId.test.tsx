@@ -210,12 +210,37 @@ describe("/alerts/rules/$ruleId", () => {
     expect(screen.getByText("firing")).toBeInTheDocument();
     expect(screen.getByTestId("event-feed")).toBeInTheDocument();
     expect(mocks.feedProps).toHaveBeenCalledWith(
-      expect.objectContaining({ scopeSlug: [RULE_ID, "flapping"] }),
+      expect.objectContaining({
+        scopeSlug: [RULE_ID, "flapping"],
+        // Scoped to one rule: the feed's own Severity/Rule columns and
+        // severity filter would be constant noise, so the detail page hides
+        // them and hands the feed this rule's severity as a fallback.
+        hideRuleColumns: true,
+        resolveRuleSeverity: expect.any(Function),
+      }),
     );
 
     // Is it healthy + Try it are present.
     expect(screen.getByText("Is it healthy")).toBeInTheDocument();
     expect(screen.getByText("Try it")).toBeInTheDocument();
+  });
+
+  it("shows the rollup strip as relative time with the absolute datetime in a title", async () => {
+    renderRuleDetail();
+    await screen.findByRole("heading", { name: "Flapping Detector" });
+
+    const lastFiredLabel = screen.getByText("Last fired");
+    const lastFiredValue = lastFiredLabel.nextElementSibling as HTMLElement;
+    // Relative, matching the instances table's "just now"/"Xm ago" idiom...
+    expect(lastFiredValue.textContent).toMatch(/ago$/);
+    // ...with the absolute datetime still reachable via title.
+    expect(lastFiredValue.getAttribute("title")).toMatch(/\d{4}/);
+    expect(lastFiredValue.getAttribute("title")).not.toBe(
+      lastFiredValue.textContent,
+    );
+
+    // Last row count is a plain count, not a timestamp: untouched.
+    expect(screen.getByText("5")).toBeInTheDocument();
   });
 
   it("collapses the SQL behind a disclosure", async () => {

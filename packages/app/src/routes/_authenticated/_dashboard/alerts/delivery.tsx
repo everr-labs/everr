@@ -1002,9 +1002,6 @@ function CcDeliveryPage() {
           <span className="text-xs text-muted-foreground">
             inhibitions · firehose subscriptions
           </span>
-          <span className="ml-auto rounded border border-border px-1 py-px text-[0.625rem] font-medium tracking-wide text-muted-foreground uppercase">
-            pro
-          </span>
         </CollapsibleTrigger>
         <CollapsibleContent>
           <div className="space-y-3 pt-3">

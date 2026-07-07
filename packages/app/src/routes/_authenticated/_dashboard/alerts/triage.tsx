@@ -318,8 +318,11 @@ function InstanceDetail({
                 <span className="w-14 text-muted-foreground">
                   {e.status ?? e.eventType}
                 </span>
-                <span className="text-muted-foreground/80">
-                  {ccFormatTs(e.ts)}
+                <span
+                  className="text-muted-foreground/80"
+                  title={ccFormatTs(e.ts)}
+                >
+                  {formatRelativeTime(e.ts)}
                 </span>
               </li>
             ))}
@@ -723,6 +726,16 @@ function CcTriagePage() {
                       {group.instances.length}{" "}
                       {group.instances.length === 1 ? "instance" : "instances"}
                     </span>
+                  </div>
+                  <div className="flex items-center gap-3 px-3 pb-0.5 text-[0.625rem] font-medium tracking-wide text-muted-foreground/70 uppercase">
+                    <span className="size-5 shrink-0" />
+                    <span className="w-16 shrink-0" />
+                    <span className="min-w-0 flex-1" />
+                    <span className="w-16 shrink-0 text-right">
+                      {group.rule?.spec.value_column || "value"}
+                    </span>
+                    <span className="w-24 shrink-0" />
+                    <span className="w-56 shrink-0" />
                   </div>
                   {group.instances.map((inst) => (
                     <InstanceRow
