@@ -64,13 +64,13 @@ display:
 | --- | --- | --- |
 | `kind` | `"Panel"` | Required. |
 | `spec.display` | [Display](#display) | `name` shown as the panel title. |
-| `spec.plugin.kind` | string | Visualization kind. See [Visualizations](/docs/dashboards/visualizations). |
+| `spec.plugin.kind` | string | Visualization kind. See [Visualizations](/docs/reference/visualizations). |
 | `spec.plugin.spec` | object | Visualization options. |
 | `spec.queries` | [PanelQuery] | Optional list. Each query's SQL is at `spec.plugin.spec.query`; query `kind` is `ClickHouseSQL`. |
 
 ### Query parameters
 
-Every dashboard query — panel queries and variable [options queries](/docs/dashboards/variables) alike — is run with these ClickHouse parameters bound. They are always provided (referencing them never errors, and unreferenced parameters are ignored), but they are **not** injected into the SQL — the query must reference them. Usage guide: [Time range and variables](/docs/dashboards/panels-and-visualizations#time-range-and-variables).
+Every dashboard query — panel queries and variable [options queries](/docs/reference/variables) alike — is run with these ClickHouse parameters bound. They are always provided (referencing them never errors, and unreferenced parameters are ignored), but they are **not** injected into the SQL — the query must reference them. Usage guide: [Time range parameters](/docs/reference/visualizations#time-range-parameters).
 
 | Parameter | Value |
 | --- | --- |
@@ -101,7 +101,7 @@ layouts:
 
 ### Variables
 
-A discriminated union on `kind`. Full guide: [Variables](/docs/dashboards/variables).
+A discriminated union on `kind`. Full guide: [Variables](/docs/reference/variables).
 
 `TextVariable`:
 
@@ -152,4 +152,4 @@ When a dashboard defines `duration` and/or `refreshInterval`, Everr seeds the UR
 
 ## Compatibility boundaries
 
-The format mirrors Perses so files stay portable, but a few fields are accepted without runtime behavior in Everr today: `datasources`, variable `capturingRegexp`, and variable chaining/aliases (see [Variables → Not supported](/docs/dashboards/variables#not-supported)). The only query plugin executed is `ClickHouseSQL`.
+The format mirrors Perses so files stay portable, but a few fields are accepted without runtime behavior in Everr today: `datasources`, variable `capturingRegexp`, and variable chaining/aliases (see [Variables → Not supported](/docs/reference/variables#not-supported)). The only query plugin executed is `ClickHouseSQL`.

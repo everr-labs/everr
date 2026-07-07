@@ -1,0 +1,33 @@
+---
+title: Set up alert notifications
+description: Configure Slack or Telegram channels for alert notifications, set in the app and applied org-wide.
+---
+
+In Everr, open **Alerts → Notification settings**, enable a channel, add a recipient. Channels are app config (not code) and apply org-wide.
+
+Each evaluation sends one notification summarizing all instance changes. Telegram and Slack are supported; an enabled channel needs at least one recipient before you can save.
+
+## Send to Telegram
+
+1. Create a bot and get its token via Telegram's [BotFather guide](https://core.telegram.org/bots/features#botfather).
+2. Find the target chat ID — either add the bot to the chat and read the ID from the Telegram Bot API [`getUpdates`](https://core.telegram.org/bots/api#getupdates) response, or open the channel or group in the [Telegram web app](https://web.telegram.org) and copy the `-100…` value from the URL (for channels and supergroups, that value is the chat ID).
+3. In notification settings, enable **Telegram** and add an entry: paste the **bot token**, the **chat ID**, and an optional **name**.
+4. Save.
+
+Entries are immutable — add or delete, no in-place edit. The bot token is write-only: after saving, Everr never shows it again, so to rotate it, delete the entry and add a new one. The chat ID stays visible.
+
+## Send to Slack
+
+1. Open the [Slack app dashboard](https://api.slack.com/apps) and select the app that should post alerts.
+2. Go to **Incoming Webhooks** and turn on **Activate Incoming Webhooks** if needed.
+3. Click **Add New Webhook to Workspace**, choose the channel, and authorize the app.
+4. Copy the `https://hooks.slack.com/services/...` URL from **Webhook URLs for Your Workspace**, paste it into the Everr alerts notification settings, and give it an optional name so you can remember which channel it targets.
+5. Save.
+
+Each webhook posts to one Slack channel and receives every alert notification for the org. Webhook URLs are write-only: after saving, Everr never shows the URL again — to change one, delete it and add a new one.
+
+## Silence during maintenance
+
+To stop notifications for a known issue or maintenance window without deleting the rule, open the alert's detail page, use the **Silence** action on a firing instance, and set a time window. The rule keeps evaluating; silenced instances are filtered out of notifications. If all instances are silenced, no notification is sent.
+
+For when notifications fire, see [How alerts work](/docs/concepts/how-alerts-work).

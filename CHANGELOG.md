@@ -32,7 +32,7 @@ Introduced a new [MCP server](/docs/reference/mcp) at `/mcp` with a `query` tool
 
 ### CI Runs Explorer
 
-- Runs page rebuilt as a filter-driven [explorer](/docs/ci-insights/debug-ci) with infinite scroll. Repository filter in the topbar with a "Your runs" toggle.
+- Runs page rebuilt as a filter-driven [explorer](/docs/guides/debug-ci) with infinite scroll. Repository filter in the topbar with a "Your runs" toggle.
 - Runs explorer is now a shared component used in both the web app and desktop app.
 - Workflows list page removed; workflow names link directly to their detail views.
 

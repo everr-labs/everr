@@ -3,7 +3,7 @@ title: How CI cost is estimated
 description: How Everr estimates what your GitHub Actions runs cost you.
 ---
 
-Everr estimates what your GitHub Actions runs cost you, so you can see where CI time and spend go. It's an estimate from runner usage, not a bill; this page explains the per-job model behind it. To find and fix expensive CI, see [Cost Analysis](/docs/ci-insights/cost-analysis).
+CI cost is estimated **per job**: runner minutes, rounded up, times the runner type's per-minute rate. It is an estimate from runner usage, not a bill. To find and fix expensive CI, see [Cost Analysis](/docs/guides/cost-analysis).
 
 ## Cost is per job, not per workflow
 
