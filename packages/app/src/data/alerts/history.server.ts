@@ -147,6 +147,61 @@ export async function queryAlertHistory(
   }));
 }
 
+/**
+ * Distinct label keys alerts have actually carried (the keys of
+ * alert.instance_labels across stored CC events), most frequent first. Backs
+ * the matcher editors' key suggestions. Row-level security pins the tenant via
+ * SQL_everr_tenant_id, so this never filters by organization_id in SQL.
+ */
+export async function queryObservedLabelKeys(
+  clickhouse: ClickhouseQuery,
+  opts: { limit: number; fromISO: string; toISO: string },
+): Promise<string[]> {
+  const rows = await clickhouse<{ key: string }>(
+    `
+      SELECT arrayJoin(JSONExtractKeys(LogAttributes['alert.instance_labels'])) AS key
+      FROM app.logs
+      WHERE ServiceName = 'alert'
+        AND ScopeName = 'everr.alerting'
+        AND TimestampTime >= {fromTime:DateTime64(3)}
+        AND TimestampTime <= {toTime:DateTime64(3)}
+      GROUP BY key
+      ORDER BY count() DESC, key ASC
+      LIMIT {limit:UInt32}
+    `,
+    { fromTime: opts.fromISO, toTime: opts.toISO, limit: opts.limit },
+  );
+  return rows.map((r) => r.key);
+}
+
+/**
+ * Distinct values one label key has actually carried across stored CC events,
+ * most frequent first. Same tenancy story as queryObservedLabelKeys: the
+ * row-level policy handles it, never a SQL org filter.
+ */
+export async function queryObservedLabelValues(
+  clickhouse: ClickhouseQuery,
+  key: string,
+  opts: { limit: number; fromISO: string; toISO: string },
+): Promise<string[]> {
+  const rows = await clickhouse<{ value: string }>(
+    `
+      SELECT JSONExtractString(LogAttributes['alert.instance_labels'], {key:String}) AS value
+      FROM app.logs
+      WHERE ServiceName = 'alert'
+        AND ScopeName = 'everr.alerting'
+        AND TimestampTime >= {fromTime:DateTime64(3)}
+        AND TimestampTime <= {toTime:DateTime64(3)}
+        AND value != ''
+      GROUP BY value
+      ORDER BY count() DESC, value ASC
+      LIMIT {limit:UInt32}
+    `,
+    { key, fromTime: opts.fromISO, toTime: opts.toISO, limit: opts.limit },
+  );
+  return rows.map((r) => r.value);
+}
+
 // One row of the rule-agnostic alerting event log (all slugs, all event types).
 export type AlertEventLogRow = {
   timestamp: string;

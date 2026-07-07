@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CcMatcher, CcRoute } from "@/data/cc/types";
 import {
+  CC_SYNTHETIC_LABEL_KEYS,
   ccFirstRoute,
   ccMatcherMatches,
   ccMatchingSilence,
@@ -241,5 +242,17 @@ describe("ccMatchingSilence", () => {
     );
     expect(ccMatchingSilence(labels, [ruleScoped], now)).toBe(ruleScoped);
     expect(ccMatchingSilence({ team: "pay" }, [ruleScoped], now)).toBe(null);
+  });
+});
+
+describe("CC_SYNTHETIC_LABEL_KEYS", () => {
+  it("stays in lockstep with the keys ccSyntheticLabels injects", () => {
+    const injected = ccSyntheticLabels(
+      {},
+      { severity: "info", status: "firing", rule: "r-1" },
+    );
+    expect([...CC_SYNTHETIC_LABEL_KEYS].sort()).toEqual(
+      Object.keys(injected).sort(),
+    );
   });
 });

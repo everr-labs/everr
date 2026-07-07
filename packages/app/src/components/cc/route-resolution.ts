@@ -59,6 +59,18 @@ export function ccFirstRoute(
 }
 
 /**
+ * The synthetic label keys the dispatcher injects, in CC's own order
+ * (dispatcher/routing.rs `synthetic_labels`). The one list every suggestion
+ * surface reads, so it cannot drift from ccSyntheticLabels below.
+ */
+export const CC_SYNTHETIC_LABEL_KEYS = [
+  "severity",
+  "status",
+  "rule",
+  "kind",
+] as const;
+
+/**
  * The label set CC's dispatcher actually matches routes/silences/inhibitions
  * against (dispatcher/routing.rs `synthetic_labels`): the instance's own labels
  * plus synthetic `severity`/`status`/`rule`/`kind`, synthetics winning on
