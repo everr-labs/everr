@@ -2,12 +2,9 @@
   "title": "Guides",
   "defaultOpen": true,
   "pages": [
-    "---Observability---",
     "publishing-resources",
-    "monitor-http-traffic",
     "writing-good-alerts",
     "link-alerts-to-runbooks",
-    "track-infra-health",
     "set-up-notifications",
     "---CI---",
     "setup-new-repo",
