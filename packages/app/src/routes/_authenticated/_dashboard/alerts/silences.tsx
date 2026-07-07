@@ -7,13 +7,6 @@ import {
   CardTitle,
 } from "@everr/ui/components/card";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@everr/ui/components/dialog";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
 import {
@@ -26,6 +19,7 @@ import { createFileRoute, useLocation } from "@tanstack/react-router";
 import { BellOff, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { CcDrawer } from "@/components/cc/cc-drawer";
 import { MatchersEditor } from "@/components/cc/matchers-editor";
 import {
   CcConceptNote,
@@ -272,49 +266,12 @@ function CcSilencesPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>New silence</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <CcConceptNote>
-              Alerts whose labels match <em>all</em> of these matchers will be
-              muted for the window below. An empty matcher set matches every
-              alert.
-            </CcConceptNote>
-            <MatchersEditor value={matchers} onChange={setMatchers} />
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="silence-starts">Starts</Label>
-                <Input
-                  id="silence-starts"
-                  type="datetime-local"
-                  value={starts}
-                  onChange={(e) => setStarts(e.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="silence-ends">Ends</Label>
-                <Input
-                  id="silence-ends"
-                  type="datetime-local"
-                  value={ends}
-                  onChange={(e) => setEnds(e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="silence-comment">Comment</Label>
-              <Input
-                id="silence-comment"
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                placeholder="maintenance window"
-              />
-            </div>
-          </div>
-          <DialogFooter>
+      <CcDrawer
+        open={open}
+        onOpenChange={setOpen}
+        title="New silence"
+        footer={
+          <>
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
@@ -326,9 +283,44 @@ function CcSilencesPage() {
             >
               Create silence
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </>
+        }
+      >
+        <CcConceptNote>
+          Alerts whose labels match <em>all</em> of these matchers will be muted
+          for the window below. An empty matcher set matches every alert.
+        </CcConceptNote>
+        <MatchersEditor value={matchers} onChange={setMatchers} />
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="silence-starts">Starts</Label>
+            <Input
+              id="silence-starts"
+              type="datetime-local"
+              value={starts}
+              onChange={(e) => setStarts(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="silence-ends">Ends</Label>
+            <Input
+              id="silence-ends"
+              type="datetime-local"
+              value={ends}
+              onChange={(e) => setEnds(e.target.value)}
+            />
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="silence-comment">Comment</Label>
+          <Input
+            id="silence-comment"
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            placeholder="maintenance window"
+          />
+        </div>
+      </CcDrawer>
     </div>
   );
 }
