@@ -262,6 +262,92 @@ describe("AlertEventFeed", () => {
     expect(screen.queryByText("delta")).not.toBeInTheDocument();
   });
 
+  it("hides the type lens unless showTypeLens is set", () => {
+    render(<AlertEventFeed />);
+
+    expect(
+      screen.queryByRole("tablist", { name: "Event kind" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("type lens narrows to the lens's event types", async () => {
+    mockUseQuery.mockReturnValue({
+      data: [
+        historyRow({ slug: "beta", eventType: "instance_fired" }),
+        historyRow({ slug: "gamma", eventType: "instance_resolved" }),
+        historyRow({ slug: "delta", eventType: "delivery" }),
+        historyRow({ slug: "epsilon", eventType: "silenced" }),
+        historyRow({ slug: "zeta", eventType: "rule_health" }),
+      ],
+      isPending: false,
+      isError: false,
+      error: null,
+    });
+    const user = userEvent.setup();
+
+    render(<AlertEventFeed showTypeLens />);
+
+    await user.click(screen.getByRole("tab", { name: "Transitions" }));
+    expect(screen.getByText("beta")).toBeInTheDocument();
+    expect(screen.getByText("gamma")).toBeInTheDocument();
+    expect(screen.queryByText("delta")).not.toBeInTheDocument();
+    expect(screen.queryByText("epsilon")).not.toBeInTheDocument();
+    expect(screen.queryByText("zeta")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Deliveries" }));
+    expect(screen.getByText("delta")).toBeInTheDocument();
+    expect(screen.queryByText("beta")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Silence audits" }));
+    expect(screen.getByText("epsilon")).toBeInTheDocument();
+    expect(screen.queryByText("delta")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "All" }));
+    expect(screen.getByText("zeta")).toBeInTheDocument();
+  });
+
+  it("type lens composes AND with the fine event-type filter", async () => {
+    mockUseQuery.mockReturnValue({
+      data: [
+        historyRow({ slug: "beta", eventType: "instance_fired" }),
+        historyRow({ slug: "gamma", eventType: "instance_resolved" }),
+      ],
+      isPending: false,
+      isError: false,
+      error: null,
+    });
+    const user = userEvent.setup();
+
+    render(<AlertEventFeed showTypeLens />);
+
+    await user.click(screen.getByRole("tab", { name: "Transitions" }));
+    await user.click(screen.getByRole("combobox", { name: "Event type" }));
+    await user.click(await screen.findByRole("option", { name: "Resolved" }));
+
+    expect(screen.getByText("gamma")).toBeInTheDocument();
+    expect(screen.queryByText("beta")).not.toBeInTheDocument();
+  });
+
+  it("resolves rule handles to display names via resolveRuleName", () => {
+    mockUseQuery.mockReturnValue({
+      data: [historyRow({ slug: "beta" })],
+      isPending: false,
+      isError: false,
+      error: null,
+    });
+
+    render(
+      <AlertEventFeed
+        resolveRuleName={(handle) =>
+          handle === "beta" ? "Beta errors" : handle
+        }
+      />,
+    );
+
+    expect(screen.getByText("Beta errors")).toBeInTheDocument();
+    expect(screen.queryByText("beta")).not.toBeInTheDocument();
+  });
+
   it("composes the event-type filter with severity (AND)", async () => {
     mockUseQuery.mockReturnValue({
       data: [

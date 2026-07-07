@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@everr/ui/components/select";
 import type { TimeRange } from "@everr/ui/lib/time-range";
+import { cn } from "@everr/ui/lib/utils";
 import { queryOptions, useQuery } from "@tanstack/react-query";
 import { Pause, Play, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -66,6 +67,23 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
 
 const HISTORY_LIMIT = 200;
 
+// The coarse lens over the fine event-type filter: each entry names the
+// event_type values it admits (null = no narrowing). Real engine vocabulary
+// only — transitions are instance fire/resolve, deliveries are dispatcher
+// sends, silence audits are the dispatcher's silenced-drop records.
+const TYPE_LENSES = [
+  { key: "all", label: "All", types: null },
+  {
+    key: "transitions",
+    label: "Transitions",
+    types: ["instance_fired", "instance_resolved"],
+  },
+  { key: "deliveries", label: "Deliveries", types: ["delivery"] },
+  { key: "silence_audits", label: "Silence audits", types: ["silenced"] },
+] as const;
+
+type TypeLensKey = (typeof TYPE_LENSES)[number]["key"];
+
 export const ccEventHistoryQueryOptions = (timeRange: TimeRange) =>
   queryOptions({
     queryKey: ["cc", "event-history", timeRange],
@@ -76,14 +94,24 @@ export const ccEventHistoryQueryOptions = (timeRange: TimeRange) =>
 export function AlertEventFeed({
   scopeSlug,
   className,
+  showTypeLens = false,
+  resolveRuleName,
 }: {
   scopeSlug?: string;
   className?: string;
+  /** Render the coarse All/Transitions/Deliveries/Silence-audits lens. */
+  showTypeLens?: boolean;
+  /**
+   * Map a row's rule handle (slug or bare rule id) to a display name. Rows the
+   * resolver leaves unchanged render the handle as before.
+   */
+  resolveRuleName?: (handle: string) => string;
 }) {
   const { events, connected, clear, setPaused } = useCcEvents();
   const [paused, setLocalPaused] = useState(false);
   const [severity, setSeverity] = useState<string>("all");
   const [eventType, setEventType] = useState<string>("all");
+  const [typeLens, setTypeLens] = useState<TypeLensKey>("all");
   const { timeRange } = useTimeRange();
   const history = useQuery(ccEventHistoryQueryOptions(timeRange));
 
@@ -104,14 +132,20 @@ export function AlertEventFeed({
     [merged, scopeSlug],
   );
 
-  // Event-type and severity compose with AND: each narrows independently of
-  // the other ("all" is a no-op filter on that axis).
+  // Lens, event-type, and severity compose with AND: each narrows
+  // independently of the others ("all" is a no-op filter on that axis).
+  const lensTypes = TYPE_LENSES.find((l) => l.key === typeLens)?.types ?? null;
   const filtered = useMemo(
     () =>
       scoped
+        .filter(
+          (e) =>
+            lensTypes === null ||
+            (lensTypes as readonly string[]).includes(e.eventType),
+        )
         .filter((e) => eventType === "all" || e.eventType === eventType)
         .filter((e) => severity === "all" || e.severity === severity),
-    [scoped, eventType, severity],
+    [scoped, lensTypes, eventType, severity],
   );
 
   const columns: Column<CcUnifiedEvent>[] = [
@@ -171,14 +205,17 @@ export function AlertEventFeed({
     },
     {
       header: "Rule",
-      cell: (e) => (
-        <span
-          className="inline-block max-w-44 truncate align-bottom font-mono text-xs"
-          title={e.rule}
-        >
-          {e.rule}
-        </span>
-      ),
+      cell: (e) => {
+        const name = resolveRuleName ? resolveRuleName(e.rule) : e.rule;
+        return (
+          <span
+            className="inline-block max-w-44 truncate align-bottom font-mono text-xs"
+            title={name === e.rule ? e.rule : `${name} (${e.rule})`}
+          >
+            {name}
+          </span>
+        );
+      },
     },
   ];
 
@@ -258,6 +295,36 @@ export function AlertEventFeed({
         </CardAction>
       </CardHeader>
       <CardContent>
+        {showTypeLens && (
+          <div className="px-3 pb-3">
+            <div
+              role="tablist"
+              aria-label="Event kind"
+              className="inline-flex rounded-md border border-border bg-muted/20 p-0.5"
+            >
+              {TYPE_LENSES.map((lens) => {
+                const active = typeLens === lens.key;
+                return (
+                  <button
+                    key={lens.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setTypeLens(lens.key)}
+                    className={cn(
+                      "rounded-[0.3rem] px-3 py-1 text-xs font-medium outline-2 outline-dotted outline-transparent outline-offset-[-2px] transition-colors duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] focus-visible:outline-primary",
+                      active
+                        ? "bg-card text-foreground ring-1 ring-foreground/10"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {lens.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
         {history.isError && (
           <div className="px-3 pb-2 text-xs text-destructive">
             Stored history unavailable ({ccErrorMessage(history.error)}); the
