@@ -27,7 +27,7 @@
   ],
   // @everr/auto-otel-errors: referenced in docs/examples, not a build dep.
   // The two @opentelemetry/* entries are imported only by the OTel web SDK
-  // sample in content/docs/reference/browser-telemetry.mdx (the reader
+  // sample in content/docs/guides/browser-telemetry.mdx (the reader
   // installs them in their own app); they are not docs-site dependencies.
   "ignoreDependencies": [
     "@everr/auto-otel-errors",

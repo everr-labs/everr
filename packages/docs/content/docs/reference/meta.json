@@ -1,5 +1,5 @@
 {
   "title": "Reference",
   "defaultOpen": true,
-  "pages": ["cli", "production-telemetry", "browser-telemetry", "mcp", "skills", "datemath", "retention", "dashboard-spec", "visualizations", "variables", "alert-spec", "alert-queries", "runbook-spec"]
+  "pages": ["cli", "mcp", "skills", "datemath", "retention", "dashboard-spec", "visualizations", "variables", "alert-spec", "alert-queries", "runbook-spec"]
 }
