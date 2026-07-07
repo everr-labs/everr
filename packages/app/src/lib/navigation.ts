@@ -33,6 +33,7 @@ export const navMain: NavItem[] = [
     title: "Alerts",
     url: "/alerts/overview",
     icon: Zap,
+    isActive: true,
     items: [
       { title: "Overview", url: "/alerts/overview" },
       { title: "Monitor", url: "/alerts/monitor" },
