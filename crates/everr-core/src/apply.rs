@@ -317,10 +317,17 @@ fn git_output(dir: &Path, args: &[&str]) -> Option<String> {
     if s.is_empty() { None } else { Some(s) }
 }
 
+/// The `origin` remote URL of `dir`, when set. Cheaper than
+/// `detect_git_source` for callers that only need the remote (one git
+/// invocation instead of three).
+pub fn origin_remote(dir: &Path) -> Option<String> {
+    git_output(dir, &["remote", "get-url", "origin"])
+}
+
 pub fn detect_git_source(dir: &Path) -> Option<ApplySource> {
     let branch = git_output(dir, &["rev-parse", "--abbrev-ref", "HEAD"]);
     let commit_sha = git_output(dir, &["rev-parse", "HEAD"]);
-    let remote = git_output(dir, &["remote", "get-url", "origin"]);
+    let remote = origin_remote(dir);
     if branch.is_none() && commit_sha.is_none() && remote.is_none() {
         return None;
     }

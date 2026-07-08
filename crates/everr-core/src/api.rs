@@ -337,8 +337,7 @@ impl ApiClient {
         project: &str,
         slug: &str,
     ) -> Result<serde_json::Value> {
-        self.get(&format!("/resources/{kind}/{project}/{slug}"), &[])
-            .await
+        self.get(&resource_path(kind, project, slug), &[]).await
     }
 
     /// Send a request and return the response, mapping any non-2xx status to a
@@ -364,15 +363,11 @@ impl ApiClient {
         Ok(response)
     }
 
-    pub async fn delete_resource(
-        &self,
-        kind: &str,
-        project: &str,
-        slug: &str,
-    ) -> Result<()> {
+    pub async fn delete_resource(&self, kind: &str, project: &str, slug: &str) -> Result<()> {
         let request = self.http.delete(format!(
-            "{}/resources/{}/{}/{}",
-            self.base_endpoint, kind, project, slug
+            "{}{}",
+            self.base_endpoint,
+            resource_path(kind, project, slug)
         ));
         self.send_checked(request, "delete resource").await?;
         Ok(())
@@ -388,8 +383,9 @@ impl ApiClient {
         let request = self
             .http
             .post(format!(
-                "{}/resources/{}/{}/{}/adopt",
-                self.base_endpoint, kind, project, slug
+                "{}{}/adopt",
+                self.base_endpoint,
+                resource_path(kind, project, slug)
             ))
             .json(&serde_json::json!({ "repoid": repoid }));
         let response = self.send_checked(request, "adopt resource").await?;
@@ -448,6 +444,11 @@ impl ApiClient {
             .await
             .context("failed to decode CLI API response as JSON")
     }
+}
+
+/// The API path identifying one resource, shared by show/delete/adopt.
+fn resource_path(kind: &str, project: &str, slug: &str) -> String {
+    format!("/resources/{kind}/{project}/{slug}")
 }
 
 fn http_status_error(status: StatusCode, text: String, context: &str) -> anyhow::Error {

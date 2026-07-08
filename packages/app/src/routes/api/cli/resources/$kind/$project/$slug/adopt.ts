@@ -3,9 +3,8 @@ import { z } from "zod";
 import {
   adoptResource,
   isResourceKind,
-  notFoundResponse,
-  unknownKindResponse,
 } from "@/data/as-code/resource-admin.server";
+import { notFoundResponse, unknownKindResponse } from "../../../-responses";
 
 const BodySchema = z.object({ repoid: z.string().min(1) });
 
@@ -38,7 +37,7 @@ export const Route = createFileRoute(
           kind,
           project,
           slug,
-          repoid: result.repoid,
+          repoid: parsed.data.repoid,
           alreadyOwned: result.alreadyOwned,
         });
       },

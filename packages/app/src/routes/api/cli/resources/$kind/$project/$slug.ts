@@ -3,9 +3,8 @@ import {
   deleteResource,
   getResource,
   isResourceKind,
-  notFoundResponse,
-  unknownKindResponse,
 } from "@/data/as-code/resource-admin.server";
+import { notFoundResponse, unknownKindResponse } from "../../-responses";
 
 // Auth + org context comes from the parent `/api/cli` route
 // (requireOrgMiddleware); these are session-authenticated CLI endpoints.

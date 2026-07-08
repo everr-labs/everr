@@ -486,10 +486,11 @@ pub enum ResourcesSubcommand {
 
 impl ResourcesSubcommand {
     fn prints_human_stdout(&self, _stdout_is_terminal: bool) -> bool {
-        matches!(
-            self,
-            ResourcesSubcommand::Delete(_) | ResourcesSubcommand::Adopt(_)
-        )
+        match self {
+            ResourcesSubcommand::List(args) => !args.json,
+            ResourcesSubcommand::Show(args) => !args.json,
+            ResourcesSubcommand::Delete(_) | ResourcesSubcommand::Adopt(_) => true,
+        }
     }
 }
 

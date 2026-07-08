@@ -2,8 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import {
   isResourceKind,
   listResources,
-  unknownKindResponse,
 } from "@/data/as-code/resource-admin.server";
+import { unknownKindResponse } from "./resources/-responses";
 
 // Auth + org context comes from the parent `/api/cli` route
 // (requireOrgMiddleware): these are session-authenticated CLI endpoints, so the

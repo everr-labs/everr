@@ -1,6 +1,6 @@
 ---
 name: everr-setup-resources
-description: Use when creating, editing, or applying Everr as-code resources (dashboards, runbooks, alert rules), Perses-format dashboard YAML, panels, ClickHouse queries, ```panel blocks, AlertRule YAML, or the `everr apply` CLI.
+description: Use when creating, editing, applying, or inspecting Everr as-code resources (dashboards, runbooks, alert rules), Perses-format dashboard YAML, panels, ClickHouse queries, ```panel blocks, AlertRule YAML, or the `everr apply` and `everr resources` CLIs.
 ---
 
 ## Startup Access
@@ -64,6 +64,19 @@ everr apply ./everr               # prints the destination org, then asks to con
 Apply discovers all `.yaml`/`.yml` files under the directory, classifies them by `kind`, and reconciles creates, updates, and deletes. It is **declarative and delete-by-default within the `repoid`**: new files are created, changed files updated, removed files **deleted** (alerts are soft-deleted, history is preserved). This spans **all resource kinds**: the tree is the complete desired state for that repoid, so applying a dashboards-only directory also prunes runbooks and alerts previously applied under the same repoid. Never split one repoid across two apply directories. Re-applying with no changes prints `Nothing to apply.`
 
 In CI, set `EVERR_API_KEY` and pass `--yes`. Only deploy to production when the user is satisfied with the changes.
+
+## Inspecting Live Resources
+
+`everr resources` reads and manages what is live in the org. It requires an `everr cloud login` session (API keys are not accepted):
+
+```sh
+everr resources list [--kind dashboard|runbook|alert] [--repoid <id>] [--json]
+everr resources show <kind> <slug> [--project <p>] [--json]    # stored config, YAML by default
+everr resources delete <kind> <slug> [--yes]
+everr resources adopt <kind> <slug> [--yes]                    # take ownership for this repo
+```
+
+`--project` defaults to `default`. `list --repoid ""` shows UI-created resources. Use `delete` and `adopt` only for resources outside your apply tree (UI-created, or owned by another repo); anything in your tree is managed by `everr apply`.
 
 ## Common Mistakes
 

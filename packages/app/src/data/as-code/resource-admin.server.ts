@@ -1,4 +1,5 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, ne, or } from "drizzle-orm";
+import type { PgColumn } from "drizzle-orm/pg-core";
 import { db } from "@/db/client";
 import { alertDefinitions } from "@/db/schema/alerts";
 import { dashboards, runbooks } from "@/db/schema/app";
@@ -10,34 +11,32 @@ export function isResourceKind(value: string): value is ResourceKind {
   return (RESOURCE_KINDS as readonly string[]).includes(value);
 }
 
-/** 400 response for a `kind` path/query segment that is not a ResourceKind. */
-export function unknownKindResponse(kind: string): Response {
-  return Response.json(
-    {
-      error: `unknown kind "${kind}"; expected one of ${RESOURCE_KINDS.join(", ")}`,
-    },
-    { status: 400 },
-  );
-}
+/**
+ * The Drizzle table backing each kind, plus its soft-delete marker when it has
+ * one. Only `alertDefinitions` carries a legacy `deletedAt`, which the rest of
+ * the codebase always excludes when reading "live" alerts (see
+ * data/alerts/server.ts).
+ */
+const KIND_TABLES: Record<
+  ResourceKind,
+  { table: unknown; deletedAt?: PgColumn }
+> = {
+  dashboard: { table: dashboards },
+  runbook: { table: runbooks },
+  alert: { table: alertDefinitions, deletedAt: alertDefinitions.deletedAt },
+};
 
-/** 404 response for a resource that does not exist. */
-export function notFoundResponse(
-  kind: string,
-  project: string,
-  slug: string,
-): Response {
-  return Response.json(
-    { error: `resource not found: ${kind}/${project}/${slug}` },
-    { status: 404 },
-  );
-}
+// Drizzle infers a distinct row/table type per pgTable, so a value typed as
+// `PgTable` can't be passed straight into `.select().from()` without the
+// compiler losing track of column identity. The KIND_TABLES values are
+// structurally compatible (same column shapes) but TS won't unify the union;
+// this single localized cast at the query boundary keeps behavior identical
+// while satisfying the compiler.
+type LiveTable = typeof dashboards;
 
-/** The Drizzle table backing each kind. */
-const TABLE = {
-  dashboard: dashboards,
-  runbook: runbooks,
-  alert: alertDefinitions,
-} as const;
+function tableFor(kind: ResourceKind): LiveTable {
+  return KIND_TABLES[kind].table as LiveTable;
+}
 
 export interface ResourceSummary {
   kind: ResourceKind;
@@ -54,37 +53,28 @@ export interface ListFilters {
   repoid?: string;
 }
 
-// Drizzle infers a distinct row/table type per pgTable, so a value typed as
-// `PgTable` can't be passed straight into `.select().from()` without the
-// compiler losing track of column identity. The TABLE map's values are
-// structurally compatible (same column shapes) but TS won't unify the union;
-// a single localized cast at the query boundary keeps behavior identical while
-// satisfying the compiler.
-type LiveTable = typeof dashboards;
-
 /**
  * Conditions scoping a query to a live row of `kind`: the caller's org, not a
- * preview row, and — for alerts only — not soft-deleted. `alertDefinitions`
- * carries a legacy `deletedAt` marker that the rest of the codebase always
- * excludes when reading "live" alerts (see data/alerts/server.ts); the other
- * two kinds have no such column.
+ * preview row, and not soft-deleted (for kinds with a soft-delete marker).
  */
-function liveScope(kind: ResourceKind, table: LiveTable, orgId: string) {
+function liveScope(kind: ResourceKind, orgId: string) {
+  const table = tableFor(kind);
   const conds = [eq(table.organizationId, orgId), isNull(table.previewId)];
-  if (kind === "alert") conds.push(isNull(alertDefinitions.deletedAt));
+  const { deletedAt } = KIND_TABLES[kind];
+  if (deletedAt) conds.push(isNull(deletedAt));
   return conds;
 }
 
 /** The full `(org, live, project, slug)` identity match for one live row. */
 function scopedRow(
   kind: ResourceKind,
-  table: LiveTable,
   orgId: string,
   project: string,
   slug: string,
 ) {
+  const table = tableFor(kind);
   return and(
-    ...liveScope(kind, table, orgId),
+    ...liveScope(kind, orgId),
     eq(table.project, project),
     eq(table.slug, slug),
   );
@@ -95,8 +85,8 @@ async function listOneKind(
   kind: ResourceKind,
   repoid: string | undefined,
 ): Promise<ResourceSummary[]> {
-  const table = TABLE[kind] as LiveTable;
-  const conds = liveScope(kind, table, orgId);
+  const table = tableFor(kind);
+  const conds = liveScope(kind, orgId);
   if (repoid !== undefined) conds.push(eq(table.repoid, repoid));
   const rows = await db
     .select({
@@ -134,11 +124,11 @@ export async function getResource(
   project: string,
   slug: string,
 ): Promise<unknown | null> {
-  const table = TABLE[kind] as LiveTable;
+  const table = tableFor(kind);
   const [row] = await db
     .select({ document: table.document })
     .from(table)
-    .where(scopedRow(kind, table, orgId, project, slug))
+    .where(scopedRow(kind, orgId, project, slug))
     .limit(1);
   return row?.document ?? null;
 }
@@ -150,18 +140,15 @@ export async function deleteResource(
   project: string,
   slug: string,
 ): Promise<boolean> {
-  const table = TABLE[kind] as LiveTable;
-  const deleted = await db
-    .delete(table)
-    .where(scopedRow(kind, table, orgId, project, slug))
-    .returning({ slug: table.slug });
-  return deleted.length > 0;
+  const result = await db
+    .delete(tableFor(kind))
+    .where(scopedRow(kind, orgId, project, slug));
+  return (result.rowCount ?? 0) > 0;
 }
 
 export interface AdoptResult {
   found: boolean;
   alreadyOwned: boolean;
-  repoid: string;
 }
 
 /**
@@ -176,17 +163,21 @@ export async function adoptResource(
   slug: string,
   destRepoid: string,
 ): Promise<AdoptResult> {
-  const table = TABLE[kind] as LiveTable;
-  const where = scopedRow(kind, table, orgId, project, slug);
+  const table = tableFor(kind);
+  const where = scopedRow(kind, orgId, project, slug);
+  // Flip ownership in one statement; the ownership guard leaves 0 rows only
+  // for the rare not-found / already-owned cases, which the follow-up select
+  // disambiguates.
+  const updated = await db
+    .update(table)
+    .set({ repoid: destRepoid })
+    .where(and(where, or(isNull(table.repoid), ne(table.repoid, destRepoid))));
+  if ((updated.rowCount ?? 0) > 0) return { found: true, alreadyOwned: false };
   const [existing] = await db
     .select({ repoid: table.repoid })
     .from(table)
     .where(where)
     .limit(1);
-  if (!existing) return { found: false, alreadyOwned: false, repoid: "" };
-  if ((existing.repoid ?? "") === destRepoid) {
-    return { found: true, alreadyOwned: true, repoid: destRepoid };
-  }
-  await db.update(table).set({ repoid: destRepoid }).where(where);
-  return { found: true, alreadyOwned: false, repoid: destRepoid };
+  if (!existing) return { found: false, alreadyOwned: false };
+  return { found: true, alreadyOwned: true };
 }

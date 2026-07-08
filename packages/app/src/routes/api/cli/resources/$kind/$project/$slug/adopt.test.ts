@@ -44,11 +44,7 @@ beforeEach(() => vi.clearAllMocks());
 
 describe("POST .../adopt", () => {
   it("reassigns the repoid and reports the outcome", async () => {
-    mockedAdopt.mockResolvedValueOnce({
-      found: true,
-      alreadyOwned: false,
-      repoid: "github.com/acme/app",
-    });
+    mockedAdopt.mockResolvedValueOnce({ found: true, alreadyOwned: false });
     const res = await post({ repoid: "github.com/acme/app" }, rwCtx);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
@@ -68,22 +64,14 @@ describe("POST .../adopt", () => {
   });
 
   it("reports already-owned as a no-op success", async () => {
-    mockedAdopt.mockResolvedValueOnce({
-      found: true,
-      alreadyOwned: true,
-      repoid: "github.com/acme/app",
-    });
+    mockedAdopt.mockResolvedValueOnce({ found: true, alreadyOwned: true });
     const res = await post({ repoid: "github.com/acme/app" }, rwCtx);
     expect(res.status).toBe(200);
     expect((await res.json()).alreadyOwned).toBe(true);
   });
 
   it("404s when the resource is missing", async () => {
-    mockedAdopt.mockResolvedValueOnce({
-      found: false,
-      alreadyOwned: false,
-      repoid: "",
-    });
+    mockedAdopt.mockResolvedValueOnce({ found: false, alreadyOwned: false });
     const res = await post({ repoid: "github.com/acme/app" }, rwCtx);
     expect(res.status).toBe(404);
   });

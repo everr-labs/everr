@@ -627,7 +627,7 @@ impl cliclack::Theme for WarnTheme {
 /// Build an API client using the same credential precedence as apply: an
 /// `EVERR_API_KEY` (or deprecated `EVERR_API_TOKEN`) in the environment wins
 /// (CI); otherwise fall back to the logged-in session (`cloud login`).
-pub async fn build_api_client() -> anyhow::Result<everr_core::api::ApiClient> {
+async fn build_api_client() -> anyhow::Result<everr_core::api::ApiClient> {
     let token_env = std::env::var("EVERR_API_KEY")
         .ok()
         .filter(|t| !t.is_empty())
@@ -673,16 +673,10 @@ pub async fn run_resources(cmd: crate::cli::ResourcesSubcommand) -> anyhow::Resu
 }
 
 /// Resolve this repository's repoid from `dir` (manifest, else inferred origin
-/// remote), the same way `apply` does.
+/// remote), the same precedence as `apply` (both funnel into `resolve_repoid`).
 fn resolve_repoid_for_dir(dir: &std::path::Path) -> anyhow::Result<String> {
-    let source = everr_core::apply::detect_git_source(dir);
-    everr_core::apply::resolve_repoid(dir, source.as_ref().and_then(|s| s.remote.as_deref()))
-}
-
-/// Best-effort repoid for the current directory; None when it cannot be resolved
-/// (used only to star "this repo's" rows in `list`).
-fn current_repoid() -> Option<String> {
-    resolve_repoid_for_dir(std::path::Path::new(".")).ok()
+    let remote = everr_core::apply::origin_remote(dir);
+    everr_core::apply::resolve_repoid(dir, remote.as_deref())
 }
 
 async fn resources_list(
@@ -700,16 +694,18 @@ async fn resources_list(
         println!("No resources.");
         return Ok(());
     }
-    let mine = current_repoid();
+    // Best-effort repoid for the current directory, used only to star "this
+    // repo's" rows.
+    let mine = resolve_repoid_for_dir(std::path::Path::new(".")).ok();
     println!(
         "{:<10}  {:<10}  {:<28}  {:<24}  UPDATED",
         "KIND", "PROJECT", "SLUG", "OWNER"
     );
     for r in &resources {
-        let owner = if r.repoid.is_empty() {
-            "(ui)".to_string()
+        let owner: &str = if r.repoid.is_empty() {
+            "(ui)"
         } else {
-            r.repoid.clone()
+            &r.repoid
         };
         let star = match &mine {
             Some(m) if *m == r.repoid && !r.repoid.is_empty() => "*",
@@ -746,7 +742,12 @@ async fn resources_delete(
     args: crate::cli::ResourcesTargetArgs,
 ) -> anyhow::Result<()> {
     let target = format!("{}/{}/{}", args.kind.as_str(), args.project, args.slug);
-    if !confirm_resource_action(&format!("Delete {target}?"), args.yes)? {
+    if !confirm_action(
+        format!("Delete {target}?"),
+        args.yes,
+        false,
+        "refusing to proceed without confirmation; re-run with --yes".into(),
+    )? {
         println!("Aborted.");
         return Ok(());
     }
@@ -767,7 +768,12 @@ async fn resources_adopt(
     let repoid = resolve_repoid_for_dir(std::path::Path::new("."))?;
 
     let target = format!("{}/{}/{}", args.kind.as_str(), args.project, args.slug);
-    if !confirm_resource_action(&format!("Adopt {target} into «{repoid}»?"), args.yes)? {
+    if !confirm_action(
+        format!("Adopt {target} into «{repoid}»?"),
+        args.yes,
+        false,
+        "refusing to proceed without confirmation; re-run with --yes".into(),
+    )? {
         println!("Aborted.");
         return Ok(());
     }
@@ -790,18 +796,29 @@ async fn resources_adopt(
     Ok(())
 }
 
-/// Prompt to confirm a destructive/ownership action, honoring `--yes` and
-/// non-interactive contexts (mirrors run_apply's confirmation).
-fn confirm_resource_action(question: &str, yes: bool) -> anyhow::Result<bool> {
+/// Gate a destructive action behind confirmation: `--yes` skips the prompt,
+/// interactive terminals ask (warning-styled when `warn`), and non-interactive
+/// contexts refuse with `refusal`.
+fn confirm_action(
+    question: String,
+    yes: bool,
+    warn: bool,
+    refusal: String,
+) -> anyhow::Result<bool> {
     if yes {
         return Ok(true);
     }
-    if std::io::stdin().is_terminal() && std::io::stdout().is_terminal() {
-        let proceed = cliclack::confirm(question.to_string()).interact()?;
-        Ok(proceed)
-    } else {
-        anyhow::bail!("refusing to proceed without confirmation; re-run with --yes")
+    if !(std::io::stdin().is_terminal() && std::io::stdout().is_terminal()) {
+        anyhow::bail!(refusal);
     }
+    if warn {
+        cliclack::set_theme(WarnTheme);
+    }
+    let proceed = cliclack::confirm(question).interact();
+    if warn {
+        cliclack::reset_theme();
+    }
+    Ok(proceed?)
 }
 
 pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
@@ -866,24 +883,19 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
     // Previews are cheap and disposable, so they apply without confirmation.
     // A live apply is the real thing: gate it behind an explicit, warning-styled
     // confirmation.
-    if preview.is_none() && !args.yes {
-        if std::io::stdin().is_terminal() && std::io::stdout().is_terminal() {
-            let org = console::style(&plan.organization.name).color256(208).bold();
-            cliclack::set_theme(WarnTheme);
-            let proceed = cliclack::confirm(format!(
-                "Are you sure you want to apply this change to {org}?"
-            ))
-            .interact();
-            cliclack::reset_theme();
-            if !proceed? {
-                println!("Aborted.");
-                return Ok(());
-            }
-        } else {
-            anyhow::bail!(
+    if preview.is_none() {
+        let org = console::style(&plan.organization.name).color256(208).bold();
+        if !confirm_action(
+            format!("Are you sure you want to apply this change to {org}?"),
+            args.yes,
+            true,
+            format!(
                 "refusing to apply to {} without confirmation; re-run with --yes",
                 plan.organization.name
-            );
+            ),
+        )? {
+            println!("Aborted.");
+            return Ok(());
         }
     }
 
@@ -1157,13 +1169,5 @@ mod tests {
             query,
             vec![("limit", "25".to_string()), ("offset", "50".to_string())]
         );
-    }
-
-    #[test]
-    fn resource_kind_arg_maps_to_wire_string() {
-        use crate::cli::ResourceKindArg;
-        assert_eq!(ResourceKindArg::Dashboard.as_str(), "dashboard");
-        assert_eq!(ResourceKindArg::Runbook.as_str(), "runbook");
-        assert_eq!(ResourceKindArg::Alert.as_str(), "alert");
     }
 }
