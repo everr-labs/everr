@@ -29,3 +29,7 @@ Use `everr-dev` (not `everr`) when running CLI commands in this workspace if ava
 Do not mention `everr-dev` in skills.
 
 When I mention "production" as target, use everr instead of everr-dev.
+
+# Docs guidelines:
+- The answer should be on the first line
+- Use Zod as inspiration, text should be minimal, things must be explained either with code-snippets, prompt examples, diagrams or images
