@@ -9,7 +9,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -348,8 +347,7 @@ func TestProcessCombinedLogsWithRealWebhook(t *testing.T) {
 
 	jnCache := newJobNameCache(100, 30*time.Minute)
 
-	var consumed []plog.Logs
-	err = eventToLogs(
+	logs, err := eventToLogs(
 		context.Background(),
 		wre,
 		&Config{},
@@ -358,14 +356,9 @@ func TestProcessCombinedLogsWithRealWebhook(t *testing.T) {
 		true, // withTraceInfo
 		jnCache,
 		stCache,
-		func(ld plog.Logs) error {
-			consumed = append(consumed, ld)
-			return nil
-		},
 	)
 	require.NoError(t, err)
-	require.Len(t, consumed, 1)
-	logs := consumed[0]
+	require.NotNil(t, logs)
 
 	// Verify we got log records split across the correct steps
 	rl := logs.ResourceLogs()
@@ -491,8 +484,7 @@ func TestEventToLogsNormalFormatUnchanged(t *testing.T) {
 	jnCache := newJobNameCache(100, 30*time.Minute)
 	stCache := newStepTimingCache(100, 30*time.Minute)
 
-	var consumed []plog.Logs
-	err = eventToLogs(
+	logs, err := eventToLogs(
 		context.Background(),
 		wre,
 		&Config{},
@@ -501,14 +493,9 @@ func TestEventToLogsNormalFormatUnchanged(t *testing.T) {
 		true,
 		jnCache,
 		stCache,
-		func(ld plog.Logs) error {
-			consumed = append(consumed, ld)
-			return nil
-		},
 	)
 	require.NoError(t, err)
-	require.Len(t, consumed, 1)
-	logs := consumed[0]
+	require.NotNil(t, logs)
 
 	// Should have used the normal path (subdirectory step files)
 	rl := logs.ResourceLogs()
@@ -541,7 +528,7 @@ func TestEventToLogsNoLogArchive(t *testing.T) {
 	require.NoError(t, err)
 	wre := runEvent.(*github.WorkflowRunEvent)
 
-	newEventToLogs := func(t *testing.T, statusCode int) ([]plog.Logs, error) {
+	newEventToLogs := func(t *testing.T, statusCode int) (*plog.Logs, error) {
 		t.Helper()
 		apiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, http.StatusText(statusCode), statusCode)
@@ -551,8 +538,7 @@ func TestEventToLogsNoLogArchive(t *testing.T) {
 		ghClient, err := github.NewClient(nil).WithEnterpriseURLs(apiServer.URL+"/", apiServer.URL+"/")
 		require.NoError(t, err)
 
-		var consumed []plog.Logs
-		err = eventToLogs(
+		return eventToLogs(
 			context.Background(),
 			wre,
 			&Config{},
@@ -561,164 +547,24 @@ func TestEventToLogsNoLogArchive(t *testing.T) {
 			true,
 			newJobNameCache(100, 30*time.Minute),
 			newStepTimingCache(100, 30*time.Minute),
-			func(ld plog.Logs) error {
-				consumed = append(consumed, ld)
-				return nil
-			},
 		)
-		return consumed, err
 	}
 
 	t.Run("404 means no logs, not a failure", func(t *testing.T) {
-		consumed, err := newEventToLogs(t, http.StatusNotFound)
+		logs, err := newEventToLogs(t, http.StatusNotFound)
 		require.NoError(t, err)
-		require.Empty(t, consumed)
+		require.NotNil(t, logs)
+
+		// Resource attributes are set, but no log records were produced.
+		require.Equal(t, 1, logs.ResourceLogs().Len())
+		require.Equal(t, 0, logs.ResourceLogs().At(0).ScopeLogs().Len())
 	})
 
 	t.Run("server errors still fail", func(t *testing.T) {
-		consumed, err := newEventToLogs(t, http.StatusServiceUnavailable)
+		logs, err := newEventToLogs(t, http.StatusServiceUnavailable)
 		require.Error(t, err)
-		require.Empty(t, consumed)
+		require.Nil(t, logs)
 	})
-}
-
-// TestEventToLogsChunksLargePayloads verifies that a run whose logs exceed
-// logFlushRecordCount is delivered to the consumer in multiple bounded
-// payloads, each carrying the run resource attributes and the job scope, so
-// no single plog.Logs materializes the whole run in memory.
-func TestEventToLogsChunksLargePayloads(t *testing.T) {
-	logger := zaptest.NewLogger(t)
-
-	runPayload, err := os.ReadFile("./testdata/completed/8_workflow_run_completed.json")
-	require.NoError(t, err)
-	runEvent, err := github.ParseWebHook("workflow_run", runPayload)
-	require.NoError(t, err)
-	wre := runEvent.(*github.WorkflowRunEvent)
-
-	totalLines := logFlushRecordCount*2 + logFlushRecordCount/2
-
-	var logText bytes.Buffer
-	for i := 0; i < totalLines; i++ {
-		fmt.Fprintf(&logText, "2023-10-13T10:11:33Z line %d\n", i)
-	}
-
-	var buf bytes.Buffer
-	w := zip.NewWriter(&buf)
-	f, err := w.Create("pre-commit/1_Set up job.txt")
-	require.NoError(t, err)
-	_, err = f.Write(logText.Bytes())
-	require.NoError(t, err)
-	require.NoError(t, w.Close())
-	zipData := buf.Bytes()
-
-	zipServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/zip")
-		_, _ = w.Write(zipData)
-	}))
-	defer zipServer.Close()
-
-	apiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasSuffix(r.URL.Path, "/logs") {
-			http.Redirect(w, r, zipServer.URL, http.StatusFound)
-			return
-		}
-		if strings.HasSuffix(r.URL.Path, "/jobs") {
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"total_count":1,"jobs":[{"id":12345,"name":"pre-commit","status":"completed"}]}`))
-			return
-		}
-		http.NotFound(w, r)
-	}))
-	defer apiServer.Close()
-
-	ghClient, err := github.NewClient(nil).WithEnterpriseURLs(apiServer.URL+"/", apiServer.URL+"/")
-	require.NoError(t, err)
-
-	var consumed []plog.Logs
-	err = eventToLogs(
-		context.Background(),
-		wre,
-		&Config{},
-		ghClient,
-		logger,
-		true,
-		newJobNameCache(100, 30*time.Minute),
-		newStepTimingCache(100, 30*time.Minute),
-		func(ld plog.Logs) error {
-			consumed = append(consumed, ld)
-			return nil
-		},
-	)
-	require.NoError(t, err)
-	require.Len(t, consumed, 3, "expected the run split into 3 bounded payloads")
-
-	total := 0
-	for i, ld := range consumed {
-		require.Equal(t, 1, ld.ResourceLogs().Len())
-		rl := ld.ResourceLogs().At(0)
-
-		// Every chunk must be self-contained: run resource attributes and
-		// job scope attributes present.
-		_, ok := rl.Resource().Attributes().Get(string(conventions.ServiceNameKey))
-		require.True(t, ok, "payload %d missing resource attributes", i)
-
-		require.Equal(t, 1, rl.ScopeLogs().Len())
-		scope := rl.ScopeLogs().At(0)
-		jobName, ok := scope.Scope().Attributes().Get("cicd.pipeline.task.name")
-		require.True(t, ok, "payload %d missing job scope attributes", i)
-		require.Equal(t, "pre-commit", jobName.Str())
-
-		count := scope.LogRecords().Len()
-		require.LessOrEqual(t, count, logFlushRecordCount, "payload %d exceeds the chunk bound", i)
-		total += count
-	}
-	require.Equal(t, totalLines, total, "no records lost or duplicated across chunks")
-
-	// A consume failure must fail the event so the sender retries it.
-	consumeErr := fmt.Errorf("pipeline refused data")
-	err = eventToLogs(
-		context.Background(),
-		wre,
-		&Config{},
-		ghClient,
-		logger,
-		true,
-		newJobNameCache(100, 30*time.Minute),
-		newStepTimingCache(100, 30*time.Minute),
-		func(ld plog.Logs) error { return consumeErr },
-	)
-	require.ErrorIs(t, err, consumeErr)
-}
-
-// TestLogEmitterFlushesOnByteBound verifies that a payload flushes once its
-// accumulated record bodies reach logFlushBodyBytes even when far below the
-// record-count bound, so few-huge-lines jobs cannot balloon a single chunk.
-func TestLogEmitterFlushesOnByteBound(t *testing.T) {
-	var consumed []plog.Logs
-	emitter := newLogEmitter(
-		func(ld plog.Logs) error {
-			consumed = append(consumed, ld)
-			return nil
-		},
-		func(attrs pcommon.Map) { attrs.PutStr("run", "r1") },
-	)
-	emitter.startJob("job", 1)
-
-	// Three records just over half the byte bound each: the third append
-	// crosses the bound and flushes the first two.
-	overHalf := logFlushBodyBytes/2 + 1
-	for i := 0; i < 3; i++ {
-		emitter.appendRecord(overHalf).Body().SetStr("x")
-	}
-	require.NoError(t, emitter.flush())
-
-	require.Len(t, consumed, 2)
-	require.Equal(t, 2, consumed[0].LogRecordCount())
-	require.Equal(t, 1, consumed[1].LogRecordCount())
-	for i, ld := range consumed {
-		_, ok := ld.ResourceLogs().At(0).Resource().Attributes().Get("run")
-		require.True(t, ok, "payload %d missing resource attributes", i)
-	}
 }
 
 // TestScanLogFileContinuationLines verifies that multi-line step output —
@@ -738,9 +584,8 @@ func TestScanLogFileContinuationLines(t *testing.T) {
 		t.Helper()
 		core, observed := observer.New(zap.ErrorLevel)
 		var lines []parsedLine
-		scanLogFile(newZipFile(t, content), zap.New(core), func(pl parsedLine) bool {
+		scanLogFile(newZipFile(t, content), zap.New(core), func(pl parsedLine) {
 			lines = append(lines, pl)
-			return true
 		})
 		return lines, observed
 	}
@@ -788,4 +633,57 @@ func makeTestWorkflowRunEvent(repoID, runID int64, runAttempt int) *github.Workf
 			Status:     getPtr("completed"),
 		},
 	}
+}
+
+func TestEventToLogsSkipsOversizedArchive(t *testing.T) {
+	logger := zaptest.NewLogger(t)
+
+	runPayload, err := os.ReadFile("./testdata/completed/8_workflow_run_completed.json")
+	require.NoError(t, err)
+	runEvent, err := github.ParseWebHook("workflow_run", runPayload)
+	require.NoError(t, err)
+	wre := runEvent.(*github.WorkflowRunEvent)
+
+	// One byte past the cap. GitHub streams archives without a Content-Length,
+	// so the receiver can only detect the overflow while downloading.
+	oversized := bytes.Repeat([]byte("x"), maxLogArchiveSize+1)
+	zipServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/zip")
+		_, _ = w.Write(oversized)
+	}))
+	defer zipServer.Close()
+
+	apiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		expectedSuffix := fmt.Sprintf("/repos/%s/%s/actions/runs/%d/attempts/%d/logs",
+			wre.GetRepo().GetOwner().GetLogin(),
+			wre.GetRepo().GetName(),
+			wre.GetWorkflowRun().GetID(),
+			wre.GetWorkflowRun().GetRunAttempt())
+		if r.URL.Path == expectedSuffix || r.URL.Path == "/api/v3"+expectedSuffix {
+			http.Redirect(w, r, zipServer.URL, http.StatusFound)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer apiServer.Close()
+
+	ghClient, err := github.NewClient(nil).WithEnterpriseURLs(apiServer.URL+"/", apiServer.URL+"/")
+	require.NoError(t, err)
+
+	logs, err := eventToLogs(
+		context.Background(),
+		wre,
+		&Config{},
+		ghClient,
+		logger,
+		true,
+		newJobNameCache(100, 30*time.Minute),
+		newStepTimingCache(100, 30*time.Minute),
+	)
+
+	// The oversized archive is skipped, not failed: the event must succeed so
+	// the sender does not retry the same download.
+	require.NoError(t, err)
+	require.NotNil(t, logs)
+	require.Equal(t, 0, logs.LogRecordCount())
 }

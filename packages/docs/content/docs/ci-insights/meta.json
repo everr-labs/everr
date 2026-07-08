@@ -1,5 +1,0 @@
-{
-  "title": "CI Insights",
-  "defaultOpen": true,
-  "pages": ["setup-new-repo", "resource-monitoring", "debug-ci", "how-ci-cost-is-estimated", "cost-analysis"]
-}

@@ -152,3 +152,109 @@ describe("/api/internal/verify-key", () => {
     expect(res.status).toBe(403);
   });
 });
+
+// Handler-level wiring of the browser origin policy. The pure matrix lives in
+// public-ingest-keys.test.ts; these assert the endpoint actually reads the
+// request `origin`, feeds the verified key's `metadata` to that policy, and
+// maps a denial to 403 after the scope check.
+describe("/api/internal/verify-key browser origin policy", () => {
+  const publicKey = {
+    id: "ak_public",
+    referenceId: "org_42",
+    permissions: { ingest: ["write"] },
+    metadata: { public: true, allowedOrigins: ["https://app.example.com"] },
+  };
+  const secretKey = {
+    id: "ak_secret",
+    referenceId: "org_42",
+    permissions: { ingest: ["write"] },
+  };
+
+  it("public key + allowlisted origin: 200", async () => {
+    await mockVerify({ valid: true, error: null, key: publicKey });
+    const res = await getHandler()({
+      request: makeRequest({
+        key: "the-key",
+        origin: "https://app.example.com",
+      }),
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      tenantId: "org_42",
+      keyId: "ak_public",
+    });
+  });
+
+  it("public key + normalizable origin (case/default port): 200", async () => {
+    await mockVerify({ valid: true, error: null, key: publicKey });
+    const res = await getHandler()({
+      request: makeRequest({
+        key: "the-key",
+        origin: "HTTPS://App.Example.COM:443",
+      }),
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("public key metadata handed back as a JSON string: still enforced", async () => {
+    await mockVerify({
+      valid: true,
+      error: null,
+      key: { ...publicKey, metadata: JSON.stringify(publicKey.metadata) },
+    });
+    const res = await getHandler()({
+      request: makeRequest({
+        key: "the-key",
+        origin: "https://app.example.com",
+      }),
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("public key + no origin (server-side use): 403", async () => {
+    await mockVerify({ valid: true, error: null, key: publicKey });
+    const res = await getHandler()({
+      request: makeRequest({ key: "the-key" }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("public key + mismatched origin: 403", async () => {
+    await mockVerify({ valid: true, error: null, key: publicKey });
+    const res = await getHandler()({
+      request: makeRequest({ key: "the-key", origin: "https://evil.example" }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("secret key + origin present (browser replay of a server key): 403", async () => {
+    await mockVerify({ valid: true, error: null, key: secretKey });
+    const res = await getHandler()({
+      request: makeRequest({
+        key: "the-key",
+        origin: "https://app.example.com",
+      }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("secret key + no origin (unchanged server path): 200", async () => {
+    await mockVerify({ valid: true, error: null, key: secretKey });
+    const res = await getHandler()({
+      request: makeRequest({ key: "the-key" }),
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      tenantId: "org_42",
+      keyId: "ak_secret",
+    });
+  });
+
+  it("non-string origin is ignored (treated as absent) for a secret key: 200", async () => {
+    await mockVerify({ valid: true, error: null, key: secretKey });
+    const res = await getHandler()({
+      request: makeRequest({ key: "the-key", origin: 123 }),
+    });
+    expect(res.status).toBe(200);
+  });
+});

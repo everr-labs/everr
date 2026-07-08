@@ -13,7 +13,7 @@ The hard part of a first dashboard is knowing what's worth a panel. Everr ships 
 /everr-setup-resources Help me build a good first dashboard based on the telemetry we have in production
 ```
 
-The Agent inspects your data, picks panels grounded in it, writes the file, and validates it with a dry-run.
+The Agent inspects your data, picks panels grounded in it, writes the file, and stages it in a preview for you to check.
 
 ## Alternative: build it by hand
 
@@ -68,23 +68,27 @@ In your version, swap `traces` and `Duration` for the table and columns your own
 - `metadata.name` is the **slug**, the dashboard's stable identity and its URL. Use lowercase letters, digits, and hyphens.
 - `metadata.project` groups dashboards into a named set; it defaults to `default` when omitted. A dashboard's URL is `/dashboards/<project>/<slug>`.
 - The panel's query must alias its time column to a recognized name (`ts`, `time`, or `timestamp`), the time-series chart uses that column for the x-axis.
-- `{from:String}`, `{to:String}`, and `{step:UInt32}` carry the dashboard's selected time range and adaptive bucket width. Include the `WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}` filter yourself. It isn't injected automatically. See the [dashboard spec](/docs/dashboards/dashboard-spec) for every field and query param.
+- `{from:String}`, `{to:String}`, and `{step:UInt32}` carry the dashboard's selected time range and adaptive bucket width. Include the `WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}` filter yourself. It isn't injected automatically. See the [dashboard spec](/docs/reference/dashboard-spec) for every field and query param.
 - The `layouts` grid places the panel: `content.$ref` points at the panel key under `spec.panels` (here, `p99`), on a 24-column-wide grid.
 
 ## Preview the change
 
-Always dry-run first. It computes the diff and writes nothing:
+Always stage into a preview first. It deploys under a name (your current git branch) without touching the live dashboards:
 
 ```sh
-everr apply ./everr --dry-run
+everr apply ./everr --preview
 ```
 
-Expected output:
+Expected output ends with a shareable link:
 
 ```
-(dry run) Dashboard: 1 created, 0 updated, 0 deleted
+Destination org: «Acme Corp»
+Dashboard: 1 created, 0 updated, 0 deleted
   + api-latency
+Preview: https://app.everr.dev/dashboards?preview=my-branch
 ```
+
+Open the link: the dashboard renders with live data, badged as added against the live state. Previews expire on their own 7 days after their last apply, so there is nothing to clean up.
 
 ## Apply it
 

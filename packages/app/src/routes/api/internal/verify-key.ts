@@ -3,12 +3,18 @@ import { createFileRoute } from "@tanstack/react-router";
 import { env } from "@/env";
 import { hasApiKeyScope } from "@/lib/api-key-scopes";
 import { auth } from "@/lib/auth.server";
+import { originPolicyAllows } from "@/lib/public-ingest-keys";
 
 const INGEST_CONFIG_ID = "ingest";
 
 type VerifyKeyResponse = {
   tenantId: string;
   keyId: string;
+};
+
+type VerifyBody = {
+  key?: unknown;
+  origin?: unknown;
 };
 
 function secretMatches(provided: string | null): boolean {
@@ -28,15 +34,19 @@ export const Route = createFileRoute("/api/internal/verify-key")({
           return new Response(null, { status: 403 });
         }
 
-        let body: { key?: unknown } | null = null;
+        let body: VerifyBody | null = null;
         try {
-          body = (await request.json()) as { key?: unknown };
+          body = (await request.json()) as VerifyBody;
         } catch {
           return new Response(null, { status: 400 });
         }
 
         const key = body && typeof body.key === "string" ? body.key : null;
         if (!key) return new Response(null, { status: 400 });
+        // The collector forwards the request's Origin header verbatim and
+        // omits the field for server-to-server (headerless) traffic.
+        const origin =
+          body && typeof body.origin === "string" ? body.origin : null;
 
         const result = await auth.api.verifyApiKey({
           body: { key, configId: INGEST_CONFIG_ID },
@@ -49,6 +59,12 @@ export const Route = createFileRoute("/api/internal/verify-key")({
         // the `ingest` scope. A key minted for `apply` only must not be
         // honored here — that would let a CI token exfiltrate telemetry.
         if (!hasApiKeyScope(result.key.permissions, "ingest", "write")) {
+          return new Response(null, { status: 403 });
+        }
+
+        // Browser policy: public keys only work from an allowed Origin;
+        // secret keys never work from a browser (Origin-bearing request).
+        if (!originPolicyAllows(result.key.metadata, origin)) {
           return new Response(null, { status: 403 });
         }
 

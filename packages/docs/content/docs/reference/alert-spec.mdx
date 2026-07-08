@@ -54,7 +54,7 @@ repoid: "my-explicit-id"
 
 If there is neither an `origin` remote nor an `everr.yaml` manifest, apply errors and tells you to add a remote or create `everr.yaml`.
 
-Declarations sit flat in `everr/`, named by kind: `*.alert.yaml`, `*.dashboard.yaml`, `*.runbook.yaml` (the legacy `*.notebook.yaml` suffix is still recognized). `everr apply ./everr` discovers every `kind: Dashboard`, `kind: AlertRule`, and `kind: Runbook` document under the directory and makes the live resources for that repoid exactly match the tree: new documents are created, changed ones updated, and removed ones **deleted**. The kind suffix is a naming convention only — apply routes by the `kind:` field. Use `--dry-run` to preview the changes without applying them. See the [`everr apply` reference](/docs/reference/cli#dashboards-gitops).
+Declarations sit flat in `everr/`, named by kind: `*.alert.yaml`, `*.dashboard.yaml`, `*.runbook.yaml` (the legacy `*.notebook.yaml` suffix is still recognized). `everr apply ./everr` discovers every `kind: Dashboard`, `kind: AlertRule`, and `kind: Runbook` document under the directory and makes the live resources for that repoid exactly match the tree: new documents are created, changed ones updated, and removed ones **deleted**. The kind suffix is a naming convention only — apply routes by the `kind:` field. Use `--preview` to stage the changes for review without touching the live state (preview rules evaluate but never notify). See the [`everr apply` reference](/docs/reference/cli#dashboards-gitops).
 
 ## Constraints and errors
 

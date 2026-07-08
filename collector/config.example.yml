@@ -24,6 +24,16 @@ receivers:
         endpoint: 0.0.0.0:4318
         auth:
           authenticator: everr_apikey
+        # Browser ingestion: CORS preflights carry no Authorization header,
+        # so the receiver must admit any origin at the CORS layer. Real
+        # enforcement is per key: the everr_apikey extension forwards the
+        # request's Origin to verify-key, which only allows public keys from
+        # their allowlisted origins.
+        cors:
+          allowed_origins: ["*"]
+          allowed_headers: ["Authorization", "Content-Type"]
+        # confighttp's default (20 MiB), made explicit for the public edge.
+        max_request_body_size: 20971520
       grpc:
         endpoint: 0.0.0.0:4317
         auth:

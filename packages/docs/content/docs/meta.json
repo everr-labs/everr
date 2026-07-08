@@ -1,3 +1,9 @@
 {
-  "pages": ["index", "learn", "dashboards", "alerts", "ci-insights", "test-telemetry", "reference"]
+  "pages": [
+    "index",
+    "learn",
+    "concepts",
+    "guides",
+    "reference"
+  ]
 }

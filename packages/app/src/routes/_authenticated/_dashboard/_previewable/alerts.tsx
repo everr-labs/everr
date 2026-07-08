@@ -508,7 +508,7 @@ function NotificationSettingsDialog({
             organization.{" "}
             <a
               className="underline underline-offset-4"
-              href="https://everr.dev/docs/alerts/notifications"
+              href="https://everr.dev/docs/guides/set-up-notifications"
               target="_blank"
               rel="noreferrer"
             >
