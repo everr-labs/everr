@@ -479,7 +479,7 @@ pub enum ResourcesSubcommand {
     /// Print a resource's stored configuration
     Show(ResourcesShowArgs),
     /// Delete a live resource
-    Delete(ResourcesTargetArgs),
+    Delete(ResourcesDeleteArgs),
     /// Take ownership of a resource for this repository
     Adopt(ResourcesTargetArgs),
 }
@@ -520,6 +520,18 @@ pub struct ResourcesShowArgs {
     /// Output raw JSON instead of YAML
     #[arg(long)]
     pub json: bool,
+}
+
+#[derive(Args, Debug)]
+pub struct ResourcesDeleteArgs {
+    /// Resource kind
+    #[arg(value_enum)]
+    pub kind: ResourceKindArg,
+    /// Resource slug (metadata.name)
+    pub slug: String,
+    /// Project namespace
+    #[arg(long, default_value = "default")]
+    pub project: String,
 }
 
 #[derive(Args, Debug)]

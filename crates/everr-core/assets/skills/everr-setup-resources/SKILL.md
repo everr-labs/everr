@@ -72,7 +72,7 @@ In CI, set `EVERR_API_KEY` and pass `--yes`. Only deploy to production when the 
 ```sh
 everr resources list [--kind dashboard|runbook|alert] [--repoid <id>] [--json]
 everr resources show <kind> <slug> [--project <p>] [--json]    # stored config, YAML by default
-everr resources delete <kind> <slug> [--yes]
+everr resources delete <kind> <slug>                           # deletes immediately, no prompt
 everr resources adopt <kind> <slug> [--yes]                    # take ownership for this repo
 ```
 

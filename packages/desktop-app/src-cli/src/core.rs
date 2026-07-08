@@ -699,10 +699,10 @@ async fn resources_list(
     let mine = resolve_repoid_for_dir(std::path::Path::new(".")).ok();
     println!(
         "{:<10}  {:<10}  {:<28}  {:<24}  UPDATED",
-        "KIND", "PROJECT", "SLUG", "OWNER"
+        "KIND", "PROJECT", "SLUG", "REPOID"
     );
     for r in &resources {
-        let owner: &str = if r.repoid.is_empty() {
+        let repoid: &str = if r.repoid.is_empty() {
             "(ui)"
         } else {
             &r.repoid
@@ -713,7 +713,7 @@ async fn resources_list(
         };
         println!(
             "{star}{:<9}  {:<10}  {:<28}  {:<24}  {}",
-            r.kind, r.project, r.slug, owner, r.updated_at
+            r.kind, r.project, r.slug, repoid, r.updated_at
         );
     }
     if mine.is_some() {
@@ -739,18 +739,9 @@ async fn resources_show(
 
 async fn resources_delete(
     client: &everr_core::api::ApiClient,
-    args: crate::cli::ResourcesTargetArgs,
+    args: crate::cli::ResourcesDeleteArgs,
 ) -> anyhow::Result<()> {
     let target = format!("{}/{}/{}", args.kind.as_str(), args.project, args.slug);
-    if !confirm_action(
-        format!("Delete {target}?"),
-        args.yes,
-        false,
-        "refusing to proceed without confirmation; re-run with --yes".into(),
-    )? {
-        println!("Aborted.");
-        return Ok(());
-    }
     client
         .delete_resource(args.kind.as_str(), &args.project, &args.slug)
         .await?;
@@ -823,8 +814,8 @@ fn confirm_action(
 
 pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
     use everr_core::apply::{
-        ApplyRequest, classify_documents, detect_git_source, load_resource_documents,
-        resolve_preview_name, resolve_repoid,
+        ApplyRequest, classify_documents, detect_git_source, load_apply_manifest,
+        load_resource_documents, resolve_preview_name, resolve_repoid,
     };
 
     let dir = std::path::Path::new(&args.dir);
@@ -838,6 +829,12 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
     // resources so unrelated YAML errors cannot hide a missing identity.
     let source = detect_git_source(dir);
     let repoid = resolve_repoid(dir, source.as_ref().and_then(|s| s.remote.as_deref()))?;
+    let repoid_origin = if load_apply_manifest(dir)?.is_some() {
+        "everr.yaml"
+    } else {
+        "inferred from origin remote"
+    };
+    println!("Repoid: {repoid} ({repoid_origin})");
     let documents = load_resource_documents(dir)?;
     if documents.is_empty() {
         eprintln!(
