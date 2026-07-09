@@ -3,6 +3,7 @@ metadata:
   name: demo-flapping
   project: demo
 spec:
+  runbook: demo-alerts
   display:
     name: Flapping (demo)
     description: Fires for three minutes, resolves for three minutes, forever. Exercises firing and resolved transitions, notification churn, and event history in the alerting UI.

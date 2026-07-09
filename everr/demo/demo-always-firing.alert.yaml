@@ -3,6 +3,7 @@ metadata:
   name: demo-always-firing
   project: demo
 spec:
+  runbook: demo-alerts
   display:
     name: Always firing (demo)
     description: Permanently firing rule for exercising the alerting UI. The aggregate query always returns one row, so the instance fires on the first evaluation and never resolves.
