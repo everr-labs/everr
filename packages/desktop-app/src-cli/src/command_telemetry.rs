@@ -11,7 +11,10 @@ use tracing_subscriber::EnvFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
-use crate::cli::{CiSubcommand, Cli, CloudSubcommand, Commands, LocalSubcommand, SkillsSubcommand};
+use crate::cli::{
+    CiSubcommand, Cli, CloudSubcommand, Commands, LocalSubcommand, ResourcesSubcommand,
+    SkillsSubcommand,
+};
 
 const SERVICE_NAME: &str = "everr-cli";
 const EVENT_NAME: &str = "everr.cli.command";
@@ -243,6 +246,15 @@ impl CommandTelemetry {
                 }),
             ),
             Commands::Apply(_) => ("apply", None),
+            Commands::Resources(args) => (
+                "resources",
+                Some(match &args.command {
+                    ResourcesSubcommand::List(_) => "list",
+                    ResourcesSubcommand::Show(_) => "show",
+                    ResourcesSubcommand::Delete(_) => "delete",
+                    ResourcesSubcommand::Adopt(_) => "adopt",
+                }),
+            ),
         };
 
         let options = if matches!(&cli.command, Commands::Wrap(_)) {

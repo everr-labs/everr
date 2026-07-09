@@ -1445,6 +1445,7 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
+ "serde_yaml",
  "sha2",
  "strip-ansi-escapes",
  "tar",

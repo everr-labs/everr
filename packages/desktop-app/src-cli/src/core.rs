@@ -624,10 +624,198 @@ impl cliclack::Theme for WarnTheme {
     }
 }
 
+/// Build an API client using the same credential precedence as apply: an
+/// `EVERR_API_KEY` (or deprecated `EVERR_API_TOKEN`) in the environment wins
+/// (CI); otherwise fall back to the logged-in session (`cloud login`).
+async fn build_api_client() -> anyhow::Result<everr_core::api::ApiClient> {
+    let token_env = std::env::var("EVERR_API_KEY")
+        .ok()
+        .filter(|t| !t.is_empty())
+        .map(|t| ("EVERR_API_KEY", t))
+        .or_else(|| {
+            std::env::var("EVERR_API_TOKEN")
+                .ok()
+                .filter(|t| !t.is_empty())
+                .map(|t| ("EVERR_API_TOKEN", t))
+        });
+    match token_env {
+        Some((var_name, token)) => {
+            let base_url = std::env::var("EVERR_API_URL")
+                .ok()
+                .filter(|u| !u.is_empty())
+                .or_else(persisted_api_base_url)
+                .ok_or_else(|| {
+                    anyhow::anyhow!("{var_name} is set but no base URL; set EVERR_API_URL")
+                })?;
+            everr_core::api::ApiClient::from_token(&base_url, &token)
+        }
+        None => {
+            let session = crate::auth::require_session_with_refresh().await?;
+            everr_core::api::ApiClient::from_session(&session)
+        }
+    }
+}
+
+pub async fn run_resources(cmd: crate::cli::ResourcesSubcommand) -> anyhow::Result<()> {
+    use crate::cli::ResourcesSubcommand as R;
+    // `everr resources` targets the session-authenticated /api/cli routes, so it
+    // uses the logged-in session only. Unlike `apply`, it does NOT accept
+    // EVERR_API_KEY (those routes have no API-key path), so authenticate with the
+    // session directly rather than via apply's token-first `build_api_client`.
+    let session = crate::auth::require_session_with_refresh().await?;
+    let client = everr_core::api::ApiClient::from_session(&session)?;
+    match cmd {
+        R::List(args) => resources_list(&client, args).await,
+        R::Show(args) => resources_show(&client, args).await,
+        R::Delete(args) => resources_delete(&client, args).await,
+        R::Adopt(args) => resources_adopt(&client, args).await,
+    }
+}
+
+/// Resolve this repository's repoid from `dir` (manifest, else inferred origin
+/// remote), the same precedence as `apply` (both funnel into `resolve_repoid`).
+fn resolve_repoid_for_dir(dir: &std::path::Path) -> anyhow::Result<String> {
+    let remote = everr_core::apply::origin_remote(dir);
+    everr_core::apply::resolve_repoid(dir, remote.as_deref())
+}
+
+async fn resources_list(
+    client: &everr_core::api::ApiClient,
+    args: crate::cli::ResourcesListArgs,
+) -> anyhow::Result<()> {
+    let kind = args.kind.map(|k| k.as_str());
+    let resources = client.list_resources(kind, args.repoid.as_deref()).await?;
+
+    if args.json {
+        println!("{}", serde_json::to_string_pretty(&resources)?);
+        return Ok(());
+    }
+    if resources.is_empty() {
+        println!("No resources.");
+        return Ok(());
+    }
+    // Best-effort repoid for the current directory, used only to star "this
+    // repo's" rows.
+    let mine = resolve_repoid_for_dir(std::path::Path::new(".")).ok();
+    println!(
+        "{:<10}  {:<10}  {:<28}  {:<24}  UPDATED",
+        "KIND", "PROJECT", "SLUG", "REPOID"
+    );
+    for r in &resources {
+        let repoid: &str = if r.repoid.is_empty() {
+            "(ui)"
+        } else {
+            &r.repoid
+        };
+        let star = match &mine {
+            Some(m) if *m == r.repoid && !r.repoid.is_empty() => "*",
+            _ => " ",
+        };
+        println!(
+            "{star}{:<9}  {:<10}  {:<28}  {:<24}  {}",
+            r.kind, r.project, r.slug, repoid, r.updated_at
+        );
+    }
+    if mine.is_some() {
+        println!("\n* owned by this repository");
+    }
+    Ok(())
+}
+
+async fn resources_show(
+    client: &everr_core::api::ApiClient,
+    args: crate::cli::ResourcesShowArgs,
+) -> anyhow::Result<()> {
+    let document = client
+        .get_resource(args.kind.as_str(), &args.project, &args.slug)
+        .await?;
+    if args.json {
+        println!("{}", serde_json::to_string_pretty(&document)?);
+    } else {
+        print!("{}", serde_yaml::to_string(&document)?);
+    }
+    Ok(())
+}
+
+async fn resources_delete(
+    client: &everr_core::api::ApiClient,
+    args: crate::cli::ResourcesDeleteArgs,
+) -> anyhow::Result<()> {
+    let target = format!("{}/{}/{}", args.kind.as_str(), args.project, args.slug);
+    client
+        .delete_resource(args.kind.as_str(), &args.project, &args.slug)
+        .await?;
+    println!("Deleted {target}.");
+    println!(
+        "note: if this resource is still defined in your as-code tree, the next `everr apply` will recreate it."
+    );
+    Ok(())
+}
+
+async fn resources_adopt(
+    client: &everr_core::api::ApiClient,
+    args: crate::cli::ResourcesTargetArgs,
+) -> anyhow::Result<()> {
+    let repoid = resolve_repoid_for_dir(std::path::Path::new("."))?;
+
+    let target = format!("{}/{}/{}", args.kind.as_str(), args.project, args.slug);
+    if !confirm_action(
+        format!("Adopt {target} into «{repoid}»?"),
+        args.yes,
+        false,
+        "refusing to proceed without confirmation; re-run with --yes".into(),
+    )? {
+        println!("Aborted.");
+        return Ok(());
+    }
+    let outcome = client
+        .adopt_resource(args.kind.as_str(), &args.project, &args.slug, &repoid)
+        .await?;
+    if outcome.already_owned {
+        println!("{target} is already owned by «{repoid}». Nothing to do.");
+        return Ok(());
+    }
+    println!("Adopted {target} into «{repoid}».");
+    println!(
+        "note: if this resource is not in your local tree, the next `everr apply` will delete it.\n      save it first: everr resources show {} {} --project {} > everr/{}.{}.yaml",
+        args.kind.as_str(),
+        args.slug,
+        args.project,
+        args.slug,
+        args.kind.as_str()
+    );
+    Ok(())
+}
+
+/// Gate a destructive action behind confirmation: `--yes` skips the prompt,
+/// interactive terminals ask (warning-styled when `warn`), and non-interactive
+/// contexts refuse with `refusal`.
+fn confirm_action(
+    question: String,
+    yes: bool,
+    warn: bool,
+    refusal: String,
+) -> anyhow::Result<bool> {
+    if yes {
+        return Ok(true);
+    }
+    if !(std::io::stdin().is_terminal() && std::io::stdout().is_terminal()) {
+        anyhow::bail!(refusal);
+    }
+    if warn {
+        cliclack::set_theme(WarnTheme);
+    }
+    let proceed = cliclack::confirm(question).interact();
+    if warn {
+        cliclack::reset_theme();
+    }
+    Ok(proceed?)
+}
+
 pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
     use everr_core::apply::{
-        ApplyRequest, classify_documents, detect_git_source, load_resource_documents,
-        resolve_preview_name, resolve_repoid,
+        ApplyRequest, classify_documents, detect_git_source, load_apply_manifest,
+        load_resource_documents, resolve_preview_name, resolve_repoid,
     };
 
     let dir = std::path::Path::new(&args.dir);
@@ -641,6 +829,12 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
     // resources so unrelated YAML errors cannot hide a missing identity.
     let source = detect_git_source(dir);
     let repoid = resolve_repoid(dir, source.as_ref().and_then(|s| s.remote.as_deref()))?;
+    let repoid_origin = if load_apply_manifest(dir)?.is_some() {
+        "everr.yaml"
+    } else {
+        "inferred from origin remote"
+    };
+    println!("Repoid: {repoid} ({repoid_origin})");
     let documents = load_resource_documents(dir)?;
     if documents.is_empty() {
         eprintln!(
@@ -655,38 +849,7 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
         None => None,
     };
 
-    // Credential precedence: an API key in EVERR_API_KEY (CI) wins;
-    // otherwise fall back to the logged-in session (`cloud login`).
-    // EVERR_API_TOKEN is accepted as a deprecated alias for older CI setups
-    // — the server treats both names identically, and the key is the same
-    // `ek_` type that the collector uses for telemetry, gated by the
-    // `apply` scope on the server side.
-    let token_env = std::env::var("EVERR_API_KEY")
-        .ok()
-        .filter(|t| !t.is_empty())
-        .map(|t| ("EVERR_API_KEY", t))
-        .or_else(|| {
-            std::env::var("EVERR_API_TOKEN")
-                .ok()
-                .filter(|t| !t.is_empty())
-                .map(|t| ("EVERR_API_TOKEN", t))
-        });
-    let client = match token_env {
-        Some((var_name, token)) => {
-            let base_url = std::env::var("EVERR_API_URL")
-                .ok()
-                .filter(|u| !u.is_empty())
-                .or_else(persisted_api_base_url)
-                .ok_or_else(|| {
-                    anyhow::anyhow!("{var_name} is set but no base URL; set EVERR_API_URL")
-                })?;
-            everr_core::api::ApiClient::from_token(&base_url, &token)?
-        }
-        None => {
-            let session = crate::auth::require_session_with_refresh().await?;
-            everr_core::api::ApiClient::from_session(&session)?
-        }
-    };
+    let client = build_api_client().await?;
 
     // Plan first (dry run) to learn the destination org and the change set.
     let plan = client
@@ -717,24 +880,19 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
     // Previews are cheap and disposable, so they apply without confirmation.
     // A live apply is the real thing: gate it behind an explicit, warning-styled
     // confirmation.
-    if preview.is_none() && !args.yes {
-        if std::io::stdin().is_terminal() && std::io::stdout().is_terminal() {
-            let org = console::style(&plan.organization.name).color256(208).bold();
-            cliclack::set_theme(WarnTheme);
-            let proceed = cliclack::confirm(format!(
-                "Are you sure you want to apply this change to {org}?"
-            ))
-            .interact();
-            cliclack::reset_theme();
-            if !proceed? {
-                println!("Aborted.");
-                return Ok(());
-            }
-        } else {
-            anyhow::bail!(
+    if preview.is_none() {
+        let org = console::style(&plan.organization.name).color256(208).bold();
+        if !confirm_action(
+            format!("Are you sure you want to apply this change to {org}?"),
+            args.yes,
+            true,
+            format!(
                 "refusing to apply to {} without confirmation; re-run with --yes",
                 plan.organization.name
-            );
+            ),
+        )? {
+            println!("Aborted.");
+            return Ok(());
         }
     }
 

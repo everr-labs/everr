@@ -27,6 +27,7 @@ import { Route as ApiInternalVerifyKeyRouteImport } from './routes/api/internal/
 import { Route as ApiEventsStreamRouteImport } from './routes/api/events/stream'
 import { Route as ApiCliSqlRouteImport } from './routes/api/cli/sql'
 import { Route as ApiCliRunsRouteImport } from './routes/api/cli/runs'
+import { Route as ApiCliResourcesRouteImport } from './routes/api/cli/resources'
 import { Route as ApiCliReposRouteImport } from './routes/api/cli/repos'
 import { Route as ApiCliOrgRouteImport } from './routes/api/cli/org'
 import { Route as ApiCliNotificationRouteImport } from './routes/api/cli/notification'
@@ -74,12 +75,14 @@ import { Route as AuthenticatedDashboardPreviewableAlertsAlertIdRouteImport } fr
 import { Route as AuthenticatedDashboardPaddedCheckoutSuccessRouteImport } from './routes/_authenticated/_dashboard/_padded/checkout.success'
 import { Route as AuthenticatedDashboardExploreTracesTraceIdRouteImport } from './routes/_authenticated/_dashboard/_explore/traces_.$traceId'
 import { Route as AuthenticatedDashboardExploreErrorsFingerprintRouteImport } from './routes/_authenticated/_dashboard/_explore/errors_.$fingerprint'
+import { Route as ApiCliResourcesKindProjectSlugRouteImport } from './routes/api/cli/resources/$kind/$project/$slug'
 import { Route as AuthenticatedDashboardPreviewableDashboardsProjectSlugRouteImport } from './routes/_authenticated/_dashboard/_previewable/dashboards/$project.$slug'
 import { Route as AuthenticatedDashboardPaddedWorkflowsRepoWorkflowNameRouteImport } from './routes/_authenticated/_dashboard/_padded/workflows/$repo/$workflowName'
 import { Route as AuthenticatedDashboardExploreTracesTraceIdModalRouteImport } from './routes/_authenticated/_dashboard/_explore/traces/$traceId/modal'
 import { Route as AuthenticatedDashboardExploreErrorsFingerprintModalRouteImport } from './routes/_authenticated/_dashboard/_explore/errors/$fingerprint/modal'
 import { Route as AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/index'
 import { Route as AuthenticatedDashboardPreviewableRunbooksProjectSlugIndexRouteImport } from './routes/_authenticated/_dashboard/_previewable/runbooks/$project.$slug.index'
+import { Route as ApiCliResourcesKindProjectSlugAdoptRouteImport } from './routes/api/cli/resources/$kind/$project/$slug/adopt'
 import { Route as AuthenticatedDashboardPreviewableRunbooksProjectSlugSplatRouteImport } from './routes/_authenticated/_dashboard/_previewable/runbooks/$project.$slug.$'
 import { Route as AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
 
@@ -169,6 +172,11 @@ const ApiCliSqlRoute = ApiCliSqlRouteImport.update({
 const ApiCliRunsRoute = ApiCliRunsRouteImport.update({
   id: '/runs',
   path: '/runs',
+  getParentRoute: () => ApiCliRoute,
+} as any)
+const ApiCliResourcesRoute = ApiCliResourcesRouteImport.update({
+  id: '/resources',
+  path: '/resources',
   getParentRoute: () => ApiCliRoute,
 } as any)
 const ApiCliReposRoute = ApiCliReposRouteImport.update({
@@ -433,6 +441,12 @@ const AuthenticatedDashboardExploreErrorsFingerprintRoute =
     path: '/errors/$fingerprint',
     getParentRoute: () => AuthenticatedDashboardExploreRoute,
   } as any)
+const ApiCliResourcesKindProjectSlugRoute =
+  ApiCliResourcesKindProjectSlugRouteImport.update({
+    id: '/$kind/$project/$slug',
+    path: '/$kind/$project/$slug',
+    getParentRoute: () => ApiCliResourcesRoute,
+  } as any)
 const AuthenticatedDashboardPreviewableDashboardsProjectSlugRoute =
   AuthenticatedDashboardPreviewableDashboardsProjectSlugRouteImport.update({
     id: '/dashboards/$project/$slug',
@@ -469,6 +483,12 @@ const AuthenticatedDashboardPreviewableRunbooksProjectSlugIndexRoute =
     path: '/runbooks/$project/$slug/',
     getParentRoute: () => AuthenticatedDashboardPreviewableRoute,
   } as any)
+const ApiCliResourcesKindProjectSlugAdoptRoute =
+  ApiCliResourcesKindProjectSlugAdoptRouteImport.update({
+    id: '/adopt',
+    path: '/adopt',
+    getParentRoute: () => ApiCliResourcesKindProjectSlugRoute,
+  } as any)
 const AuthenticatedDashboardPreviewableRunbooksProjectSlugSplatRoute =
   AuthenticatedDashboardPreviewableRunbooksProjectSlugSplatRouteImport.update({
     id: '/runbooks/$project/$slug/$',
@@ -503,6 +523,7 @@ export interface FileRoutesByFullPath {
   '/api/cli/notification': typeof ApiCliNotificationRoute
   '/api/cli/org': typeof ApiCliOrgRouteWithChildren
   '/api/cli/repos': typeof ApiCliReposRoute
+  '/api/cli/resources': typeof ApiCliResourcesRouteWithChildren
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/sql': typeof ApiCliSqlRoute
   '/api/events/stream': typeof ApiEventsStreamRoute
@@ -545,7 +566,9 @@ export interface FileRoutesByFullPath {
   '/traces/$traceId/modal': typeof AuthenticatedDashboardExploreTracesTraceIdModalRoute
   '/workflows/$repo/$workflowName': typeof AuthenticatedDashboardPaddedWorkflowsRepoWorkflowNameRoute
   '/dashboards/$project/$slug': typeof AuthenticatedDashboardPreviewableDashboardsProjectSlugRoute
+  '/api/cli/resources/$kind/$project/$slug': typeof ApiCliResourcesKindProjectSlugRouteWithChildren
   '/runbooks/$project/$slug/$': typeof AuthenticatedDashboardPreviewableRunbooksProjectSlugSplatRoute
+  '/api/cli/resources/$kind/$project/$slug/adopt': typeof ApiCliResourcesKindProjectSlugAdoptRoute
   '/runbooks/$project/$slug/': typeof AuthenticatedDashboardPreviewableRunbooksProjectSlugIndexRoute
   '/runs/$traceId/jobs/$jobId/': typeof AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRoute
   '/runs/$traceId/jobs/$jobId/steps/$stepNumber': typeof AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRoute
@@ -570,6 +593,7 @@ export interface FileRoutesByTo {
   '/api/cli/notification': typeof ApiCliNotificationRoute
   '/api/cli/org': typeof ApiCliOrgRouteWithChildren
   '/api/cli/repos': typeof ApiCliReposRoute
+  '/api/cli/resources': typeof ApiCliResourcesRouteWithChildren
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/sql': typeof ApiCliSqlRoute
   '/api/events/stream': typeof ApiEventsStreamRoute
@@ -611,7 +635,9 @@ export interface FileRoutesByTo {
   '/traces/$traceId/modal': typeof AuthenticatedDashboardExploreTracesTraceIdModalRoute
   '/workflows/$repo/$workflowName': typeof AuthenticatedDashboardPaddedWorkflowsRepoWorkflowNameRoute
   '/dashboards/$project/$slug': typeof AuthenticatedDashboardPreviewableDashboardsProjectSlugRoute
+  '/api/cli/resources/$kind/$project/$slug': typeof ApiCliResourcesKindProjectSlugRouteWithChildren
   '/runbooks/$project/$slug/$': typeof AuthenticatedDashboardPreviewableRunbooksProjectSlugSplatRoute
+  '/api/cli/resources/$kind/$project/$slug/adopt': typeof ApiCliResourcesKindProjectSlugAdoptRoute
   '/runbooks/$project/$slug': typeof AuthenticatedDashboardPreviewableRunbooksProjectSlugIndexRoute
   '/runs/$traceId/jobs/$jobId': typeof AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRoute
   '/runs/$traceId/jobs/$jobId/steps/$stepNumber': typeof AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRoute
@@ -644,6 +670,7 @@ export interface FileRoutesById {
   '/api/cli/notification': typeof ApiCliNotificationRoute
   '/api/cli/org': typeof ApiCliOrgRouteWithChildren
   '/api/cli/repos': typeof ApiCliReposRoute
+  '/api/cli/resources': typeof ApiCliResourcesRouteWithChildren
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/sql': typeof ApiCliSqlRoute
   '/api/events/stream': typeof ApiEventsStreamRoute
@@ -687,7 +714,9 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/_explore/traces/$traceId/modal': typeof AuthenticatedDashboardExploreTracesTraceIdModalRoute
   '/_authenticated/_dashboard/_padded/workflows/$repo/$workflowName': typeof AuthenticatedDashboardPaddedWorkflowsRepoWorkflowNameRoute
   '/_authenticated/_dashboard/_previewable/dashboards/$project/$slug': typeof AuthenticatedDashboardPreviewableDashboardsProjectSlugRoute
+  '/api/cli/resources/$kind/$project/$slug': typeof ApiCliResourcesKindProjectSlugRouteWithChildren
   '/_authenticated/_dashboard/_previewable/runbooks/$project/$slug/$': typeof AuthenticatedDashboardPreviewableRunbooksProjectSlugSplatRoute
+  '/api/cli/resources/$kind/$project/$slug/adopt': typeof ApiCliResourcesKindProjectSlugAdoptRoute
   '/_authenticated/_dashboard/_previewable/runbooks/$project/$slug/': typeof AuthenticatedDashboardPreviewableRunbooksProjectSlugIndexRoute
   '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/': typeof AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRoute
   '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber': typeof AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRoute
@@ -715,6 +744,7 @@ export interface FileRouteTypes {
     | '/api/cli/notification'
     | '/api/cli/org'
     | '/api/cli/repos'
+    | '/api/cli/resources'
     | '/api/cli/runs'
     | '/api/cli/sql'
     | '/api/events/stream'
@@ -757,7 +787,9 @@ export interface FileRouteTypes {
     | '/traces/$traceId/modal'
     | '/workflows/$repo/$workflowName'
     | '/dashboards/$project/$slug'
+    | '/api/cli/resources/$kind/$project/$slug'
     | '/runbooks/$project/$slug/$'
+    | '/api/cli/resources/$kind/$project/$slug/adopt'
     | '/runbooks/$project/$slug/'
     | '/runs/$traceId/jobs/$jobId/'
     | '/runs/$traceId/jobs/$jobId/steps/$stepNumber'
@@ -782,6 +814,7 @@ export interface FileRouteTypes {
     | '/api/cli/notification'
     | '/api/cli/org'
     | '/api/cli/repos'
+    | '/api/cli/resources'
     | '/api/cli/runs'
     | '/api/cli/sql'
     | '/api/events/stream'
@@ -823,7 +856,9 @@ export interface FileRouteTypes {
     | '/traces/$traceId/modal'
     | '/workflows/$repo/$workflowName'
     | '/dashboards/$project/$slug'
+    | '/api/cli/resources/$kind/$project/$slug'
     | '/runbooks/$project/$slug/$'
+    | '/api/cli/resources/$kind/$project/$slug/adopt'
     | '/runbooks/$project/$slug'
     | '/runs/$traceId/jobs/$jobId'
     | '/runs/$traceId/jobs/$jobId/steps/$stepNumber'
@@ -855,6 +890,7 @@ export interface FileRouteTypes {
     | '/api/cli/notification'
     | '/api/cli/org'
     | '/api/cli/repos'
+    | '/api/cli/resources'
     | '/api/cli/runs'
     | '/api/cli/sql'
     | '/api/events/stream'
@@ -898,7 +934,9 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/_explore/traces/$traceId/modal'
     | '/_authenticated/_dashboard/_padded/workflows/$repo/$workflowName'
     | '/_authenticated/_dashboard/_previewable/dashboards/$project/$slug'
+    | '/api/cli/resources/$kind/$project/$slug'
     | '/_authenticated/_dashboard/_previewable/runbooks/$project/$slug/$'
+    | '/api/cli/resources/$kind/$project/$slug/adopt'
     | '/_authenticated/_dashboard/_previewable/runbooks/$project/$slug/'
     | '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/'
     | '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
@@ -1049,6 +1087,13 @@ declare module '@tanstack/react-router' {
       path: '/runs'
       fullPath: '/api/cli/runs'
       preLoaderRoute: typeof ApiCliRunsRouteImport
+      parentRoute: typeof ApiCliRoute
+    }
+    '/api/cli/resources': {
+      id: '/api/cli/resources'
+      path: '/resources'
+      fullPath: '/api/cli/resources'
+      preLoaderRoute: typeof ApiCliResourcesRouteImport
       parentRoute: typeof ApiCliRoute
     }
     '/api/cli/repos': {
@@ -1380,6 +1425,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardExploreErrorsFingerprintRouteImport
       parentRoute: typeof AuthenticatedDashboardExploreRoute
     }
+    '/api/cli/resources/$kind/$project/$slug': {
+      id: '/api/cli/resources/$kind/$project/$slug'
+      path: '/$kind/$project/$slug'
+      fullPath: '/api/cli/resources/$kind/$project/$slug'
+      preLoaderRoute: typeof ApiCliResourcesKindProjectSlugRouteImport
+      parentRoute: typeof ApiCliResourcesRoute
+    }
     '/_authenticated/_dashboard/_previewable/dashboards/$project/$slug': {
       id: '/_authenticated/_dashboard/_previewable/dashboards/$project/$slug'
       path: '/dashboards/$project/$slug'
@@ -1421,6 +1473,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/runbooks/$project/$slug/'
       preLoaderRoute: typeof AuthenticatedDashboardPreviewableRunbooksProjectSlugIndexRouteImport
       parentRoute: typeof AuthenticatedDashboardPreviewableRoute
+    }
+    '/api/cli/resources/$kind/$project/$slug/adopt': {
+      id: '/api/cli/resources/$kind/$project/$slug/adopt'
+      path: '/adopt'
+      fullPath: '/api/cli/resources/$kind/$project/$slug/adopt'
+      preLoaderRoute: typeof ApiCliResourcesKindProjectSlugAdoptRouteImport
+      parentRoute: typeof ApiCliResourcesKindProjectSlugRoute
     }
     '/_authenticated/_dashboard/_previewable/runbooks/$project/$slug/$': {
       id: '/_authenticated/_dashboard/_previewable/runbooks/$project/$slug/$'
@@ -1709,6 +1768,34 @@ const ApiCliOrgRouteWithChildren = ApiCliOrgRoute._addFileChildren(
   ApiCliOrgRouteChildren,
 )
 
+interface ApiCliResourcesKindProjectSlugRouteChildren {
+  ApiCliResourcesKindProjectSlugAdoptRoute: typeof ApiCliResourcesKindProjectSlugAdoptRoute
+}
+
+const ApiCliResourcesKindProjectSlugRouteChildren: ApiCliResourcesKindProjectSlugRouteChildren =
+  {
+    ApiCliResourcesKindProjectSlugAdoptRoute:
+      ApiCliResourcesKindProjectSlugAdoptRoute,
+  }
+
+const ApiCliResourcesKindProjectSlugRouteWithChildren =
+  ApiCliResourcesKindProjectSlugRoute._addFileChildren(
+    ApiCliResourcesKindProjectSlugRouteChildren,
+  )
+
+interface ApiCliResourcesRouteChildren {
+  ApiCliResourcesKindProjectSlugRoute: typeof ApiCliResourcesKindProjectSlugRouteWithChildren
+}
+
+const ApiCliResourcesRouteChildren: ApiCliResourcesRouteChildren = {
+  ApiCliResourcesKindProjectSlugRoute:
+    ApiCliResourcesKindProjectSlugRouteWithChildren,
+}
+
+const ApiCliResourcesRouteWithChildren = ApiCliResourcesRoute._addFileChildren(
+  ApiCliResourcesRouteChildren,
+)
+
 interface ApiCliRunsTraceIdRouteChildren {
   ApiCliRunsTraceIdLogsRoute: typeof ApiCliRunsTraceIdLogsRoute
 }
@@ -1744,6 +1831,7 @@ interface ApiCliRouteChildren {
   ApiCliNotificationRoute: typeof ApiCliNotificationRoute
   ApiCliOrgRoute: typeof ApiCliOrgRouteWithChildren
   ApiCliReposRoute: typeof ApiCliReposRoute
+  ApiCliResourcesRoute: typeof ApiCliResourcesRouteWithChildren
   ApiCliRunsRoute: typeof ApiCliRunsRouteWithChildren
   ApiCliSqlRoute: typeof ApiCliSqlRoute
 }
@@ -1754,6 +1842,7 @@ const ApiCliRouteChildren: ApiCliRouteChildren = {
   ApiCliNotificationRoute: ApiCliNotificationRoute,
   ApiCliOrgRoute: ApiCliOrgRouteWithChildren,
   ApiCliReposRoute: ApiCliReposRoute,
+  ApiCliResourcesRoute: ApiCliResourcesRouteWithChildren,
   ApiCliRunsRoute: ApiCliRunsRouteWithChildren,
   ApiCliSqlRoute: ApiCliSqlRoute,
 }
