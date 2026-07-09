@@ -97,7 +97,7 @@ async fn dispatcher_delivers_once_and_dedups() {
     reg.register(Arc::new(WebhookNotifier::new()));
     let notifiers = Arc::new(reg);
     let groups: Arc<dyn GroupStore> = Arc::new(RedisGroups::connect(&redis_url).await.unwrap());
-    let cache = Arc::new(FilterCache::new(store.clone(), cipher.clone()));
+    let cache = Arc::new(FilterCache::new(store.clone()));
     let (sd_tx, sd_rx) = tokio::sync::watch::channel(false);
     let handle = {
         let store = store.clone();
@@ -215,7 +215,7 @@ async fn delivery_emits_a_delivery_record() {
     let notifiers = Arc::new(reg);
     let groups: Arc<dyn GroupStore> = Arc::new(RedisGroups::connect(&redis_url).await.unwrap());
     // No routes for this tenant -> the firehose webhook path delivers immediately.
-    let cache = FilterCache::new(store.clone(), cipher.clone());
+    let cache = FilterCache::new(store.clone());
     let sink = CapturingSink::default();
 
     let event = ev_svc(tenant.clone(), "api");
@@ -282,11 +282,19 @@ async fn grouped_delivery_uses_clean_receiver_name() {
     // A receiver + a catch-all route make this the routed (grouping) path, not the firehose.
     let receiver_name = "oncall";
     store
-        .create_receiver(
+        .create_channel(
             cipher.as_ref(),
             tenant.clone(),
-            receiver_name,
+            "oncall-hook",
             &ChannelConfig::Webhook { url: url.clone() },
+        )
+        .await
+        .unwrap();
+    store
+        .create_receiver(
+            tenant.clone(),
+            receiver_name,
+            &["oncall-hook".to_string()],
             &std::collections::BTreeMap::new(),
         )
         .await
@@ -311,7 +319,7 @@ async fn grouped_delivery_uses_clean_receiver_name() {
     let notifiers = Arc::new(reg);
     let groups: Arc<dyn GroupStore> = Arc::new(RedisGroups::connect(&redis_url).await.unwrap());
     // Zero TTL so the snapshot reflects the receiver/route we just created.
-    let cache = FilterCache::with_ttl(store.clone(), cipher.clone(), Duration::ZERO);
+    let cache = FilterCache::with_ttl(store.clone(), Duration::ZERO);
     let sink = CapturingSink::default();
 
     let event = ev_svc(tenant.clone(), "api");
@@ -420,7 +428,7 @@ async fn silenced_event_emits_a_silenced_record() {
     let notifiers = Arc::new(reg);
     let groups: Arc<dyn GroupStore> = Arc::new(RedisGroups::connect(&redis_url).await.unwrap());
     // Zero TTL so the snapshot reflects the silence we just created.
-    let cache = FilterCache::with_ttl(store.clone(), cipher.clone(), Duration::ZERO);
+    let cache = FilterCache::with_ttl(store.clone(), Duration::ZERO);
     let sink = CapturingSink::default();
 
     let event = ev_svc(tenant.clone(), "api");
@@ -486,11 +494,19 @@ async fn flush_time_silence_emits_a_silenced_record() {
     // Routed (grouping) path so the event is buffered, not delivered at ingest.
     let receiver_name = "oncall";
     store
-        .create_receiver(
+        .create_channel(
             cipher.as_ref(),
             tenant.clone(),
-            receiver_name,
+            "oncall-hook",
             &ChannelConfig::Webhook { url: url.clone() },
+        )
+        .await
+        .unwrap();
+    store
+        .create_receiver(
+            tenant.clone(),
+            receiver_name,
+            &["oncall-hook".to_string()],
             &std::collections::BTreeMap::new(),
         )
         .await
@@ -515,7 +531,7 @@ async fn flush_time_silence_emits_a_silenced_record() {
     let notifiers = Arc::new(reg);
     let groups: Arc<dyn GroupStore> = Arc::new(RedisGroups::connect(&redis_url).await.unwrap());
     // Zero TTL so the flush-time snapshot reflects the silence we create after buffering.
-    let cache = FilterCache::with_ttl(store.clone(), cipher.clone(), Duration::ZERO);
+    let cache = FilterCache::with_ttl(store.clone(), Duration::ZERO);
     let sink = CapturingSink::default();
 
     let event = ev_svc(tenant.clone(), "api");
@@ -630,11 +646,19 @@ async fn flush_time_inhibition_emits_no_record() {
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
     let receiver_name = "oncall";
     store
-        .create_receiver(
+        .create_channel(
             cipher.as_ref(),
             tenant.clone(),
-            receiver_name,
+            "oncall-hook",
             &ChannelConfig::Webhook { url: url.clone() },
+        )
+        .await
+        .unwrap();
+    store
+        .create_receiver(
+            tenant.clone(),
+            receiver_name,
+            &["oncall-hook".to_string()],
             &std::collections::BTreeMap::new(),
         )
         .await
@@ -658,7 +682,7 @@ async fn flush_time_inhibition_emits_no_record() {
     reg.register(Arc::new(WebhookNotifier::new()));
     let notifiers = Arc::new(reg);
     let groups: Arc<dyn GroupStore> = Arc::new(RedisGroups::connect(&redis_url).await.unwrap());
-    let cache = FilterCache::with_ttl(store.clone(), cipher.clone(), Duration::ZERO);
+    let cache = FilterCache::with_ttl(store.clone(), Duration::ZERO);
     let sink = CapturingSink::default();
 
     // Target event: severity=warning, svc=db (Severity::Warning so synthetic "severity"

@@ -94,7 +94,7 @@ async fn harness() -> Harness {
     let bus: Arc<dyn EventBus> = Arc::new(RedisEventBus::connect(&redis_url).await.unwrap());
     let cipher = test_cipher();
     let groups: Arc<dyn GroupStore> = Arc::new(RedisGroups::connect(&redis_url).await.unwrap());
-    let cache = Arc::new(FilterCache::new(store.clone(), cipher.clone()));
+    let cache = Arc::new(FilterCache::new(store.clone()));
     let mut reg = Notifiers::new();
     reg.register(Arc::new(WebhookNotifier::new()));
     Harness {
@@ -126,11 +126,19 @@ async fn suppressed_event_is_dropped_before_grouping() {
     let url = start_webhook(hits.clone()).await;
 
     h.store
-        .create_receiver(
+        .create_channel(
             h.cipher.as_ref(),
             tenant.clone(),
-            "ops",
+            "ops-hook",
             &ChannelConfig::Webhook { url: url.clone() },
+        )
+        .await
+        .unwrap();
+    h.store
+        .create_receiver(
+            tenant.clone(),
+            "ops",
+            &["ops-hook".to_string()],
             &std::collections::BTreeMap::new(),
         )
         .await

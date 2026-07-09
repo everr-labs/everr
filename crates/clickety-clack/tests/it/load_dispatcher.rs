@@ -24,7 +24,7 @@ async fn load_dispatcher_ingest_throughput() {
 
     let bus: Arc<dyn EventBus> = Arc::new(RedisEventBus::connect(&redis.url).await.unwrap());
     let groups: Arc<dyn GroupStore> = Arc::new(RedisGroups::connect(&redis.url).await.unwrap());
-    let cache = Arc::new(FilterCache::new(pg.store.clone(), cipher.clone()));
+    let cache = Arc::new(FilterCache::new(pg.store.clone()));
     let mut reg = Notifiers::new();
     reg.register(Arc::new(WebhookNotifier::new()));
     let notifiers = Arc::new(reg);
@@ -186,7 +186,7 @@ async fn load_dispatcher_flush_throughput() {
 
     let bus: Arc<dyn EventBus> = Arc::new(RedisEventBus::connect(&redis.url).await.unwrap());
     let groups: Arc<dyn GroupStore> = Arc::new(RedisGroups::connect(&redis.url).await.unwrap());
-    let cache = Arc::new(FilterCache::new(pg.store.clone(), cipher.clone()));
+    let cache = Arc::new(FilterCache::new(pg.store.clone()));
     let mut reg = Notifiers::new();
     reg.register(Arc::new(WebhookNotifier::new()));
     let notifiers = Arc::new(reg);

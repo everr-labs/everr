@@ -126,7 +126,7 @@ async fn evaluator_publishes_dispatcher_delivers() {
         })
     };
     let groups: Arc<dyn GroupStore> = Arc::new(RedisGroups::connect(&redis_url).await.unwrap());
-    let cache = Arc::new(FilterCache::new(store.clone(), cipher.clone()));
+    let cache = Arc::new(FilterCache::new(store.clone()));
     let disp_handle = {
         let mut reg = Notifiers::new();
         reg.register(Arc::new(WebhookNotifier::new()));

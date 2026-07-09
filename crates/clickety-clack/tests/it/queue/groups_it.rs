@@ -29,8 +29,7 @@ fn ev(inst: &str, status: EventStatus) -> Event {
 fn meta() -> GroupMeta {
     GroupMeta {
         tenant: Uuid::nil().to_string(),
-        channel: "webhook".into(),
-        target: "http://x/hook".into(),
+        channels: vec!["ops-hook".into()],
         group_key: "ops|rule=,severity=warning".into(),
         receiver: "ops".into(),
     }
@@ -96,7 +95,7 @@ async fn buffers_batches_and_claims_when_due() {
 
     // take_group returns meta + both active events, then clears them.
     let batch = groups.take_group("g1", now + 100).await.unwrap().unwrap();
-    assert_eq!(batch.meta.channel, "webhook");
+    assert_eq!(batch.meta.channels, vec!["ops-hook".to_string()]);
     let mut events = batch.events;
     events.sort_by(|x, y| x.instance_key.0.cmp(&y.instance_key.0));
     let insts: Vec<String> = events.iter().map(|e| e.instance_key.0.clone()).collect();
@@ -344,14 +343,13 @@ async fn new_event_pulls_in_a_far_repeat_timer() {
 }
 
 // Rolling-upgrade safety: a group hash written by a binary predating the repeat
-// feature (no fi:*, __repeat_ms__, or __last_notified__ fields; legacy meta without
-// `receiver`) must still take cleanly: empty firing set, no repeat, never notified.
+// feature (no fi:*, __repeat_ms__, or __last_notified__ fields) must still take
+// cleanly: empty firing set, no repeat, never notified.
 #[tokio::test]
 async fn old_format_group_hash_takes_cleanly() {
     let (url, groups) = redis_groups().await;
 
-    let legacy_meta =
-        r#"{"tenant":"t","channel":"slack","target":"u","group_key":"oncall|env=prod"}"#;
+    let legacy_meta = r#"{"tenant":"t","channels":["oncall-slack"],"group_key":"oncall|env=prod","receiver":"oncall"}"#;
     let legacy_ev = serde_json::to_string(&ev("a", EventStatus::Firing)).unwrap();
     let client = redis::Client::open(url.as_str()).unwrap();
     let mut conn = client.get_multiplexed_async_connection().await.unwrap();
@@ -368,7 +366,7 @@ async fn old_format_group_hash_takes_cleanly() {
         .unwrap();
 
     let batch = groups.take_group("old1", 1_000).await.unwrap().unwrap();
-    assert_eq!(batch.meta.receiver, "", "legacy meta defaults receiver");
+    assert_eq!(batch.meta.receiver, "oncall");
     assert_eq!(batch.events.len(), 1);
     assert!(
         batch.firing.is_empty(),

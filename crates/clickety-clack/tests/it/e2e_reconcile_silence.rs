@@ -146,7 +146,7 @@ async fn reconcile_resolved_respects_silence() {
         .unwrap();
 
     let groups: Arc<dyn GroupStore> = Arc::new(RedisGroups::connect(&redis_url).await.unwrap());
-    let cache = Arc::new(FilterCache::new(store.clone(), cipher.clone()));
+    let cache = Arc::new(FilterCache::new(store.clone()));
 
     let (sd_tx, sd_rx) = tokio::sync::watch::channel(false);
 

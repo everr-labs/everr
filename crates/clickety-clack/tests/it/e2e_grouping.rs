@@ -91,11 +91,19 @@ async fn two_events_batch_into_one_grouped_delivery() {
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
     let rule = RuleId(Uuid::new_v4());
     store
-        .create_receiver(
+        .create_channel(
             cipher.as_ref(),
             tenant.clone(),
-            "ops",
+            "ops-hook",
             &ChannelConfig::Webhook { url: hook.clone() },
+        )
+        .await
+        .unwrap();
+    store
+        .create_receiver(
+            tenant.clone(),
+            "ops",
+            &["ops-hook".to_string()],
             &std::collections::BTreeMap::new(),
         )
         .await
@@ -124,7 +132,7 @@ async fn two_events_batch_into_one_grouped_delivery() {
     let mut reg = Notifiers::new();
     reg.register(Arc::new(WebhookNotifier::new()));
     let notifiers = Arc::new(reg);
-    let cache = Arc::new(FilterCache::new(store.clone(), cipher.clone()));
+    let cache = Arc::new(FilterCache::new(store.clone()));
 
     let (sd_tx, sd_rx) = tokio::sync::watch::channel(false);
     let disp = {

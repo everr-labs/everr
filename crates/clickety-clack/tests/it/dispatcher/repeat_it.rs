@@ -157,11 +157,19 @@ async fn setup(repeat_interval_secs: Option<u32>) -> Harness {
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
     let receiver_name = "oncall";
     store
-        .create_receiver(
+        .create_channel(
             cipher.as_ref(),
             tenant.clone(),
-            receiver_name,
+            "oncall-hook",
             &ChannelConfig::Webhook { url },
+        )
+        .await
+        .unwrap();
+    store
+        .create_receiver(
+            tenant.clone(),
+            receiver_name,
+            &["oncall-hook".to_string()],
             &BTreeMap::new(),
         )
         .await
@@ -185,7 +193,7 @@ async fn setup(repeat_interval_secs: Option<u32>) -> Harness {
     reg.register(Arc::new(WebhookNotifier::new()));
     let notifiers = Arc::new(reg);
     let groups: Arc<dyn GroupStore> = Arc::new(RedisGroups::connect(&redis_url).await.unwrap());
-    let cache = FilterCache::with_ttl(store.clone(), cipher.clone(), Duration::ZERO);
+    let cache = FilterCache::with_ttl(store.clone(), Duration::ZERO);
 
     // The deterministic group id for our single instance (default group_by).
     let group_by = grouping::default_group_by();

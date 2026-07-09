@@ -284,9 +284,9 @@ fn matcher(label: &str, value: &str) -> Matcher {
     }
 }
 
-/// Seed a tenant with a webhook receiver, an all-matching route (group_by=["svc"],
-/// group_wait=0 so groups are immediately due), a non-matching active silence, and an
-/// inhibition rule. Returns the tenant id.
+/// Seed a tenant with a webhook channel + a receiver referencing it, an all-matching
+/// route (group_by=["svc"], group_wait=0 so groups are immediately due), a non-matching
+/// active silence, and an inhibition rule. Returns the tenant id.
 pub async fn seed_dispatch_tenant(
     store: &PgStore,
     cipher: &dyn SecretCipher,
@@ -294,13 +294,21 @@ pub async fn seed_dispatch_tenant(
 ) -> TenantId {
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
     store
-        .create_receiver(
+        .create_channel(
             cipher,
             tenant.clone(),
-            "ops",
+            "ops-hook",
             &ChannelConfig::Webhook {
                 url: webhook_url.to_string(),
             },
+        )
+        .await
+        .unwrap();
+    store
+        .create_receiver(
+            tenant.clone(),
+            "ops",
+            &["ops-hook".to_string()],
             &std::collections::BTreeMap::new(),
         )
         .await

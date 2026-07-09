@@ -170,7 +170,7 @@ async fn silence_and_inhibition_suppress_delivery() {
         .await
         .unwrap();
 
-    let cache = Arc::new(FilterCache::new(store.clone(), cipher.clone()));
+    let cache = Arc::new(FilterCache::new(store.clone()));
     let mut reg = Notifiers::new();
     reg.register(Arc::new(WebhookNotifier::new()));
     let notifiers = Arc::new(reg);
@@ -277,14 +277,23 @@ async fn flush_time_silence_suppresses_buffered_event() {
     let cipher = test_cipher();
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
 
-    // Create a receiver and a grouping route so events are buffered (not immediately
-    // delivered via the firehose path). group_wait_secs=0 so the group is due immediately.
+    // Create a channel + receiver and a grouping route so events are buffered (not
+    // immediately delivered via the firehose path). group_wait_secs=0 so the group is
+    // due immediately.
     store
-        .create_receiver(
+        .create_channel(
             cipher.as_ref(),
             tenant.clone(),
-            "test-recv",
+            "test-hook",
             &ChannelConfig::Webhook { url: hook.clone() },
+        )
+        .await
+        .unwrap();
+    store
+        .create_receiver(
+            tenant.clone(),
+            "test-recv",
+            &["test-hook".to_string()],
             &std::collections::BTreeMap::new(),
         )
         .await
@@ -306,11 +315,7 @@ async fn flush_time_silence_suppresses_buffered_event() {
 
     // Step 1 — Buffer the event while NO silence is active.
     // Use a zero-TTL cache so the ingest snapshot has no silences.
-    let ingest_cache = Arc::new(FilterCache::with_ttl(
-        store.clone(),
-        cipher.clone(),
-        Duration::ZERO,
-    ));
+    let ingest_cache = Arc::new(FilterCache::with_ttl(store.clone(), Duration::ZERO));
     let mut reg = Notifiers::new();
     reg.register(Arc::new(WebhookNotifier::new()));
     let notifiers = Arc::new(reg);
@@ -369,11 +374,7 @@ async fn flush_time_silence_suppresses_buffered_event() {
         .unwrap();
 
     // Step 3 — Use a zero-TTL cache so flush_group reloads and sees the silence.
-    let flush_cache = Arc::new(FilterCache::with_ttl(
-        store.clone(),
-        cipher.clone(),
-        Duration::ZERO,
-    ));
+    let flush_cache = Arc::new(FilterCache::with_ttl(store.clone(), Duration::ZERO));
 
     // Step 4 — Claim the due group and flush it.
     let now_ms = (OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000_000) as i64;

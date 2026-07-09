@@ -1,23 +1,10 @@
-use cc::crypto::{EnvKeyring, SecretCipher};
 use cc::dispatcher::cache::FilterCache;
 use cc::domain::ids::TenantId;
 use cc::domain::routing::{MatchOp, Matcher};
 use cc::stores::PgStore;
-use std::collections::HashMap;
-use std::sync::Arc;
 use std::time::Duration;
 use time::OffsetDateTime;
 use uuid::Uuid;
-
-fn test_cipher() -> Arc<dyn SecretCipher> {
-    Arc::new(
-        EnvKeyring::new(
-            HashMap::from([("v1".to_string(), [7u8; 32])]),
-            "v1".to_string(),
-        )
-        .unwrap(),
-    )
-}
 
 #[tokio::test]
 async fn snapshot_caches_within_ttl_and_reloads_after() {
@@ -43,7 +30,7 @@ async fn snapshot_caches_within_ttl_and_reloads_after() {
         .await
         .unwrap();
 
-    let cache = FilterCache::with_ttl(store.clone(), test_cipher(), Duration::from_millis(150));
+    let cache = FilterCache::with_ttl(store.clone(), Duration::from_millis(150));
 
     let s1 = cache.snapshot(tenant.clone()).await.unwrap();
     assert_eq!(s1.silences.len(), 1);
