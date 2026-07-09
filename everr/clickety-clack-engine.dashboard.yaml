@@ -71,13 +71,14 @@ spec:
       spec:
         display:
           name: Worst lag / drift
-          description: Max eval-job queue age and scheduler claim drift since the engine last started (cumulative histogram maxima; a restart spike sticks until the next restart).
+          description: Worst eval-job queue age and scheduler claim drift in the selected range, as the upper bound of the highest histogram bucket hit (so a value of 10 means the worst sample was between 5s and 10s).
         plugin:
           kind: StatChart
           spec:
-            calculation: last
+            calculation: max
             unit: s
             showLabel: true
+            sparkline: true
             thresholds:
               mode: absolute
               defaultColor: "#22c55e"
@@ -91,11 +92,42 @@ spec:
                 kind: ClickHouseSQL
                 spec:
                   query: |
-                    SELECT round(maxIf(Max, MetricName = 'cc.queue.consume.lag'), 3) AS queue_lag_max_s,
-                           round(maxIf(Max, MetricName = 'cc.scheduler.drift'), 3) AS sched_drift_max_s
-                    FROM metrics_histogram
-                    WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
-                      AND MetricName IN ('cc.queue.consume.lag', 'cc.scheduler.drift')
+                    SELECT ts, if(idx = 0, 0, bounds[least(idx, length(bounds))]) AS queue_lag_s
+                    FROM (
+                      SELECT ts, bounds,
+                             arrayLastIndex(x -> x > 0, arrayMap((c, p) -> greatest(c - p, 0), bc, lagInFrame(bc, 1, bc) OVER (ORDER BY ts))) AS idx
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts,
+                               argMax(BucketCounts, TimeUnix) AS bc,
+                               any(ExplicitBounds) AS bounds
+                        FROM metrics_histogram
+                        WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
+                          AND MetricName = 'cc.queue.consume.lag'
+                        GROUP BY ts
+                      )
+                    )
+                    ORDER BY ts
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT ts, if(idx = 0, 0, bounds[least(idx, length(bounds))]) AS sched_drift_s
+                    FROM (
+                      SELECT ts, bounds,
+                             arrayLastIndex(x -> x > 0, arrayMap((c, p) -> greatest(c - p, 0), bc, lagInFrame(bc, 1, bc) OVER (ORDER BY ts))) AS idx
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts,
+                               argMax(BucketCounts, TimeUnix) AS bc,
+                               any(ExplicitBounds) AS bounds
+                        FROM metrics_histogram
+                        WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
+                          AND MetricName = 'cc.scheduler.drift'
+                        GROUP BY ts
+                      )
+                    )
+                    ORDER BY ts
     issues:
       kind: Panel
       spec:
