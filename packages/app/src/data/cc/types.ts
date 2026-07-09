@@ -3,7 +3,6 @@ import type {
   CcAlertSchema,
   CcChannelConfigSchema,
   CcChannelSchema,
-  CcEventSchema,
   CcInhibitionSchema,
   CcMatcherSchema,
   CcReceiverSchema,
@@ -30,5 +29,4 @@ export type CcRoute = z.infer<typeof CcRouteSchema>;
 export type CcSilence = z.infer<typeof CcSilenceSchema>;
 export type CcInhibition = z.infer<typeof CcInhibitionSchema>;
 export type CcSubscription = z.infer<typeof CcSubscriptionSchema>;
-export type CcEvent = z.infer<typeof CcEventSchema>;
 export type CcTestResult = z.infer<typeof CcTestResultSchema>;

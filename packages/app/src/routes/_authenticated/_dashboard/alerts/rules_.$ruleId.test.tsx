@@ -31,6 +31,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/data/cc/server", () => ({
+  CC_POLL_INTERVAL_MS: 15_000,
   getCcRule: mocks.getCcRule,
   listCcAlerts: mocks.listCcAlerts,
   pauseCcRule: mocks.pauseCcRule,

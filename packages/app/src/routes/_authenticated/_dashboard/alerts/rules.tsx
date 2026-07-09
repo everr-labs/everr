@@ -20,7 +20,12 @@ import { BookOpenText, Pause, Play, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { ccRuleIdentity } from "@/data/alerts/rule-identity";
-import { listCcRulesPage, pauseCcRule, resumeCcRule } from "@/data/cc/server";
+import {
+  CC_POLL_INTERVAL_MS,
+  listCcRulesPage,
+  pauseCcRule,
+  resumeCcRule,
+} from "@/data/cc/server";
 import type { CcRuleView } from "@/data/cc/types";
 import {
   CcConceptNote,
@@ -54,6 +59,7 @@ const ccRulesQuery = (health?: RuleHealthFilter) =>
       }),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.next_cursor,
+    refetchInterval: CC_POLL_INTERVAL_MS,
   });
 
 // `health` narrows the listing server-side (CC's rule-health filter); Triage's

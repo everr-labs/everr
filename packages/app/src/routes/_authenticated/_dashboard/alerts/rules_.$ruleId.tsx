@@ -45,6 +45,7 @@ import {
 } from "@/components/cc/alert-event-feed";
 import { ccRuleIdentity } from "@/data/alerts/rule-identity";
 import {
+  CC_POLL_INTERVAL_MS,
   getCcRule,
   listCcAlerts,
   pauseCcRule,
@@ -69,7 +70,11 @@ const ccRuleQuery = (ruleId: string) =>
     queryFn: () => getCcRule({ data: { ruleId } }),
   });
 const ccAlertsQuery = () =>
-  queryOptions({ queryKey: ["cc", "alerts"], queryFn: () => listCcAlerts() });
+  queryOptions({
+    queryKey: ["cc", "alerts"],
+    queryFn: () => listCcAlerts(),
+    refetchInterval: CC_POLL_INTERVAL_MS,
+  });
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/alerts/rules_/$ruleId",
@@ -226,6 +231,8 @@ function CcRuleDetailPage() {
         : pauseCcRule({ data: { ruleId } }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["cc", "rule", ruleId] });
+      // The rules listing shows the paused state too.
+      qc.invalidateQueries({ queryKey: ["cc", "rules"] });
       toast.success("Rule updated");
     },
     onError: (e) => toast.error(ccErrorMessage(e)),

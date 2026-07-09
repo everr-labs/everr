@@ -55,6 +55,7 @@ import {
   ccSyntheticLabels,
 } from "@/components/cc/route-resolution";
 import {
+  CC_POLL_INTERVAL_MS,
   createCcSubscription,
   deleteCcChannel,
   deleteCcInhibition,
@@ -104,9 +105,17 @@ const q = {
       queryFn: () => listCcInhibitions(),
     }),
   alerts: () =>
-    queryOptions({ queryKey: ["cc", "alerts"], queryFn: () => listCcAlerts() }),
+    queryOptions({
+      queryKey: ["cc", "alerts"],
+      queryFn: () => listCcAlerts(),
+      refetchInterval: CC_POLL_INTERVAL_MS,
+    }),
   rules: () =>
-    queryOptions({ queryKey: ["cc", "rules"], queryFn: () => listCcRules() }),
+    queryOptions({
+      queryKey: ["cc", "rules"],
+      queryFn: () => listCcRules(),
+      refetchInterval: CC_POLL_INTERVAL_MS,
+    }),
   subscriptions: () =>
     queryOptions({
       queryKey: ["cc", "subscriptions"],

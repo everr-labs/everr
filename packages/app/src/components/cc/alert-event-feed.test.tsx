@@ -2,15 +2,12 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AlertEventLogRow } from "@/data/alerts/history.server";
-import type { CcEvent } from "@/data/cc/types";
-import { AlertEventFeed } from "./alert-event-feed";
+import { AlertEventFeed, ccEventHistoryQueryOptions } from "./alert-event-feed";
 
 // ---------------------------------------------------------------------------
-// Mocks: the stored-history query and the live event hook. Follows the
-// mocking pattern in src/hooks/use-cc-events.test.ts (mock the hook boundary,
-// not the transport it wraps). `vi.mock` calls are hoisted above the imports
-// above by vitest, so the mocked modules are in place before AlertEventFeed
-// (and its dependencies) load.
+// Mocks: the stored-history query. `vi.mock` calls are hoisted above the
+// imports above by vitest, so the mocked modules are in place before
+// AlertEventFeed (and its dependencies) load.
 // ---------------------------------------------------------------------------
 
 const mockUseQuery = vi.fn();
@@ -23,25 +20,6 @@ vi.mock("@/hooks/use-time-range", () => ({
   useTimeRange: () => ({
     timeRange: { from: "now-1h", to: "now" },
     setTimeRange: vi.fn(),
-  }),
-}));
-
-let liveEvents: CcEvent[] = [];
-let connected = true;
-let paused = false;
-const clear = vi.fn(() => {
-  liveEvents = [];
-});
-const setPaused = vi.fn((p: boolean) => {
-  paused = p;
-});
-
-vi.mock("@/hooks/use-cc-events", () => ({
-  useCcEvents: () => ({
-    events: liveEvents,
-    connected,
-    clear,
-    setPaused,
   }),
 }));
 
@@ -68,40 +46,7 @@ function historyRow(
   };
 }
 
-function liveEvent(overrides: Partial<CcEvent> = {}): CcEvent {
-  return {
-    tenant: "t1",
-    rule: "alpha-rule-id",
-    instance_key: "fp-alpha",
-    status: "firing",
-    labels: { team: "pay" },
-    value: null,
-    severity: "critical",
-    annotations: { "everr.name": "alpha" },
-    eval_ts: "2024-01-01T00:05:00Z",
-    suppressed: false,
-    evidence: null,
-    evidence_truncated: false,
-    ...overrides,
-  };
-}
-
-/**
- * Mimics the real useCcEvents hook's onmessage guard (frames are dropped
- * while paused), so simulating a new SSE frame exercises the same contract
- * AlertEventFeed relies on.
- */
-function emitLiveEvent(event: CcEvent) {
-  if (paused) return;
-  liveEvents = [event, ...liveEvents];
-}
-
 beforeEach(() => {
-  liveEvents = [];
-  connected = true;
-  paused = false;
-  clear.mockClear();
-  setPaused.mockClear();
   mockUseQuery.mockReset();
   mockUseQuery.mockReturnValue({
     data: [],
@@ -112,10 +57,14 @@ beforeEach(() => {
 });
 
 describe("AlertEventFeed", () => {
+  it("polls the event-history query so the feed stays current", () => {
+    const opts = ccEventHistoryQueryOptions({ from: "now-1h", to: "now" });
+    expect(opts.refetchInterval).toBe(15_000);
+  });
+
   it("shows all events when unscoped", () => {
-    liveEvents = [liveEvent()];
     mockUseQuery.mockReturnValue({
-      data: [historyRow()],
+      data: [historyRow({ slug: "alpha" }), historyRow({ slug: "beta" })],
       isPending: false,
       isError: false,
       error: null,
@@ -128,9 +77,8 @@ describe("AlertEventFeed", () => {
   });
 
   it("filters to scopeSlug, hiding other slugs", () => {
-    liveEvents = [liveEvent()];
     mockUseQuery.mockReturnValue({
-      data: [historyRow({ slug: "beta" })],
+      data: [historyRow({ slug: "alpha" }), historyRow({ slug: "beta" })],
       isPending: false,
       isError: false,
       error: null,
@@ -142,34 +90,7 @@ describe("AlertEventFeed", () => {
     expect(screen.queryByText("beta")).not.toBeInTheDocument();
   });
 
-  it("pause stops new live events from appearing", async () => {
-    const user = userEvent.setup();
-    const { rerender } = render(<AlertEventFeed />);
-
-    emitLiveEvent(liveEvent({ annotations: { "everr.name": "first" } }));
-    rerender(<AlertEventFeed />);
-    expect(screen.getByText("first")).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: /pause/i }));
-    expect(setPaused).toHaveBeenCalledWith(true);
-
-    emitLiveEvent(liveEvent({ annotations: { "everr.name": "second" } }));
-    rerender(<AlertEventFeed />);
-
-    expect(screen.getByText("first")).toBeInTheDocument();
-    expect(screen.queryByText("second")).not.toBeInTheDocument();
-  });
-
-  it("shows the resume control once paused", async () => {
-    const user = userEvent.setup();
-    render(<AlertEventFeed />);
-
-    await user.click(screen.getByRole("button", { name: /pause/i }));
-
-    expect(screen.getByRole("button", { name: /resume/i })).toBeInTheDocument();
-  });
-
-  it("renders evidence chips for a history row that carries evidence", () => {
+  it("renders evidence chips for a row that carries evidence", () => {
     mockUseQuery.mockReturnValue({
       data: [
         historyRow({
@@ -207,20 +128,17 @@ describe("AlertEventFeed", () => {
     expect(screen.getByText(/truncated/i)).toBeInTheDocument();
   });
 
-  it("renders evidence chips and the suppressed marker for a live frame", () => {
-    liveEvents = [
-      liveEvent({
-        suppressed: true,
-        evidence: { status_code: 500 },
-        evidence_truncated: true,
-      }),
-    ];
+  it("renders the suppressed marker for a suppressed row", () => {
+    mockUseQuery.mockReturnValue({
+      data: [historyRow({ slug: "beta", suppressed: true })],
+      isPending: false,
+      isError: false,
+      error: null,
+    });
 
     render(<AlertEventFeed />);
 
-    expect(screen.getByText("status_code=500")).toBeInTheDocument();
     expect(screen.getByText("suppressed")).toBeInTheDocument();
-    expect(screen.getByText(/truncated/i)).toBeInTheDocument();
   });
 
   it("renders no evidence chips for a row without evidence", () => {
@@ -413,14 +331,9 @@ describe("AlertEventFeed", () => {
     // The row's own slug ("beta") no longer renders anywhere: it was the
     // Rule column's content.
     expect(screen.queryByText("beta")).not.toBeInTheDocument();
-    // Type filter and pause/clear survive: a scoped feed still narrows by
-    // event kind and can be paused.
+    // The type filter survives: a scoped feed still narrows by event kind.
     expect(
       screen.getByRole("combobox", { name: "Event type" }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /pause/i })).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /clear live/i }),
     ).toBeInTheDocument();
   });
 

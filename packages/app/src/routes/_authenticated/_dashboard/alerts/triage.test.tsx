@@ -22,8 +22,7 @@ import { Route as AlertsIndexRoute } from "./index";
 import { Route as TriageFileRoute } from "./triage";
 
 // ---------------------------------------------------------------------------
-// Mocks, at the same module boundary as ./rules.test.tsx. The invalidation
-// hook opens an SSE connection, so it is stubbed out entirely.
+// Mocks, at the same module boundary as ./rules.test.tsx.
 // ---------------------------------------------------------------------------
 
 const mocks = vi.hoisted(() => ({
@@ -38,6 +37,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/data/cc/server", () => ({
+  CC_POLL_INTERVAL_MS: 15_000,
   listCcAlerts: mocks.listCcAlerts,
   listCcRules: mocks.listCcRules,
   listCcRoutes: mocks.listCcRoutes,
@@ -46,10 +46,6 @@ vi.mock("@/data/cc/server", () => ({
   listCcSubscriptions: mocks.listCcSubscriptions,
   listCcEventHistory: mocks.listCcEventHistory,
   createCcSilence: mocks.createCcSilence,
-}));
-
-vi.mock("@/hooks/use-cc-invalidation", () => ({
-  useCcInvalidation: () => {},
 }));
 
 // ---------------------------------------------------------------------------

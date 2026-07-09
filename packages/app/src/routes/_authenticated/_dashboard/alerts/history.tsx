@@ -7,10 +7,14 @@ import {
   ccEventHistoryQueryOptions,
 } from "@/components/cc/alert-event-feed";
 import { fromCcRuleSpec } from "@/data/alerts/mapping";
-import { listCcRules } from "@/data/cc/server";
+import { CC_POLL_INTERVAL_MS, listCcRules } from "@/data/cc/server";
 
 const rulesQuery = () =>
-  queryOptions({ queryKey: ["cc", "rules"], queryFn: () => listCcRules() });
+  queryOptions({
+    queryKey: ["cc", "rules"],
+    queryFn: () => listCcRules(),
+    refetchInterval: CC_POLL_INTERVAL_MS,
+  });
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/alerts/history",

@@ -19,6 +19,14 @@ import {
 const orgId = (session: { session: { activeOrganizationId: string } }) =>
   session.session.activeOrganizationId;
 
+// Poll cadence for the live alerting surfaces: active instances
+// (["cc", "alerts"]), rule rollups (["cc", "rules"]), and the stored event
+// history (["cc", "event-history"]). These change as rules evaluate, so their
+// queries refetch on this interval; config queries (routes, receivers,
+// channels, inhibitions, silences) change only through user actions and are
+// invalidated by their mutations instead.
+export const CC_POLL_INTERVAL_MS = 15_000;
+
 // ---- Queries ----
 export const listCcRules = createAuthenticatedServerFn({
   method: "GET",
@@ -75,7 +83,7 @@ export const listCcSubscriptions = createAuthenticatedServerFn({
 
 // Stored CC event history (all rules, all event types) from ClickHouse app.logs.
 // Tenancy rides on the org-scoped clickhouse context (row-level policy), not on a
-// SQL organization filter. Backs the monitor stream's historical page.
+// SQL organization filter. Backs the event history feed.
 export const listCcEventHistory = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(
     z.object({

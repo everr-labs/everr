@@ -14,6 +14,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { BellOff, BookOpenText, ChevronRight } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { ccEventStatus } from "@/components/cc/alert-event-feed";
 import {
   ccMatchingSilence,
   ccSelectRoutes,
@@ -32,8 +33,10 @@ import {
   EvidenceChips,
   LabelSet,
 } from "@/components/cc/shared";
+import type { AlertEventLogRow } from "@/data/alerts/history.server";
 import { ccRuleIdentity } from "@/data/alerts/rule-identity";
 import {
+  CC_POLL_INTERVAL_MS,
   createCcSilence,
   listCcAlerts,
   listCcEventHistory,
@@ -50,11 +53,6 @@ import type {
   CcRuleView,
   CcSilence,
 } from "@/data/cc/types";
-import {
-  type CcUnifiedEvent,
-  historyToUnified,
-} from "@/data/cc/unified-events";
-import { useCcInvalidation } from "@/hooks/use-cc-invalidation";
 
 // The alerts layout hides the global time-range picker, so Triage reads a
 // fixed trailing window of stored events for evidence and recent transitions.
@@ -63,9 +61,17 @@ const TRIAGE_EVENT_LIMIT = 500;
 
 const q = {
   alerts: () =>
-    queryOptions({ queryKey: ["cc", "alerts"], queryFn: () => listCcAlerts() }),
+    queryOptions({
+      queryKey: ["cc", "alerts"],
+      queryFn: () => listCcAlerts(),
+      refetchInterval: CC_POLL_INTERVAL_MS,
+    }),
   rules: () =>
-    queryOptions({ queryKey: ["cc", "rules"], queryFn: () => listCcRules() }),
+    queryOptions({
+      queryKey: ["cc", "rules"],
+      queryFn: () => listCcRules(),
+      refetchInterval: CC_POLL_INTERVAL_MS,
+    }),
   routes: () =>
     queryOptions({ queryKey: ["cc", "routes"], queryFn: () => listCcRoutes() }),
   receivers: () =>
@@ -90,6 +96,7 @@ const q = {
         listCcEventHistory({
           data: { limit: TRIAGE_EVENT_LIMIT, timeRange: TRIAGE_EVENT_RANGE },
         }),
+      refetchInterval: CC_POLL_INTERVAL_MS,
     }),
 };
 
@@ -243,13 +250,13 @@ function InstanceDetail({
   onCustomSilence,
 }: {
   inst: TriageInstance;
-  events: CcUnifiedEvent[];
+  events: AlertEventLogRow[];
   onSilence: (hours: number) => void;
   silencePending: boolean;
   onCustomSilence: () => void;
 }) {
   const { alert, rule } = inst;
-  const own = events.filter((e) => e.fingerprint === alert.key);
+  const own = events.filter((e) => e.instanceFingerprint === alert.key);
   const latest = own.find(
     (e) => e.evidence && Object.keys(e.evidence).length > 0,
   );
@@ -309,20 +316,24 @@ function InstanceDetail({
           <ul className="space-y-0.5">
             {transitions.map((e) => (
               <li
-                key={e.key}
+                key={`${e.timestamp}-${e.eventType}`}
                 className="flex items-center gap-2 text-xs tabular-nums"
               >
                 <CcStatusDot
-                  tone={e.status === "firing" ? "firing" : "resolved"}
+                  tone={
+                    ccEventStatus(e.eventType) === "firing"
+                      ? "firing"
+                      : "resolved"
+                  }
                 />
                 <span className="w-14 text-muted-foreground">
-                  {e.status ?? e.eventType}
+                  {ccEventStatus(e.eventType) ?? e.eventType}
                 </span>
                 <span
                   className="text-muted-foreground/80"
-                  title={ccFormatTs(e.ts)}
+                  title={ccFormatTs(e.timestamp)}
                 >
-                  {formatRelativeTime(e.ts)}
+                  {formatRelativeTime(e.timestamp)}
                 </span>
               </li>
             ))}
@@ -463,7 +474,6 @@ const LENSES = [
 type LensKey = (typeof LENSES)[number]["key"];
 
 function CcTriagePage() {
-  useCcInvalidation();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const alerts = useQuery(q.alerts());
@@ -515,10 +525,7 @@ function CcTriagePage() {
     () => new Map((receivers.data ?? []).map((r) => [r.name, r.channels])),
     [receivers.data],
   );
-  const unifiedEvents = useMemo(
-    () => (events.data ?? []).map(historyToUnified),
-    [events.data],
-  );
+  const eventRows = events.data ?? [];
 
   // Every derived fact for every instance, resolved once with the engine's own
   // matching semantics (synthetic labels, priority + continue routes).
@@ -603,7 +610,7 @@ function CcTriagePage() {
 
   const hasSubscribers = (subscriptions.data ?? []).length > 0;
   const watching = (rules.data ?? []).filter((r) => !r.paused).length;
-  const lastEventTs = unifiedEvents[0]?.ts ?? null;
+  const lastEventTs = eventRows[0]?.timestamp ?? null;
 
   return (
     <div className="space-y-3">
@@ -757,7 +764,7 @@ function CcTriagePage() {
                     >
                       <InstanceDetail
                         inst={inst}
-                        events={unifiedEvents}
+                        events={eventRows}
                         silencePending={silenceInstance.isPending}
                         onSilence={(hours) =>
                           silenceInstance.mutate({ alert: inst.alert, hours })

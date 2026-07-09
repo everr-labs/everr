@@ -49,6 +49,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/data/cc/server", () => ({
+  CC_POLL_INTERVAL_MS: 15_000,
   listCcRoutes: mocks.listCcRoutes,
   listCcReceivers: mocks.listCcReceivers,
   listCcChannels: mocks.listCcChannels,

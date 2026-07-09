@@ -32,7 +32,6 @@ import { Route as ApiCliOrgRouteImport } from './routes/api/cli/org'
 import { Route as ApiCliNotificationRouteImport } from './routes/api/cli/notification'
 import { Route as ApiCliMeRouteImport } from './routes/api/cli/me'
 import { Route as ApiCliImportRouteImport } from './routes/api/cli/import'
-import { Route as ApiCcEventsStreamRouteImport } from './routes/api/cc/events-stream'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as AuthenticatedDashboardRunsRouteImport } from './routes/_authenticated/_dashboard/runs'
 import { Route as AuthenticatedDashboardAlertsRouteImport } from './routes/_authenticated/_dashboard/alerts'
@@ -202,11 +201,6 @@ const ApiCliImportRoute = ApiCliImportRouteImport.update({
   id: '/import',
   path: '/import',
   getParentRoute: () => ApiCliRoute,
-} as any)
-const ApiCcEventsStreamRoute = ApiCcEventsStreamRouteImport.update({
-  id: '/api/cc/events-stream',
-  path: '/api/cc/events-stream',
-  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
@@ -547,7 +541,6 @@ export interface FileRoutesByFullPath {
   '/alerts': typeof AuthenticatedDashboardAlertsRouteWithChildren
   '/runs': typeof AuthenticatedDashboardRunsRouteWithChildren
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/api/cc/events-stream': typeof ApiCcEventsStreamRoute
   '/api/cli/import': typeof ApiCliImportRoute
   '/api/cli/me': typeof ApiCliMeRoute
   '/api/cli/notification': typeof ApiCliNotificationRoute
@@ -620,7 +613,6 @@ export interface FileRoutesByTo {
   '/auth/error': typeof AuthAuthErrorRoute
   '/invite/$invitationId': typeof AuthInviteInvitationIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/api/cc/events-stream': typeof ApiCcEventsStreamRoute
   '/api/cli/import': typeof ApiCliImportRoute
   '/api/cli/me': typeof ApiCliMeRoute
   '/api/cli/notification': typeof ApiCliNotificationRoute
@@ -701,7 +693,6 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/alerts': typeof AuthenticatedDashboardAlertsRouteWithChildren
   '/_authenticated/_dashboard/runs': typeof AuthenticatedDashboardRunsRouteWithChildren
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/api/cc/events-stream': typeof ApiCcEventsStreamRoute
   '/api/cli/import': typeof ApiCliImportRoute
   '/api/cli/me': typeof ApiCliMeRoute
   '/api/cli/notification': typeof ApiCliNotificationRoute
@@ -779,7 +770,6 @@ export interface FileRouteTypes {
     | '/alerts'
     | '/runs'
     | '/api/auth/$'
-    | '/api/cc/events-stream'
     | '/api/cli/import'
     | '/api/cli/me'
     | '/api/cli/notification'
@@ -852,7 +842,6 @@ export interface FileRouteTypes {
     | '/auth/error'
     | '/invite/$invitationId'
     | '/api/auth/$'
-    | '/api/cc/events-stream'
     | '/api/cli/import'
     | '/api/cli/me'
     | '/api/cli/notification'
@@ -932,7 +921,6 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/alerts'
     | '/_authenticated/_dashboard/runs'
     | '/api/auth/$'
-    | '/api/cc/events-stream'
     | '/api/cli/import'
     | '/api/cli/me'
     | '/api/cli/notification'
@@ -1005,7 +993,6 @@ export interface RootRouteChildren {
   McpConsentRoute: typeof McpConsentRoute
   WebhookGithubRoute: typeof WebhookGithubRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
-  ApiCcEventsStreamRoute: typeof ApiCcEventsStreamRoute
   ApiEventsStreamRoute: typeof ApiEventsStreamRoute
   ApiInternalVerifyKeyRoute: typeof ApiInternalVerifyKeyRoute
   ApiGithubInstallCallbackRoute: typeof ApiGithubInstallCallbackRoute
@@ -1174,13 +1161,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/cli/import'
       preLoaderRoute: typeof ApiCliImportRouteImport
       parentRoute: typeof ApiCliRoute
-    }
-    '/api/cc/events-stream': {
-      id: '/api/cc/events-stream'
-      path: '/api/cc/events-stream'
-      fullPath: '/api/cc/events-stream'
-      preLoaderRoute: typeof ApiCcEventsStreamRouteImport
-      parentRoute: typeof rootRouteImport
     }
     '/api/auth/$': {
       id: '/api/auth/$'
@@ -1944,7 +1924,6 @@ const rootRouteChildren: RootRouteChildren = {
   McpConsentRoute: McpConsentRoute,
   WebhookGithubRoute: WebhookGithubRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
-  ApiCcEventsStreamRoute: ApiCcEventsStreamRoute,
   ApiEventsStreamRoute: ApiEventsStreamRoute,
   ApiInternalVerifyKeyRoute: ApiInternalVerifyKeyRoute,
   ApiGithubInstallCallbackRoute: ApiGithubInstallCallbackRoute,
