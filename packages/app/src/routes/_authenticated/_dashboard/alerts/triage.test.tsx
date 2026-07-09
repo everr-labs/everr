@@ -66,6 +66,7 @@ function ccRule(overrides: Partial<CcRuleView> = {}): CcRuleView {
       annotations: {
         "everr.name": "flapping",
         "everr.display.name": "Flapping check",
+        "everr.display.description": "Fires when the flap condition holds.",
         "everr.runbook": "demo/flap-runbook",
       },
       resolve_after: 1,
@@ -383,6 +384,9 @@ describe("/alerts/triage route", () => {
 
     await expandRowByLabel(user, "web-1");
 
+    expect(
+      screen.getByText("Fires when the flap condition holds."),
+    ).toBeInTheDocument();
     expect(screen.getByText("status_code=500")).toBeInTheDocument();
     expect(screen.getByText("Route")).toBeInTheDocument();
     expect(screen.getByText("Recent transitions")).toBeInTheDocument();

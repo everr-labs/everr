@@ -34,6 +34,7 @@ import {
   LabelSet,
 } from "@/components/cc/shared";
 import type { AlertEventLogRow } from "@/data/alerts/history.server";
+import { fromCcRuleSpec } from "@/data/alerts/mapping";
 import { ccRuleIdentity } from "@/data/alerts/rule-identity";
 import {
   CC_POLL_INTERVAL_MS,
@@ -267,9 +268,17 @@ function InstanceDetail({
     )
     .slice(0, 6);
   const runbook = runbookParams(rule);
+  const description = rule
+    ? fromCcRuleSpec(rule.spec).displayDescription
+    : null;
 
   return (
     <div className="space-y-3 border-t border-border/60 bg-muted/10 px-3 py-3 pl-9">
+      {description && (
+        <p className="max-w-prose text-xs text-muted-foreground">
+          {description}
+        </p>
+      )}
       {latest?.evidence && (
         <div className="space-y-1">
           <div className="text-[0.625rem] font-medium tracking-wide text-muted-foreground uppercase">
