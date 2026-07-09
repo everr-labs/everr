@@ -96,6 +96,159 @@ spec:
                     FROM metrics_histogram
                     WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
                       AND MetricName IN ('cc.queue.consume.lag', 'cc.scheduler.drift')
+    issues:
+      kind: Panel
+      spec:
+        display:
+          name: Issues
+          description: Per-interval health per pipeline stage. silent = the engine exported nothing; restart marks a new process start.
+        plugin:
+          kind: StateTimeline
+          spec:
+            showValues: false
+            colors:
+              ok: "#22c55e"
+              warn: "#f59e0b"
+              bad: "#ef4444"
+              silent: "#6b7280"
+              restart: "#3b82f6"
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT ts, if(cnt > 0, 'ok', 'silent') AS engine
+                    FROM (
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL greatest({step:UInt32}, 120) SECOND) AS ts, count() AS cnt
+                      FROM metrics_histogram
+                      WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
+                        AND MetricName = 'cc.queue.batch.size'
+                      GROUP BY ts
+                      ORDER BY ts WITH FILL
+                        FROM toStartOfInterval(parseDateTimeBestEffort({from:String}), INTERVAL greatest({step:UInt32}, 120) SECOND)
+                        TO parseDateTimeBestEffort({to:String})
+                        STEP toIntervalSecond(greatest({step:UInt32}, 120))
+                    )
+                    ORDER BY ts
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT ts, if(s != lagInFrame(s, 1, s) OVER (ORDER BY ts), 'restart', NULL) AS deploys
+                    FROM (
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL greatest({step:UInt32}, 120) SECOND) AS ts,
+                             max(StartTimeUnix) AS s
+                      FROM metrics_histogram
+                      WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
+                        AND MetricName = 'cc.queue.batch.size'
+                      GROUP BY ts
+                    )
+                    ORDER BY ts
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT ts, if(inc > 0, 'bad', 'ok') AS evaluation
+                    FROM (
+                      SELECT ts, sum(i) AS inc
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL greatest({step:UInt32}, 120) SECOND) AS ts,
+                               greatest(max(Value) - lagInFrame(max(Value), 1, min(Value)) OVER (PARTITION BY Attributes ORDER BY toStartOfInterval(TimeUnix, INTERVAL greatest({step:UInt32}, 120) SECOND)), 0) AS i
+                        FROM metrics_sum
+                        WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
+                          AND MetricName = 'cc.eval.errors'
+                        GROUP BY ts, Attributes
+                      )
+                      GROUP BY ts
+                      ORDER BY ts WITH FILL
+                        FROM toStartOfInterval(parseDateTimeBestEffort({from:String}), INTERVAL greatest({step:UInt32}, 120) SECOND)
+                        TO parseDateTimeBestEffort({to:String})
+                        STEP toIntervalSecond(greatest({step:UInt32}, 120))
+                    )
+                    ORDER BY ts
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT ts, if(inc > 0, 'bad', 'ok') AS delivery
+                    FROM (
+                      SELECT ts, sum(i) AS inc
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL greatest({step:UInt32}, 120) SECOND) AS ts,
+                               greatest(max(Value) - lagInFrame(max(Value), 1, min(Value)) OVER (PARTITION BY Attributes ORDER BY toStartOfInterval(TimeUnix, INTERVAL greatest({step:UInt32}, 120) SECOND)), 0) AS i
+                        FROM metrics_sum
+                        WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
+                          AND MetricName = 'cc.notify.deliveries'
+                          AND Attributes['outcome'] = 'failed'
+                        GROUP BY ts, Attributes
+                      )
+                      GROUP BY ts
+                      ORDER BY ts WITH FILL
+                        FROM toStartOfInterval(parseDateTimeBestEffort({from:String}), INTERVAL greatest({step:UInt32}, 120) SECOND)
+                        TO parseDateTimeBestEffort({to:String})
+                        STEP toIntervalSecond(greatest({step:UInt32}, 120))
+                    )
+                    ORDER BY ts
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT ts, multiIf(v >= 5, 'bad', v >= 1, 'warn', 'ok') AS queue
+                    FROM (
+                      SELECT ts, coalesce(round(greatest(sum_d, 0) / nullif(greatest(cnt_d, 0), 0), 4), 0) AS v
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL greatest({step:UInt32}, 120) SECOND) AS ts,
+                               max(Sum) - lagInFrame(max(Sum), 1, max(Sum)) OVER (ORDER BY ts) AS sum_d,
+                               max(Count) - lagInFrame(max(Count), 1, max(Count)) OVER (ORDER BY ts) AS cnt_d
+                        FROM metrics_histogram
+                        WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
+                          AND MetricName = 'cc.queue.consume.lag'
+                        GROUP BY ts
+                      )
+                      ORDER BY ts WITH FILL
+                        FROM toStartOfInterval(parseDateTimeBestEffort({from:String}), INTERVAL greatest({step:UInt32}, 120) SECOND)
+                        TO parseDateTimeBestEffort({to:String})
+                        STEP toIntervalSecond(greatest({step:UInt32}, 120))
+                    )
+                    ORDER BY ts
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT ts, multiIf(tail > 10, 'bad', tail > 2.5, 'warn', 'ok') AS scheduler
+                    FROM (
+                      SELECT ts, coalesce(if(idx = 0, 0, bounds[least(idx, length(bounds))]), 0) AS tail
+                      FROM (
+                        SELECT ts, bounds,
+                               arrayLastIndex(x -> x > 0, arrayMap((c, p) -> greatest(c - p, 0), bc, lagInFrame(bc, 1, bc) OVER (ORDER BY ts))) AS idx
+                        FROM (
+                          SELECT toStartOfInterval(TimeUnix, INTERVAL greatest({step:UInt32}, 120) SECOND) AS ts,
+                                 argMax(BucketCounts, TimeUnix) AS bc,
+                                 any(ExplicitBounds) AS bounds
+                          FROM metrics_histogram
+                          WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
+                            AND MetricName = 'cc.scheduler.drift'
+                          GROUP BY ts
+                        )
+                      )
+                      ORDER BY ts WITH FILL
+                        FROM toStartOfInterval(parseDateTimeBestEffort({from:String}), INTERVAL greatest({step:UInt32}, 120) SECOND)
+                        TO parseDateTimeBestEffort({to:String})
+                        STEP toIntervalSecond(greatest({step:UInt32}, 120))
+                    )
+                    ORDER BY ts
     eval-latency:
       kind: Panel
       spec:
@@ -152,7 +305,7 @@ spec:
       spec:
         display:
           name: Queue lag and scheduler drift
-          description: Per-interval averages from the cumulative histograms. Sustained lag growth means evaluators are behind; drift growth means the rule set has outgrown the scheduler tick.
+          description: Per-interval averages plus tail bounds (upper edge of the highest histogram bucket hit in the interval). Sustained lag growth means evaluators are behind; drift growth means the rule set has outgrown the scheduler tick.
         plugin:
           kind: TimeSeriesChart
           spec: { unit: s, showLegend: true }
@@ -189,6 +342,48 @@ spec:
                       WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
                         AND MetricName = 'cc.scheduler.drift'
                       GROUP BY ts
+                    )
+                    ORDER BY ts
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT ts, if(idx = 0, 0, bounds[least(idx, length(bounds))]) AS queue_lag_tail_s
+                    FROM (
+                      SELECT ts, bounds,
+                             arrayLastIndex(x -> x > 0, arrayMap((c, p) -> greatest(c - p, 0), bc, lagInFrame(bc, 1, bc) OVER (ORDER BY ts))) AS idx
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts,
+                               argMax(BucketCounts, TimeUnix) AS bc,
+                               any(ExplicitBounds) AS bounds
+                        FROM metrics_histogram
+                        WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
+                          AND MetricName = 'cc.queue.consume.lag'
+                        GROUP BY ts
+                      )
+                    )
+                    ORDER BY ts
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT ts, if(idx = 0, 0, bounds[least(idx, length(bounds))]) AS sched_drift_tail_s
+                    FROM (
+                      SELECT ts, bounds,
+                             arrayLastIndex(x -> x > 0, arrayMap((c, p) -> greatest(c - p, 0), bc, lagInFrame(bc, 1, bc) OVER (ORDER BY ts))) AS idx
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts,
+                               argMax(BucketCounts, TimeUnix) AS bc,
+                               any(ExplicitBounds) AS bounds
+                        FROM metrics_histogram
+                        WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
+                          AND MetricName = 'cc.scheduler.drift'
+                        GROUP BY ts
+                      )
                     )
                     ORDER BY ts
     deliveries:
@@ -256,8 +451,9 @@ spec:
           - { x: 0,  y: 0,  width: 6,  height: 5, content: { $ref: "#/spec/panels/evaluations" } }
           - { x: 6,  y: 0,  width: 12, height: 5, content: { $ref: "#/spec/panels/zero-signals" } }
           - { x: 18, y: 0,  width: 6,  height: 5, content: { $ref: "#/spec/panels/worst-lag" } }
-          - { x: 0,  y: 5,  width: 12, height: 8, content: { $ref: "#/spec/panels/eval-latency" } }
-          - { x: 12, y: 5,  width: 12, height: 8, content: { $ref: "#/spec/panels/eval-throughput" } }
-          - { x: 0,  y: 13, width: 12, height: 8, content: { $ref: "#/spec/panels/queue-scheduler" } }
-          - { x: 12, y: 13, width: 12, height: 8, content: { $ref: "#/spec/panels/deliveries" } }
-          - { x: 0,  y: 21, width: 24, height: 8, content: { $ref: "#/spec/panels/slowest-rules" } }
+          - { x: 0,  y: 5,  width: 24, height: 8, content: { $ref: "#/spec/panels/issues" } }
+          - { x: 0,  y: 13, width: 12, height: 8, content: { $ref: "#/spec/panels/eval-latency" } }
+          - { x: 12, y: 13, width: 12, height: 8, content: { $ref: "#/spec/panels/eval-throughput" } }
+          - { x: 0,  y: 21, width: 12, height: 8, content: { $ref: "#/spec/panels/queue-scheduler" } }
+          - { x: 12, y: 21, width: 12, height: 8, content: { $ref: "#/spec/panels/deliveries" } }
+          - { x: 0,  y: 29, width: 24, height: 8, content: { $ref: "#/spec/panels/slowest-rules" } }
