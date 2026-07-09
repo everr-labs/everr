@@ -1,8 +1,9 @@
 # How to manage secret encryption and rotate keys
 
 clickety-clack encrypts delivery secrets at rest (Slack webhook URLs, PagerDuty
-routing keys, subscription webhook URLs, and the channel target buffered in
-Redis). It is **fail-closed**: without a valid key, no role starts. This guide
+routing keys, subscription webhook URLs). Secrets live only in Postgres: Redis
+group metas carry channel names, which the flusher resolves through the store at
+delivery time. It is **fail-closed**: without a valid key, no role starts. This guide
 covers configuring keys, rotating them, and the operational implications. For the
 design rationale see [the security model](../explanation/security-model.md).
 

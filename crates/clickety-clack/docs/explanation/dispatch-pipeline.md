@@ -120,9 +120,10 @@ last error — with any secret in the target stored only as a redacted digest.
   resolve correctly supersedes its firing inside a group.
 - **Per-replica cache lag.** The ~2s tenant snapshot trades a small propagation
   delay for not hitting Postgres on every event.
-- **Secrets never leak in the audit path.** The Redis group target is encrypted;
-  the audit/dead-letter/log target is a one-way digest; transport errors strip the
-  URL. See [security model](security-model.md).
+- **Secrets never leak in the audit path.** Redis group metas carry channel names
+  only, resolved to stored configs at flush time; the audit/dead-letter/log target
+  is a one-way digest; transport errors strip the URL. See
+  [security model](security-model.md).
 
 ## See also
 
