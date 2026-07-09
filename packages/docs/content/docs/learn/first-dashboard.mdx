@@ -17,21 +17,9 @@ The Agent inspects your data, picks panels grounded in it, writes the file, and 
 
 ## Alternative: build it by hand
 
-The rest of this step is the same workflow done manually. In your repo, make an `everr/` directory at the root to hold your declarations. The directory is the unit you'll apply; files sit flat inside it, named by kind (dashboards are `*.dashboard.yaml`).
+The rest of this step is the same workflow done manually. Your declarations live in an `everr/` directory at the repo root; it is the unit you'll apply, and files sit flat inside it, named by kind (dashboards are `*.dashboard.yaml`).
 
-```sh
-mkdir -p everr
-```
-
-The `everr/` directory needs an `everr.yaml` (or `everr.yml`) at its root declaring a stable `repoid`, the apply ownership boundary. Apply reconciles exactly the resources previously applied under it.
-
-`everr/everr.yaml`:
-
-```yaml
-repoid: "2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1"
-```
-
-Use one stable id per repository (a UUID is a good default); never change it for an existing setup.
+Apply scopes everything to your repository's identity (its `repoid`), inferred from the repo's `origin` remote as `host/owner/repo`. Nothing to configure.
 
 `everr/api-latency.dashboard.yaml`:
 

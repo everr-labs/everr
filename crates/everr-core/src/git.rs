@@ -53,6 +53,44 @@ pub fn normalize_branch_name(raw: String) -> String {
     }
 }
 
+/// Normalize a git remote URL to the canonical repoid slug `host/owner/repo`.
+/// Strips the scheme, credentials, port, one trailing `.git`, and trailing
+/// slashes, then lowercases, so the ssh, scp-like, and https clone URLs of one
+/// repository collapse to the same identity. Nested paths (GitLab subgroups)
+/// keep their extra segments. Local-path and `file://` remotes have no host
+/// and yield None.
+///
+/// Unlike `parse_repo_from_remote_url` (which drops the host and preserves
+/// case for display), this keeps the host and case-folds: the result is an
+/// identity key, not a label, so `github.com/a/b` and `gitlab.com/a/b` must
+/// stay distinct while casing variants must not.
+pub fn normalize_remote_slug(remote: &str) -> Option<String> {
+    let remote = remote.trim().trim_end_matches('/');
+    let (authority, path) = match remote.split_once("://") {
+        Some(("file", _)) => return None,
+        Some((_scheme, rest)) => rest.split_once('/')?,
+        // scp-like form ([user@]host:path): the colon must come before any
+        // slash, otherwise this is a local path, not a remote.
+        None => match remote.split_once(':') {
+            Some((authority, path)) if !authority.is_empty() && !authority.contains('/') => {
+                (authority, path)
+            }
+            _ => return None,
+        },
+    };
+    let host = authority.rsplit_once('@').map_or(authority, |(_, h)| h);
+    let host = match host.split_once(':') {
+        Some((h, port)) if !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()) => h,
+        _ => host,
+    };
+    let path = path.trim_matches('/');
+    let path = path.strip_suffix(".git").unwrap_or(path);
+    if host.is_empty() || path.is_empty() {
+        return None;
+    }
+    Some(format!("{host}/{path}").to_lowercase())
+}
+
 pub fn parse_repo_from_remote_url(remote_url: &str) -> Option<String> {
     let trimmed = remote_url.trim();
     if let Some(ssh) = regex_like_extract(trimmed, '@', ':') {
@@ -100,7 +138,45 @@ fn strip_dot_git(input: String) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{normalize_branch_name, parse_repo_from_remote_url};
+    use super::{normalize_branch_name, normalize_remote_slug, parse_repo_from_remote_url};
+
+    #[test]
+    fn remote_slug_collapses_equivalent_clone_urls() {
+        for remote in [
+            "git@github.com:Everr-Labs/everr.git",
+            "https://github.com/everr-labs/everr.git",
+            "https://user:pass@github.com/everr-labs/everr",
+            "ssh://git@github.com:2222/everr-labs/everr.git/",
+            "git://github.com/everr-labs/everr",
+        ] {
+            assert_eq!(
+                normalize_remote_slug(remote).as_deref(),
+                Some("github.com/everr-labs/everr"),
+                "remote was: {remote}"
+            );
+        }
+    }
+
+    #[test]
+    fn remote_slug_keeps_nested_path_segments() {
+        assert_eq!(
+            normalize_remote_slug("https://gitlab.example.com/group/subgroup/repo.git").as_deref(),
+            Some("gitlab.example.com/group/subgroup/repo"),
+        );
+    }
+
+    #[test]
+    fn remote_slug_rejects_hostless_remotes() {
+        for remote in [
+            "/srv/git/repo.git",
+            "../sibling/repo",
+            "file:///srv/git/repo.git",
+            "https://github.com",
+            "",
+        ] {
+            assert_eq!(normalize_remote_slug(remote), None, "remote was: {remote}");
+        }
+    }
 
     #[test]
     fn normalize_branch_name_strips_local_ref_prefix() {

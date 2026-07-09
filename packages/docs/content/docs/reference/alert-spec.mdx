@@ -39,16 +39,20 @@ Every referenced name must be a column the `query` returns; this is validated on
 
 ## Manifest
 
-The apply directory — by convention an `everr/` directory at your repo root — needs an `everr.yaml` (or `everr.yml`) file at its root with exactly one key:
+The apply identity (the `repoid`) is inferred automatically from the repository's `origin` git remote, normalized to the slug `host/owner/repo`: scheme, credentials, port, a trailing `.git`, and trailing slashes are stripped and the result is lowercased. For example, `git@github.com:Acme/API.git` becomes `github.com/acme/api`. Equivalent ssh, https, and scp clone URLs collapse to the same identity, so one repo means one boundary.
+
+No manifest file is needed when the repo has an `origin` remote. An optional `everr.yaml` (or `everr.yml`) at the apply root overrides the inferred identity. It accepts exactly one key:
 
 ```yaml
 # everr/everr.yaml
-repoid: "2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1"
+repoid: "my-explicit-id"
 ```
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `repoid` | string (UUID) | Stable identifier you choose once. It's the reconcile/prune boundary, apply only touches resources under this repoid. The manifest rejects any other key. |
+| `repoid` | string | Explicit identity override. When present it always wins over the inferred slug. Use it for local-only repositories, non-git directories, or when you need to pin an explicit name. The manifest rejects any other key. |
+
+If there is neither an `origin` remote nor an `everr.yaml` manifest, apply errors and tells you to add a remote or create `everr.yaml`.
 
 Declarations sit flat in `everr/`, named by kind: `*.alert.yaml`, `*.dashboard.yaml`, `*.runbook.yaml` (the legacy `*.notebook.yaml` suffix is still recognized). `everr apply ./everr` discovers every `kind: Dashboard`, `kind: AlertRule`, and `kind: Runbook` document under the directory and makes the live resources for that repoid exactly match the tree: new documents are created, changed ones updated, and removed ones **deleted**. The kind suffix is a naming convention only — apply routes by the `kind:` field. Use `--preview` to stage the changes for review without touching the live state (preview rules evaluate but never notify). See the [`everr apply` reference](/docs/reference/cli#dashboards-gitops).
 

@@ -137,11 +137,20 @@ The idempotent operation (`everr apply`) that reconciles the Dashboards, Alerts,
 _Avoid_: deploy, sync, push
 
 **Repoid**:
-The stable identifier declared in the Manifest that defines which resources a repository owns and may reconcile with apply.
+The stable identity that scopes ownership: every Dashboard, Alert, and Runbook is owned by exactly one Repoid, and apply only ever touches resources under it. Inferred from the repository's `origin` remote (normalized to the `host/owner/repo` slug) unless a Manifest pins one explicitly.
 _Avoid_: repo id, ownership key
 
+**Ownership boundary**:
+The set of live resources sharing one Repoid — what apply reconciles a directory against, and prunes within. Adopt moves individual resources across boundaries.
+_Avoid_: reconcile scope, prune boundary (informal, code-level)
+
 **Manifest**:
-The `everr.yaml` file that declares a directory's Repoid (its ownership boundary).
+The optional `everr.yaml` file that pins a directory's Repoid explicitly, overriding the one inferred from the `origin` remote. The escape hatch for repositories without a usable remote or that need a fixed identity.
+_Avoid_: config file, everr.yaml (name the concept, not the filename)
+
+**Adopt**:
+Taking over resources another Repoid owns by re-applying them under yours (`everr apply --adopt`). Deliberately targeted: only the resources present in the applied tree change owner; everything else the other Repoid owns is left untouched.
+_Avoid_: take over, claim
 
 ### Agent integration
 

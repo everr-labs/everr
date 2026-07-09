@@ -27,23 +27,18 @@ Every resource may declare `metadata.project` (defaults to `default`), independe
 
 ## If you apply from more than one repo
 
-The `everr/` directory must contain an `everr.yaml` (or `.yml`) at its root declaring a stable `repoid` — the only key the manifest accepts. The repoid is the apply ownership boundary: `everr apply` reconciles exactly what was previously applied under this id, nothing else. Use one id per repo (a UUID is a good default) and never reuse it across unrelated repos. Never change the repoid on an existing setup — that orphans everything applied under the old id, leaving the old resources live but unmanaged.
+Each repo's `repoid` (its apply ownership boundary) is inferred from its own `origin` remote, normalized to `host/owner/repo`, so repos stay isolated automatically: `everr apply` reconciles exactly what was applied under that id and can never touch another repo's (or org's) resources. Nothing to configure.
 
-Give each repo its own `repoid` and applies never collide — `everr apply` can never touch another repo's (or org's) resources. The platform repo — `everr/everr.yaml`:
+To pin an explicit id instead (for local-only repos, non-git directories, or a name independent of the remote), add an optional `everr.yaml` (or `.yml`) at the `everr/` root. It accepts one key, `repoid`:
 
 ```yaml
+# everr/everr.yaml (optional override)
 repoid: "0b6c1f4e-8a21-4d3b-9f17-2c5e7a9d6b04"
-# api-latency.dashboard.yaml -> metadata.project: platform
 ```
 
-The payments repo — `everr/everr.yaml`:
+Use one id per repo, never reuse it across unrelated repos, and never change it on an existing setup, which orphans everything applied under the old id.
 
-```yaml
-repoid: "9d2a77c3-1e54-4f8a-b6d0-3a8c1f2e5b97"
-# checkout-funnel.dashboard.yaml -> metadata.project: team-payments
-```
-
-Apply each repo independently with `everr apply ./everr` — once in the platform repo, once in the payments repo, entirely separately.
+Apply each repo independently with `everr apply ./everr`, once per repo; each stays scoped to its own inferred identity.
 
 ## If you apply from CI
 

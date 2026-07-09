@@ -173,20 +173,18 @@ struct ApplyManifest {
     repoid: String,
 }
 
-/// Read the required manifest at the apply root and return its `repoid`
-/// (the stable repository identifier and apply ownership boundary).
-/// `everr.yaml` is the canonical name; `everr.yml` is also accepted.
-/// Both are excluded from resource loading so they are never parsed as documents.
-pub fn load_apply_manifest(dir: &Path) -> Result<String> {
+/// Read the optional manifest at the apply root and return its `repoid`
+/// (the stable repository identifier and apply ownership boundary), or None
+/// when no manifest exists. `everr.yaml` is the canonical name; `everr.yml`
+/// is also accepted. Both are excluded from resource loading so they are
+/// never parsed as documents.
+pub fn load_apply_manifest(dir: &Path) -> Result<Option<String>> {
     let path = if dir.join("everr.yaml").is_file() {
         dir.join("everr.yaml")
     } else if dir.join("everr.yml").is_file() {
         dir.join("everr.yml")
     } else {
-        anyhow::bail!(
-            "no everr.yaml found in {} — create one with the stable repository id, e.g.\nrepoid: \"2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1\"",
-            dir.display()
-        );
+        return Ok(None);
     };
     let name = path
         .file_name()
@@ -200,7 +198,26 @@ pub fn load_apply_manifest(dir: &Path) -> Result<String> {
     if repoid.is_empty() {
         anyhow::bail!("{name}: repoid must be a non-empty string");
     }
-    Ok(repoid.to_string())
+    Ok(Some(repoid.to_string()))
+}
+
+/// Resolve the repoid (ownership and prune boundary) for an apply. An
+/// `everr.yaml` manifest always wins when present; otherwise the identity is
+/// inferred from `remote` (the already-detected `origin` remote, see
+/// `detect_git_source`) as the normalized `host/owner/repo` slug. The
+/// manifest stays as the escape hatch for local-only repositories and
+/// non-git directories, and as an explicit pin against remote renames.
+pub fn resolve_repoid(dir: &Path, remote: Option<&str>) -> Result<String> {
+    if let Some(repoid) = load_apply_manifest(dir)? {
+        return Ok(repoid);
+    }
+    if let Some(slug) = remote.and_then(crate::git::normalize_remote_slug) {
+        return Ok(slug);
+    }
+    anyhow::bail!(
+        "cannot determine the repository identity of {}: no `origin` git remote to infer it from and no everr.yaml manifest.\nEither add an `origin` remote, or create everr.yaml with a stable repository id, e.g.\nrepoid: \"2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1\"",
+        dir.display()
+    )
 }
 
 /// One resource entry on the wire: `{ "path": ..., "resource": ... }`.
@@ -463,14 +480,14 @@ mod tests {
     fn manifest_returns_repoid() {
         let dir = tempfile::tempdir().unwrap();
         write(dir.path(), "everr.yaml", "repoid: \" abc-123 \"\n");
-        assert_eq!(load_apply_manifest(dir.path()).unwrap(), "abc-123");
+        assert_eq!(load_apply_manifest(dir.path()).unwrap().unwrap(), "abc-123");
     }
 
     #[test]
     fn manifest_accepts_everr_yml() {
         let dir = tempfile::tempdir().unwrap();
         write(dir.path(), "everr.yml", "repoid: \"abc\"\n");
-        assert_eq!(load_apply_manifest(dir.path()).unwrap(), "abc");
+        assert_eq!(load_apply_manifest(dir.path()).unwrap().unwrap(), "abc");
     }
 
     #[test]
@@ -478,7 +495,10 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         write(dir.path(), "everr.yaml", "repoid: \"canonical\"\n");
         write(dir.path(), "everr.yml", "repoid: \"legacy\"\n");
-        assert_eq!(load_apply_manifest(dir.path()).unwrap(), "canonical");
+        assert_eq!(
+            load_apply_manifest(dir.path()).unwrap().unwrap(),
+            "canonical"
+        );
     }
 
     #[test]
@@ -491,9 +511,36 @@ mod tests {
     }
 
     #[test]
-    fn manifest_missing_is_an_error() {
+    fn manifest_missing_returns_none() {
         let dir = tempfile::tempdir().unwrap();
-        assert!(load_apply_manifest(dir.path()).is_err());
+        assert_eq!(load_apply_manifest(dir.path()).unwrap(), None);
+    }
+
+    #[test]
+    fn resolve_repoid_prefers_manifest_over_remote() {
+        let dir = tempfile::tempdir().unwrap();
+        write(dir.path(), "everr.yaml", "repoid: \"pinned\"\n");
+        assert_eq!(
+            resolve_repoid(dir.path(), Some("git@github.com:acme/api.git")).unwrap(),
+            "pinned"
+        );
+    }
+
+    #[test]
+    fn resolve_repoid_infers_slug_without_manifest() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(
+            resolve_repoid(dir.path(), Some("git@github.com:Acme/API.git")).unwrap(),
+            "github.com/acme/api"
+        );
+    }
+
+    #[test]
+    fn resolve_repoid_errors_without_manifest_or_remote() {
+        let dir = tempfile::tempdir().unwrap();
+        let err = resolve_repoid(dir.path(), None).unwrap_err().to_string();
+        assert!(err.contains("everr.yaml"), "error was: {err}");
+        assert!(err.contains("origin"), "error was: {err}");
     }
 
     #[test]

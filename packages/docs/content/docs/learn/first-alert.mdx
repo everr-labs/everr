@@ -17,19 +17,9 @@ The Agent picks the signal, sets a threshold from your real baselines, writes th
 
 ## Alternative: write it by hand
 
-The rest of this step is the same workflow done manually. If you already created an `everr/` directory in the previous step, reuse it: apply discovers and reconciles everything under it, and alerts (`*.alert.yaml`) sit flat alongside dashboards. Otherwise create one now with an `everr.yaml` manifest declaring a stable `repoid`:
+The rest of this step is the same workflow done manually. If you already created an `everr/` directory in the previous step, reuse it: apply discovers and reconciles everything under it, and alerts (`*.alert.yaml`) sit flat alongside dashboards.
 
-```sh
-mkdir -p everr
-```
-
-`everr/everr.yaml`:
-
-```yaml
-repoid: "2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1"
-```
-
-Generate your own UUID (for example with `uuidgen`) and keep it stable: changing it makes apply treat the rules as a different repo, so it deletes the old ones and recreates them. The manifest accepts only `repoid`; any other key is rejected. See the [manifest reference](/docs/reference/alert-spec).
+Apply scopes everything to your repository's identity (its `repoid`), inferred from the repo's `origin` remote as `host/owner/repo`. Nothing to configure.
 
 ## Write the rule
 
