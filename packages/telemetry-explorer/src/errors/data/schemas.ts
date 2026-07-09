@@ -84,6 +84,28 @@ export type ListErrorServicesInput = z.infer<
   typeof ListErrorServicesInputSchema
 >;
 
+export const ListErrorTriageEventsInputSchema = z.object({
+  fingerprint: z.string().min(1),
+  limit: z.number().int().positive().max(1000).default(500),
+});
+export type ListErrorTriageEventsInput = z.infer<
+  typeof ListErrorTriageEventsInputSchema
+>;
+
+// The write input carries only what the client is allowed to say: tenant and
+// author are stamped server-side from the session, never accepted as input.
+export const CreateErrorInvestigationInputSchema = z.object({
+  fingerprint: z.string().min(1).max(200),
+  body: z
+    .string()
+    .trim()
+    .min(1)
+    .max(64 * 1024),
+});
+export type CreateErrorInvestigationInput = z.infer<
+  typeof CreateErrorInvestigationInputSchema
+>;
+
 export const ErrorAttributeKeysInputSchema = z.object({
   timeRange: TimeRangeSchema,
 });

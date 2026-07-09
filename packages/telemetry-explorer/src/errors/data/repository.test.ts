@@ -168,6 +168,101 @@ describe("ErrorsRepository.getIssue", () => {
   });
 });
 
+describe("ErrorsRepository.listTriageEvents", () => {
+  it("reads triage events for a fingerprint, oldest first", async () => {
+    execute.mockResolvedValueOnce([
+      {
+        timestamp: "2026-07-01 10:00:00.000000000",
+        eventType: "investigation",
+        body: "## Findings\nNull deref in retry path.",
+        logAttributes: {
+          "everr.error.event": "investigation",
+          "everr.error.fingerprint": "fp-1",
+          "everr.error.author.id": "user-1",
+          "everr.error.author.name": "Ada Lovelace",
+        },
+      },
+    ]);
+
+    const events = await makeRepo().listTriageEvents({
+      fingerprint: "fp-1",
+      limit: 500,
+    });
+
+    expect(execute).toHaveBeenCalledTimes(1);
+    const [sql, params] = execute.mock.calls[0] ?? [];
+    expect(sql).toContain("FROM logs");
+    expect(sql).toContain(
+      "LogAttributes['everr.error.fingerprint'] = {fingerprint:String}",
+    );
+    expect(sql).toContain(
+      "LogAttributes['everr.error.event'] IN {eventTypes:Array(String)}",
+    );
+    expect(sql).toContain("ORDER BY Timestamp ASC");
+    expect(sql).toContain("LIMIT {limit:UInt32}");
+    expect(params).toMatchObject({
+      fingerprint: "fp-1",
+      limit: 500,
+      eventTypes: ["investigation", "resolved", "ignored", "reopened"],
+    });
+    expect(events).toEqual([
+      {
+        type: "investigation",
+        timestamp: "2026-07-01 10:00:00.000000000",
+        body: "## Findings\nNull deref in retry path.",
+        author: { id: "user-1", name: "Ada Lovelace" },
+      },
+    ]);
+  });
+
+  it("drops rows with unknown event types and tolerates null attributes", async () => {
+    execute.mockResolvedValueOnce([
+      {
+        timestamp: "2026-07-01 10:00:00.000000000",
+        eventType: "acknowledged",
+        body: "future event",
+        logAttributes: {},
+      },
+      {
+        timestamp: "2026-07-01 11:00:00.000000000",
+        eventType: "resolved",
+        body: "Fixed by #42.",
+        logAttributes: null,
+      },
+    ]);
+
+    const events = await makeRepo().listTriageEvents({
+      fingerprint: "fp-1",
+      limit: 500,
+    });
+
+    expect(events).toEqual([
+      {
+        type: "resolved",
+        timestamp: "2026-07-01 11:00:00.000000000",
+        body: "Fixed by #42.",
+        author: { id: "", name: "" },
+      },
+    ]);
+  });
+
+  it("queries the configured table name and rejects invalid ones", async () => {
+    await makeRepo("otel_logs").listTriageEvents({
+      fingerprint: "fp-1",
+      limit: 500,
+    });
+    const [sql] = execute.mock.calls[0] ?? [];
+    expect(sql).toContain("FROM otel_logs");
+
+    await expect(
+      makeRepo("logs; DROP TABLE x; --").listTriageEvents({
+        fingerprint: "fp-1",
+        limit: 500,
+      }),
+    ).rejects.toThrow("invalid table name");
+  });
+});
+
 describe("ErrorsRepository.listServices", () => {
   it("returns distinct service names", async () => {
     execute.mockResolvedValueOnce([

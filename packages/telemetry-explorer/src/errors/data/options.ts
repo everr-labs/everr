@@ -107,6 +107,30 @@ export function errorIssueOptions(
   });
 }
 
+const TRIAGE_EVENTS_LIMIT = 500;
+
+// Shared with the investigation form, which invalidates this key on write.
+export function errorTriageEventsQueryKey(fingerprint: string) {
+  return ["errors", "triage-events", fingerprint] as const;
+}
+
+export function errorTriageEventsOptions(
+  repo: ErrorsRepositoryLike,
+  input: { fingerprint: string; refresh: string },
+) {
+  const refreshMs = getRefreshIntervalMs(input.refresh);
+  return queryOptions({
+    queryKey: errorTriageEventsQueryKey(input.fingerprint),
+    queryFn: () =>
+      repo.listTriageEvents({
+        fingerprint: input.fingerprint,
+        limit: TRIAGE_EVENTS_LIMIT,
+      }),
+    enabled: input.fingerprint.length > 0,
+    refetchInterval: refreshMs && refreshMs > 0 ? refreshMs : false,
+  });
+}
+
 export function errorServicesOptions(
   repo: ErrorsRepositoryLike,
   input: {

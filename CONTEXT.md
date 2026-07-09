@@ -82,6 +82,36 @@ _Avoid_: output, log line
 **Metric**:
 A numerical time-series measurement, such as a gauge, counter, or histogram.
 
+### Errors
+
+**Error**:
+The fingerprint-grouped entity representing one distinct failure: all Occurrences sharing a Fingerprint, across time. What the Errors page lists and what investigations attach to.
+_Avoid_: issue (collides with GitHub issues), error group, exception (the OTel attribute namespace, not the entity)
+
+**Occurrence**:
+A single recorded instance of an Error — one exception Log event, optionally linked to a Trace.
+_Avoid_: event, error instance
+
+**Fingerprint**:
+The stable identity of an Error, either declared explicitly by the SDK (`error.fingerprint`) or derived from service, exception type, and normalized message.
+_Avoid_: hash, group key
+
+**Investigation**:
+A record of findings about an Error — written by a User or an Agent, attached to the Error's Fingerprint, append-only. Itself telemetry: readable through the same query surfaces as any Signal.
+_Avoid_: note, comment, analysis, investigation doc (the as-code Runbook use case, a different thing)
+
+**Resolution**:
+The event declaring an Error fixed, with the explanation of the fix. Resolving sets the Error's status to resolved; whether it stays resolved is decided per Occurrence by the regression rule.
+_Avoid_: fix (the code change itself), close
+
+**Status**:
+An Error's triage state — open, resolved, or ignored. Open is the default; resolved comes from a Resolution; ignored is a deliberate, sticky mute that only a manual status change lifts. Derived from append-only status events, latest wins, subject to the regression rule.
+_Avoid_: state (generic), workflow status
+
+**Regression**:
+A resolved Error occurring again in something newer than the fix: an Occurrence whose service version was first seen after the Resolution (or, when the Occurrence carries no version, one merely newer than the Resolution). A Regression reopens the Error and is flagged as such; same-version stragglers stay resolved.
+_Avoid_: reopen (the effect, not the concept), flapping
+
 ### CI
 
 **CI run**:

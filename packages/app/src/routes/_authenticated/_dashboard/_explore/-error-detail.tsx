@@ -10,6 +10,7 @@ import { withTimeRange } from "@everr/ui/lib/time-range";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { remoteErrorsRepo } from "@/data/errors/remote-repo";
+import { createErrorInvestigation } from "@/data/errors/server";
 import { runSpansOptions } from "@/data/runs/options";
 
 export function ErrorDetailRouteContent({
@@ -61,6 +62,7 @@ export function ErrorDetailRouteContent({
       renderTracePanel={({ occurrence }) => (
         <WebErrorTracePanel occurrence={occurrence} />
       )}
+      createInvestigation={(input) => createErrorInvestigation({ data: input })}
     />
   );
 }

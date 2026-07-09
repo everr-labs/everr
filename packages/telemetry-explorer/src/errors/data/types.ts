@@ -1,4 +1,17 @@
+import type { ErrorTriageEventType } from "../events";
+
 export type ErrorSort = "lastSeen" | "count";
+
+// One append-only triage event (Investigation, Resolution, or status change)
+// read back from the logs table, mapped from its everr.error.* attributes.
+export type ErrorTriageEvent = {
+  type: ErrorTriageEventType;
+  /** ClickHouse timestamp string (UTC, space-separated). */
+  timestamp: string;
+  /** Markdown body as written. */
+  body: string;
+  author: { id: string; name: string };
+};
 
 export type ErrorIssueSummary = {
   fingerprint: string;

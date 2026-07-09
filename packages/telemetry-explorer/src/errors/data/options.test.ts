@@ -16,6 +16,7 @@ function makeRepo(
       latest: {} as never,
       occurrences: [],
     })),
+    listTriageEvents: vi.fn(async () => []),
     listServices: vi.fn(async () => []),
     attributeKeys: vi.fn(async () => []),
     attributeValues: vi.fn(async () => []),

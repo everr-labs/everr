@@ -4,6 +4,7 @@
   "type": "module",
   "exports": {
     "./errors": "./src/errors/index.ts",
+    "./events": "./src/events/index.ts",
     "./filters": "./src/filters/index.ts",
     "./logs": "./src/logs/index.ts",
     "./runs": "./src/runs/index.ts",
@@ -23,7 +24,9 @@
     "lucide-react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "react-markdown": "^10.1.0",
     "react-virtuoso": "^4.18.6",
+    "remark-gfm": "^4.0.1",
     "recharts": "catalog:",
     "zod": "catalog:"
   },

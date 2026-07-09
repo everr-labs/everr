@@ -15,6 +15,7 @@ import { errorIssueOptions } from "../data/options";
 import type { ErrorsRepositoryLike } from "../data/repository";
 import type { ErrorOccurrence } from "../data/types";
 import { ErrorDetailHeader } from "./error-detail-header";
+import type { CreateErrorInvestigation } from "./error-investigation-form";
 import { ErrorLatestOccurrence } from "./error-latest-occurrence";
 import {
   findErrorOccurrenceByKey,
@@ -25,6 +26,7 @@ import {
   type RenderOccurrenceLink,
 } from "./error-occurrences-list";
 import { ErrorStacktrace } from "./error-stacktrace";
+import { ErrorTimeline } from "./error-timeline";
 
 const OCCURRENCE_LIMIT = 50;
 
@@ -41,6 +43,11 @@ export type ErrorDetailProps = {
   renderOccurrenceLink: RenderOccurrenceLink;
   /** App supplies the related-trace panel (it owns the spans source). */
   renderTracePanel?: (input: { occurrence: ErrorOccurrence }) => ReactNode;
+  /**
+   * App supplies the Investigation write path (server function on the web,
+   * local emitter on desktop). The composer renders only when provided.
+   */
+  createInvestigation?: CreateErrorInvestigation;
 };
 
 export function ErrorDetail({
@@ -54,6 +61,7 @@ export function ErrorDetail({
   onClose,
   renderOccurrenceLink,
   renderTracePanel,
+  createInvestigation,
 }: ErrorDetailProps) {
   const issueQuery = useQuery(
     errorIssueOptions(repo, {
@@ -123,6 +131,12 @@ export function ErrorDetail({
           <ErrorStacktrace
             stacktrace={selected.exceptionStacktrace}
             message={selected.exceptionMessage}
+          />
+          <ErrorTimeline
+            repo={repo}
+            fingerprint={fingerprint}
+            refresh={refresh}
+            createInvestigation={createInvestigation}
           />
           {renderTracePanel?.({ occurrence: selected })}
           <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_26rem]">
