@@ -60,7 +60,11 @@ async fn init_shared() -> SharedPg {
     // async commits, no full-page writes, and the data dir on tmpfs. The
     // connection cap is raised because every test in the binary shares this
     // one server (each PgStore pool may open up to 16 connections).
+    // Pin to the major version the dev/prod stack runs (docker-compose uses
+    // postgres:18.x); the module default is postgres 11, which predates the
+    // built-in gen_random_uuid() that migration 0014 relies on.
     let container = Postgres::default()
+        .with_tag("18-alpine")
         .with_cmd([
             "postgres",
             "-c",
@@ -72,7 +76,9 @@ async fn init_shared() -> SharedPg {
             "-c",
             "max_connections=500",
         ])
-        .with_mount(Mount::tmpfs_mount("/var/lib/postgresql/data"))
+        // Postgres 18 images moved PGDATA under /var/lib/postgresql/18/, so
+        // mount the parent to keep the whole data tree (including WAL) on tmpfs.
+        .with_mount(Mount::tmpfs_mount("/var/lib/postgresql"))
         .start()
         .await
         .expect("start shared postgres container");

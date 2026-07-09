@@ -82,7 +82,13 @@ pub struct Pg {
 }
 
 pub async fn start_pg() -> Pg {
-    let container = Postgres::default().start().await.unwrap();
+    // Same major version as the dev/prod stack; the module default (postgres 11)
+    // predates the built-in gen_random_uuid() used by migration 0014.
+    let container = Postgres::default()
+        .with_tag("18-alpine")
+        .start()
+        .await
+        .unwrap();
     let port = container.get_host_port_ipv4(5432).await.unwrap();
     let url = format!("postgres://postgres:postgres@127.0.0.1:{port}/postgres");
     let store = PgStore::connect(&url).await.unwrap();
