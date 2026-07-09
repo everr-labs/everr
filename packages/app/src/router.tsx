@@ -1,6 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { createRouteMask, createRouter } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
+import { RootErrorComponent } from "./components/root-error";
 import { routeTree } from "./routeTree.gen";
 
 export interface RouterContext {
@@ -39,6 +40,9 @@ export const getRouter = () => {
     routeTree,
     routeMasks: [traceDetailModalMask, errorDetailModalMask],
     context: { queryClient },
+    // Captures and renders any route render error the router catches in its
+    // per-route boundary (routes with their own errorComponent still win).
+    defaultErrorComponent: RootErrorComponent,
     // TODO: maybe preload?
     // defaultPreload: "intent",
     scrollRestoration: true,

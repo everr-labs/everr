@@ -57,7 +57,7 @@ Apply routes each document by its `kind:` field, so the `.dashboard.yaml`/`.runb
 ## Apply Workflow
 
 ```sh
-everr apply ./everr --dry-run     # always preview first; writes nothing
+everr apply ./everr --preview     # always stage into a preview first; live state untouched
 everr apply ./everr               # prints the destination org, then asks to confirm
 ```
 
@@ -78,6 +78,24 @@ everr resources adopt <kind> <slug> [--yes]                    # take ownership 
 
 `--project` defaults to `default`. `list --repoid ""` shows UI-created resources. Use `delete` and `adopt` only for resources outside your apply tree (UI-created, or owned by another repo); anything in your tree is managed by `everr apply`.
 
+## Previews
+
+To share work-in-progress in the real UI without touching the live state, apply into a preview:
+
+```sh
+everr apply ./everr --preview            # named after the current git branch
+everr apply ./everr --preview pr-142     # explicit name (required in CI / detached HEAD)
+```
+
+A preview is a full copy of the tree under a name, overlaid on the live state in the UI. Apply prints a shareable `Preview:` link (the UI reads `?preview=<name>`); anyone in the org can open it and sees each resource badged as added, changed, removed, or unchanged against live. A "conflict" badge means the preview adds a (project, slug) that another repo already owns live, so shipping it would need `--adopt`.
+
+- Live state is never touched. Each (repoid, name) preview is its own reconcile scope with the same declarative delete-by-default semantics; re-applying the branch updates it in place.
+- Previews skip the confirmation prompt and never need `--yes`: they are disposable.
+- Preview alert rules evaluate and show firing/ok in the UI, but never send notifications.
+- There is no delete step. A preview expires automatically once it has not been re-applied for the retention window (default 7 days); re-applying refreshes it. To ship it, merge the branch and run a normal live apply.
+
+Never stage changes with a scratch repoid or a second apply directory; `--preview` exists for exactly that.
+
 ## Common Mistakes
 
 | Mistake | Fix |
@@ -87,3 +105,5 @@ everr resources adopt <kind> <slug> [--yes]                    # take ownership 
 | `everr dashboard apply -f file.yaml` or applying a single file | The command is `everr apply <dir>` against a directory |
 | Splitting one repoid across two apply directories | One tree per repoid; apply prunes everything not in the tree, across all kinds |
 | Inventing metric/label/column names | Discover real columns with `everr cloud query "DESCRIBE TABLE traces"` or the `everr-use-telemetry` skill |
+| Staging unreviewed changes via a scratch repoid, or sharing them with only `--dry-run` output | `everr apply --preview` deploys a viewable copy into the UI without touching live |
+| Trying to delete or clean up a preview | Previews expire on their own after the retention window; just stop applying them |

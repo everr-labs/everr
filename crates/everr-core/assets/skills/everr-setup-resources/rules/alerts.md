@@ -185,7 +185,7 @@ Per-instance values come from that instance's firing row. If the query returns `
 ## Verification
 
 1. Test the query using `everr cloud query` and confirm the result set stays far below 1,000 rows — every returned row is a firing instance.
-2. Run `everr apply ./everr --dry-run` and confirm the plan shows the expected creates/updates.
+2. Run `everr apply ./everr --preview` and confirm the summary shows the expected creates/updates, then open the printed `Preview:` link and check the alert's firing/ok state (preview alerts evaluate but never notify).
 
 ## Common Mistakes
 

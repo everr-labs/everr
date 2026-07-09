@@ -13,7 +13,7 @@ The hard part of a first alert is knowing what to alert on. Everr ships the `eve
 /everr-setup-resources Help me build a good first alert based on the telemetry we have in production
 ```
 
-The Agent picks the signal, sets a threshold from your real baselines, writes the rule, and validates it with a dry-run. Make sure it's actionable: fire on symptoms users feel, not causes.
+The Agent picks the signal, sets a threshold from your real baselines, writes the rule, and stages it in a preview. Make sure it's actionable: fire on symptoms users feel, not causes.
 
 ## Alternative: write it by hand
 
@@ -55,23 +55,27 @@ A few things worth noting:
 - The query **is** the condition: one row per service over the threshold → each such service is a firing instance; nothing over the threshold → no rows → resolved. `nodejs.eventloop.delay.p99` is reported in seconds, so the query converts it to milliseconds. A healthy service sits around 10ms, so `HAVING p99_delay_ms > 100` stays quiet until the event loop is genuinely blocked. Tune that number to your services. Averaging over the 5-minute window keeps a single momentary blip from paging.
 - `ServiceName` is a string column, so Everr uses it as each instance's identity automatically: one alert instance per service.
 - `notificationMessage` is templated with `${ServiceName}` and `${p99_delay_ms}` from that instance's row; only columns the query returns can be referenced.
-- `evaluationInterval: 1m` runs the query once a minute, the minimum. See the [AlertRule spec](/docs/alerts/alert-spec) for every field and constraint.
+- `evaluationInterval: 1m` runs the query once a minute, the minimum. See the [AlertRule spec](/docs/reference/alert-spec) for every field and constraint.
 - Link a runbook to the rule with `spec.runbook` so responders get a documented procedure when it fires.
 
 ## Test the change
 
-Use dry-run to validate that the query and file are correct:
+Stage it into a preview. The rule deploys under a preview name, evaluates for real, but never sends notifications:
 
 ```sh
-everr apply ./everr --dry-run
+everr apply ./everr --preview
 ```
 
-Expected output:
+Expected output ends with a shareable link:
 
 ```
-(dry run) AlertRule: 1 created, 0 updated, 0 deleted
+Destination org: «Acme Corp»
+AlertRule: 1 created, 0 updated, 0 deleted
   + eventloop-delay
+Preview: https://app.everr.dev/dashboards?preview=my-branch
 ```
+
+Open the link, go to **Alerts**, and watch the rule's firing/ok state before publishing. Previews expire on their own 7 days after their last apply.
 
 ## Publish it
 

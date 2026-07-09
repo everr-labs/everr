@@ -8,6 +8,11 @@ import {
   type ApiKeyScope,
 } from "@/lib/api-key-scopes";
 import { auth } from "@/lib/auth.server";
+import {
+  buildPublicKeyMetadata,
+  type PublicKeyMetadata,
+  publicKeyInputError,
+} from "@/lib/public-ingest-keys";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 
 /**
@@ -19,12 +24,13 @@ import { createAuthenticatedServerFn } from "@/lib/serverFn";
  */
 export type ApiKey = Omit<
   ApiKeyRow,
-  "createdAt" | "expiresAt" | "lastRequest" | "permissions"
+  "createdAt" | "expiresAt" | "lastRequest" | "permissions" | "metadata"
 > & {
   createdAt?: string | Date | null;
   expiresAt?: string | Date | null;
   lastRequest?: string | Date | null;
   permissions?: ApiKeyPermissions;
+  metadata?: PublicKeyMetadata | string | null;
 };
 
 const SCOPE_INPUT = z.enum(ALL_API_KEY_SCOPES);
@@ -40,8 +46,23 @@ const CreateApiKeyInput = z
     scopes: z
       .array(SCOPE_INPUT)
       .min(1, "Pick at least one capability for the key"),
+    public: z.boolean().optional(),
+    allowedOrigins: z
+      .array(z.string().trim().min(1))
+      .max(32, "At most 32 origins per key")
+      .optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((data, ctx) => {
+    const error = publicKeyInputError(data);
+    if (error) {
+      ctx.addIssue({
+        code: "custom",
+        message: error,
+        path: ["allowedOrigins"],
+      });
+    }
+  });
 
 // The single better-auth config shared by every `ek_` key, whatever its
 // capabilities. The value stays "ingest" for backward compatibility.
@@ -74,6 +95,10 @@ export const createApiKey = createAuthenticatedServerFn({ method: "POST" })
         ? data.expiresInDays * 24 * 60 * 60
         : undefined;
 
+    const metadata = data.public
+      ? buildPublicKeyMetadata(data.allowedOrigins ?? [])
+      : undefined;
+
     // `permissions` is a server-only field: better-auth rejects it when the
     // create call carries a request/headers (it treats that as a client
     // request). So call without `headers` and identify the actor explicitly
@@ -87,6 +112,7 @@ export const createApiKey = createAuthenticatedServerFn({ method: "POST" })
         userId: session.user.id,
         ...(expiresIn !== undefined ? { expiresIn } : {}),
         permissions,
+        ...(metadata !== undefined ? { metadata } : {}),
       },
     });
 

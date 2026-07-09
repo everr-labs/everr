@@ -1,9 +1,9 @@
 export const GH_EVENTS_CONFIG = {
   maxAttempts: 10,
-  // The collector ingests a run's log archive synchronously before returning
-  // 202; large runs legitimately take ~30s, so give them headroom instead of
-  // aborting and retrying the whole download.
-  replayTimeoutMs: 60_000,
+  // Keep in step with the collector server's WriteTimeout: responses can't
+  // take longer than that anyway, and with the log archive size cap the
+  // collector answers well within it.
+  replayTimeoutMs: 30_000,
   tenantCacheTTLms: 60_000,
   retentionDoneDays: 7,
   retentionDeadDays: 30,
