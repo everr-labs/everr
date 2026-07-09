@@ -1,0 +1,21 @@
+kind: AlertRule
+metadata:
+  name: demo-always-firing
+  project: demo
+spec:
+  display:
+    name: Always firing (demo)
+    description: Permanently firing rule for exercising the alerting UI. The aggregate query always returns one row, so the instance fires on the first evaluation and never resolves.
+  evaluationInterval: 1m
+  notificationMessage:
+    title: "Demo alert: permanently firing"
+    description: "Saw ${value} clickety-clack metric points in the last 10 minutes. This rule exists to test the alerting UI and never resolves."
+  valueColumn: points
+  instanceLabels: [source]
+  query: |
+    SELECT
+      'clickety-clack' AS source,
+      count() AS points
+    FROM metrics_histogram
+    WHERE TimeUnix >= now() - INTERVAL 10 MINUTE
+      AND MetricName LIKE 'cc.%'
