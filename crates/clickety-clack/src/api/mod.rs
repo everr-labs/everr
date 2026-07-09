@@ -1,0 +1,132 @@
+pub mod alerts;
+pub mod auth;
+pub mod channels;
+pub mod error;
+pub mod inhibitions;
+pub mod receivers;
+pub mod routes;
+pub mod rules;
+pub mod silences;
+pub mod sse_pump;
+pub mod subscriptions;
+pub mod webhook_url;
+
+pub use sse_pump::run_sse_pump;
+
+use crate::clickhouse::ChClient;
+use crate::crypto::SecretCipher;
+use crate::domain::Event;
+use crate::stores::PgStore;
+use crate::supervisor::RolesHealth;
+use auth::{require_api_key, ApiKeySet, Authenticator};
+use axum::middleware;
+use axum::routing::{get, post};
+use axum::Router;
+use std::sync::Arc;
+use tokio::sync::broadcast;
+
+#[derive(Clone)]
+pub struct AppState {
+    pub store: PgStore,
+    pub ch: ChClient,
+    pub auth: Arc<dyn Authenticator>,
+    pub cipher: Arc<dyn SecretCipher>,
+    /// Live event fan-out for SSE clients (fed by the SSE pump tailing the event stream).
+    pub events_tx: broadcast::Sender<Event>,
+    /// Allow private/loopback webhook targets (`CC_ALLOW_PRIVATE_WEBHOOKS=1`,
+    /// dev/compose only). See [`webhook_url::validate_webhook_url`].
+    pub allow_private_webhooks: bool,
+}
+
+/// Router with the API-key gate disabled (dev default, and the pre-gate
+/// behavior). Equivalent to `build_router_with_auth(state, ApiKeySet::default())`.
+pub fn build_router(state: AppState) -> Router {
+    build_router_with_auth(state, ApiKeySet::default())
+}
+
+/// Router with a static bearer-key gate on every `/v1` route, including the
+/// SSE stream. `/healthz` and `/readyz` stay unauthenticated. An empty
+/// `ApiKeySet` disables the gate. `/readyz` always reports ready here; the
+/// supervised binary uses [`build_supervised_router`] instead.
+pub fn build_router_with_auth(state: AppState, api_keys: ApiKeySet) -> Router {
+    build_supervised_router(state, api_keys, RolesHealth::default())
+}
+
+/// Like [`build_router_with_auth`], but `/readyz` reflects role supervision:
+/// 200 `ok` when every supervised role is running, 503 `degraded: <roles>` when
+/// any role in this process is down or waiting out a restart backoff. Liveness
+/// (`/healthz`) stays unconditional; a degraded pod must not be killed by the
+/// liveness probe while the supervisor is already handling the failure.
+pub fn build_supervised_router(
+    state: AppState,
+    api_keys: ApiKeySet,
+    health: RolesHealth,
+) -> Router {
+    let v1 = Router::new()
+        .route("/v1/rules", post(rules::create).get(rules::list))
+        .route(
+            "/v1/rules/:id",
+            get(rules::get).put(rules::update).delete(rules::delete),
+        )
+        .route("/v1/rules/:id/test", post(rules::test))
+        .route("/v1/rules/:id/pause", post(rules::pause))
+        .route("/v1/rules/:id/resume", post(rules::resume))
+        .route("/v1/alerts", get(alerts::list))
+        .route(
+            "/v1/subscriptions",
+            post(subscriptions::create).get(subscriptions::list),
+        )
+        .route(
+            "/v1/subscriptions/:id",
+            axum::routing::delete(subscriptions::delete),
+        )
+        .route("/v1/events/stream", get(subscriptions::stream))
+        .route("/v1/channels", post(channels::create).get(channels::list))
+        .route(
+            "/v1/channels/:name",
+            get(channels::get).delete(channels::delete),
+        )
+        .route(
+            "/v1/receivers",
+            post(receivers::create).get(receivers::list),
+        )
+        .route(
+            "/v1/receivers/:name",
+            get(receivers::get).delete(receivers::delete),
+        )
+        .route("/v1/routes", post(routes::create).get(routes::list))
+        .route(
+            "/v1/routes/:id",
+            axum::routing::put(routes::update).delete(routes::delete),
+        )
+        .route("/v1/silences", post(silences::create).get(silences::list))
+        .route("/v1/silences/:id", axum::routing::delete(silences::delete))
+        .route(
+            "/v1/inhibitions",
+            post(inhibitions::create).get(inhibitions::list),
+        )
+        .route(
+            "/v1/inhibitions/:id",
+            axum::routing::delete(inhibitions::delete),
+        )
+        .layer(middleware::from_fn_with_state(api_keys, require_api_key))
+        .with_state(state);
+    let readyz = move || {
+        let health = health.clone();
+        async move {
+            let degraded = health.degraded();
+            if degraded.is_empty() {
+                (axum::http::StatusCode::OK, "ok".to_string())
+            } else {
+                (
+                    axum::http::StatusCode::SERVICE_UNAVAILABLE,
+                    format!("degraded: {}", degraded.join(",")),
+                )
+            }
+        }
+    };
+    Router::new()
+        .route("/healthz", get(|| async { "ok" }))
+        .route("/readyz", get(readyz))
+        .merge(v1)
+}

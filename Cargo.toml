@@ -4,4 +4,7 @@ members = [
     "packages/desktop-app/src-cli",
     "packages/desktop-app/src-tauri",
 ]
+# clickety-clack is its own workspace root (own Cargo.lock, own toolchain pin)
+# so its Docker build and dependency resolution stay independent of this tree.
+exclude = ["crates/clickety-clack"]
 resolver = "2"

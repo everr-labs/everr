@@ -1,0 +1,2041 @@
+use crate::crypto::SecretCipher;
+use crate::domain::channel::{Channel, ChannelConfig};
+use crate::domain::event::{Event, EventStatus};
+use crate::domain::ids::{InstanceKey, RuleId, TenantId};
+use crate::domain::inhibition::InhibitionRule;
+use crate::domain::instance::{FiringInstance, InstanceState, StaleInstance, Status};
+use crate::domain::receiver::Receiver;
+use crate::domain::rollup::RuleRollup;
+use crate::domain::routing::{Matcher, Route};
+use crate::domain::rule::{Rule, RuleHealth, RuleSpec};
+use crate::domain::silence::Silence;
+use crate::domain::subscription::Subscription;
+use sqlx::postgres::{PgPool, PgPoolOptions, PgRow};
+use sqlx::Row;
+use std::collections::BTreeMap;
+use thiserror::Error;
+use time::OffsetDateTime;
+use uuid::Uuid;
+
+#[derive(Debug, Error)]
+pub enum StoreError {
+    #[error("sqlx: {0}")]
+    Sqlx(#[from] sqlx::Error),
+    #[error("migrate: {0}")]
+    Migrate(#[from] sqlx::migrate::MigrateError),
+    #[error("json: {0}")]
+    Json(#[from] serde_json::Error),
+    #[error("crypto: {0}")]
+    Crypto(#[from] crate::crypto::CryptoError),
+}
+
+#[derive(Clone)]
+pub struct PgStore {
+    pool: PgPool,
+    /// Engine self-observability (`cc.scheduler.drift` on the claim path). Disabled by
+    /// default; attached by `main` when engine telemetry is configured.
+    metrics: crate::otel::EngineMetrics,
+}
+
+/// Cadence outcome of one rule evaluation, applied inside the same transaction as
+/// the eval batch (see [`PgStore::persist_eval_batch`]).
+///
+/// `quiet` means the evaluation produced no present row AND left no instance
+/// pending or firing; only then may the effective interval stretch. Anything
+/// active (including pending instances mid for-duration, and firing instances
+/// counting absences toward `resolve_after`) resets the stretch, so a firing
+/// rule is never on a stretched cadence.
+#[derive(Debug, Clone, Copy)]
+pub struct EvalCadence {
+    pub quiet: bool,
+    /// The spec's base interval at evaluation time.
+    pub interval_secs: u32,
+    /// The spec's stretch cap; `None` = adaptive cadence off (no state written).
+    pub max_interval_secs: Option<u32>,
+    /// The evaluation timestamp; anchors the next_eval adjustment.
+    pub eval_ts: OffsetDateTime,
+}
+
+/// Outcome of [`PgStore::update_rule`].
+#[derive(Debug, Clone, PartialEq)]
+pub enum RuleUpdate {
+    /// The rule was updated; carries the new stored rule (version already bumped).
+    Updated(Rule),
+    /// No rule with that id exists for the tenant.
+    NotFound,
+    /// The caller supplied an expected version that no longer matches.
+    VersionConflict { current: i64 },
+}
+
+/// Outcome of [`PgStore::delete_channel`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ChannelDelete {
+    Deleted,
+    NotFound,
+    /// At least one receiver still references the channel; carries the referring
+    /// receiver names (the API surfaces them in the 409 detail).
+    InUse(Vec<String>),
+}
+
+/// Keyset position within the `(created_at, id)`-ordered rule listing: the key
+/// of the last row already served. See [`PgStore::list_rules_page`]. The API
+/// layer encodes/decodes this as the opaque `cursor` query parameter.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RulePageKey {
+    pub created_at: OffsetDateTime,
+    pub id: RuleId,
+}
+
+fn status_str(s: Status) -> &'static str {
+    match s {
+        Status::Inactive => "inactive",
+        Status::Pending => "pending",
+        Status::Firing => "firing",
+    }
+}
+
+fn status_from(s: &str) -> Status {
+    match s {
+        "pending" => Status::Pending,
+        "firing" => Status::Firing,
+        _ => Status::Inactive,
+    }
+}
+
+/// absent_count is a small non-negative counter; clamp DB value defensively.
+fn absent_count_from_db(v: i32) -> u32 {
+    v.max(0) as u32
+}
+
+/// absent_count never realistically exceeds i32::MAX (it's bounded by resolve_after).
+fn absent_count_to_db(v: u32) -> i32 {
+    i32::try_from(v).unwrap_or(i32::MAX)
+}
+
+fn row_to_instance(r: &sqlx::postgres::PgRow) -> Result<InstanceState, StoreError> {
+    let labels: BTreeMap<String, String> = serde_json::from_value(r.get("labels"))?;
+    Ok(InstanceState {
+        key: InstanceKey(r.get("key")),
+        rule: RuleId(r.get("rule")),
+        tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
+        status: status_from(r.get::<&str, _>("status")),
+        labels,
+        value: r.get("value"),
+        active_since: r.get("active_since"),
+        last_seen: r.get("last_seen"),
+        absent_count: absent_count_from_db(r.get::<i32, _>("absent_count")),
+    })
+}
+
+fn row_to_silence(r: &sqlx::postgres::PgRow) -> Result<Silence, StoreError> {
+    Ok(Silence {
+        id: r.get("id"),
+        tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
+        matchers: serde_json::from_value(r.get("matchers"))?,
+        starts_at: r.get("starts_at"),
+        ends_at: r.get("ends_at"),
+        comment: r.get("comment"),
+        author: r.get("author"),
+        created_at: r.get("created_at"),
+    })
+}
+
+fn row_to_inhibition(r: &sqlx::postgres::PgRow) -> Result<InhibitionRule, StoreError> {
+    Ok(InhibitionRule {
+        id: r.get("id"),
+        tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
+        source_matchers: serde_json::from_value(r.get("source_matchers"))?,
+        target_matchers: serde_json::from_value(r.get("target_matchers"))?,
+        equal: serde_json::from_value(r.get("equal"))?,
+        created_at: r.get("created_at"),
+    })
+}
+
+impl PgStore {
+    pub async fn connect(url: &str) -> Result<Self, StoreError> {
+        let pool = PgPoolOptions::new()
+            .max_connections(16)
+            .connect(url)
+            .await?;
+        Ok(Self {
+            pool,
+            metrics: crate::otel::EngineMetrics::disabled(),
+        })
+    }
+
+    /// Attach the engine-metrics handle so the claim path records scheduling drift.
+    pub fn with_engine_metrics(mut self, metrics: crate::otel::EngineMetrics) -> Self {
+        self.metrics = metrics;
+        self
+    }
+
+    pub async fn migrate(&self) -> Result<(), StoreError> {
+        sqlx::migrate!("./migrations").run(&self.pool).await?;
+        Ok(())
+    }
+
+    // ---- rules ----
+
+    /// Create a rule. Its first `next_eval` is now plus the rule's deterministic
+    /// jitter phase (`hash(rule_id) % interval_secs`), so rules created together
+    /// on the same round interval spread across it instead of all becoming due on
+    /// the same tick. The claim paths advance by whole intervals afterwards, which
+    /// preserves the stagger. First evaluation therefore lands within one interval
+    /// of creation rather than immediately.
+    pub async fn create_rule(&self, tenant: TenantId, spec: &RuleSpec) -> Result<Rule, StoreError> {
+        let id = Uuid::new_v4();
+        let spec_json = serde_json::to_value(spec)?;
+        let phase = crate::domain::cadence::jitter_offset_secs(id, spec.interval_secs);
+        sqlx::query(
+            "INSERT INTO rules (id, tenant, spec, next_eval)
+             VALUES ($1,$2,$3, now() + make_interval(secs => $4::int))",
+        )
+        .bind(id)
+        .bind(tenant.as_str())
+        .bind(&spec_json)
+        .bind(phase as i32)
+        .execute(&self.pool)
+        .await?;
+        Ok(Rule {
+            id: RuleId(id),
+            tenant,
+            spec: spec.clone(),
+            version: 1,
+            paused: false,
+        })
+    }
+
+    pub async fn get_rule(&self, tenant: TenantId, id: RuleId) -> Result<Option<Rule>, StoreError> {
+        let row = sqlx::query("SELECT spec, version, paused FROM rules WHERE id=$1 AND tenant=$2")
+            .bind(id.0)
+            .bind(tenant.as_str())
+            .fetch_optional(&self.pool)
+            .await?;
+        match row {
+            None => Ok(None),
+            Some(r) => {
+                let spec: RuleSpec = serde_json::from_value(r.get("spec"))?;
+                Ok(Some(Rule {
+                    id,
+                    tenant,
+                    spec,
+                    version: r.get("version"),
+                    paused: r.get("paused"),
+                }))
+            }
+        }
+    }
+
+    /// Update a rule's spec in place, preserving its id, tenant, paused flag and (where
+    /// the identities still align) its instance state. Bumps `version` by one.
+    ///
+    /// `expected_version`: `Some(v)` is an optimistic-concurrency guard — if the stored
+    /// version differs, nothing is written and `RuleUpdate::VersionConflict` is returned.
+    /// `None` means last-write-wins.
+    ///
+    /// Side effects, all in one transaction:
+    /// - `label_columns` changed (as a set): existing instances are DELETED. Their keys
+    ///   hash the old label set and can never match a future evaluation, so keeping them
+    ///   would strand pending/firing rows forever. The rule's rollup is reset to
+    ///   `inactive` in the same breath so reads stay consistent until the next eval.
+    ///   No Resolved events are synthesized (same silent teardown as rule deletion).
+    /// - `sql` changed: `consecutive_failures`/`last_error` reset, so a fixed query is
+    ///   never one old failure away from degrading. `health_status` itself is left
+    ///   alone — recovery still flows through `record_rule_success` so the paired
+    ///   RuleHealth Resolved event is emitted on the next successful eval.
+    /// - `interval_secs` changed: `next_eval` is pulled forward to
+    ///   `LEAST(next_eval, now + jitter_phase(new_interval))`, guaranteeing the
+    ///   scheduler honors the new cadence within one new interval (a long stale
+    ///   `next_eval` from a previous long interval cannot linger) while re-arming the
+    ///   rule at its deterministic anti-stampede phase for the new interval.
+    /// - `interval_secs` or `max_interval_secs` changed: the persisted adaptive
+    ///   stretch (`eval_backoff_secs`) is reset, so the new cadence parameters start
+    ///   from the base interval.
+    pub async fn update_rule(
+        &self,
+        tenant: TenantId,
+        id: RuleId,
+        spec: &RuleSpec,
+        expected_version: Option<i64>,
+    ) -> Result<RuleUpdate, StoreError> {
+        let mut tx = self.pool.begin().await?;
+        let row = sqlx::query(
+            "SELECT spec, version, paused FROM rules WHERE id=$1 AND tenant=$2 FOR UPDATE",
+        )
+        .bind(id.0)
+        .bind(tenant.as_str())
+        .fetch_optional(&mut *tx)
+        .await?;
+        let Some(row) = row else {
+            tx.rollback().await?;
+            return Ok(RuleUpdate::NotFound);
+        };
+        let current: i64 = row.get("version");
+        if let Some(expected) = expected_version {
+            if expected != current {
+                tx.rollback().await?;
+                return Ok(RuleUpdate::VersionConflict { current });
+            }
+        }
+        let old_spec: RuleSpec = serde_json::from_value(row.get("spec"))?;
+        let paused: bool = row.get("paused");
+
+        let sql_changed = old_spec.sql != spec.sql;
+        let interval_changed = old_spec.interval_secs != spec.interval_secs;
+        let cadence_changed =
+            interval_changed || old_spec.max_interval_secs != spec.max_interval_secs;
+        // Instance keys hash the SORTED label set, so column order is irrelevant to
+        // identity: compare label_columns as sets.
+        let label_set = |cols: &[String]| {
+            let mut v = cols.to_vec();
+            v.sort();
+            v.dedup();
+            v
+        };
+        let labels_changed = label_set(&old_spec.label_columns) != label_set(&spec.label_columns);
+
+        let spec_json = serde_json::to_value(spec)?;
+        sqlx::query(
+            "UPDATE rules SET spec=$3, version = version + 1, updated_at = now()
+             WHERE id=$1 AND tenant=$2",
+        )
+        .bind(id.0)
+        .bind(tenant.as_str())
+        .bind(&spec_json)
+        .execute(&mut *tx)
+        .await?;
+
+        // The follow-up statements below re-check the tenant even though the row was
+        // already resolved tenant-scoped under FOR UPDATE (defense in depth: no query
+        // on a tenant-owned table runs keyed by id alone).
+        if sql_changed {
+            sqlx::query(
+                "UPDATE rules SET consecutive_failures = 0, last_error = NULL, last_error_at = NULL
+                 WHERE id=$1 AND tenant=$2",
+            )
+            .bind(id.0)
+            .bind(tenant.as_str())
+            .execute(&mut *tx)
+            .await?;
+        }
+        if interval_changed {
+            // Re-arm at the rule's jitter phase for the NEW interval. The phase is
+            // strictly less than the interval, so the "honors the new cadence within
+            // one new interval" guarantee still holds, and a bulk interval change
+            // re-staggers the affected rules instead of synchronizing them.
+            let phase = crate::domain::cadence::jitter_offset_secs(id.0, spec.interval_secs);
+            sqlx::query(
+                "UPDATE rules SET next_eval = LEAST(next_eval, now() + make_interval(secs => $2::int))
+                 WHERE id=$1 AND tenant=$3",
+            )
+            .bind(id.0)
+            .bind(phase as i32)
+            .bind(tenant.as_str())
+            .execute(&mut *tx)
+            .await?;
+        }
+        if cadence_changed {
+            // New cadence parameters start unstretched; the next quiet evaluation
+            // rebuilds the backoff from the new base/cap.
+            sqlx::query("UPDATE rules SET eval_backoff_secs = 0 WHERE id=$1 AND tenant=$2")
+                .bind(id.0)
+                .bind(tenant.as_str())
+                .execute(&mut *tx)
+                .await?;
+        }
+        if labels_changed {
+            sqlx::query("DELETE FROM instances WHERE rule=$1 AND tenant=$2")
+                .bind(id.0)
+                .bind(tenant.as_str())
+                .execute(&mut *tx)
+                .await?;
+            sqlx::query(
+                "UPDATE rules SET alert_state='inactive', firing_instance_count=0, last_row_count=0
+                 WHERE id=$1 AND tenant=$2",
+            )
+            .bind(id.0)
+            .bind(tenant.as_str())
+            .execute(&mut *tx)
+            .await?;
+        }
+        tx.commit().await?;
+        Ok(RuleUpdate::Updated(Rule {
+            id,
+            tenant,
+            spec: spec.clone(),
+            version: current + 1,
+            paused,
+        }))
+    }
+
+    pub async fn delete_rule(&self, tenant: TenantId, id: RuleId) -> Result<bool, StoreError> {
+        let res = sqlx::query("DELETE FROM rules WHERE id=$1 AND tenant=$2")
+            .bind(id.0)
+            .bind(tenant.as_str())
+            .execute(&self.pool)
+            .await?;
+        Ok(res.rows_affected() > 0)
+    }
+
+    /// Pause a rule (exclude it from evaluation). Idempotent. Returns false if no
+    /// such rule exists for the tenant.
+    pub async fn pause_rule(&self, tenant: TenantId, id: RuleId) -> Result<bool, StoreError> {
+        let res = sqlx::query(
+            "UPDATE rules SET paused = true, updated_at = now() WHERE id=$1 AND tenant=$2",
+        )
+        .bind(id.0)
+        .bind(tenant.as_str())
+        .execute(&self.pool)
+        .await?;
+        Ok(res.rows_affected() > 0)
+    }
+
+    /// Resume a paused rule: clear the flag, re-arm `next_eval` at the rule's
+    /// deterministic jitter phase (within one interval, so a bulk resume does not
+    /// stampede ClickHouse on one tick), and restart the for-duration / resolve
+    /// counters for its pending instances so unobserved pause time can't trigger a
+    /// spurious fire. Firing instances are left untouched (frozen -> real resolve
+    /// only when truly clear). Idempotent. Returns false if no such rule exists
+    /// for the tenant.
+    pub async fn resume_rule(&self, tenant: TenantId, id: RuleId) -> Result<bool, StoreError> {
+        let mut tx = self.pool.begin().await?;
+        // The phase is derived from the stored spec's interval; read it in the same
+        // transaction so a concurrent spec update cannot desync phase and interval.
+        let interval: Option<i32> = sqlx::query_scalar(
+            "SELECT (spec->>'interval_secs')::int FROM rules WHERE id=$1 AND tenant=$2 FOR UPDATE",
+        )
+        .bind(id.0)
+        .bind(tenant.as_str())
+        .fetch_optional(&mut *tx)
+        .await?;
+        let Some(interval) = interval else {
+            tx.rollback().await?;
+            return Ok(false);
+        };
+        let phase = crate::domain::cadence::jitter_offset_secs(id.0, interval.max(0) as u32);
+        let res = sqlx::query(
+            "UPDATE rules SET paused = false,
+                    next_eval = now() + make_interval(secs => $3::int),
+                    updated_at = now()
+             WHERE id=$1 AND tenant=$2",
+        )
+        .bind(id.0)
+        .bind(tenant.as_str())
+        .bind(phase as i32)
+        .execute(&mut *tx)
+        .await?;
+        if res.rows_affected() == 0 {
+            tx.rollback().await?;
+            return Ok(false);
+        }
+        sqlx::query(
+            "UPDATE instances SET active_since = NULL, absent_count = 0
+             WHERE rule=$1 AND tenant=$2 AND status='pending'",
+        )
+        .bind(id.0)
+        .bind(tenant.as_str())
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
+        Ok(true)
+    }
+
+    /// Test-only access to the underlying pool for raw setup/assertions.
+    #[doc(hidden)]
+    pub fn pool_for_test(&self) -> &sqlx::PgPool {
+        &self.pool
+    }
+
+    /// Claim rules whose next_eval <= now, advance next_eval by interval, return them.
+    pub async fn claim_due_rules(
+        &self,
+        now: OffsetDateTime,
+        limit: i64,
+    ) -> Result<Vec<Rule>, StoreError> {
+        // NOTE: next_eval advances from `now`, not the original due time, so a backlog can drift scheduling by up to one tick.
+        // `due.next_eval` is the pre-update due time; it feeds the `cc.scheduler.drift`
+        // metric (claim time minus due time) without changing scheduling semantics.
+        //
+        // The advance uses the rule's EFFECTIVE interval: the adaptive stretch
+        // (`eval_backoff_secs`, written by the evaluator after quiet evaluations),
+        // clamped into [interval_secs, max_interval_secs] at read time. The clamp
+        // makes stale stretch state harmless: a lowered or removed
+        // `max_interval_secs` takes effect at the very next claim, and rules that
+        // never opted in (backoff 0, max NULL) advance by exactly `interval_secs`.
+        let rows = sqlx::query(
+            "WITH due AS (
+                SELECT id, next_eval FROM rules WHERE next_eval <= $1 AND NOT paused
+                ORDER BY next_eval LIMIT $2 FOR UPDATE SKIP LOCKED
+             )
+             UPDATE rules r
+             SET next_eval = $1 + make_interval(secs => GREATEST(
+                    LEAST(r.eval_backoff_secs, COALESCE((r.spec->>'max_interval_secs')::int, 0)),
+                    (r.spec->>'interval_secs')::int))
+             FROM due WHERE r.id = due.id
+             RETURNING r.id, r.tenant, r.spec, r.version, r.paused, due.next_eval AS due_at",
+        )
+        .bind(now)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut out = Vec::new();
+        for r in rows {
+            let spec: RuleSpec = serde_json::from_value(r.get("spec"))?;
+            let rule = Rule {
+                id: RuleId(r.get("id")),
+                tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
+                spec,
+                version: r.get("version"),
+                paused: r.get("paused"),
+            };
+            self.metrics.record_scheduler_drift(
+                crate::otel::metrics::elapsed_seconds(r.get::<OffsetDateTime, _>("due_at"), now),
+                rule.tenant.as_str(),
+            );
+            out.push(rule);
+        }
+        Ok(out)
+    }
+
+    /// Like [`Self::claim_due_rules`], but only claims rules whose tenant maps into
+    /// `owned_shards`. This is the lower of two independent hash layers: here `hashtext`
+    /// maps each tenant to a shard index in `[0, shard_count)`; the scheduler's separate
+    /// rendezvous-hash layer decides which node owns which shard index. Together they let
+    /// replicas claim disjoint tenant slices concurrently. The modulo is made non-negative
+    /// with `((hashtext(tenant) % N) + N) % N` because Postgres `%` can return negatives.
+    pub async fn claim_due_rules_sharded(
+        &self,
+        now: OffsetDateTime,
+        limit: i64,
+        owned_shards: &[i32],
+        shard_count: i32,
+    ) -> Result<Vec<Rule>, StoreError> {
+        // As in `claim_due_rules`, `due.next_eval` feeds `cc.scheduler.drift` only,
+        // and the advance uses the clamped effective interval (see there).
+        let rows = sqlx::query(
+            "WITH due AS (
+                SELECT id, next_eval FROM rules
+                WHERE next_eval <= $1 AND NOT paused
+                  AND (((hashtext(tenant::text)::bigint % $3) + $3) % $3)::int = ANY($4)
+                ORDER BY next_eval LIMIT $2 FOR UPDATE SKIP LOCKED
+             )
+             UPDATE rules r
+             SET next_eval = $1 + make_interval(secs => GREATEST(
+                    LEAST(r.eval_backoff_secs, COALESCE((r.spec->>'max_interval_secs')::int, 0)),
+                    (r.spec->>'interval_secs')::int))
+             FROM due WHERE r.id = due.id
+             RETURNING r.id, r.tenant, r.spec, r.version, r.paused, due.next_eval AS due_at",
+        )
+        .bind(now)
+        .bind(limit)
+        .bind(shard_count)
+        .bind(owned_shards)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut out = Vec::new();
+        for r in rows {
+            let spec: RuleSpec = serde_json::from_value(r.get("spec"))?;
+            let rule = Rule {
+                id: RuleId(r.get("id")),
+                tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
+                spec,
+                version: r.get("version"),
+                paused: r.get("paused"),
+            };
+            self.metrics.record_scheduler_drift(
+                crate::otel::metrics::elapsed_seconds(r.get::<OffsetDateTime, _>("due_at"), now),
+                rule.tenant.as_str(),
+            );
+            out.push(rule);
+        }
+        Ok(out)
+    }
+
+    pub async fn record_eval_error(
+        &self,
+        id: RuleId,
+        tenant: &TenantId,
+        err: &str,
+    ) -> Result<(), StoreError> {
+        // An erroring rule is never left on a stretched cadence: drop the adaptive
+        // backoff and, if it was stretched, pull next_eval back to base cadence so
+        // the retry happens within one interval (the CASE keeps this a no-op for
+        // unstretched rules). Tenant-scoped for defense in depth (the caller holds
+        // the claimed rule's tenant).
+        sqlx::query(
+            "UPDATE rules SET last_error=$2, last_eval=now(),
+                    eval_backoff_secs = 0,
+                    next_eval = CASE WHEN eval_backoff_secs > 0
+                        THEN LEAST(next_eval, now() + make_interval(secs => (spec->>'interval_secs')::int))
+                        ELSE next_eval END
+             WHERE id=$1 AND tenant=$3",
+        )
+        .bind(id.0)
+        .bind(err)
+        .bind(tenant.as_str())
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    // ---- rule health ----
+
+    /// Record a query failure for `rule`: bump the consecutive-failure counter and store the
+    /// (already-scrubbed, already-capped) error. If this crosses `threshold` from a healthy
+    /// state, flip to degraded and write a `RuleHealth`/`Firing` event to the outbox in the
+    /// same transaction. Returns the event + outbox id to publish, or `None`.
+    pub async fn record_rule_failure(
+        &self,
+        rule: RuleId,
+        tenant: &TenantId,
+        err: &str,
+        threshold: i32,
+        now: OffsetDateTime,
+    ) -> Result<Option<(Event, Uuid)>, StoreError> {
+        let mut tx = self.pool.begin().await?;
+        // Same cadence guard as `record_eval_error`: a failing query resets any
+        // adaptive stretch immediately so degraded rules retry at base cadence.
+        let row = sqlx::query(
+            "UPDATE rules
+                SET consecutive_failures = consecutive_failures + 1,
+                    last_error = $2, last_error_at = now(), last_eval = now(),
+                    eval_backoff_secs = 0,
+                    next_eval = CASE WHEN eval_backoff_secs > 0
+                        THEN LEAST(next_eval, now() + make_interval(secs => (spec->>'interval_secs')::int))
+                        ELSE next_eval END
+              WHERE id = $1 AND tenant = $3
+            RETURNING consecutive_failures, health_status,
+                      (spec->>'suppressed')::bool AS suppressed",
+        )
+        .bind(rule.0)
+        .bind(err)
+        .bind(tenant.as_str())
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        let Some(row) = row else {
+            // Rule deleted mid-flight: nothing to do.
+            tx.commit().await?;
+            return Ok(None);
+        };
+        let failures: i32 = row.get("consecutive_failures");
+        let status: String = row.get("health_status");
+        // Specs stored before the key existed read NULL -> not suppressed.
+        let suppressed: bool = row.get::<Option<bool>, _>("suppressed").unwrap_or(false);
+
+        if status == "healthy" && failures >= threshold {
+            sqlx::query(
+                "UPDATE rules SET health_status='degraded', degraded_since=now() WHERE id=$1 AND tenant=$2",
+            )
+            .bind(rule.0)
+            .bind(tenant.as_str())
+            .execute(&mut *tx)
+            .await?;
+            let mut ann = BTreeMap::new();
+            ann.insert(
+                "summary".to_string(),
+                format!(
+                    "Rule {} degraded after {} consecutive failures",
+                    rule.0, failures
+                ),
+            );
+            ann.insert("last_error".to_string(), err.to_string());
+            let mut ev = Event::rule_health(tenant.clone(), rule, EventStatus::Firing, ann, now);
+            // A preview (suppressed) rule must never notify, its health events included.
+            // Stamped here so the outbox payload carries the flag for the relay too.
+            ev.suppressed = suppressed;
+            let id = Uuid::new_v4();
+            let payload = serde_json::to_value(&ev)?;
+            sqlx::query("INSERT INTO event_outbox (id, tenant, payload) VALUES ($1,$2,$3)")
+                .bind(id)
+                .bind(tenant.as_str())
+                .bind(&payload)
+                .execute(&mut *tx)
+                .await?;
+            tx.commit().await?;
+            return Ok(Some((ev, id)));
+        }
+
+        tx.commit().await?;
+        Ok(None)
+    }
+
+    /// Record a query success for `rule`: reset the failure counter and clear the stored error.
+    /// If the rule was degraded, flip to healthy and write a `RuleHealth`/`Resolved` event to the
+    /// outbox in the same transaction. Returns the recovery event + outbox id, or `None`.
+    pub async fn record_rule_success(
+        &self,
+        rule: RuleId,
+        tenant: &TenantId,
+        now: OffsetDateTime,
+    ) -> Result<Option<(Event, Uuid)>, StoreError> {
+        let mut tx = self.pool.begin().await?;
+        // Conditional reset: on the common already-healthy path this matches no row and writes
+        // nothing, avoiding a per-evaluation write to the hot `rules` table.
+        let row = sqlx::query(
+            "UPDATE rules
+                SET consecutive_failures = 0, last_error = NULL, last_error_at = NULL
+              WHERE id = $1 AND tenant = $2
+                AND (consecutive_failures <> 0 OR last_error IS NOT NULL OR health_status <> 'healthy')
+            RETURNING health_status, (spec->>'suppressed')::bool AS suppressed",
+        )
+        .bind(rule.0)
+        .bind(tenant.as_str())
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        let Some(row) = row else {
+            // Already clean (or rule absent for this tenant): nothing to reset, no recovery.
+            tx.commit().await?;
+            return Ok(None);
+        };
+        let status: String = row.get("health_status");
+        let suppressed: bool = row.get::<Option<bool>, _>("suppressed").unwrap_or(false);
+
+        if status == "degraded" {
+            sqlx::query(
+                "UPDATE rules SET health_status='healthy', degraded_since=NULL WHERE id=$1 AND tenant=$2",
+            )
+            .bind(rule.0)
+            .bind(tenant.as_str())
+            .execute(&mut *tx)
+            .await?;
+            let mut ann = BTreeMap::new();
+            ann.insert("summary".to_string(), format!("Rule {} recovered", rule.0));
+            let mut ev = Event::rule_health(tenant.clone(), rule, EventStatus::Resolved, ann, now);
+            ev.suppressed = suppressed;
+            let id = Uuid::new_v4();
+            let payload = serde_json::to_value(&ev)?;
+            sqlx::query("INSERT INTO event_outbox (id, tenant, payload) VALUES ($1,$2,$3)")
+                .bind(id)
+                .bind(tenant.as_str())
+                .bind(&payload)
+                .execute(&mut *tx)
+                .await?;
+            tx.commit().await?;
+            return Ok(Some((ev, id)));
+        }
+
+        tx.commit().await?;
+        Ok(None)
+    }
+
+    fn health_from_row(r: &PgRow) -> RuleHealth {
+        RuleHealth {
+            status: r.get("health_status"),
+            consecutive_failures: r.get("consecutive_failures"),
+            degraded_since: r.get("degraded_since"),
+            last_error: r.get("last_error"),
+            last_error_at: r.get("last_error_at"),
+        }
+    }
+
+    fn rollup_from_row(r: &PgRow) -> crate::domain::rollup::RuleRollup {
+        crate::domain::rollup::RuleRollup {
+            state: crate::domain::rollup::AlertState::from_db(&r.get::<String, _>("alert_state")),
+            firing_instance_count: r.get("firing_instance_count"),
+            fired_at: r.get("last_fired_at"),
+            resolved_at: r.get("last_resolved_at"),
+            seen_at: r.get("last_seen_at"),
+            row_count: r.get("last_row_count"),
+        }
+    }
+
+    /// Like `get_rule`, but also returns the rule's health (for the API representation).
+    pub async fn get_rule_with_health(
+        &self,
+        tenant: TenantId,
+        id: RuleId,
+    ) -> Result<Option<(Rule, RuleHealth, RuleRollup)>, StoreError> {
+        let row = sqlx::query(
+            "SELECT spec, version, paused, health_status, consecutive_failures,
+                    degraded_since, last_error, last_error_at,
+                    alert_state, firing_instance_count, last_fired_at,
+                    last_resolved_at, last_seen_at, last_row_count
+               FROM rules WHERE id=$1 AND tenant=$2",
+        )
+        .bind(id.0)
+        .bind(tenant.as_str())
+        .fetch_optional(&self.pool)
+        .await?;
+        match row {
+            None => Ok(None),
+            Some(r) => {
+                let spec: RuleSpec = serde_json::from_value(r.get("spec"))?;
+                let health = Self::health_from_row(&r);
+                let rollup = Self::rollup_from_row(&r);
+                let rule = Rule {
+                    id,
+                    tenant,
+                    spec,
+                    version: r.get("version"),
+                    paused: r.get("paused"),
+                };
+                Ok(Some((rule, health, rollup)))
+            }
+        }
+    }
+
+    /// Minimal (unpaginated) rule listing for a tenant, with an optional health-status filter.
+    /// Cursor pagination remains a separate future task; this exists so operators can find
+    /// degraded rules. `health` is `Some("degraded")` / `Some("healthy")` or `None` for all.
+    pub async fn list_rules(
+        &self,
+        tenant: &TenantId,
+        health: Option<&str>,
+    ) -> Result<Vec<(Rule, RuleHealth, RuleRollup)>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT id, spec, version, paused, health_status, consecutive_failures,
+                    degraded_since, last_error, last_error_at,
+                    alert_state, firing_instance_count, last_fired_at,
+                    last_resolved_at, last_seen_at, last_row_count
+               FROM rules
+              WHERE tenant=$1 AND ($2::text IS NULL OR health_status=$2)
+              ORDER BY created_at, id",
+        )
+        .bind(tenant.as_str())
+        .bind(health)
+        .fetch_all(&self.pool)
+        .await?;
+        let mut out = Vec::with_capacity(rows.len());
+        for r in &rows {
+            let spec: RuleSpec = serde_json::from_value(r.get("spec"))?;
+            let health = Self::health_from_row(r);
+            let rollup = Self::rollup_from_row(r);
+            let rule = Rule {
+                id: RuleId(r.get("id")),
+                tenant: tenant.clone(),
+                spec,
+                version: r.get("version"),
+                paused: r.get("paused"),
+            };
+            out.push((rule, health, rollup));
+        }
+        Ok(out)
+    }
+
+    /// One keyset page of the rule listing, ordered by `(created_at, id)`.
+    ///
+    /// `after` is the exclusive resume position (the key of the last row on the
+    /// previous page); `None` starts from the beginning. `health` filters like
+    /// [`PgStore::list_rules`]. Returns at most `limit` rows plus, when more rows
+    /// remain past the page, the key to resume from (the returned page's last row).
+    pub async fn list_rules_page(
+        &self,
+        tenant: &TenantId,
+        health: Option<&str>,
+        after: Option<&RulePageKey>,
+        limit: i64,
+    ) -> Result<(Vec<(Rule, RuleHealth, RuleRollup)>, Option<RulePageKey>), StoreError> {
+        // Fetch one extra row: its presence (not its content) tells us whether a
+        // next page exists, so `next` is only set when resuming would yield rows.
+        let rows = sqlx::query(
+            "SELECT id, created_at, spec, version, paused, health_status, consecutive_failures,
+                    degraded_since, last_error, last_error_at,
+                    alert_state, firing_instance_count, last_fired_at,
+                    last_resolved_at, last_seen_at, last_row_count
+               FROM rules
+              WHERE tenant=$1 AND ($2::text IS NULL OR health_status=$2)
+                AND ($3::timestamptz IS NULL OR (created_at, id) > ($3, $4))
+              ORDER BY created_at, id
+              LIMIT $5",
+        )
+        .bind(tenant.as_str())
+        .bind(health)
+        .bind(after.map(|k| k.created_at))
+        .bind(after.map(|k| k.id.0))
+        .bind(limit + 1)
+        .fetch_all(&self.pool)
+        .await?;
+        let has_more = rows.len() as i64 > limit;
+        let mut out = Vec::with_capacity(rows.len().min(limit as usize));
+        let mut last_key = None;
+        for r in rows.iter().take(limit as usize) {
+            let spec: RuleSpec = serde_json::from_value(r.get("spec"))?;
+            let health = Self::health_from_row(r);
+            let rollup = Self::rollup_from_row(r);
+            let id = RuleId(r.get("id"));
+            last_key = Some(RulePageKey {
+                created_at: r.get("created_at"),
+                id,
+            });
+            let rule = Rule {
+                id,
+                tenant: tenant.clone(),
+                spec,
+                version: r.get("version"),
+                paused: r.get("paused"),
+            };
+            out.push((rule, health, rollup));
+        }
+        Ok((out, if has_more { last_key } else { None }))
+    }
+
+    // ---- idempotency ----
+
+    /// Returns true if this (rule, eval_ts) was newly claimed; false if already applied.
+    pub async fn try_claim_eval(
+        &self,
+        rule: RuleId,
+        eval_ts: OffsetDateTime,
+    ) -> Result<bool, StoreError> {
+        let res = sqlx::query(
+            "INSERT INTO evaluations (rule, eval_ts) VALUES ($1,$2) ON CONFLICT DO NOTHING",
+        )
+        .bind(rule.0)
+        .bind(eval_ts)
+        .execute(&self.pool)
+        .await?;
+        Ok(res.rows_affected() == 1)
+    }
+
+    // ---- instances ----
+
+    /// Load a rule's instances, tenant-scoped. Callers already resolve the rule via
+    /// `get_rule(tenant, rule)`; the tenant predicate here is defense-in-depth so a
+    /// mismatched (tenant, rule) pair can never read another tenant's instances.
+    pub async fn load_instances(
+        &self,
+        tenant: &TenantId,
+        rule: RuleId,
+    ) -> Result<Vec<InstanceState>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT key, rule, tenant, status, labels, value, active_since, last_seen, absent_count
+             FROM instances WHERE rule=$1 AND tenant=$2",
+        )
+        .bind(rule.0)
+        .bind(tenant.as_str())
+        .fetch_all(&self.pool)
+        .await?;
+        let mut out = Vec::new();
+        for r in &rows {
+            out.push(row_to_instance(r)?);
+        }
+        Ok(out)
+    }
+
+    pub async fn upsert_instance(&self, s: &InstanceState) -> Result<(), StoreError> {
+        let labels = serde_json::to_value(&s.labels)?;
+        // The conflict update is tenant-guarded: instance keys are sha256(rule_id +
+        // labels) so a cross-tenant key collision cannot occur in practice, but if
+        // one ever did, the write becomes a no-op instead of a cross-tenant overwrite.
+        sqlx::query(
+            "INSERT INTO instances (key, rule, tenant, status, labels, value, active_since, last_seen, absent_count)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+             ON CONFLICT (key) DO UPDATE SET
+               status=$4, labels=$5, value=$6, active_since=$7, last_seen=$8, absent_count=$9
+             WHERE instances.tenant = EXCLUDED.tenant"
+        )
+        .bind(&s.key.0).bind(s.rule.0).bind(s.tenant.as_str())
+        .bind(status_str(s.status)).bind(&labels).bind(s.value)
+        .bind(s.active_since).bind(s.last_seen).bind(absent_count_to_db(s.absent_count))
+        .execute(&self.pool).await?;
+        Ok(())
+    }
+
+    pub async fn list_alerts(&self, tenant: TenantId) -> Result<Vec<InstanceState>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT key, rule, tenant, status, labels, value, active_since, last_seen, absent_count
+             FROM instances WHERE tenant=$1 AND status != 'inactive' ORDER BY active_since DESC",
+        )
+        .bind(tenant.as_str())
+        .fetch_all(&self.pool)
+        .await?;
+        let mut out = Vec::new();
+        for r in &rows {
+            out.push(row_to_instance(r)?);
+        }
+        Ok(out)
+    }
+
+    // ---- subscriptions ----
+
+    pub async fn create_subscription(
+        &self,
+        cipher: &dyn SecretCipher,
+        tenant: TenantId,
+        url: &str,
+    ) -> Result<Subscription, StoreError> {
+        let id = Uuid::new_v4();
+        let enc = crate::crypto::encrypt_str(cipher, url)?;
+        let row = sqlx::query(
+            "INSERT INTO subscriptions (id, tenant, webhook_url) VALUES ($1,$2,$3)
+             RETURNING created_at",
+        )
+        .bind(id)
+        .bind(tenant.as_str())
+        .bind(&enc)
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(Subscription {
+            id,
+            tenant,
+            webhook_url: url.to_string(),
+            created_at: row.get("created_at"),
+        })
+    }
+
+    pub async fn subscriptions_for(
+        &self,
+        cipher: &dyn SecretCipher,
+        tenant: TenantId,
+    ) -> Result<Vec<Subscription>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT id, tenant, webhook_url, created_at FROM subscriptions
+             WHERE tenant=$1 ORDER BY created_at",
+        )
+        .bind(tenant.as_str())
+        .fetch_all(&self.pool)
+        .await?;
+        let mut out = Vec::new();
+        for r in &rows {
+            let enc: String = r.get("webhook_url");
+            let webhook_url = crate::crypto::decrypt_str(cipher, &enc)?;
+            out.push(Subscription {
+                id: r.get("id"),
+                tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
+                webhook_url,
+                created_at: r.get("created_at"),
+            });
+        }
+        Ok(out)
+    }
+
+    /// Delete a subscription by id. Tenant-scoped: an id belonging to another tenant is
+    /// treated as not found. Returns whether a row was removed.
+    pub async fn delete_subscription(
+        &self,
+        tenant: TenantId,
+        id: Uuid,
+    ) -> Result<bool, StoreError> {
+        let res = sqlx::query("DELETE FROM subscriptions WHERE tenant=$1 AND id=$2")
+            .bind(tenant.as_str())
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        Ok(res.rows_affected() > 0)
+    }
+
+    // ---- notification log ----
+
+    /// Begin a notification: insert a `pending` row keyed by `dedup_key`.
+    /// Returns true if newly inserted (caller should attempt delivery); false if a
+    /// row already exists (already sent, or pending/in-flight) — caller skips to
+    /// avoid a duplicate send. NOTE: a row left `pending` by a crash mid-send blocks
+    /// redelivery of that exact event to that target; Phase 3 adds a stale-pending sweep.
+    pub async fn try_begin_notification(
+        &self,
+        dedup_key: &str,
+        tenant: TenantId,
+        channel: &str,
+        target: &str,
+    ) -> Result<bool, StoreError> {
+        let res = sqlx::query(
+            "INSERT INTO notifications (dedup_key, tenant, channel, target)
+             VALUES ($1,$2,$3,$4) ON CONFLICT (dedup_key) DO NOTHING",
+        )
+        .bind(dedup_key)
+        .bind(tenant.as_str())
+        .bind(channel)
+        .bind(target)
+        .execute(&self.pool)
+        .await?;
+        Ok(res.rows_affected() == 1)
+    }
+
+    /// Tenant-scoped for defense in depth: dedup keys are content hashes generated
+    /// server-side, but no notifications query runs keyed by dedup_key alone.
+    pub async fn mark_notification_sent(
+        &self,
+        tenant: &TenantId,
+        dedup_key: &str,
+        attempts: u32,
+    ) -> Result<(), StoreError> {
+        sqlx::query(
+            "UPDATE notifications SET status='sent', attempts=$2, updated_at=now()
+             WHERE dedup_key=$1 AND tenant=$3",
+        )
+        .bind(dedup_key)
+        .bind(attempts as i32)
+        .bind(tenant.as_str())
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn mark_notification_failed(
+        &self,
+        tenant: &TenantId,
+        dedup_key: &str,
+        attempts: u32,
+        error: &str,
+    ) -> Result<(), StoreError> {
+        sqlx::query(
+            "UPDATE notifications SET status='failed', attempts=$2, last_error=$3, updated_at=now()
+             WHERE dedup_key=$1 AND tenant=$4",
+        )
+        .bind(dedup_key)
+        .bind(attempts as i32)
+        .bind(error)
+        .bind(tenant.as_str())
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Test/inspection helper: fetch (status, attempts) for a tenant's dedup_key.
+    pub async fn notification_status(
+        &self,
+        tenant: &TenantId,
+        dedup_key: &str,
+    ) -> Result<Option<(String, i32)>, StoreError> {
+        let row = sqlx::query(
+            "SELECT status, attempts FROM notifications WHERE dedup_key=$1 AND tenant=$2",
+        )
+        .bind(dedup_key)
+        .bind(tenant.as_str())
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row.map(|r| (r.get::<String, _>("status"), r.get::<i32, _>("attempts"))))
+    }
+
+    // ---- channels ----
+
+    /// Create or replace a named channel by (tenant, name). Upsert semantics
+    /// (PUT-like): re-issuing the same name replaces its config, which is how a
+    /// secret is rotated without touching the receivers that reference it.
+    pub async fn create_channel(
+        &self,
+        cipher: &dyn SecretCipher,
+        tenant: TenantId,
+        name: &str,
+        config: &ChannelConfig,
+    ) -> Result<Channel, StoreError> {
+        let id = Uuid::new_v4();
+        let cfg_json = crate::crypto::encrypt_channel(cipher, config)?;
+        let row = sqlx::query(
+            "INSERT INTO channels (id, tenant, name, config) VALUES ($1,$2,$3,$4)
+             ON CONFLICT (tenant, name) DO UPDATE SET config = EXCLUDED.config
+             RETURNING id",
+        )
+        .bind(id)
+        .bind(tenant.as_str())
+        .bind(name)
+        .bind(&cfg_json)
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(Channel {
+            id: row.get("id"),
+            tenant,
+            name: name.to_string(),
+            config: config.clone(),
+        })
+    }
+
+    pub async fn get_channel(
+        &self,
+        cipher: &dyn SecretCipher,
+        tenant: TenantId,
+        name: &str,
+    ) -> Result<Option<Channel>, StoreError> {
+        let row = sqlx::query(
+            "SELECT id, tenant, name, config FROM channels WHERE tenant=$1 AND name=$2",
+        )
+        .bind(tenant.as_str())
+        .bind(name)
+        .fetch_optional(&self.pool)
+        .await?;
+        match row {
+            None => Ok(None),
+            Some(r) => Ok(Some(Self::channel_from_row(cipher, &r)?)),
+        }
+    }
+
+    pub async fn list_channels(
+        &self,
+        cipher: &dyn SecretCipher,
+        tenant: TenantId,
+    ) -> Result<Vec<Channel>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT id, tenant, name, config FROM channels WHERE tenant=$1 ORDER BY name",
+        )
+        .bind(tenant.as_str())
+        .fetch_all(&self.pool)
+        .await?;
+        rows.iter()
+            .map(|r| Self::channel_from_row(cipher, r))
+            .collect()
+    }
+
+    /// Load a set of channels by name (dispatcher resolution path). Names with no
+    /// stored channel are simply absent from the result; the caller decides how to
+    /// treat the gap (the flusher skips them with an error log).
+    pub async fn channels_by_names(
+        &self,
+        cipher: &dyn SecretCipher,
+        tenant: &TenantId,
+        names: &[String],
+    ) -> Result<Vec<Channel>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT id, tenant, name, config FROM channels WHERE tenant=$1 AND name = ANY($2)",
+        )
+        .bind(tenant.as_str())
+        .bind(names)
+        .fetch_all(&self.pool)
+        .await?;
+        rows.iter()
+            .map(|r| Self::channel_from_row(cipher, r))
+            .collect()
+    }
+
+    /// Which of `names` exist as channels for the tenant (receiver-validation path).
+    pub async fn existing_channel_names(
+        &self,
+        tenant: &TenantId,
+        names: &[String],
+    ) -> Result<Vec<String>, StoreError> {
+        let rows = sqlx::query_scalar::<_, String>(
+            "SELECT name FROM channels WHERE tenant=$1 AND name = ANY($2)",
+        )
+        .bind(tenant.as_str())
+        .bind(names)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows)
+    }
+
+    /// Names of the receivers that reference channel `name`.
+    pub async fn receivers_referencing_channel(
+        &self,
+        tenant: &TenantId,
+        name: &str,
+    ) -> Result<Vec<String>, StoreError> {
+        let rows = sqlx::query_scalar::<_, String>(
+            "SELECT name FROM receivers
+             WHERE tenant=$1 AND channels @> to_jsonb(ARRAY[$2::text])
+             ORDER BY name",
+        )
+        .bind(tenant.as_str())
+        .bind(name)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows)
+    }
+
+    /// Delete a channel unless a receiver still references it. The referrer check
+    /// and the delete run in one transaction so a concurrent receiver upsert
+    /// cannot slip a dangling reference past the guard.
+    pub async fn delete_channel(
+        &self,
+        tenant: TenantId,
+        name: &str,
+    ) -> Result<ChannelDelete, StoreError> {
+        let mut tx = self.pool.begin().await?;
+        let referrers: Vec<String> = sqlx::query_scalar(
+            "SELECT name FROM receivers
+             WHERE tenant=$1 AND channels @> to_jsonb(ARRAY[$2::text])
+             ORDER BY name FOR SHARE",
+        )
+        .bind(tenant.as_str())
+        .bind(name)
+        .fetch_all(&mut *tx)
+        .await?;
+        if !referrers.is_empty() {
+            tx.rollback().await?;
+            return Ok(ChannelDelete::InUse(referrers));
+        }
+        let res = sqlx::query("DELETE FROM channels WHERE tenant=$1 AND name=$2")
+            .bind(tenant.as_str())
+            .bind(name)
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
+        Ok(if res.rows_affected() > 0 {
+            ChannelDelete::Deleted
+        } else {
+            ChannelDelete::NotFound
+        })
+    }
+
+    fn channel_from_row(cipher: &dyn SecretCipher, r: &PgRow) -> Result<Channel, StoreError> {
+        let v: serde_json::Value = r.get("config");
+        let config = crate::crypto::decrypt_channel(cipher, &v)?;
+        Ok(Channel {
+            id: r.get("id"),
+            tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
+            name: r.get("name"),
+            config,
+        })
+    }
+
+    // ---- receivers ----
+
+    /// Create or replace a receiver by (tenant, name). Returns the stored receiver.
+    /// Upsert semantics (PUT-like): re-issuing the same name updates its channel
+    /// references. `channels` non-emptiness and referenced-channel existence are
+    /// enforced at the API boundary; the column holds a JSON array of channel
+    /// names and never any secret.
+    pub async fn create_receiver(
+        &self,
+        tenant: TenantId,
+        name: &str,
+        channels: &[String],
+        annotations: &BTreeMap<String, String>,
+    ) -> Result<Receiver, StoreError> {
+        let id = Uuid::new_v4();
+        let ch_json = serde_json::to_value(channels)?;
+        let ann_json = serde_json::to_value(annotations)?;
+        let row = sqlx::query(
+            "INSERT INTO receivers (id, tenant, name, channels, annotations) VALUES ($1,$2,$3,$4,$5)
+             ON CONFLICT (tenant, name) DO UPDATE
+                SET channels = EXCLUDED.channels, annotations = EXCLUDED.annotations
+             RETURNING id",
+        )
+        .bind(id)
+        .bind(tenant.as_str())
+        .bind(name)
+        .bind(&ch_json)
+        .bind(&ann_json)
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(Receiver {
+            id: row.get("id"),
+            tenant,
+            name: name.to_string(),
+            channels: channels.to_vec(),
+            annotations: annotations.clone(),
+        })
+    }
+
+    pub async fn get_receiver(
+        &self,
+        tenant: TenantId,
+        name: &str,
+    ) -> Result<Option<Receiver>, StoreError> {
+        let row = sqlx::query(
+            "SELECT id, tenant, name, channels, annotations
+             FROM receivers WHERE tenant=$1 AND name=$2",
+        )
+        .bind(tenant.as_str())
+        .bind(name)
+        .fetch_optional(&self.pool)
+        .await?;
+        match row {
+            None => Ok(None),
+            Some(r) => {
+                let channels: Vec<String> = serde_json::from_value(r.get("channels"))?;
+                let annotations: BTreeMap<String, String> =
+                    serde_json::from_value(r.get("annotations"))?;
+                Ok(Some(Receiver {
+                    id: r.get("id"),
+                    tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
+                    name: r.get("name"),
+                    channels,
+                    annotations,
+                }))
+            }
+        }
+    }
+
+    pub async fn list_receivers(&self, tenant: TenantId) -> Result<Vec<Receiver>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT id, tenant, name, channels, annotations
+             FROM receivers WHERE tenant=$1 ORDER BY name",
+        )
+        .bind(tenant.as_str())
+        .fetch_all(&self.pool)
+        .await?;
+        let mut out = Vec::new();
+        for r in &rows {
+            let channels: Vec<String> = serde_json::from_value(r.get("channels"))?;
+            let annotations: BTreeMap<String, String> =
+                serde_json::from_value(r.get("annotations"))?;
+            out.push(Receiver {
+                id: r.get("id"),
+                tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
+                name: r.get("name"),
+                channels,
+                annotations,
+            });
+        }
+        Ok(out)
+    }
+
+    pub async fn delete_receiver(&self, tenant: TenantId, name: &str) -> Result<bool, StoreError> {
+        let res = sqlx::query("DELETE FROM receivers WHERE tenant=$1 AND name=$2")
+            .bind(tenant.as_str())
+            .bind(name)
+            .execute(&self.pool)
+            .await?;
+        Ok(res.rows_affected() > 0)
+    }
+
+    // ---- routes ----
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn create_route(
+        &self,
+        tenant: TenantId,
+        matchers: &[Matcher],
+        receiver: &str,
+        continue_matching: bool,
+        priority: i32,
+        group_by: Option<&[String]>,
+        group_wait_secs: Option<u32>,
+        group_interval_secs: Option<u32>,
+        repeat_interval_secs: Option<u32>,
+    ) -> Result<Route, StoreError> {
+        let id = Uuid::new_v4();
+        let m_json = serde_json::to_value(matchers)?;
+        let gb_json: Option<serde_json::Value> = match group_by {
+            Some(g) => Some(serde_json::to_value(g)?),
+            None => None,
+        };
+        sqlx::query(
+            "INSERT INTO routes
+               (id, tenant, matchers, receiver, continue_matching, priority,
+                group_by, group_wait_secs, group_interval_secs, repeat_interval_secs)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
+        )
+        .bind(id)
+        .bind(tenant.as_str())
+        .bind(&m_json)
+        .bind(receiver)
+        .bind(continue_matching)
+        .bind(priority)
+        .bind(&gb_json)
+        .bind(group_wait_secs.map(|v| v as i32))
+        .bind(group_interval_secs.map(|v| v as i32))
+        .bind(repeat_interval_secs.map(|v| v as i32))
+        .execute(&self.pool)
+        .await?;
+        Ok(Route {
+            id,
+            tenant,
+            matchers: matchers.to_vec(),
+            receiver: receiver.to_string(),
+            continue_matching,
+            priority,
+            group_by: group_by.map(|g| g.to_vec()),
+            group_wait_secs,
+            group_interval_secs,
+            repeat_interval_secs,
+        })
+    }
+
+    /// Full-body replace of a route (PUT semantics). `created_at` is preserved, so the
+    /// route keeps its position among equal priorities. Returns None when no route with
+    /// that id exists for the tenant.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn update_route(
+        &self,
+        tenant: TenantId,
+        id: Uuid,
+        matchers: &[Matcher],
+        receiver: &str,
+        continue_matching: bool,
+        priority: i32,
+        group_by: Option<&[String]>,
+        group_wait_secs: Option<u32>,
+        group_interval_secs: Option<u32>,
+        repeat_interval_secs: Option<u32>,
+    ) -> Result<Option<Route>, StoreError> {
+        let m_json = serde_json::to_value(matchers)?;
+        let gb_json: Option<serde_json::Value> = match group_by {
+            Some(g) => Some(serde_json::to_value(g)?),
+            None => None,
+        };
+        let res = sqlx::query(
+            "UPDATE routes
+                SET matchers=$3, receiver=$4, continue_matching=$5, priority=$6,
+                    group_by=$7, group_wait_secs=$8, group_interval_secs=$9,
+                    repeat_interval_secs=$10
+              WHERE tenant=$1 AND id=$2",
+        )
+        .bind(tenant.as_str())
+        .bind(id)
+        .bind(&m_json)
+        .bind(receiver)
+        .bind(continue_matching)
+        .bind(priority)
+        .bind(&gb_json)
+        .bind(group_wait_secs.map(|v| v as i32))
+        .bind(group_interval_secs.map(|v| v as i32))
+        .bind(repeat_interval_secs.map(|v| v as i32))
+        .execute(&self.pool)
+        .await?;
+        if res.rows_affected() == 0 {
+            return Ok(None);
+        }
+        Ok(Some(Route {
+            id,
+            tenant,
+            matchers: matchers.to_vec(),
+            receiver: receiver.to_string(),
+            continue_matching,
+            priority,
+            group_by: group_by.map(|g| g.to_vec()),
+            group_wait_secs,
+            group_interval_secs,
+            repeat_interval_secs,
+        }))
+    }
+
+    /// All routes for a tenant, in evaluation order (priority asc, then creation order).
+    pub async fn routes_for(&self, tenant: TenantId) -> Result<Vec<Route>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT id, tenant, matchers, receiver, continue_matching, priority,
+                    group_by, group_wait_secs, group_interval_secs, repeat_interval_secs
+             FROM routes WHERE tenant=$1 ORDER BY priority ASC, created_at ASC",
+        )
+        .bind(tenant.as_str())
+        .fetch_all(&self.pool)
+        .await?;
+        let mut out = Vec::new();
+        for r in &rows {
+            let matchers: Vec<Matcher> = serde_json::from_value(r.get("matchers"))?;
+            let group_by: Option<Vec<String>> =
+                match r.get::<Option<serde_json::Value>, _>("group_by") {
+                    Some(v) => Some(serde_json::from_value(v)?),
+                    None => None,
+                };
+            out.push(Route {
+                id: r.get("id"),
+                tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
+                matchers,
+                receiver: r.get("receiver"),
+                continue_matching: r.get("continue_matching"),
+                priority: r.get("priority"),
+                group_by,
+                group_wait_secs: r.get::<Option<i32>, _>("group_wait_secs").map(|v| v as u32),
+                group_interval_secs: r
+                    .get::<Option<i32>, _>("group_interval_secs")
+                    .map(|v| v as u32),
+                repeat_interval_secs: r
+                    .get::<Option<i32>, _>("repeat_interval_secs")
+                    .map(|v| v as u32),
+            });
+        }
+        Ok(out)
+    }
+
+    pub async fn delete_route(&self, tenant: TenantId, id: Uuid) -> Result<bool, StoreError> {
+        let res = sqlx::query("DELETE FROM routes WHERE tenant=$1 AND id=$2")
+            .bind(tenant.as_str())
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        Ok(res.rows_affected() > 0)
+    }
+
+    // ---- silences ----
+
+    pub async fn create_silence(
+        &self,
+        tenant: TenantId,
+        matchers: &[Matcher],
+        starts_at: OffsetDateTime,
+        ends_at: OffsetDateTime,
+        comment: &str,
+        author: &str,
+    ) -> Result<Silence, StoreError> {
+        let id = Uuid::new_v4();
+        let m_json = serde_json::to_value(matchers)?;
+        let created_at = OffsetDateTime::now_utc();
+        sqlx::query(
+            "INSERT INTO silences (id, tenant, matchers, starts_at, ends_at, comment, author, created_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
+        )
+        .bind(id)
+        .bind(tenant.as_str())
+        .bind(&m_json)
+        .bind(starts_at)
+        .bind(ends_at)
+        .bind(comment)
+        .bind(author)
+        .bind(created_at)
+        .execute(&self.pool)
+        .await?;
+        Ok(Silence {
+            id,
+            tenant,
+            matchers: matchers.to_vec(),
+            starts_at,
+            ends_at,
+            comment: comment.to_string(),
+            author: author.to_string(),
+            created_at,
+        })
+    }
+
+    pub async fn list_silences(&self, tenant: TenantId) -> Result<Vec<Silence>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT id, tenant, matchers, starts_at, ends_at, comment, author, created_at
+             FROM silences WHERE tenant=$1 ORDER BY created_at DESC",
+        )
+        .bind(tenant.as_str())
+        .fetch_all(&self.pool)
+        .await?;
+        rows.iter().map(row_to_silence).collect()
+    }
+
+    pub async fn list_active_silences(
+        &self,
+        tenant: TenantId,
+        now: OffsetDateTime,
+    ) -> Result<Vec<Silence>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT id, tenant, matchers, starts_at, ends_at, comment, author, created_at
+             FROM silences WHERE tenant=$1 AND starts_at <= $2 AND ends_at > $2",
+        )
+        .bind(tenant.as_str())
+        .bind(now)
+        .fetch_all(&self.pool)
+        .await?;
+        rows.iter().map(row_to_silence).collect()
+    }
+
+    pub async fn delete_silence(&self, tenant: TenantId, id: Uuid) -> Result<bool, StoreError> {
+        let res = sqlx::query("DELETE FROM silences WHERE tenant=$1 AND id=$2")
+            .bind(tenant.as_str())
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        Ok(res.rows_affected() > 0)
+    }
+
+    // ---- inhibitions ----
+
+    pub async fn create_inhibition(
+        &self,
+        tenant: TenantId,
+        source_matchers: &[Matcher],
+        target_matchers: &[Matcher],
+        equal: &[String],
+    ) -> Result<InhibitionRule, StoreError> {
+        let id = Uuid::new_v4();
+        let src = serde_json::to_value(source_matchers)?;
+        let tgt = serde_json::to_value(target_matchers)?;
+        let eq = serde_json::to_value(equal)?;
+        let created_at = OffsetDateTime::now_utc();
+        sqlx::query(
+            "INSERT INTO inhibitions (id, tenant, source_matchers, target_matchers, equal, created_at)
+             VALUES ($1,$2,$3,$4,$5,$6)",
+        )
+        .bind(id)
+        .bind(tenant.as_str())
+        .bind(&src)
+        .bind(&tgt)
+        .bind(&eq)
+        .bind(created_at)
+        .execute(&self.pool)
+        .await?;
+        Ok(InhibitionRule {
+            id,
+            tenant,
+            source_matchers: source_matchers.to_vec(),
+            target_matchers: target_matchers.to_vec(),
+            equal: equal.to_vec(),
+            created_at,
+        })
+    }
+
+    pub async fn list_inhibitions(
+        &self,
+        tenant: TenantId,
+    ) -> Result<Vec<InhibitionRule>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT id, tenant, source_matchers, target_matchers, equal, created_at
+             FROM inhibitions WHERE tenant=$1 ORDER BY created_at ASC",
+        )
+        .bind(tenant.as_str())
+        .fetch_all(&self.pool)
+        .await?;
+        rows.iter().map(row_to_inhibition).collect()
+    }
+
+    pub async fn delete_inhibition(&self, tenant: TenantId, id: Uuid) -> Result<bool, StoreError> {
+        let res = sqlx::query("DELETE FROM inhibitions WHERE tenant=$1 AND id=$2")
+            .bind(tenant.as_str())
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        Ok(res.rows_affected() > 0)
+    }
+
+    /// Firing instances for a tenant, enriched with the rule's severity (read from the
+    /// rule spec). Used as the inhibition source-set.
+    pub async fn list_firing(&self, tenant: TenantId) -> Result<Vec<FiringInstance>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT i.key AS key, i.rule AS rule, i.labels AS labels, r.spec AS spec
+             FROM instances i JOIN rules r ON r.id = i.rule
+             WHERE i.tenant=$1 AND i.status=$2",
+        )
+        .bind(tenant.as_str())
+        .bind(status_str(Status::Firing))
+        .fetch_all(&self.pool)
+        .await?;
+        let mut out = Vec::with_capacity(rows.len());
+        for r in &rows {
+            let labels: BTreeMap<String, String> = serde_json::from_value(r.get("labels"))?;
+            let spec: RuleSpec = serde_json::from_value(r.get("spec"))?;
+            out.push(FiringInstance {
+                key: InstanceKey(r.get("key")),
+                rule: RuleId(r.get("rule")),
+                severity: spec.severity,
+                labels,
+            });
+        }
+        Ok(out)
+    }
+
+    // ---- reconciliation / housekeeping ----
+
+    /// Instances still pending/firing whose last evaluation is older than
+    /// max(4 * interval_secs, 60s) — i.e. the rule effectively stopped being evaluated.
+    /// Enriched with severity + annotations from the rule spec so the caller can
+    /// synthesize a Resolved event. `now` is passed in for testability.
+    ///
+    /// The staleness window is GREATEST(4 * interval_secs, 60) seconds, applied per rule
+    /// from the rule spec. This SQL is the authoritative definition; the reconcile_it
+    /// integration test (stale_query_uses_per_rule_interval) guards the per-rule behavior.
+    ///
+    /// At most `limit` rows are returned, ordered oldest-first, so the caller can drain a
+    /// backlog in bounded chunks instead of one unbounded sweep. Because reconciliation
+    /// resets each returned instance out of the pending/firing set, successive calls with
+    /// the same `now` advance through the backlog without an OFFSET.
+    pub async fn list_stale_instances(
+        &self,
+        now: OffsetDateTime,
+        limit: i64,
+    ) -> Result<Vec<StaleInstance>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT i.key AS key, i.rule AS rule, i.tenant AS tenant, i.status AS status,
+                    i.labels AS labels, i.value AS value, r.spec AS spec
+             FROM instances i JOIN rules r ON r.id = i.rule
+             WHERE i.status IN ('pending','firing')
+               AND NOT r.paused
+               AND r.health_status <> 'degraded'
+               AND i.last_seen < ($1::timestamptz
+                   - make_interval(secs => GREATEST(4 * (r.spec->>'interval_secs')::int, 60)))
+             ORDER BY i.last_seen
+             LIMIT $2",
+        )
+        .bind(now)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+        let mut out = Vec::with_capacity(rows.len());
+        for r in &rows {
+            let labels: BTreeMap<String, String> = serde_json::from_value(r.get("labels"))?;
+            let spec: RuleSpec = serde_json::from_value(r.get("spec"))?;
+            out.push(StaleInstance {
+                key: InstanceKey(r.get("key")),
+                rule: RuleId(r.get("rule")),
+                tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
+                status: status_from(r.get::<&str, _>("status")),
+                labels,
+                value: r.get("value"),
+                severity: spec.severity,
+                annotations: spec.annotations,
+                suppressed: spec.suppressed,
+            });
+        }
+        Ok(out)
+    }
+
+    /// Delete silences whose end time is before `cutoff` (housekeeping). Returns the
+    /// number of rows removed.
+    pub async fn gc_silences(&self, cutoff: OffsetDateTime) -> Result<u64, StoreError> {
+        let res = sqlx::query("DELETE FROM silences WHERE ends_at < $1")
+            .bind(cutoff)
+            .execute(&self.pool)
+            .await?;
+        Ok(res.rows_affected())
+    }
+
+    // ---- event outbox ----
+
+    /// Atomic write of an instance state change AND its event-to-publish, in one
+    /// transaction. Returns the new outbox row id (used to delete the row after a
+    /// successful publish). This is the durability primitive: the event can never be
+    /// lost relative to the state write.
+    pub async fn upsert_instance_with_outbox(
+        &self,
+        s: &InstanceState,
+        ev: &Event,
+    ) -> Result<Uuid, StoreError> {
+        let labels = serde_json::to_value(&s.labels)?;
+        let payload = serde_json::to_value(ev)?;
+        let id = Uuid::new_v4();
+        let mut tx = self.pool.begin().await?;
+        sqlx::query(
+            "INSERT INTO instances (key, rule, tenant, status, labels, value, active_since, last_seen, absent_count)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+             ON CONFLICT (key) DO UPDATE SET
+               status=$4, labels=$5, value=$6, active_since=$7, last_seen=$8, absent_count=$9
+             WHERE instances.tenant = EXCLUDED.tenant"
+        )
+        .bind(&s.key.0).bind(s.rule.0).bind(s.tenant.as_str())
+        .bind(status_str(s.status)).bind(&labels).bind(s.value)
+        .bind(s.active_since).bind(s.last_seen).bind(absent_count_to_db(s.absent_count))
+        .execute(&mut *tx).await?;
+        sqlx::query("INSERT INTO event_outbox (id, tenant, payload) VALUES ($1,$2,$3)")
+            .bind(id)
+            .bind(ev.tenant.as_str())
+            .bind(&payload)
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
+        Ok(id)
+    }
+
+    /// Persist a batch of instance next-states and, atomically, an outbox row per event, in
+    /// ONE transaction. Returns the generated outbox ids in `events` order (for the
+    /// publish-then-delete dance). Empty input is a no-op. The whole rule evaluation thus
+    /// commits all-or-nothing.
+    ///
+    /// `unnest` arrays give a fixed 9-param upsert regardless of N, so there is no parameter
+    /// limit; a pathologically large instance set could be chunked into successive
+    /// transactions if lock duration ever became a concern (not needed today).
+    ///
+    /// `cadence` (evaluator path only) applies the adaptive-backoff transition for
+    /// the evaluated rule in the same transaction, so the persisted stretch can
+    /// never disagree with the committed instance state. This is the chosen seam
+    /// for the backoff write: the claim paths cannot decide it (they run BEFORE
+    /// the evaluation whose outcome drives the transition), and a separate
+    /// post-eval write would break the reset-with-the-state-that-caused-it
+    /// atomicity. The transition itself is the pure function
+    /// [`crate::domain::cadence::next_backoff_secs`]. `None` max = feature off =
+    /// nothing read or written (the claim-path clamp neutralizes any stale state).
+    ///
+    /// `rule_tenant` tenant-scopes the per-rule rollup/cadence writes (defense in
+    /// depth) and must be `Some` whenever `rollup` or `cadence` is. The evaluator
+    /// passes the claimed rule's tenant; the maintenance sweep (cross-tenant
+    /// instance batches, no rollup, no cadence) passes `None`.
+    pub async fn persist_eval_batch(
+        &self,
+        instances: &[InstanceState],
+        events: &[Event],
+        rollup: Option<(RuleId, crate::domain::rollup::RuleRollup)>,
+        cadence: Option<(RuleId, EvalCadence)>,
+        rule_tenant: Option<&TenantId>,
+    ) -> Result<Vec<Uuid>, StoreError> {
+        debug_assert!(
+            (rollup.is_none() && cadence.is_none()) || rule_tenant.is_some(),
+            "rule_tenant is required for rollup/cadence writes"
+        );
+        let cadence_on = matches!(&cadence, Some((_, c)) if c.max_interval_secs.is_some());
+        if instances.is_empty() && events.is_empty() && rollup.is_none() && !cadence_on {
+            return Ok(Vec::new());
+        }
+
+        let n = instances.len();
+        let mut keys = Vec::with_capacity(n);
+        let mut rules = Vec::with_capacity(n);
+        let mut tenants = Vec::with_capacity(n);
+        let mut statuses = Vec::with_capacity(n);
+        let mut labels_arr = Vec::with_capacity(n);
+        let mut values = Vec::with_capacity(n);
+        let mut active = Vec::with_capacity(n);
+        let mut last_seen = Vec::with_capacity(n);
+        let mut absent = Vec::with_capacity(n);
+        for s in instances {
+            keys.push(s.key.0.clone());
+            rules.push(s.rule.0);
+            tenants.push(s.tenant.as_str().to_string());
+            statuses.push(status_str(s.status).to_string());
+            labels_arr.push(serde_json::to_value(&s.labels)?);
+            values.push(s.value);
+            active.push(s.active_since);
+            last_seen.push(s.last_seen);
+            absent.push(absent_count_to_db(s.absent_count));
+        }
+
+        let ids: Vec<Uuid> = (0..events.len()).map(|_| Uuid::new_v4()).collect();
+        let ev_tenants: Vec<String> = events
+            .iter()
+            .map(|e| e.tenant.as_str().to_string())
+            .collect();
+        let payloads: Vec<serde_json::Value> = events
+            .iter()
+            .map(serde_json::to_value)
+            .collect::<Result<_, _>>()?;
+
+        let mut tx = self.pool.begin().await?;
+        if !instances.is_empty() {
+            sqlx::query(
+                "INSERT INTO instances (key, rule, tenant, status, labels, value, active_since, last_seen, absent_count)
+                 SELECT * FROM unnest($1::text[], $2::uuid[], $3::text[], $4::text[], $5::jsonb[], $6::float8[], $7::timestamptz[], $8::timestamptz[], $9::int[])
+                 ON CONFLICT (key) DO UPDATE SET
+                   status=EXCLUDED.status, labels=EXCLUDED.labels, value=EXCLUDED.value,
+                   active_since=EXCLUDED.active_since, last_seen=EXCLUDED.last_seen, absent_count=EXCLUDED.absent_count
+                 WHERE instances.tenant = EXCLUDED.tenant",
+            )
+            .bind(&keys)
+            .bind(&rules)
+            .bind(&tenants)
+            .bind(&statuses)
+            .bind(&labels_arr)
+            .bind(&values)
+            .bind(&active)
+            .bind(&last_seen)
+            .bind(&absent)
+            .execute(&mut *tx)
+            .await?;
+        }
+        if !events.is_empty() {
+            sqlx::query(
+                "INSERT INTO event_outbox (id, tenant, payload)
+                 SELECT * FROM unnest($1::uuid[], $2::text[], $3::jsonb[])",
+            )
+            .bind(&ids)
+            .bind(&ev_tenants)
+            .bind(&payloads)
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        // Tenant predicate for the per-rule writes below; NULL only on the
+        // maintenance path, which writes neither rollup nor cadence.
+        let rt: Option<&str> = rule_tenant.map(|t| t.as_str());
+
+        if let Some((rule_id, r)) = rollup {
+            // COALESCE the only-advance timestamps: a None this eval must not clear a
+            // prior value. last_seen_at/firing_instance_count/alert_state/last_row_count
+            // are authoritative for the eval and always overwrite.
+            sqlx::query(
+                "UPDATE rules SET
+                   alert_state = $2,
+                   firing_instance_count = $3,
+                   last_row_count = $4,
+                   last_fired_at = COALESCE($5, last_fired_at),
+                   last_resolved_at = COALESCE($6, last_resolved_at),
+                   last_seen_at = COALESCE($7, last_seen_at),
+                   updated_at = now()
+                 WHERE id = $1 AND tenant = $8",
+            )
+            .bind(rule_id.0)
+            .bind(r.state.as_db())
+            .bind(r.firing_instance_count)
+            .bind(r.row_count)
+            .bind(r.fired_at)
+            .bind(r.resolved_at)
+            .bind(r.seen_at)
+            .bind(rt)
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        if let Some((rule_id, c)) = cadence {
+            if let Some(max) = c.max_interval_secs {
+                if c.quiet {
+                    // Read-modify-write inside the batch transaction: fetch the
+                    // current stretch, advance it with the pure transition, and
+                    // push next_eval out to the new effective interval. GREATEST
+                    // keeps this monotone against the claim's earlier advance.
+                    let cur: Option<i32> = sqlx::query_scalar(
+                        "SELECT eval_backoff_secs FROM rules WHERE id = $1 AND tenant = $2",
+                    )
+                    .bind(rule_id.0)
+                    .bind(rt)
+                    .fetch_optional(&mut *tx)
+                    .await?;
+                    // None: rule deleted mid-flight; nothing to schedule.
+                    if let Some(cur) = cur {
+                        let next = crate::domain::cadence::next_backoff_secs(
+                            cur.max(0) as u32,
+                            c.interval_secs,
+                            max,
+                            true,
+                        );
+                        if next != cur.max(0) as u32 {
+                            sqlx::query(
+                                "UPDATE rules SET eval_backoff_secs = $2,
+                                        next_eval = GREATEST(next_eval, $3 + make_interval(secs => $2::int))
+                                 WHERE id = $1 AND tenant = $4",
+                            )
+                            .bind(rule_id.0)
+                            .bind(next as i32)
+                            .bind(c.eval_ts)
+                            .bind(rt)
+                            .execute(&mut *tx)
+                            .await?;
+                        }
+                    }
+                } else {
+                    // Active evaluation: reset the stretch and pull next_eval back
+                    // to base cadence NOW (not after one more stretched gap), so a
+                    // rule that just went pending/firing is immediately re-checked
+                    // at interval_secs. The guard makes this a no-op round trip
+                    // for rules that were not stretched.
+                    sqlx::query(
+                        "UPDATE rules SET eval_backoff_secs = 0,
+                                next_eval = LEAST(next_eval, $2 + make_interval(secs => $3::int))
+                         WHERE id = $1 AND tenant = $4 AND eval_backoff_secs <> 0",
+                    )
+                    .bind(rule_id.0)
+                    .bind(c.eval_ts)
+                    .bind(c.interval_secs as i32)
+                    .bind(rt)
+                    .execute(&mut *tx)
+                    .await?;
+                }
+            }
+        }
+        tx.commit().await?;
+        Ok(ids)
+    }
+
+    /// Delete a set of outbox rows after their events published successfully. Empty no-op.
+    pub async fn delete_outbox_batch(&self, ids: &[Uuid]) -> Result<(), StoreError> {
+        if ids.is_empty() {
+            return Ok(());
+        }
+        sqlx::query("DELETE FROM event_outbox WHERE id = ANY($1)")
+            .bind(ids)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    /// Claim outbox rows created strictly before `cutoff` (the grace boundary),
+    /// oldest first. `FOR UPDATE SKIP LOCKED` avoids two callers contending on the same
+    /// rows within a single query; the real single-relay guarantee is the maintenance
+    /// lease. Duplicate publishes (if two relays ever overlap) are deduped downstream.
+    pub async fn claim_outbox(
+        &self,
+        cutoff: OffsetDateTime,
+        batch: i64,
+    ) -> Result<Vec<(Uuid, Event)>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT id, payload FROM event_outbox
+             WHERE created_at < $1
+             ORDER BY created_at
+             LIMIT $2
+             FOR UPDATE SKIP LOCKED",
+        )
+        .bind(cutoff)
+        .bind(batch)
+        .fetch_all(&self.pool)
+        .await?;
+        let mut out = Vec::with_capacity(rows.len());
+        for r in &rows {
+            let id: Uuid = r.get("id");
+            let ev: Event = serde_json::from_value(r.get("payload"))?;
+            out.push((id, ev));
+        }
+        Ok(out)
+    }
+
+    /// Delete one outbox row after its event was published successfully.
+    pub async fn delete_outbox(&self, id: Uuid) -> Result<(), StoreError> {
+        sqlx::query("DELETE FROM event_outbox WHERE id = $1")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+}

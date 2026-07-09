@@ -99,12 +99,12 @@ services:
         "CREATE DATABASE clickety_clack"
 
   # clickety-clack alerting engine (the everr CC UI talks to this). Built from the
-  # sibling ../clickety-clack checkout; runs all roles in one container against this
-  # stack's Postgres + ClickHouse + Redis. The everr web app (host `pnpm dev`)
+  # in-repo crates/clickety-clack sources; runs all roles in one container against
+  # this stack's Postgres + ClickHouse + Redis. The everr web app (host `pnpm dev`)
   # reaches it at http://localhost:8088 — set CLICKETY_CLACK_BASE_URL to that.
   clickety-clack:
     build:
-      context: ../clickety-clack
+      context: ./crates/clickety-clack
     depends_on:
       postgres:
         condition: service_healthy
