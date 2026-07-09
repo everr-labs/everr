@@ -71,7 +71,7 @@ spec:
       spec:
         display:
           name: Worst lag / drift
-          description: Max eval-job queue age and scheduler claim drift seen in the range.
+          description: Max eval-job queue age and scheduler claim drift since the engine last started (cumulative histogram maxima; a restart spike sticks until the next restart).
         plugin:
           kind: StatChart
           spec:
