@@ -14,11 +14,6 @@ import {
   decodeAttributeValueRows,
 } from "../../attribute-filter/sql/values";
 import {
-  ERROR_EVENT_AUTHOR_ID_ATTR,
-  ERROR_EVENT_AUTHOR_NAME_ATTR,
-  isErrorTriageEventType,
-} from "../events";
-import {
   ERRORS_ATTRIBUTE_SOURCES,
   errorsAttributeColumn,
 } from "../sql/attribute-columns";
@@ -43,6 +38,7 @@ import type {
   ErrorOccurrence,
   ErrorTriageEvent,
 } from "./types";
+import { isErrorTriageEventType } from "./types";
 
 type ErrorIssueSummaryRow = Omit<
   ErrorIssueSummary,
@@ -62,25 +58,29 @@ type ErrorOccurrenceRow = Omit<ErrorOccurrence, "timestampRank"> & {
 type ServiceRow = { serviceName: string };
 
 type ErrorTriageEventRow = {
-  timestamp: string;
+  eventId: string;
   eventType: string;
-  body: string;
-  logAttributes: Record<string, string> | null;
+  latestBody: string;
+  authorId: string;
+  createdAt: string;
+  lastUpdatedAt: string;
+  latestVersion: string | number;
+  latestDeleted: string | number;
 };
 
 function mapTriageEvent(row: ErrorTriageEventRow): ErrorTriageEvent | null {
-  // The SQL already filters to known event types; the guard keeps a forward
-  // event type written by a newer client from breaking older readers.
+  // Forward event types written by a newer client must not break older readers.
   if (!isErrorTriageEventType(row.eventType)) return null;
-  const attributes = row.logAttributes ?? {};
   return {
+    id: row.eventId,
     type: row.eventType,
-    timestamp: row.timestamp,
-    body: row.body,
-    author: {
-      id: attributes[ERROR_EVENT_AUTHOR_ID_ATTR] ?? "",
-      name: attributes[ERROR_EVENT_AUTHOR_NAME_ATTR] ?? "",
-    },
+    timestamp: row.createdAt,
+    updatedAt: row.lastUpdatedAt,
+    edited: Number(row.latestVersion) > 0,
+    body: row.latestBody,
+    // Author name resolves from the user profile at the backend that owns
+    // profiles (the web app's server function); the table stores the id only.
+    author: { id: row.authorId, name: "" },
   };
 }
 
@@ -168,7 +168,7 @@ export class ErrorsRepository {
   async listTriageEvents(
     input: ListErrorTriageEventsInput,
   ): Promise<ErrorTriageEvent[]> {
-    const { sql, params } = buildTriageEventsQuery(input, this.tableName);
+    const { sql, params } = buildTriageEventsQuery(input);
     const rows = await this.client.execute<ErrorTriageEventRow>(sql, params);
     return rows
       .map(mapTriageEvent)

@@ -1,21 +1,21 @@
 # Tickets: Error triage
 
-Tracer-bullet slices building agent fix handoff, Investigations, Resolutions, and derived Status for Errors. Source spec: docs/specs/0001-error-triage.md (see also docs/adr/0004-error-triage-state-is-telemetry.md).
+Tracer-bullet slices building agent fix handoff, Investigations, Resolutions, and derived Status for Errors. Source spec: docs/specs/0001-error-triage.md (see also docs/adr/0004-error-triage-events-table.md).
 
 Work the **frontier**: any ticket whose blockers are all done.
 
 ## Record an Investigation from the web UI
 
-**What to build:** A User opens an Error's detail page, writes a markdown Investigation, and sees it appear in a new chronological timeline on that page. The Investigation is stored as an append-only log event keyed by tenant and Fingerprint (no new schema, per ADR 0004), stamped server-side with tenant and author, and is immediately readable through the plain SQL query surface like any other Signal. The write goes through the first cut of the generic log-event emitter interface, designed so later consumers (status events, local backend) plug in without reshaping it.
+**What to build:** A User opens an Error's detail page, writes a markdown Investigation, and sees it appear in a new chronological timeline on that page. The Investigation lives in the dedicated append-only events table keyed by tenant and Fingerprint (ADR 0004), stamped server-side with tenant and author id (display name resolves from the profile at read time). The author can edit or delete their own entries, recorded as version rows; the timeline marks edited entries. Every write projects a metadata-only activity marker into the logs table, so the plain SQL query surface shows triage activity without carrying content.
 
 **Blocked by:** None, can start immediately.
 
 - [x] Investigation form on the Error detail page persists a markdown Investigation
 - [x] Error detail shows a timeline of events for the Fingerprint, oldest to newest, with author and timestamp
-- [x] Event rows carry the dedicated error attribute namespace and land in the existing logs storage; no new tables or columns anywhere
+- [x] Events land in app.error_triage_events; edits and deletes are author-only version appends, and edited entries are marked in the timeline
 - [x] Tenant and author are stamped server-side; a client cannot spoof either
-- [x] The Investigation is readable via the cloud SQL query surface
-- [x] Repository behavior covered at the fake-execute-client seam
+- [x] Triage activity markers (no body, no author) are readable via the cloud SQL query surface
+- [x] Repository and write-module behavior covered at the fake-client seams
 
 ## Status events with badges and filter
 
@@ -23,7 +23,7 @@ Work the **frontier**: any ticket whose blockers are all done.
 
 **Blocked by:** Record an Investigation from the web UI.
 
-- [ ] Resolve, ignore, and reopen controls on the Error detail emit status events through the same emitter
+- [ ] Resolve, ignore, and reopen controls on the Error detail write status events into the same events table
 - [ ] Resolution captures a markdown explanation shown in the timeline
 - [ ] Errors list shows a Status badge per Error and a status filter; all statuses visible by default
 - [ ] Status is derived in the summary query; no stored status anywhere
@@ -57,7 +57,7 @@ Work the **frontier**: any ticket whose blockers are all done.
 
 ## Cloud CLI errors write surface with attribution
 
-**What to build:** An Agent records findings and completes triage from the terminal: investigate, resolve, ignore, and reopen subcommands accepting markdown via stdin or a file flag, writing through the generic emitter's REST backend. Writes carry the authenticated User plus an advisory agent marker flag; the web UI timeline renders both ("agent, authorized by user"). The full round trip works: an Agent resolves an Error and its badge flips in the web UI.
+**What to build:** An Agent records findings and completes triage from the terminal: investigate, resolve, ignore, and reopen subcommands accepting markdown via stdin or a file flag, writing through an authenticated REST endpoint backed by the same server-side write module as the web UI. Writes carry the authenticated User plus an advisory agent marker flag; the web UI timeline renders both ("agent, authorized by user"). The full round trip works: an Agent resolves an Error and its badge flips in the web UI.
 
 **Blocked by:** Cloud CLI errors read surface.
 
@@ -78,22 +78,21 @@ Work the **frontier**: any ticket whose blockers are all done.
 - [ ] Skill updated to teach fetch, investigate, fix, resolve
 - [ ] Manual end-to-end run: handoff prompt through a real Agent produces an Investigation and a Resolution visible in the UI
 
-## Local errors surface in the CLI
+## Local errors surface in the CLI (read-only)
 
-**What to build:** The same errors command family works against the Collector: local list, show, investigate, resolve, ignore, and reopen. Reads query the Collector's storage; writes emit log events through the generic emitter's local backend, ingested by the Collector like any other telemetry. A developer triages a local reproduction exactly as they would a Production Error.
+**What to build:** The errors read commands work against the Collector: local list and show query the Collector's storage and mirror the cloud output. Local triage writes are deferred until the Collector grows a counterpart of the events table (ADR 0004); until then local Errors carry no Status and no timeline.
 
-**Blocked by:** Cloud CLI errors read surface; Cloud CLI errors write surface with attribution.
+**Blocked by:** Cloud CLI errors read surface.
 
 - [ ] Local errors list and show mirror the cloud commands against Collector data
-- [ ] Local writes are emitted as log events and ingested by the Collector
-- [ ] Status derivation and the Regression rule behave identically on the local surface
+- [ ] Local surface states clearly that triage (status, Investigations) is cloud-only for now
 - [ ] Covered by the existing CLI integration-test pattern
 
-## Desktop app triage parity
+## Desktop app triage parity (deferred with local writes)
 
-**What to build:** The desktop app's errors page gains the same triage surface as the web app: Status badges and filter, the event timeline, status controls, and the Investigation form, all against the Collector via the shared explorer components. Both surfaces now behave symmetrically, closing the spec.
+**What to build:** Once the Collector grows a counterpart events table, the desktop app's errors page gains the same triage surface as the web app: Status badges and filter, the event timeline, status controls, and the Investigation form, all against the Collector via the shared explorer components (the ErrorDetail triage seam already exists). Deferred together with local triage writes (ADR 0004); until then the desktop errors page keeps its current read-only behavior.
 
-**Blocked by:** Status events with badges and filter; Local errors surface in the CLI.
+**Blocked by:** Status events with badges and filter; a Collector counterpart of the events table (not yet scheduled).
 
 - [ ] Desktop errors list shows Status badges and filter
 - [ ] Desktop Error detail shows the timeline with attribution and status controls

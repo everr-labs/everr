@@ -92,18 +92,35 @@ export type ListErrorTriageEventsInput = z.infer<
   typeof ListErrorTriageEventsInputSchema
 >;
 
-// The write input carries only what the client is allowed to say: tenant and
+const investigationBody = z
+  .string()
+  .trim()
+  .min(1)
+  .max(64 * 1024);
+
+// Write inputs carry only what the client is allowed to say: tenant and
 // author are stamped server-side from the session, never accepted as input.
 export const CreateErrorInvestigationInputSchema = z.object({
   fingerprint: z.string().min(1).max(200),
-  body: z
-    .string()
-    .trim()
-    .min(1)
-    .max(64 * 1024),
+  body: investigationBody,
 });
 export type CreateErrorInvestigationInput = z.infer<
   typeof CreateErrorInvestigationInputSchema
+>;
+
+export const UpdateErrorInvestigationInputSchema = z.object({
+  eventId: z.string().uuid(),
+  body: investigationBody,
+});
+export type UpdateErrorInvestigationInput = z.infer<
+  typeof UpdateErrorInvestigationInputSchema
+>;
+
+export const DeleteErrorInvestigationInputSchema = z.object({
+  eventId: z.string().uuid(),
+});
+export type DeleteErrorInvestigationInput = z.infer<
+  typeof DeleteErrorInvestigationInputSchema
 >;
 
 export const ErrorAttributeKeysInputSchema = z.object({

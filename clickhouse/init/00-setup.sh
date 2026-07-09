@@ -23,13 +23,6 @@ GRANT SELECT, INSERT, CREATE TABLE, ALTER TABLE ON otel.* TO collector_rw;
 -- App reads only curated read-model tables.
 GRANT SELECT ON app.* TO app_ro;
 
--- The generic log-event emitter (error triage events, ADR 0004) writes plain
--- log rows into the OTLP staging table; app.logs_mv projects them into
--- app.logs, deriving tenant_id from the everr.tenant.id resource attribute.
--- SELECT is required alongside INSERT: pushing to app.logs_mv reads the
--- inserted block's columns as the inserting user.
-GRANT SELECT, INSERT ON otel.otel_logs TO web_app_admin;
-
 -- App writes per-tenant retention rows; the dictionary refreshes itself via
 -- LIFETIME(MIN 60 MAX 120). Tables and the dictionary are created in 10-create-mvs.sql.
 -- SELECT is granted so the dictionary source can authenticate as web_app_admin.

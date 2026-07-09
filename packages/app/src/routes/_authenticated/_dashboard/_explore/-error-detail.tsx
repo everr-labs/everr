@@ -3,15 +3,22 @@ import {
   type ErrorIssueSearch,
   type ErrorOccurrence,
   ErrorTracePanel,
+  type ErrorTriageActions,
   getErrorOccurrenceKey,
 } from "@everr/telemetry-explorer/errors";
 import { buttonVariants } from "@everr/ui/components/button";
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { useMemo } from "react";
 import { remoteErrorsRepo } from "@/data/errors/remote-repo";
-import { createErrorInvestigation } from "@/data/errors/server";
+import {
+  createErrorInvestigation,
+  deleteErrorInvestigation,
+  updateErrorInvestigation,
+} from "@/data/errors/server";
 import { runSpansOptions } from "@/data/runs/options";
+import { authClient } from "@/lib/auth-client";
 
 export function ErrorDetailRouteContent({
   fingerprint,
@@ -27,6 +34,26 @@ export function ErrorDetailRouteContent({
   onClose?: () => void;
 }) {
   const { timeRange, service, refresh } = withTimeRange(search);
+  const { data: session } = authClient.useSession();
+  const currentUserId = session?.user.id ?? "";
+
+  // The timeline renders once the session user is known; the server enforces
+  // author-only writes regardless.
+  const triage = useMemo<ErrorTriageActions | undefined>(
+    () =>
+      currentUserId
+        ? {
+            currentUserId,
+            createInvestigation: (input) =>
+              createErrorInvestigation({ data: input }),
+            updateInvestigation: (input) =>
+              updateErrorInvestigation({ data: input }),
+            deleteInvestigation: (input) =>
+              deleteErrorInvestigation({ data: input }),
+          }
+        : undefined,
+    [currentUserId],
+  );
 
   return (
     <ErrorDetail
@@ -62,7 +89,7 @@ export function ErrorDetailRouteContent({
       renderTracePanel={({ occurrence }) => (
         <WebErrorTracePanel occurrence={occurrence} />
       )}
-      createInvestigation={(input) => createErrorInvestigation({ data: input })}
+      triage={triage}
     />
   );
 }

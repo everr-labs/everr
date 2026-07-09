@@ -169,18 +169,17 @@ describe("ErrorsRepository.getIssue", () => {
 });
 
 describe("ErrorsRepository.listTriageEvents", () => {
-  it("reads triage events for a fingerprint, oldest first", async () => {
+  it("resolves the latest version per entry, oldest entry first", async () => {
     execute.mockResolvedValueOnce([
       {
-        timestamp: "2026-07-01 10:00:00.000000000",
+        eventId: "11111111-2222-3333-4444-555555555555",
         eventType: "investigation",
-        body: "## Findings\nNull deref in retry path.",
-        logAttributes: {
-          "everr.error.event": "investigation",
-          "everr.error.fingerprint": "fp-1",
-          "everr.error.author.id": "user-1",
-          "everr.error.author.name": "Ada Lovelace",
-        },
+        latestBody: "## Findings\nNull deref in retry path.",
+        authorId: "user-1",
+        createdAt: "2026-07-01 10:00:00.000",
+        lastUpdatedAt: "2026-07-02 09:00:00.000",
+        latestVersion: 2,
+        latestDeleted: 0,
       },
     ]);
 
@@ -191,43 +190,48 @@ describe("ErrorsRepository.listTriageEvents", () => {
 
     expect(execute).toHaveBeenCalledTimes(1);
     const [sql, params] = execute.mock.calls[0] ?? [];
-    expect(sql).toContain("FROM logs");
-    expect(sql).toContain(
-      "LogAttributes['everr.error.fingerprint'] = {fingerprint:String}",
-    );
-    expect(sql).toContain(
-      "LogAttributes['everr.error.event'] IN {eventTypes:Array(String)}",
-    );
-    expect(sql).toContain("ORDER BY Timestamp ASC");
+    expect(sql).toContain("FROM error_triage_events");
+    expect(sql).toContain("WHERE fingerprint = {fingerprint:String}");
+    expect(sql).toContain("argMax(body, version) AS latestBody");
+    expect(sql).toContain("GROUP BY event_id");
+    expect(sql).toContain("HAVING latestDeleted = 0");
+    expect(sql).toContain("ORDER BY createdAt ASC");
     expect(sql).toContain("LIMIT {limit:UInt32}");
-    expect(params).toMatchObject({
-      fingerprint: "fp-1",
-      limit: 500,
-      eventTypes: ["investigation", "resolved", "ignored", "reopened"],
-    });
+    expect(params).toEqual({ fingerprint: "fp-1", limit: 500 });
     expect(events).toEqual([
       {
+        id: "11111111-2222-3333-4444-555555555555",
         type: "investigation",
-        timestamp: "2026-07-01 10:00:00.000000000",
+        timestamp: "2026-07-01 10:00:00.000",
+        updatedAt: "2026-07-02 09:00:00.000",
+        edited: true,
         body: "## Findings\nNull deref in retry path.",
-        author: { id: "user-1", name: "Ada Lovelace" },
+        author: { id: "user-1", name: "" },
       },
     ]);
   });
 
-  it("drops rows with unknown event types and tolerates null attributes", async () => {
+  it("drops rows with unknown forward event types", async () => {
     execute.mockResolvedValueOnce([
       {
-        timestamp: "2026-07-01 10:00:00.000000000",
+        eventId: "aaaa1111-2222-3333-4444-555555555555",
         eventType: "acknowledged",
-        body: "future event",
-        logAttributes: {},
+        latestBody: "future event",
+        authorId: "user-1",
+        createdAt: "2026-07-01 10:00:00.000",
+        lastUpdatedAt: "2026-07-01 10:00:00.000",
+        latestVersion: 0,
+        latestDeleted: 0,
       },
       {
-        timestamp: "2026-07-01 11:00:00.000000000",
+        eventId: "bbbb1111-2222-3333-4444-555555555555",
         eventType: "resolved",
-        body: "Fixed by #42.",
-        logAttributes: null,
+        latestBody: "Fixed by #42.",
+        authorId: "user-2",
+        createdAt: "2026-07-01 11:00:00.000",
+        lastUpdatedAt: "2026-07-01 11:00:00.000",
+        latestVersion: "0",
+        latestDeleted: "0",
       },
     ]);
 
@@ -238,28 +242,15 @@ describe("ErrorsRepository.listTriageEvents", () => {
 
     expect(events).toEqual([
       {
+        id: "bbbb1111-2222-3333-4444-555555555555",
         type: "resolved",
-        timestamp: "2026-07-01 11:00:00.000000000",
+        timestamp: "2026-07-01 11:00:00.000",
+        updatedAt: "2026-07-01 11:00:00.000",
+        edited: false,
         body: "Fixed by #42.",
-        author: { id: "", name: "" },
+        author: { id: "user-2", name: "" },
       },
     ]);
-  });
-
-  it("queries the configured table name and rejects invalid ones", async () => {
-    await makeRepo("otel_logs").listTriageEvents({
-      fingerprint: "fp-1",
-      limit: 500,
-    });
-    const [sql] = execute.mock.calls[0] ?? [];
-    expect(sql).toContain("FROM otel_logs");
-
-    await expect(
-      makeRepo("logs; DROP TABLE x; --").listTriageEvents({
-        fingerprint: "fp-1",
-        limit: 500,
-      }),
-    ).rejects.toThrow("invalid table name");
   });
 });
 

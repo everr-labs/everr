@@ -1,15 +1,34 @@
-import type { ErrorTriageEventType } from "../events";
-
 export type ErrorSort = "lastSeen" | "count";
 
-// One append-only triage event (Investigation, Resolution, or status change)
-// read back from the logs table, mapped from its everr.error.* attributes.
+export const ERROR_TRIAGE_EVENT_TYPES = [
+  "investigation",
+  "resolved",
+  "ignored",
+  "reopened",
+] as const;
+export type ErrorTriageEventType = (typeof ERROR_TRIAGE_EVENT_TYPES)[number];
+
+export function isErrorTriageEventType(
+  value: string,
+): value is ErrorTriageEventType {
+  return (ERROR_TRIAGE_EVENT_TYPES as readonly string[]).includes(value);
+}
+
+// One triage entry (Investigation, Resolution, or status change) resolved to
+// its latest version from the error_triage_events table (ADR 0004).
 export type ErrorTriageEvent = {
+  /** Stable identity of the entry across edits (event_id). */
+  id: string;
   type: ErrorTriageEventType;
-  /** ClickHouse timestamp string (UTC, space-separated). */
+  /** Original creation time (ClickHouse timestamp string, UTC). */
   timestamp: string;
-  /** Markdown body as written. */
+  /** Time of the latest version. */
+  updatedAt: string;
+  /** True when the entry was edited after creation. */
+  edited: boolean;
+  /** Markdown body of the latest version. */
   body: string;
+  /** Display name resolves from the user profile at read time; storage holds the id only. */
   author: { id: string; name: string };
 };
 

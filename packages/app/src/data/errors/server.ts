@@ -1,6 +1,6 @@
 import {
-  buildInvestigationEvent,
   CreateErrorInvestigationInputSchema,
+  DeleteErrorInvestigationInputSchema,
   ErrorAttributeKeysInputSchema,
   ErrorAttributeValuesInputSchema,
   ErrorsRepository,
@@ -9,9 +9,15 @@ import {
   ListErrorTriageEventsInputSchema,
   SearchErrorIssuesInputSchema,
   type SqlClient,
+  UpdateErrorInvestigationInputSchema,
 } from "@everr/telemetry-explorer/errors";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
-import { createCloudLogEventEmitter } from "@/server/events/log-event-emitter";
+import {
+  createInvestigation,
+  deleteInvestigation,
+  editInvestigation,
+  INVESTIGATION_NOT_FOUND,
+} from "@/server/errors/triage-events";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 
 function repoFromContext(clickhouse: {
@@ -39,42 +45,84 @@ export const listErrorTriageEvents = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(ListErrorTriageEventsInputSchema)
-  .handler(({ data, context: { clickhouse } }) =>
-    repoFromContext(clickhouse).listTriageEvents(data),
-  );
+  .handler(async ({ data, context: { clickhouse } }) => {
+    // Dynamic import keeps the Postgres client (server-only env) out of the
+    // client import graph; this module is imported by route components.
+    const { resolveAuthors } = await import("@/server/errors/resolve-authors");
+    return resolveAuthors(
+      await repoFromContext(clickhouse).listTriageEvents(data),
+    );
+  });
 
-// Tenant and author come from the session: the input schema carries only the
-// fingerprint and the markdown body, so neither can be spoofed by a client.
+// Storage details stay in server telemetry; the client gets a stable message
+// it can show as-is. The author-only not-found error passes through.
+async function sanitizeWriteFailure<T>(
+  action: string,
+  fingerprintOrEventId: string,
+  write: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await write();
+  } catch (error) {
+    if (error instanceof Error && error.message === INVESTIGATION_NOT_FOUND) {
+      throw error;
+    }
+    serverLogger.error(`errors.investigation.${action}_failed`, {
+      ...exceptionAttributes(error),
+      "everr.error.ref": fingerprintOrEventId,
+      "error.handled": true,
+    });
+    throw new Error("Failed to save the Investigation. Try again.");
+  }
+}
+
+// Tenant and author come from the session: write inputs carry only the
+// fingerprint or entry id plus the markdown body, so neither can be spoofed.
 export const createErrorInvestigation = createAuthenticatedServerFn({
   method: "POST",
 })
   .inputValidator(CreateErrorInvestigationInputSchema)
-  .handler(async ({ data, context: { session } }) => {
-    const emitter = createCloudLogEventEmitter({
-      tenantId: session.session.activeOrganizationId,
-    });
-    try {
-      await emitter.emit(
-        buildInvestigationEvent({
-          fingerprint: data.fingerprint,
-          markdown: data.body,
-          author: {
-            id: session.user.id,
-            name: session.user.name || session.user.email,
-          },
-        }),
-      );
-    } catch (error) {
-      // Storage details stay in server telemetry; the client gets a stable
-      // message it can show as-is.
-      serverLogger.error("errors.investigation.write_failed", {
-        ...exceptionAttributes(error),
-        "everr.error.fingerprint": data.fingerprint,
-        "error.handled": true,
-      });
-      throw new Error("Failed to record the Investigation. Try again.");
-    }
-  });
+  .handler(({ data, context: { session } }) =>
+    sanitizeWriteFailure("create", data.fingerprint, () =>
+      createInvestigation({
+        tenantId: session.session.activeOrganizationId,
+        fingerprint: data.fingerprint,
+        body: data.body,
+        authorId: session.user.id,
+      }),
+    ),
+  );
+
+export const updateErrorInvestigation = createAuthenticatedServerFn({
+  method: "POST",
+})
+  .inputValidator(UpdateErrorInvestigationInputSchema)
+  .handler(({ data, context: { session, clickhouse } }) =>
+    sanitizeWriteFailure("update", data.eventId, () =>
+      editInvestigation({
+        query: clickhouse.query,
+        tenantId: session.session.activeOrganizationId,
+        eventId: data.eventId,
+        authorId: session.user.id,
+        body: data.body,
+      }),
+    ),
+  );
+
+export const deleteErrorInvestigation = createAuthenticatedServerFn({
+  method: "POST",
+})
+  .inputValidator(DeleteErrorInvestigationInputSchema)
+  .handler(({ data, context: { session, clickhouse } }) =>
+    sanitizeWriteFailure("delete", data.eventId, () =>
+      deleteInvestigation({
+        query: clickhouse.query,
+        tenantId: session.session.activeOrganizationId,
+        eventId: data.eventId,
+        authorId: session.user.id,
+      }),
+    ),
+  );
 
 export const listErrorServices = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(ListErrorServicesInputSchema)

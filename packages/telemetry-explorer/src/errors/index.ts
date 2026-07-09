@@ -7,9 +7,7 @@ export {
 } from "./data/repository";
 export * from "./data/schemas";
 export * from "./data/types";
-export * from "./events";
 export { ErrorDetail, type ErrorDetailProps } from "./ui/error-detail";
-export type { CreateErrorInvestigation } from "./ui/error-investigation-form";
 export {
   ErrorIssues,
   type ErrorIssuesProps,
@@ -21,7 +19,10 @@ export {
   getErrorOccurrenceKey,
 } from "./ui/error-occurrence-key";
 export type { RenderOccurrenceLink } from "./ui/error-occurrences-list";
-export { ErrorTimeline } from "./ui/error-timeline";
+export {
+  ErrorTimeline,
+  type ErrorTriageActions,
+} from "./ui/error-timeline";
 export {
   ErrorTracePanel,
   type RenderTraceLink,
