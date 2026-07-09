@@ -7,7 +7,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@everr/ui/components/select";
+import {
+  SuggestCombobox,
+  type SuggestItem,
+} from "@everr/ui/components/suggest-combobox";
 import { Plus, X } from "lucide-react";
+import {
+  type CcLabelKeySuggestion,
+  type CcLabelValueSuggestion,
+  listCcLabelKeys,
+  listCcLabelValues,
+} from "@/data/cc/server";
 import type { CcMatcher } from "@/data/cc/types";
 
 const OPS: { value: CcMatcher["op"]; symbol: string }[] = [
@@ -47,6 +57,35 @@ export function updateMatcher(
   return m.map((row, idx) => (idx === i ? { ...row, ...patch } : row));
 }
 
+// Suggestion queries, inline with their consumers per house style. Cached
+// briefly so hopping between matcher rows doesn't refetch; the comboboxes
+// fetch only while open, so loading never blocks typing.
+const SUGGESTION_STALE_MS = 60_000;
+
+/** Key suggestions for matcher/label editors; synthetic keys carry a tag. */
+export const ccLabelKeyOptions = () => ({
+  queryKey: ["cc", "label-keys"] as const,
+  queryFn: () => listCcLabelKeys(),
+  staleTime: SUGGESTION_STALE_MS,
+  select: (keys: CcLabelKeySuggestion[]): SuggestItem[] =>
+    keys.map((k) => ({
+      value: k.key,
+      tag: k.synthetic ? "synthetic" : undefined,
+    })),
+});
+
+/** Value suggestions for one key; an unset key resolves to no suggestions. */
+export const ccLabelValueOptions = (key: string) => ({
+  queryKey: ["cc", "label-values", key] as const,
+  queryFn: () =>
+    key
+      ? listCcLabelValues({ data: { key } })
+      : Promise.resolve<CcLabelValueSuggestion[]>([]),
+  staleTime: SUGGESTION_STALE_MS,
+  select: (values: CcLabelValueSuggestion[]): SuggestItem[] =>
+    values.map((v) => ({ value: v.value, hint: v.hint })),
+});
+
 export function MatchersEditor({
   value,
   onChange,
@@ -73,14 +112,13 @@ export function MatchersEditor({
       {value.map((row, i) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: rows are positional and have no stable id
         <div key={i} className="flex items-center gap-2">
-          <Input
+          <SuggestCombobox
+            label="Matcher label"
             placeholder="label"
-            aria-label="Matcher label"
-            className="font-mono"
+            className="min-w-0 flex-1"
             value={row.label}
-            onChange={(e) =>
-              onChange(updateMatcher(value, i, { label: e.target.value }))
-            }
+            onChange={(label) => onChange(updateMatcher(value, i, { label }))}
+            options={ccLabelKeyOptions()}
           />
           <Select
             value={row.op}
@@ -108,15 +146,27 @@ export function MatchersEditor({
               ))}
             </SelectContent>
           </Select>
-          <Input
-            placeholder="value"
-            aria-label="Matcher value"
-            className="font-mono"
-            value={row.value}
-            onChange={(e) =>
-              onChange(updateMatcher(value, i, { value: e.target.value }))
-            }
-          />
+          {row.op === "regex" || row.op === "notregex" ? (
+            // A regex is authored, not picked: plain free-text entry.
+            <Input
+              placeholder="pattern"
+              aria-label="Matcher value"
+              className="min-w-0 flex-1 font-mono"
+              value={row.value}
+              onChange={(e) =>
+                onChange(updateMatcher(value, i, { value: e.target.value }))
+              }
+            />
+          ) : (
+            <SuggestCombobox
+              label="Matcher value"
+              placeholder="value"
+              className="min-w-0 flex-1"
+              value={row.value}
+              onChange={(v) => onChange(updateMatcher(value, i, { value: v }))}
+              options={ccLabelValueOptions(row.label)}
+            />
+          )}
           <Button
             type="button"
             variant="ghost"

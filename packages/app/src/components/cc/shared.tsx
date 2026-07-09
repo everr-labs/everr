@@ -67,8 +67,6 @@ type Tone =
   | "firing"
   | "pending"
   | "inactive"
-  | "live"
-  | "disconnected"
   | "degraded"
   | "healthy"
   | "resolved";
@@ -80,10 +78,8 @@ const TONE_DOT: Record<Tone, string> = {
   // as "needs attention" without being confused with an actual firing alert.
   degraded: "bg-amber-500",
   pending: "bg-primary",
-  live: "bg-primary",
   healthy: "bg-emerald-500",
   inactive: "bg-muted-foreground/50",
-  disconnected: "bg-muted-foreground/50",
   resolved: "bg-muted-foreground/50",
 };
 
@@ -93,10 +89,8 @@ const TONE_TEXT: Record<Tone, string> = {
   // the firing red.
   degraded: "text-amber-600 dark:text-amber-400",
   pending: "text-foreground",
-  live: "text-foreground",
   healthy: "text-muted-foreground",
   inactive: "text-muted-foreground",
-  disconnected: "text-muted-foreground",
   resolved: "text-muted-foreground",
 };
 
@@ -166,14 +160,6 @@ export function CcEventStatusBadge({ status }: { status: string }) {
   return (
     <CcStatusLabel tone={firing ? "firing" : "resolved"} pulse={firing}>
       {status}
-    </CcStatusLabel>
-  );
-}
-
-export function CcConnectionBadge({ connected }: { connected: boolean }) {
-  return (
-    <CcStatusLabel tone={connected ? "live" : "disconnected"} pulse={connected}>
-      {connected ? "live" : "disconnected"}
     </CcStatusLabel>
   );
 }

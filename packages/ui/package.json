@@ -29,8 +29,12 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "jsdom": "^29.1.1",
     "typescript": "catalog:"
   }
 }

@@ -2,7 +2,6 @@ import { expect, it } from "vitest";
 import {
   CcAlertSchema,
   CcChannelSchema,
-  CcEventSchema,
   CcReceiverSchema,
   CcRouteSchema,
   CcRuleSpecSchema,
@@ -288,7 +287,7 @@ it("parses a route with a null repeat_interval_secs (never re-notify)", () => {
   expect(r.repeat_interval_secs).toBeNull();
 });
 
-it("parses a silence and an SSE event", () => {
+it("parses a silence", () => {
   expect(
     CcSilenceSchema.parse({
       id: "i",
@@ -301,57 +300,6 @@ it("parses a silence and an SSE event", () => {
       created_at: "2026-06-14T00:00:00Z",
     }).author,
   ).toBe("you");
-
-  expect(
-    CcEventSchema.parse({
-      tenant: "t",
-      rule: "r",
-      instance_key: "k",
-      status: "firing",
-      labels: {},
-      value: 1,
-      severity: "warning",
-      annotations: {},
-      eval_ts: "2026-06-14T12:03:00Z",
-    }).status,
-  ).toBe("firing");
-});
-
-it("parses an SSE event carrying suppression and evidence", () => {
-  const e = CcEventSchema.parse({
-    tenant: "t",
-    rule: "r",
-    instance_key: "k",
-    status: "firing",
-    labels: { host: "web-1" },
-    value: 1,
-    severity: "warning",
-    annotations: {},
-    eval_ts: "2026-06-14T12:03:00Z",
-    suppressed: true,
-    evidence: { status_code: 500, path: "/checkout" },
-    evidence_truncated: true,
-  });
-  expect(e.suppressed).toBe(true);
-  expect(e.evidence).toEqual({ status_code: 500, path: "/checkout" });
-  expect(e.evidence_truncated).toBe(true);
-});
-
-it("defaults suppression/evidence on SSE frames from an older CC", () => {
-  const e = CcEventSchema.parse({
-    tenant: "t",
-    rule: "r",
-    instance_key: "k",
-    status: "resolved",
-    labels: {},
-    value: null,
-    severity: "info",
-    annotations: {},
-    eval_ts: "2026-06-14T12:03:00Z",
-  });
-  expect(e.suppressed).toBe(false);
-  expect(e.evidence).toBeNull();
-  expect(e.evidence_truncated).toBe(false);
 });
 
 it("parses the paginated rules envelope with and without a next cursor", () => {

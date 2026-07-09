@@ -31,14 +31,15 @@ export const navMain: NavItem[] = [
   },
   {
     title: "Alerts",
-    url: "/alerts/overview",
+    url: "/alerts/triage",
     icon: Zap,
     isActive: true,
     items: [
-      { title: "Overview", url: "/alerts/overview" },
-      { title: "Monitor", url: "/alerts/monitor" },
+      { title: "Triage", url: "/alerts/triage" },
+      { title: "History", url: "/alerts/history" },
       { title: "Rules", url: "/alerts/rules" },
-      { title: "Routing", url: "/alerts/routing" },
+      { title: "Delivery", url: "/alerts/delivery" },
+      { title: "Silences", url: "/alerts/silences" },
     ],
   },
   {

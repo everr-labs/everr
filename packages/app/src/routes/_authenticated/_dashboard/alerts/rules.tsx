@@ -8,6 +8,7 @@ import {
 } from "@everr/ui/components/card";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
+import { cn } from "@everr/ui/lib/utils";
 import {
   infiniteQueryOptions,
   useInfiniteQuery,
@@ -15,9 +16,16 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Pause, Play, SlidersHorizontal } from "lucide-react";
+import { BookOpenText, Pause, Play, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
-import { listCcRulesPage, pauseCcRule, resumeCcRule } from "@/data/cc/server";
+import { z } from "zod";
+import { ccRuleIdentity } from "@/data/alerts/rule-identity";
+import {
+  CC_POLL_INTERVAL_MS,
+  listCcRulesPage,
+  pauseCcRule,
+  resumeCcRule,
+} from "@/data/cc/server";
 import type { CcRuleView } from "@/data/cc/types";
 import {
   CcConceptNote,
@@ -33,35 +41,48 @@ import {
 
 const RULES_PAGE_LIMIT = 100;
 
+type RuleHealthFilter = "degraded" | "healthy";
+
 // Keyset-paginated listing: each page is CC's {items, next_cursor} envelope,
 // and a null next_cursor is the last page. The key stays under ["cc", "rules"]
 // so the pause/resume invalidation below keeps matching by prefix.
-const ccRulesQuery = () =>
+const ccRulesQuery = (health?: RuleHealthFilter) =>
   infiniteQueryOptions({
-    queryKey: ["cc", "rules", "page"],
+    queryKey: ["cc", "rules", "page", health ?? "all"],
     queryFn: ({ pageParam }) =>
       listCcRulesPage({
         data: {
           limit: RULES_PAGE_LIMIT,
           ...(pageParam ? { cursor: pageParam } : {}),
+          ...(health ? { health } : {}),
         },
       }),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.next_cursor,
+    refetchInterval: CC_POLL_INTERVAL_MS,
   });
+
+// `health` narrows the listing server-side (CC's rule-health filter); Triage's
+// degraded-rules count links here with ?health=degraded.
+const RulesSearchSchema = z.object({
+  health: z.enum(["degraded", "healthy"]).optional().catch(undefined),
+});
 
 export const Route = createFileRoute("/_authenticated/_dashboard/alerts/rules")(
   {
     staticData: { breadcrumb: "Rules" },
     head: () => ({ meta: [{ title: "Everr - Alerts Rules" }] }),
-    loader: ({ context: { queryClient } }) =>
-      queryClient.prefetchInfiniteQuery(ccRulesQuery()),
+    validateSearch: RulesSearchSchema,
+    loaderDeps: ({ search }) => ({ health: search.health }),
+    loader: ({ context: { queryClient }, deps }) =>
+      queryClient.prefetchInfiniteQuery(ccRulesQuery(deps.health)),
     component: CcRulesPage,
   },
 );
 
 function CcRulesPage() {
   const qc = useQueryClient();
+  const { health } = Route.useSearch();
   const {
     data,
     isPending,
@@ -70,7 +91,7 @@ function CcRulesPage() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useInfiniteQuery(ccRulesQuery());
+  } = useInfiniteQuery(ccRulesQuery(health));
   const rules = data?.pages.flatMap((p) => p.items) ?? [];
 
   const toggle = useMutation({
@@ -88,15 +109,47 @@ function CcRulesPage() {
   const columns: Column<CcRuleView>[] = [
     {
       header: "Rule",
-      cell: (r) => (
-        <Link
-          to="/alerts/rules/$ruleId"
-          params={{ ruleId: r.id }}
-          className="font-mono text-primary hover:underline"
-        >
-          {r.id.slice(0, 8)}
-        </Link>
-      ),
+      cell: (r) => {
+        const identity = ccRuleIdentity(r);
+        return (
+          <span className="flex flex-col">
+            <Link
+              to="/alerts/rules/$ruleId"
+              params={{ ruleId: r.id }}
+              className={cn(
+                "font-medium text-foreground underline-offset-2 hover:underline",
+                identity.name === identity.shortId && "font-mono",
+              )}
+            >
+              {identity.name}
+            </Link>
+            {/* The id stays reachable (copy/grep against as-code specs) but
+                steps back; suppressed entirely when it IS the name. */}
+            {identity.name !== identity.shortId && (
+              <span className="font-mono text-[0.6875rem] text-muted-foreground">
+                {identity.shortId}
+              </span>
+            )}
+          </span>
+        );
+      },
+    },
+    {
+      header: "",
+      cell: (r) => {
+        const { runbook, name } = ccRuleIdentity(r);
+        return runbook ? (
+          <Link
+            to="/runbooks/$project/$slug"
+            params={runbook}
+            aria-label={`Open runbook for ${name}`}
+            title="Open runbook"
+            className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground outline-2 outline-dotted outline-transparent transition-colors duration-150 hover:bg-muted/50 hover:text-foreground focus-visible:outline-primary"
+          >
+            <BookOpenText className="size-3.5" />
+          </Link>
+        ) : null;
+      },
     },
     {
       header: "Severity",
@@ -201,7 +254,19 @@ function CcRulesPage() {
         <CardHeader>
           <CardTitle>Rules</CardTitle>
           <CardDescription>
-            Open a rule to see its query, health, and run an ad-hoc test.
+            {health ? (
+              <>
+                Showing {health} rules only ·{" "}
+                <Link
+                  to="/alerts/rules"
+                  className="text-foreground underline-offset-2 hover:underline"
+                >
+                  clear filter
+                </Link>
+              </>
+            ) : (
+              "Open a rule to see its query, health, and run an ad-hoc test."
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent>

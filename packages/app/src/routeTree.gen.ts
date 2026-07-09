@@ -32,7 +32,6 @@ import { Route as ApiCliOrgRouteImport } from './routes/api/cli/org'
 import { Route as ApiCliNotificationRouteImport } from './routes/api/cli/notification'
 import { Route as ApiCliMeRouteImport } from './routes/api/cli/me'
 import { Route as ApiCliImportRouteImport } from './routes/api/cli/import'
-import { Route as ApiCcEventsStreamRouteImport } from './routes/api/cc/events-stream'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as AuthenticatedDashboardRunsRouteImport } from './routes/_authenticated/_dashboard/runs'
 import { Route as AuthenticatedDashboardAlertsRouteImport } from './routes/_authenticated/_dashboard/alerts'
@@ -51,10 +50,11 @@ import { Route as ApiCliRunsHistogramRouteImport } from './routes/api/cli/runs/h
 import { Route as ApiCliRunsFilterOptionsRouteImport } from './routes/api/cli/runs/filter-options'
 import { Route as ApiCliRunsTraceIdRouteImport } from './routes/api/cli/runs/$traceId'
 import { Route as ApiCliOrgNameRouteImport } from './routes/api/cli/org/name'
+import { Route as AuthenticatedDashboardAlertsTriageRouteImport } from './routes/_authenticated/_dashboard/alerts/triage'
+import { Route as AuthenticatedDashboardAlertsSilencesRouteImport } from './routes/_authenticated/_dashboard/alerts/silences'
 import { Route as AuthenticatedDashboardAlertsRulesRouteImport } from './routes/_authenticated/_dashboard/alerts/rules'
-import { Route as AuthenticatedDashboardAlertsRoutingRouteImport } from './routes/_authenticated/_dashboard/alerts/routing'
-import { Route as AuthenticatedDashboardAlertsOverviewRouteImport } from './routes/_authenticated/_dashboard/alerts/overview'
-import { Route as AuthenticatedDashboardAlertsMonitorRouteImport } from './routes/_authenticated/_dashboard/alerts/monitor'
+import { Route as AuthenticatedDashboardAlertsHistoryRouteImport } from './routes/_authenticated/_dashboard/alerts/history'
+import { Route as AuthenticatedDashboardAlertsDeliveryRouteImport } from './routes/_authenticated/_dashboard/alerts/delivery'
 import { Route as AuthenticatedDashboardPaddedUsersManagementRouteImport } from './routes/_authenticated/_dashboard/_padded/users-management'
 import { Route as AuthenticatedDashboardPaddedTestsOverviewRouteImport } from './routes/_authenticated/_dashboard/_padded/tests-overview'
 import { Route as AuthenticatedDashboardPaddedReposRouteImport } from './routes/_authenticated/_dashboard/_padded/repos'
@@ -72,15 +72,11 @@ import { Route as AuthGuestAuthForgotPasswordRouteImport } from './routes/_auth/
 import { Route as DotwellKnownOauthAuthorizationServerApiAuthRouteImport } from './routes/[.]well-known/oauth-authorization-server/api/auth'
 import { Route as AuthenticatedDashboardRunsTraceIdRouteRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/route'
 import { Route as AuthenticatedDashboardRunsTraceIdIndexRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/index'
-import { Route as AuthenticatedDashboardAlertsMonitorIndexRouteImport } from './routes/_authenticated/_dashboard/alerts/monitor/index'
 import { Route as AuthenticatedDashboardPreviewableRunbooksIndexRouteImport } from './routes/_authenticated/_dashboard/_previewable/runbooks/index'
 import { Route as AuthenticatedDashboardPreviewableDashboardsIndexRouteImport } from './routes/_authenticated/_dashboard/_previewable/dashboards/index'
 import { Route as ApiCliRunsTraceIdLogsRouteImport } from './routes/api/cli/runs/$traceId/logs'
 import { Route as AuthenticatedDashboardRunsTraceIdTraceRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/trace'
 import { Route as AuthenticatedDashboardAlertsRulesRuleIdRouteImport } from './routes/_authenticated/_dashboard/alerts/rules_.$ruleId'
-import { Route as AuthenticatedDashboardAlertsMonitorStreamRouteImport } from './routes/_authenticated/_dashboard/alerts/monitor/stream'
-import { Route as AuthenticatedDashboardAlertsMonitorSilencesRouteImport } from './routes/_authenticated/_dashboard/alerts/monitor/silences'
-import { Route as AuthenticatedDashboardAlertsMonitorActiveRouteImport } from './routes/_authenticated/_dashboard/alerts/monitor/active'
 import { Route as AuthenticatedDashboardPaddedCheckoutSuccessRouteImport } from './routes/_authenticated/_dashboard/_padded/checkout.success'
 import { Route as AuthenticatedDashboardExploreTracesTraceIdRouteImport } from './routes/_authenticated/_dashboard/_explore/traces_.$traceId'
 import { Route as AuthenticatedDashboardExploreErrorsFingerprintRouteImport } from './routes/_authenticated/_dashboard/_explore/errors_.$fingerprint'
@@ -206,11 +202,6 @@ const ApiCliImportRoute = ApiCliImportRouteImport.update({
   path: '/import',
   getParentRoute: () => ApiCliRoute,
 } as any)
-const ApiCcEventsStreamRoute = ApiCcEventsStreamRouteImport.update({
-  id: '/api/cc/events-stream',
-  path: '/api/cc/events-stream',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -307,28 +298,34 @@ const ApiCliOrgNameRoute = ApiCliOrgNameRouteImport.update({
   path: '/name',
   getParentRoute: () => ApiCliOrgRoute,
 } as any)
+const AuthenticatedDashboardAlertsTriageRoute =
+  AuthenticatedDashboardAlertsTriageRouteImport.update({
+    id: '/triage',
+    path: '/triage',
+    getParentRoute: () => AuthenticatedDashboardAlertsRoute,
+  } as any)
+const AuthenticatedDashboardAlertsSilencesRoute =
+  AuthenticatedDashboardAlertsSilencesRouteImport.update({
+    id: '/silences',
+    path: '/silences',
+    getParentRoute: () => AuthenticatedDashboardAlertsRoute,
+  } as any)
 const AuthenticatedDashboardAlertsRulesRoute =
   AuthenticatedDashboardAlertsRulesRouteImport.update({
     id: '/rules',
     path: '/rules',
     getParentRoute: () => AuthenticatedDashboardAlertsRoute,
   } as any)
-const AuthenticatedDashboardAlertsRoutingRoute =
-  AuthenticatedDashboardAlertsRoutingRouteImport.update({
-    id: '/routing',
-    path: '/routing',
+const AuthenticatedDashboardAlertsHistoryRoute =
+  AuthenticatedDashboardAlertsHistoryRouteImport.update({
+    id: '/history',
+    path: '/history',
     getParentRoute: () => AuthenticatedDashboardAlertsRoute,
   } as any)
-const AuthenticatedDashboardAlertsOverviewRoute =
-  AuthenticatedDashboardAlertsOverviewRouteImport.update({
-    id: '/overview',
-    path: '/overview',
-    getParentRoute: () => AuthenticatedDashboardAlertsRoute,
-  } as any)
-const AuthenticatedDashboardAlertsMonitorRoute =
-  AuthenticatedDashboardAlertsMonitorRouteImport.update({
-    id: '/monitor',
-    path: '/monitor',
+const AuthenticatedDashboardAlertsDeliveryRoute =
+  AuthenticatedDashboardAlertsDeliveryRouteImport.update({
+    id: '/delivery',
+    path: '/delivery',
     getParentRoute: () => AuthenticatedDashboardAlertsRoute,
   } as any)
 const AuthenticatedDashboardPaddedUsersManagementRoute =
@@ -431,12 +428,6 @@ const AuthenticatedDashboardRunsTraceIdIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedDashboardRunsTraceIdRouteRoute,
   } as any)
-const AuthenticatedDashboardAlertsMonitorIndexRoute =
-  AuthenticatedDashboardAlertsMonitorIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => AuthenticatedDashboardAlertsMonitorRoute,
-  } as any)
 const AuthenticatedDashboardPreviewableRunbooksIndexRoute =
   AuthenticatedDashboardPreviewableRunbooksIndexRouteImport.update({
     id: '/runbooks/',
@@ -465,24 +456,6 @@ const AuthenticatedDashboardAlertsRulesRuleIdRoute =
     id: '/rules_/$ruleId',
     path: '/rules/$ruleId',
     getParentRoute: () => AuthenticatedDashboardAlertsRoute,
-  } as any)
-const AuthenticatedDashboardAlertsMonitorStreamRoute =
-  AuthenticatedDashboardAlertsMonitorStreamRouteImport.update({
-    id: '/stream',
-    path: '/stream',
-    getParentRoute: () => AuthenticatedDashboardAlertsMonitorRoute,
-  } as any)
-const AuthenticatedDashboardAlertsMonitorSilencesRoute =
-  AuthenticatedDashboardAlertsMonitorSilencesRouteImport.update({
-    id: '/silences',
-    path: '/silences',
-    getParentRoute: () => AuthenticatedDashboardAlertsMonitorRoute,
-  } as any)
-const AuthenticatedDashboardAlertsMonitorActiveRoute =
-  AuthenticatedDashboardAlertsMonitorActiveRouteImport.update({
-    id: '/active',
-    path: '/active',
-    getParentRoute: () => AuthenticatedDashboardAlertsMonitorRoute,
   } as any)
 const AuthenticatedDashboardPaddedCheckoutSuccessRoute =
   AuthenticatedDashboardPaddedCheckoutSuccessRouteImport.update({
@@ -568,7 +541,6 @@ export interface FileRoutesByFullPath {
   '/alerts': typeof AuthenticatedDashboardAlertsRouteWithChildren
   '/runs': typeof AuthenticatedDashboardRunsRouteWithChildren
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/api/cc/events-stream': typeof ApiCcEventsStreamRoute
   '/api/cli/import': typeof ApiCliImportRoute
   '/api/cli/me': typeof ApiCliMeRoute
   '/api/cli/notification': typeof ApiCliNotificationRoute
@@ -594,10 +566,11 @@ export interface FileRoutesByFullPath {
   '/repos': typeof AuthenticatedDashboardPaddedReposRoute
   '/tests-overview': typeof AuthenticatedDashboardPaddedTestsOverviewRoute
   '/users-management': typeof AuthenticatedDashboardPaddedUsersManagementRoute
-  '/alerts/monitor': typeof AuthenticatedDashboardAlertsMonitorRouteWithChildren
-  '/alerts/overview': typeof AuthenticatedDashboardAlertsOverviewRoute
-  '/alerts/routing': typeof AuthenticatedDashboardAlertsRoutingRoute
+  '/alerts/delivery': typeof AuthenticatedDashboardAlertsDeliveryRoute
+  '/alerts/history': typeof AuthenticatedDashboardAlertsHistoryRoute
   '/alerts/rules': typeof AuthenticatedDashboardAlertsRulesRoute
+  '/alerts/silences': typeof AuthenticatedDashboardAlertsSilencesRoute
+  '/alerts/triage': typeof AuthenticatedDashboardAlertsTriageRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/filter-options': typeof ApiCliRunsFilterOptionsRoute
@@ -610,15 +583,11 @@ export interface FileRoutesByFullPath {
   '/errors/$fingerprint': typeof AuthenticatedDashboardExploreErrorsFingerprintRoute
   '/traces/$traceId': typeof AuthenticatedDashboardExploreTracesTraceIdRoute
   '/checkout/success': typeof AuthenticatedDashboardPaddedCheckoutSuccessRoute
-  '/alerts/monitor/active': typeof AuthenticatedDashboardAlertsMonitorActiveRoute
-  '/alerts/monitor/silences': typeof AuthenticatedDashboardAlertsMonitorSilencesRoute
-  '/alerts/monitor/stream': typeof AuthenticatedDashboardAlertsMonitorStreamRoute
   '/alerts/rules/$ruleId': typeof AuthenticatedDashboardAlertsRulesRuleIdRoute
   '/runs/$traceId/trace': typeof AuthenticatedDashboardRunsTraceIdTraceRoute
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/dashboards/': typeof AuthenticatedDashboardPreviewableDashboardsIndexRoute
   '/runbooks/': typeof AuthenticatedDashboardPreviewableRunbooksIndexRoute
-  '/alerts/monitor/': typeof AuthenticatedDashboardAlertsMonitorIndexRoute
   '/runs/$traceId/': typeof AuthenticatedDashboardRunsTraceIdIndexRoute
   '/errors/$fingerprint/modal': typeof AuthenticatedDashboardExploreErrorsFingerprintModalRoute
   '/traces/$traceId/modal': typeof AuthenticatedDashboardExploreTracesTraceIdModalRoute
@@ -644,7 +613,6 @@ export interface FileRoutesByTo {
   '/auth/error': typeof AuthAuthErrorRoute
   '/invite/$invitationId': typeof AuthInviteInvitationIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/api/cc/events-stream': typeof ApiCcEventsStreamRoute
   '/api/cli/import': typeof ApiCliImportRoute
   '/api/cli/me': typeof ApiCliMeRoute
   '/api/cli/notification': typeof ApiCliNotificationRoute
@@ -669,9 +637,11 @@ export interface FileRoutesByTo {
   '/repos': typeof AuthenticatedDashboardPaddedReposRoute
   '/tests-overview': typeof AuthenticatedDashboardPaddedTestsOverviewRoute
   '/users-management': typeof AuthenticatedDashboardPaddedUsersManagementRoute
-  '/alerts/overview': typeof AuthenticatedDashboardAlertsOverviewRoute
-  '/alerts/routing': typeof AuthenticatedDashboardAlertsRoutingRoute
+  '/alerts/delivery': typeof AuthenticatedDashboardAlertsDeliveryRoute
+  '/alerts/history': typeof AuthenticatedDashboardAlertsHistoryRoute
   '/alerts/rules': typeof AuthenticatedDashboardAlertsRulesRoute
+  '/alerts/silences': typeof AuthenticatedDashboardAlertsSilencesRoute
+  '/alerts/triage': typeof AuthenticatedDashboardAlertsTriageRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/filter-options': typeof ApiCliRunsFilterOptionsRoute
@@ -684,15 +654,11 @@ export interface FileRoutesByTo {
   '/errors/$fingerprint': typeof AuthenticatedDashboardExploreErrorsFingerprintRoute
   '/traces/$traceId': typeof AuthenticatedDashboardExploreTracesTraceIdRoute
   '/checkout/success': typeof AuthenticatedDashboardPaddedCheckoutSuccessRoute
-  '/alerts/monitor/active': typeof AuthenticatedDashboardAlertsMonitorActiveRoute
-  '/alerts/monitor/silences': typeof AuthenticatedDashboardAlertsMonitorSilencesRoute
-  '/alerts/monitor/stream': typeof AuthenticatedDashboardAlertsMonitorStreamRoute
   '/alerts/rules/$ruleId': typeof AuthenticatedDashboardAlertsRulesRuleIdRoute
   '/runs/$traceId/trace': typeof AuthenticatedDashboardRunsTraceIdTraceRoute
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/dashboards': typeof AuthenticatedDashboardPreviewableDashboardsIndexRoute
   '/runbooks': typeof AuthenticatedDashboardPreviewableRunbooksIndexRoute
-  '/alerts/monitor': typeof AuthenticatedDashboardAlertsMonitorIndexRoute
   '/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdIndexRoute
   '/errors/$fingerprint/modal': typeof AuthenticatedDashboardExploreErrorsFingerprintModalRoute
   '/traces/$traceId/modal': typeof AuthenticatedDashboardExploreTracesTraceIdModalRoute
@@ -727,7 +693,6 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/alerts': typeof AuthenticatedDashboardAlertsRouteWithChildren
   '/_authenticated/_dashboard/runs': typeof AuthenticatedDashboardRunsRouteWithChildren
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/api/cc/events-stream': typeof ApiCcEventsStreamRoute
   '/api/cli/import': typeof ApiCliImportRoute
   '/api/cli/me': typeof ApiCliMeRoute
   '/api/cli/notification': typeof ApiCliNotificationRoute
@@ -753,10 +718,11 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/_padded/repos': typeof AuthenticatedDashboardPaddedReposRoute
   '/_authenticated/_dashboard/_padded/tests-overview': typeof AuthenticatedDashboardPaddedTestsOverviewRoute
   '/_authenticated/_dashboard/_padded/users-management': typeof AuthenticatedDashboardPaddedUsersManagementRoute
-  '/_authenticated/_dashboard/alerts/monitor': typeof AuthenticatedDashboardAlertsMonitorRouteWithChildren
-  '/_authenticated/_dashboard/alerts/overview': typeof AuthenticatedDashboardAlertsOverviewRoute
-  '/_authenticated/_dashboard/alerts/routing': typeof AuthenticatedDashboardAlertsRoutingRoute
+  '/_authenticated/_dashboard/alerts/delivery': typeof AuthenticatedDashboardAlertsDeliveryRoute
+  '/_authenticated/_dashboard/alerts/history': typeof AuthenticatedDashboardAlertsHistoryRoute
   '/_authenticated/_dashboard/alerts/rules': typeof AuthenticatedDashboardAlertsRulesRoute
+  '/_authenticated/_dashboard/alerts/silences': typeof AuthenticatedDashboardAlertsSilencesRoute
+  '/_authenticated/_dashboard/alerts/triage': typeof AuthenticatedDashboardAlertsTriageRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/filter-options': typeof ApiCliRunsFilterOptionsRoute
@@ -770,15 +736,11 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/_explore/errors_/$fingerprint': typeof AuthenticatedDashboardExploreErrorsFingerprintRoute
   '/_authenticated/_dashboard/_explore/traces_/$traceId': typeof AuthenticatedDashboardExploreTracesTraceIdRoute
   '/_authenticated/_dashboard/_padded/checkout/success': typeof AuthenticatedDashboardPaddedCheckoutSuccessRoute
-  '/_authenticated/_dashboard/alerts/monitor/active': typeof AuthenticatedDashboardAlertsMonitorActiveRoute
-  '/_authenticated/_dashboard/alerts/monitor/silences': typeof AuthenticatedDashboardAlertsMonitorSilencesRoute
-  '/_authenticated/_dashboard/alerts/monitor/stream': typeof AuthenticatedDashboardAlertsMonitorStreamRoute
   '/_authenticated/_dashboard/alerts/rules_/$ruleId': typeof AuthenticatedDashboardAlertsRulesRuleIdRoute
   '/_authenticated/_dashboard/runs/$traceId/trace': typeof AuthenticatedDashboardRunsTraceIdTraceRoute
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/_authenticated/_dashboard/_previewable/dashboards/': typeof AuthenticatedDashboardPreviewableDashboardsIndexRoute
   '/_authenticated/_dashboard/_previewable/runbooks/': typeof AuthenticatedDashboardPreviewableRunbooksIndexRoute
-  '/_authenticated/_dashboard/alerts/monitor/': typeof AuthenticatedDashboardAlertsMonitorIndexRoute
   '/_authenticated/_dashboard/runs/$traceId/': typeof AuthenticatedDashboardRunsTraceIdIndexRoute
   '/_authenticated/_dashboard/_explore/errors/$fingerprint/modal': typeof AuthenticatedDashboardExploreErrorsFingerprintModalRoute
   '/_authenticated/_dashboard/_explore/traces/$traceId/modal': typeof AuthenticatedDashboardExploreTracesTraceIdModalRoute
@@ -808,7 +770,6 @@ export interface FileRouteTypes {
     | '/alerts'
     | '/runs'
     | '/api/auth/$'
-    | '/api/cc/events-stream'
     | '/api/cli/import'
     | '/api/cli/me'
     | '/api/cli/notification'
@@ -834,10 +795,11 @@ export interface FileRouteTypes {
     | '/repos'
     | '/tests-overview'
     | '/users-management'
-    | '/alerts/monitor'
-    | '/alerts/overview'
-    | '/alerts/routing'
+    | '/alerts/delivery'
+    | '/alerts/history'
     | '/alerts/rules'
+    | '/alerts/silences'
+    | '/alerts/triage'
     | '/api/cli/org/name'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/filter-options'
@@ -850,15 +812,11 @@ export interface FileRouteTypes {
     | '/errors/$fingerprint'
     | '/traces/$traceId'
     | '/checkout/success'
-    | '/alerts/monitor/active'
-    | '/alerts/monitor/silences'
-    | '/alerts/monitor/stream'
     | '/alerts/rules/$ruleId'
     | '/runs/$traceId/trace'
     | '/api/cli/runs/$traceId/logs'
     | '/dashboards/'
     | '/runbooks/'
-    | '/alerts/monitor/'
     | '/runs/$traceId/'
     | '/errors/$fingerprint/modal'
     | '/traces/$traceId/modal'
@@ -884,7 +842,6 @@ export interface FileRouteTypes {
     | '/auth/error'
     | '/invite/$invitationId'
     | '/api/auth/$'
-    | '/api/cc/events-stream'
     | '/api/cli/import'
     | '/api/cli/me'
     | '/api/cli/notification'
@@ -909,9 +866,11 @@ export interface FileRouteTypes {
     | '/repos'
     | '/tests-overview'
     | '/users-management'
-    | '/alerts/overview'
-    | '/alerts/routing'
+    | '/alerts/delivery'
+    | '/alerts/history'
     | '/alerts/rules'
+    | '/alerts/silences'
+    | '/alerts/triage'
     | '/api/cli/org/name'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/filter-options'
@@ -924,15 +883,11 @@ export interface FileRouteTypes {
     | '/errors/$fingerprint'
     | '/traces/$traceId'
     | '/checkout/success'
-    | '/alerts/monitor/active'
-    | '/alerts/monitor/silences'
-    | '/alerts/monitor/stream'
     | '/alerts/rules/$ruleId'
     | '/runs/$traceId/trace'
     | '/api/cli/runs/$traceId/logs'
     | '/dashboards'
     | '/runbooks'
-    | '/alerts/monitor'
     | '/runs/$traceId'
     | '/errors/$fingerprint/modal'
     | '/traces/$traceId/modal'
@@ -966,7 +921,6 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/alerts'
     | '/_authenticated/_dashboard/runs'
     | '/api/auth/$'
-    | '/api/cc/events-stream'
     | '/api/cli/import'
     | '/api/cli/me'
     | '/api/cli/notification'
@@ -992,10 +946,11 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/_padded/repos'
     | '/_authenticated/_dashboard/_padded/tests-overview'
     | '/_authenticated/_dashboard/_padded/users-management'
-    | '/_authenticated/_dashboard/alerts/monitor'
-    | '/_authenticated/_dashboard/alerts/overview'
-    | '/_authenticated/_dashboard/alerts/routing'
+    | '/_authenticated/_dashboard/alerts/delivery'
+    | '/_authenticated/_dashboard/alerts/history'
     | '/_authenticated/_dashboard/alerts/rules'
+    | '/_authenticated/_dashboard/alerts/silences'
+    | '/_authenticated/_dashboard/alerts/triage'
     | '/api/cli/org/name'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/filter-options'
@@ -1009,15 +964,11 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/_explore/errors_/$fingerprint'
     | '/_authenticated/_dashboard/_explore/traces_/$traceId'
     | '/_authenticated/_dashboard/_padded/checkout/success'
-    | '/_authenticated/_dashboard/alerts/monitor/active'
-    | '/_authenticated/_dashboard/alerts/monitor/silences'
-    | '/_authenticated/_dashboard/alerts/monitor/stream'
     | '/_authenticated/_dashboard/alerts/rules_/$ruleId'
     | '/_authenticated/_dashboard/runs/$traceId/trace'
     | '/api/cli/runs/$traceId/logs'
     | '/_authenticated/_dashboard/_previewable/dashboards/'
     | '/_authenticated/_dashboard/_previewable/runbooks/'
-    | '/_authenticated/_dashboard/alerts/monitor/'
     | '/_authenticated/_dashboard/runs/$traceId/'
     | '/_authenticated/_dashboard/_explore/errors/$fingerprint/modal'
     | '/_authenticated/_dashboard/_explore/traces/$traceId/modal'
@@ -1042,7 +993,6 @@ export interface RootRouteChildren {
   McpConsentRoute: typeof McpConsentRoute
   WebhookGithubRoute: typeof WebhookGithubRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
-  ApiCcEventsStreamRoute: typeof ApiCcEventsStreamRoute
   ApiEventsStreamRoute: typeof ApiEventsStreamRoute
   ApiInternalVerifyKeyRoute: typeof ApiInternalVerifyKeyRoute
   ApiGithubInstallCallbackRoute: typeof ApiGithubInstallCallbackRoute
@@ -1212,13 +1162,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCliImportRouteImport
       parentRoute: typeof ApiCliRoute
     }
-    '/api/cc/events-stream': {
-      id: '/api/cc/events-stream'
-      path: '/api/cc/events-stream'
-      fullPath: '/api/cc/events-stream'
-      preLoaderRoute: typeof ApiCcEventsStreamRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -1345,6 +1288,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCliOrgNameRouteImport
       parentRoute: typeof ApiCliOrgRoute
     }
+    '/_authenticated/_dashboard/alerts/triage': {
+      id: '/_authenticated/_dashboard/alerts/triage'
+      path: '/triage'
+      fullPath: '/alerts/triage'
+      preLoaderRoute: typeof AuthenticatedDashboardAlertsTriageRouteImport
+      parentRoute: typeof AuthenticatedDashboardAlertsRoute
+    }
+    '/_authenticated/_dashboard/alerts/silences': {
+      id: '/_authenticated/_dashboard/alerts/silences'
+      path: '/silences'
+      fullPath: '/alerts/silences'
+      preLoaderRoute: typeof AuthenticatedDashboardAlertsSilencesRouteImport
+      parentRoute: typeof AuthenticatedDashboardAlertsRoute
+    }
     '/_authenticated/_dashboard/alerts/rules': {
       id: '/_authenticated/_dashboard/alerts/rules'
       path: '/rules'
@@ -1352,25 +1309,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardAlertsRulesRouteImport
       parentRoute: typeof AuthenticatedDashboardAlertsRoute
     }
-    '/_authenticated/_dashboard/alerts/routing': {
-      id: '/_authenticated/_dashboard/alerts/routing'
-      path: '/routing'
-      fullPath: '/alerts/routing'
-      preLoaderRoute: typeof AuthenticatedDashboardAlertsRoutingRouteImport
+    '/_authenticated/_dashboard/alerts/history': {
+      id: '/_authenticated/_dashboard/alerts/history'
+      path: '/history'
+      fullPath: '/alerts/history'
+      preLoaderRoute: typeof AuthenticatedDashboardAlertsHistoryRouteImport
       parentRoute: typeof AuthenticatedDashboardAlertsRoute
     }
-    '/_authenticated/_dashboard/alerts/overview': {
-      id: '/_authenticated/_dashboard/alerts/overview'
-      path: '/overview'
-      fullPath: '/alerts/overview'
-      preLoaderRoute: typeof AuthenticatedDashboardAlertsOverviewRouteImport
-      parentRoute: typeof AuthenticatedDashboardAlertsRoute
-    }
-    '/_authenticated/_dashboard/alerts/monitor': {
-      id: '/_authenticated/_dashboard/alerts/monitor'
-      path: '/monitor'
-      fullPath: '/alerts/monitor'
-      preLoaderRoute: typeof AuthenticatedDashboardAlertsMonitorRouteImport
+    '/_authenticated/_dashboard/alerts/delivery': {
+      id: '/_authenticated/_dashboard/alerts/delivery'
+      path: '/delivery'
+      fullPath: '/alerts/delivery'
+      preLoaderRoute: typeof AuthenticatedDashboardAlertsDeliveryRouteImport
       parentRoute: typeof AuthenticatedDashboardAlertsRoute
     }
     '/_authenticated/_dashboard/_padded/users-management': {
@@ -1492,13 +1442,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRunsTraceIdIndexRouteImport
       parentRoute: typeof AuthenticatedDashboardRunsTraceIdRouteRoute
     }
-    '/_authenticated/_dashboard/alerts/monitor/': {
-      id: '/_authenticated/_dashboard/alerts/monitor/'
-      path: '/'
-      fullPath: '/alerts/monitor/'
-      preLoaderRoute: typeof AuthenticatedDashboardAlertsMonitorIndexRouteImport
-      parentRoute: typeof AuthenticatedDashboardAlertsMonitorRoute
-    }
     '/_authenticated/_dashboard/_previewable/runbooks/': {
       id: '/_authenticated/_dashboard/_previewable/runbooks/'
       path: '/runbooks'
@@ -1533,27 +1476,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/alerts/rules/$ruleId'
       preLoaderRoute: typeof AuthenticatedDashboardAlertsRulesRuleIdRouteImport
       parentRoute: typeof AuthenticatedDashboardAlertsRoute
-    }
-    '/_authenticated/_dashboard/alerts/monitor/stream': {
-      id: '/_authenticated/_dashboard/alerts/monitor/stream'
-      path: '/stream'
-      fullPath: '/alerts/monitor/stream'
-      preLoaderRoute: typeof AuthenticatedDashboardAlertsMonitorStreamRouteImport
-      parentRoute: typeof AuthenticatedDashboardAlertsMonitorRoute
-    }
-    '/_authenticated/_dashboard/alerts/monitor/silences': {
-      id: '/_authenticated/_dashboard/alerts/monitor/silences'
-      path: '/silences'
-      fullPath: '/alerts/monitor/silences'
-      preLoaderRoute: typeof AuthenticatedDashboardAlertsMonitorSilencesRouteImport
-      parentRoute: typeof AuthenticatedDashboardAlertsMonitorRoute
-    }
-    '/_authenticated/_dashboard/alerts/monitor/active': {
-      id: '/_authenticated/_dashboard/alerts/monitor/active'
-      path: '/active'
-      fullPath: '/alerts/monitor/active'
-      preLoaderRoute: typeof AuthenticatedDashboardAlertsMonitorActiveRouteImport
-      parentRoute: typeof AuthenticatedDashboardAlertsMonitorRoute
     }
     '/_authenticated/_dashboard/_padded/checkout/success': {
       id: '/_authenticated/_dashboard/_padded/checkout/success'
@@ -1793,49 +1715,28 @@ const AuthenticatedDashboardPreviewableRouteWithChildren =
     AuthenticatedDashboardPreviewableRouteChildren,
   )
 
-interface AuthenticatedDashboardAlertsMonitorRouteChildren {
-  AuthenticatedDashboardAlertsMonitorActiveRoute: typeof AuthenticatedDashboardAlertsMonitorActiveRoute
-  AuthenticatedDashboardAlertsMonitorSilencesRoute: typeof AuthenticatedDashboardAlertsMonitorSilencesRoute
-  AuthenticatedDashboardAlertsMonitorStreamRoute: typeof AuthenticatedDashboardAlertsMonitorStreamRoute
-  AuthenticatedDashboardAlertsMonitorIndexRoute: typeof AuthenticatedDashboardAlertsMonitorIndexRoute
-}
-
-const AuthenticatedDashboardAlertsMonitorRouteChildren: AuthenticatedDashboardAlertsMonitorRouteChildren =
-  {
-    AuthenticatedDashboardAlertsMonitorActiveRoute:
-      AuthenticatedDashboardAlertsMonitorActiveRoute,
-    AuthenticatedDashboardAlertsMonitorSilencesRoute:
-      AuthenticatedDashboardAlertsMonitorSilencesRoute,
-    AuthenticatedDashboardAlertsMonitorStreamRoute:
-      AuthenticatedDashboardAlertsMonitorStreamRoute,
-    AuthenticatedDashboardAlertsMonitorIndexRoute:
-      AuthenticatedDashboardAlertsMonitorIndexRoute,
-  }
-
-const AuthenticatedDashboardAlertsMonitorRouteWithChildren =
-  AuthenticatedDashboardAlertsMonitorRoute._addFileChildren(
-    AuthenticatedDashboardAlertsMonitorRouteChildren,
-  )
-
 interface AuthenticatedDashboardAlertsRouteChildren {
-  AuthenticatedDashboardAlertsMonitorRoute: typeof AuthenticatedDashboardAlertsMonitorRouteWithChildren
-  AuthenticatedDashboardAlertsOverviewRoute: typeof AuthenticatedDashboardAlertsOverviewRoute
-  AuthenticatedDashboardAlertsRoutingRoute: typeof AuthenticatedDashboardAlertsRoutingRoute
+  AuthenticatedDashboardAlertsDeliveryRoute: typeof AuthenticatedDashboardAlertsDeliveryRoute
+  AuthenticatedDashboardAlertsHistoryRoute: typeof AuthenticatedDashboardAlertsHistoryRoute
   AuthenticatedDashboardAlertsRulesRoute: typeof AuthenticatedDashboardAlertsRulesRoute
+  AuthenticatedDashboardAlertsSilencesRoute: typeof AuthenticatedDashboardAlertsSilencesRoute
+  AuthenticatedDashboardAlertsTriageRoute: typeof AuthenticatedDashboardAlertsTriageRoute
   AuthenticatedDashboardAlertsIndexRoute: typeof AuthenticatedDashboardAlertsIndexRoute
   AuthenticatedDashboardAlertsRulesRuleIdRoute: typeof AuthenticatedDashboardAlertsRulesRuleIdRoute
 }
 
 const AuthenticatedDashboardAlertsRouteChildren: AuthenticatedDashboardAlertsRouteChildren =
   {
-    AuthenticatedDashboardAlertsMonitorRoute:
-      AuthenticatedDashboardAlertsMonitorRouteWithChildren,
-    AuthenticatedDashboardAlertsOverviewRoute:
-      AuthenticatedDashboardAlertsOverviewRoute,
-    AuthenticatedDashboardAlertsRoutingRoute:
-      AuthenticatedDashboardAlertsRoutingRoute,
+    AuthenticatedDashboardAlertsDeliveryRoute:
+      AuthenticatedDashboardAlertsDeliveryRoute,
+    AuthenticatedDashboardAlertsHistoryRoute:
+      AuthenticatedDashboardAlertsHistoryRoute,
     AuthenticatedDashboardAlertsRulesRoute:
       AuthenticatedDashboardAlertsRulesRoute,
+    AuthenticatedDashboardAlertsSilencesRoute:
+      AuthenticatedDashboardAlertsSilencesRoute,
+    AuthenticatedDashboardAlertsTriageRoute:
+      AuthenticatedDashboardAlertsTriageRoute,
     AuthenticatedDashboardAlertsIndexRoute:
       AuthenticatedDashboardAlertsIndexRoute,
     AuthenticatedDashboardAlertsRulesRuleIdRoute:
@@ -2023,7 +1924,6 @@ const rootRouteChildren: RootRouteChildren = {
   McpConsentRoute: McpConsentRoute,
   WebhookGithubRoute: WebhookGithubRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
-  ApiCcEventsStreamRoute: ApiCcEventsStreamRoute,
   ApiEventsStreamRoute: ApiEventsStreamRoute,
   ApiInternalVerifyKeyRoute: ApiInternalVerifyKeyRoute,
   ApiGithubInstallCallbackRoute: ApiGithubInstallCallbackRoute,

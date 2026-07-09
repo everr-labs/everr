@@ -20,6 +20,7 @@ interface FilterQueryOptions<TData> {
   queryKey: QueryKey;
   queryFn: QueryFunction<TData>;
   select: (data: TData) => string[];
+  staleTime?: number;
 }
 
 interface FilterComboboxProps<TData> {
@@ -30,6 +31,11 @@ interface FilterComboboxProps<TData> {
   placeholder: string;
   searchPlaceholder?: string;
   className?: string;
+  /**
+   * Offer a `Use "<typed text>"` row when the search text matches no loaded
+   * item, so suggestions assist without constraining what can be selected.
+   */
+  allowCustom?: boolean;
 }
 
 export function FilterCombobox<TData>({
@@ -40,9 +46,11 @@ export function FilterCombobox<TData>({
   placeholder,
   searchPlaceholder,
   className = "w-45",
+  allowCustom = false,
 }: FilterComboboxProps<TData>) {
   const id = useId();
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
 
   const { data: items = [], isLoading } = useQuery({
     ...options,
@@ -63,12 +71,27 @@ export function FilterCombobox<TData>({
   const visibleItems = values.slice(0, maxShownItems);
   const hiddenCount = values.length - visibleItems.length;
 
+  // The custom row's cmdk value IS the typed text, so it always survives the
+  // filter; hidden when it would duplicate a loaded item or a selection.
+  const query = search.trim();
+  const showCustom =
+    allowCustom &&
+    query.length > 0 &&
+    !items.includes(query) &&
+    !values.includes(query);
+
   return (
     <div className="flex flex-col gap-1">
       <Label htmlFor={id} className="text-muted-foreground text-xs">
         {label}
       </Label>
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (!next) setSearch("");
+        }}
+      >
         <PopoverTrigger
           render={
             <Button
@@ -128,6 +151,8 @@ export function FilterCombobox<TData>({
               wrapperClassName="p-0 border-b"
               inputGroupClassName="border-none rounded-none bg-transparent h-8"
               placeholder={searchPlaceholder ?? `Search...`}
+              value={search}
+              onValueChange={setSearch}
             />
             <CommandList>
               <CommandEmpty>
@@ -141,6 +166,20 @@ export function FilterCombobox<TData>({
                 >
                   <span className="truncate">{placeholder}</span>
                 </CommandItem>
+                {showCustom && (
+                  <CommandItem
+                    value={query}
+                    onSelect={() => {
+                      toggleSelection(query);
+                      setSearch("");
+                    }}
+                  >
+                    <span className="text-muted-foreground shrink-0">Use</span>
+                    <span className="truncate font-mono">
+                      &quot;{query}&quot;
+                    </span>
+                  </CommandItem>
+                )}
                 {items.map((item) => (
                   <CommandItem
                     key={item}

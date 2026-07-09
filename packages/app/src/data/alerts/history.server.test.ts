@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { queryAlertEventLog, queryAlertHistory } from "./history.server";
+import {
+  queryAlertEventLog,
+  queryAlertHistory,
+  queryObservedLabelKeys,
+  queryObservedLabelValues,
+} from "./history.server";
 
 describe("queryAlertHistory", () => {
   it("filters app.logs by scope, slug, event type, and time range", async () => {
@@ -237,5 +242,54 @@ describe("queryAlertEventLog", () => {
     expect(row).not.toHaveProperty("instanceLabelsJson");
     expect(row).not.toHaveProperty("deliveryTargetsRaw");
     expect(row).not.toHaveProperty("evidenceJson");
+  });
+});
+
+describe("queryObservedLabelKeys", () => {
+  it("extracts instance-label keys by frequency with no tenant filter in SQL", async () => {
+    const ch = vi.fn().mockResolvedValue([{ key: "svc" }, { key: "host" }]);
+    const keys = await queryObservedLabelKeys(ch, {
+      limit: 100,
+      fromISO: "2026-06-01T00:00:00Z",
+      toISO: "2026-06-08T00:00:00Z",
+    });
+    expect(keys).toEqual(["svc", "host"]);
+    const [sql, params] = ch.mock.calls[0];
+    expect(sql).toContain("FROM app.logs");
+    expect(sql).toContain("ServiceName = 'alert'");
+    expect(sql).toContain("ScopeName = 'everr.alerting'");
+    expect(sql).toContain(
+      "arrayJoin(JSONExtractKeys(LogAttributes['alert.instance_labels']))",
+    );
+    expect(sql).toContain("ORDER BY count() DESC");
+    expect(sql).toContain("LIMIT {limit:UInt32}");
+    // Tenancy comes from the row-level policy, never a SQL org filter.
+    expect(sql).not.toMatch(/organization|tenant_id/);
+    expect(params).toMatchObject({
+      limit: 100,
+      fromTime: "2026-06-01T00:00:00Z",
+      toTime: "2026-06-08T00:00:00Z",
+    });
+  });
+});
+
+describe("queryObservedLabelValues", () => {
+  it("extracts one key's values by frequency, skipping rows without the key", async () => {
+    const ch = vi.fn().mockResolvedValue([{ value: "flap" }]);
+    const values = await queryObservedLabelValues(ch, "svc", {
+      limit: 100,
+      fromISO: "2026-06-01T00:00:00Z",
+      toISO: "2026-06-08T00:00:00Z",
+    });
+    expect(values).toEqual(["flap"]);
+    const [sql, params] = ch.mock.calls[0];
+    expect(sql).toContain(
+      "JSONExtractString(LogAttributes['alert.instance_labels'], {key:String})",
+    );
+    // Absent keys extract as '' — those rows are noise, not a value.
+    expect(sql).toContain("value != ''");
+    expect(sql).toContain("ORDER BY count() DESC");
+    expect(sql).not.toMatch(/organization|tenant_id/);
+    expect(params).toMatchObject({ key: "svc", limit: 100 });
   });
 });

@@ -1,0 +1,27 @@
+use cc::domain::ids::{RuleId, TenantId};
+use cc::queue::redis_streams::RedisQueue;
+use cc::queue::{EvalJob, Queue};
+use testcontainers_modules::redis::Redis;
+use testcontainers_modules::testcontainers::runners::AsyncRunner;
+use time::OffsetDateTime;
+use uuid::Uuid;
+
+#[tokio::test]
+async fn enqueue_consume_ack_roundtrip() {
+    let node = Redis::default().start().await.unwrap();
+    let port = node.get_host_port_ipv4(6379).await.unwrap();
+    let url = format!("redis://127.0.0.1:{port}");
+
+    let q = RedisQueue::connect(&url).await.unwrap();
+    let job = EvalJob {
+        tenant: TenantId::from_trusted(Uuid::nil().to_string()),
+        rule: RuleId(Uuid::nil()),
+        eval_ts: OffsetDateTime::UNIX_EPOCH,
+    };
+    q.enqueue(&job).await.unwrap();
+
+    let got = q.consume("c1", 10, 1000).await.unwrap();
+    assert_eq!(got.len(), 1);
+    assert_eq!(got[0].job, job);
+    q.ack(&got[0].id).await.unwrap();
+}

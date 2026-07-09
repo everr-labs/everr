@@ -1,0 +1,93 @@
+[package]
+name = "cc"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+# Empty workspace table: makes this manifest its own workspace root (so the
+# [profile.*] tables below apply) and stops any parent directory manifest from
+# capturing the package.
+[workspace]
+
+[[bin]]
+name = "cc"
+path = "src/main.rs"
+
+[dependencies]
+aes-gcm = "0.10"
+anyhow = "1"
+async-trait = "0.1"
+axum = "0.7"
+base64 = "0.22"
+futures = "0.3"
+hex = "0.4"
+hmac = "0.12"
+lettre = { version = "0.11", default-features = false, features = ["builder", "smtp-transport", "tokio1", "tokio1-rustls-tls"] }
+opentelemetry = "0.30"
+opentelemetry-otlp = { version = "0.30", features = ["grpc-tonic", "trace", "metrics", "logs"] }
+opentelemetry-proto = { version = "0.30", features = ["gen-tonic-messages", "logs", "trace", "metrics"] }
+opentelemetry_sdk = { version = "0.30", features = ["rt-tokio"] }
+prost = "0.13"
+redis = { version = "0.27", features = ["tokio-comp", "streams", "connection-manager"] }
+regex = "1"
+reqwest = { version = "0.12", features = ["json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+sqlparser = "0.51"
+sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "time", "json", "macros"] }
+# Constant-time key comparison for the API-key gate (already in-tree via aes-gcm).
+subtle = "2"
+thiserror = "1"
+time = { version = "0.3", features = ["serde", "macros", "formatting", "parsing"] }
+tokio = { version = "1", features = ["full"] }
+# Matches the tonic version opentelemetry-otlp 0.30 builds against (gRPC export path).
+tonic = "0.13"
+tracing = "0.1"
+tracing-opentelemetry = "0.31"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+# Webhook-URL validation (SSRF guard); already in-tree transitively via reqwest.
+url = "2"
+uuid = { version = "1", features = ["v4", "serde"] }
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+http-body-util = "0.1"
+# In-memory metric exporter for engine-metrics unit tests (no collector needed).
+opentelemetry_sdk = { version = "0.30", features = ["rt-tokio", "testing"] }
+proptest = "1"
+testcontainers = "0.23"
+testcontainers-modules = { version = "0.11", features = ["postgres", "redis"] }
+tower = { version = "0.5", features = ["util"] }
+
+[features]
+# Container-backed e2e/load/integration tests run only on CI (or explicitly
+# with -F container-tests).
+container-tests = []
+
+[[test]]
+name = "it"
+path = "tests/it/main.rs"
+required-features = ["container-tests"]
+
+# Fast, container-free integration tests; always on so they run in local loops.
+[[test]]
+name = "unit_it"
+path = "tests/unit_it/main.rs"
+
+[[bench]]
+name = "eval"
+harness = false
+
+[[bench]]
+name = "hot_paths"
+harness = false
+
+[[bench]]
+name = "parse"
+harness = false
+
+[profile.test]
+# Full debuginfo in test binaries only slows the (very hot) link step;
+# line tables keep usable backtraces.
+debug = "line-tables-only"

@@ -4,7 +4,6 @@
 // pieces below live in src/components/cc/{route-resolution,shared} so those
 // pages compile without reaching back into route-local modules. This file
 // just re-exports them so the alerts pages keep compiling unchanged.
-export { ccFirstRoute } from "@/components/cc/route-resolution";
 export {
   CcConceptNote,
   CcEmptyState,

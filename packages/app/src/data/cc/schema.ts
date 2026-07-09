@@ -3,7 +3,6 @@ import { z } from "zod";
 export const CcSeveritySchema = z.enum(["info", "warning", "critical"]);
 export const CcMatchOpSchema = z.enum(["eq", "ne", "regex", "notregex"]);
 export const CcInstanceStatusSchema = z.enum(["inactive", "pending", "firing"]);
-export const CcEventStatusSchema = z.enum(["firing", "resolved"]);
 
 // CC serializes `OffsetDateTime` with the `time` crate's DEFAULT format — a
 // numeric array `[year, ordinalDay, hour, minute, second, nanosecond,
@@ -186,26 +185,6 @@ export const CcSubscriptionSchema = z.object({
   tenant: z.string(),
   webhook_url: z.string(),
   created_at: CcTimestampSchema,
-});
-
-export const CcEventSchema = z.object({
-  tenant: z.string(),
-  rule: z.string(),
-  instance_key: z.string(),
-  status: CcEventStatusSchema,
-  kind: z.string().optional(),
-  labels: z.record(z.string(), z.string()),
-  value: z.number().nullable(),
-  severity: CcSeveritySchema,
-  annotations: z.record(z.string(), z.string()),
-  eval_ts: CcTimestampSchema,
-  // Trailing fields CC serde-defaults on Event (src/domain/event.rs): defaulted
-  // here too so SSE frames from an older CC (or replayed pre-upgrade payloads)
-  // still parse. `evidence` is the bounded source-row context (columns beyond
-  // the identity labels); null for resolved-by-absence or byte-capped events.
-  suppressed: z.boolean().default(false),
-  evidence: z.record(z.string(), z.unknown()).nullable().default(null),
-  evidence_truncated: z.boolean().default(false),
 });
 
 export const CcTestResultSchema = z.object({

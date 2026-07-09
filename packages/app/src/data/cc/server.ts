@@ -1,16 +1,31 @@
 import { resolveTimeRange, TimeRangeSchema } from "@everr/ui/lib/time-range";
 import { z } from "zod";
-import { queryAlertEventLog } from "@/data/alerts/history.server";
+import { CC_SYNTHETIC_LABEL_KEYS } from "@/components/cc/route-resolution";
+import {
+  queryAlertEventLog,
+  queryObservedLabelKeys,
+  queryObservedLabelValues,
+} from "@/data/alerts/history.server";
+import { ccRuleIdentity } from "@/data/alerts/rule-identity";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import * as cc from "./client";
 import {
   CcChannelConfigSchema,
   CcMatcherSchema,
   CcRuleSpecSchema,
+  CcSeveritySchema,
 } from "./schema";
 
 const orgId = (session: { session: { activeOrganizationId: string } }) =>
   session.session.activeOrganizationId;
+
+// Poll cadence for the live alerting surfaces: active instances
+// (["cc", "alerts"]), rule rollups (["cc", "rules"]), and the stored event
+// history (["cc", "event-history"]). These change as rules evaluate, so their
+// queries refetch on this interval; config queries (routes, receivers,
+// channels, inhibitions, silences) change only through user actions and are
+// invalidated by their mutations instead.
+export const CC_POLL_INTERVAL_MS = 15_000;
 
 // ---- Queries ----
 export const listCcRules = createAuthenticatedServerFn({
@@ -68,7 +83,7 @@ export const listCcSubscriptions = createAuthenticatedServerFn({
 
 // Stored CC event history (all rules, all event types) from ClickHouse app.logs.
 // Tenancy rides on the org-scoped clickhouse context (row-level policy), not on a
-// SQL organization filter. Backs the monitor stream's historical page.
+// SQL organization filter. Backs the event history feed.
 export const listCcEventHistory = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(
     z.object({
@@ -80,6 +95,111 @@ export const listCcEventHistory = createAuthenticatedServerFn({ method: "GET" })
     const { fromISO, toISO } = resolveTimeRange(timeRange);
     return queryAlertEventLog(clickhouse.query, { limit, fromISO, toISO });
   });
+
+// ---- Label suggestions ----
+// What the matcher/label comboboxes offer. Sources are merged best-effort
+// (Promise.allSettled): suggestions assist typing and must never fail or block
+// it, so a source that errors just drops out of the list.
+
+/** Bounded lookback for observed keys/values; matchers outlive instances. */
+const SUGGESTION_WINDOW = { from: "now-7d", to: "now" } as const;
+const SUGGESTION_LIMIT = 100;
+
+export type CcLabelKeySuggestion = { key: string; synthetic: boolean };
+export type CcLabelValueSuggestion = { value: string; hint?: string };
+
+const settled = <T>(r: PromiseSettledResult<T>, fallback: T): T =>
+  r.status === "fulfilled" ? r.value : fallback;
+
+/**
+ * Every label key a matcher could usefully name: the dispatcher's synthetic
+ * keys first (flagged, so the UI can teach that they exist), then keys alerts
+ * have actually carried — stored event history (frequency order), the rules'
+ * declared label_columns, and current instances' labels.
+ */
+export const listCcLabelKeys = createAuthenticatedServerFn({
+  method: "GET",
+}).handler(
+  async ({
+    context: { session, clickhouse },
+  }): Promise<CcLabelKeySuggestion[]> => {
+    const { fromISO, toISO } = resolveTimeRange(SUGGESTION_WINDOW);
+    const [observed, rules, alerts] = await Promise.allSettled([
+      queryObservedLabelKeys(clickhouse.query, {
+        limit: SUGGESTION_LIMIT,
+        fromISO,
+        toISO,
+      }),
+      cc.listRules(orgId(session)),
+      cc.listAlerts(orgId(session)),
+    ]);
+    const merged = new Set<string>(settled(observed, []));
+    for (const rule of settled(rules, []))
+      for (const key of rule.spec.label_columns) merged.add(key);
+    for (const alert of settled(alerts, []))
+      for (const key of Object.keys(alert.labels)) merged.add(key);
+    // Synthetics win on collision at dispatch time, so they win here too.
+    for (const key of CC_SYNTHETIC_LABEL_KEYS) merged.delete(key);
+    return [
+      ...CC_SYNTHETIC_LABEL_KEYS.map((key) => ({ key, synthetic: true })),
+      ...[...merged]
+        .slice(0, SUGGESTION_LIMIT)
+        .map((key) => ({ key, synthetic: false })),
+    ];
+  },
+);
+
+/**
+ * The values one label key has carried. Synthetic keys answer with the
+ * engine's own vocabulary — severity/status/kind enums, and for `rule` the
+ * rule IDs the dispatcher actually matches on (dispatcher/routing.rs inserts
+ * `rule` as the RuleId), with the friendly name as a secondary hint. Other
+ * keys merge current instances' labels with stored event history.
+ */
+export const listCcLabelValues = createAuthenticatedServerFn({ method: "GET" })
+  .inputValidator(z.object({ key: z.string().min(1) }))
+  .handler(
+    async ({
+      data: { key },
+      context: { session, clickhouse },
+    }): Promise<CcLabelValueSuggestion[]> => {
+      switch (key) {
+        case "severity":
+          return CcSeveritySchema.options.map((value) => ({ value }));
+        case "status":
+          return [{ value: "firing" }, { value: "resolved" }];
+        case "kind":
+          return [{ value: "alert" }, { value: "rule_health" }];
+        case "rule": {
+          const rules = await cc.listRules(orgId(session)).catch(() => []);
+          return rules.map((rule) => ({
+            value: rule.id,
+            hint: ccRuleIdentity(rule).name,
+          }));
+        }
+        default: {
+          const { fromISO, toISO } = resolveTimeRange(SUGGESTION_WINDOW);
+          const [alerts, observed] = await Promise.allSettled([
+            cc.listAlerts(orgId(session)),
+            queryObservedLabelValues(clickhouse.query, key, {
+              limit: SUGGESTION_LIMIT,
+              fromISO,
+              toISO,
+            }),
+          ]);
+          const merged = new Set<string>();
+          for (const alert of settled(alerts, [])) {
+            const value = alert.labels[key];
+            if (value) merged.add(value);
+          }
+          for (const value of settled(observed, [])) merged.add(value);
+          return [...merged]
+            .slice(0, SUGGESTION_LIMIT)
+            .map((value) => ({ value }));
+        }
+      }
+    },
+  );
 
 // ---- Rule operations ----
 export const pauseCcRule = createAuthenticatedServerFn({ method: "POST" })
