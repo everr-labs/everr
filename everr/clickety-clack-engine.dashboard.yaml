@@ -1,0 +1,262 @@
+kind: Dashboard
+metadata:
+  name: clickety-clack-engine
+spec:
+  display:
+    name: Clickety-Clack Engine
+    description: Operational health of the alerting engine, from its cc.* self-telemetry and evaluator spans.
+  duration: 1h
+  refreshInterval: 30s
+  panels:
+    evaluations:
+      kind: Panel
+      spec:
+        display: { name: Evaluations }
+        plugin:
+          kind: StatChart
+          spec: { calculation: sum, sparkline: true, decimals: 0 }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                           count() AS evaluations
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND ServiceName LIKE 'clickety-clack%'
+                      AND SpanName = 'evaluate_rule_against_rows'
+                    GROUP BY ts
+                    ORDER BY ts
+    zero-signals:
+      kind: Panel
+      spec:
+        display:
+          name: Should be zero
+          description: Evaluation failures, failed deliveries, and outbox re-publishes within the selected range.
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last
+            decimals: 0
+            showLabel: true
+            thresholds:
+              mode: absolute
+              defaultColor: "#22c55e"
+              steps:
+                - { value: 1, color: "#ef4444" }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT coalesce(sumIf(inc, name = 'cc.eval.errors'), 0) AS eval_errors,
+                           coalesce(sumIf(inc, name = 'cc.notify.deliveries' AND outcome = 'failed'), 0) AS delivery_failures,
+                           coalesce(sumIf(inc, name = 'cc.outbox.relayed'), 0) AS outbox_relayed
+                    FROM (
+                      SELECT MetricName AS name,
+                             Attributes['outcome'] AS outcome,
+                             max(Value) - min(Value) AS inc
+                      FROM metrics_sum
+                      WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
+                        AND MetricName IN ('cc.eval.errors', 'cc.notify.deliveries', 'cc.outbox.relayed')
+                      GROUP BY name, outcome, Attributes
+                    )
+    worst-lag:
+      kind: Panel
+      spec:
+        display:
+          name: Worst lag / drift
+          description: Max eval-job queue age and scheduler claim drift seen in the range.
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last
+            unit: s
+            showLabel: true
+            thresholds:
+              mode: absolute
+              defaultColor: "#22c55e"
+              steps:
+                - { value: 5, color: "#f59e0b" }
+                - { value: 30, color: "#ef4444" }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT round(maxIf(Max, MetricName = 'cc.queue.consume.lag'), 3) AS queue_lag_max_s,
+                           round(maxIf(Max, MetricName = 'cc.scheduler.drift'), 3) AS sched_drift_max_s
+                    FROM metrics_histogram
+                    WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
+                      AND MetricName IN ('cc.queue.consume.lag', 'cc.scheduler.drift')
+    eval-latency:
+      kind: Panel
+      spec:
+        display:
+          name: Evaluation latency
+          description: Per-rule evaluation spans from the evaluator.
+        plugin:
+          kind: TimeSeriesChart
+          spec: { unit: ms, showLegend: true }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                           round(quantile(0.5)(Duration) / 1e6, 2) AS p50_ms,
+                           round(quantile(0.95)(Duration) / 1e6, 2) AS p95_ms,
+                           round(quantile(0.99)(Duration) / 1e6, 2) AS p99_ms
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND ServiceName LIKE 'clickety-clack%'
+                      AND SpanName = 'evaluate_rule_against_rows'
+                    GROUP BY ts
+                    ORDER BY ts
+    eval-throughput:
+      kind: Panel
+      spec:
+        display:
+          name: Evaluations and firing rows
+          description: Evaluation count and total rows the rule queries returned (each row is a firing instance).
+        plugin:
+          kind: TimeSeriesChart
+          spec: { showLegend: true }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                           count() AS evaluations,
+                           sum(toUInt64OrZero(SpanAttributes['rows'])) AS rows_returned
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND ServiceName LIKE 'clickety-clack%'
+                      AND SpanName = 'evaluate_rule_against_rows'
+                    GROUP BY ts
+                    ORDER BY ts
+    queue-scheduler:
+      kind: Panel
+      spec:
+        display:
+          name: Queue lag and scheduler drift
+          description: Per-interval averages from the cumulative histograms. Sustained lag growth means evaluators are behind; drift growth means the rule set has outgrown the scheduler tick.
+        plugin:
+          kind: TimeSeriesChart
+          spec: { unit: s, showLegend: true }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT ts, round(greatest(sum_d, 0) / nullif(greatest(cnt_d, 0), 0), 4) AS queue_lag_avg_s
+                    FROM (
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts,
+                             max(Sum) - lagInFrame(max(Sum), 1, max(Sum)) OVER (ORDER BY ts) AS sum_d,
+                             max(Count) - lagInFrame(max(Count), 1, max(Count)) OVER (ORDER BY ts) AS cnt_d
+                      FROM metrics_histogram
+                      WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
+                        AND MetricName = 'cc.queue.consume.lag'
+                      GROUP BY ts
+                    )
+                    ORDER BY ts
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT ts, round(greatest(sum_d, 0) / nullif(greatest(cnt_d, 0), 0), 4) AS sched_drift_avg_s
+                    FROM (
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts,
+                             max(Sum) - lagInFrame(max(Sum), 1, max(Sum)) OVER (ORDER BY ts) AS sum_d,
+                             max(Count) - lagInFrame(max(Count), 1, max(Count)) OVER (ORDER BY ts) AS cnt_d
+                      FROM metrics_histogram
+                      WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
+                        AND MetricName = 'cc.scheduler.drift'
+                      GROUP BY ts
+                    )
+                    ORDER BY ts
+    deliveries:
+      kind: Panel
+      spec:
+        display:
+          name: Deliveries by outcome
+          description: Notification delivery attempts after retries resolve, per outcome. Empty until routes and receivers deliver something.
+        plugin:
+          kind: TimeSeriesChart
+          spec: { showLegend: true, stacked: true }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT ts, outcome, sum(greatest(d, 0)) AS deliveries
+                    FROM (
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts,
+                             Attributes['outcome'] AS outcome,
+                             Attributes['channel'] AS channel,
+                             max(Value) - lagInFrame(max(Value), 1, max(Value)) OVER (PARTITION BY outcome, channel ORDER BY ts) AS d
+                      FROM metrics_sum
+                      WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
+                        AND MetricName = 'cc.notify.deliveries'
+                      GROUP BY ts, outcome, channel
+                    )
+                    GROUP BY ts, outcome
+                    ORDER BY ts
+    slowest-rules:
+      kind: Panel
+      spec:
+        display:
+          name: Slowest rules
+          description: Evaluation latency per rule id. Rule ids map to rules on the Alerts page.
+        plugin:
+          kind: Table
+          spec: { stickyHeader: true }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT SpanAttributes['rule'] AS rule_id,
+                           count() AS evaluations,
+                           round(quantile(0.95)(Duration) / 1e6, 2) AS p95_ms,
+                           round(max(Duration) / 1e6, 2) AS max_ms,
+                           sum(toUInt64OrZero(SpanAttributes['rows'])) AS rows_returned
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND ServiceName LIKE 'clickety-clack%'
+                      AND SpanName = 'evaluate_rule_against_rows'
+                    GROUP BY rule_id
+                    ORDER BY p95_ms DESC
+                    LIMIT 10
+  layouts:
+    - kind: Grid
+      spec:
+        items:
+          - { x: 0,  y: 0,  width: 6,  height: 5, content: { $ref: "#/spec/panels/evaluations" } }
+          - { x: 6,  y: 0,  width: 12, height: 5, content: { $ref: "#/spec/panels/zero-signals" } }
+          - { x: 18, y: 0,  width: 6,  height: 5, content: { $ref: "#/spec/panels/worst-lag" } }
+          - { x: 0,  y: 5,  width: 12, height: 8, content: { $ref: "#/spec/panels/eval-latency" } }
+          - { x: 12, y: 5,  width: 12, height: 8, content: { $ref: "#/spec/panels/eval-throughput" } }
+          - { x: 0,  y: 13, width: 12, height: 8, content: { $ref: "#/spec/panels/queue-scheduler" } }
+          - { x: 12, y: 13, width: 12, height: 8, content: { $ref: "#/spec/panels/deliveries" } }
+          - { x: 0,  y: 21, width: 24, height: 8, content: { $ref: "#/spec/panels/slowest-rules" } }

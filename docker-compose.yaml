@@ -146,6 +146,12 @@ services:
       # here (one ResourceLogs per tenant, everr.tenant.id preserved) → app.logs.
       CC_TRUSTED_OTLP_ENDPOINT: http://collector:4418/v1/logs
       CC_TRUSTED_INGEST_SECRET: cc-trusted-wLrlvA6pELmMieZ2odq0njrui8qr5QLQ
+      # Engine self-telemetry (cc.* metrics + engine traces) over the public
+      # OTLP gRPC path. The key is a normal ingest API key, kept out of the
+      # repo: set CC_ENGINE_INGEST_API_KEY in the git-ignored .env. When unset
+      # the engine runs with telemetry disabled (its default).
+      CC_ENGINE_OTLP_ENDPOINT: http://collector:4317
+      CC_ENGINE_INGEST_API_KEY: ${CC_ENGINE_INGEST_API_KEY:-}
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/healthz || exit 1"]
       interval: 10s
