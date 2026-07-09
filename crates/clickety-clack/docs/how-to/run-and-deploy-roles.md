@@ -1,8 +1,9 @@
 # How to run and deploy the roles
 
 clickety-clack is a single binary (`cc`) whose behavior is selected by `CC_ROLE`.
-This guide covers building it, running it for development, and splitting the roles
-across processes for production.
+This guide covers building it, running it for development, replicating it for
+production availability, and (when a bottleneck calls for it) splitting the roles
+across processes.
 
 ## Build
 
@@ -24,16 +25,44 @@ export CC_SECRET_ACTIVE_KEY="dev"
 CC_ROLE=all cargo run
 ```
 
-`all` runs the api, scheduler, evaluator, and dispatcher in one process. It
-connects to Postgres (and runs migrations), Redis, and ClickHouse using the
+`all` runs the api, scheduler, evaluator, dispatcher, and (when the trusted OTLP
+vars are set) events roles in one process. It connects to Postgres (and runs
+migrations), Redis, and ClickHouse using the
 [default connection strings](../reference/configuration.md#datastores) unless you
 override them.
 
-## Run the roles separately (production)
+## Deploy for production: replicate `all`
 
-In production, run each role as its own deployment so you can scale them
-independently. They coordinate entirely through Postgres and Redis — there is no
-direct RPC between roles.
+The recommended production shape is **two or more identical `role=all` replicas**
+behind a load balancer:
+
+```bash
+# Every replica gets the same environment except CC_NODE_ID:
+export CC_PG_URL=postgres://…  CC_REDIS_URL=redis://…  CC_CH_URL=http://…
+export CC_SECRET_PROVIDER=env  CC_SECRET_KEYS=v1:…  CC_SECRET_ACTIVE_KEY=v1
+
+CC_ROLE=all CC_NODE_ID=cc-1 ./cc     # replica 1
+CC_ROLE=all CC_NODE_ID=cc-2 ./cc     # replica 2
+```
+
+This gives you what actually matters first: no monitoring blackout during
+deploys or crashes. All coordination happens through Postgres and Redis (there
+is no RPC between roles), and every coordination primitive behaves identically
+whether roles share a process or not: scheduler replicas partition tenants and
+fail over automatically, evaluators and dispatchers load-balance through their
+consumer groups, and duplicate processing is safe by design (see
+[durability](../explanation/durability-and-delivery.md)). An alerting engine's
+workload is small relative to its importance; even thousands of rules on
+1-minute intervals is tens of evaluations per second, well within one process.
+
+## Split roles when a bottleneck shows
+
+Because `CC_ROLE` is just a flag, peeling a role into its own deployment later is
+a config change, not a rewrite. Do it when a signal tells you to, not upfront.
+Typical triggers: sustained `cc:events` queue growth or slow third-party webhook
+endpoints starving other work (peel off `dispatcher`), evaluation latency from
+ClickHouse contention (peel off and scale `evaluator`), or wanting the trusted
+export credentials confined to one process (peel off `events`).
 
 ```bash
 # Shared environment for every process:
@@ -51,7 +80,13 @@ CC_ROLE=evaluator  CC_NODE_ID=eval-1       ./cc
 
 # Dispatcher (set CC_SMTP_* if you use email receivers):
 CC_ROLE=dispatcher CC_NODE_ID=disp-1       ./cc
+
+# Events (alert-log export; needs CC_TRUSTED_OTLP_ENDPOINT + CC_TRUSTED_INGEST_SECRET):
+CC_ROLE=events     CC_NODE_ID=events-1     ./cc
 ```
+
+A `role=all` deployment can also run alongside split-out roles during a
+transition; the coordination primitives are the same either way.
 
 > **`CC_NODE_ID` must be unique per process.** It is the scheduler membership
 > identity and the stream consumer name. Two processes sharing a node id will
@@ -59,12 +94,13 @@ CC_ROLE=dispatcher CC_NODE_ID=disp-1       ./cc
 
 ### Which role needs what
 
-| Role        | Postgres | Redis | ClickHouse | SMTP |
-| ----------- | :------: | :---: | :--------: | :--: |
-| `api`       | ✅       | ✅    | ✅         |      |
-| `scheduler` | ✅       | ✅    |            |      |
-| `evaluator` | ✅       | ✅    | ✅         |      |
-| `dispatcher`| ✅       | ✅    |            | ✅ (if email) |
+| Role        | Postgres | Redis | ClickHouse | SMTP | Trusted OTLP |
+| ----------- | :------: | :---: | :--------: | :--: | :----------: |
+| `api`       | ✅       | ✅    | ✅         |      |      |
+| `scheduler` | ✅       | ✅    |            |      |      |
+| `evaluator` | ✅       | ✅    | ✅         |      |      |
+| `dispatcher`| ✅       | ✅    |            | ✅ (if email) | ✅ (if set) |
+| `events`    |          | ✅    |            |      | ✅   |
 
 All roles build the cipher at startup, so all of them need the
 [secret env vars](manage-secret-encryption.md) even though only `api`,
@@ -78,6 +114,7 @@ All roles build the cipher at startup, so all of them need the
 | `scheduler` | Run N replicas and set `CC_SCHEDULER_SHARDS` ≥ N. Tenants are partitioned across replicas by rendezvous hashing; a dead replica's shards are reassigned within the heartbeat TTL. With shards=1 it is an auto-failover singleton. | `cc:scheduler:members` |
 | `evaluator` | Run N replicas; they share the `evaluators` consumer group on `cc:eval:jobs`, so jobs load-balance automatically. The maintenance loop self-elects via a single lease, so only one evaluator runs it at a time. | consumer group + `cc:maintenance:lease` |
 | `dispatcher`| Run N replicas; they share the `dispatchers` consumer group on `cc:events`. The group flusher runs on every replica and claims due groups atomically. | consumer group + atomic Redis claims |
+| `events`    | Run N replicas; they compete on the `cc:logexport` consumer group (an independent group on the same stream, so log export never steals dispatcher deliveries). | consumer group |
 
 See [Operate at scale](operate-at-scale.md) for the scheduler-sharding details and
 [durability](../explanation/durability-and-delivery.md) for why duplicate
