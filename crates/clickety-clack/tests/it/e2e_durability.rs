@@ -12,7 +12,7 @@ use cc::evaluator::run_evaluator;
 use cc::queue::event_bus::RedisEventBus;
 use cc::queue::groups::{GroupStore, RedisGroups};
 use cc::queue::redis_streams::RedisQueue;
-use cc::queue::{EvalJob, EventBus, EventEntry, EventId, Queue, QueueError, TailCursor};
+use cc::queue::{EvalJob, EventBus, EventEntry, EventId, Queue, QueueError};
 use cc::stores::{PgStore, RedisLease};
 use std::collections::BTreeMap;
 use std::collections::HashMap;
@@ -60,14 +60,6 @@ impl EventBus for FlakyBus {
     }
     async fn ack(&self, id: &EventId) -> Result<(), QueueError> {
         self.inner.ack(id).await
-    }
-    async fn tail(
-        &self,
-        cursor: &TailCursor,
-        n: usize,
-        b: usize,
-    ) -> Result<Vec<EventEntry>, QueueError> {
-        self.inner.tail(cursor, n, b).await
     }
     async fn dead_letter(&self, ev: &Event, reason: &str) -> Result<(), QueueError> {
         self.inner.dead_letter(ev, reason).await

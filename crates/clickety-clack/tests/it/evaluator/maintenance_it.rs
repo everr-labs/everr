@@ -5,7 +5,7 @@ use cc::domain::instance::{InstanceState, Status};
 use cc::domain::rule::{RuleSpec, Severity};
 use cc::evaluator::maintenance::{reconcile_once, reconcile_sweep, relay_once};
 use cc::queue::event_bus::RedisEventBus;
-use cc::queue::{EventBus, EventEntry, QueueError, TailCursor};
+use cc::queue::{EventBus, EventEntry, QueueError};
 use cc::stores::PgStore;
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -36,14 +36,6 @@ impl EventBus for FailNBus {
     }
     async fn ack(&self, id: &cc::queue::EventId) -> Result<(), QueueError> {
         self.inner.ack(id).await
-    }
-    async fn tail(
-        &self,
-        cursor: &TailCursor,
-        n: usize,
-        b: usize,
-    ) -> Result<Vec<EventEntry>, QueueError> {
-        self.inner.tail(cursor, n, b).await
     }
     async fn dead_letter(&self, ev: &Event, reason: &str) -> Result<(), QueueError> {
         self.inner.dead_letter(ev, reason).await

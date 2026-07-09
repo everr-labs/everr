@@ -5,7 +5,6 @@ use cc::api::{build_router, AppState};
 use cc::clickhouse::ChClient;
 use cc::crypto::EnvKeyring;
 use cc::domain::ids::{RuleId, TenantId};
-use cc::domain::Event;
 use cc::stores::PgStore;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -25,7 +24,6 @@ async fn get_and_list_expose_rule_health() {
     let pg_url = crate::support::fresh_db().await;
     let store = PgStore::connect(&pg_url).await.unwrap();
     let store2 = store.clone(); // used to degrade the rule directly
-    let (events_tx, _rx) = tokio::sync::broadcast::channel::<Event>(16);
     let state = AppState {
         store,
         ch: ChClient::new(
@@ -40,7 +38,6 @@ async fn get_and_list_expose_rule_health() {
             )
             .unwrap(),
         ),
-        events_tx,
         allow_private_webhooks: false,
     };
     let app = build_router(state);

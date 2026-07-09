@@ -7,15 +7,11 @@ pub mod receivers;
 pub mod routes;
 pub mod rules;
 pub mod silences;
-pub mod sse_pump;
 pub mod subscriptions;
 pub mod webhook_url;
 
-pub use sse_pump::run_sse_pump;
-
 use crate::clickhouse::ChClient;
 use crate::crypto::SecretCipher;
-use crate::domain::Event;
 use crate::stores::PgStore;
 use crate::supervisor::RolesHealth;
 use auth::{require_api_key, ApiKeySet, Authenticator};
@@ -23,7 +19,6 @@ use axum::middleware;
 use axum::routing::{get, post};
 use axum::Router;
 use std::sync::Arc;
-use tokio::sync::broadcast;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -31,8 +26,6 @@ pub struct AppState {
     pub ch: ChClient,
     pub auth: Arc<dyn Authenticator>,
     pub cipher: Arc<dyn SecretCipher>,
-    /// Live event fan-out for SSE clients (fed by the SSE pump tailing the event stream).
-    pub events_tx: broadcast::Sender<Event>,
     /// Allow private/loopback webhook targets (`CC_ALLOW_PRIVATE_WEBHOOKS=1`,
     /// dev/compose only). See [`webhook_url::validate_webhook_url`].
     pub allow_private_webhooks: bool,
@@ -44,8 +37,8 @@ pub fn build_router(state: AppState) -> Router {
     build_router_with_auth(state, ApiKeySet::default())
 }
 
-/// Router with a static bearer-key gate on every `/v1` route, including the
-/// SSE stream. `/healthz` and `/readyz` stay unauthenticated. An empty
+/// Router with a static bearer-key gate on every `/v1` route.
+/// `/healthz` and `/readyz` stay unauthenticated. An empty
 /// `ApiKeySet` disables the gate. `/readyz` always reports ready here; the
 /// supervised binary uses [`build_supervised_router`] instead.
 pub fn build_router_with_auth(state: AppState, api_keys: ApiKeySet) -> Router {
@@ -80,7 +73,6 @@ pub fn build_supervised_router(
             "/v1/subscriptions/:id",
             axum::routing::delete(subscriptions::delete),
         )
-        .route("/v1/events/stream", get(subscriptions::stream))
         .route("/v1/channels", post(channels::create).get(channels::list))
         .route(
             "/v1/channels/:name",

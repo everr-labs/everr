@@ -32,7 +32,7 @@ The definition of an alert.
 | `severity`      | [Severity](#severity) | —       | Severity attached to emitted events. |
 | `annotations`   | object<string,string> | `{}`    | Free-form metadata, passed through to events. The keys `summary`, `description`, `link.alert`, and `link.runbook` are also rendered into notifications (see [rule annotations](../how-to/write-alert-rules.md#annotations)). |
 | `resolve_after` | u32                   | `1`     | Consecutive *absent* evaluations needed to resolve. Absorbs flaps. |
-| `suppressed`    | bool                  | `false` | Preview mode: the rule evaluates fully and produces events and history, but the dispatcher never notifies on its events (no routing, grouping, subscriptions, silences, or inhibitions apply). SSE and the OTLP alert log still carry the events. |
+| `suppressed`    | bool                  | `false` | Preview mode: the rule evaluates fully and produces events and history, but the dispatcher never notifies on its events (no routing, grouping, subscriptions, silences, or inhibitions apply). The OTLP alert log still carries the events. |
 
 Stored as a `Rule`: `{ id, tenant, spec, version, paused }` where `spec` is the
 object above, `version` is an optimistic-lock counter (bumped by every
@@ -77,8 +77,7 @@ The transition rules are in [the evaluation model](../explanation/evaluation-mod
 
 ## Event
 
-Emitted on a firing or resolving transition; carried on the Redis event stream and
-the SSE firehose.
+Emitted on a firing or resolving transition; carried on the Redis event stream.
 
 | Field          | Type                       | Meaning |
 | -------------- | -------------------------- | ------- |

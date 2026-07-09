@@ -98,18 +98,18 @@ The response echoes the stored rule including its server-assigned `id`. Save it:
 export RULE_ID=...   # the "id" from the response
 ```
 
-## Step 4 — Watch the event firehose
+## Step 4 — Watch the alert state
 
-In your second terminal, open the Server-Sent-Events stream. It will print every
-firing/resolved event for your tenant as it happens:
+In your second terminal, poll the alert list. It returns every pending/firing
+instance for your tenant:
 
 ```bash
-curl -N localhost:8080/v1/events/stream -H "X-CC-Tenant: $TENANT"
+watch -n 5 'curl -s localhost:8080/v1/alerts -H "X-CC-Tenant: '"$TENANT"'"'
 ```
 
-Leave this running. When your ClickHouse `error_rates` data crosses the threshold
-and stays there for 60 seconds, a `firing` event appears here; when the rows drop
-below the threshold, a `resolved` event appears.
+Leave this running. When your ClickHouse `error_rates` data crosses the threshold,
+an instance appears here as `pending`, then `firing` once it has held for 60
+seconds; when the rows drop below the threshold, the instance leaves the list.
 
 > No data yet? The rule only fires on rows your SQL actually returns. Insert a row
 > into ClickHouse that matches the `WHERE` clause to drive it, or adjust the SQL
@@ -117,7 +117,7 @@ below the threshold, a `resolved` event appears.
 
 ## Step 5 — Deliver to a receiver instead of just watching
 
-The SSE stream is handy for humans, but real delivery goes through **channels**,
+Polling is handy for humans, but real delivery goes through **channels**,
 **receivers**, and **routes**. Create a webhook channel (use any URL you can
 inspect, e.g. a [webhook.site](https://webhook.site) endpoint), then a receiver
 that references it by name:

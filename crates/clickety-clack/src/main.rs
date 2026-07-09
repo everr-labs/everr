@@ -1,7 +1,6 @@
 mod config;
 
 use cc::api::auth::{ApiKeySet, HeaderAuth};
-use cc::api::run_sse_pump;
 use cc::api::{build_supervised_router, AppState};
 use cc::clickhouse::ChClient;
 use cc::dispatcher::cache::FilterCache;
@@ -12,7 +11,6 @@ use cc::dispatcher::slack::SlackNotifier;
 use cc::dispatcher::telegram::TelegramNotifier;
 use cc::dispatcher::{run_dispatcher, run_group_flusher, Notifiers};
 use cc::domain::sink::{AlertLogSink, NullSink};
-use cc::domain::Event;
 use cc::evaluator::{maintenance::run_maintenance, run_evaluator};
 use cc::events::run_events_consumer;
 use cc::otel::exporter::{AlertLogExporter, ExporterSink};
@@ -90,7 +88,6 @@ async fn main() -> anyhow::Result<()> {
     );
     let event_bus: Arc<dyn EventBus> = Arc::new(RedisEventBus::connect(&cfg.redis_url).await?);
     let ch = ChClient::new(&cfg.ch_url, ch_auth);
-    let (events_tx, _rx) = tokio::sync::broadcast::channel::<Event>(1024);
 
     let (sd_tx, sd_rx) = tokio::sync::watch::channel(false);
     let sd_tx = Arc::new(sd_tx);
@@ -107,7 +104,6 @@ async fn main() -> anyhow::Result<()> {
             store: store.clone(),
             ch: ch.clone(),
             auth: Arc::new(HeaderAuth),
-            events_tx: events_tx.clone(),
             cipher: cipher.clone(),
             allow_private_webhooks: cfg.allow_private_webhooks,
         };
@@ -115,21 +111,6 @@ async fn main() -> anyhow::Result<()> {
             tracing::warn!(
                 "CC_ALLOW_PRIVATE_WEBHOOKS is set: private/loopback webhook targets are allowed (dev only)"
             );
-        }
-        // SSE pump: feed this replica's broadcast from the event stream.
-        {
-            let bus = event_bus.clone();
-            let tx = events_tx.clone();
-            let rx = sd_rx.clone();
-            roles.push(RoleSpec::restartable("sse-pump", move || {
-                let bus = bus.clone();
-                let tx = tx.clone();
-                let rx = rx.clone();
-                async move {
-                    run_sse_pump(bus, tx, rx).await;
-                    Ok(())
-                }
-            }));
         }
         let api_keys = ApiKeySet::from_env_value(cfg.api_keys.as_deref());
         if api_keys.is_enabled() {

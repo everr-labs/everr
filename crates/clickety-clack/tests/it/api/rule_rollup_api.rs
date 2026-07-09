@@ -7,7 +7,6 @@ use cc::crypto::EnvKeyring;
 use cc::domain::ids::{InstanceKey, RuleId, TenantId};
 use cc::domain::instance::{InstanceState, Status};
 use cc::domain::rollup::{AlertState, RuleRollup};
-use cc::domain::Event;
 use cc::stores::PgStore;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
@@ -27,7 +26,6 @@ async fn rules_list_and_get_expose_rollup() {
     let pg_url = crate::support::fresh_db().await;
     let store = PgStore::connect(&pg_url).await.unwrap();
     let store2 = store.clone();
-    let (events_tx, _rx) = tokio::sync::broadcast::channel::<Event>(16);
     let state = AppState {
         store,
         ch: ChClient::new(
@@ -42,7 +40,6 @@ async fn rules_list_and_get_expose_rollup() {
             )
             .unwrap(),
         ),
-        events_tx,
         allow_private_webhooks: false,
     };
     let app = build_router(state);

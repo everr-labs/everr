@@ -177,8 +177,8 @@ pub async fn process_event(
 
     // Suppressed (preview-rule) events never notify: drop at ingest, before
     // silence/inhibition processing, before group buffering, and before the no-routes
-    // subscription firehose. They still reach SSE (the pump tails the stream directly)
-    // and the OTLP alert-log export (the events role has its own consumer group).
+    // subscription firehose. They still reach the OTLP alert-log export (the events
+    // role has its own consumer group).
     if ev.suppressed {
         tracing::debug!(entry_id = %entry.id, "suppressed event; dropping before dispatch");
         return true;
@@ -741,7 +741,7 @@ mod fan_out_tests {
     use crate::domain::event::EventStatus;
     use crate::domain::ids::{InstanceKey, RuleId};
     use crate::domain::rule::Severity;
-    use crate::queue::{EventEntry, EventId, QueueError, TailCursor};
+    use crate::queue::{EventEntry, EventId, QueueError};
     use async_trait::async_trait;
     use std::collections::BTreeMap;
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -842,14 +842,6 @@ mod fan_out_tests {
             unreachable!()
         }
         async fn ack(&self, _id: &EventId) -> Result<(), QueueError> {
-            unreachable!()
-        }
-        async fn tail(
-            &self,
-            _cursor: &TailCursor,
-            _n: usize,
-            _b: usize,
-        ) -> Result<Vec<EventEntry>, QueueError> {
             unreachable!()
         }
         async fn dead_letter(&self, _ev: &Event, _reason: &str) -> Result<(), QueueError> {
@@ -1199,7 +1191,7 @@ mod flush_dead_letter_tests {
     use crate::domain::event::EventStatus;
     use crate::domain::ids::{InstanceKey, RuleId};
     use crate::domain::rule::Severity;
-    use crate::queue::{EventEntry, EventId, QueueError, TailCursor};
+    use crate::queue::{EventEntry, EventId, QueueError};
     use crate::stores::StoreError;
     use async_trait::async_trait;
     use std::collections::BTreeMap;
@@ -1256,14 +1248,6 @@ mod flush_dead_letter_tests {
             unreachable!()
         }
         async fn ack(&self, _id: &EventId) -> Result<(), QueueError> {
-            unreachable!()
-        }
-        async fn tail(
-            &self,
-            _cursor: &TailCursor,
-            _n: usize,
-            _b: usize,
-        ) -> Result<Vec<EventEntry>, QueueError> {
             unreachable!()
         }
         async fn dead_letter(&self, ev: &Event, reason: &str) -> Result<(), QueueError> {

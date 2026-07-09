@@ -396,7 +396,6 @@ dependencies = [
  "thiserror 1.0.69",
  "time",
  "tokio",
- "tokio-stream",
  "tonic",
  "tower",
  "tracing",
@@ -3436,7 +3435,6 @@ dependencies = [
  "futures-core",
  "pin-project-lite",
  "tokio",
- "tokio-util",
 ]
 
 [[package]]

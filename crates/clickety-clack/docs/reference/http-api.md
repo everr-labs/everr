@@ -12,7 +12,7 @@ API at all, and a tenant header that scopes each request.
 
 When the server is started with `CC_API_KEYS` set (comma-separated static keys;
 see [configuration](configuration.md#http-api-authentication)), every `/v1`
-endpoint, **including `GET /v1/events/stream`**, requires:
+endpoint requires:
 
 ```
 Authorization: Bearer <key>
@@ -40,8 +40,7 @@ bound key have their tenant **derived from the key**: the gate stamps
 cannot act as a different tenant. If the caller also sends `X-CC-Tenant`, it
 must equal the bound tenant; a mismatch yields `401` with detail
 `API key is not authorized for the requested tenant`. Unbound (plain) entries
-keep the legacy behavior below. This applies to every `/v1` endpoint, the SSE
-stream included.
+keep the legacy behavior below. This applies to every `/v1` endpoint.
 
 ### Tenant (`X-CC-Tenant`)
 
@@ -493,29 +492,16 @@ exact rule, including the self-inhibition guard.
 
 ---
 
-## Events stream (SSE)
+## Consuming alert events
 
-| Method & path             | Description |
-| ------------------------- | ----------- |
-| `GET /v1/events/stream`   | Server-Sent-Events stream of this tenant's firing/resolved events. |
+There is no HTTP event stream. Alert events are consumable two ways:
 
-`Content-Type: text/event-stream`. Each `data:` frame is a JSON `Event`:
+- **OTLP log export**: the `events` role consumes the Redis event stream (its
+  own `cc:logexport` consumer group) and exports every event, including events
+  from `suppressed` (preview) rules, as OTLP logs. Query them like any other
+  logs.
+- **Firehose webhooks**: for a tenant with no routes,
+  [subscriptions](#subscriptions-firehose-webhooks) push every notifiable
+  event to a webhook as it happens.
 
-```json
-{
-  "tenant": "<uuid>", "rule": "<uuid>", "instance_key": "<key>",
-  "status": "firing", "labels": { "host": "web-1" }, "value": 142.0,
-  "severity": "critical", "annotations": {}, "eval_ts": "2026-06-14T12:03:00Z",
-  "suppressed": false,
-  "evidence": { "errors": 142.0, "path": "/checkout" }, "evidence_truncated": false
-}
-```
-
-`evidence` is the source row minus the rule's `label_columns` (value column
-included), capped at 16 columns / 4096 bytes; see
-[data model → Event](data-model.md#event). Events from `suppressed` (preview)
-rules ARE delivered on this stream even though they never notify.
-
-The stream is fed by the SSE pump, which tails the Redis event stream and
-rebroadcasts, so any `api` replica serves events regardless of which evaluator
-produced them. The stream filters to the caller's tenant.
+For point-in-time state, poll `GET /v1/alerts`.

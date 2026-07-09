@@ -142,8 +142,7 @@ impl ApiKeySet {
 
 /// Middleware enforcing `Authorization: Bearer <key>` against an [`ApiKeySet`].
 /// A disabled (empty) set passes every request through unchanged. Mounted on
-/// the `/v1` subtree only (the SSE stream included); `/healthz` and `/readyz`
-/// live outside this layer.
+/// the `/v1` subtree only; `/healthz` and `/readyz` live outside this layer.
 ///
 /// For a tenant-bound key the tenant is derived from the key: the middleware
 /// stamps `X-CC-Tenant` with the bound tenant before the handlers run, so the

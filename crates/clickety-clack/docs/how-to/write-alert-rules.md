@@ -137,13 +137,13 @@ below.
 ### `suppressed` (preview mode)
 Default `false`. A suppressed rule is a full dress rehearsal: it is scheduled,
 evaluated against ClickHouse, tracks instance state, and emits firing/resolved
-events into history, the SSE stream, and the OTLP alert log. The one thing it
-never does is notify: the dispatcher drops its events before routing, grouping,
-silences, inhibitions, and the subscription firehose, and its rule-health events
-are muted the same way.
+events into history and the OTLP alert log. The one thing it never does is
+notify: the dispatcher drops its events before routing, grouping, silences,
+inhibitions, and the subscription firehose, and its rule-health events are
+muted the same way.
 
-Use it to preview a rule against live data (watch `GET /v1/alerts` and the SSE
-stream to see what it *would* have done), then flip `suppressed` to `false` via
+Use it to preview a rule against live data (watch `GET /v1/alerts` and the OTLP
+alert log to see what it *would* have done), then flip `suppressed` to `false` via
 `PUT /v1/rules/:id` to promote it. Instance state is preserved across the flip,
 so a preview that is already firing starts notifying on its next transition, not
 with a spurious re-fire.

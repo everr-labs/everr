@@ -40,7 +40,7 @@ pub struct Event {
     #[serde(with = "time::serde::rfc3339")]
     pub eval_ts: OffsetDateTime,
     /// Mirrors the rule's `suppressed` flag at emit time. A suppressed event still flows
-    /// through history/SSE/OTLP export but the dispatcher never notifies on it.
+    /// through history/OTLP export but the dispatcher never notifies on it.
     #[serde(default)]
     pub suppressed: bool,
     /// Bounded source-row context for present instances: the row's columns excluding

@@ -9,7 +9,7 @@ use cc::domain::ids::{InstanceKey, RuleId, TenantId};
 use cc::domain::rule::Severity;
 use cc::events::run_events_consumer;
 use cc::otel::exporter::AlertLogExporter;
-use cc::queue::{EventBus, EventEntry, EventId, QueueError, TailCursor};
+use cc::queue::{EventBus, EventEntry, EventId, QueueError};
 use opentelemetry_proto::tonic::collector::logs::v1::ExportLogsServiceRequest;
 use opentelemetry_proto::tonic::common::v1::any_value::Value as AnyVal;
 use prost::Message;
@@ -69,14 +69,6 @@ impl EventBus for FakeBus {
     async fn ack_logexport(&self, id: &EventId) -> Result<(), QueueError> {
         self.acked.lock().unwrap().push(id.to_string());
         Ok(())
-    }
-    async fn tail(
-        &self,
-        _cursor: &TailCursor,
-        _count: usize,
-        _block_ms: usize,
-    ) -> Result<Vec<EventEntry>, QueueError> {
-        Ok(Vec::new())
     }
     async fn dead_letter(&self, _ev: &Event, _reason: &str) -> Result<(), QueueError> {
         Ok(())

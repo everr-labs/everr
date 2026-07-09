@@ -4,7 +4,6 @@ use cc::api::auth::HeaderAuth;
 use cc::api::{build_router, AppState};
 use cc::clickhouse::ChClient;
 use cc::crypto::EnvKeyring;
-use cc::domain::Event;
 use cc::stores::PgStore;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -14,7 +13,6 @@ use uuid::Uuid;
 async fn setup() -> axum::Router {
     let pg_url = crate::support::fresh_db().await;
     let store = PgStore::connect(&pg_url).await.unwrap();
-    let (events_tx, _rx) = tokio::sync::broadcast::channel::<Event>(16);
     let state = AppState {
         store,
         ch: ChClient::new(
@@ -29,7 +27,6 @@ async fn setup() -> axum::Router {
             )
             .unwrap(),
         ),
-        events_tx,
         allow_private_webhooks: false,
     };
     build_router(state)

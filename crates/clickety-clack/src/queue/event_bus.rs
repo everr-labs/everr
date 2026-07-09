@@ -1,5 +1,5 @@
 use crate::domain::Event;
-use crate::queue::{EventBus, EventEntry, EventId, QueueError, TailCursor};
+use crate::queue::{EventBus, EventEntry, EventId, QueueError};
 use async_trait::async_trait;
 use redis::aio::ConnectionManager;
 use redis::streams::{StreamMaxlen, StreamReadOptions, StreamReadReply};
@@ -109,25 +109,6 @@ impl EventBus for RedisEventBus {
         Ok(())
     }
 
-    async fn tail(
-        &self,
-        cursor: &TailCursor,
-        count: usize,
-        block_ms: usize,
-    ) -> Result<Vec<EventEntry>, QueueError> {
-        // Map the backend-agnostic cursor to Redis Streams' XREAD id: `Live` => "$" (only
-        // entries added after this blocking call — a live tail, never historical replay);
-        // `After(id)` => that stream id.
-        let read_id: &str = match cursor {
-            TailCursor::Live => "$",
-            TailCursor::After(id) => id.as_str(),
-        };
-        let mut conn = self.conn.clone();
-        let opts = StreamReadOptions::default().count(count).block(block_ms);
-        let reply: StreamReadReply = conn.xread_options(&[STREAM], &[read_id], &opts).await?;
-        Self::parse_entries(reply)
-    }
-
     async fn publish_batch(&self, evs: &[Event]) -> Result<Vec<usize>, QueueError> {
         if evs.is_empty() {
             return Ok(Vec::new());
@@ -227,15 +208,6 @@ mod publish_batch_tests {
 
         async fn ack(&self, _id: &EventId) -> Result<(), QueueError> {
             Ok(())
-        }
-
-        async fn tail(
-            &self,
-            _cursor: &TailCursor,
-            _count: usize,
-            _block_ms: usize,
-        ) -> Result<Vec<EventEntry>, QueueError> {
-            Ok(Vec::new())
         }
 
         async fn dead_letter(&self, _ev: &Event, _reason: &str) -> Result<(), QueueError> {

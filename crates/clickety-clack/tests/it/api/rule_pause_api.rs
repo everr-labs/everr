@@ -4,7 +4,6 @@ use cc::api::auth::HeaderAuth;
 use cc::api::{build_router, AppState};
 use cc::clickhouse::ChClient;
 use cc::crypto::EnvKeyring;
-use cc::domain::Event;
 use cc::stores::PgStore;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -22,7 +21,6 @@ async fn body_json(resp: axum::response::Response) -> serde_json::Value {
 async fn pause_then_resume_round_trip() {
     let pg_url = crate::support::fresh_db().await;
     let store = PgStore::connect(&pg_url).await.unwrap();
-    let (events_tx, _rx) = tokio::sync::broadcast::channel::<Event>(16);
     let state = AppState {
         store,
         ch: ChClient::new(
@@ -37,7 +35,6 @@ async fn pause_then_resume_round_trip() {
             )
             .unwrap(),
         ),
-        events_tx,
         allow_private_webhooks: false,
     };
     let app = build_router(state);

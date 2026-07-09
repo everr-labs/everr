@@ -74,7 +74,7 @@ All roles build the cipher at startup, so all of them need the
 
 | Role        | How to scale | Coordination |
 | ----------- | ------------ | ------------ |
-| `api`       | Run N replicas behind a load balancer. Stateless; the SSE pump on each replica rebroadcasts all events, so clients get events regardless of which evaluator produced them. | none needed |
+| `api`       | Run N replicas behind a load balancer. Stateless; any replica can serve any request. | none needed |
 | `scheduler` | Run N replicas and set `CC_SCHEDULER_SHARDS` ≥ N. Tenants are partitioned across replicas by rendezvous hashing; a dead replica's shards are reassigned within the heartbeat TTL. With shards=1 it is an auto-failover singleton. | `cc:scheduler:members` |
 | `evaluator` | Run N replicas; they share the `evaluators` consumer group on `cc:eval:jobs`, so jobs load-balance automatically. The maintenance loop self-elects via a single lease, so only one evaluator runs it at a time. | consumer group + `cc:maintenance:lease` |
 | `dispatcher`| Run N replicas; they share the `dispatchers` consumer group on `cc:events`. The group flusher runs on every replica and claims due groups atomically. | consumer group + atomic Redis claims |

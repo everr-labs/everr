@@ -12,5 +12,4 @@ mod rules_suppressed_api;
 mod rules_update_api;
 mod rules_validation;
 mod silences_api;
-mod sse_suppressed_it;
 mod subscriptions_api;

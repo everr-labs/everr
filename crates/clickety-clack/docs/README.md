@@ -72,6 +72,6 @@ firing/resolved **events** onto a second Redis stream (transactionally, via an
 outbox). A **dispatcher** consumes events, applies silences and inhibitions,
 routes each event to receivers, groups and deduplicates them, and delivers
 notifications with bounded retry and a dead-letter stream. An **api** role
-exposes the management HTTP API and a Server-Sent-Events firehose. All four roles
-are the same binary, selected by `CC_ROLE`; run them together (`all`) for
-development or separately for production scale.
+exposes the management HTTP API. All four roles are the same binary, selected
+by `CC_ROLE`; run them together (`all`) for development or separately for
+production scale.

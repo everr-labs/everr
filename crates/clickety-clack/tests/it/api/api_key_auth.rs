@@ -4,7 +4,6 @@ use cc::api::auth::{ApiKeySet, HeaderAuth};
 use cc::api::{build_router, build_router_with_auth, AppState};
 use cc::clickhouse::ChClient;
 use cc::crypto::EnvKeyring;
-use cc::domain::Event;
 use cc::stores::PgStore;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -14,7 +13,6 @@ use uuid::Uuid;
 async fn state() -> AppState {
     let pg_url = crate::support::fresh_db().await;
     let store = PgStore::connect(&pg_url).await.unwrap();
-    let (events_tx, _rx) = tokio::sync::broadcast::channel::<Event>(16);
     AppState {
         store,
         ch: ChClient::new(
@@ -29,7 +27,6 @@ async fn state() -> AppState {
             )
             .unwrap(),
         ),
-        events_tx,
         allow_private_webhooks: false,
     }
 }
@@ -66,17 +63,10 @@ async fn no_keys_configured_leaves_the_api_open() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     assert_eq!(body_json(resp).await, serde_json::json!([]));
-
-    // SSE stream is open too.
-    let resp = app
-        .oneshot(req("/v1/events/stream", tenant, None))
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
 }
 
 #[tokio::test]
-async fn configured_keys_gate_v1_including_sse() {
+async fn configured_keys_gate_v1() {
     let keys = ApiKeySet::from_env_value(Some("key-current,key-next"));
     let app = build_router_with_auth(state().await, keys);
     let tenant = Uuid::new_v4();
@@ -133,24 +123,6 @@ async fn configured_keys_gate_v1_including_sse() {
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
-
-    // SSE stream: gated without a key, streams with one.
-    let resp = app
-        .clone()
-        .oneshot(req("/v1/events/stream", tenant, None))
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
-    let resp = app
-        .clone()
-        .oneshot(req("/v1/events/stream", tenant, Some("key-current")))
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    assert_eq!(
-        resp.headers()["content-type"].to_str().unwrap(),
-        "text/event-stream"
-    );
 
     // Health endpoints never require a key.
     for path in ["/healthz", "/readyz"] {

@@ -2,7 +2,7 @@ use cc::domain::event::{Event, EventStatus};
 use cc::domain::ids::{InstanceKey, RuleId, TenantId};
 use cc::domain::rule::Severity;
 use cc::queue::event_bus::RedisEventBus;
-use cc::queue::{EventBus, TailCursor};
+use cc::queue::EventBus;
 use std::collections::BTreeMap;
 use testcontainers_modules::redis::Redis;
 use testcontainers_modules::testcontainers::runners::AsyncRunner;
@@ -28,7 +28,7 @@ fn ev() -> Event {
 }
 
 #[tokio::test]
-async fn publish_consume_ack_and_tail() {
+async fn publish_consume_ack() {
     let node = Redis::default().start().await.unwrap();
     let port = node.get_host_port_ipv4(6379).await.unwrap();
     let url = format!("redis://127.0.0.1:{port}");
@@ -42,34 +42,6 @@ async fn publish_consume_ack_and_tail() {
     bus.ack(&got[0].id).await.unwrap();
 
     bus.dead_letter(&ev(), "boom").await.unwrap();
-}
-
-#[tokio::test]
-async fn tail_reads_only_new_after_cursor() {
-    let node = Redis::default().start().await.unwrap();
-    let port = node.get_host_port_ipv4(6379).await.unwrap();
-    let url = format!("redis://127.0.0.1:{port}");
-    let bus = RedisEventBus::connect(&url).await.unwrap();
-
-    // Publish shortly AFTER the blocking tail begins, so "$" (only-new-from-now)
-    // catches it. This mirrors how the SSE pump tails a live stream.
-    let bus2 = RedisEventBus::connect(&url).await.unwrap();
-    tokio::spawn(async move {
-        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-        bus2.publish(&ev()).await.unwrap();
-    });
-
-    let entries = bus.tail(&TailCursor::Live, 10, 1500).await.unwrap();
-    assert_eq!(
-        entries.len(),
-        1,
-        "tail(Live) must catch the event published during the block"
-    );
-    let cursor = TailCursor::After(entries.last().unwrap().id.clone());
-
-    // No further publishes -> tail from the cursor returns empty within the window.
-    let none = bus.tail(&cursor, 10, 300).await.unwrap();
-    assert!(none.is_empty());
 }
 
 #[tokio::test]

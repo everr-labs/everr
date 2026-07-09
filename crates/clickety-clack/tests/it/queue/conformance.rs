@@ -3,7 +3,7 @@ use cc::domain::ids::{InstanceKey, RuleId, TenantId};
 use cc::domain::rule::Severity;
 use cc::queue::event_bus::RedisEventBus;
 use cc::queue::redis_streams::RedisQueue;
-use cc::queue::{EvalJob, EventBus, Queue, TailCursor};
+use cc::queue::{EvalJob, EventBus, Queue};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use testcontainers_modules::redis::Redis;
@@ -62,25 +62,6 @@ async fn eventbus_consume_ack(bus: Arc<dyn EventBus>) {
     );
 }
 
-async fn eventbus_tail_fanout(bus: Arc<dyn EventBus>, bus2: Arc<dyn EventBus>) {
-    tokio::spawn(async move {
-        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-        bus2.publish(&ev()).await.unwrap();
-    });
-    let entries = bus.tail(&TailCursor::Live, 10, 1500).await.unwrap();
-    assert_eq!(
-        entries.len(),
-        1,
-        "tail(Live) must see events published after it starts"
-    );
-    let cursor = TailCursor::After(entries.last().unwrap().id.clone());
-    let none = bus.tail(&cursor, 10, 300).await.unwrap();
-    assert!(
-        none.is_empty(),
-        "tail(After) resumes strictly after the cursor"
-    );
-}
-
 async fn eventbus_dead_letter(bus: Arc<dyn EventBus>) {
     bus.dead_letter(&ev(), "boom").await.unwrap();
 }
@@ -106,7 +87,5 @@ async fn redis_event_bus_conforms() {
     let (url, _node) = redis_url().await;
     let bus: Arc<dyn EventBus> = Arc::new(RedisEventBus::connect(&url).await.unwrap());
     eventbus_consume_ack(bus.clone()).await;
-    let bus2: Arc<dyn EventBus> = Arc::new(RedisEventBus::connect(&url).await.unwrap());
-    eventbus_tail_fanout(bus.clone(), bus2).await;
     eventbus_dead_letter(bus).await;
 }

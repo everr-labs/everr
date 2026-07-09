@@ -17,7 +17,7 @@ and fail without taking the others down.
  (Postgres) └───────────┘                   └────────────┘
                                                   │ publishes (via outbox)
                                                   ▼  cc:events (stream)
-   SSE clients ◀── api (SSE pump) ◀──────── ┌────────────┐
+                                            ┌────────────┐
                                             │ dispatcher │──▶ Slack / email /
                                             └────────────┘     PagerDuty / webhook
                                               silence · inhibit · route · group · dedup
@@ -57,9 +57,7 @@ Consumes events and runs the [delivery pipeline](dispatch-pipeline.md): silence 
 inhibition → routing → grouping → dedup → delivery, with retry and dead-lettering.
 
 ### api
-Serves the management HTTP API and an SSE event firehose. The SSE pump tails
-`cc:events` and rebroadcasts locally, so any api replica can serve any client's
-stream regardless of which evaluator produced the event.
+Serves the management HTTP API. Stateless: any replica can serve any request.
 
 ## Storage roles
 
@@ -136,8 +134,8 @@ What ops should alert on:
 
 - **No metrics endpoint** — observability is via the datastores (see
   [operate at scale](../how-to/operate-at-scale.md#what-to-monitor)).
-- **No Kafka** — but the queue layer is abstracted (opaque ids, a typed tail
-  cursor, a backend-contract test) so a Kafka backend can replace Redis Streams
+- **No Kafka** — but the queue layer is abstracted (opaque ids, a
+  backend-contract test) so a Kafka backend can replace Redis Streams
   without touching the roles.
 - **No cache-invalidation pub/sub** — silence/inhibition/routing changes propagate
   via short TTL caches (~2s) rather than push invalidation.

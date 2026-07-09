@@ -11,7 +11,7 @@ use cc::domain::rule::{RuleSpec, Severity};
 use cc::domain::Event;
 use cc::evaluator::process_batch;
 use cc::queue::redis_streams::RedisQueue;
-use cc::queue::{EvalJob, EventBus, EventEntry, EventId, Queue, QueueError, TailCursor};
+use cc::queue::{EvalJob, EventBus, EventEntry, EventId, Queue, QueueError};
 use cc::stores::PgStore;
 use std::collections::BTreeMap;
 use std::sync::Mutex;
@@ -72,14 +72,6 @@ impl EventBus for RecordingBus {
     }
     async fn ack(&self, _id: &EventId) -> Result<(), QueueError> {
         Ok(())
-    }
-    async fn tail(
-        &self,
-        _cursor: &TailCursor,
-        _n: usize,
-        _b: usize,
-    ) -> Result<Vec<EventEntry>, QueueError> {
-        Ok(vec![])
     }
     async fn dead_letter(&self, _ev: &Event, _reason: &str) -> Result<(), QueueError> {
         Ok(())

@@ -35,7 +35,7 @@ impl std::fmt::Display for JobId {
     }
 }
 
-/// Opaque transport id for a consumed/tailed stream event. Same sealing rationale as
+/// Opaque transport id for a consumed stream event. Same sealing rationale as
 /// [`JobId`].
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct EventId(pub(crate) String);
@@ -47,7 +47,7 @@ impl EventId {
     /// Construct an `EventId` from a raw backend id. Hidden from the public surface; it
     /// exists so out-of-crate tests (e.g. `cc-events`' fake bus) can fabricate entries
     /// without a live Redis stream. Production code never needs it — ids come from the
-    /// backend via `consume`/`tail`.
+    /// backend via `consume`.
     #[doc(hidden)]
     pub fn from_raw(id: impl Into<String>) -> Self {
         EventId(id.into())
@@ -58,14 +58,6 @@ impl std::fmt::Display for EventId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&self.0)
     }
-}
-
-/// Where a fan-out tail starts. Backend-agnostic: `Live` = the current tail (Redis `"$"`,
-/// Kafka latest offset); `After(id)` resumes strictly after a previously-seen position.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TailCursor {
-    Live,
-    After(EventId),
 }
 
 /// One evaluation job: evaluate `rule` as-of `eval_ts`.
@@ -105,7 +97,7 @@ pub trait Queue: Send + Sync {
     async fn ack(&self, id: &JobId) -> Result<(), QueueError>;
 }
 
-/// One event read from the event stream (consume-group or tail).
+/// One event read from the event stream.
 #[derive(Debug, Clone, PartialEq)]
 pub struct EventEntry {
     pub id: EventId,
@@ -113,13 +105,11 @@ pub struct EventEntry {
 }
 
 /// Transport for firing/resolved events: evaluator publishes, dispatcher consumes
-/// (shared group), api tails (fan-out) for SSE. Redis Streams now, Kafka later.
+/// (shared group). Redis Streams now, Kafka later.
 ///
 /// # Backend contract
-/// `consume` is an at-least-once shared-group read acked by `ack(id)`. `tail` is a
-/// group-less fan-out: every caller sees every event, `Live` starts at the current tail
-/// and `After(id)` resumes strictly after a prior position. `dead_letter` records a
-/// permanently-undeliverable event out-of-band. See `tests/conformance.rs`.
+/// `consume` is an at-least-once shared-group read acked by `ack(id)`. `dead_letter`
+/// records a permanently-undeliverable event out-of-band. See `tests/conformance.rs`.
 #[async_trait]
 pub trait EventBus: Send + Sync {
     /// Publish one event to the stream.
@@ -158,16 +148,6 @@ pub trait EventBus: Send + Sync {
     async fn ack_logexport(&self, _id: &EventId) -> Result<(), QueueError> {
         Ok(())
     }
-    /// Fan-out tail for SSE: read entries strictly after `cursor` (`TailCursor::Live`
-    /// starts at the live tail). Returns entries in order; the caller advances its own
-    /// cursor with `TailCursor::After(last_returned_id)`. No consumer group — every caller
-    /// sees every event.
-    async fn tail(
-        &self,
-        cursor: &TailCursor,
-        count: usize,
-        block_ms: usize,
-    ) -> Result<Vec<EventEntry>, QueueError>;
     /// Record a permanently-undeliverable event on the dead-letter stream.
     async fn dead_letter(&self, ev: &Event, reason: &str) -> Result<(), QueueError>;
 }

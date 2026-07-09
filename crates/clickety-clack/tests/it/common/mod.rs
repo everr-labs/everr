@@ -16,7 +16,7 @@ use cc::domain::receiver::ChannelConfig;
 use cc::domain::routing::{MatchOp, Matcher};
 use cc::domain::rule::Severity;
 use cc::domain::{Event, EventKind, EventStatus};
-use cc::queue::{EventBus, EventEntry, EventId, QueueError, TailCursor};
+use cc::queue::{EventBus, EventEntry, EventId, QueueError};
 use cc::stores::PgStore;
 use testcontainers_modules::postgres::Postgres;
 use testcontainers_modules::redis::Redis;
@@ -407,14 +407,6 @@ impl EventBus for NoopBus {
     }
     async fn ack(&self, _id: &EventId) -> Result<(), QueueError> {
         Ok(())
-    }
-    async fn tail(
-        &self,
-        _cursor: &TailCursor,
-        _count: usize,
-        _block_ms: usize,
-    ) -> Result<Vec<EventEntry>, QueueError> {
-        Ok(Vec::new())
     }
     async fn dead_letter(&self, _ev: &Event, _reason: &str) -> Result<(), QueueError> {
         Ok(())
