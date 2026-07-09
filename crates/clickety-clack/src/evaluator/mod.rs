@@ -375,7 +375,7 @@ pub async fn process_batch_inner(
 /// publishes each transition. Identical to the prior logic except rows are supplied.
 ///
 /// `#[tracing::instrument]` produces the eval-latency span the engine OTLP exporter ships.
-#[tracing::instrument(skip_all, fields(rule = %job.rule.0, rows = rows.len()))]
+#[tracing::instrument(skip_all, fields(rule = %job.rule.0, tenant = %job.tenant, rows = rows.len()))]
 async fn evaluate_rule_against_rows(
     store: &PgStore,
     events: &dyn EventBus,

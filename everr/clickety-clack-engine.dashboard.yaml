@@ -237,6 +237,7 @@ spec:
                 spec:
                   query: |
                     SELECT SpanAttributes['rule'] AS rule_id,
+                           SpanAttributes['tenant'] AS tenant,
                            count() AS evaluations,
                            round(quantile(0.95)(Duration) / 1e6, 2) AS p95_ms,
                            round(max(Duration) / 1e6, 2) AS max_ms,
@@ -245,7 +246,7 @@ spec:
                     WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
                       AND ServiceName LIKE 'clickety-clack%'
                       AND SpanName = 'evaluate_rule_against_rows'
-                    GROUP BY rule_id
+                    GROUP BY rule_id, tenant
                     ORDER BY p95_ms DESC
                     LIMIT 10
   layouts:
