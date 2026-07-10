@@ -19,7 +19,8 @@ export type ErrorIssuesSearchValue = {
   service: string[];
   fingerprint: string;
   sort: ErrorSort;
-  status: ErrorStatus[];
+  /** Absent on surfaces without triage capability (local/desktop for now). */
+  status?: ErrorStatus[];
   attributes: AttributeFilter[];
 };
 
@@ -30,12 +31,6 @@ export type ErrorIssuesProps = {
   search: ErrorIssuesSearchValue;
   environment?: string[];
   hideSharedFilters?: boolean;
-  /**
-   * The surface has triage capability (the repo derives Status): shows the
-   * status filter. Off for local/desktop until the Collector grows a
-   * counterpart events table.
-   */
-  triageEnabled?: boolean;
   onSearchChange: (patch: Partial<ErrorIssuesSearchValue>) => void;
   renderIssueLink: RenderErrorIssueLink;
 };
@@ -47,7 +42,6 @@ export function ErrorIssues({
   search,
   environment = [],
   hideSharedFilters = false,
-  triageEnabled = false,
   onSearchChange,
   renderIssueLink,
 }: ErrorIssuesProps) {
@@ -59,7 +53,7 @@ export function ErrorIssues({
       service: search.service,
       fingerprint: search.fingerprint,
       sort: search.sort,
-      status: triageEnabled ? search.status : [],
+      status: search.status ?? [],
       limit: PAGE_SIZE,
       attributes: withEnvironment(search.attributes, environment),
     }),
@@ -89,7 +83,7 @@ export function ErrorIssues({
             timeRange={timeRange}
             value={search}
             hideSharedFilters={hideSharedFilters}
-            showStatus={triageEnabled}
+            showStatus={repo.triageEvents}
             onChange={onSearchChange}
           />
           <main className="min-h-0 min-w-0">

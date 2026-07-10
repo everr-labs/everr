@@ -119,23 +119,19 @@ function DeleteEntryDialog({
 
 function TimelineEvent({
   event,
-  fingerprint,
   triage,
+  onChanged,
 }: {
   event: ErrorTriageEvent;
-  fingerprint: string;
   triage: ErrorTriageActions;
+  /** Called after a successful edit or delete so the owner can refetch. */
+  onChanged: () => void;
 }) {
   const [editing, setEditing] = useState(false);
-  const queryClient = useQueryClient();
-  const invalidate = () =>
-    queryClient.invalidateQueries({
-      queryKey: errorTriageEventsQueryKey(fingerprint),
-    });
 
   const deleteMutation = useMutation({
     mutationFn: () => triage.deleteInvestigation({ eventId: event.id }),
-    onSuccess: invalidate,
+    onSuccess: onChanged,
   });
 
   const own =
@@ -207,7 +203,7 @@ function TimelineEvent({
               }
               onSuccess={() => {
                 setEditing(false);
-                invalidate();
+                onChanged();
               }}
               onCancel={() => setEditing(false)}
             />
@@ -255,6 +251,10 @@ export function ErrorTimeline({
   const eventsQuery = useQuery(
     errorTriageEventsOptions(repo, { fingerprint, refresh }),
   );
+  const invalidate = () =>
+    queryClient.invalidateQueries({
+      queryKey: errorTriageEventsQueryKey(fingerprint),
+    });
 
   return (
     <section className="min-w-0 rounded-md border bg-background">
@@ -292,8 +292,8 @@ export function ErrorTimeline({
             <TimelineEvent
               key={event.id}
               event={event}
-              fingerprint={fingerprint}
               triage={triage}
+              onChanged={invalidate}
             />
           ))}
         </ol>
@@ -305,11 +305,7 @@ export function ErrorTimeline({
           submitLabel="Record Investigation"
           hint="Markdown supported."
           onSubmit={(body) => triage.createInvestigation({ fingerprint, body })}
-          onSuccess={() =>
-            queryClient.invalidateQueries({
-              queryKey: errorTriageEventsQueryKey(fingerprint),
-            })
-          }
+          onSuccess={invalidate}
         />
       </div>
     </section>

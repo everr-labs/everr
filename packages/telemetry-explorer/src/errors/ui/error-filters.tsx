@@ -30,7 +30,8 @@ export type ErrorFiltersValue = {
   service: string[];
   fingerprint: string;
   sort: ErrorSort;
-  status: ErrorStatus[];
+  /** Absent on surfaces without triage capability (no Status filter shown). */
+  status?: ErrorStatus[];
   attributes: AttributeFilter[];
 };
 
@@ -110,7 +111,7 @@ export function ErrorFilters({
   // there too: excluded from hasActiveFilters and left untouched by onClear.
   const hasActiveFilters =
     (!hideSharedFilters && value.service.length > 0) ||
-    (showStatus && value.status.length > 0) ||
+    (showStatus && (value.status?.length ?? 0) > 0) ||
     value.attributes.length > 0;
 
   return (
@@ -166,7 +167,7 @@ export function ErrorFilters({
             </Label>
             <ToggleGroup
               multiple
-              value={value.status}
+              value={value.status ?? []}
               size="lg"
               variant="outline"
               spacing={0}

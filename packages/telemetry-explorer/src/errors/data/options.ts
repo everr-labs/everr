@@ -9,6 +9,11 @@ import type { AttributeFilter } from "../../attribute-filter/schemas";
 import type { ErrorsRepositoryLike } from "./repository";
 import type { ErrorIssuesResult, ErrorSort, ErrorStatus } from "./types";
 
+// Every errors-domain query key starts with this prefix; invalidating it
+// refreshes the list, the detail summary, and the timeline together after a
+// triage write.
+export const ERRORS_QUERY_KEY_PREFIX = ["errors"] as const;
+
 export type ErrorIssuesInfiniteInput = {
   timeRange: TimeRange;
   refresh: string;
@@ -28,7 +33,7 @@ export function errorIssuesInfiniteOptions(
   const refreshMs = getRefreshIntervalMs(input.refresh);
   return infiniteQueryOptions({
     queryKey: [
-      "errors",
+      ...ERRORS_QUERY_KEY_PREFIX,
       "issues",
       "infinite",
       {
@@ -88,7 +93,7 @@ export function errorIssueOptions(
   const refreshMs = getRefreshIntervalMs(input.refresh);
   return queryOptions({
     queryKey: [
-      "errors",
+      ...ERRORS_QUERY_KEY_PREFIX,
       "issue",
       input.fingerprint,
       input.timeRange,
@@ -114,7 +119,7 @@ const TRIAGE_EVENTS_LIMIT = 500;
 
 // Shared with the investigation form, which invalidates this key on write.
 export function errorTriageEventsQueryKey(fingerprint: string) {
-  return ["errors", "triage-events", fingerprint] as const;
+  return [...ERRORS_QUERY_KEY_PREFIX, "triage-events", fingerprint] as const;
 }
 
 export function errorTriageEventsOptions(
@@ -145,7 +150,7 @@ export function errorServicesOptions(
   const refreshMs = getRefreshIntervalMs(input.refresh);
   return queryOptions({
     queryKey: [
-      "errors",
+      ...ERRORS_QUERY_KEY_PREFIX,
       "services",
       input.timeRange,
       input.attributes,

@@ -315,6 +315,8 @@ describe("ErrorsRepository.getIssue", () => {
 
     const [summarySql] = execute.mock.calls[0] ?? [];
     expect(summarySql).toContain("FROM error_triage_events");
+    // The detail load prunes the triage scan to the one fingerprint.
+    expect(summarySql).toContain("AND fingerprint = {fingerprint:String}");
     expect(detail.summary.status).toBe("ignored");
   });
 });

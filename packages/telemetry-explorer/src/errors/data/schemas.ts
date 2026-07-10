@@ -5,6 +5,7 @@ import {
   attributesField,
   attributeValuesInputSchema,
 } from "../../attribute-filter/schemas";
+import { ERROR_STATUS_EVENT_TYPES, ERROR_STATUSES } from "./types";
 
 export type {
   AttributeFilter,
@@ -35,7 +36,7 @@ export const TimeRangeSearchSchema = z.object({
 
 export const ErrorSortSchema = z.enum(["lastSeen", "count"]);
 
-export const ErrorStatusSchema = z.enum(["open", "resolved", "ignored"]);
+export const ErrorStatusSchema = z.enum(ERROR_STATUSES);
 
 // Issues fetched per infinite-scroll page.
 export const PAGE_SIZE = 50;
@@ -135,7 +136,7 @@ export type DeleteErrorInvestigationInput = z.infer<
 export const CreateErrorStatusEventInputSchema = z
   .object({
     fingerprint: z.string().min(1).max(200),
-    type: z.enum(["resolved", "ignored", "reopened"]),
+    type: z.enum(ERROR_STATUS_EVENT_TYPES),
     body: z
       .string()
       .trim()

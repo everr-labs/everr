@@ -119,7 +119,11 @@ export interface ErrorsRepositoryOptions {
 
 export class ErrorsRepository {
   private readonly tableName: string;
-  private readonly triageEvents: boolean;
+  /**
+   * Public: the capability travels with the repository, so UI surfaces show
+   * status affordances exactly when the summaries they render carry Status.
+   */
+  readonly triageEvents: boolean;
 
   constructor(
     private readonly client: SqlClient,
@@ -230,6 +234,7 @@ export class ErrorsRepository {
 
 export type ErrorsRepositoryLike = Pick<
   ErrorsRepository,
+  | "triageEvents"
   | "searchIssues"
   | "getIssue"
   | "listTriageEvents"

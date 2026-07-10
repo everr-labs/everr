@@ -18,6 +18,9 @@ import {
 } from "./server";
 
 export const remoteErrorsRepo: ErrorsRepositoryLike = {
+  // Mirrors the server-side repository construction: the cloud has the triage
+  // events table, so summaries carry derived Status.
+  triageEvents: true,
   searchIssues: (input: SearchErrorIssuesInput) =>
     searchErrorIssues({ data: input }),
   getIssue: (input: GetErrorIssueInput) => getErrorIssue({ data: input }),

@@ -61,7 +61,9 @@ export const listErrorTriageEvents = createAuthenticatedServerFn({
 // it can show as-is. The author-only not-found error passes through.
 async function sanitizeWriteFailure<T>(
   action: string,
-  fingerprintOrEventId: string,
+  ref:
+    | { "everr.error.fingerprint": string }
+    | { "everr.error.event_id": string },
   write: () => Promise<T>,
   clientMessage = "Failed to save the Investigation. Try again.",
 ): Promise<T> {
@@ -73,7 +75,7 @@ async function sanitizeWriteFailure<T>(
     }
     serverLogger.error(`errors.${action}_failed`, {
       ...exceptionAttributes(error),
-      "everr.error.ref": fingerprintOrEventId,
+      ...ref,
       "error.handled": true,
     });
     throw new Error(clientMessage);
@@ -87,13 +89,16 @@ export const createErrorInvestigation = createAuthenticatedServerFn({
 })
   .inputValidator(CreateErrorInvestigationInputSchema)
   .handler(({ data, context: { session } }) =>
-    sanitizeWriteFailure("investigation.create", data.fingerprint, () =>
-      createInvestigation({
-        tenantId: session.session.activeOrganizationId,
-        fingerprint: data.fingerprint,
-        body: data.body,
-        authorId: session.user.id,
-      }),
+    sanitizeWriteFailure(
+      "investigation.create",
+      { "everr.error.fingerprint": data.fingerprint },
+      () =>
+        createInvestigation({
+          tenantId: session.session.activeOrganizationId,
+          fingerprint: data.fingerprint,
+          body: data.body,
+          authorId: session.user.id,
+        }),
     ),
   );
 
@@ -102,14 +107,17 @@ export const updateErrorInvestigation = createAuthenticatedServerFn({
 })
   .inputValidator(UpdateErrorInvestigationInputSchema)
   .handler(({ data, context: { session, clickhouse } }) =>
-    sanitizeWriteFailure("investigation.update", data.eventId, () =>
-      editInvestigation({
-        query: clickhouse.query,
-        tenantId: session.session.activeOrganizationId,
-        eventId: data.eventId,
-        authorId: session.user.id,
-        body: data.body,
-      }),
+    sanitizeWriteFailure(
+      "investigation.update",
+      { "everr.error.event_id": data.eventId },
+      () =>
+        editInvestigation({
+          query: clickhouse.query,
+          tenantId: session.session.activeOrganizationId,
+          eventId: data.eventId,
+          authorId: session.user.id,
+          body: data.body,
+        }),
     ),
   );
 
@@ -118,13 +126,16 @@ export const deleteErrorInvestigation = createAuthenticatedServerFn({
 })
   .inputValidator(DeleteErrorInvestigationInputSchema)
   .handler(({ data, context: { session, clickhouse } }) =>
-    sanitizeWriteFailure("investigation.delete", data.eventId, () =>
-      deleteInvestigation({
-        query: clickhouse.query,
-        tenantId: session.session.activeOrganizationId,
-        eventId: data.eventId,
-        authorId: session.user.id,
-      }),
+    sanitizeWriteFailure(
+      "investigation.delete",
+      { "everr.error.event_id": data.eventId },
+      () =>
+        deleteInvestigation({
+          query: clickhouse.query,
+          tenantId: session.session.activeOrganizationId,
+          eventId: data.eventId,
+          authorId: session.user.id,
+        }),
     ),
   );
 
@@ -135,7 +146,7 @@ export const createErrorStatusEvent = createAuthenticatedServerFn({
   .handler(({ data, context: { session } }) =>
     sanitizeWriteFailure(
       "status.create",
-      data.fingerprint,
+      { "everr.error.fingerprint": data.fingerprint },
       () =>
         createStatusEvent({
           tenantId: session.session.activeOrganizationId,

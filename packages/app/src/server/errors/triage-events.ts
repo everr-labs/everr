@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
-import type {
-  ErrorStatusEventType,
-  ErrorTriageEventType,
+import {
+  ERROR_TRIAGE_EVENTS_TABLE,
+  type ErrorStatusEventType,
+  type ErrorTriageEventType,
 } from "@everr/telemetry-explorer/errors";
 import type { ClickhouseQuery } from "@/lib/clickhouse";
 import { insertAdminRows } from "@/lib/clickhouse";
@@ -12,7 +13,9 @@ import { insertAdminRows } from "@/lib/clickhouse";
 // time, which is what keeps erasure cheap. event_time is reused verbatim
 // across versions: it is the timeline order key and it pins all versions of
 // an entry into the same partition so they can collapse.
-const ERROR_TRIAGE_EVENTS_TABLE = "app.error_triage_events";
+// Inserts run as the admin user outside the tenant-scoped session, so the
+// table name is database-qualified here.
+const QUALIFIED_EVENTS_TABLE = `app.${ERROR_TRIAGE_EVENTS_TABLE}`;
 
 // Uniform not-found error for missing, deleted, foreign-author, and
 // non-investigation entries alike, so the write surface leaks no existence
@@ -33,7 +36,7 @@ interface ErrorTriageEventRow {
 }
 
 function insertTriageEvents(rows: ErrorTriageEventRow[]): Promise<void> {
-  return insertAdminRows(ERROR_TRIAGE_EVENTS_TABLE, rows, {
+  return insertAdminRows(QUALIFIED_EVENTS_TABLE, rows, {
     date_time_input_format: "best_effort",
   });
 }
@@ -116,7 +119,7 @@ async function getLatestEntry(
         max(version) AS latestVersion,
         argMax(deleted, version) AS latestDeleted,
         toString(min(event_time)) AS createdAt
-      FROM error_triage_events
+      FROM ${ERROR_TRIAGE_EVENTS_TABLE}
       WHERE event_id = {eventId:UUID}
       GROUP BY event_id
     `,

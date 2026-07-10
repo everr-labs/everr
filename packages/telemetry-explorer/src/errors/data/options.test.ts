@@ -10,6 +10,7 @@ function makeRepo(
   overrides: Partial<ErrorsRepositoryLike> = {},
 ): ErrorsRepositoryLike {
   return {
+    triageEvents: false,
     searchIssues: vi.fn(async () => ({ issues: [] })),
     getIssue: vi.fn(async () => ({
       summary: {} as never,

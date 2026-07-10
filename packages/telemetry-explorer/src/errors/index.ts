@@ -7,6 +7,7 @@ export {
 } from "./data/repository";
 export * from "./data/schemas";
 export * from "./data/types";
+export { ERROR_TRIAGE_EVENTS_TABLE } from "./sql/table";
 export { ErrorDetail, type ErrorDetailProps } from "./ui/error-detail";
 export {
   ErrorIssues,

@@ -136,9 +136,7 @@ function ErrorsListView() {
           repo={localErrorsRepo}
           timeRange={timeRange}
           refresh={refresh ?? ""}
-          // status stays empty: local Errors carry no triage Status until the
-          // Collector grows a counterpart events table (ADR 0004).
-          search={{ q, service, fingerprint, sort, status: [], attributes }}
+          search={{ q, service, fingerprint, sort, attributes }}
           environment={environment}
           hideSharedFilters
           onSearchChange={(patch) =>

@@ -10,7 +10,6 @@ import { buttonVariants } from "@everr/ui/components/button";
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { useMemo } from "react";
 import { remoteErrorsRepo } from "@/data/errors/remote-repo";
 import {
   createErrorInvestigation,
@@ -40,23 +39,18 @@ export function ErrorDetailRouteContent({
 
   // The timeline renders once the session user is known; the server enforces
   // author-only writes regardless.
-  const triage = useMemo<ErrorTriageActions | undefined>(
-    () =>
-      currentUserId
-        ? {
-            currentUserId,
-            createInvestigation: (input) =>
-              createErrorInvestigation({ data: input }),
-            updateInvestigation: (input) =>
-              updateErrorInvestigation({ data: input }),
-            deleteInvestigation: (input) =>
-              deleteErrorInvestigation({ data: input }),
-            createStatusEvent: (input) =>
-              createErrorStatusEvent({ data: input }),
-          }
-        : undefined,
-    [currentUserId],
-  );
+  const triage: ErrorTriageActions | undefined = currentUserId
+    ? {
+        currentUserId,
+        createInvestigation: (input) =>
+          createErrorInvestigation({ data: input }),
+        updateInvestigation: (input) =>
+          updateErrorInvestigation({ data: input }),
+        deleteInvestigation: (input) =>
+          deleteErrorInvestigation({ data: input }),
+        createStatusEvent: (input) => createErrorStatusEvent({ data: input }),
+      }
+    : undefined;
 
   return (
     <ErrorDetail

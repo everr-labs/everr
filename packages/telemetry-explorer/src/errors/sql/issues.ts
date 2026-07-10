@@ -3,9 +3,10 @@ import type {
   GetErrorIssuesQueryInput,
   SearchErrorIssuesInput,
 } from "../data/schemas";
+import { ERROR_STATUS_EVENT_TYPES } from "../data/types";
 import { errorsAttributeColumn } from "./attribute-columns";
 import { ERROR_FINGERPRINT_SQL, EXCEPTION_LOG_FILTER_SQL } from "./fingerprint";
-import { validateTableName } from "./table";
+import { ERROR_TRIAGE_EVENTS_TABLE, validateTableName } from "./table";
 
 export type BuiltQuery = { sql: string; params: Record<string, unknown> };
 
@@ -96,9 +97,9 @@ const SUMMARY_COLUMNS_SQL = `
         argMax(SpanId, Timestamp) AS latestSpanId,
         argMax(toString(Timestamp), Timestamp) AS latestTimestamp`;
 
-// The triage table lives next to the logs table in the app database (ADR
-// 0004); unqualified so it resolves there, like the logs table name does.
-const ERROR_TRIAGE_EVENTS_TABLE = "error_triage_events";
+const STATUS_EVENT_TYPES_SQL = ERROR_STATUS_EVENT_TYPES.map(
+  (type) => `'${type}'`,
+).join(", ");
 
 export type SummaryQueryOptions = {
   /**
@@ -160,9 +161,11 @@ export function buildSummaryQuery(
   // latest surviving status event per fingerprint wins. Aliases deliberately
   // avoid source column names: ClickHouse resolves identifiers inside
   // aggregates to same-name SELECT aliases. Tenant scoping comes from the
-  // row-level policy on both tables. lastSeenAt is the newest Occurrence in
-  // the queried range; version-aware Regression replaces this plain
-  // timestamp comparison later.
+  // row-level policy on both tables; the fingerprint predicate additionally
+  // lets the (tenant, fingerprint, event_id) primary key prune the triage
+  // scan on detail-page loads. lastSeenAt is the newest Occurrence in the
+  // queried range; version-aware Regression replaces this plain timestamp
+  // comparison later.
   return {
     params,
     sql: `
@@ -181,7 +184,8 @@ export function buildSummaryQuery(
           argMax(deleted, version) AS entryDeleted,
           min(event_time) AS entryTime
         FROM ${ERROR_TRIAGE_EVENTS_TABLE}
-        WHERE event_type IN ('resolved', 'ignored', 'reopened')
+        WHERE event_type IN (${STATUS_EVENT_TYPES_SQL})
+          ${input.fingerprint ? "AND fingerprint = {fingerprint:String}" : ""}
         GROUP BY event_id
         HAVING entryDeleted = 0
       ),

@@ -10,6 +10,7 @@ import {
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { BellOff, CircleCheck, Loader2, RotateCcw } from "lucide-react";
 import { useState } from "react";
+import { ERRORS_QUERY_KEY_PREFIX } from "../data/options";
 import type { CreateErrorStatusEventInput } from "../data/schemas";
 import type { ErrorStatus, ErrorStatusEventType } from "../data/types";
 import { InvestigationComposer } from "./error-investigation-form";
@@ -32,9 +33,9 @@ export function ErrorStatusControls({
   const [resolveOpen, setResolveOpen] = useState(false);
   const queryClient = useQueryClient();
   // The status event changes the derived summary, the list row, and the
-  // timeline at once; the shared "errors" prefix covers all three.
+  // timeline at once; the shared prefix covers all three.
   const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: ["errors"] });
+    queryClient.invalidateQueries({ queryKey: ERRORS_QUERY_KEY_PREFIX });
   const statusMutation = useMutation({
     mutationFn: (input: CreateErrorStatusEventInput) =>
       triage.createStatusEvent(input),
