@@ -19,8 +19,13 @@ const QUALIFIED_EVENTS_TABLE = `app.${ERROR_TRIAGE_EVENTS_TABLE}`;
 
 // Uniform not-found error for missing, deleted, foreign-author, and
 // non-investigation entries alike, so the write surface leaks no existence
-// information across those cases.
-export const INVESTIGATION_NOT_FOUND = "Investigation not found";
+// information across those cases. A dedicated class marks it as safe to show
+// to the client verbatim.
+export class InvestigationNotFoundError extends Error {
+  constructor() {
+    super("Investigation not found");
+  }
+}
 
 interface ErrorTriageEventRow {
   tenant_id: string;
@@ -144,7 +149,7 @@ async function appendInvestigationVersion(input: {
     latest.eventType !== "investigation" ||
     latest.authorId !== input.authorId
   ) {
-    throw new Error(INVESTIGATION_NOT_FOUND);
+    throw new InvestigationNotFoundError();
   }
 
   await insertTriageEvents([

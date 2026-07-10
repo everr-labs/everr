@@ -18,7 +18,7 @@ import {
   createStatusEvent,
   deleteInvestigation,
   editInvestigation,
-  INVESTIGATION_NOT_FOUND,
+  InvestigationNotFoundError,
 } from "@/server/errors/triage-events";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 
@@ -70,7 +70,7 @@ async function sanitizeWriteFailure<T>(
   try {
     return await write();
   } catch (error) {
-    if (error instanceof Error && error.message === INVESTIGATION_NOT_FOUND) {
+    if (error instanceof InvestigationNotFoundError) {
       throw error;
     }
     serverLogger.error(`errors.${action}_failed`, {

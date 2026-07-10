@@ -33,6 +33,7 @@ import type {
 import type { ErrorTriageEvent, ErrorTriageEventType } from "../data/types";
 import { ErrorEventMarkdown } from "./error-event-markdown";
 import { InvestigationComposer } from "./error-investigation-form";
+import { ErrorWriteAlert } from "./error-write-alert";
 
 // The app supplies the write surface (server functions on the web). The
 // timeline renders only when provided: surfaces without triage capability
@@ -185,11 +186,12 @@ function TimelineEvent({
           </span>
         </div>
         {deleteMutation.isError ? (
-          <p role="alert" className="mt-1 text-xs text-destructive">
-            {deleteMutation.error instanceof Error
-              ? deleteMutation.error.message
-              : "Failed to delete the Investigation."}
-          </p>
+          <div className="mt-1">
+            <ErrorWriteAlert
+              error={deleteMutation.error}
+              fallback="Failed to delete the Investigation."
+            />
+          </div>
         ) : null}
         {editing ? (
           <div className="mt-1">

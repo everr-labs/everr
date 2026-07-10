@@ -1,4 +1,7 @@
-import { ErrorIssueSearchSchema } from "@everr/telemetry-explorer/errors";
+import {
+  ErrorIssueSearchSchema,
+  ErrorTriageSearchShape,
+} from "@everr/telemetry-explorer/errors";
 import { createFileRoute } from "@tanstack/react-router";
 import { DetailRouteDialog } from "@/components/detail-route-dialog";
 import { ErrorDetailRouteContent } from "../../-error-detail";
@@ -8,7 +11,8 @@ export const Route = createFileRoute(
 )({
   staticData: { breadcrumb: "Detail" },
   head: () => ({ meta: [{ title: "Everr - Error detail" }] }),
-  validateSearch: ErrorIssueSearchSchema,
+  // status is carried through so closing the modal keeps the list's filter.
+  validateSearch: ErrorIssueSearchSchema.extend(ErrorTriageSearchShape),
   component: ErrorDetailModalPage,
 });
 

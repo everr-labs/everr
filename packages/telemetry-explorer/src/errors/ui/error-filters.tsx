@@ -89,7 +89,6 @@ export function ErrorFilters({
   value,
   services = [],
   hideSharedFilters = false,
-  showStatus = false,
   onChange,
 }: {
   repo: ErrorsRepositoryLike;
@@ -97,12 +96,12 @@ export function ErrorFilters({
   value: ErrorFiltersValue;
   services?: string[];
   hideSharedFilters?: boolean;
-  /** Triage surfaces only; local/desktop Errors carry no Status yet. */
-  showStatus?: boolean;
   onChange: (patch: Partial<ErrorFiltersValue>) => void;
 }) {
   const orderLabelId = useId();
   const statusLabelId = useId();
+  // The Status filter exists exactly where the summaries carry Status.
+  const showStatus = repo.triageEvents;
 
   // "Clear all" resets active filters only. Sort is an ordering preference (it
   // always has a value), and q is owned by the separate search bar, so neither

@@ -1,6 +1,7 @@
 import {
   ErrorIssueSearchSchema,
   ErrorIssues,
+  ErrorTriageSearchShape,
 } from "@everr/telemetry-explorer/errors";
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import {
@@ -14,7 +15,10 @@ import { remoteErrorsRepo } from "@/data/errors/remote-repo";
 import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
 import { ExploreSearchShape } from "@/lib/explore-search";
 
-const RouteSearchSchema = ErrorIssueSearchSchema.extend(ExploreSearchShape);
+// The web errors surface has triage capability, so its search carries status.
+const RouteSearchSchema = ErrorIssueSearchSchema.extend(
+  ErrorTriageSearchShape,
+).extend(ExploreSearchShape);
 const defaultSearch = RouteSearchSchema.parse({});
 
 export const Route = createFileRoute(

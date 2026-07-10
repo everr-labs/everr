@@ -15,6 +15,7 @@ import type { CreateErrorStatusEventInput } from "../data/schemas";
 import type { ErrorStatus, ErrorStatusEventType } from "../data/types";
 import { InvestigationComposer } from "./error-investigation-form";
 import type { ErrorTriageActions } from "./error-timeline";
+import { ErrorWriteAlert } from "./error-write-alert";
 
 // Status transitions for the Error detail header. One rule decides what shows:
 // every status event type is offered except the one the Error is already in
@@ -133,11 +134,10 @@ export function ErrorStatusControls({
         ) : null}
       </div>
       {statusMutation.isError ? (
-        <p role="alert" className="text-xs text-destructive">
-          {statusMutation.error instanceof Error
-            ? statusMutation.error.message
-            : "Failed to save the status change."}
-        </p>
+        <ErrorWriteAlert
+          error={statusMutation.error}
+          fallback="Failed to save the status change."
+        />
       ) : null}
     </div>
   );

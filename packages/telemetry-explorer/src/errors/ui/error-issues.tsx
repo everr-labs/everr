@@ -83,7 +83,6 @@ export function ErrorIssues({
             timeRange={timeRange}
             value={search}
             hideSharedFilters={hideSharedFilters}
-            showStatus={repo.triageEvents}
             onChange={onSearchChange}
           />
           <main className="min-h-0 min-w-0">

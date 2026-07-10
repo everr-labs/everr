@@ -37,13 +37,11 @@ import { localSqlClient } from "../logs/local-sql-client";
 export { ErrorIssueSearchSchema };
 
 // service/environment live in the shared Explore topbar but must also be in the
-// route schema so the leaf route's validateSearch doesn't strip them.
-// status is omitted: local Errors carry no triage Status until the Collector
-// grows a counterpart events table (ADR 0004), and the desktop traces route
-// owns an incompatible status param that strict:false searches would merge.
-export const ErrorsListSearchSchema = ErrorIssueSearchSchema.omit({
-  status: true,
-}).extend(ExploreSearchShape);
+// route schema so the leaf route's validateSearch doesn't strip them. The
+// triage status shape is not added: local Errors carry no triage Status until
+// the Collector grows a counterpart events table (ADR 0004).
+export const ErrorsListSearchSchema =
+  ErrorIssueSearchSchema.extend(ExploreSearchShape);
 
 const localErrorsRepo = new ErrorsRepository(localSqlClient);
 const localTracesRepo = new TracesRepository(localSqlClient);

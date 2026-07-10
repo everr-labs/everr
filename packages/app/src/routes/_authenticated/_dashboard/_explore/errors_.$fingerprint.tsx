@@ -1,4 +1,7 @@
-import { ErrorIssueSearchSchema } from "@everr/telemetry-explorer/errors";
+import {
+  ErrorIssueSearchSchema,
+  ErrorTriageSearchShape,
+} from "@everr/telemetry-explorer/errors";
 import { createFileRoute } from "@tanstack/react-router";
 import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
 import { ErrorDetailRouteContent } from "./-error-detail";
@@ -8,7 +11,8 @@ export const Route = createFileRoute(
 )({
   staticData: { breadcrumb: "Detail", hideExploreBar: true },
   head: () => ({ meta: [{ title: "Everr - Error detail" }] }),
-  validateSearch: ErrorIssueSearchSchema,
+  // status is carried through so returning to the list keeps its filter.
+  validateSearch: ErrorIssueSearchSchema.extend(ErrorTriageSearchShape),
   component: ErrorDetailPage,
 });
 

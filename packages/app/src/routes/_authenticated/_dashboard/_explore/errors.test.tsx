@@ -1,6 +1,7 @@
 import {
   ErrorIssueSearchSchema,
   type ErrorIssuesProps,
+  ErrorTriageSearchShape,
 } from "@everr/telemetry-explorer/errors";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -132,7 +133,12 @@ describe("/errors route", () => {
       path: "errors",
       validateSearch: ErrorsFileRoute.options.validateSearch,
       search: {
-        middlewares: [stripSearchParams(ErrorIssueSearchSchema.parse({}))],
+        middlewares: [
+          // Mirrors the route's schema: base search plus the triage shape.
+          stripSearchParams(
+            ErrorIssueSearchSchema.extend(ErrorTriageSearchShape).parse({}),
+          ),
+        ],
       },
       component: ErrorsFileRoute.options.component,
     });

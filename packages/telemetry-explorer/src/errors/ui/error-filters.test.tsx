@@ -15,9 +15,12 @@ function renderWithQueryClient(children: ReactNode) {
 }
 
 const repo = {
+  triageEvents: false,
   attributeKeys: vi.fn().mockResolvedValue([]),
   attributeValues: vi.fn().mockResolvedValue([]),
 } as unknown as ErrorsRepositoryLike;
+
+const triageRepo = { ...repo, triageEvents: true } as ErrorsRepositoryLike;
 
 const baseValue = {
   q: "",
@@ -131,7 +134,7 @@ describe("ErrorFilters", () => {
     expect(patch).toEqual({ attributes: [] });
   });
 
-  it("shows the Status filter only on triage surfaces and emits selections", () => {
+  it("shows the Status filter only when the repo has triage capability", () => {
     const onChange = vi.fn();
     const { rerender } = renderWithQueryClient(
       <ErrorFilters
@@ -152,9 +155,8 @@ describe("ErrorFilters", () => {
         }
       >
         <ErrorFilters
-          repo={repo}
+          repo={triageRepo}
           timeRange={{ from: "now-1h", to: "now" }}
-          showStatus
           value={baseValue}
           services={[]}
           onChange={onChange}
@@ -169,10 +171,9 @@ describe("ErrorFilters", () => {
     const onChange = vi.fn();
     renderWithQueryClient(
       <ErrorFilters
-        repo={repo}
+        repo={triageRepo}
         timeRange={{ from: "now-1h", to: "now" }}
         hideSharedFilters
-        showStatus
         value={{ ...baseValue, status: ["open"] }}
         services={[]}
         onChange={onChange}

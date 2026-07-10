@@ -47,12 +47,17 @@ export const ErrorIssueSearchSchema = TimeRangeSearchSchema.extend({
   fingerprint: searchString,
   occurrence: searchString,
   sort: ErrorSortSchema.default("lastSeen").catch("lastSeen"),
-  // Empty means all statuses: the list is purely additive over pre-triage
-  // behavior by default.
-  status: z.array(ErrorStatusSchema).catch([]).default([]),
   attributes: attributesField(["resource", "log", "scope"]).catch([]),
 });
 export type ErrorIssueSearch = z.infer<typeof ErrorIssueSearchSchema>;
+
+// Opt-in extension for surfaces with triage capability, mirroring the
+// repository's triageEvents option: routes on triage surfaces extend their
+// search schema with this; others never see a status param. Empty means all
+// statuses, so the list is purely additive over pre-triage behavior.
+export const ErrorTriageSearchShape = {
+  status: z.array(ErrorStatusSchema).catch([]).default([]),
+};
 
 export const SearchErrorIssuesInputSchema = z.object({
   fromTs: z.string().min(1),

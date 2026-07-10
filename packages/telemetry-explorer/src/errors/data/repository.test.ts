@@ -30,25 +30,45 @@ const baseSearchInput = {
   attributes: [],
 };
 
+function makeSummaryRow(overrides: Record<string, unknown> = {}) {
+  return {
+    fingerprint: "fp-1",
+    exceptionType: "TypeError",
+    exceptionMessage: "boom",
+    body: "boom",
+    latestServiceName: "web",
+    services: ["web"],
+    occurrenceCount: "3",
+    traceCount: "2",
+    firstSeen: "2026-05-26 10:00:00.000000000",
+    lastSeen: "2026-05-26 10:05:00.000000000",
+    latestTraceId: "trace-1",
+    latestSpanId: "span-1",
+    latestTimestamp: "2026-05-26 10:05:00.000000000",
+    ...overrides,
+  };
+}
+
+function makeOccurrenceRow() {
+  return {
+    fingerprint: "fp-1",
+    timestamp: "2026-05-26 10:05:00.000000000",
+    serviceName: "web",
+    traceId: "trace-1",
+    spanId: "span-1",
+    body: "boom",
+    exceptionType: "TypeError",
+    exceptionMessage: "boom",
+    exceptionStacktrace: "at x",
+    resourceAttributes: null,
+    logAttributes: null,
+    scopeAttributes: null,
+  };
+}
+
 describe("ErrorsRepository.searchIssues", () => {
   it("groups exception logs by fingerprint with paging and a stable order", async () => {
-    execute.mockResolvedValueOnce([
-      {
-        fingerprint: "fp-1",
-        exceptionType: "TypeError",
-        exceptionMessage: "boom",
-        body: "boom",
-        latestServiceName: "web",
-        services: ["web"],
-        occurrenceCount: "3",
-        traceCount: "2",
-        firstSeen: "2026-05-26 10:00:00.000000000",
-        lastSeen: "2026-05-26 10:05:00.000000000",
-        latestTraceId: "trace-1",
-        latestSpanId: "span-1",
-        latestTimestamp: "2026-05-26 10:05:00.000000000",
-      },
-    ]);
+    execute.mockResolvedValueOnce([makeSummaryRow()]);
 
     const result = await makeRepo().searchIssues({
       ...baseSearchInput,
@@ -115,24 +135,7 @@ describe("ErrorsRepository.searchIssues", () => {
 
 describe("ErrorsRepository.searchIssues with triage events", () => {
   it("derives status from the latest status event, ignored sticky", async () => {
-    execute.mockResolvedValueOnce([
-      {
-        fingerprint: "fp-1",
-        exceptionType: "TypeError",
-        exceptionMessage: "boom",
-        body: "boom",
-        latestServiceName: "web",
-        services: ["web"],
-        occurrenceCount: "3",
-        traceCount: "2",
-        firstSeen: "2026-05-26 10:00:00.000000000",
-        lastSeen: "2026-05-26 10:05:00.000000000",
-        latestTraceId: "trace-1",
-        latestSpanId: "span-1",
-        latestTimestamp: "2026-05-26 10:05:00.000000000",
-        status: "resolved",
-      },
-    ]);
+    execute.mockResolvedValueOnce([makeSummaryRow({ status: "resolved" })]);
 
     const result = await makeTriageRepo().searchIssues(baseSearchInput);
 
@@ -192,24 +195,7 @@ describe("ErrorsRepository.searchIssues with triage events", () => {
   });
 
   it("drops an unknown forward status value instead of breaking the row", async () => {
-    execute.mockResolvedValueOnce([
-      {
-        fingerprint: "fp-1",
-        exceptionType: "TypeError",
-        exceptionMessage: "boom",
-        body: "boom",
-        latestServiceName: "web",
-        services: ["web"],
-        occurrenceCount: "1",
-        traceCount: "1",
-        firstSeen: "2026-05-26 10:00:00.000000000",
-        lastSeen: "2026-05-26 10:05:00.000000000",
-        latestTraceId: "trace-1",
-        latestSpanId: "span-1",
-        latestTimestamp: "2026-05-26 10:05:00.000000000",
-        status: "acknowledged",
-      },
-    ]);
+    execute.mockResolvedValueOnce([makeSummaryRow({ status: "acknowledged" })]);
 
     const result = await makeTriageRepo().searchIssues(baseSearchInput);
     expect(result.issues[0]?.status).toBeUndefined();
@@ -220,39 +206,8 @@ describe("ErrorsRepository.searchIssues with triage events", () => {
 describe("ErrorsRepository.getIssue", () => {
   it("runs a summary then an occurrences query and returns the detail", async () => {
     execute
-      .mockResolvedValueOnce([
-        {
-          fingerprint: "fp-1",
-          exceptionType: "TypeError",
-          exceptionMessage: "boom",
-          body: "boom",
-          latestServiceName: "web",
-          services: ["web"],
-          occurrenceCount: "3",
-          traceCount: "2",
-          firstSeen: "2026-05-26 10:00:00.000000000",
-          lastSeen: "2026-05-26 10:05:00.000000000",
-          latestTraceId: "trace-1",
-          latestSpanId: "span-1",
-          latestTimestamp: "2026-05-26 10:05:00.000000000",
-        },
-      ])
-      .mockResolvedValueOnce([
-        {
-          fingerprint: "fp-1",
-          timestamp: "2026-05-26 10:05:00.000000000",
-          serviceName: "web",
-          traceId: "trace-1",
-          spanId: "span-1",
-          body: "boom",
-          exceptionType: "TypeError",
-          exceptionMessage: "boom",
-          exceptionStacktrace: "at x",
-          resourceAttributes: null,
-          logAttributes: null,
-          scopeAttributes: null,
-        },
-      ]);
+      .mockResolvedValueOnce([makeSummaryRow()])
+      .mockResolvedValueOnce([makeOccurrenceRow()]);
 
     const detail = await makeRepo().getIssue({
       fingerprint: "fp-1",
@@ -270,40 +225,8 @@ describe("ErrorsRepository.getIssue", () => {
 
   it("derives the summary status when triage events are enabled", async () => {
     execute
-      .mockResolvedValueOnce([
-        {
-          fingerprint: "fp-1",
-          exceptionType: "TypeError",
-          exceptionMessage: "boom",
-          body: "boom",
-          latestServiceName: "web",
-          services: ["web"],
-          occurrenceCount: "3",
-          traceCount: "2",
-          firstSeen: "2026-05-26 10:00:00.000000000",
-          lastSeen: "2026-05-26 10:05:00.000000000",
-          latestTraceId: "trace-1",
-          latestSpanId: "span-1",
-          latestTimestamp: "2026-05-26 10:05:00.000000000",
-          status: "ignored",
-        },
-      ])
-      .mockResolvedValueOnce([
-        {
-          fingerprint: "fp-1",
-          timestamp: "2026-05-26 10:05:00.000000000",
-          serviceName: "web",
-          traceId: "trace-1",
-          spanId: "span-1",
-          body: "boom",
-          exceptionType: "TypeError",
-          exceptionMessage: "boom",
-          exceptionStacktrace: "at x",
-          resourceAttributes: null,
-          logAttributes: null,
-          scopeAttributes: null,
-        },
-      ]);
+      .mockResolvedValueOnce([makeSummaryRow({ status: "ignored" })])
+      .mockResolvedValueOnce([makeOccurrenceRow()]);
 
     const detail = await makeTriageRepo().getIssue({
       fingerprint: "fp-1",

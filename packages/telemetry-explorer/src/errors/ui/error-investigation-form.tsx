@@ -9,6 +9,7 @@ import {
   useId,
   useState,
 } from "react";
+import { ErrorWriteAlert } from "./error-write-alert";
 
 // Shared composer for creating and editing an Investigation. The caller owns
 // what "submit" means; the composer owns text state, pending, and errors.
@@ -76,11 +77,10 @@ export function InvestigationComposer({
         className="min-h-20"
       />
       {mutation.isError ? (
-        <p role="alert" className="text-xs text-destructive">
-          {mutation.error instanceof Error
-            ? mutation.error.message
-            : "Failed to save the Investigation."}
-        </p>
+        <ErrorWriteAlert
+          error={mutation.error}
+          fallback="Failed to save the Investigation."
+        />
       ) : null}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="text-xs text-muted-foreground">{hint}</div>

@@ -198,19 +198,7 @@ export function buildSummaryQuery(
         GROUP BY entryFingerprint
       )
       SELECT
-        fingerprint,
-        exceptionType,
-        exceptionMessage,
-        body,
-        latestServiceName,
-        services,
-        occurrenceCount,
-        traceCount,
-        firstSeen,
-        lastSeen,
-        latestTraceId,
-        latestSpanId,
-        latestTimestamp,
+        issue_summaries.* EXCEPT (lastSeenAt),
         multiIf(
           lastStatusType = 'ignored', 'ignored',
           lastStatusType = 'resolved' AND lastSeenAt > lastStatusAt, 'open',
