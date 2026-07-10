@@ -63,6 +63,13 @@ export type ErrorIssueSummary = {
    * Status until the Collector grows a counterpart events table.
    */
   status?: ErrorStatus;
+  /**
+   * True when a resolved Error was reopened by the Regression rule (spec
+   * 0001): an Occurrence from a service version first seen after the
+   * Resolution, or a versionless Occurrence newer than it. Always false for
+   * a manual reopen. Present exactly when status is.
+   */
+  regressed?: boolean;
   fingerprint: string;
   exceptionType: string;
   exceptionMessage: string;

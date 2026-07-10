@@ -37,12 +37,12 @@ Work the **frontier**: any ticket whose blockers are all done.
 
 **Blocked by:** Status events with badges and filter.
 
-- [ ] Occurrence from a version first seen after the Resolution reopens the Error, flagged as regressed
-- [ ] Occurrence from the resolved-in version leaves the Error resolved
-- [ ] Versionless Occurrence newer than the Resolution reopens the Error
-- [ ] Ignored Errors are unaffected by the rule
-- [ ] Env-gated real-ClickHouse integration test seeds Occurrences, Resolutions, and version history and proves all four behaviors above
-- [ ] Regressed flag visible in list badge and detail header
+- [x] Occurrence from a version first seen after the Resolution reopens the Error, flagged as regressed
+- [x] Occurrence from the resolved-in version leaves the Error resolved
+- [x] Versionless Occurrence newer than the Resolution reopens the Error
+- [x] Ignored Errors are unaffected by the rule
+- [x] Env-gated real-ClickHouse integration test seeds Occurrences, Resolutions, and version history and proves all four behaviors above
+- [x] Regressed flag visible in list badge and detail header
 
 ## Cloud CLI errors read surface
 

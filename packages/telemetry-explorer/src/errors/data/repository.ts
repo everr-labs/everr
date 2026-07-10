@@ -42,11 +42,12 @@ import { isErrorStatus, isErrorTriageEventType } from "./types";
 
 type ErrorIssueSummaryRow = Omit<
   ErrorIssueSummary,
-  "occurrenceCount" | "traceCount" | "status"
+  "occurrenceCount" | "traceCount" | "status" | "regressed"
 > & {
   occurrenceCount: string | number;
   traceCount: string | number;
   status?: string;
+  regressed?: string | number;
 };
 
 type ErrorOccurrenceRow = Omit<ErrorOccurrence, "timestampRank"> & {
@@ -86,13 +87,16 @@ function mapTriageEvent(row: ErrorTriageEventRow): ErrorTriageEvent | null {
 }
 
 function mapSummary(row: ErrorIssueSummaryRow): ErrorIssueSummary {
+  // Absent without the triage join; a forward status value written by a
+  // newer derivation must not break older readers. regressed travels with
+  // status: both present or both absent.
+  const status = isErrorStatus(row.status) ? row.status : undefined;
   return {
     ...row,
     occurrenceCount: Number(row.occurrenceCount),
     traceCount: Number(row.traceCount),
-    // Absent without the triage join; a forward status value written by a
-    // newer derivation must not break older readers.
-    status: isErrorStatus(row.status) ? row.status : undefined,
+    status,
+    regressed: status === undefined ? undefined : Number(row.regressed) > 0,
   };
 }
 
@@ -133,7 +137,6 @@ export class ErrorsRepository {
     this.triageEvents = options.triageEvents ?? false;
   }
 
-  // fallow-ignore-next-line unused-class-member
   async searchIssues(
     input: SearchErrorIssuesInput,
   ): Promise<ErrorIssuesResult> {
@@ -144,7 +147,6 @@ export class ErrorsRepository {
     return { issues: rows.map(mapSummary) };
   }
 
-  // fallow-ignore-next-line unused-class-member
   async getIssue(input: GetErrorIssueInput): Promise<ErrorIssueDetail> {
     const summaryQuery = buildSummaryQuery(
       {

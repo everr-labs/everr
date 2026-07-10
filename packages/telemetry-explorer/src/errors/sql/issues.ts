@@ -104,9 +104,10 @@ const STATUS_EVENT_TYPES_SQL = ERROR_STATUS_EVENT_TYPES.map(
 export type SummaryQueryOptions = {
   /**
    * Join the triage events table and derive each Error's Status (spec 0001):
-   * the latest status event wins, ignored is sticky, and a newer Occurrence
-   * reopens a resolved Error by plain timestamp comparison. Off by default:
-   * surfaces without the table (local/desktop) emit the pre-triage SQL.
+   * the latest status event wins, ignored is sticky, and a resolved Error
+   * reopens only on a genuine Regression (version-aware rule). Off by
+   * default: surfaces without the table (local/desktop) emit the pre-triage
+   * SQL.
    */
   triageEvents?: boolean;
 };
@@ -163,16 +164,25 @@ export function buildSummaryQuery(
   // aggregates to same-name SELECT aliases. Tenant scoping comes from the
   // row-level policy on both tables; the fingerprint predicate additionally
   // lets the (tenant, fingerprint, event_id) primary key prune the triage
-  // scan on detail-page loads. lastSeenAt is the newest Occurrence in the
-  // queried range; version-aware Regression replaces this plain timestamp
-  // comparison later.
+  // scan on detail-page loads.
+  //
+  // Regression rule (spec 0001): a resolved Error reopens iff an Occurrence
+  // in the queried range comes from a service.version first seen (per
+  // service, unbounded by the range so old releases stay old) after the
+  // Resolution; version order is first-seen time only, never semver or SHA.
+  // A versionless Occurrence falls back to its own timestamp. Same-version
+  // stragglers from old deploys match neither branch and keep the Error
+  // resolved. regressed is computed once and status reads it, so "any rule
+  // reopen is a Regression" holds by construction; a manual reopen event is
+  // open but not regressed. The first-seen scan prunes by the ORDER BY
+  // prefix (services of versioned Occurrences of resolved Errors), so it
+  // reads nothing when no resolved Error could regress.
   return {
     params,
     sql: `
       WITH ${cte.sql},
       issue_summaries AS (
-        SELECT${SUMMARY_COLUMNS_SQL},
-          max(Timestamp) AS lastSeenAt
+        SELECT${SUMMARY_COLUMNS_SQL}
         FROM exception_logs
         ${fingerprintFilter}
         GROUP BY fingerprint
@@ -196,17 +206,63 @@ export function buildSummaryQuery(
           max(entryTime) AS lastStatusAt
         FROM latest_status_entries
         GROUP BY entryFingerprint
+      ),
+      resolved_issues AS (
+        SELECT
+          statusFingerprint AS resolvedFingerprint,
+          lastStatusAt AS resolvedAt
+        FROM issue_status
+        WHERE lastStatusType = 'resolved'
+      ),
+      resolved_occurrence_versions AS (
+        SELECT
+          fingerprint AS occFingerprint,
+          ServiceName AS occService,
+          ResourceAttributes['service.version'] AS occVersion,
+          max(Timestamp) AS occLastSeenAt,
+          any(resolvedAt) AS occResolvedAt
+        FROM exception_logs
+        INNER JOIN resolved_issues ON fingerprint = resolvedFingerprint
+        ${input.fingerprint ? "WHERE fingerprint = {fingerprint:String}" : ""}
+        GROUP BY occFingerprint, occService, occVersion
+      ),
+      version_first_seen AS (
+        SELECT
+          ServiceName AS versionService,
+          ResourceAttributes['service.version'] AS versionValue,
+          min(Timestamp) AS versionFirstSeenAt
+        FROM ${tableName}
+        WHERE ServiceName IN (
+            SELECT occService
+            FROM resolved_occurrence_versions
+            WHERE occVersion != ''
+          )
+          AND ResourceAttributes['service.version'] != ''
+        GROUP BY versionService, versionValue
+      ),
+      issue_regressions AS (
+        SELECT
+          occFingerprint AS regressionFingerprint,
+          -- A group's clock is its version's first-seen time; a versionless
+          -- group falls back to its newest Occurrence.
+          max(if(occVersion = '', occLastSeenAt, versionFirstSeenAt) > occResolvedAt) AS regressed
+        FROM resolved_occurrence_versions
+        LEFT ANY JOIN version_first_seen
+          ON occService = versionService AND occVersion = versionValue
+        GROUP BY regressionFingerprint
       )
       SELECT
-        issue_summaries.* EXCEPT (lastSeenAt),
+        issue_summaries.*,
+        regressed,
         multiIf(
           lastStatusType = 'ignored', 'ignored',
-          lastStatusType = 'resolved' AND lastSeenAt > lastStatusAt, 'open',
+          regressed = 1, 'open',
           lastStatusType = 'resolved', 'resolved',
           'open'
         ) AS status
       FROM issue_summaries
-      LEFT JOIN issue_status ON fingerprint = statusFingerprint
+      LEFT ANY JOIN issue_status ON fingerprint = statusFingerprint
+      LEFT ANY JOIN issue_regressions ON fingerprint = regressionFingerprint
       ${statusFilter}
       ORDER BY ${orderBy}
       LIMIT {limit:UInt32}

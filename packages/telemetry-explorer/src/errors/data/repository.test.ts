@@ -129,13 +129,16 @@ describe("ErrorsRepository.searchIssues", () => {
     const [sql, params] = execute.mock.calls[0] ?? [];
     expect(sql).not.toContain("error_triage_events");
     expect(sql).not.toContain("status");
+    expect(sql).not.toContain("regressed");
     expect(params).not.toHaveProperty("statusFilter");
   });
 });
 
 describe("ErrorsRepository.searchIssues with triage events", () => {
   it("derives status from the latest status event, ignored sticky", async () => {
-    execute.mockResolvedValueOnce([makeSummaryRow({ status: "resolved" })]);
+    execute.mockResolvedValueOnce([
+      makeSummaryRow({ status: "resolved", regressed: "0" }),
+    ]);
 
     const result = await makeTriageRepo().searchIssues(baseSearchInput);
 
@@ -149,14 +152,12 @@ describe("ErrorsRepository.searchIssues with triage events", () => {
     expect(sql).toContain("GROUP BY event_id");
     expect(sql).toContain("HAVING entryDeleted = 0");
     expect(sql).toContain("argMax(entryType, entryTime) AS lastStatusType");
-    // Derivation: ignored is sticky; a newer Occurrence reopens a resolved
-    // Error by plain timestamp comparison; everything else is open.
+    // Derivation: ignored is sticky; a resolved Error reopens only on a
+    // Regression; everything else is open.
     expect(sql).toContain("lastStatusType = 'ignored', 'ignored'");
-    expect(sql).toContain(
-      "lastStatusType = 'resolved' AND lastSeenAt > lastStatusAt, 'open'",
-    );
+    expect(sql).toContain("regressed = 1, 'open'");
     expect(sql).toContain("lastStatusType = 'resolved', 'resolved'");
-    expect(sql).toContain("LEFT JOIN");
+    expect(sql).toContain("LEFT ANY JOIN");
     expect(sql).toContain(
       "ORDER BY lastSeen DESC, occurrenceCount DESC, fingerprint DESC",
     );
@@ -164,6 +165,38 @@ describe("ErrorsRepository.searchIssues with triage events", () => {
     expect(result.issues[0]).toMatchObject({
       fingerprint: "fp-1",
       status: "resolved",
+      regressed: false,
+    });
+  });
+
+  it("reopens a resolved Error only on a version-aware Regression", async () => {
+    execute.mockResolvedValueOnce([
+      makeSummaryRow({ status: "open", regressed: "1" }),
+    ]);
+
+    const result = await makeTriageRepo().searchIssues(baseSearchInput);
+
+    const [sql] = execute.mock.calls[0] ?? [];
+    // Version order is first-seen time in telemetry, per service, unbounded
+    // by the queried range: an Occurrence reopens iff its version was first
+    // seen after the Resolution, and a versionless Occurrence degrades to a
+    // plain timestamp comparison.
+    expect(sql).toContain(
+      "ResourceAttributes['service.version'] AS occVersion",
+    );
+    expect(sql).toContain("min(Timestamp) AS versionFirstSeenAt");
+    expect(sql).toContain("ON occService = versionService");
+    expect(sql).toContain(
+      "max(if(occVersion = '', occLastSeenAt, versionFirstSeenAt) > occResolvedAt) AS regressed",
+    );
+    // Only resolved Errors feed the rule, so nothing scans when none could
+    // regress, and only rule reopens carry the Regressed flag.
+    expect(sql).toContain("WHERE lastStatusType = 'resolved'");
+
+    expect(result.issues[0]).toMatchObject({
+      fingerprint: "fp-1",
+      status: "open",
+      regressed: true,
     });
   });
 
@@ -195,10 +228,14 @@ describe("ErrorsRepository.searchIssues with triage events", () => {
   });
 
   it("drops an unknown forward status value instead of breaking the row", async () => {
-    execute.mockResolvedValueOnce([makeSummaryRow({ status: "acknowledged" })]);
+    execute.mockResolvedValueOnce([
+      makeSummaryRow({ status: "acknowledged", regressed: "1" }),
+    ]);
 
     const result = await makeTriageRepo().searchIssues(baseSearchInput);
     expect(result.issues[0]?.status).toBeUndefined();
+    // regressed travels with status: a dropped status drops the flag too.
+    expect(result.issues[0]?.regressed).toBeUndefined();
     expect(result.issues[0]?.fingerprint).toBe("fp-1");
   });
 });

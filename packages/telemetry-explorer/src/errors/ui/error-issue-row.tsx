@@ -43,7 +43,10 @@ export function ErrorIssueRow({
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                 {issue.status ? (
-                  <ErrorStatusBadge status={issue.status} />
+                  <ErrorStatusBadge
+                    status={issue.status}
+                    regressed={issue.regressed}
+                  />
                 ) : null}
                 <ErrorServiceBadge serviceName={issue.latestServiceName} />
                 <Badge variant="secondary">

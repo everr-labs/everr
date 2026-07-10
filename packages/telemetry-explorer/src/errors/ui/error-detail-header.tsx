@@ -53,7 +53,12 @@ export function ErrorDetailHeader({
         <h1 className="truncate text-lg font-semibold">{title}</h1>
         <p className="truncate text-xs text-muted-foreground">{message}</p>
         <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-          {issue.status ? <ErrorStatusBadge status={issue.status} /> : null}
+          {issue.status ? (
+            <ErrorStatusBadge
+              status={issue.status}
+              regressed={issue.regressed}
+            />
+          ) : null}
           <ErrorServiceBadge serviceName={issue.latestServiceName} />
           <Badge variant="secondary">
             {issue.occurrenceCount}{" "}
