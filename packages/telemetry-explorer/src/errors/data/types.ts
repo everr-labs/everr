@@ -87,9 +87,10 @@ export type ErrorIssueSummary = {
   status?: ErrorStatus;
   /**
    * True when a resolved Error was reopened by the Regression rule (spec
-   * 0001): an Occurrence from a service version first seen after the
-   * Resolution, or a versionless Occurrence newer than it. Always false for
-   * a manual reopen. Present exactly when status is.
+   * 0001): an Occurrence from a version outside the Resolution's
+   * resolve-time snapshot (see ErrorTriageStatus.resolvedVersions), or a
+   * versionless Occurrence newer than it. Always false for a manual reopen.
+   * Present exactly when status is.
    */
   regressed?: boolean;
   fingerprint: string;

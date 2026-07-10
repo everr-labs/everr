@@ -27,6 +27,7 @@ import {
   buildServicesQuery,
   buildSummaryQuery,
 } from "../sql/issues";
+import { ERRORS_LOGS_TABLE } from "../sql/table";
 import type { SqlClient } from "./client";
 import type {
   GetErrorIssueInput,
@@ -82,7 +83,7 @@ type ErrorTriageStatusRow = {
   fingerprint: string;
   lastStatusType: string;
   lastStatusAt: string;
-  resolvedVersions: string[] | null;
+  resolvedVersions: string[];
 };
 
 function mapTriageStatus(row: ErrorTriageStatusRow): ErrorTriageStatus | null {
@@ -93,7 +94,7 @@ function mapTriageStatus(row: ErrorTriageStatusRow): ErrorTriageStatus | null {
     fingerprint: row.fingerprint,
     type: row.lastStatusType,
     at: row.lastStatusAt,
-    resolvedVersions: row.resolvedVersions ?? [],
+    resolvedVersions: row.resolvedVersions,
   };
 }
 
@@ -141,9 +142,10 @@ function mapOccurrence(row: ErrorOccurrenceRow): ErrorOccurrence {
 export interface ErrorsRepositoryOptions {
   tableName?: string;
   /**
-   * Derive each Error's triage Status in the summary queries by joining the
-   * error_triage_events table (ADR 0004). Opt-in: surfaces without the table
-   * (local/desktop, deferred) keep the pre-triage query shape.
+   * Read the error_triage_events table (ADR 0004) ahead of the summary
+   * queries and derive each Error's triage Status from it. Opt-in: surfaces
+   * without the table (local/desktop, deferred) keep the pre-triage query
+   * shape.
    */
   triageEvents?: boolean;
 }
@@ -160,20 +162,19 @@ export class ErrorsRepository {
     private readonly client: SqlClient,
     options: ErrorsRepositoryOptions = {},
   ) {
-    this.tableName = options.tableName ?? "logs";
+    this.tableName = options.tableName ?? ERRORS_LOGS_TABLE;
     this.triageEvents = options.triageEvents ?? false;
   }
 
   // The triage state is read first (a scan of the small events table) and
   // handed to the summary query as parameters, so deriving Status and the
   // Regression flag adds no join and no extra logs scan (spec 0001).
+  // undefined when the surface has no triage capability.
   private async fetchTriageStatuses(
     fingerprint: string,
   ): Promise<ErrorTriageStatus[] | undefined> {
     if (!this.triageEvents) return undefined;
-    const { sql, params } = buildTriageStatusesQuery({
-      fingerprint: fingerprint || undefined,
-    });
+    const { sql, params } = buildTriageStatusesQuery({ fingerprint });
     const rows = await this.client.execute<ErrorTriageStatusRow>(sql, params);
     return rows
       .map(mapTriageStatus)
@@ -185,7 +186,6 @@ export class ErrorsRepository {
   ): Promise<ErrorIssuesResult> {
     const triageStatuses = await this.fetchTriageStatuses(input.fingerprint);
     const { sql, params } = buildSummaryQuery(input, this.tableName, {
-      triageEvents: this.triageEvents,
       triageStatuses,
     });
     const rows = await this.client.execute<ErrorIssueSummaryRow>(sql, params);
@@ -193,6 +193,13 @@ export class ErrorsRepository {
   }
 
   async getIssue(input: GetErrorIssueInput): Promise<ErrorIssueDetail> {
+    // The occurrences query is independent of the triage state, so it runs
+    // concurrently with the statuses fetch the summary query waits on.
+    const occurrencesQuery = buildOccurrencesQuery(input, this.tableName);
+    const occurrencesPromise = this.client.execute<ErrorOccurrenceRow>(
+      occurrencesQuery.sql,
+      occurrencesQuery.params,
+    );
     const triageStatuses = await this.fetchTriageStatuses(input.fingerprint);
     const summaryQuery = buildSummaryQuery(
       {
@@ -208,18 +215,14 @@ export class ErrorsRepository {
         attributes: [],
       },
       this.tableName,
-      { triageEvents: this.triageEvents, triageStatuses },
+      { triageStatuses },
     );
-    const occurrencesQuery = buildOccurrencesQuery(input, this.tableName);
     const [summaryRows, occurrenceRows] = await Promise.all([
       this.client.execute<ErrorIssueSummaryRow>(
         summaryQuery.sql,
         summaryQuery.params,
       ),
-      this.client.execute<ErrorOccurrenceRow>(
-        occurrencesQuery.sql,
-        occurrencesQuery.params,
-      ),
+      occurrencesPromise,
     ]);
 
     const summary = summaryRows[0] ? mapSummary(summaryRows[0]) : undefined;

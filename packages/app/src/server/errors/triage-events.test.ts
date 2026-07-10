@@ -99,6 +99,26 @@ describe("createStatusEvent", () => {
     expect(row.updated_at).toBe(row.event_time);
   });
 
+  it("stores an overflowing snapshot as empty so the rule degrades to timestamps", async () => {
+    query.mockResolvedValueOnce(
+      Array.from({ length: 1001 }, (_, i) => ({ version: `v${i}` })),
+    );
+
+    await createStatusEvent({
+      query,
+      tenantId: "org-1",
+      fingerprint: "fp-1",
+      type: "resolved",
+      body: "Fixed.",
+      authorId: "user-1",
+    });
+
+    expect(insertedRow()).toMatchObject({
+      event_type: "resolved",
+      resolved_versions: [],
+    });
+  });
+
   it("records ignore and reopen without a body or a snapshot query", async () => {
     await createStatusEvent({
       query,

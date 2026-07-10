@@ -29,7 +29,7 @@ export function buildTriageStatusesQuery(input: {
         argMax(entryVersions, entryTime) AS resolvedVersions
       FROM (
         SELECT
-          any(fingerprint) AS entryFingerprint,
+          fingerprint AS entryFingerprint,
           argMax(event_type, version) AS entryType,
           argMax(deleted, version) AS entryDeleted,
           argMax(resolved_versions, version) AS entryVersions,
@@ -37,7 +37,7 @@ export function buildTriageStatusesQuery(input: {
         FROM ${ERROR_TRIAGE_EVENTS_TABLE}
         WHERE event_type IN (${STATUS_EVENT_TYPES_SQL})
           ${input.fingerprint ? "AND fingerprint = {fingerprint:String}" : ""}
-        GROUP BY event_id
+        GROUP BY entryFingerprint, event_id
         HAVING entryDeleted = 0
       )
       GROUP BY entryFingerprint

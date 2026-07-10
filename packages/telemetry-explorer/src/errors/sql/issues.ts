@@ -120,30 +120,32 @@ export type SummaryQueryOptions = {
   /**
    * Derive each Error's Status (spec 0001): the latest status event wins,
    * ignored is sticky, and a resolved Error reopens only on a genuine
-   * Regression. The triage state arrives as triageStatuses (read separately
-   * from the events table by buildTriageStatusesQuery) and travels into the
-   * query as Map parameters, so the derivation costs no extra scan and no
-   * join. Off by default: surfaces without the events table (local/desktop)
-   * emit the pre-triage SQL.
+   * Regression. The triage state arrives here (read separately from the
+   * events table by buildTriageStatusesQuery) and travels into the query as
+   * Map parameters, so the derivation costs no extra scan and no join.
+   * undefined means the surface has no events table (local/desktop) and the
+   * pre-triage SQL is emitted; [] means triage is on with no state yet.
    */
-  triageEvents?: boolean;
   triageStatuses?: ErrorTriageStatus[];
 };
 
 // Triage state travels into the summary query as three Map parameters keyed
 // by fingerprint; missing keys yield ClickHouse defaults ('', zero date, [])
-// which all read as "no triage state".
-function buildTriageStatusParams(
-  statuses: ErrorTriageStatus[],
-): Record<string, unknown> {
+// which all read as "no triage state". Entries that derive identically to
+// absence stay out of the maps: a reopened latest event means open, and a
+// missing snapshot already reads as empty() at the lookup.
+function buildTriageStatusParams(statuses: ErrorTriageStatus[]) {
   const statusByFp: Record<string, string> = {};
   const resolvedAtByFp: Record<string, string> = {};
   const resolvedVersionsByFp: Record<string, string[]> = {};
   for (const status of statuses) {
+    if (status.type === "reopened") continue;
     statusByFp[status.fingerprint] = status.type;
     if (status.type === "resolved") {
       resolvedAtByFp[status.fingerprint] = status.at;
-      resolvedVersionsByFp[status.fingerprint] = status.resolvedVersions;
+      if (status.resolvedVersions.length > 0) {
+        resolvedVersionsByFp[status.fingerprint] = status.resolvedVersions;
+      }
     }
   }
   return { statusByFp, resolvedAtByFp, resolvedVersionsByFp };
@@ -172,29 +174,6 @@ export function buildSummaryQuery(
       ? "occurrenceCount DESC, lastSeen DESC, fingerprint DESC"
       : "lastSeen DESC, occurrenceCount DESC, fingerprint DESC";
 
-  if (!options.triageEvents) {
-    return {
-      params,
-      sql: `
-      WITH ${cte.sql}
-      SELECT${SUMMARY_COLUMNS_SQL}
-      FROM exception_logs
-      ${fingerprintFilter}
-      GROUP BY fingerprint
-      ORDER BY ${orderBy}
-      LIMIT {limit:UInt32}
-      OFFSET {offset:UInt32}
-    `,
-    };
-  }
-
-  Object.assign(params, buildTriageStatusParams(options.triageStatuses ?? []));
-  const statusFilter =
-    input.status.length > 0
-      ? "HAVING status IN {statusFilter:Array(String)}"
-      : "";
-  if (input.status.length > 0) params.statusFilter = input.status;
-
   // Status derivation (spec 0001): the latest surviving status event per
   // fingerprint wins, delivered as Map params. Regression rule: a resolved
   // Error reopens iff an Occurrence in the queried range comes from a
@@ -205,13 +184,18 @@ export function buildSummaryQuery(
   // stragglers from old deploys keep the Error resolved. regressed is
   // computed once and status reads it, so "any rule reopen is a Regression"
   // holds by construction; a manual reopen event is open but not regressed.
-  // With no triage state the maps are empty, every lookup hits its default,
-  // and every Error derives as open.
-  return {
-    params,
-    sql: `
-      WITH ${cte.sql}
-      SELECT${SUMMARY_COLUMNS_SQL},
+  // When no fingerprint carries state (no events, or only reopens), the
+  // derived columns are constants, so the scan pays no per-row map lookups.
+  let triageColumnsSql = "";
+  if (options.triageStatuses !== undefined) {
+    const triageParams = buildTriageStatusParams(options.triageStatuses);
+    if (Object.keys(triageParams.statusByFp).length === 0) {
+      triageColumnsSql = `,
+        0 AS regressed,
+        'open' AS status`;
+    } else {
+      Object.assign(params, triageParams);
+      triageColumnsSql = `,
         max(
           {statusByFp:Map(String, String)}[fingerprint] = 'resolved'
           AND if(
@@ -226,7 +210,21 @@ export function buildSummaryQuery(
           regressed = 1, 'open',
           {statusByFp:Map(String, String)}[fingerprint] = 'resolved', 'resolved',
           'open'
-        ) AS status
+        ) AS status`;
+    }
+  }
+
+  const statusFilter =
+    options.triageStatuses !== undefined && input.status.length > 0
+      ? "HAVING status IN {statusFilter:Array(String)}"
+      : "";
+  if (statusFilter) params.statusFilter = input.status;
+
+  return {
+    params,
+    sql: `
+      WITH ${cte.sql}
+      SELECT${SUMMARY_COLUMNS_SQL}${triageColumnsSql}
       FROM exception_logs
       ${fingerprintFilter}
       GROUP BY fingerprint
@@ -238,11 +236,22 @@ export function buildSummaryQuery(
   };
 }
 
+// "Currently in telemetry" (spec 0001) means this lookback: wide enough that
+// every live version of a service has logged inside it, and it lets both
+// scans below prune to a few date partitions instead of full history.
+const KNOWN_VERSIONS_LOOKBACK_SQL = "TimestampTime >= now() - INTERVAL 30 DAY";
+
+// A snapshot may not exceed this cap: dropped versions would read as
+// "outside the set" and fabricate Regressions forever, so the write module
+// stores an overflowing snapshot as empty and the rule degrades to the
+// designed timestamp fallback instead. The query fetches one extra row to
+// make overflow detectable.
+export const KNOWN_VERSIONS_SNAPSHOT_CAP = 1000;
+
 // Versions currently known for the services an Error occurred in, snapshotted
-// onto a Resolution event at write time (spec 0001). Deliberately unbounded
-// by any page range: Resolutions are rare, so the history scan is paid once
-// per Resolution instead of on every list read. Tenant scoping comes from the
-// row-level policy.
+// onto a Resolution event at write time (spec 0001). Resolutions are rare, so
+// this scan is paid once per Resolution instead of on every list read. Tenant
+// scoping comes from the row-level policy.
 export function buildKnownServiceVersionsQuery(
   input: { fingerprint: string },
   tableName: string,
@@ -256,12 +265,14 @@ export function buildKnownServiceVersionsQuery(
       WHERE ServiceName IN (
           SELECT DISTINCT ServiceName
           FROM ${tableName}
-          WHERE ${EXCEPTION_LOG_FILTER_SQL}
+          WHERE ${KNOWN_VERSIONS_LOOKBACK_SQL}
+            AND ${EXCEPTION_LOG_FILTER_SQL}
             AND ${ERROR_FINGERPRINT_SQL} = {fingerprint:String}
         )
+        AND ${KNOWN_VERSIONS_LOOKBACK_SQL}
         AND ResourceAttributes['service.version'] != ''
       ORDER BY version
-      LIMIT 1000
+      LIMIT ${KNOWN_VERSIONS_SNAPSHOT_CAP + 1}
     `,
   };
 }

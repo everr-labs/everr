@@ -7,8 +7,11 @@ export {
 } from "./data/repository";
 export * from "./data/schemas";
 export * from "./data/types";
-export { buildKnownServiceVersionsQuery } from "./sql/issues";
-export { ERROR_TRIAGE_EVENTS_TABLE } from "./sql/table";
+export {
+  buildKnownServiceVersionsQuery,
+  KNOWN_VERSIONS_SNAPSHOT_CAP,
+} from "./sql/issues";
+export { ERROR_TRIAGE_EVENTS_TABLE, ERRORS_LOGS_TABLE } from "./sql/table";
 export { ErrorDetail, type ErrorDetailProps } from "./ui/error-detail";
 export {
   ErrorIssues,

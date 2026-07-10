@@ -2,8 +2,10 @@ import { randomUUID } from "node:crypto";
 import {
   buildKnownServiceVersionsQuery,
   ERROR_TRIAGE_EVENTS_TABLE,
+  ERRORS_LOGS_TABLE,
   type ErrorStatusEventType,
   type ErrorTriageEventType,
+  KNOWN_VERSIONS_SNAPSHOT_CAP,
 } from "@everr/telemetry-explorer/errors";
 import type { ClickhouseQuery } from "@/lib/clickhouse";
 import { insertAdminRows } from "@/lib/clickhouse";
@@ -86,19 +88,21 @@ export function createInvestigation(input: {
 // The Regression rule compares Occurrence versions against the versions
 // known at resolve time (spec 0001), so a Resolution snapshots them here:
 // every version currently in telemetry for the services the Error occurred
-// in, read through the tenant-scoped query. Deliberately unbounded by any
-// page range; Resolutions are rare, so the scan is paid once per Resolution
-// instead of on every list read. An empty result (unversioned services)
-// makes the rule degrade to timestamp comparison at read time.
+// in, read through the tenant-scoped query. Resolutions are rare, so the
+// scan is paid once per Resolution instead of on every list read. An empty
+// snapshot (unversioned services, or one overflowing the cap, where the
+// dropped versions would fabricate Regressions) makes the rule degrade to
+// timestamp comparison at read time.
 async function snapshotKnownVersions(
   query: ClickhouseQuery,
   fingerprint: string,
 ): Promise<string[]> {
   const { sql, params } = buildKnownServiceVersionsQuery(
     { fingerprint },
-    "logs",
+    ERRORS_LOGS_TABLE,
   );
   const rows = await query<{ version: string }>(sql, params);
+  if (rows.length > KNOWN_VERSIONS_SNAPSHOT_CAP) return [];
   return rows.map((row) => row.version);
 }
 
