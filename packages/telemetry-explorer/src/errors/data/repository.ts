@@ -17,7 +17,10 @@ import {
   ERRORS_ATTRIBUTE_SOURCES,
   errorsAttributeColumn,
 } from "../sql/attribute-columns";
-import { buildTriageEventsQuery } from "../sql/events";
+import {
+  buildTriageEventsQuery,
+  buildTriageStatusesQuery,
+} from "../sql/events";
 import { EXCEPTION_LOG_FILTER_SQL } from "../sql/fingerprint";
 import {
   buildOccurrencesQuery,
@@ -37,8 +40,13 @@ import type {
   ErrorIssuesResult,
   ErrorOccurrence,
   ErrorTriageEvent,
+  ErrorTriageStatus,
 } from "./types";
-import { isErrorStatus, isErrorTriageEventType } from "./types";
+import {
+  isErrorStatus,
+  isErrorStatusEventType,
+  isErrorTriageEventType,
+} from "./types";
 
 type ErrorIssueSummaryRow = Omit<
   ErrorIssueSummary,
@@ -69,6 +77,25 @@ type ErrorTriageEventRow = {
   latestVersion: string | number;
   latestDeleted: string | number;
 };
+
+type ErrorTriageStatusRow = {
+  fingerprint: string;
+  lastStatusType: string;
+  lastStatusAt: string;
+  resolvedVersions: string[] | null;
+};
+
+function mapTriageStatus(row: ErrorTriageStatusRow): ErrorTriageStatus | null {
+  // A forward status type written by a newer client derives as open, exactly
+  // as it did when the derivation lived in SQL.
+  if (!isErrorStatusEventType(row.lastStatusType)) return null;
+  return {
+    fingerprint: row.fingerprint,
+    type: row.lastStatusType,
+    at: row.lastStatusAt,
+    resolvedVersions: row.resolvedVersions ?? [],
+  };
+}
 
 function mapTriageEvent(row: ErrorTriageEventRow): ErrorTriageEvent | null {
   // Forward event types written by a newer client must not break older readers.
@@ -137,17 +164,36 @@ export class ErrorsRepository {
     this.triageEvents = options.triageEvents ?? false;
   }
 
+  // The triage state is read first (a scan of the small events table) and
+  // handed to the summary query as parameters, so deriving Status and the
+  // Regression flag adds no join and no extra logs scan (spec 0001).
+  private async fetchTriageStatuses(
+    fingerprint: string,
+  ): Promise<ErrorTriageStatus[] | undefined> {
+    if (!this.triageEvents) return undefined;
+    const { sql, params } = buildTriageStatusesQuery({
+      fingerprint: fingerprint || undefined,
+    });
+    const rows = await this.client.execute<ErrorTriageStatusRow>(sql, params);
+    return rows
+      .map(mapTriageStatus)
+      .filter((status): status is ErrorTriageStatus => status !== null);
+  }
+
   async searchIssues(
     input: SearchErrorIssuesInput,
   ): Promise<ErrorIssuesResult> {
+    const triageStatuses = await this.fetchTriageStatuses(input.fingerprint);
     const { sql, params } = buildSummaryQuery(input, this.tableName, {
       triageEvents: this.triageEvents,
+      triageStatuses,
     });
     const rows = await this.client.execute<ErrorIssueSummaryRow>(sql, params);
     return { issues: rows.map(mapSummary) };
   }
 
   async getIssue(input: GetErrorIssueInput): Promise<ErrorIssueDetail> {
+    const triageStatuses = await this.fetchTriageStatuses(input.fingerprint);
     const summaryQuery = buildSummaryQuery(
       {
         fromTs: input.fromTs,
@@ -162,7 +208,7 @@ export class ErrorsRepository {
         attributes: [],
       },
       this.tableName,
-      { triageEvents: this.triageEvents },
+      { triageEvents: this.triageEvents, triageStatuses },
     );
     const occurrencesQuery = buildOccurrencesQuery(input, this.tableName);
     const [summaryRows, occurrenceRows] = await Promise.all([

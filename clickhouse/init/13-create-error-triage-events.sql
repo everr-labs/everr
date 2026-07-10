@@ -22,6 +22,12 @@ CREATE TABLE IF NOT EXISTS app.error_triage_events
   event_type LowCardinality(String),
   -- Markdown, as written. Emptied when deleted = 1.
   body String,
+  -- Resolution events only: the service versions known for the Error's
+  -- services at resolve time, snapshotted by the write module. The
+  -- Regression rule reopens a resolved Error when an Occurrence arrives
+  -- from a version outside this set; empty means no version knowledge and
+  -- the rule degrades to timestamp comparison.
+  resolved_versions Array(String) DEFAULT [],
   -- Author user id only; display name and avatar resolve from the user
   -- profile at read time, so a rename or account erasure needs no row change.
   author_id String,
@@ -40,6 +46,12 @@ ORDER BY (tenant_id, fingerprint, event_id)
 -- No TTL on purpose: triage knowledge is small, human-written, and a
 -- Resolution must outlive the log retention window.
 SETTINGS index_granularity = 8192;
+
+-- Converges environments whose table predates the column (the CREATE above
+-- only runs on fresh volumes), mirroring the ALTER ADD INDEX pattern in
+-- 10-create-mvs.sql.
+ALTER TABLE app.error_triage_events
+  ADD COLUMN IF NOT EXISTS resolved_versions Array(String) DEFAULT [] AFTER body;
 
 GRANT SELECT ON app.error_triage_events TO app_ro;
 GRANT INSERT, SELECT ON app.error_triage_events TO web_app_admin;

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
+  buildKnownServiceVersionsQuery,
   ERROR_TRIAGE_EVENTS_TABLE,
   type ErrorStatusEventType,
   type ErrorTriageEventType,
@@ -34,6 +35,7 @@ interface ErrorTriageEventRow {
   version: number;
   event_type: ErrorTriageEventType;
   body: string;
+  resolved_versions: string[];
   author_id: string;
   deleted: 0 | 1;
   event_time: string;
@@ -52,6 +54,7 @@ async function createEntry(input: {
   eventType: ErrorTriageEventType;
   body: string;
   authorId: string;
+  resolvedVersions?: string[];
 }): Promise<void> {
   const now = new Date().toISOString();
   await insertTriageEvents([
@@ -62,6 +65,7 @@ async function createEntry(input: {
       version: 0,
       event_type: input.eventType,
       body: input.body,
+      resolved_versions: input.resolvedVersions ?? [],
       author_id: input.authorId,
       deleted: 0,
       event_time: now,
@@ -79,22 +83,47 @@ export function createInvestigation(input: {
   return createEntry({ ...input, eventType: "investigation" });
 }
 
+// The Regression rule compares Occurrence versions against the versions
+// known at resolve time (spec 0001), so a Resolution snapshots them here:
+// every version currently in telemetry for the services the Error occurred
+// in, read through the tenant-scoped query. Deliberately unbounded by any
+// page range; Resolutions are rare, so the scan is paid once per Resolution
+// instead of on every list read. An empty result (unversioned services)
+// makes the rule degrade to timestamp comparison at read time.
+async function snapshotKnownVersions(
+  query: ClickhouseQuery,
+  fingerprint: string,
+): Promise<string[]> {
+  const { sql, params } = buildKnownServiceVersionsQuery(
+    { fingerprint },
+    "logs",
+  );
+  const rows = await query<{ version: string }>(sql, params);
+  return rows.map((row) => row.version);
+}
+
 // Status changes (resolved, ignored, reopened) are plain version-0 entries in
 // the same table; Status is derived at read time from the latest one, so
 // "changing status" is just appending an event.
-export function createStatusEvent(input: {
+export async function createStatusEvent(input: {
+  query: ClickhouseQuery;
   tenantId: string;
   fingerprint: string;
   type: ErrorStatusEventType;
   body: string;
   authorId: string;
 }): Promise<void> {
+  const resolvedVersions =
+    input.type === "resolved"
+      ? await snapshotKnownVersions(input.query, input.fingerprint)
+      : [];
   return createEntry({
     tenantId: input.tenantId,
     fingerprint: input.fingerprint,
     eventType: input.type,
     body: input.body,
     authorId: input.authorId,
+    resolvedVersions,
   });
 }
 
@@ -160,6 +189,7 @@ async function appendInvestigationVersion(input: {
       version: Number(latest.latestVersion) + 1,
       event_type: "investigation",
       body: input.next.body,
+      resolved_versions: [],
       author_id: latest.authorId,
       deleted: input.next.deleted,
       event_time: latest.createdAt,

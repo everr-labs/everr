@@ -23,6 +23,28 @@ export const ERROR_STATUS_EVENT_TYPES = [
 ] as const;
 export type ErrorStatusEventType = (typeof ERROR_STATUS_EVENT_TYPES)[number];
 
+export function isErrorStatusEventType(
+  value: string,
+): value is ErrorStatusEventType {
+  return (ERROR_STATUS_EVENT_TYPES as readonly string[]).includes(value);
+}
+
+// The latest surviving status event of one Error, read from the events table
+// ahead of the summary query, which takes it as plain parameters (spec 0001).
+export type ErrorTriageStatus = {
+  fingerprint: string;
+  type: ErrorStatusEventType;
+  /** Time of the winning status event (ClickHouse timestamp string, UTC). */
+  at: string;
+  /**
+   * Resolution events only: the service versions known for the Error's
+   * services at resolve time. An Occurrence from a version outside this set
+   * is a Regression; empty means no version knowledge and the rule degrades
+   * to timestamp comparison.
+   */
+  resolvedVersions: string[];
+};
+
 // Derived triage Status (spec 0001): computed at read time from the latest
 // status event plus the Occurrence timestamps; never stored anywhere.
 export const ERROR_STATUSES = ["open", "resolved", "ignored"] as const;

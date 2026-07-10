@@ -65,14 +65,24 @@ describe("createInvestigation", () => {
 });
 
 describe("createStatusEvent", () => {
-  it("inserts a version-0 status row with tenant and author stamped", async () => {
+  it("inserts a Resolution with the resolve-time version snapshot", async () => {
+    query.mockResolvedValueOnce([{ version: "1.4.2" }, { version: "1.5.0" }]);
+
     await createStatusEvent({
+      query,
       tenantId: "org-1",
       fingerprint: "fp-1",
       type: "resolved",
       body: "Fixed by tightening the retry guard.",
       authorId: "user-1",
     });
+
+    // The snapshot reads versions for the Error's services through the
+    // tenant-scoped query, keyed by the Fingerprint.
+    const [sql, params] = query.mock.calls[0] ?? [];
+    expect(sql).toContain("ResourceAttributes['service.version']");
+    expect(sql).toContain("= {fingerprint:String}");
+    expect(params).toEqual({ fingerprint: "fp-1" });
 
     const row = insertedRow();
     expect(row).toMatchObject({
@@ -81,6 +91,7 @@ describe("createStatusEvent", () => {
       version: 0,
       event_type: "resolved",
       body: "Fixed by tightening the retry guard.",
+      resolved_versions: ["1.4.2", "1.5.0"],
       author_id: "user-1",
       deleted: 0,
     });
@@ -88,8 +99,9 @@ describe("createStatusEvent", () => {
     expect(row.updated_at).toBe(row.event_time);
   });
 
-  it("records ignore and reopen without a body", async () => {
+  it("records ignore and reopen without a body or a snapshot query", async () => {
     await createStatusEvent({
+      query,
       tenantId: "org-1",
       fingerprint: "fp-1",
       type: "ignored",
@@ -97,9 +109,11 @@ describe("createStatusEvent", () => {
       authorId: "user-1",
     });
 
+    expect(query).not.toHaveBeenCalled();
     expect(insertedRow()).toMatchObject({
       event_type: "ignored",
       body: "",
+      resolved_versions: [],
     });
   });
 });

@@ -143,12 +143,15 @@ export const createErrorStatusEvent = createAuthenticatedServerFn({
   method: "POST",
 })
   .inputValidator(CreateErrorStatusEventInputSchema)
-  .handler(({ data, context: { session } }) =>
+  .handler(({ data, context: { session, clickhouse } }) =>
     sanitizeWriteFailure(
       "status.create",
       { "everr.error.fingerprint": data.fingerprint },
       () =>
         createStatusEvent({
+          // Tenant-scoped read used by Resolutions to snapshot the versions
+          // known at resolve time.
+          query: clickhouse.query,
           tenantId: session.session.activeOrganizationId,
           fingerprint: data.fingerprint,
           type: data.type,

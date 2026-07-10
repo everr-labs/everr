@@ -126,6 +126,7 @@ describe("ErrorsRepository.searchIssues", () => {
     // Surfaces without a triage table (local/desktop) must emit the same SQL
     // as before triage existed, even when a status filter sneaks in.
     await makeRepo().searchIssues({ ...baseSearchInput, status: ["resolved"] });
+    expect(execute).toHaveBeenCalledTimes(1);
     const [sql, params] = execute.mock.calls[0] ?? [];
     expect(sql).not.toContain("error_triage_events");
     expect(sql).not.toContain("status");
@@ -135,32 +136,61 @@ describe("ErrorsRepository.searchIssues", () => {
 });
 
 describe("ErrorsRepository.searchIssues with triage events", () => {
-  it("derives status from the latest status event, ignored sticky", async () => {
-    execute.mockResolvedValueOnce([
-      makeSummaryRow({ status: "resolved", regressed: "0" }),
-    ]);
+  const resolvedStatusRow = {
+    fingerprint: "fp-1",
+    lastStatusType: "resolved",
+    lastStatusAt: "2026-05-26 09:00:00.000",
+    resolvedVersions: ["1.4.2"],
+  };
+
+  it("reads triage state from the events table, then derives in one scan", async () => {
+    execute
+      .mockResolvedValueOnce([resolvedStatusRow])
+      .mockResolvedValueOnce([
+        makeSummaryRow({ status: "resolved", regressed: 0 }),
+      ]);
 
     const result = await makeTriageRepo().searchIssues(baseSearchInput);
 
-    const [sql] = execute.mock.calls[0] ?? [];
-    // Status events resolve to their latest version first (edits and deletes
-    // are version appends), then the latest event per fingerprint wins.
-    expect(sql).toContain("FROM error_triage_events");
-    expect(sql).toContain(
+    expect(execute).toHaveBeenCalledTimes(2);
+    // First query: the latest surviving status event per fingerprint, from
+    // the events table alone. Entries resolve to their latest version first
+    // (edits and deletes are version appends), then the latest event wins.
+    const [statusesSql] = execute.mock.calls[0] ?? [];
+    expect(statusesSql).toContain("FROM error_triage_events");
+    expect(statusesSql).toContain(
       "WHERE event_type IN ('resolved', 'ignored', 'reopened')",
     );
-    expect(sql).toContain("GROUP BY event_id");
-    expect(sql).toContain("HAVING entryDeleted = 0");
-    expect(sql).toContain("argMax(entryType, entryTime) AS lastStatusType");
-    // Derivation: ignored is sticky; a resolved Error reopens only on a
-    // Regression; everything else is open.
-    expect(sql).toContain("lastStatusType = 'ignored', 'ignored'");
+    expect(statusesSql).toContain("GROUP BY event_id");
+    expect(statusesSql).toContain("HAVING entryDeleted = 0");
+    expect(statusesSql).toContain(
+      "argMax(entryType, entryTime) AS lastStatusType",
+    );
+    expect(statusesSql).toContain(
+      "argMax(entryVersions, entryTime) AS resolvedVersions",
+    );
+
+    // Second query: the single logs scan takes the triage state as Map
+    // params. Derivation: ignored is sticky; a resolved Error reopens only
+    // on a Regression; everything else is open.
+    const [sql, params] = execute.mock.calls[1] ?? [];
+    expect(sql).not.toContain("error_triage_events");
+    expect(sql).not.toContain("JOIN");
+    expect(sql).toContain(
+      "{statusByFp:Map(String, String)}[fingerprint] = 'ignored', 'ignored'",
+    );
     expect(sql).toContain("regressed = 1, 'open'");
-    expect(sql).toContain("lastStatusType = 'resolved', 'resolved'");
-    expect(sql).toContain("LEFT ANY JOIN");
+    expect(sql).toContain(
+      "{statusByFp:Map(String, String)}[fingerprint] = 'resolved', 'resolved'",
+    );
     expect(sql).toContain(
       "ORDER BY lastSeen DESC, occurrenceCount DESC, fingerprint DESC",
     );
+    expect(params).toMatchObject({
+      statusByFp: { "fp-1": "resolved" },
+      resolvedAtByFp: { "fp-1": "2026-05-26 09:00:00.000" },
+      resolvedVersionsByFp: { "fp-1": ["1.4.2"] },
+    });
 
     expect(result.issues[0]).toMatchObject({
       fingerprint: "fp-1",
@@ -169,29 +199,32 @@ describe("ErrorsRepository.searchIssues with triage events", () => {
     });
   });
 
-  it("reopens a resolved Error only on a version-aware Regression", async () => {
-    execute.mockResolvedValueOnce([
-      makeSummaryRow({ status: "open", regressed: "1" }),
-    ]);
+  it("reopens a resolved Error only on a genuine Regression", async () => {
+    execute
+      .mockResolvedValueOnce([resolvedStatusRow])
+      .mockResolvedValueOnce([
+        makeSummaryRow({ status: "open", regressed: 1 }),
+      ]);
 
     const result = await makeTriageRepo().searchIssues(baseSearchInput);
 
-    const [sql] = execute.mock.calls[0] ?? [];
-    // Version order is first-seen time in telemetry, per service, unbounded
-    // by the queried range: an Occurrence reopens iff its version was first
-    // seen after the Resolution, and a versionless Occurrence degrades to a
-    // plain timestamp comparison.
+    const [sql] = execute.mock.calls[1] ?? [];
+    // An Occurrence regresses iff its version is outside the Resolution's
+    // resolve-time snapshot; a versionless Occurrence, or a Resolution with
+    // no version knowledge, degrades to a plain timestamp comparison.
     expect(sql).toContain(
-      "ResourceAttributes['service.version'] AS occVersion",
+      "{statusByFp:Map(String, String)}[fingerprint] = 'resolved'",
     );
-    expect(sql).toContain("min(Timestamp) AS versionFirstSeenAt");
-    expect(sql).toContain("ON occService = versionService");
+    expect(sql).toContain("serviceVersion = ''");
     expect(sql).toContain(
-      "max(if(occVersion = '', occLastSeenAt, versionFirstSeenAt) > occResolvedAt) AS regressed",
+      "empty({resolvedVersionsByFp:Map(String, Array(String))}[fingerprint])",
     );
-    // Only resolved Errors feed the rule, so nothing scans when none could
-    // regress, and only rule reopens carry the Regressed flag.
-    expect(sql).toContain("WHERE lastStatusType = 'resolved'");
+    expect(sql).toContain(
+      "Timestamp > {resolvedAtByFp:Map(String, DateTime64(3))}[fingerprint]",
+    );
+    expect(sql).toContain(
+      "NOT has({resolvedVersionsByFp:Map(String, Array(String))}[fingerprint], serviceVersion)",
+    );
 
     expect(result.issues[0]).toMatchObject({
       fingerprint: "fp-1",
@@ -205,32 +238,58 @@ describe("ErrorsRepository.searchIssues with triage events", () => {
       ...baseSearchInput,
       status: ["open", "ignored"],
     });
-    const [sql, params] = execute.mock.calls[0] ?? [];
-    expect(sql).toContain("status IN {statusFilter:Array(String)}");
+    const [sql, params] = execute.mock.calls[1] ?? [];
+    expect(sql).toContain("HAVING status IN {statusFilter:Array(String)}");
     expect(params).toMatchObject({ statusFilter: ["open", "ignored"] });
   });
 
   it("applies no status filter when the selection is empty", async () => {
     await makeTriageRepo().searchIssues(baseSearchInput);
-    const [sql, params] = execute.mock.calls[0] ?? [];
+    const [sql, params] = execute.mock.calls[1] ?? [];
     expect(sql).not.toContain("statusFilter");
     expect(params).not.toHaveProperty("statusFilter");
+    expect(params).toMatchObject({
+      statusByFp: {},
+      resolvedAtByFp: {},
+      resolvedVersionsByFp: {},
+    });
   });
 
-  it("keeps the fingerprint filter working alongside the triage join", async () => {
+  it("prunes both queries by the fingerprint filter", async () => {
     await makeTriageRepo().searchIssues({
       ...baseSearchInput,
       fingerprint: "fp-1",
     });
-    const [sql, params] = execute.mock.calls[0] ?? [];
+    const [statusesSql, statusesParams] = execute.mock.calls[0] ?? [];
+    expect(statusesSql).toContain("AND fingerprint = {fingerprint:String}");
+    expect(statusesParams).toMatchObject({ fingerprint: "fp-1" });
+    const [sql, params] = execute.mock.calls[1] ?? [];
     expect(sql).toContain("WHERE fingerprint = {fingerprint:String}");
     expect(params).toMatchObject({ fingerprint: "fp-1" });
   });
 
+  it("derives a forward status event type as open instead of breaking", async () => {
+    execute
+      .mockResolvedValueOnce([
+        { ...resolvedStatusRow, lastStatusType: "acknowledged" },
+      ])
+      .mockResolvedValueOnce([
+        makeSummaryRow({ status: "open", regressed: 0 }),
+      ]);
+
+    const result = await makeTriageRepo().searchIssues(baseSearchInput);
+    // The unknown type never reaches the derivation params.
+    const [, params] = execute.mock.calls[1] ?? [];
+    expect(params).toMatchObject({ statusByFp: {} });
+    expect(result.issues[0]?.status).toBe("open");
+  });
+
   it("drops an unknown forward status value instead of breaking the row", async () => {
-    execute.mockResolvedValueOnce([
-      makeSummaryRow({ status: "acknowledged", regressed: "1" }),
-    ]);
+    execute
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        makeSummaryRow({ status: "acknowledged", regressed: 1 }),
+      ]);
 
     const result = await makeTriageRepo().searchIssues(baseSearchInput);
     expect(result.issues[0]?.status).toBeUndefined();
@@ -262,6 +321,14 @@ describe("ErrorsRepository.getIssue", () => {
 
   it("derives the summary status when triage events are enabled", async () => {
     execute
+      .mockResolvedValueOnce([
+        {
+          fingerprint: "fp-1",
+          lastStatusType: "ignored",
+          lastStatusAt: "2026-05-26 09:00:00.000",
+          resolvedVersions: [],
+        },
+      ])
       .mockResolvedValueOnce([makeSummaryRow({ status: "ignored" })])
       .mockResolvedValueOnce([makeOccurrenceRow()]);
 
@@ -273,10 +340,14 @@ describe("ErrorsRepository.getIssue", () => {
       occurrenceLimit: 50,
     });
 
-    const [summarySql] = execute.mock.calls[0] ?? [];
-    expect(summarySql).toContain("FROM error_triage_events");
-    // The detail load prunes the triage scan to the one fingerprint.
-    expect(summarySql).toContain("AND fingerprint = {fingerprint:String}");
+    expect(execute).toHaveBeenCalledTimes(3);
+    // The detail load prunes the triage scan to the one fingerprint and
+    // feeds the summary query its status as params.
+    const [statusesSql] = execute.mock.calls[0] ?? [];
+    expect(statusesSql).toContain("FROM error_triage_events");
+    expect(statusesSql).toContain("AND fingerprint = {fingerprint:String}");
+    const [, summaryParams] = execute.mock.calls[1] ?? [];
+    expect(summaryParams).toMatchObject({ statusByFp: { "fp-1": "ignored" } });
     expect(detail.summary.status).toBe("ignored");
   });
 });

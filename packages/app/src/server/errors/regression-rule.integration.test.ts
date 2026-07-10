@@ -67,6 +67,7 @@ describe.skipIf(!clickhouseUrl)("regression rule on real ClickHouse", () => {
       name: string,
       type: "resolved" | "ignored",
       timestamp: string,
+      resolvedVersions: string[] = [],
     ) => ({
       tenant_id: tenant,
       fingerprint: fp(name),
@@ -74,6 +75,7 @@ describe.skipIf(!clickhouseUrl)("regression rule on real ClickHouse", () => {
       version: 0,
       event_type: type,
       body: type === "resolved" ? "Fixed upstream." : "",
+      resolved_versions: resolvedVersions,
       author_id: `it-user-${run}`,
       deleted: 0,
       event_time: timestamp,
@@ -86,12 +88,12 @@ describe.skipIf(!clickhouseUrl)("regression rule on real ClickHouse", () => {
         format: "JSONEachRow",
         clickhouse_settings: { date_time_input_format: "best_effort" },
         values: [
-          // a: resolved, then an Occurrence from v2 (first seen after the
-          // Resolution) — a genuine Regression.
+          // a: resolved with snapshot [v1], then an Occurrence from v2
+          // (outside the snapshot) — a genuine Regression.
           occurrence("a", t0, "v1"),
           occurrence("a", t2, "v2"),
-          // b: resolved, then a same-version straggler from v1 (first seen
-          // before the Resolution) — stays resolved.
+          // b: resolved with snapshot [v1], then a same-version straggler
+          // from v1 — stays resolved.
           occurrence("b", t0, "v1"),
           occurrence("b", t2, "v1"),
           // c: resolved, then a versionless Occurrence newer than the
@@ -105,6 +107,11 @@ describe.skipIf(!clickhouseUrl)("regression rule on real ClickHouse", () => {
           // e: resolved with no Occurrence after the Resolution — stays
           // resolved.
           occurrence("e", t0, null),
+          // f: resolved with NO version knowledge (empty snapshot), then a
+          // versioned Occurrence newer than the Resolution — the rule
+          // degrades to the timestamp comparison and reopens.
+          occurrence("f", t0, "v1"),
+          occurrence("f", t2, "v1"),
         ],
       });
       const seedEvents = clickhouse.insert({
@@ -112,11 +119,12 @@ describe.skipIf(!clickhouseUrl)("regression rule on real ClickHouse", () => {
         format: "JSONEachRow",
         clickhouse_settings: { date_time_input_format: "best_effort" },
         values: [
-          statusEvent("a", "resolved", t1),
-          statusEvent("b", "resolved", t1),
+          statusEvent("a", "resolved", t1, ["v1"]),
+          statusEvent("b", "resolved", t1, ["v1"]),
           statusEvent("c", "resolved", t1),
           statusEvent("d", "ignored", t1),
           statusEvent("e", "resolved", t1),
+          statusEvent("f", "resolved", t1),
         ],
       });
       await Promise.all([seedLogs, seedEvents]);
@@ -165,15 +173,16 @@ describe.skipIf(!clickhouseUrl)("regression rule on real ClickHouse", () => {
         status: "resolved",
         regressed: false,
       });
+      expect(byName("f")).toMatchObject({ status: "open", regressed: true });
 
       // The derived status drives the filter: open must return exactly the
-      // two rule-reopened Errors.
+      // rule-reopened Errors.
       const openOnly = await repo.searchIssues({
         ...searchInput,
         status: ["open"],
       });
       expect(openOnly.issues.map((issue) => issue.fingerprint).sort()).toEqual(
-        [fp("a"), fp("c")].sort(),
+        [fp("a"), fp("c"), fp("f")].sort(),
       );
 
       // The detail load (fingerprint-pruned triage scan) derives the same

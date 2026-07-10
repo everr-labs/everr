@@ -33,15 +33,15 @@ Work the **frontier**: any ticket whose blockers are all done.
 
 ## Version-aware Regression rule
 
-**What to build:** A resolved Error reopens only when it genuinely regresses: an Occurrence whose service version was first seen after the Resolution. Versions are ordered by first-seen time in telemetry (never semver or SHA comparison). An Occurrence with no service version falls back to plain timestamp comparison. Same-version stragglers from old deploys keep the Error resolved. Regressed Errors are visibly flagged in the list and on the detail page. Proven end-to-end by the first env-gated real-ClickHouse integration test (skipped when the env var is absent, mirroring the existing real-Postgres pattern).
+**What to build:** A resolved Error reopens only when it genuinely regresses: an Occurrence whose service version is outside the versions the Resolution snapshotted at resolve time (version membership, never semver or SHA comparison). An Occurrence with no service version, or a Resolution with no version knowledge, falls back to plain timestamp comparison. Same-version stragglers from old deploys keep the Error resolved. Regressed Errors are visibly flagged in the list and on the detail page. Proven end-to-end by the first env-gated real-ClickHouse integration test (skipped when the env var is absent, mirroring the existing real-Postgres pattern).
 
 **Blocked by:** Status events with badges and filter.
 
-- [x] Occurrence from a version first seen after the Resolution reopens the Error, flagged as regressed
-- [x] Occurrence from the resolved-in version leaves the Error resolved
+- [x] Occurrence from a version outside the Resolution's snapshot reopens the Error, flagged as regressed
+- [x] Occurrence from a snapshotted version leaves the Error resolved
 - [x] Versionless Occurrence newer than the Resolution reopens the Error
 - [x] Ignored Errors are unaffected by the rule
-- [x] Env-gated real-ClickHouse integration test seeds Occurrences, Resolutions, and version history and proves all four behaviors above
+- [x] Env-gated real-ClickHouse integration test seeds Occurrences and snapshot-carrying Resolutions and proves all four behaviors above
 - [x] Regressed flag visible in list badge and detail header
 
 ## Cloud CLI errors read surface
