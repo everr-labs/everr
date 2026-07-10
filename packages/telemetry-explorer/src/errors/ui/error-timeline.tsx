@@ -303,7 +303,7 @@ export function ErrorTimeline({
         <InvestigationComposer
           placeholder="Record an Investigation: what you found, what you ruled out, where to look next."
           submitLabel="Record Investigation"
-          hint="Markdown supported. You can edit or delete your own entries."
+          hint="Markdown supported."
           onSubmit={(body) => triage.createInvestigation({ fingerprint, body })}
           onSuccess={() =>
             queryClient.invalidateQueries({
