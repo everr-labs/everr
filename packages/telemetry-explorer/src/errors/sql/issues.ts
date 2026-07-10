@@ -79,9 +79,41 @@ function buildExceptionLogsCte(
   };
 }
 
+// Aggregated per-fingerprint summary columns, shared by the plain and the
+// triage-joined summary shapes.
+const SUMMARY_COLUMNS_SQL = `
+        fingerprint,
+        argMax(LogAttributes['exception.type'], Timestamp) AS exceptionType,
+        argMax(LogAttributes['exception.message'], Timestamp) AS exceptionMessage,
+        argMax(Body, Timestamp) AS body,
+        argMax(ServiceName, Timestamp) AS latestServiceName,
+        groupUniqArray(ServiceName) AS services,
+        count() AS occurrenceCount,
+        uniqExactIf(TraceId, TraceId != '') AS traceCount,
+        toString(min(Timestamp)) AS firstSeen,
+        toString(max(Timestamp)) AS lastSeen,
+        argMax(TraceId, Timestamp) AS latestTraceId,
+        argMax(SpanId, Timestamp) AS latestSpanId,
+        argMax(toString(Timestamp), Timestamp) AS latestTimestamp`;
+
+// The triage table lives next to the logs table in the app database (ADR
+// 0004); unqualified so it resolves there, like the logs table name does.
+const ERROR_TRIAGE_EVENTS_TABLE = "error_triage_events";
+
+export type SummaryQueryOptions = {
+  /**
+   * Join the triage events table and derive each Error's Status (spec 0001):
+   * the latest status event wins, ignored is sticky, and a newer Occurrence
+   * reopens a resolved Error by plain timestamp comparison. Off by default:
+   * surfaces without the table (local/desktop) emit the pre-triage SQL.
+   */
+  triageEvents?: boolean;
+};
+
 export function buildSummaryQuery(
   input: SearchErrorIssuesInput,
   tableName: string,
+  options: SummaryQueryOptions = {},
 ): BuiltQuery {
   validateTableName(tableName);
   const cte = buildExceptionLogsCte(input, tableName);
@@ -101,27 +133,89 @@ export function buildSummaryQuery(
       ? "occurrenceCount DESC, lastSeen DESC, fingerprint DESC"
       : "lastSeen DESC, occurrenceCount DESC, fingerprint DESC";
 
-  return {
-    params,
-    sql: `
+  if (!options.triageEvents) {
+    return {
+      params,
+      sql: `
       WITH ${cte.sql}
-      SELECT
-        fingerprint,
-        argMax(LogAttributes['exception.type'], Timestamp) AS exceptionType,
-        argMax(LogAttributes['exception.message'], Timestamp) AS exceptionMessage,
-        argMax(Body, Timestamp) AS body,
-        argMax(ServiceName, Timestamp) AS latestServiceName,
-        groupUniqArray(ServiceName) AS services,
-        count() AS occurrenceCount,
-        uniqExactIf(TraceId, TraceId != '') AS traceCount,
-        toString(min(Timestamp)) AS firstSeen,
-        toString(max(Timestamp)) AS lastSeen,
-        argMax(TraceId, Timestamp) AS latestTraceId,
-        argMax(SpanId, Timestamp) AS latestSpanId,
-        argMax(toString(Timestamp), Timestamp) AS latestTimestamp
+      SELECT${SUMMARY_COLUMNS_SQL}
       FROM exception_logs
       ${fingerprintFilter}
       GROUP BY fingerprint
+      ORDER BY ${orderBy}
+      LIMIT {limit:UInt32}
+      OFFSET {offset:UInt32}
+    `,
+    };
+  }
+
+  const statusFilter =
+    input.status.length > 0
+      ? "WHERE status IN {statusFilter:Array(String)}"
+      : "";
+  if (input.status.length > 0) params.statusFilter = input.status;
+
+  // Status derivation (spec 0001). Entries first resolve to their latest
+  // version (edits and deletes are version appends, ADR 0004), then the
+  // latest surviving status event per fingerprint wins. Aliases deliberately
+  // avoid source column names: ClickHouse resolves identifiers inside
+  // aggregates to same-name SELECT aliases. Tenant scoping comes from the
+  // row-level policy on both tables. lastSeenAt is the newest Occurrence in
+  // the queried range; version-aware Regression replaces this plain
+  // timestamp comparison later.
+  return {
+    params,
+    sql: `
+      WITH ${cte.sql},
+      issue_summaries AS (
+        SELECT${SUMMARY_COLUMNS_SQL},
+          max(Timestamp) AS lastSeenAt
+        FROM exception_logs
+        ${fingerprintFilter}
+        GROUP BY fingerprint
+      ),
+      latest_status_entries AS (
+        SELECT
+          any(fingerprint) AS entryFingerprint,
+          argMax(event_type, version) AS entryType,
+          argMax(deleted, version) AS entryDeleted,
+          min(event_time) AS entryTime
+        FROM ${ERROR_TRIAGE_EVENTS_TABLE}
+        WHERE event_type IN ('resolved', 'ignored', 'reopened')
+        GROUP BY event_id
+        HAVING entryDeleted = 0
+      ),
+      issue_status AS (
+        SELECT
+          entryFingerprint AS statusFingerprint,
+          argMax(entryType, entryTime) AS lastStatusType,
+          max(entryTime) AS lastStatusAt
+        FROM latest_status_entries
+        GROUP BY entryFingerprint
+      )
+      SELECT
+        fingerprint,
+        exceptionType,
+        exceptionMessage,
+        body,
+        latestServiceName,
+        services,
+        occurrenceCount,
+        traceCount,
+        firstSeen,
+        lastSeen,
+        latestTraceId,
+        latestSpanId,
+        latestTimestamp,
+        multiIf(
+          lastStatusType = 'ignored', 'ignored',
+          lastStatusType = 'resolved' AND lastSeenAt > lastStatusAt, 'open',
+          lastStatusType = 'resolved', 'resolved',
+          'open'
+        ) AS status
+      FROM issue_summaries
+      LEFT JOIN issue_status ON fingerprint = statusFingerprint
+      ${statusFilter}
       ORDER BY ${orderBy}
       LIMIT {limit:UInt32}
       OFFSET {offset:UInt32}

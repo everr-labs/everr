@@ -7,7 +7,7 @@ import {
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import type { AttributeFilter } from "../../attribute-filter/schemas";
 import type { ErrorsRepositoryLike } from "./repository";
-import type { ErrorIssuesResult, ErrorSort } from "./types";
+import type { ErrorIssuesResult, ErrorSort, ErrorStatus } from "./types";
 
 export type ErrorIssuesInfiniteInput = {
   timeRange: TimeRange;
@@ -16,6 +16,7 @@ export type ErrorIssuesInfiniteInput = {
   service: string[];
   fingerprint: string;
   sort: ErrorSort;
+  status: ErrorStatus[];
   limit: number;
   attributes: AttributeFilter[];
 };
@@ -36,6 +37,7 @@ export function errorIssuesInfiniteOptions(
         service: input.service,
         fingerprint: input.fingerprint,
         sort: input.sort,
+        status: input.status,
         limit: input.limit,
         attributes: input.attributes,
       },
@@ -49,6 +51,7 @@ export function errorIssuesInfiniteOptions(
         service: input.service,
         fingerprint: input.fingerprint,
         sort: input.sort,
+        status: input.status,
         limit: input.limit,
         offset: pageParam,
         attributes: input.attributes,

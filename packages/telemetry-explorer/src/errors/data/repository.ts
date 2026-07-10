@@ -38,14 +38,15 @@ import type {
   ErrorOccurrence,
   ErrorTriageEvent,
 } from "./types";
-import { isErrorTriageEventType } from "./types";
+import { isErrorStatus, isErrorTriageEventType } from "./types";
 
 type ErrorIssueSummaryRow = Omit<
   ErrorIssueSummary,
-  "occurrenceCount" | "traceCount"
+  "occurrenceCount" | "traceCount" | "status"
 > & {
   occurrenceCount: string | number;
   traceCount: string | number;
+  status?: string;
 };
 
 type ErrorOccurrenceRow = Omit<ErrorOccurrence, "timestampRank"> & {
@@ -89,6 +90,9 @@ function mapSummary(row: ErrorIssueSummaryRow): ErrorIssueSummary {
     ...row,
     occurrenceCount: Number(row.occurrenceCount),
     traceCount: Number(row.traceCount),
+    // Absent without the triage join; a forward status value written by a
+    // newer derivation must not break older readers.
+    status: isErrorStatus(row.status) ? row.status : undefined,
   };
 }
 
@@ -105,23 +109,33 @@ function mapOccurrence(row: ErrorOccurrenceRow): ErrorOccurrence {
 
 export interface ErrorsRepositoryOptions {
   tableName?: string;
+  /**
+   * Derive each Error's triage Status in the summary queries by joining the
+   * error_triage_events table (ADR 0004). Opt-in: surfaces without the table
+   * (local/desktop, deferred) keep the pre-triage query shape.
+   */
+  triageEvents?: boolean;
 }
 
 export class ErrorsRepository {
   private readonly tableName: string;
+  private readonly triageEvents: boolean;
 
   constructor(
     private readonly client: SqlClient,
     options: ErrorsRepositoryOptions = {},
   ) {
     this.tableName = options.tableName ?? "logs";
+    this.triageEvents = options.triageEvents ?? false;
   }
 
   // fallow-ignore-next-line unused-class-member
   async searchIssues(
     input: SearchErrorIssuesInput,
   ): Promise<ErrorIssuesResult> {
-    const { sql, params } = buildSummaryQuery(input, this.tableName);
+    const { sql, params } = buildSummaryQuery(input, this.tableName, {
+      triageEvents: this.triageEvents,
+    });
     const rows = await this.client.execute<ErrorIssueSummaryRow>(sql, params);
     return { issues: rows.map(mapSummary) };
   }
@@ -136,11 +150,13 @@ export class ErrorsRepository {
         service: input.service,
         fingerprint: input.fingerprint,
         sort: "lastSeen",
+        status: [],
         limit: 1,
         offset: 0,
         attributes: [],
       },
       this.tableName,
+      { triageEvents: this.triageEvents },
     );
     const occurrencesQuery = buildOccurrencesQuery(input, this.tableName);
     const [summaryRows, occurrenceRows] = await Promise.all([

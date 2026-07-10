@@ -1,5 +1,6 @@
 import {
   CreateErrorInvestigationInputSchema,
+  CreateErrorStatusEventInputSchema,
   DeleteErrorInvestigationInputSchema,
   ErrorAttributeKeysInputSchema,
   ErrorAttributeValuesInputSchema,
@@ -14,6 +15,7 @@ import {
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import {
   createInvestigation,
+  createStatusEvent,
   deleteInvestigation,
   editInvestigation,
   INVESTIGATION_NOT_FOUND,
@@ -26,7 +28,8 @@ function repoFromContext(clickhouse: {
   const client: SqlClient = {
     execute: (sql, params) => clickhouse.query(sql, params),
   };
-  return new ErrorsRepository(client);
+  // The cloud has the triage events table, so summaries carry derived Status.
+  return new ErrorsRepository(client, { triageEvents: true });
 }
 
 export const searchErrorIssues = createAuthenticatedServerFn({ method: "GET" })
@@ -60,6 +63,7 @@ async function sanitizeWriteFailure<T>(
   action: string,
   fingerprintOrEventId: string,
   write: () => Promise<T>,
+  clientMessage = "Failed to save the Investigation. Try again.",
 ): Promise<T> {
   try {
     return await write();
@@ -67,12 +71,12 @@ async function sanitizeWriteFailure<T>(
     if (error instanceof Error && error.message === INVESTIGATION_NOT_FOUND) {
       throw error;
     }
-    serverLogger.error(`errors.investigation.${action}_failed`, {
+    serverLogger.error(`errors.${action}_failed`, {
       ...exceptionAttributes(error),
       "everr.error.ref": fingerprintOrEventId,
       "error.handled": true,
     });
-    throw new Error("Failed to save the Investigation. Try again.");
+    throw new Error(clientMessage);
   }
 }
 
@@ -83,7 +87,7 @@ export const createErrorInvestigation = createAuthenticatedServerFn({
 })
   .inputValidator(CreateErrorInvestigationInputSchema)
   .handler(({ data, context: { session } }) =>
-    sanitizeWriteFailure("create", data.fingerprint, () =>
+    sanitizeWriteFailure("investigation.create", data.fingerprint, () =>
       createInvestigation({
         tenantId: session.session.activeOrganizationId,
         fingerprint: data.fingerprint,
@@ -98,7 +102,7 @@ export const updateErrorInvestigation = createAuthenticatedServerFn({
 })
   .inputValidator(UpdateErrorInvestigationInputSchema)
   .handler(({ data, context: { session, clickhouse } }) =>
-    sanitizeWriteFailure("update", data.eventId, () =>
+    sanitizeWriteFailure("investigation.update", data.eventId, () =>
       editInvestigation({
         query: clickhouse.query,
         tenantId: session.session.activeOrganizationId,
@@ -114,13 +118,33 @@ export const deleteErrorInvestigation = createAuthenticatedServerFn({
 })
   .inputValidator(DeleteErrorInvestigationInputSchema)
   .handler(({ data, context: { session, clickhouse } }) =>
-    sanitizeWriteFailure("delete", data.eventId, () =>
+    sanitizeWriteFailure("investigation.delete", data.eventId, () =>
       deleteInvestigation({
         query: clickhouse.query,
         tenantId: session.session.activeOrganizationId,
         eventId: data.eventId,
         authorId: session.user.id,
       }),
+    ),
+  );
+
+export const createErrorStatusEvent = createAuthenticatedServerFn({
+  method: "POST",
+})
+  .inputValidator(CreateErrorStatusEventInputSchema)
+  .handler(({ data, context: { session } }) =>
+    sanitizeWriteFailure(
+      "status.create",
+      data.fingerprint,
+      () =>
+        createStatusEvent({
+          tenantId: session.session.activeOrganizationId,
+          fingerprint: data.fingerprint,
+          type: data.type,
+          body: data.body,
+          authorId: session.user.id,
+        }),
+      "Failed to save the status change. Try again.",
     ),
   );
 

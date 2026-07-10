@@ -26,6 +26,7 @@ import {
 import type { ErrorsRepositoryLike } from "../data/repository";
 import type {
   CreateErrorInvestigationInput,
+  CreateErrorStatusEventInput,
   DeleteErrorInvestigationInput,
   UpdateErrorInvestigationInput,
 } from "../data/schemas";
@@ -48,13 +49,22 @@ export type ErrorTriageActions = {
   deleteInvestigation: (
     input: DeleteErrorInvestigationInput,
   ) => Promise<unknown>;
+  createStatusEvent: (input: CreateErrorStatusEventInput) => Promise<unknown>;
 };
 
-const EVENT_LABELS: Record<ErrorTriageEventType, string> = {
-  investigation: "recorded an Investigation",
-  resolved: "resolved this Error",
-  ignored: "ignored this Error",
-  reopened: "reopened this Error",
+// Label tone mirrors the status badge palette so a Resolution or reopening
+// stands out when scanning a long thread; Investigations stay quiet.
+const EVENT_LABELS: Record<
+  ErrorTriageEventType,
+  { text: string; className: string }
+> = {
+  investigation: {
+    text: "recorded an Investigation",
+    className: "text-muted-foreground",
+  },
+  resolved: { text: "resolved this Error", className: "text-emerald-400" },
+  ignored: { text: "ignored this Error", className: "text-muted-foreground" },
+  reopened: { text: "reopened this Error", className: "text-amber-400" },
 };
 
 function authorInitials(name: string): string {
@@ -140,8 +150,8 @@ function TimelineEvent({
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
           <span className="font-medium">{event.author.name || "Unknown"}</span>
-          <span className="text-muted-foreground">
-            {EVENT_LABELS[event.type]}
+          <span className={EVENT_LABELS[event.type].className}>
+            {EVENT_LABELS[event.type].text}
           </span>
           {event.edited ? (
             <span
@@ -185,8 +195,8 @@ function TimelineEvent({
               : "Failed to delete the Investigation."}
           </p>
         ) : null}
-        <div className="mt-1">
-          {editing ? (
+        {editing ? (
+          <div className="mt-1">
             <InvestigationComposer
               initialValue={event.body}
               placeholder="Update this Investigation."
@@ -201,10 +211,14 @@ function TimelineEvent({
               }}
               onCancel={() => setEditing(false)}
             />
-          ) : (
+          </div>
+        ) : event.body ? (
+          // Status changes may carry no note (ignore, reopen); the header
+          // line is the whole entry then.
+          <div className="mt-1">
             <ErrorEventMarkdown>{event.body}</ErrorEventMarkdown>
-          )}
-        </div>
+          </div>
+        ) : null}
       </div>
     </li>
   );

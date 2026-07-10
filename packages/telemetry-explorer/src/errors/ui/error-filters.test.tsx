@@ -24,6 +24,7 @@ const baseValue = {
   service: [] as string[],
   fingerprint: "",
   sort: "lastSeen" as const,
+  status: [],
   attributes: [],
 };
 
@@ -128,6 +129,57 @@ describe("ErrorFilters", () => {
     const patch = onChange.mock.calls[0]?.[0];
     expect(patch).not.toHaveProperty("service");
     expect(patch).toEqual({ attributes: [] });
+  });
+
+  it("shows the Status filter only on triage surfaces and emits selections", () => {
+    const onChange = vi.fn();
+    const { rerender } = renderWithQueryClient(
+      <ErrorFilters
+        repo={repo}
+        timeRange={{ from: "now-1h", to: "now" }}
+        value={baseValue}
+        services={[]}
+        onChange={onChange}
+      />,
+    );
+    // Local/desktop surfaces have no triage Status yet.
+    expect(screen.queryByText("Status")).not.toBeInTheDocument();
+
+    rerender(
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <ErrorFilters
+          repo={repo}
+          timeRange={{ from: "now-1h", to: "now" }}
+          showStatus
+          value={baseValue}
+          services={[]}
+          onChange={onChange}
+        />
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Resolved" }));
+    expect(onChange).toHaveBeenCalledWith({ status: ["resolved"] });
+  });
+
+  it("clear-all resets the status selection on triage surfaces", () => {
+    const onChange = vi.fn();
+    renderWithQueryClient(
+      <ErrorFilters
+        repo={repo}
+        timeRange={{ from: "now-1h", to: "now" }}
+        hideSharedFilters
+        showStatus
+        value={{ ...baseValue, status: ["open"] }}
+        services={[]}
+        onChange={onChange}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
+    expect(onChange).toHaveBeenCalledWith({ attributes: [], status: [] });
   });
 
   it("with hideSharedFilters, a shared service alone does not surface Clear all", () => {

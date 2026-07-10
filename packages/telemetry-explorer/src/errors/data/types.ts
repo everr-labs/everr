@@ -14,6 +14,30 @@ export function isErrorTriageEventType(
   return (ERROR_TRIAGE_EVENT_TYPES as readonly string[]).includes(value);
 }
 
+// Triage event types that change an Error's derived Status (everything but
+// investigation).
+export const ERROR_STATUS_EVENT_TYPES = [
+  "resolved",
+  "ignored",
+  "reopened",
+] as const;
+export type ErrorStatusEventType = (typeof ERROR_STATUS_EVENT_TYPES)[number];
+
+// Derived triage Status (spec 0001): computed at read time from the latest
+// status event plus the Occurrence timestamps; never stored anywhere.
+export const ERROR_STATUSES = ["open", "resolved", "ignored"] as const;
+export type ErrorStatus = (typeof ERROR_STATUSES)[number];
+
+export const ERROR_STATUS_LABELS: Record<ErrorStatus, string> = {
+  open: "Open",
+  resolved: "Resolved",
+  ignored: "Ignored",
+};
+
+export function isErrorStatus(value: unknown): value is ErrorStatus {
+  return (ERROR_STATUSES as readonly unknown[]).includes(value);
+}
+
 // One triage entry (Investigation, Resolution, or status change) resolved to
 // its latest version from the error_triage_events table (ADR 0004).
 export type ErrorTriageEvent = {
@@ -33,6 +57,12 @@ export type ErrorTriageEvent = {
 };
 
 export type ErrorIssueSummary = {
+  /**
+   * Derived triage Status. Present only on surfaces with triage capability
+   * (the repository's triageEvents option); local/desktop summaries carry no
+   * Status until the Collector grows a counterpart events table.
+   */
+  status?: ErrorStatus;
   fingerprint: string;
   exceptionType: string;
   exceptionMessage: string;

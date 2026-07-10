@@ -78,6 +78,22 @@ describe("ErrorIssueList", () => {
     render(<ErrorIssueList {...listProps()} issues={[issue]} />);
     expect(screen.getByText("TypeError")).toBeInTheDocument();
     expect(screen.getByText("3 occurrences")).toBeInTheDocument();
+    // No triage Status derived (local/desktop): no status badge at all.
+    expect(screen.queryByText("Open")).not.toBeInTheDocument();
+  });
+
+  it("renders a Status badge when the summary carries one", () => {
+    render(
+      <ErrorIssueList
+        {...listProps()}
+        issues={[
+          { ...issue, status: "resolved" },
+          { ...issue, fingerprint: "fp-2", status: "ignored" },
+        ]}
+      />,
+    );
+    expect(screen.getByText("Resolved")).toBeInTheDocument();
+    expect(screen.getByText("Ignored")).toBeInTheDocument();
   });
 
   it("renders the empty state", () => {
@@ -103,6 +119,7 @@ describe("ErrorFilters", () => {
             service: [],
             fingerprint: "",
             sort: "lastSeen",
+            status: [],
             attributes: [],
           }}
           services={["web", "api"]}

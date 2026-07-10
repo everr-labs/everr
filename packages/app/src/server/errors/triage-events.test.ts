@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { insertAdminRows } from "@/lib/clickhouse";
 import {
   createInvestigation,
+  createStatusEvent,
   deleteInvestigation,
   editInvestigation,
 } from "./triage-events";
@@ -60,6 +61,46 @@ describe("createInvestigation", () => {
     expect(row.event_id).toMatch(/^[0-9a-f-]{36}$/);
     expect(Date.parse(row.event_time as string)).not.toBeNaN();
     expect(row.updated_at).toBe(row.event_time);
+  });
+});
+
+describe("createStatusEvent", () => {
+  it("inserts a version-0 status row with tenant and author stamped", async () => {
+    await createStatusEvent({
+      tenantId: "org-1",
+      fingerprint: "fp-1",
+      type: "resolved",
+      body: "Fixed by tightening the retry guard.",
+      authorId: "user-1",
+    });
+
+    const row = insertedRow();
+    expect(row).toMatchObject({
+      tenant_id: "org-1",
+      fingerprint: "fp-1",
+      version: 0,
+      event_type: "resolved",
+      body: "Fixed by tightening the retry guard.",
+      author_id: "user-1",
+      deleted: 0,
+    });
+    expect(row.event_id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(row.updated_at).toBe(row.event_time);
+  });
+
+  it("records ignore and reopen without a body", async () => {
+    await createStatusEvent({
+      tenantId: "org-1",
+      fingerprint: "fp-1",
+      type: "ignored",
+      body: "",
+      authorId: "user-1",
+    });
+
+    expect(insertedRow()).toMatchObject({
+      event_type: "ignored",
+      body: "",
+    });
   });
 });
 

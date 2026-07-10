@@ -35,6 +35,8 @@ export const TimeRangeSearchSchema = z.object({
 
 export const ErrorSortSchema = z.enum(["lastSeen", "count"]);
 
+export const ErrorStatusSchema = z.enum(["open", "resolved", "ignored"]);
+
 // Issues fetched per infinite-scroll page.
 export const PAGE_SIZE = 50;
 
@@ -44,6 +46,9 @@ export const ErrorIssueSearchSchema = TimeRangeSearchSchema.extend({
   fingerprint: searchString,
   occurrence: searchString,
   sort: ErrorSortSchema.default("lastSeen").catch("lastSeen"),
+  // Empty means all statuses: the list is purely additive over pre-triage
+  // behavior by default.
+  status: z.array(ErrorStatusSchema).catch([]).default([]),
   attributes: attributesField(["resource", "log", "scope"]).catch([]),
 });
 export type ErrorIssueSearch = z.infer<typeof ErrorIssueSearchSchema>;
@@ -55,6 +60,7 @@ export const SearchErrorIssuesInputSchema = z.object({
   service: z.array(z.string()).default([]),
   fingerprint: z.string().trim().default(""),
   sort: ErrorSortSchema.default("lastSeen"),
+  status: z.array(ErrorStatusSchema).default([]),
   limit: z.coerce.number().int().positive().max(500).default(50),
   offset: z.coerce.number().int().min(0).default(0),
   attributes: attributesField(["resource", "log", "scope"]),
@@ -121,6 +127,27 @@ export const DeleteErrorInvestigationInputSchema = z.object({
 });
 export type DeleteErrorInvestigationInput = z.infer<
   typeof DeleteErrorInvestigationInputSchema
+>;
+
+// A Resolution records why the Error is fixed; ignore and reopen may carry an
+// optional note. Tenant and author are stamped server-side, like the
+// investigation writes above.
+export const CreateErrorStatusEventInputSchema = z
+  .object({
+    fingerprint: z.string().min(1).max(200),
+    type: z.enum(["resolved", "ignored", "reopened"]),
+    body: z
+      .string()
+      .trim()
+      .max(64 * 1024)
+      .default(""),
+  })
+  .refine((input) => input.type !== "resolved" || input.body.length > 0, {
+    message: "A Resolution needs an explanation of the fix.",
+    path: ["body"],
+  });
+export type CreateErrorStatusEventInput = z.infer<
+  typeof CreateErrorStatusEventInputSchema
 >;
 
 export const ErrorAttributeKeysInputSchema = z.object({

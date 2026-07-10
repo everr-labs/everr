@@ -25,6 +25,7 @@ import {
   type RenderOccurrenceLink,
 } from "./error-occurrences-list";
 import { ErrorStacktrace } from "./error-stacktrace";
+import { ErrorStatusControls } from "./error-status-controls";
 import { ErrorTimeline, type ErrorTriageActions } from "./error-timeline";
 
 const OCCURRENCE_LIMIT = 50;
@@ -125,6 +126,15 @@ export function ErrorDetail({
         issue={detail.summary}
         onBack={onBack}
         onClose={onClose}
+        actions={
+          triage ? (
+            <ErrorStatusControls
+              fingerprint={fingerprint}
+              status={detail.summary.status}
+              triage={triage}
+            />
+          ) : undefined
+        }
       />
       <main className="min-h-0 flex-1 overflow-auto">
         <div className="mx-auto grid max-w-7xl gap-3 p-3">

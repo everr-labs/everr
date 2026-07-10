@@ -31,6 +31,7 @@ const baseInput = {
   service: [],
   fingerprint: "",
   sort: "lastSeen" as const,
+  status: [],
   limit: 50,
   attributes: [],
 };

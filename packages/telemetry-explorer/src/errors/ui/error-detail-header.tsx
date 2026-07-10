@@ -2,17 +2,22 @@ import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { ArrowLeft, X } from "lucide-react";
+import type { ReactNode } from "react";
 import type { ErrorIssueSummary } from "../data/types";
 import { ErrorServiceBadge } from "./error-service-badge";
+import { ErrorStatusBadge } from "./error-status-badge";
 
 export function ErrorDetailHeader({
   issue,
   onBack,
   onClose,
+  actions,
 }: {
   issue: ErrorIssueSummary;
   onBack?: () => void;
   onClose?: () => void;
+  /** Right-aligned header actions (status controls on triage surfaces). */
+  actions?: ReactNode;
 }) {
   const title = issue.exceptionType || "Unknown exception";
   const message = issue.exceptionMessage || issue.body || issue.fingerprint;
@@ -48,6 +53,7 @@ export function ErrorDetailHeader({
         <h1 className="truncate text-lg font-semibold">{title}</h1>
         <p className="truncate text-xs text-muted-foreground">{message}</p>
         <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+          {issue.status ? <ErrorStatusBadge status={issue.status} /> : null}
           <ErrorServiceBadge serviceName={issue.latestServiceName} />
           <Badge variant="secondary">
             {issue.occurrenceCount}{" "}
@@ -56,6 +62,7 @@ export function ErrorDetailHeader({
           <span>Last seen {formatRelativeTime(issue.lastSeen)}</span>
         </div>
       </div>
+      {actions ? <div className="shrink-0">{actions}</div> : null}
     </header>
   );
 }

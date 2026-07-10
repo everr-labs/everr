@@ -1,5 +1,8 @@
 import { randomUUID } from "node:crypto";
-import type { ErrorTriageEventType } from "@everr/telemetry-explorer/errors";
+import type {
+  ErrorStatusEventType,
+  ErrorTriageEventType,
+} from "@everr/telemetry-explorer/errors";
 import type { ClickhouseQuery } from "@/lib/clickhouse";
 import { insertAdminRows } from "@/lib/clickhouse";
 
@@ -35,9 +38,10 @@ function insertTriageEvents(rows: ErrorTriageEventRow[]): Promise<void> {
   });
 }
 
-export async function createInvestigation(input: {
+async function createEntry(input: {
   tenantId: string;
   fingerprint: string;
+  eventType: ErrorTriageEventType;
   body: string;
   authorId: string;
 }): Promise<void> {
@@ -48,7 +52,7 @@ export async function createInvestigation(input: {
       fingerprint: input.fingerprint,
       event_id: randomUUID(),
       version: 0,
-      event_type: "investigation",
+      event_type: input.eventType,
       body: input.body,
       author_id: input.authorId,
       deleted: 0,
@@ -56,6 +60,34 @@ export async function createInvestigation(input: {
       updated_at: now,
     },
   ]);
+}
+
+export function createInvestigation(input: {
+  tenantId: string;
+  fingerprint: string;
+  body: string;
+  authorId: string;
+}): Promise<void> {
+  return createEntry({ ...input, eventType: "investigation" });
+}
+
+// Status changes (resolved, ignored, reopened) are plain version-0 entries in
+// the same table; Status is derived at read time from the latest one, so
+// "changing status" is just appending an event.
+export function createStatusEvent(input: {
+  tenantId: string;
+  fingerprint: string;
+  type: ErrorStatusEventType;
+  body: string;
+  authorId: string;
+}): Promise<void> {
+  return createEntry({
+    tenantId: input.tenantId,
+    fingerprint: input.fingerprint,
+    eventType: input.type,
+    body: input.body,
+    authorId: input.authorId,
+  });
 }
 
 type LatestEntryRow = {

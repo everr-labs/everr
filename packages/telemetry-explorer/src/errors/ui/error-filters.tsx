@@ -13,7 +13,12 @@ import { EnvironmentFilter } from "../../filters/ui/environment-filter";
 import { FilterSidebar } from "../../filters/ui/filter-sidebar";
 import type { ErrorsRepositoryLike } from "../data/repository";
 import type { AttributeFilter } from "../data/schemas";
-import type { ErrorSort } from "../data/types";
+import type { ErrorSort, ErrorStatus } from "../data/types";
+import {
+  ERROR_STATUS_LABELS,
+  ERROR_STATUSES,
+  isErrorStatus,
+} from "../data/types";
 import {
   ERRORS_ATTRIBUTE_SOURCES_UI,
   ERRORS_EXCLUDED_KEYS,
@@ -25,6 +30,7 @@ export type ErrorFiltersValue = {
   service: string[];
   fingerprint: string;
   sort: ErrorSort;
+  status: ErrorStatus[];
   attributes: AttributeFilter[];
 };
 
@@ -82,6 +88,7 @@ export function ErrorFilters({
   value,
   services = [],
   hideSharedFilters = false,
+  showStatus = false,
   onChange,
 }: {
   repo: ErrorsRepositoryLike;
@@ -89,9 +96,12 @@ export function ErrorFilters({
   value: ErrorFiltersValue;
   services?: string[];
   hideSharedFilters?: boolean;
+  /** Triage surfaces only; local/desktop Errors carry no Status yet. */
+  showStatus?: boolean;
   onChange: (patch: Partial<ErrorFiltersValue>) => void;
 }) {
   const orderLabelId = useId();
+  const statusLabelId = useId();
 
   // "Clear all" resets active filters only. Sort is an ordering preference (it
   // always has a value), and q is owned by the separate search bar, so neither
@@ -100,6 +110,7 @@ export function ErrorFilters({
   // there too: excluded from hasActiveFilters and left untouched by onClear.
   const hasActiveFilters =
     (!hideSharedFilters && value.service.length > 0) ||
+    (showStatus && value.status.length > 0) ||
     value.attributes.length > 0;
 
   return (
@@ -107,11 +118,11 @@ export function ErrorFilters({
       label="Error filters"
       hasActiveFilters={hasActiveFilters}
       onClear={() =>
-        onChange(
-          hideSharedFilters
-            ? { attributes: [] }
-            : { service: [], attributes: [] },
-        )
+        onChange({
+          attributes: [],
+          ...(showStatus ? { status: [] } : {}),
+          ...(hideSharedFilters ? {} : { service: [] }),
+        })
       }
     >
       <div className="flex flex-col gap-1">
@@ -146,6 +157,44 @@ export function ErrorFilters({
       </div>
 
       <Separator />
+
+      {showStatus && (
+        <>
+          <div className="flex flex-col gap-1">
+            <Label id={statusLabelId} className="text-muted-foreground text-xs">
+              Status
+            </Label>
+            <ToggleGroup
+              multiple
+              value={value.status}
+              size="lg"
+              variant="outline"
+              spacing={0}
+              className="w-full"
+              onValueChange={(next) =>
+                onChange({ status: next.filter(isErrorStatus) })
+              }
+              aria-labelledby={statusLabelId}
+            >
+              {ERROR_STATUSES.map((status) => (
+                <ToggleGroupItem
+                  key={status}
+                  value={status}
+                  aria-label={ERROR_STATUS_LABELS[status]}
+                  className="flex-1"
+                >
+                  {ERROR_STATUS_LABELS[status]}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+            <p className="text-muted-foreground text-xs">
+              None selected shows every status.
+            </p>
+          </div>
+
+          <Separator />
+        </>
+      )}
 
       {!hideSharedFilters && (
         <ServiceAndEnvironment

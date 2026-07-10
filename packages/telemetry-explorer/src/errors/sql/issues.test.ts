@@ -8,6 +8,7 @@ const base = {
   service: [] as string[],
   fingerprint: "",
   sort: "lastSeen" as const,
+  status: [] as never[],
   limit: 50,
   offset: 0,
   attributes: [] as never[],

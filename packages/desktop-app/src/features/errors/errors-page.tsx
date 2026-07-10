@@ -38,8 +38,12 @@ export { ErrorIssueSearchSchema };
 
 // service/environment live in the shared Explore topbar but must also be in the
 // route schema so the leaf route's validateSearch doesn't strip them.
-export const ErrorsListSearchSchema =
-  ErrorIssueSearchSchema.extend(ExploreSearchShape);
+// status is omitted: local Errors carry no triage Status until the Collector
+// grows a counterpart events table (ADR 0004), and the desktop traces route
+// owns an incompatible status param that strict:false searches would merge.
+export const ErrorsListSearchSchema = ErrorIssueSearchSchema.omit({
+  status: true,
+}).extend(ExploreSearchShape);
 
 const localErrorsRepo = new ErrorsRepository(localSqlClient);
 const localTracesRepo = new TracesRepository(localSqlClient);
@@ -132,7 +136,9 @@ function ErrorsListView() {
           repo={localErrorsRepo}
           timeRange={timeRange}
           refresh={refresh ?? ""}
-          search={{ q, service, fingerprint, sort, attributes }}
+          // status stays empty: local Errors carry no triage Status until the
+          // Collector grows a counterpart events table (ADR 0004).
+          search={{ q, service, fingerprint, sort, status: [], attributes }}
           environment={environment}
           hideSharedFilters
           onSearchChange={(patch) =>

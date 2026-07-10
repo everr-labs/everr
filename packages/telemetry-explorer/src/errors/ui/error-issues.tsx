@@ -7,7 +7,7 @@ import { errorIssuesInfiniteOptions } from "../data/options";
 import type { ErrorsRepositoryLike } from "../data/repository";
 import type { AttributeFilter } from "../data/schemas";
 import { PAGE_SIZE } from "../data/schemas";
-import type { ErrorSort } from "../data/types";
+import type { ErrorSort, ErrorStatus } from "../data/types";
 import { ErrorFilters } from "./error-filters";
 import { ErrorIssueList } from "./error-issue-list";
 import type { RenderErrorIssueLink } from "./error-issue-row";
@@ -19,6 +19,7 @@ export type ErrorIssuesSearchValue = {
   service: string[];
   fingerprint: string;
   sort: ErrorSort;
+  status: ErrorStatus[];
   attributes: AttributeFilter[];
 };
 
@@ -29,6 +30,12 @@ export type ErrorIssuesProps = {
   search: ErrorIssuesSearchValue;
   environment?: string[];
   hideSharedFilters?: boolean;
+  /**
+   * The surface has triage capability (the repo derives Status): shows the
+   * status filter. Off for local/desktop until the Collector grows a
+   * counterpart events table.
+   */
+  triageEnabled?: boolean;
   onSearchChange: (patch: Partial<ErrorIssuesSearchValue>) => void;
   renderIssueLink: RenderErrorIssueLink;
 };
@@ -40,6 +47,7 @@ export function ErrorIssues({
   search,
   environment = [],
   hideSharedFilters = false,
+  triageEnabled = false,
   onSearchChange,
   renderIssueLink,
 }: ErrorIssuesProps) {
@@ -51,6 +59,7 @@ export function ErrorIssues({
       service: search.service,
       fingerprint: search.fingerprint,
       sort: search.sort,
+      status: triageEnabled ? search.status : [],
       limit: PAGE_SIZE,
       attributes: withEnvironment(search.attributes, environment),
     }),
@@ -80,6 +89,7 @@ export function ErrorIssues({
             timeRange={timeRange}
             value={search}
             hideSharedFilters={hideSharedFilters}
+            showStatus={triageEnabled}
             onChange={onSearchChange}
           />
           <main className="min-h-0 min-w-0">

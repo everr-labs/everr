@@ -14,6 +14,7 @@ import { useMemo } from "react";
 import { remoteErrorsRepo } from "@/data/errors/remote-repo";
 import {
   createErrorInvestigation,
+  createErrorStatusEvent,
   deleteErrorInvestigation,
   updateErrorInvestigation,
 } from "@/data/errors/server";
@@ -50,6 +51,8 @@ export function ErrorDetailRouteContent({
               updateErrorInvestigation({ data: input }),
             deleteInvestigation: (input) =>
               deleteErrorInvestigation({ data: input }),
+            createStatusEvent: (input) =>
+              createErrorStatusEvent({ data: input }),
           }
         : undefined,
     [currentUserId],

@@ -23,13 +23,13 @@ Work the **frontier**: any ticket whose blockers are all done.
 
 **Blocked by:** Record an Investigation from the web UI.
 
-- [ ] Resolve, ignore, and reopen controls on the Error detail write status events into the same events table
-- [ ] Resolution captures a markdown explanation shown in the timeline
-- [ ] Errors list shows a Status badge per Error and a status filter; all statuses visible by default
-- [ ] Status is derived in the summary query; no stored status anywhere
-- [ ] Ignored stays ignored regardless of new Occurrences; only a manual status change lifts it
-- [ ] With zero triage events the list behaves exactly as before this work
-- [ ] Derivation and filter covered at the fake-execute-client seam
+- [x] Resolve, ignore, and reopen controls on the Error detail write status events into the same events table
+- [x] Resolution captures a markdown explanation shown in the timeline
+- [x] Errors list shows a Status badge per Error and a status filter; all statuses visible by default
+- [x] Status is derived in the summary query; no stored status anywhere
+- [x] Ignored stays ignored regardless of new Occurrences; only a manual status change lifts it
+- [x] With zero triage events the list behaves exactly as before this work
+- [x] Derivation and filter covered at the fake-execute-client seam
 
 ## Version-aware Regression rule
 

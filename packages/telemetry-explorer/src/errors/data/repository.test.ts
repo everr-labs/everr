@@ -13,6 +13,23 @@ function makeRepo(tableName?: string) {
   return new ErrorsRepository(client, tableName ? { tableName } : undefined);
 }
 
+function makeTriageRepo() {
+  return new ErrorsRepository(client, { triageEvents: true });
+}
+
+const baseSearchInput = {
+  fromTs: "2026-05-26 10:00:00",
+  toTs: "2026-05-26 11:00:00",
+  q: "",
+  service: [],
+  fingerprint: "",
+  sort: "lastSeen" as const,
+  status: [],
+  limit: 50,
+  offset: 0,
+  attributes: [],
+};
+
 describe("ErrorsRepository.searchIssues", () => {
   it("groups exception logs by fingerprint with paging and a stable order", async () => {
     execute.mockResolvedValueOnce([
@@ -34,15 +51,10 @@ describe("ErrorsRepository.searchIssues", () => {
     ]);
 
     const result = await makeRepo().searchIssues({
-      fromTs: "2026-05-26 10:00:00",
-      toTs: "2026-05-26 11:00:00",
+      ...baseSearchInput,
       q: "boom",
       service: ["web"],
-      fingerprint: "",
-      sort: "lastSeen",
-      limit: 50,
       offset: 50,
-      attributes: [],
     });
 
     expect(execute).toHaveBeenCalledTimes(1);
@@ -65,15 +77,10 @@ describe("ErrorsRepository.searchIssues", () => {
 
   it("orders by occurrence count when requested", async () => {
     await makeRepo().searchIssues({
-      fromTs: "2026-05-26 10:00:00",
-      toTs: "2026-05-26 11:00:00",
-      q: "",
-      service: [],
+      ...baseSearchInput,
       fingerprint: "fp-1",
       sort: "count",
       limit: 25,
-      offset: 0,
-      attributes: [],
     });
     const [sql] = execute.mock.calls[0] ?? [];
     expect(sql).toContain("WHERE fingerprint = {fingerprint:String}");
@@ -83,17 +90,7 @@ describe("ErrorsRepository.searchIssues", () => {
   });
 
   it("queries the configured table name", async () => {
-    await makeRepo("otel_logs").searchIssues({
-      fromTs: "2026-05-26 10:00:00",
-      toTs: "2026-05-26 11:00:00",
-      q: "",
-      service: [],
-      fingerprint: "",
-      sort: "lastSeen",
-      limit: 50,
-      offset: 0,
-      attributes: [],
-    });
+    await makeRepo("otel_logs").searchIssues(baseSearchInput);
     const [sql] = execute.mock.calls[0] ?? [];
     expect(sql).toContain("FROM otel_logs");
     expect(sql).not.toContain("FROM logs");
@@ -101,18 +98,122 @@ describe("ErrorsRepository.searchIssues", () => {
 
   it("rejects invalid table names", async () => {
     await expect(
-      makeRepo("logs; DROP TABLE x; --").searchIssues({
-        fromTs: "2026-05-26 10:00:00",
-        toTs: "2026-05-26 11:00:00",
-        q: "",
-        service: [],
-        fingerprint: "",
-        sort: "lastSeen",
-        limit: 50,
-        offset: 0,
-        attributes: [],
-      }),
+      makeRepo("logs; DROP TABLE x; --").searchIssues(baseSearchInput),
     ).rejects.toThrow("invalid table name");
+  });
+
+  it("never touches the triage table without the triageEvents option", async () => {
+    // Surfaces without a triage table (local/desktop) must emit the same SQL
+    // as before triage existed, even when a status filter sneaks in.
+    await makeRepo().searchIssues({ ...baseSearchInput, status: ["resolved"] });
+    const [sql, params] = execute.mock.calls[0] ?? [];
+    expect(sql).not.toContain("error_triage_events");
+    expect(sql).not.toContain("status");
+    expect(params).not.toHaveProperty("statusFilter");
+  });
+});
+
+describe("ErrorsRepository.searchIssues with triage events", () => {
+  it("derives status from the latest status event, ignored sticky", async () => {
+    execute.mockResolvedValueOnce([
+      {
+        fingerprint: "fp-1",
+        exceptionType: "TypeError",
+        exceptionMessage: "boom",
+        body: "boom",
+        latestServiceName: "web",
+        services: ["web"],
+        occurrenceCount: "3",
+        traceCount: "2",
+        firstSeen: "2026-05-26 10:00:00.000000000",
+        lastSeen: "2026-05-26 10:05:00.000000000",
+        latestTraceId: "trace-1",
+        latestSpanId: "span-1",
+        latestTimestamp: "2026-05-26 10:05:00.000000000",
+        status: "resolved",
+      },
+    ]);
+
+    const result = await makeTriageRepo().searchIssues(baseSearchInput);
+
+    const [sql] = execute.mock.calls[0] ?? [];
+    // Status events resolve to their latest version first (edits and deletes
+    // are version appends), then the latest event per fingerprint wins.
+    expect(sql).toContain("FROM error_triage_events");
+    expect(sql).toContain(
+      "WHERE event_type IN ('resolved', 'ignored', 'reopened')",
+    );
+    expect(sql).toContain("GROUP BY event_id");
+    expect(sql).toContain("HAVING entryDeleted = 0");
+    expect(sql).toContain("argMax(entryType, entryTime) AS lastStatusType");
+    // Derivation: ignored is sticky; a newer Occurrence reopens a resolved
+    // Error by plain timestamp comparison; everything else is open.
+    expect(sql).toContain("lastStatusType = 'ignored', 'ignored'");
+    expect(sql).toContain(
+      "lastStatusType = 'resolved' AND lastSeenAt > lastStatusAt, 'open'",
+    );
+    expect(sql).toContain("lastStatusType = 'resolved', 'resolved'");
+    expect(sql).toContain("LEFT JOIN");
+    expect(sql).toContain(
+      "ORDER BY lastSeen DESC, occurrenceCount DESC, fingerprint DESC",
+    );
+
+    expect(result.issues[0]).toMatchObject({
+      fingerprint: "fp-1",
+      status: "resolved",
+    });
+  });
+
+  it("filters by derived status when requested", async () => {
+    await makeTriageRepo().searchIssues({
+      ...baseSearchInput,
+      status: ["open", "ignored"],
+    });
+    const [sql, params] = execute.mock.calls[0] ?? [];
+    expect(sql).toContain("status IN {statusFilter:Array(String)}");
+    expect(params).toMatchObject({ statusFilter: ["open", "ignored"] });
+  });
+
+  it("applies no status filter when the selection is empty", async () => {
+    await makeTriageRepo().searchIssues(baseSearchInput);
+    const [sql, params] = execute.mock.calls[0] ?? [];
+    expect(sql).not.toContain("statusFilter");
+    expect(params).not.toHaveProperty("statusFilter");
+  });
+
+  it("keeps the fingerprint filter working alongside the triage join", async () => {
+    await makeTriageRepo().searchIssues({
+      ...baseSearchInput,
+      fingerprint: "fp-1",
+    });
+    const [sql, params] = execute.mock.calls[0] ?? [];
+    expect(sql).toContain("WHERE fingerprint = {fingerprint:String}");
+    expect(params).toMatchObject({ fingerprint: "fp-1" });
+  });
+
+  it("drops an unknown forward status value instead of breaking the row", async () => {
+    execute.mockResolvedValueOnce([
+      {
+        fingerprint: "fp-1",
+        exceptionType: "TypeError",
+        exceptionMessage: "boom",
+        body: "boom",
+        latestServiceName: "web",
+        services: ["web"],
+        occurrenceCount: "1",
+        traceCount: "1",
+        firstSeen: "2026-05-26 10:00:00.000000000",
+        lastSeen: "2026-05-26 10:05:00.000000000",
+        latestTraceId: "trace-1",
+        latestSpanId: "span-1",
+        latestTimestamp: "2026-05-26 10:05:00.000000000",
+        status: "acknowledged",
+      },
+    ]);
+
+    const result = await makeTriageRepo().searchIssues(baseSearchInput);
+    expect(result.issues[0]?.status).toBeUndefined();
+    expect(result.issues[0]?.fingerprint).toBe("fp-1");
   });
 });
 
@@ -165,6 +266,56 @@ describe("ErrorsRepository.getIssue", () => {
     expect(detail.summary.fingerprint).toBe("fp-1");
     expect(detail.latest.resourceAttributes).toEqual({});
     expect(detail.occurrences).toHaveLength(1);
+  });
+
+  it("derives the summary status when triage events are enabled", async () => {
+    execute
+      .mockResolvedValueOnce([
+        {
+          fingerprint: "fp-1",
+          exceptionType: "TypeError",
+          exceptionMessage: "boom",
+          body: "boom",
+          latestServiceName: "web",
+          services: ["web"],
+          occurrenceCount: "3",
+          traceCount: "2",
+          firstSeen: "2026-05-26 10:00:00.000000000",
+          lastSeen: "2026-05-26 10:05:00.000000000",
+          latestTraceId: "trace-1",
+          latestSpanId: "span-1",
+          latestTimestamp: "2026-05-26 10:05:00.000000000",
+          status: "ignored",
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          fingerprint: "fp-1",
+          timestamp: "2026-05-26 10:05:00.000000000",
+          serviceName: "web",
+          traceId: "trace-1",
+          spanId: "span-1",
+          body: "boom",
+          exceptionType: "TypeError",
+          exceptionMessage: "boom",
+          exceptionStacktrace: "at x",
+          resourceAttributes: null,
+          logAttributes: null,
+          scopeAttributes: null,
+        },
+      ]);
+
+    const detail = await makeTriageRepo().getIssue({
+      fingerprint: "fp-1",
+      fromTs: "2026-05-26 10:00:00",
+      toTs: "2026-05-26 11:00:00",
+      service: [],
+      occurrenceLimit: 50,
+    });
+
+    const [summarySql] = execute.mock.calls[0] ?? [];
+    expect(summarySql).toContain("FROM error_triage_events");
+    expect(detail.summary.status).toBe("ignored");
   });
 });
 

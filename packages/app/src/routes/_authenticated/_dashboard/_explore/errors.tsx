@@ -46,7 +46,7 @@ function ErrorsPage() {
   const { service = [], environment = [] } = useSearch({
     from: "/_authenticated/_dashboard/_explore",
   });
-  const { timeRange, q, fingerprint, sort, refresh, attributes } =
+  const { timeRange, q, fingerprint, sort, status, refresh, attributes } =
     withTimeRange(search);
 
   return (
@@ -54,9 +54,10 @@ function ErrorsPage() {
       repo={remoteErrorsRepo}
       timeRange={timeRange}
       refresh={refresh ?? "off"}
-      search={{ q, service, fingerprint, sort, attributes }}
+      search={{ q, service, fingerprint, sort, status, attributes }}
       environment={environment}
       hideSharedFilters
+      triageEnabled
       onSearchChange={(patch) =>
         // Push a history entry per change so Back undoes filter changes one at a
         // time (including Clear all, which routes through this same handler).

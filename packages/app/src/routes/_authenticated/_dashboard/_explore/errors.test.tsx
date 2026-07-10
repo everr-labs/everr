@@ -277,6 +277,7 @@ describe("/errors route", () => {
         service: [],
         fingerprint: "",
         sort: "lastSeen",
+        status: [],
         attributes: [],
       }),
     );
