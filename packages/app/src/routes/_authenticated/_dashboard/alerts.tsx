@@ -16,13 +16,6 @@ function CcAlertingLayout() {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-auto overscroll-y-contain">
       <PageContainer>
-        <div className="border-b border-border pb-3">
-          <h1 className="text-xl font-bold tracking-tight">Alerts</h1>
-          <p className="text-sm text-muted-foreground">
-            Prometheus-style alerting over your telemetry: triage, history,
-            rules, delivery, and silences, evaluated against ClickHouse.
-          </p>
-        </div>
         <Outlet />
       </PageContainer>
     </div>
