@@ -7,7 +7,7 @@ import {
   Outlet,
   RouterProvider,
 } from "@tanstack/react-router";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CcAlert, CcRuleView } from "@/data/cc/types";
@@ -314,6 +314,47 @@ describe("/alerts/rules/$ruleId", () => {
     renderRuleDetail();
 
     expect(await screen.findByText("suppressed")).toBeInTheDocument();
+  });
+
+  it("pauses only after an explicit confirmation spelling out the consequences", async () => {
+    const user = userEvent.setup();
+    renderRuleDetail();
+    await screen.findByRole("heading", { name: "Flapping Detector" });
+
+    await user.click(screen.getByRole("button", { name: /Pause evaluation/ }));
+    // The dialog explains what pausing actually does before anything happens.
+    expect(await screen.findByText(/No new alerts fire/)).toBeInTheDocument();
+    expect(mocks.pauseCcRule).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Keep evaluating" }));
+    expect(mocks.pauseCcRule).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: /Pause evaluation/ }));
+    await user.click(
+      await screen.findByRole("button", { name: "Pause evaluation" }),
+    );
+    await waitFor(() =>
+      expect(mocks.pauseCcRule).toHaveBeenCalledWith({
+        data: { ruleId: RULE_ID },
+      }),
+    );
+  });
+
+  it("banners a paused rule and resumes without ceremony", async () => {
+    mocks.getCcRule.mockResolvedValue(ruleView({ paused: true }));
+    const user = userEvent.setup();
+    renderRuleDetail();
+    await screen.findByRole("heading", { name: "Flapping Detector" });
+
+    const banner = screen.getByRole("status");
+    expect(banner.textContent).toContain("Evaluation is paused");
+
+    await user.click(within(banner).getByRole("button", { name: /Resume/ }));
+    await waitFor(() =>
+      expect(mocks.resumeCcRule).toHaveBeenCalledWith({
+        data: { ruleId: RULE_ID },
+      }),
+    );
   });
 
   it("test-fires the current spec without state change", async () => {

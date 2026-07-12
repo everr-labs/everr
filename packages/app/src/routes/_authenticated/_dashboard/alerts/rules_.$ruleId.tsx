@@ -43,6 +43,7 @@ import {
   AlertEventFeed,
   ccEventHistoryQueryOptions,
 } from "@/components/cc/alert-event-feed";
+import { PauseRuleButton } from "@/components/cc/pause-rule-button";
 import { ccRuleIdentity } from "@/data/alerts/rule-identity";
 import {
   CC_POLL_INTERVAL_MS,
@@ -230,11 +231,11 @@ function CcRuleDetailPage() {
       paused
         ? resumeCcRule({ data: { ruleId } })
         : pauseCcRule({ data: { ruleId } }),
-    onSuccess: () => {
+    onSuccess: (_, wasPaused) => {
       qc.invalidateQueries({ queryKey: ["cc", "rule", ruleId] });
       // The rules listing shows the paused state too.
       qc.invalidateQueries({ queryKey: ["cc", "rules"] });
-      toast.success("Rule updated");
+      toast.success(wasPaused ? "Evaluation resumed" : "Evaluation paused");
     },
     onError: (e) => toast.error(ccErrorMessage(e)),
   });
@@ -329,20 +330,38 @@ function CcRuleDetailPage() {
               Runbook
             </Link>
           )}
-          <Button
-            variant="outline"
-            disabled={toggle.isPending}
-            onClick={() => toggle.mutate(r.paused)}
-          >
-            {r.paused ? (
-              <Play data-icon="inline-start" />
-            ) : (
-              <Pause data-icon="inline-start" />
-            )}
-            {r.paused ? "Resume" : "Pause"}
-          </Button>
+          <PauseRuleButton
+            name={identity.name}
+            paused={r.paused}
+            pending={toggle.isPending}
+            onPause={() => toggle.mutate(r.paused)}
+            onResume={() => toggle.mutate(r.paused)}
+            longLabels
+          />
         </div>
       </div>
+
+      {r.paused && (
+        <div
+          role="status"
+          className="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-600 dark:text-amber-400"
+        >
+          <Pause className="size-4 shrink-0" />
+          <span className="min-w-0 flex-1">
+            Evaluation is paused: the engine is not running this rule, so no
+            alerts fire and nothing notifies. Quiet here does not mean healthy.
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={toggle.isPending}
+            onClick={() => toggle.mutate(true)}
+          >
+            <Play data-icon="inline-start" />
+            Resume
+          </Button>
+        </div>
+      )}
 
       <Card>
         <CardHeader>

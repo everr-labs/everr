@@ -16,9 +16,10 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { BookOpenText, Pause, Play, SlidersHorizontal } from "lucide-react";
+import { BookOpenText, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
+import { PauseRuleButton } from "@/components/cc/pause-rule-button";
 import { ccRuleIdentity } from "@/data/alerts/rule-identity";
 import {
   CC_POLL_INTERVAL_MS,
@@ -100,9 +101,10 @@ function CcRulesPage() {
       rule.paused
         ? resumeCcRule({ data: { ruleId: rule.id } })
         : pauseCcRule({ data: { ruleId: rule.id } }),
-    onSuccess: () => {
+    onSuccess: (_, rule) => {
       qc.invalidateQueries({ queryKey: ["cc", "rules"] });
-      toast.success("Rule updated");
+      // `rule.paused` is the pre-toggle state.
+      toast.success(rule.paused ? "Evaluation resumed" : "Evaluation paused");
     },
     onError: (e) => toast.error(ccErrorMessage(e)),
   });
@@ -225,19 +227,15 @@ function CcRulesPage() {
     {
       header: "",
       cell: (r) => (
-        <Button
+        <PauseRuleButton
+          name={ccRuleIdentity(r).name}
+          paused={r.paused}
+          pending={toggle.isPending}
+          onPause={() => toggle.mutate(r)}
+          onResume={() => toggle.mutate(r)}
           variant="ghost"
           size="sm"
-          disabled={toggle.isPending}
-          onClick={() => toggle.mutate(r)}
-        >
-          {r.paused ? (
-            <Play data-icon="inline-start" />
-          ) : (
-            <Pause data-icon="inline-start" />
-          )}
-          {r.paused ? "Resume" : "Pause"}
-        </Button>
+        />
       ),
     },
   ];
