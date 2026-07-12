@@ -16,9 +16,10 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { BookOpenText, SlidersHorizontal } from "lucide-react";
+import { BookOpenText } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
+import { AlertsGettingStarted } from "@/components/cc/getting-started";
 import { PauseRuleButton } from "@/components/cc/pause-rule-button";
 import { ccRuleIdentity } from "@/data/alerts/rule-identity";
 import {
@@ -30,7 +31,6 @@ import {
 import type { CcRuleView } from "@/data/cc/types";
 import {
   CcConceptNote,
-  CcEmptyState,
   CcHealthBadge,
   CcQueryError,
   CcSeverityBadge,
@@ -280,18 +280,7 @@ function CcRulesPage() {
                 data={rules}
                 columns={columns}
                 rowKey={(r) => r.id}
-                emptyState={
-                  <CcEmptyState
-                    icon={SlidersHorizontal}
-                    title="No rules defined"
-                    hint={
-                      <>
-                        Define alerting rules as code and apply them with{" "}
-                        <code>everr apply</code>.
-                      </>
-                    }
-                  />
-                }
+                emptyState={<AlertsGettingStarted bare />}
               />
               {hasNextPage && (
                 <div className="flex justify-center px-3 py-2">

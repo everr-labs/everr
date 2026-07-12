@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => ({
   listCcRules: vi.fn(),
   listCcRoutes: vi.fn(),
   listCcReceivers: vi.fn(),
+  listCcChannels: vi.fn(),
   listCcSilences: vi.fn(),
   listCcSubscriptions: vi.fn(),
   listCcEventHistory: vi.fn(),
@@ -42,6 +43,7 @@ vi.mock("@/data/cc/server", () => ({
   listCcRules: mocks.listCcRules,
   listCcRoutes: mocks.listCcRoutes,
   listCcReceivers: mocks.listCcReceivers,
+  listCcChannels: mocks.listCcChannels,
   listCcSilences: mocks.listCcSilences,
   listCcSubscriptions: mocks.listCcSubscriptions,
   listCcEventHistory: mocks.listCcEventHistory,
@@ -202,6 +204,7 @@ function seedBoard() {
   ]);
   mocks.listCcRoutes.mockResolvedValue([ccRoute()]);
   mocks.listCcReceivers.mockResolvedValue([ccReceiver()]);
+  mocks.listCcChannels.mockResolvedValue([]);
   mocks.listCcSilences.mockResolvedValue([ccSilence()]);
   mocks.listCcSubscriptions.mockResolvedValue([]);
   mocks.listCcEventHistory.mockResolvedValue([eventRow()]);
@@ -493,5 +496,28 @@ describe("/alerts/triage route", () => {
     expect(await screen.findByText("All clear")).toBeInTheDocument();
     expect(screen.getByText(/2 rules watching/)).toBeInTheDocument();
     expect(screen.getByText(/last event/)).toBeInTheDocument();
+  });
+
+  it("replaces the board with the getting-started checklist when no rules exist", async () => {
+    mocks.listCcRules.mockResolvedValue([]);
+    mocks.listCcAlerts.mockResolvedValue([]);
+    mocks.listCcSilences.mockResolvedValue([]);
+
+    renderTriageRoute();
+
+    expect(
+      await screen.findByText("Get alerted when something breaks"),
+    ).toBeInTheDocument();
+    // Step 1 is already satisfied by the seeded receiver; steps 2 and 3
+    // remain open (no rules, the seeded route still counts as done).
+    expect(
+      screen.getByText("Define an alert rule as code"),
+    ).toBeInTheDocument();
+    // No instrument strip or lens: zero rules must not read as an all-clear.
+    expect(screen.queryByText("All clear")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("tablist", { name: "Triage lens" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("needs attention")).not.toBeInTheDocument();
   });
 });

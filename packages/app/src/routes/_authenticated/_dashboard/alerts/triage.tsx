@@ -15,6 +15,7 @@ import { BellOff, BookOpenText, ChevronRight } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ccEventStatus } from "@/components/cc/alert-event-feed";
+import { AlertsGettingStarted } from "@/components/cc/getting-started";
 import {
   ccMatchingSilence,
   ccSelectRoutes,
@@ -650,6 +651,13 @@ function CcTriagePage() {
     receivers.isPending ||
     silences.isPending ||
     subscriptions.isPending;
+
+  // Zero rules means there is nothing to triage and nothing to count: the
+  // board would read as a false all-clear. Show the getting-started
+  // checklist instead until the first rule exists.
+  if (!pending && (rules.data ?? []).length === 0) {
+    return <AlertsGettingStarted />;
+  }
 
   const hasSubscribers = (subscriptions.data ?? []).length > 0;
   const watching = (rules.data ?? []).filter((r) => !r.paused).length;
