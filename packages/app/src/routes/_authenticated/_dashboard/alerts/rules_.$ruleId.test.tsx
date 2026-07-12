@@ -215,9 +215,9 @@ describe("/alerts/rules/$ruleId", () => {
         scopeSlug: [RULE_ID, "flapping"],
         // Scoped to one rule: the feed's own Severity/Rule columns and
         // severity filter would be constant noise, so the detail page hides
-        // them and hands the feed this rule's severity as a fallback.
+        // them and hands the feed this rule's facts as a fallback.
         hideRuleColumns: true,
-        resolveRuleSeverity: expect.any(Function),
+        resolveRule: expect.any(Function),
       }),
     );
 

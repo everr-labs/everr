@@ -44,6 +44,7 @@ import {
   ccEventHistoryQueryOptions,
 } from "@/components/cc/alert-event-feed";
 import { PauseRuleButton } from "@/components/cc/pause-rule-button";
+import { fromCcRuleSpec } from "@/data/alerts/mapping";
 import { ccRuleIdentity } from "@/data/alerts/rule-identity";
 import {
   CC_POLL_INTERVAL_MS,
@@ -498,11 +499,16 @@ function CcRuleDetailPage() {
       <AlertEventFeed
         scopeSlug={scopeHandles}
         hideRuleColumns
-        resolveRuleName={(handle) =>
-          scopeHandles.includes(handle) ? identity.name : handle
-        }
-        resolveRuleSeverity={(handle) =>
-          scopeHandles.includes(handle) ? r.spec.severity : undefined
+        resolveRule={(handle) =>
+          scopeHandles.includes(handle)
+            ? {
+                id: r.id,
+                name: identity.name,
+                severity: r.spec.severity,
+                titleTemplate:
+                  fromCcRuleSpec(r.spec).notificationTitleTemplate || null,
+              }
+            : undefined
         }
       />
 

@@ -2,7 +2,11 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AlertEventLogRow } from "@/data/alerts/history.server";
-import { AlertEventFeed, ccEventHistoryQueryOptions } from "./alert-event-feed";
+import {
+  AlertEventFeed,
+  type CcRuleFacts,
+  ccEventHistoryQueryOptions,
+} from "./alert-event-feed";
 
 // ---------------------------------------------------------------------------
 // Mocks: the stored-history query. `vi.mock` calls are hoisted above the
@@ -21,6 +25,24 @@ vi.mock("@/hooks/use-time-range", () => ({
     timeRange: { from: "now-1h", to: "now" },
     setTimeRange: vi.fn(),
   }),
+}));
+
+// The Rule column links to the rule detail page; the feed renders outside a
+// router here, so Link becomes a plain anchor.
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({
+    children,
+    className,
+    title,
+  }: {
+    children: React.ReactNode;
+    className?: string;
+    title?: string;
+  }) => (
+    <a href="#rule" className={className} title={title}>
+      {children}
+    </a>
+  ),
 }));
 
 // ---------------------------------------------------------------------------
@@ -42,6 +64,16 @@ function historyRow(
     deliveryTargets: [],
     evidence: null,
     evidenceTruncated: false,
+    ...overrides,
+  };
+}
+
+function betaFacts(overrides: Partial<CcRuleFacts> = {}): CcRuleFacts {
+  return {
+    id: "rule-beta",
+    name: "Beta errors",
+    severity: "critical",
+    titleTemplate: null,
     ...overrides,
   };
 }
@@ -109,6 +141,58 @@ describe("AlertEventFeed", () => {
     expect(screen.getByText("status_code=500")).toBeInTheDocument();
   });
 
+  it("summarizes a transition in the rule's notification words when a template resolves", () => {
+    mockUseQuery.mockReturnValue({
+      data: [
+        historyRow({
+          slug: "beta",
+          eventType: "instance_fired",
+          labels: { team: "core" },
+          evidence: { status_code: 500 },
+        }),
+      ],
+      isPending: false,
+      isError: false,
+      error: null,
+    });
+
+    render(
+      <AlertEventFeed
+        resolveRule={() =>
+          betaFacts({ titleTemplate: "${team} saw ${status_code}s" })
+        }
+      />,
+    );
+
+    // The summary replaces raw evidence chips; the evidence stays reachable
+    // in the summary's tooltip.
+    const summary = screen.getByText("core saw 500s");
+    expect(summary).toHaveAttribute("title", "status_code=500");
+    expect(screen.queryByText("status_code=500")).not.toBeInTheDocument();
+  });
+
+  it("tells the delivery story with its targets", () => {
+    mockUseQuery.mockReturnValue({
+      data: [
+        historyRow({
+          slug: "beta",
+          eventType: "delivery",
+          deliveryTargets: ["oncall", "email"],
+        }),
+        historyRow({ slug: "gamma", eventType: "silenced" }),
+      ],
+      isPending: false,
+      isError: false,
+      error: null,
+    });
+
+    render(<AlertEventFeed />);
+
+    expect(screen.getByText(/delivered/)).toBeInTheDocument();
+    expect(screen.getByText("oncall, email")).toBeInTheDocument();
+    expect(screen.getByText("muted by silence")).toBeInTheDocument();
+  });
+
   it("hints at truncation when evidenceTruncated is set", () => {
     mockUseQuery.mockReturnValue({
       data: [
@@ -154,41 +238,19 @@ describe("AlertEventFeed", () => {
     expect(screen.queryByText(/truncated/i)).not.toBeInTheDocument();
   });
 
-  it("filters by event type, hiding non-matching rows", async () => {
-    mockUseQuery.mockReturnValue({
-      data: [
-        historyRow({ slug: "beta", eventType: "instance_fired" }),
-        historyRow({ slug: "gamma", eventType: "delivery" }),
-        historyRow({ slug: "delta", eventType: "rule_health" }),
-      ],
-      isPending: false,
-      isError: false,
-      error: null,
-    });
-    const user = userEvent.setup();
-
-    render(<AlertEventFeed />);
-    expect(screen.getByText("beta")).toBeInTheDocument();
-    expect(screen.getByText("gamma")).toBeInTheDocument();
-    expect(screen.getByText("delta")).toBeInTheDocument();
-
-    await user.click(screen.getByRole("combobox", { name: "Event type" }));
-    await user.click(await screen.findByRole("option", { name: "Delivery" }));
-
-    expect(screen.queryByText("beta")).not.toBeInTheDocument();
-    expect(screen.getByText("gamma")).toBeInTheDocument();
-    expect(screen.queryByText("delta")).not.toBeInTheDocument();
-  });
-
-  it("hides the type lens unless showTypeLens is set", () => {
+  it("always renders the type lens as the one event-kind filter", () => {
     render(<AlertEventFeed />);
 
     expect(
-      screen.queryByRole("tablist", { name: "Event kind" }),
+      screen.getByRole("tablist", { name: "Event kind" }),
+    ).toBeInTheDocument();
+    // The old fine-grained event-type select is gone: one mechanism only.
+    expect(
+      screen.queryByRole("combobox", { name: "Event type" }),
     ).not.toBeInTheDocument();
   });
 
-  it("type lens narrows to the lens's event types", async () => {
+  it("type lens narrows to the lens's event type", async () => {
     mockUseQuery.mockReturnValue({
       data: [
         historyRow({ slug: "beta", eventType: "instance_fired" }),
@@ -203,50 +265,32 @@ describe("AlertEventFeed", () => {
     });
     const user = userEvent.setup();
 
-    render(<AlertEventFeed showTypeLens />);
+    render(<AlertEventFeed />);
 
-    await user.click(screen.getByRole("tab", { name: "Transitions" }));
+    await user.click(screen.getByRole("tab", { name: "Fired" }));
     expect(screen.getByText("beta")).toBeInTheDocument();
-    expect(screen.getByText("gamma")).toBeInTheDocument();
+    expect(screen.queryByText("gamma")).not.toBeInTheDocument();
     expect(screen.queryByText("delta")).not.toBeInTheDocument();
-    expect(screen.queryByText("epsilon")).not.toBeInTheDocument();
-    expect(screen.queryByText("zeta")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Resolved" }));
+    expect(screen.getByText("gamma")).toBeInTheDocument();
+    expect(screen.queryByText("beta")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "Deliveries" }));
     expect(screen.getByText("delta")).toBeInTheDocument();
-    expect(screen.queryByText("beta")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("tab", { name: "Silence audits" }));
+    await user.click(screen.getByRole("tab", { name: "Silenced" }));
     expect(screen.getByText("epsilon")).toBeInTheDocument();
-    expect(screen.queryByText("delta")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Rule health" }));
+    expect(screen.getByText("zeta")).toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "All" }));
+    expect(screen.getByText("beta")).toBeInTheDocument();
     expect(screen.getByText("zeta")).toBeInTheDocument();
   });
 
-  it("type lens composes AND with the fine event-type filter", async () => {
-    mockUseQuery.mockReturnValue({
-      data: [
-        historyRow({ slug: "beta", eventType: "instance_fired" }),
-        historyRow({ slug: "gamma", eventType: "instance_resolved" }),
-      ],
-      isPending: false,
-      isError: false,
-      error: null,
-    });
-    const user = userEvent.setup();
-
-    render(<AlertEventFeed showTypeLens />);
-
-    await user.click(screen.getByRole("tab", { name: "Transitions" }));
-    await user.click(screen.getByRole("combobox", { name: "Event type" }));
-    await user.click(await screen.findByRole("option", { name: "Resolved" }));
-
-    expect(screen.getByText("gamma")).toBeInTheDocument();
-    expect(screen.queryByText("beta")).not.toBeInTheDocument();
-  });
-
-  it("resolves rule handles to display names via resolveRuleName", () => {
+  it("resolves rule handles to linked display names via resolveRule", () => {
     mockUseQuery.mockReturnValue({
       data: [historyRow({ slug: "beta" })],
       isPending: false,
@@ -256,17 +300,16 @@ describe("AlertEventFeed", () => {
 
     render(
       <AlertEventFeed
-        resolveRuleName={(handle) =>
-          handle === "beta" ? "Beta errors" : handle
-        }
+        resolveRule={(handle) => (handle === "beta" ? betaFacts() : undefined)}
       />,
     );
 
-    expect(screen.getByText("Beta errors")).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "Beta errors" });
+    expect(link).toHaveAttribute("title", "Beta errors (beta)");
     expect(screen.queryByText("beta")).not.toBeInTheDocument();
   });
 
-  it("composes the event-type filter with severity (AND)", async () => {
+  it("composes the type lens with severity (AND)", async () => {
     mockUseQuery.mockReturnValue({
       data: [
         historyRow({
@@ -293,9 +336,8 @@ describe("AlertEventFeed", () => {
 
     render(<AlertEventFeed />);
 
-    await user.click(screen.getByRole("combobox", { name: "Event type" }));
-    await user.click(await screen.findByRole("option", { name: "Fired" }));
-    // Both fired rows survive the event-type filter alone.
+    await user.click(screen.getByRole("tab", { name: "Fired" }));
+    // Both fired rows survive the lens alone.
     expect(screen.getByText("beta")).toBeInTheDocument();
     expect(screen.getByText("gamma")).toBeInTheDocument();
     expect(screen.queryByText("delta")).not.toBeInTheDocument();
@@ -331,9 +373,9 @@ describe("AlertEventFeed", () => {
     // The row's own slug ("beta") no longer renders anywhere: it was the
     // Rule column's content.
     expect(screen.queryByText("beta")).not.toBeInTheDocument();
-    // The type filter survives: a scoped feed still narrows by event kind.
+    // The type lens survives: a scoped feed still narrows by event kind.
     expect(
-      screen.getByRole("combobox", { name: "Event type" }),
+      screen.getByRole("tablist", { name: "Event kind" }),
     ).toBeInTheDocument();
   });
 
@@ -374,16 +416,14 @@ describe("AlertEventFeed", () => {
 
     render(
       <AlertEventFeed
-        resolveRuleSeverity={(handle) =>
-          handle === "beta" ? "critical" : undefined
-        }
+        resolveRule={(handle) => (handle === "beta" ? betaFacts() : undefined)}
       />,
     );
 
     expect(screen.getByText("critical")).toBeInTheDocument();
   });
 
-  it('leaves a genuine data gap as "—" for a non-transition event kind, even with resolveRuleSeverity available', () => {
+  it('leaves a genuine data gap as "—" for a non-transition event kind, even with resolveRule available', () => {
     mockUseQuery.mockReturnValue({
       data: [
         historyRow({
@@ -397,7 +437,7 @@ describe("AlertEventFeed", () => {
       error: null,
     });
 
-    render(<AlertEventFeed resolveRuleSeverity={() => "critical"} />);
+    render(<AlertEventFeed resolveRule={() => betaFacts()} />);
 
     // A delivery record carries no status, so it isn't a fire/resolve
     // transition: no rule-severity fallback applies, and the gap is real.
