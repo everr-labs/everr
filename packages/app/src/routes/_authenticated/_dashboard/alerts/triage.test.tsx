@@ -67,6 +67,9 @@ function ccRule(overrides: Partial<CcRuleView> = {}): CcRuleView {
         "everr.name": "flapping",
         "everr.display.name": "Flapping check",
         "everr.display.description": "Fires when the flap condition holds.",
+        "everr.notification.title": "${host} is flapping (value ${value})",
+        "everr.notification.description":
+          "Status ${status_code} seen on ${host}.",
         "everr.runbook": "demo/flap-runbook",
       },
       resolve_after: 1,
@@ -384,9 +387,18 @@ describe("/alerts/triage route", () => {
 
     await expandRowByLabel(user, "web-1");
 
+    // The summary is the rendered notification message (labels, then value,
+    // then evidence), with the rule description as supporting context.
+    expect(
+      screen.getByText("web-1 is flapping (value 42)"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Status 500 seen on web-1.")).toBeInTheDocument();
     expect(
       screen.getByText("Fires when the flap condition holds."),
     ).toBeInTheDocument();
+    // Raw evidence steps behind a disclosure once the summary tells the story.
+    expect(screen.queryByText("status_code=500")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Evidence/ }));
     expect(screen.getByText("status_code=500")).toBeInTheDocument();
     expect(screen.getByText("Route")).toBeInTheDocument();
     expect(screen.getByText("Recent transitions")).toBeInTheDocument();

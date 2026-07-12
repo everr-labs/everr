@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   extractVariables,
+  renderInstanceMessage,
   renderMessage,
   validateMessageRefs,
   validateQueryTemplate,
@@ -74,5 +75,26 @@ describe("rendering", () => {
         firstRow: undefined,
       }),
     ).toBe("route ");
+  });
+
+  it("renderInstanceMessage resolves labels over evidence, then value", () => {
+    expect(
+      renderInstanceMessage(`\${host} returned \${status} x\${value}`, {
+        // "host" exists in both: the instance label wins, as in the engine.
+        labels: { host: "web-1" },
+        value: 42,
+        evidence: { host: "stale", status: 500 },
+      }),
+    ).toBe("web-1 returned 500 x42");
+  });
+
+  it("renderInstanceMessage leaves unresolvable refs empty", () => {
+    expect(
+      renderInstanceMessage(`\${host} \${value}`, {
+        labels: {},
+        value: null,
+        evidence: null,
+      }),
+    ).toBe(" ");
   });
 });

@@ -62,3 +62,26 @@ export function renderMessage(
     return String(value);
   });
 }
+
+/**
+ * Render an instance's notification message the way clickety-clack's
+ * dispatcher does: `${x}` resolves against the instance labels first, then
+ * `${value}` (the alert's carried value), then the event's evidence columns;
+ * unresolved refs render as empty text. This is what the UI shows wherever it
+ * answers "what would this alert have told me".
+ */
+export function renderInstanceMessage(
+  template: string,
+  ctx: {
+    labels: Record<string, string>;
+    value?: unknown;
+    evidence?: Record<string, unknown> | null;
+  },
+): string {
+  const firstRow: Record<string, unknown> = {
+    ...(ctx.evidence ?? {}),
+    ...ctx.labels,
+  };
+  if (ctx.value !== undefined && ctx.value !== null) firstRow.value = ctx.value;
+  return renderMessage(template, { firstRow });
+}

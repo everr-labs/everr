@@ -31,11 +31,13 @@ import {
   ccErrorMessage,
   ccFormatTs,
   EvidenceChips,
+  EvidenceDisclosure,
   LabelSet,
 } from "@/components/cc/shared";
 import type { AlertEventLogRow } from "@/data/alerts/history.server";
 import { fromCcRuleSpec } from "@/data/alerts/mapping";
 import { ccRuleIdentity } from "@/data/alerts/rule-identity";
+import { renderInstanceMessage } from "@/data/alerts/template";
 import {
   CC_POLL_INTERVAL_MS,
   createCcSilence,
@@ -268,28 +270,60 @@ function InstanceDetail({
     )
     .slice(0, 6);
   const runbook = runbookParams(rule);
-  const description = rule
-    ? fromCcRuleSpec(rule.spec).displayDescription
+  const view = rule ? fromCcRuleSpec(rule.spec) : null;
+  // The summary is the rule's own notification message rendered for this
+  // instance: what a notification would have said. Raw evidence stays
+  // reachable below, behind a disclosure once the summary covers it.
+  const messageCtx = {
+    labels: alert.labels,
+    value: alert.value,
+    evidence: latest?.evidence,
+  };
+  const summaryTitle = view?.notificationTitleTemplate
+    ? renderInstanceMessage(view.notificationTitleTemplate, messageCtx)
+    : null;
+  const summaryDescription = view?.notificationDescriptionTemplate
+    ? renderInstanceMessage(view.notificationDescriptionTemplate, messageCtx)
     : null;
 
   return (
     <div className="space-y-3 border-t border-border/60 bg-muted/10 px-3 py-3 pl-9">
-      {description && (
-        <p className="max-w-prose text-xs text-muted-foreground">
-          {description}
-        </p>
-      )}
-      {latest?.evidence && (
+      {(summaryTitle || view?.displayDescription) && (
         <div className="space-y-1">
-          <div className="text-[0.625rem] font-medium tracking-wide text-muted-foreground uppercase">
-            Evidence
-          </div>
-          <EvidenceChips
+          {summaryTitle && (
+            <p className="text-sm font-medium text-foreground">
+              {summaryTitle}
+            </p>
+          )}
+          {summaryDescription && (
+            <p className="max-w-prose text-xs text-muted-foreground">
+              {summaryDescription}
+            </p>
+          )}
+          {view?.displayDescription && (
+            <p className="max-w-prose text-xs text-muted-foreground/80">
+              {view.displayDescription}
+            </p>
+          )}
+        </div>
+      )}
+      {latest?.evidence &&
+        (summaryTitle ? (
+          <EvidenceDisclosure
             evidence={latest.evidence}
             truncated={latest.evidenceTruncated}
           />
-        </div>
-      )}
+        ) : (
+          <div className="space-y-1">
+            <div className="text-[0.625rem] font-medium tracking-wide text-muted-foreground uppercase">
+              Evidence
+            </div>
+            <EvidenceChips
+              evidence={latest.evidence}
+              truncated={latest.evidenceTruncated}
+            />
+          </div>
+        ))}
 
       <div className="space-y-1">
         <div className="text-[0.625rem] font-medium tracking-wide text-muted-foreground uppercase">

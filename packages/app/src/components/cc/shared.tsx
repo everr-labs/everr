@@ -1,9 +1,14 @@
 // packages/app/src/components/cc/shared.tsx
 import { Badge } from "@everr/ui/components/badge";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@everr/ui/components/collapsible";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { cn } from "@everr/ui/lib/utils";
-import { Info, type LucideIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import { ChevronRight, Info, type LucideIcon } from "lucide-react";
+import { type ReactNode, useState } from "react";
 import { sortedLabelEntries } from "@/data/alerts/matchers";
 import type { CcMatcher } from "@/data/cc/types";
 import { ccOpSymbol } from "./route-resolution";
@@ -293,6 +298,46 @@ export function EvidenceChips({
         </span>
       )}
     </div>
+  );
+}
+
+/**
+ * EvidenceChips folded behind a one-line disclosure. Used where a rendered
+ * notification summary already tells the story and the raw firing-row
+ * columns are the "show me the numbers" follow-up, not the headline.
+ */
+export function EvidenceDisclosure({
+  evidence,
+  truncated,
+}: {
+  evidence: Record<string, unknown> | null | undefined;
+  truncated?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const count = evidence ? Object.keys(evidence).length : 0;
+  if (count === 0 && !truncated) return null;
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger className="flex items-center gap-1.5 rounded-md px-1 py-0.5 text-left outline-2 outline-dotted outline-transparent outline-offset-[-2px] transition-colors duration-150 hover:text-foreground focus-visible:outline-primary">
+        <ChevronRight
+          className={cn(
+            "size-3.5 shrink-0 text-muted-foreground transition-transform duration-150",
+            open && "rotate-90",
+          )}
+        />
+        <span className="text-[0.625rem] font-medium tracking-wide text-muted-foreground uppercase">
+          Evidence
+        </span>
+        <span className="text-[0.6875rem] text-muted-foreground/70">
+          {count} {count === 1 ? "column" : "columns"} from the firing row
+        </span>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="px-1 pt-1.5">
+          <EvidenceChips evidence={evidence} truncated={truncated} />
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
