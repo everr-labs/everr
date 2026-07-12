@@ -182,7 +182,7 @@ function StripCell({
   hint?: string;
 }) {
   return (
-    <div className="flex items-baseline gap-1.5 px-3 py-2 first:pl-0">
+    <div className="flex items-baseline gap-1.5 px-3 py-2">
       <span
         className={cn(
           "text-sm font-semibold tabular-nums",
@@ -630,7 +630,7 @@ function CcTriagePage() {
       ) : (
         <section
           aria-label="Alerting status"
-          className="flex flex-wrap items-center divide-x divide-border/60 rounded-md border border-border bg-card px-3"
+          className="flex flex-wrap items-center divide-x divide-border/60 rounded-md border border-border bg-card"
         >
           <StripCell
             label="firing"
