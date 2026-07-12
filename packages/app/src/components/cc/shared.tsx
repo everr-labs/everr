@@ -335,3 +335,21 @@ export function ccFormatTs(ts: string | null | undefined): string {
   const d = new Date(ts);
   return Number.isNaN(d.getTime()) ? ts : d.toLocaleString();
 }
+
+/**
+ * Seconds → the compact duration people speak ("1m", "1h 30m", "45s").
+ * Rule specs store plain seconds; readouts should not make the reader do
+ * the ÷60 in their head.
+ */
+export function ccFormatDuration(secs: number): string {
+  if (!Number.isFinite(secs) || secs < 0) return `${secs}s`;
+  if (secs === 0) return "0s";
+  const parts: string[] = [];
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  if (h > 0) parts.push(`${h}h`);
+  if (m > 0) parts.push(`${m}m`);
+  if (s > 0) parts.push(`${s}s`);
+  return parts.join(" ");
+}

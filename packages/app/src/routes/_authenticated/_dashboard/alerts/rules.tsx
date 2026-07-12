@@ -36,6 +36,7 @@ import {
   CcStatusDot,
   CcTableSkeleton,
   ccErrorMessage,
+  ccFormatDuration,
   ccFormatTs,
 } from "./-cc-shared";
 
@@ -156,10 +157,13 @@ function CcRulesPage() {
       cell: (r) => <CcSeverityBadge severity={r.spec.severity} />,
     },
     {
-      header: "Interval",
+      header: "Evaluates every",
       cell: (r) => (
-        <span className="tabular-nums text-muted-foreground">
-          {r.spec.interval_secs}s
+        <span
+          className="tabular-nums text-muted-foreground"
+          title={`evaluationInterval: ${r.spec.interval_secs}s`}
+        >
+          {ccFormatDuration(r.spec.interval_secs)}
         </span>
       ),
     },

@@ -15,6 +15,7 @@ export {
   CcTableSkeleton,
   Conditions as Matchers,
   ccErrorMessage,
+  ccFormatDuration,
   ccFormatTs,
   LabelSet,
 } from "@/components/cc/shared";

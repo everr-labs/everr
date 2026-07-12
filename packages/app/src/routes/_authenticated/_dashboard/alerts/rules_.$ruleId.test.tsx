@@ -193,12 +193,12 @@ describe("/alerts/rules/$ruleId", () => {
     expect(screen.getByRole("button", { name: /Pause/ })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Runbook/ })).toBeInTheDocument();
 
-    // What is it: the spec facts.
+    // What is it: the spec facts, humanized (raw seconds stay in the title).
     expect(screen.getByText("What is it")).toBeInTheDocument();
     expect(screen.getByText("30s")).toBeInTheDocument(); // interval
-    expect(screen.getByText("300s")).toBeInTheDocument(); // max interval
-    expect(screen.getByText("60s")).toBeInTheDocument(); // for
-    expect(screen.getByText("2")).toBeInTheDocument(); // resolve after
+    expect(screen.getByText("5m")).toBeInTheDocument(); // max interval (300s)
+    expect(screen.getByText("1m before firing")).toBeInTheDocument(); // for (60s)
+    expect(screen.getByText("2 empty evaluations")).toBeInTheDocument(); // resolve after
     expect(screen.getAllByText("svc").length).toBeGreaterThan(0); // label columns
     expect(screen.getByText("val")).toBeInTheDocument(); // value column
     expect(screen.getByText("everr.runbook:")).toBeInTheDocument();

@@ -60,6 +60,7 @@ import {
   CcQueryError,
   CcSeverityBadge,
   ccErrorMessage,
+  ccFormatDuration,
   ccFormatTs,
   LabelSet,
 } from "./-cc-shared";
@@ -349,12 +350,35 @@ function CcRuleDetailPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           <dl className="divide-y divide-border/60">
-            <DefRow label="Interval">{r.spec.interval_secs}s</DefRow>
+            <DefRow label="Evaluates every">
+              <span title={`evaluationInterval: ${r.spec.interval_secs}s`}>
+                {ccFormatDuration(r.spec.interval_secs)}
+              </span>
+            </DefRow>
             {r.spec.max_interval_secs != null && (
-              <DefRow label="Max interval">{r.spec.max_interval_secs}s</DefRow>
+              <DefRow label="Max interval">
+                <span title="The adaptive-backoff ceiling: past this the rule is flagged degraded">
+                  {ccFormatDuration(r.spec.max_interval_secs)}
+                </span>
+              </DefRow>
             )}
-            <DefRow label="For">{r.spec.for_secs}s</DefRow>
-            <DefRow label="Resolve after">{r.spec.resolve_after}</DefRow>
+            <DefRow label="For">
+              {r.spec.for_secs === 0 ? (
+                <span title="for: 0s">fires on first match</span>
+              ) : (
+                <span
+                  title={`for: ${r.spec.for_secs}s (the condition must hold this long before firing)`}
+                >
+                  {ccFormatDuration(r.spec.for_secs)} before firing
+                </span>
+              )}
+            </DefRow>
+            <DefRow label="Resolve after">
+              <span title={`resolveAfter: ${r.spec.resolve_after}`}>
+                {r.spec.resolve_after} empty{" "}
+                {r.spec.resolve_after === 1 ? "evaluation" : "evaluations"}
+              </span>
+            </DefRow>
             <DefRow label="Label columns">
               {r.spec.label_columns.join(", ") || "—"}
             </DefRow>
