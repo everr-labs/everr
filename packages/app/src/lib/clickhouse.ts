@@ -1,6 +1,7 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { env } from "@/env";
 import { createClient } from "@/lib/clickhouse-client";
+import { assertSqlApiQueryAllowed } from "@/lib/sql-api-guard";
 import { instrumentClickhouseOperation } from "@/telemetry/clickhouse";
 
 // The client default of 2500ms forces a fresh TLS handshake on most queries
@@ -88,6 +89,8 @@ function runSqlApiQuery<Format extends "JSONEachRow" | "JSON">(
   if (typeof organizationId !== "string" || !organizationId) {
     throw new Error("Missing ClickHouse tenant context");
   }
+
+  assertSqlApiQueryAllowed(query);
 
   const username = sqlApiOrgUserName(organizationId);
   const password = sqlApiOrgPassword(organizationId);

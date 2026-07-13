@@ -125,6 +125,16 @@ describe("querySqlApi", () => {
     );
     expect(mockQuery).not.toHaveBeenCalled();
   });
+
+  it("rejects server-introspection functions before reaching ClickHouse", async () => {
+    await expect(querySqlApi("SELECT hostName()", ORG)).rejects.toThrow(
+      /server introspection functions/,
+    );
+    await expect(querySqlApiWithMeta("SELECT uptime()", ORG)).rejects.toThrow(
+      /server introspection functions/,
+    );
+    expect(mockQuery).not.toHaveBeenCalled();
+  });
 });
 
 describe("querySqlApiWithMeta", () => {
