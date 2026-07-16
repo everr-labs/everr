@@ -1,0 +1,127 @@
+kind: Runbook
+metadata:
+  name: cloud-query
+  # no project → "default", matching the cloud-query-system-errors alert
+spec:
+  display:
+    name: Cloud query system errors — runbook
+    description: Triage steps for the cloud-query-system-errors alert (infrastructure failures on POST /api/cli/sql).
+  duration: 6h
+  refreshInterval: 1m
+  panels:
+    recent-system-errors:
+      kind: Panel
+      spec:
+        display:
+          name: Recent system errors
+          description: The failing requests behind the alert, newest first. Open the trace to see where in the CLI to ClickHouse path it broke.
+        plugin:
+          kind: Table
+          spec:
+            stickyHeader: true
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT formatDateTime(Timestamp, '%m-%d %H:%i:%S') AS time,
+                           SpanAttributes['everr.cloud_query.kind'] AS kind,
+                           SpanAttributes['everr.org_id'] AS org,
+                           SpanAttributes['everr.cloud_query.tables'] AS tables,
+                           round(Duration / 1e6, 0) AS duration_ms,
+                           TraceId AS trace_id
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND SpanName = 'POST /api/cli/sql' AND SpanKind = 'Server'
+                      AND SpanAttributes['everr.cloud_query.outcome'] = 'system_error'
+                    ORDER BY Timestamp DESC
+                    LIMIT 50
+    error-kind-breakdown:
+      kind: Panel
+      spec:
+        display:
+          name: System error kinds
+          description: Which failure kind dominates points at the cause (timeout/resource = heavy queries; network = ClickHouse reachability; quota = tenant throttling; internal = a bug).
+        plugin:
+          kind: TimeSeriesChart
+          spec: { showLegend: true, stacked: true }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                           SpanAttributes['everr.cloud_query.kind'] AS kind,
+                           count() AS errors
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND SpanName = 'POST /api/cli/sql' AND SpanKind = 'Server'
+                      AND SpanAttributes['everr.cloud_query.outcome'] = 'system_error'
+                    GROUP BY ts, kind
+                    ORDER BY ts
+    latency:
+      kind: Panel
+      spec:
+        display:
+          name: Edge latency percentiles
+          description: Request duration p50/p95/max. A climb toward 30s precedes timeout-kind failures.
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            unit: ms
+            showLegend: true
+            lineWidth: 1.5
+            curveType: monotone
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                           round(quantile(0.5)(Duration) / 1e6, 1) AS p50,
+                           round(quantile(0.95)(Duration) / 1e6, 1) AS p95,
+                           round(max(Duration) / 1e6, 1) AS max
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND SpanName = 'POST /api/cli/sql' AND SpanKind = 'Server'
+                    GROUP BY ts
+                    ORDER BY ts
+    clickhouse-spans:
+      kind: Panel
+      spec:
+        display:
+          name: ClickHouse execution vs edge time
+          description: Compares the leaf ClickHouse span against the whole request. A gap means time spent outside ClickHouse (guard, provisioning, serialization).
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            unit: ms
+            showLegend: true
+            lineWidth: 1.5
+            curveType: monotone
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                           round(quantile(0.95)(Duration) / 1e6, 1) AS p95_ms,
+                           SpanName AS span
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND (
+                        (SpanName = 'POST /api/cli/sql' AND SpanKind = 'Server')
+                        OR (SpanName = 'ClickHouse QUERY' AND SpanAttributes['clickhouse.client'] = 'sql_api')
+                      )
+                    GROUP BY ts, span
+                    ORDER BY ts
+  markdown:
+    file: ./cloud-query.runbook.md

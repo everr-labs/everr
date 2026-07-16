@@ -4,9 +4,13 @@ use std::ffi::OsString;
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
+use opentelemetry::global;
+use opentelemetry::trace::TracerProvider as _;
 use opentelemetry_otlp::{Protocol, WithExportConfig, WithHttpConfig};
 use opentelemetry_sdk::Resource;
 use opentelemetry_sdk::logs::{BatchConfigBuilder, BatchLogProcessor, SdkLoggerProvider};
+use opentelemetry_sdk::propagation::TraceContextPropagator;
+use opentelemetry_sdk::trace::SdkTracerProvider;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -20,10 +24,14 @@ const SERVICE_NAME: &str = "everr-cli";
 const EVENT_NAME: &str = "everr.cli.command";
 const RESULT_EVENT_NAME: &str = "everr.cli.command.result";
 const EVENT_TARGET: &str = "everr_cli_command";
+// Tracing target of the spans everr-core emits around its HTTP calls. Must match
+// the literal used in `everr_core::api` so this filter captures them.
+const API_TARGET: &str = "everr_api";
 const EXPORT_TIMEOUT: Duration = Duration::from_millis(750);
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_millis(750);
 
 static LOGGER_PROVIDER: OnceLock<Mutex<Option<SdkLoggerProvider>>> = OnceLock::new();
+static TRACER_PROVIDER: OnceLock<Mutex<Option<SdkTracerProvider>>> = OnceLock::new();
 
 pub struct TelemetryGuard {
     active: bool,
@@ -97,6 +105,9 @@ pub fn record_result(
             );
         }
         Err(err) => {
+            // Mark the active command span (see command_span) as failed so
+            // failed invocations are distinguishable in traces, not just logs.
+            tracing::Span::current().record("otel.status_code", "ERROR");
             let error = format!("{err:#}");
             tracing::event!(
                 target: EVENT_TARGET,
@@ -115,7 +126,34 @@ pub fn record_result(
     }
 }
 
+/// The root span for one CLI invocation. All work runs inside it (main
+/// instruments `run_command` with it), so once everr-core injects the trace
+/// context into its HTTP calls the trace stitches CLI → server → ClickHouse.
+/// Reuses the command/subcommand identity that the log events already carry.
+pub fn command_span(command: &'static str, subcommand: Option<&'static str>) -> tracing::Span {
+    tracing::info_span!(
+        target: EVENT_TARGET,
+        "everr.cli.command",
+        everr.cli.command = command,
+        everr.cli.subcommand = subcommand.unwrap_or_default(),
+        os.type = operating_system(),
+        otel.status_code = tracing::field::Empty,
+    )
+}
+
 pub fn shutdown() {
+    if let Some(lock) = TRACER_PROVIDER.get() {
+        if let Some(provider) = lock
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .take()
+        {
+            // The span exporter's per-request timeout (EXPORT_TIMEOUT) bounds how
+            // long this can block, keeping the trace flush inside the same budget
+            // as the log flush so an interactive command still exits promptly.
+            let _ = provider.shutdown();
+        }
+    }
     if let Some(lock) = LOGGER_PROVIDER.get() {
         if let Some(provider) = lock
             .lock()
@@ -135,6 +173,23 @@ pub fn exit(code: i32) -> ! {
 fn init_inner() -> Result<TelemetryGuard, Box<dyn std::error::Error + Send + Sync>> {
     let config = TelemetryConfig::from_env();
     let resource = resource();
+
+    let span_exporter = opentelemetry_otlp::SpanExporter::builder()
+        .with_http()
+        .with_protocol(Protocol::HttpBinary)
+        .with_endpoint(signal_endpoint(&config.endpoint, "traces"))
+        .with_timeout(EXPORT_TIMEOUT)
+        .with_headers(config.headers.clone())
+        .build()?;
+    let tracer_provider = SdkTracerProvider::builder()
+        .with_resource(resource.clone())
+        .with_batch_exporter(span_exporter)
+        .build();
+    global::set_tracer_provider(tracer_provider.clone());
+    // W3C traceparent so everr-core's HTTP calls carry the context to the server.
+    global::set_text_map_propagator(TraceContextPropagator::new());
+    let trace_layer =
+        tracing_opentelemetry::layer().with_tracer(tracer_provider.tracer(SERVICE_NAME));
 
     let log_exporter = opentelemetry_otlp::LogExporter::builder()
         .with_http()
@@ -160,7 +215,10 @@ fn init_inner() -> Result<TelemetryGuard, Box<dyn std::error::Error + Send + Syn
         opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge::new(&logger_provider);
 
     tracing_subscriber::registry()
-        .with(EnvFilter::new(format!("{EVENT_TARGET}=info")))
+        .with(EnvFilter::new(format!(
+            "{EVENT_TARGET}=info,{API_TARGET}=info"
+        )))
+        .with(trace_layer)
         .with(log_layer)
         .try_init()?;
 
@@ -169,6 +227,11 @@ fn init_inner() -> Result<TelemetryGuard, Box<dyn std::error::Error + Send + Syn
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .replace(logger_provider);
+    let _ = TRACER_PROVIDER
+        .get_or_init(|| Mutex::new(None))
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .replace(tracer_provider);
 
     Ok(TelemetryGuard { active: true })
 }

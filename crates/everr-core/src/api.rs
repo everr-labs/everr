@@ -3,11 +3,15 @@ use std::fmt;
 use anyhow::{Context, Result};
 use eventsource_stream::Eventsource;
 use futures_util::StreamExt;
+use opentelemetry::global;
+use opentelemetry::propagation::Injector;
 use reqwest::StatusCode;
-use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue};
+use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderName, HeaderValue};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
+use tracing::Instrument;
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 use crate::build;
 use crate::state::Session;
@@ -166,28 +170,42 @@ impl ApiClient {
     }
 
     pub async fn post_sql(&self, sql: &str) -> Result<String> {
-        let response = self
-            .http
-            .post(format!("{}/sql", self.base_endpoint))
-            .header(CONTENT_TYPE, "text/plain")
-            .body(sql.to_string())
-            .send()
-            .await
-            .context("CLI SQL request failed")?;
+        // A CLIENT span whose W3C context is injected into the request, so the
+        // server continues this trace (CLI → server → ClickHouse). No-op unless
+        // the caller installed a tracer provider + propagator (the CLI does).
+        let span = tracing::info_span!(
+            target: "everr_api",
+            "POST /api/cli/sql",
+            otel.kind = "client",
+            http.request.method = "POST",
+        );
+        async move {
+            let response = self
+                .http
+                .post(format!("{}/sql", self.base_endpoint))
+                .header(CONTENT_TYPE, "text/plain")
+                .headers(current_trace_headers())
+                .body(sql.to_string())
+                .send()
+                .await
+                .context("CLI SQL request failed")?;
 
-        if !response.status().is_success() {
-            let status = response.status();
-            let text = response
+            if !response.status().is_success() {
+                let status = response.status();
+                let text = response
+                    .text()
+                    .await
+                    .unwrap_or_else(|_| "<failed to read body>".to_string());
+                return Err(http_status_error(status, text, "CLI SQL request"));
+            }
+
+            response
                 .text()
                 .await
-                .unwrap_or_else(|_| "<failed to read body>".to_string());
-            return Err(http_status_error(status, text, "CLI SQL request"));
+                .context("failed to read CLI SQL response body")
         }
-
-        response
-            .text()
-            .await
-            .context("failed to read CLI SQL response body")
+        .instrument(span)
+        .await
     }
 
     pub async fn get_step_logs(
@@ -449,6 +467,33 @@ impl ApiClient {
 /// The API path identifying one resource, shared by show/delete/adopt.
 fn resource_path(kind: &str, project: &str, slug: &str) -> String {
     format!("/resources/{kind}/{project}/{slug}")
+}
+
+/// Writes W3C propagation headers (traceparent/tracestate) into a HeaderMap.
+struct HeaderInjector<'a>(&'a mut HeaderMap);
+
+impl Injector for HeaderInjector<'_> {
+    fn set(&mut self, key: &str, value: String) {
+        if let (Ok(name), Ok(val)) = (
+            HeaderName::from_bytes(key.as_bytes()),
+            HeaderValue::from_str(&value),
+        ) {
+            self.0.insert(name, val);
+        }
+    }
+}
+
+/// Trace-propagation headers for the current span, to add to an outgoing
+/// request. Empty when no tracer/propagator is installed (e.g. in tests, the
+/// desktop app, or when telemetry is disabled) — the global propagator defaults
+/// to a no-op, so nothing is injected and the request is unchanged.
+fn current_trace_headers() -> HeaderMap {
+    let mut headers = HeaderMap::new();
+    let context = tracing::Span::current().context();
+    global::get_text_map_propagator(|propagator| {
+        propagator.inject_context(&context, &mut HeaderInjector(&mut headers));
+    });
+    headers
 }
 
 fn http_status_error(status: StatusCode, text: String, context: &str) -> anyhow::Error {
