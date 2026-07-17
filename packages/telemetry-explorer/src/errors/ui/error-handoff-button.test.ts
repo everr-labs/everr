@@ -28,9 +28,9 @@ describe("buildErrorHandoffPrompt", () => {
     expect(prompt).toContain("Fingerprint: fp-1");
     expect(prompt).toContain("Error: TypeError: boom");
     expect(prompt).toContain("everr cloud query");
-    // The embedded query carries the app's fingerprint expression, narrowed to
-    // this Fingerprint.
-    expect(prompt).toContain("cityHash64(");
+    // The embedded query calls the shared fingerprint UDF, narrowed to this
+    // Fingerprint.
+    expect(prompt).toContain("errorFingerprint(ServiceName, LogAttributes)");
     expect(prompt).toContain("= 'fp-1'");
   });
 

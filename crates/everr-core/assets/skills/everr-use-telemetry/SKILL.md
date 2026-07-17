@@ -149,7 +149,7 @@ LIMIT 20
 
 ## Group Errors By Fingerprint
 
-Everr groups error logs into Errors by a *fingerprint*: the `error.fingerprint` log attribute when present, else a hash of the service, exception type, and a normalized exception message. The "Copy agent prompt" button in the web UI hands you a Fingerprint; use the expressions below to list that Error's Occurrences.
+Everr groups error logs into Errors by a *fingerprint*: the `error.fingerprint` log attribute when present, else a hash of the service, exception type, and a normalized exception message. The fingerprint is a ClickHouse UDF, `errorFingerprint(ServiceName, LogAttributes)`, available on both cloud and local telemetry, so you get the same identity the app groups by. The "Copy agent prompt" button in the web UI hands you a Fingerprint.
 
 An error log has a `service.name` resource attribute, `SeverityNumber >= 17`, and an exception type or message:
 ```sql
@@ -161,44 +161,15 @@ AND (
 )
 ```
 
-The fingerprint expression (matches how the app groups Errors):
-```sql
-if(
-  LogAttributes['error.fingerprint'] != '',
-  LogAttributes['error.fingerprint'],
-  toString(cityHash64(
-    ServiceName,
-    LogAttributes['exception.type'],
-    substring(
-      replaceRegexpAll(
-        replaceRegexpAll(
-          replaceRegexpAll(
-            trim(BOTH ' ' FROM LogAttributes['exception.message']),
-            '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}',
-            '<uuid>'
-          ),
-          '\\b[0-9]{6,}\\b|0x[0-9a-fA-F]+',
-          '<id>'
-        ),
-        '''[^'']{16,}''|"[^"]{16,}"',
-        '<quoted>'
-      ),
-      1,
-      300
-    ),
-    ''
-  ))
-)
-```
-
-Occurrences of one Fingerprint (substitute the two expressions above; widen the window if the Error is older):
+Occurrences of one Fingerprint (widen the window if the Error is older):
 ```sql
 SELECT toString(Timestamp) AS timestamp, ServiceName, TraceId,
   LogAttributes['exception.stacktrace'] AS stacktrace
 FROM logs
 WHERE Timestamp > now() - INTERVAL 7 DAY
-  AND <error-log filter>
-  AND (<fingerprint expression>) = '<fingerprint>'
+  AND mapContains(ResourceAttributes, 'service.name')
+  AND SeverityNumber >= 17
+  AND errorFingerprint(ServiceName, LogAttributes) = '<fingerprint>'
 ORDER BY Timestamp DESC
 LIMIT 50
 ```
