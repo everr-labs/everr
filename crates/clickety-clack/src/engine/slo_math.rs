@@ -139,7 +139,7 @@ pub fn time_to_exhaustion_secs(
     burn_rate: f64,
     window_secs: u64,
 ) -> Option<u64> {
-    if burn_rate <= 0.0 {
+    if burn_rate.is_nan() || burn_rate <= 0.0 {
         return None;
     }
     if budget_remaining <= 0.0 {
@@ -328,6 +328,11 @@ mod tests {
         // exhausted already -> Some(0); no burn -> None
         assert_eq!(time_to_exhaustion_secs(-0.2, 2.0, w), Some(0));
         assert_eq!(time_to_exhaustion_secs(0.5, 0.0, w), None);
+    }
+
+    #[test]
+    fn time_to_exhaustion_nan_burn_is_none() {
+        assert_eq!(time_to_exhaustion_secs(0.5, f64::NAN, 2_592_000), None);
     }
 
     #[test]
