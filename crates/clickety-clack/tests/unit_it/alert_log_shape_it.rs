@@ -13,6 +13,7 @@ fn ev(tenant: &str, slug: &str) -> Event {
     Event {
         tenant: TenantId::from_trusted(tenant.to_string()),
         rule: RuleId(Uuid::nil()),
+        slo: None,
         instance_key: InstanceKey("fp".into()),
         status: EventStatus::Firing,
         kind: EventKind::Alert,

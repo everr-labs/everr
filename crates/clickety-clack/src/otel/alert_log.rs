@@ -155,6 +155,7 @@ mod tests {
         Event {
             tenant: TenantId::from_trusted("tenant-1".to_string()),
             rule: RuleId(Uuid::nil()),
+            slo: None,
             instance_key: InstanceKey("fp123".into()),
             status: EventStatus::Firing,
             kind: EventKind::Alert,

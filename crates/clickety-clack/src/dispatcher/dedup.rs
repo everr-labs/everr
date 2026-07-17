@@ -47,6 +47,7 @@ mod tests {
         Event {
             tenant: TenantId::from_trusted(Uuid::nil().to_string()),
             rule: RuleId(Uuid::nil()),
+            slo: None,
             instance_key: InstanceKey("k".into()),
             status,
             kind: crate::domain::event::EventKind::Alert,

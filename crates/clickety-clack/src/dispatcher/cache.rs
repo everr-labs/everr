@@ -107,6 +107,7 @@ impl FilterCache {
                     EventStatus::Firing,
                     f.rule,
                     crate::domain::EventKind::Alert,
+                    None, // TODO(slo-native-alerting task 8): thread the firing instance's SLO id
                 );
                 (f.key, labels)
             })

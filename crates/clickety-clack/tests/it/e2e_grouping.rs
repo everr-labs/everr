@@ -57,6 +57,7 @@ fn ev(tenant: TenantId, rule: RuleId, inst: &str, svc: &str) -> Event {
     Event {
         tenant,
         rule,
+        slo: None,
         instance_key: InstanceKey(inst.into()),
         status: EventStatus::Firing,
         kind: cc::domain::event::EventKind::Alert,

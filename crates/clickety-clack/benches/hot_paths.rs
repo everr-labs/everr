@@ -92,6 +92,7 @@ fn bench_route_decision(c: &mut Criterion) {
     let ev = Event {
         tenant: tenant(),
         rule: RuleId(Uuid::nil()),
+        slo: None,
         instance_key: InstanceKey("inst-db1".into()),
         status: EventStatus::Firing,
         kind: cc::domain::EventKind::Alert,

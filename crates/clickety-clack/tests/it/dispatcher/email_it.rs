@@ -15,6 +15,7 @@ fn ev() -> Event {
     Event {
         tenant: TenantId::from_trusted(Uuid::nil().to_string()),
         rule: RuleId(Uuid::nil()),
+        slo: None,
         instance_key: InstanceKey("svc=api".into()),
         status: EventStatus::Firing,
         kind: cc::domain::event::EventKind::Alert,

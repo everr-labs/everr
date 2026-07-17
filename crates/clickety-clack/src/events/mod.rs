@@ -94,6 +94,7 @@ mod tests {
         Event {
             tenant: TenantId::from_trusted("t"),
             rule: RuleId(Uuid::nil()),
+            slo: None,
             instance_key: InstanceKey("k".into()),
             status,
             kind,

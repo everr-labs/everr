@@ -12,6 +12,7 @@ fn ev(inst: &str, status: EventStatus) -> Event {
     Event {
         tenant: TenantId::from_trusted(Uuid::nil().to_string()),
         rule: RuleId(Uuid::nil()),
+        slo: None,
         instance_key: InstanceKey(inst.into()),
         status,
         kind: cc::domain::event::EventKind::Alert,

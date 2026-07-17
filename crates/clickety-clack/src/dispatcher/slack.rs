@@ -162,6 +162,7 @@ mod tests {
         let ev = Event {
             tenant: TenantId::from_trusted(Uuid::nil().to_string()),
             rule: RuleId(Uuid::nil()),
+            slo: None,
             instance_key: InstanceKey("svc=api".into()),
             status: EventStatus::Firing,
             kind: crate::domain::event::EventKind::Alert,
@@ -187,6 +188,7 @@ mod tests {
         let mk = |inst: &str| Event {
             tenant: TenantId::from_trusted(Uuid::nil().to_string()),
             rule: RuleId(Uuid::nil()),
+            slo: None,
             instance_key: InstanceKey(inst.into()),
             status: EventStatus::Firing,
             kind: crate::domain::event::EventKind::Alert,
@@ -213,6 +215,7 @@ mod tests {
         let mut e = Event {
             tenant: TenantId::from_trusted(Uuid::nil().to_string()),
             rule: RuleId(Uuid::nil()),
+            slo: None,
             instance_key: InstanceKey("svc=api".into()),
             status: EventStatus::Firing,
             kind: crate::domain::event::EventKind::Alert,
@@ -261,6 +264,7 @@ mod tests {
         let e = Event {
             tenant: TenantId::from_trusted(Uuid::nil().to_string()),
             rule: RuleId(Uuid::nil()),
+            slo: None,
             instance_key: InstanceKey("svc=api".into()),
             status: EventStatus::Firing,
             kind: crate::domain::event::EventKind::Alert,
@@ -290,6 +294,7 @@ mod tests {
         let mk = |inst: &str, summary: &str| Event {
             tenant: TenantId::from_trusted(Uuid::nil().to_string()),
             rule: RuleId(Uuid::nil()),
+            slo: None,
             instance_key: InstanceKey(inst.into()),
             status: EventStatus::Firing,
             kind: crate::domain::event::EventKind::Alert,

@@ -58,6 +58,7 @@ fn suppressed_event(tenant: TenantId) -> Event {
     Event {
         tenant,
         rule: RuleId(Uuid::nil()),
+        slo: None,
         instance_key: InstanceKey("svc=api".into()),
         status: EventStatus::Firing,
         kind: cc::domain::event::EventKind::Alert,

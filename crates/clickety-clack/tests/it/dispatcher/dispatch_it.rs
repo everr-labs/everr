@@ -57,6 +57,7 @@ fn ev(tenant: TenantId) -> Event {
     Event {
         tenant,
         rule: RuleId(Uuid::nil()),
+        slo: None,
         instance_key: InstanceKey("svc=api".into()),
         status: EventStatus::Firing,
         kind: cc::domain::event::EventKind::Alert,
@@ -172,6 +173,7 @@ fn ev_svc(tenant: TenantId, svc: &str) -> Event {
     Event {
         tenant,
         rule: RuleId(Uuid::nil()),
+        slo: None,
         instance_key: InstanceKey(format!("svc={svc}")),
         status: EventStatus::Firing,
         kind: cc::domain::event::EventKind::Alert,
@@ -692,6 +694,7 @@ async fn flush_time_inhibition_emits_no_record() {
     let target = Event {
         tenant: tenant.clone(),
         rule: RuleId(Uuid::nil()),
+        slo: None,
         instance_key: InstanceKey("svc=db".into()),
         status: EventStatus::Firing,
         kind: cc::domain::event::EventKind::Alert,

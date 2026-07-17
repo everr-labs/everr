@@ -1,6 +1,6 @@
 use crate::dispatcher::grouping;
 use crate::dispatcher::matching::matchers_match;
-use crate::domain::ids::RuleId;
+use crate::domain::ids::{RuleId, SloId};
 use crate::domain::routing::Route;
 use crate::domain::rule::Severity;
 use crate::domain::{Event, EventKind, EventStatus};
@@ -28,7 +28,7 @@ fn kind_str(k: EventKind) -> &'static str {
     }
 }
 
-/// Build the matchable label set from raw labels + synthetic `severity`/`status`/`rule`/`kind`.
+/// Build the matchable label set from raw labels + synthetic `severity`/`status`/`rule`/`kind`/`slo`.
 /// Synthetic labels take precedence over any same-named user label (inserted last).
 pub fn synthetic_labels(
     labels: &BTreeMap<String, String>,
@@ -36,18 +36,22 @@ pub fn synthetic_labels(
     status: EventStatus,
     rule: RuleId,
     kind: EventKind,
+    slo: Option<SloId>,
 ) -> BTreeMap<String, String> {
     let mut m = labels.clone();
     m.insert("severity".to_string(), severity_str(severity).to_string());
     m.insert("status".to_string(), status_str(status).to_string());
     m.insert("rule".to_string(), rule.0.to_string());
     m.insert("kind".to_string(), kind_str(kind).to_string());
+    if let Some(s) = slo {
+        m.insert("slo".to_string(), s.0.to_string());
+    }
     m
 }
 
 /// The matchable label set for an event.
 pub fn match_labels(ev: &Event) -> BTreeMap<String, String> {
-    synthetic_labels(&ev.labels, ev.severity, ev.status, ev.rule, ev.kind)
+    synthetic_labels(&ev.labels, ev.severity, ev.status, ev.rule, ev.kind, ev.slo)
 }
 
 fn route_matches(r: &Route, labels: &BTreeMap<String, String>) -> bool {
@@ -140,6 +144,7 @@ mod tests {
         Event {
             tenant: TenantId::from_trusted(Uuid::nil().to_string()),
             rule: RuleId(Uuid::nil()),
+            slo: None,
             instance_key: InstanceKey("k".into()),
             status: EventStatus::Firing,
             kind: crate::domain::event::EventKind::Alert,
@@ -206,6 +211,21 @@ mod tests {
         )];
         assert_eq!(select_receivers(&routes, &labels), vec!["ops"]);
         assert!(select_receivers(&routes, &alert).is_empty());
+    }
+
+    #[test]
+    fn slo_is_a_matchable_synthetic_label_when_present() {
+        use crate::domain::ids::SloId;
+        let mut e = ev(Severity::Critical, &[]);
+        e.slo = Some(SloId(Uuid::nil()));
+        let labels = match_labels(&e);
+        assert_eq!(labels["slo"], Uuid::nil().to_string());
+    }
+
+    #[test]
+    fn slo_label_absent_when_event_has_none() {
+        let labels = match_labels(&ev(Severity::Critical, &[]));
+        assert!(!labels.contains_key("slo"));
     }
 
     #[test]
