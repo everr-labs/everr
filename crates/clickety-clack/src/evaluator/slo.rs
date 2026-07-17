@@ -8,7 +8,8 @@
 //! `Event`s, or touches the dispatcher.
 
 use crate::clickhouse::{json_to_f64, RowQuerier};
-use crate::domain::slo::{canonical_tiers, parse_window_secs, Slo};
+use crate::domain::rule::Severity;
+use crate::domain::slo::{canonical_tiers, parse_window_secs, Slo, SloSpec};
 use crate::engine::slo_math::{
     budget_remaining_fraction, burn_rate, empty_payload, is_window_due, required_windows,
     SloGroupStatus, SloStatusPayload, SloTierStatus, WindowReq,
@@ -391,4 +392,267 @@ pub async fn run_slo_evaluator(
         }
     }
     tracing::info!("slo evaluator stopped");
+}
+
+/// One (group × tier) firing verdict: the pure output of comparing an
+/// already-computed [`SloStatusPayload`] snapshot against the [`SloSpec`]'s
+/// burn-rate tiers. No I/O; a later stage (Task 7) feeds each verdict through
+/// the engine state machine to actually open/resolve instances.
+// wired by the firing pipeline (Task 7); remove this allow once it lands.
+#[allow(dead_code)]
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct TierFiring {
+    /// Group labels + "slo_tier" — the instance's label set (identity input).
+    pub labels: BTreeMap<String, String>,
+    pub tier_name: String,
+    pub present: bool,
+    /// Long-window burn rate when present (the event value).
+    pub value: Option<f64>,
+    pub severity: Severity,
+    /// Extra numbers for evidence/annotations (short burn, budget, tte).
+    pub short_burn: Option<f64>,
+    pub budget_remaining: Option<f64>,
+}
+
+/// For every (group × tier) pair, decide whether the tier is presently
+/// breaching: both the long- and short-window burn rates must strictly
+/// exceed the tier's threshold, and (if `spec.min_valid_events` is set) the
+/// long window's observed `valid` count must meet the floor. A `None` burn on
+/// either window, or a `None` valid count when a floor is configured, fails
+/// open (`present: false`) rather than paging on missing/low-traffic data.
+///
+/// Every (group × tier) pair yields exactly one entry, including absent ones
+/// — the resolve path downstream relies on seeing every pair each tick.
+// wired by the firing pipeline (Task 7); remove this allow once it lands.
+#[allow(dead_code)]
+pub(crate) fn plan_tier_firing(spec: &SloSpec, payload: &SloStatusPayload) -> Vec<TierFiring> {
+    let tiers = spec.tiers.clone().unwrap_or_else(canonical_tiers);
+    let mut out = Vec::with_capacity(payload.groups.len() * tiers.len());
+    for group in &payload.groups {
+        for tier in &tiers {
+            let tier_status = group.tiers.iter().find(|t| t.name == tier.name);
+            let long_burn = tier_status.and_then(|t| t.long_burn_rate);
+            let short_burn = tier_status.and_then(|t| t.short_burn_rate);
+            let long_window_valid = tier_status.and_then(|t| t.long_window_valid);
+
+            let floor_ok = match spec.min_valid_events {
+                Some(n) => long_window_valid.is_some_and(|v| v >= n as f64),
+                None => true,
+            };
+            let present = floor_ok
+                && long_burn.is_some_and(|l| l > tier.burn_rate)
+                && short_burn.is_some_and(|s| s > tier.burn_rate);
+
+            let mut labels = group.labels.clone();
+            labels.insert("slo_tier".to_string(), tier.name.clone());
+
+            out.push(TierFiring {
+                labels,
+                tier_name: tier.name.clone(),
+                present,
+                value: long_burn,
+                severity: tier.severity,
+                short_burn,
+                budget_remaining: group.budget_remaining,
+            });
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+mod tier_firing_tests {
+    use super::*;
+    use crate::domain::slo::{BurnRateTier, SliSpec, TimeWindow};
+
+    fn spec_with(min_valid_events: Option<u64>, tiers: Option<Vec<BurnRateTier>>) -> SloSpec {
+        SloSpec {
+            sli: SliSpec {
+                sql: "x".into(),
+                label_columns: vec![],
+            },
+            target_percent: 99.9,
+            time_window: TimeWindow {
+                duration: "30d".into(),
+                is_rolling: true,
+                calendar: None,
+            },
+            min_valid_events,
+            tiers,
+            annotations: BTreeMap::new(),
+            suppressed: false,
+        }
+    }
+
+    /// A single-group payload, with the group's tier statuses supplied directly.
+    fn payload_one_group(
+        labels: BTreeMap<String, String>,
+        budget_remaining: Option<f64>,
+        tiers: Vec<SloTierStatus>,
+    ) -> SloStatusPayload {
+        SloStatusPayload {
+            window: "30d".into(),
+            target_percent: 99.9,
+            degraded: false,
+            groups: vec![SloGroupStatus {
+                labels,
+                sli: None,
+                budget_remaining,
+                tiers,
+            }],
+            window_computed_at: BTreeMap::new(),
+        }
+    }
+
+    fn tier_status(name: &str, long: Option<f64>, short: Option<f64>) -> SloTierStatus {
+        SloTierStatus {
+            name: name.to_string(),
+            long_burn_rate: long,
+            short_burn_rate: short,
+            long_window_valid: None,
+        }
+    }
+
+    fn group_labels() -> BTreeMap<String, String> {
+        BTreeMap::from([("service".to_string(), "checkout".to_string())])
+    }
+
+    #[test]
+    fn fires_only_when_both_windows_breach() {
+        let spec = spec_with(None, None); // canonical tiers, fast-burn threshold 14.4
+
+        // both windows breach -> present
+        let payload = payload_one_group(
+            group_labels(),
+            None,
+            vec![tier_status("fast-burn", Some(15.0), Some(15.0))],
+        );
+        let firings = plan_tier_firing(&spec, &payload);
+        let fast = firings.iter().find(|f| f.tier_name == "fast-burn").unwrap();
+        assert!(fast.present);
+
+        // long breaches, short doesn't -> absent
+        let payload = payload_one_group(
+            group_labels(),
+            None,
+            vec![tier_status("fast-burn", Some(15.0), Some(2.0))],
+        );
+        let firings = plan_tier_firing(&spec, &payload);
+        let fast = firings.iter().find(|f| f.tier_name == "fast-burn").unwrap();
+        assert!(!fast.present);
+
+        // short breaches, long doesn't -> absent
+        let payload = payload_one_group(
+            group_labels(),
+            None,
+            vec![tier_status("fast-burn", Some(2.0), Some(15.0))],
+        );
+        let firings = plan_tier_firing(&spec, &payload);
+        let fast = firings.iter().find(|f| f.tier_name == "fast-burn").unwrap();
+        assert!(!fast.present);
+    }
+
+    #[test]
+    fn zero_traffic_fails_open() {
+        let spec = spec_with(None, None);
+        let payload = payload_one_group(
+            group_labels(),
+            None,
+            vec![tier_status("fast-burn", None, None)],
+        );
+        let firings = plan_tier_firing(&spec, &payload);
+        let fast = firings.iter().find(|f| f.tier_name == "fast-burn").unwrap();
+        assert!(!fast.present);
+        assert_eq!(fast.value, None);
+    }
+
+    #[test]
+    fn min_valid_events_floor() {
+        let spec_floored = spec_with(Some(1000), None);
+
+        // burn 20x on both windows, but valid count under the floor -> absent
+        let payload = payload_one_group(
+            group_labels(),
+            None,
+            vec![SloTierStatus {
+                name: "fast-burn".into(),
+                long_burn_rate: Some(20.0),
+                short_burn_rate: Some(20.0),
+                long_window_valid: Some(500.0),
+            }],
+        );
+        let firings = plan_tier_firing(&spec_floored, &payload);
+        let fast = firings.iter().find(|f| f.tier_name == "fast-burn").unwrap();
+        assert!(!fast.present);
+
+        // same burns, valid count clears the floor -> present
+        let payload = payload_one_group(
+            group_labels(),
+            None,
+            vec![SloTierStatus {
+                name: "fast-burn".into(),
+                long_burn_rate: Some(20.0),
+                short_burn_rate: Some(20.0),
+                long_window_valid: Some(2000.0),
+            }],
+        );
+        let firings = plan_tier_firing(&spec_floored, &payload);
+        let fast = firings.iter().find(|f| f.tier_name == "fast-burn").unwrap();
+        assert!(fast.present);
+
+        // floor set, valid count missing -> absent (no data, no page)
+        let payload = payload_one_group(
+            group_labels(),
+            None,
+            vec![SloTierStatus {
+                name: "fast-burn".into(),
+                long_burn_rate: Some(20.0),
+                short_burn_rate: Some(20.0),
+                long_window_valid: None,
+            }],
+        );
+        let firings = plan_tier_firing(&spec_floored, &payload);
+        let fast = firings.iter().find(|f| f.tier_name == "fast-burn").unwrap();
+        assert!(!fast.present);
+
+        // no floor configured, valid count missing -> present purely on burns
+        let spec_no_floor = spec_with(None, None);
+        let firings = plan_tier_firing(&spec_no_floor, &payload);
+        let fast = firings.iter().find(|f| f.tier_name == "fast-burn").unwrap();
+        assert!(fast.present);
+    }
+
+    #[test]
+    fn labels_carry_tier_and_group() {
+        let spec = spec_with(None, None); // canonical: 3 tiers
+        let payload = payload_one_group(
+            group_labels(),
+            None,
+            vec![tier_status("fast-burn", Some(15.0), Some(15.0))],
+        );
+        let firings = plan_tier_firing(&spec, &payload);
+        assert_eq!(firings.len(), 3); // 1 group * 3 canonical tiers
+        for f in &firings {
+            assert_eq!(
+                f.labels.get("service").map(String::as_str),
+                Some("checkout")
+            );
+            assert_eq!(f.labels.get("slo_tier"), Some(&f.tier_name));
+        }
+    }
+
+    #[test]
+    fn severity_and_value_from_tier() {
+        let spec = spec_with(None, None); // canonical: ticket tier is Severity::Warning
+        let payload = payload_one_group(
+            group_labels(),
+            None,
+            vec![tier_status("ticket", Some(2.0), Some(2.0))], // breaches ticket's 1.0 threshold
+        );
+        let firings = plan_tier_firing(&spec, &payload);
+        let ticket = firings.iter().find(|f| f.tier_name == "ticket").unwrap();
+        assert!(ticket.present);
+        assert_eq!(ticket.severity, Severity::Warning);
+        assert_eq!(ticket.value, Some(2.0));
+    }
 }
