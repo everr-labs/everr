@@ -166,6 +166,8 @@ async fn main() -> anyhow::Result<()> {
                     ttl,
                     Duration::from_secs(1),
                     500,
+                    // TODO(task-11): wire from cfg.slo_base_cadence_secs
+                    30,
                     rx,
                 )
                 .await;
