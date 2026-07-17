@@ -67,6 +67,36 @@ pub enum RuleUpdate {
     VersionConflict { current: i64 },
 }
 
+/// Outcome of [`PgStore::create_slo`].
+// `Slo` carries an owned `SloSpec` (label columns, tiers, annotations); boxing the
+// `Created` payload would force callers to deref through a `Box` everywhere and break
+// direct `Slo == Slo` comparisons in the store tests, for a lint that's purely about
+// the outcome enum's stack footprint (never hot-path-cloned).
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, Clone, PartialEq)]
+pub enum SloCreate {
+    Created(crate::domain::slo::Slo),
+    NameConflict,
+}
+
+/// Outcome of [`PgStore::update_slo`].
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, Clone, PartialEq)]
+pub enum SloUpdate {
+    Updated(crate::domain::slo::Slo),
+    NotFound,
+    VersionConflict { current: i64 },
+    NameConflict,
+}
+
+/// True if a sqlx error is a Postgres unique-constraint violation (SQLSTATE 23505).
+fn is_unique_violation(e: &sqlx::Error) -> bool {
+    e.as_database_error()
+        .and_then(|d| d.code())
+        .map(|c| c == "23505")
+        .unwrap_or(false)
+}
+
 /// Outcome of [`PgStore::delete_channel`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ChannelDelete {
@@ -2037,5 +2067,195 @@ impl PgStore {
             .execute(&self.pool)
             .await?;
         Ok(())
+    }
+
+    // ---- slos ----
+
+    pub async fn create_slo(
+        &self,
+        tenant: TenantId,
+        name: &str,
+        spec: &crate::domain::slo::SloSpec,
+    ) -> Result<SloCreate, StoreError> {
+        use crate::domain::ids::SloId;
+        let id = Uuid::new_v4();
+        let spec_json = serde_json::to_value(spec)?;
+        let res = sqlx::query("INSERT INTO slos (id, tenant, name, spec) VALUES ($1,$2,$3,$4)")
+            .bind(id)
+            .bind(tenant.as_str())
+            .bind(name)
+            .bind(&spec_json)
+            .execute(&self.pool)
+            .await;
+        match res {
+            Ok(_) => Ok(SloCreate::Created(crate::domain::slo::Slo {
+                id: SloId(id),
+                tenant,
+                name: name.to_string(),
+                spec: spec.clone(),
+                version: 1,
+                paused: false,
+            })),
+            Err(e) if is_unique_violation(&e) => Ok(SloCreate::NameConflict),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    pub async fn get_slo(
+        &self,
+        tenant: TenantId,
+        id: crate::domain::ids::SloId,
+    ) -> Result<Option<crate::domain::slo::Slo>, StoreError> {
+        let row = sqlx::query(
+            "SELECT id, tenant, name, spec, version, paused FROM slos WHERE id=$1 AND tenant=$2",
+        )
+        .bind(id.0)
+        .bind(tenant.as_str())
+        .fetch_optional(&self.pool)
+        .await?;
+        match row {
+            None => Ok(None),
+            Some(r) => Ok(Some(Self::slo_from_row(&r)?)),
+        }
+    }
+
+    /// Update an SLO's name/spec in place, preserving its id, tenant, and `paused`
+    /// flag. Bumps `version` by one.
+    ///
+    /// `expected_version`: `Some(v)` is an optimistic-concurrency guard — if the stored
+    /// version differs, nothing is written and `SloUpdate::VersionConflict` is
+    /// returned. `None` means last-write-wins.
+    pub async fn update_slo(
+        &self,
+        tenant: TenantId,
+        id: crate::domain::ids::SloId,
+        name: &str,
+        spec: &crate::domain::slo::SloSpec,
+        expected_version: Option<i64>,
+    ) -> Result<SloUpdate, StoreError> {
+        let mut tx = self.pool.begin().await?;
+        let row =
+            sqlx::query("SELECT version, paused FROM slos WHERE id=$1 AND tenant=$2 FOR UPDATE")
+                .bind(id.0)
+                .bind(tenant.as_str())
+                .fetch_optional(&mut *tx)
+                .await?;
+        let Some(row) = row else {
+            tx.rollback().await?;
+            return Ok(SloUpdate::NotFound);
+        };
+        let current: i64 = row.get("version");
+        let paused: bool = row.get("paused");
+        if let Some(expected) = expected_version {
+            if expected != current {
+                tx.rollback().await?;
+                return Ok(SloUpdate::VersionConflict { current });
+            }
+        }
+        let spec_json = serde_json::to_value(spec)?;
+        let res = sqlx::query(
+            "UPDATE slos SET name=$3, spec=$4, version = version + 1, updated_at = now() WHERE id=$1 AND tenant=$2",
+        )
+        .bind(id.0)
+        .bind(tenant.as_str())
+        .bind(name)
+        .bind(&spec_json)
+        .execute(&mut *tx)
+        .await;
+        match res {
+            Ok(_) => {
+                tx.commit().await?;
+                Ok(SloUpdate::Updated(crate::domain::slo::Slo {
+                    id,
+                    tenant,
+                    name: name.to_string(),
+                    spec: spec.clone(),
+                    version: current + 1,
+                    paused,
+                }))
+            }
+            Err(e) if is_unique_violation(&e) => {
+                tx.rollback().await?;
+                Ok(SloUpdate::NameConflict)
+            }
+            Err(e) => {
+                tx.rollback().await?;
+                Err(e.into())
+            }
+        }
+    }
+
+    pub async fn delete_slo(
+        &self,
+        tenant: TenantId,
+        id: crate::domain::ids::SloId,
+    ) -> Result<bool, StoreError> {
+        let res = sqlx::query("DELETE FROM slos WHERE id=$1 AND tenant=$2")
+            .bind(id.0)
+            .bind(tenant.as_str())
+            .execute(&self.pool)
+            .await?;
+        Ok(res.rows_affected() > 0)
+    }
+
+    /// Pause an SLO (exclude it from evaluation). Idempotent. Returns false if no
+    /// such SLO exists for the tenant.
+    pub async fn pause_slo(
+        &self,
+        tenant: TenantId,
+        id: crate::domain::ids::SloId,
+    ) -> Result<bool, StoreError> {
+        let res = sqlx::query(
+            "UPDATE slos SET paused = true, updated_at = now() WHERE id=$1 AND tenant=$2",
+        )
+        .bind(id.0)
+        .bind(tenant.as_str())
+        .execute(&self.pool)
+        .await?;
+        Ok(res.rows_affected() > 0)
+    }
+
+    /// Resume a paused SLO. Idempotent. Returns false if no such SLO exists for the
+    /// tenant.
+    pub async fn resume_slo(
+        &self,
+        tenant: TenantId,
+        id: crate::domain::ids::SloId,
+    ) -> Result<bool, StoreError> {
+        let res = sqlx::query(
+            "UPDATE slos SET paused = false, updated_at = now() WHERE id=$1 AND tenant=$2",
+        )
+        .bind(id.0)
+        .bind(tenant.as_str())
+        .execute(&self.pool)
+        .await?;
+        Ok(res.rows_affected() > 0)
+    }
+
+    pub async fn list_slos(
+        &self,
+        tenant: &TenantId,
+    ) -> Result<Vec<crate::domain::slo::Slo>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT id, tenant, name, spec, version, paused FROM slos WHERE tenant=$1 ORDER BY created_at, id",
+        )
+        .bind(tenant.as_str())
+        .fetch_all(&self.pool)
+        .await?;
+        rows.iter().map(Self::slo_from_row).collect()
+    }
+
+    fn slo_from_row(r: &PgRow) -> Result<crate::domain::slo::Slo, StoreError> {
+        use crate::domain::ids::SloId;
+        use crate::domain::slo::{Slo, SloSpec};
+        let spec: SloSpec = serde_json::from_value(r.get("spec"))?;
+        Ok(Slo {
+            id: SloId(r.get("id")),
+            tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
+            name: r.get("name"),
+            spec,
+            version: r.get("version"),
+            paused: r.get("paused"),
+        })
     }
 }
