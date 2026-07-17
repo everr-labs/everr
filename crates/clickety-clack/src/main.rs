@@ -166,8 +166,7 @@ async fn main() -> anyhow::Result<()> {
                     ttl,
                     Duration::from_secs(1),
                     500,
-                    // TODO(task-11): wire from cfg.slo_base_cadence_secs
-                    30,
+                    cfg.slo_base_cadence_secs as i32,
                     rx,
                 )
                 .await;
@@ -229,6 +228,36 @@ async fn main() -> anyhow::Result<()> {
                 let rx = rx.clone();
                 async move {
                     run_maintenance(store, bus, lease, Duration::from_secs(5), metrics, rx).await;
+                    Ok(())
+                }
+            }));
+        }
+        {
+            let store = store.clone();
+            let queue = queue.clone();
+            let ch: std::sync::Arc<dyn cc::clickhouse::RowQuerier> =
+                std::sync::Arc::new(ch.clone().with_engine_metrics(engine_metrics.clone()));
+            let rx = sd_rx.clone();
+            let consumer = cfg.node_id.clone();
+            let degrade_after = cfg.rule_degrade_after;
+            let base_cadence = cfg.slo_base_cadence_secs as u64;
+            roles.push(RoleSpec::restartable("slo-evaluator", move || {
+                let consumer = consumer.clone();
+                let store = store.clone();
+                let queue = queue.clone();
+                let ch = ch.clone();
+                let rx = rx.clone();
+                async move {
+                    cc::evaluator::slo::run_slo_evaluator(
+                        consumer,
+                        store,
+                        queue,
+                        ch,
+                        base_cadence,
+                        degrade_after,
+                        rx,
+                    )
+                    .await;
                     Ok(())
                 }
             }));

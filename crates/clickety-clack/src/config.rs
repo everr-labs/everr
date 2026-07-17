@@ -33,6 +33,13 @@ pub struct Config {
     pub ch_tenant_map: Option<String>,
     pub node_id: String,
     pub rule_degrade_after: u32,
+    pub slo_base_cadence_secs: u32,
+    /// Reserved tunable: the per-window freshness cadence (Task 2's `is_window_due`)
+    /// is currently derived from each SLO's own window durations, not from this
+    /// value. Threaded through config now so a future budget-refresh cadence knob
+    /// doesn't need a config-shape change; not yet read anywhere.
+    #[allow(dead_code)]
+    pub slo_budget_refresh_secs: u32,
     pub scheduler_shards: u32,
     pub scheduler_member_ttl_ms: u64,
     pub smtp: Option<SmtpConfig>,
@@ -100,6 +107,16 @@ impl Config {
                 .ok()
                 .filter(|&n| n >= 1)
                 .unwrap_or(3),
+            slo_base_cadence_secs: var("CC_SLO_BASE_CADENCE_SECS", "30")
+                .parse()
+                .ok()
+                .filter(|&n| n >= 1)
+                .unwrap_or(30),
+            slo_budget_refresh_secs: var("CC_SLO_BUDGET_REFRESH_SECS", "300")
+                .parse()
+                .ok()
+                .filter(|&n| n >= 1)
+                .unwrap_or(300),
             smtp,
             secret_provider: var("CC_SECRET_PROVIDER", "env"),
             secret_keys: env::var("CC_SECRET_KEYS").ok(),
@@ -127,6 +144,22 @@ mod tests {
         env::set_var("CC_RULE_DEGRADE_AFTER", "5");
         assert_eq!(Config::from_env().rule_degrade_after, 5);
         env::remove_var("CC_RULE_DEGRADE_AFTER");
+    }
+
+    #[test]
+    fn slo_cadence_defaults_and_clamps() {
+        // Env-based; this is the only test touching CC_SLO_BASE_CADENCE_SECS.
+        env::remove_var("CC_SLO_BASE_CADENCE_SECS");
+        assert_eq!(Config::from_env().slo_base_cadence_secs, 30);
+        env::set_var("CC_SLO_BASE_CADENCE_SECS", "0");
+        assert_eq!(
+            Config::from_env().slo_base_cadence_secs,
+            30,
+            "0 clamps to 30"
+        );
+        env::set_var("CC_SLO_BASE_CADENCE_SECS", "45");
+        assert_eq!(Config::from_env().slo_base_cadence_secs, 45);
+        env::remove_var("CC_SLO_BASE_CADENCE_SECS");
     }
 
     #[test]
