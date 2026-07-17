@@ -175,6 +175,34 @@ pub async fn resume(
         .ok_or(ApiError::NotFound)
 }
 
+/// Read-only view of the evaluator's latest status snapshot for an SLO
+/// (Task 8's `slo_status` row), returned verbatim: no derived/filtered
+/// fields are added here.
+#[derive(serde::Serialize)]
+pub struct SloStatusOut {
+    #[serde(with = "time::serde::rfc3339")]
+    pub computed_at: time::OffsetDateTime,
+    pub payload: Value,
+}
+
+pub async fn status(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+) -> Result<Json<SloStatusOut>, ApiError> {
+    let t = tenant(&state, &headers)?;
+    let row = state
+        .store
+        .get_slo_status(&t, SloId(id))
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?
+        .ok_or(ApiError::NotFound)?;
+    Ok(Json(SloStatusOut {
+        computed_at: row.computed_at,
+        payload: row.payload,
+    }))
+}
+
 /// Replace each ClickHouse-native `{name:Type}` query parameter with a
 /// harmless numeric literal. `sqlguard::validate` parses SQL with
 /// `sqlparser`'s `ClickHouseDialect`, which does not tokenize this
