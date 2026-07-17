@@ -94,24 +94,41 @@ pub struct MatchedTarget {
     pub grouping: GroupingParams,
 }
 
+/// Default group_by for SLO events (spec §5): one notification group per
+/// (slo, group), collapsing tiers. Only used when the matched route has no
+/// explicit group_by. Group-label names = the event's labels minus the
+/// tier discriminator (slo_tier) — i.e. the SLI label_columns.
+pub(crate) fn slo_default_group_by(ev_labels: &BTreeMap<String, String>) -> Vec<String> {
+    let mut gb = vec!["slo".to_string()];
+    gb.extend(ev_labels.keys().filter(|k| *k != "slo_tier").cloned());
+    gb
+}
+
 /// Like `select_receivers`, but returns each unique receiver (first-match order) paired
 /// with the grouping parameters from the FIRST route that selected it (route defaults
 /// applied). `continue` semantics match `select_receivers`.
-pub fn select_grouping_targets(
-    routes: &[Route],
-    labels: &BTreeMap<String, String>,
-) -> Vec<MatchedTarget> {
+///
+/// The route-default `group_by` (used only when the route sets none) depends on whether
+/// `ev` is SLO-originated: SLO events default to `slo_default_group_by(&ev.labels)`
+/// (spec §5, collapsing burn-rate tiers into one group per (slo, group)); all other
+/// events keep the existing `["rule","severity"]` default. An explicit route `group_by`
+/// always wins regardless of `ev.slo`.
+pub fn select_grouping_targets(routes: &[Route], ev: &Event) -> Vec<MatchedTarget> {
+    let labels = match_labels(ev);
     let mut out: Vec<MatchedTarget> = Vec::new();
     for r in routes {
-        if route_matches(r, labels) {
+        if route_matches(r, &labels) {
             if !out.iter().any(|t| t.receiver == r.receiver) {
                 out.push(MatchedTarget {
                     receiver: r.receiver.clone(),
                     grouping: GroupingParams {
-                        group_by: r
-                            .group_by
-                            .clone()
-                            .unwrap_or_else(grouping::default_group_by),
+                        group_by: r.group_by.clone().unwrap_or_else(|| {
+                            if ev.slo.is_some() {
+                                slo_default_group_by(&ev.labels)
+                            } else {
+                                grouping::default_group_by()
+                            }
+                        }),
                         group_wait_secs: r
                             .group_wait_secs
                             .unwrap_or(grouping::DEFAULT_GROUP_WAIT_SECS),
@@ -284,11 +301,11 @@ mod tests {
 
     #[test]
     fn grouping_targets_apply_defaults_and_dedup_by_receiver() {
-        let labels = match_labels(&ev(Severity::Critical, &[("svc", "api")]));
+        let e = ev(Severity::Critical, &[("svc", "api")]);
         let mut r1 = route("ops", true, vec![m("severity", MatchOp::Eq, "critical")]);
         r1.group_wait_secs = Some(3);
         let r2 = route("ops", false, vec![m("svc", MatchOp::Eq, "api")]); // same receiver again
-        let targets = select_grouping_targets(&[r1, r2], &labels);
+        let targets = select_grouping_targets(&[r1, r2], &e);
         assert_eq!(targets.len(), 1, "receiver deduped, first match wins");
         assert_eq!(targets[0].receiver, "ops");
         assert_eq!(targets[0].grouping.group_wait_secs, 3);
@@ -299,7 +316,67 @@ mod tests {
         );
         assert_eq!(
             targets[0].grouping.group_by,
-            vec!["rule".to_string(), "severity".to_string()]
+            vec!["rule".to_string(), "severity".to_string()],
+            "non-SLO event: unchanged default"
+        );
+    }
+
+    #[test]
+    fn slo_default_group_by_is_slo_plus_labels_minus_tier() {
+        let labels = BTreeMap::from([
+            ("service".to_string(), "api".to_string()),
+            ("slo_tier".to_string(), "fast-burn".to_string()),
+        ]);
+        assert_eq!(
+            slo_default_group_by(&labels),
+            vec!["slo".to_string(), "service".to_string()]
+        );
+    }
+
+    #[test]
+    fn slo_event_route_group_by_none_defaults_to_slo_grouping() {
+        use crate::domain::ids::SloId;
+        let mut e = ev(
+            Severity::Critical,
+            &[("service", "api"), ("slo_tier", "fast-burn")],
+        );
+        e.slo = Some(SloId(Uuid::nil()));
+        let routes = vec![route("ops", false, vec![])];
+        let targets = select_grouping_targets(&routes, &e);
+        assert_eq!(
+            targets[0].grouping.group_by,
+            vec!["slo".to_string(), "service".to_string()],
+            "SLO event with no explicit route group_by uses slo_default_group_by"
+        );
+    }
+
+    #[test]
+    fn slo_event_explicit_route_group_by_always_wins() {
+        use crate::domain::ids::SloId;
+        let mut e = ev(
+            Severity::Critical,
+            &[("service", "api"), ("slo_tier", "fast-burn")],
+        );
+        e.slo = Some(SloId(Uuid::nil()));
+        let mut r = route("ops", false, vec![]);
+        r.group_by = Some(vec!["severity".to_string()]);
+        let targets = select_grouping_targets(&[r], &e);
+        assert_eq!(
+            targets[0].grouping.group_by,
+            vec!["severity".to_string()],
+            "explicit route group_by always wins, even for SLO events"
+        );
+    }
+
+    #[test]
+    fn rule_event_default_group_by_is_unaffected_by_slo_change() {
+        let e = ev(Severity::Critical, &[("svc", "api")]);
+        let routes = vec![route("ops", false, vec![])];
+        let targets = select_grouping_targets(&routes, &e);
+        assert_eq!(
+            targets[0].grouping.group_by,
+            vec!["rule".to_string(), "severity".to_string()],
+            "non-SLO event keeps the rule/severity default"
         );
     }
 

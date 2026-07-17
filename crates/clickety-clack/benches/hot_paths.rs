@@ -152,7 +152,7 @@ fn bench_route_decision(c: &mut Criterion) {
             let silenced = is_silenced(&labels, black_box(&silences), now);
             let inhibited =
                 is_inhibited(&labels, &ev.instance_key, black_box(&inhibitions), &firing);
-            let targets = select_grouping_targets(black_box(&routes), &labels);
+            let targets = select_grouping_targets(black_box(&routes), &ev);
             black_box((silenced, inhibited, targets))
         })
     });
