@@ -185,6 +185,59 @@ pub struct SloStatusOut {
     pub payload: Value,
 }
 
+/// `POST /v1/slos/:id/test`: a dry-run probe (`:id` is ignored, like
+/// `rules::test`). Validates the posted spec, runs the SLI query over the
+/// spec's own budget window against ClickHouse, and returns the per-group
+/// results -- no DB write, no snapshot.
+pub async fn test(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(_id): Path<Uuid>,
+    Json(body): Json<CreateSloBody>,
+) -> Result<Json<Value>, ApiError> {
+    let t = tenant(&state, &headers)?;
+    validate_slo_spec(&body.spec)?;
+    let now = time::OffsetDateTime::now_utc();
+    let secs = parse_window_secs(&body.spec.time_window.duration)
+        .map_err(|e| ApiError::Validation(e.to_string()))?;
+    let start = now - time::Duration::seconds(secs as i64);
+    let params = vec![
+        (
+            "window_start".to_string(),
+            crate::evaluator::slo::fmt_ch_datetime(start),
+        ),
+        (
+            "window_end".to_string(),
+            crate::evaluator::slo::fmt_ch_datetime(now),
+        ),
+    ];
+    let rows = state
+        .ch
+        .query_rows_params(
+            &t,
+            &body.spec.sli.sql,
+            &params,
+            &body.spec.sli.label_columns,
+            Some("valid"),
+        )
+        .await
+        .map_err(|e| ApiError::Validation(format!("query failed: {e}")))?;
+    let groups: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            let valid = r.value.unwrap_or(0.0);
+            let good = r.extra.get("good").and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let sli = if valid > 0.0 {
+                Some(good / valid)
+            } else {
+                None
+            };
+            json!({ "labels": r.labels, "good": good, "valid": valid, "sli": sli })
+        })
+        .collect();
+    Ok(Json(json!({ "matched": groups.len(), "groups": groups })))
+}
+
 pub async fn status(
     State(state): State<AppState>,
     headers: HeaderMap,
