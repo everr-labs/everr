@@ -7,6 +7,7 @@ pub mod receivers;
 pub mod routes;
 pub mod rules;
 pub mod silences;
+pub mod slos;
 pub mod subscriptions;
 pub mod webhook_url;
 
