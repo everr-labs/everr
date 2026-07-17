@@ -13,6 +13,7 @@ pub mod retry;
 pub mod routing;
 pub mod silence;
 pub mod slack;
+pub mod slo_inhibit;
 pub mod telegram;
 
 pub use dedup::dedup_key;

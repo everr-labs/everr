@@ -1013,7 +1013,7 @@ mod annotations_evidence_tests {
         let ann = slo_annotations(&slo, &tier);
         assert_eq!(ann.get("summary").map(String::as_str), Some("custom"));
         // description default is untouched since the spec didn't set it
-        assert!(ann.get("description").is_some());
+        assert!(ann.contains_key("description"));
         assert_eq!(ann.get("team").map(String::as_str), Some("checkout-oncall"));
     }
 
