@@ -340,6 +340,54 @@ impl ApiClient {
         self.get(&resource_path(kind, project, slug), &[]).await
     }
 
+    pub async fn list_errors(&self, query: &[(&str, String)]) -> Result<ErrorIssuesResponse> {
+        self.get("/errors", query).await
+    }
+
+    /// Web URL of an Error's detail page, printed by `errors show` so a human
+    /// can jump from the terminal to the web UI.
+    pub fn error_web_url(&self, fingerprint: &str) -> String {
+        self.web_url(&["errors", fingerprint], None)
+    }
+
+    /// Web URL of a trace, optionally focused on one span.
+    pub fn trace_web_url(&self, trace_id: &str, span_id: Option<&str>) -> String {
+        let span = span_id.filter(|s| !s.is_empty()).map(|s| ("span", s));
+        self.web_url(&["traces", trace_id], span)
+    }
+
+    fn web_url(&self, segments: &[&str], query: Option<(&str, &str)>) -> String {
+        let Ok(mut url) = reqwest::Url::parse(&self.base_url) else {
+            return self.base_url.clone();
+        };
+        {
+            let Ok(mut path) = url.path_segments_mut() else {
+                return self.base_url.clone();
+            };
+            path.extend(segments);
+        }
+        if let Some((key, value)) = query {
+            url.query_pairs_mut().append_pair(key, value);
+        }
+        url.to_string()
+    }
+
+    pub async fn get_error(
+        &self,
+        fingerprint: &str,
+        query: &[(&str, String)],
+    ) -> Result<ErrorIssueDetail> {
+        // A Fingerprint can be a raw `error.fingerprint` attribute value, so
+        // it must be percent-encoded as a path segment.
+        let mut url =
+            reqwest::Url::parse(&self.base_endpoint).context("invalid CLI API base endpoint")?;
+        url.path_segments_mut()
+            .map_err(|_| anyhow::anyhow!("CLI API base endpoint cannot hold path segments"))?
+            .push("errors")
+            .push(fingerprint);
+        self.get_url(url, query).await
+    }
+
     /// Send a request and return the response, mapping any non-2xx status to a
     /// `http_status_error` (reading the body for the message). `context` labels
     /// the operation in the error, e.g. "delete resource".
@@ -422,9 +470,19 @@ impl ApiClient {
     }
 
     async fn get<T: DeserializeOwned>(&self, path: &str, query: &[(&str, String)]) -> Result<T> {
+        let url = reqwest::Url::parse(&format!("{}{}", self.base_endpoint, path))
+            .context("invalid CLI API URL")?;
+        self.get_url(url, query).await
+    }
+
+    async fn get_url<T: DeserializeOwned>(
+        &self,
+        url: reqwest::Url,
+        query: &[(&str, String)],
+    ) -> Result<T> {
         let response = self
             .http
-            .get(format!("{}{}", self.base_endpoint, path))
+            .get(url)
             .query(query)
             .send()
             .await
@@ -456,7 +514,13 @@ fn http_status_error(status: StatusCode, text: String, context: &str) -> anyhow:
         return anyhow::Error::new(ReauthenticationRequired);
     }
 
-    anyhow::anyhow!("{context} failed with {status}: {text}")
+    // API errors usually arrive as an `{"error": "..."}` envelope; surface the
+    // message itself instead of raw JSON.
+    let message = serde_json::from_str::<Value>(&text)
+        .ok()
+        .and_then(|value| value.get("error")?.as_str().map(str::to_string))
+        .unwrap_or(text);
+    anyhow::anyhow!("{context} failed with {status}: {message}")
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -619,6 +683,59 @@ pub struct AdoptOutcome {
     pub slug: String,
     pub repoid: String,
     pub already_owned: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ErrorIssueSummary {
+    pub fingerprint: String,
+    pub exception_type: String,
+    pub exception_message: String,
+    pub body: String,
+    pub latest_service_name: String,
+    pub services: Vec<String>,
+    pub occurrence_count: u64,
+    pub trace_count: u64,
+    pub first_seen: String,
+    pub last_seen: String,
+    pub latest_trace_id: String,
+    pub latest_span_id: String,
+    pub latest_timestamp: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ErrorOccurrence {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timestamp_rank: Option<u64>,
+    pub fingerprint: String,
+    pub timestamp: String,
+    pub service_name: String,
+    pub trace_id: String,
+    pub span_id: String,
+    pub body: String,
+    pub exception_type: String,
+    pub exception_message: String,
+    pub exception_stacktrace: String,
+    #[serde(default)]
+    pub resource_attributes: std::collections::BTreeMap<String, String>,
+    #[serde(default)]
+    pub log_attributes: std::collections::BTreeMap<String, String>,
+    #[serde(default)]
+    pub scope_attributes: std::collections::BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ErrorIssuesResponse {
+    pub issues: Vec<ErrorIssueSummary>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ErrorIssueDetail {
+    pub summary: ErrorIssueSummary,
+    pub latest: ErrorOccurrence,
+    pub occurrences: Vec<ErrorOccurrence>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -1009,6 +1126,85 @@ data: {"tenantId":1,"traceId":"trace-1","runId":"42","sha":"deadbeef","repo":"ev
 
         assert_eq!(doc["kind"], "Dashboard");
         assert_eq!(doc["metadata"]["name"], "errors");
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn list_errors_parses_and_sends_filters() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("GET", "/api/cli/errors")
+            .match_query(mockito::Matcher::AllOf(vec![
+                mockito::Matcher::UrlEncoded("service".into(), "api".into()),
+                mockito::Matcher::UrlEncoded("limit".into(), "10".into()),
+            ]))
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                r#"{"issues":[{"fingerprint":"fp-1","exceptionType":"TypeError","exceptionMessage":"boom","body":"TypeError: boom","latestServiceName":"api","services":["api"],"occurrenceCount":3,"traceCount":2,"firstSeen":"2026-07-01 10:00:00","lastSeen":"2026-07-09 14:03:11","latestTraceId":"trace-1","latestSpanId":"span-1","latestTimestamp":"2026-07-09 14:03:11"}],"filters":{}}"#,
+            )
+            .create_async()
+            .await;
+
+        let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
+        let query = vec![("service", "api".to_string()), ("limit", "10".to_string())];
+        let out = client.list_errors(&query).await.unwrap();
+
+        assert_eq!(out.issues.len(), 1);
+        assert_eq!(out.issues[0].fingerprint, "fp-1");
+        assert_eq!(out.issues[0].occurrence_count, 3);
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn get_error_encodes_fingerprint_and_parses_detail() {
+        let mut server = mockito::Server::new_async().await;
+        // The raw Fingerprint "err group/1" must travel as one encoded path
+        // segment, not extra path levels.
+        let mock = server
+            .mock("GET", "/api/cli/errors/err%20group%2F1")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                r#"{
+                  "summary":{"fingerprint":"err group/1","exceptionType":"TypeError","exceptionMessage":"boom","body":"TypeError: boom","latestServiceName":"api","services":["api"],"occurrenceCount":3,"traceCount":2,"firstSeen":"2026-07-01 10:00:00","lastSeen":"2026-07-09 14:03:11","latestTraceId":"trace-1","latestSpanId":"span-1","latestTimestamp":"2026-07-09 14:03:11"},
+                  "latest":{"fingerprint":"err group/1","timestamp":"2026-07-09 14:03:11","serviceName":"api","traceId":"trace-1","spanId":"span-1","body":"TypeError: boom","exceptionType":"TypeError","exceptionMessage":"boom","exceptionStacktrace":"at boom (app.ts:1)","resourceAttributes":{"service.version":"1.2.3"},"logAttributes":{},"scopeAttributes":{}},
+                  "occurrences":[]
+                }"#,
+            )
+            .create_async()
+            .await;
+
+        let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
+        let detail = client.get_error("err group/1", &[]).await.unwrap();
+
+        assert_eq!(detail.summary.fingerprint, "err group/1");
+        assert_eq!(detail.latest.exception_stacktrace, "at boom (app.ts:1)");
+        assert_eq!(
+            detail.latest.resource_attributes.get("service.version"),
+            Some(&"1.2.3".to_string())
+        );
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn get_error_surfaces_error_envelope_message() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("GET", "/api/cli/errors/fp-1")
+            .with_status(404)
+            .with_body(
+                r#"{"error":"No Error with Fingerprint fp-1 in the now-7d..now time range."}"#,
+            )
+            .create_async()
+            .await;
+
+        let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
+        let err = client.get_error("fp-1", &[]).await.unwrap_err();
+        assert!(
+            err.to_string().contains("No Error with Fingerprint fp-1"),
+            "got: {err}"
+        );
         mock.assert_async().await;
     }
 

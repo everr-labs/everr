@@ -76,6 +76,43 @@ fn cloud_help_lists_query_subcommand() {
 }
 
 #[test]
+fn cloud_errors_help_lists_subcommands() {
+    let env = CliTestEnv::new();
+
+    env.command()
+        .args(["cloud", "errors", "--help"])
+        .assert()
+        .success()
+        .stdout(contains("list"))
+        .stdout(contains("show"));
+}
+
+#[test]
+fn cloud_errors_list_help_lists_filters() {
+    let env = CliTestEnv::new();
+
+    env.command()
+        .args(["cloud", "errors", "list", "--help"])
+        .assert()
+        .success()
+        .stdout(contains("--service <SERVICE>"))
+        .stdout(contains("--sort <SORT>"))
+        .stdout(contains("--json"));
+}
+
+#[test]
+fn cloud_errors_show_help_takes_a_fingerprint() {
+    let env = CliTestEnv::new();
+
+    env.command()
+        .args(["cloud", "errors", "show", "--help"])
+        .assert()
+        .success()
+        .stdout(contains("<FINGERPRINT>"))
+        .stdout(contains("--json"));
+}
+
+#[test]
 fn cloud_query_help_lists_format_option() {
     let env = CliTestEnv::new();
 

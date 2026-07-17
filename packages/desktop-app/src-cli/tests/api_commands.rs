@@ -1260,3 +1260,185 @@ fn commands_require_existing_session() {
         .failure()
         .stderr(contains("no active session; run `everr cloud login`"));
 }
+
+const ERRORS_LIST_BODY: &str = r#"{"issues":[
+  {"fingerprint":"fp-typeerror","exceptionType":"TypeError","exceptionMessage":"boom","body":"TypeError: boom","latestServiceName":"api","services":["api"],"occurrenceCount":1204,"traceCount":87,"firstSeen":"2026-07-01 10:00:00","lastSeen":"2026-07-09 14:03:11.051955378","latestTraceId":"trace-1","latestSpanId":"span-1","latestTimestamp":"2026-07-09 14:03:11.051955378"},
+  {"fingerprint":"fp-reset","exceptionType":"","exceptionMessage":"connection reset","body":"connection reset","latestServiceName":"worker","services":["worker"],"occurrenceCount":3,"traceCount":3,"firstSeen":"2026-07-02 08:00:00","lastSeen":"2026-07-03 09:00:00","latestTraceId":"trace-2","latestSpanId":"span-2","latestTimestamp":"2026-07-03 09:00:00"}
+],"filters":{}}"#;
+
+#[test]
+fn cloud_errors_list_sends_filters_and_renders_table() {
+    let env = CliTestEnv::new();
+    let mut server = mock_api_server();
+
+    env.write_session(&server.url(), "token-errors");
+
+    let mock = server
+        .mock("GET", "/api/cli/errors")
+        .match_header("authorization", "Bearer token-errors")
+        .match_query(Matcher::Exact(
+            "service=api&from=now-2h&sort=count&limit=5".into(),
+        ))
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(ERRORS_LIST_BODY)
+        .create();
+
+    env.command_with_api_base_url(&server.url())
+        .args([
+            "cloud",
+            "errors",
+            "list",
+            "--service",
+            "api",
+            "--from",
+            "now-2h",
+            "--sort",
+            "count",
+            "--limit",
+            "5",
+        ])
+        .assert()
+        .success()
+        .stdout(contains("OCCURRENCES"))
+        .stdout(contains("FINGERPRINT"))
+        .stdout(contains("1204"))
+        .stdout(contains("2026-07-09 14:03:11"))
+        .stdout(contains("fp-typeerror"))
+        .stdout(contains("TypeError: boom"))
+        .stdout(contains("fp-reset"))
+        .stdout(contains("connection reset"))
+        .stderr(predicate::str::is_empty());
+
+    mock.assert();
+}
+
+#[test]
+fn cloud_errors_list_json_prints_raw_issues() {
+    let env = CliTestEnv::new();
+    let mut server = mock_api_server();
+
+    env.write_session(&server.url(), "token-errors");
+
+    let mock = server
+        .mock("GET", "/api/cli/errors")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(ERRORS_LIST_BODY)
+        .create();
+
+    env.command_with_api_base_url(&server.url())
+        .args(["cloud", "errors", "list", "--json"])
+        .assert()
+        .success()
+        .stdout(contains("\"fingerprint\": \"fp-typeerror\""))
+        .stdout(contains("FINGERPRINT").not());
+
+    mock.assert();
+}
+
+#[test]
+fn cloud_errors_list_reports_empty_range() {
+    let env = CliTestEnv::new();
+    let mut server = mock_api_server();
+
+    env.write_session(&server.url(), "token-errors");
+
+    let mock = server
+        .mock("GET", "/api/cli/errors")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"issues":[],"filters":{}}"#)
+        .create();
+
+    env.command_with_api_base_url(&server.url())
+        .args(["cloud", "errors", "list"])
+        .assert()
+        .success()
+        .stdout(predicate::str::diff("No Errors in this time range.\n"));
+
+    mock.assert();
+}
+
+#[test]
+fn cloud_errors_show_renders_full_context() {
+    let env = CliTestEnv::new();
+    let mut server = mock_api_server();
+
+    env.write_session(&server.url(), "token-errors");
+
+    let body = r#"{
+      "summary":{"fingerprint":"fp-typeerror","exceptionType":"TypeError","exceptionMessage":"boom","body":"TypeError: boom","latestServiceName":"api","services":["api","worker"],"occurrenceCount":1204,"traceCount":87,"firstSeen":"2026-07-01 10:00:00","lastSeen":"2026-07-09 14:03:11","latestTraceId":"trace-1","latestSpanId":"span-1","latestTimestamp":"2026-07-09 14:03:11"},
+      "latest":{"fingerprint":"fp-typeerror","timestamp":"2026-07-09 14:03:11","serviceName":"api","traceId":"trace-1","spanId":"span-1","body":"TypeError: boom","exceptionType":"TypeError","exceptionMessage":"boom","exceptionStacktrace":"TypeError: boom\n    at handler (app.ts:12)","resourceAttributes":{"service.version":"1.4.0"},"logAttributes":{},"scopeAttributes":{}},
+      "occurrences":[
+        {"fingerprint":"fp-typeerror","timestamp":"2026-07-09 14:03:11","serviceName":"api","traceId":"trace-1","spanId":"span-1","body":"TypeError: boom","exceptionType":"TypeError","exceptionMessage":"boom","exceptionStacktrace":"","resourceAttributes":{"service.version":"1.4.0"},"logAttributes":{},"scopeAttributes":{}},
+        {"fingerprint":"fp-typeerror","timestamp":"2026-07-08 11:00:00","serviceName":"api","traceId":"","spanId":"","body":"TypeError: boom","exceptionType":"TypeError","exceptionMessage":"boom","exceptionStacktrace":"","resourceAttributes":{},"logAttributes":{},"scopeAttributes":{}}
+      ]
+    }"#;
+
+    let mock = server
+        .mock("GET", "/api/cli/errors/fp-typeerror")
+        .match_header("authorization", "Bearer token-errors")
+        .match_query(Matcher::AllOf(vec![
+            Matcher::UrlEncoded("from".into(), "now-30d".into()),
+            Matcher::UrlEncoded("occurrenceLimit".into(), "10".into()),
+        ]))
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(body)
+        .create();
+
+    env.command_with_api_base_url(&server.url())
+        .args([
+            "cloud",
+            "errors",
+            "show",
+            "fp-typeerror",
+            "--from",
+            "now-30d",
+            "--occurrences",
+            "10",
+        ])
+        .assert()
+        .success()
+        .stdout(contains("TypeError: boom"))
+        .stdout(contains("Services     api, worker"))
+        .stdout(contains("Occurrences  1204 across 87 traces"))
+        .stdout(contains(format!(
+            "Web          {}/errors/fp-typeerror",
+            server.url()
+        )))
+        .stdout(contains("    at handler (app.ts:12)"))
+        .stdout(contains("Occurrences (2 of 1204)"))
+        .stdout(contains(format!(
+            "{}/traces/trace-1?span=span-1",
+            server.url()
+        )))
+        .stdout(contains("(no trace)"));
+
+    mock.assert();
+}
+
+#[test]
+fn cloud_errors_show_surfaces_not_found() {
+    let env = CliTestEnv::new();
+    let mut server = mock_api_server();
+
+    env.write_session(&server.url(), "token-errors");
+
+    let mock = server
+        .mock("GET", "/api/cli/errors/fp-missing")
+        .with_status(404)
+        .with_body(
+            r#"{"error":"No Error with Fingerprint fp-missing in the now-7d..now time range."}"#,
+        )
+        .create();
+
+    env.command_with_api_base_url(&server.url())
+        .args(["cloud", "errors", "show", "fp-missing"])
+        .assert()
+        .failure()
+        .stderr(contains("No Error with Fingerprint fp-missing"));
+
+    mock.assert();
+}

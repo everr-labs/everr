@@ -46,6 +46,7 @@ async fn run_command(command: Commands) -> Result<()> {
             CloudSubcommand::Login(login) => auth::login(login).await?,
             CloudSubcommand::Logout => auth::logout()?,
             CloudSubcommand::Query(args) => core::cloud_query(args).await?,
+            CloudSubcommand::Errors(args) => core::run_errors(args.command).await?,
         },
         Commands::Ci(args) => match args.command {
             CiSubcommand::Status(args) => core::status(args).await?,

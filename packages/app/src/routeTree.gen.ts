@@ -33,6 +33,7 @@ import { Route as ApiCliOrgRouteImport } from './routes/api/cli/org'
 import { Route as ApiCliNotificationRouteImport } from './routes/api/cli/notification'
 import { Route as ApiCliMeRouteImport } from './routes/api/cli/me'
 import { Route as ApiCliImportRouteImport } from './routes/api/cli/import'
+import { Route as ApiCliErrorsRouteImport } from './routes/api/cli/errors'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as AuthenticatedDashboardRunsRouteImport } from './routes/_authenticated/_dashboard/runs'
 import { Route as AuthenticatedDashboardPreviewableRouteImport } from './routes/_authenticated/_dashboard/_previewable'
@@ -49,6 +50,7 @@ import { Route as ApiCliRunsHistogramRouteImport } from './routes/api/cli/runs/h
 import { Route as ApiCliRunsFilterOptionsRouteImport } from './routes/api/cli/runs/filter-options'
 import { Route as ApiCliRunsTraceIdRouteImport } from './routes/api/cli/runs/$traceId'
 import { Route as ApiCliOrgNameRouteImport } from './routes/api/cli/org/name'
+import { Route as ApiCliErrorsFingerprintRouteImport } from './routes/api/cli/errors/$fingerprint'
 import { Route as AuthenticatedDashboardPreviewableAlertsRouteImport } from './routes/_authenticated/_dashboard/_previewable/alerts'
 import { Route as AuthenticatedDashboardPaddedUsersManagementRouteImport } from './routes/_authenticated/_dashboard/_padded/users-management'
 import { Route as AuthenticatedDashboardPaddedTestsOverviewRouteImport } from './routes/_authenticated/_dashboard/_padded/tests-overview'
@@ -204,6 +206,11 @@ const ApiCliImportRoute = ApiCliImportRouteImport.update({
   path: '/import',
   getParentRoute: () => ApiCliRoute,
 } as any)
+const ApiCliErrorsRoute = ApiCliErrorsRouteImport.update({
+  id: '/errors',
+  path: '/errors',
+  getParentRoute: () => ApiCliRoute,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -287,6 +294,11 @@ const ApiCliOrgNameRoute = ApiCliOrgNameRouteImport.update({
   id: '/name',
   path: '/name',
   getParentRoute: () => ApiCliOrgRoute,
+} as any)
+const ApiCliErrorsFingerprintRoute = ApiCliErrorsFingerprintRouteImport.update({
+  id: '/$fingerprint',
+  path: '/$fingerprint',
+  getParentRoute: () => ApiCliErrorsRoute,
 } as any)
 const AuthenticatedDashboardPreviewableAlertsRoute =
   AuthenticatedDashboardPreviewableAlertsRouteImport.update({
@@ -518,6 +530,7 @@ export interface FileRoutesByFullPath {
   '/invite/$invitationId': typeof AuthInviteInvitationIdRoute
   '/runs': typeof AuthenticatedDashboardRunsRouteWithChildren
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/cli/errors': typeof ApiCliErrorsRouteWithChildren
   '/api/cli/import': typeof ApiCliImportRoute
   '/api/cli/me': typeof ApiCliMeRoute
   '/api/cli/notification': typeof ApiCliNotificationRoute
@@ -545,6 +558,7 @@ export interface FileRoutesByFullPath {
   '/tests-overview': typeof AuthenticatedDashboardPaddedTestsOverviewRoute
   '/users-management': typeof AuthenticatedDashboardPaddedUsersManagementRoute
   '/alerts': typeof AuthenticatedDashboardPreviewableAlertsRoute
+  '/api/cli/errors/$fingerprint': typeof ApiCliErrorsFingerprintRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/filter-options': typeof ApiCliRunsFilterOptionsRoute
@@ -588,6 +602,7 @@ export interface FileRoutesByTo {
   '/auth/error': typeof AuthAuthErrorRoute
   '/invite/$invitationId': typeof AuthInviteInvitationIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/cli/errors': typeof ApiCliErrorsRouteWithChildren
   '/api/cli/import': typeof ApiCliImportRoute
   '/api/cli/me': typeof ApiCliMeRoute
   '/api/cli/notification': typeof ApiCliNotificationRoute
@@ -614,6 +629,7 @@ export interface FileRoutesByTo {
   '/tests-overview': typeof AuthenticatedDashboardPaddedTestsOverviewRoute
   '/users-management': typeof AuthenticatedDashboardPaddedUsersManagementRoute
   '/alerts': typeof AuthenticatedDashboardPreviewableAlertsRoute
+  '/api/cli/errors/$fingerprint': typeof ApiCliErrorsFingerprintRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/filter-options': typeof ApiCliRunsFilterOptionsRoute
@@ -665,6 +681,7 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/_previewable': typeof AuthenticatedDashboardPreviewableRouteWithChildren
   '/_authenticated/_dashboard/runs': typeof AuthenticatedDashboardRunsRouteWithChildren
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/cli/errors': typeof ApiCliErrorsRouteWithChildren
   '/api/cli/import': typeof ApiCliImportRoute
   '/api/cli/me': typeof ApiCliMeRoute
   '/api/cli/notification': typeof ApiCliNotificationRoute
@@ -692,6 +709,7 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/_padded/tests-overview': typeof AuthenticatedDashboardPaddedTestsOverviewRoute
   '/_authenticated/_dashboard/_padded/users-management': typeof AuthenticatedDashboardPaddedUsersManagementRoute
   '/_authenticated/_dashboard/_previewable/alerts': typeof AuthenticatedDashboardPreviewableAlertsRoute
+  '/api/cli/errors/$fingerprint': typeof ApiCliErrorsFingerprintRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/filter-options': typeof ApiCliRunsFilterOptionsRoute
@@ -739,6 +757,7 @@ export interface FileRouteTypes {
     | '/invite/$invitationId'
     | '/runs'
     | '/api/auth/$'
+    | '/api/cli/errors'
     | '/api/cli/import'
     | '/api/cli/me'
     | '/api/cli/notification'
@@ -766,6 +785,7 @@ export interface FileRouteTypes {
     | '/tests-overview'
     | '/users-management'
     | '/alerts'
+    | '/api/cli/errors/$fingerprint'
     | '/api/cli/org/name'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/filter-options'
@@ -809,6 +829,7 @@ export interface FileRouteTypes {
     | '/auth/error'
     | '/invite/$invitationId'
     | '/api/auth/$'
+    | '/api/cli/errors'
     | '/api/cli/import'
     | '/api/cli/me'
     | '/api/cli/notification'
@@ -835,6 +856,7 @@ export interface FileRouteTypes {
     | '/tests-overview'
     | '/users-management'
     | '/alerts'
+    | '/api/cli/errors/$fingerprint'
     | '/api/cli/org/name'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/filter-options'
@@ -885,6 +907,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/_previewable'
     | '/_authenticated/_dashboard/runs'
     | '/api/auth/$'
+    | '/api/cli/errors'
     | '/api/cli/import'
     | '/api/cli/me'
     | '/api/cli/notification'
@@ -912,6 +935,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/_padded/tests-overview'
     | '/_authenticated/_dashboard/_padded/users-management'
     | '/_authenticated/_dashboard/_previewable/alerts'
+    | '/api/cli/errors/$fingerprint'
     | '/api/cli/org/name'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/filter-options'
@@ -1131,6 +1155,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCliImportRouteImport
       parentRoute: typeof ApiCliRoute
     }
+    '/api/cli/errors': {
+      id: '/api/cli/errors'
+      path: '/errors'
+      fullPath: '/api/cli/errors'
+      preLoaderRoute: typeof ApiCliErrorsRouteImport
+      parentRoute: typeof ApiCliRoute
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -1242,6 +1273,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/cli/org/name'
       preLoaderRoute: typeof ApiCliOrgNameRouteImport
       parentRoute: typeof ApiCliOrgRoute
+    }
+    '/api/cli/errors/$fingerprint': {
+      id: '/api/cli/errors/$fingerprint'
+      path: '/$fingerprint'
+      fullPath: '/api/cli/errors/$fingerprint'
+      preLoaderRoute: typeof ApiCliErrorsFingerprintRouteImport
+      parentRoute: typeof ApiCliErrorsRoute
     }
     '/_authenticated/_dashboard/_previewable/alerts': {
       id: '/_authenticated/_dashboard/_previewable/alerts'
@@ -1756,6 +1794,18 @@ const DotwellKnownOauthAuthorizationServerRouteWithChildren =
     DotwellKnownOauthAuthorizationServerRouteChildren,
   )
 
+interface ApiCliErrorsRouteChildren {
+  ApiCliErrorsFingerprintRoute: typeof ApiCliErrorsFingerprintRoute
+}
+
+const ApiCliErrorsRouteChildren: ApiCliErrorsRouteChildren = {
+  ApiCliErrorsFingerprintRoute: ApiCliErrorsFingerprintRoute,
+}
+
+const ApiCliErrorsRouteWithChildren = ApiCliErrorsRoute._addFileChildren(
+  ApiCliErrorsRouteChildren,
+)
+
 interface ApiCliOrgRouteChildren {
   ApiCliOrgNameRoute: typeof ApiCliOrgNameRoute
 }
@@ -1826,6 +1876,7 @@ const ApiCliRunsRouteWithChildren = ApiCliRunsRoute._addFileChildren(
 )
 
 interface ApiCliRouteChildren {
+  ApiCliErrorsRoute: typeof ApiCliErrorsRouteWithChildren
   ApiCliImportRoute: typeof ApiCliImportRoute
   ApiCliMeRoute: typeof ApiCliMeRoute
   ApiCliNotificationRoute: typeof ApiCliNotificationRoute
@@ -1837,6 +1888,7 @@ interface ApiCliRouteChildren {
 }
 
 const ApiCliRouteChildren: ApiCliRouteChildren = {
+  ApiCliErrorsRoute: ApiCliErrorsRouteWithChildren,
   ApiCliImportRoute: ApiCliImportRoute,
   ApiCliMeRoute: ApiCliMeRoute,
   ApiCliNotificationRoute: ApiCliNotificationRoute,

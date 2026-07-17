@@ -12,8 +12,8 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
 use crate::cli::{
-    CiSubcommand, Cli, CloudSubcommand, Commands, LocalSubcommand, ResourcesSubcommand,
-    SkillsSubcommand,
+    CiSubcommand, Cli, CloudSubcommand, Commands, ErrorsSubcommand, LocalSubcommand,
+    ResourcesSubcommand, SkillsSubcommand,
 };
 
 const SERVICE_NAME: &str = "everr-cli";
@@ -213,6 +213,10 @@ impl CommandTelemetry {
                     CloudSubcommand::Login(_) => "login",
                     CloudSubcommand::Logout => "logout",
                     CloudSubcommand::Query(_) => "query",
+                    CloudSubcommand::Errors(args) => match &args.command {
+                        ErrorsSubcommand::List(_) => "errors list",
+                        ErrorsSubcommand::Show(_) => "errors show",
+                    },
                 }),
             ),
             Commands::Ci(args) => (

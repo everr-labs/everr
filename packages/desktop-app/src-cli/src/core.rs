@@ -672,6 +672,161 @@ pub async fn run_resources(cmd: crate::cli::ResourcesSubcommand) -> anyhow::Resu
     }
 }
 
+pub async fn run_errors(cmd: crate::cli::ErrorsSubcommand) -> anyhow::Result<()> {
+    use crate::cli::ErrorsSubcommand as E;
+    // Like `resources`, the /api/cli errors routes are session-authenticated
+    // only, so there is no EVERR_API_KEY path here.
+    let session = crate::auth::require_session_with_refresh().await?;
+    let client = everr_core::api::ApiClient::from_session(&session)?;
+    match cmd {
+        E::List(args) => errors_list(&client, args).await,
+        E::Show(args) => errors_show(&client, args).await,
+    }
+}
+
+/// ClickHouse timestamps arrive with nanosecond precision; the human views cut
+/// them to seconds (`YYYY-MM-DD HH:MM:SS`). `--json` keeps full precision.
+fn short_ts(timestamp: &str) -> &str {
+    timestamp.get(..19).unwrap_or(timestamp)
+}
+
+/// One-line headline of an Error: `Type: message`, degrading to whichever part
+/// exists, then to the first body line.
+fn error_title(summary: &everr_core::api::ErrorIssueSummary) -> String {
+    let title = match (
+        summary.exception_type.is_empty(),
+        summary.exception_message.is_empty(),
+    ) {
+        (false, false) => format!("{}: {}", summary.exception_type, summary.exception_message),
+        (false, true) => summary.exception_type.clone(),
+        (true, false) => summary.exception_message.clone(),
+        (true, true) => summary.body.lines().next().unwrap_or_default().to_string(),
+    };
+    // Keep the table one row per Error even when a message carries newlines.
+    title.lines().next().unwrap_or_default().to_string()
+}
+
+async fn errors_list(
+    client: &everr_core::api::ApiClient,
+    args: crate::cli::ErrorsListArgs,
+) -> anyhow::Result<()> {
+    let mut query: Vec<(&str, String)> = Vec::new();
+    for service in &args.service {
+        query.push(("service", service.clone()));
+    }
+    push_opt(&mut query, "from", args.from);
+    push_opt(&mut query, "to", args.to);
+    push_opt(
+        &mut query,
+        "sort",
+        args.sort.map(|s| s.as_str().to_string()),
+    );
+    push_opt(&mut query, "limit", args.limit.map(|l| l.to_string()));
+    push_opt(&mut query, "offset", args.offset.map(|o| o.to_string()));
+
+    let response = client.list_errors(&query).await?;
+
+    if args.json {
+        println!("{}", serde_json::to_string_pretty(&response.issues)?);
+        return Ok(());
+    }
+    if response.issues.is_empty() {
+        println!("No Errors in this time range.");
+        return Ok(());
+    }
+    println!(
+        "{:>11}  {:<19}  {:<20}  {:<20}  ERROR",
+        "OCCURRENCES", "LAST SEEN", "SERVICE", "FINGERPRINT"
+    );
+    for issue in &response.issues {
+        println!(
+            "{:>11}  {:<19}  {:<20}  {:<20}  {}",
+            issue.occurrence_count,
+            short_ts(&issue.last_seen),
+            issue.latest_service_name,
+            issue.fingerprint,
+            error_title(issue)
+        );
+    }
+    Ok(())
+}
+
+async fn errors_show(
+    client: &everr_core::api::ApiClient,
+    args: crate::cli::ErrorsShowArgs,
+) -> anyhow::Result<()> {
+    let mut query: Vec<(&str, String)> = Vec::new();
+    push_opt(&mut query, "from", args.from);
+    push_opt(&mut query, "to", args.to);
+    push_opt(
+        &mut query,
+        "occurrenceLimit",
+        args.occurrences.map(|o| o.to_string()),
+    );
+
+    let detail = client.get_error(&args.fingerprint, &query).await?;
+
+    if args.json {
+        println!("{}", serde_json::to_string_pretty(&detail)?);
+        return Ok(());
+    }
+
+    let summary = &detail.summary;
+    println!("{}", error_title(summary));
+    println!();
+    println!("{:<12} {}", "Fingerprint", summary.fingerprint);
+    println!("{:<12} {}", "Services", summary.services.join(", "));
+    println!(
+        "{:<12} {} across {} traces",
+        "Occurrences", summary.occurrence_count, summary.trace_count
+    );
+    println!("{:<12} {}", "First seen", short_ts(&summary.first_seen));
+    println!("{:<12} {}", "Last seen", short_ts(&summary.last_seen));
+    println!(
+        "{:<12} {}",
+        "Web",
+        client.error_web_url(&summary.fingerprint)
+    );
+
+    println!();
+    println!("Stacktrace");
+    if detail.latest.exception_stacktrace.is_empty() {
+        println!("  (none recorded)");
+    } else {
+        for line in detail.latest.exception_stacktrace.lines() {
+            println!("  {line}");
+        }
+    }
+
+    println!();
+    println!(
+        "Occurrences ({} of {})",
+        detail.occurrences.len(),
+        summary.occurrence_count
+    );
+    for occurrence in &detail.occurrences {
+        let version = occurrence
+            .resource_attributes
+            .get("service.version")
+            .filter(|v| !v.is_empty())
+            .map(String::as_str)
+            .unwrap_or("-");
+        let trace = if occurrence.trace_id.is_empty() {
+            "(no trace)".to_string()
+        } else {
+            client.trace_web_url(&occurrence.trace_id, Some(&occurrence.span_id))
+        };
+        println!(
+            "  {}  {:<20}  {:<12}  {}",
+            short_ts(&occurrence.timestamp),
+            occurrence.service_name,
+            version,
+            trace
+        );
+    }
+    Ok(())
+}
+
 /// Resolve this repository's repoid from `dir` (manifest, else inferred origin
 /// remote), the same precedence as `apply` (both funnel into `resolve_repoid`).
 fn resolve_repoid_for_dir(dir: &std::path::Path) -> anyhow::Result<String> {

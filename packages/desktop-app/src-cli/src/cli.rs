@@ -87,6 +87,8 @@ pub enum CloudSubcommand {
     Logout,
     /// Run a read-only SQL query against cloud telemetry data
     Query(TelemetryQueryArgs),
+    /// Survey and inspect Errors grouped from cloud telemetry
+    Errors(ErrorsArgs),
 }
 
 impl CloudSubcommand {
@@ -96,8 +98,90 @@ impl CloudSubcommand {
             CloudSubcommand::Query(args) => {
                 telemetry_query_prints_human_stdout(args, stdout_is_terminal)
             }
+            CloudSubcommand::Errors(args) => args.command.prints_human_stdout(),
         }
     }
+}
+
+#[derive(Args, Debug)]
+pub struct ErrorsArgs {
+    #[command(subcommand)]
+    pub command: ErrorsSubcommand,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum ErrorsSubcommand {
+    /// List Errors with Occurrence counts and last-seen times
+    List(ErrorsListArgs),
+    /// Show one Error's full context: message, stacktrace, and Occurrences
+    Show(ErrorsShowArgs),
+}
+
+impl ErrorsSubcommand {
+    fn prints_human_stdout(&self) -> bool {
+        match self {
+            ErrorsSubcommand::List(args) => !args.json,
+            ErrorsSubcommand::Show(args) => !args.json,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+pub enum ErrorSortArg {
+    LastSeen,
+    Count,
+}
+
+impl ErrorSortArg {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ErrorSortArg::LastSeen => "lastSeen",
+            ErrorSortArg::Count => "count",
+        }
+    }
+}
+
+#[derive(Args, Debug)]
+pub struct ErrorsListArgs {
+    /// Only Errors seen in this service (repeatable)
+    #[arg(long)]
+    pub service: Vec<String>,
+    /// Start of the time range (datemath, e.g. now-7d)
+    #[arg(long)]
+    pub from: Option<String>,
+    /// End of the time range (datemath, e.g. now)
+    #[arg(long)]
+    pub to: Option<String>,
+    /// Sort order
+    #[arg(long, value_enum)]
+    pub sort: Option<ErrorSortArg>,
+    /// Maximum number of Errors to list
+    #[arg(long)]
+    pub limit: Option<u32>,
+    /// Skip this many Errors (pagination)
+    #[arg(long)]
+    pub offset: Option<u32>,
+    /// Output raw JSON instead of a table
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Args, Debug)]
+pub struct ErrorsShowArgs {
+    /// The Error's Fingerprint (first column of `cloud errors list`)
+    pub fingerprint: String,
+    /// Start of the time range (datemath, e.g. now-7d)
+    #[arg(long)]
+    pub from: Option<String>,
+    /// End of the time range (datemath, e.g. now)
+    #[arg(long)]
+    pub to: Option<String>,
+    /// Maximum number of Occurrences to include
+    #[arg(long)]
+    pub occurrences: Option<u32>,
+    /// Output raw JSON instead of the formatted view
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Args, Debug)]
