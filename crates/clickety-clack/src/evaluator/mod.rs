@@ -12,6 +12,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 pub mod maintenance;
+pub mod slo;
 
 /// Evidence caps (pinned contract with the everr frontend): at most 16 columns, and the
 /// compact-JSON serialization must fit in 4096 bytes or the evidence is dropped entirely.

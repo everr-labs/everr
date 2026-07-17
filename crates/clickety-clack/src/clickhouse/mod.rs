@@ -269,7 +269,7 @@ fn json_to_string(v: &serde_json::Value) -> String {
     }
 }
 
-fn json_to_f64(v: &serde_json::Value) -> Option<f64> {
+pub(crate) fn json_to_f64(v: &serde_json::Value) -> Option<f64> {
     match v {
         serde_json::Value::Number(n) => n.as_f64(),
         serde_json::Value::String(s) => s.parse().ok(),
