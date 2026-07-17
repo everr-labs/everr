@@ -1,6 +1,6 @@
 import { Button } from "@everr/ui/components/button";
 import { Check, Copy } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ErrorIssueSummary } from "../data/types";
 
 // Agent-agnostic by design: the goal, the Fingerprint, and the instruction to
@@ -22,11 +22,20 @@ export function buildErrorHandoffPrompt(issue: ErrorIssueSummary): string {
 
 export function ErrorHandoffButton({ issue }: { issue: ErrorIssueSummary }) {
   const [copied, setCopied] = useState(false);
+  const resetTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  // Cancel a pending "Copied" reset if the dialog closes before it fires.
+  useEffect(
+    () => () => {
+      if (resetTimer.current) clearTimeout(resetTimer.current);
+    },
+    [],
+  );
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(buildErrorHandoffPrompt(issue));
       setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      if (resetTimer.current) clearTimeout(resetTimer.current);
+      resetTimer.current = setTimeout(() => setCopied(false), 1500);
     } catch {
       // ignore clipboard errors
     }

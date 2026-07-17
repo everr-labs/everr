@@ -48,14 +48,7 @@ describe("/api/cli/errors", () => {
     expect(data.toTs).toMatch(/^\d{4}-\d{2}-\d{2} /);
 
     const body = await response.json();
-    expect(body.filters).toEqual({
-      from: "now-7d",
-      to: "now",
-      service: ["api", "worker"],
-      sort: "count",
-      limit: 25,
-      offset: 0,
-    });
+    expect(body.issues).toEqual([]);
   });
 
   it("rejects an unknown sort value", async () => {

@@ -61,17 +61,7 @@ export const Route = createFileRoute("/api/cli/errors")({
           },
         });
 
-        return Response.json({
-          ...result,
-          filters: {
-            from: timeRange.from,
-            to: timeRange.to,
-            service: parsed.data.service ?? [],
-            sort: parsed.data.sort ?? "lastSeen",
-            limit: parsed.data.limit ?? 50,
-            offset: parsed.data.offset ?? 0,
-          },
-        });
+        return Response.json(result);
       },
     },
   },
