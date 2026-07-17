@@ -655,4 +655,43 @@ mod tier_firing_tests {
         assert_eq!(ticket.severity, Severity::Warning);
         assert_eq!(ticket.value, Some(2.0));
     }
+
+    #[test]
+    fn passthrough_fields_copied() {
+        let spec = spec_with(None, None); // canonical tiers
+        let mut tier_status_with_burns = tier_status("fast-burn", Some(15.0), Some(16.0));
+        tier_status_with_burns.short_burn_rate = Some(16.0);
+
+        let payload = SloStatusPayload {
+            window: "30d".into(),
+            target_percent: 99.9,
+            degraded: false,
+            groups: vec![SloGroupStatus {
+                labels: group_labels(),
+                sli: None,
+                budget_remaining: Some(0.5),
+                tiers: vec![tier_status_with_burns],
+            }],
+            window_computed_at: BTreeMap::new(),
+        };
+
+        let firings = plan_tier_firing(&spec, &payload);
+        let fast = firings.iter().find(|f| f.tier_name == "fast-burn").unwrap();
+        assert!(fast.present); // both burns exceed 14.4 threshold
+        assert_eq!(fast.short_burn, Some(16.0));
+        assert_eq!(fast.budget_remaining, Some(0.5));
+    }
+
+    #[test]
+    fn burn_exactly_at_threshold_does_not_fire() {
+        let spec = spec_with(None, None); // canonical: fast-burn threshold is 14.4
+        let payload = payload_one_group(
+            group_labels(),
+            None,
+            vec![tier_status("fast-burn", Some(14.4), Some(14.4))], // exactly at threshold
+        );
+        let firings = plan_tier_firing(&spec, &payload);
+        let fast = firings.iter().find(|f| f.tier_name == "fast-burn").unwrap();
+        assert!(!fast.present); // strict >, not >=
+    }
 }
