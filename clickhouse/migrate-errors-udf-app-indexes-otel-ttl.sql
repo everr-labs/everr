@@ -21,6 +21,12 @@
 -- insert time by the app.*_mv views), but the drop is irreversible. Expired
 -- day-parts are removed on the next merge.
 
+-- The app.* tables carry a TTL that calls dictGetOrDefault (non-deterministic),
+-- which ALTER TABLE re-validates. Opt in the same way init/10 does, or every
+-- ADD INDEX below fails with "TTL expression cannot contain non-deterministic
+-- functions".
+SET allow_suspicious_ttl_expressions = 1;
+
 -- 1. errorFingerprint UDF (keep in step with init/04-create-error-fingerprint-function.sql).
 CREATE OR REPLACE FUNCTION errorFingerprint AS (serviceName, logAttributes) ->
   if(
