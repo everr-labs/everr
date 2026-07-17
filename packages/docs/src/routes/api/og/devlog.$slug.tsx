@@ -1,6 +1,5 @@
 import { cn } from "@everr/ui/lib/utils";
-import interFontBase64 from "@fontsource-variable/inter/files/inter-latin-standard-normal.woff2?inline";
-import spaceGroteskFontBase64 from "@fontsource-variable/space-grotesk/files/space-grotesk-latin-wght-normal.woff2?inline";
+import instrumentSansFontBase64 from "@fontsource-variable/instrument-sans/files/instrument-sans-latin-wght-normal.woff2?inline";
 import { ImageResponse } from "@takumi-rs/image-response";
 import { createFileRoute } from "@tanstack/react-router";
 import { devlogposts } from "@/lib/source";
@@ -17,8 +16,7 @@ function decodeInlineFont(dataUrl: string): ArrayBuffer {
   return bytes.buffer;
 }
 
-const interFontData = decodeInlineFont(interFontBase64);
-const spaceGroteskFontData = decodeInlineFont(spaceGroteskFontBase64);
+const instrumentSansFontData = decodeInlineFont(instrumentSansFontBase64);
 
 function StatItem({
   icon,
@@ -37,13 +35,13 @@ function StatItem({
       <div className="flex flex-col">
         <span
           className={cn("font-heading text-2xl font-bold", className)}
-          style={{ fontFamily: "Space Grotesk" }}
+          style={{ fontFamily: "Instrument Sans" }}
         >
           {value}
         </span>
         <span
           className="font-heading text-[11px] font-bold uppercase tracking-widest text-neutral-500"
-          style={{ fontFamily: "Space Grotesk" }}
+          style={{ fontFamily: "Instrument Sans" }}
         >
           {label}
         </span>
@@ -81,13 +79,13 @@ export const Route = createFileRoute("/api/og/devlog/$slug")({
             <div className="flex items-center justify-between">
               <div
                 className="font-heading text-[22px] font-semibold tracking-tight"
-                style={{ fontFamily: "Space Grotesk" }}
+                style={{ fontFamily: "Instrument Sans" }}
               >
                 Everr
               </div>
               <div
                 className="font-heading text-base font-semibold uppercase tracking-[0.15em] text-neutral-500"
-                style={{ fontFamily: "Space Grotesk" }}
+                style={{ fontFamily: "Instrument Sans" }}
               >
                 Devlog
               </div>
@@ -97,19 +95,19 @@ export const Route = createFileRoute("/api/og/devlog/$slug")({
             <div className="flex flex-col flex-1 justify-center gap-4">
               <div
                 className="font-heading text-sm font-bold uppercase tracking-[0.15em] text-neutral-500"
-                style={{ fontFamily: "Space Grotesk" }}
+                style={{ fontFamily: "Instrument Sans" }}
               >
                 {formattedDate}
               </div>
               <div
                 className="font-heading text-5xl font-bold leading-[1.05] tracking-tight max-w-[900px]"
-                style={{ fontFamily: "Space Grotesk" }}
+                style={{ fontFamily: "Instrument Sans" }}
               >
                 {title}
               </div>
               <div
                 className="text-xl leading-relaxed text-neutral-400 max-w-[800px]"
-                style={{ fontFamily: "Inter" }}
+                style={{ fontFamily: "Instrument Sans" }}
               >
                 {description}
               </div>
@@ -220,13 +218,8 @@ export const Route = createFileRoute("/api/og/devlog/$slug")({
             stylesheets: [stylesheet],
             fonts: [
               {
-                name: "Inter",
-                data: interFontData,
-                style: "normal" as const,
-              },
-              {
-                name: "Space Grotesk",
-                data: spaceGroteskFontData,
+                name: "Instrument Sans",
+                data: instrumentSansFontData,
                 style: "normal" as const,
               },
             ],
