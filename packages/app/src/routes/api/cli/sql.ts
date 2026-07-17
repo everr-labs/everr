@@ -2,10 +2,7 @@ import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { createFileRoute } from "@tanstack/react-router";
 import { querySqlApi } from "@/lib/clickhouse";
 import { sanitizeSqlApiError } from "@/lib/sql-api-error";
-import {
-  classifyCloudQueryError,
-  extractQueryShape,
-} from "@/lib/sql-api-observability";
+import { classifyCloudQueryError } from "@/lib/sql-api-observability";
 
 function toNdjson(rows: Array<Record<string, unknown>>): string {
   if (rows.length === 0) {
@@ -30,20 +27,6 @@ export const Route = createFileRoute("/api/cli/sql")({
           span.setAttribute("everr.feature", "cloud_query");
           if (orgId) {
             span.setAttribute("everr.org_id", orgId);
-          }
-          // Safe structured facts only — never the query text or any literal.
-          const shape = extractQueryShape(sql);
-          if (shape.tables.length > 0) {
-            span.setAttribute(
-              "everr.cloud_query.tables",
-              shape.tables.join(","),
-            );
-          }
-          if (shape.attrKeys.length > 0) {
-            span.setAttribute(
-              "everr.cloud_query.attr_keys",
-              shape.attrKeys.join(","),
-            );
           }
         }
 

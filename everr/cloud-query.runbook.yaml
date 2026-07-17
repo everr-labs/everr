@@ -29,7 +29,6 @@ spec:
                     SELECT formatDateTime(Timestamp, '%m-%d %H:%i:%S') AS time,
                            SpanAttributes['everr.cloud_query.kind'] AS kind,
                            SpanAttributes['everr.org_id'] AS org,
-                           SpanAttributes['everr.cloud_query.tables'] AS tables,
                            round(Duration / 1e6, 0) AS duration_ms,
                            TraceId AS trace_id
                     FROM traces

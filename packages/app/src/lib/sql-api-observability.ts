@@ -83,30 +83,3 @@ export function classifyCloudQueryError(
 
   return { outcome: "system_error", kind: "internal" };
 }
-
-export type CloudQueryShape = {
-  tables: string[];
-  attrKeys: string[];
-};
-
-// Safe, structured facts about a query — never the query text or any literal
-// value. Both patterns match only schema-identifier positions:
-//   - tables:   the identifier after FROM/JOIN.
-//   - attrKeys: the string inside a map subscript `Ident['key']`. ClickHouse
-//     grammar guarantees a string in subscript position (identifier immediately
-//     followed by `['...']`) is a map key, never an array-literal value — so
-//     `IN ['secret@example.com']` (no identifier before `[`) does NOT match and
-//     no user value leaks.
-export function extractQueryShape(sql: string): CloudQueryShape {
-  const tables = new Set<string>();
-  for (const match of sql.matchAll(/\b(?:from|join)\s+([a-zA-Z_]\w*)/gi)) {
-    tables.add(match[1]);
-  }
-
-  const attrKeys = new Set<string>();
-  for (const match of sql.matchAll(/\w+\['([^']+)'\]/g)) {
-    attrKeys.add(match[1]);
-  }
-
-  return { tables: [...tables], attrKeys: [...attrKeys] };
-}
