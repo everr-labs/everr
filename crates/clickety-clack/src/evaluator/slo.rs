@@ -251,6 +251,8 @@ pub async fn evaluate_slo(
                         prior_tier.and_then(|t| t.short_burn_rate),
                         slo.spec.target_percent,
                     ),
+                    // populated by the firing pipeline
+                    long_window_valid: None,
                 }
             })
             .collect();

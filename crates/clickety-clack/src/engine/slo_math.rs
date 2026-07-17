@@ -97,6 +97,10 @@ pub struct SloTierStatus {
     pub name: String,
     pub long_burn_rate: Option<f64>,
     pub short_burn_rate: Option<f64>,
+    /// `valid` count over the tier's long window, for the min_valid_events floor.
+    /// Additive (#[serde(default)]) so pre-existing snapshots still deserialize.
+    #[serde(default)]
+    pub long_window_valid: Option<f64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -125,6 +129,56 @@ pub fn empty_payload(spec: &SloSpec) -> SloStatusPayload {
         groups: Vec::new(),
         window_computed_at: BTreeMap::new(),
     }
+}
+
+/// Seconds until the error budget is exhausted at the current burn rate:
+/// t = remaining_fraction * window / burn_rate. None when burn <= 0 (nothing
+/// burning); Some(0) when already over budget.
+pub fn time_to_exhaustion_secs(
+    budget_remaining: f64,
+    burn_rate: f64,
+    window_secs: u64,
+) -> Option<u64> {
+    if burn_rate <= 0.0 {
+        return None;
+    }
+    if budget_remaining <= 0.0 {
+        return Some(0);
+    }
+    Some((window_secs as f64 * budget_remaining / burn_rate) as u64)
+}
+
+pub fn fmt_burn(b: f64) -> String {
+    format!("{b:.1}")
+}
+pub fn fmt_pct(f: f64) -> String {
+    format!("{:.1}%", f * 100.0)
+}
+
+/// Compact human duration: largest two units of d/h/m/s.
+pub fn fmt_duration_secs(secs: u64) -> String {
+    let (d, r) = (secs / 86_400, secs % 86_400);
+    let (h, r2) = (r / 3_600, r % 3_600);
+    let (m, s) = (r2 / 60, r2 % 60);
+    match (d, h, m) {
+        (0, 0, 0) => format!("{s}s"),
+        (0, 0, _) => format!("{m}m"),
+        (0, _, _) if m > 0 => format!("{h}h{m}m"),
+        (0, _, _) => format!("{h}h"),
+        (_, _, _) if h > 0 => format!("{d}d{h}h"),
+        _ => format!("{d}d"),
+    }
+}
+
+/// (source, target) index pairs: earlier tiers inhibit later ones (spec §5).
+pub fn tier_pairs(tiers: &[BurnRateTier]) -> Vec<(usize, usize)> {
+    let mut out = Vec::new();
+    for i in 0..tiers.len() {
+        for j in (i + 1)..tiers.len() {
+            out.push((i, j));
+        }
+    }
+    out
 }
 
 #[cfg(test)]
@@ -236,6 +290,7 @@ mod tests {
                     name: "fast-burn".into(),
                     long_burn_rate: Some(2.0),
                     short_burn_rate: Some(3.0),
+                    long_window_valid: None,
                 }],
             }],
             window_computed_at: std::collections::BTreeMap::from([("300s".into(), 1234i64)]),
@@ -243,6 +298,52 @@ mod tests {
         let v = serde_json::to_value(&p).unwrap();
         let back: SloStatusPayload = serde_json::from_value(v).unwrap();
         assert_eq!(back, p);
+    }
+
+    #[test]
+    fn old_payload_without_long_window_valid_still_parses() {
+        // Serialize a current payload, strip the new key, deserialize.
+        let mut v = serde_json::to_value(SloTierStatus {
+            name: "fast-burn".into(),
+            long_burn_rate: Some(2.0),
+            short_burn_rate: Some(3.0),
+            long_window_valid: Some(100.0),
+        })
+        .unwrap();
+        v.as_object_mut().unwrap().remove("long_window_valid");
+        let back: SloTierStatus = serde_json::from_value(v).unwrap();
+        assert_eq!(back.long_window_valid, None);
+    }
+
+    #[test]
+    fn time_to_exhaustion_math() {
+        // burn 1x over a 30d window with full budget -> exhausts in exactly the window.
+        let w = 2_592_000u64;
+        assert_eq!(time_to_exhaustion_secs(1.0, 1.0, w), Some(w));
+        // burn 14.4x with half the budget left -> w * 0.5 / 14.4
+        assert_eq!(
+            time_to_exhaustion_secs(0.5, 14.4, w),
+            Some((w as f64 * 0.5 / 14.4) as u64)
+        );
+        // exhausted already -> Some(0); no burn -> None
+        assert_eq!(time_to_exhaustion_secs(-0.2, 2.0, w), Some(0));
+        assert_eq!(time_to_exhaustion_secs(0.5, 0.0, w), None);
+    }
+
+    #[test]
+    fn display_formatters() {
+        assert_eq!(fmt_burn(14.4000001), "14.4");
+        assert_eq!(fmt_pct(0.4192), "41.9%");
+        assert_eq!(fmt_pct(-0.2), "-20.0%");
+        assert_eq!(fmt_duration_secs(50), "50s");
+        assert_eq!(fmt_duration_secs(35 * 60), "35m");
+        assert_eq!(fmt_duration_secs(2 * 86400 + 4 * 3600), "2d4h");
+    }
+
+    #[test]
+    fn tier_pairs_precedence_order() {
+        let t = canonical_tiers();
+        assert_eq!(tier_pairs(&t), vec![(0, 1), (0, 2), (1, 2)]);
     }
 
     proptest! {
