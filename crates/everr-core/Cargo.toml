@@ -17,6 +17,9 @@ serde_json = "1.0.140"
 serde_yaml = "0.9"
 ignore = "0.4"
 notify = "8"
+opentelemetry = "0.32"
+tracing = "0.1"
+tracing-opentelemetry = "0.33"
 tokio = { version = "1.44.2", features = ["io-util", "macros", "time", "sync"] }
 
 [dev-dependencies]

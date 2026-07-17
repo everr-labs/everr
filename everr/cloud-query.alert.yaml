@@ -1,0 +1,24 @@
+kind: AlertRule
+metadata:
+  name: cloud-query-system-errors
+spec:
+  runbook: cloud-query
+  display:
+    name: Cloud query system errors
+    description: >-
+      `everr cloud query` is failing for our-fault reasons (ClickHouse timeout,
+      quota, resource exhaustion, network, or an unexpected exception) rather
+      than bad user SQL.
+  notificationMessage:
+    title: "everr cloud query is failing (${system_errors} system errors in 5 min)"
+    description: "Kinds: ${kinds}. User errors are excluded; these are infrastructure failures."
+  evaluationInterval: 1m
+  query: |
+    SELECT
+      count() AS system_errors,
+      arrayStringConcat(groupUniqArray(SpanAttributes['everr.cloud_query.kind']), ', ') AS kinds
+    FROM traces
+    WHERE SpanName = 'POST /api/cli/sql' AND SpanKind = 'Server'
+      AND SpanAttributes['everr.cloud_query.outcome'] = 'system_error'
+      AND Timestamp >= now() - INTERVAL 5 MINUTE
+    HAVING system_errors >= 2
