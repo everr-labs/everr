@@ -15,6 +15,7 @@ import { errorIssueOptions } from "../data/options";
 import type { ErrorsRepositoryLike } from "../data/repository";
 import type { ErrorOccurrence } from "../data/types";
 import { ErrorDetailHeader } from "./error-detail-header";
+import { ErrorHandoffButton } from "./error-handoff-button";
 import { ErrorLatestOccurrence } from "./error-latest-occurrence";
 import {
   findErrorOccurrenceByKey,
@@ -117,6 +118,7 @@ export function ErrorDetail({
         issue={detail.summary}
         onBack={onBack}
         onClose={onClose}
+        actions={<ErrorHandoffButton issue={detail.summary} />}
       />
       <main className="min-h-0 flex-1 overflow-auto">
         <div className="mx-auto grid max-w-7xl gap-3 p-3">

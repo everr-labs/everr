@@ -34,6 +34,9 @@ CREATE TABLE IF NOT EXISTS otel.otel_traces (
 ) ENGINE = MergeTree
 PARTITION BY toDate(Timestamp)
 ORDER BY (ServiceName, SpanName, toDateTime(Timestamp))
+-- Raw landing table: the durable, tenant-scoped read model is app.traces
+-- (populated at insert time by app.traces_mv), so keep only a short buffer here.
+TTL toDateTime(Timestamp) + INTERVAL 7 DAY
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
 
 CREATE TABLE IF NOT EXISTS otel.otel_logs (
@@ -66,6 +69,9 @@ CREATE TABLE IF NOT EXISTS otel.otel_logs (
 PARTITION BY toDate(TimestampTime)
 PRIMARY KEY (ServiceName, TimestampTime)
 ORDER BY (ServiceName, TimestampTime, Timestamp)
+-- Raw landing table: the durable, tenant-scoped read model is app.logs
+-- (populated at insert time by app.logs_mv), so keep only a short buffer here.
+TTL TimestampTime + INTERVAL 7 DAY
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
 
 CREATE TABLE IF NOT EXISTS otel.otel_metrics_gauge (
@@ -101,6 +107,10 @@ CREATE TABLE IF NOT EXISTS otel.otel_metrics_gauge (
 ) ENGINE = MergeTree
 PARTITION BY toDate(TimeUnix)
 ORDER BY (ServiceName, MetricName, Attributes, toUnixTimestamp64Nano(TimeUnix))
+-- Raw landing table: the durable, tenant-scoped read model is the matching
+-- app.metrics_* table (populated at insert time by its MV), so keep only a
+-- short buffer here.
+TTL toDateTime(TimeUnix) + INTERVAL 7 DAY
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
 
 CREATE TABLE IF NOT EXISTS otel.otel_metrics_sum (
@@ -138,6 +148,10 @@ CREATE TABLE IF NOT EXISTS otel.otel_metrics_sum (
 ) ENGINE = MergeTree
 PARTITION BY toDate(TimeUnix)
 ORDER BY (ServiceName, MetricName, Attributes, toUnixTimestamp64Nano(TimeUnix))
+-- Raw landing table: the durable, tenant-scoped read model is the matching
+-- app.metrics_* table (populated at insert time by its MV), so keep only a
+-- short buffer here.
+TTL toDateTime(TimeUnix) + INTERVAL 7 DAY
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
 
 CREATE TABLE IF NOT EXISTS otel.otel_metrics_histogram (
@@ -179,6 +193,10 @@ CREATE TABLE IF NOT EXISTS otel.otel_metrics_histogram (
 ) ENGINE = MergeTree
 PARTITION BY toDate(TimeUnix)
 ORDER BY (ServiceName, MetricName, Attributes, toUnixTimestamp64Nano(TimeUnix))
+-- Raw landing table: the durable, tenant-scoped read model is the matching
+-- app.metrics_* table (populated at insert time by its MV), so keep only a
+-- short buffer here.
+TTL toDateTime(TimeUnix) + INTERVAL 7 DAY
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
 
 CREATE TABLE IF NOT EXISTS otel.otel_metrics_exponential_histogram (
@@ -224,6 +242,10 @@ CREATE TABLE IF NOT EXISTS otel.otel_metrics_exponential_histogram (
 ) ENGINE = MergeTree
 PARTITION BY toDate(TimeUnix)
 ORDER BY (ServiceName, MetricName, Attributes, toUnixTimestamp64Nano(TimeUnix))
+-- Raw landing table: the durable, tenant-scoped read model is the matching
+-- app.metrics_* table (populated at insert time by its MV), so keep only a
+-- short buffer here.
+TTL toDateTime(TimeUnix) + INTERVAL 7 DAY
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
 
 CREATE TABLE IF NOT EXISTS otel.otel_metrics_summary (
@@ -257,4 +279,8 @@ CREATE TABLE IF NOT EXISTS otel.otel_metrics_summary (
 ) ENGINE = MergeTree
 PARTITION BY toDate(TimeUnix)
 ORDER BY (ServiceName, MetricName, Attributes, toUnixTimestamp64Nano(TimeUnix))
+-- Raw landing table: the durable, tenant-scoped read model is the matching
+-- app.metrics_* table (populated at insert time by its MV), so keep only a
+-- short buffer here.
+TTL toDateTime(TimeUnix) + INTERVAL 7 DAY
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;

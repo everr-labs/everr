@@ -2,6 +2,7 @@ import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { ArrowLeft, X } from "lucide-react";
+import type { ReactNode } from "react";
 import type { ErrorIssueSummary } from "../data/types";
 import { ErrorServiceBadge } from "./error-service-badge";
 
@@ -9,10 +10,13 @@ export function ErrorDetailHeader({
   issue,
   onBack,
   onClose,
+  actions,
 }: {
   issue: ErrorIssueSummary;
   onBack?: () => void;
   onClose?: () => void;
+  /** Right-aligned header actions (e.g. the agent-handoff button). */
+  actions?: ReactNode;
 }) {
   const title = issue.exceptionType || "Unknown exception";
   const message = issue.exceptionMessage || issue.body || issue.fingerprint;
@@ -56,6 +60,7 @@ export function ErrorDetailHeader({
           <span>Last seen {formatRelativeTime(issue.lastSeen)}</span>
         </div>
       </div>
+      {actions ? <div className="shrink-0">{actions}</div> : null}
     </header>
   );
 }
