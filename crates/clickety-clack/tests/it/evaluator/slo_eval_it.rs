@@ -289,3 +289,53 @@ async fn fresh_windows_are_not_requeried() {
          slow-burn's long window and was seeded as just-computed)"
     );
 }
+
+/// A garbage (non-`SloStatusPayload`-shaped) prior snapshot must not permanently
+/// freeze the SLO: `evaluate_slo` should self-heal by treating it like there was
+/// no prior snapshot, recompute everything fresh, and write a real snapshot.
+#[tokio::test]
+async fn garbage_prior_payload_self_heals_instead_of_freezing() {
+    let store = PgStore::connect(&crate::support::fresh_db().await)
+        .await
+        .unwrap();
+    let tenant = TenantId::from_trusted("t4");
+    let SloCreate::Created(slo) = store
+        .create_slo(tenant.clone(), "garbage-prior", &spec())
+        .await
+        .unwrap()
+    else {
+        panic!()
+    };
+
+    let now = OffsetDateTime::now_utc();
+    store
+        .upsert_slo_status(
+            slo.id,
+            &tenant,
+            &serde_json::json!({"not":"a payload"}),
+            now,
+        )
+        .await
+        .unwrap();
+
+    let ch = StubCh {
+        good: 99.0,
+        valid: 100.0,
+        calls: AtomicUsize::new(0),
+    };
+    cc::evaluator::slo::evaluate_slo(&store, &ch, &slo, OffsetDateTime::now_utc(), 30, 3)
+        .await
+        .expect("evaluate_slo must self-heal on a garbage prior payload, not error forever");
+
+    let snap = store
+        .get_slo_status(&tenant, slo.id)
+        .await
+        .unwrap()
+        .unwrap();
+    let payload: SloStatusPayload = serde_json::from_value(snap.payload)
+        .expect("the new snapshot must be a well-formed SloStatusPayload");
+    assert!(
+        !payload.groups.is_empty(),
+        "self-heal recomputes every window fresh, so groups must be populated"
+    );
+}

@@ -13,7 +13,8 @@ ALTER TABLE slos ADD COLUMN last_error           TEXT;
 ALTER TABLE slos ADD COLUMN last_error_at        TIMESTAMPTZ;
 
 -- One status snapshot per SLO. `payload` holds per-group status + per-window
--- freshness timestamps (see Task 8/9 for its shape). Cascade with the SLO.
+-- freshness timestamps (see engine::slo_math::SloStatusPayload for its shape).
+-- Cascade with the SLO.
 CREATE TABLE slo_status (
     slo         UUID PRIMARY KEY REFERENCES slos(id) ON DELETE CASCADE,
     tenant      TEXT NOT NULL,

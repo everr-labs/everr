@@ -176,8 +176,8 @@ pub async fn resume(
 }
 
 /// Read-only view of the evaluator's latest status snapshot for an SLO
-/// (Task 8's `slo_status` row), returned verbatim: no derived/filtered
-/// fields are added here.
+/// (the `slo_status` row, see [`crate::stores::pg::SloStatusRow`]), returned
+/// verbatim: no derived/filtered fields are added here.
 #[derive(serde::Serialize)]
 pub struct SloStatusOut {
     #[serde(with = "time::serde::rfc3339")]
@@ -200,7 +200,15 @@ pub async fn test(
     let now = time::OffsetDateTime::now_utc();
     let secs = parse_window_secs(&body.spec.time_window.duration)
         .map_err(|e| ApiError::Validation(e.to_string()))?;
-    let start = now - time::Duration::seconds(secs as i64);
+    // Defensive: `validate_slo_spec` above already caps this to `MAX_WINDOW_SECS`, so
+    // this is unreachable for specs accepted by validation. Kept anyway because
+    // `OffsetDateTime - Duration` PANICS on overflow and this is the second of the
+    // two panic sites (see `evaluator::slo::evaluate_slo`).
+    let secs_i64 = i64::try_from(secs)
+        .map_err(|_| ApiError::Validation("window duration out of range".into()))?;
+    let start = now
+        .checked_sub(time::Duration::seconds(secs_i64))
+        .ok_or_else(|| ApiError::Validation("window duration out of range".into()))?;
     let params = vec![
         (
             "window_start".to_string(),
@@ -281,6 +289,26 @@ fn strip_ch_params(sql: &str) -> String {
     out
 }
 
+/// Upper bound on any window duration (the SLO's `timeWindow.duration` and every
+/// tier's `long_window`/`short_window`): 366 days, i.e. `366 * 86_400` seconds.
+/// Two reasons: (a) product bound — rolling windows are meant to cover up to
+/// about a year, never longer; (b) safety bound — the evaluator computes
+/// `eval_ts - Duration::seconds(secs)` via `time::OffsetDateTime`, which PANICS
+/// if the result falls outside the representable year range (±9999). Capping
+/// every window here keeps that subtraction always in range for any spec that
+/// passes validation.
+const MAX_WINDOW_SECS: u64 = 366 * 86_400;
+
+fn validate_window_secs(dur: &str) -> Result<u64, ApiError> {
+    let secs = parse_window_secs(dur).map_err(|e| ApiError::Validation(e.to_string()))?;
+    if secs > MAX_WINDOW_SECS {
+        return Err(ApiError::Validation(format!(
+            "window duration {dur:?} exceeds the maximum of 366 days ({MAX_WINDOW_SECS} seconds)"
+        )));
+    }
+    Ok(secs)
+}
+
 /// Static validation for an SLO spec — never touches ClickHouse. Column
 /// presence (`good`/`valid`) is validated at evaluation/test time (Plan 2).
 pub(crate) fn validate_slo_spec(spec: &SloSpec) -> Result<(), ApiError> {
@@ -311,8 +339,7 @@ pub(crate) fn validate_slo_spec(spec: &SloSpec) -> Result<(), ApiError> {
                 .into(),
         ));
     }
-    parse_window_secs(&spec.time_window.duration)
-        .map_err(|e| ApiError::Validation(e.to_string()))?;
+    validate_window_secs(&spec.time_window.duration)?;
 
     // 5. Reserved label prefix (mirrors rule validation).
     if let Some(col) = spec
@@ -343,10 +370,8 @@ pub(crate) fn validate_slo_spec(spec: &SloSpec) -> Result<(), ApiError> {
                     t.name
                 )));
             }
-            let long = parse_window_secs(&t.long_window)
-                .map_err(|e| ApiError::Validation(e.to_string()))?;
-            let short = parse_window_secs(&t.short_window)
-                .map_err(|e| ApiError::Validation(e.to_string()))?;
+            let long = validate_window_secs(&t.long_window)?;
+            let short = validate_window_secs(&t.short_window)?;
             if long <= short {
                 return Err(ApiError::Validation(format!(
                     "tier {:?} long_window must be greater than short_window",
@@ -503,6 +528,38 @@ mod tests {
         let mut s = spec(GOOD_SQL);
         s.tiers = Some(canonical_tiers());
         assert!(validate_slo_spec(&s).is_ok());
+    }
+
+    #[test]
+    fn accepts_window_at_the_366_day_cap() {
+        let mut s = spec(GOOD_SQL);
+        s.time_window.duration = "366d".into();
+        assert!(validate_slo_spec(&s).is_ok());
+    }
+
+    #[test]
+    fn rejects_time_window_duration_over_the_cap() {
+        let mut s = spec(GOOD_SQL);
+        s.time_window.duration = "700000w".into();
+        let err = validate_slo_spec(&s).unwrap_err();
+        let ApiError::Validation(msg) = err else {
+            panic!("expected Validation, got {err:?}")
+        };
+        assert!(msg.contains("700000w"), "message was: {msg}");
+        assert!(msg.contains("366"), "message was: {msg}");
+    }
+
+    #[test]
+    fn rejects_tier_window_over_the_cap() {
+        let mut s = spec(GOOD_SQL);
+        let mut tiers = canonical_tiers();
+        tiers[0].long_window = "700000w".into();
+        s.tiers = Some(tiers);
+        let err = validate_slo_spec(&s).unwrap_err();
+        let ApiError::Validation(msg) = err else {
+            panic!("expected Validation, got {err:?}")
+        };
+        assert!(msg.contains("700000w"), "message was: {msg}");
     }
 
     #[test]

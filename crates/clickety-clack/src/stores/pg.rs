@@ -118,7 +118,7 @@ pub struct RulePageKey {
 
 /// A stored SLO status snapshot, as read by [`PgStore::get_slo_status`]. `payload`
 /// holds the per-group status + per-window freshness timestamps computed by the
-/// evaluator (see Task 8/9 for its shape).
+/// evaluator (see [`crate::engine::slo_math::SloStatusPayload`] for its shape).
 #[derive(Debug, Clone)]
 pub struct SloStatusRow {
     pub slo: crate::domain::ids::SloId,
@@ -2436,20 +2436,5 @@ impl PgStore {
             payload: r.get("payload"),
             computed_at: r.get("computed_at"),
         }))
-    }
-
-    /// Reschedule `slo`'s next evaluation. Used by the evaluator to re-arm at base
-    /// cadence after a run (SLOs have no adaptive stretch axis, unlike rules).
-    pub async fn arm_slo_next_eval(
-        &self,
-        slo: crate::domain::ids::SloId,
-        next_eval: OffsetDateTime,
-    ) -> Result<(), StoreError> {
-        sqlx::query("UPDATE slos SET next_eval=$2 WHERE id=$1")
-            .bind(slo.0)
-            .bind(next_eval)
-            .execute(&self.pool)
-            .await?;
-        Ok(())
     }
 }

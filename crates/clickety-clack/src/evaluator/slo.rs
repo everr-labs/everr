@@ -13,7 +13,7 @@ use crate::engine::slo_math::{
     budget_remaining_fraction, burn_rate, empty_payload, is_window_due, required_windows,
     SloGroupStatus, SloStatusPayload, SloTierStatus, WindowReq,
 };
-use crate::queue::Queue;
+use crate::queue::{JobId, Queue, SloDelivery};
 use crate::stores::PgStore;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -27,7 +27,8 @@ type GroupValues = BTreeMap<String, BTreeMap<GroupKey, (f64, f64)>>;
 
 /// Format a UTC instant as a ClickHouse `DateTime` literal (`YYYY-MM-DD HH:MM:SS`),
 /// suitable for binding as a `{window_start:DateTime}` / `{window_end:DateTime}`
-/// named query parameter. `pub(crate)` so Task 10's `/test` endpoint can reuse it.
+/// named query parameter. `pub(crate)` so `api::slos::test`'s `/test` endpoint can
+/// reuse it.
 pub(crate) fn fmt_ch_datetime(t: OffsetDateTime) -> String {
     const FORMAT: &[time::format_description::FormatItem<'_>] =
         time::macros::format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
@@ -88,7 +89,24 @@ pub async fn evaluate_slo(
     degrade_after: u32,
 ) -> anyhow::Result<()> {
     let prior: SloStatusPayload = match store.get_slo_status(&slo.tenant, slo.id).await? {
-        Some(row) => serde_json::from_value(row.payload)?,
+        Some(row) => match serde_json::from_value(row.payload) {
+            Ok(payload) => payload,
+            Err(e) => {
+                // A stored payload that fails to parse (corruption, or a future shape
+                // change) must never permanently freeze the SLO: with `?` here, every
+                // subsequent tick would error before writing a new snapshot, and health
+                // stays "healthy" throughout (the error never reaches
+                // `record_slo_failure`) — a silent, invisible dead SLO. Instead,
+                // self-heal by treating it like there was no prior snapshot at all;
+                // worst case is one full recompute of every window this tick.
+                tracing::warn!(
+                    slo = ?slo.id,
+                    error = %e,
+                    "prior slo_status payload failed to deserialize; falling back to an empty payload"
+                );
+                empty_payload(&slo.spec)
+            }
+        },
         None => empty_payload(&slo.spec),
     };
 
@@ -110,11 +128,32 @@ pub async fn evaluate_slo(
     // the rule evaluator's degrade-on-error contract.
     let mut window_values: GroupValues = BTreeMap::new();
     for w in &due_windows {
+        // Defensive: `validate_slo_spec` caps every window to `MAX_WINDOW_SECS`, but
+        // existing DB rows predate that cap (or a future bug could smuggle one past
+        // it), so guard the subtraction here too. `time::OffsetDateTime - Duration`
+        // PANICS on overflow (year outside +-9999); `checked_sub` turns that into a
+        // recoverable failure instead of a tenant-triggerable crash-loop. Treated
+        // exactly like a ClickHouse query failure: record + freeze, no snapshot write.
+        let window_start = match i64::try_from(w.secs)
+            .ok()
+            .and_then(|secs| eval_ts.checked_sub(Duration::seconds(secs)))
+        {
+            Some(t) => t,
+            None => {
+                store
+                    .record_slo_failure(
+                        slo.id,
+                        &slo.tenant,
+                        "window duration out of range",
+                        degrade_after,
+                        eval_ts,
+                    )
+                    .await?;
+                return Ok(());
+            }
+        };
         let params = vec![
-            (
-                "window_start".to_string(),
-                fmt_ch_datetime(eval_ts - Duration::seconds(w.secs as i64)),
-            ),
+            ("window_start".to_string(), fmt_ch_datetime(window_start)),
             ("window_end".to_string(), fmt_ch_datetime(eval_ts)),
         ];
         let rows = match ch
@@ -249,9 +288,58 @@ pub async fn evaluate_slo(
     Ok(())
 }
 
+/// Claim + resolve + evaluate every delivery in one SLO batch, swallowing per-job
+/// errors (logged) so one bad job never blocks the rest of the batch. Returns the
+/// ack ids for every delivery in the batch (computed up front, before any
+/// processing) — a claim/lookup/eval failure for one job still acks that job, since
+/// redelivering it would either re-fail identically or (if the (slo, eval_ts) pair
+/// was already claimed) be a no-op anyway.
+async fn process_slo_batch_inner(
+    store: &PgStore,
+    ch: &dyn RowQuerier,
+    base_cadence_secs: u64,
+    degrade_after: u32,
+    deliveries: Vec<SloDelivery>,
+) -> Vec<JobId> {
+    let ack_ids: Vec<JobId> = deliveries.iter().map(|d| d.id.clone()).collect();
+    for d in deliveries {
+        let job = d.job;
+        match store.try_claim_slo_eval(job.slo, job.eval_ts).await {
+            Ok(true) => {}
+            Ok(false) => continue, // another worker already claimed this (slo, eval_ts)
+            Err(e) => {
+                tracing::error!(slo = ?job.slo, error = %e, "try_claim_slo_eval failed");
+                continue;
+            }
+        }
+        match store.get_slo(job.tenant.clone(), job.slo).await {
+            Ok(Some(slo)) if !slo.paused => {
+                if let Err(e) = evaluate_slo(
+                    store,
+                    ch,
+                    &slo,
+                    job.eval_ts,
+                    base_cadence_secs,
+                    degrade_after,
+                )
+                .await
+                {
+                    tracing::error!(slo = ?job.slo, error = %e, "slo evaluation errored");
+                }
+            }
+            Ok(_) => {} // paused or deleted: drop the in-flight job (still acked)
+            Err(e) => tracing::error!(slo = ?job.slo, error = %e, "get_slo failed"),
+        }
+    }
+    ack_ids
+}
+
 /// Run the SLO-evaluator consume loop over `cc:slo:jobs` until `shutdown` flips true.
-/// Mirrors [`super::run_evaluator`]'s idiom without its per-batch panic-isolation
-/// machinery (not needed here: no per-batch cross-rule query coalescing to protect).
+/// Mirrors [`super::run_evaluator`]'s per-batch panic-isolation idiom: a panic while
+/// evaluating one batch of SLO jobs (e.g. inside `evaluate_slo`) must poison neither
+/// this loop nor the whole evaluator role, so the batch is computed up front, run
+/// inside `catch_unwind`, and acked regardless of a panic — a poisoned job would only
+/// re-panic identically on redelivery anyway.
 #[allow(clippy::too_many_arguments)]
 pub async fn run_slo_evaluator(
     consumer: String,
@@ -274,44 +362,28 @@ pub async fn run_slo_evaluator(
                 continue;
             }
         };
-        for d in deliveries {
-            let job = d.job;
-            match store.try_claim_slo_eval(job.slo, job.eval_ts).await {
-                Ok(true) => {}
-                Ok(false) => {
-                    // Another worker already claimed this (slo, eval_ts); still ack.
-                    if let Err(e) = queue.ack_slo(&d.id).await {
-                        tracing::error!(error = %e, "ack_slo failed");
-                    }
-                    continue;
-                }
-                Err(e) => {
-                    tracing::error!(slo = ?job.slo, error = %e, "try_claim_slo_eval failed");
-                    if let Err(e) = queue.ack_slo(&d.id).await {
-                        tracing::error!(error = %e, "ack_slo failed");
-                    }
-                    continue;
-                }
+        let ack_ids: Vec<JobId> = deliveries.iter().map(|d| d.id.clone()).collect();
+        let batch = std::panic::AssertUnwindSafe(process_slo_batch_inner(
+            &store,
+            ch.as_ref(),
+            base_cadence_secs,
+            degrade_after,
+            deliveries,
+        ));
+        let to_ack = match futures::FutureExt::catch_unwind(batch).await {
+            Ok(ids) => ids,
+            Err(payload) => {
+                let msg = crate::supervisor::panic_message(payload);
+                tracing::error!(
+                    panic = %msg,
+                    deliveries = ack_ids.len(),
+                    "slo evaluation batch panicked; acking the batch and continuing"
+                );
+                ack_ids
             }
-            match store.get_slo(job.tenant.clone(), job.slo).await {
-                Ok(Some(slo)) if !slo.paused => {
-                    if let Err(e) = evaluate_slo(
-                        &store,
-                        ch.as_ref(),
-                        &slo,
-                        job.eval_ts,
-                        base_cadence_secs,
-                        degrade_after,
-                    )
-                    .await
-                    {
-                        tracing::error!(slo = ?job.slo, error = %e, "slo evaluation errored");
-                    }
-                }
-                Ok(_) => {} // paused or deleted: drop the in-flight job (still acked below)
-                Err(e) => tracing::error!(slo = ?job.slo, error = %e, "get_slo failed"),
-            }
-            if let Err(e) = queue.ack_slo(&d.id).await {
+        };
+        for id in to_ack {
+            if let Err(e) = queue.ack_slo(&id).await {
                 tracing::error!(error = %e, "ack_slo failed");
             }
         }
