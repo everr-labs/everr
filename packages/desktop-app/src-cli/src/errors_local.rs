@@ -1,12 +1,16 @@
 //! `everr local errors list|show` — Errors surveyed from the local collector's
 //! telemetry. There is no server to reuse here (unlike the cloud commands), so
-//! this groups Errors by running the same fingerprint SQL the app uses, over
-//! the collector's ClickHouse SQL endpoint.
+//! this groups Errors by running the errors SQL directly against the
+//! collector's ClickHouse SQL endpoint.
 //!
-//! The fingerprint and exception-log-filter fragments are `include_str!`-ed
-//! from canonical `.sql` files; a Vitest test asserts telemetry-explorer's
-//! `fingerprint.ts` stays byte-equal to them, so local grouping can never
-//! silently diverge from the web/desktop surfaces.
+//! What defines an Error's identity — the fingerprint expression and the
+//! exception-log filter — is `include_str!`-ed from `.sql` fragments shared
+//! with telemetry-explorer, and a Vitest test asserts `fingerprint.ts` stays
+//! byte-equal to them, so local can't fingerprint Errors differently from the
+//! web/desktop surfaces. The aggregation and projection around that kernel are
+//! mirrored by hand from issues.ts; they can't be shared verbatim (the app's
+//! queries carry triage/search/attribute filters local has no equivalent for),
+//! so keep the two in step when either changes.
 
 use std::time::SystemTime;
 
@@ -14,11 +18,11 @@ use anyhow::{Context, Result};
 use everr_core::api::{ErrorIssueDetail, ErrorIssueSummary, ErrorOccurrence};
 
 use crate::cli::{ErrorSortArg, ErrorsListArgs, ErrorsShowArgs, ErrorsSubcommand};
-use crate::errors_render::{ErrorLinks, print_error_detail, print_errors_list};
+use crate::errors_render::{print_error_detail, print_errors_list};
 use crate::telemetry::client::QueryClient;
 use crate::telemetry::commands::query_rows;
 
-// Canonical fragments co-located with the TS source (telemetry-explorer); a
+// Reference fragments co-located with the TS source (telemetry-explorer); a
 // Vitest test asserts fingerprint.ts stays byte-equal to them.
 const FINGERPRINT_SQL: &str =
     include_str!("../../../telemetry-explorer/src/errors/sql/fingerprint.sql");
@@ -85,7 +89,7 @@ fn show(client: &QueryClient, args: ErrorsShowArgs) -> Result<()> {
         latest,
         occurrences,
     };
-    print_error_detail(&detail, args.json, &ErrorLinks::Local)
+    print_error_detail(&detail, args.json, None)
 }
 
 fn not_found(fingerprint: &str, range: &TimeRange) -> anyhow::Error {
@@ -159,7 +163,10 @@ fn exception_logs_cte(range: &TimeRange, services: &[String]) -> String {
     // shift the window (the cloud path relies on its ClickHouse running UTC).
     let mut filters = vec![
         format!(
-            "TimestampTime >= toDateTime(parseDateTime64BestEffort({from}, 9, 'UTC'))\n    AND TimestampTime <= toDateTime(parseDateTime64BestEffort({to}, 9, 'UTC'))\n    AND Timestamp >= parseDateTime64BestEffort({from}, 9, 'UTC')\n    AND Timestamp <= parseDateTime64BestEffort({to}, 9, 'UTC')"
+            r#"TimestampTime >= toDateTime(parseDateTime64BestEffort({from}, 9, 'UTC'))
+    AND TimestampTime <= toDateTime(parseDateTime64BestEffort({to}, 9, 'UTC'))
+    AND Timestamp >= parseDateTime64BestEffort({from}, 9, 'UTC')
+    AND Timestamp <= parseDateTime64BestEffort({to}, 9, 'UTC')"#
         ),
         EXCEPTION_LOG_FILTER_SQL.trim().to_string(),
     ];
@@ -172,7 +179,14 @@ fn exception_logs_cte(range: &TimeRange, services: &[String]) -> String {
         filters.push(format!("ServiceName IN ({list})"));
     }
     format!(
-        "exception_logs AS (\n  SELECT\n    Timestamp, ServiceName, TraceId, SpanId, Body,\n    ResourceAttributes, ScopeAttributes, LogAttributes,\n    {fingerprint} AS fingerprint\n  FROM {TABLE}\n  WHERE {where_clause}\n)",
+        r#"exception_logs AS (
+  SELECT
+    Timestamp, ServiceName, TraceId, SpanId, Body,
+    ResourceAttributes, ScopeAttributes, LogAttributes,
+    {fingerprint} AS fingerprint
+  FROM {TABLE}
+  WHERE {where_clause}
+)"#,
         fingerprint = FINGERPRINT_SQL.trim(),
         where_clause = filters.join("\n    AND "),
     )
@@ -197,60 +211,61 @@ fn summary_sql(
         ErrorSortArg::LastSeen => "lastSeen DESC, occurrenceCount DESC, fingerprint DESC",
     };
     format!(
-        "WITH {cte}\n\
-         SELECT\n  \
-         fingerprint,\n  \
-         argMax(LogAttributes['exception.type'], Timestamp) AS exceptionType,\n  \
-         argMax(LogAttributes['exception.message'], Timestamp) AS exceptionMessage,\n  \
-         argMax(Body, Timestamp) AS body,\n  \
-         argMax(ServiceName, Timestamp) AS latestServiceName,\n  \
-         groupUniqArray(ServiceName) AS services,\n  \
-         toUInt32(count()) AS occurrenceCount,\n  \
-         toUInt32(uniqExactIf(TraceId, TraceId != '')) AS traceCount,\n  \
-         toString(min(Timestamp)) AS firstSeen,\n  \
-         toString(max(Timestamp)) AS lastSeen,\n  \
-         argMax(TraceId, Timestamp) AS latestTraceId,\n  \
-         argMax(SpanId, Timestamp) AS latestSpanId,\n  \
-         argMax(toString(Timestamp), Timestamp) AS latestTimestamp\n\
-         FROM exception_logs\n\
-         {fingerprint_filter}\n\
-         GROUP BY fingerprint\n\
-         ORDER BY {order_by}\n\
-         LIMIT {limit}\n\
-         OFFSET {offset}",
+        r#"WITH {cte}
+SELECT
+  fingerprint,
+  argMax(LogAttributes['exception.type'], Timestamp) AS exceptionType,
+  argMax(LogAttributes['exception.message'], Timestamp) AS exceptionMessage,
+  argMax(Body, Timestamp) AS body,
+  argMax(ServiceName, Timestamp) AS latestServiceName,
+  groupUniqArray(ServiceName) AS services,
+  toUInt32(count()) AS occurrenceCount,
+  toUInt32(uniqExactIf(TraceId, TraceId != '')) AS traceCount,
+  toString(min(Timestamp)) AS firstSeen,
+  toString(max(Timestamp)) AS lastSeen,
+  argMax(TraceId, Timestamp) AS latestTraceId,
+  argMax(SpanId, Timestamp) AS latestSpanId,
+  argMax(toString(Timestamp), Timestamp) AS latestTimestamp
+FROM exception_logs
+{fingerprint_filter}
+GROUP BY fingerprint
+ORDER BY {order_by}
+LIMIT {limit}
+OFFSET {offset}"#,
         cte = exception_logs_cte(range, services),
     )
 }
 
 fn occurrences_sql(range: &TimeRange, fingerprint: &str, occurrence_limit: u32) -> String {
     format!(
-        "WITH {cte},\n\
-         ranked_occurrence_rows AS (\n  \
-         SELECT\n    *,\n    \
-         row_number() OVER (\n      \
-         PARTITION BY Timestamp\n      \
-         ORDER BY Timestamp DESC, ServiceName DESC, TraceId DESC, SpanId DESC, Body DESC\n    \
-         ) AS timestampRank\n  \
-         FROM exception_logs\n  \
-         WHERE fingerprint = {fingerprint}\n\
-         )\n\
-         SELECT\n  \
-         toUInt32(timestampRank) AS timestampRank,\n  \
-         fingerprint,\n  \
-         toString(Timestamp) AS timestamp,\n  \
-         ServiceName AS serviceName,\n  \
-         TraceId AS traceId,\n  \
-         SpanId AS spanId,\n  \
-         Body AS body,\n  \
-         LogAttributes['exception.type'] AS exceptionType,\n  \
-         LogAttributes['exception.message'] AS exceptionMessage,\n  \
-         LogAttributes['exception.stacktrace'] AS exceptionStacktrace,\n  \
-         ResourceAttributes AS resourceAttributes,\n  \
-         LogAttributes AS logAttributes,\n  \
-         ScopeAttributes AS scopeAttributes\n\
-         FROM ranked_occurrence_rows\n\
-         ORDER BY Timestamp DESC, timestampRank ASC\n\
-         LIMIT {occurrence_limit}",
+        r#"WITH {cte},
+ranked_occurrence_rows AS (
+  SELECT
+    *,
+    row_number() OVER (
+      PARTITION BY Timestamp
+      ORDER BY Timestamp DESC, ServiceName DESC, TraceId DESC, SpanId DESC, Body DESC
+    ) AS timestampRank
+  FROM exception_logs
+  WHERE fingerprint = {fingerprint}
+)
+SELECT
+  toUInt32(timestampRank) AS timestampRank,
+  fingerprint,
+  toString(Timestamp) AS timestamp,
+  ServiceName AS serviceName,
+  TraceId AS traceId,
+  SpanId AS spanId,
+  Body AS body,
+  LogAttributes['exception.type'] AS exceptionType,
+  LogAttributes['exception.message'] AS exceptionMessage,
+  LogAttributes['exception.stacktrace'] AS exceptionStacktrace,
+  ResourceAttributes AS resourceAttributes,
+  LogAttributes AS logAttributes,
+  ScopeAttributes AS scopeAttributes
+FROM ranked_occurrence_rows
+ORDER BY Timestamp DESC, timestampRank ASC
+LIMIT {occurrence_limit}"#,
         cte = exception_logs_cte(range, &[]),
         fingerprint = ch_string(fingerprint),
     )

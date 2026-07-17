@@ -4,10 +4,11 @@ import { ERROR_FINGERPRINT_SQL, EXCEPTION_LOG_FILTER_SQL } from "./fingerprint";
 import fingerprintSql from "./fingerprint.sql?raw";
 
 // The Rust CLI (`everr local errors`) has no server to reuse, so it groups
-// Errors by `include_str!`-ing these same canonical .sql fragments. These
-// assertions fail the moment fingerprint.ts drifts from them, so local grouping
-// can never silently diverge from the app's. If you change the TS below, update
-// the .sql file (or vice versa) so both stay identical.
+// Errors by `include_str!`-ing these same shared .sql fragments. These
+// assertions fail the moment fingerprint.ts drifts from them, so local can't
+// fingerprint (and therefore group) Errors differently from the app. If you
+// change the TS below, update the .sql file (or vice versa) so both stay
+// identical.
 
 // Compare token content, not layout: collapse whitespace and drop spacing
 // around parens/commas (semantically irrelevant in SQL, and the .sql file and

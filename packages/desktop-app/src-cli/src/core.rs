@@ -720,11 +720,7 @@ async fn errors_show(
     );
 
     let detail = client.get_error(&args.fingerprint, &query).await?;
-    crate::errors_render::print_error_detail(
-        &detail,
-        args.json,
-        &crate::errors_render::ErrorLinks::Cloud(client),
-    )
+    crate::errors_render::print_error_detail(&detail, args.json, Some(client))
 }
 
 /// Resolve this repository's repoid from `dir` (manifest, else inferred origin

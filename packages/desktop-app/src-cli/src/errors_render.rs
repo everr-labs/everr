@@ -1,37 +1,26 @@
 //! Shared human/JSON rendering for `errors list` and `errors show`, used by
 //! both the cloud commands (over the /api/cli routes) and the local commands
 //! (over the collector's SQL endpoint). The only thing that differs between the
-//! two surfaces is where an Error's links point, captured by [`ErrorLinks`].
+//! two surfaces is where an Error's links point: the caller passes the cloud
+//! `ApiClient` for cloud, or `None` for local (no web UI).
 
 use everr_core::api::{ApiClient, ErrorIssueDetail, ErrorIssueSummary};
 
-/// Where an Error's links point. The cloud has a web UI, so it prints a web
-/// link and clickable trace URLs; local telemetry has neither, so it omits the
-/// web link and prints raw trace IDs (usable with `everr local query`).
-pub(crate) enum ErrorLinks<'a> {
-    // Only `core.rs` (the cloud commands) constructs this, and `core.rs` is not
-    // part of the lib crate, so the lib build alone sees it as unused.
-    #[allow(dead_code)]
-    Cloud(&'a ApiClient),
-    Local,
+/// Web link to an Error's detail page, or `None` on surfaces without a web UI
+/// (local telemetry).
+fn web_url(client: Option<&ApiClient>, fingerprint: &str) -> Option<String> {
+    client.map(|client| client.error_web_url(fingerprint))
 }
 
-impl ErrorLinks<'_> {
-    fn web_url(&self, fingerprint: &str) -> Option<String> {
-        match self {
-            ErrorLinks::Cloud(client) => Some(client.error_web_url(fingerprint)),
-            ErrorLinks::Local => None,
-        }
+/// The Occurrence's trace cell: a clickable web URL on the cloud, the raw trace
+/// id locally (usable with `everr local query`), or a placeholder when absent.
+fn trace_cell(client: Option<&ApiClient>, trace_id: &str, span_id: &str) -> String {
+    if trace_id.is_empty() {
+        return "(no trace)".to_string();
     }
-
-    fn trace_cell(&self, trace_id: &str, span_id: &str) -> String {
-        if trace_id.is_empty() {
-            return "(no trace)".to_string();
-        }
-        match self {
-            ErrorLinks::Cloud(client) => client.trace_web_url(trace_id, Some(span_id)),
-            ErrorLinks::Local => trace_id.to_string(),
-        }
+    match client {
+        Some(client) => client.trace_web_url(trace_id, Some(span_id)),
+        None => trace_id.to_string(),
     }
 }
 
@@ -86,7 +75,7 @@ pub(crate) fn print_errors_list(issues: &[ErrorIssueSummary], json: bool) -> any
 pub(crate) fn print_error_detail(
     detail: &ErrorIssueDetail,
     json: bool,
-    links: &ErrorLinks,
+    web_client: Option<&ApiClient>,
 ) -> anyhow::Result<()> {
     if json {
         println!("{}", serde_json::to_string_pretty(detail)?);
@@ -104,7 +93,7 @@ pub(crate) fn print_error_detail(
     );
     println!("{:<12} {}", "First seen", short_ts(&summary.first_seen));
     println!("{:<12} {}", "Last seen", short_ts(&summary.last_seen));
-    if let Some(web) = links.web_url(&summary.fingerprint) {
+    if let Some(web) = web_url(web_client, &summary.fingerprint) {
         println!("{:<12} {}", "Web", web);
     }
 
@@ -136,7 +125,7 @@ pub(crate) fn print_error_detail(
             short_ts(&occurrence.timestamp),
             occurrence.service_name,
             version,
-            links.trace_cell(&occurrence.trace_id, &occurrence.span_id)
+            trace_cell(web_client, &occurrence.trace_id, &occurrence.span_id)
         );
     }
     Ok(())
