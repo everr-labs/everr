@@ -49,6 +49,9 @@ impl std::fmt::Display for TenantId {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct RuleId(pub Uuid);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct SloId(pub Uuid);
+
 /// Stable identity for an alert instance: hash of rule id + sorted label set.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct InstanceKey(pub String);
