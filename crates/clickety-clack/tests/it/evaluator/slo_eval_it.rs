@@ -1,11 +1,41 @@
 use async_trait::async_trait;
 use cc::domain::ids::TenantId;
 use cc::domain::slo::{SliSpec, SloSpec, TimeWindow};
+use cc::domain::Event;
 use cc::engine::slo_math::{SloGroupStatus, SloStatusPayload, SloTierStatus};
+use cc::queue::{EventBus, EventEntry, EventId, QueueError, TailCursor};
 use cc::stores::{PgStore, SloCreate};
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use time::OffsetDateTime;
+
+/// A `Plan 2` fixture bus: these tests only assert on the `slo_status` snapshot, not
+/// on published events (that's `slo_alerting_it.rs`'s job), so this is a pure no-op.
+struct NoopBus;
+
+#[async_trait]
+impl EventBus for NoopBus {
+    async fn publish(&self, _ev: &Event) -> Result<(), QueueError> {
+        Ok(())
+    }
+    async fn consume(&self, _c: &str, _n: usize, _b: usize) -> Result<Vec<EventEntry>, QueueError> {
+        Ok(vec![])
+    }
+    async fn ack(&self, _id: &EventId) -> Result<(), QueueError> {
+        Ok(())
+    }
+    async fn tail(
+        &self,
+        _cursor: &TailCursor,
+        _n: usize,
+        _b: usize,
+    ) -> Result<Vec<EventEntry>, QueueError> {
+        Ok(vec![])
+    }
+    async fn dead_letter(&self, _ev: &Event, _reason: &str) -> Result<(), QueueError> {
+        Ok(())
+    }
+}
 
 /// A stub querier that returns fixed good/valid regardless of params/window, and
 /// counts how many times it was called (used by the freshness/merge test).
@@ -100,9 +130,17 @@ async fn evaluate_writes_budget_snapshot() {
         valid: 10000.0,
         calls: AtomicUsize::new(0),
     };
-    cc::evaluator::slo::evaluate_slo(&store, &ch, &slo, OffsetDateTime::now_utc(), 30, 3)
-        .await
-        .unwrap();
+    cc::evaluator::slo::evaluate_slo(
+        &store,
+        &ch,
+        &NoopBus,
+        &slo,
+        OffsetDateTime::now_utc(),
+        30,
+        3,
+    )
+    .await
+    .unwrap();
 
     let snap = store
         .get_slo_status(&tenant, slo.id)
@@ -129,9 +167,17 @@ async fn query_error_degrades_and_does_not_write_snapshot() {
     else {
         panic!()
     };
-    cc::evaluator::slo::evaluate_slo(&store, &ErrCh, &slo, OffsetDateTime::now_utc(), 30, 1)
-        .await
-        .unwrap();
+    cc::evaluator::slo::evaluate_slo(
+        &store,
+        &ErrCh,
+        &NoopBus,
+        &slo,
+        OffsetDateTime::now_utc(),
+        30,
+        1,
+    )
+    .await
+    .unwrap();
     // no snapshot written (freeze on error)
     assert!(store
         .get_slo_status(&tenant, slo.id)
@@ -221,7 +267,7 @@ async fn fresh_windows_are_not_requeried() {
         valid: 100.0,
         calls: AtomicUsize::new(0),
     };
-    cc::evaluator::slo::evaluate_slo(&store, &ch, &slo, eval_ts, 60, 3)
+    cc::evaluator::slo::evaluate_slo(&store, &ch, &NoopBus, &slo, eval_ts, 60, 3)
         .await
         .unwrap();
 
@@ -326,9 +372,17 @@ async fn garbage_prior_payload_self_heals_instead_of_freezing() {
         valid: 100.0,
         calls: AtomicUsize::new(0),
     };
-    cc::evaluator::slo::evaluate_slo(&store, &ch, &slo, OffsetDateTime::now_utc(), 30, 3)
-        .await
-        .expect("evaluate_slo must self-heal on a garbage prior payload, not error forever");
+    cc::evaluator::slo::evaluate_slo(
+        &store,
+        &ch,
+        &NoopBus,
+        &slo,
+        OffsetDateTime::now_utc(),
+        30,
+        3,
+    )
+    .await
+    .expect("evaluate_slo must self-heal on a garbage prior payload, not error forever");
 
     let snap = store
         .get_slo_status(&tenant, slo.id)

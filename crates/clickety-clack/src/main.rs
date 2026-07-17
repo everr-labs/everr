@@ -237,6 +237,7 @@ async fn main() -> anyhow::Result<()> {
             let queue = queue.clone();
             let ch: std::sync::Arc<dyn cc::clickhouse::RowQuerier> =
                 std::sync::Arc::new(ch.clone().with_engine_metrics(engine_metrics.clone()));
+            let events = event_bus.clone();
             let rx = sd_rx.clone();
             let consumer = cfg.node_id.clone();
             let degrade_after = cfg.rule_degrade_after;
@@ -246,6 +247,7 @@ async fn main() -> anyhow::Result<()> {
                 let store = store.clone();
                 let queue = queue.clone();
                 let ch = ch.clone();
+                let events = events.clone();
                 let rx = rx.clone();
                 async move {
                     cc::evaluator::slo::run_slo_evaluator(
@@ -253,6 +255,7 @@ async fn main() -> anyhow::Result<()> {
                         store,
                         queue,
                         ch,
+                        events,
                         base_cadence,
                         degrade_after,
                         rx,

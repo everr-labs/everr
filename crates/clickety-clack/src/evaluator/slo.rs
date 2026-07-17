@@ -1,23 +1,29 @@
 //! The engine-native SLO evaluator: computes per-group SLI, per-tier burn rate,
-//! and error-budget-remaining from the SLI query, writing a status snapshot.
+//! and error-budget-remaining from the SLI query, writing a status snapshot; then
+//! drives each (group x tier) burn-rate verdict through the shared engine state
+//! machine to open/resolve `slo_instances` rows and publish `Event`s.
 //!
-//! No alerting lives here (that's Plan 3): this module only ever writes the
-//! `slo_status` snapshot (via [`PgStore::upsert_slo_status`]) and the SLO's
-//! health columns (via [`PgStore::record_slo_failure`] /
-//! [`PgStore::record_slo_success`]). It never creates `instances` rows, emits
-//! `Event`s, or touches the dispatcher.
+//! The status snapshot (via [`PgStore::upsert_slo_status`]) and the SLO's health
+//! columns (via [`PgStore::record_slo_failure`] / [`PgStore::record_slo_success`])
+//! are always written first, on the success path only; the firing pass below runs
+//! after that snapshot write and never runs on the freeze-on-error path.
 
 use crate::clickhouse::{json_to_f64, RowQuerier};
+use crate::domain::ids::{InstanceKey, RuleId};
+use crate::domain::instance::InstanceState;
 use crate::domain::rule::Severity;
 use crate::domain::slo::{canonical_tiers, parse_window_secs, BurnRateTier, Slo, SloSpec};
+use crate::domain::Event;
 use crate::engine::slo_math::{
     budget_remaining_fraction, burn_rate, empty_payload, fmt_burn, fmt_duration_secs, fmt_pct,
     is_window_due, required_windows, time_to_exhaustion_secs, SloGroupStatus, SloStatusPayload,
     SloTierStatus, WindowReq,
 };
-use crate::queue::{JobId, Queue, SloDelivery};
+use crate::engine::{evaluate, EvalInput};
+use crate::evaluator::published_outbox_ids;
+use crate::queue::{EventBus, JobId, Queue, SloDelivery};
 use crate::stores::PgStore;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
 use std::time::Duration as StdDuration;
 use time::{Duration, OffsetDateTime};
@@ -71,6 +77,29 @@ fn burn_rate_for(
     burn_rate(good, valid, target_percent)
 }
 
+/// Same freshness/merge idiom as [`burn_rate_for`], but yields the tier's long-window
+/// `valid` count instead of a burn rate — the input to `min_valid_events`' floor.
+fn long_window_valid_for(
+    window_dur: &str,
+    labels: &GroupKey,
+    due_names: &BTreeSet<&str>,
+    window_values: &GroupValues,
+    prior_value: Option<f64>,
+) -> Option<f64> {
+    let Some(name) = window_name_for(window_dur) else {
+        return prior_value;
+    };
+    if !due_names.contains(name.as_str()) {
+        return prior_value;
+    }
+    let (_good, valid) = window_values
+        .get(&name)
+        .and_then(|g| g.get(labels))
+        .copied()
+        .unwrap_or((0.0, 0.0));
+    Some(valid)
+}
+
 /// Evaluate one SLO as of `eval_ts`: plan the due windows (coordinated freshness,
 /// see [`is_window_due`]), run the SLI query once per due window, compute per-group
 /// SLI + per-tier burn rate + budget-remaining, merge with the prior snapshot for
@@ -85,6 +114,7 @@ fn burn_rate_for(
 pub async fn evaluate_slo(
     store: &PgStore,
     ch: &dyn RowQuerier,
+    events: &dyn EventBus,
     slo: &Slo,
     eval_ts: OffsetDateTime,
     base_cadence_secs: u64,
@@ -253,8 +283,13 @@ pub async fn evaluate_slo(
                         prior_tier.and_then(|t| t.short_burn_rate),
                         slo.spec.target_percent,
                     ),
-                    // populated by the firing pipeline
-                    long_window_valid: None,
+                    long_window_valid: long_window_valid_for(
+                        &tier.long_window,
+                        &labels,
+                        &due_names,
+                        &window_values,
+                        prior_tier.and_then(|t| t.long_window_valid),
+                    ),
                 }
             })
             .collect();
@@ -289,6 +324,129 @@ pub async fn evaluate_slo(
         )
         .await?;
 
+    // ---- Firing pipeline: drive each (group x tier) burn-rate verdict through the
+    // shared engine state machine, open/resolve `slo_instances` rows, and publish
+    // the resulting events. Reached only on this success path — every freeze-on-error
+    // branch above already returned before here, so a flaky SLI query can neither
+    // fire nor resolve an instance off of partial data.
+    let rule_id = RuleId(slo.id.0);
+    let planned = plan_tier_firing(&slo.spec, &payload);
+    let known = store.load_slo_instances(&slo.tenant, slo.id).await?;
+    let mut known_by_key: HashMap<InstanceKey, InstanceState> =
+        known.into_iter().map(|s| (s.key.clone(), s)).collect();
+
+    // Evidence's time-to-exhaustion needs the budget window in seconds; spec
+    // validation guarantees this parses, the fallback is defensive only (mirrors
+    // this function's other out-of-range/unparsable-window handling).
+    let budget_window_secs = parse_window_secs(&slo.spec.time_window.duration).unwrap_or(0);
+
+    // Built once per tier (not per group), per the firing algorithm.
+    let tier_annotations: BTreeMap<&str, BTreeMap<String, String>> = tiers
+        .iter()
+        .map(|t| (t.name.as_str(), slo_annotations(slo, t)))
+        .collect();
+    let empty_annotations: BTreeMap<String, String> = BTreeMap::new();
+
+    let mut next_states: Vec<InstanceState> = Vec::new();
+    let mut out_events: Vec<Event> = Vec::new();
+
+    for tf in &planned {
+        let key = InstanceKey::new(rule_id, &tf.labels);
+        let prev = known_by_key.remove(&key).unwrap_or_else(|| {
+            InstanceState::new_inactive(key, rule_id, slo.tenant.clone(), tf.labels.clone())
+        });
+        let annotations = tier_annotations
+            .get(tf.tier_name.as_str())
+            .unwrap_or(&empty_annotations);
+        let input = EvalInput {
+            present: tf.present,
+            value: tf.value,
+            labels: tf.labels.clone(),
+            // Burn windows already smooth the signal: the multi-window (long AND
+            // short both over threshold) breach condition IS the for-clause, so no
+            // additional debounce belongs here.
+            for_duration: Duration::ZERO,
+            // The short window is the anti-flap mechanism: once it drops back under
+            // threshold the group is genuinely recovering (spec §3), so resolve on
+            // the very next non-breaching tick instead of requiring repeated absences.
+            resolve_after: 1,
+            severity: tf.severity,
+            annotations,
+            eval_ts,
+        };
+        let outcome = evaluate(prev, input);
+        if let Some(mut ev) = outcome.event {
+            ev.slo = Some(slo.id);
+            ev.suppressed = slo.spec.suppressed;
+            ev.evidence = Some(slo_evidence(slo, tf, budget_window_secs));
+            ev.evidence_truncated = false;
+            out_events.push(ev);
+        }
+        next_states.push(outcome.next);
+    }
+
+    // Known-but-not-planned instances (e.g. a tier dropped from the spec, or a group
+    // that no longer appears anywhere in the payload): feed present:false so they
+    // resolve, mirroring the rule evaluator's absent path
+    // (`evaluate_rule_against_rows`).
+    for (_key, mut prev) in known_by_key {
+        let labels = std::mem::take(&mut prev.labels);
+        let tier = labels
+            .get("slo_tier")
+            .and_then(|name| tiers.iter().find(|t| t.name == *name));
+        // Falls back to Warning/no annotations only if the tier itself vanished from
+        // the spec (the labels always carry `slo_tier` from `plan_tier_firing`).
+        let severity = tier.map(|t| t.severity).unwrap_or(Severity::Warning);
+        let annotations = tier
+            .and_then(|t| tier_annotations.get(t.name.as_str()))
+            .unwrap_or(&empty_annotations);
+        let input = EvalInput {
+            present: false,
+            value: None,
+            labels,
+            for_duration: Duration::ZERO,
+            resolve_after: 1,
+            severity,
+            annotations,
+            eval_ts,
+        };
+        let outcome = evaluate(prev, input);
+        if let Some(mut ev) = outcome.event {
+            ev.slo = Some(slo.id);
+            ev.suppressed = slo.spec.suppressed;
+            // Resolved-by-absence has no source row: evidence stays None/untruncated
+            // (already the engine's default).
+            out_events.push(ev);
+        }
+        next_states.push(outcome.next);
+    }
+
+    if !(next_states.is_empty() && out_events.is_empty()) {
+        commit_and_publish_slo(store, events, next_states, out_events).await?;
+    }
+
+    Ok(())
+}
+
+/// Like [`crate::evaluator::commit_and_publish`], but against `slo_instances`/
+/// [`PgStore::persist_slo_eval_batch`] (no rollup, no adaptive cadence — SLOs have
+/// neither): persist all instance states + outbox rows in one transaction, publish
+/// the events in one pipelined batch, then delete exactly the outbox rows whose
+/// events published. Unpublished rows are left for the maintenance relay.
+pub(crate) async fn commit_and_publish_slo(
+    store: &PgStore,
+    events: &dyn EventBus,
+    next_states: Vec<InstanceState>,
+    out_events: Vec<Event>,
+) -> anyhow::Result<()> {
+    let outbox_ids = store
+        .persist_slo_eval_batch(&next_states, &out_events)
+        .await?;
+    let published = events.publish_batch(&out_events).await?;
+    let to_delete = published_outbox_ids(&outbox_ids, &published);
+    if let Err(e) = store.delete_outbox_batch(&to_delete).await {
+        tracing::warn!(error = %e, "slo outbox batch delete failed; relay will re-publish");
+    }
     Ok(())
 }
 
@@ -301,6 +459,7 @@ pub async fn evaluate_slo(
 async fn process_slo_batch_inner(
     store: &PgStore,
     ch: &dyn RowQuerier,
+    events: &dyn EventBus,
     base_cadence_secs: u64,
     degrade_after: u32,
     deliveries: Vec<SloDelivery>,
@@ -321,6 +480,7 @@ async fn process_slo_batch_inner(
                 if let Err(e) = evaluate_slo(
                     store,
                     ch,
+                    events,
                     &slo,
                     job.eval_ts,
                     base_cadence_secs,
@@ -350,6 +510,7 @@ pub async fn run_slo_evaluator(
     store: PgStore,
     queue: Arc<dyn Queue>,
     ch: Arc<dyn RowQuerier>,
+    events: Arc<dyn EventBus>,
     base_cadence_secs: u64,
     degrade_after: u32,
     shutdown: tokio::sync::watch::Receiver<bool>,
@@ -370,6 +531,7 @@ pub async fn run_slo_evaluator(
         let batch = std::panic::AssertUnwindSafe(process_slo_batch_inner(
             &store,
             ch.as_ref(),
+            events.as_ref(),
             base_cadence_secs,
             degrade_after,
             deliveries,
@@ -397,10 +559,8 @@ pub async fn run_slo_evaluator(
 
 /// One (group × tier) firing verdict: the pure output of comparing an
 /// already-computed [`SloStatusPayload`] snapshot against the [`SloSpec`]'s
-/// burn-rate tiers. No I/O; a later stage (Task 7) feeds each verdict through
-/// the engine state machine to actually open/resolve instances.
-// wired by the firing pipeline (Task 7); remove this allow once it lands.
-#[allow(dead_code)]
+/// burn-rate tiers. No I/O; [`evaluate_slo`] feeds each verdict through the
+/// engine state machine to actually open/resolve instances.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct TierFiring {
     /// Group labels + "slo_tier" — the instance's label set (identity input).
@@ -424,8 +584,6 @@ pub(crate) struct TierFiring {
 ///
 /// Every (group × tier) pair yields exactly one entry, including absent ones
 /// — the resolve path downstream relies on seeing every pair each tick.
-// wired by the firing pipeline (Task 7); remove this allow once it lands.
-#[allow(dead_code)]
 pub(crate) fn plan_tier_firing(spec: &SloSpec, payload: &SloStatusPayload) -> Vec<TierFiring> {
     let tiers = spec.tiers.clone().unwrap_or_else(canonical_tiers);
     let mut out = Vec::with_capacity(payload.groups.len() * tiers.len());
@@ -465,8 +623,6 @@ pub(crate) fn plan_tier_firing(spec: &SloSpec, payload: &SloStatusPayload) -> Ve
 /// `SloSpec.annotations`. Inserts the defaults first, then extends/overwrites
 /// with the spec's own annotations, so a spec key wins on collision and any
 /// unrelated spec keys pass through untouched.
-// wired by the firing pipeline (Task 7); remove this allow once it lands.
-#[allow(dead_code)]
 pub(crate) fn slo_annotations(slo: &Slo, tier: &BurnRateTier) -> BTreeMap<String, String> {
     let mut out = BTreeMap::new();
     out.insert(
@@ -490,8 +646,6 @@ pub(crate) fn slo_annotations(slo: &Slo, tier: &BurnRateTier) -> BTreeMap<String
 /// `${...}` lookup. A key is omitted whenever its source number is `None`
 /// (rather than emitting a placeholder), so the renderer's own missing-key
 /// handling decides what shows up in the notification.
-// wired by the firing pipeline (Task 7); remove this allow once it lands.
-#[allow(dead_code)]
 pub(crate) fn slo_evidence(
     slo: &Slo,
     tf: &TierFiring,

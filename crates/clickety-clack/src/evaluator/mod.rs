@@ -158,7 +158,10 @@ async fn publish_health(store: &PgStore, events: &dyn EventBus, ev: Event, id: u
 }
 
 /// Select the outbox ids to delete: those at the indices that published successfully.
-fn published_outbox_ids(outbox_ids: &[uuid::Uuid], published: &[usize]) -> Vec<uuid::Uuid> {
+pub(crate) fn published_outbox_ids(
+    outbox_ids: &[uuid::Uuid],
+    published: &[usize],
+) -> Vec<uuid::Uuid> {
     published.iter().map(|&i| outbox_ids[i]).collect()
 }
 
