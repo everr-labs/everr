@@ -9,10 +9,11 @@
 
 use crate::clickhouse::{json_to_f64, RowQuerier};
 use crate::domain::rule::Severity;
-use crate::domain::slo::{canonical_tiers, parse_window_secs, Slo, SloSpec};
+use crate::domain::slo::{canonical_tiers, parse_window_secs, BurnRateTier, Slo, SloSpec};
 use crate::engine::slo_math::{
-    budget_remaining_fraction, burn_rate, empty_payload, is_window_due, required_windows,
-    SloGroupStatus, SloStatusPayload, SloTierStatus, WindowReq,
+    budget_remaining_fraction, burn_rate, empty_payload, fmt_burn, fmt_duration_secs, fmt_pct,
+    is_window_due, required_windows, time_to_exhaustion_secs, SloGroupStatus, SloStatusPayload,
+    SloTierStatus, WindowReq,
 };
 use crate::queue::{JobId, Queue, SloDelivery};
 use crate::stores::PgStore;
@@ -460,6 +461,89 @@ pub(crate) fn plan_tier_firing(spec: &SloSpec, payload: &SloStatusPayload) -> Ve
     out
 }
 
+/// Default notification annotations for one tier, overridden by
+/// `SloSpec.annotations`. Inserts the defaults first, then extends/overwrites
+/// with the spec's own annotations, so a spec key wins on collision and any
+/// unrelated spec keys pass through untouched.
+// wired by the firing pipeline (Task 7); remove this allow once it lands.
+#[allow(dead_code)]
+pub(crate) fn slo_annotations(slo: &Slo, tier: &BurnRateTier) -> BTreeMap<String, String> {
+    let mut out = BTreeMap::new();
+    out.insert(
+        "summary".to_string(),
+        format!(
+            "SLO {name}: {tier} burn — ${{burn_rate}}× over {long_window}",
+            name = slo.name,
+            tier = tier.name,
+            long_window = tier.long_window,
+        ),
+    );
+    out.insert(
+        "description".to_string(),
+        "Error budget remaining: ${budget_remaining}. Projected time to exhaustion: ${time_to_exhaustion}.".to_string(),
+    );
+    out.extend(slo.spec.annotations.clone());
+    out
+}
+
+/// Computed-key evidence for one planned firing, resolved by render's
+/// `${...}` lookup. A key is omitted whenever its source number is `None`
+/// (rather than emitting a placeholder), so the renderer's own missing-key
+/// handling decides what shows up in the notification.
+// wired by the firing pipeline (Task 7); remove this allow once it lands.
+#[allow(dead_code)]
+pub(crate) fn slo_evidence(
+    slo: &Slo,
+    tf: &TierFiring,
+    window_secs: u64,
+) -> BTreeMap<String, serde_json::Value> {
+    let mut out = BTreeMap::new();
+    if let Some(v) = tf.value {
+        out.insert(
+            "burn_rate".to_string(),
+            serde_json::Value::String(fmt_burn(v)),
+        );
+    }
+    if let Some(v) = tf.short_burn {
+        out.insert(
+            "short_burn_rate".to_string(),
+            serde_json::Value::String(fmt_burn(v)),
+        );
+    }
+    if let Some(v) = tf.budget_remaining {
+        out.insert(
+            "budget_remaining".to_string(),
+            serde_json::Value::String(fmt_pct(v)),
+        );
+    }
+    if let (Some(budget), Some(value)) = (tf.budget_remaining, tf.value) {
+        if let Some(secs) = time_to_exhaustion_secs(budget, value, window_secs) {
+            let s = if secs == 0 {
+                "exhausted".to_string()
+            } else {
+                fmt_duration_secs(secs)
+            };
+            out.insert(
+                "time_to_exhaustion".to_string(),
+                serde_json::Value::String(s),
+            );
+        }
+    }
+    out.insert(
+        "tier".to_string(),
+        serde_json::Value::String(tf.tier_name.clone()),
+    );
+    out.insert(
+        "objective".to_string(),
+        serde_json::Value::String(format!("{}%", slo.spec.target_percent)),
+    );
+    out.insert(
+        "slo_name".to_string(),
+        serde_json::Value::String(slo.name.clone()),
+    );
+    out
+}
+
 #[cfg(test)]
 mod tier_firing_tests {
     use super::*;
@@ -693,5 +777,158 @@ mod tier_firing_tests {
         let firings = plan_tier_firing(&spec, &payload);
         let fast = firings.iter().find(|f| f.tier_name == "fast-burn").unwrap();
         assert!(!fast.present); // strict >, not >=
+    }
+}
+
+#[cfg(test)]
+mod annotations_evidence_tests {
+    use super::*;
+    use crate::domain::ids::{SloId, TenantId};
+    use crate::domain::slo::{canonical_tiers, SliSpec, TimeWindow};
+
+    fn slo_named(name: &str, annotations: BTreeMap<String, String>) -> Slo {
+        Slo {
+            id: SloId(uuid::Uuid::nil()),
+            tenant: TenantId::from_trusted("test-tenant"),
+            name: name.to_string(),
+            spec: SloSpec {
+                sli: SliSpec {
+                    sql: "x".into(),
+                    label_columns: vec![],
+                },
+                target_percent: 99.9,
+                time_window: TimeWindow {
+                    duration: "30d".into(),
+                    is_rolling: true,
+                    calendar: None,
+                },
+                min_valid_events: None,
+                tiers: None,
+                annotations,
+                suppressed: false,
+            },
+            version: 1,
+            paused: false,
+        }
+    }
+
+    fn fast_burn_tier() -> BurnRateTier {
+        canonical_tiers().into_iter().next().unwrap() // fast-burn: long "1h"
+    }
+
+    fn firing_with(
+        value: Option<f64>,
+        short_burn: Option<f64>,
+        budget_remaining: Option<f64>,
+    ) -> TierFiring {
+        TierFiring {
+            labels: BTreeMap::new(),
+            tier_name: "fast-burn".into(),
+            present: true,
+            value,
+            severity: Severity::Critical,
+            short_burn,
+            budget_remaining,
+        }
+    }
+
+    #[test]
+    fn defaults_render_exact_summary_and_description() {
+        let slo = slo_named("checkout", BTreeMap::new());
+        let tier = fast_burn_tier();
+        let ann = slo_annotations(&slo, &tier);
+        assert_eq!(
+            ann.get("summary").map(String::as_str),
+            Some("SLO checkout: fast-burn burn — ${burn_rate}× over 1h")
+        );
+        assert_eq!(
+            ann.get("description").map(String::as_str),
+            Some(
+                "Error budget remaining: ${budget_remaining}. Projected time to exhaustion: ${time_to_exhaustion}."
+            )
+        );
+    }
+
+    #[test]
+    fn spec_annotation_overrides_default_and_passes_through_extra_keys() {
+        let mut spec_annotations = BTreeMap::new();
+        spec_annotations.insert("summary".to_string(), "custom".to_string());
+        spec_annotations.insert("team".to_string(), "checkout-oncall".to_string());
+        let slo = slo_named("checkout", spec_annotations);
+        let tier = fast_burn_tier();
+        let ann = slo_annotations(&slo, &tier);
+        assert_eq!(ann.get("summary").map(String::as_str), Some("custom"));
+        // description default is untouched since the spec didn't set it
+        assert!(ann.get("description").is_some());
+        assert_eq!(ann.get("team").map(String::as_str), Some("checkout-oncall"));
+    }
+
+    #[test]
+    fn evidence_keys_are_internally_consistent_with_the_pure_formatters() {
+        let slo = slo_named("checkout", BTreeMap::new());
+        let window_secs = 2_592_000u64; // 30d
+        let tf = firing_with(Some(14.4), Some(16.0), Some(0.5));
+        let evidence = slo_evidence(&slo, &tf, window_secs);
+
+        assert_eq!(
+            evidence.get("burn_rate"),
+            Some(&serde_json::Value::String("14.4".to_string()))
+        );
+        assert_eq!(
+            evidence.get("short_burn_rate"),
+            Some(&serde_json::Value::String("16.0".to_string()))
+        );
+        assert_eq!(
+            evidence.get("budget_remaining"),
+            Some(&serde_json::Value::String("50.0%".to_string()))
+        );
+
+        // Compute expected via the pure fns rather than hand-deriving the literal.
+        let expected_tte = time_to_exhaustion_secs(0.5, 14.4, window_secs)
+            .map(fmt_duration_secs)
+            .unwrap();
+        assert_eq!(
+            evidence.get("time_to_exhaustion"),
+            Some(&serde_json::Value::String(expected_tte))
+        );
+
+        assert_eq!(
+            evidence.get("tier"),
+            Some(&serde_json::Value::String("fast-burn".to_string()))
+        );
+        assert_eq!(
+            evidence.get("objective"),
+            Some(&serde_json::Value::String("99.9%".to_string()))
+        );
+        assert_eq!(
+            evidence.get("slo_name"),
+            Some(&serde_json::Value::String("checkout".to_string()))
+        );
+    }
+
+    #[test]
+    fn over_budget_time_to_exhaustion_is_exhausted() {
+        let slo = slo_named("checkout", BTreeMap::new());
+        let tf = firing_with(Some(2.0), Some(2.0), Some(-0.1));
+        let evidence = slo_evidence(&slo, &tf, 2_592_000);
+        assert_eq!(
+            evidence.get("time_to_exhaustion"),
+            Some(&serde_json::Value::String("exhausted".to_string()))
+        );
+    }
+
+    #[test]
+    fn missing_value_omits_burn_rate_and_time_to_exhaustion() {
+        let slo = slo_named("checkout", BTreeMap::new());
+        let tf = firing_with(None, Some(2.0), Some(0.5));
+        let evidence = slo_evidence(&slo, &tf, 2_592_000);
+        assert!(!evidence.contains_key("burn_rate"));
+        assert!(!evidence.contains_key("time_to_exhaustion"));
+        // unrelated keys are still present
+        assert!(evidence.contains_key("short_burn_rate"));
+        assert!(evidence.contains_key("budget_remaining"));
+        assert!(evidence.contains_key("tier"));
+        assert!(evidence.contains_key("objective"));
+        assert!(evidence.contains_key("slo_name"));
     }
 }
