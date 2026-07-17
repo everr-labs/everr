@@ -1,4 +1,4 @@
-use crate::queue::{Delivery, EvalJob, JobId, Queue, QueueError};
+use crate::queue::{Delivery, EvalJob, JobId, Queue, QueueError, SloDelivery, SloEvalJob};
 use async_trait::async_trait;
 use redis::aio::ConnectionManager;
 use redis::streams::{StreamReadOptions, StreamReadReply};
@@ -6,6 +6,8 @@ use redis::AsyncCommands;
 
 const STREAM: &str = "cc:eval:jobs";
 const GROUP: &str = "evaluators";
+const SLO_STREAM: &str = "cc:slo:jobs";
+const SLO_GROUP: &str = "slo-evaluators";
 
 pub struct RedisQueue {
     conn: ConnectionManager,
@@ -30,6 +32,16 @@ impl RedisQueue {
             .arg("CREATE")
             .arg(STREAM)
             .arg(GROUP)
+            .arg("$")
+            .arg("MKSTREAM")
+            .query_async(&mut conn)
+            .await;
+        // Same idempotent group-creation dance for the SLO stream (separate from the
+        // rule stream above).
+        let _: Result<(), redis::RedisError> = redis::cmd("XGROUP")
+            .arg("CREATE")
+            .arg(SLO_STREAM)
+            .arg(SLO_GROUP)
             .arg("$")
             .arg("MKSTREAM")
             .query_async(&mut conn)
@@ -98,6 +110,46 @@ impl Queue for RedisQueue {
     async fn ack(&self, id: &JobId) -> Result<(), QueueError> {
         let mut conn = self.conn.clone();
         let _: i64 = conn.xack(STREAM, GROUP, &[id.as_str()]).await?;
+        Ok(())
+    }
+
+    async fn enqueue_slo(&self, job: &SloEvalJob) -> Result<(), QueueError> {
+        let payload = serde_json::to_string(job)?;
+        let mut conn = self.conn.clone();
+        let _: String = conn.xadd(SLO_STREAM, "*", &[("job", payload)]).await?;
+        Ok(())
+    }
+
+    async fn consume_slo(
+        &self,
+        consumer: &str,
+        count: usize,
+        block_ms: usize,
+    ) -> Result<Vec<SloDelivery>, QueueError> {
+        let mut conn = self.conn.clone();
+        let opts = StreamReadOptions::default()
+            .group(SLO_GROUP, consumer)
+            .count(count)
+            .block(block_ms);
+        let reply: StreamReadReply = conn.xread_options(&[SLO_STREAM], &[">"], &opts).await?;
+        let mut out = Vec::new();
+        for key in reply.keys {
+            for entry in key.ids {
+                if let Some(redis::Value::BulkString(bytes)) = entry.map.get("job") {
+                    let job: SloEvalJob = serde_json::from_slice(bytes)?;
+                    out.push(SloDelivery {
+                        id: JobId(entry.id),
+                        job,
+                    });
+                }
+            }
+        }
+        Ok(out)
+    }
+
+    async fn ack_slo(&self, id: &JobId) -> Result<(), QueueError> {
+        let mut conn = self.conn.clone();
+        let _: i64 = conn.xack(SLO_STREAM, SLO_GROUP, &[id.as_str()]).await?;
         Ok(())
     }
 }

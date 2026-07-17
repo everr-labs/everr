@@ -4,3 +4,4 @@ mod conformance;
 mod event_bus_it;
 mod groups_it;
 mod redis_streams_it;
+mod slo_jobs_it;

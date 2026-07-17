@@ -2,7 +2,7 @@ pub mod event_bus;
 pub mod groups;
 pub mod redis_streams;
 
-use crate::domain::ids::{RuleId, TenantId};
+use crate::domain::ids::{RuleId, SloId, TenantId};
 use crate::domain::Event;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -76,6 +76,24 @@ pub struct Delivery {
     pub job: EvalJob,
 }
 
+/// One SLO evaluation job: evaluate `slo` as-of `eval_ts`. Travels on a separate
+/// queue (`cc:slo:jobs`) from rule `EvalJob`s so SLO evaluation never competes with
+/// (or is head-of-line blocked by) rule evaluation.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SloEvalJob {
+    pub tenant: TenantId,
+    pub slo: SloId,
+    #[serde(with = "time::serde::rfc3339")]
+    pub eval_ts: OffsetDateTime,
+}
+
+/// Opaque handle used to ack a consumed SLO job.
+#[derive(Debug, Clone)]
+pub struct SloDelivery {
+    pub id: JobId,
+    pub job: SloEvalJob,
+}
+
 /// Swappable transport for evaluation jobs. Redis Streams now, Kafka later.
 ///
 /// # Backend contract
@@ -84,6 +102,9 @@ pub struct Delivery {
 /// `consume` returns each job to exactly one consumer in the group until acked. Unacked
 /// jobs remain claimable for redelivery via a backend reclaim mechanism (Redis: the
 /// consumer-group PEL; reclaim wiring is future work). See `tests/conformance.rs`.
+///
+/// The `_slo` methods provide the same contract on a separate stream for SLO
+/// evaluation jobs, kept independent of the rule-evaluation stream above.
 #[async_trait]
 pub trait Queue: Send + Sync {
     async fn enqueue(&self, job: &EvalJob) -> Result<(), QueueError>;
@@ -95,6 +116,16 @@ pub trait Queue: Send + Sync {
         block_ms: usize,
     ) -> Result<Vec<Delivery>, QueueError>;
     async fn ack(&self, id: &JobId) -> Result<(), QueueError>;
+
+    async fn enqueue_slo(&self, job: &SloEvalJob) -> Result<(), QueueError>;
+    /// Read up to `count` SLO jobs for this consumer (blocking up to `block_ms`).
+    async fn consume_slo(
+        &self,
+        consumer: &str,
+        count: usize,
+        block_ms: usize,
+    ) -> Result<Vec<SloDelivery>, QueueError>;
+    async fn ack_slo(&self, id: &JobId) -> Result<(), QueueError>;
 }
 
 /// One event read from the event stream.
