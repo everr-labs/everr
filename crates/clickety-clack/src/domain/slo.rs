@@ -141,7 +141,8 @@ pub fn parse_window_secs(s: &str) -> Result<u64, WindowParseError> {
         "w" => 604_800,
         _ => return Err(WindowParseError(s.to_string())),
     };
-    Ok(n * mult)
+    n.checked_mul(mult)
+        .ok_or_else(|| WindowParseError(s.to_string()))
 }
 
 #[cfg(test)]
@@ -165,6 +166,7 @@ mod tests {
         assert!(parse_window_secs("abc").is_err());
         assert!(parse_window_secs("10").is_err()); // no unit
         assert!(parse_window_secs("0d").is_err()); // must be > 0
+        assert!(parse_window_secs("300000000000000000w").is_err()); // overflow -> Err, not panic/wrap
     }
 
     #[test]
