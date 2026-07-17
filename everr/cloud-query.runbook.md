@@ -16,7 +16,7 @@ The dominant `kind` names the cause:
 ref: error-kind-breakdown
 ```
 
-- `timeout` / `resource`: queries are too heavy (memory, or the 30s ClickHouse cap). Watch the latency panel below for a climb, and read the `tables` column above for the query involved. Often one tenant running an expensive query.
+- `timeout` / `resource`: queries are too heavy (memory, or the 30s ClickHouse cap). Watch the latency panel below for a climb, and use the `org` column above to see whether one tenant dominates. Often one tenant running an expensive query.
 - `network`: ClickHouse reachability. Check the ClickHouse ECONNRESET runbook and the ClickHouse service health.
 - `quota`: a tenant is exhausting its per-org quota bucket (`X-ClickHouse-Quota`). Confirm which `org` in the table above; the throttle is per-tenant, so this is contained.
 - `internal`: an unexpected exception in the request path, not a ClickHouse error. Open the trace and read the captured exception (`error.source`).

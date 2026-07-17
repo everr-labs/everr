@@ -171,8 +171,6 @@ spec:
                   query: |
                     SELECT formatDateTime(Timestamp, '%m-%d %H:%i:%S') AS time,
                            SpanAttributes['everr.org_id'] AS org,
-                           SpanAttributes['everr.cloud_query.tables'] AS tables,
-                           SpanAttributes['everr.cloud_query.attr_keys'] AS attr_keys,
                            round(Duration / 1e6, 0) AS duration_ms,
                            if(SpanAttributes['everr.cloud_query.outcome'] = '', 'unknown',
                               SpanAttributes['everr.cloud_query.outcome']) AS outcome,

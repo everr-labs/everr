@@ -1,9 +1,6 @@
 import { ClickHouseError } from "@clickhouse/client";
 import { describe, expect, it } from "vitest";
-import {
-  classifyCloudQueryError,
-  extractQueryShape,
-} from "@/lib/sql-api-observability";
+import { classifyCloudQueryError } from "@/lib/sql-api-observability";
 
 // The guard (when present) throws an Error named "SqlApiGuardError"; the
 // classifier matches on the name, so the test reproduces that shape directly.
@@ -82,34 +79,5 @@ describe("classifyCloudQueryError", () => {
       outcome: "system_error",
       kind: "internal",
     });
-  });
-});
-
-describe("extractQueryShape", () => {
-  it("extracts table names after FROM and JOIN", () => {
-    const { tables } = extractQueryShape(
-      "SELECT * FROM traces t JOIN logs l ON t.TraceId = l.TraceId",
-    );
-    expect(tables).toEqual(["traces", "logs"]);
-  });
-
-  it("extracts map-subscript keys but never array-literal values", () => {
-    const { attrKeys } = extractQueryShape(
-      "SELECT * FROM logs WHERE LogAttributes['user.email'] = 'alice@corp.com' " +
-        "AND ServiceName IN ['secret-service']",
-    );
-    expect(attrKeys).toEqual(["user.email"]);
-    // The literal value and the array-literal element must not appear anywhere.
-    expect(attrKeys).not.toContain("alice@corp.com");
-    expect(attrKeys).not.toContain("secret-service");
-  });
-
-  it("dedupes repeated tables and keys", () => {
-    const { tables, attrKeys } = extractQueryShape(
-      "SELECT SpanAttributes['k'], SpanAttributes['k'] FROM traces UNION ALL " +
-        "SELECT SpanAttributes['k'], SpanAttributes['k'] FROM traces",
-    );
-    expect(tables).toEqual(["traces"]);
-    expect(attrKeys).toEqual(["k"]);
   });
 });
