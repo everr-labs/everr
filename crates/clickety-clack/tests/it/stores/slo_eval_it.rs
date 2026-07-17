@@ -1,9 +1,10 @@
+use cc::domain::event::{EventKind, EventStatus};
 use cc::domain::ids::{SloId, TenantId};
 use cc::domain::slo::{SliSpec, SloSpec, TimeWindow};
 use cc::stores::{PgStore, SloCreate};
 use serde_json::json;
 use std::collections::BTreeMap;
-use time::OffsetDateTime;
+use time::{Duration, OffsetDateTime};
 
 fn tenant() -> TenantId {
     TenantId::from_trusted("acme")
@@ -61,16 +62,46 @@ async fn health_degrades_after_k_and_recovers() {
     let s = store().await;
     let id = make_slo(&s, "c").await;
     let now = OffsetDateTime::now_utc();
-    assert!(!s
-        .record_slo_failure(id, &tenant(), "boom", 2, now)
-        .await
-        .unwrap()); // 1st
     assert!(s
         .record_slo_failure(id, &tenant(), "boom", 2, now)
         .await
-        .unwrap()); // 2nd -> degraded
-    assert!(s.record_slo_success(id, &tenant(), now).await.unwrap()); // recovered
-    assert!(!s.record_slo_success(id, &tenant(), now).await.unwrap()); // already healthy
+        .unwrap()
+        .is_none()); // 1st
+
+    // 2nd -> degraded: a Firing/RuleHealth event with `slo` set, written to the outbox.
+    let (ev, outbox_id) = s
+        .record_slo_failure(id, &tenant(), "boom", 2, now)
+        .await
+        .unwrap()
+        .expect("crosses threshold");
+    assert_eq!(ev.kind, EventKind::RuleHealth);
+    assert_eq!(ev.slo, Some(id));
+    assert_eq!(ev.status, EventStatus::Firing);
+    let claimed = s
+        .claim_outbox(now + Duration::seconds(60), 10)
+        .await
+        .unwrap();
+    assert!(
+        claimed.iter().any(|(oid, _)| *oid == outbox_id),
+        "degrade event present in outbox"
+    );
+
+    // Recovers: a Resolved/RuleHealth event with `slo` set.
+    let (ev, _id) = s
+        .record_slo_success(id, &tenant(), now)
+        .await
+        .unwrap()
+        .expect("recovers from degraded");
+    assert_eq!(ev.kind, EventKind::RuleHealth);
+    assert_eq!(ev.slo, Some(id));
+    assert_eq!(ev.status, EventStatus::Resolved);
+
+    // Already healthy: no further transition.
+    assert!(s
+        .record_slo_success(id, &tenant(), now)
+        .await
+        .unwrap()
+        .is_none());
 }
 
 #[tokio::test]

@@ -146,7 +146,12 @@ pub async fn run_evaluator(
 
 /// Publish a rule-health event written to the outbox in `record_rule_*`, deleting the row
 /// on success. A failed publish leaves the row for the maintenance relay (exactly-once).
-async fn publish_health(store: &PgStore, events: &dyn EventBus, ev: Event, id: uuid::Uuid) {
+pub(crate) async fn publish_health(
+    store: &PgStore,
+    events: &dyn EventBus,
+    ev: Event,
+    id: uuid::Uuid,
+) {
     match events.publish(&ev).await {
         Ok(()) => {
             if let Err(e) = store.delete_outbox(id).await {

@@ -58,6 +58,7 @@ async fn status_404_then_returns_snapshot() {
         .await
         .unwrap();
     let r = router
+        .clone()
         .oneshot(
             Request::get(format!("/v1/slos/{id}/status"))
                 .header("X-CC-Tenant", TENANT)
@@ -70,4 +71,33 @@ async fn status_404_then_returns_snapshot() {
     let b = body_json(r).await;
     assert_eq!(b["payload"]["window"], "30d");
     assert!(b["computed_at"].as_str().is_some());
+    assert_eq!(b["health"]["status"], "healthy");
+    assert!(b["health"]["degraded_since"].is_null());
+    assert!(b["health"]["last_error"].is_null());
+
+    // Degrade the SLO (threshold 1) and confirm the sibling `health` object reflects it.
+    store
+        .record_slo_failure(
+            cc::domain::ids::SloId(id.parse().unwrap()),
+            &cc::domain::ids::TenantId::from_trusted(TENANT),
+            "boom",
+            1,
+            time::OffsetDateTime::now_utc(),
+        )
+        .await
+        .unwrap();
+    let r = router
+        .oneshot(
+            Request::get(format!("/v1/slos/{id}/status"))
+                .header("X-CC-Tenant", TENANT)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(r.status(), StatusCode::OK);
+    let b = body_json(r).await;
+    assert_eq!(b["health"]["status"], "degraded");
+    assert_eq!(b["health"]["last_error"], "boom");
+    assert!(b["health"]["degraded_since"].as_str().is_some());
 }

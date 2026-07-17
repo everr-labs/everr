@@ -20,7 +20,7 @@ use crate::engine::slo_math::{
     SloTierStatus, WindowReq,
 };
 use crate::engine::{evaluate, EvalInput};
-use crate::evaluator::published_outbox_ids;
+use crate::evaluator::{publish_health, published_outbox_ids};
 use crate::queue::{EventBus, JobId, Queue, SloDelivery};
 use crate::stores::PgStore;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -172,7 +172,7 @@ pub async fn evaluate_slo(
         {
             Some(t) => t,
             None => {
-                store
+                if let Some((ev, id)) = store
                     .record_slo_failure(
                         slo.id,
                         &slo.tenant,
@@ -180,7 +180,10 @@ pub async fn evaluate_slo(
                         degrade_after,
                         eval_ts,
                     )
-                    .await?;
+                    .await?
+                {
+                    publish_health(store, events, ev, id).await;
+                }
                 return Ok(());
             }
         };
@@ -200,9 +203,12 @@ pub async fn evaluate_slo(
         {
             Ok(rows) => rows,
             Err(e) => {
-                store
+                if let Some((ev, id)) = store
                     .record_slo_failure(slo.id, &slo.tenant, &e.to_string(), degrade_after, eval_ts)
-                    .await?;
+                    .await?
+                {
+                    publish_health(store, events, ev, id).await;
+                }
                 return Ok(());
             }
         };
@@ -217,9 +223,12 @@ pub async fn evaluate_slo(
 
     // Every due window's query succeeded: record success (recovers a degraded SLO)
     // before building and persisting the new snapshot.
-    store
+    if let Some((ev, id)) = store
         .record_slo_success(slo.id, &slo.tenant, eval_ts)
-        .await?;
+        .await?
+    {
+        publish_health(store, events, ev, id).await;
+    }
 
     let due_names: BTreeSet<&str> = due_windows.iter().map(|w| w.name.as_str()).collect();
     let tiers = slo.spec.tiers.clone().unwrap_or_else(canonical_tiers);

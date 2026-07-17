@@ -329,3 +329,37 @@ async fn freeze_on_error_freezes_instances() {
         "the frozen tick must not touch the seeded instance's last_seen"
     );
 }
+
+/// A query error crossing `degrade_after` publishes an `SloHealth` (wire: `RuleHealth`)
+/// event with `slo` set on the bus, mirroring the rule evaluator's health-event path.
+#[tokio::test]
+async fn erroring_slo_publishes_health_event() {
+    let store = pg().await;
+    let bus = redis_bus().await;
+    let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
+    let SloCreate::Created(slo) = store
+        .create_slo(tenant.clone(), "checkout", &spec(false))
+        .await
+        .unwrap()
+    else {
+        panic!("slo creation must succeed against a fresh tenant")
+    };
+
+    cc::evaluator::slo::evaluate_slo(&store, &ErrCh, &bus, &slo, OffsetDateTime::now_utc(), 30, 1)
+        .await
+        .unwrap();
+
+    let got = bus.consume("slo-health", 10, 1000).await.unwrap();
+    assert_eq!(got.len(), 1, "one degrade health event: {got:?}");
+    let ev = &got[0].event;
+    assert_eq!(ev.kind, EventKind::RuleHealth);
+    assert_eq!(ev.slo, Some(slo.id));
+    assert_eq!(ev.status, EventStatus::Firing);
+    assert!(
+        ev.annotations
+            .get("summary")
+            .expect("summary annotation present")
+            .contains("degraded"),
+        "{ev:?}"
+    );
+}

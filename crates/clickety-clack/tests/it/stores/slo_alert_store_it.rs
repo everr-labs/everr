@@ -132,7 +132,8 @@ async fn stale_scan_excludes_paused_and_degraded() {
     assert!(s
         .record_slo_failure(degraded_slo, &t, "boom", 1, now)
         .await
-        .unwrap());
+        .unwrap()
+        .is_some());
 
     let old = now - Duration::hours(1);
     for slo_id in [healthy_slo, paused_slo, degraded_slo] {

@@ -127,6 +127,16 @@ pub struct SloStatusRow {
     pub computed_at: OffsetDateTime,
 }
 
+/// SLO health, as read by [`PgStore::get_slo_health`]. Lean sibling of [`RuleHealth`]
+/// (no `consecutive_failures`/`last_error_at`, which the `/status` health object doesn't
+/// surface) for the `/v1/slos/:id/status` response.
+#[derive(Debug, Clone)]
+pub struct SloHealth {
+    pub status: String,
+    pub degraded_since: Option<OffsetDateTime>,
+    pub last_error: Option<String>,
+}
+
 fn status_str(s: Status) -> &'static str {
     match s {
         Status::Inactive => "inactive",
@@ -1014,10 +1024,17 @@ impl PgStore {
         Ok(())
     }
 
+    /// Union of rule-side and SLO-side (burn-rate) firing/pending alerts. SLO rows surface
+    /// the SLO uuid in `InstanceState.rule` (see [`row_to_slo_instance`]) and carry the
+    /// `slo_tier` label; the `ORDER BY` applies to the combined result set.
     pub async fn list_alerts(&self, tenant: TenantId) -> Result<Vec<InstanceState>, StoreError> {
         let rows = sqlx::query(
             "SELECT key, rule, tenant, status, labels, value, active_since, last_seen, absent_count
-             FROM instances WHERE tenant=$1 AND status != 'inactive' ORDER BY active_since DESC",
+             FROM instances WHERE tenant=$1 AND status != 'inactive'
+             UNION ALL
+             SELECT key, slo AS rule, tenant, status, labels, value, active_since, last_seen, absent_count
+             FROM slo_instances WHERE tenant=$1 AND status != 'inactive'
+             ORDER BY active_since DESC",
         )
         .bind(tenant.as_str())
         .fetch_all(&self.pool)
@@ -2366,10 +2383,9 @@ impl PgStore {
     // ---- slo evaluation: health ----
 
     /// Record a query failure for `slo`: bump the consecutive-failure counter and store the
-    /// error. If this crosses `degrade_after` from a healthy state, flip to degraded.
-    /// Unlike [`Self::record_rule_failure`], this only records state — no outbox event is
-    /// written (SLO health notifications are a later plan). Returns `true` iff this call
-    /// just transitioned the SLO into `degraded`.
+    /// error. If this crosses `degrade_after` from a healthy state, flip to degraded and write
+    /// an `SloHealth`/`Firing` event to the outbox in the same transaction, mirroring
+    /// [`Self::record_rule_failure`]. Returns the event + outbox id to publish, or `None`.
     pub async fn record_slo_failure(
         &self,
         slo: crate::domain::ids::SloId,
@@ -2377,7 +2393,7 @@ impl PgStore {
         err: &str,
         degrade_after: u32,
         now: OffsetDateTime,
-    ) -> Result<bool, StoreError> {
+    ) -> Result<Option<(Event, Uuid)>, StoreError> {
         let mut tx = self.pool.begin().await?;
         let row = sqlx::query(
             "SELECT health_status, consecutive_failures FROM slos WHERE id=$1 AND tenant=$2 FOR UPDATE",
@@ -2388,7 +2404,7 @@ impl PgStore {
         .await?;
         let Some(row) = row else {
             tx.rollback().await?;
-            return Ok(false);
+            return Ok(None);
         };
         let was: String = row.get("health_status");
         let n: i32 = row.get::<i32, _>("consecutive_failures") + 1;
@@ -2409,29 +2425,105 @@ impl PgStore {
         .bind(transitioned)
         .execute(&mut *tx)
         .await?;
+
+        if transitioned {
+            let mut ann = BTreeMap::new();
+            ann.insert(
+                "summary".to_string(),
+                format!("SLO {} degraded: {}", slo.0, err),
+            );
+            ann.insert("last_error".to_string(), err.to_string());
+            let ev = Event::slo_health(tenant.clone(), slo, EventStatus::Firing, ann, now);
+            let id = Uuid::new_v4();
+            let payload = serde_json::to_value(&ev)?;
+            sqlx::query("INSERT INTO event_outbox (id, tenant, payload) VALUES ($1,$2,$3)")
+                .bind(id)
+                .bind(tenant.as_str())
+                .bind(&payload)
+                .execute(&mut *tx)
+                .await?;
+            tx.commit().await?;
+            return Ok(Some((ev, id)));
+        }
+
         tx.commit().await?;
-        Ok(transitioned)
+        Ok(None)
     }
 
     /// Record a query success for `slo`: reset the failure counter and clear the stored
-    /// error. If the SLO was degraded, flip to healthy. Returns `true` iff this call just
-    /// recovered the SLO (was degraded, now healthy).
+    /// error. If the SLO was degraded, flip to healthy and write an `SloHealth`/`Resolved`
+    /// event to the outbox in the same transaction, mirroring [`Self::record_rule_success`].
+    /// Returns the recovery event + outbox id, or `None`.
     pub async fn record_slo_success(
         &self,
         slo: crate::domain::ids::SloId,
         tenant: &TenantId,
         now: OffsetDateTime,
-    ) -> Result<bool, StoreError> {
-        let _ = now;
-        let res = sqlx::query(
-            "UPDATE slos SET consecutive_failures=0, last_error=NULL, degraded_since=NULL, health_status='healthy'
-             WHERE id=$1 AND tenant=$2 AND health_status='degraded'",
+    ) -> Result<Option<(Event, Uuid)>, StoreError> {
+        let mut tx = self.pool.begin().await?;
+        let row = sqlx::query(
+            "UPDATE slos SET consecutive_failures=0, last_error=NULL, last_error_at=NULL
+              WHERE id = $1 AND tenant = $2
+                AND (consecutive_failures <> 0 OR last_error IS NOT NULL OR health_status <> 'healthy')
+            RETURNING health_status",
         )
         .bind(slo.0)
         .bind(tenant.as_str())
-        .execute(&self.pool)
+        .fetch_optional(&mut *tx)
         .await?;
-        Ok(res.rows_affected() == 1)
+
+        let Some(row) = row else {
+            tx.commit().await?;
+            return Ok(None);
+        };
+        let status: String = row.get("health_status");
+
+        if status == "degraded" {
+            sqlx::query(
+                "UPDATE slos SET health_status='healthy', degraded_since=NULL WHERE id=$1 AND tenant=$2",
+            )
+            .bind(slo.0)
+            .bind(tenant.as_str())
+            .execute(&mut *tx)
+            .await?;
+            let mut ann = BTreeMap::new();
+            ann.insert("summary".to_string(), format!("SLO {} recovered", slo.0));
+            let ev = Event::slo_health(tenant.clone(), slo, EventStatus::Resolved, ann, now);
+            let id = Uuid::new_v4();
+            let payload = serde_json::to_value(&ev)?;
+            sqlx::query("INSERT INTO event_outbox (id, tenant, payload) VALUES ($1,$2,$3)")
+                .bind(id)
+                .bind(tenant.as_str())
+                .bind(&payload)
+                .execute(&mut *tx)
+                .await?;
+            tx.commit().await?;
+            return Ok(Some((ev, id)));
+        }
+
+        tx.commit().await?;
+        Ok(None)
+    }
+
+    /// Lean health read for the `/v1/slos/:id/status` response's `health` sibling field.
+    /// `None` iff the SLO doesn't exist for this tenant.
+    pub async fn get_slo_health(
+        &self,
+        tenant: &TenantId,
+        slo: crate::domain::ids::SloId,
+    ) -> Result<Option<SloHealth>, StoreError> {
+        let row = sqlx::query(
+            "SELECT health_status, degraded_since, last_error FROM slos WHERE id=$1 AND tenant=$2",
+        )
+        .bind(slo.0)
+        .bind(tenant.as_str())
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row.map(|r| SloHealth {
+            status: r.get("health_status"),
+            degraded_since: r.get("degraded_since"),
+            last_error: r.get("last_error"),
+        }))
     }
 
     // ---- slo evaluation: status snapshot ----

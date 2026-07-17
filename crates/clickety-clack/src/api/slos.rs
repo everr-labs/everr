@@ -177,12 +177,33 @@ pub async fn resume(
 
 /// Read-only view of the evaluator's latest status snapshot for an SLO
 /// (the `slo_status` row, see [`crate::stores::pg::SloStatusRow`]), returned
-/// verbatim: no derived/filtered fields are added here.
+/// verbatim: no derived/filtered fields are added here. `health` is a sibling
+/// read from the `slos` row itself (see [`crate::stores::SloHealth`]).
 #[derive(serde::Serialize)]
 pub struct SloStatusOut {
     #[serde(with = "time::serde::rfc3339")]
     pub computed_at: time::OffsetDateTime,
     pub payload: Value,
+    pub health: SloHealthOut,
+}
+
+/// Serializable view of [`crate::stores::SloHealth`].
+#[derive(serde::Serialize)]
+pub struct SloHealthOut {
+    pub status: String,
+    #[serde(with = "time::serde::rfc3339::option")]
+    pub degraded_since: Option<time::OffsetDateTime>,
+    pub last_error: Option<String>,
+}
+
+impl From<crate::stores::SloHealth> for SloHealthOut {
+    fn from(h: crate::stores::SloHealth) -> Self {
+        SloHealthOut {
+            status: h.status,
+            degraded_since: h.degraded_since,
+            last_error: h.last_error,
+        }
+    }
 }
 
 /// `POST /v1/slos/:id/test`: a dry-run probe (`:id` is ignored, like
@@ -258,9 +279,18 @@ pub async fn status(
         .await
         .map_err(|e| ApiError::Internal(e.to_string()))?
         .ok_or(ApiError::NotFound)?;
+    // 404 stays keyed on the snapshot row above; health is fetched only once the SLO
+    // is known to exist (the snapshot query already guarantees that in practice).
+    let health = state
+        .store
+        .get_slo_health(&t, SloId(id))
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?
+        .ok_or(ApiError::NotFound)?;
     Ok(Json(SloStatusOut {
         computed_at: row.computed_at,
         payload: row.payload,
+        health: health.into(),
     }))
 }
 

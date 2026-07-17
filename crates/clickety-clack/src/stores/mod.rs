@@ -3,6 +3,6 @@ pub mod pg;
 
 pub use lease::RedisLease;
 pub use pg::{
-    ChannelDelete, EvalCadence, PgStore, RulePageKey, RuleUpdate, SloCreate, SloStatusRow,
-    SloUpdate, StoreError,
+    ChannelDelete, EvalCadence, PgStore, RulePageKey, RuleUpdate, SloCreate, SloHealth,
+    SloStatusRow, SloUpdate, StoreError,
 };

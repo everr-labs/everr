@@ -117,6 +117,24 @@ impl Event {
             evidence_truncated: false,
         }
     }
+
+    /// Build an SLO-health event. Delegates to [`Self::rule_health`] (same instance key,
+    /// severity, and dedup pairing) then stamps `slo` so consumers that care can
+    /// distinguish an SLO health notification from a rule one.
+    ///
+    /// Reuses `EventKind::RuleHealth` on the wire: adding a kind variant breaks older
+    /// deserializers mid-rolling-upgrade. The slo field/label distinguishes.
+    pub fn slo_health(
+        tenant: TenantId,
+        slo: crate::domain::ids::SloId,
+        status: EventStatus,
+        annotations: BTreeMap<String, String>,
+        eval_ts: OffsetDateTime,
+    ) -> Self {
+        let mut ev = Self::rule_health(tenant, RuleId(slo.0), status, annotations, eval_ts);
+        ev.slo = Some(slo);
+        ev
+    }
 }
 
 #[cfg(test)]
