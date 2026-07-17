@@ -17,6 +17,41 @@ pub enum ChError {
     Json(#[from] serde_json::Error),
 }
 
+/// Percent-encode a query parameter value (RFC 3986 unreserved kept; everything
+/// else -> %XX). Small and dependency-free; ClickHouse param values are short.
+fn encode_param(v: &str) -> String {
+    let mut out = String::with_capacity(v.len());
+    for b in v.bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(b as char)
+            }
+            _ => out.push_str(&format!("%{b:02X}")),
+        }
+    }
+    out
+}
+
+/// Append ClickHouse named query parameters (`param_<name>=<value>`) to a URL.
+pub fn build_query_url(base_url: &str, params: &[(String, String)]) -> String {
+    if params.is_empty() {
+        return base_url.to_string();
+    }
+    let sep = if base_url.contains('?') { '&' } else { '?' };
+    let mut url = String::from(base_url);
+    url.push(sep);
+    for (i, (k, v)) in params.iter().enumerate() {
+        if i > 0 {
+            url.push('&');
+        }
+        url.push_str("param_");
+        url.push_str(k);
+        url.push('=');
+        url.push_str(&encode_param(v));
+    }
+    url
+}
+
 impl From<reqwest::Error> for ChError {
     /// `without_url()` drops the request URL (which may embed `user:pass@host`) so a
     /// transport error can never carry credentials into a stored `last_error`.
@@ -76,9 +111,24 @@ impl ChClient {
         label_columns: &[String],
         value_column: Option<&str>,
     ) -> Result<Vec<ResultRow>, ChError> {
+        self.query_rows_params(tenant, sql, &[], label_columns, value_column)
+            .await
+    }
+
+    /// Like `query_rows`, but binds `params` as ClickHouse named query parameters
+    /// (`{name:Type}` placeholders in `sql`), sent as `param_<name>=<value>` query-string
+    /// entries per ClickHouse's HTTP interface.
+    pub async fn query_rows_params(
+        &self,
+        tenant: &TenantId,
+        sql: &str,
+        params: &[(String, String)],
+        label_columns: &[String],
+        value_column: Option<&str>,
+    ) -> Result<Vec<ResultRow>, ChError> {
         let started = std::time::Instant::now();
         let result = self
-            .query_rows_inner(tenant, sql, label_columns, value_column)
+            .query_rows_inner(tenant, sql, params, label_columns, value_column)
             .await;
         let outcome = match &result {
             Ok(_) => crate::otel::metrics::QueryOutcome::Success,
@@ -93,6 +143,7 @@ impl ChClient {
         &self,
         tenant: &TenantId,
         sql: &str,
+        params: &[(String, String)],
         label_columns: &[String],
         value_column: Option<&str>,
     ) -> Result<Vec<ResultRow>, ChError> {
@@ -106,9 +157,10 @@ impl ChClient {
             settings.push_str(&format!(", {k}={v}"));
         }
         let wrapped = format!("{sql} FORMAT JSONEachRow");
+        let url = build_query_url(&self.base_url, params);
         let mut req = self
             .http
-            .post(&self.base_url)
+            .post(url)
             .header("X-ClickHouse-User", &auth.user)
             .header("X-ClickHouse-Key", &auth.key)
             .header("X-ClickHouse-Settings", settings)
@@ -166,20 +218,17 @@ pub fn parse_rows(
 /// can be asserted without a live ClickHouse.
 #[async_trait]
 pub trait RowQuerier: Send + Sync {
-    async fn query_rows(
+    /// Bind `params` as ClickHouse named query parameters. Implementors that don't need
+    /// binding (e.g. test doubles) may ignore `params`.
+    async fn query_rows_params(
         &self,
         tenant: &TenantId,
         sql: &str,
+        params: &[(String, String)],
         label_columns: &[String],
         value_column: Option<&str>,
     ) -> Result<Vec<ResultRow>, ChError>;
 
-    /// Coalescing identity for `tenant` — equal identity ⇒ shareable round-trip.
-    fn auth_identity(&self, tenant: &TenantId) -> AuthIdentity;
-}
-
-#[async_trait]
-impl RowQuerier for ChClient {
     async fn query_rows(
         &self,
         tenant: &TenantId,
@@ -187,7 +236,25 @@ impl RowQuerier for ChClient {
         label_columns: &[String],
         value_column: Option<&str>,
     ) -> Result<Vec<ResultRow>, ChError> {
-        ChClient::query_rows(self, tenant, sql, label_columns, value_column).await
+        self.query_rows_params(tenant, sql, &[], label_columns, value_column)
+            .await
+    }
+
+    /// Coalescing identity for `tenant` — equal identity ⇒ shareable round-trip.
+    fn auth_identity(&self, tenant: &TenantId) -> AuthIdentity;
+}
+
+#[async_trait]
+impl RowQuerier for ChClient {
+    async fn query_rows_params(
+        &self,
+        tenant: &TenantId,
+        sql: &str,
+        params: &[(String, String)],
+        label_columns: &[String],
+        value_column: Option<&str>,
+    ) -> Result<Vec<ResultRow>, ChError> {
+        ChClient::query_rows_params(self, tenant, sql, params, label_columns, value_column).await
     }
 
     fn auth_identity(&self, tenant: &TenantId) -> AuthIdentity {
@@ -207,6 +274,37 @@ fn json_to_f64(v: &serde_json::Value) -> Option<f64> {
         serde_json::Value::Number(n) => n.as_f64(),
         serde_json::Value::String(s) => s.parse().ok(),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn build_query_url_appends_ch_params() {
+        // no params -> unchanged
+        assert_eq!(build_query_url("http://ch:8123/", &[]), "http://ch:8123/");
+        // params become ?param_<name>=<urlencoded>
+        let url = build_query_url(
+            "http://ch:8123/",
+            &[("window_start".into(), "2026-07-17 00:00:00".into())],
+        );
+        assert_eq!(
+            url,
+            "http://ch:8123/?param_window_start=2026-07-17%2000%3A00%3A00"
+        );
+        // multiple params joined with &, order preserved
+        let url = build_query_url(
+            "http://ch:8123/",
+            &[("a".into(), "1".into()), ("b".into(), "x/y".into())],
+        );
+        assert_eq!(url, "http://ch:8123/?param_a=1&param_b=x%2Fy");
+        // a base that already has a query string uses & as the separator
+        assert_eq!(
+            build_query_url("http://ch:8123/?database=d", &[("a".into(), "1".into())]),
+            "http://ch:8123/?database=d&param_a=1",
+        );
     }
 }
 
