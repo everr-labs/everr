@@ -1,5 +1,179 @@
+use axum::extract::{Path, State};
+use axum::http::HeaderMap;
+use axum::Json;
+use serde::Deserialize;
+use serde_json::{json, Value};
+use uuid::Uuid;
+
 use crate::api::error::ApiError;
-use crate::domain::slo::{parse_window_secs, SloSpec};
+use crate::api::AppState;
+use crate::domain::ids::SloId;
+use crate::domain::slo::{parse_window_secs, Slo, SloSpec};
+use crate::stores::{SloCreate, SloUpdate};
+
+fn tenant(state: &AppState, headers: &HeaderMap) -> Result<crate::domain::ids::TenantId, ApiError> {
+    state
+        .auth
+        .tenant_from(headers)
+        .ok_or(ApiError::Unauthorized)
+}
+
+#[derive(Deserialize)]
+pub struct CreateSloBody {
+    pub name: String,
+    #[serde(flatten)]
+    pub spec: SloSpec,
+}
+
+#[derive(Deserialize)]
+pub struct UpdateSloBody {
+    pub name: String,
+    #[serde(flatten)]
+    pub spec: SloSpec,
+    pub version: Option<i64>,
+}
+
+pub async fn create(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(body): Json<CreateSloBody>,
+) -> Result<Json<Slo>, ApiError> {
+    let t = tenant(&state, &headers)?;
+    validate_name(&body.name)?;
+    validate_slo_spec(&body.spec)?;
+    match state
+        .store
+        .create_slo(t, &body.name, &body.spec)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?
+    {
+        SloCreate::Created(slo) => Ok(Json(slo)),
+        SloCreate::NameConflict => Err(ApiError::Conflict(format!(
+            "SLO name {:?} already exists",
+            body.name
+        ))),
+    }
+}
+
+pub async fn get(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Slo>, ApiError> {
+    let t = tenant(&state, &headers)?;
+    state
+        .store
+        .get_slo(t, SloId(id))
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?
+        .map(Json)
+        .ok_or(ApiError::NotFound)
+}
+
+pub async fn list(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<Slo>>, ApiError> {
+    let t = tenant(&state, &headers)?;
+    let slos = state
+        .store
+        .list_slos(&t)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    Ok(Json(slos))
+}
+
+pub async fn update(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+    Json(body): Json<UpdateSloBody>,
+) -> Result<Json<Slo>, ApiError> {
+    let t = tenant(&state, &headers)?;
+    validate_name(&body.name)?;
+    validate_slo_spec(&body.spec)?;
+    let outcome = state
+        .store
+        .update_slo(t, SloId(id), &body.name, &body.spec, body.version)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    match outcome {
+        SloUpdate::Updated(slo) => Ok(Json(slo)),
+        SloUpdate::NotFound => Err(ApiError::NotFound),
+        SloUpdate::VersionConflict { current } => Err(ApiError::Conflict(format!(
+            "slo version mismatch: expected {}, current {current}",
+            body.version.unwrap_or_default()
+        ))),
+        SloUpdate::NameConflict => Err(ApiError::Conflict(format!(
+            "SLO name {:?} already exists",
+            body.name
+        ))),
+    }
+}
+
+pub async fn delete(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Value>, ApiError> {
+    let t = tenant(&state, &headers)?;
+    let ok = state
+        .store
+        .delete_slo(t, SloId(id))
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    if ok {
+        Ok(Json(json!({ "deleted": true })))
+    } else {
+        Err(ApiError::NotFound)
+    }
+}
+
+pub async fn pause(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Slo>, ApiError> {
+    let t = tenant(&state, &headers)?;
+    let ok = state
+        .store
+        .pause_slo(t.clone(), SloId(id))
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    if !ok {
+        return Err(ApiError::NotFound);
+    }
+    state
+        .store
+        .get_slo(t, SloId(id))
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?
+        .map(Json)
+        .ok_or(ApiError::NotFound)
+}
+
+pub async fn resume(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Slo>, ApiError> {
+    let t = tenant(&state, &headers)?;
+    let ok = state
+        .store
+        .resume_slo(t.clone(), SloId(id))
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    if !ok {
+        return Err(ApiError::NotFound);
+    }
+    state
+        .store
+        .get_slo(t, SloId(id))
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?
+        .map(Json)
+        .ok_or(ApiError::NotFound)
+}
 
 /// Replace each ClickHouse-native `{name:Type}` query parameter with a
 /// harmless numeric literal. `sqlguard::validate` parses SQL with
@@ -28,8 +202,6 @@ fn strip_ch_params(sql: &str) -> String {
 
 /// Static validation for an SLO spec — never touches ClickHouse. Column
 /// presence (`good`/`valid`) is validated at evaluation/test time (Plan 2).
-// `allow(dead_code)`: callers are the HTTP handlers added in Task 4; remove then.
-#[allow(dead_code)]
 pub(crate) fn validate_slo_spec(spec: &SloSpec) -> Result<(), ApiError> {
     // 1. SLI SQL must be a single read-only SELECT.
     crate::sqlguard::validate(&strip_ch_params(&spec.sli.sql))
@@ -107,8 +279,6 @@ pub(crate) fn validate_slo_spec(spec: &SloSpec) -> Result<(), ApiError> {
 }
 
 /// A tenant-unique SLO name: 1..=128 chars, `[A-Za-z0-9_.-]`.
-// `allow(dead_code)`: callers are the HTTP handlers added in Task 4; remove then.
-#[allow(dead_code)]
 pub(crate) fn validate_name(name: &str) -> Result<(), ApiError> {
     let ok = (1..=128).contains(&name.len())
         && name

@@ -65,6 +65,13 @@ pub fn build_supervised_router(
         .route("/v1/rules/:id/test", post(rules::test))
         .route("/v1/rules/:id/pause", post(rules::pause))
         .route("/v1/rules/:id/resume", post(rules::resume))
+        .route("/v1/slos", post(slos::create).get(slos::list))
+        .route(
+            "/v1/slos/:id",
+            get(slos::get).put(slos::update).delete(slos::delete),
+        )
+        .route("/v1/slos/:id/pause", post(slos::pause))
+        .route("/v1/slos/:id/resume", post(slos::resume))
         .route("/v1/alerts", get(alerts::list))
         .route(
             "/v1/subscriptions",
