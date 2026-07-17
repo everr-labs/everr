@@ -28,7 +28,9 @@ fn strip_ch_params(sql: &str) -> String {
 
 /// Static validation for an SLO spec — never touches ClickHouse. Column
 /// presence (`good`/`valid`) is validated at evaluation/test time (Plan 2).
-pub fn validate_slo_spec(spec: &SloSpec) -> Result<(), ApiError> {
+// `allow(dead_code)`: callers are the HTTP handlers added in Task 4; remove then.
+#[allow(dead_code)]
+pub(crate) fn validate_slo_spec(spec: &SloSpec) -> Result<(), ApiError> {
     // 1. SLI SQL must be a single read-only SELECT.
     crate::sqlguard::validate(&strip_ch_params(&spec.sli.sql))
         .map_err(|e| ApiError::Validation(e.to_string()))?;
@@ -105,7 +107,9 @@ pub fn validate_slo_spec(spec: &SloSpec) -> Result<(), ApiError> {
 }
 
 /// A tenant-unique SLO name: 1..=128 chars, `[A-Za-z0-9_.-]`.
-pub fn validate_name(name: &str) -> Result<(), ApiError> {
+// `allow(dead_code)`: callers are the HTTP handlers added in Task 4; remove then.
+#[allow(dead_code)]
+pub(crate) fn validate_name(name: &str) -> Result<(), ApiError> {
     let ok = (1..=128).contains(&name.len())
         && name
             .chars()
@@ -124,6 +128,34 @@ mod tests {
     use super::*;
     use crate::domain::slo::{canonical_tiers, SliSpec, TimeWindow};
     use std::collections::BTreeMap;
+
+    #[test]
+    fn strip_ch_params_replaces_balanced_spans_with_zero() {
+        assert_eq!(
+            strip_ch_params("SELECT {window_start:DateTime}"),
+            "SELECT 0"
+        );
+        assert_eq!(strip_ch_params("{a:Int}-{b:Int}"), "0-0"); // multiple/adjacent
+        assert_eq!(strip_ch_params("{}"), "0"); // empty braces
+        assert_eq!(strip_ch_params("no params here"), "no params here");
+    }
+
+    #[test]
+    fn strip_ch_params_fails_safe_on_unmatched_brace() {
+        // An unmatched trailing '{' is left intact, so sqlguard::validate will
+        // fail to parse it -> reject, never silently smuggle.
+        assert_eq!(strip_ch_params("SELECT {a"), "SELECT {a");
+        let s = spec("SELECT 1 AS good, 1 AS valid FROM t WHERE ts >= {window_start:DateTime} AND ts < {window_end");
+        assert!(validate_slo_spec(&s).is_err());
+    }
+
+    #[test]
+    fn strip_ch_params_does_not_let_a_second_statement_through_the_guard() {
+        // Content inside a brace pair is nulled to "0" for the shape check;
+        // a top-level ';' second statement outside braces is still rejected.
+        let s = spec("SELECT 1 AS good, 1 AS valid FROM t WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}; DROP TABLE t");
+        assert!(validate_slo_spec(&s).is_err());
+    }
 
     fn spec(sql: &str) -> SloSpec {
         SloSpec {
