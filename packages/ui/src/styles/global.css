@@ -1,11 +1,10 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "@fontsource-variable/inter";
-@import "@fontsource-variable/space-grotesk";
+@import "@fontsource-variable/instrument-sans";
 
 @theme inline {
-  --font-sans: "Inter Variable", sans-serif;
-  --font-heading: "Space Grotesk Variable", sans-serif;
+  --font-sans: "Instrument Sans Variable", sans-serif;
+  --font-heading: "Instrument Sans Variable", sans-serif;
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
