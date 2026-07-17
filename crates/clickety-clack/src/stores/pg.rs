@@ -168,6 +168,44 @@ fn row_to_instance(r: &sqlx::postgres::PgRow) -> Result<InstanceState, StoreErro
     })
 }
 
+/// Mirrors [`row_to_instance`] for `slo_instances` rows. `InstanceState.rule` carries
+/// the SLO uuid for slo_instances rows (documented type-pun at the storage boundary;
+/// `Event.slo` carries the typed identity).
+fn row_to_slo_instance(r: &sqlx::postgres::PgRow) -> Result<InstanceState, StoreError> {
+    let labels: BTreeMap<String, String> = serde_json::from_value(r.get("labels"))?;
+    Ok(InstanceState {
+        key: InstanceKey(r.get("key")),
+        rule: RuleId(r.get::<Uuid, _>("slo")), // InstanceState.rule carries the SLO uuid for slo_instances rows
+        tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
+        status: status_from(r.get::<&str, _>("status")),
+        labels,
+        value: r.get("value"),
+        active_since: r.get("active_since"),
+        last_seen: r.get("last_seen"),
+        absent_count: absent_count_from_db(r.get::<i32, _>("absent_count")),
+    })
+}
+
+/// Resolve a tier's severity from `labels["slo_tier"]` against the SLO's configured
+/// tiers (or [`crate::domain::slo::canonical_tiers`] if unset). Unknown/missing tier
+/// defensively falls back to `Critical` — the most conservative choice for a firing or
+/// stale alert whose tier we can't identify.
+fn tier_severity(
+    spec: &crate::domain::slo::SloSpec,
+    labels: &BTreeMap<String, String>,
+) -> crate::domain::rule::Severity {
+    use crate::domain::rule::Severity;
+    let tiers = spec
+        .tiers
+        .clone()
+        .unwrap_or_else(crate::domain::slo::canonical_tiers);
+    labels
+        .get("slo_tier")
+        .and_then(|name| tiers.iter().find(|t| &t.name == name))
+        .map(|t| t.severity)
+        .unwrap_or(Severity::Critical)
+}
+
 fn row_to_silence(r: &sqlx::postgres::PgRow) -> Result<Silence, StoreError> {
     Ok(Silence {
         id: r.get("id"),
@@ -2436,5 +2474,209 @@ impl PgStore {
             payload: r.get("payload"),
             computed_at: r.get("computed_at"),
         }))
+    }
+
+    // ---- slo instances (burn-rate alerting) ----
+
+    /// Load an SLO's instances, tenant-scoped. Mirrors [`Self::load_instances`] against
+    /// `slo_instances`; callers already resolve the SLO via `get_slo(tenant, slo)`, the
+    /// tenant predicate here is defense-in-depth as there.
+    pub async fn load_slo_instances(
+        &self,
+        tenant: &TenantId,
+        slo: crate::domain::ids::SloId,
+    ) -> Result<Vec<InstanceState>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT key, slo, tenant, status, labels, value, active_since, last_seen, absent_count
+             FROM slo_instances WHERE slo=$1 AND tenant=$2",
+        )
+        .bind(slo.0)
+        .bind(tenant.as_str())
+        .fetch_all(&self.pool)
+        .await?;
+        let mut out = Vec::new();
+        for r in &rows {
+            out.push(row_to_slo_instance(r)?);
+        }
+        Ok(out)
+    }
+
+    /// Mirrors [`Self::persist_eval_batch`] steps 1-2 (the unnest-upsert + outbox
+    /// insert) against `slo_instances`. There is no rollup/cadence write here — SLOs
+    /// have no per-row rollup counters and no adaptive cadence axis (see
+    /// [`Self::claim_due_slos_sharded`]). Returns the generated outbox ids in `events`
+    /// order. Empty input is a no-op.
+    pub async fn persist_slo_eval_batch(
+        &self,
+        instances: &[InstanceState],
+        events: &[Event],
+    ) -> Result<Vec<Uuid>, StoreError> {
+        if instances.is_empty() && events.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let n = instances.len();
+        let mut keys = Vec::with_capacity(n);
+        let mut slos = Vec::with_capacity(n);
+        let mut tenants = Vec::with_capacity(n);
+        let mut statuses = Vec::with_capacity(n);
+        let mut labels_arr = Vec::with_capacity(n);
+        let mut values = Vec::with_capacity(n);
+        let mut active = Vec::with_capacity(n);
+        let mut last_seen = Vec::with_capacity(n);
+        let mut absent = Vec::with_capacity(n);
+        for s in instances {
+            keys.push(s.key.0.clone());
+            slos.push(s.rule.0); // InstanceState.rule carries the SLO uuid for slo_instances rows
+            tenants.push(s.tenant.as_str().to_string());
+            statuses.push(status_str(s.status).to_string());
+            labels_arr.push(serde_json::to_value(&s.labels)?);
+            values.push(s.value);
+            active.push(s.active_since);
+            last_seen.push(s.last_seen);
+            absent.push(absent_count_to_db(s.absent_count));
+        }
+
+        let ids: Vec<Uuid> = (0..events.len()).map(|_| Uuid::new_v4()).collect();
+        let ev_tenants: Vec<String> = events
+            .iter()
+            .map(|e| e.tenant.as_str().to_string())
+            .collect();
+        let payloads: Vec<serde_json::Value> = events
+            .iter()
+            .map(serde_json::to_value)
+            .collect::<Result<_, _>>()?;
+
+        let mut tx = self.pool.begin().await?;
+        if !instances.is_empty() {
+            sqlx::query(
+                "INSERT INTO slo_instances (key, slo, tenant, status, labels, value, active_since, last_seen, absent_count)
+                 SELECT * FROM unnest($1::text[], $2::uuid[], $3::text[], $4::text[], $5::jsonb[], $6::float8[], $7::timestamptz[], $8::timestamptz[], $9::int[])
+                 ON CONFLICT (key) DO UPDATE SET
+                   status=EXCLUDED.status, labels=EXCLUDED.labels, value=EXCLUDED.value,
+                   active_since=EXCLUDED.active_since, last_seen=EXCLUDED.last_seen, absent_count=EXCLUDED.absent_count
+                 WHERE slo_instances.tenant = EXCLUDED.tenant",
+            )
+            .bind(&keys)
+            .bind(&slos)
+            .bind(&tenants)
+            .bind(&statuses)
+            .bind(&labels_arr)
+            .bind(&values)
+            .bind(&active)
+            .bind(&last_seen)
+            .bind(&absent)
+            .execute(&mut *tx)
+            .await?;
+        }
+        if !events.is_empty() {
+            sqlx::query(
+                "INSERT INTO event_outbox (id, tenant, payload)
+                 SELECT * FROM unnest($1::uuid[], $2::text[], $3::jsonb[])",
+            )
+            .bind(&ids)
+            .bind(&ev_tenants)
+            .bind(&payloads)
+            .execute(&mut *tx)
+            .await?;
+        }
+        tx.commit().await?;
+        Ok(ids)
+    }
+
+    /// Firing SLO instances for a tenant, enriched with the instance's per-tier
+    /// severity (read from the SLO spec). Mirrors [`Self::list_firing`]; used as an
+    /// inhibition source-set once burn-rate alerts join the union (Task 10).
+    pub async fn list_firing_slos(
+        &self,
+        tenant: &TenantId,
+    ) -> Result<Vec<FiringInstance>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT i.key AS key, i.slo AS slo, i.labels AS labels, s.spec AS spec
+             FROM slo_instances i JOIN slos s ON s.id = i.slo
+             WHERE i.tenant=$1 AND i.status=$2",
+        )
+        .bind(tenant.as_str())
+        .bind(status_str(Status::Firing))
+        .fetch_all(&self.pool)
+        .await?;
+        let mut out = Vec::with_capacity(rows.len());
+        for r in &rows {
+            let labels: BTreeMap<String, String> = serde_json::from_value(r.get("labels"))?;
+            let spec: crate::domain::slo::SloSpec = serde_json::from_value(r.get("spec"))?;
+            let severity = tier_severity(&spec, &labels);
+            out.push(FiringInstance {
+                key: InstanceKey(r.get("key")),
+                rule: RuleId(r.get("slo")), // InstanceState.rule carries the SLO uuid for slo_instances rows
+                severity,
+                labels,
+            });
+        }
+        Ok(out)
+    }
+
+    /// SLO instances still pending/firing whose last evaluation is older than
+    /// max(4 * `cadence_secs`, 60)s. Mirrors [`Self::list_stale_instances`]; SLOs have
+    /// no per-row interval (unlike rules' `spec->>'interval_secs'`), so the fixed base
+    /// cadence is passed in by the caller (see [`Self::claim_due_slos_sharded`]).
+    /// `now` is passed in for testability.
+    pub async fn list_stale_slo_instances(
+        &self,
+        now: OffsetDateTime,
+        cadence_secs: i64,
+        limit: i64,
+    ) -> Result<Vec<StaleInstance>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT i.key AS key, i.slo AS slo, i.tenant AS tenant, i.status AS status,
+                    i.labels AS labels, i.value AS value, s.spec AS spec
+             FROM slo_instances i JOIN slos s ON s.id = i.slo
+             WHERE i.status IN ('pending','firing')
+               AND NOT s.paused
+               AND s.health_status <> 'degraded'
+               AND i.last_seen < ($1::timestamptz - make_interval(secs => GREATEST(4 * $2, 60)))
+             ORDER BY i.last_seen
+             LIMIT $3",
+        )
+        .bind(now)
+        .bind(cadence_secs)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+        let mut out = Vec::with_capacity(rows.len());
+        for r in &rows {
+            let labels: BTreeMap<String, String> = serde_json::from_value(r.get("labels"))?;
+            let spec: crate::domain::slo::SloSpec = serde_json::from_value(r.get("spec"))?;
+            let severity = tier_severity(&spec, &labels);
+            out.push(StaleInstance {
+                key: InstanceKey(r.get("key")),
+                rule: RuleId(r.get("slo")), // InstanceState.rule carries the SLO uuid for slo_instances rows
+                tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
+                status: status_from(r.get::<&str, _>("status")),
+                labels,
+                value: r.get("value"),
+                severity,
+                annotations: spec.annotations,
+                suppressed: spec.suppressed,
+            });
+        }
+        Ok(out)
+    }
+
+    /// Delete evaluation-ledger rows (both the rule-side `evaluations` and SLO-side
+    /// `slo_evaluations` idempotency tables) older than `cutoff` (housekeeping).
+    /// Returns `(rules rows deleted, slos rows deleted)`.
+    pub async fn prune_eval_ledgers(
+        &self,
+        cutoff: OffsetDateTime,
+    ) -> Result<(u64, u64), StoreError> {
+        let rules = sqlx::query("DELETE FROM evaluations WHERE eval_ts < $1")
+            .bind(cutoff)
+            .execute(&self.pool)
+            .await?;
+        let slos = sqlx::query("DELETE FROM slo_evaluations WHERE eval_ts < $1")
+            .bind(cutoff)
+            .execute(&self.pool)
+            .await?;
+        Ok((rules.rows_affected(), slos.rows_affected()))
     }
 }
