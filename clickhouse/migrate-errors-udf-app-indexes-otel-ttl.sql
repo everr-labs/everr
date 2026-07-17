@@ -65,10 +65,11 @@ ALTER TABLE app.traces
   ADD INDEX IF NOT EXISTS idx_span_attr_key mapKeys(SpanAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_span_attr_value mapValues(SpanAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_duration Duration TYPE minmax GRANULARITY 1;
-ALTER TABLE app.traces MATERIALIZE INDEX idx_trace_id;
-ALTER TABLE app.traces MATERIALIZE INDEX idx_span_attr_key;
-ALTER TABLE app.traces MATERIALIZE INDEX idx_span_attr_value;
-ALTER TABLE app.traces MATERIALIZE INDEX idx_duration;
+ALTER TABLE app.traces
+  MATERIALIZE INDEX idx_trace_id,
+  MATERIALIZE INDEX idx_span_attr_key,
+  MATERIALIZE INDEX idx_span_attr_value,
+  MATERIALIZE INDEX idx_duration;
 
 ALTER TABLE app.logs
   ADD INDEX IF NOT EXISTS idx_trace_id TraceId TYPE bloom_filter(0.001) GRANULARITY 1,
@@ -79,12 +80,13 @@ ALTER TABLE app.logs
   ADD INDEX IF NOT EXISTS idx_log_attr_key mapKeys(LogAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_log_attr_value mapValues(LogAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_body Body TYPE tokenbf_v1(32768, 3, 0) GRANULARITY 8;
-ALTER TABLE app.logs MATERIALIZE INDEX idx_trace_id;
-ALTER TABLE app.logs MATERIALIZE INDEX idx_scope_attr_key;
-ALTER TABLE app.logs MATERIALIZE INDEX idx_scope_attr_value;
-ALTER TABLE app.logs MATERIALIZE INDEX idx_log_attr_key;
-ALTER TABLE app.logs MATERIALIZE INDEX idx_log_attr_value;
-ALTER TABLE app.logs MATERIALIZE INDEX idx_body;
+ALTER TABLE app.logs
+  MATERIALIZE INDEX idx_trace_id,
+  MATERIALIZE INDEX idx_scope_attr_key,
+  MATERIALIZE INDEX idx_scope_attr_value,
+  MATERIALIZE INDEX idx_log_attr_key,
+  MATERIALIZE INDEX idx_log_attr_value,
+  MATERIALIZE INDEX idx_body;
 
 -- Metrics tables had no skip indexes at all, so add and materialize the full set.
 ALTER TABLE app.metrics_gauge
@@ -94,12 +96,13 @@ ALTER TABLE app.metrics_gauge
   ADD INDEX IF NOT EXISTS idx_scope_attr_value mapValues(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_attr_key mapKeys(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1;
-ALTER TABLE app.metrics_gauge MATERIALIZE INDEX idx_res_attr_key;
-ALTER TABLE app.metrics_gauge MATERIALIZE INDEX idx_res_attr_value;
-ALTER TABLE app.metrics_gauge MATERIALIZE INDEX idx_scope_attr_key;
-ALTER TABLE app.metrics_gauge MATERIALIZE INDEX idx_scope_attr_value;
-ALTER TABLE app.metrics_gauge MATERIALIZE INDEX idx_attr_key;
-ALTER TABLE app.metrics_gauge MATERIALIZE INDEX idx_attr_value;
+ALTER TABLE app.metrics_gauge
+  MATERIALIZE INDEX idx_res_attr_key,
+  MATERIALIZE INDEX idx_res_attr_value,
+  MATERIALIZE INDEX idx_scope_attr_key,
+  MATERIALIZE INDEX idx_scope_attr_value,
+  MATERIALIZE INDEX idx_attr_key,
+  MATERIALIZE INDEX idx_attr_value;
 
 ALTER TABLE app.metrics_sum
   ADD INDEX IF NOT EXISTS idx_res_attr_key mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
@@ -108,12 +111,13 @@ ALTER TABLE app.metrics_sum
   ADD INDEX IF NOT EXISTS idx_scope_attr_value mapValues(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_attr_key mapKeys(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1;
-ALTER TABLE app.metrics_sum MATERIALIZE INDEX idx_res_attr_key;
-ALTER TABLE app.metrics_sum MATERIALIZE INDEX idx_res_attr_value;
-ALTER TABLE app.metrics_sum MATERIALIZE INDEX idx_scope_attr_key;
-ALTER TABLE app.metrics_sum MATERIALIZE INDEX idx_scope_attr_value;
-ALTER TABLE app.metrics_sum MATERIALIZE INDEX idx_attr_key;
-ALTER TABLE app.metrics_sum MATERIALIZE INDEX idx_attr_value;
+ALTER TABLE app.metrics_sum
+  MATERIALIZE INDEX idx_res_attr_key,
+  MATERIALIZE INDEX idx_res_attr_value,
+  MATERIALIZE INDEX idx_scope_attr_key,
+  MATERIALIZE INDEX idx_scope_attr_value,
+  MATERIALIZE INDEX idx_attr_key,
+  MATERIALIZE INDEX idx_attr_value;
 
 ALTER TABLE app.metrics_histogram
   ADD INDEX IF NOT EXISTS idx_res_attr_key mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
@@ -122,12 +126,13 @@ ALTER TABLE app.metrics_histogram
   ADD INDEX IF NOT EXISTS idx_scope_attr_value mapValues(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_attr_key mapKeys(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1;
-ALTER TABLE app.metrics_histogram MATERIALIZE INDEX idx_res_attr_key;
-ALTER TABLE app.metrics_histogram MATERIALIZE INDEX idx_res_attr_value;
-ALTER TABLE app.metrics_histogram MATERIALIZE INDEX idx_scope_attr_key;
-ALTER TABLE app.metrics_histogram MATERIALIZE INDEX idx_scope_attr_value;
-ALTER TABLE app.metrics_histogram MATERIALIZE INDEX idx_attr_key;
-ALTER TABLE app.metrics_histogram MATERIALIZE INDEX idx_attr_value;
+ALTER TABLE app.metrics_histogram
+  MATERIALIZE INDEX idx_res_attr_key,
+  MATERIALIZE INDEX idx_res_attr_value,
+  MATERIALIZE INDEX idx_scope_attr_key,
+  MATERIALIZE INDEX idx_scope_attr_value,
+  MATERIALIZE INDEX idx_attr_key,
+  MATERIALIZE INDEX idx_attr_value;
 
 ALTER TABLE app.metrics_exponential_histogram
   ADD INDEX IF NOT EXISTS idx_res_attr_key mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
@@ -136,12 +141,13 @@ ALTER TABLE app.metrics_exponential_histogram
   ADD INDEX IF NOT EXISTS idx_scope_attr_value mapValues(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_attr_key mapKeys(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1;
-ALTER TABLE app.metrics_exponential_histogram MATERIALIZE INDEX idx_res_attr_key;
-ALTER TABLE app.metrics_exponential_histogram MATERIALIZE INDEX idx_res_attr_value;
-ALTER TABLE app.metrics_exponential_histogram MATERIALIZE INDEX idx_scope_attr_key;
-ALTER TABLE app.metrics_exponential_histogram MATERIALIZE INDEX idx_scope_attr_value;
-ALTER TABLE app.metrics_exponential_histogram MATERIALIZE INDEX idx_attr_key;
-ALTER TABLE app.metrics_exponential_histogram MATERIALIZE INDEX idx_attr_value;
+ALTER TABLE app.metrics_exponential_histogram
+  MATERIALIZE INDEX idx_res_attr_key,
+  MATERIALIZE INDEX idx_res_attr_value,
+  MATERIALIZE INDEX idx_scope_attr_key,
+  MATERIALIZE INDEX idx_scope_attr_value,
+  MATERIALIZE INDEX idx_attr_key,
+  MATERIALIZE INDEX idx_attr_value;
 
 ALTER TABLE app.metrics_summary
   ADD INDEX IF NOT EXISTS idx_res_attr_key mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
@@ -150,14 +156,19 @@ ALTER TABLE app.metrics_summary
   ADD INDEX IF NOT EXISTS idx_scope_attr_value mapValues(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_attr_key mapKeys(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1;
-ALTER TABLE app.metrics_summary MATERIALIZE INDEX idx_res_attr_key;
-ALTER TABLE app.metrics_summary MATERIALIZE INDEX idx_res_attr_value;
-ALTER TABLE app.metrics_summary MATERIALIZE INDEX idx_scope_attr_key;
-ALTER TABLE app.metrics_summary MATERIALIZE INDEX idx_scope_attr_value;
-ALTER TABLE app.metrics_summary MATERIALIZE INDEX idx_attr_key;
-ALTER TABLE app.metrics_summary MATERIALIZE INDEX idx_attr_value;
+ALTER TABLE app.metrics_summary
+  MATERIALIZE INDEX idx_res_attr_key,
+  MATERIALIZE INDEX idx_res_attr_value,
+  MATERIALIZE INDEX idx_scope_attr_key,
+  MATERIALIZE INDEX idx_scope_attr_value,
+  MATERIALIZE INDEX idx_attr_key,
+  MATERIALIZE INDEX idx_attr_value;
 
--- 3. 7-day retention on the raw otel.* landing tables.
+-- 3. 7-day retention on the raw otel.* landing tables. Don't materialize the TTL
+-- on MODIFY: otherwise ClickHouse mutates every existing part immediately (a
+-- merge storm across the highest-volume tables). New inserts honor it right
+-- away; old day-parts drop on their next natural merge.
+SET materialize_ttl_after_modify = 0;
 ALTER TABLE otel.otel_traces MODIFY TTL toDateTime(Timestamp) + INTERVAL 7 DAY;
 ALTER TABLE otel.otel_logs MODIFY TTL TimestampTime + INTERVAL 7 DAY;
 ALTER TABLE otel.otel_metrics_gauge MODIFY TTL toDateTime(TimeUnix) + INTERVAL 7 DAY;
