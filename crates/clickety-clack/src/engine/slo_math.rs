@@ -1,4 +1,6 @@
 use crate::domain::slo::{canonical_tiers, parse_window_secs, BurnRateTier, SloSpec};
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 /// Fraction of requests allowed to be bad, e.g. 99.9 -> 0.001.
 pub fn error_budget_fraction(target_percent: f64) -> f64 {
@@ -90,6 +92,41 @@ pub fn is_window_due(
     now_unix.saturating_sub(last) >= refresh as i64
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SloTierStatus {
+    pub name: String,
+    pub long_burn_rate: Option<f64>,
+    pub short_burn_rate: Option<f64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SloGroupStatus {
+    pub labels: BTreeMap<String, String>,
+    pub sli: Option<f64>,
+    pub budget_remaining: Option<f64>,
+    pub tiers: Vec<SloTierStatus>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SloStatusPayload {
+    pub window: String,
+    pub target_percent: f64,
+    pub degraded: bool,
+    pub groups: Vec<SloGroupStatus>,
+    /// WindowReq.name -> unix seconds last computed (coordinated freshness ledger).
+    pub window_computed_at: BTreeMap<String, i64>,
+}
+
+pub fn empty_payload(spec: &SloSpec) -> SloStatusPayload {
+    SloStatusPayload {
+        window: spec.time_window.duration.clone(),
+        target_percent: spec.target_percent,
+        degraded: false,
+        groups: Vec::new(),
+        window_computed_at: BTreeMap::new(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -173,6 +210,39 @@ mod tests {
         // but a 30d window computed 3 days ago IS due (refresh cadence is
         // window_secs/12 = 2.5 days, so 3 days exceeds it)
         assert!(is_window_due(2_592_000, Some(now - 259_200), now, 60));
+    }
+
+    #[test]
+    fn empty_payload_carries_spec_metadata() {
+        let p = empty_payload(&spec_with(None, "30d"));
+        assert_eq!(p.window, "30d");
+        assert_eq!(p.target_percent, 99.9);
+        assert!(!p.degraded);
+        assert!(p.groups.is_empty());
+        assert!(p.window_computed_at.is_empty());
+    }
+
+    #[test]
+    fn payload_json_roundtrips() {
+        let p = SloStatusPayload {
+            window: "30d".into(),
+            target_percent: 99.9,
+            degraded: false,
+            groups: vec![SloGroupStatus {
+                labels: std::collections::BTreeMap::from([("service".into(), "api".into())]),
+                sli: Some(0.999),
+                budget_remaining: Some(0.5),
+                tiers: vec![SloTierStatus {
+                    name: "fast-burn".into(),
+                    long_burn_rate: Some(2.0),
+                    short_burn_rate: Some(3.0),
+                }],
+            }],
+            window_computed_at: std::collections::BTreeMap::from([("300s".into(), 1234i64)]),
+        };
+        let v = serde_json::to_value(&p).unwrap();
+        let back: SloStatusPayload = serde_json::from_value(v).unwrap();
+        assert_eq!(back, p);
     }
 
     proptest! {
