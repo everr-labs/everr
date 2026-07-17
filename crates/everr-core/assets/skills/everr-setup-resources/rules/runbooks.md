@@ -1,6 +1,15 @@
 # Writing Everr Runbooks
 
-An Everr **runbook** is an as-code markdown document — an operational runbook, an agent skill, or an investigation doc — with dashboard visualizations embedded directly in the prose. A runbook is one `kind: Runbook` YAML file plus the `.md` files it points at, named `<slug>.runbook.yaml` in the apply tree. It renders read-only in the webapp at `/runbooks/<project>/<slug>`.
+An Everr **runbook** is an\markdown document with visualizations embedded directly in the prose.
+
+Don't ask the user to (unless explicitly requested):
+- run a SQL query themselves
+- go to a given dashboard or check a telemetry manually
+
+Instead, bake into the runbook visualizations needed to do the investigations/analysis steps.
+
+A runbook is one `kind: Runbook` YAML file plus the `.md` files it points at, named `<slug>.runbook.yaml` in the apply tree. 
+It renders read-only in the webapp at `/runbooks/<project>/<slug>`.
 
 Runbooks reuse the exact same panel, variable, and query model as dashboards — a panel object inside a runbook **is** a dashboard panel, byte for byte. Read `rules/queries.md` for that model; this file covers the runbook-specific schema and the ```panel embed syntax.
 

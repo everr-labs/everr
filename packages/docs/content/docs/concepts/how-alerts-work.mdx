@@ -1,13 +1,12 @@
 ---
 title: How alerts work
-description: Every row an alert query returns is a firing instance; an empty result means resolved.
 ---
 
-**Every row the alert query returns is a firing instance. An empty result means resolved.** There is no separate threshold field, no pending duration, no state machine to configure — the SQL is the whole condition.
+Every row the alert query returns is a firing instance. An empty result means resolved.
 
 ## The evaluation loop
 
-Everr runs `spec.query` every `evaluationInterval`. Notifications fire on the **edges** — when an instance newly starts firing and when it resolves — not on every evaluation while it stays firing. A service whose event loop has been blocked for an hour produces one "firing" notification, not one per minute.
+Everr runs `spec.query` every `evaluationInterval`. Notifications fire on the **edges** — when an instance newly starts firing and when it resolves, not on every evaluation while it stays firing. A service whose event loop has been blocked for an hour produces one "firing" notification, not one per minute.
 
 ```yaml
 kind: AlertRule
@@ -24,15 +23,11 @@ spec:
     HAVING p99_delay_ms > 100
 ```
 
-The threshold lives in the SQL — a `WHERE` filter, a `HAVING` clause, whatever comparison defines "something is wrong." A healthy service sits around 10ms, so `HAVING p99_delay_ms > 100` returns rows only when the loop is genuinely blocked.
+The threshold lives in the SQL, a `WHERE` filter, a `HAVING` clause, whatever comparison defines "something is wrong." A healthy service sits around 10ms, so `HAVING p99_delay_ms > 100` returns rows only when the event loop is stuck for more than 100ms.
 
 ## Instance identity
 
-By default an instance's identity is the set of **string** columns the query returns; numeric columns are measurements, not identity. The rule above returns `ServiceName` (a string) and `p99_delay_ms` (a number), so it produces one instance per service automatically — a single rule scales across every service, firing independently for `checkout`, `payments`, and anything else. Because the numeric column is not part of identity, a service stays the same instance as its delay rises and falls. To carry an extra string column in the message without churning identity, override which columns count. See [alert queries](/docs/reference/alert-queries).
-
-## Flapping and windows
-
-The **query window is the smoothing mechanism**: a 5-minute lookback evaluated every minute averages a single momentary blip into the window instead of notifying on it. Align the window to the interval to control flapping.
+By default an instance's identity is the set of **string** columns the query returns; numeric columns are measurements, not identity. The rule above returns `ServiceName` (a string) and `p99_delay_ms` (a number), so it produces one instance per service automatically, a single rule scales across every service, firing independently for `checkout`, `payments`, and anything else. Because the numeric column is not part of identity, a service stays the same instance as its delay rises and falls. To carry an extra string column in the message without churning identity, override which columns count. See [alert queries](/docs/reference/alert-queries).
 
 ## Notifications
 

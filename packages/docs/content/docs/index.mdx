@@ -1,9 +1,11 @@
 ---
 title: What Everr is
-description: Collect your traces, logs, and metrics as OpenTelemetry and query them with plain SQL, from your laptop, CI, and production.
+description: Observability with the DX of web development
 ---
 
 Most observability tools are complex, built for organizations that can afford dedicated telemetry engineers and the time to wire everything up.
+
+As web developers we are used to work with great dev tools, but observability tooling hasn't catched up yet.
 
 Everr is an observability platform for teams that need to ship fast: deep insight into your systems without losing days to setup or standing up a team to run it.
 
@@ -14,9 +16,9 @@ Everr is an observability platform for teams that need to ship fast: deep insigh
 
 ## Two places telemetry lives
 
-Your code emits OpenTelemetry over OTLP, and it lands in one of two stores that share the same query model:
+Your code emits OpenTelemetry over OTLP, and it lands in one of two places that share the same query model:
 
-- **The Collector** is a service the desktop app runs on your machine. It holds your local telemetry for a fast feedback loop while you write and debug code.
+- **Your laptop**, using a local collector the desktop app runs on your machine. It holds your local telemetry for a fast feedback loop while you write and debug code.
 - **The Cloud** is Everr's hosted backend. It holds CI and production telemetry in a shared, per-organization workspace.
 
 A query you write against local traces reads the same against production ones.
