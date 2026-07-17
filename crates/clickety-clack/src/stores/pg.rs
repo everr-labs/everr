@@ -116,6 +116,17 @@ pub struct RulePageKey {
     pub id: RuleId,
 }
 
+/// A stored SLO status snapshot, as read by [`PgStore::get_slo_status`]. `payload`
+/// holds the per-group status + per-window freshness timestamps computed by the
+/// evaluator (see Task 8/9 for its shape).
+#[derive(Debug, Clone)]
+pub struct SloStatusRow {
+    pub slo: crate::domain::ids::SloId,
+    pub tenant: TenantId,
+    pub payload: serde_json::Value,
+    pub computed_at: OffsetDateTime,
+}
+
 fn status_str(s: Status) -> &'static str {
     match s {
         Status::Inactive => "inactive",
@@ -2257,5 +2268,188 @@ impl PgStore {
             version: r.get("version"),
             paused: r.get("paused"),
         })
+    }
+
+    // ---- slo evaluation: due-scan ----
+
+    /// Like [`Self::claim_due_rules_sharded`], but against `slos`. There is no per-SLO
+    /// interval column (unlike rules' `spec->>'interval_secs'`) — the scheduler passes
+    /// the base cadence via `base_cadence_secs` and every claimed SLO advances by that
+    /// same fixed amount (no adaptive stretch axis for SLOs).
+    pub async fn claim_due_slos_sharded(
+        &self,
+        now: OffsetDateTime,
+        batch: i64,
+        owned_shards: &[i32],
+        shard_count: i32,
+        base_cadence_secs: i32,
+    ) -> Result<Vec<crate::domain::slo::Slo>, StoreError> {
+        let rows = sqlx::query(
+            "WITH due AS (
+                 SELECT id FROM slos
+                 WHERE next_eval <= $1 AND NOT paused
+                   AND (((hashtext(tenant::text)::bigint % $3) + $3) % $3)::int = ANY($4)
+                 ORDER BY next_eval LIMIT $2 FOR UPDATE SKIP LOCKED
+             )
+             UPDATE slos s
+             SET next_eval = $1 + make_interval(secs => $5)
+             FROM due WHERE s.id = due.id
+             RETURNING s.id, s.tenant, s.name, s.spec, s.version, s.paused",
+        )
+        .bind(now)
+        .bind(batch)
+        .bind(shard_count)
+        .bind(owned_shards)
+        .bind(base_cadence_secs)
+        .fetch_all(&self.pool)
+        .await?;
+        rows.iter().map(Self::slo_from_row).collect()
+    }
+
+    // ---- slo evaluation: idempotency ----
+
+    /// Returns true if this (slo, eval_ts) was newly claimed; false if already applied.
+    /// Mirrors [`Self::try_claim_eval`] against `slo_evaluations`.
+    pub async fn try_claim_slo_eval(
+        &self,
+        slo: crate::domain::ids::SloId,
+        eval_ts: OffsetDateTime,
+    ) -> Result<bool, StoreError> {
+        let res = sqlx::query(
+            "INSERT INTO slo_evaluations (slo, eval_ts) VALUES ($1,$2) ON CONFLICT DO NOTHING",
+        )
+        .bind(slo.0)
+        .bind(eval_ts)
+        .execute(&self.pool)
+        .await?;
+        Ok(res.rows_affected() == 1)
+    }
+
+    // ---- slo evaluation: health ----
+
+    /// Record a query failure for `slo`: bump the consecutive-failure counter and store the
+    /// error. If this crosses `degrade_after` from a healthy state, flip to degraded.
+    /// Unlike [`Self::record_rule_failure`], this only records state — no outbox event is
+    /// written (SLO health notifications are a later plan). Returns `true` iff this call
+    /// just transitioned the SLO into `degraded`.
+    pub async fn record_slo_failure(
+        &self,
+        slo: crate::domain::ids::SloId,
+        tenant: &TenantId,
+        err: &str,
+        degrade_after: u32,
+        now: OffsetDateTime,
+    ) -> Result<bool, StoreError> {
+        let mut tx = self.pool.begin().await?;
+        let row = sqlx::query(
+            "SELECT health_status, consecutive_failures FROM slos WHERE id=$1 AND tenant=$2 FOR UPDATE",
+        )
+        .bind(slo.0)
+        .bind(tenant.as_str())
+        .fetch_optional(&mut *tx)
+        .await?;
+        let Some(row) = row else {
+            tx.rollback().await?;
+            return Ok(false);
+        };
+        let was: String = row.get("health_status");
+        let n: i32 = row.get::<i32, _>("consecutive_failures") + 1;
+        let now_degraded = n >= degrade_after as i32;
+        let transitioned = now_degraded && was != "degraded";
+        sqlx::query(
+            "UPDATE slos SET consecutive_failures=$3, last_error=$4, last_error_at=$5,
+                 health_status = CASE WHEN $6 THEN 'degraded' ELSE health_status END,
+                 degraded_since = CASE WHEN $7 THEN $5 ELSE degraded_since END
+             WHERE id=$1 AND tenant=$2",
+        )
+        .bind(slo.0)
+        .bind(tenant.as_str())
+        .bind(n)
+        .bind(err)
+        .bind(now)
+        .bind(now_degraded)
+        .bind(transitioned)
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
+        Ok(transitioned)
+    }
+
+    /// Record a query success for `slo`: reset the failure counter and clear the stored
+    /// error. If the SLO was degraded, flip to healthy. Returns `true` iff this call just
+    /// recovered the SLO (was degraded, now healthy).
+    pub async fn record_slo_success(
+        &self,
+        slo: crate::domain::ids::SloId,
+        tenant: &TenantId,
+        now: OffsetDateTime,
+    ) -> Result<bool, StoreError> {
+        let _ = now;
+        let res = sqlx::query(
+            "UPDATE slos SET consecutive_failures=0, last_error=NULL, degraded_since=NULL, health_status='healthy'
+             WHERE id=$1 AND tenant=$2 AND health_status='degraded'",
+        )
+        .bind(slo.0)
+        .bind(tenant.as_str())
+        .execute(&self.pool)
+        .await?;
+        Ok(res.rows_affected() == 1)
+    }
+
+    // ---- slo evaluation: status snapshot ----
+
+    pub async fn upsert_slo_status(
+        &self,
+        slo: crate::domain::ids::SloId,
+        tenant: &TenantId,
+        payload: &serde_json::Value,
+        computed_at: OffsetDateTime,
+    ) -> Result<(), StoreError> {
+        sqlx::query(
+            "INSERT INTO slo_status (slo, tenant, payload, computed_at) VALUES ($1,$2,$3,$4)
+             ON CONFLICT (slo) DO UPDATE SET payload=EXCLUDED.payload, computed_at=EXCLUDED.computed_at, tenant=EXCLUDED.tenant",
+        )
+        .bind(slo.0)
+        .bind(tenant.as_str())
+        .bind(payload)
+        .bind(computed_at)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn get_slo_status(
+        &self,
+        tenant: &TenantId,
+        slo: crate::domain::ids::SloId,
+    ) -> Result<Option<SloStatusRow>, StoreError> {
+        let row = sqlx::query(
+            "SELECT slo, tenant, payload, computed_at FROM slo_status WHERE slo=$1 AND tenant=$2",
+        )
+        .bind(slo.0)
+        .bind(tenant.as_str())
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row.map(|r| SloStatusRow {
+            slo: crate::domain::ids::SloId(r.get("slo")),
+            tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
+            payload: r.get("payload"),
+            computed_at: r.get("computed_at"),
+        }))
+    }
+
+    /// Reschedule `slo`'s next evaluation. Used by the evaluator to re-arm at base
+    /// cadence after a run (SLOs have no adaptive stretch axis, unlike rules).
+    pub async fn arm_slo_next_eval(
+        &self,
+        slo: crate::domain::ids::SloId,
+        next_eval: OffsetDateTime,
+    ) -> Result<(), StoreError> {
+        sqlx::query("UPDATE slos SET next_eval=$2 WHERE id=$1")
+            .bind(slo.0)
+            .bind(next_eval)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
     }
 }
