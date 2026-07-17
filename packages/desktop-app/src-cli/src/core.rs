@@ -684,28 +684,6 @@ pub async fn run_errors(cmd: crate::cli::ErrorsSubcommand) -> anyhow::Result<()>
     }
 }
 
-/// ClickHouse timestamps arrive with nanosecond precision; the human views cut
-/// them to seconds (`YYYY-MM-DD HH:MM:SS`). `--json` keeps full precision.
-fn short_ts(timestamp: &str) -> &str {
-    timestamp.get(..19).unwrap_or(timestamp)
-}
-
-/// One-line headline of an Error: `Type: message`, degrading to whichever part
-/// exists, then to the first body line.
-fn error_title(summary: &everr_core::api::ErrorIssueSummary) -> String {
-    let title = match (
-        summary.exception_type.is_empty(),
-        summary.exception_message.is_empty(),
-    ) {
-        (false, false) => format!("{}: {}", summary.exception_type, summary.exception_message),
-        (false, true) => summary.exception_type.clone(),
-        (true, false) => summary.exception_message.clone(),
-        (true, true) => summary.body.lines().next().unwrap_or_default().to_string(),
-    };
-    // Keep the table one row per Error even when a message carries newlines.
-    title.lines().next().unwrap_or_default().to_string()
-}
-
 async fn errors_list(
     client: &everr_core::api::ApiClient,
     args: crate::cli::ErrorsListArgs,
@@ -725,30 +703,7 @@ async fn errors_list(
     push_opt(&mut query, "offset", args.offset.map(|o| o.to_string()));
 
     let response = client.list_errors(&query).await?;
-
-    if args.json {
-        println!("{}", serde_json::to_string_pretty(&response.issues)?);
-        return Ok(());
-    }
-    if response.issues.is_empty() {
-        println!("No Errors in this time range.");
-        return Ok(());
-    }
-    println!(
-        "{:>11}  {:<19}  {:<20}  {:<20}  ERROR",
-        "OCCURRENCES", "LAST SEEN", "SERVICE", "FINGERPRINT"
-    );
-    for issue in &response.issues {
-        println!(
-            "{:>11}  {:<19}  {:<20}  {:<20}  {}",
-            issue.occurrence_count,
-            short_ts(&issue.last_seen),
-            issue.latest_service_name,
-            issue.fingerprint,
-            error_title(issue)
-        );
-    }
-    Ok(())
+    crate::errors_render::print_errors_list(&response.issues, args.json)
 }
 
 async fn errors_show(
@@ -765,66 +720,11 @@ async fn errors_show(
     );
 
     let detail = client.get_error(&args.fingerprint, &query).await?;
-
-    if args.json {
-        println!("{}", serde_json::to_string_pretty(&detail)?);
-        return Ok(());
-    }
-
-    let summary = &detail.summary;
-    println!("{}", error_title(summary));
-    println!();
-    println!("{:<12} {}", "Fingerprint", summary.fingerprint);
-    println!("{:<12} {}", "Services", summary.services.join(", "));
-    println!(
-        "{:<12} {} across {} traces",
-        "Occurrences", summary.occurrence_count, summary.trace_count
-    );
-    println!("{:<12} {}", "First seen", short_ts(&summary.first_seen));
-    println!("{:<12} {}", "Last seen", short_ts(&summary.last_seen));
-    println!(
-        "{:<12} {}",
-        "Web",
-        client.error_web_url(&summary.fingerprint)
-    );
-
-    println!();
-    println!("Stacktrace");
-    if detail.latest.exception_stacktrace.is_empty() {
-        println!("  (none recorded)");
-    } else {
-        for line in detail.latest.exception_stacktrace.lines() {
-            println!("  {line}");
-        }
-    }
-
-    println!();
-    println!(
-        "Occurrences ({} of {})",
-        detail.occurrences.len(),
-        summary.occurrence_count
-    );
-    for occurrence in &detail.occurrences {
-        let version = occurrence
-            .resource_attributes
-            .get("service.version")
-            .filter(|v| !v.is_empty())
-            .map(String::as_str)
-            .unwrap_or("-");
-        let trace = if occurrence.trace_id.is_empty() {
-            "(no trace)".to_string()
-        } else {
-            client.trace_web_url(&occurrence.trace_id, Some(&occurrence.span_id))
-        };
-        println!(
-            "  {}  {:<20}  {:<12}  {}",
-            short_ts(&occurrence.timestamp),
-            occurrence.service_name,
-            version,
-            trace
-        );
-    }
-    Ok(())
+    crate::errors_render::print_error_detail(
+        &detail,
+        args.json,
+        &crate::errors_render::ErrorLinks::Cloud(client),
+    )
 }
 
 /// Resolve this repository's repoid from `dir` (manifest, else inferred origin

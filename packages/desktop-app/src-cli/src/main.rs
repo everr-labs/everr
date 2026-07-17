@@ -4,6 +4,8 @@ mod banner;
 mod cli;
 mod command_telemetry;
 mod core;
+mod errors_local;
+mod errors_render;
 mod init;
 mod onboarding;
 mod skills;

@@ -18,6 +18,11 @@ pub async fn run(args: LocalArgs) -> Result<()> {
         LocalSubcommand::Query(q) => tokio::task::spawn_blocking(move || run_query(q))
             .await
             .context("telemetry query task failed")?,
+        LocalSubcommand::Errors(errors) => {
+            tokio::task::spawn_blocking(move || crate::errors_local::run(errors.command))
+                .await
+                .context("local errors task failed")?
+        }
         LocalSubcommand::Status => run_status().await,
     }
 }
@@ -55,18 +60,24 @@ async fn run_status() -> Result<()> {
     }
 }
 
-fn run_query(args: TelemetryQueryArgs) -> Result<()> {
-    let client = QueryClient::new(everr_core::build::sql_http_origin());
-    let rows = match client.query(&args.sql) {
-        Ok(rows) => rows,
+/// Run a SQL query, turning a collector-unreachable connection error into the
+/// same friendly message + exit code the `local query`/`errors` commands share.
+pub(crate) fn query_rows(client: &QueryClient, sql: &str) -> Result<Rows> {
+    match client.query(sql) {
+        Ok(rows) => Ok(rows),
         Err(err) => {
             if is_connect_error(&err) {
                 eprintln!("{}", connection_failure_message(&err));
                 command_telemetry::exit(2);
             }
-            return Err(err).context("query failed");
+            Err(err).context("query failed")
         }
-    };
+    }
+}
+
+fn run_query(args: TelemetryQueryArgs) -> Result<()> {
+    let client = QueryClient::new(everr_core::build::sql_http_origin());
+    let rows = query_rows(&client, &args.sql)?;
 
     let format = args.format.unwrap_or_else(|| {
         if io::stdout().is_terminal() {

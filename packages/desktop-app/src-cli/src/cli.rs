@@ -228,6 +228,8 @@ pub enum LocalSubcommand {
     Start(TelemetryStartArgs),
     /// Run a SQL query against local telemetry.
     Query(TelemetryQueryArgs),
+    /// Survey and inspect Errors grouped from local telemetry
+    Errors(ErrorsArgs),
     /// Check whether the local collector is running.
     Status,
 }
@@ -239,6 +241,7 @@ impl LocalSubcommand {
             LocalSubcommand::Query(args) => {
                 telemetry_query_prints_human_stdout(args, stdout_is_terminal)
             }
+            LocalSubcommand::Errors(args) => args.command.prints_human_stdout(),
         }
     }
 }
