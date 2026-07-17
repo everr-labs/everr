@@ -76,43 +76,6 @@ fn cloud_help_lists_query_subcommand() {
 }
 
 #[test]
-fn cloud_errors_help_lists_subcommands() {
-    let env = CliTestEnv::new();
-
-    env.command()
-        .args(["cloud", "errors", "--help"])
-        .assert()
-        .success()
-        .stdout(contains("list"))
-        .stdout(contains("show"));
-}
-
-#[test]
-fn cloud_errors_list_help_lists_filters() {
-    let env = CliTestEnv::new();
-
-    env.command()
-        .args(["cloud", "errors", "list", "--help"])
-        .assert()
-        .success()
-        .stdout(contains("--service <SERVICE>"))
-        .stdout(contains("--sort <SORT>"))
-        .stdout(contains("--json"));
-}
-
-#[test]
-fn cloud_errors_show_help_takes_a_fingerprint() {
-    let env = CliTestEnv::new();
-
-    env.command()
-        .args(["cloud", "errors", "show", "--help"])
-        .assert()
-        .success()
-        .stdout(contains("<FINGERPRINT>"))
-        .stdout(contains("--json"));
-}
-
-#[test]
 fn cloud_query_help_lists_format_option() {
     let env = CliTestEnv::new();
 
@@ -161,7 +124,6 @@ fn telemetry_help_lists_start_command() {
         .success()
         .stdout(contains("start"))
         .stdout(contains("query"))
-        .stdout(contains("errors"))
         .stdout(contains("status"))
         .stdout(predicates::str::contains("endpoint").not());
 
@@ -170,33 +132,6 @@ fn telemetry_help_lists_start_command() {
         .assert()
         .success()
         .stdout(contains("--quiet"));
-}
-
-#[test]
-fn local_errors_help_lists_list_and_show() {
-    let env = CliTestEnv::new();
-
-    env.command()
-        .args(["local", "errors", "--help"])
-        .assert()
-        .success()
-        .stdout(contains("list"))
-        .stdout(contains("show"));
-
-    env.command()
-        .args(["local", "errors", "list", "--help"])
-        .assert()
-        .success()
-        .stdout(contains("--service <SERVICE>"))
-        .stdout(contains("--sort <SORT>"))
-        .stdout(contains("--json"));
-
-    env.command()
-        .args(["local", "errors", "show", "--help"])
-        .assert()
-        .success()
-        .stdout(contains("<FINGERPRINT>"))
-        .stdout(contains("--json"));
 }
 
 #[test]

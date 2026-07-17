@@ -22,12 +22,16 @@ function summary(overrides: Partial<ErrorIssueSummary>): ErrorIssueSummary {
 }
 
 describe("buildErrorHandoffPrompt", () => {
-  it("includes the fingerprint, a Type: message heading, and the show command", () => {
+  it("includes the fingerprint, heading, and a telemetry query narrowed to it", () => {
     const prompt = buildErrorHandoffPrompt(summary({}));
 
     expect(prompt).toContain("Fingerprint: fp-1");
     expect(prompt).toContain("Error: TypeError: boom");
-    expect(prompt).toContain("everr cloud errors show fp-1");
+    expect(prompt).toContain("everr cloud query");
+    // The embedded query carries the app's fingerprint expression, narrowed to
+    // this Fingerprint.
+    expect(prompt).toContain("cityHash64(");
+    expect(prompt).toContain("= 'fp-1'");
   });
 
   it("falls back to the body when the exception message is empty", () => {

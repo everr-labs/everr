@@ -672,57 +672,6 @@ pub async fn run_resources(cmd: crate::cli::ResourcesSubcommand) -> anyhow::Resu
     }
 }
 
-pub async fn run_errors(cmd: crate::cli::ErrorsSubcommand) -> anyhow::Result<()> {
-    use crate::cli::ErrorsSubcommand as E;
-    // Like `resources`, the /api/cli errors routes are session-authenticated
-    // only, so there is no EVERR_API_KEY path here.
-    let session = crate::auth::require_session_with_refresh().await?;
-    let client = everr_core::api::ApiClient::from_session(&session)?;
-    match cmd {
-        E::List(args) => errors_list(&client, args).await,
-        E::Show(args) => errors_show(&client, args).await,
-    }
-}
-
-async fn errors_list(
-    client: &everr_core::api::ApiClient,
-    args: crate::cli::ErrorsListArgs,
-) -> anyhow::Result<()> {
-    let mut query: Vec<(&str, String)> = Vec::new();
-    for service in &args.service {
-        query.push(("service", service.clone()));
-    }
-    push_opt(&mut query, "from", args.from);
-    push_opt(&mut query, "to", args.to);
-    push_opt(
-        &mut query,
-        "sort",
-        args.sort.map(|s| s.as_str().to_string()),
-    );
-    push_opt(&mut query, "limit", args.limit.map(|l| l.to_string()));
-    push_opt(&mut query, "offset", args.offset.map(|o| o.to_string()));
-
-    let response = client.list_errors(&query).await?;
-    crate::errors_render::print_errors_list(&response.issues, args.json)
-}
-
-async fn errors_show(
-    client: &everr_core::api::ApiClient,
-    args: crate::cli::ErrorsShowArgs,
-) -> anyhow::Result<()> {
-    let mut query: Vec<(&str, String)> = Vec::new();
-    push_opt(&mut query, "from", args.from);
-    push_opt(&mut query, "to", args.to);
-    push_opt(
-        &mut query,
-        "occurrenceLimit",
-        args.occurrences.map(|o| o.to_string()),
-    );
-
-    let detail = client.get_error(&args.fingerprint, &query).await?;
-    crate::errors_render::print_error_detail(&detail, args.json, Some(client))
-}
-
 /// Resolve this repository's repoid from `dir` (manifest, else inferred origin
 /// remote), the same precedence as `apply` (both funnel into `resolve_repoid`).
 fn resolve_repoid_for_dir(dir: &std::path::Path) -> anyhow::Result<String> {

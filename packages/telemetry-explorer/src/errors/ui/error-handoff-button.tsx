@@ -2,10 +2,29 @@ import { Button } from "@everr/ui/components/button";
 import { Check, Copy } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { ErrorIssueSummary } from "../data/types";
+import {
+  ERROR_FINGERPRINT_SQL,
+  EXCEPTION_LOG_FILTER_SQL,
+} from "../sql/fingerprint";
 
-// Agent-agnostic by design: the goal, the Fingerprint, and the instruction to
-// pull full context through the errors CLI. No deep links, no per-agent
-// launchers.
+// A ready-to-run query that lists this Error's Occurrences: the same
+// exception-log filter and fingerprint expression the app groups Errors by
+// (documented in the everr-use-telemetry skill), narrowed to one Fingerprint.
+function occurrencesQuery(fingerprint: string): string {
+  return [
+    "SELECT toString(Timestamp) AS timestamp, ServiceName, TraceId,",
+    "  LogAttributes['exception.stacktrace'] AS stacktrace",
+    "FROM logs",
+    "WHERE Timestamp > now() - INTERVAL 7 DAY",
+    `  AND ${EXCEPTION_LOG_FILTER_SQL.trim()}`,
+    `  AND (${ERROR_FINGERPRINT_SQL.trim()}) = '${fingerprint}'`,
+    "ORDER BY Timestamp DESC",
+    "LIMIT 50",
+  ].join("\n");
+}
+
+// Agent-agnostic by design: the goal, the Fingerprint, and a telemetry query
+// the agent runs itself. No deep links, no per-agent launchers.
 export function buildErrorHandoffPrompt(issue: ErrorIssueSummary): string {
   const title = issue.exceptionType || "Unknown exception";
   const message = issue.exceptionMessage || issue.body;
@@ -16,7 +35,11 @@ export function buildErrorHandoffPrompt(issue: ErrorIssueSummary): string {
     `Error: ${heading}`,
     `Fingerprint: ${issue.fingerprint}`,
     ``,
-    `Run \`everr cloud errors show ${issue.fingerprint}\` for full context: message, stacktrace, and Occurrences with trace links. Then investigate the root cause and fix the code.`,
+    `Pull this Error's Occurrences from telemetry with \`everr cloud query\` (or \`everr local query\` for local telemetry):`,
+    ``,
+    occurrencesQuery(issue.fingerprint),
+    ``,
+    `Then investigate the root cause and fix the code. The everr-use-telemetry skill documents how Errors are fingerprinted.`,
   ].join("\n");
 }
 

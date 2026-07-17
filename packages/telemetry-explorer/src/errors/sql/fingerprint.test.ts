@@ -3,11 +3,12 @@ import exceptionLogFilterSql from "./exception_log_filter.sql?raw";
 import { ERROR_FINGERPRINT_SQL, EXCEPTION_LOG_FILTER_SQL } from "./fingerprint";
 import fingerprintSql from "./fingerprint.sql?raw";
 
-// The Rust CLI (`everr local errors`) has no server to reuse, so it groups
-// Errors by `include_str!`-ing these same shared .sql fragments. These
-// assertions fail the moment fingerprint.ts drifts from them, so local can't
-// fingerprint (and therefore group) Errors differently from the app. If you
-// change the TS below, update the .sql file (or vice versa) so both stay
+// These .sql fragments are the shared source of the error fingerprint: the
+// "Copy agent prompt" button embeds them (via ?raw) so an agent queries
+// telemetry with the exact expression the app groups Errors by, and the
+// everr-use-telemetry skill documents the same SQL. These assertions fail the
+// moment fingerprint.ts drifts from the .sql files, keeping them in step. If
+// you change the TS below, update the .sql file (or vice versa) so both stay
 // identical.
 
 // Compare token content, not layout: collapse whitespace and drop spacing
