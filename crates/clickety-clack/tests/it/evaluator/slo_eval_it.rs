@@ -3,7 +3,7 @@ use cc::domain::ids::TenantId;
 use cc::domain::slo::{SliSpec, SloSpec, TimeWindow};
 use cc::domain::Event;
 use cc::engine::slo_math::{SloGroupStatus, SloStatusPayload, SloTierStatus};
-use cc::queue::{EventBus, EventEntry, EventId, QueueError, TailCursor};
+use cc::queue::{EventBus, EventEntry, EventId, QueueError};
 use cc::stores::{PgStore, SloCreate};
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -23,14 +23,6 @@ impl EventBus for NoopBus {
     }
     async fn ack(&self, _id: &EventId) -> Result<(), QueueError> {
         Ok(())
-    }
-    async fn tail(
-        &self,
-        _cursor: &TailCursor,
-        _n: usize,
-        _b: usize,
-    ) -> Result<Vec<EventEntry>, QueueError> {
-        Ok(vec![])
     }
     async fn dead_letter(&self, _ev: &Event, _reason: &str) -> Result<(), QueueError> {
         Ok(())
