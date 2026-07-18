@@ -7,7 +7,7 @@ import {
   CardTitle,
 } from "@everr/ui/components/card";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
-import { formatRelativeTime } from "@everr/ui/lib/timestamp";
+import { RelativeTime } from "@everr/ui/components/relative-time";
 import { cn } from "@everr/ui/lib/utils";
 import {
   useInfiniteQuery,
@@ -167,7 +167,7 @@ function CcRulesPage() {
             className="whitespace-nowrap text-muted-foreground"
             title={ccFormatTs(r.rollup.last_fired_at)}
           >
-            {formatRelativeTime(r.rollup.last_fired_at)}
+            <RelativeTime timestamp={r.rollup.last_fired_at} />
           </span>
         ) : (
           <span className="text-muted-foreground">—</span>

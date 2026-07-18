@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const dashboardReconciler = vi.fn();
 const runbookReconciler = vi.fn();
 const alertReconciler = vi.fn();
+const sloReconciler = vi.fn();
 vi.mock("@/data/dashboards/apply.server", () => ({
   applyDashboardSpecs: (...a: unknown[]) => dashboardReconciler(...a),
 }));
@@ -11,6 +12,9 @@ vi.mock("@/data/runbooks/apply.server", () => ({
 }));
 vi.mock("@/data/alerts/apply.server", () => ({
   applyAlertSpecs: (...a: unknown[]) => alertReconciler(...a),
+}));
+vi.mock("@/data/slos/apply.server", () => ({
+  applySloSpecs: (...a: unknown[]) => sloReconciler(...a),
 }));
 // Cross-kind runbook-link validation is exercised in its own suite; mock it
 // here so the orchestration test stays focused on routing and avoids the
@@ -52,6 +56,7 @@ beforeEach(() => {
   dashboardReconciler.mockResolvedValue(empty);
   runbookReconciler.mockResolvedValue(empty);
   alertReconciler.mockResolvedValue(empty);
+  sloReconciler.mockResolvedValue(empty);
   upsertPreview.mockResolvedValue("prev-1");
   findPreviewId.mockResolvedValue(null);
 });
@@ -61,6 +66,7 @@ describe("applyResources", () => {
     const dash = { path: "d.yaml", resource: { kind: "Dashboard" } };
     const runbook = { path: "n.yaml", resource: { kind: "Runbook" } };
     const alert = { path: "a.yaml", resource: { kind: "AlertRule" } };
+    const slo = { path: "s.yaml", resource: { kind: "SLO" } };
     dashboardReconciler.mockResolvedValue({
       created: ["cpu"],
       updated: [],
@@ -75,6 +81,13 @@ describe("applyResources", () => {
       adopted: [],
       conflicts: [],
     });
+    sloReconciler.mockResolvedValue({
+      created: ["checkout"],
+      updated: [],
+      deleted: [],
+      adopted: [],
+      conflicts: [],
+    });
     const out = await applyResources({
       orgId: "org-1",
       repoid: "repo-1",
@@ -82,6 +95,7 @@ describe("applyResources", () => {
         dashboards: [dash],
         runbooks: [runbook],
         alerts: [alert],
+        slos: [slo],
       },
       dryRun: false,
     });
@@ -94,6 +108,9 @@ describe("applyResources", () => {
     );
     expect(alertReconciler).toHaveBeenCalledWith(
       expect.objectContaining({ namespace: liveNs, resources: [alert] }),
+    );
+    expect(sloReconciler).toHaveBeenCalledWith(
+      expect.objectContaining({ namespace: liveNs, resources: [slo] }),
     );
     expect(out).toEqual({
       dryRun: false,
@@ -119,6 +136,13 @@ describe("applyResources", () => {
           deleted: [],
           adopted: [],
         },
+        {
+          kind: "SLO",
+          created: ["checkout"],
+          updated: [],
+          deleted: [],
+          adopted: [],
+        },
       ],
     });
   });
@@ -138,6 +162,7 @@ describe("applyResources", () => {
           dashboards: [{ path: "d.yaml", resource: { kind: "Dashboard" } }],
           runbooks: [{ path: "n.yaml", resource: { kind: "Runbook" } }],
           alerts: [],
+          slos: [],
         },
         dryRun: false,
       });
@@ -168,6 +193,7 @@ describe("applyResources", () => {
         dashboards: [],
         runbooks: [],
         alerts: [],
+        slos: [],
       },
       dryRun: true,
     });
@@ -193,6 +219,7 @@ describe("applyResources", () => {
         dashboards: [],
         runbooks: [],
         alerts: [],
+        slos: [],
       },
     });
     expect(dashboardReconciler).toHaveBeenCalledWith(
@@ -204,6 +231,31 @@ describe("applyResources", () => {
     expect(alertReconciler).toHaveBeenCalledWith(
       expect.objectContaining({ dryRun: false }),
     );
+    expect(sloReconciler).toHaveBeenCalledWith(
+      expect.objectContaining({ dryRun: false }),
+    );
+  });
+
+  it("rejects an SLO-keyed resource of another kind (and any casing drift)", async () => {
+    for (const kind of ["AlertRule", "Slo"]) {
+      try {
+        await applyResources({
+          orgId: "org-1",
+          repoid: "repo-1",
+          state: {
+            dashboards: [],
+            runbooks: [],
+            alerts: [],
+            slos: [{ path: "s.yaml", resource: { kind } }],
+          },
+        });
+        expect.fail(`expected kind ${kind} under slos to be rejected`);
+      } catch (error) {
+        expect(error).toBeInstanceOf(ApplyValidationError);
+        expect((error as Error).message).toBe('s.yaml: expected kind "SLO"');
+      }
+    }
+    expect(sloReconciler).not.toHaveBeenCalled();
   });
 
   it("rejects resources placed under the wrong state key", async () => {
@@ -215,6 +267,7 @@ describe("applyResources", () => {
           dashboards: [{ path: "alert.yaml", resource: { kind: "AlertRule" } }],
           runbooks: [],
           alerts: [],
+          slos: [],
         },
       });
       expect.fail("expected the misplaced resource to be rejected");
@@ -242,6 +295,7 @@ describe("applyResources", () => {
           dashboards: [],
           runbooks: [],
           alerts: [{ path: "rule.yaml", resource: { kind: "CCAlertRule" } }],
+          slos: [],
         },
       });
       expect.fail("expected the CCAlertRule kind to be rejected");
@@ -268,6 +322,7 @@ describe("applyResources", () => {
           dashboards: [],
           runbooks: [{ path: "rb.yaml", resource: { kind } }],
           alerts: [],
+          slos: [],
         },
         dryRun: true,
       }),
@@ -288,6 +343,7 @@ describe("applyResources", () => {
           dashboards: [{ path: "nb.yaml", resource: { kind: "Notebook" } }],
           runbooks: [],
           alerts: [],
+          slos: [],
         },
       });
       expect.fail(
@@ -313,12 +369,14 @@ describe("applyResources", () => {
         dashboards: [],
         runbooks: [],
         alerts: [],
+        slos: [],
       },
     });
     for (const reconciler of [
       dashboardReconciler,
       runbookReconciler,
       alertReconciler,
+      sloReconciler,
     ]) {
       expect(reconciler).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -349,6 +407,7 @@ describe("applyResources", () => {
         dashboards: [],
         runbooks: [],
         alerts: [],
+        slos: [],
       },
     });
     await applyResources({
@@ -360,6 +419,7 @@ describe("applyResources", () => {
         dashboards: [],
         runbooks: [],
         alerts: [],
+        slos: [],
       },
     });
     expect(upsertPreview).not.toHaveBeenCalled();
@@ -381,6 +441,7 @@ describe("applyResources", () => {
           dashboards: [{ path: "d.yaml", resource: { kind: "Dashboard" } }],
           runbooks: [],
           alerts: [],
+          slos: [],
         },
         dryRun: false,
       });
@@ -404,12 +465,16 @@ describe("applyResources", () => {
         dashboards: [],
         runbooks: [],
         alerts: [],
+        slos: [],
       },
     });
     expect(dashboardReconciler).toHaveBeenCalledWith(
       expect.objectContaining({ adopt: true }),
     );
     expect(alertReconciler).toHaveBeenCalledWith(
+      expect.objectContaining({ adopt: true }),
+    );
+    expect(sloReconciler).toHaveBeenCalledWith(
       expect.objectContaining({ adopt: true }),
     );
   });

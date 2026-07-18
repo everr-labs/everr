@@ -198,6 +198,31 @@ export function CcInstanceStatusBadge({ status }: { status: string }) {
   );
 }
 
+/**
+ * A burn-rate tier as a badge: the tier's name (real engine vocabulary —
+ * "fast-burn", "slow-burn", "ticket", or the SLO's own tier names), toned by
+ * the severity the tier fires at.
+ */
+export function CcSloTierBadge({
+  tier,
+  severity,
+}: {
+  tier: string;
+  severity: string;
+}) {
+  const tone: Tone =
+    severity === "critical"
+      ? "firing"
+      : severity === "warning"
+        ? "pending"
+        : "inactive";
+  return (
+    <CcStatusLabel tone={tone}>
+      <span className="font-mono text-[0.6875rem]">{tier}</span>
+    </CcStatusLabel>
+  );
+}
+
 export function CcHealthBadge({ status }: { status: CcRuleHealthStatus }) {
   const degraded = status === "degraded";
   return (

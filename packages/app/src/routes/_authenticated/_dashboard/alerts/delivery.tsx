@@ -81,6 +81,7 @@ export const Route = createFileRoute(
       queryClient.prefetchQuery(ccQueries.inhibitions()),
       queryClient.prefetchQuery(ccQueries.alerts()),
       queryClient.prefetchQuery(ccQueries.rules()),
+      queryClient.prefetchQuery(ccQueries.slos()),
       queryClient.prefetchQuery(ccQueries.subscriptions()),
     ]),
   component: CcDeliveryPage,
@@ -834,6 +835,7 @@ function CcDeliveryPage() {
   const channels = useQuery(ccQueries.channels());
   const alerts = useQuery(ccQueries.alerts());
   const rules = useQuery(ccQueries.rules());
+  const slos = useQuery(ccQueries.slos());
   const subscriptions = useQuery(ccQueries.subscriptions());
 
   // The preview's label set; {} = inactive. Evaluated with the dispatcher's
@@ -866,9 +868,18 @@ function CcDeliveryPage() {
   const prefill = useMemo(() => {
     const firing = (alerts.data ?? []).find((a) => a.status === "firing");
     if (!firing) return null;
-    const rule = (rules.data ?? []).find((r) => r.id === firing.rule);
-    return ccDispatchLabels(firing, rule);
-  }, [alerts.data, rules.data]);
+    // SLO-sourced instances resolve their SLO (severity from the burn-rate
+    // tier, plus the synthetic `slo` label); rule-sourced ones their rule.
+    const slo =
+      firing.slo !== undefined
+        ? (slos.data ?? []).find((s) => s.id === firing.slo)
+        : undefined;
+    const rule =
+      firing.slo === undefined
+        ? (rules.data ?? []).find((r) => r.id === firing.rule)
+        : undefined;
+    return ccDispatchLabels(firing, rule, slo);
+  }, [alerts.data, rules.data, slos.data]);
 
   const receiversByName = useMemo(
     () => new Map((receivers.data ?? []).map((r) => [r.name, r])),

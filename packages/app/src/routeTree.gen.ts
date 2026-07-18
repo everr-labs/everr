@@ -52,6 +52,7 @@ import { Route as ApiCliRunsFilterOptionsRouteImport } from './routes/api/cli/ru
 import { Route as ApiCliRunsTraceIdRouteImport } from './routes/api/cli/runs/$traceId'
 import { Route as ApiCliOrgNameRouteImport } from './routes/api/cli/org/name'
 import { Route as AuthenticatedDashboardAlertsTriageRouteImport } from './routes/_authenticated/_dashboard/alerts/triage'
+import { Route as AuthenticatedDashboardAlertsSlosRouteImport } from './routes/_authenticated/_dashboard/alerts/slos'
 import { Route as AuthenticatedDashboardAlertsSilencesRouteImport } from './routes/_authenticated/_dashboard/alerts/silences'
 import { Route as AuthenticatedDashboardAlertsRulesRouteImport } from './routes/_authenticated/_dashboard/alerts/rules'
 import { Route as AuthenticatedDashboardAlertsHistoryRouteImport } from './routes/_authenticated/_dashboard/alerts/history'
@@ -77,6 +78,7 @@ import { Route as AuthenticatedDashboardPreviewableRunbooksIndexRouteImport } fr
 import { Route as AuthenticatedDashboardPreviewableDashboardsIndexRouteImport } from './routes/_authenticated/_dashboard/_previewable/dashboards/index'
 import { Route as ApiCliRunsTraceIdLogsRouteImport } from './routes/api/cli/runs/$traceId/logs'
 import { Route as AuthenticatedDashboardRunsTraceIdTraceRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/trace'
+import { Route as AuthenticatedDashboardAlertsSlosSloIdRouteImport } from './routes/_authenticated/_dashboard/alerts/slos_.$sloId'
 import { Route as AuthenticatedDashboardAlertsRulesRuleIdRouteImport } from './routes/_authenticated/_dashboard/alerts/rules_.$ruleId'
 import { Route as AuthenticatedDashboardPaddedCheckoutSuccessRouteImport } from './routes/_authenticated/_dashboard/_padded/checkout.success'
 import { Route as AuthenticatedDashboardExploreTracesTraceIdRouteImport } from './routes/_authenticated/_dashboard/_explore/traces_.$traceId'
@@ -312,6 +314,12 @@ const AuthenticatedDashboardAlertsTriageRoute =
     path: '/triage',
     getParentRoute: () => AuthenticatedDashboardAlertsRoute,
   } as any)
+const AuthenticatedDashboardAlertsSlosRoute =
+  AuthenticatedDashboardAlertsSlosRouteImport.update({
+    id: '/slos',
+    path: '/slos',
+    getParentRoute: () => AuthenticatedDashboardAlertsRoute,
+  } as any)
 const AuthenticatedDashboardAlertsSilencesRoute =
   AuthenticatedDashboardAlertsSilencesRouteImport.update({
     id: '/silences',
@@ -459,6 +467,12 @@ const AuthenticatedDashboardRunsTraceIdTraceRoute =
     path: '/trace',
     getParentRoute: () => AuthenticatedDashboardRunsTraceIdRouteRoute,
   } as any)
+const AuthenticatedDashboardAlertsSlosSloIdRoute =
+  AuthenticatedDashboardAlertsSlosSloIdRouteImport.update({
+    id: '/slos_/$sloId',
+    path: '/slos/$sloId',
+    getParentRoute: () => AuthenticatedDashboardAlertsRoute,
+  } as any)
 const AuthenticatedDashboardAlertsRulesRuleIdRoute =
   AuthenticatedDashboardAlertsRulesRuleIdRouteImport.update({
     id: '/rules_/$ruleId',
@@ -591,6 +605,7 @@ export interface FileRoutesByFullPath {
   '/alerts/history': typeof AuthenticatedDashboardAlertsHistoryRoute
   '/alerts/rules': typeof AuthenticatedDashboardAlertsRulesRoute
   '/alerts/silences': typeof AuthenticatedDashboardAlertsSilencesRoute
+  '/alerts/slos': typeof AuthenticatedDashboardAlertsSlosRoute
   '/alerts/triage': typeof AuthenticatedDashboardAlertsTriageRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
@@ -605,6 +620,7 @@ export interface FileRoutesByFullPath {
   '/traces/$traceId': typeof AuthenticatedDashboardExploreTracesTraceIdRoute
   '/checkout/success': typeof AuthenticatedDashboardPaddedCheckoutSuccessRoute
   '/alerts/rules/$ruleId': typeof AuthenticatedDashboardAlertsRulesRuleIdRoute
+  '/alerts/slos/$sloId': typeof AuthenticatedDashboardAlertsSlosSloIdRoute
   '/runs/$traceId/trace': typeof AuthenticatedDashboardRunsTraceIdTraceRoute
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/dashboards/': typeof AuthenticatedDashboardPreviewableDashboardsIndexRoute
@@ -665,6 +681,7 @@ export interface FileRoutesByTo {
   '/alerts/history': typeof AuthenticatedDashboardAlertsHistoryRoute
   '/alerts/rules': typeof AuthenticatedDashboardAlertsRulesRoute
   '/alerts/silences': typeof AuthenticatedDashboardAlertsSilencesRoute
+  '/alerts/slos': typeof AuthenticatedDashboardAlertsSlosRoute
   '/alerts/triage': typeof AuthenticatedDashboardAlertsTriageRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
@@ -679,6 +696,7 @@ export interface FileRoutesByTo {
   '/traces/$traceId': typeof AuthenticatedDashboardExploreTracesTraceIdRoute
   '/checkout/success': typeof AuthenticatedDashboardPaddedCheckoutSuccessRoute
   '/alerts/rules/$ruleId': typeof AuthenticatedDashboardAlertsRulesRuleIdRoute
+  '/alerts/slos/$sloId': typeof AuthenticatedDashboardAlertsSlosSloIdRoute
   '/runs/$traceId/trace': typeof AuthenticatedDashboardRunsTraceIdTraceRoute
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/dashboards': typeof AuthenticatedDashboardPreviewableDashboardsIndexRoute
@@ -749,6 +767,7 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/alerts/history': typeof AuthenticatedDashboardAlertsHistoryRoute
   '/_authenticated/_dashboard/alerts/rules': typeof AuthenticatedDashboardAlertsRulesRoute
   '/_authenticated/_dashboard/alerts/silences': typeof AuthenticatedDashboardAlertsSilencesRoute
+  '/_authenticated/_dashboard/alerts/slos': typeof AuthenticatedDashboardAlertsSlosRoute
   '/_authenticated/_dashboard/alerts/triage': typeof AuthenticatedDashboardAlertsTriageRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
@@ -764,6 +783,7 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/_explore/traces_/$traceId': typeof AuthenticatedDashboardExploreTracesTraceIdRoute
   '/_authenticated/_dashboard/_padded/checkout/success': typeof AuthenticatedDashboardPaddedCheckoutSuccessRoute
   '/_authenticated/_dashboard/alerts/rules_/$ruleId': typeof AuthenticatedDashboardAlertsRulesRuleIdRoute
+  '/_authenticated/_dashboard/alerts/slos_/$sloId': typeof AuthenticatedDashboardAlertsSlosSloIdRoute
   '/_authenticated/_dashboard/runs/$traceId/trace': typeof AuthenticatedDashboardRunsTraceIdTraceRoute
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/_authenticated/_dashboard/_previewable/dashboards/': typeof AuthenticatedDashboardPreviewableDashboardsIndexRoute
@@ -829,6 +849,7 @@ export interface FileRouteTypes {
     | '/alerts/history'
     | '/alerts/rules'
     | '/alerts/silences'
+    | '/alerts/slos'
     | '/alerts/triage'
     | '/api/cli/org/name'
     | '/api/cli/runs/$traceId'
@@ -843,6 +864,7 @@ export interface FileRouteTypes {
     | '/traces/$traceId'
     | '/checkout/success'
     | '/alerts/rules/$ruleId'
+    | '/alerts/slos/$sloId'
     | '/runs/$traceId/trace'
     | '/api/cli/runs/$traceId/logs'
     | '/dashboards/'
@@ -903,6 +925,7 @@ export interface FileRouteTypes {
     | '/alerts/history'
     | '/alerts/rules'
     | '/alerts/silences'
+    | '/alerts/slos'
     | '/alerts/triage'
     | '/api/cli/org/name'
     | '/api/cli/runs/$traceId'
@@ -917,6 +940,7 @@ export interface FileRouteTypes {
     | '/traces/$traceId'
     | '/checkout/success'
     | '/alerts/rules/$ruleId'
+    | '/alerts/slos/$sloId'
     | '/runs/$traceId/trace'
     | '/api/cli/runs/$traceId/logs'
     | '/dashboards'
@@ -986,6 +1010,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/alerts/history'
     | '/_authenticated/_dashboard/alerts/rules'
     | '/_authenticated/_dashboard/alerts/silences'
+    | '/_authenticated/_dashboard/alerts/slos'
     | '/_authenticated/_dashboard/alerts/triage'
     | '/api/cli/org/name'
     | '/api/cli/runs/$traceId'
@@ -1001,6 +1026,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/_explore/traces_/$traceId'
     | '/_authenticated/_dashboard/_padded/checkout/success'
     | '/_authenticated/_dashboard/alerts/rules_/$ruleId'
+    | '/_authenticated/_dashboard/alerts/slos_/$sloId'
     | '/_authenticated/_dashboard/runs/$traceId/trace'
     | '/api/cli/runs/$traceId/logs'
     | '/_authenticated/_dashboard/_previewable/dashboards/'
@@ -1340,6 +1366,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardAlertsTriageRouteImport
       parentRoute: typeof AuthenticatedDashboardAlertsRoute
     }
+    '/_authenticated/_dashboard/alerts/slos': {
+      id: '/_authenticated/_dashboard/alerts/slos'
+      path: '/slos'
+      fullPath: '/alerts/slos'
+      preLoaderRoute: typeof AuthenticatedDashboardAlertsSlosRouteImport
+      parentRoute: typeof AuthenticatedDashboardAlertsRoute
+    }
     '/_authenticated/_dashboard/alerts/silences': {
       id: '/_authenticated/_dashboard/alerts/silences'
       path: '/silences'
@@ -1514,6 +1547,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/runs/$traceId/trace'
       preLoaderRoute: typeof AuthenticatedDashboardRunsTraceIdTraceRouteImport
       parentRoute: typeof AuthenticatedDashboardRunsTraceIdRouteRoute
+    }
+    '/_authenticated/_dashboard/alerts/slos_/$sloId': {
+      id: '/_authenticated/_dashboard/alerts/slos_/$sloId'
+      path: '/slos/$sloId'
+      fullPath: '/alerts/slos/$sloId'
+      preLoaderRoute: typeof AuthenticatedDashboardAlertsSlosSloIdRouteImport
+      parentRoute: typeof AuthenticatedDashboardAlertsRoute
     }
     '/_authenticated/_dashboard/alerts/rules_/$ruleId': {
       id: '/_authenticated/_dashboard/alerts/rules_/$ruleId'
@@ -1779,9 +1819,11 @@ interface AuthenticatedDashboardAlertsRouteChildren {
   AuthenticatedDashboardAlertsHistoryRoute: typeof AuthenticatedDashboardAlertsHistoryRoute
   AuthenticatedDashboardAlertsRulesRoute: typeof AuthenticatedDashboardAlertsRulesRoute
   AuthenticatedDashboardAlertsSilencesRoute: typeof AuthenticatedDashboardAlertsSilencesRoute
+  AuthenticatedDashboardAlertsSlosRoute: typeof AuthenticatedDashboardAlertsSlosRoute
   AuthenticatedDashboardAlertsTriageRoute: typeof AuthenticatedDashboardAlertsTriageRoute
   AuthenticatedDashboardAlertsIndexRoute: typeof AuthenticatedDashboardAlertsIndexRoute
   AuthenticatedDashboardAlertsRulesRuleIdRoute: typeof AuthenticatedDashboardAlertsRulesRuleIdRoute
+  AuthenticatedDashboardAlertsSlosSloIdRoute: typeof AuthenticatedDashboardAlertsSlosSloIdRoute
 }
 
 const AuthenticatedDashboardAlertsRouteChildren: AuthenticatedDashboardAlertsRouteChildren =
@@ -1794,12 +1836,16 @@ const AuthenticatedDashboardAlertsRouteChildren: AuthenticatedDashboardAlertsRou
       AuthenticatedDashboardAlertsRulesRoute,
     AuthenticatedDashboardAlertsSilencesRoute:
       AuthenticatedDashboardAlertsSilencesRoute,
+    AuthenticatedDashboardAlertsSlosRoute:
+      AuthenticatedDashboardAlertsSlosRoute,
     AuthenticatedDashboardAlertsTriageRoute:
       AuthenticatedDashboardAlertsTriageRoute,
     AuthenticatedDashboardAlertsIndexRoute:
       AuthenticatedDashboardAlertsIndexRoute,
     AuthenticatedDashboardAlertsRulesRuleIdRoute:
       AuthenticatedDashboardAlertsRulesRuleIdRoute,
+    AuthenticatedDashboardAlertsSlosSloIdRoute:
+      AuthenticatedDashboardAlertsSlosSloIdRoute,
   }
 
 const AuthenticatedDashboardAlertsRouteWithChildren =

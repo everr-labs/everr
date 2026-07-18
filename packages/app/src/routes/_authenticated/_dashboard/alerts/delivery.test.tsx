@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => ({
   listCcInhibitions: vi.fn(),
   listCcAlerts: vi.fn(),
   listCcRules: vi.fn(),
+  listCcSlos: vi.fn(),
   listCcSubscriptions: vi.fn(),
   listCcLabelKeys: vi.fn(),
   listCcLabelValues: vi.fn(),
@@ -55,6 +56,7 @@ vi.mock("@/data/cc/server", () => ({
   listCcInhibitions: mocks.listCcInhibitions,
   listCcAlerts: mocks.listCcAlerts,
   listCcRules: mocks.listCcRules,
+  listCcSlos: mocks.listCcSlos,
   listCcSubscriptions: mocks.listCcSubscriptions,
   listCcLabelKeys: mocks.listCcLabelKeys,
   listCcLabelValues: mocks.listCcLabelValues,
@@ -178,6 +180,7 @@ beforeEach(() => {
   mocks.listCcInhibitions.mockResolvedValue([]);
   mocks.listCcAlerts.mockResolvedValue([]);
   mocks.listCcRules.mockResolvedValue([]);
+  mocks.listCcSlos.mockResolvedValue([]);
   mocks.listCcSubscriptions.mockResolvedValue([]);
   // No canned suggestions: the preview helper below always goes through the
   // custom-entry row, proving a pair outside the suggestion list previews too.

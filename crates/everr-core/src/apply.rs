@@ -242,6 +242,7 @@ pub struct ApplyState {
     pub dashboards: Vec<ResourceEntry>,
     pub runbooks: Vec<ResourceEntry>,
     pub alerts: Vec<ResourceEntry>,
+    pub slos: Vec<ResourceEntry>,
 }
 
 /// classify_documents output before wire conversion (keeps ResourceDocument
@@ -251,6 +252,7 @@ pub struct ApplyStateDocs {
     pub dashboards: Vec<ResourceDocument>,
     pub runbooks: Vec<ResourceDocument>,
     pub alerts: Vec<ResourceDocument>,
+    pub slos: Vec<ResourceDocument>,
 }
 
 impl ApplyStateDocs {
@@ -259,26 +261,31 @@ impl ApplyStateDocs {
             dashboards: self.dashboards.into_iter().map(Into::into).collect(),
             runbooks: self.runbooks.into_iter().map(Into::into).collect(),
             alerts: self.alerts.into_iter().map(Into::into).collect(),
+            slos: self.slos.into_iter().map(Into::into).collect(),
         }
     }
 }
 
 /// Split discovered documents by `kind`. Unknown kinds (including
 /// `AlertSettings`, which is web-UI-only state) are a hard CLI-side error.
+/// `SLO` is matched exactly (no `Slo`/`slo` casing aliases): one canonical
+/// spelling keeps grep/docs/config unambiguous.
 /// Keep the kinds in sync with the server reconciler REGISTRY in
 /// packages/app/src/data/as-code/registry.ts.
 pub fn classify_documents(docs: Vec<ResourceDocument>) -> Result<ApplyStateDocs> {
     let mut dashboards = Vec::new();
     let mut runbooks = Vec::new();
     let mut alerts = Vec::new();
+    let mut slos = Vec::new();
     for doc in docs {
         match doc.document.get("kind").and_then(|k| k.as_str()) {
             Some("Dashboard") => dashboards.push(doc),
             // `Notebook` is the legacy alias for `Runbook` (ADR 0002).
             Some("Runbook") | Some("Notebook") => runbooks.push(doc),
             Some("AlertRule") => alerts.push(doc),
+            Some("SLO") => slos.push(doc),
             Some(other) => anyhow::bail!(
-                "{}: unsupported kind \"{other}\" (supported: Dashboard, Runbook, AlertRule)",
+                "{}: unsupported kind \"{other}\" (supported: Dashboard, Runbook, AlertRule, SLO)",
                 doc.path
             ),
             None => anyhow::bail!("{}: document is missing a string \"kind\"", doc.path),
@@ -288,6 +295,7 @@ pub fn classify_documents(docs: Vec<ResourceDocument>) -> Result<ApplyStateDocs>
         dashboards,
         runbooks,
         alerts,
+        slos,
     })
 }
 
@@ -566,7 +574,7 @@ mod tests {
     }
 
     #[test]
-    fn classify_splits_dashboards_runbooks_and_alerts_and_rejects_unknown_kinds() {
+    fn classify_splits_dashboards_runbooks_alerts_and_slos_and_rejects_unknown_kinds() {
         let dash = ResourceDocument {
             path: "d.yaml".into(),
             document: serde_json::json!({"kind": "Dashboard"}),
@@ -579,10 +587,21 @@ mod tests {
             path: "a.yaml".into(),
             document: serde_json::json!({"kind": "AlertRule"}),
         };
-        let state = classify_documents(vec![dash.clone(), runbook.clone(), alert.clone()]).unwrap();
+        let slo = ResourceDocument {
+            path: "s.yaml".into(),
+            document: serde_json::json!({"kind": "SLO"}),
+        };
+        let state = classify_documents(vec![
+            dash.clone(),
+            runbook.clone(),
+            alert.clone(),
+            slo.clone(),
+        ])
+        .unwrap();
         assert_eq!(state.dashboards, vec![dash]);
         assert_eq!(state.runbooks, vec![runbook]);
         assert_eq!(state.alerts, vec![alert]);
+        assert_eq!(state.slos, vec![slo]);
 
         let settings = ResourceDocument {
             path: "s.yaml".into(),
@@ -593,6 +612,24 @@ mod tests {
     }
 
     #[test]
+    fn classify_rejects_slo_casing_variants() {
+        // "SLO" is the one canonical spelling; "Slo"/"slo" are hard errors that
+        // name the supported kinds.
+        for kind in ["Slo", "slo"] {
+            let doc = ResourceDocument {
+                path: "s.yaml".into(),
+                document: serde_json::json!({"kind": kind}),
+            };
+            let err = classify_documents(vec![doc]).unwrap_err().to_string();
+            assert!(err.contains(kind), "got: {err}");
+            assert!(
+                err.contains("Dashboard, Runbook, AlertRule, SLO"),
+                "got: {err}"
+            );
+        }
+    }
+
+    #[test]
     fn classify_rejects_cc_alert_rule_as_unsupported() {
         let cc_rule = ResourceDocument {
             path: "cc-rule.yaml".into(),
@@ -600,7 +637,10 @@ mod tests {
         };
         let err = classify_documents(vec![cc_rule]).unwrap_err().to_string();
         assert!(err.contains("CCAlertRule"), "got: {err}");
-        assert!(err.contains("Dashboard, Runbook, AlertRule"), "got: {err}");
+        assert!(
+            err.contains("Dashboard, Runbook, AlertRule, SLO"),
+            "got: {err}"
+        );
     }
 
     #[test]
@@ -613,7 +653,10 @@ mod tests {
             .unwrap_err()
             .to_string();
         assert!(err.contains("CCReceiver"), "got: {err}");
-        assert!(err.contains("Dashboard, Runbook, AlertRule"), "got: {err}");
+        assert!(
+            err.contains("Dashboard, Runbook, AlertRule, SLO"),
+            "got: {err}"
+        );
     }
 
     #[test]
@@ -647,6 +690,10 @@ mod tests {
                     path: "alerts/error-rate.yaml".into(),
                     resource: serde_json::json!({"kind": "AlertRule"}),
                 }],
+                slos: vec![ResourceEntry {
+                    path: "slos/checkout.yaml".into(),
+                    resource: serde_json::json!({"kind": "SLO"}),
+                }],
             },
             source: Some(ApplySource {
                 branch: Some("main".into()),
@@ -668,6 +715,7 @@ mod tests {
         );
         assert_eq!(v["state"]["runbooks"][0]["path"], "runbooks/triage.yaml");
         assert_eq!(v["state"]["alerts"][0]["path"], "alerts/error-rate.yaml");
+        assert_eq!(v["state"]["slos"][0]["path"], "slos/checkout.yaml");
         assert_eq!(v["source"]["commitSha"], "abc");
     }
 

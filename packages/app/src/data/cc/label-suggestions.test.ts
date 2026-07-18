@@ -1,11 +1,12 @@
 // The suggestion server fns: sources merged best-effort, synthetic keys
 // flagged, and the engine's own vocabulary for synthetic values.
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { CcAlert, CcRuleView } from "@/data/cc/types";
+import type { CcAlert, CcRuleView, CcSlo } from "@/data/cc/types";
 import { listCcLabelKeys, listCcLabelValues } from "./server";
 
 const mocks = vi.hoisted(() => ({
   listAllRules: vi.fn(),
+  listSlos: vi.fn(),
   listAlerts: vi.fn(),
   queryObservedLabelKeys: vi.fn(),
   queryObservedLabelValues: vi.fn(),
@@ -15,6 +16,7 @@ const mocks = vi.hoisted(() => ({
 // mocking them at the module boundary leaves the merge logic real.
 vi.mock("./client", () => ({
   listAllRules: mocks.listAllRules,
+  listSlos: mocks.listSlos,
   listAlerts: mocks.listAlerts,
 }));
 
@@ -69,22 +71,63 @@ function ccAlert(labels: Record<string, string>): CcAlert {
   };
 }
 
+function ccSloFixture(overrides: {
+  id?: string;
+  name?: string;
+  label_columns?: string[];
+  tiers?: CcSlo["spec"]["tiers"];
+}): CcSlo {
+  return {
+    id: overrides.id ?? "55555555-5555-5555-5555-555555555555",
+    tenant: "org1",
+    name: overrides.name ?? "checkout-availability",
+    spec: {
+      sli: {
+        sql: "SELECT 1 AS good, 1 AS valid",
+        label_columns: overrides.label_columns ?? [],
+      },
+      targetPercent: 99.9,
+      timeWindow: { duration: "30d", isRolling: true },
+      annotations: {},
+      suppressed: false,
+      ...(overrides.tiers !== undefined ? { tiers: overrides.tiers } : {}),
+    },
+    version: 1,
+    paused: false,
+  };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.listAllRules.mockResolvedValue([]);
+  mocks.listSlos.mockResolvedValue([]);
   mocks.listAlerts.mockResolvedValue([]);
   mocks.queryObservedLabelKeys.mockResolvedValue([]);
   mocks.queryObservedLabelValues.mockResolvedValue([]);
 });
 
 describe("listCcLabelKeys", () => {
-  it("leads with the dispatcher's synthetic keys, flagged", async () => {
+  it("leads with the engine's reserved keys — dispatcher synthetics then the SLO pipeline's — flagged", async () => {
     const keys = await listCcLabelKeys();
     expect(keys).toEqual([
       { key: "severity", synthetic: true },
       { key: "status", synthetic: true },
       { key: "rule", synthetic: true },
       { key: "kind", synthetic: true },
+      { key: "slo", synthetic: true },
+      { key: "slo_tier", synthetic: true },
+    ]);
+  });
+
+  it("merges SLO SLI label_columns into the observed keys", async () => {
+    mocks.listSlos.mockResolvedValue([
+      ccSloFixture({ label_columns: ["service", "region"] }),
+    ]);
+
+    const keys = await listCcLabelKeys();
+    expect(keys.filter((k) => !k.synthetic).map((k) => k.key)).toEqual([
+      "service",
+      "region",
     ]);
   });
 
@@ -121,7 +164,7 @@ describe("listCcLabelKeys", () => {
 
     const keys = await listCcLabelKeys();
     expect(keys.map((k) => k.key)).toContain("svc");
-    expect(keys.filter((k) => k.synthetic)).toHaveLength(4);
+    expect(keys.filter((k) => k.synthetic)).toHaveLength(6);
   });
 });
 
@@ -156,6 +199,57 @@ describe("listCcLabelValues", () => {
         value: "44444444-4444-4444-4444-444444444444",
         hint: "High 5xx rate",
       },
+    ]);
+  });
+
+  it("answers slo with the SLO ids the dispatcher stamps, name as hint", async () => {
+    mocks.listSlos.mockResolvedValue([
+      ccSloFixture({
+        id: "55555555-5555-5555-5555-555555555555",
+        name: "checkout-availability",
+      }),
+    ]);
+
+    const values = await listCcLabelValues({ data: { key: "slo" } });
+    expect(values).toEqual([
+      {
+        value: "55555555-5555-5555-5555-555555555555",
+        hint: "checkout-availability",
+      },
+    ]);
+  });
+
+  it("answers slo_tier with tier names across SLOs: canonical when unset, explicit when set, deduped", async () => {
+    mocks.listSlos.mockResolvedValue([
+      ccSloFixture({}), // no explicit tiers -> the canonical trio
+      ccSloFixture({
+        id: "66666666-6666-6666-6666-666666666666",
+        name: "latency",
+        tiers: [
+          {
+            name: "fast-burn", // collides with a canonical name -> deduped
+            long_window: "1h",
+            short_window: "5m",
+            burn_rate: 10,
+            severity: "critical",
+          },
+          {
+            name: "page",
+            long_window: "6h",
+            short_window: "30m",
+            burn_rate: 3,
+            severity: "warning",
+          },
+        ],
+      }),
+    ]);
+
+    const values = await listCcLabelValues({ data: { key: "slo_tier" } });
+    expect(values.map((v) => v.value)).toEqual([
+      "fast-burn",
+      "slow-burn",
+      "ticket",
+      "page",
     ]);
   });
 

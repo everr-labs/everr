@@ -2329,13 +2329,17 @@ impl PgStore {
         }
     }
 
+    /// One SLO plus its `updated_at` (maintained by every SLO write: the insert
+    /// default on create, and the explicit `now()` on update/pause/resume).
+    /// Returned alongside rather than on `Slo` because the domain type mirrors
+    /// the consumer-supplied definition; the timestamp is store bookkeeping.
     pub async fn get_slo(
         &self,
         tenant: TenantId,
         id: crate::domain::ids::SloId,
-    ) -> Result<Option<crate::domain::slo::Slo>, StoreError> {
+    ) -> Result<Option<(crate::domain::slo::Slo, time::OffsetDateTime)>, StoreError> {
         let row = sqlx::query(
-            "SELECT id, tenant, name, spec, version, paused FROM slos WHERE id=$1 AND tenant=$2",
+            "SELECT id, tenant, name, spec, version, paused, updated_at FROM slos WHERE id=$1 AND tenant=$2",
         )
         .bind(id.0)
         .bind(tenant.as_str())
@@ -2343,7 +2347,7 @@ impl PgStore {
         .await?;
         match row {
             None => Ok(None),
-            Some(r) => Ok(Some(Self::slo_from_row(&r)?)),
+            Some(r) => Ok(Some((Self::slo_from_row(&r)?, r.get("updated_at")))),
         }
     }
 
@@ -2460,17 +2464,20 @@ impl PgStore {
         Ok(res.rows_affected() > 0)
     }
 
+    /// Every SLO of the tenant, each with its `updated_at` (see [`Self::get_slo`]).
     pub async fn list_slos(
         &self,
         tenant: &TenantId,
-    ) -> Result<Vec<crate::domain::slo::Slo>, StoreError> {
+    ) -> Result<Vec<(crate::domain::slo::Slo, time::OffsetDateTime)>, StoreError> {
         let rows = sqlx::query(
-            "SELECT id, tenant, name, spec, version, paused FROM slos WHERE tenant=$1 ORDER BY created_at, id",
+            "SELECT id, tenant, name, spec, version, paused, updated_at FROM slos WHERE tenant=$1 ORDER BY created_at, id",
         )
         .bind(tenant.as_str())
         .fetch_all(&self.pool)
         .await?;
-        rows.iter().map(Self::slo_from_row).collect()
+        rows.iter()
+            .map(|r| Ok((Self::slo_from_row(r)?, r.get("updated_at"))))
+            .collect()
     }
 
     fn slo_from_row(r: &PgRow) -> Result<crate::domain::slo::Slo, StoreError> {

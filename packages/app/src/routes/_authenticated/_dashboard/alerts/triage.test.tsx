@@ -17,6 +17,7 @@ import type {
   CcRoute,
   CcRuleView,
   CcSilence,
+  CcSlo,
 } from "@/data/cc/types";
 import { Route as AlertsIndexRoute } from "./index";
 import { Route as TriageFileRoute } from "./triage";
@@ -28,6 +29,7 @@ import { Route as TriageFileRoute } from "./triage";
 const mocks = vi.hoisted(() => ({
   listCcAlerts: vi.fn(),
   listCcRules: vi.fn(),
+  listCcSlos: vi.fn(),
   listCcRoutes: vi.fn(),
   listCcReceivers: vi.fn(),
   listCcSilences: vi.fn(),
@@ -39,6 +41,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/data/cc/server", () => ({
   listCcAlerts: mocks.listCcAlerts,
   listCcRules: mocks.listCcRules,
+  listCcSlos: mocks.listCcSlos,
   listCcRoutes: mocks.listCcRoutes,
   listCcReceivers: mocks.listCcReceivers,
   listCcSilences: mocks.listCcSilences,
@@ -98,6 +101,41 @@ function ccAlert(overrides: Partial<CcAlert> = {}): CcAlert {
     absent_count: 0,
     ...overrides,
   };
+}
+
+const SLO_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+
+function ccSlo(overrides: Partial<CcSlo> = {}): CcSlo {
+  return {
+    id: SLO_ID,
+    tenant: "org1",
+    name: "checkout-availability",
+    spec: {
+      sli: {
+        sql: "SELECT countIf(ok) AS good, count() AS valid FROM t WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}",
+        label_columns: ["service"],
+      },
+      targetPercent: 99.9,
+      timeWindow: { duration: "30d", isRolling: true },
+      annotations: {},
+      suppressed: false,
+    },
+    version: 1,
+    paused: false,
+    ...overrides,
+  };
+}
+
+/** An SLO-sourced burn-rate instance: rule carries the SLO uuid, slo marks it. */
+function sloAlert(overrides: Partial<CcAlert> = {}): CcAlert {
+  return ccAlert({
+    key: "fp-slo-1",
+    rule: SLO_ID,
+    slo: SLO_ID,
+    labels: { service: "checkout", slo_tier: "fast-burn" },
+    value: 14.6,
+    ...overrides,
+  });
 }
 
 function ccRoute(overrides: Partial<CcRoute> = {}): CcRoute {
@@ -197,6 +235,7 @@ function seedBoard() {
     }),
     ccAlert({ key: "fp-4", status: "inactive", labels: { host: "web-9" } }),
   ]);
+  mocks.listCcSlos.mockResolvedValue([]);
   mocks.listCcRoutes.mockResolvedValue([ccRoute()]);
   mocks.listCcReceivers.mockResolvedValue([ccReceiver()]);
   mocks.listCcSilences.mockResolvedValue([ccSilence()]);
@@ -493,6 +532,67 @@ describe("/alerts/triage route", () => {
     expect(
       calls.every((c) => c.limit === 1 || c.fingerprint !== undefined),
     ).toBe(true);
+  });
+
+  it("renders SLO-sourced instances under the SLO's name with an SLO marker and tier badge, linked to the SLO detail page", async () => {
+    mocks.listCcSlos.mockResolvedValue([ccSlo()]);
+    mocks.listCcAlerts.mockResolvedValue([ccAlert(), sloAlert()]);
+
+    renderTriageRoute();
+
+    // The group header names the SLO (not the uuid), marks the origin, and
+    // links to the SLO detail page rather than a rule page.
+    const sloLink = await screen.findByRole("link", {
+      name: "checkout-availability",
+    });
+    expect(sloLink).toHaveAttribute("href", `/alerts/slos/${SLO_ID}`);
+    expect(screen.getByText("SLO")).toBeInTheDocument();
+    // The tier rides as a badge; the label pills keep the SLI group labels
+    // without repeating slo_tier.
+    expect(screen.getByText("fast-burn")).toBeInTheDocument();
+    expect(screen.getByText("checkout")).toBeInTheDocument();
+    // The value column header names the SLO's metric.
+    expect(screen.getByText("burn rate")).toBeInTheDocument();
+    // fast-burn is critical in the canonical tiers, so the group joins the
+    // critical band alongside the rule-sourced group (two critical badges).
+    expect(screen.getAllByText("critical").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("falls back to the short uuid for an SLO alert whose SLO is unknown, still linking the SLO page", async () => {
+    // The SLO list can lag a freshly-created SLO; the group must still render
+    // as SLO-originated (the instance itself carries the slo id).
+    mocks.listCcAlerts.mockResolvedValue([sloAlert()]);
+
+    renderTriageRoute();
+
+    const link = await screen.findByRole("link", {
+      name: SLO_ID.slice(0, 8),
+    });
+    expect(link).toHaveAttribute("href", `/alerts/slos/${SLO_ID}`);
+    expect(screen.getByText("SLO")).toBeInTheDocument();
+  });
+
+  it("creates an slo-scoped silence from an SLO-sourced row", async () => {
+    mocks.listCcSlos.mockResolvedValue([ccSlo()]);
+    mocks.listCcAlerts.mockResolvedValue([sloAlert()]);
+    const user = userEvent.setup();
+
+    renderTriageRoute();
+
+    await expandRowByLabel(user, "checkout");
+    await user.click(screen.getByRole("button", { name: "1h" }));
+
+    expect(mocks.createCcSilence).toHaveBeenCalledTimes(1);
+    const { data } = mocks.createCcSilence.mock.calls[0][0] as {
+      data: { matchers: { label: string; op: string; value: string }[] };
+    };
+    // Instance labels pinned with eq, plus the synthetic slo-scoping matcher
+    // (the dispatcher stamps `slo` on SLO-originated events).
+    expect(data.matchers).toEqual([
+      { label: "service", op: "eq", value: "checkout" },
+      { label: "slo_tier", op: "eq", value: "fast-burn" },
+      { label: "slo", op: "eq", value: SLO_ID },
+    ]);
   });
 
   it("shows the all-clear instrument when nothing is firing", async () => {

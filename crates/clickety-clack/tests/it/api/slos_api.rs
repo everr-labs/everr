@@ -50,6 +50,29 @@ async fn create_then_get() {
     assert_eq!(resp.status(), StatusCode::OK);
     let got = body_json(resp).await;
     assert_eq!(got["spec"]["targetPercent"], 99.9);
+    // GET returns the SloView: the bare Slo plus its rfc3339 `updated_at`
+    // (which the as-code resource admin surfaces). Create stays a bare Slo.
+    assert!(created.get("updated_at").is_none());
+    let updated_at = got["updated_at"].as_str().unwrap();
+    time::OffsetDateTime::parse(updated_at, &time::format_description::well_known::Rfc3339)
+        .expect("updated_at must be rfc3339");
+
+    let resp = router
+        .clone()
+        .oneshot(
+            Request::get("/v1/slos")
+                .header("X-CC-Tenant", TENANT)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let listed = body_json(resp).await;
+    let items = listed.as_array().unwrap();
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0]["name"], "checkout");
+    assert_eq!(items[0]["updated_at"].as_str().unwrap(), updated_at);
 }
 
 #[tokio::test]
@@ -158,7 +181,10 @@ async fn pause_resume_delete() {
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
-    assert_eq!(body_json(resp).await["paused"], true);
+    let paused = body_json(resp).await;
+    assert_eq!(paused["paused"], true);
+    // Pause (like create/update/resume) answers the bare Slo, not the SloView.
+    assert!(paused.get("updated_at").is_none());
 
     let resp = router
         .clone()

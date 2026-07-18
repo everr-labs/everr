@@ -47,27 +47,46 @@ pub async fn create(
     }
 }
 
+/// SLO representation with its `updated_at`, returned by GET and list (the
+/// SLO analogue of [`crate::api::rules::RuleView`]). The timestamp is store
+/// bookkeeping (maintained on create, spec update, pause/resume), so it lives
+/// on the read view only: create/update/pause/resume keep returning the bare
+/// [`Slo`].
+#[derive(serde::Serialize)]
+pub struct SloView {
+    #[serde(flatten)]
+    slo: Slo,
+    #[serde(with = "time::serde::rfc3339")]
+    updated_at: time::OffsetDateTime,
+}
+
+impl From<(Slo, time::OffsetDateTime)> for SloView {
+    fn from((slo, updated_at): (Slo, time::OffsetDateTime)) -> Self {
+        SloView { slo, updated_at }
+    }
+}
+
 pub async fn get(
     State(state): State<AppState>,
     headers: HeaderMap,
     Path(id): Path<Uuid>,
-) -> Result<Json<Slo>, ApiError> {
+) -> Result<Json<SloView>, ApiError> {
     let t = tenant(&state, &headers)?;
     state
         .store
         .get_slo(t, SloId(id))
         .await?
-        .map(Json)
+        .map(|row| Json(row.into()))
         .ok_or(ApiError::NotFound)
 }
 
 pub async fn list(
     State(state): State<AppState>,
     headers: HeaderMap,
-) -> Result<Json<Vec<Slo>>, ApiError> {
+) -> Result<Json<Vec<SloView>>, ApiError> {
     let t = tenant(&state, &headers)?;
     let slos = state.store.list_slos(&t).await?;
-    Ok(Json(slos))
+    Ok(Json(slos.into_iter().map(Into::into).collect()))
 }
 
 pub async fn update(
@@ -128,7 +147,7 @@ async fn set_paused(
         .store
         .get_slo(t, id)
         .await?
-        .map(Json)
+        .map(|(slo, _updated_at)| Json(slo))
         .ok_or(ApiError::NotFound)
 }
 

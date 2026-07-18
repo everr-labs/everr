@@ -113,6 +113,9 @@ describe("POST /api/apply", () => {
         ],
         runbooks: [],
         alerts: [],
+        // Absent on the wire (an older CLI): defaulted to [] by the schema so
+        // the SLO reconciler still runs.
+        slos: [],
       },
       source: {
         branch: "main",

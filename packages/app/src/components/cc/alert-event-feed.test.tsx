@@ -86,6 +86,33 @@ describe("AlertEventFeed", () => {
     expect(screen.queryByText("beta")).not.toBeInTheDocument();
   });
 
+  it("names SLO-originated rows by their SLO with an SLO origin marker", () => {
+    mockHistory([
+      historyRow({ slug: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" }),
+      historyRow({ slug: "beta" }),
+    ]);
+
+    render(
+      <AlertEventFeed
+        resolveSlo={(handle) =>
+          handle === "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+            ? { id: handle, name: "checkout-availability" }
+            : undefined
+        }
+        resolveRuleName={(handle) => (handle === "beta" ? "Beta rule" : handle)}
+      />,
+    );
+
+    // The SLO row resolves to its name plus the origin marker; the rule row
+    // keeps its resolved rule name, unmarked.
+    expect(screen.getByText("checkout-availability")).toBeInTheDocument();
+    expect(screen.getByText("SLO")).toBeInTheDocument();
+    expect(
+      screen.queryByText("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Beta rule")).toBeInTheDocument();
+  });
+
   it("renders evidence chips for a row that carries evidence", () => {
     mockHistory([
       historyRow({

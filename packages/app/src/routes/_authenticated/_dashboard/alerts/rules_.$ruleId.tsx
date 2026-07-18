@@ -16,9 +16,9 @@ import {
   CollapsibleContent,
 } from "@everr/ui/components/collapsible";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
+import { RelativeTime } from "@everr/ui/components/relative-time";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { withTimeRange } from "@everr/ui/lib/time-range";
-import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -233,8 +233,10 @@ function CcRuleDetailPage() {
 
   const r = rule.data;
   const identity = ccRuleIdentity(r);
+  // `a.rule` carries the source uuid for SLO-sourced instances too (CC's
+  // wire convention), so exclude those explicitly: this page is rule scope.
   const ruleInstances = (alerts.data ?? []).filter(
-    (a: CcAlert) => a.rule === ruleId,
+    (a: CcAlert) => a.rule === ruleId && a.slo === undefined,
   );
   const annotations = Object.entries(r.spec.annotations ?? {});
   // Event rows carry the slug when CC knows it, the bare id otherwise;
@@ -259,7 +261,7 @@ function CcRuleDetailPage() {
       header: "Last seen",
       cell: (a) => (
         <span className="whitespace-nowrap text-xs text-muted-foreground">
-          {a.last_seen ? formatRelativeTime(a.last_seen) : "—"}
+          {a.last_seen ? <RelativeTime timestamp={a.last_seen} /> : "—"}
           {a.absent_count > 0 && ` · absent x${a.absent_count}`}
         </span>
       ),
@@ -388,7 +390,7 @@ function CcRuleDetailPage() {
                     className="font-mono text-xs tabular-nums"
                     title={ccFormatTs(ts)}
                   >
-                    {ts ? formatRelativeTime(ts) : "—"}
+                    {ts ? <RelativeTime timestamp={ts} /> : "—"}
                   </dd>
                 </div>
               ))}

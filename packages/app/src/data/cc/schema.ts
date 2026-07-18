@@ -88,7 +88,11 @@ export const CcRulesPageSchema = z.object({
 
 export const CcAlertSchema = z.object({
   key: z.string(),
+  // The source uuid. CC's wire convention (SourceIdWire in domain/ids.rs):
+  // `rule` always carries the uuid — for SLO-sourced rows it is the SLO's
+  // uuid — and `slo` is additionally present for SLO sources.
   rule: z.string(),
+  slo: z.string().optional(),
   tenant: z.string(),
   status: CcInstanceStatusSchema,
   labels: z.record(z.string(), z.string()),
@@ -206,6 +210,132 @@ export const CcSubscriptionSchema = z.object({
   tenant: z.string(),
   webhook_url: z.string(),
   created_at: CcTimestampSchema,
+});
+
+// ---- SLOs ----
+// Mirrors clickety-clack's domain/slo.rs serializers. Field names are the
+// OpenSLO-aligned serde renames (targetPercent, timeWindow, isRolling).
+
+// One multi-window burn-rate tier (BurnRateTier).
+export const CcSloTierSchema = z.object({
+  name: z.string(),
+  long_window: z.string(),
+  short_window: z.string(),
+  burn_rate: z.number(),
+  severity: CcSeveritySchema,
+});
+
+export const CcSloSpecSchema = z.object({
+  sli: z.object({
+    sql: z.string(),
+    // Columns that fan the SLO out into per-group SLIs; empty = scalar SLO.
+    label_columns: z.array(z.string()).default([]),
+  }),
+  targetPercent: z.number(),
+  timeWindow: z.object({
+    duration: z.string(),
+    isRolling: z.boolean().default(true),
+    calendar: z
+      .object({ startTime: z.string(), timeZone: z.string() })
+      .optional(),
+  }),
+  // Serde skips both when None, so they arrive absent rather than null.
+  min_valid_events: z.number().int().optional(),
+  // None = the engine's canonical three tiers (see data/cc/slo.ts).
+  tiers: z.array(CcSloTierSchema).optional(),
+  annotations: z.record(z.string(), z.string()).default({}),
+  // Preview mode: evaluated fully, never notified on.
+  suppressed: z.boolean().default(false),
+});
+
+export const CcSloSchema = z.object({
+  id: z.string(),
+  tenant: z.string(),
+  // Unique per tenant; a first-class column, not part of the spec.
+  name: z.string(),
+  spec: CcSloSpecSchema,
+  version: z.number().int(),
+  paused: z.boolean().default(false),
+});
+
+// GET /v1/slos and GET /v1/slos/:id return the SloView (api/slos.rs): the bare
+// Slo plus `updated_at`, the row's last write (create, spec update, pause/
+// resume). Backed by a NOT NULL column CC always serializes, so it is required
+// here — the SLO analogue of CcRuleViewSchema. Only on the read view:
+// create/update/pause/resume responses stay the bare CcSloSchema.
+export const CcSloViewSchema = CcSloSchema.extend({
+  updated_at: CcTimestampSchema,
+});
+
+// The evaluator's health sibling on GET /v1/slos/:id/status (stores/pg.rs
+// SloHealth — a leaner cousin of CcRuleHealthSchema, same status vocabulary).
+export const CcSloHealthSchema = z.object({
+  status: CcRuleHealthStatusSchema.catch("healthy"),
+  degraded_since: CcTimestampNullable,
+  last_error: z.string().nullable(),
+});
+
+// Per-tier burn rates inside a status group (engine/slo_math.rs SloTierStatus).
+export const CcSloTierStatusSchema = z.object({
+  name: z.string(),
+  long_burn_rate: z.number().nullable(),
+  short_burn_rate: z.number().nullable(),
+  // Additive on the Rust side (#[serde(default)]): old snapshots omit it.
+  long_window_valid: z.number().nullable().default(null),
+});
+
+// One group of the status snapshot (SloGroupStatus), plus the read-time
+// enrichment api/slos.rs adds per group (time_to_exhaustion_secs and
+// firing_tiers). Legacy rows are served raw without the enrichment, so both
+// enriched fields tolerate absence.
+export const CcSloGroupStatusSchema = z.object({
+  labels: z.record(z.string(), z.string()),
+  sli: z.number().nullable(),
+  budget_remaining: z.number().nullable(),
+  tiers: z.array(CcSloTierStatusSchema),
+  time_to_exhaustion_secs: z.number().nullable().default(null),
+  firing_tiers: z
+    .array(z.object({ tier: z.string(), status: CcInstanceStatusSchema }))
+    .default([]),
+});
+
+export const CcSloStatusPayloadSchema = z.object({
+  // The budget window shorthand ("30d") and objective the snapshot was
+  // computed against.
+  window: z.string(),
+  target_percent: z.number(),
+  groups: z.array(CcSloGroupStatusSchema).default([]),
+  // WindowReq.name ("300s") -> unix seconds last computed.
+  window_computed_at: z.record(z.string(), z.number()).default({}),
+});
+
+// GET /v1/slos/:id/status (SloStatusOut). The stored payload predating the
+// current snapshot shape is served raw and unenriched, so a payload that does
+// not parse degrades to null (the detail page's pending state) instead of
+// failing the whole status read.
+export const CcSloStatusSchema = z.object({
+  computed_at: CcTimestampSchema,
+  payload: CcSloStatusPayloadSchema.nullable().catch(null),
+  health: CcSloHealthSchema,
+});
+
+// POST /v1/slos body (CreateSloBody / UpdateSloBody): the spec flattened
+// beside `name`; update adds optional optimistic-concurrency `version`.
+export const CcSloInputSchema = CcSloSpecSchema.extend({
+  name: z.string().min(1),
+});
+
+// POST /v1/slos/:id/test: per-group SLI over the spec's own budget window.
+export const CcSloTestResultSchema = z.object({
+  matched: z.number().int(),
+  groups: z.array(
+    z.object({
+      labels: z.record(z.string(), z.string()),
+      good: z.number(),
+      valid: z.number(),
+      sli: z.number().nullable(),
+    }),
+  ),
 });
 
 export const CcTestResultSchema = z.object({

@@ -37,6 +37,7 @@ export const navMain: NavItem[] = [
     items: [
       { title: "Triage", url: "/alerts/triage" },
       { title: "History", url: "/alerts/history" },
+      { title: "SLOs", url: "/alerts/slos" },
       { title: "Rules", url: "/alerts/rules" },
       { title: "Delivery", url: "/alerts/delivery" },
       { title: "Silences", url: "/alerts/silences" },

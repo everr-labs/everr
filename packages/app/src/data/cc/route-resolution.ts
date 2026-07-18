@@ -1,7 +1,8 @@
 // packages/app/src/data/cc/route-resolution.ts
 // Pure, mirrors CC's matcher semantics. Used to show "where does this alert go"
 // and to drive the routing pipeline preview. First match by ascending priority.
-import type { CcAlert, CcMatcher, CcRoute, CcRuleView } from "./types";
+import { ccSloTierSeverity, ccSloTiers } from "./slo";
+import type { CcAlert, CcMatcher, CcRoute, CcRuleView, CcSlo } from "./types";
 
 const OP_SYMBOL: Record<CcMatcher["op"], string> = {
   eq: "=",
@@ -70,13 +71,20 @@ export function ccRouteMatches(
 /**
  * The label set CC's dispatcher actually matches routes/silences/inhibitions
  * against (dispatcher/routing.rs `synthetic_labels`): the instance's own labels
- * plus synthetic `severity`/`status`/`rule`/`kind`, synthetics winning on
- * collision. `kind` is "alert" for instance events ("rule_health" for health
- * events, which never reach this UI path).
+ * plus synthetic `severity`/`status`/`rule`/`kind` — and `slo` for
+ * SLO-originated events — synthetics winning on collision. `kind` is "alert"
+ * for instance events ("rule_health" for health events, which never reach
+ * this UI path).
  */
 export function ccSyntheticLabels(
   labels: Record<string, string>,
-  opts: { severity: string; status: string; rule: string; kind?: string },
+  opts: {
+    severity: string;
+    status: string;
+    rule: string;
+    kind?: string;
+    slo?: string;
+  },
 ): Record<string, string> {
   return {
     ...labels,
@@ -84,22 +92,31 @@ export function ccSyntheticLabels(
     status: opts.status,
     rule: opts.rule,
     kind: opts.kind ?? "alert",
+    ...(opts.slo !== undefined ? { slo: opts.slo } : {}),
   };
 }
 
 /**
  * The dispatch-time label set of a live alert instance: {@link ccSyntheticLabels}
- * fed exactly as the dispatcher would — severity from the owning rule ("info"
- * when the rule is unknown), status "firing", and `rule` as the CC rule id.
+ * fed exactly as the dispatcher would — status "firing", `rule` as the source
+ * uuid (for SLO-sourced instances too, matching CC's wire convention), and
+ * `slo` stamped when the instance is SLO-sourced. Severity comes from the
+ * owning rule, or for SLO instances from the burn-rate tier the `slo_tier`
+ * label names against the owning SLO's resolved tiers (domain/slo.rs
+ * `tier_severity`); "info" when the owner is unknown.
  */
 export function ccDispatchLabels(
-  alert: Pick<CcAlert, "labels" | "rule">,
+  alert: Pick<CcAlert, "labels" | "rule" | "slo">,
   rule: Pick<CcRuleView, "spec"> | undefined,
+  slo?: Pick<CcSlo, "spec">,
 ): Record<string, string> {
   return ccSyntheticLabels(alert.labels, {
-    severity: rule?.spec.severity ?? "info",
+    severity:
+      rule?.spec.severity ??
+      (slo ? ccSloTierSeverity(ccSloTiers(slo.spec), alert.labels) : "info"),
     status: "firing",
     rule: alert.rule,
+    ...(alert.slo !== undefined ? { slo: alert.slo } : {}),
   });
 }
 

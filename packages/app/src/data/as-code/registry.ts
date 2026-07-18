@@ -4,6 +4,7 @@ import { applyDashboardSpecs } from "@/data/dashboards/apply.server";
 import { findPreviewId, upsertPreview } from "@/data/previews/apply.server";
 import type { Namespace } from "@/data/previews/scope";
 import { applyRunbookSpecs } from "@/data/runbooks/apply.server";
+import { applySloSpecs } from "@/data/slos/apply.server";
 import { type DbExecutor, db } from "@/db/client";
 import { ApplyValidationError } from "./errors";
 import type { OwnershipConflict } from "./ownership";
@@ -70,6 +71,7 @@ const REGISTRY: {
   { key: "dashboards", kind: "Dashboard", reconcile: applyDashboardSpecs },
   { key: "runbooks", kind: "Runbook", reconcile: applyRunbookSpecs },
   { key: "alerts", kind: "AlertRule", reconcile: applyAlertSpecs },
+  { key: "slos", kind: "SLO", reconcile: applySloSpecs },
 ];
 
 function validateResourceKind(

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  ccDispatchLabels,
   ccMatcherMatches,
   ccMatchingSilence,
   ccOpSymbol,
@@ -8,7 +9,7 @@ import {
   ccSyntheticLabels,
 } from "./route-resolution";
 import { CC_SYNTHETIC_LABEL_KEYS } from "./synthetic-labels";
-import type { CcMatcher, CcRoute } from "./types";
+import type { CcMatcher, CcRoute, CcRuleView, CcSlo } from "./types";
 
 function matcher(
   op: CcMatcher["op"],
@@ -199,6 +200,61 @@ describe("ccSyntheticLabels", () => {
       { severity: "warning", status: "firing", rule: "r-1" },
     );
     expect(labels.severity).toBe("warning");
+  });
+});
+
+describe("ccDispatchLabels", () => {
+  const slo: Pick<CcSlo, "spec"> = {
+    spec: {
+      sli: { sql: "SELECT 1 AS good, 1 AS valid", label_columns: ["service"] },
+      targetPercent: 99.9,
+      timeWindow: { duration: "30d", isRolling: true },
+      annotations: {},
+      suppressed: false,
+    },
+  };
+
+  it("stamps the synthetic slo label and resolves severity from the burn-rate tier", () => {
+    // fast-burn is critical in the canonical tiers the spec falls back to.
+    const labels = ccDispatchLabels(
+      {
+        labels: { service: "checkout", slo_tier: "fast-burn" },
+        rule: "slo-uuid",
+        slo: "slo-uuid",
+      },
+      undefined,
+      slo,
+    );
+    expect(labels).toEqual({
+      service: "checkout",
+      slo_tier: "fast-burn",
+      severity: "critical",
+      status: "firing",
+      rule: "slo-uuid",
+      kind: "alert",
+      slo: "slo-uuid",
+    });
+    // The ticket tier fires at warning.
+    expect(
+      ccDispatchLabels(
+        {
+          labels: { service: "checkout", slo_tier: "ticket" },
+          rule: "slo-uuid",
+          slo: "slo-uuid",
+        },
+        undefined,
+        slo,
+      ).severity,
+    ).toBe("warning");
+  });
+
+  it("keeps rule-sourced instances slo-free and severity from the rule", () => {
+    const labels = ccDispatchLabels(
+      { labels: { team: "pay" }, rule: "r-1" },
+      { spec: { severity: "warning" } as CcRuleView["spec"] },
+    );
+    expect(labels.severity).toBe("warning");
+    expect("slo" in labels).toBe(false);
   });
 });
 

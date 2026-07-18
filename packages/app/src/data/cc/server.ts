@@ -16,7 +16,9 @@ import {
   CcRuleSpecSchema,
   CcSilenceInputSchema,
 } from "./schema";
+import { ccSloTiers } from "./slo";
 import {
+  CC_SLO_RESERVED_LABEL_KEYS,
   CC_SYNTHETIC_LABEL_KEYS,
   CC_SYNTHETIC_LABEL_VALUES,
 } from "./synthetic-labels";
@@ -57,6 +59,24 @@ export const getCcRule = createAuthenticatedServerFn({ method: "GET" })
 export const listCcAlerts = createAuthenticatedServerFn({
   method: "GET",
 }).handler(({ context: { session } }) => cc.listAlerts(orgId(session)));
+
+export const listCcSlos = createAuthenticatedServerFn({
+  method: "GET",
+}).handler(({ context: { session } }) => cc.listSlos(orgId(session)));
+
+export const getCcSlo = createAuthenticatedServerFn({ method: "GET" })
+  .inputValidator(z.object({ sloId: z.string() }))
+  .handler(({ data: { sloId }, context: { session } }) =>
+    cc.getSlo(orgId(session), sloId),
+  );
+
+// The evaluator's latest status snapshot; null until the first evaluation
+// tick writes one (the detail page's pending state).
+export const getCcSloStatus = createAuthenticatedServerFn({ method: "GET" })
+  .inputValidator(z.object({ sloId: z.string() }))
+  .handler(({ data: { sloId }, context: { session } }) =>
+    cc.getSloStatus(orgId(session), sloId),
+  );
 
 export const listCcChannels = createAuthenticatedServerFn({
   method: "GET",
@@ -124,9 +144,10 @@ const settled = <T>(r: PromiseSettledResult<T>, fallback: T): T =>
 
 /**
  * Every label key a matcher could usefully name: the dispatcher's synthetic
- * keys first (flagged, so the UI can teach that they exist), then keys alerts
- * have actually carried — stored event history (frequency order), the rules'
- * declared label_columns, and current instances' labels.
+ * keys first, then the SLO pipeline's reserved keys (both flagged, so the UI
+ * can teach that they exist), then keys alerts have actually carried — stored
+ * event history (frequency order), the rules' and SLOs' declared
+ * label_columns, and current instances' labels.
  */
 export const listCcLabelKeys = createAuthenticatedServerFn({
   method: "GET",
@@ -135,24 +156,32 @@ export const listCcLabelKeys = createAuthenticatedServerFn({
     context: { session, clickhouse },
   }): Promise<CcLabelKeySuggestion[]> => {
     const { fromISO, toISO } = resolveTimeRange(SUGGESTION_WINDOW);
-    const [observed, rules, alerts] = await Promise.allSettled([
+    const [observed, rules, slos, alerts] = await Promise.allSettled([
       queryObservedLabelKeys(clickhouse.query, {
         limit: SUGGESTION_LIMIT,
         fromISO,
         toISO,
       }),
       cc.listAllRules(orgId(session)),
+      cc.listSlos(orgId(session)),
       cc.listAlerts(orgId(session)),
     ]);
     const merged = new Set<string>(settled(observed, []));
     for (const rule of settled(rules, []))
       for (const key of rule.spec.label_columns) merged.add(key);
+    for (const slo of settled(slos, []))
+      for (const key of slo.spec.sli.label_columns) merged.add(key);
     for (const alert of settled(alerts, []))
       for (const key of Object.keys(alert.labels)) merged.add(key);
-    // Synthetics win on collision at dispatch time, so they win here too.
-    for (const key of CC_SYNTHETIC_LABEL_KEYS) merged.delete(key);
+    // Engine-reserved keys win on collision at dispatch time (synthetics
+    // clobber, slo/slo_tier are rejected as label columns), so they win here.
+    const reserved = [
+      ...CC_SYNTHETIC_LABEL_KEYS,
+      ...CC_SLO_RESERVED_LABEL_KEYS,
+    ];
+    for (const key of reserved) merged.delete(key);
     return [
-      ...CC_SYNTHETIC_LABEL_KEYS.map((key) => ({ key, synthetic: true })),
+      ...reserved.map((key) => ({ key, synthetic: true })),
       ...[...merged]
         .slice(0, SUGGESTION_LIMIT)
         .map((key) => ({ key, synthetic: false })),
@@ -162,10 +191,13 @@ export const listCcLabelKeys = createAuthenticatedServerFn({
 
 /**
  * The values one label key has carried. Synthetic keys answer with the
- * engine's own vocabulary — severity/status/kind enums, and for `rule` the
- * rule IDs the dispatcher actually matches on (dispatcher/routing.rs inserts
- * `rule` as the RuleId), with the friendly name as a secondary hint. Other
- * keys merge current instances' labels with stored event history.
+ * engine's own vocabulary — severity/status/kind enums; for `rule` the rule
+ * IDs the dispatcher actually matches on (dispatcher/routing.rs inserts
+ * `rule` as the RuleId), with the friendly name as a secondary hint; for
+ * `slo` the SLO ids the dispatcher stamps on SLO-originated events (name as
+ * hint); for `slo_tier` the tier names across the tenant's SLOs (explicit
+ * spec tiers, canonical when unset). Other keys merge current instances'
+ * labels with stored event history.
  */
 export const listCcLabelValues = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(z.object({ key: z.string().min(1) }))
@@ -186,6 +218,17 @@ export const listCcLabelValues = createAuthenticatedServerFn({ method: "GET" })
             value: rule.id,
             hint: ccRuleIdentity(rule).name,
           }));
+        }
+        case "slo": {
+          const slos = await cc.listSlos(orgId(session)).catch(() => []);
+          return slos.map((slo) => ({ value: slo.id, hint: slo.name }));
+        }
+        case "slo_tier": {
+          const slos = await cc.listSlos(orgId(session)).catch(() => []);
+          const names = new Set<string>();
+          for (const slo of slos)
+            for (const tier of ccSloTiers(slo.spec)) names.add(tier.name);
+          return [...names].map((value) => ({ value }));
         }
         default: {
           const { fromISO, toISO } = resolveTimeRange(SUGGESTION_WINDOW);
@@ -228,6 +271,25 @@ export const testCcRule = createAuthenticatedServerFn({ method: "POST" })
   .inputValidator(z.object({ ruleId: z.string(), spec: CcRuleSpecSchema }))
   .handler(({ data: { ruleId, spec }, context: { session } }) =>
     cc.testRule(orgId(session), ruleId, spec),
+  );
+
+// ---- SLO operations ----
+export const pauseCcSlo = createAuthenticatedServerFn({ method: "POST" })
+  .inputValidator(z.object({ sloId: z.string() }))
+  .handler(({ data: { sloId }, context: { session } }) =>
+    cc.pauseSlo(orgId(session), sloId),
+  );
+
+export const resumeCcSlo = createAuthenticatedServerFn({ method: "POST" })
+  .inputValidator(z.object({ sloId: z.string() }))
+  .handler(({ data: { sloId }, context: { session } }) =>
+    cc.resumeSlo(orgId(session), sloId),
+  );
+
+export const deleteCcSlo = createAuthenticatedServerFn({ method: "POST" })
+  .inputValidator(z.object({ sloId: z.string() }))
+  .handler(({ data: { sloId }, context: { session } }) =>
+    cc.deleteSlo(orgId(session), sloId),
   );
 
 // ---- Channels ----

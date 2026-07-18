@@ -4,6 +4,10 @@ import {
   ANN_CC_LINK_ALERT,
   ANN_CC_LINK_RUNBOOK,
   ANN_CC_SUMMARY,
+  ANN_LABEL_PREFIX,
+  OWN_NAME,
+  OWN_PREVIEW,
+  OWN_REPO,
 } from "./annotations";
 import {
   type AlertRuleYaml,
@@ -18,13 +22,10 @@ import {
   parseWindow,
 } from "./window";
 
-// Ownership annotations on a CC rule.
-export const OWN_NAME = "everr.name";
-export const OWN_REPO = "everr.repoid";
-// The preview registry id (previews.id) owning a preview rule. Live rules never
-// carry it: it is the live/preview namespace discriminator on CC rules, the CC
-// analogue of the Postgres resource tables' preview_id column.
-export const OWN_PREVIEW = "everr.preview";
+// Ownership annotations (everr.name / everr.repoid / everr.preview) and the
+// everr.label. prefix live in ./annotations, shared with the SLO mapping;
+// re-exported here so the many existing rule-side imports keep one path.
+export { OWN_NAME, OWN_PREVIEW, OWN_REPO } from "./annotations";
 
 // Annotation keys we pack the simple-alert UI fields into. The notification
 // templates live ONLY under CC's own `summary`/`description` keys
@@ -32,7 +33,6 @@ export const OWN_PREVIEW = "everr.preview";
 // key per template is both the write and the read path.
 const ANN_DISPLAY_NAME = "everr.display.name";
 const ANN_DISPLAY_DESCRIPTION = "everr.display.description";
-const ANN_LABEL_PREFIX = "everr.label."; // metadata.labels.<k> → everr.label.<k>
 // A linked runbook (project/slug), stored canonically so the alert detail can
 // deep-link to it. Replaces the old Postgres runbook_project/runbook_slug
 // columns now that a simple alert IS a CC rule.

@@ -38,8 +38,10 @@ async fn create_get_roundtrip() {
     assert!(!created.paused);
     assert_eq!(created.name, "checkout");
 
-    let got = s.get_slo(tenant(), created.id).await.unwrap().unwrap();
+    let (got, updated_at) = s.get_slo(tenant(), created.id).await.unwrap().unwrap();
     assert_eq!(got, created);
+    // `updated_at` is populated by the insert default and never in the future.
+    assert!(updated_at <= time::OffsetDateTime::now_utc());
 }
 
 #[tokio::test]
@@ -99,13 +101,18 @@ async fn pause_resume_and_delete() {
     };
 
     assert!(s.pause_slo(tenant(), slo.id).await.unwrap());
-    assert!(s.get_slo(tenant(), slo.id).await.unwrap().unwrap().paused);
+    assert!(s.get_slo(tenant(), slo.id).await.unwrap().unwrap().0.paused);
     assert!(s.resume_slo(tenant(), slo.id).await.unwrap());
-    assert!(!s.get_slo(tenant(), slo.id).await.unwrap().unwrap().paused);
+    assert!(!s.get_slo(tenant(), slo.id).await.unwrap().unwrap().0.paused);
 
     // pause does not bump version
     assert_eq!(
-        s.get_slo(tenant(), slo.id).await.unwrap().unwrap().version,
+        s.get_slo(tenant(), slo.id)
+            .await
+            .unwrap()
+            .unwrap()
+            .0
+            .version,
         1
     );
 
@@ -125,5 +132,5 @@ async fn list_is_tenant_scoped() {
 
     let mine = s.list_slos(&tenant()).await.unwrap();
     assert_eq!(mine.len(), 2);
-    assert!(mine.iter().all(|slo| slo.tenant == tenant()));
+    assert!(mine.iter().all(|(slo, _)| slo.tenant == tenant()));
 }

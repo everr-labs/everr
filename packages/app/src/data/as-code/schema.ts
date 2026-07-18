@@ -44,6 +44,10 @@ export const applyInput = z
         dashboards: z.array(resourceEntrySchema),
         runbooks: z.array(resourceEntrySchema),
         alerts: z.array(resourceEntrySchema),
+        // Defaulted (not required) so a CLI predating the SLO kind keeps
+        // applying: it can never have created SLOs, so reconciling [] for it
+        // deletes nothing.
+        slos: z.array(resourceEntrySchema).default([]),
       })
       .strict(),
     source: applySourceSchema.optional(),

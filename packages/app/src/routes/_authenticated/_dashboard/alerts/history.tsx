@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import { AlertEventFeed } from "@/components/cc/alert-event-feed";
 import { ccRuleHandleResolvers } from "@/data/alerts/rule-identity";
 import { ccQueries } from "@/data/cc/queries";
+import { ccSloHandleResolver } from "@/data/cc/slo";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/alerts/history",
@@ -21,20 +22,27 @@ export const Route = createFileRoute(
     Promise.all([
       queryClient.prefetchQuery(ccQueries.eventHistory(deps.timeRange)),
       queryClient.prefetchQuery(ccQueries.rules()),
+      queryClient.prefetchQuery(ccQueries.slos()),
     ]),
   component: CcHistoryPage,
 });
 
 function CcHistoryPage() {
   const rules = useQuery(ccQueries.rules());
+  const slos = useQuery(ccQueries.slos());
 
-  // Event rows carry a rule handle: the slug (everr.name) when CC knows it,
-  // otherwise the bare rule id. The shared resolvers map either to the rule's
-  // display name and (for records stored before CC stamped severity) its
-  // severity; an unknown handle renders as-is.
+  // Event rows carry a source handle: the slug (everr.name) when CC knows it,
+  // otherwise the bare source uuid — for rule- and SLO-originated events
+  // alike. The shared resolvers map either handle to the rule's display name
+  // and (for records stored before CC stamped severity) its severity, or to
+  // the owning SLO; an unknown handle renders as-is.
   const { resolveRuleName, resolveRuleSeverity } = useMemo(
     () => ccRuleHandleResolvers(rules.data ?? []),
     [rules.data],
+  );
+  const resolveSlo = useMemo(
+    () => ccSloHandleResolver(slos.data ?? []),
+    [slos.data],
   );
 
   return (
@@ -42,6 +50,7 @@ function CcHistoryPage() {
       showTypeLens
       resolveRuleName={resolveRuleName}
       resolveRuleSeverity={resolveRuleSeverity}
+      resolveSlo={resolveSlo}
     />
   );
 }

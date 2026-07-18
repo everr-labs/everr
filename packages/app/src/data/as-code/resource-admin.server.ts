@@ -7,11 +7,17 @@ import {
   toAlertRuleDocument,
 } from "@/data/alerts/mapping";
 import * as cc from "@/data/cc/client";
-import type { CcRuleView } from "@/data/cc/types";
+import type { CcRuleView, CcSloView } from "@/data/cc/types";
+import {
+  fromCcSloSpec,
+  isOwnedSlo,
+  previewIdOfSlo,
+  toSloDocument,
+} from "@/data/slos/mapping";
 import { db } from "@/db/client";
 import { dashboards, runbooks } from "@/db/schema/app";
 
-export const RESOURCE_KINDS = ["dashboard", "runbook", "alert"] as const;
+export const RESOURCE_KINDS = ["dashboard", "runbook", "alert", "slo"] as const;
 export type ResourceKind = (typeof RESOURCE_KINDS)[number];
 
 export function isResourceKind(value: string): value is ResourceKind {
@@ -28,8 +34,8 @@ export interface ResourceSummary {
   repoid: string;
   /**
    * RFC-3339 timestamp of the resource's last write. Postgres-backed kinds
-   * serialize their `updated_at` column; alerts surface the CC rule's
-   * `updated_at` (maintained on create, spec update, pause/resume).
+   * serialize their `updated_at` column; alerts and SLOs surface the CC
+   * entity's `updated_at` (maintained on create, spec update, pause/resume).
    */
   updatedAt: string;
 }
@@ -224,11 +230,92 @@ const alertBackend: KindBackend = {
   },
 };
 
-/** Where each kind lives: dashboards and runbooks in Postgres, alerts in CC. */
+/**
+ * The org's live as-code SLOs: everr-owned (tagged `everr.name`) and not part
+ * of a preview namespace. Engine-only SLOs (no `everr.name`, e.g. UI-created)
+ * are not as-code resources and never surface here.
+ */
+async function listLiveOwnedSlos(orgId: string): Promise<CcSloView[]> {
+  const slos = await cc.listSlos(orgId);
+  return slos.filter(
+    (s) => isOwnedSlo(s.spec) && previewIdOfSlo(s.spec) === null,
+  );
+}
+
+/** The live as-code SLO for `(project, slug)`, or null. */
+async function findSlo(
+  orgId: string,
+  project: string,
+  slug: string,
+): Promise<CcSloView | null> {
+  const slos = await listLiveOwnedSlos(orgId);
+  return (
+    slos.find((s) => {
+      const view = fromCcSloSpec(s.spec);
+      return view.slug === slug && view.project === project;
+    }) ?? null
+  );
+}
+
+/**
+ * The clickety-clack-backed storage for SLOs, the exact analogue of
+ * `alertBackend`: an as-code SLO IS a CC SLO tagged `everr.name` +
+ * `everr.repoid` (see data/slos/apply.server.ts). SLOs address by their
+ * declared `everr.project` annotation ("default" when none) plus the as-code
+ * name, have no stored document (a canonical `kind: SLO` document is
+ * reconstructed from the spec on read), and adoption rewrites `everr.repoid`
+ * via a version-guarded update so burn-rate instance state survives it.
+ */
+const sloBackend: KindBackend = {
+  async list(orgId, repoid) {
+    const slos = await listLiveOwnedSlos(orgId);
+    return slos
+      .map((s) => ({ view: fromCcSloSpec(s.spec), updatedAt: s.updated_at }))
+      .filter(({ view }) => repoid === undefined || view.repoid === repoid)
+      .map(({ view, updatedAt }) => ({
+        kind: "slo" as const,
+        project: view.project,
+        slug: view.slug,
+        repoid: view.repoid,
+        updatedAt,
+      }));
+  },
+  async get(orgId, project, slug) {
+    const slo = await findSlo(orgId, project, slug);
+    return slo ? toSloDocument(slo.spec) : null;
+  },
+  async delete(orgId, project, slug) {
+    const slo = await findSlo(orgId, project, slug);
+    if (!slo) return false;
+    await cc.deleteSlo(orgId, slo.id);
+    return true;
+  },
+  async adopt(orgId, project, slug, destRepoid) {
+    const slo = await findSlo(orgId, project, slug);
+    if (!slo) return { found: false, alreadyOwned: false };
+    if (fromCcSloSpec(slo.spec).repoid === destRepoid) {
+      return { found: true, alreadyOwned: true };
+    }
+    await cc.updateSlo(
+      orgId,
+      slo.id,
+      {
+        name: slo.name,
+        ...slo.spec,
+        annotations: { ...slo.spec.annotations, [OWN_REPO]: destRepoid },
+      },
+      slo.version,
+    );
+    return { found: true, alreadyOwned: false };
+  },
+};
+
+/** Where each kind lives: dashboards and runbooks in Postgres, alerts and SLOs in CC. */
 const KIND_BACKENDS: Record<ResourceKind, KindBackend> = {
   dashboard: pgBackend("dashboard", dashboards),
   runbook: pgBackend("runbook", runbooks),
   alert: alertBackend,
+  slo: sloBackend,
 };
 
 export async function listResources(

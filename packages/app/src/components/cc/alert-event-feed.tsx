@@ -92,6 +92,7 @@ export function AlertEventFeed({
   hideRuleColumns = false,
   resolveRuleName,
   resolveRuleSeverity,
+  resolveSlo,
 }: {
   /**
    * Scope the feed to one rule. Event rows carry the rule's slug when CC
@@ -121,6 +122,14 @@ export function AlertEventFeed({
    * other kinds still render "—" for severity.
    */
   resolveRuleSeverity?: (handle: string) => string | undefined;
+  /**
+   * Map a row's handle to its SLO when the event is SLO-originated (CC's
+   * alert log resolves slugs the same way for both sources: the `everr.name`
+   * annotation falling back to the source uuid). A hit renders the SLO's
+   * name with an "SLO" origin marker instead of a rule handle; checked
+   * before resolveRuleName.
+   */
+  resolveSlo?: (handle: string) => { id: string; name: string } | undefined;
 }) {
   const [severity, setSeverity] = useState<string>("all");
   const [eventType, setEventType] = useState<string>("all");
@@ -221,6 +230,24 @@ export function AlertEventFeed({
     {
       header: "Rule",
       cell: (e) => {
+        // SLO-originated rows name their SLO with an origin marker; rule
+        // rows keep the resolved rule name (or the raw handle).
+        const slo = resolveSlo?.(e.slug);
+        if (slo) {
+          return (
+            <span className="inline-flex max-w-44 items-center gap-1.5">
+              <span
+                className="min-w-0 truncate font-mono text-xs"
+                title={`${slo.name} (${e.slug})`}
+              >
+                {slo.name}
+              </span>
+              <span className="shrink-0 rounded-sm border border-border bg-muted/40 px-1 font-mono text-[0.625rem] leading-4 text-muted-foreground">
+                SLO
+              </span>
+            </span>
+          );
+        }
         const name = resolveRuleName ? resolveRuleName(e.slug) : e.slug;
         return (
           <span

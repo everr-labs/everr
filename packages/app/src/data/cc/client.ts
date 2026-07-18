@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ccRequest } from "@/lib/clickety-clack.server";
+import { CcApiError, ccRequest } from "@/lib/clickety-clack.server";
 import {
   CcAlertSchema,
   CcChannelSchema,
@@ -12,6 +12,11 @@ import {
   CcRulesPageSchema,
   CcRuleViewSchema,
   CcSilenceSchema,
+  CcSloInputSchema,
+  CcSloSchema,
+  CcSloStatusSchema,
+  CcSloTestResultSchema,
+  CcSloViewSchema,
   CcSubscriptionSchema,
   CcTestResultSchema,
 } from "./schema";
@@ -22,6 +27,7 @@ import type {
   CcRuleHealthStatus,
   CcRuleSpec,
   CcSilenceInput,
+  CcSloInput,
 } from "./types";
 
 // ---- Rules ----
@@ -128,6 +134,88 @@ export async function listAlerts(orgId: string) {
   return z
     .array(CcAlertSchema)
     .parse(await ccRequest(orgId, "GET", "/v1/alerts"));
+}
+
+// ---- SLOs ----
+// List and get return the SloView (bare Slo + required `updated_at`);
+// create/update/pause/resume answer the bare Slo, so they keep CcSloSchema.
+export async function listSlos(orgId: string) {
+  return z
+    .array(CcSloViewSchema)
+    .parse(await ccRequest(orgId, "GET", "/v1/slos"));
+}
+export async function getSlo(orgId: string, id: string) {
+  return CcSloViewSchema.parse(await ccRequest(orgId, "GET", `/v1/slos/${id}`));
+}
+/**
+ * The evaluator's latest status snapshot. CC 404s until the first evaluation
+ * tick writes one, so a 404 here reads as "no snapshot yet" (null) rather
+ * than an error — the SLO's own existence is the GET /v1/slos/:id read.
+ */
+export async function getSloStatus(orgId: string, id: string) {
+  try {
+    return CcSloStatusSchema.parse(
+      await ccRequest(orgId, "GET", `/v1/slos/${id}/status`),
+    );
+  } catch (error) {
+    if (error instanceof CcApiError && error.status === 404) return null;
+    throw error;
+  }
+}
+/** CC's create body is the spec flattened beside `name` (CreateSloBody). */
+export async function createSlo(orgId: string, input: CcSloInput) {
+  return CcSloSchema.parse(
+    await ccRequest(orgId, "POST", "/v1/slos", CcSloInputSchema.parse(input)),
+  );
+}
+/**
+ * Full-body replace (name + spec) with optional `version` for optimistic
+ * concurrency: a stale version answers 409 conflict and writes nothing;
+ * omitting it is last-write-wins. The paused flag is not part of the spec
+ * and survives updates.
+ */
+export async function updateSlo(
+  orgId: string,
+  id: string,
+  input: CcSloInput,
+  version?: number,
+) {
+  return CcSloSchema.parse(
+    await ccRequest(orgId, "PUT", `/v1/slos/${id}`, {
+      ...CcSloInputSchema.parse(input),
+      ...(version === undefined ? {} : { version }),
+    }),
+  );
+}
+export async function deleteSlo(orgId: string, id: string) {
+  return CcDeletedSchema.parse(
+    await ccRequest(orgId, "DELETE", `/v1/slos/${id}`),
+  );
+}
+export async function pauseSlo(orgId: string, id: string) {
+  return CcSloSchema.parse(
+    await ccRequest(orgId, "POST", `/v1/slos/${id}/pause`),
+  );
+}
+export async function resumeSlo(orgId: string, id: string) {
+  return CcSloSchema.parse(
+    await ccRequest(orgId, "POST", `/v1/slos/${id}/resume`),
+  );
+}
+/**
+ * Dry-run probe: validates the posted spec and runs the SLI over the spec's
+ * own budget window — no DB write, no snapshot. Like rules::test, the path id
+ * is ignored by CC; passed anyway so the URL stays truthful.
+ */
+export async function testSlo(orgId: string, id: string, input: CcSloInput) {
+  return CcSloTestResultSchema.parse(
+    await ccRequest(
+      orgId,
+      "POST",
+      `/v1/slos/${id}/test`,
+      CcSloInputSchema.parse(input),
+    ),
+  );
 }
 
 // ---- Channels ----

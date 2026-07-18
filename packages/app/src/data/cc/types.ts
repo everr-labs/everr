@@ -17,6 +17,16 @@ import type {
   CcSeveritySchema,
   CcSilenceInputSchema,
   CcSilenceSchema,
+  CcSloGroupStatusSchema,
+  CcSloHealthSchema,
+  CcSloInputSchema,
+  CcSloSchema,
+  CcSloSpecSchema,
+  CcSloStatusPayloadSchema,
+  CcSloStatusSchema,
+  CcSloTestResultSchema,
+  CcSloTierSchema,
+  CcSloViewSchema,
   CcSubscriptionSchema,
   CcTestResultSchema,
 } from "./schema";
@@ -40,3 +50,13 @@ export type CcSilence = z.infer<typeof CcSilenceSchema>;
 export type CcInhibition = z.infer<typeof CcInhibitionSchema>;
 export type CcSubscription = z.infer<typeof CcSubscriptionSchema>;
 export type CcTestResult = z.infer<typeof CcTestResultSchema>;
+export type CcSloTier = z.infer<typeof CcSloTierSchema>;
+export type CcSloSpec = z.infer<typeof CcSloSpecSchema>;
+export type CcSlo = z.infer<typeof CcSloSchema>;
+export type CcSloView = z.infer<typeof CcSloViewSchema>;
+export type CcSloHealth = z.infer<typeof CcSloHealthSchema>;
+export type CcSloGroupStatus = z.infer<typeof CcSloGroupStatusSchema>;
+export type CcSloStatusPayload = z.infer<typeof CcSloStatusPayloadSchema>;
+export type CcSloStatus = z.infer<typeof CcSloStatusSchema>;
+export type CcSloInput = z.infer<typeof CcSloInputSchema>;
+export type CcSloTestResult = z.infer<typeof CcSloTestResultSchema>;

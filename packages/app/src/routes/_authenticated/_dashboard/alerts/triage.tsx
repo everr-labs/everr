@@ -1,8 +1,8 @@
 import { Button, buttonVariants } from "@everr/ui/components/button";
 import { Card, CardContent } from "@everr/ui/components/card";
+import { RelativeTime } from "@everr/ui/components/relative-time";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import type { TimeRange } from "@everr/ui/lib/time-range";
-import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
@@ -16,6 +16,7 @@ import {
   CcQueryError,
   CcSegmentedControl,
   CcSeverityBadge,
+  CcSloTierBadge,
   CcStatusDot,
   CcTableSkeleton,
   Conditions,
@@ -23,6 +24,7 @@ import {
   ccFormatTs,
   EvidenceChips,
   LabelSet,
+  Pill,
 } from "@/components/cc/shared";
 import { fromCcRuleSpec } from "@/data/alerts/mapping";
 import { ccRuleIdentity } from "@/data/alerts/rule-identity";
@@ -33,12 +35,14 @@ import {
   ccSelectRoutes,
 } from "@/data/cc/route-resolution";
 import { createCcSilence } from "@/data/cc/server";
+import { ccSloTierSeverity, ccSloTiers } from "@/data/cc/slo";
 import type {
   CcAlert,
   CcMatcher,
   CcRoute,
   CcRuleView,
   CcSilence,
+  CcSlo,
 } from "@/data/cc/types";
 import type { SilenceHandoff } from "./silences";
 
@@ -66,6 +70,7 @@ export const Route = createFileRoute(
     Promise.all([
       queryClient.prefetchQuery(ccQueries.alerts()),
       queryClient.prefetchQuery(ccQueries.rules()),
+      queryClient.prefetchQuery(ccQueries.slos()),
       queryClient.prefetchQuery(ccQueries.routes()),
       queryClient.prefetchQuery(ccQueries.receivers()),
       queryClient.prefetchQuery(ccQueries.silences()),
@@ -101,28 +106,39 @@ function runbookParams(
 
 /**
  * The matchers a silence created from this instance carries: every instance
- * label pinned with `eq`, plus the synthetic `rule` label scoping it to this
- * rule (the dispatcher matches silences against synthetic labels, so a
- * label-free rule still gets a working, precisely scoped silence).
+ * label pinned with `eq`, plus a synthetic scoping label — `slo` for
+ * SLO-sourced instances, `rule` otherwise (the dispatcher matches silences
+ * against synthetic labels, so a label-free source still gets a working,
+ * precisely scoped silence).
  */
-function ruleScopedSilenceMatchers(alert: CcAlert): CcMatcher[] {
+function sourceScopedSilenceMatchers(alert: CcAlert): CcMatcher[] {
   return [
     ...Object.entries(alert.labels).map(([label, value]) => ({
       label,
       op: "eq" as const,
       value,
     })),
-    { label: "rule", op: "eq" as const, value: alert.rule },
+    alert.slo !== undefined
+      ? { label: "slo", op: "eq" as const, value: alert.slo }
+      : { label: "rule", op: "eq" as const, value: alert.rule },
   ];
 }
 
 // One triage row: the instance plus every fact the board derives for it.
+// `rule` and `slo` are mutually exclusive resolutions of the instance's
+// source (alert.slo discriminates).
 type TriageInstance = {
   alert: CcAlert;
   rule: CcRuleView | undefined;
+  slo: CcSlo | undefined;
   matchedRoutes: CcRoute[];
   silence: CcSilence | null;
 };
+
+/** The severity an SLO-sourced instance fires at: its tier's severity. */
+function sloInstanceSeverity(slo: CcSlo, alert: CcAlert) {
+  return ccSloTierSeverity(ccSloTiers(slo.spec), alert.labels);
+}
 
 // ── Instrument strip ──────────────────────────────────────────────────────────
 
@@ -300,12 +316,11 @@ function InstanceDetail({
                 <span className="w-14 text-muted-foreground">
                   {ccEventStatus(e.eventType) ?? e.eventType}
                 </span>
-                <span
+                <RelativeTime
+                  timestamp={e.timestamp}
                   className="text-muted-foreground/80"
                   title={ccFormatTs(e.timestamp)}
-                >
-                  {formatRelativeTime(e.timestamp)}
-                </span>
+                />
               </li>
             ))}
           </ul>
@@ -315,7 +330,7 @@ function InstanceDetail({
       <div className="flex items-center gap-3 text-xs text-muted-foreground">
         <span>
           last seen{" "}
-          {alert.last_seen ? formatRelativeTime(alert.last_seen) : "—"}
+          {alert.last_seen ? <RelativeTime timestamp={alert.last_seen} /> : "—"}
         </span>
         {alert.absent_count > 0 && <span>absent x{alert.absent_count}</span>}
       </div>
@@ -373,6 +388,16 @@ function InstanceRow({
 }) {
   const { alert, silence } = inst;
   const muted = alert.status !== "firing";
+  // SLO-sourced rows surface the burn-rate tier as a first-class badge (toned
+  // by the severity the tier fires at) instead of leaving it buried in the
+  // label pills.
+  const tier = inst.slo !== undefined ? alert.labels.slo_tier : undefined;
+  const shownLabels =
+    tier === undefined
+      ? alert.labels
+      : Object.fromEntries(
+          Object.entries(alert.labels).filter(([k]) => k !== "slo_tier"),
+        );
   return (
     <div className={cn(muted && "opacity-60")}>
       {/* Mouse convenience on the row; the chevron button is the keyboard and
@@ -403,8 +428,18 @@ function InstanceRow({
         <span className="w-16 shrink-0 text-xs">
           <CcInstanceStatusBadge status={alert.status} />
         </span>
-        <span className="min-w-0 flex-1">
-          <LabelSet labels={alert.labels} emptyLabel="no labels" />
+        <span className="flex min-w-0 flex-1 items-center gap-2">
+          {tier !== undefined && inst.slo !== undefined && (
+            <CcSloTierBadge
+              tier={tier}
+              severity={sloInstanceSeverity(inst.slo, alert)}
+            />
+          )}
+          {/* A scalar SLO instance's only label is the tier, already shown as
+              the badge — don't append a "no labels" placeholder after it. */}
+          {(tier === undefined || Object.keys(shownLabels).length > 0) && (
+            <LabelSet labels={shownLabels} emptyLabel="no labels" />
+          )}
         </span>
         <span className="w-16 shrink-0 text-right font-mono text-xs tabular-nums">
           {alert.value ?? "—"}
@@ -413,7 +448,11 @@ function InstanceRow({
           className="w-24 shrink-0 text-right text-xs whitespace-nowrap text-muted-foreground"
           title={ccFormatTs(alert.active_since)}
         >
-          {alert.active_since ? formatRelativeTime(alert.active_since) : "—"}
+          {alert.active_since ? (
+            <RelativeTime timestamp={alert.active_since} />
+          ) : (
+            "—"
+          )}
         </span>
         <span className="flex w-56 shrink-0 items-center justify-end gap-2">
           {silence && (
@@ -449,6 +488,7 @@ function CcTriagePage() {
   const navigate = useNavigate();
   const alerts = useQuery(ccQueries.alerts());
   const rules = useQuery(ccQueries.rules());
+  const slos = useQuery(ccQueries.slos());
   const routes = useQuery(ccQueries.routes());
   const receivers = useQuery(ccQueries.receivers());
   const silences = useQuery(ccQueries.silences());
@@ -462,7 +502,7 @@ function CcTriagePage() {
     mutationFn: ({ alert, hours }: { alert: CcAlert; hours: number }) =>
       createCcSilence({
         data: {
-          matchers: ruleScopedSilenceMatchers(alert),
+          matchers: sourceScopedSilenceMatchers(alert),
           starts_at: new Date().toISOString(),
           ends_at: new Date(Date.now() + hours * 3_600_000).toISOString(),
           comment: `silenced from triage (${hours}h)`,
@@ -481,6 +521,7 @@ function CcTriagePage() {
   const errored = [
     alerts,
     rules,
+    slos,
     routes,
     receivers,
     silences,
@@ -490,6 +531,10 @@ function CcTriagePage() {
   const ruleById = useMemo(
     () => new Map((rules.data ?? []).map((r) => [r.id, r])),
     [rules.data],
+  );
+  const sloById = useMemo(
+    () => new Map((slos.data ?? []).map((s) => [s.id, s])),
+    [slos.data],
   );
   const channelsByReceiver = useMemo(
     () => new Map((receivers.data ?? []).map((r) => [r.name, r.channels])),
@@ -503,16 +548,21 @@ function CcTriagePage() {
   const instances: TriageInstance[] = useMemo(() => {
     const now = Date.now();
     return (alerts.data ?? []).map((alert) => {
-      const rule = ruleById.get(alert.rule);
-      const matchLabels = ccDispatchLabels(alert, rule);
+      // `alert.rule` carries the source uuid for SLO rows too (CC's wire
+      // convention); `alert.slo` discriminates, so exactly one side resolves.
+      const slo = alert.slo !== undefined ? sloById.get(alert.slo) : undefined;
+      const rule =
+        alert.slo === undefined ? ruleById.get(alert.rule) : undefined;
+      const matchLabels = ccDispatchLabels(alert, rule, slo);
       return {
         alert,
         rule,
+        slo,
         matchedRoutes: ccSelectRoutes(routes.data ?? [], matchLabels),
         silence: ccMatchingSilence(matchLabels, silences.data ?? [], now),
       };
     });
-  }, [alerts.data, ruleById, routes.data, silences.data]);
+  }, [alerts.data, ruleById, sloById, routes.data, silences.data]);
 
   // Stable identities for `visible` and the counts so the `groups` memo below
   // only recomputes when the underlying facts or the lens change.
@@ -541,30 +591,53 @@ function CcTriagePage() {
     };
   }, [instances, lens, rules.data, silences.data]);
 
-  // Group by rule, severity-sorted (critical → warning → info), then by name;
-  // within a group firing instances precede pending (muted) and inactive.
+  // Group by source (rule or SLO — `alert.rule` carries the uuid for both),
+  // severity-sorted (critical → warning → info), then by name; within a group
+  // firing instances precede pending (muted) and inactive. An SLO group's
+  // severity is the highest tier severity among its visible instances (each
+  // burn-rate instance fires at its own tier's severity).
   const groups = useMemo(() => {
-    const byRule = new Map<string, TriageInstance[]>();
+    const bySource = new Map<string, TriageInstance[]>();
     for (const inst of visible) {
-      const list = byRule.get(inst.alert.rule) ?? [];
+      const list = bySource.get(inst.alert.rule) ?? [];
       list.push(inst);
-      byRule.set(inst.alert.rule, list);
+      bySource.set(inst.alert.rule, list);
     }
-    return [...byRule.entries()]
-      .map(([ruleId, list]) => ({
-        ruleId,
-        rule: list[0].rule,
-        name: ruleDisplayName(list[0].rule, ruleId),
-        severity: list[0].rule?.spec.severity ?? "info",
-        instances: [...list].sort(
-          (a, b) =>
-            (STATUS_RANK[a.alert.status] ?? 3) -
-              (STATUS_RANK[b.alert.status] ?? 3) ||
-            (a.alert.active_since ?? "").localeCompare(
-              b.alert.active_since ?? "",
-            ),
-        ),
-      }))
+    return [...bySource.entries()]
+      .map(([sourceId, list]) => {
+        const slo = list[0].slo;
+        // The instance knows it is SLO-sourced even before the SLO listing
+        // resolves the object, so linking/marking never falls back to a rule.
+        const sloId = list[0].alert.slo;
+        const severity = slo
+          ? list.reduce((top: string, inst) => {
+              const s = sloInstanceSeverity(slo, inst.alert);
+              return (SEVERITY_RANK[s] ?? 3) < (SEVERITY_RANK[top] ?? 3)
+                ? s
+                : top;
+            }, "info" as string)
+          : (list[0].rule?.spec.severity ?? "info");
+        return {
+          sourceId,
+          rule: list[0].rule,
+          slo,
+          sloId,
+          name: slo
+            ? slo.name
+            : sloId !== undefined
+              ? sloId.slice(0, 8)
+              : ruleDisplayName(list[0].rule, sourceId),
+          severity,
+          instances: [...list].sort(
+            (a, b) =>
+              (STATUS_RANK[a.alert.status] ?? 3) -
+                (STATUS_RANK[b.alert.status] ?? 3) ||
+              (a.alert.active_since ?? "").localeCompare(
+                b.alert.active_since ?? "",
+              ),
+          ),
+        };
+      })
       .sort(
         (a, b) =>
           (SEVERITY_RANK[a.severity] ?? 3) - (SEVERITY_RANK[b.severity] ?? 3) ||
@@ -577,6 +650,7 @@ function CcTriagePage() {
   const pending =
     alerts.isPending ||
     rules.isPending ||
+    slos.isPending ||
     routes.isPending ||
     receivers.isPending ||
     silences.isPending ||
@@ -646,9 +720,14 @@ function CcTriagePage() {
                 </span>
                 <p className="text-xs text-muted-foreground tabular-nums">
                   {watching} {watching === 1 ? "rule" : "rules"} watching
-                  {lastEventTs
-                    ? ` · last event ${formatRelativeTime(lastEventTs)}`
-                    : " · no events in the last 24h"}
+                  {lastEventTs ? (
+                    <>
+                      {" · last event "}
+                      <RelativeTime timestamp={lastEventTs} />
+                    </>
+                  ) : (
+                    " · no events in the last 24h"
+                  )}
                 </p>
                 <p className="max-w-sm text-xs text-muted-foreground">
                   Firing instances appear here the moment a rule&rsquo;s query
@@ -673,15 +752,30 @@ function CcTriagePage() {
           ) : (
             <div className="divide-y divide-border/60">
               {groups.map((group) => (
-                <section key={group.ruleId} className="py-1">
+                <section key={group.sourceId} className="py-1">
                   <div className="flex items-center gap-2.5 px-3 py-1.5">
-                    <Link
-                      to="/alerts/rules/$ruleId"
-                      params={{ ruleId: group.ruleId }}
-                      className="text-sm font-medium text-foreground underline-offset-2 hover:underline"
-                    >
-                      {group.name}
-                    </Link>
+                    {group.sloId !== undefined ? (
+                      <Link
+                        to="/alerts/slos/$sloId"
+                        params={{ sloId: group.sloId }}
+                        className="text-sm font-medium text-foreground underline-offset-2 hover:underline"
+                      >
+                        {group.name}
+                      </Link>
+                    ) : (
+                      <Link
+                        to="/alerts/rules/$ruleId"
+                        params={{ ruleId: group.sourceId }}
+                        className="text-sm font-medium text-foreground underline-offset-2 hover:underline"
+                      >
+                        {group.name}
+                      </Link>
+                    )}
+                    {group.sloId !== undefined && (
+                      // Origin marker: this group is an SLO's burn-rate
+                      // alerting, not a rule's.
+                      <Pill className="text-muted-foreground">SLO</Pill>
+                    )}
                     <CcSeverityBadge severity={group.severity} />
                     <span className="text-xs text-muted-foreground tabular-nums">
                       {group.instances.length}{" "}
@@ -693,7 +787,9 @@ function CcTriagePage() {
                     <span className="w-16 shrink-0" />
                     <span className="min-w-0 flex-1" />
                     <span className="w-16 shrink-0 text-right">
-                      {group.rule?.spec.value_column || "value"}
+                      {group.sloId !== undefined
+                        ? "burn rate"
+                        : group.rule?.spec.value_column || "value"}
                     </span>
                     <span className="w-24 shrink-0" />
                     <span className="w-56 shrink-0" />
@@ -730,7 +826,7 @@ function CcTriagePage() {
                             // shared SilenceHandoff type keeps both sides of
                             // the handoff agreeing on the shape.
                             state: {
-                              silencePrefill: ruleScopedSilenceMatchers(
+                              silencePrefill: sourceScopedSilenceMatchers(
                                 inst.alert,
                               ),
                             } satisfies SilenceHandoff as never,

@@ -17,6 +17,8 @@ import type { TimeRange } from "@everr/ui/lib/time-range";
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import {
   getCcRule,
+  getCcSlo,
+  getCcSloStatus,
   listCcAlerts,
   listCcChannels,
   listCcEventHistory,
@@ -26,6 +28,7 @@ import {
   listCcRules,
   listCcRulesPage,
   listCcSilences,
+  listCcSlos,
   listCcSubscriptions,
 } from "./server";
 import type { CcRuleHealthStatus } from "./types";
@@ -84,6 +87,31 @@ export const ccQueries = {
     queryOptions({
       queryKey: ["cc", "rule", ruleId] as const,
       queryFn: () => getCcRule({ data: { ruleId } }),
+    }),
+
+  // The tenant's SLOs (bare configs — no status). A config listing like
+  // routes/receivers: it changes through user actions (pause/resume/delete,
+  // as-code apply), so mutations invalidate it rather than polling.
+  slos: () =>
+    queryOptions({
+      queryKey: ["cc", "slos"] as const,
+      queryFn: () => listCcSlos(),
+    }),
+
+  slo: (sloId: string) =>
+    queryOptions({
+      queryKey: ["cc", "slo", sloId] as const,
+      queryFn: () => getCcSlo({ data: { sloId } }),
+    }),
+
+  // The evaluator's latest status snapshot for one SLO (null until the first
+  // evaluation tick writes one). The live surface of the SLO detail page, so
+  // it polls like alerts/rules do.
+  sloStatus: (sloId: string) =>
+    queryOptions({
+      queryKey: ["cc", "slo-status", sloId] as const,
+      queryFn: () => getCcSloStatus({ data: { sloId } }),
+      refetchInterval: CC_POLL_INTERVAL_MS,
     }),
 
   routes: () =>
