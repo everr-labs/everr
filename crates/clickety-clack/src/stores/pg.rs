@@ -2615,7 +2615,8 @@ impl PgStore {
 
     /// Load an SLO's instances, tenant-scoped. Mirrors [`Self::load_instances`] against
     /// `slo_instances`; callers already resolve the SLO via `get_slo(tenant, slo)`, the
-    /// tenant predicate here is defense-in-depth as there.
+    /// tenant predicate here is defense-in-depth as there. Ordered by `key` so
+    /// derived views (e.g. the `/status` `firing_tiers` array) are deterministic.
     pub async fn load_slo_instances(
         &self,
         tenant: &TenantId,
@@ -2623,7 +2624,7 @@ impl PgStore {
     ) -> Result<Vec<InstanceState>, StoreError> {
         let rows = sqlx::query(
             "SELECT key, slo, tenant, status, labels, value, active_since, last_seen, absent_count
-             FROM slo_instances WHERE slo=$1 AND tenant=$2",
+             FROM slo_instances WHERE slo=$1 AND tenant=$2 ORDER BY key",
         )
         .bind(slo.0)
         .bind(tenant.as_str())

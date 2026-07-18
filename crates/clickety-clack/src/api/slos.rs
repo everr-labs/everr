@@ -459,6 +459,20 @@ pub(crate) fn validate_slo_spec(spec: &SloSpec) -> Result<(), ApiError> {
             "label column {col:?} uses the reserved \"__cc_\" prefix"
         )));
     }
+    // `slo` and `slo_tier` are injected by the pipeline itself (the synthetic
+    // `slo` routing label and the per-tier instance discriminator), so a user
+    // label column with either name would be silently clobbered.
+    if let Some(col) = spec
+        .sli
+        .label_columns
+        .iter()
+        .find(|c| *c == "slo" || *c == "slo_tier")
+    {
+        return Err(ApiError::Validation(format!(
+            "label column {col:?} collides with a label the SLO pipeline injects \
+             (\"slo\", \"slo_tier\"); pick a different column alias"
+        )));
+    }
 
     // 6. Explicit tiers, if given, must be well-formed.
     if let Some(tiers) = &spec.tiers {
@@ -619,6 +633,23 @@ mod tests {
         let mut s = spec(GOOD_SQL);
         s.sli.label_columns = vec!["__cc_x".into()];
         assert!(validate_slo_spec(&s).is_err());
+    }
+
+    #[test]
+    fn rejects_pipeline_injected_label_names() {
+        for reserved in ["slo", "slo_tier"] {
+            let mut s = spec(GOOD_SQL);
+            s.sli.label_columns = vec!["service".into(), reserved.into()];
+            let err = validate_slo_spec(&s).unwrap_err();
+            let ApiError::Validation(msg) = err else {
+                panic!("expected Validation, got {err:?}")
+            };
+            assert!(msg.contains(reserved), "message was: {msg}");
+        }
+        // A merely similar name stays allowed.
+        let mut s = spec(GOOD_SQL);
+        s.sli.label_columns = vec!["slo_name".into()];
+        assert!(validate_slo_spec(&s).is_ok());
     }
 
     #[test]
