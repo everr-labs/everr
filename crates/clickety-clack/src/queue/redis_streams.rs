@@ -19,7 +19,8 @@ const PEL_RECLAIM_IDLE_MS: usize = 60_000;
 
 pub struct RedisQueue {
     conn: ConnectionManager,
-    /// Engine self-observability (`cc.queue.consume.lag`, `cc.queue.batch.size`).
+    /// Engine self-observability (`cc.queue.consume.lag`, `cc.queue.batch.size`,
+    /// `cc.queue.slo.consume.lag`, `cc.queue.slo.batch.size`).
     /// Disabled by default; attached by `main` when engine telemetry is configured.
     metrics: crate::otel::EngineMetrics,
     /// Minimum PEL idle time (ms) before a pending entry is reclaimed. Defaults
@@ -268,7 +269,7 @@ impl Queue for RedisQueue {
                 Ok(job) => {
                     if let Some(enq_ms) = entry_enqueue_unix_ms(&id) {
                         self.metrics
-                            .record_slo_queue_lag((now_ms - enq_ms).max(0) as f64 / 1000.0);
+                            .record_queue_slo_lag((now_ms - enq_ms).max(0) as f64 / 1000.0);
                     }
                     out.push(SloDelivery { id: JobId(id), job });
                 }
@@ -292,7 +293,7 @@ impl Queue for RedisQueue {
                     // lag falls out of the id itself. Clamp at 0 against clock skew.
                     if let Some(enq_ms) = entry_enqueue_unix_ms(&entry.id) {
                         self.metrics
-                            .record_slo_queue_lag((now_ms - enq_ms).max(0) as f64 / 1000.0);
+                            .record_queue_slo_lag((now_ms - enq_ms).max(0) as f64 / 1000.0);
                     }
                     out.push(SloDelivery {
                         id: JobId(entry.id),
@@ -304,7 +305,7 @@ impl Queue for RedisQueue {
         // Empty replies (the XREAD block timeout on an idle queue) are not batches;
         // recording them would drown the size distribution in zeros.
         if !out.is_empty() {
-            self.metrics.record_slo_queue_batch_size(out.len());
+            self.metrics.record_queue_slo_batch_size(out.len());
         }
         Ok(out)
     }
