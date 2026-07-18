@@ -209,26 +209,6 @@ fn row_to_slo_instance(r: &sqlx::postgres::PgRow) -> Result<InstanceState, Store
     })
 }
 
-/// Resolve a tier's severity from `labels["slo_tier"]` against the SLO's configured
-/// tiers (or [`crate::domain::slo::canonical_tiers`] if unset). Unknown/missing tier
-/// defensively falls back to `Critical` — the most conservative choice for a firing or
-/// stale alert whose tier we can't identify.
-fn tier_severity(
-    spec: &crate::domain::slo::SloSpec,
-    labels: &BTreeMap<String, String>,
-) -> crate::domain::rule::Severity {
-    use crate::domain::rule::Severity;
-    let tiers = spec
-        .tiers
-        .clone()
-        .unwrap_or_else(crate::domain::slo::canonical_tiers);
-    labels
-        .get("slo_tier")
-        .and_then(|name| tiers.iter().find(|t| &t.name == name))
-        .map(|t| t.severity)
-        .unwrap_or(Severity::Critical)
-}
-
 fn row_to_silence(r: &sqlx::postgres::PgRow) -> Result<Silence, StoreError> {
     Ok(Silence {
         id: r.get("id"),
@@ -2759,7 +2739,11 @@ impl PgStore {
         for r in &rows {
             let labels: BTreeMap<String, String> = serde_json::from_value(r.get("labels"))?;
             let spec: crate::domain::slo::SloSpec = serde_json::from_value(r.get("spec"))?;
-            let severity = tier_severity(&spec, &labels);
+            let tiers = spec
+                .tiers
+                .clone()
+                .unwrap_or_else(crate::domain::slo::canonical_tiers);
+            let severity = crate::domain::slo::tier_severity(&tiers, &labels);
             out.push(FiringInstance {
                 key: InstanceKey(r.get("key")),
                 rule: RuleId(r.get("slo")), // InstanceState.rule carries the SLO uuid for slo_instances rows
@@ -2808,7 +2792,11 @@ impl PgStore {
         for r in &rows {
             let labels: BTreeMap<String, String> = serde_json::from_value(r.get("labels"))?;
             let spec: crate::domain::slo::SloSpec = serde_json::from_value(r.get("spec"))?;
-            let severity = tier_severity(&spec, &labels);
+            let tiers = spec
+                .tiers
+                .clone()
+                .unwrap_or_else(crate::domain::slo::canonical_tiers);
+            let severity = crate::domain::slo::tier_severity(&tiers, &labels);
             out.push(StaleInstance {
                 key: InstanceKey(r.get("key")),
                 rule: RuleId(r.get("slo")), // InstanceState.rule carries the SLO uuid for slo_instances rows

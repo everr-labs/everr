@@ -402,9 +402,12 @@ pub async fn evaluate_slo(
         let tier = labels
             .get("slo_tier")
             .and_then(|name| tiers.iter().find(|t| t.name == *name));
-        // Falls back to Warning/no annotations only if the tier itself vanished from
-        // the spec (the labels always carry `slo_tier` from `plan_tier_firing`).
-        let severity = tier.map(|t| t.severity).unwrap_or(Severity::Warning);
+        // Severity goes through the shared helper (unified with `stores::pg`'s
+        // `list_firing_slos`/`list_stale_slo_instances`): unknown/vanished tier
+        // defaults to Critical, not Warning -- the conservative choice when we can't
+        // identify a resolving instance's tier. Annotations fall back to empty in the
+        // same case, reusing the tier lookup above rather than re-deriving it.
+        let severity = crate::domain::slo::tier_severity(&tiers, &labels);
         let annotations = tier
             .and_then(|t| tier_annotations.get(t.name.as_str()))
             .unwrap_or(&empty_annotations);

@@ -100,7 +100,15 @@ pub struct MatchedTarget {
 /// tier discriminator (slo_tier) — i.e. the SLI label_columns.
 pub(crate) fn slo_default_group_by(ev_labels: &BTreeMap<String, String>) -> Vec<String> {
     let mut gb = vec!["slo".to_string()];
-    gb.extend(ev_labels.keys().filter(|k| *k != "slo_tier").cloned());
+    // Also filter out a user label literally named `slo` (e.g. a label_column called
+    // "slo") so it isn't duplicated alongside the leading synthetic entry -- mirrors
+    // the equal-list dedup in `slo_inhibit::synthesize_slo_inhibitions`.
+    gb.extend(
+        ev_labels
+            .keys()
+            .filter(|k| *k != "slo_tier" && *k != "slo")
+            .cloned(),
+    );
     gb
 }
 
@@ -330,6 +338,20 @@ mod tests {
         assert_eq!(
             slo_default_group_by(&labels),
             vec!["slo".to_string(), "service".to_string()]
+        );
+    }
+
+    #[test]
+    fn slo_default_group_by_dedups_a_user_label_literally_named_slo() {
+        let labels = BTreeMap::from([
+            ("slo".to_string(), "user-value".to_string()),
+            ("service".to_string(), "api".to_string()),
+            ("slo_tier".to_string(), "fast-burn".to_string()),
+        ]);
+        assert_eq!(
+            slo_default_group_by(&labels),
+            vec!["slo".to_string(), "service".to_string()],
+            "a user label named `slo` must not duplicate the leading synthetic entry"
         );
     }
 

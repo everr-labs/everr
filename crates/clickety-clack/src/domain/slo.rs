@@ -112,6 +112,19 @@ pub fn canonical_tiers() -> Vec<BurnRateTier> {
     ]
 }
 
+/// Resolve a tier's severity from `labels["slo_tier"]` against the SLO's already-resolved
+/// tier list (caller passes `spec.tiers.clone().unwrap_or_else(canonical_tiers)`, or the
+/// pre-resolved `tiers` off a lean dispatch/evaluator projection). Unknown/missing tier
+/// defensively falls back to `Severity::Critical` — a conservative default for a tier no
+/// longer in the spec, shared by every caller so the fallback can't disagree with itself.
+pub(crate) fn tier_severity(tiers: &[BurnRateTier], labels: &BTreeMap<String, String>) -> Severity {
+    labels
+        .get("slo_tier")
+        .and_then(|name| tiers.iter().find(|t| &t.name == name))
+        .map(|t| t.severity)
+        .unwrap_or(Severity::Critical)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WindowParseError(pub String);
 
@@ -167,6 +180,23 @@ mod tests {
         assert!(parse_window_secs("10").is_err()); // no unit
         assert!(parse_window_secs("0d").is_err()); // must be > 0
         assert!(parse_window_secs("300000000000000000w").is_err()); // overflow -> Err, not panic/wrap
+    }
+
+    #[test]
+    fn tier_severity_resolves_known_tier_and_defaults_unknown_to_critical() {
+        let tiers = canonical_tiers();
+        let known = BTreeMap::from([("slo_tier".to_string(), "ticket".to_string())]);
+        assert_eq!(tier_severity(&tiers, &known), Severity::Warning);
+
+        // A tier name that isn't in the (resolved) tier list -- e.g. dropped from the
+        // spec since the instance was opened -- conservatively resolves to Critical,
+        // not the tier's old severity or any other default.
+        let unknown = BTreeMap::from([("slo_tier".to_string(), "ghost-tier".to_string())]);
+        assert_eq!(tier_severity(&tiers, &unknown), Severity::Critical);
+
+        // Missing label entirely: same conservative default.
+        let missing = BTreeMap::new();
+        assert_eq!(tier_severity(&tiers, &missing), Severity::Critical);
     }
 
     #[test]

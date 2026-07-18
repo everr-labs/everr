@@ -7,6 +7,7 @@ use cc::clickhouse::{AuthIdentity, ChError, ResultRow, RowQuerier};
 use cc::domain::event::{EventKind, EventStatus};
 use cc::domain::ids::{InstanceKey, RuleId, TenantId};
 use cc::domain::instance::{InstanceState, Status};
+use cc::domain::rule::Severity;
 use cc::domain::slo::{SliSpec, SloSpec, TimeWindow};
 use cc::engine::slo_math::SloStatusPayload;
 use cc::queue::event_bus::RedisEventBus;
@@ -327,6 +328,57 @@ async fn freeze_on_error_freezes_instances() {
         insts[0].last_seen,
         Some(seeded_last_seen),
         "the frozen tick must not touch the seeded instance's last_seen"
+    );
+}
+
+/// A `slo_instances` row for a tier name no longer in the spec's (canonical) tiers --
+/// e.g. left behind by an earlier spec edit -- is never re-planned by
+/// `plan_tier_firing`, so it falls into `evaluate_slo`'s "known-but-not-planned"
+/// leftover loop and resolves with no matching tier. That path's severity now goes
+/// through the same shared `tier_severity` helper as `stores::pg`'s
+/// `list_firing_slos`/`list_stale_slo_instances`, so it must default to Critical, not
+/// the old inline `Warning` fallback.
+#[tokio::test]
+async fn leftover_instance_with_unknown_tier_resolves_severity_as_critical() {
+    let store = pg().await;
+    let bus = redis_bus().await;
+    let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
+    let SloCreate::Created(slo) = store
+        .create_slo(tenant.clone(), "checkout", &spec(false))
+        .await
+        .unwrap()
+    else {
+        panic!("slo creation must succeed against a fresh tenant")
+    };
+
+    let rule_id = RuleId(slo.id.0);
+    let labels = BTreeMap::from([("slo_tier".to_string(), "ghost-tier".to_string())]);
+    let key = InstanceKey::new(rule_id, &labels);
+    let mut inst = InstanceState::new_inactive(key, rule_id, tenant.clone(), labels);
+    let seeded_last_seen = OffsetDateTime::now_utc() - time::Duration::minutes(5);
+    inst.status = Status::Firing;
+    inst.active_since = Some(seeded_last_seen);
+    inst.last_seen = Some(seeded_last_seen);
+    store.persist_slo_eval_batch(&[inst], &[]).await.unwrap();
+
+    // 0x burn on every canonical tier: nothing new fires, so the only event out of
+    // this tick is the ghost-tier instance resolving via the leftover loop.
+    let ch = StubCh::new(10000.0, 10000.0);
+    cc::evaluator::slo::evaluate_slo(&store, &ch, &bus, &slo, OffsetDateTime::now_utc(), 30, 3)
+        .await
+        .unwrap();
+
+    let got = bus.consume("alerting-ghost-tier", 10, 1000).await.unwrap();
+    let resolved = got
+        .iter()
+        .find(|e| e.event.labels.get("slo_tier").map(String::as_str) == Some("ghost-tier"))
+        .expect("the ghost-tier instance must resolve via the leftover loop");
+    assert_eq!(resolved.event.status, EventStatus::Resolved);
+    assert_eq!(
+        resolved.event.severity,
+        Severity::Critical,
+        "unknown-tier resolve events go through the shared tier_severity default \
+         (Critical), unifying with stores::pg's fallback"
     );
 }
 
