@@ -7,8 +7,10 @@ use uuid::Uuid;
 
 use crate::api::error::ApiError;
 use crate::api::AppState;
-use crate::domain::ids::SloId;
+use crate::domain::ids::{SloId, TenantId};
+use crate::domain::instance::Status;
 use crate::domain::slo::{parse_window_secs, Slo, SloSpec};
+use crate::engine::slo_math::{time_to_exhaustion_secs, SloStatusPayload};
 use crate::stores::{SloCreate, SloUpdate};
 
 fn tenant(state: &AppState, headers: &HeaderMap) -> Result<crate::domain::ids::TenantId, ApiError> {
@@ -176,9 +178,10 @@ pub async fn resume(
 }
 
 /// Read-only view of the evaluator's latest status snapshot for an SLO
-/// (the `slo_status` row, see [`crate::stores::pg::SloStatusRow`]), returned
-/// verbatim: no derived/filtered fields are added here. `health` is a sibling
-/// read from the `slos` row itself (see [`crate::stores::SloHealth`]).
+/// (the `slo_status` row, see [`crate::stores::pg::SloStatusRow`]). `payload`
+/// is the stored snapshot enriched at read time only (see [`enrich_status_payload`]):
+/// the stored row itself is never written back. `health` is a sibling read
+/// from the `slos` row itself (see [`crate::stores::SloHealth`]).
 #[derive(serde::Serialize)]
 pub struct SloStatusOut {
     #[serde(with = "time::serde::rfc3339")]
@@ -287,11 +290,85 @@ pub async fn status(
         .await
         .map_err(|e| ApiError::Internal(e.to_string()))?
         .ok_or(ApiError::NotFound)?;
+    let payload = enrich_status_payload(&state, &t, SloId(id), row.payload).await?;
     Ok(Json(SloStatusOut {
         computed_at: row.computed_at,
-        payload: row.payload,
+        payload,
         health: health.into(),
     }))
+}
+
+/// Read-time-only enrichment of the stored `slo_status` snapshot for the
+/// `/status` response (spec §8.2): each `payload.groups[*]` gains
+/// `time_to_exhaustion_secs` (projected from the group's current budget/burn)
+/// and `firing_tiers` (the group's currently non-inactive burn-rate-tier
+/// instances). Nothing computed here is written back to the stored row.
+///
+/// If the stored payload doesn't deserialize as `SloStatusPayload` (a legacy
+/// or corrupt row), the raw payload is served unmodified instead of erroring:
+/// the read path must not 500 on old data.
+async fn enrich_status_payload(
+    state: &AppState,
+    t: &TenantId,
+    id: SloId,
+    raw: Value,
+) -> Result<Value, ApiError> {
+    let payload: SloStatusPayload = match serde_json::from_value(raw.clone()) {
+        Ok(p) => p,
+        Err(_) => return Ok(raw),
+    };
+    let budget_window_secs = parse_window_secs(&payload.window).ok();
+    let instances = state
+        .store
+        .load_slo_instances(t, id)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    let groups: Vec<Value> = payload
+        .groups
+        .iter()
+        .map(|g| {
+            // The first tier's long-window burn rate is the most currently-representative
+            // sustained estimate: tiers are precedence-ordered fastest-first (see
+            // `domain::slo::canonical_tiers`), so tier 0 is the fast-burn tier with the
+            // shortest long-window, i.e. the freshest sustained-burn read.
+            let first_tier_long_burn = g.tiers.first().and_then(|tier| tier.long_burn_rate);
+            let tte = match (g.budget_remaining, first_tier_long_burn, budget_window_secs) {
+                (Some(budget), Some(burn), Some(window_secs)) => {
+                    time_to_exhaustion_secs(budget, burn, window_secs)
+                }
+                _ => None,
+            };
+
+            let firing_tiers: Vec<Value> = instances
+                .iter()
+                .filter(|inst| inst.status != Status::Inactive)
+                .filter_map(|inst| {
+                    let mut labels = inst.labels.clone();
+                    let tier = labels.remove("slo_tier")?;
+                    (labels == g.labels).then(|| {
+                        json!({
+                            "tier": tier,
+                            "status": serde_json::to_value(inst.status).unwrap_or(Value::Null),
+                        })
+                    })
+                })
+                .collect();
+
+            let mut v = serde_json::to_value(g).unwrap_or(Value::Null);
+            if let Some(obj) = v.as_object_mut() {
+                obj.insert("time_to_exhaustion_secs".into(), json!(tte));
+                obj.insert("firing_tiers".into(), json!(firing_tiers));
+            }
+            v
+        })
+        .collect();
+
+    let mut out = serde_json::to_value(&payload).unwrap_or(raw);
+    if let Some(obj) = out.as_object_mut() {
+        obj.insert("groups".into(), json!(groups));
+    }
+    Ok(out)
 }
 
 /// Replace each ClickHouse-native `{name:Type}` query parameter with a
