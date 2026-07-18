@@ -14,6 +14,10 @@ pub enum ApiError {
     NotFound,
     /// Optimistic-concurrency failure (e.g. rule `version` mismatch on update).
     Conflict(String),
+    /// Create-only POST against a name that already exists (channels/receivers).
+    /// 409 like `Conflict`, but with its own `already_exists` code so callers can
+    /// distinguish "pick another name / use the update route" from a version race.
+    AlreadyExists(String),
     /// Malformed request input that never names a valid value (e.g. an opaque
     /// pagination cursor that fails to decode), as opposed to a well-formed
     /// field with an invalid value (`Validation`, 422).
@@ -54,6 +58,7 @@ impl IntoResponse for ApiError {
                 "resource not found".to_string(),
             ),
             ApiError::Conflict(d) => (StatusCode::CONFLICT, "conflict", d),
+            ApiError::AlreadyExists(d) => (StatusCode::CONFLICT, "already_exists", d),
             ApiError::BadRequest(d) => (StatusCode::BAD_REQUEST, "bad_request", d),
             ApiError::Validation(d) => (StatusCode::UNPROCESSABLE_ENTITY, "validation_failed", d),
             ApiError::Internal(d) => {

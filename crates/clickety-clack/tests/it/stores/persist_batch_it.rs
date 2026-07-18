@@ -17,7 +17,7 @@ fn inst(rule: cc::domain::ids::RuleId, tenant: &TenantId, n: usize, value: f64) 
     let labels = BTreeMap::from([("svc".to_string(), format!("svc-{n}"))]);
     let mut s = InstanceState::new_inactive(
         InstanceKey::new(rule, &labels),
-        rule,
+        cc::domain::ids::SourceId::Rule(rule),
         tenant.clone(),
         labels,
     );
@@ -99,7 +99,7 @@ async fn persist_eval_batch_upserts_and_outboxes() {
     let null_labels = BTreeMap::from([("svc".to_string(), "null-case".to_string())]);
     let null_inst = InstanceState::new_inactive(
         InstanceKey::new(rule.id, &null_labels),
-        rule.id,
+        cc::domain::ids::SourceId::Rule(rule.id),
         tenant.clone(),
         null_labels,
     );

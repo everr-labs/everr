@@ -65,7 +65,8 @@ fn instance(
     let mut labels = BTreeMap::new();
     labels.insert("service".to_string(), name.to_string());
     let key = InstanceKey::new(rule, &labels);
-    let mut s = InstanceState::new_inactive(key, rule, tenant, labels);
+    let mut s =
+        InstanceState::new_inactive(key, cc::domain::ids::SourceId::Rule(rule), tenant, labels);
     s.status = status;
     s.last_seen = Some(last_seen);
     s.active_since = Some(last_seen);
@@ -86,8 +87,12 @@ async fn relay_publishes_stale_outbox_rows_and_deletes_them() {
     let mut labels = BTreeMap::new();
     labels.insert("service".to_string(), "api".to_string());
     let key = InstanceKey::new(rule.id, &labels);
-    let mut inst =
-        InstanceState::new_inactive(key.clone(), rule.id, tenant.clone(), labels.clone());
+    let mut inst = InstanceState::new_inactive(
+        key.clone(),
+        cc::domain::ids::SourceId::Rule(rule.id),
+        tenant.clone(),
+        labels.clone(),
+    );
     inst.status = Status::Firing;
     let ev = Event::new(
         tenant,
@@ -267,8 +272,12 @@ async fn relay_retries_when_publish_fails() {
     let mut labels = BTreeMap::new();
     labels.insert("service".to_string(), "api".to_string());
     let key = InstanceKey::new(rule.id, &labels);
-    let mut inst =
-        InstanceState::new_inactive(key.clone(), rule.id, tenant.clone(), labels.clone());
+    let mut inst = InstanceState::new_inactive(
+        key.clone(),
+        cc::domain::ids::SourceId::Rule(rule.id),
+        tenant.clone(),
+        labels.clone(),
+    );
     inst.status = Status::Firing;
     let ev = Event::new(
         tenant,

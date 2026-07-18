@@ -4,12 +4,7 @@ import { Skeleton } from "@everr/ui/components/skeleton";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { cn } from "@everr/ui/lib/utils";
-import {
-  queryOptions,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { BellOff, BookOpenText, ChevronRight } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -29,25 +24,15 @@ import {
   EvidenceChips,
   LabelSet,
 } from "@/components/cc/shared";
-import type { AlertEventLogRow } from "@/data/alerts/history.server";
 import { fromCcRuleSpec } from "@/data/alerts/mapping";
 import { ccRuleIdentity } from "@/data/alerts/rule-identity";
+import { ccQueries } from "@/data/cc/queries";
 import {
   ccDispatchLabels,
   ccMatchingSilence,
   ccSelectRoutes,
 } from "@/data/cc/route-resolution";
-import {
-  CC_POLL_INTERVAL_MS,
-  createCcSilence,
-  listCcAlerts,
-  listCcEventHistory,
-  listCcReceivers,
-  listCcRoutes,
-  listCcRules,
-  listCcSilences,
-  listCcSubscriptions,
-} from "@/data/cc/server";
+import { createCcSilence } from "@/data/cc/server";
 import type {
   CcAlert,
   CcMatcher,
@@ -60,48 +45,17 @@ import type { SilenceHandoff } from "./silences";
 // The alerts layout hides the global time-range picker, so Triage reads a
 // fixed trailing window of stored events for evidence and recent transitions.
 const TRIAGE_EVENT_RANGE: TimeRange = { from: "now-24h", to: "now" };
-const TRIAGE_EVENT_LIMIT = 500;
+// Per-instance cap for the expanded row's fingerprint-scoped feed: it needs
+// the newest evidence-carrying event plus the last 6 transitions, so this is
+// generous headroom.
+const TRIAGE_INSTANCE_EVENT_LIMIT = 100;
 
-const q = {
-  alerts: () =>
-    queryOptions({
-      queryKey: ["cc", "alerts"],
-      queryFn: () => listCcAlerts(),
-      refetchInterval: CC_POLL_INTERVAL_MS,
-    }),
-  rules: () =>
-    queryOptions({
-      queryKey: ["cc", "rules"],
-      queryFn: () => listCcRules(),
-      refetchInterval: CC_POLL_INTERVAL_MS,
-    }),
-  routes: () =>
-    queryOptions({ queryKey: ["cc", "routes"], queryFn: () => listCcRoutes() }),
-  receivers: () =>
-    queryOptions({
-      queryKey: ["cc", "receivers"],
-      queryFn: () => listCcReceivers(),
-    }),
-  silences: () =>
-    queryOptions({
-      queryKey: ["cc", "silences"],
-      queryFn: () => listCcSilences(),
-    }),
-  subscriptions: () =>
-    queryOptions({
-      queryKey: ["cc", "subscriptions"],
-      queryFn: () => listCcSubscriptions(),
-    }),
-  events: () =>
-    queryOptions({
-      queryKey: ["cc", "event-history", TRIAGE_EVENT_RANGE],
-      queryFn: () =>
-        listCcEventHistory({
-          data: { limit: TRIAGE_EVENT_LIMIT, timeRange: TRIAGE_EVENT_RANGE },
-        }),
-      refetchInterval: CC_POLL_INTERVAL_MS,
-    }),
-};
+// The board itself only needs the timestamp of the newest stored event (the
+// all-clear freshness readout), so it polls a limit-1 query; each expanded
+// row fetches and polls its own fingerprint-scoped events instead of the
+// whole 24h window.
+const latestEventQuery = () =>
+  ccQueries.eventHistory(TRIAGE_EVENT_RANGE, { limit: 1 });
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/alerts/triage",
@@ -110,13 +64,13 @@ export const Route = createFileRoute(
   head: () => ({ meta: [{ title: "Everr - Alerts Triage" }] }),
   loader: ({ context: { queryClient } }) =>
     Promise.all([
-      queryClient.prefetchQuery(q.alerts()),
-      queryClient.prefetchQuery(q.rules()),
-      queryClient.prefetchQuery(q.routes()),
-      queryClient.prefetchQuery(q.receivers()),
-      queryClient.prefetchQuery(q.silences()),
-      queryClient.prefetchQuery(q.subscriptions()),
-      queryClient.prefetchQuery(q.events()),
+      queryClient.prefetchQuery(ccQueries.alerts()),
+      queryClient.prefetchQuery(ccQueries.rules()),
+      queryClient.prefetchQuery(ccQueries.routes()),
+      queryClient.prefetchQuery(ccQueries.receivers()),
+      queryClient.prefetchQuery(ccQueries.silences()),
+      queryClient.prefetchQuery(ccQueries.subscriptions()),
+      queryClient.prefetchQuery(latestEventQuery()),
     ]),
   component: CcTriagePage,
 });
@@ -247,19 +201,26 @@ function DeliveryFact({
 
 function InstanceDetail({
   inst,
-  events,
   onSilence,
   silencePending,
   onCustomSilence,
 }: {
   inst: TriageInstance;
-  events: AlertEventLogRow[];
   onSilence: (hours: number) => void;
   silencePending: boolean;
   onCustomSilence: () => void;
 }) {
   const { alert, rule } = inst;
-  const own = events.filter((e) => e.instanceFingerprint === alert.key);
+  // This instance's own stored events, fetched (and polled) only while the
+  // row is expanded — the fingerprint narrows server-side, so the board never
+  // ships the whole 24h window for one row's detail.
+  const ownEvents = useQuery(
+    ccQueries.eventHistory(TRIAGE_EVENT_RANGE, {
+      fingerprint: alert.key,
+      limit: TRIAGE_INSTANCE_EVENT_LIMIT,
+    }),
+  );
+  const own = ownEvents.data ?? [];
   const latest = own.find(
     (e) => e.evidence && Object.keys(e.evidence).length > 0,
   );
@@ -316,7 +277,9 @@ function InstanceDetail({
         <div className="text-[0.625rem] font-medium tracking-wide text-muted-foreground uppercase">
           Recent transitions
         </div>
-        {transitions.length === 0 ? (
+        {ownEvents.isPending ? (
+          <Skeleton className="h-4 w-44" />
+        ) : transitions.length === 0 ? (
           <span className="text-xs text-muted-foreground">
             no stored transitions in the last 24h
           </span>
@@ -484,13 +447,13 @@ type LensKey = (typeof LENSES)[number]["key"];
 function CcTriagePage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const alerts = useQuery(q.alerts());
-  const rules = useQuery(q.rules());
-  const routes = useQuery(q.routes());
-  const receivers = useQuery(q.receivers());
-  const silences = useQuery(q.silences());
-  const subscriptions = useQuery(q.subscriptions());
-  const events = useQuery(q.events());
+  const alerts = useQuery(ccQueries.alerts());
+  const rules = useQuery(ccQueries.rules());
+  const routes = useQuery(ccQueries.routes());
+  const receivers = useQuery(ccQueries.receivers());
+  const silences = useQuery(ccQueries.silences());
+  const subscriptions = useQuery(ccQueries.subscriptions());
+  const latestEvent = useQuery(latestEventQuery());
 
   const [lens, setLens] = useState<LensKey>("firing");
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
@@ -506,7 +469,7 @@ function CcTriagePage() {
         },
       }),
     onSuccess: (_, { hours }) => {
-      qc.invalidateQueries({ queryKey: ["cc", "silences"] });
+      qc.invalidateQueries({ queryKey: ccQueries.silences().queryKey });
       toast.success(`Silenced for ${hours}h`);
     },
     onError: (e) => toast.error(ccErrorMessage(e)),
@@ -532,7 +495,6 @@ function CcTriagePage() {
     () => new Map((receivers.data ?? []).map((r) => [r.name, r.channels])),
     [receivers.data],
   );
-  const eventRows = events.data ?? [];
 
   // Every derived fact for every instance, resolved once with the engine's own
   // matching semantics (synthetic labels, priority + continue routes).
@@ -622,7 +584,7 @@ function CcTriagePage() {
 
   const hasSubscribers = (subscriptions.data ?? []).length > 0;
   const watching = (rules.data ?? []).filter((r) => !r.paused).length;
-  const lastEventTs = eventRows[0]?.timestamp ?? null;
+  const lastEventTs = latestEvent.data?.[0]?.timestamp ?? null;
 
   return (
     <div className="space-y-3">
@@ -756,7 +718,6 @@ function CcTriagePage() {
                     >
                       <InstanceDetail
                         inst={inst}
-                        events={eventRows}
                         silencePending={silenceInstance.isPending}
                         onSilence={(hours) =>
                           silenceInstance.mutate({ alert: inst.alert, hours })

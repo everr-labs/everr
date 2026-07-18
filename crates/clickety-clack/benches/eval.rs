@@ -1,4 +1,4 @@
-use cc::domain::ids::{InstanceKey, RuleId, TenantId};
+use cc::domain::ids::{InstanceKey, RuleId, SourceId, TenantId};
 use cc::domain::instance::InstanceState;
 use cc::domain::rule::Severity;
 use cc::engine::{evaluate, EvalInput};
@@ -20,7 +20,7 @@ fn labels(n: usize) -> BTreeMap<String, String> {
 // `prev.clone()` that the move did not change).
 fn bench_evaluate(c: &mut Criterion) {
     let tenant = TenantId::from_trusted(Uuid::nil().to_string());
-    let rule = RuleId(Uuid::nil());
+    let rule = SourceId::Rule(RuleId(Uuid::nil()));
     let ann = BTreeMap::new();
     let base = InstanceState::new_inactive(InstanceKey("k".into()), rule, tenant, labels(8));
     let src = labels(8);

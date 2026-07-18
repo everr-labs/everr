@@ -339,6 +339,8 @@ pub async fn evaluate_slo(
     // the resulting events. Reached only on this success path — every freeze-on-error
     // branch above already returned before here, so a flaky SLI query can neither
     // fire nor resolve an instance off of partial data.
+    // Instance-key hashing input only (`InstanceKey::new` keys on the bare uuid);
+    // the instances themselves carry typed `SourceId::Slo` identity.
     let rule_id = RuleId(slo.id.0);
     let planned = plan_tier_firing(&slo.spec, &payload);
     let known = store.load_slo_instances(&slo.tenant, slo.id).await?;
@@ -363,7 +365,12 @@ pub async fn evaluate_slo(
     for tf in &planned {
         let key = InstanceKey::new(rule_id, &tf.labels);
         let prev = known_by_key.remove(&key).unwrap_or_else(|| {
-            InstanceState::new_inactive(key, rule_id, slo.tenant.clone(), tf.labels.clone())
+            InstanceState::new_inactive(
+                key,
+                crate::domain::ids::SourceId::Slo(slo.id),
+                slo.tenant.clone(),
+                tf.labels.clone(),
+            )
         });
         let annotations = tier_annotations
             .get(tf.tier_name.as_str())
@@ -385,8 +392,8 @@ pub async fn evaluate_slo(
             eval_ts,
         };
         let outcome = evaluate(prev, input);
+        // The engine already stamped `ev.slo` from the instance's `SourceId::Slo`.
         if let Some(mut ev) = outcome.event {
-            ev.slo = Some(slo.id);
             ev.suppressed = slo.spec.suppressed;
             ev.evidence = Some(slo_evidence(slo, tf, budget_window_secs));
             ev.evidence_truncated = false;
@@ -424,11 +431,10 @@ pub async fn evaluate_slo(
             eval_ts,
         };
         let outcome = evaluate(prev, input);
+        // `ev.slo` is stamped by the engine; resolved-by-absence has no source
+        // row, so evidence stays None/untruncated (already the engine's default).
         if let Some(mut ev) = outcome.event {
-            ev.slo = Some(slo.id);
             ev.suppressed = slo.spec.suppressed;
-            // Resolved-by-absence has no source row: evidence stays None/untruncated
-            // (already the engine's default).
             out_events.push(ev);
         }
         next_states.push(outcome.next);
@@ -472,23 +478,47 @@ async fn process_slo_batch_inner(
     degrade_after: u32,
     deliveries: Vec<SloDelivery>,
 ) {
-    for d in deliveries {
-        let job = d.job;
-        match store.try_claim_slo_eval(job.slo, job.eval_ts).await {
-            Ok(true) => {}
-            Ok(false) => continue, // another worker already claimed this (slo, eval_ts)
-            Err(e) => {
-                tracing::error!(slo = ?job.slo, error = %e, "try_claim_slo_eval failed");
-                continue;
-            }
+    // Claim + resolve in two batched round trips (previously ~2 per delivery).
+    // `try_claim_slo_evals` preserves the per-pair conflict semantics of the old
+    // per-delivery claim: a job that loses the (slo, eval_ts) race is skipped
+    // (and still acked by the caller), exactly as before. A store error skips
+    // the whole batch the same way a per-job claim/lookup error skipped that job.
+    let jobs: Vec<crate::queue::SloEvalJob> = deliveries.into_iter().map(|d| d.job).collect();
+    let claim_pairs: Vec<(crate::domain::ids::SloId, time::OffsetDateTime)> =
+        jobs.iter().map(|j| (j.slo, j.eval_ts)).collect();
+    let claimed = match store.try_claim_slo_evals(&claim_pairs).await {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::error!(error = %e, "try_claim_slo_eval failed");
+            return;
         }
-        match store.get_slo(job.tenant.clone(), job.slo).await {
-            Ok(Some(slo)) if !slo.paused => {
+    };
+    let claimed_jobs: Vec<crate::queue::SloEvalJob> = jobs
+        .into_iter()
+        .zip(claimed)
+        .filter_map(|(job, won)| won.then_some(job))
+        .collect();
+    let mut slo_ids: Vec<crate::domain::ids::SloId> = claimed_jobs.iter().map(|j| j.slo).collect();
+    slo_ids.sort_unstable_by_key(|s| s.0);
+    slo_ids.dedup();
+    let slos_by_id: HashMap<crate::domain::ids::SloId, crate::domain::slo::Slo> =
+        match store.get_slos_by_ids(&slo_ids).await {
+            Ok(slos) => slos.into_iter().map(|s| (s.id, s)).collect(),
+            Err(e) => {
+                tracing::error!(error = %e, "get_slo failed");
+                return;
+            }
+        };
+    for job in claimed_jobs {
+        match slos_by_id.get(&job.slo) {
+            // The tenant guard keeps the per-id read's scoping: a job whose tenant
+            // doesn't match the stored SLO is treated as a miss, never evaluated.
+            Some(slo) if slo.tenant == job.tenant && !slo.paused => {
                 if let Err(e) = evaluate_slo(
                     store,
                     ch,
                     events,
-                    &slo,
+                    slo,
                     job.eval_ts,
                     base_cadence_secs,
                     degrade_after,
@@ -498,8 +528,7 @@ async fn process_slo_batch_inner(
                     tracing::error!(slo = ?job.slo, error = %e, "slo evaluation errored");
                 }
             }
-            Ok(_) => {} // paused or deleted: drop the in-flight job (still acked)
-            Err(e) => tracing::error!(slo = ?job.slo, error = %e, "get_slo failed"),
+            _ => {} // paused, deleted, or tenant mismatch: drop the job (still acked)
         }
     }
 }
@@ -550,10 +579,10 @@ pub async fn run_slo_evaluator(
                 "slo evaluation batch panicked; acking the batch and continuing"
             );
         }
-        for id in ack_ids {
-            if let Err(e) = queue.ack_slo(&id).await {
-                tracing::error!(error = %e, "ack_slo failed");
-            }
+        // One variadic ack per batch. On failure the unacked ids stay pending and
+        // are redelivered via the reclaim pre-pass, so logging is all that's owed.
+        if let Err(e) = queue.ack_slo_batch(&ack_ids).await {
+            tracing::error!(error = %e, "ack_slo failed");
         }
     }
     tracing::info!("slo evaluator stopped");

@@ -169,7 +169,7 @@ async fn status_enriches_time_to_exhaustion_and_firing_tiers() {
     inst_labels.insert("slo_tier".to_string(), "fast-burn".to_string());
     let mut inst = InstanceState::new_inactive(
         InstanceKey::new(rule, &inst_labels),
-        rule,
+        cc::domain::ids::SourceId::Slo(slo_id),
         tenant.clone(),
         inst_labels,
     );

@@ -16,6 +16,7 @@ import {
 import { cn } from "@everr/ui/lib/utils";
 import { ChevronRight, Info, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
+import { ccErrorInfo } from "@/data/cc/errors";
 import { ccOpSymbol } from "@/data/cc/route-resolution";
 import type { CcMatcher, CcRuleHealthStatus } from "@/data/cc/types";
 
@@ -45,18 +46,20 @@ export function CcConceptNote({
   );
 }
 
-// CC server-fn errors (incl. CcApiError) are serialized across the server→client
-// boundary and arrive as plain Errors, so we match on `error.message` here rather
-// than importing the class into this client-bundled module. The transport wraps
-// network/timeout failures with the stable "clickety-clack unreachable"/"request
-// timed out" prefixes matched below; the message already carries CC's
-// problem+json `detail`.
+// CC failures arrive as CcApiError, whose status/code survive the server-fn
+// serialization boundary structurally (see ccErrorInfo in data/cc/errors.ts):
+// status 0 marks a transport-level failure (CC unreachable / timed out), any
+// other status carries CC's problem+json detail as the message. The regex is
+// only a last-resort fallback for failures that never reached the CC client —
+// e.g. the browser's own request to the server fn failing.
 export function ccErrorMessage(error: unknown): string {
+  const info = ccErrorInfo(error);
+  if (info) {
+    return info.status === 0 ? "Alerting service unavailable" : info.message;
+  }
   if (error instanceof Error) {
     if (
-      /clickety-clack unreachable|clickety-clack request timed out|fetch failed|timeout|ECONNREFUSED/i.test(
-        error.message,
-      )
+      /fetch failed|failed to fetch|timeout|ECONNREFUSED/i.test(error.message)
     ) {
       return "Alerting service unavailable";
     }

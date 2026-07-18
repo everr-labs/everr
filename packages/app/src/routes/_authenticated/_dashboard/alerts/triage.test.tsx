@@ -37,7 +37,6 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/data/cc/server", () => ({
-  CC_POLL_INTERVAL_MS: 15_000,
   listCcAlerts: mocks.listCcAlerts,
   listCcRules: mocks.listCcRules,
   listCcRoutes: mocks.listCcRoutes,
@@ -470,6 +469,29 @@ describe("/alerts/triage route", () => {
     const windowMs =
       new Date(data.ends_at).getTime() - new Date(data.starts_at).getTime();
     expect(windowMs).toBe(3_600_000);
+  });
+
+  it("polls only the newest event for the board and scopes the expanded row's feed by fingerprint", async () => {
+    const user = userEvent.setup();
+    renderTriageRoute();
+
+    await expandRowByLabel(user, "web-1");
+    await screen.findByText("status_code=500");
+
+    const calls = mocks.listCcEventHistory.mock.calls.map(
+      (c) => (c[0] as { data: Record<string, unknown> }).data,
+    );
+    // The collapsed board never fetches the full window: its only history
+    // query is the newest-event freshness readout.
+    expect(calls).toContainEqual(expect.objectContaining({ limit: 1 }));
+    // The expanded row fetches its own instance's events, narrowed
+    // server-side by fingerprint.
+    expect(calls).toContainEqual(
+      expect.objectContaining({ fingerprint: "fp-1" }),
+    );
+    expect(
+      calls.every((c) => c.limit === 1 || c.fingerprint !== undefined),
+    ).toBe(true);
   });
 
   it("shows the all-clear instrument when nothing is firing", async () => {

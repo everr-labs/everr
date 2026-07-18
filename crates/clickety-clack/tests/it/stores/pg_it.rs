@@ -1,4 +1,4 @@
-use cc::domain::ids::TenantId;
+use cc::domain::ids::{SourceId, TenantId};
 use cc::domain::rule::{RuleSpec, Severity};
 use cc::stores::PgStore;
 use std::collections::BTreeMap;
@@ -63,7 +63,8 @@ async fn instance_upsert_and_load_roundtrip() {
     let mut labels = BTreeMap::new();
     labels.insert("service".to_string(), "api".to_string());
     let key = InstanceKey::new(rule.id, &labels);
-    let mut inst = InstanceState::new_inactive(key.clone(), rule.id, tenant, labels.clone());
+    let mut inst =
+        InstanceState::new_inactive(key.clone(), SourceId::Rule(rule.id), tenant, labels.clone());
     inst.status = Status::Firing;
     inst.value = Some(42.0);
     inst.absent_count = 3;
@@ -103,7 +104,8 @@ async fn list_alerts_excludes_inactive() {
         let mut labels = BTreeMap::new();
         labels.insert("service".to_string(), name.to_string());
         let key = InstanceKey::new(rule.id, &labels);
-        let mut s = InstanceState::new_inactive(key, rule.id, tenant.clone(), labels);
+        let mut s =
+            InstanceState::new_inactive(key, SourceId::Rule(rule.id), tenant.clone(), labels);
         s.status = status;
         s
     };

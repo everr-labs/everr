@@ -5,7 +5,7 @@ import type { CcAlert, CcRuleView } from "@/data/cc/types";
 import { listCcLabelKeys, listCcLabelValues } from "./server";
 
 const mocks = vi.hoisted(() => ({
-  listRules: vi.fn(),
+  listAllRules: vi.fn(),
   listAlerts: vi.fn(),
   queryObservedLabelKeys: vi.fn(),
   queryObservedLabelValues: vi.fn(),
@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
 // The CC client and the ClickHouse readers are the fns' only two data planes;
 // mocking them at the module boundary leaves the merge logic real.
 vi.mock("./client", () => ({
-  listRules: mocks.listRules,
+  listAllRules: mocks.listAllRules,
   listAlerts: mocks.listAlerts,
 }));
 
@@ -70,7 +70,7 @@ function ccAlert(labels: Record<string, string>): CcAlert {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.listRules.mockResolvedValue([]);
+  mocks.listAllRules.mockResolvedValue([]);
   mocks.listAlerts.mockResolvedValue([]);
   mocks.queryObservedLabelKeys.mockResolvedValue([]);
   mocks.queryObservedLabelValues.mockResolvedValue([]);
@@ -89,7 +89,7 @@ describe("listCcLabelKeys", () => {
 
   it("merges observed history, rule label_columns, and instance labels, deduped", async () => {
     mocks.queryObservedLabelKeys.mockResolvedValue(["svc", "host"]);
-    mocks.listRules.mockResolvedValue([
+    mocks.listAllRules.mockResolvedValue([
       ccRule({ label_columns: ["svc", "region"] }),
     ]);
     mocks.listAlerts.mockResolvedValue([ccAlert({ host: "web-1", az: "a" })]);
@@ -114,7 +114,7 @@ describe("listCcLabelKeys", () => {
   });
 
   it("still answers when a source fails: suggestions assist, never block", async () => {
-    mocks.listRules.mockRejectedValue(new Error("cc down"));
+    mocks.listAllRules.mockRejectedValue(new Error("cc down"));
     mocks.queryObservedLabelKeys.mockRejectedValue(new Error("ch down"));
     mocks.listAlerts.mockResolvedValue([ccAlert({ svc: "flap" })]);
 
@@ -142,7 +142,7 @@ describe("listCcLabelValues", () => {
   });
 
   it("answers rule with the rule IDs the dispatcher matches on, friendly name as hint", async () => {
-    mocks.listRules.mockResolvedValue([
+    mocks.listAllRules.mockResolvedValue([
       ccRule({
         id: "44444444-4444-4444-4444-444444444444",
         annotations: { "everr.display.name": "High 5xx rate" },

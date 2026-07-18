@@ -26,9 +26,10 @@ export const OWN_REPO = "everr.repoid";
 // analogue of the Postgres resource tables' preview_id column.
 export const OWN_PREVIEW = "everr.preview";
 
-// Annotation keys we pack the simple-alert UI fields into.
-const ANN_TITLE = "everr.notification.title";
-const ANN_DESCRIPTION = "everr.notification.description";
+// Annotation keys we pack the simple-alert UI fields into. The notification
+// templates live ONLY under CC's own `summary`/`description` keys
+// (annotations.ts): CC renders them, and we read the same keys back, so one
+// key per template is both the write and the read path.
 const ANN_DISPLAY_NAME = "everr.display.name";
 const ANN_DISPLAY_DESCRIPTION = "everr.display.description";
 const ANN_LABEL_PREFIX = "everr.label."; // metadata.labels.<k> → everr.label.<k>
@@ -83,13 +84,11 @@ export function toRuleSpec(
     ...rule.spec.annotations,
     [OWN_NAME]: rule.metadata.name,
     [OWN_REPO]: repoid,
-    [ANN_TITLE]: rule.spec.notificationMessage.title,
-    // The same templates drive CC's own notification rendering.
+    // The notification templates, under the keys CC's dispatcher renders.
     [ANN_CC_SUMMARY]: rule.spec.notificationMessage.title,
   };
   if (opts.previewId) annotations[OWN_PREVIEW] = opts.previewId;
   if (rule.spec.notificationMessage.description) {
-    annotations[ANN_DESCRIPTION] = rule.spec.notificationMessage.description;
     annotations[ANN_CC_DESCRIPTION] = rule.spec.notificationMessage.description;
   }
   if (rule.spec.display?.name)
@@ -164,8 +163,8 @@ export function fromCcRuleSpec(spec: CcRuleSpec): SimpleAlertView {
     slug: ann[OWN_NAME] ?? "",
     repoid: ann[OWN_REPO] ?? "",
     severity: spec.severity,
-    notificationTitleTemplate: ann[ANN_TITLE] ?? "",
-    notificationDescriptionTemplate: ann[ANN_DESCRIPTION] ?? "",
+    notificationTitleTemplate: ann[ANN_CC_SUMMARY] ?? "",
+    notificationDescriptionTemplate: ann[ANN_CC_DESCRIPTION] ?? "",
     displayName: ann[ANN_DISPLAY_NAME] ?? null,
     displayDescription: ann[ANN_DISPLAY_DESCRIPTION] ?? null,
     instanceLabelColumns: spec.label_columns ?? [],
@@ -230,8 +229,10 @@ export function toAlertRuleDocument(spec: CcRuleSpec): AlertRuleYaml {
       resolveAfter: spec.resolve_after,
       severity: spec.severity,
       notificationMessage: {
-        title: ann[ANN_TITLE] ?? "",
-        ...(ann[ANN_DESCRIPTION] ? { description: ann[ANN_DESCRIPTION] } : {}),
+        title: ann[ANN_CC_SUMMARY] ?? "",
+        ...(ann[ANN_CC_DESCRIPTION]
+          ? { description: ann[ANN_CC_DESCRIPTION] }
+          : {}),
       },
       query: spec.sql,
       instanceLabels:

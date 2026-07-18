@@ -1,6 +1,7 @@
 use crate::dispatcher::notify::{
-    classify_status, default_http_client, Notification, Notifier, NotifyError,
+    classify_status, config_mismatch, default_http_client, Notification, Notifier, NotifyError,
 };
+use crate::domain::channel::ChannelConfig;
 use crate::domain::EventStatus;
 use async_trait::async_trait;
 use serde_json::{json, Value};
@@ -91,7 +92,7 @@ pub fn build_slack_payload(notif: &Notification) -> Value {
     json!({ "text": header, "attachments": attachments })
 }
 
-/// Slack incoming webhook. `target` is the Slack webhook URL. 2xx ok; 4xx permanent;
+/// Slack incoming webhook (`ChannelConfig::Slack`). 2xx ok; 4xx permanent;
 /// else transient.
 pub struct SlackNotifier {
     http: reqwest::Client,
@@ -117,10 +118,13 @@ impl Notifier for SlackNotifier {
         "slack"
     }
 
-    async fn send(&self, target: &str, notif: &Notification) -> Result<(), NotifyError> {
+    async fn send(&self, config: &ChannelConfig, notif: &Notification) -> Result<(), NotifyError> {
+        let ChannelConfig::Slack { url } = config else {
+            return Err(config_mismatch("slack", config));
+        };
         let resp = self
             .http
-            .post(target)
+            .post(url)
             .json(&build_slack_payload(notif))
             .send()
             .await

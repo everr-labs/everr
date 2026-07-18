@@ -22,26 +22,37 @@ pub struct CreateReceiver {
     pub annotations: BTreeMap<String, String>,
 }
 
-/// Boundary validation for receiver creation (shape only; referenced-channel
-/// existence needs the store and lives in the handler). Split from the handler
-/// so it is unit-testable without an `AppState`.
-fn validate_create(body: &CreateReceiver) -> Result<(), ApiError> {
-    if body.name.trim().is_empty() {
+/// `PUT /v1/receivers/:name` body: same as create minus the name, which comes
+/// from the path.
+#[derive(Deserialize)]
+pub struct UpdateReceiver {
+    #[serde(default)]
+    pub channels: Vec<String>,
+    /// Free-form metadata; the upsert replaces the stored map. Absent = `{}`.
+    #[serde(default)]
+    pub annotations: BTreeMap<String, String>,
+}
+
+/// Boundary validation shared by create (POST) and upsert (PUT) (shape only;
+/// referenced-channel existence needs the store and lives in the handlers).
+/// Split from the handlers so it is unit-testable without an `AppState`.
+fn validate_receiver(name: &str, channels: &[String]) -> Result<(), ApiError> {
+    if name.trim().is_empty() {
         return Err(ApiError::Validation("name must not be empty".into()));
     }
-    if body.channels.is_empty() {
+    if channels.is_empty() {
         return Err(ApiError::Validation(
             "channels must contain at least one channel name".into(),
         ));
     }
-    if body.channels.iter().any(|c| c.trim().is_empty()) {
+    if channels.iter().any(|c| c.trim().is_empty()) {
         return Err(ApiError::Validation(
             "channel names must not be empty".into(),
         ));
     }
     // A repeated reference is always a caller mistake (a receiver delivers to a
     // channel once); reject it loudly rather than silently deduping.
-    let dupes = duplicate_entries(&body.channels);
+    let dupes = duplicate_entries(channels);
     if !dupes.is_empty() {
         return Err(ApiError::Validation(duplicate_channels_detail(&dupes)));
     }
@@ -69,7 +80,22 @@ fn unknown_channels_detail(unknown: &[String]) -> String {
     format!("unknown channels: {}", unknown.join(", "))
 }
 
-/// Create or replace a receiver (upsert by name). Every referenced channel must
+/// Shared referenced-channel existence check: 422 listing the unknown names.
+async fn ensure_channels_exist(
+    state: &AppState,
+    t: &crate::domain::ids::TenantId,
+    channels: &[String],
+) -> Result<(), ApiError> {
+    let existing = state.store.existing_channel_names(t, channels).await?;
+    let unknown = unknown_channels(channels, &existing);
+    if !unknown.is_empty() {
+        return Err(ApiError::Validation(unknown_channels_detail(&unknown)));
+    }
+    Ok(())
+}
+
+/// Create a receiver. Create-only: an existing name is a 409 `already_exists`
+/// (updates go through `PUT /v1/receivers/:name`). Every referenced channel must
 /// exist (422 listing the unknown names otherwise). Returns the stored receiver;
 /// receiver payloads carry channel names only, never secrets.
 pub async fn create(
@@ -78,18 +104,32 @@ pub async fn create(
     Json(body): Json<CreateReceiver>,
 ) -> Result<Json<Receiver>, ApiError> {
     let t = tenant(&state, &headers)?;
-    validate_create(&body)?;
-    let existing = state
-        .store
-        .existing_channel_names(&t, &body.channels)
-        .await?;
-    let unknown = unknown_channels(&body.channels, &existing);
-    if !unknown.is_empty() {
-        return Err(ApiError::Validation(unknown_channels_detail(&unknown)));
-    }
+    validate_receiver(&body.name, &body.channels)?;
+    ensure_channels_exist(&state, &t, &body.channels).await?;
     let rcv = state
         .store
-        .create_receiver(t, &body.name, &body.channels, &body.annotations)
+        .insert_receiver(t, &body.name, &body.channels, &body.annotations)
+        .await?
+        .ok_or_else(|| {
+            ApiError::AlreadyExists(format!("receiver {:?} already exists", body.name))
+        })?;
+    Ok(Json(rcv))
+}
+
+/// Create or replace a receiver by name (upsert). Replaces the channel list and
+/// the annotation map wholesale. Same channel validation as create.
+pub async fn update(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(name): Path<String>,
+    Json(body): Json<UpdateReceiver>,
+) -> Result<Json<Receiver>, ApiError> {
+    let t = tenant(&state, &headers)?;
+    validate_receiver(&name, &body.channels)?;
+    ensure_channels_exist(&state, &t, &body.channels).await?;
+    let rcv = state
+        .store
+        .create_receiver(t, &name, &body.channels, &body.annotations)
         .await?;
     Ok(Json(rcv))
 }
@@ -139,7 +179,7 @@ mod tests {
     fn missing_channels_field_deserializes_to_empty_and_fails_validation() {
         let b = body(r#"{"name":"ops"}"#);
         assert!(b.channels.is_empty());
-        let err = validate_create(&b).unwrap_err();
+        let err = validate_receiver(&b.name, &b.channels).unwrap_err();
         assert!(matches!(
             err,
             ApiError::Validation(ref m) if m == "channels must contain at least one channel name"
@@ -149,7 +189,7 @@ mod tests {
     #[test]
     fn empty_channels_list_is_rejected() {
         let b = body(r#"{"name":"ops","channels":[]}"#);
-        let err = validate_create(&b).unwrap_err();
+        let err = validate_receiver(&b.name, &b.channels).unwrap_err();
         assert!(matches!(
             err,
             ApiError::Validation(ref m) if m == "channels must contain at least one channel name"
@@ -170,7 +210,7 @@ mod tests {
     fn blank_channel_name_is_rejected() {
         let b = body(r#"{"name":"ops","channels":["team-slack","  "]}"#);
         assert!(matches!(
-            validate_create(&b),
+            validate_receiver(&b.name, &b.channels),
             Err(ApiError::Validation(ref m)) if m == "channel names must not be empty"
         ));
     }
@@ -179,7 +219,7 @@ mod tests {
     fn multi_channel_body_passes_validation() {
         let b = body(r#"{"name":"ops","channels":["team-slack","ops-mail","pd"]}"#);
         assert_eq!(b.channels.len(), 3);
-        assert!(validate_create(&b).is_ok());
+        assert!(validate_receiver(&b.name, &b.channels).is_ok());
     }
 
     #[test]
@@ -187,7 +227,7 @@ mod tests {
         let b =
             body(r#"{"name":"ops","channels":["team-slack","pd","team-slack","pd","team-slack"]}"#);
         assert!(matches!(
-            validate_create(&b),
+            validate_receiver(&b.name, &b.channels),
             Err(ApiError::Validation(ref m)) if m == "duplicate channels: team-slack, pd"
         ));
     }
@@ -214,7 +254,7 @@ mod tests {
     fn empty_name_is_rejected_before_channels() {
         let b = body(r#"{"name":"  ","channels":["team-slack"]}"#);
         assert!(matches!(
-            validate_create(&b),
+            validate_receiver(&b.name, &b.channels),
             Err(ApiError::Validation(ref m)) if m == "name must not be empty"
         ));
     }

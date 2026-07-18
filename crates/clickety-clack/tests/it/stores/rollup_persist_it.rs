@@ -1,4 +1,4 @@
-use cc::domain::ids::{InstanceKey, TenantId};
+use cc::domain::ids::{InstanceKey, SourceId, TenantId};
 use cc::domain::instance::{InstanceState, Status};
 use cc::domain::rollup::{AlertState, RuleRollup};
 use cc::domain::rule::{RuleSpec, Severity};
@@ -33,7 +33,8 @@ async fn rollup_written_in_same_tx_and_advances() {
 
     let labels = BTreeMap::from([("host".to_string(), "a".to_string())]);
     let key = InstanceKey::new(rule.id, &labels);
-    let mut inst = InstanceState::new_inactive(key.clone(), rule.id, tenant.clone(), labels);
+    let mut inst =
+        InstanceState::new_inactive(key.clone(), SourceId::Rule(rule.id), tenant.clone(), labels);
     inst.status = Status::Firing;
     inst.last_seen = Some(OffsetDateTime::UNIX_EPOCH);
 

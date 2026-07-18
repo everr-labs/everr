@@ -9,12 +9,7 @@ import {
 import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
-import {
-  queryOptions,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useLocation } from "@tanstack/react-router";
 import { BellOff, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -31,18 +26,9 @@ import {
   ccErrorMessage,
   ccFormatTs,
 } from "@/components/cc/shared";
-import {
-  createCcSilence,
-  deleteCcSilence,
-  listCcSilences,
-} from "@/data/cc/server";
+import { ccQueries } from "@/data/cc/queries";
+import { createCcSilence, deleteCcSilence } from "@/data/cc/server";
 import type { CcMatcher, CcSilence } from "@/data/cc/types";
-
-const silencesQuery = () =>
-  queryOptions({
-    queryKey: ["cc", "silences"],
-    queryFn: () => listCcSilences(),
-  });
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/alerts/silences",
@@ -50,7 +36,7 @@ export const Route = createFileRoute(
   staticData: { breadcrumb: "Silences" },
   head: () => ({ meta: [{ title: "Everr - Alerts Silences" }] }),
   loader: ({ context: { queryClient } }) =>
-    queryClient.prefetchQuery(silencesQuery()),
+    queryClient.prefetchQuery(ccQueries.silences()),
   component: CcSilencesPage,
 });
 
@@ -85,7 +71,7 @@ const GROUPS: {
 
 function CcSilencesPage() {
   const qc = useQueryClient();
-  const { data, isPending, isError, error } = useQuery(silencesQuery());
+  const { data, isPending, isError, error } = useQuery(ccQueries.silences());
   const location = useLocation();
 
   const [open, setOpen] = useState(false);
@@ -94,11 +80,15 @@ function CcSilencesPage() {
   const [ends, setEnds] = useState("");
   const [comment, setComment] = useState("");
 
-  const openForMatchers = (seed: CcMatcher[]) => {
-    setMatchers(seed);
+  const resetForm = (seedMatchers: CcMatcher[] = []) => {
+    setMatchers(seedMatchers);
     setStarts("");
     setEnds("");
     setComment("");
+  };
+
+  const openForMatchers = (seed: CcMatcher[]) => {
+    resetForm(seed);
     setOpen(true);
   };
 
@@ -113,7 +103,7 @@ function CcSilencesPage() {
   }, []);
 
   const invalidate = () =>
-    qc.invalidateQueries({ queryKey: ["cc", "silences"] });
+    qc.invalidateQueries({ queryKey: ccQueries.silences().queryKey });
   const create = useMutation({
     mutationFn: () =>
       createCcSilence({
@@ -127,10 +117,7 @@ function CcSilencesPage() {
     onSuccess: () => {
       invalidate();
       setOpen(false);
-      setMatchers([]);
-      setStarts("");
-      setEnds("");
-      setComment("");
+      resetForm();
       toast.success("Silence created");
     },
     onError: (e) => toast.error(ccErrorMessage(e)),

@@ -32,6 +32,8 @@ import {
   CC_DEFAULT_GROUP_INTERVAL_SECS,
   CC_DEFAULT_GROUP_WAIT_SECS,
 } from "@/data/cc/defaults";
+import { ccQueries } from "@/data/cc/queries";
+import { ccRouteTimingSummary } from "@/data/cc/route-timing";
 import { createCcRoute, updateCcRoute } from "@/data/cc/server";
 import type { CcMatcher, CcReceiver, CcRoute } from "@/data/cc/types";
 import { CcDrawer } from "./cc-drawer";
@@ -97,30 +99,6 @@ function DurationField({
   );
 }
 
-/**
- * One-line effective timing readout: the route's values where set, the
- * engine's defaults where not — what the dispatcher will actually do.
- */
-function effectiveTimingSummary({
-  groupBy,
-  groupWaitSecs,
-  groupIntervalSecs,
-  repeatIntervalSecs,
-}: {
-  groupBy: string[];
-  groupWaitSecs: number | null;
-  groupIntervalSecs: number | null;
-  repeatIntervalSecs: number | null;
-}): string {
-  const parts = [
-    `wait ${groupWaitSecs ?? CC_DEFAULT_GROUP_WAIT_SECS}s`,
-    `interval ${groupIntervalSecs ?? CC_DEFAULT_GROUP_INTERVAL_SECS}s`,
-    `repeat ${repeatIntervalSecs != null ? `${repeatIntervalSecs}s` : "never"}`,
-    `group by ${(groupBy.length > 0 ? groupBy : CC_DEFAULT_GROUP_BY).join(", ")}`,
-  ];
-  return parts.join(" · ");
-}
-
 export function RouteBuilder({
   open,
   onOpenChange,
@@ -174,7 +152,7 @@ export function RouteBuilder({
         : createCcRoute({ data: input });
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["cc", "routes"] });
+      qc.invalidateQueries({ queryKey: ccQueries.routes().queryKey });
       onOpenChange(false);
       toast.success(isEdit ? "Route updated" : "Route created");
     },
@@ -259,12 +237,17 @@ export function RouteBuilder({
         <CcDisclosureTrigger open={timingOpen}>
           <span className="text-xs font-medium">Timing</span>
           <span className="min-w-0 truncate font-mono text-[0.6875rem] text-muted-foreground">
-            {effectiveTimingSummary({
-              groupBy,
-              groupWaitSecs: wait.value,
-              groupIntervalSecs: interval.value,
-              repeatIntervalSecs: repeat.value,
-            })}
+            {ccRouteTimingSummary(
+              {
+                groupBy,
+                groupWaitSecs: wait.value,
+                groupIntervalSecs: interval.value,
+                repeatIntervalSecs: repeat.value,
+              },
+              // Effective values: engine defaults where unset — what the
+              // dispatcher will actually do.
+              "effective",
+            ).join(" · ")}
           </span>
         </CcDisclosureTrigger>
         <CollapsibleContent>

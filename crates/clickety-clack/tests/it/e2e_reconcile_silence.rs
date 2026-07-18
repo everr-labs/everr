@@ -56,7 +56,8 @@ fn stale_firing(rule: RuleId, tenant: TenantId, svc: &str, now: OffsetDateTime) 
     let mut labels = BTreeMap::new();
     labels.insert("service".to_string(), svc.to_string());
     let key = InstanceKey::new(rule, &labels);
-    let mut s = InstanceState::new_inactive(key, rule, tenant, labels);
+    let mut s =
+        InstanceState::new_inactive(key, cc::domain::ids::SourceId::Rule(rule), tenant, labels);
     s.status = Status::Firing;
     s.last_seen = Some(now - TimeDuration::seconds(300));
     s.active_since = Some(now - TimeDuration::seconds(300));

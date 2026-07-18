@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/data/cc/client", () => ({
-  listRules: vi.fn(),
+  listAllRules: vi.fn(),
   createRule: vi.fn(),
   updateRule: vi.fn(),
   deleteRule: vi.fn(),
@@ -28,7 +28,7 @@ import { isOwnedRule, OWN_NAME, OWN_PREVIEW, OWN_REPO } from "./mapping";
 const db = {} as unknown as DbExecutor;
 
 const ch = vi.mocked(querySqlApiWithMeta);
-const mockedListRules = cc.listRules as ReturnType<typeof vi.fn>;
+const mockedListRules = cc.listAllRules as ReturnType<typeof vi.fn>;
 const mockedCreateRule = cc.createRule as ReturnType<typeof vi.fn>;
 const mockedUpdateRule = cc.updateRule as ReturnType<typeof vi.fn>;
 const mockedDeleteRule = cc.deleteRule as ReturnType<typeof vi.fn>;
@@ -62,7 +62,7 @@ function alert(name = "high-errors", overrides = {}) {
   };
 }
 
-// A CC rule view shape as returned by listRules, matching what applying the
+// A CC rule view shape as returned by the rules listing, matching what applying the
 // default alert() fixture stores (so the fingerprints are equal).
 function managedRule(name: string, over: Record<string, unknown> = {}) {
   return {
@@ -78,7 +78,6 @@ function managedRule(name: string, over: Record<string, unknown> = {}) {
       annotations: {
         [OWN_NAME]: name,
         [OWN_REPO]: "repo-1",
-        "everr.notification.title": `\${value} errors in \${service}`,
         summary: `\${value} errors in \${service}`,
         "link.alert": `https://app.example.com/alerts/rules/rule-${name}`,
       },
@@ -421,7 +420,6 @@ describe("applyAlertSpecs", () => {
           annotations: {
             [OWN_NAME]: "high-errors",
             [OWN_REPO]: "repo-1",
-            "everr.notification.title": `\${value} errors in \${service}`,
             summary: `\${value} errors in \${service}`,
           },
           resolve_after: 1,

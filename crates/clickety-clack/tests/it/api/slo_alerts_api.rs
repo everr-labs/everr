@@ -5,7 +5,7 @@
 use crate::api::support::{body_json, setup, TENANT};
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use cc::domain::ids::{InstanceKey, RuleId, SloId, TenantId};
+use cc::domain::ids::{InstanceKey, RuleId, SloId, SourceId, TenantId};
 use cc::domain::instance::{InstanceState, Status};
 use serde_json::json;
 use tower::ServiceExt;
@@ -39,7 +39,8 @@ async fn union_includes_rule_and_slo_alerts() {
 
     let rule_labels = std::collections::BTreeMap::from([("host".to_string(), "web-1".to_string())]);
     let key = InstanceKey::new(rule_id, &rule_labels);
-    let mut rule_inst = InstanceState::new_inactive(key, rule_id, tenant.clone(), rule_labels);
+    let mut rule_inst =
+        InstanceState::new_inactive(key, SourceId::Rule(rule_id), tenant.clone(), rule_labels);
     rule_inst.status = Status::Firing;
     rule_inst.value = Some(1.0);
     rule_inst.active_since = Some(time::OffsetDateTime::now_utc());
@@ -73,15 +74,19 @@ async fn union_includes_rule_and_slo_alerts() {
         .unwrap()
         .to_string();
     let slo_id = SloId(Uuid::parse_str(&slo_id_str).unwrap());
-    let slo_rule = RuleId(slo_id.0); // slo_instances type-pun: rule column carries the SLO uuid
+    let slo_rule = RuleId(slo_id.0); // instance-key hashing input for slo_instances rows
 
     let slo_labels = std::collections::BTreeMap::from([
         ("slo_tier".to_string(), "fast-burn".to_string()),
         ("svc".to_string(), "checkout".to_string()),
     ]);
     let slo_key = InstanceKey::new(slo_rule, &slo_labels);
-    let mut slo_inst =
-        InstanceState::new_inactive(slo_key, slo_rule, tenant.clone(), slo_labels.clone());
+    let mut slo_inst = InstanceState::new_inactive(
+        slo_key,
+        SourceId::Slo(slo_id),
+        tenant.clone(),
+        slo_labels.clone(),
+    );
     slo_inst.status = Status::Firing;
     slo_inst.value = Some(20.0);
     slo_inst.active_since = Some(time::OffsetDateTime::now_utc());

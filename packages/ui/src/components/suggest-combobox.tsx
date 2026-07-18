@@ -1,9 +1,12 @@
-import type { QueryFunction, QueryKey } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDownIcon } from "lucide-react";
-import { useState } from "react";
 import { cn } from "../lib/utils";
 import { Button } from "./button";
+import {
+  type ComboboxQueryOptions,
+  CustomValueItem,
+  useComboboxCustomEntry,
+} from "./combobox-custom-entry";
 import {
   Command,
   CommandEmpty,
@@ -25,12 +28,7 @@ export interface SuggestItem {
   tag?: string;
 }
 
-interface SuggestQueryOptions<TData> {
-  queryKey: QueryKey;
-  queryFn: QueryFunction<TData>;
-  select: (data: TData) => SuggestItem[];
-  staleTime?: number;
-}
+type SuggestQueryOptions<TData> = ComboboxQueryOptions<TData, SuggestItem>;
 
 interface SuggestComboboxProps<TData> {
   /** Accessible name for the trigger; not rendered visibly. */
@@ -61,8 +59,8 @@ export function SuggestCombobox<TData>({
   className,
   disabled,
 }: SuggestComboboxProps<TData>) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
+  const { open, onOpenChange, search, setSearch, query, offerCustom } =
+    useComboboxCustomEntry();
 
   const { data: items = [], isLoading } = useQuery({
     ...options,
@@ -71,24 +69,15 @@ export function SuggestCombobox<TData>({
 
   const commit = (next: string) => {
     onChange(next);
-    setOpen(false);
-    setSearch("");
+    // Closing also resets the search text.
+    onOpenChange(false);
   };
 
-  const query = search.trim();
-  // The custom row's cmdk value IS the typed text, so it always survives the
-  // filter; hidden when it would duplicate a real suggestion.
-  const showCustom =
-    query.length > 0 && !items.some((item) => item.value === query);
+  // Hidden when it would duplicate a real suggestion.
+  const showCustom = offerCustom((q) => items.some((item) => item.value === q));
 
   return (
-    <Popover
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (!next) setSearch("");
-      }}
-    >
+    <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger
         render={
           <Button
@@ -133,12 +122,7 @@ export function SuggestCombobox<TData>({
             </CommandEmpty>
             <CommandGroup>
               {showCustom && (
-                <CommandItem value={query} onSelect={() => commit(query)}>
-                  <span className="text-muted-foreground shrink-0">Use</span>
-                  <span className="truncate font-mono">
-                    &quot;{query}&quot;
-                  </span>
-                </CommandItem>
+                <CustomValueItem query={query} onSelect={() => commit(query)} />
               )}
               {items.map((item) => (
                 <CommandItem

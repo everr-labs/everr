@@ -1,7 +1,7 @@
 use crate::crypto::SecretCipher;
 use crate::domain::channel::{Channel, ChannelConfig};
 use crate::domain::event::{Event, EventStatus};
-use crate::domain::ids::{InstanceKey, RuleId, TenantId};
+use crate::domain::ids::{InstanceKey, RuleId, SloId, SourceId, TenantId};
 use crate::domain::inhibition::InhibitionRule;
 use crate::domain::instance::{FiringInstance, InstanceState, StaleInstance, Status};
 use crate::domain::receiver::Receiver;
@@ -177,11 +177,43 @@ fn absent_count_to_db(v: u32) -> i32 {
     i32::try_from(v).unwrap_or(i32::MAX)
 }
 
-fn row_to_instance(r: &sqlx::postgres::PgRow) -> Result<InstanceState, StoreError> {
+/// Which table an instance row came from, deciding the [`SourceId`] variant its
+/// `source` uuid column wraps into. `Rule` for `instances`, `Slo` for
+/// `slo_instances`; union reads carry it as a per-row SQL literal (see
+/// [`PgStore::list_alerts`]).
+#[derive(Clone, Copy)]
+enum SourceKind {
+    Rule,
+    Slo,
+}
+
+impl SourceKind {
+    fn wrap(self, id: Uuid) -> SourceId {
+        match self {
+            SourceKind::Rule => SourceId::Rule(RuleId(id)),
+            SourceKind::Slo => SourceId::Slo(SloId(id)),
+        }
+    }
+
+    /// Decode the `source_kind` SQL literal of a union read. The literals are
+    /// crate-controlled constants, so anything unexpected is a programming error.
+    fn from_db(s: &str) -> SourceKind {
+        match s {
+            "rule" => SourceKind::Rule,
+            "slo" => SourceKind::Slo,
+            other => unreachable!("unknown source_kind literal '{other}'"),
+        }
+    }
+}
+
+fn row_to_instance(
+    r: &sqlx::postgres::PgRow,
+    kind: SourceKind,
+) -> Result<InstanceState, StoreError> {
     let labels: BTreeMap<String, String> = serde_json::from_value(r.get("labels"))?;
     Ok(InstanceState {
         key: InstanceKey(r.get("key")),
-        rule: RuleId(r.get("rule")),
+        source: kind.wrap(r.get("source")),
         tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
         status: status_from(r.get::<&str, _>("status")),
         labels,
@@ -290,7 +322,7 @@ async fn write_eval_batch(
     let mut absent = Vec::with_capacity(n);
     for s in instances {
         keys.push(s.key.0.clone());
-        rules.push(s.rule.0); // InstanceState.rule carries the SLO uuid for slo_instances rows
+        rules.push(s.source.uuid()); // the rule/slo id column of the target table
         tenants.push(s.tenant.as_str().to_string());
         statuses.push(status_str(s.status).to_string());
         labels_arr.push(serde_json::to_value(&s.labels)?);
@@ -402,6 +434,28 @@ impl PgStore {
             None => Ok(None),
             Some(r) => Ok(Some(rule_from_row(&r, id, tenant)?)),
         }
+    }
+
+    /// Load many rules by id in one round trip (batch counterpart of
+    /// [`Self::get_rule`] for the evaluator's claim path). Rows carry their
+    /// stored tenant; the caller matches it against each job's tenant, keeping
+    /// the same tenant scoping as the per-id read. Missing ids are simply absent.
+    pub async fn get_rules_by_ids(&self, ids: &[RuleId]) -> Result<Vec<Rule>, StoreError> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let raw: Vec<Uuid> = ids.iter().map(|r| r.0).collect();
+        let rows =
+            sqlx::query("SELECT id, tenant, spec, version, paused FROM rules WHERE id = ANY($1)")
+                .bind(&raw)
+                .fetch_all(&self.pool)
+                .await?;
+        let mut out = Vec::with_capacity(rows.len());
+        for r in &rows {
+            let tenant = TenantId::from_trusted(r.get::<String, _>("tenant"));
+            out.push(rule_from_row(r, RuleId(r.get("id")), tenant)?);
+        }
+        Ok(out)
     }
 
     /// Update a rule's spec in place, preserving its id, tenant, paused flag and (where
@@ -899,43 +953,13 @@ impl PgStore {
         }
     }
 
-    /// Minimal (unpaginated) rule listing for a tenant, with an optional health-status filter.
-    /// Cursor pagination remains a separate future task; this exists so operators can find
-    /// degraded rules. `health` is `Some("degraded")` / `Some("healthy")` or `None` for all.
-    pub async fn list_rules(
-        &self,
-        tenant: &TenantId,
-        health: Option<&str>,
-    ) -> Result<Vec<(Rule, RuleHealth, RuleRollup)>, StoreError> {
-        let rows = sqlx::query(
-            "SELECT id, spec, version, paused, health_status, consecutive_failures,
-                    degraded_since, last_error, last_error_at,
-                    alert_state, firing_instance_count, last_fired_at,
-                    last_resolved_at, last_seen_at, last_row_count
-               FROM rules
-              WHERE tenant=$1 AND ($2::text IS NULL OR health_status=$2)
-              ORDER BY created_at, id",
-        )
-        .bind(tenant.as_str())
-        .bind(health)
-        .fetch_all(&self.pool)
-        .await?;
-        let mut out = Vec::with_capacity(rows.len());
-        for r in &rows {
-            let health = Self::health_from_row(r);
-            let rollup = Self::rollup_from_row(r);
-            let rule = rule_from_row(r, RuleId(r.get("id")), tenant.clone())?;
-            out.push((rule, health, rollup));
-        }
-        Ok(out)
-    }
-
     /// One keyset page of the rule listing, ordered by `(created_at, id)`.
     ///
     /// `after` is the exclusive resume position (the key of the last row on the
-    /// previous page); `None` starts from the beginning. `health` filters like
-    /// [`PgStore::list_rules`]. Returns at most `limit` rows plus, when more rows
-    /// remain past the page, the key to resume from (the returned page's last row).
+    /// previous page); `None` starts from the beginning. `health` is
+    /// `Some("degraded")` / `Some("healthy")` or `None` for all. Returns at most
+    /// `limit` rows plus, when more rows remain past the page, the key to resume
+    /// from (the returned page's last row).
     pub async fn list_rules_page(
         &self,
         tenant: &TenantId,
@@ -998,6 +1022,93 @@ impl PgStore {
         Ok(res.rows_affected() == 1)
     }
 
+    /// Batch counterpart of [`Self::try_claim_eval`]: claim every `(id, eval_ts)`
+    /// pair in one round trip. Returns one bool per input pair, in input order,
+    /// with the same row-level conflict semantics as the per-pair claim: `true`
+    /// iff this call newly claimed that pair. A pair repeated within one call
+    /// wins at its first occurrence only, matching what the per-pair claim did
+    /// when the loop reached the duplicate.
+    ///
+    /// The mapping back to input positions goes through `WITH ORDINALITY` (never
+    /// timestamp equality in Rust): Postgres rounds `timestamptz` to
+    /// microseconds, so a returned `eval_ts` need not bit-compare to the input.
+    /// Shared by the rule- and SLO-side claims, which differ only in table.
+    async fn try_claim_batch(
+        &self,
+        table: &str,
+        id_column: &str,
+        pairs_ids: Vec<Uuid>,
+        pairs_ts: Vec<OffsetDateTime>,
+        total: usize,
+        dedup_index: &[Option<usize>],
+    ) -> Result<Vec<bool>, StoreError> {
+        let mut claimed = vec![false; total];
+        if pairs_ids.is_empty() {
+            return Ok(claimed);
+        }
+        let sql = format!(
+            "WITH input({id_column}, eval_ts, ord) AS (
+                SELECT * FROM UNNEST($1::uuid[], $2::timestamptz[]) WITH ORDINALITY
+             ), inserted AS (
+                INSERT INTO {table} ({id_column}, eval_ts)
+                SELECT {id_column}, eval_ts FROM input
+                ON CONFLICT DO NOTHING
+                RETURNING {id_column}, eval_ts
+             )
+             SELECT input.ord FROM input JOIN inserted USING ({id_column}, eval_ts)"
+        );
+        let ords: Vec<i64> = sqlx::query_scalar(&sql)
+            .bind(&pairs_ids)
+            .bind(&pairs_ts)
+            .fetch_all(&self.pool)
+            .await?;
+        // `dedup_index[i]` is the position of input pair `i` in the deduped
+        // arrays (None for a repeat, which by definition lost the claim).
+        for (i, unique_pos) in dedup_index.iter().enumerate() {
+            if let Some(pos) = unique_pos {
+                claimed[i] = ords.contains(&(*pos as i64 + 1));
+            }
+        }
+        Ok(claimed)
+    }
+
+    /// Dedup helper for the batch claims: split `(uuid, ts)` pairs into parallel
+    /// unnest arrays of first occurrences, plus the input-position -> unique-position
+    /// mapping (`None` marks a repeated pair).
+    #[allow(clippy::type_complexity)]
+    fn dedup_claim_pairs(
+        pairs: &[(Uuid, OffsetDateTime)],
+    ) -> (Vec<Uuid>, Vec<OffsetDateTime>, Vec<Option<usize>>) {
+        let mut ids = Vec::with_capacity(pairs.len());
+        let mut tss = Vec::with_capacity(pairs.len());
+        let mut index = Vec::with_capacity(pairs.len());
+        let mut seen: std::collections::HashMap<(Uuid, OffsetDateTime), usize> =
+            std::collections::HashMap::new();
+        for &(id, ts) in pairs {
+            match seen.entry((id, ts)) {
+                std::collections::hash_map::Entry::Occupied(_) => index.push(None),
+                std::collections::hash_map::Entry::Vacant(e) => {
+                    e.insert(ids.len());
+                    index.push(Some(ids.len()));
+                    ids.push(id);
+                    tss.push(ts);
+                }
+            }
+        }
+        (ids, tss, index)
+    }
+
+    /// Claim many (rule, eval_ts) pairs in one round trip; see [`Self::try_claim_batch`].
+    pub async fn try_claim_evals(
+        &self,
+        pairs: &[(RuleId, OffsetDateTime)],
+    ) -> Result<Vec<bool>, StoreError> {
+        let raw: Vec<(Uuid, OffsetDateTime)> = pairs.iter().map(|&(r, ts)| (r.0, ts)).collect();
+        let (ids, tss, index) = Self::dedup_claim_pairs(&raw);
+        self.try_claim_batch("evaluations", "rule", ids, tss, pairs.len(), &index)
+            .await
+    }
+
     // ---- instances ----
 
     /// Load a rule's instances, tenant-scoped. Callers already resolve the rule via
@@ -1009,7 +1120,7 @@ impl PgStore {
         rule: RuleId,
     ) -> Result<Vec<InstanceState>, StoreError> {
         let rows = sqlx::query(
-            "SELECT key, rule, tenant, status, labels, value, active_since, last_seen, absent_count
+            "SELECT key, rule AS source, tenant, status, labels, value, active_since, last_seen, absent_count
              FROM instances WHERE rule=$1 AND tenant=$2",
         )
         .bind(rule.0)
@@ -1018,7 +1129,7 @@ impl PgStore {
         .await?;
         let mut out = Vec::new();
         for r in &rows {
-            out.push(row_to_instance(r)?);
+            out.push(row_to_instance(r, SourceKind::Rule)?);
         }
         Ok(out)
     }
@@ -1032,16 +1143,18 @@ impl PgStore {
         Ok(())
     }
 
-    /// Union of rule-side and SLO-side (burn-rate) firing/pending alerts. SLO rows surface
-    /// the SLO uuid in `InstanceState.rule` (via the `slo AS rule` alias; documented
-    /// type-pun at the storage boundary) and carry the `slo_tier` label; the `ORDER BY`
-    /// applies to the combined result set.
+    /// Union of rule-side and SLO-side (burn-rate) firing/pending alerts. Each arm
+    /// stamps a `source_kind` literal so the mapper wraps the row's uuid into the
+    /// right [`SourceId`] variant (SLO rows also carry the `slo_tier` label); the
+    /// `ORDER BY` applies to the combined result set.
     pub async fn list_alerts(&self, tenant: TenantId) -> Result<Vec<InstanceState>, StoreError> {
         let rows = sqlx::query(
-            "SELECT key, rule, tenant, status, labels, value, active_since, last_seen, absent_count
+            "SELECT key, rule AS source, 'rule' AS source_kind, tenant, status, labels, value,
+                    active_since, last_seen, absent_count
              FROM instances WHERE tenant=$1 AND status != 'inactive'
              UNION ALL
-             SELECT key, slo AS rule, tenant, status, labels, value, active_since, last_seen, absent_count
+             SELECT key, slo AS source, 'slo' AS source_kind, tenant, status, labels, value,
+                    active_since, last_seen, absent_count
              FROM slo_instances WHERE tenant=$1 AND status != 'inactive'
              ORDER BY active_since DESC",
         )
@@ -1050,7 +1163,8 @@ impl PgStore {
         .await?;
         let mut out = Vec::new();
         for r in &rows {
-            out.push(row_to_instance(r)?);
+            let kind = SourceKind::from_db(r.get::<&str, _>("source_kind"));
+            out.push(row_to_instance(r, kind)?);
         }
         Ok(out)
     }
@@ -1211,6 +1325,40 @@ impl PgStore {
     /// Create or replace a named channel by (tenant, name). Upsert semantics
     /// (PUT-like): re-issuing the same name replaces its config, which is how a
     /// secret is rotated without touching the receivers that reference it.
+    /// Create-only channel insert: `None` if a channel with this name already
+    /// exists for the tenant (the caller surfaces a 409; the stored config —
+    /// including its encrypted secret — is never overwritten). The upsert path
+    /// is [`Self::create_channel`].
+    pub async fn insert_channel(
+        &self,
+        cipher: &dyn SecretCipher,
+        tenant: TenantId,
+        name: &str,
+        config: &ChannelConfig,
+    ) -> Result<Option<Channel>, StoreError> {
+        let id = Uuid::new_v4();
+        let cfg_json = crate::crypto::encrypt_channel(cipher, config)?;
+        let row = sqlx::query(
+            "INSERT INTO channels (id, tenant, name, config) VALUES ($1,$2,$3,$4)
+             ON CONFLICT (tenant, name) DO NOTHING
+             RETURNING id",
+        )
+        .bind(id)
+        .bind(tenant.as_str())
+        .bind(name)
+        .bind(&cfg_json)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row.map(|r| Channel {
+            id: r.get("id"),
+            tenant,
+            name: name.to_string(),
+            config: config.clone(),
+        }))
+    }
+
+    /// Create or replace a channel by (tenant, name), replacing the stored
+    /// (encrypted) config wholesale. The create-only path is [`Self::insert_channel`].
     pub async fn create_channel(
         &self,
         cipher: &dyn SecretCipher,
@@ -1377,11 +1525,46 @@ impl PgStore {
 
     // ---- receivers ----
 
+    /// Create-only receiver insert: `None` if a receiver with this name already
+    /// exists for the tenant (the caller surfaces a 409). The upsert path is
+    /// [`Self::create_receiver`]. `channels` validation happens at the API
+    /// boundary, same as the upsert.
+    pub async fn insert_receiver(
+        &self,
+        tenant: TenantId,
+        name: &str,
+        channels: &[String],
+        annotations: &BTreeMap<String, String>,
+    ) -> Result<Option<Receiver>, StoreError> {
+        let id = Uuid::new_v4();
+        let ch_json = serde_json::to_value(channels)?;
+        let ann_json = serde_json::to_value(annotations)?;
+        let row = sqlx::query(
+            "INSERT INTO receivers (id, tenant, name, channels, annotations) VALUES ($1,$2,$3,$4,$5)
+             ON CONFLICT (tenant, name) DO NOTHING
+             RETURNING id",
+        )
+        .bind(id)
+        .bind(tenant.as_str())
+        .bind(name)
+        .bind(&ch_json)
+        .bind(&ann_json)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row.map(|r| Receiver {
+            id: r.get("id"),
+            tenant,
+            name: name.to_string(),
+            channels: channels.to_vec(),
+            annotations: annotations.clone(),
+        }))
+    }
+
     /// Create or replace a receiver by (tenant, name). Returns the stored receiver.
     /// Upsert semantics (PUT-like): re-issuing the same name updates its channel
-    /// references. `channels` non-emptiness and referenced-channel existence are
-    /// enforced at the API boundary; the column holds a JSON array of channel
-    /// names and never any secret.
+    /// references. The create-only path is [`Self::insert_receiver`]. `channels`
+    /// non-emptiness and referenced-channel existence are enforced at the API
+    /// boundary; the column holds a JSON array of channel names and never any secret.
     pub async fn create_receiver(
         &self,
         tenant: TenantId,
@@ -1793,7 +1976,7 @@ impl PgStore {
             )?;
             out.push(FiringInstance {
                 key: InstanceKey(r.get("key")),
-                rule: RuleId(r.get("rule")),
+                source: SourceId::Rule(RuleId(r.get("rule"))),
                 severity,
                 labels,
             });
@@ -1823,7 +2006,9 @@ impl PgStore {
     ) -> Result<Vec<StaleInstance>, StoreError> {
         let rows = sqlx::query(
             "SELECT i.key AS key, i.rule AS rule, i.tenant AS tenant, i.status AS status,
-                    i.labels AS labels, i.value AS value, r.spec AS spec
+                    i.labels AS labels, i.value AS value,
+                    r.spec->'severity' AS severity, r.spec->'annotations' AS annotations,
+                    r.spec->'suppressed' AS suppressed
              FROM instances i JOIN rules r ON r.id = i.rule
              WHERE i.status IN ('pending','firing')
                AND NOT r.paused
@@ -1847,17 +2032,31 @@ impl PgStore {
         let mut out = Vec::with_capacity(rows.len());
         for r in &rows {
             let labels: BTreeMap<String, String> = serde_json::from_value(r.get("labels"))?;
-            let spec: RuleSpec = serde_json::from_value(r.get("spec"))?;
+            // Projected spec fields (severity/annotations/suppressed), not the full
+            // JSONB blob: everything else in the spec is dead weight on this path.
+            let severity: crate::domain::rule::Severity = serde_json::from_value(
+                r.get::<Option<serde_json::Value>, _>("severity")
+                    .unwrap_or(serde_json::Value::Null),
+            )?;
+            let annotations: BTreeMap<String, String> =
+                match r.get::<Option<serde_json::Value>, _>("annotations") {
+                    Some(v) if !v.is_null() => serde_json::from_value(v)?,
+                    _ => BTreeMap::new(),
+                };
+            let suppressed = match r.get::<Option<serde_json::Value>, _>("suppressed") {
+                Some(serde_json::Value::Bool(b)) => b,
+                _ => false,
+            };
             out.push(StaleInstance {
                 key: InstanceKey(r.get("key")),
-                rule: RuleId(r.get("rule")),
+                source: SourceId::Rule(RuleId(r.get("rule"))),
                 tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
                 status: status_from(r.get::<&str, _>("status")),
                 labels,
                 value: r.get("value"),
-                severity: spec.severity,
-                annotations: spec.annotations,
-                suppressed: spec.suppressed,
+                severity,
+                annotations,
+                suppressed,
             });
         }
         Ok(out)
@@ -1932,6 +2131,13 @@ impl PgStore {
         debug_assert!(
             (rollup.is_none() && cadence.is_none()) || rule_tenant.is_some(),
             "rule_tenant is required for rollup/cadence writes"
+        );
+        debug_assert!(
+            instances
+                .iter()
+                .all(|s| matches!(s.source, SourceId::Rule(_))),
+            "persist_eval_batch writes the rule-side `instances` table; SLO-sourced \
+             instances belong in persist_slo_eval_batch"
         );
         let cadence_on = matches!(&cadence, Some((_, c)) if c.max_interval_secs.is_some());
         if instances.is_empty() && events.is_empty() && rollup.is_none() && !cadence_on {
@@ -2370,6 +2576,38 @@ impl PgStore {
         Ok(res.rows_affected() == 1)
     }
 
+    /// Claim many (slo, eval_ts) pairs in one round trip; see [`Self::try_claim_batch`].
+    pub async fn try_claim_slo_evals(
+        &self,
+        pairs: &[(crate::domain::ids::SloId, OffsetDateTime)],
+    ) -> Result<Vec<bool>, StoreError> {
+        let raw: Vec<(Uuid, OffsetDateTime)> = pairs.iter().map(|&(s, ts)| (s.0, ts)).collect();
+        let (ids, tss, index) = Self::dedup_claim_pairs(&raw);
+        self.try_claim_batch("slo_evaluations", "slo", ids, tss, pairs.len(), &index)
+            .await
+    }
+
+    /// Load many SLOs by id in one round trip (batch counterpart of
+    /// [`Self::get_slo`] for the SLO evaluator's claim path). Rows carry their
+    /// stored tenant; the caller matches it against each job's tenant, keeping
+    /// the same tenant scoping as the per-id read. Missing ids are simply absent.
+    pub async fn get_slos_by_ids(
+        &self,
+        ids: &[crate::domain::ids::SloId],
+    ) -> Result<Vec<crate::domain::slo::Slo>, StoreError> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let raw: Vec<Uuid> = ids.iter().map(|s| s.0).collect();
+        let rows = sqlx::query(
+            "SELECT id, tenant, name, spec, version, paused FROM slos WHERE id = ANY($1)",
+        )
+        .bind(&raw)
+        .fetch_all(&self.pool)
+        .await?;
+        rows.iter().map(Self::slo_from_row).collect()
+    }
+
     // ---- slo evaluation: health ----
 
     /// Record a query failure for `slo`: bump the consecutive-failure counter and store the
@@ -2556,7 +2794,7 @@ impl PgStore {
         slo: crate::domain::ids::SloId,
     ) -> Result<Vec<InstanceState>, StoreError> {
         let rows = sqlx::query(
-            "SELECT key, slo AS rule, tenant, status, labels, value, active_since, last_seen, absent_count
+            "SELECT key, slo AS source, tenant, status, labels, value, active_since, last_seen, absent_count
              FROM slo_instances WHERE slo=$1 AND tenant=$2 ORDER BY key",
         )
         .bind(slo.0)
@@ -2565,7 +2803,7 @@ impl PgStore {
         .await?;
         let mut out = Vec::new();
         for r in &rows {
-            out.push(row_to_instance(r)?);
+            out.push(row_to_instance(r, SourceKind::Slo)?);
         }
         Ok(out)
     }
@@ -2580,6 +2818,13 @@ impl PgStore {
         instances: &[InstanceState],
         events: &[Event],
     ) -> Result<Vec<Uuid>, StoreError> {
+        debug_assert!(
+            instances
+                .iter()
+                .all(|s| matches!(s.source, SourceId::Slo(_))),
+            "persist_slo_eval_batch writes the `slo_instances` table; rule-sourced \
+             instances belong in persist_eval_batch"
+        );
         if instances.is_empty() && events.is_empty() {
             return Ok(Vec::new());
         }
@@ -2621,7 +2866,7 @@ impl PgStore {
             let severity = crate::domain::slo::tier_severity(&tiers, &labels);
             out.push(FiringInstance {
                 key: InstanceKey(r.get("key")),
-                rule: RuleId(r.get("slo")), // InstanceState.rule carries the SLO uuid for slo_instances rows
+                source: SourceId::Slo(SloId(r.get("slo"))),
                 severity,
                 labels,
             });
@@ -2642,7 +2887,9 @@ impl PgStore {
     ) -> Result<Vec<StaleInstance>, StoreError> {
         let rows = sqlx::query(
             "SELECT i.key AS key, i.slo AS slo, i.tenant AS tenant, i.status AS status,
-                    i.labels AS labels, i.value AS value, s.spec AS spec
+                    i.labels AS labels, i.value AS value,
+                    s.spec->'tiers' AS tiers, s.spec->'annotations' AS annotations,
+                    s.spec->'suppressed' AS suppressed
              FROM slo_instances i JOIN slos s ON s.id = i.slo
              WHERE i.status IN ('pending','firing')
                AND NOT s.paused
@@ -2666,22 +2913,34 @@ impl PgStore {
         let mut out = Vec::with_capacity(rows.len());
         for r in &rows {
             let labels: BTreeMap<String, String> = serde_json::from_value(r.get("labels"))?;
-            let spec: crate::domain::slo::SloSpec = serde_json::from_value(r.get("spec"))?;
-            let tiers = spec
-                .tiers
-                .clone()
-                .unwrap_or_else(crate::domain::slo::canonical_tiers);
+            // Projected spec fields (tiers/annotations/suppressed), not the full
+            // JSONB blob. SQL NULL tiers (no `tiers` key, or explicit `null`)
+            // resolve to the canonical set, same as `list_firing_slos`.
+            let tiers: Vec<crate::domain::slo::BurnRateTier> =
+                match r.get::<Option<serde_json::Value>, _>("tiers") {
+                    Some(v) if !v.is_null() => serde_json::from_value(v)?,
+                    _ => crate::domain::slo::canonical_tiers(),
+                };
             let severity = crate::domain::slo::tier_severity(&tiers, &labels);
+            let annotations: BTreeMap<String, String> =
+                match r.get::<Option<serde_json::Value>, _>("annotations") {
+                    Some(v) if !v.is_null() => serde_json::from_value(v)?,
+                    _ => BTreeMap::new(),
+                };
+            let suppressed = match r.get::<Option<serde_json::Value>, _>("suppressed") {
+                Some(serde_json::Value::Bool(b)) => b,
+                _ => false,
+            };
             out.push(StaleInstance {
                 key: InstanceKey(r.get("key")),
-                rule: RuleId(r.get("slo")), // InstanceState.rule carries the SLO uuid for slo_instances rows
+                source: SourceId::Slo(SloId(r.get("slo"))),
                 tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
                 status: status_from(r.get::<&str, _>("status")),
                 labels,
                 value: r.get("value"),
                 severity,
-                annotations: spec.annotations,
-                suppressed: spec.suppressed,
+                annotations,
+                suppressed,
             });
         }
         Ok(out)

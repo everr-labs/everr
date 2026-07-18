@@ -6,7 +6,8 @@ use redis::streams::{
 };
 use redis::AsyncCommands;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 const STREAM: &str = "cc:eval:jobs";
 const GROUP: &str = "evaluators";
@@ -20,6 +21,42 @@ const SLO_GROUP: &str = "slo-evaluators";
 /// `RedisEventBus`, which runs the same pre-pass over `cc:events`.
 pub(crate) const PEL_RECLAIM_IDLE_MS: usize = 60_000;
 
+/// Rate limit for the XAUTOCLAIM reclaim pre-pass. Entries only become
+/// reclaimable after sitting idle `reclaim_idle_ms`, so probing on every
+/// consume (~every 2s per loop) almost always returns nothing; probing at
+/// half the idle threshold still catches a newly-eligible entry within
+/// `1.5 * reclaim_idle_ms` of the owning consumer's crash. The first probe on
+/// a fresh handle is never throttled, so crashed-peer messages are reclaimed
+/// promptly on startup. One throttle per (handle, stream/group): a shared
+/// handle serving two streams must not have one stream's probe starve the
+/// other's.
+pub(crate) struct ReclaimProbe {
+    last: Mutex<Option<Instant>>,
+}
+
+impl ReclaimProbe {
+    pub(crate) fn new() -> Self {
+        Self {
+            last: Mutex::new(None),
+        }
+    }
+
+    /// True when a probe is due: never probed on this handle, or at least
+    /// `reclaim_idle_ms / 2` elapsed since the last one. A `true` return
+    /// consumes the budget (the caller is expected to probe).
+    pub(crate) fn due(&self, reclaim_idle_ms: usize) -> bool {
+        let interval = Duration::from_millis((reclaim_idle_ms / 2) as u64);
+        let mut last = self.last.lock().expect("reclaim probe lock poisoned");
+        match *last {
+            Some(at) if at.elapsed() < interval => false,
+            _ => {
+                *last = Some(Instant::now());
+                true
+            }
+        }
+    }
+}
+
 pub struct RedisQueue {
     conn: ConnectionManager,
     /// Engine self-observability (`cc.queue.consume.lag`, `cc.queue.batch.size`,
@@ -32,6 +69,10 @@ pub struct RedisQueue {
     /// Detects when XAUTOCLAIM is unsupported (Redis < 6.2) to skip reclaim probes
     /// without repeatedly logging. Prevents a warn-per-poll flood on older Redis versions.
     reclaim_unsupported: Arc<AtomicBool>,
+    /// Per-stream probe throttles (see [`ReclaimProbe`]); the two job streams
+    /// are consumed by independent loops sharing this handle.
+    reclaim_probe: ReclaimProbe,
+    slo_reclaim_probe: ReclaimProbe,
 }
 
 /// True if `err` is Redis rejecting a command it doesn't recognize (the
@@ -161,6 +202,8 @@ impl RedisQueue {
             metrics: crate::otel::EngineMetrics::disabled(),
             reclaim_idle_ms: PEL_RECLAIM_IDLE_MS,
             reclaim_unsupported: Arc::new(AtomicBool::new(false)),
+            reclaim_probe: ReclaimProbe::new(),
+            slo_reclaim_probe: ReclaimProbe::new(),
         })
     }
 
@@ -187,6 +230,7 @@ impl RedisQueue {
         &self,
         stream: &str,
         group: &str,
+        probe: &ReclaimProbe,
         consumer: &str,
         count: usize,
         block_ms: usize,
@@ -195,20 +239,26 @@ impl RedisQueue {
     ) -> Result<Vec<(JobId, J)>, QueueError> {
         let mut conn = self.conn.clone();
         // Reclaim pre-pass: hand this consumer any jobs left stuck in another
-        // (presumably crashed) consumer's PEL before reading new work.
-        let reclaimed = reclaim_pending_raw(
-            &mut conn,
-            &self.reclaim_unsupported,
-            &ReclaimTarget {
-                stream,
-                group,
-                field: "job",
-            },
-            consumer,
-            self.reclaim_idle_ms,
-            count,
-        )
-        .await?;
+        // (presumably crashed) consumer's PEL before reading new work. Throttled
+        // by `probe` (entries need `reclaim_idle_ms` of idleness before they are
+        // reclaimable, so probing on every read is wasted round trips).
+        let reclaimed = if probe.due(self.reclaim_idle_ms) {
+            reclaim_pending_raw(
+                &mut conn,
+                &self.reclaim_unsupported,
+                &ReclaimTarget {
+                    stream,
+                    group,
+                    field: "job",
+                },
+                consumer,
+                self.reclaim_idle_ms,
+                count,
+            )
+            .await?
+        } else {
+            Vec::new()
+        };
 
         let opts = StreamReadOptions::default()
             .group(group, consumer)
@@ -282,6 +332,7 @@ impl Queue for RedisQueue {
             .consume_stream::<EvalJob>(
                 STREAM,
                 GROUP,
+                &self.reclaim_probe,
                 consumer,
                 count,
                 block_ms,
@@ -298,6 +349,16 @@ impl Queue for RedisQueue {
     async fn ack(&self, id: &JobId) -> Result<(), QueueError> {
         let mut conn = self.conn.clone();
         let _: i64 = conn.xack(STREAM, GROUP, &[id.as_str()]).await?;
+        Ok(())
+    }
+
+    async fn ack_batch(&self, ids: &[JobId]) -> Result<(), QueueError> {
+        if ids.is_empty() {
+            return Ok(());
+        }
+        let raw: Vec<&str> = ids.iter().map(JobId::as_str).collect();
+        let mut conn = self.conn.clone();
+        let _: i64 = conn.xack(STREAM, GROUP, &raw).await?;
         Ok(())
     }
 
@@ -318,6 +379,7 @@ impl Queue for RedisQueue {
             .consume_stream::<SloEvalJob>(
                 SLO_STREAM,
                 SLO_GROUP,
+                &self.slo_reclaim_probe,
                 consumer,
                 count,
                 block_ms,
@@ -336,11 +398,50 @@ impl Queue for RedisQueue {
         let _: i64 = conn.xack(SLO_STREAM, SLO_GROUP, &[id.as_str()]).await?;
         Ok(())
     }
+
+    async fn ack_slo_batch(&self, ids: &[JobId]) -> Result<(), QueueError> {
+        if ids.is_empty() {
+            return Ok(());
+        }
+        let raw: Vec<&str> = ids.iter().map(JobId::as_str).collect();
+        let mut conn = self.conn.clone();
+        let _: i64 = conn.xack(SLO_STREAM, SLO_GROUP, &raw).await?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::entry_enqueue_unix_ms;
+    use super::{entry_enqueue_unix_ms, ReclaimProbe, PEL_RECLAIM_IDLE_MS};
+
+    #[test]
+    fn first_probe_is_always_due() {
+        let probe = ReclaimProbe::new();
+        assert!(
+            probe.due(PEL_RECLAIM_IDLE_MS),
+            "fresh handle must probe immediately so crashed-peer messages are reclaimed on startup"
+        );
+    }
+
+    #[test]
+    fn probe_is_throttled_to_half_the_idle_threshold() {
+        let probe = ReclaimProbe::new();
+        assert!(probe.due(PEL_RECLAIM_IDLE_MS));
+        assert!(
+            !probe.due(PEL_RECLAIM_IDLE_MS),
+            "a second probe within reclaim_idle_ms / 2 must be skipped"
+        );
+    }
+
+    #[test]
+    fn tiny_idle_threshold_disables_the_throttle() {
+        // Test seams shrink reclaim_idle_ms to ~1ms; the derived interval rounds
+        // to zero so every read probes, keeping the container suites' expectations.
+        let probe = ReclaimProbe::new();
+        assert!(probe.due(1));
+        assert!(probe.due(1));
+        assert!(probe.due(0));
+    }
 
     #[test]
     fn entry_id_millisecond_prefix_parses() {

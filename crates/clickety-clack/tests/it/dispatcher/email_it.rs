@@ -1,5 +1,6 @@
 use cc::dispatcher::email::EmailNotifier;
 use cc::dispatcher::notify::{Notification, Notifier};
+use cc::domain::channel::ChannelConfig;
 use cc::domain::event::Event;
 use cc::domain::ids::InstanceKey;
 use std::time::Duration;
@@ -27,7 +28,12 @@ async fn email_is_delivered_to_mailpit() {
 
     let notifier = EmailNotifier::new("127.0.0.1", smtp_port, "alerts@x.test", None, None);
     notifier
-        .send("oncall@x.test", &Notification::single(&ev()))
+        .send(
+            &ChannelConfig::Email {
+                to: vec!["oncall@x.test".into()],
+            },
+            &Notification::single(&ev()),
+        )
         .await
         .unwrap();
 

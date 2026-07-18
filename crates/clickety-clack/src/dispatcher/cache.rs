@@ -4,7 +4,7 @@
 
 use crate::dispatcher::routing::synthetic_labels;
 use crate::dispatcher::slo_inhibit::synthesize_slo_inhibitions;
-use crate::domain::ids::{InstanceKey, SloId, TenantId};
+use crate::domain::ids::{InstanceKey, RuleId, TenantId};
 use crate::domain::inhibition::InhibitionRule;
 use crate::domain::receiver::Receiver;
 use crate::domain::routing::Route;
@@ -114,34 +114,25 @@ impl FilterCache {
         )?;
         inhibitions.extend(synthesize_slo_inhibitions(&slos));
 
-        let mut firing: Vec<(InstanceKey, BTreeMap<String, String>)> = firing_rules
+        // Rule- and SLO-originated firing instances join the same source-set; the
+        // `FiringInstance.source` variant drives the synthetic `slo` label, so the
+        // synthesized inhibitions' `equal: ["slo", ...]` comparison sees the label
+        // on both sides for SLO rows.
+        let firing: Vec<(InstanceKey, BTreeMap<String, String>)> = firing_rules
             .into_iter()
+            .chain(firing_slos)
             .map(|f| {
                 let labels = synthetic_labels(
                     &f.labels,
                     f.severity,
                     EventStatus::Firing,
-                    f.rule,
+                    RuleId(f.source.uuid()),
                     crate::domain::EventKind::Alert,
-                    None, // rule-originated firing instances carry no SLO identity
+                    f.source.slo_id(),
                 );
                 (f.key, labels)
             })
             .collect();
-        // SLO-originated firing instances (`FiringInstance.rule` type-puns the SLO uuid)
-        // join the same source-set, labeled with their SLO identity so the synthesized
-        // inhibitions' `equal: ["slo", ...]` comparison sees the label on both sides.
-        firing.extend(firing_slos.into_iter().map(|f| {
-            let labels = synthetic_labels(
-                &f.labels,
-                f.severity,
-                EventStatus::Firing,
-                f.rule,
-                crate::domain::EventKind::Alert,
-                Some(SloId(f.rule.0)),
-            );
-            (f.key, labels)
-        }));
         Ok(Snapshot {
             silences,
             inhibitions,

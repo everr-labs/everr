@@ -24,22 +24,18 @@ import {
 const orgId = (session: { session: { activeOrganizationId: string } }) =>
   session.session.activeOrganizationId;
 
-// Poll cadence for the live alerting surfaces: active instances
-// (["cc", "alerts"]), rule rollups (["cc", "rules"]), and the stored event
-// history (["cc", "event-history"]). These change as rules evaluate, so their
-// queries refetch on this interval; config queries (routes, receivers,
-// channels, inhibitions, silences) change only through user actions and are
-// invalidated by their mutations instead.
-export const CC_POLL_INTERVAL_MS = 15_000;
+// Client-side query definitions (keys, poll cadence) for these server fns
+// live in ./queries.ts.
 
 // ---- Queries ----
+// The full rule set, walked page by page (CC's bare-array listing mode is
+// gone). For surfaces that resolve every rule at once (triage, history).
 export const listCcRules = createAuthenticatedServerFn({
   method: "GET",
-}).handler(({ context: { session } }) => cc.listRules(orgId(session)));
+}).handler(({ context: { session } }) => cc.listAllRules(orgId(session)));
 
-// Paginated rules listing (CC's {items, next_cursor} envelope) with an
-// optional server-side health filter. listCcRules above stays the bare-array
-// path for callers that want everything in one shot.
+// One page of the rules listing (CC's {items, next_cursor} envelope) with an
+// optional server-side health filter, for the paginated rules table.
 export const listCcRulesPage = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(
     z.object({
@@ -94,12 +90,22 @@ export const listCcEventHistory = createAuthenticatedServerFn({ method: "GET" })
     z.object({
       limit: z.number().int().min(1).max(500).default(200),
       timeRange: TimeRangeSchema,
+      // Narrow to one alert instance's events (server-side WHERE), for the
+      // triage board's expanded-row detail.
+      fingerprint: z.string().min(1).optional(),
     }),
   )
-  .handler(({ data: { limit, timeRange }, context: { clickhouse } }) => {
-    const { fromISO, toISO } = resolveTimeRange(timeRange);
-    return queryAlertEventLog(clickhouse.query, { limit, fromISO, toISO });
-  });
+  .handler(
+    ({ data: { limit, timeRange, fingerprint }, context: { clickhouse } }) => {
+      const { fromISO, toISO } = resolveTimeRange(timeRange);
+      return queryAlertEventLog(clickhouse.query, {
+        limit,
+        fromISO,
+        toISO,
+        ...(fingerprint !== undefined ? { fingerprint } : {}),
+      });
+    },
+  );
 
 // ---- Label suggestions ----
 // What the matcher/label comboboxes offer. Sources are merged best-effort
@@ -135,7 +141,7 @@ export const listCcLabelKeys = createAuthenticatedServerFn({
         fromISO,
         toISO,
       }),
-      cc.listRules(orgId(session)),
+      cc.listAllRules(orgId(session)),
       cc.listAlerts(orgId(session)),
     ]);
     const merged = new Set<string>(settled(observed, []));
@@ -175,7 +181,7 @@ export const listCcLabelValues = createAuthenticatedServerFn({ method: "GET" })
       if (staticValues) return staticValues.map((value) => ({ value }));
       switch (key) {
         case "rule": {
-          const rules = await cc.listRules(orgId(session)).catch(() => []);
+          const rules = await cc.listAllRules(orgId(session)).catch(() => []);
           return rules.map((rule) => ({
             value: rule.id,
             hint: ccRuleIdentity(rule).name,

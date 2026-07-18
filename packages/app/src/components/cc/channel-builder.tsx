@@ -19,6 +19,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { CcConceptNote, ccErrorMessage } from "@/components/cc/shared";
+import { ccQueries } from "@/data/cc/queries";
 import { createCcChannel } from "@/data/cc/server";
 import type { CcChannelConfig } from "@/data/cc/types";
 import { CcDrawer } from "./cc-drawer";
@@ -86,7 +87,7 @@ export function ChannelBuilder({
       return createCcChannel({ data: { name: name.trim(), config } });
     },
     onSuccess: (c) => {
-      qc.invalidateQueries({ queryKey: ["cc", "channels"] });
+      qc.invalidateQueries({ queryKey: ccQueries.channels().queryKey });
       onOpenChange(false);
       toast.success(`Channel "${c.name}" created`);
     },

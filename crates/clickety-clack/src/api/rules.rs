@@ -54,10 +54,9 @@ pub struct RuleView {
 pub struct ListParams {
     /// Optional health filter: "degraded" or "healthy".
     health: Option<String>,
-    /// Page size, 1..=500 (default 100). Presence of `limit` or `cursor` opts
-    /// into the paginated `{items, next_cursor}` envelope; kept as a raw string
-    /// so a malformed value gets a problem-details response instead of axum's
-    /// plain-text query rejection.
+    /// Page size, 1..=500 (default 100). Kept as a raw string so a malformed
+    /// value gets a problem-details response instead of axum's plain-text
+    /// query rejection.
     limit: Option<String>,
     /// Opaque resume token from a previous page's `next_cursor`.
     cursor: Option<String>,
@@ -254,15 +253,9 @@ pub async fn resume(
     set_paused(&state, &headers, RuleId(id), false).await
 }
 
-/// List rules, in two modes:
-///
-/// - **Paginated** (either `limit` or `cursor` present): keyset pagination over
-///   `(created_at, id)`, returning `{ "items": [RuleView...], "next_cursor": ... }`.
-///   `next_cursor` is null on the last page.
-/// - **Legacy** (neither param): the original bare, unbounded `[RuleView...]`
-///   array. Deprecated; kept so existing callers keep working until they opt in.
-///
-/// Both modes honor the optional `health` filter.
+/// List rules: keyset pagination over `(created_at, id)`, returning
+/// `{ "items": [RuleView...], "next_cursor": ... }`. `next_cursor` is null on
+/// the last page. Honors the optional `health` filter.
 pub async fn list(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -287,13 +280,6 @@ pub async fn list(
         })
         .unwrap()
     };
-
-    if params.limit.is_none() && params.cursor.is_none() {
-        // Legacy mode: bare unbounded array (pre-pagination response shape).
-        let rules = state.store.list_rules(&t, filter).await?;
-        let views: Vec<Value> = rules.into_iter().map(view).collect();
-        return Ok(Json(Value::Array(views)));
-    }
 
     let limit = parse_limit(params.limit.as_deref())?;
     let after = params.cursor.as_deref().map(decode_cursor).transpose()?;

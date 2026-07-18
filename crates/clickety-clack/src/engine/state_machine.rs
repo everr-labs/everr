@@ -124,9 +124,11 @@ fn make_event(
     eval_ts: OffsetDateTime,
     status: EventStatus,
 ) -> Event {
-    Event::new(
+    // `Event.rule` carries the source uuid for SLO instances too (wire compat);
+    // `Event.slo` carries the typed SLO identity.
+    let mut ev = Event::new(
         s.tenant.clone(),
-        s.rule,
+        crate::domain::ids::RuleId(s.source.uuid()),
         s.key.clone(),
         status,
         s.labels.clone(),
@@ -134,7 +136,9 @@ fn make_event(
         severity,
         annotations.clone(),
         eval_ts,
-    )
+    );
+    ev.slo = s.source.slo_id();
+    ev
 }
 
 #[cfg(test)]
@@ -146,7 +150,7 @@ mod tests {
     fn base() -> InstanceState {
         InstanceState::new_inactive(
             InstanceKey("k".into()),
-            RuleId(Uuid::nil()),
+            crate::domain::ids::SourceId::Rule(RuleId(Uuid::nil())),
             TenantId::from_trusted(Uuid::nil().to_string()),
             BTreeMap::new(),
         )

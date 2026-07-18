@@ -135,10 +135,10 @@ pub async fn run_evaluator(
         if let Some(started) = batch_started {
             metrics.record_eval_batch(started.elapsed().as_secs_f64());
         }
-        for id in to_ack {
-            if let Err(e) = queue.ack(&id).await {
-                tracing::error!(error = %e, "ack failed");
-            }
+        // One variadic ack per batch. On failure the unacked ids stay pending and
+        // are redelivered via the reclaim pre-pass, so logging is all that's owed.
+        if let Err(e) = queue.ack_batch(&to_ack).await {
+            tracing::error!(error = %e, "ack failed");
         }
     }
     tracing::info!("evaluator stopped");
@@ -235,11 +235,12 @@ pub(crate) async fn commit_and_publish_with_rollup(
     publish_and_clear_outbox(store, events, &out_events, &outbox_ids).await
 }
 
-/// Process one consume batch with identical-query coalescing. Jobs are claimed and their
-/// rules resolved per-delivery (idempotency unchanged), grouped by [`QuerySig`], and each
-/// distinct query is run once and fanned out to every rule sharing it. Every input
-/// delivery is acked (success or recorded eval-error), matching the prior per-delivery
-/// behavior. Returns the ids to ack.
+/// Process one consume batch with identical-query coalescing. Jobs are claimed via one
+/// batched (rule, eval_ts) claim and their rules resolved via one batched fetch
+/// (idempotency semantics unchanged from the per-delivery claim), grouped by
+/// [`QuerySig`], and each distinct query is run once and fanned out to every rule
+/// sharing it. Every input delivery is acked (success or recorded eval-error),
+/// matching the prior per-delivery behavior. Returns the ids to ack.
 pub async fn process_batch(
     store: &PgStore,
     ch: &dyn RowQuerier,
@@ -277,26 +278,48 @@ pub async fn process_batch_inner(
 ) -> Vec<JobId> {
     let ack_ids: Vec<JobId> = deliveries.iter().map(|d| d.id.clone()).collect();
 
-    // 1) Claim + resolve rule per delivery (per-job, so dedup semantics are unchanged).
-    let mut resolved: Vec<(crate::queue::EvalJob, Rule)> = Vec::new();
-    for d in deliveries {
-        let job = d.job;
-        match store.try_claim_eval(job.rule, job.eval_ts).await {
-            Ok(true) => {}
-            Ok(false) => continue, // another worker claimed this (rule, eval_ts)
-            Err(e) => {
-                tracing::error!(rule = ?job.rule, error = %e, "claim_eval failed");
-                continue;
-            }
+    // 1) Claim + resolve rules in two batched round trips (previously ~2 per
+    // delivery). `try_claim_evals` preserves the per-pair conflict semantics of
+    // the old per-delivery claim: a job that loses the (rule, eval_ts) race is
+    // skipped (and still acked), exactly as before. A store error skips the
+    // whole batch the same way a per-job claim/lookup error skipped that job.
+    let jobs: Vec<crate::queue::EvalJob> = deliveries.into_iter().map(|d| d.job).collect();
+    let claim_pairs: Vec<(RuleId, time::OffsetDateTime)> =
+        jobs.iter().map(|j| (j.rule, j.eval_ts)).collect();
+    let claimed = match store.try_claim_evals(&claim_pairs).await {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::error!(error = %e, "claim_eval failed");
+            return ack_ids;
         }
-        match store.get_rule(job.tenant.clone(), job.rule).await {
+    };
+    let claimed_jobs: Vec<crate::queue::EvalJob> = jobs
+        .into_iter()
+        .zip(claimed)
+        .filter_map(|(job, won)| won.then_some(job))
+        .collect();
+    let mut rule_ids: Vec<RuleId> = claimed_jobs.iter().map(|j| j.rule).collect();
+    rule_ids.sort_unstable_by_key(|r| r.0);
+    rule_ids.dedup();
+    let rules_by_id: HashMap<RuleId, Rule> = match store.get_rules_by_ids(&rule_ids).await {
+        Ok(rules) => rules.into_iter().map(|r| (r.id, r)).collect(),
+        Err(e) => {
+            tracing::error!(error = %e, "get_rule failed");
+            return ack_ids;
+        }
+    };
+    let mut resolved: Vec<(crate::queue::EvalJob, Rule)> = Vec::new();
+    for job in claimed_jobs {
+        match rules_by_id.get(&job.rule) {
+            // The tenant guard keeps the per-id read's scoping: a job whose tenant
+            // doesn't match the stored rule is treated as a miss, never evaluated.
+            Some(r) if r.tenant != job.tenant => {}
             // Rule paused after this job was enqueued: drop the in-flight job (it is
             // still acked above) so a paused rule can never evaluate or emit an event.
             // Scheduler claim-exclusion gates new jobs; this closes the queued-job window.
-            Ok(Some(r)) if r.paused => {}
-            Ok(Some(r)) => resolved.push((job, r)),
-            Ok(None) => {} // rule deleted; nothing to do
-            Err(e) => tracing::error!(rule = ?job.rule, error = %e, "get_rule failed"),
+            Some(r) if r.paused => {}
+            Some(r) => resolved.push((job, r.clone())),
+            None => {} // rule deleted; nothing to do
         }
     }
 
@@ -426,7 +449,12 @@ async fn evaluate_rule_against_rows(
 
     for (key, (labels, value, extra)) in present {
         let prev = known_keys.remove(&key).unwrap_or_else(|| {
-            InstanceState::new_inactive(key.clone(), job.rule, job.tenant.clone(), labels.clone())
+            InstanceState::new_inactive(
+                key.clone(),
+                crate::domain::ids::SourceId::Rule(job.rule),
+                job.tenant.clone(),
+                labels.clone(),
+            )
         });
         let input = EvalInput {
             present: true,

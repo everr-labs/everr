@@ -1,11 +1,18 @@
 use crate::dispatcher::notify::{
-    classify_status_429_transient, default_http_client, Notification, Notifier, NotifyError,
+    classify_status_429_transient, config_mismatch, default_http_client, Notification, Notifier,
+    NotifyError,
 };
+use crate::domain::channel::ChannelConfig;
 use crate::domain::{Event, EventStatus};
 use async_trait::async_trait;
+use futures::{StreamExt, TryStreamExt};
 use serde_json::{json, Value};
 
 const DEFAULT_ENQUEUE_URL: &str = "https://events.pagerduty.com/v2/enqueue";
+
+/// In-flight Events-API calls per batch send. Small: enough to hide round-trip
+/// latency on a large batch without hammering PD's rate limits.
+const SEND_CONCURRENCY: usize = 4;
 
 /// PagerDuty caps `payload.summary` at 1024 characters; longer summaries are rejected
 /// with a 400 (a permanent, dead-lettering failure), so truncate defensively.
@@ -69,8 +76,9 @@ pub fn build_pagerduty_payload(routing_key: &str, ev: &Event) -> Value {
     payload
 }
 
-/// PagerDuty Events API v2. `target` is the integration routing key. 2xx (PD returns
-/// 202) ok; 429 transient; other 4xx permanent; else transient.
+/// PagerDuty Events API v2 (`ChannelConfig::Pagerduty` carries the integration
+/// routing key). 2xx (PD returns 202) ok; 429 transient; other 4xx permanent;
+/// else transient.
 pub struct PagerDutyNotifier {
     http: reqwest::Client,
     base_url: String,
@@ -88,6 +96,20 @@ impl PagerDutyNotifier {
             base_url: base_url.to_string(),
         }
     }
+
+    /// One Events-API call for one event of a batch.
+    async fn send_event(&self, routing_key: &str, ev: &Event) -> Result<(), NotifyError> {
+        let resp = self
+            .http
+            .post(&self.base_url)
+            .json(&build_pagerduty_payload(routing_key, ev))
+            .send()
+            .await
+            // base_url carries no secret, but strip the URL defensively so a
+            // future change can't leak it into last_error/dead-letter/logs.
+            .map_err(|e| NotifyError::Transient(e.without_url().to_string()))?;
+        classify_status_429_transient(resp.status())
+    }
 }
 
 impl Default for PagerDutyNotifier {
@@ -102,23 +124,24 @@ impl Notifier for PagerDutyNotifier {
         "pagerduty"
     }
 
-    async fn send(&self, target: &str, notif: &Notification) -> Result<(), NotifyError> {
+    async fn send(&self, config: &ChannelConfig, notif: &Notification) -> Result<(), NotifyError> {
+        let ChannelConfig::Pagerduty { routing_key } = config else {
+            return Err(config_mismatch("pagerduty", config));
+        };
         // PagerDuty incidents are keyed per-instance (dedup_key), so a batch is sent
-        // as one Events-API call per event. PD's own dedup makes a batch-retry (which
-        // may re-send already-delivered events) idempotent for both trigger and resolve.
-        for ev in &notif.events {
-            let resp = self
-                .http
-                .post(&self.base_url)
-                .json(&build_pagerduty_payload(target, ev))
-                .send()
-                .await
-                // base_url carries no secret, but strip the URL defensively so a
-                // future change can't leak it into last_error/dead-letter/logs.
-                .map_err(|e| NotifyError::Transient(e.without_url().to_string()))?;
-            classify_status_429_transient(resp.status())?;
-        }
-        Ok(())
+        // as one Events-API call per event, overlapped up to SEND_CONCURRENCY. PD's
+        // own dedup makes a batch-retry (which may re-send already-delivered or
+        // still-in-flight events) idempotent for both trigger and resolve, so the
+        // first error may abort the batch mid-flight and the retry re-sends safely.
+        let sends: Vec<_> = notif
+            .events
+            .iter()
+            .map(|ev| self.send_event(routing_key, ev))
+            .collect();
+        futures::stream::iter(sends)
+            .buffer_unordered(SEND_CONCURRENCY)
+            .try_collect::<()>()
+            .await
     }
 }
 

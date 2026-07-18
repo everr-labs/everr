@@ -1,4 +1,25 @@
+use crate::domain::channel::ChannelConfig;
 use crate::domain::Event;
+
+/// Canonical serialization of a channel config's delivery target: a URL
+/// (webhook/Slack), a routing key (PagerDuty), comma-joined recipients (email),
+/// or the `{bot_token, chat_ids}` JSON (Telegram).
+///
+/// Hashing input ONLY — [`dedup_key`] and [`redact_target`] key on it; notifiers
+/// receive the typed `ChannelConfig` and never see this string. Kept stable per
+/// config so redeliveries hash identically.
+pub fn canonical_target(config: &ChannelConfig) -> String {
+    match config {
+        ChannelConfig::Webhook { url } => url.clone(),
+        ChannelConfig::Slack { url } => url.clone(),
+        ChannelConfig::Pagerduty { routing_key } => routing_key.clone(),
+        ChannelConfig::Email { to } => to.join(","),
+        ChannelConfig::Telegram {
+            bot_token,
+            chat_ids,
+        } => serde_json::json!({ "bot_token": bot_token, "chat_ids": chat_ids }).to_string(),
+    }
+}
 
 /// Stable dedup key for "this exact event delivered to this target on this channel".
 /// Identical for redeliveries of the same firing/resolved transition to the same
@@ -86,6 +107,29 @@ mod tests {
         let a = dedup_key("webhook", "http://x", &ev(EventStatus::Firing, t(0)));
         let b = dedup_key("slack", "http://x", &ev(EventStatus::Firing, t(0)));
         assert_ne!(a, b);
+    }
+
+    #[test]
+    fn canonical_target_per_variant() {
+        assert_eq!(
+            canonical_target(&ChannelConfig::Slack {
+                url: "https://hooks.slack.test/abc".into()
+            }),
+            "https://hooks.slack.test/abc"
+        );
+        assert_eq!(
+            canonical_target(&ChannelConfig::Email {
+                to: vec!["a@x.test".into(), "b@x.test".into()]
+            }),
+            "a@x.test,b@x.test"
+        );
+        let tg = canonical_target(&ChannelConfig::Telegram {
+            bot_token: "123:secret".into(),
+            chat_ids: vec!["@chan".into(), "999".into()],
+        });
+        let v: serde_json::Value = serde_json::from_str(&tg).unwrap();
+        assert_eq!(v["bot_token"], "123:secret");
+        assert_eq!(v["chat_ids"][0], "@chan");
     }
 
     #[test]

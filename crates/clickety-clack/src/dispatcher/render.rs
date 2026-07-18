@@ -70,14 +70,19 @@ fn push_json_value(out: &mut String, v: &serde_json::Value) {
 }
 
 /// Human label for an event: the summary annotation (rule-health verbatim, alert
-/// templated), else the instance key (alerts) / rule id (rule-health).
+/// templated), else the instance key (alerts) / source id (rule-health, where
+/// `Event.slo` distinguishes an SLO-health event whose `rule` field only carries
+/// the SLO uuid for wire compat).
 pub fn headline(ev: &Event) -> String {
     match ev.kind {
         EventKind::RuleHealth => ev
             .annotations
             .get("summary")
             .cloned()
-            .unwrap_or_else(|| format!("rule {}", ev.rule.0)),
+            .unwrap_or_else(|| match ev.slo {
+                Some(slo) => format!("slo {}", slo.0),
+                None => format!("rule {}", ev.rule.0),
+            }),
         EventKind::Alert => ev
             .annotations
             .get("summary")
@@ -182,6 +187,30 @@ mod tests {
         );
         assert_eq!(status_word(&ev), "DEGRADED");
         assert!(headline(&ev).contains("degraded"));
+    }
+
+    /// A summary-less health event names its true source: `slo <uuid>` when the
+    /// event carries SLO identity, `rule <uuid>` otherwise.
+    #[test]
+    fn health_headline_fallback_names_the_source_kind() {
+        let rule_ev = Event::rule_health(
+            TenantId::from_trusted(Uuid::nil().to_string()),
+            RuleId(Uuid::nil()),
+            EventStatus::Firing,
+            BTreeMap::new(),
+            OffsetDateTime::UNIX_EPOCH,
+        );
+        assert_eq!(headline(&rule_ev), format!("rule {}", Uuid::nil()));
+
+        let slo = crate::domain::ids::SloId(Uuid::from_u128(9));
+        let slo_ev = Event::slo_health(
+            TenantId::from_trusted(Uuid::nil().to_string()),
+            slo,
+            EventStatus::Firing,
+            BTreeMap::new(),
+            OffsetDateTime::UNIX_EPOCH,
+        );
+        assert_eq!(headline(&slo_ev), format!("slo {}", slo.0));
     }
 
     #[test]

@@ -8,7 +8,7 @@ use cc::dispatcher::cache::FilterCache;
 use cc::dispatcher::inhibition::is_inhibited;
 use cc::dispatcher::routing::match_labels;
 use cc::domain::event::{Event, EventKind, EventStatus};
-use cc::domain::ids::{InstanceKey, RuleId, SloId, TenantId};
+use cc::domain::ids::{InstanceKey, RuleId, SloId, SourceId, TenantId};
 use cc::domain::instance::{InstanceState, Status};
 use cc::domain::rule::Severity;
 use cc::domain::slo::{SliSpec, SloSpec, TimeWindow};
@@ -101,8 +101,12 @@ async fn snapshot_synthesizes_tier_inhibitions_and_feeds_slo_firing_set() {
     ]);
     let fast_key = InstanceKey::new(rule, &fast_labels);
     let now = OffsetDateTime::now_utc();
-    let mut fast_instance =
-        InstanceState::new_inactive(fast_key.clone(), rule, tenant.clone(), fast_labels);
+    let mut fast_instance = InstanceState::new_inactive(
+        fast_key.clone(),
+        SourceId::Slo(slo_id),
+        tenant.clone(),
+        fast_labels,
+    );
     fast_instance.status = Status::Firing;
     fast_instance.value = Some(20.0);
     fast_instance.active_since = Some(now);

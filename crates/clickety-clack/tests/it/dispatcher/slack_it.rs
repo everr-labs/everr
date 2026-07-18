@@ -1,5 +1,6 @@
 use cc::dispatcher::notify::{Notification, Notifier, NotifyError};
 use cc::dispatcher::slack::SlackNotifier;
+use cc::domain::channel::ChannelConfig;
 use cc::domain::event::Event;
 use std::sync::{Arc, Mutex};
 
@@ -36,7 +37,7 @@ async fn slack_posts_payload_and_2xx_ok() {
     let sink = Arc::new(Mutex::new(None));
     let url = start_server(200, sink.clone()).await;
     SlackNotifier::new()
-        .send(&url, &Notification::single(&ev()))
+        .send(&ChannelConfig::Slack { url }, &Notification::single(&ev()))
         .await
         .unwrap();
     let body = sink.lock().unwrap().clone().expect("server saw a body");
@@ -48,7 +49,7 @@ async fn slack_4xx_is_permanent() {
     let sink = Arc::new(Mutex::new(None));
     let url = start_server(400, sink).await;
     let err = SlackNotifier::new()
-        .send(&url, &Notification::single(&ev()))
+        .send(&ChannelConfig::Slack { url }, &Notification::single(&ev()))
         .await
         .unwrap_err();
     assert!(matches!(err, NotifyError::Permanent(_)));

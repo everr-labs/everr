@@ -18,15 +18,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@everr/ui/components/select";
-import type { TimeRange } from "@everr/ui/lib/time-range";
-import { queryOptions, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
 import {
   ALERT_EVENT_TYPES,
   type AlertEventType,
 } from "@/data/alerts/event-types";
 import type { AlertEventLogRow } from "@/data/alerts/history.server";
-import { CC_POLL_INTERVAL_MS, listCcEventHistory } from "@/data/cc/server";
+import { ccQueries } from "@/data/cc/queries";
 import { useTimeRange } from "@/hooks/use-time-range";
 import {
   CcEmptyState,
@@ -56,8 +55,6 @@ const EVENT_TYPE_LABELS: Record<AlertEventType, string> = {
   rule_health: "Rule health",
   silenced: "Silenced",
 };
-
-const HISTORY_LIMIT = 200;
 
 // The coarse lens over the fine event-type filter: each entry names the
 // event_type values it admits (null = no narrowing). Real engine vocabulary
@@ -89,14 +86,6 @@ export function ccEventStatus(eventType: string): "firing" | "resolved" | null {
       : null;
 }
 
-export const ccEventHistoryQueryOptions = (timeRange: TimeRange) =>
-  queryOptions({
-    queryKey: ["cc", "event-history", timeRange],
-    queryFn: () =>
-      listCcEventHistory({ data: { limit: HISTORY_LIMIT, timeRange } }),
-    refetchInterval: CC_POLL_INTERVAL_MS,
-  });
-
 export function AlertEventFeed({
   scopeSlug,
   showTypeLens = false,
@@ -126,10 +115,10 @@ export function AlertEventFeed({
   resolveRuleName?: (handle: string) => string;
   /**
    * Map a row's rule handle to that rule's severity, used when the event
-   * itself carries none. Stored history doesn't stamp `alert.severity` on
-   * every event kind yet, so this only backs the events a rule's severity
-   * actually describes (fire/resolve transitions); other kinds still render
-   * "—" for severity.
+   * itself carries none. CC now stamps `alert.severity` on alert event logs,
+   * so this only backs records stored before it did — and only for the
+   * events a rule's severity actually describes (fire/resolve transitions);
+   * other kinds still render "—" for severity.
    */
   resolveRuleSeverity?: (handle: string) => string | undefined;
 }) {
@@ -137,7 +126,7 @@ export function AlertEventFeed({
   const [eventType, setEventType] = useState<string>("all");
   const [typeLens, setTypeLens] = useState<TypeLensKey>("all");
   const { timeRange } = useTimeRange();
-  const history = useQuery(ccEventHistoryQueryOptions(timeRange));
+  const history = useQuery(ccQueries.eventHistory(timeRange));
 
   const rows = history.data ?? [];
 
@@ -147,11 +136,11 @@ export function AlertEventFeed({
     return rows.filter((e) => handles.has(e.slug));
   }, [rows, scopeSlug]);
 
-  // Stored history doesn't stamp severity on every event kind yet (see
-  // AlertEventLogRow.severity), so a fire/resolve transition missing its own
-  // severity falls back to its rule's — transitions are the only kinds a
-  // rule's severity describes, so other kinds (delivery, rule health, silence
-  // audits) are left as a genuine gap and still render "—".
+  // CC stamps severity on alert event logs, but records stored before it did
+  // carry none (see AlertEventLogRow.severity): a fire/resolve transition
+  // missing its own severity falls back to its rule's — transitions are the
+  // only kinds a rule's severity describes, so other kinds (delivery, rule
+  // health, silence audits) are left as a genuine gap and still render "—".
   const eventSeverity = useCallback(
     (e: AlertEventLogRow) =>
       e.severity ||

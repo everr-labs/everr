@@ -1,5 +1,5 @@
-//! Cursor pagination on `GET /v1/rules`: envelope mode (limit/cursor), the
-//! legacy bare-array mode, and cursor/limit rejection statuses.
+//! Cursor pagination on `GET /v1/rules`: the `{items, next_cursor}` envelope
+//! (the only response shape) and cursor/limit rejection statuses.
 
 use crate::api::support::{body_json, setup as app_with_store};
 use axum::body::Body;
@@ -45,23 +45,19 @@ fn item_ids(page: &serde_json::Value) -> Vec<String> {
 }
 
 #[tokio::test]
-async fn paginated_walk_covers_all_rules_and_matches_legacy_order() {
+async fn paginated_walk_covers_all_rules_in_creation_order() {
     let (app, _store) = app_with_store().await;
     let tenant = Uuid::new_v4();
+    let mut created: Vec<String> = Vec::new();
     for _ in 0..5 {
-        create_rule(&app, tenant).await;
+        created.push(create_rule(&app, tenant).await);
     }
 
-    // Legacy mode (no limit/cursor): bare array, all rules, unchanged shape.
-    let (status, legacy) = get_json(&app, tenant, "/v1/rules").await;
+    // No limit/cursor: still the paginated envelope, at the default page size.
+    let (status, default_page) = get_json(&app, tenant, "/v1/rules").await;
     assert_eq!(status, StatusCode::OK);
-    let legacy_ids: Vec<String> = legacy
-        .as_array()
-        .expect("legacy mode must stay a bare array")
-        .iter()
-        .map(|v| v["id"].as_str().unwrap().to_string())
-        .collect();
-    assert_eq!(legacy_ids.len(), 5);
+    assert_eq!(item_ids(&default_page).len(), 5);
+    assert!(default_page["next_cursor"].is_null());
 
     // Paginated walk with limit=2: 2 + 2 + 1, then a null cursor.
     let mut walked: Vec<String> = Vec::new();
@@ -79,12 +75,21 @@ async fn paginated_walk_covers_all_rules_and_matches_legacy_order() {
         assert!(pages < 10, "cursor walk must terminate");
     }
     assert_eq!(pages, 3, "5 rules at limit=2 is 3 pages");
+    let mut walked_sorted = walked.clone();
+    walked_sorted.sort();
+    let mut created_sorted = created.clone();
+    created_sorted.sort();
     assert_eq!(
-        walked, legacy_ids,
-        "pagination must yield the same rules in the same total order as the legacy listing"
+        walked_sorted, created_sorted,
+        "pagination must cover every created rule exactly once"
+    );
+    assert_eq!(
+        walked,
+        item_ids(&default_page),
+        "the walk must visit the same (created_at, id) total order as a single page"
     );
 
-    // Items carry the full RuleView shape (health + rollup), same as legacy.
+    // Items carry the full RuleView shape (health + rollup).
     let (_, first_page) = get_json(&app, tenant, "/v1/rules?limit=1").await;
     let item = &first_page["items"][0];
     assert_eq!(item["health"]["status"], "healthy");

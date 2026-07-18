@@ -139,8 +139,9 @@ export type AlertEventLogRow = {
   slug: string; // alert.slug (everr.name annotation, falling back to the rule id)
   instanceFingerprint: string;
   labels: Record<string, string>; // alert.instance_labels decoded
-  // alert.severity when CC stamps it; empty today (records carry no severity attribute),
-  // selected defensively so it flows through once CC adds it.
+  // alert.severity: CC stamps the rule's severity on alert event logs; empty
+  // on records written before CC started stamping it (readers fall back to the
+  // owning rule's severity for those).
   severity: string;
   suppressed: boolean; // alert.suppressed === "true"
   silenced: boolean; // alert.silenced === "true" (only on dispatcher records)
@@ -181,10 +182,19 @@ type AlertEventLogRawRow = {
  * The time params are DateTime64(3) (not String) because resolveTimeRange emits
  * 'YYYY-MM-DD HH:mm:ss.SSS' and ClickHouse cannot coerce a fractional-seconds
  * string to the column's plain DateTime.
+ *
+ * `fingerprint` narrows to one alert instance's events server-side (the
+ * triage board's expanded-row detail), instead of shipping the whole window
+ * and filtering client-side.
  */
 export async function queryAlertEventLog(
   clickhouse: ClickhouseQuery,
-  opts: { limit: number; fromISO: string; toISO: string },
+  opts: {
+    limit: number;
+    fromISO: string;
+    toISO: string;
+    fingerprint?: string;
+  },
 ): Promise<AlertEventLogRow[]> {
   const rows = await clickhouse<AlertEventLogRawRow>(
     `
@@ -205,6 +215,7 @@ export async function queryAlertEventLog(
         AND ScopeName = 'everr.alerting'
         AND TimestampTime >= {fromTime:DateTime64(3)}
         AND TimestampTime <= {toTime:DateTime64(3)}
+        ${opts.fingerprint !== undefined ? "AND LogAttributes['alert.instance_fingerprint'] = {fingerprint:String}" : ""}
       ORDER BY Timestamp DESC
       LIMIT {limit:UInt32}
     `,
@@ -212,6 +223,9 @@ export async function queryAlertEventLog(
       fromTime: opts.fromISO,
       toTime: opts.toISO,
       limit: opts.limit,
+      ...(opts.fingerprint !== undefined
+        ? { fingerprint: opts.fingerprint }
+        : {}),
     },
   );
   return rows.map(

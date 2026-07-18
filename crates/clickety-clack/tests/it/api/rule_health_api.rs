@@ -89,8 +89,8 @@ async fn get_and_list_expose_rule_health() {
         .body(Body::empty())
         .unwrap();
     let body = body_json(app.clone().oneshot(list_degraded).await.unwrap()).await;
-    assert_eq!(body.as_array().unwrap().len(), 1);
-    assert_eq!(body[0]["health"]["status"], "degraded");
+    assert_eq!(body["items"].as_array().unwrap().len(), 1);
+    assert_eq!(body["items"][0]["health"]["status"], "degraded");
 
     let list_healthy = Request::builder()
         .uri("/v1/rules?health=healthy")
@@ -98,7 +98,7 @@ async fn get_and_list_expose_rule_health() {
         .body(Body::empty())
         .unwrap();
     let body = body_json(app.clone().oneshot(list_healthy).await.unwrap()).await;
-    assert_eq!(body.as_array().unwrap().len(), 0);
+    assert_eq!(body["items"].as_array().unwrap().len(), 0);
 
     // Invalid filter -> 422 (the API's validation-failure status).
     let bad = Request::builder()

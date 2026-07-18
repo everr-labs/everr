@@ -231,7 +231,7 @@ export const applyAlertSpecs: Reconciler = async ({
   const listingPromise: Promise<CcRuleView[]> =
     namespace.kind === "preview" && namespace.id === null
       ? Promise.resolve([])
-      : cc.listRules(orgId);
+      : cc.listAllRules(orgId);
 
   // Bounded pool via the shared limiter; allSettled keeps results in input
   // order, so the first failure can still be reported deterministically.

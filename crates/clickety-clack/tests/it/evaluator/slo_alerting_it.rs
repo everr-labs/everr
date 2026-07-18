@@ -5,7 +5,7 @@
 use async_trait::async_trait;
 use cc::clickhouse::{AuthIdentity, ChError, ResultRow, RowQuerier};
 use cc::domain::event::{EventKind, EventStatus};
-use cc::domain::ids::{InstanceKey, RuleId, TenantId};
+use cc::domain::ids::{InstanceKey, RuleId, SourceId, TenantId};
 use cc::domain::instance::{InstanceState, Status};
 use cc::domain::rule::Severity;
 use cc::domain::slo::{SliSpec, SloSpec, TimeWindow};
@@ -301,7 +301,7 @@ async fn freeze_on_error_freezes_instances() {
     let rule_id = RuleId(slo.id.0);
     let labels = BTreeMap::from([("slo_tier".to_string(), "fast-burn".to_string())]);
     let key = InstanceKey::new(rule_id, &labels);
-    let mut inst = InstanceState::new_inactive(key, rule_id, tenant.clone(), labels);
+    let mut inst = InstanceState::new_inactive(key, SourceId::Slo(slo.id), tenant.clone(), labels);
     let seeded_last_seen = OffsetDateTime::now_utc() - time::Duration::minutes(5);
     inst.status = Status::Firing;
     inst.active_since = Some(seeded_last_seen);
@@ -348,7 +348,7 @@ async fn leftover_instance_with_unknown_tier_resolves_severity_as_critical() {
     let rule_id = RuleId(slo.id.0);
     let labels = BTreeMap::from([("slo_tier".to_string(), "ghost-tier".to_string())]);
     let key = InstanceKey::new(rule_id, &labels);
-    let mut inst = InstanceState::new_inactive(key, rule_id, tenant.clone(), labels);
+    let mut inst = InstanceState::new_inactive(key, SourceId::Slo(slo.id), tenant.clone(), labels);
     let seeded_last_seen = OffsetDateTime::now_utc() - time::Duration::minutes(5);
     inst.status = Status::Firing;
     inst.active_since = Some(seeded_last_seen);

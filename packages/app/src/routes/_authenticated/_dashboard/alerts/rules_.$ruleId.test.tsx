@@ -31,7 +31,6 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/data/cc/server", () => ({
-  CC_POLL_INTERVAL_MS: 15_000,
   getCcRule: mocks.getCcRule,
   listCcAlerts: mocks.listCcAlerts,
   pauseCcRule: mocks.pauseCcRule,
@@ -51,10 +50,6 @@ vi.mock("@/components/cc/alert-event-feed", () => ({
     mocks.feedProps(props);
     return <div data-testid="event-feed" />;
   },
-  ccEventHistoryQueryOptions: () => ({
-    queryKey: ["cc", "event-history", "test"],
-    queryFn: () => Promise.resolve([]),
-  }),
 }));
 
 // ---------------------------------------------------------------------------

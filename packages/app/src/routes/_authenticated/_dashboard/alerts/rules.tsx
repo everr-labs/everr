@@ -10,7 +10,6 @@ import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { cn } from "@everr/ui/lib/utils";
 import {
-  infiniteQueryOptions,
   useInfiniteQuery,
   useMutation,
   useQueryClient,
@@ -31,35 +30,10 @@ import {
   ccFormatTs,
 } from "@/components/cc/shared";
 import { ccRuleIdentity } from "@/data/alerts/rule-identity";
+import { ccQueries } from "@/data/cc/queries";
 import { CcRuleHealthStatusSchema } from "@/data/cc/schema";
-import {
-  CC_POLL_INTERVAL_MS,
-  listCcRulesPage,
-  pauseCcRule,
-  resumeCcRule,
-} from "@/data/cc/server";
-import type { CcRuleHealthStatus, CcRuleView } from "@/data/cc/types";
-
-const RULES_PAGE_LIMIT = 100;
-
-// Keyset-paginated listing: each page is CC's {items, next_cursor} envelope,
-// and a null next_cursor is the last page. The key stays under ["cc", "rules"]
-// so the pause/resume invalidation below keeps matching by prefix.
-const ccRulesQuery = (health?: CcRuleHealthStatus) =>
-  infiniteQueryOptions({
-    queryKey: ["cc", "rules", "page", health ?? "all"],
-    queryFn: ({ pageParam }) =>
-      listCcRulesPage({
-        data: {
-          limit: RULES_PAGE_LIMIT,
-          ...(pageParam ? { cursor: pageParam } : {}),
-          ...(health ? { health } : {}),
-        },
-      }),
-    initialPageParam: null as string | null,
-    getNextPageParam: (last) => last.next_cursor,
-    refetchInterval: CC_POLL_INTERVAL_MS,
-  });
+import { pauseCcRule, resumeCcRule } from "@/data/cc/server";
+import type { CcRuleView } from "@/data/cc/types";
 
 // `health` narrows the listing server-side (CC's rule-health filter); Triage's
 // degraded-rules count links here with ?health=degraded.
@@ -74,7 +48,7 @@ export const Route = createFileRoute("/_authenticated/_dashboard/alerts/rules")(
     validateSearch: RulesSearchSchema,
     loaderDeps: ({ search }) => ({ health: search.health }),
     loader: ({ context: { queryClient }, deps }) =>
-      queryClient.prefetchInfiniteQuery(ccRulesQuery(deps.health)),
+      queryClient.prefetchInfiniteQuery(ccQueries.rulesPage(deps.health)),
     component: CcRulesPage,
   },
 );
@@ -90,7 +64,7 @@ function CcRulesPage() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useInfiniteQuery(ccRulesQuery(health));
+  } = useInfiniteQuery(ccQueries.rulesPage(health));
   const rules = data?.pages.flatMap((p) => p.items) ?? [];
 
   const toggle = useMutation({
@@ -99,7 +73,8 @@ function CcRulesPage() {
         ? resumeCcRule({ data: { ruleId: rule.id } })
         : pauseCcRule({ data: { ruleId: rule.id } }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["cc", "rules"] });
+      // The ["cc", "rules"] prefix also matches the paginated page keys.
+      qc.invalidateQueries({ queryKey: ccQueries.rules().queryKey });
       toast.success("Rule updated");
     },
     onError: (e) => toast.error(ccErrorMessage(e)),

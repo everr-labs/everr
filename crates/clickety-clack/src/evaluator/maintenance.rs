@@ -1,5 +1,5 @@
 use crate::domain::event::{Event, EventStatus};
-use crate::domain::ids::SloId;
+use crate::domain::ids::RuleId;
 use crate::domain::instance::{InstanceState, StaleInstance, Status};
 use crate::queue::EventBus;
 use crate::stores::{PgStore, RedisLease};
@@ -61,8 +61,7 @@ pub async fn relay_once(
 }
 
 /// Which stale set a reconciliation pass drains: rule instances, or SLO burn-rate
-/// instances (which carry the scheduler cadence their stale predicate needs and stamp
-/// `slo` on the synthetic Resolved events).
+/// instances (which carry the scheduler cadence their stale predicate needs).
 #[derive(Clone, Copy)]
 enum ReconcileKind {
     Rule,
@@ -147,7 +146,7 @@ async fn sweep(
         let mut next_states: Vec<InstanceState> = Vec::with_capacity(n);
         let mut out_events: Vec<Event> = Vec::new();
         for s in stale {
-            let (next, maybe_ev) = reconcile_transition(s, now, kind);
+            let (next, maybe_ev) = reconcile_transition(s, now);
             if let Some(ev) = maybe_ev {
                 out_events.push(ev);
             }
@@ -173,17 +172,12 @@ async fn sweep(
 
 /// Pure reconciliation transition: a stale instance resets to Inactive; a stale FIRING
 /// instance additionally emits a synthetic Resolved event (others emit nothing).
-/// For [`ReconcileKind::Slo`] the event is additionally stamped with `slo`
-/// (StaleInstance.rule carries the SLO uuid for `slo_instances` rows, per
-/// [`PgStore::list_stale_slo_instances`]).
-fn reconcile_transition(
-    s: StaleInstance,
-    now: OffsetDateTime,
-    kind: ReconcileKind,
-) -> (InstanceState, Option<Event>) {
+/// The event's `slo` stamp follows the instance's [`crate::domain::ids::SourceId`]
+/// (its `rule` field carries the same uuid, the `Event` wire convention).
+fn reconcile_transition(s: StaleInstance, now: OffsetDateTime) -> (InstanceState, Option<Event>) {
     let next = InstanceState {
         key: s.key.clone(),
-        rule: s.rule,
+        source: s.source,
         tenant: s.tenant.clone(),
         status: Status::Inactive,
         labels: s.labels.clone(),
@@ -196,7 +190,7 @@ fn reconcile_transition(
         Status::Firing => {
             let mut ev = Event::new(
                 s.tenant,
-                s.rule,
+                RuleId(s.source.uuid()),
                 s.key,
                 EventStatus::Resolved,
                 s.labels,
@@ -205,9 +199,7 @@ fn reconcile_transition(
                 s.annotations,
                 now,
             );
-            if let ReconcileKind::Slo { .. } = kind {
-                ev.slo = Some(SloId(s.rule.0));
-            }
+            ev.slo = s.source.slo_id();
             // A preview (suppressed) rule's or SLO's synthetic Resolved must not notify
             // either. No source row here, so evidence stays None/untruncated.
             ev.suppressed = s.suppressed;
@@ -309,7 +301,7 @@ mod tests {
         labels.insert("host".to_string(), "web-01".to_string());
         crate::domain::instance::StaleInstance {
             key: InstanceKey("k1".into()),
-            rule: RuleId(Uuid::nil()),
+            source: crate::domain::ids::SourceId::Rule(RuleId(Uuid::nil())),
             tenant: TenantId::from_trusted("t1".to_string()),
             status,
             labels,
@@ -328,11 +320,26 @@ mod tests {
         let now = OffsetDateTime::UNIX_EPOCH + Duration::hours(50);
         let mut s = stale(Status::Firing);
         s.suppressed = true;
-        let (_, ev) = reconcile_transition(s, now, ReconcileKind::Rule);
+        let (_, ev) = reconcile_transition(s, now);
         let ev = ev.expect("stale firing emits a Resolved event");
         assert!(ev.suppressed);
         assert_eq!(ev.evidence, None);
         assert!(!ev.evidence_truncated);
+    }
+
+    /// An SLO-sourced stale FIRING instance stamps its SLO identity on the synthetic
+    /// Resolved event (`rule` carries the same uuid, the Event wire convention).
+    #[test]
+    fn reconcile_stamps_slo_from_source() {
+        let now = OffsetDateTime::UNIX_EPOCH + Duration::hours(50);
+        let slo = crate::domain::ids::SloId(Uuid::from_u128(7));
+        let mut s = stale(Status::Firing);
+        s.source = crate::domain::ids::SourceId::Slo(slo);
+        let (next, ev) = reconcile_transition(s, now);
+        let ev = ev.expect("stale firing emits a Resolved event");
+        assert_eq!(ev.slo, Some(slo));
+        assert_eq!(ev.rule, RuleId(slo.0));
+        assert_eq!(next.source, crate::domain::ids::SourceId::Slo(slo));
     }
 
     /// `reconcile_transition` pure: no DB, no async.
@@ -350,7 +357,7 @@ mod tests {
 
         let results: Vec<_> = inputs
             .into_iter()
-            .map(|s| reconcile_transition(s, now, ReconcileKind::Rule))
+            .map(|s| reconcile_transition(s, now))
             .collect();
 
         // All next-states must be Inactive.

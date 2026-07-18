@@ -161,14 +161,15 @@ pub async fn run_dispatcher(
             }
         };
         let acks = process_event_batch(&ctx, &entries).await;
-        for (id, ack_ok) in acks {
-            if ack_ok {
-                if let Err(e) = ctx.bus.ack(&id).await {
-                    tracing::error!(error = %e, "event ack failed");
-                }
-            }
-            // if !ack_ok: entry stays in the PEL (unacked) — redelivered by the
-            // event-bus XAUTOCLAIM reclaim pre-pass once it goes idle.
+        // One variadic ack for the handled subset. Unhandled entries (and, on an
+        // ack error, the whole batch) stay in the PEL — redelivered by the
+        // event-bus XAUTOCLAIM reclaim pre-pass once they go idle.
+        let ack_ids: Vec<crate::queue::EventId> = acks
+            .into_iter()
+            .filter_map(|(id, ack_ok)| ack_ok.then_some(id))
+            .collect();
+        if let Err(e) = ctx.bus.ack_batch(&ack_ids).await {
+            tracing::error!(error = %e, "event ack failed");
         }
     }
     tracing::info!("dispatcher stopped");
@@ -320,11 +321,14 @@ async fn firehose_deliver(ctx: &DispatchCtx, ev: &Event, entry_id: &crate::queue
             return false;
         }
     };
-    let notif = Notification::single(ev);
-    let mut all_handled = true;
-    for s in subs {
-        let channel = "webhook";
-        let target = s.webhook_url;
+    let notif = &Notification::single(ev);
+    // Subscriptions are independent (per-subscription ledger row keyed by its own
+    // dedup key), so their Pg round-trip + HTTP delivery overlap; each keeps its
+    // own bookkeeping and the aggregate is "every subscription handled".
+    let handled = futures::future::join_all(subs.into_iter().map(|s| async move {
+        let config = crate::domain::channel::ChannelConfig::Webhook { url: s.webhook_url };
+        let channel = config.channel_name();
+        let target = dedup::canonical_target(&config);
         let key = dedup::dedup_key(channel, &target, ev);
         match ctx
             .store
@@ -337,14 +341,13 @@ async fn firehose_deliver(ctx: &DispatchCtx, ev: &Event, entry_id: &crate::queue
             .await
         {
             Ok(true) => {}
-            Ok(false) => continue,
+            Ok(false) => return true, // already delivered (dedup)
             Err(e) => {
                 tracing::error!(error = %e, "begin notification failed");
-                all_handled = false;
-                continue;
+                return false;
             }
         }
-        if deliver_one(&ctx.delivery_deps(), channel, &target, &key, &notif, ev).await {
+        if deliver_one(&ctx.delivery_deps(), &config, &key, notif, ev).await {
             // Record the delivery as an OTLP `delivery` log (target = channel name,
             // matching the pre-multi-channel firehose shape).
             let facts = DeliveryFacts {
@@ -354,8 +357,10 @@ async fn firehose_deliver(ctx: &DispatchCtx, ev: &Event, entry_id: &crate::queue
             };
             ctx.sink.record_delivery(ev, &facts).await;
         }
-    }
-    all_handled
+        true
+    }))
+    .await;
+    handled.into_iter().all(|ok| ok)
 }
 
 /// The group flusher: every replica claims due groups and delivers each as one batch.
@@ -594,8 +599,10 @@ fn resolve_channels(gid: &str, names: &[String], loaded: Vec<Channel>) -> Vec<Ch
 
 /// Fan one flush out to every resolved channel of the group's receiver. Each channel
 /// gets its own dedup key (keyed by the channel NAME, stable across config edits) and
-/// its own ledger row. A failing channel never short-circuits the rest: failures are
-/// recorded (ledger + dead letter) per channel and the loop keeps going.
+/// its own ledger row. Channels are independent, so they deliver concurrently — one
+/// channel's retry backoff (worst case tens of seconds) never delays the others — and
+/// a failing channel never suppresses the rest: failures are recorded (ledger + dead
+/// letter) per channel.
 ///
 /// `repeat_taken_at` is `Some(take timestamp)` when this flush is a still-firing
 /// repeat reminder, `None` for a normal buffered flush.
@@ -608,51 +615,57 @@ async fn deliver_group_channels(
     notif: &Notification,
     rep: &Event,
 ) -> FanOutOutcome {
-    let mut outcome = FanOutOutcome {
-        begun: false,
-        sent: false,
-    };
-    for ch in channels {
-        let kind = ch.config.channel_name();
-        let target = ch.config.target();
+    // Per-channel (begun, sent), aggregated after the join. The ledger insert is
+    // atomic on the dedup key, so a name repeated in the buffered list still
+    // collapses to one row/send even with the attempts racing.
+    let results = futures::future::join_all(channels.iter().map(|ch| async move {
         // A repeat folds the take timestamp into the key so the identical still-firing
         // set yields a NEW notification instead of deduping against the original send.
         let key = match repeat_taken_at {
             Some(taken_at) => grouping::repeat_dedup_key(gid, &ch.name, &notif.events, taken_at),
             None => grouping::group_dedup_key(gid, &ch.name, &notif.events),
         };
+        let target = dedup::canonical_target(&ch.config);
         match deps
             .ledger
-            .try_begin_notification(&key, tenant.clone(), kind, &dedup::redact_target(&target))
+            .try_begin_notification(
+                &key,
+                tenant.clone(),
+                ch.config.channel_name(),
+                &dedup::redact_target(&target),
+            )
             .await
         {
             Ok(true) => {}
-            Ok(false) => continue, // identical active set already delivered on this channel
+            // Identical active set already delivered on this channel.
+            Ok(false) => return (false, false),
             Err(e) => {
                 tracing::error!(error = %e, group = %gid, channel = %ch.name,
                     "begin notification failed");
-                continue;
+                return (false, false);
             }
         }
-        outcome.begun = true;
-        if deliver_one(deps, kind, &target, &key, notif, rep).await {
-            outcome.sent = true;
-        }
+        let sent = deliver_one(deps, &ch.config, &key, notif, rep).await;
+        (true, sent)
+    }))
+    .await;
+    FanOutOutcome {
+        begun: results.iter().any(|(begun, _)| *begun),
+        sent: results.iter().any(|(_, sent)| *sent),
     }
-    outcome
 }
 
-/// Shared delivery + bookkeeping: look up the notifier, retry, then record sent/failed
-/// and dead-letter on permanent/exhausted failure. `rep` is the event used for the
-/// dead-letter record. Returns true when delivery succeeded.
+/// Shared delivery + bookkeeping: look up the notifier for `config`'s channel, retry,
+/// then record sent/failed and dead-letter on permanent/exhausted failure. `rep` is the
+/// event used for the dead-letter record. Returns true when delivery succeeded.
 async fn deliver_one(
     deps: &DeliveryDeps<'_>,
-    channel: &str,
-    target: &str,
+    config: &crate::domain::channel::ChannelConfig,
     key: &str,
     notif: &Notification,
     rep: &Event,
 ) -> bool {
+    let channel = config.channel_name();
     let metrics = deps.notifiers.engine_metrics();
     let notifier = match deps.notifiers.get(channel) {
         Some(n) => n,
@@ -675,7 +688,7 @@ async fn deliver_one(
             return false;
         }
     };
-    match retry::deliver_with_retry(notifier.as_ref(), target, notif, MAX_ATTEMPTS).await {
+    match retry::deliver_with_retry(notifier.as_ref(), config, notif, MAX_ATTEMPTS).await {
         Ok(attempts) => {
             metrics.record_delivery(
                 channel,
@@ -706,13 +719,14 @@ async fn deliver_one(
             {
                 tracing::error!(error = %e, key = %key, "mark_notification_failed write failed");
             }
+            let redacted = dedup::redact_target(&dedup::canonical_target(config));
             match deps.bus.dead_letter(rep, &reason).await {
                 Ok(()) => {
-                    tracing::warn!(channel = %channel, target = %dedup::redact_target(target), error = %err,
+                    tracing::warn!(channel = %channel, target = %redacted, error = %err,
                     "notification dead-lettered")
                 }
                 Err(e) => tracing::error!(dead_letter_error = %e, original = %err,
-                    channel = %channel, target = %dedup::redact_target(target),
+                    channel = %channel, target = %redacted,
                     "delivery failed AND dead-letter write failed"),
             }
             false
@@ -848,7 +862,7 @@ mod fan_out_tests {
         fn channel(&self) -> &'static str {
             self.name
         }
-        async fn send(&self, _t: &str, _n: &Notification) -> Result<(), NotifyError> {
+        async fn send(&self, _c: &ChannelConfig, _n: &Notification) -> Result<(), NotifyError> {
             self.sends.fetch_add(1, Ordering::SeqCst);
             if self.fail {
                 Err(NotifyError::Permanent("boom".into()))

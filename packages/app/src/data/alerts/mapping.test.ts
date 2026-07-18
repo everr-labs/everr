@@ -57,7 +57,7 @@ describe("toRuleSpec", () => {
     expect(spec.severity).toBe("warning");
     expect(spec.annotations[OWN_NAME]).toBe("high-5xx");
     expect(spec.annotations[OWN_REPO]).toBe("repo-1");
-    expect(spec.annotations["everr.notification.title"]).toBe(TITLE_TEMPLATE);
+    expect(spec.annotations.summary).toBe(TITLE_TEMPLATE);
     expect(spec.annotations["everr.label.team"]).toBe("platform");
   });
 
@@ -85,7 +85,6 @@ describe("toRuleSpec", () => {
       "repo-1",
     );
     expect(spec.annotations.description).toBeUndefined();
-    expect(spec.annotations["everr.notification.description"]).toBeUndefined();
   });
 
   it("builds an absolute link.runbook when appBaseUrl is provided", () => {

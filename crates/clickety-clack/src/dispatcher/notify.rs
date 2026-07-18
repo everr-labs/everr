@@ -1,3 +1,4 @@
+use crate::domain::channel::ChannelConfig;
 use crate::domain::Event;
 use async_trait::async_trait;
 use thiserror::Error;
@@ -36,8 +37,20 @@ impl Notification {
 #[async_trait]
 pub trait Notifier: Send + Sync {
     fn channel(&self) -> &'static str;
-    /// Deliver `notif` to `target`. Classify failures as Transient vs Permanent.
-    async fn send(&self, target: &str, notif: &Notification) -> Result<(), NotifyError>;
+    /// Deliver `notif` to the endpoint described by `config`. Each impl matches
+    /// its own [`ChannelConfig`] variant and returns [`config_mismatch`] for any
+    /// other (a registry/config bug, never worth retrying). Classify delivery
+    /// failures as Transient vs Permanent.
+    async fn send(&self, config: &ChannelConfig, notif: &Notification) -> Result<(), NotifyError>;
+}
+
+/// The Permanent error a notifier returns when handed another channel's config
+/// variant (dispatch looked up the wrong notifier, or a config row is corrupt).
+pub fn config_mismatch(notifier: &'static str, got: &ChannelConfig) -> NotifyError {
+    NotifyError::Permanent(format!(
+        "{notifier} notifier received a '{}' config",
+        got.channel_name()
+    ))
 }
 
 /// The HTTP client shared in shape by all HTTP notifiers: a 10s overall timeout.
@@ -94,14 +107,17 @@ impl Notifier for WebhookNotifier {
         "webhook"
     }
 
-    async fn send(&self, target: &str, notif: &Notification) -> Result<(), NotifyError> {
+    async fn send(&self, config: &ChannelConfig, notif: &Notification) -> Result<(), NotifyError> {
+        let ChannelConfig::Webhook { url } = config else {
+            return Err(config_mismatch("webhook", config));
+        };
         let body = serde_json::json!({
             "group_key": notif.group_key,
             "events": notif.events,
         });
         let resp = self
             .http
-            .post(target)
+            .post(url)
             .json(&body)
             .send()
             .await

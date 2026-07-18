@@ -8,6 +8,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { CcConceptNote, ccErrorMessage } from "@/components/cc/shared";
+import { ccQueries } from "@/data/cc/queries";
 import {
   type CcLabelKeySuggestion,
   createCcInhibition,
@@ -50,7 +51,7 @@ export function InhibitionBuilder({
         },
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["cc", "inhibitions"] });
+      qc.invalidateQueries({ queryKey: ccQueries.inhibitions().queryKey });
       onOpenChange(false);
       setSource([]);
       setTarget([]);

@@ -1,10 +1,15 @@
 use crate::common;
 use cc::dispatcher::notify::{Notification, Notifier, NotifyError, WebhookNotifier};
+use cc::domain::channel::ChannelConfig;
 use cc::domain::event::Event;
 use std::sync::{Arc, Mutex};
 
 fn ev() -> Event {
     common::base_event()
+}
+
+fn config(url: &str) -> ChannelConfig {
+    ChannelConfig::Webhook { url: url.into() }
 }
 
 async fn start_server(status: u16, captured: Arc<Mutex<usize>>) -> String {
@@ -35,7 +40,9 @@ async fn webhook_2xx_is_ok() {
     let hits = Arc::new(Mutex::new(0));
     let url = start_server(200, hits.clone()).await;
     let n = WebhookNotifier::new();
-    n.send(&url, &Notification::single(&ev())).await.unwrap();
+    n.send(&config(&url), &Notification::single(&ev()))
+        .await
+        .unwrap();
     assert_eq!(*hits.lock().unwrap(), 1);
 }
 
@@ -45,7 +52,7 @@ async fn webhook_4xx_is_permanent() {
     let url = start_server(404, hits.clone()).await;
     let n = WebhookNotifier::new();
     let err = n
-        .send(&url, &Notification::single(&ev()))
+        .send(&config(&url), &Notification::single(&ev()))
         .await
         .unwrap_err();
     assert!(matches!(err, NotifyError::Permanent(_)));
@@ -57,7 +64,7 @@ async fn webhook_5xx_is_transient() {
     let url = start_server(503, hits.clone()).await;
     let n = WebhookNotifier::new();
     let err = n
-        .send(&url, &Notification::single(&ev()))
+        .send(&config(&url), &Notification::single(&ev()))
         .await
         .unwrap_err();
     assert!(matches!(err, NotifyError::Transient(_)));
@@ -70,7 +77,10 @@ async fn webhook_transport_error_does_not_leak_secret_url() {
     // to notifications.last_error and the dead-letter stream.
     let url = "http://127.0.0.1:1/SECRET-TOKEN-XYZ";
     let n = WebhookNotifier::new();
-    let err = n.send(url, &Notification::single(&ev())).await.unwrap_err();
+    let err = n
+        .send(&config(url), &Notification::single(&ev()))
+        .await
+        .unwrap_err();
     let NotifyError::Transient(msg) = err else {
         panic!("expected transient transport error, got {err:?}");
     };

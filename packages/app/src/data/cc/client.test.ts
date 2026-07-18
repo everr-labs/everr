@@ -34,11 +34,23 @@ const ruleView = {
   },
 };
 
-it("listRules GETs /v1/rules and validates", async () => {
-  const spy = vi.spyOn(transport, "ccRequest").mockResolvedValue([ruleView]);
-  const out = await cc.listRules("org1");
-  expect(spy).toHaveBeenCalledWith("org1", "GET", "/v1/rules");
-  expect(out[0].health.status).toBe("healthy");
+it("listAllRules walks the paginated envelope until next_cursor is null", async () => {
+  const spy = vi
+    .spyOn(transport, "ccRequest")
+    .mockResolvedValueOnce({ items: [ruleView], next_cursor: "tok" })
+    .mockResolvedValueOnce({
+      items: [{ ...ruleView, id: "r2" }],
+      next_cursor: null,
+    });
+  const out = await cc.listAllRules("org1");
+  expect(spy).toHaveBeenNthCalledWith(1, "org1", "GET", "/v1/rules?limit=500");
+  expect(spy).toHaveBeenNthCalledWith(
+    2,
+    "org1",
+    "GET",
+    "/v1/rules?limit=500&cursor=tok",
+  );
+  expect(out.map((r) => r.id)).toEqual(["r1", "r2"]);
 });
 
 it("listRulesPage GETs the paginated envelope with limit/cursor/health", async () => {

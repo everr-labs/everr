@@ -38,7 +38,8 @@ fn instance(
     let mut labels = BTreeMap::new();
     labels.insert("service".to_string(), name.to_string());
     let key = InstanceKey::new(rule, &labels);
-    let mut s = InstanceState::new_inactive(key, rule, tenant, labels);
+    let mut s =
+        InstanceState::new_inactive(key, cc::domain::ids::SourceId::Rule(rule), tenant, labels);
     s.status = status;
     s.last_seen = Some(last_seen);
     s.active_since = Some(last_seen);

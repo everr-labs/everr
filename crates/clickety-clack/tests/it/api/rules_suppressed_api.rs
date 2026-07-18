@@ -60,7 +60,7 @@ async fn suppressed_accepted_on_create_and_update_and_returned_on_reads() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let list = body_json(resp).await;
-    assert_eq!(list[0]["spec"]["suppressed"], false);
+    assert_eq!(list["items"][0]["spec"]["suppressed"], false);
 }
 
 #[tokio::test]

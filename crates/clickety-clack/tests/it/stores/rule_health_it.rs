@@ -1,5 +1,5 @@
 use cc::domain::event::{EventKind, EventStatus};
-use cc::domain::ids::{InstanceKey, TenantId};
+use cc::domain::ids::{InstanceKey, SourceId, TenantId};
 use cc::domain::instance::{InstanceState, Status};
 use cc::domain::rule::{RuleSpec, Severity};
 use cc::stores::PgStore;
@@ -39,7 +39,12 @@ async fn degraded_rule_firing_instances_are_not_stale() {
 
     // A firing instance well past the stale threshold (interval 30 -> threshold 120s).
     let key = InstanceKey::new(rule.id, &BTreeMap::new());
-    let mut inst = InstanceState::new_inactive(key, rule.id, tenant.clone(), BTreeMap::new());
+    let mut inst = InstanceState::new_inactive(
+        key,
+        SourceId::Rule(rule.id),
+        tenant.clone(),
+        BTreeMap::new(),
+    );
     inst.status = Status::Firing;
     inst.active_since = Some(now - Duration::seconds(300));
     inst.last_seen = Some(now - Duration::seconds(300));
@@ -74,7 +79,12 @@ async fn failing_but_not_degraded_rule_firing_instances_are_not_stale() {
     let now = OffsetDateTime::now_utc();
 
     let key = InstanceKey::new(rule.id, &BTreeMap::new());
-    let mut inst = InstanceState::new_inactive(key, rule.id, tenant.clone(), BTreeMap::new());
+    let mut inst = InstanceState::new_inactive(
+        key,
+        SourceId::Rule(rule.id),
+        tenant.clone(),
+        BTreeMap::new(),
+    );
     inst.status = Status::Firing;
     inst.active_since = Some(now - Duration::seconds(300));
     inst.last_seen = Some(now - Duration::seconds(300));
@@ -176,7 +186,7 @@ async fn success_recovers_only_if_degraded() {
         .is_none());
 }
 
-// ---- Task 8: get_rule_with_health + list_rules ----
+// ---- Task 8: get_rule_with_health + list_rules_page ----
 
 #[tokio::test]
 async fn get_and_list_expose_health() {
@@ -206,11 +216,20 @@ async fn get_and_list_expose_health() {
     assert_eq!(h.status, "degraded");
     assert_eq!(h.last_error.as_deref(), Some("boom"));
 
-    let all = store.list_rules(&tenant, None).await.unwrap();
+    let (all, _) = store
+        .list_rules_page(&tenant, None, None, 100)
+        .await
+        .unwrap();
     assert_eq!(all.len(), 1);
-    let degraded = store.list_rules(&tenant, Some("degraded")).await.unwrap();
+    let (degraded, _) = store
+        .list_rules_page(&tenant, Some("degraded"), None, 100)
+        .await
+        .unwrap();
     assert_eq!(degraded.len(), 1);
-    let healthy = store.list_rules(&tenant, Some("healthy")).await.unwrap();
+    let (healthy, _) = store
+        .list_rules_page(&tenant, Some("healthy"), None, 100)
+        .await
+        .unwrap();
     assert_eq!(healthy.len(), 0);
 }
 

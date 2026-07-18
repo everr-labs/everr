@@ -1,4 +1,4 @@
-use cc::domain::ids::{InstanceKey, TenantId};
+use cc::domain::ids::{InstanceKey, SourceId, TenantId};
 use cc::domain::instance::{InstanceState, Status};
 use cc::domain::routing::{MatchOp, Matcher};
 use cc::domain::rule::{RuleSpec, Severity};
@@ -73,8 +73,12 @@ async fn list_firing_returns_only_firing_with_severity() {
     labels.insert("instance".to_string(), "db1".to_string());
     let key = InstanceKey::new(rule.id, &labels);
 
-    let mut firing =
-        InstanceState::new_inactive(key.clone(), rule.id, tenant.clone(), labels.clone());
+    let mut firing = InstanceState::new_inactive(
+        key.clone(),
+        SourceId::Rule(rule.id),
+        tenant.clone(),
+        labels.clone(),
+    );
     firing.status = Status::Firing;
     firing.active_since = Some(OffsetDateTime::now_utc());
     store.upsert_instance(&firing).await.unwrap();
@@ -82,7 +86,8 @@ async fn list_firing_returns_only_firing_with_severity() {
     let mut plabels = BTreeMap::new();
     plabels.insert("instance".to_string(), "db2".to_string());
     let pkey = InstanceKey::new(rule.id, &plabels);
-    let mut pending = InstanceState::new_inactive(pkey, rule.id, tenant.clone(), plabels);
+    let mut pending =
+        InstanceState::new_inactive(pkey, SourceId::Rule(rule.id), tenant.clone(), plabels);
     pending.status = Status::Pending;
     store.upsert_instance(&pending).await.unwrap();
 

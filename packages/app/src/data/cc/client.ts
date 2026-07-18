@@ -25,16 +25,12 @@ import type {
 } from "./types";
 
 // ---- Rules ----
-export async function listRules(orgId: string) {
-  return z
-    .array(CcRuleViewSchema)
-    .parse(await ccRequest(orgId, "GET", "/v1/rules"));
-}
 /**
  * Paginated listing: sending `limit` (1..=500, CC defaults 100) opts into the
  * `{items, next_cursor}` envelope; `cursor` resumes from a previous page's
- * `next_cursor`. `health` filters server-side by evaluation health. The bare
- * `listRules` above keeps the legacy unbounded-array shape for its callers.
+ * `next_cursor`. `health` filters server-side by evaluation health. This is
+ * the only listing mode: GET /v1/rules without pagination (the legacy bare
+ * array) is being removed from the CC API.
  */
 export async function listRulesPage(
   orgId: string,
@@ -50,6 +46,25 @@ export async function listRulesPage(
   return CcRulesPageSchema.parse(
     await ccRequest(orgId, "GET", `/v1/rules?${params.toString()}`),
   );
+}
+/**
+ * Every rule, by walking {@link listRulesPage} until `next_cursor` runs out
+ * (CC's page size, 500 max per request). For callers that genuinely need the
+ * whole set in one shot — reconcilers, label suggestions, handle resolution —
+ * now that the unpaginated GET /v1/rules mode is gone.
+ */
+export async function listAllRules(orgId: string) {
+  const all: z.infer<typeof CcRuleViewSchema>[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await listRulesPage(orgId, {
+      limit: 500,
+      ...(cursor ? { cursor } : {}),
+    });
+    all.push(...page.items);
+    cursor = page.next_cursor ?? undefined;
+  } while (cursor);
+  return all;
 }
 export async function getRule(orgId: string, id: string) {
   return CcRuleViewSchema.parse(

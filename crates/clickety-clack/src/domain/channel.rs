@@ -39,37 +39,70 @@ impl ChannelConfig {
         }
     }
 
-    /// The per-channel destination string passed to `Notifier::send`:
-    /// a URL (webhook/Slack), a routing key (PagerDuty), or comma-joined
-    /// recipients (email).
-    pub fn target(&self) -> String {
+    /// The single designation of which config fields hold secrets, consumed by
+    /// both [`ChannelConfig::redacted`] (API masking) and the at-rest crypto
+    /// codec ([`crate::crypto::encrypt_channel`]). Adding a variant or promoting
+    /// a field to secret is exactly this one match arm (plus the enum itself);
+    /// the exhaustive match forces the edit.
+    pub fn secret_fields(&self) -> SecretFields {
         match self {
-            ChannelConfig::Webhook { url } => url.clone(),
-            ChannelConfig::Slack { url } => url.clone(),
-            ChannelConfig::Pagerduty { routing_key } => routing_key.clone(),
-            ChannelConfig::Email { to } => to.join(","),
-            ChannelConfig::Telegram {
-                bot_token,
-                chat_ids,
-            } => serde_json::json!({ "bot_token": bot_token, "chat_ids": chat_ids }).to_string(),
+            // Webhook URLs can carry auth tokens, so they are encrypted at rest,
+            // but the URL IS the user-facing config (shown in the channel list),
+            // so it stays readable on API responses.
+            ChannelConfig::Webhook { .. } => SecretFields {
+                encrypted: &["url"],
+                masked: &[],
+            },
+            ChannelConfig::Slack { .. } => SecretFields {
+                encrypted: &["url"],
+                masked: &["url"],
+            },
+            ChannelConfig::Pagerduty { .. } => SecretFields {
+                encrypted: &["routing_key"],
+                masked: &["routing_key"],
+            },
+            ChannelConfig::Email { .. } => SecretFields {
+                encrypted: &[],
+                masked: &[],
+            },
+            ChannelConfig::Telegram { .. } => SecretFields {
+                encrypted: &["bot_token"],
+                masked: &["bot_token"],
+            },
         }
     }
 
-    /// Mask secret fields for API responses (never echo secrets back).
+    /// Mask secret fields for API responses (never echo secrets back). Rewrites
+    /// the serde JSON form per [`ChannelConfig::secret_fields`], so a field is
+    /// masked here iff the designation says so.
     pub fn redacted(&self) -> ChannelConfig {
-        match self {
-            ChannelConfig::Webhook { url } => ChannelConfig::Webhook { url: url.clone() },
-            ChannelConfig::Slack { .. } => ChannelConfig::Slack { url: "***".into() },
-            ChannelConfig::Pagerduty { .. } => ChannelConfig::Pagerduty {
-                routing_key: "***".into(),
-            },
-            ChannelConfig::Email { to } => ChannelConfig::Email { to: to.clone() },
-            ChannelConfig::Telegram { chat_ids, .. } => ChannelConfig::Telegram {
-                bot_token: "***".into(),
-                chat_ids: chat_ids.clone(),
-            },
+        let masked = self.secret_fields().masked;
+        if masked.is_empty() {
+            return self.clone();
         }
+        let mut v = serde_json::to_value(self)
+            .expect("ChannelConfig serialization is infallible (string/array fields only)");
+        for field in masked {
+            v[field] = serde_json::Value::String(REDACTED.to_string());
+        }
+        serde_json::from_value(v)
+            .expect("masking replaces string fields with a string; the variant still parses")
     }
+}
+
+/// The masked placeholder API responses return for secret fields.
+const REDACTED: &str = "***";
+
+/// A [`ChannelConfig`] variant's secret-field designation (see
+/// [`ChannelConfig::secret_fields`]). Field names are the serde JSON keys.
+#[derive(Debug, Clone, Copy)]
+pub struct SecretFields {
+    /// Fields stored as encryption envelopes at rest by the crypto codec. Every
+    /// secret field must be a JSON string in the serde form.
+    pub encrypted: &'static [&'static str],
+    /// Fields masked to `"***"` on API read. A subset of `encrypted`; webhook
+    /// URLs are the deliberate gap (encrypted at rest, readable on the API).
+    pub masked: &'static [&'static str],
 }
 
 /// A named, reusable delivery channel. Channels are the secret-bearing endpoint
@@ -102,18 +135,39 @@ mod tests {
     use super::*;
 
     #[test]
-    fn channel_name_and_target() {
+    fn channel_name_matches_notifier_registry_keys() {
         let s = ChannelConfig::Slack {
             url: "https://hooks.slack.test/abc".into(),
         };
         assert_eq!(s.channel_name(), "slack");
-        assert_eq!(s.target(), "https://hooks.slack.test/abc");
 
         let e = ChannelConfig::Email {
             to: vec!["a@x.test".into(), "b@x.test".into()],
         };
         assert_eq!(e.channel_name(), "email");
-        assert_eq!(e.target(), "a@x.test,b@x.test");
+    }
+
+    /// Every masked field is also encrypted at rest: API masking never hides a
+    /// field the codec would store cleartext.
+    #[test]
+    fn masked_fields_are_a_subset_of_encrypted() {
+        for ch in [
+            ChannelConfig::Webhook { url: "u".into() },
+            ChannelConfig::Slack { url: "u".into() },
+            ChannelConfig::Pagerduty {
+                routing_key: "k".into(),
+            },
+            ChannelConfig::Email { to: vec![] },
+            ChannelConfig::Telegram {
+                bot_token: "t".into(),
+                chat_ids: vec![],
+            },
+        ] {
+            let sf = ch.secret_fields();
+            for m in sf.masked {
+                assert!(sf.encrypted.contains(m), "{m} masked but not encrypted");
+            }
+        }
     }
 
     #[test]
@@ -132,16 +186,12 @@ mod tests {
     }
 
     #[test]
-    fn telegram_channel_name_target_and_redaction() {
+    fn telegram_channel_name_and_redaction() {
         let tg = ChannelConfig::Telegram {
             bot_token: "123:secret".into(),
             chat_ids: vec!["@chan".into(), "999".into()],
         };
         assert_eq!(tg.channel_name(), "telegram");
-        let target = tg.target();
-        let v: serde_json::Value = serde_json::from_str(&target).unwrap();
-        assert_eq!(v["bot_token"], "123:secret");
-        assert_eq!(v["chat_ids"][0], "@chan");
         match tg.redacted() {
             ChannelConfig::Telegram {
                 bot_token,

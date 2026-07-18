@@ -2,7 +2,8 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AlertEventLogRow } from "@/data/alerts/history.server";
-import { AlertEventFeed, ccEventHistoryQueryOptions } from "./alert-event-feed";
+import { CC_POLL_INTERVAL_MS, ccQueries } from "@/data/cc/queries";
+import { AlertEventFeed } from "./alert-event-feed";
 
 // ---------------------------------------------------------------------------
 // Mocks: the stored-history query. `vi.mock` calls are hoisted above the
@@ -63,8 +64,8 @@ beforeEach(() => {
 
 describe("AlertEventFeed", () => {
   it("polls the event-history query so the feed stays current", () => {
-    const opts = ccEventHistoryQueryOptions({ from: "now-1h", to: "now" });
-    expect(opts.refetchInterval).toBe(15_000);
+    const opts = ccQueries.eventHistory({ from: "now-1h", to: "now" });
+    expect(opts.refetchInterval).toBe(CC_POLL_INTERVAL_MS);
   });
 
   it("shows all events when unscoped", () => {

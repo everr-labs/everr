@@ -1,7 +1,7 @@
 //! Task 11: the SLO stale reaper (mirrors `maintenance_it.rs`'s rule-side reconcile
 //! sweep, against `slo_instances`) and the maintenance-driven eval-ledger prune.
 
-use cc::domain::ids::{InstanceKey, RuleId, TenantId};
+use cc::domain::ids::{InstanceKey, RuleId, SloId, SourceId, TenantId};
 use cc::domain::instance::{InstanceState, Status};
 use cc::domain::rule::{RuleSpec, Severity};
 use cc::domain::slo::{SliSpec, SloSpec, TimeWindow};
@@ -53,12 +53,11 @@ fn rule_spec() -> RuleSpec {
     }
 }
 
-/// Builds an SLO instance row directly (bypassing the firing pipeline), keyed on the
-/// SLO's uuid the way `InstanceState.rule` carries it for `slo_instances` rows. `group`
+/// Builds an SLO instance row directly (bypassing the firing pipeline). `group`
 /// distinguishes rows within the same SLO (mirrors a group label) so two instances of
-/// the same SLO don't collide on `InstanceKey`.
+/// the same SLO don't collide on `InstanceKey` (which hashes the SLO's uuid).
 fn slo_instance(
-    slo_rule: RuleId,
+    slo: SloId,
     tenant: TenantId,
     group: &str,
     status: Status,
@@ -68,8 +67,8 @@ fn slo_instance(
         ("slo_tier".to_string(), "fast-burn".to_string()),
         ("group".to_string(), group.to_string()),
     ]);
-    let key = InstanceKey::new(slo_rule, &labels);
-    let mut s = InstanceState::new_inactive(key, slo_rule, tenant, labels);
+    let key = InstanceKey::new(RuleId(slo.0), &labels);
+    let mut s = InstanceState::new_inactive(key, SourceId::Slo(slo), tenant, labels);
     s.status = status;
     s.value = Some(20.0);
     s.active_since = Some(last_seen);
@@ -97,7 +96,7 @@ async fn reaper_resolves_stale_slo_instance_and_leaves_fresh_untouched() {
     else {
         panic!("slo creation must succeed against a fresh tenant")
     };
-    let slo_rule = RuleId(slo.id.0);
+    let slo_rule = slo.id;
     let now = OffsetDateTime::now_utc();
 
     let stale = slo_instance(
@@ -161,7 +160,7 @@ async fn maintenance_loop_reaps_slo_and_prunes_ledgers() {
     else {
         panic!("slo creation must succeed against a fresh tenant")
     };
-    let slo_rule = RuleId(slo.id.0);
+    let slo_rule = slo.id;
     let rule = store.create_rule(t.clone(), &rule_spec()).await.unwrap();
     let now = OffsetDateTime::now_utc();
 

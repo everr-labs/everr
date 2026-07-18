@@ -5,7 +5,7 @@ use cc::api::auth::HeaderAuth;
 use cc::api::{build_router, AppState};
 use cc::clickhouse::ChClient;
 use cc::crypto::EnvKeyring;
-use cc::domain::ids::{InstanceKey, RuleId, TenantId};
+use cc::domain::ids::{InstanceKey, RuleId, SourceId, TenantId};
 use cc::domain::instance::{InstanceState, Status};
 use cc::domain::rollup::{AlertState, RuleRollup};
 use cc::stores::PgStore;
@@ -65,7 +65,7 @@ async fn rules_list_and_get_expose_rollup() {
     // Drive a firing rollup straight through the store.
     let labels = BTreeMap::from([("host".to_string(), "a".to_string())]);
     let key = InstanceKey::new(rid, &labels);
-    let mut inst = InstanceState::new_inactive(key, rid, tid.clone(), labels);
+    let mut inst = InstanceState::new_inactive(key, SourceId::Rule(rid), tid.clone(), labels);
     inst.status = Status::Firing;
     let now = OffsetDateTime::from_unix_timestamp(1_000).unwrap();
     let rollup = RuleRollup {
@@ -93,7 +93,7 @@ async fn rules_list_and_get_expose_rollup() {
         .body(Body::empty())
         .unwrap();
     let body = body_json(app.clone().oneshot(list).await.unwrap()).await;
-    assert_eq!(body[0]["rollup"]["alert_state"], "firing");
-    assert_eq!(body[0]["rollup"]["firing_instance_count"], 1);
-    assert!(body[0]["rollup"]["last_fired_at"].is_string());
+    assert_eq!(body["items"][0]["rollup"]["alert_state"], "firing");
+    assert_eq!(body["items"][0]["rollup"]["firing_instance_count"], 1);
+    assert!(body["items"][0]["rollup"]["last_fired_at"].is_string());
 }

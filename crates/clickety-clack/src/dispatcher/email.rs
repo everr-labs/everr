@@ -1,4 +1,5 @@
-use crate::dispatcher::notify::{Notification, Notifier, NotifyError};
+use crate::dispatcher::notify::{config_mismatch, Notification, Notifier, NotifyError};
+use crate::domain::channel::ChannelConfig;
 use async_trait::async_trait;
 use lettre::message::Mailbox;
 use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
@@ -68,10 +69,10 @@ pub fn build_email_message(
         .map_err(|e| NotifyError::Permanent(format!("building message: {e}")))
 }
 
-/// SMTP email channel. `target` is a comma-separated recipient list; the SMTP relay
-/// (host/port/from/credentials) is process-level config held here. SMTP send failures
-/// are classified Transient (bounded-retry then dead-letter); distinguishing permanent
-/// 5xx codes is a later refinement.
+/// SMTP email channel (`ChannelConfig::Email` carries the recipient list); the
+/// SMTP relay (host/port/from/credentials) is process-level config held here.
+/// SMTP send failures are classified Transient (bounded-retry then dead-letter);
+/// distinguishing permanent 5xx codes is a later refinement.
 pub struct EmailNotifier {
     transport: AsyncSmtpTransport<Tokio1Executor>,
     from: String,
@@ -109,13 +110,11 @@ impl Notifier for EmailNotifier {
         "email"
     }
 
-    async fn send(&self, target: &str, notif: &Notification) -> Result<(), NotifyError> {
-        let recipients: Vec<String> = target
-            .split(',')
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
-            .collect();
-        let msg = build_email_message(&self.from, &recipients, notif)?;
+    async fn send(&self, config: &ChannelConfig, notif: &Notification) -> Result<(), NotifyError> {
+        let ChannelConfig::Email { to } = config else {
+            return Err(config_mismatch("email", config));
+        };
+        let msg = build_email_message(&self.from, to, notif)?;
         self.transport
             .send(msg)
             .await

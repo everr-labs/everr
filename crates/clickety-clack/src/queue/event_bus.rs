@@ -1,5 +1,7 @@
 use crate::domain::Event;
-use crate::queue::redis_streams::{reclaim_pending_raw, ReclaimTarget, PEL_RECLAIM_IDLE_MS};
+use crate::queue::redis_streams::{
+    reclaim_pending_raw, ReclaimProbe, ReclaimTarget, PEL_RECLAIM_IDLE_MS,
+};
 use crate::queue::{EventBus, EventEntry, EventId, QueueError};
 use async_trait::async_trait;
 use redis::aio::ConnectionManager;
@@ -21,6 +23,10 @@ pub struct RedisEventBus {
     /// Detects when XAUTOCLAIM is unsupported (Redis < 6.2) to skip reclaim probes
     /// without repeatedly logging. Prevents a warn-per-poll flood on older Redis versions.
     reclaim_unsupported: Arc<AtomicBool>,
+    /// Per-group probe throttles (see [`ReclaimProbe`]): the dispatcher and
+    /// log-export groups are consumed by independent loops sharing this handle.
+    reclaim_probe: ReclaimProbe,
+    logexport_reclaim_probe: ReclaimProbe,
 }
 
 impl RedisEventBus {
@@ -44,6 +50,8 @@ impl RedisEventBus {
             conn,
             reclaim_idle_ms: PEL_RECLAIM_IDLE_MS,
             reclaim_unsupported: Arc::new(AtomicBool::new(false)),
+            reclaim_probe: ReclaimProbe::new(),
+            logexport_reclaim_probe: ReclaimProbe::new(),
         })
     }
 
@@ -64,9 +72,16 @@ impl RedisEventBus {
     async fn reclaim_pending(
         &self,
         group: &str,
+        probe: &ReclaimProbe,
         consumer: &str,
         count: usize,
     ) -> Result<Vec<EventEntry>, QueueError> {
+        // Throttled like `RedisQueue::consume_stream`: entries need
+        // `reclaim_idle_ms` of idleness before they are reclaimable, so probing
+        // on every read is wasted round trips.
+        if !probe.due(self.reclaim_idle_ms) {
+            return Ok(Vec::new());
+        }
         let mut conn = self.conn.clone();
         let reclaimed = reclaim_pending_raw(
             &mut conn,
@@ -110,11 +125,12 @@ impl RedisEventBus {
     async fn consume_group(
         &self,
         group: &str,
+        probe: &ReclaimProbe,
         consumer: &str,
         count: usize,
         block_ms: usize,
     ) -> Result<Vec<EventEntry>, QueueError> {
-        let mut out = self.reclaim_pending(group, consumer, count).await?;
+        let mut out = self.reclaim_pending(group, probe, consumer, count).await?;
         let mut conn = self.conn.clone();
         let opts = StreamReadOptions::default()
             .group(group, consumer)
@@ -164,12 +180,23 @@ impl EventBus for RedisEventBus {
         count: usize,
         block_ms: usize,
     ) -> Result<Vec<EventEntry>, QueueError> {
-        self.consume_group(GROUP, consumer, count, block_ms).await
+        self.consume_group(GROUP, &self.reclaim_probe, consumer, count, block_ms)
+            .await
     }
 
     async fn ack(&self, id: &EventId) -> Result<(), QueueError> {
         let mut conn = self.conn.clone();
         let _: i64 = conn.xack(STREAM, GROUP, &[id.as_str()]).await?;
+        Ok(())
+    }
+
+    async fn ack_batch(&self, ids: &[EventId]) -> Result<(), QueueError> {
+        if ids.is_empty() {
+            return Ok(());
+        }
+        let raw: Vec<&str> = ids.iter().map(EventId::as_str).collect();
+        let mut conn = self.conn.clone();
+        let _: i64 = conn.xack(STREAM, GROUP, &raw).await?;
         Ok(())
     }
 
@@ -179,8 +206,14 @@ impl EventBus for RedisEventBus {
         count: usize,
         block_ms: usize,
     ) -> Result<Vec<EventEntry>, QueueError> {
-        self.consume_group(GROUP_LOGEXPORT, consumer, count, block_ms)
-            .await
+        self.consume_group(
+            GROUP_LOGEXPORT,
+            &self.logexport_reclaim_probe,
+            consumer,
+            count,
+            block_ms,
+        )
+        .await
     }
 
     async fn ack_logexport(&self, id: &EventId) -> Result<(), QueueError> {

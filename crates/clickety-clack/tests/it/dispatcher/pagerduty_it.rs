@@ -1,5 +1,6 @@
 use cc::dispatcher::notify::{Notification, Notifier};
 use cc::dispatcher::pagerduty::PagerDutyNotifier;
+use cc::domain::channel::ChannelConfig;
 use cc::domain::event::{Event, EventStatus};
 use cc::domain::ids::{InstanceKey, RuleId, TenantId};
 use cc::domain::rule::Severity;
@@ -52,9 +53,14 @@ async fn pagerduty_posts_trigger_and_accepts_202() {
         evidence: None,
         evidence_truncated: false,
     };
-    n.send("routing-key-123", &Notification::single(&ev))
-        .await
-        .unwrap();
+    n.send(
+        &ChannelConfig::Pagerduty {
+            routing_key: "routing-key-123".into(),
+        },
+        &Notification::single(&ev),
+    )
+    .await
+    .unwrap();
     let body = sink.lock().unwrap().clone().expect("server saw a body");
     assert_eq!(body["routing_key"], "routing-key-123");
     assert_eq!(body["event_action"], "trigger");

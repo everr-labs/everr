@@ -4,7 +4,7 @@ use cc::dispatcher::dedup::dedup_key;
 use cc::dispatcher::{flush_group, grouping, process_event, DispatchCtx};
 use cc::domain::channel::ChannelConfig;
 use cc::domain::event::Event;
-use cc::domain::ids::{InstanceKey, TenantId};
+use cc::domain::ids::{InstanceKey, SourceId, TenantId};
 use cc::domain::instance::{InstanceState, Status};
 use cc::domain::routing::{MatchOp, Matcher};
 use cc::domain::rule::{RuleSpec, Severity};
@@ -522,8 +522,12 @@ async fn flush_time_inhibition_emits_no_record() {
     let mut src_labels = BTreeMap::new();
     src_labels.insert("svc".to_string(), "db".to_string());
     let src_key = InstanceKey::new(src_rule.id, &src_labels);
-    let mut firing =
-        InstanceState::new_inactive(src_key.clone(), src_rule.id, tenant.clone(), src_labels);
+    let mut firing = InstanceState::new_inactive(
+        src_key.clone(),
+        SourceId::Rule(src_rule.id),
+        tenant.clone(),
+        src_labels,
+    );
     firing.status = Status::Firing;
     firing.active_since = Some(now);
     store.upsert_instance(&firing).await.unwrap();

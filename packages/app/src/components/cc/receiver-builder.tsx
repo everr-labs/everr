@@ -11,6 +11,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { CcConceptNote, ccErrorMessage } from "@/components/cc/shared";
+import { ccQueries } from "@/data/cc/queries";
 import { createCcReceiver } from "@/data/cc/server";
 import type { CcChannel } from "@/data/cc/types";
 import { CcDrawer } from "./cc-drawer";
@@ -51,7 +52,7 @@ export function ReceiverBuilder({
       });
     },
     onSuccess: (r) => {
-      qc.invalidateQueries({ queryKey: ["cc", "receivers"] });
+      qc.invalidateQueries({ queryKey: ccQueries.receivers().queryKey });
       onOpenChange(false);
       toast.success(`Receiver "${r.name}" created`);
     },

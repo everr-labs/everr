@@ -17,15 +17,25 @@ pub struct CreateChannel {
     pub config: ChannelConfig,
 }
 
-/// Boundary validation for channel creation, split from the handler so it is
-/// unit-testable without an `AppState`.
-fn validate_create(body: &CreateChannel, allow_private_webhooks: bool) -> Result<(), ApiError> {
-    if body.name.trim().is_empty() {
+/// `PUT /v1/channels/:name` body: the config only — the name comes from the path.
+#[derive(Deserialize)]
+pub struct UpdateChannel {
+    pub config: ChannelConfig,
+}
+
+/// Boundary validation shared by create (POST) and upsert (PUT), split from the
+/// handlers so it is unit-testable without an `AppState`.
+fn validate_channel(
+    name: &str,
+    config: &ChannelConfig,
+    allow_private_webhooks: bool,
+) -> Result<(), ApiError> {
+    if name.trim().is_empty() {
         return Err(ApiError::Validation("name must not be empty".into()));
     }
     // Same SSRF guard as subscription webhooks: the dispatcher fetches these URLs
     // from inside the deployment network (see `crate::api::webhook_url`).
-    if let ChannelConfig::Webhook { url } = &body.config {
+    if let ChannelConfig::Webhook { url } = config {
         crate::api::webhook_url::validate_webhook_url(url, allow_private_webhooks)
             .map_err(ApiError::Validation)?;
     }
@@ -33,7 +43,7 @@ fn validate_create(body: &CreateChannel, allow_private_webhooks: bool) -> Result
     // mistake (one channel delivers to an address once); reject it loudly
     // rather than silently deduping. This is strictly WITHIN one config:
     // overlapping membership across channels is legitimate by design.
-    match &body.config {
+    match config {
         ChannelConfig::Email { to } => {
             let dupes = duplicate_entries(to);
             if !dupes.is_empty() {
@@ -69,17 +79,40 @@ fn in_use_detail(referrers: &[String]) -> String {
     )
 }
 
-/// Create or replace a channel (upsert by name). Returns the stored channel redacted.
+/// Create a channel. Create-only: an existing name is a 409 `already_exists`
+/// (the stored config — including its encrypted secret — is never silently
+/// overwritten). Updates and secret rotation go through `PUT /v1/channels/:name`.
+/// Returns the stored channel redacted.
 pub async fn create(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(body): Json<CreateChannel>,
 ) -> Result<Json<Channel>, ApiError> {
     let t = tenant(&state, &headers)?;
-    validate_create(&body, state.allow_private_webhooks)?;
+    validate_channel(&body.name, &body.config, state.allow_private_webhooks)?;
     let ch = state
         .store
-        .create_channel(&*state.cipher, t, &body.name, &body.config)
+        .insert_channel(&*state.cipher, t, &body.name, &body.config)
+        .await?
+        .ok_or_else(|| {
+            ApiError::AlreadyExists(format!("channel {:?} already exists", body.name))
+        })?;
+    Ok(Json(ch.redacted()))
+}
+
+/// Create or replace a channel by name (upsert; the secret-rotation path).
+/// Replaces the stored config wholesale. Returns the stored channel redacted.
+pub async fn update(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(name): Path<String>,
+    Json(body): Json<UpdateChannel>,
+) -> Result<Json<Channel>, ApiError> {
+    let t = tenant(&state, &headers)?;
+    validate_channel(&name, &body.config, state.allow_private_webhooks)?;
+    let ch = state
+        .store
+        .create_channel(&*state.cipher, t, &name, &body.config)
         .await?;
     Ok(Json(ch.redacted()))
 }
@@ -135,7 +168,7 @@ mod tests {
     fn empty_name_is_rejected() {
         let b = body(r#"{"name":"  ","config":{"type":"email","to":["a@x.test"]}}"#);
         assert!(matches!(
-            validate_create(&b, true),
+            validate_channel(&b.name, &b.config, true),
             Err(ApiError::Validation(ref m)) if m == "name must not be empty"
         ));
     }
@@ -149,19 +182,19 @@ mod tests {
     fn webhook_config_gets_the_ssrf_guard() {
         let b = body(r#"{"name":"hook","config":{"type":"webhook","url":"http://127.0.0.1/h"}}"#);
         assert!(matches!(
-            validate_create(&b, false),
+            validate_channel(&b.name, &b.config, false),
             Err(ApiError::Validation(_))
         ));
         // Same body allowed when private webhooks are enabled (dev/compose).
-        assert!(validate_create(&b, true).is_ok());
+        assert!(validate_channel(&b.name, &b.config, true).is_ok());
     }
 
     #[test]
     fn non_webhook_configs_pass_validation() {
         let b = body(r#"{"name":"pd","config":{"type":"pagerduty","routing_key":"k"}}"#);
-        assert!(validate_create(&b, false).is_ok());
+        assert!(validate_channel(&b.name, &b.config, false).is_ok());
         let b = body(r#"{"name":"chat","config":{"type":"slack","url":"https://hooks.slack/x"}}"#);
-        assert!(validate_create(&b, false).is_ok());
+        assert!(validate_channel(&b.name, &b.config, false).is_ok());
     }
 
     #[test]
@@ -171,7 +204,7 @@ mod tests {
                 "to":["a@x.test","b@x.test","a@x.test","b@x.test","a@x.test"]}}"#,
         );
         assert!(matches!(
-            validate_create(&b, false),
+            validate_channel(&b.name, &b.config, false),
             Err(ApiError::Validation(ref m)) if m == "duplicate email recipients: a@x.test, b@x.test"
         ));
     }
@@ -183,7 +216,7 @@ mod tests {
                 "chat_ids":["-100","@ops","-100"]}}"#,
         );
         assert!(matches!(
-            validate_create(&b, false),
+            validate_channel(&b.name, &b.config, false),
             Err(ApiError::Validation(ref m)) if m == "duplicate telegram chat_ids: -100"
         ));
     }
@@ -191,12 +224,12 @@ mod tests {
     #[test]
     fn distinct_recipient_lists_pass_validation() {
         let b = body(r#"{"name":"mail","config":{"type":"email","to":["a@x.test","b@x.test"]}}"#);
-        assert!(validate_create(&b, false).is_ok());
+        assert!(validate_channel(&b.name, &b.config, false).is_ok());
         let b = body(
             r#"{"name":"tg","config":{"type":"telegram","bot_token":"t",
                 "chat_ids":["-100","@ops"]}}"#,
         );
-        assert!(validate_create(&b, false).is_ok());
+        assert!(validate_channel(&b.name, &b.config, false).is_ok());
     }
 
     // Empty recipient lists keep their current behavior (accepted at this
@@ -204,9 +237,9 @@ mod tests {
     #[test]
     fn empty_recipient_lists_still_pass_validation() {
         let b = body(r#"{"name":"mail","config":{"type":"email","to":[]}}"#);
-        assert!(validate_create(&b, false).is_ok());
+        assert!(validate_channel(&b.name, &b.config, false).is_ok());
         let b = body(r#"{"name":"tg","config":{"type":"telegram","bot_token":"t","chat_ids":[]}}"#);
-        assert!(validate_create(&b, false).is_ok());
+        assert!(validate_channel(&b.name, &b.config, false).is_ok());
     }
 
     #[test]

@@ -60,7 +60,7 @@ export async function deletePreviewCcRules(
   }
   for (const [orgId, previewIds] of byOrg) {
     try {
-      const rules = await cc.listRules(orgId);
+      const rules = await cc.listAllRules(orgId);
       const ruleIds = rules
         .filter((rule) => {
           const previewId = previewIdOf(rule.spec);
@@ -145,7 +145,7 @@ export async function sweepOrphanCcRules(
   for (const orgId of orgs) {
     try {
       // List first — the registry snapshot below must be strictly newer.
-      const rules = await cc.listRules(orgId);
+      const rules = await cc.listAllRules(orgId);
       const referenced = new Set<string>();
       for (const rule of rules) {
         const previewId = previewIdOf(rule.spec);

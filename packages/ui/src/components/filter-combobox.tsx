@@ -1,10 +1,14 @@
-import type { QueryFunction, QueryKey } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDownIcon, XIcon } from "lucide-react";
-import { useId, useState } from "react";
+import { useId } from "react";
 import { cn } from "../lib/utils";
 import { Badge } from "./badge";
 import { Button } from "./button";
+import {
+  type ComboboxQueryOptions,
+  CustomValueItem,
+  useComboboxCustomEntry,
+} from "./combobox-custom-entry";
 import {
   Command,
   CommandEmpty,
@@ -16,12 +20,7 @@ import {
 import { Label } from "./label";
 import { Popover, PopoverContent, PopoverTrigger } from "./popover";
 
-interface FilterQueryOptions<TData> {
-  queryKey: QueryKey;
-  queryFn: QueryFunction<TData>;
-  select: (data: TData) => string[];
-  staleTime?: number;
-}
+type FilterQueryOptions<TData> = ComboboxQueryOptions<TData, string>;
 
 interface FilterComboboxProps<TData> {
   label: string;
@@ -49,8 +48,8 @@ export function FilterCombobox<TData>({
   allowCustom = false,
 }: FilterComboboxProps<TData>) {
   const id = useId();
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
+  const { open, onOpenChange, search, setSearch, query, offerCustom } =
+    useComboboxCustomEntry();
 
   const { data: items = [], isLoading } = useQuery({
     ...options,
@@ -71,27 +70,16 @@ export function FilterCombobox<TData>({
   const visibleItems = values.slice(0, maxShownItems);
   const hiddenCount = values.length - visibleItems.length;
 
-  // The custom row's cmdk value IS the typed text, so it always survives the
-  // filter; hidden when it would duplicate a loaded item or a selection.
-  const query = search.trim();
+  // Hidden when it would duplicate a loaded item or a selection.
   const showCustom =
-    allowCustom &&
-    query.length > 0 &&
-    !items.includes(query) &&
-    !values.includes(query);
+    allowCustom && offerCustom((q) => items.includes(q) || values.includes(q));
 
   return (
     <div className="flex flex-col gap-1">
       <Label htmlFor={id} className="text-muted-foreground text-xs">
         {label}
       </Label>
-      <Popover
-        open={open}
-        onOpenChange={(next) => {
-          setOpen(next);
-          if (!next) setSearch("");
-        }}
-      >
+      <Popover open={open} onOpenChange={onOpenChange}>
         <PopoverTrigger
           render={
             <Button
@@ -167,18 +155,13 @@ export function FilterCombobox<TData>({
                   <span className="truncate">{placeholder}</span>
                 </CommandItem>
                 {showCustom && (
-                  <CommandItem
-                    value={query}
+                  <CustomValueItem
+                    query={query}
                     onSelect={() => {
                       toggleSelection(query);
                       setSearch("");
                     }}
-                  >
-                    <span className="text-muted-foreground shrink-0">Use</span>
-                    <span className="truncate font-mono">
-                      &quot;{query}&quot;
-                    </span>
-                  </CommandItem>
+                  />
                 )}
                 {items.map((item) => (
                   <CommandItem

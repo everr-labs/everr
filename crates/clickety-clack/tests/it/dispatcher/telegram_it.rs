@@ -1,5 +1,6 @@
 use cc::dispatcher::notify::{Notification, Notifier, NotifyError};
 use cc::dispatcher::telegram::TelegramNotifier;
+use cc::domain::channel::ChannelConfig;
 use cc::domain::event::Event;
 use std::sync::{Arc, Mutex};
 
@@ -29,8 +30,11 @@ async fn start_server(status: u16, sink: Arc<Mutex<Vec<serde_json::Value>>>) -> 
     format!("http://{addr}")
 }
 
-fn target(token: &str, chat_ids: &[&str]) -> String {
-    serde_json::json!({ "bot_token": token, "chat_ids": chat_ids }).to_string()
+fn config(token: &str, chat_ids: &[&str]) -> ChannelConfig {
+    ChannelConfig::Telegram {
+        bot_token: token.into(),
+        chat_ids: chat_ids.iter().map(|s| s.to_string()).collect(),
+    }
 }
 
 #[tokio::test]
@@ -39,7 +43,7 @@ async fn sends_one_message_per_chat_id() {
     let base = start_server(200, sink.clone()).await;
     TelegramNotifier::with_api_base(&base)
         .send(
-            &target("123:tok", &["@a", "@b"]),
+            &config("123:tok", &["@a", "@b"]),
             &Notification::single(&ev()),
         )
         .await
@@ -60,16 +64,30 @@ async fn four_xx_is_permanent() {
     let sink = Arc::new(Mutex::new(Vec::new()));
     let base = start_server(400, sink).await;
     let err = TelegramNotifier::with_api_base(&base)
-        .send(&target("t", &["@a"]), &Notification::single(&ev()))
+        .send(&config("t", &["@a"]), &Notification::single(&ev()))
         .await
         .unwrap_err();
     assert!(matches!(err, NotifyError::Permanent(_)));
 }
 
 #[tokio::test]
-async fn bad_target_is_permanent() {
+async fn empty_chat_ids_is_permanent() {
     let err = TelegramNotifier::new()
-        .send("not-json", &Notification::single(&ev()))
+        .send(&config("t", &[]), &Notification::single(&ev()))
+        .await
+        .unwrap_err();
+    assert!(matches!(err, NotifyError::Permanent(_)));
+}
+
+#[tokio::test]
+async fn wrong_config_variant_is_permanent() {
+    let err = TelegramNotifier::new()
+        .send(
+            &ChannelConfig::Webhook {
+                url: "http://x".into(),
+            },
+            &Notification::single(&ev()),
+        )
         .await
         .unwrap_err();
     assert!(matches!(err, NotifyError::Permanent(_)));

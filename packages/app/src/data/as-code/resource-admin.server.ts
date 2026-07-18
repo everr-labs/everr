@@ -150,7 +150,7 @@ function pgBackend(kind: ResourceKind, pgTable: PgTable): KindBackend {
  * as-code resources and never surface here.
  */
 async function listLiveAlertRules(orgId: string): Promise<CcRuleView[]> {
-  const rules = await cc.listRules(orgId);
+  const rules = await cc.listAllRules(orgId);
   return rules.filter(
     (r) => isOwnedRule(r.spec) && previewIdOf(r.spec) === null,
   );

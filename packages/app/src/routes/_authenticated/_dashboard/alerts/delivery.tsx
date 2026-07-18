@@ -19,12 +19,7 @@ import {
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
 import { cn } from "@everr/ui/lib/utils";
-import {
-  queryOptions,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useLocation } from "@tanstack/react-router";
 import {
   ArrowRight,
@@ -55,7 +50,9 @@ import {
   ccFormatTs,
 } from "@/components/cc/shared";
 import { isEverrAnnotationKey } from "@/data/alerts/annotations";
+import { ccQueries } from "@/data/cc/queries";
 import { ccDispatchLabels, ccSelectRoutes } from "@/data/cc/route-resolution";
+import { ccRouteTimingSummary } from "@/data/cc/route-timing";
 import {
   createCcSubscription,
   deleteCcChannel,
@@ -63,13 +60,6 @@ import {
   deleteCcReceiver,
   deleteCcRoute,
   deleteCcSubscription,
-  listCcAlerts,
-  listCcChannels,
-  listCcInhibitions,
-  listCcReceivers,
-  listCcRoutes,
-  listCcRules,
-  listCcSubscriptions,
 } from "@/data/cc/server";
 import type {
   CcChannel,
@@ -78,41 +68,6 @@ import type {
   CcRoute,
 } from "@/data/cc/types";
 
-const q = {
-  routes: () =>
-    queryOptions({ queryKey: ["cc", "routes"], queryFn: () => listCcRoutes() }),
-  receivers: () =>
-    queryOptions({
-      queryKey: ["cc", "receivers"],
-      queryFn: () => listCcReceivers(),
-    }),
-  channels: () =>
-    queryOptions({
-      queryKey: ["cc", "channels"],
-      queryFn: () => listCcChannels(),
-    }),
-  inhibitions: () =>
-    queryOptions({
-      queryKey: ["cc", "inhibitions"],
-      queryFn: () => listCcInhibitions(),
-    }),
-  alerts: () =>
-    queryOptions({
-      queryKey: ["cc", "alerts"],
-      queryFn: () => listCcAlerts(),
-    }),
-  rules: () =>
-    queryOptions({
-      queryKey: ["cc", "rules"],
-      queryFn: () => listCcRules(),
-    }),
-  subscriptions: () =>
-    queryOptions({
-      queryKey: ["cc", "subscriptions"],
-      queryFn: () => listCcSubscriptions(),
-    }),
-};
-
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/alerts/delivery",
 )({
@@ -120,13 +75,13 @@ export const Route = createFileRoute(
   head: () => ({ meta: [{ title: "Everr - Alerts Delivery" }] }),
   loader: ({ context: { queryClient } }) =>
     Promise.all([
-      queryClient.prefetchQuery(q.routes()),
-      queryClient.prefetchQuery(q.receivers()),
-      queryClient.prefetchQuery(q.channels()),
-      queryClient.prefetchQuery(q.inhibitions()),
-      queryClient.prefetchQuery(q.alerts()),
-      queryClient.prefetchQuery(q.rules()),
-      queryClient.prefetchQuery(q.subscriptions()),
+      queryClient.prefetchQuery(ccQueries.routes()),
+      queryClient.prefetchQuery(ccQueries.receivers()),
+      queryClient.prefetchQuery(ccQueries.channels()),
+      queryClient.prefetchQuery(ccQueries.inhibitions()),
+      queryClient.prefetchQuery(ccQueries.alerts()),
+      queryClient.prefetchQuery(ccQueries.rules()),
+      queryClient.prefetchQuery(ccQueries.subscriptions()),
     ]),
   component: CcDeliveryPage,
 });
@@ -204,19 +159,6 @@ function SectionBody({
 // The hero: routes rendered as the flow the dispatcher walks. While the
 // preview is active, the selected route chain lights up and the rest dims.
 
-/** Custom timing only: routes on engine defaults keep a single-line row. */
-function routeTimingSummary(r: CcRoute): string[] {
-  const parts: string[] = [];
-  if (r.group_by && r.group_by.length > 0)
-    parts.push(`group by ${r.group_by.join(", ")}`);
-  if (r.group_wait_secs != null) parts.push(`wait ${r.group_wait_secs}s`);
-  if (r.group_interval_secs != null)
-    parts.push(`interval ${r.group_interval_secs}s`);
-  if (r.repeat_interval_secs != null)
-    parts.push(`repeat ${r.repeat_interval_secs}s`);
-  return parts;
-}
-
 function PipelineRoute({
   route,
   receiver,
@@ -236,7 +178,16 @@ function PipelineRoute({
   onDelete: () => void;
   deletePending: boolean;
 }) {
-  const timing = routeTimingSummary(route);
+  // Custom timing only: routes on engine defaults keep a single-line row.
+  const timing = ccRouteTimingSummary(
+    {
+      groupBy: route.group_by,
+      groupWaitSecs: route.group_wait_secs,
+      groupIntervalSecs: route.group_interval_secs,
+      repeatIntervalSecs: route.repeat_interval_secs,
+    },
+    "overrides",
+  );
   return (
     <li
       data-matched={previewActive && matched ? "true" : undefined}
@@ -350,7 +301,7 @@ function PipelineSection({
   onFirehoseClick: () => void;
 }) {
   const qc = useQueryClient();
-  const { data, isPending, isError, error } = useQuery(q.routes());
+  const { data, isPending, isError, error } = useQuery(ccQueries.routes());
   const [editing, setEditing] = useState<CcRoute | "new" | null>(null);
   const receiversByName = useMemo(
     () => new Map(receivers.map((r) => [r.name, r])),
@@ -360,7 +311,7 @@ function PipelineSection({
   const remove = useMutation({
     mutationFn: (id: string) => deleteCcRoute({ data: { id } }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["cc", "routes"] });
+      qc.invalidateQueries({ queryKey: ccQueries.routes().queryKey });
       toast.success("Route deleted");
     },
     onError: (e) => toast.error(ccErrorMessage(e)),
@@ -485,7 +436,7 @@ function PipelineSection({
 
 function ReceiversSection({ channels }: { channels: CcChannel[] }) {
   const qc = useQueryClient();
-  const { data, isPending, isError, error } = useQuery(q.receivers());
+  const { data, isPending, isError, error } = useQuery(ccQueries.receivers());
   const [open, setOpen] = useState(false);
   const channelsByName = useMemo(
     () => new Map(channels.map((c) => [c.name, c])),
@@ -495,7 +446,7 @@ function ReceiversSection({ channels }: { channels: CcChannel[] }) {
   const remove = useMutation({
     mutationFn: (name: string) => deleteCcReceiver({ data: { name } }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["cc", "receivers"] });
+      qc.invalidateQueries({ queryKey: ccQueries.receivers().queryKey });
       toast.success("Receiver deleted");
     },
     onError: (e) => toast.error(ccErrorMessage(e)),
@@ -595,13 +546,13 @@ function ReceiversSection({ channels }: { channels: CcChannel[] }) {
 
 function ChannelsSection() {
   const qc = useQueryClient();
-  const { data, isPending, isError, error } = useQuery(q.channels());
+  const { data, isPending, isError, error } = useQuery(ccQueries.channels());
   const [open, setOpen] = useState(false);
 
   const remove = useMutation({
     mutationFn: (name: string) => deleteCcChannel({ data: { name } }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["cc", "channels"] });
+      qc.invalidateQueries({ queryKey: ccQueries.channels().queryKey });
       toast.success("Channel deleted");
     },
     // A referenced channel deletes with a 409 naming the referring receivers;
@@ -685,13 +636,13 @@ function ChannelsSection() {
 
 function InhibitionsSection() {
   const qc = useQueryClient();
-  const { data, isPending, isError, error } = useQuery(q.inhibitions());
+  const { data, isPending, isError, error } = useQuery(ccQueries.inhibitions());
   const [open, setOpen] = useState(false);
 
   const remove = useMutation({
     mutationFn: (id: string) => deleteCcInhibition({ data: { id } }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["cc", "inhibitions"] });
+      qc.invalidateQueries({ queryKey: ccQueries.inhibitions().queryKey });
       toast.success("Inhibition deleted");
     },
     onError: (e) => toast.error(ccErrorMessage(e)),
@@ -772,13 +723,15 @@ function InhibitionsSection() {
 
 function FirehoseSection() {
   const qc = useQueryClient();
-  const { data, isPending, isError, error } = useQuery(q.subscriptions());
+  const { data, isPending, isError, error } = useQuery(
+    ccQueries.subscriptions(),
+  );
   const [url, setUrl] = useState("");
 
   const create = useMutation({
     mutationFn: () => createCcSubscription({ data: { webhookUrl: url } }),
     onSuccess: (s) => {
-      qc.invalidateQueries({ queryKey: ["cc", "subscriptions"] });
+      qc.invalidateQueries({ queryKey: ccQueries.subscriptions().queryKey });
       toast.success(`Subscription created (${s.id.slice(0, 8)})`);
       setUrl("");
     },
@@ -788,7 +741,7 @@ function FirehoseSection() {
   const remove = useMutation({
     mutationFn: (id: string) => deleteCcSubscription({ data: { id } }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["cc", "subscriptions"] });
+      qc.invalidateQueries({ queryKey: ccQueries.subscriptions().queryKey });
       toast.success("Subscription deleted");
     },
     onError: (e) => toast.error(ccErrorMessage(e)),
@@ -876,12 +829,12 @@ function FirehoseSection() {
 
 function CcDeliveryPage() {
   const location = useLocation();
-  const routes = useQuery(q.routes());
-  const receivers = useQuery(q.receivers());
-  const channels = useQuery(q.channels());
-  const alerts = useQuery(q.alerts());
-  const rules = useQuery(q.rules());
-  const subscriptions = useQuery(q.subscriptions());
+  const routes = useQuery(ccQueries.routes());
+  const receivers = useQuery(ccQueries.receivers());
+  const channels = useQuery(ccQueries.channels());
+  const alerts = useQuery(ccQueries.alerts());
+  const rules = useQuery(ccQueries.rules());
+  const subscriptions = useQuery(ccQueries.subscriptions());
 
   // The preview's label set; {} = inactive. Evaluated with the dispatcher's
   // own semantics (ccSelectRoutes over exactly these labels), so what the

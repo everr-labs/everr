@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/data/cc/client", () => ({
-  listRules: vi.fn(),
+  listAllRules: vi.fn(),
   deleteRule: vi.fn(),
 }));
 
@@ -26,7 +26,7 @@ import {
   sweepOrphanCcRules,
 } from "./preview-cleanup.server";
 
-const mockedListRules = cc.listRules as ReturnType<typeof vi.fn>;
+const mockedListRules = cc.listAllRules as ReturnType<typeof vi.fn>;
 const mockedDeleteRule = cc.deleteRule as ReturnType<typeof vi.fn>;
 
 function ccRule(id: string, previewId?: string) {
@@ -108,7 +108,7 @@ describe("deletePreviewCcRules", () => {
 /**
  * A fake registry: `orgs` are the orgs to sweep; `existing` is the set of
  * preview ids that still have a registry row. `existingPreviewIds` records the
- * order of its calls relative to `listRules` so a test can assert the race
+ * order of its calls relative to `listAllRules` so a test can assert the race
  * guard (list before snapshot).
  */
 function fakeSweepDb(

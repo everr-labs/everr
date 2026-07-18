@@ -1,7 +1,7 @@
 use crate::api::support::{body_json, setup};
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use cc::domain::ids::{InstanceKey, RuleId, TenantId};
+use cc::domain::ids::{InstanceKey, RuleId, SourceId, TenantId};
 use cc::domain::instance::{InstanceState, Status};
 use std::collections::BTreeMap;
 use tower::ServiceExt;
@@ -35,7 +35,7 @@ fn put(tenant: Uuid, id: &str, body: &str) -> Request<Body> {
 fn seed_firing_instance(rule: &str, tenant: Uuid) -> InstanceState {
     InstanceState {
         key: InstanceKey("k1".into()),
-        rule: RuleId(Uuid::parse_str(rule).unwrap()),
+        source: SourceId::Rule(RuleId(Uuid::parse_str(rule).unwrap())),
         tenant: TenantId::from_trusted(tenant.to_string()),
         status: Status::Firing,
         labels: BTreeMap::from([("host".to_string(), "web-1".to_string())]),

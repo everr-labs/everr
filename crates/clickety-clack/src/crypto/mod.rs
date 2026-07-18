@@ -269,70 +269,48 @@ pub fn decrypt_str(c: &dyn SecretCipher, s: &str) -> Result<String, CryptoError>
     String::from_utf8(c.decrypt(&env)?).map_err(|_| CryptoError::Decrypt)
 }
 
-/// Serialize a `ChannelConfig` with secret fields replaced by encryption envelopes.
-/// The `type` discriminant and non-secret fields (email recipients) stay cleartext.
+/// Serialize a `ChannelConfig` with the fields its secret-field designation
+/// ([`ChannelConfig::secret_fields`]) lists replaced by encryption envelopes.
+/// The `type` discriminant and every non-secret field (email recipients,
+/// telegram chat ids) stay cleartext; everything else is exactly the serde
+/// form, so the at-rest JSON shape is unchanged from the hand-built codec it
+/// replaced.
 pub fn encrypt_channel(c: &dyn SecretCipher, ch: &ChannelConfig) -> Result<Value, CryptoError> {
-    let enc = |s: &str| -> Result<Value, CryptoError> {
-        Ok(envelope_to_value(&c.encrypt(s.as_bytes())?))
-    };
-    Ok(match ch {
-        ChannelConfig::Webhook { url } => json!({"type": "webhook", "url": enc(url)?}),
-        ChannelConfig::Slack { url } => json!({"type": "slack", "url": enc(url)?}),
-        ChannelConfig::Pagerduty { routing_key } => {
-            json!({"type": "pagerduty", "routing_key": enc(routing_key)?})
-        }
-        ChannelConfig::Email { to } => json!({"type": "email", "to": to}),
-        ChannelConfig::Telegram {
-            bot_token,
-            chat_ids,
-        } => {
-            json!({"type": "telegram", "bot_token": enc(bot_token)?, "chat_ids": chat_ids})
-        }
-    })
+    let mut v = serde_json::to_value(ch)?;
+    for field in ch.secret_fields().encrypted {
+        let plain = v
+            .get(field)
+            .and_then(Value::as_str)
+            .ok_or_else(|| {
+                CryptoError::Envelope(format!("secret field '{field}' is not a string"))
+            })?
+            .to_string();
+        v[*field] = envelope_to_value(&c.encrypt(plain.as_bytes())?);
+    }
+    Ok(v)
 }
 
-/// Inverse of [`encrypt_channel`].
+/// Inverse of [`encrypt_channel`]: decrypt every enveloped field back to its
+/// plaintext string, then deserialize the value through serde (which also
+/// rejects unknown `type` tags and missing fields). Envelopes are the only
+/// object-valued fields the encrypt side ever writes, so the codec inverts
+/// exactly what it enveloped without a second per-type field list — the
+/// designation stays single-sited in `ChannelConfig::secret_fields`.
 pub fn decrypt_channel(c: &dyn SecretCipher, v: &Value) -> Result<ChannelConfig, CryptoError> {
-    let ty = v
-        .get("type")
-        .and_then(|x| x.as_str())
-        .ok_or_else(|| CryptoError::Envelope("channel missing 'type'".into()))?;
-    let dec = |field: &str| -> Result<String, CryptoError> {
-        let fv = v
-            .get(field)
-            .ok_or_else(|| CryptoError::Envelope(format!("channel missing '{field}'")))?;
-        String::from_utf8(c.decrypt(&envelope_from_value(fv)?)?).map_err(|_| CryptoError::Decrypt)
-    };
-    Ok(match ty {
-        "webhook" => ChannelConfig::Webhook { url: dec("url")? },
-        "slack" => ChannelConfig::Slack { url: dec("url")? },
-        "pagerduty" => ChannelConfig::Pagerduty {
-            routing_key: dec("routing_key")?,
-        },
-        "email" => {
-            let to_val = v
-                .get("to")
-                .cloned()
-                .ok_or_else(|| CryptoError::Envelope("email channel missing 'to'".into()))?;
-            ChannelConfig::Email {
-                to: serde_json::from_value(to_val)?,
-            }
-        }
-        "telegram" => {
-            let chat_ids_val = v.get("chat_ids").cloned().ok_or_else(|| {
-                CryptoError::Envelope("telegram channel missing 'chat_ids'".into())
-            })?;
-            ChannelConfig::Telegram {
-                bot_token: dec("bot_token")?,
-                chat_ids: serde_json::from_value(chat_ids_val)?,
-            }
-        }
-        other => {
-            return Err(CryptoError::Envelope(format!(
-                "unknown channel type '{other}'"
-            )))
-        }
-    })
+    let obj = v
+        .as_object()
+        .ok_or_else(|| CryptoError::Envelope("channel config is not a JSON object".into()))?;
+    let mut out = serde_json::Map::with_capacity(obj.len());
+    for (k, val) in obj {
+        let plain = if val.is_object() {
+            let env = envelope_from_value(val)?;
+            Value::String(String::from_utf8(c.decrypt(&env)?).map_err(|_| CryptoError::Decrypt)?)
+        } else {
+            val.clone()
+        };
+        out.insert(k.clone(), plain);
+    }
+    Ok(serde_json::from_value(Value::Object(out))?)
 }
 
 /// Which `SecretCipher` implementation to construct.

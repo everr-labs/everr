@@ -1,4 +1,4 @@
-use cc::domain::ids::{InstanceKey, RuleId, SloId, TenantId};
+use cc::domain::ids::{InstanceKey, RuleId, SloId, SourceId, TenantId};
 use cc::domain::instance::{InstanceState, Status};
 use cc::domain::rule::Severity;
 use cc::domain::slo::{canonical_tiers, BurnRateTier, SliSpec, SloSpec, TimeWindow};
@@ -42,13 +42,17 @@ async fn persist_and_load_roundtrip() {
     let rule = RuleId(slo_id.0);
 
     let labels_a = BTreeMap::from([("svc".to_string(), "checkout".to_string())]);
-    let inst_a =
-        InstanceState::new_inactive(InstanceKey::new(rule, &labels_a), rule, t.clone(), labels_a);
+    let inst_a = InstanceState::new_inactive(
+        InstanceKey::new(rule, &labels_a),
+        SourceId::Slo(slo_id),
+        t.clone(),
+        labels_a,
+    );
 
     let labels_b = BTreeMap::from([("svc".to_string(), "payments".to_string())]);
     let mut inst_b = InstanceState::new_inactive(
         InstanceKey::new(rule, &labels_b),
-        rule,
+        SourceId::Slo(slo_id),
         t.clone(),
         labels_b.clone(),
     );
@@ -99,8 +103,12 @@ async fn firing_source_set_resolves_tier_severity() {
     let rule = RuleId(slo_id.0);
 
     let labels = BTreeMap::from([("slo_tier".to_string(), "ticket".to_string())]);
-    let mut inst =
-        InstanceState::new_inactive(InstanceKey::new(rule, &labels), rule, t.clone(), labels);
+    let mut inst = InstanceState::new_inactive(
+        InstanceKey::new(rule, &labels),
+        SourceId::Slo(slo_id),
+        t.clone(),
+        labels,
+    );
     inst.status = Status::Firing;
     inst.value = Some(2.0);
     inst.active_since = Some(OffsetDateTime::now_utc());
@@ -113,7 +121,7 @@ async fn firing_source_set_resolves_tier_severity() {
     let firing = s.list_firing_slos(&t).await.unwrap();
     assert_eq!(firing.len(), 1);
     assert_eq!(firing[0].key, inst.key);
-    assert_eq!(firing[0].rule, rule);
+    assert_eq!(firing[0].source, SourceId::Slo(slo_id));
     assert_eq!(firing[0].severity, Severity::Warning); // canonical "ticket" tier severity
 }
 
@@ -148,8 +156,12 @@ async fn stale_scan_excludes_paused_and_degraded() {
     for slo_id in [healthy_slo, paused_slo, degraded_slo, failing_slo] {
         let rule = RuleId(slo_id.0);
         let labels = BTreeMap::from([("svc".to_string(), "x".to_string())]);
-        let mut inst =
-            InstanceState::new_inactive(InstanceKey::new(rule, &labels), rule, t.clone(), labels);
+        let mut inst = InstanceState::new_inactive(
+            InstanceKey::new(rule, &labels),
+            SourceId::Slo(slo_id),
+            t.clone(),
+            labels,
+        );
         inst.status = Status::Firing;
         inst.value = Some(1.0);
         inst.active_since = Some(old);
@@ -162,7 +174,7 @@ async fn stale_scan_excludes_paused_and_degraded() {
     // guard: the reaper must not resolve it before the degrade threshold decides).
     let stale = s.list_stale_slo_instances(now, 30, 10).await.unwrap();
     assert_eq!(stale.len(), 1);
-    assert_eq!(stale[0].rule, RuleId(healthy_slo.0));
+    assert_eq!(stale[0].source, SourceId::Slo(healthy_slo));
 }
 
 #[tokio::test]

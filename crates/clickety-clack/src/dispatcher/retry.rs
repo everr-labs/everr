@@ -1,4 +1,5 @@
 use crate::dispatcher::notify::{Notification, Notifier, NotifyError};
+use crate::domain::channel::ChannelConfig;
 use std::time::Duration;
 
 /// Deterministic exponential backoff: base * 2^attempt, capped. No jitter (Phase 2a).
@@ -12,14 +13,14 @@ pub fn backoff_delay(attempt: u32, base_ms: u64, cap_ms: u64) -> Duration {
 /// last error (Permanent stops immediately; Transient stops after max_attempts).
 pub async fn deliver_with_retry(
     notifier: &dyn Notifier,
-    target: &str,
+    config: &ChannelConfig,
     notif: &Notification,
     max_attempts: u32,
 ) -> Result<u32, (u32, NotifyError)> {
     let mut attempt = 0u32;
     loop {
         attempt += 1;
-        match notifier.send(target, notif).await {
+        match notifier.send(config, notif).await {
             Ok(()) => return Ok(attempt),
             Err(NotifyError::Permanent(e)) => return Err((attempt, NotifyError::Permanent(e))),
             Err(NotifyError::Transient(e)) => {
@@ -68,6 +69,10 @@ mod tests {
         assert_eq!(backoff_delay(20, 50, 5_000), Duration::from_millis(5_000));
     }
 
+    fn config() -> ChannelConfig {
+        ChannelConfig::Webhook { url: "t".into() }
+    }
+
     struct Flaky {
         fail_first: u32,
         calls: AtomicU32,
@@ -77,7 +82,7 @@ mod tests {
         fn channel(&self) -> &'static str {
             "test"
         }
-        async fn send(&self, _t: &str, _n: &Notification) -> Result<(), NotifyError> {
+        async fn send(&self, _c: &ChannelConfig, _n: &Notification) -> Result<(), NotifyError> {
             let n = self.calls.fetch_add(1, Ordering::SeqCst) + 1;
             if n <= self.fail_first {
                 Err(NotifyError::Transient("flaky".into()))
@@ -93,7 +98,7 @@ mod tests {
         fn channel(&self) -> &'static str {
             "test"
         }
-        async fn send(&self, _t: &str, _n: &Notification) -> Result<(), NotifyError> {
+        async fn send(&self, _c: &ChannelConfig, _n: &Notification) -> Result<(), NotifyError> {
             Err(NotifyError::Permanent("nope".into()))
         }
     }
@@ -104,14 +109,18 @@ mod tests {
             fail_first: 2,
             calls: AtomicU32::new(0),
         };
-        let attempts = deliver_with_retry(&n, "t", &notif(), 5).await.unwrap();
+        let attempts = deliver_with_retry(&n, &config(), &notif(), 5)
+            .await
+            .unwrap();
         assert_eq!(attempts, 3);
     }
 
     #[tokio::test]
     async fn permanent_stops_immediately() {
         let n = AlwaysPermanent;
-        let (attempts, err) = deliver_with_retry(&n, "t", &notif(), 5).await.unwrap_err();
+        let (attempts, err) = deliver_with_retry(&n, &config(), &notif(), 5)
+            .await
+            .unwrap_err();
         assert_eq!(attempts, 1);
         assert!(matches!(err, NotifyError::Permanent(_)));
     }
@@ -122,7 +131,9 @@ mod tests {
             fail_first: 100,
             calls: AtomicU32::new(0),
         };
-        let (attempts, err) = deliver_with_retry(&n, "t", &notif(), 3).await.unwrap_err();
+        let (attempts, err) = deliver_with_retry(&n, &config(), &notif(), 3)
+            .await
+            .unwrap_err();
         assert_eq!(attempts, 3);
         assert!(matches!(err, NotifyError::Transient(_)));
     }

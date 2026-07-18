@@ -1,19 +1,12 @@
 use crate::dispatcher::notify::{
-    classify_status_429_transient, default_http_client, Notification, Notifier, NotifyError,
+    classify_status_429_transient, config_mismatch, default_http_client, Notification, Notifier,
+    NotifyError,
 };
+use crate::domain::channel::ChannelConfig;
 use crate::domain::EventStatus;
 use async_trait::async_trait;
-use serde::Deserialize;
 
 const DEFAULT_API_BASE: &str = "https://api.telegram.org";
-
-/// The `target` for a Telegram receiver is the JSON produced by
-/// `ChannelConfig::Telegram::target()`: `{ "bot_token": "...", "chat_ids": ["..."] }`.
-#[derive(Deserialize)]
-struct TelegramTarget {
-    bot_token: String,
-    chat_ids: Vec<String>,
-}
 
 /// Render a Telegram message (HTML parse_mode) for one or more events. Mirrors slack.rs
 /// in content: header line + per-event lines. Alert annotations: each event's line uses
@@ -84,8 +77,9 @@ fn html_attr_escape(s: &str) -> String {
     html_escape(s).replace('"', "&quot;")
 }
 
-/// Telegram Bot API channel. `target` is the JSON `{bot_token, chat_ids}` string. One
-/// `sendMessage` call per chat id. 2xx ok; 4xx permanent; else (incl. 429) transient.
+/// Telegram Bot API channel (`ChannelConfig::Telegram`). One `sendMessage` call
+/// per chat id, sequential — chat lists are tiny. 2xx ok; 4xx permanent; else
+/// (incl. 429) transient.
 pub struct TelegramNotifier {
     http: reqwest::Client,
     api_base: String,
@@ -116,16 +110,21 @@ impl Notifier for TelegramNotifier {
         "telegram"
     }
 
-    async fn send(&self, target: &str, notif: &Notification) -> Result<(), NotifyError> {
-        let cfg: TelegramTarget = serde_json::from_str(target)
-            .map_err(|e| NotifyError::Permanent(format!("bad telegram target: {e}")))?;
-        if cfg.chat_ids.is_empty() {
+    async fn send(&self, config: &ChannelConfig, notif: &Notification) -> Result<(), NotifyError> {
+        let ChannelConfig::Telegram {
+            bot_token,
+            chat_ids,
+        } = config
+        else {
+            return Err(config_mismatch("telegram", config));
+        };
+        if chat_ids.is_empty() {
             return Err(NotifyError::Permanent("no chat_ids".into()));
         }
         let text = build_telegram_message(notif);
         // bot_token is a secret: it goes in the URL path, so strip URLs from any error.
-        let url = format!("{}/bot{}/sendMessage", self.api_base, cfg.bot_token);
-        for chat_id in &cfg.chat_ids {
+        let url = format!("{}/bot{}/sendMessage", self.api_base, bot_token);
+        for chat_id in chat_ids {
             let body = serde_json::json!({
                 "chat_id": chat_id,
                 "text": text,

@@ -101,8 +101,8 @@ pub struct SloDelivery {
 /// `ack(id)` permanently removes that delivery from the never-delivered set; and
 /// `consume` returns each job to exactly one consumer in the group until acked. Unacked
 /// jobs remain claimable for redelivery via a backend reclaim mechanism (Redis:
-/// `RedisQueue::consume`/`consume_slo` run an `XAUTOCLAIM` pre-pass over the
-/// consumer-group PEL ahead of every read). See `tests/conformance.rs`.
+/// `RedisQueue::consume`/`consume_slo` run a throttled `XAUTOCLAIM` pre-pass over
+/// the consumer-group PEL ahead of reads). See `tests/conformance.rs`.
 ///
 /// The `_slo` methods provide the same contract on a separate stream for SLO
 /// evaluation jobs, kept independent of the rule-evaluation stream above.
@@ -117,6 +117,16 @@ pub trait Queue: Send + Sync {
         block_ms: usize,
     ) -> Result<Vec<Delivery>, QueueError>;
     async fn ack(&self, id: &JobId) -> Result<(), QueueError>;
+    /// Ack a whole batch. The default loops [`Queue::ack`] (so implementors stay
+    /// compatible); backends may override with a single variadic ack. On error,
+    /// unacked ids stay pending and are redelivered via the reclaim mechanism, so
+    /// stopping at the first failure is safe.
+    async fn ack_batch(&self, ids: &[JobId]) -> Result<(), QueueError> {
+        for id in ids {
+            self.ack(id).await?;
+        }
+        Ok(())
+    }
 
     async fn enqueue_slo(&self, job: &SloEvalJob) -> Result<(), QueueError>;
     /// Read up to `count` SLO jobs for this consumer (blocking up to `block_ms`).
@@ -127,6 +137,13 @@ pub trait Queue: Send + Sync {
         block_ms: usize,
     ) -> Result<Vec<SloDelivery>, QueueError>;
     async fn ack_slo(&self, id: &JobId) -> Result<(), QueueError>;
+    /// Batch counterpart of [`Queue::ack_slo`]; same contract as [`Queue::ack_batch`].
+    async fn ack_slo_batch(&self, ids: &[JobId]) -> Result<(), QueueError> {
+        for id in ids {
+            self.ack_slo(id).await?;
+        }
+        Ok(())
+    }
 }
 
 /// One event read from the event stream.
@@ -142,8 +159,9 @@ pub struct EventEntry {
 /// # Backend contract
 /// `consume` is an at-least-once shared-group read acked by `ack(id)`. Unacked
 /// entries remain claimable for redelivery via a backend reclaim mechanism
-/// (Redis: `RedisEventBus::consume`/`consume_logexport` run an `XAUTOCLAIM`
-/// pre-pass over their group's PEL ahead of every read, same as `RedisQueue`).
+/// (Redis: `RedisEventBus::consume`/`consume_logexport` run a throttled
+/// `XAUTOCLAIM` pre-pass over their group's PEL ahead of reads, same as
+/// `RedisQueue`).
 /// `dead_letter` records a permanently-undeliverable event out-of-band. See
 /// `tests/conformance.rs`.
 #[async_trait]
@@ -170,6 +188,16 @@ pub trait EventBus: Send + Sync {
         block_ms: usize,
     ) -> Result<Vec<EventEntry>, QueueError>;
     async fn ack(&self, id: &EventId) -> Result<(), QueueError>;
+    /// Ack a whole batch of dispatcher-group deliveries. The default loops
+    /// [`EventBus::ack`] (so implementors stay compatible); backends may override
+    /// with a single variadic ack. On error, unacked ids stay pending and are
+    /// redelivered via the reclaim mechanism, so stopping at the first failure is safe.
+    async fn ack_batch(&self, ids: &[EventId]) -> Result<(), QueueError> {
+        for id in ids {
+            self.ack(id).await?;
+        }
+        Ok(())
+    }
     /// Consume via the SECOND shared group (`cc:logexport`), independent of the dispatcher
     /// group, so the log-export consumer never competes with delivery. At-least-once;
     /// ack with `ack_logexport`. Default returns empty (test fakes don't need it).

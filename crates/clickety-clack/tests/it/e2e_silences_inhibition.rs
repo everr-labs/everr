@@ -110,8 +110,12 @@ async fn silence_and_inhibition_suppress_delivery() {
     let mut src_labels = BTreeMap::new();
     src_labels.insert("svc".to_string(), "db".to_string());
     let src_key = InstanceKey::new(src_rule.id, &src_labels);
-    let mut firing =
-        InstanceState::new_inactive(src_key.clone(), src_rule.id, tenant.clone(), src_labels);
+    let mut firing = InstanceState::new_inactive(
+        src_key.clone(),
+        cc::domain::ids::SourceId::Rule(src_rule.id),
+        tenant.clone(),
+        src_labels,
+    );
     firing.status = Status::Firing;
     firing.active_since = Some(now);
     store.upsert_instance(&firing).await.unwrap();

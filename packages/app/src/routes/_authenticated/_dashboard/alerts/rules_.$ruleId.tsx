@@ -20,12 +20,7 @@ import { Skeleton } from "@everr/ui/components/skeleton";
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { cn } from "@everr/ui/lib/utils";
-import {
-  queryOptions,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowLeft,
@@ -37,10 +32,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import {
-  AlertEventFeed,
-  ccEventHistoryQueryOptions,
-} from "@/components/cc/alert-event-feed";
+import { AlertEventFeed } from "@/components/cc/alert-event-feed";
 import {
   CcDisclosureTrigger,
   CcEmptyState,
@@ -52,28 +44,14 @@ import {
   ccFormatTs,
   LabelSet,
 } from "@/components/cc/shared";
-import { ccRuleIdentity } from "@/data/alerts/rule-identity";
 import {
-  CC_POLL_INTERVAL_MS,
-  getCcRule,
-  listCcAlerts,
-  pauseCcRule,
-  resumeCcRule,
-  testCcRule,
-} from "@/data/cc/server";
+  ccRuleHandleResolvers,
+  ccRuleHandles,
+  ccRuleIdentity,
+} from "@/data/alerts/rule-identity";
+import { ccQueries } from "@/data/cc/queries";
+import { pauseCcRule, resumeCcRule, testCcRule } from "@/data/cc/server";
 import type { CcAlert, CcRuleView, CcTestResult } from "@/data/cc/types";
-
-const ccRuleQuery = (ruleId: string) =>
-  queryOptions({
-    queryKey: ["cc", "rule", ruleId],
-    queryFn: () => getCcRule({ data: { ruleId } }),
-  });
-const ccAlertsQuery = () =>
-  queryOptions({
-    queryKey: ["cc", "alerts"],
-    queryFn: () => listCcAlerts(),
-    refetchInterval: CC_POLL_INTERVAL_MS,
-  });
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/alerts/rules_/$ruleId",
@@ -87,9 +65,9 @@ export const Route = createFileRoute(
   loaderDeps: ({ search }) => ({ timeRange: withTimeRange(search).timeRange }),
   loader: ({ context: { queryClient }, params, deps }) =>
     Promise.all([
-      queryClient.prefetchQuery(ccRuleQuery(params.ruleId)),
-      queryClient.prefetchQuery(ccAlertsQuery()),
-      queryClient.prefetchQuery(ccEventHistoryQueryOptions(deps.timeRange)),
+      queryClient.prefetchQuery(ccQueries.rule(params.ruleId)),
+      queryClient.prefetchQuery(ccQueries.alerts()),
+      queryClient.prefetchQuery(ccQueries.eventHistory(deps.timeRange)),
     ]),
   component: CcRuleDetailPage,
 });
@@ -216,8 +194,8 @@ function HealthSection({ health }: { health: CcRuleView["health"] }) {
 function CcRuleDetailPage() {
   const { ruleId } = Route.useParams();
   const qc = useQueryClient();
-  const rule = useQuery(ccRuleQuery(ruleId));
-  const alerts = useQuery(ccAlertsQuery());
+  const rule = useQuery(ccQueries.rule(ruleId));
+  const alerts = useQuery(ccQueries.alerts());
   const [test, setTest] = useState<CcTestResult | null>(null);
   const [sqlOpen, setSqlOpen] = useState(false);
 
@@ -227,9 +205,9 @@ function CcRuleDetailPage() {
         ? resumeCcRule({ data: { ruleId } })
         : pauseCcRule({ data: { ruleId } }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["cc", "rule", ruleId] });
+      qc.invalidateQueries({ queryKey: ccQueries.rule(ruleId).queryKey });
       // The rules listing shows the paused state too.
-      qc.invalidateQueries({ queryKey: ["cc", "rules"] });
+      qc.invalidateQueries({ queryKey: ccQueries.rules().queryKey });
       toast.success("Rule updated");
     },
     onError: (e) => toast.error(ccErrorMessage(e)),
@@ -260,8 +238,9 @@ function CcRuleDetailPage() {
   );
   const annotations = Object.entries(r.spec.annotations ?? {});
   // Event rows carry the slug when CC knows it, the bare id otherwise;
-  // scope on both and resolve either back to the display name.
-  const scopeHandles = identity.slug ? [r.id, identity.slug] : [r.id];
+  // scope on both handles and resolve either via the shared resolvers.
+  const scopeHandles = ccRuleHandles(r);
+  const { resolveRuleName, resolveRuleSeverity } = ccRuleHandleResolvers([r]);
 
   const instCols: Column<CcAlert>[] = [
     {
@@ -446,12 +425,8 @@ function CcRuleDetailPage() {
       <AlertEventFeed
         scopeSlug={scopeHandles}
         hideRuleColumns
-        resolveRuleName={(handle) =>
-          scopeHandles.includes(handle) ? identity.name : handle
-        }
-        resolveRuleSeverity={(handle) =>
-          scopeHandles.includes(handle) ? r.spec.severity : undefined
-        }
+        resolveRuleName={resolveRuleName}
+        resolveRuleSeverity={resolveRuleSeverity}
       />
 
       <HealthSection health={r.health} />

@@ -32,7 +32,12 @@ fn firing_instance(rule: cc::domain::ids::RuleId, tenant: TenantId) -> (Instance
     let mut labels = BTreeMap::new();
     labels.insert("service".to_string(), "api".to_string());
     let key = InstanceKey::new(rule, &labels);
-    let mut inst = InstanceState::new_inactive(key.clone(), rule, tenant.clone(), labels.clone());
+    let mut inst = InstanceState::new_inactive(
+        key.clone(),
+        cc::domain::ids::SourceId::Rule(rule),
+        tenant.clone(),
+        labels.clone(),
+    );
     inst.status = Status::Firing;
     inst.value = Some(5.0);
     inst.last_seen = Some(OffsetDateTime::UNIX_EPOCH);
@@ -111,7 +116,7 @@ async fn upsert_with_outbox_rolls_back_on_failure() {
     // INSERT fail, so the whole transaction (including the outbox row) must roll back.
     let bogus_rule = cc::domain::ids::RuleId(Uuid::new_v4());
     let (mut inst, mut ev) = firing_instance(bogus_rule, tenant.clone());
-    inst.rule = bogus_rule;
+    inst.source = cc::domain::ids::SourceId::Rule(bogus_rule);
     ev.rule = bogus_rule;
 
     let res = store.upsert_instance_with_outbox(&inst, &ev).await;

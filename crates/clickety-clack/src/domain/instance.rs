@@ -1,4 +1,4 @@
-use crate::domain::ids::{InstanceKey, RuleId, TenantId};
+use crate::domain::ids::{InstanceKey, SourceId, TenantId};
 use crate::domain::rule::Severity;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -21,7 +21,10 @@ pub enum Status {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct InstanceState {
     pub key: InstanceKey,
-    pub rule: RuleId,
+    /// Typed origin: rule instance or SLO burn-rate instance. Flattened so the
+    /// API JSON keeps its `rule` field (plus `slo` for SLO rows); see [`SourceId`].
+    #[serde(flatten)]
+    pub source: SourceId,
     pub tenant: TenantId,
     pub status: Status,
     pub labels: BTreeMap<String, String>,
@@ -38,13 +41,13 @@ pub struct InstanceState {
 impl InstanceState {
     pub fn new_inactive(
         key: InstanceKey,
-        rule: RuleId,
+        source: SourceId,
         tenant: TenantId,
         labels: BTreeMap<String, String>,
     ) -> Self {
         Self {
             key,
-            rule,
+            source,
             tenant,
             status: Status::Inactive,
             labels,
@@ -59,14 +62,14 @@ impl InstanceState {
 #[cfg(test)]
 mod serde_tests {
     use super::*;
-    use crate::domain::ids::{InstanceKey, RuleId, TenantId};
+    use crate::domain::ids::{InstanceKey, RuleId, SloId, TenantId};
     use uuid::Uuid;
 
     #[test]
     fn instance_timestamps_serialize_rfc3339() {
         let s = InstanceState {
             key: InstanceKey("k".into()),
-            rule: RuleId(Uuid::nil()),
+            source: SourceId::Rule(RuleId(Uuid::nil())),
             tenant: TenantId::from_trusted(Uuid::nil().to_string()),
             status: Status::Firing,
             labels: BTreeMap::new(),
@@ -86,13 +89,41 @@ mod serde_tests {
     fn instance_none_timestamps_serialize_null() {
         let s = InstanceState::new_inactive(
             InstanceKey("k".into()),
-            RuleId(Uuid::nil()),
+            SourceId::Rule(RuleId(Uuid::nil())),
             TenantId::from_trusted(Uuid::nil().to_string()),
             BTreeMap::new(),
         );
         let v = serde_json::to_value(&s).unwrap();
         assert_eq!(v["active_since"], serde_json::Value::Null);
         assert_eq!(v["last_seen"], serde_json::Value::Null);
+    }
+
+    /// The API JSON contract: a rule instance serializes `rule` only; an SLO
+    /// instance serializes `rule` (same uuid, `Event`-style wire convention)
+    /// plus `slo` — and both round-trip to their exact variant.
+    #[test]
+    fn source_id_keeps_rule_key_and_marks_slo_rows() {
+        let id = Uuid::new_v4();
+        let mk = |source| {
+            InstanceState::new_inactive(
+                InstanceKey("k".into()),
+                source,
+                TenantId::from_trusted(Uuid::nil().to_string()),
+                BTreeMap::new(),
+            )
+        };
+
+        let rule = mk(SourceId::Rule(RuleId(id)));
+        let v = serde_json::to_value(&rule).unwrap();
+        assert_eq!(v["rule"], id.to_string());
+        assert!(v.get("slo").is_none());
+        assert_eq!(serde_json::from_value::<InstanceState>(v).unwrap(), rule);
+
+        let slo = mk(SourceId::Slo(SloId(id)));
+        let v = serde_json::to_value(&slo).unwrap();
+        assert_eq!(v["rule"], id.to_string());
+        assert_eq!(v["slo"], id.to_string());
+        assert_eq!(serde_json::from_value::<InstanceState>(v).unwrap(), slo);
     }
 }
 
@@ -101,7 +132,7 @@ mod serde_tests {
 #[derive(Debug, Clone, PartialEq)]
 pub struct FiringInstance {
     pub key: InstanceKey,
-    pub rule: RuleId,
+    pub source: SourceId,
     pub severity: Severity,
     pub labels: BTreeMap<String, String>,
 }
@@ -113,7 +144,7 @@ pub struct FiringInstance {
 #[derive(Debug, Clone, PartialEq)]
 pub struct StaleInstance {
     pub key: InstanceKey,
-    pub rule: RuleId,
+    pub source: SourceId,
     pub tenant: TenantId,
     pub status: Status,
     pub labels: BTreeMap<String, String>,

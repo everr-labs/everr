@@ -123,7 +123,9 @@ pub fn build_supervised_router(
         .route("/v1/channels", post(channels::create).get(channels::list))
         .route(
             "/v1/channels/:name",
-            get(channels::get).delete(channels::delete),
+            get(channels::get)
+                .put(channels::update)
+                .delete(channels::delete),
         )
         .route(
             "/v1/receivers",
@@ -131,7 +133,9 @@ pub fn build_supervised_router(
         )
         .route(
             "/v1/receivers/:name",
-            get(receivers::get).delete(receivers::delete),
+            get(receivers::get)
+                .put(receivers::update)
+                .delete(receivers::delete),
         )
         .route("/v1/routes", post(routes::create).get(routes::list))
         .route(

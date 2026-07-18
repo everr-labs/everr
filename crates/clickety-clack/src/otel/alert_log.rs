@@ -7,9 +7,10 @@
 //!   ScopeName   = "everr.alerting"   (InstrumentationScope.name)
 //!   EventName   = "alert.<slug>.<event_type>"  (LogRecord.event_name)
 //!   Body        = "alert <slug> <event_type>"
-//! plus log-record attributes alert.slug / alert.event_type / alert.delivery_targets /
-//! alert.silence_id / alert.silenced / alert.instance_fingerprint / alert.instance_labels /
-//! alert.suppressed / alert.evidence_json / alert.evidence_truncated / alert.row_count.
+//! plus log-record attributes alert.slug / alert.event_type / alert.severity /
+//! alert.delivery_targets / alert.silence_id / alert.silenced /
+//! alert.instance_fingerprint / alert.instance_labels / alert.suppressed /
+//! alert.evidence_json / alert.evidence_truncated / alert.row_count.
 //!
 //! `alert.suppressed` ("true"/"false") is always present. `alert.evidence_json` (compact
 //! JSON of the event's evidence map) is emitted only when the event carries evidence, and
@@ -99,6 +100,9 @@ pub fn build_log_record(
     let mut attrs = vec![
         kv("alert.slug", s(&slug)),
         kv("alert.event_type", s(event_type)),
+        // Lowercase wire form ("info"/"warning"/"critical"); the frontend's event
+        // history reads it as LogAttributes['alert.severity'].
+        kv("alert.severity", s(ev.severity.as_str())),
         kv("alert.instance_fingerprint", s(&ev.instance_key.0)),
         kv("alert.instance_labels", s(&labels_json)),
         kv(
@@ -192,6 +196,7 @@ mod tests {
         };
         assert!(get("alert.slug").is_some());
         assert!(get("alert.event_type").is_some());
+        assert!(get("alert.severity").is_some());
         assert!(get("alert.instance_fingerprint").is_some());
         assert!(get("alert.instance_labels").is_some());
         assert!(get("alert.suppressed").is_some());
@@ -305,6 +310,33 @@ mod tests {
             .find(|a| a.key == key)
             .and_then(|a| a.value.clone())
             .and_then(|v| v.value)
+    }
+
+    #[test]
+    fn severity_attr_is_the_lowercase_wire_form() {
+        // Present on every event type: fired/resolved carry the rule spec (or SLO
+        // tier) severity, dispatcher/rule-health records carry the event's own.
+        for etype in [
+            AlertEventType::InstanceFired,
+            AlertEventType::InstanceResolved,
+            AlertEventType::RuleHealth,
+            AlertEventType::Delivery,
+            AlertEventType::Silenced,
+        ] {
+            let rec = build_log_record(&ev(), etype, &LogExtras::default(), 0);
+            assert!(
+                matches!(attr(&rec, "alert.severity"), Some(any_value::Value::StringValue(s)) if s == "critical"),
+                "severity must be stamped on {} records",
+                etype.as_str()
+            );
+        }
+
+        let mut e = ev();
+        e.severity = Severity::Warning;
+        let rec = build_log_record(&e, AlertEventType::InstanceFired, &LogExtras::default(), 0);
+        assert!(
+            matches!(attr(&rec, "alert.severity"), Some(any_value::Value::StringValue(s)) if s == "warning")
+        );
     }
 
     #[test]

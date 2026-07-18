@@ -52,6 +52,68 @@ pub struct RuleId(pub Uuid);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SloId(pub Uuid);
 
+/// The typed origin of an alert instance: a rule row (`instances`) or an SLO
+/// burn-rate row (`slo_instances`). Reading the id requires naming the variant,
+/// so a rule id can never be silently used where an SLO id is meant (and vice
+/// versa).
+///
+/// JSON form (via [`SourceIdWire`], flattened into `InstanceState`): `rule`
+/// always carries the uuid — for SLO sources too, matching `Event`'s wire
+/// convention — and `slo` is additionally present for SLO sources.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(from = "SourceIdWire", into = "SourceIdWire")]
+pub enum SourceId {
+    Rule(RuleId),
+    Slo(SloId),
+}
+
+impl SourceId {
+    /// The raw uuid, for storage columns and instance-key hashing (both sides
+    /// key on the bare uuid; the table/variant carries the kind).
+    pub fn uuid(&self) -> Uuid {
+        match self {
+            SourceId::Rule(r) => r.0,
+            SourceId::Slo(s) => s.0,
+        }
+    }
+
+    /// The SLO identity, when this source is an SLO.
+    pub fn slo_id(&self) -> Option<SloId> {
+        match self {
+            SourceId::Rule(_) => None,
+            SourceId::Slo(s) => Some(*s),
+        }
+    }
+}
+
+/// Serde mirror of [`SourceId`]: keeps the `GET /v1/alerts` JSON shape (`rule`
+/// carries the uuid for every row) while `slo` marks — and round-trips — the
+/// SLO variant.
+#[derive(Serialize, Deserialize)]
+struct SourceIdWire {
+    rule: Uuid,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    slo: Option<Uuid>,
+}
+
+impl From<SourceId> for SourceIdWire {
+    fn from(s: SourceId) -> Self {
+        SourceIdWire {
+            rule: s.uuid(),
+            slo: s.slo_id().map(|s| s.0),
+        }
+    }
+}
+
+impl From<SourceIdWire> for SourceId {
+    fn from(w: SourceIdWire) -> Self {
+        match w.slo {
+            Some(slo) => SourceId::Slo(SloId(slo)),
+            None => SourceId::Rule(RuleId(w.rule)),
+        }
+    }
+}
+
 /// Stable identity for an alert instance: hash of rule id + sorted label set.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct InstanceKey(pub String);
