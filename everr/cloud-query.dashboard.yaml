@@ -1,0 +1,287 @@
+kind: Dashboard
+metadata:
+  name: cloud-query
+spec:
+  display:
+    name: Cloud Query
+    description: >-
+      Health of `everr cloud query` (POST /api/cli/sql): traffic, outcome split
+      (ok / user_error / system_error), latency, the slowest queries with a
+      trace to open, per-tenant usage, and how reliably the CLI leg of each
+      trace is landing.
+  duration: 24h
+  refreshInterval: 1m
+  panels:
+    total-requests:
+      kind: Panel
+      spec:
+        display: { name: Requests }
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: sum
+            sparkline: true
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                           count() AS requests
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND SpanName = 'POST /api/cli/sql' AND SpanKind = 'Server'
+                    GROUP BY ts
+                    ORDER BY ts
+    system-errors:
+      kind: Panel
+      spec:
+        display: { name: System errors, description: Our-fault failures (timeout, quota, resource, network, internal). The pager fires at 2 in 5 min. }
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: sum
+            thresholds:
+              mode: absolute
+              defaultColor: "#22c55e"
+              steps:
+                - { value: 1, color: "#f59e0b" }
+                - { value: 2, color: "#ef4444" }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT countIf(SpanAttributes['everr.cloud_query.outcome'] = 'system_error') AS system_errors
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND SpanName = 'POST /api/cli/sql' AND SpanKind = 'Server'
+    user-errors:
+      kind: Panel
+      spec:
+        display: { name: User errors, description: Caller's SQL at fault (bad query, blocked function, probing an unreadable table). Never pages. }
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: sum
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT countIf(SpanAttributes['everr.cloud_query.outcome'] = 'user_error') AS user_errors
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND SpanName = 'POST /api/cli/sql' AND SpanKind = 'Server'
+    p95-latency:
+      kind: Panel
+      spec:
+        display: { name: p95 edge latency, description: 95th percentile server-side request duration. }
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last
+            unit: ms
+            decimals: 0
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT round(quantile(0.95)(Duration) / 1e6, 0) AS p95_ms
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND SpanName = 'POST /api/cli/sql' AND SpanKind = 'Server'
+    volume-by-outcome:
+      kind: Panel
+      spec:
+        display: { name: Requests by outcome }
+        plugin:
+          kind: TimeSeriesChart
+          spec: { showLegend: true, stacked: true }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                           if(SpanAttributes['everr.cloud_query.outcome'] = '', 'unknown',
+                              SpanAttributes['everr.cloud_query.outcome']) AS outcome,
+                           count() AS requests
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND SpanName = 'POST /api/cli/sql' AND SpanKind = 'Server'
+                    GROUP BY ts, outcome
+                    ORDER BY ts
+    latency:
+      kind: Panel
+      spec:
+        display: { name: Edge latency percentiles, description: Server-side request duration p50/p95/max. Sparse at low volume. }
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            unit: ms
+            showLegend: true
+            lineWidth: 1.5
+            curveType: monotone
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                           round(quantile(0.5)(Duration) / 1e6, 1) AS p50,
+                           round(quantile(0.95)(Duration) / 1e6, 1) AS p95,
+                           round(max(Duration) / 1e6, 1) AS max
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND SpanName = 'POST /api/cli/sql' AND SpanKind = 'Server'
+                    GROUP BY ts
+                    ORDER BY ts
+    slowest-queries:
+      kind: Panel
+      spec:
+        display:
+          name: Slowest queries
+          description: >-
+            The slowest individual requests in the window. Watch here for queries
+            creeping toward the 30s ClickHouse cap. Open the trace to see the full
+            CLI to ClickHouse waterfall.
+        plugin:
+          kind: Table
+          spec: { stickyHeader: true }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT formatDateTime(Timestamp, '%m-%d %H:%i:%S') AS time,
+                           SpanAttributes['everr.org_id'] AS org,
+                           round(Duration / 1e6, 0) AS duration_ms,
+                           if(SpanAttributes['everr.cloud_query.outcome'] = '', 'unknown',
+                              SpanAttributes['everr.cloud_query.outcome']) AS outcome,
+                           TraceId AS trace_id
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND SpanName = 'POST /api/cli/sql' AND SpanKind = 'Server'
+                    ORDER BY Duration DESC
+                    LIMIT 30
+    errors-by-kind:
+      kind: Panel
+      spec:
+        display:
+          name: Errors by kind
+          description: Failure breakdown by classified kind. system_* pages, user_* does not.
+        plugin:
+          kind: Table
+          spec: { stickyHeader: true }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT SpanAttributes['everr.cloud_query.outcome'] AS outcome,
+                           SpanAttributes['everr.cloud_query.kind'] AS kind,
+                           count() AS count,
+                           formatDateTime(max(Timestamp), '%m-%d %H:%i') AS last_seen
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND SpanName = 'POST /api/cli/sql' AND SpanKind = 'Server'
+                      AND SpanAttributes['everr.cloud_query.outcome'] IN ('user_error', 'system_error')
+                    GROUP BY outcome, kind
+                    ORDER BY count DESC
+                    LIMIT 20
+    top-tenants:
+      kind: Panel
+      spec:
+        display:
+          name: Top tenants
+          description: Organizations using cloud query, with their error counts.
+        plugin:
+          kind: Table
+          spec: { stickyHeader: true }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT SpanAttributes['everr.org_id'] AS org,
+                           count() AS requests,
+                           countIf(SpanAttributes['everr.cloud_query.outcome'] = 'user_error') AS user_errors,
+                           countIf(SpanAttributes['everr.cloud_query.outcome'] = 'system_error') AS system_errors
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND SpanName = 'POST /api/cli/sql' AND SpanKind = 'Server'
+                    GROUP BY org
+                    ORDER BY requests DESC
+                    LIMIT 30
+    trace-join-health:
+      kind: Panel
+      spec:
+        display:
+          name: Trace join health
+          description: >-
+            Percent of cloud-query requests whose CLI leg also landed (same
+            TraceId carries an everr-cli span). Below 100% means the CLI trace
+            was dropped by the 750ms flush cap or the caller had no ingest key.
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last
+            unit: "%"
+            decimals: 0
+            thresholds:
+              mode: absolute
+              defaultColor: "#ef4444"
+              steps:
+                - { value: 50, color: "#f59e0b" }
+                - { value: 90, color: "#22c55e" }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT round(100 *
+                             uniqExactIf(TraceId, ServiceName = 'everr-cli') /
+                             nullIf(uniqExactIf(TraceId, SpanName = 'POST /api/cli/sql' AND SpanKind = 'Server'), 0),
+                           0) AS joined_pct
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND (
+                        (SpanName = 'POST /api/cli/sql' AND SpanKind = 'Server')
+                        OR ServiceName = 'everr-cli'
+                      )
+  layouts:
+    - kind: Grid
+      spec:
+        items:
+          - { x: 0,  y: 0,  width: 6,  height: 5,  content: { $ref: "#/spec/panels/total-requests" } }
+          - { x: 6,  y: 0,  width: 6,  height: 5,  content: { $ref: "#/spec/panels/system-errors" } }
+          - { x: 12, y: 0,  width: 6,  height: 5,  content: { $ref: "#/spec/panels/user-errors" } }
+          - { x: 18, y: 0,  width: 6,  height: 5,  content: { $ref: "#/spec/panels/p95-latency" } }
+          - { x: 0,  y: 5,  width: 24, height: 8,  content: { $ref: "#/spec/panels/volume-by-outcome" } }
+          - { x: 0,  y: 13, width: 24, height: 8,  content: { $ref: "#/spec/panels/latency" } }
+          - { x: 0,  y: 21, width: 24, height: 9,  content: { $ref: "#/spec/panels/slowest-queries" } }
+          - { x: 0,  y: 30, width: 12, height: 8,  content: { $ref: "#/spec/panels/errors-by-kind" } }
+          - { x: 12, y: 30, width: 12, height: 8,  content: { $ref: "#/spec/panels/top-tenants" } }
+          - { x: 0,  y: 38, width: 8,  height: 5,  content: { $ref: "#/spec/panels/trace-join-health" } }

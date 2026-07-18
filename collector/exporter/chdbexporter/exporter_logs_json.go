@@ -64,6 +64,10 @@ func (e *logsJSONExporter) start(ctx context.Context, _ component.Host) error {
 			return createDBErr
 		}
 
+		if fnErr := internal.CreateErrorFingerprintFunction(ctx, e.db); fnErr != nil {
+			return fnErr
+		}
+
 		if adoptErr := adoptLegacyLogsTable(ctx, e.cfg, e.db); adoptErr != nil {
 			return adoptErr
 		}

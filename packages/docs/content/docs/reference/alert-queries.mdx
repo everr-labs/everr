@@ -1,0 +1,87 @@
+---
+title: Alert query patterns
+description: Express thresholds with WHERE and HAVING, control instance identity, choose an evaluation interval, and keep result sets small.
+---
+
+The condition lives in the SQL: `WHERE` scopes the data, `HAVING` thresholds the aggregate, and every returned row is a firing instance. An empty result means resolved.
+
+Writing an alert? Start from [Writing good alerts](/docs/guides/writing-good-alerts), then [link it to a runbook](/docs/guides/link-alerts-to-runbooks) — this page is the SQL reference behind both.
+
+Unlike panel queries, alert SQL does **not** support `${...}` template tokens; those are only for message templates.
+
+## Express a threshold
+
+There is no separate threshold field. You put the condition in the query itself, so it returns rows only when something is actually wrong. Use `WHERE` to scope the data you look at, and `HAVING` to threshold an aggregate:
+
+```sql
+SELECT ServiceName, round(avg(Value) * 1000, 1) AS p99_delay_ms
+FROM metrics_gauge
+WHERE MetricName = 'nodejs.eventloop.delay.p99'
+  AND TimeUnix >= now() - INTERVAL 5 MINUTE
+GROUP BY ServiceName
+HAVING p99_delay_ms > 100   -- normal is ~10ms; fire only when the loop is blocked
+```
+
+When no service crosses the threshold the query returns nothing, and the alert is resolved.
+
+For percentage alerts, guard against tiny samples. One failed request out of one total request is technically a 100% error rate, but it usually should not notify anyone. Add a minimum-volume condition alongside the rate:
+
+```sql
+SELECT
+  ServiceName,
+  count() AS total,
+  countIf(SeverityNumber >= 17) AS errors,
+  round(errors / total, 4) AS error_rate
+FROM logs
+WHERE Timestamp >= now() - INTERVAL 15 MINUTE
+GROUP BY ServiceName
+HAVING total >= 100
+  AND error_rate > 0.05
+ORDER BY error_rate DESC
+LIMIT 50
+```
+
+Filter known-benign data in SQL. For example, exclude test services, development environments, or maintenance jobs when those rows do not represent a real problem.
+
+## Instance identity
+
+By default, an instance's identity is the set of **string** columns the query returns. The query above returns `ServiceName` (a string) and `p99_delay_ms` (a number), so it produces one instance per service automatically, a single rule scales across every service instead of needing one rule each. Because the numeric `p99_delay_ms` column is not part of identity, a service stays the same instance as its delay rises and falls.
+
+The common reason to override is a string column you want in the notification but not in the identity. Say you surface the worst-affected host so the message can name it:
+
+```yaml
+spec:
+  query: |
+    SELECT
+      ServiceName,
+      argMax(ResourceAttributes['host.name'], Value) AS worst_host,
+      round(avg(Value) * 1000, 1) AS p99_delay_ms
+    FROM metrics_gauge
+    WHERE MetricName = 'nodejs.eventloop.delay.p99'
+      AND TimeUnix >= now() - INTERVAL 5 MINUTE
+    GROUP BY ServiceName
+    HAVING p99_delay_ms > 100
+```
+
+The query returns one row per service, but `worst_host` is also a string, so by default the identity is `ServiceName` **and** `worst_host`. Host names like `app-f9867cfd6-7p8qf` change on every redeploy and as load moves around, so the identity would churn: the old instance resolves and a new one fires each time the worst host changes, spamming notifications for a service that never actually recovered.
+
+Set `spec.instanceLabels` to pin the identity to just the service, keeping `worst_host` available for the message:
+
+```yaml
+spec:
+  instanceLabels: [ServiceName]   # identity is the service, regardless of host
+```
+
+The columns you list become the entire identity; any other string column is carried along only for the message. Make sure the query returns a single row per identity, if two rows share the same identity, they collapse into one instance.
+
+## Choose an evaluation interval
+
+`spec.evaluationInterval` is an `<integer><s|m|h|d>` duration with a minimum of `1m` (for example `1m`, `5m`, `1h`). Align the query's time window to the interval: a 5-minute lookback evaluated every minute smooths transient spikes, because a single momentary blip is averaged into the window rather than notifying on its own.
+
+Everr notifies on the firing and resolved edges as soon as the rule evaluates. There is no separate "for" or pending duration to wait out, so use the query window itself to control flapping.
+
+## Keep results small
+
+The firing set *is* the rows the query returns, so return only what's firing, push the filtering and the threshold into the SQL with `WHERE` and `HAVING`. Emit one row per instance, avoid `SELECT *` on large sets, and add a `LIMIT` for safety on broad queries.
+
+Return the columns needed for identity, message templates, and the measured values that explain why the alert fired. Extra high-cardinality string columns can create extra instances unless you override `spec.instanceLabels`.

@@ -1,0 +1,108 @@
+---
+title: Cost Analysis
+description: Find CI cost and wall-time optimization opportunities.
+---
+
+CI cost is usually hard to reason about from a single workflow run. A
+five-minute run can be cheap or expensive depending on how many jobs ran in
+parallel, which runner labels they used, whether the jobs retried, and how
+much rounding the billing system applied.
+
+Everr turns GitHub Actions job data into a cost view you can inspect in the
+dashboard and hand to a coding assistant. It shows which workflows,
+repositories, and runner choices are worth changing, not just what you spent
+last month.
+
+Cost is estimated per job from runner time, so parallel jobs, retries, and
+per-minute rounding all change the bill in ways a single run's wall-clock time
+hides. If those numbers ever look surprising, read [How CI Billing
+Works](/docs/concepts/how-ci-cost-is-estimated) for the full model behind Everr's
+estimates.
+
+## Working with a coding assistant
+
+Cost optimization is a good assistant task because the assistant can connect
+the dashboard signal to workflow YAML, logs, test history, and repository
+structure.
+
+Run the assistant inside the code repository, not from a detached chat. Everr
+knows what happened in imported GitHub Actions runs: workflows, jobs, runner
+labels, durations, logs, attempts, and cost estimates. It does not know the
+source-controlled workflow definitions, composite actions, scripts, package
+layout, or project-specific CI intent unless the assistant can inspect the
+checkout. The useful loop is Everr for the runtime signal, the repository for
+the actual change.
+
+Use Everr to identify the hotspot, then ask your assistant to inspect the
+workflow and propose a small change:
+
+```txt
+Use Everr's cost analysis to find the most expensive workflow in this repo over
+the last 30 days. Then inspect the workflow YAML and suggest one low-risk
+change that would reduce billed minutes without weakening CI coverage.
+```
+
+For rounding waste:
+
+```txt
+Everr shows billed minutes much higher than total minutes for this workflow.
+Find the short jobs that cause the rounding overhead and suggest whether they
+should be combined, removed, or left separate.
+```
+
+For runner choice:
+
+```txt
+Everr shows most CI spend on macOS and Windows runners. Inspect the workflows
+and identify steps that can safely run on Linux, keeping platform-specific tests
+on their original runners.
+```
+
+For performance work:
+
+```txt
+Use Everr's CI run history and logs to find the slowest repeated setup or test
+steps in this workflow. Propose a caching or test-splitting change and explain
+how we would verify the cost impact after the next few runs.
+```
+
+Keep the loop tight: change one workflow, let it run a few times, then compare
+the same Everr time range before and after the change. Optimizing CI is easiest
+when every change has a clear hypothesis, such as "reduce macOS minutes by
+moving lint to Linux" or "reduce rounding waste by merging three sub-minute
+jobs."
+
+If you use Everr's bundled skills, install them so assistants know how to fetch
+CI context directly. See [Skills](/docs/reference/skills) for installation and
+management.
+
+## How to find optimization work
+
+Start with the highest-cost workflows, not the slowest ones. A workflow can be
+slow because one cheap Linux job is long, or expensive because many short macOS
+or Windows jobs run in parallel.
+
+Good first questions:
+
+- Which workflows have the highest estimated cost?
+- Which runner labels account for most of the spend?
+- Which workflows have much higher billed minutes than total minutes?
+- Which workflows have a high average cost per run?
+- Which scheduled or pull request workflows run more often than they need to?
+- Which jobs are using expensive runners for work that could run on Linux or a
+  smaller runner?
+
+Common fixes include:
+
+- move platform-independent work from macOS or Windows to Linux;
+- split platform-specific jobs so only the required steps use expensive
+  runners;
+- right-size larger runners when extra CPU is not reducing total cost;
+- add caching for dependency installs, build outputs, and test setup;
+- reduce matrix combinations that do not protect a real compatibility boundary;
+- use path filters so docs-only or frontend-only changes do not run unrelated
+  jobs;
+- cancel superseded pull request runs;
+- fail fast before expensive integration or release jobs start;
+- reduce artifact retention or artifact size when storage is also a cost
+  driver.

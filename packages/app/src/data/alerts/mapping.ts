@@ -2,9 +2,11 @@ import type { CcRuleSpec } from "@/data/cc/types";
 import {
   type AlertRuleYaml,
   formatRunbookRef,
+  isReservedAnnotationKey,
   parseRunbookRef,
 } from "./schema";
 import {
+  formatDurationSeconds,
   parseEvaluationInterval,
   parseForDuration,
   parseWindow,
@@ -180,6 +182,75 @@ export function fromCcRuleSpec(spec: CcRuleSpec): SimpleAlertView {
     // `?? false`: hand-built specs (tests, pre-suppression payloads that
     // bypassed the schema default) may omit the field.
     suppressed: spec.suppressed ?? false,
+  };
+}
+
+/**
+ * CC RuleSpec → the canonical `kind: AlertRule` as-code document, the inverse
+ * of {@link toRuleSpec} for everr-owned rules. Used by the resources CLI
+ * (`everr resources show`) where dashboards/runbooks return their stored YAML
+ * document; alerts have no stored document (the CC rule IS the resource), so
+ * one is reconstructed from the spec. Generated annotations (`everr.*`,
+ * `summary`, `description`, `link.*`) fold back into their source fields;
+ * everything else is the user's pass-through `spec.annotations`.
+ */
+export function toAlertRuleDocument(spec: CcRuleSpec): AlertRuleYaml {
+  const ann = spec.annotations ?? {};
+
+  const labels: Record<string, string> = {};
+  const passthrough: Record<string, string> = {};
+  for (const [key, value] of Object.entries(ann)) {
+    if (key.startsWith(ANN_LABEL_PREFIX)) {
+      labels[key.slice(ANN_LABEL_PREFIX.length)] = value;
+    } else if (!isReservedAnnotationKey(key)) {
+      passthrough[key] = value;
+    }
+  }
+
+  const display =
+    ann[ANN_DISPLAY_NAME] || ann[ANN_DISPLAY_DESCRIPTION]
+      ? {
+          ...(ann[ANN_DISPLAY_NAME] ? { name: ann[ANN_DISPLAY_NAME] } : {}),
+          ...(ann[ANN_DISPLAY_DESCRIPTION]
+            ? { description: ann[ANN_DISPLAY_DESCRIPTION] }
+            : {}),
+        }
+      : undefined;
+
+  return {
+    kind: "AlertRule",
+    metadata: {
+      name: ann[OWN_NAME] ?? "",
+      ...(Object.keys(labels).length > 0 ? { labels } : {}),
+    },
+    spec: {
+      ...(display ? { display } : {}),
+      // The stored ref is already canonical (project/slug, or a bare slug for
+      // the default project), which the schema accepts as-is. `undefined`
+      // values drop out when the document is serialized to JSON/YAML.
+      runbook: ann[ANN_RUNBOOK] ?? undefined,
+      evaluationInterval: formatDurationSeconds(spec.interval_secs),
+      for: formatDurationSeconds(spec.for_secs),
+      resolveAfter: spec.resolve_after,
+      severity: spec.severity,
+      notificationMessage: {
+        title: ann[ANN_TITLE] ?? "",
+        ...(ann[ANN_DESCRIPTION] ? { description: ann[ANN_DESCRIPTION] } : {}),
+      },
+      query: spec.sql,
+      instanceLabels:
+        spec.label_columns && spec.label_columns.length > 0
+          ? spec.label_columns
+          : undefined,
+      ...(spec.value_column ? { valueColumn: spec.value_column } : {}),
+      ...(spec.max_interval_secs !== undefined &&
+      spec.max_interval_secs !== null
+        ? { maxInterval: formatDurationSeconds(spec.max_interval_secs) }
+        : {}),
+      ...(Object.keys(passthrough).length > 0
+        ? { annotations: passthrough }
+        : {}),
+    },
   };
 }
 

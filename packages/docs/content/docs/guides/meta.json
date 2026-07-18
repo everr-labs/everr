@@ -1,0 +1,21 @@
+{
+  "title": "Guides",
+  "defaultOpen": true,
+  "pages": [
+    "production-telemetry",
+    "browser-telemetry",
+    "publishing-resources",
+    "writing-good-alerts",
+    "link-alerts-to-runbooks",
+    "set-up-notifications",
+    "---CI---",
+    "setup-new-repo",
+    "debug-ci",
+    "resource-monitoring",
+    "cost-analysis",
+    "---Test telemetry---",
+    "vitest",
+    "go-tests",
+    "rust-tests"
+  ]
+}

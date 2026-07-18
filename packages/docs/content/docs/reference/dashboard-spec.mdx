@@ -1,0 +1,155 @@
+---
+title: Dashboard Spec
+description: The full Perses-compatible dashboard file format Everr validates and renders.
+---
+
+A dashboard file is a [Perses](https://perses.dev)-style resource with three top-level keys. Everr validates it on `everr apply` and again on read; the whole document is stored **verbatim**, so unknown Perses fields — at the top level or inside `spec` — survive a read/apply round-trip unchanged. (The folder path is the one piece of state kept outside the document: it's derived from the file's directory, not declared in the file.)
+
+```yaml
+kind: Dashboard
+metadata:
+  name: <slug>
+  project: platform        # optional; defaults to "default"
+spec:
+  { ... }
+```
+
+| Key | Type | Notes |
+| --- | --- | --- |
+| `kind` | `"Dashboard"` | Selects the reconciler. Required. |
+| `metadata.name` | string | The **slug** — identity within its project, and the URL segment. Set it explicitly; the file is named `<slug>.dashboard.yaml` to match. See [Slug rules](#slug-rules). |
+| `metadata.project` | string | Groups dashboards into a named set. Optional; defaults to `default`. Identity is `project` + `slug`, so two projects can share the same slug without colliding. |
+| `spec` | object | The dashboard contents, below. |
+
+## `spec`
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `panels` | map&lt;string, [Panel](#panel)&gt; | yes | Panel key → panel. Keys are referenced by layouts. |
+| `layouts` | [[Grid](#grid-layout)] | yes | Placement of panels on the grid. |
+| `display` | [Display](#display) | no | Dashboard title / description. |
+| `variables` | [[Variable](#variables)] | no | Template variables. |
+| `duration` | string | no | Default time-range window (e.g. `1h`, `24h`). [Seeds the time range.](#time-defaults) |
+| `refreshInterval` | string | no | Default auto-refresh (e.g. `30s`, `1m`). |
+| `datasources` | map&lt;string, object&gt; | no | Accepted for Perses compatibility; **no runtime effect**. |
+
+### Display
+
+```yaml
+display:
+  name: API Latency        # optional
+  description: ...         # optional
+```
+
+### Panel
+
+```yaml
+<panel-key>:
+  kind: Panel
+  spec:
+    display: { name: ..., description: ... }   # description optional
+    plugin:
+      kind: TimeSeriesChart | Table | StatChart
+      spec: { ... }                            # see Visualizations reference
+    queries:                                    # optional
+      - kind: ClickHouseSQL
+        spec:
+          plugin:
+            kind: ClickHouseSQL
+            spec:
+              query: "SELECT ..."
+```
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `kind` | `"Panel"` | Required. |
+| `spec.display` | [Display](#display) | `name` shown as the panel title. |
+| `spec.plugin.kind` | string | Visualization kind. See [Visualizations](/docs/reference/visualizations). |
+| `spec.plugin.spec` | object | Visualization options. |
+| `spec.queries` | [PanelQuery] | Optional list. Each query's SQL is at `spec.plugin.spec.query`; query `kind` is `ClickHouseSQL`. |
+
+### Query parameters
+
+Every dashboard query — panel queries and variable [options queries](/docs/reference/variables) alike — is run with these ClickHouse parameters bound. They are always provided (referencing them never errors, and unreferenced parameters are ignored), but they are **not** injected into the SQL — the query must reference them. Usage guide: [Time range parameters](/docs/reference/visualizations#time-range-parameters).
+
+| Parameter | Value |
+| --- | --- |
+| `{from:String}` / `{to:String}` | The dashboard's selected time range — UTC datetimes in `YYYY-MM-DD HH:MM:SS.mmm` form (millisecond precision; compare them directly rather than assuming whole seconds). |
+| `{step:UInt32}` | Adaptive bucket width in seconds: the range divided by a ~500-point budget, snapped up to the next clock-aligned width — 1/2/5/10/15/20/30s, 1/2/5/10/15/30m, 1/2/3/6/12h, 1d, then whole days. |
+
+### Grid layout
+
+```yaml
+layouts:
+  - kind: Grid
+    spec:
+      display: { title: ..., collapse: { open: true } }   # optional
+      items:
+        - x: 0
+          y: 0
+          width: 12
+          height: 8
+          content: { $ref: "#/spec/panels/<panel-key>" }
+```
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `kind` | `"Grid"` | Required. |
+| `spec.items[].x` / `.y` | number | Cell position. The grid is 24 columns wide. |
+| `spec.items[].width` / `.height` | number | Cell span. |
+| `spec.items[].content.$ref` | string | `#/spec/panels/<panel-key>`. A panel renders only if referenced here. |
+
+### Variables
+
+A discriminated union on `kind`. Full guide: [Variables](/docs/reference/variables).
+
+`TextVariable`:
+
+```yaml
+- kind: TextVariable
+  spec:
+    name: search
+    value: ""
+    display: { name: Search, hidden: false }   # optional
+    constant: false                            # optional
+```
+
+`ListVariable`:
+
+```yaml
+- kind: ListVariable
+  spec:
+    name: service
+    display: { name: Service, hidden: false }   # optional
+    defaultValue: ""        # string, or [..] when allowMultiple   (optional)
+    allowMultiple: false    # optional
+    allowAllValue: false    # optional
+    customAllValue: ""      # optional; substituted when "All" is selected
+    sort: none              # optional; see below
+    capturingRegexp: ""     # optional; accepted, no runtime effect
+    plugin:
+      kind: StaticListVariable | ClickHouseSQLVariable
+      spec:
+        values: [a, b]      # StaticListVariable
+        # query: "SELECT ..."   # ClickHouseSQLVariable (first column = options)
+```
+
+`sort` accepts: `none`, `alphabetical-asc`, `alphabetical-desc`, `numerical-asc`, `numerical-desc`, `alphabetical-ci-asc`, `alphabetical-ci-desc`.
+
+## Slug rules
+
+The slug (from `metadata.name`; set it explicitly under the `<slug>.dashboard.yaml` naming convention) must:
+
+- use only lowercase letters, digits, and hyphens,
+- not start or end with a hyphen,
+- be 1–200 characters.
+
+A slug must be unique within a project; applying two files that resolve to the same slug within the same project fails.
+
+## Time defaults
+
+When a dashboard defines `duration` and/or `refreshInterval`, Everr seeds the URL time-range params from them once per visit if they're absent. Explicit URL params always win, so shared links keep their exact range.
+
+## Compatibility boundaries
+
+The format mirrors Perses so files stay portable, but a few fields are accepted without runtime behavior in Everr today: `datasources`, variable `capturingRegexp`, and variable chaining/aliases (see [Variables → Not supported](/docs/reference/variables#not-supported)). The only query plugin executed is `ClickHouseSQL`.

@@ -33,7 +33,15 @@
     // CC matchers editor — consumers (routes/inhibitions/silences pages) added in follow-up tasks.
     "packages/app/src/components/cc/matchers-editor.tsx",
   ],
-  "ignoreDependencies": ["@everr/auto-otel-errors"],
+  // @everr/auto-otel-errors: referenced in docs/examples, not a build dep.
+  // The two @opentelemetry/* entries are imported only by the OTel web SDK
+  // sample in content/docs/guides/browser-telemetry.mdx (the reader
+  // installs them in their own app); they are not docs-site dependencies.
+  "ignoreDependencies": [
+    "@everr/auto-otel-errors",
+    "@opentelemetry/exporter-trace-otlp-http",
+    "@opentelemetry/sdk-trace-web"
+  ],
   // Docs content (MDX) is loaded dynamically by fumadocs via import.meta.glob
   // in packages/docs/.source/*.ts — fallow can't trace through the glob.
   "dynamicallyLoaded": [

@@ -11,8 +11,7 @@
   "dependencies": {
     "@base-ui/react": "^1.4.1",
     "@everr/datemath": "workspace:*",
-    "@fontsource-variable/inter": "^5.2.8",
-    "@fontsource-variable/space-grotesk": "^5.2.10",
+    "@fontsource-variable/instrument-sans": "^5.2.8",
     "@tanstack/react-query": "catalog:",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

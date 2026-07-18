@@ -38,6 +38,21 @@ export function parseForDuration(value: string): number {
   return parseDurationSeconds(value, "for duration", 0);
 }
 
+/**
+ * Seconds → canonical duration string, using the largest unit that divides
+ * evenly ("300" → "5m", "86400" → "1d", "90" → "90s", "0" → "0s"). Inverse of
+ * the parsers above for any value they can produce.
+ */
+export function formatDurationSeconds(seconds: number): string {
+  if (seconds > 0) {
+    for (const unit of ["d", "h", "m"] as const) {
+      const size = UNIT_SECONDS[unit];
+      if (seconds % size === 0) return `${seconds / size}${unit}`;
+    }
+  }
+  return `${seconds}s`;
+}
+
 export function parseEvaluationInterval(value: string): number {
   const seconds = parseWindow(value);
   if (seconds < 60) {

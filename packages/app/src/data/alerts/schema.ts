@@ -103,7 +103,7 @@ const RESERVED_ANNOTATION_KEYS = new Set([
   "link.runbook",
 ]);
 
-function isReservedAnnotationKey(key: string): boolean {
+export function isReservedAnnotationKey(key: string): boolean {
   return key.startsWith("everr.") || RESERVED_ANNOTATION_KEYS.has(key);
 }
 

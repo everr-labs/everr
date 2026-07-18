@@ -3,11 +3,15 @@ use std::fmt;
 use anyhow::{Context, Result};
 use eventsource_stream::Eventsource;
 use futures_util::StreamExt;
+use opentelemetry::global;
+use opentelemetry::propagation::Injector;
 use reqwest::StatusCode;
-use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue};
+use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderName, HeaderValue};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
+use tracing::Instrument;
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 use crate::build;
 use crate::state::Session;
@@ -166,28 +170,42 @@ impl ApiClient {
     }
 
     pub async fn post_sql(&self, sql: &str) -> Result<String> {
-        let response = self
-            .http
-            .post(format!("{}/sql", self.base_endpoint))
-            .header(CONTENT_TYPE, "text/plain")
-            .body(sql.to_string())
-            .send()
-            .await
-            .context("CLI SQL request failed")?;
+        // A CLIENT span whose W3C context is injected into the request, so the
+        // server continues this trace (CLI → server → ClickHouse). No-op unless
+        // the caller installed a tracer provider + propagator (the CLI does).
+        let span = tracing::info_span!(
+            target: "everr_api",
+            "POST /api/cli/sql",
+            otel.kind = "client",
+            http.request.method = "POST",
+        );
+        async move {
+            let response = self
+                .http
+                .post(format!("{}/sql", self.base_endpoint))
+                .header(CONTENT_TYPE, "text/plain")
+                .headers(current_trace_headers())
+                .body(sql.to_string())
+                .send()
+                .await
+                .context("CLI SQL request failed")?;
 
-        if !response.status().is_success() {
-            let status = response.status();
-            let text = response
+            if !response.status().is_success() {
+                let status = response.status();
+                let text = response
+                    .text()
+                    .await
+                    .unwrap_or_else(|_| "<failed to read body>".to_string());
+                return Err(http_status_error(status, text, "CLI SQL request"));
+            }
+
+            response
                 .text()
                 .await
-                .unwrap_or_else(|_| "<failed to read body>".to_string());
-            return Err(http_status_error(status, text, "CLI SQL request"));
+                .context("failed to read CLI SQL response body")
         }
-
-        response
-            .text()
-            .await
-            .context("failed to read CLI SQL response body")
+        .instrument(span)
+        .await
     }
 
     pub async fn get_step_logs(
@@ -316,6 +334,85 @@ impl ApiClient {
         self.get("/repos", &[]).await
     }
 
+    pub async fn list_resources(
+        &self,
+        kind: Option<&str>,
+        repoid: Option<&str>,
+    ) -> Result<Vec<ResourceSummary>> {
+        let mut query: Vec<(&str, String)> = Vec::new();
+        if let Some(k) = kind {
+            query.push(("kind", k.to_string()));
+        }
+        if let Some(r) = repoid {
+            query.push(("repoid", r.to_string()));
+        }
+        self.get("/resources", &query).await
+    }
+
+    pub async fn get_resource(
+        &self,
+        kind: &str,
+        project: &str,
+        slug: &str,
+    ) -> Result<serde_json::Value> {
+        self.get(&resource_path(kind, project, slug), &[]).await
+    }
+
+    /// Send a request and return the response, mapping any non-2xx status to a
+    /// `http_status_error` (reading the body for the message). `context` labels
+    /// the operation in the error, e.g. "delete resource".
+    async fn send_checked(
+        &self,
+        request: reqwest::RequestBuilder,
+        context: &'static str,
+    ) -> Result<reqwest::Response> {
+        let response = request
+            .send()
+            .await
+            .with_context(|| format!("{context} request failed"))?;
+        if !response.status().is_success() {
+            let status = response.status();
+            let text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "<failed to read body>".to_string());
+            return Err(http_status_error(status, text, context));
+        }
+        Ok(response)
+    }
+
+    pub async fn delete_resource(&self, kind: &str, project: &str, slug: &str) -> Result<()> {
+        let request = self.http.delete(format!(
+            "{}{}",
+            self.base_endpoint,
+            resource_path(kind, project, slug)
+        ));
+        self.send_checked(request, "delete resource").await?;
+        Ok(())
+    }
+
+    pub async fn adopt_resource(
+        &self,
+        kind: &str,
+        project: &str,
+        slug: &str,
+        repoid: &str,
+    ) -> Result<AdoptOutcome> {
+        let request = self
+            .http
+            .post(format!(
+                "{}{}/adopt",
+                self.base_endpoint,
+                resource_path(kind, project, slug)
+            ))
+            .json(&serde_json::json!({ "repoid": repoid }));
+        let response = self.send_checked(request, "adopt resource").await?;
+        response
+            .json()
+            .await
+            .context("failed to decode adopt response")
+    }
+
     /// Calls POST /api/cli/import and returns once the server acknowledges the import has started.
     pub async fn start_import_repos(&self, repos: &[String]) -> Result<()> {
         let response = self
@@ -365,6 +462,38 @@ impl ApiClient {
             .await
             .context("failed to decode CLI API response as JSON")
     }
+}
+
+/// The API path identifying one resource, shared by show/delete/adopt.
+fn resource_path(kind: &str, project: &str, slug: &str) -> String {
+    format!("/resources/{kind}/{project}/{slug}")
+}
+
+/// Writes W3C propagation headers (traceparent/tracestate) into a HeaderMap.
+struct HeaderInjector<'a>(&'a mut HeaderMap);
+
+impl Injector for HeaderInjector<'_> {
+    fn set(&mut self, key: &str, value: String) {
+        if let (Ok(name), Ok(val)) = (
+            HeaderName::from_bytes(key.as_bytes()),
+            HeaderValue::from_str(&value),
+        ) {
+            self.0.insert(name, val);
+        }
+    }
+}
+
+/// Trace-propagation headers for the current span, to add to an outgoing
+/// request. Empty when no tracer/propagator is installed (e.g. in tests, the
+/// desktop app, or when telemetry is disabled) — the global propagator defaults
+/// to a no-op, so nothing is injected and the request is unchanged.
+fn current_trace_headers() -> HeaderMap {
+    let mut headers = HeaderMap::new();
+    let context = tracing::Span::current().context();
+    global::get_text_map_propagator(|propagator| {
+        propagator.inject_context(&context, &mut HeaderInjector(&mut headers));
+    });
+    headers
 }
 
 fn http_status_error(status: StatusCode, text: String, context: &str) -> anyhow::Error {
@@ -515,6 +644,26 @@ impl OrgResponse {
 pub struct RepoEntry {
     pub id: i64,
     pub full_name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResourceSummary {
+    pub kind: String,
+    pub project: String,
+    pub slug: String,
+    pub repoid: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AdoptOutcome {
+    pub kind: String,
+    pub project: String,
+    pub slug: String,
+    pub repoid: String,
+    pub already_owned: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -859,6 +1008,114 @@ data: {"tenantId":1,"traceId":"trace-1","runId":"42","sha":"deadbeef","repo":"ev
         assert_eq!(payload.trace_id, "trace-1");
         assert_eq!(payload.event_type, "run");
         assert_eq!(payload.conclusion.as_deref(), Some("success"));
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn list_resources_parses_and_sends_filters() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("GET", "/api/cli/resources")
+            .match_query(mockito::Matcher::UrlEncoded("kind".into(), "runbook".into()))
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                r#"[{"kind":"runbook","project":"default","slug":"oom","repoid":"github.com/acme/app","updatedAt":"2026-07-01T00:00:00.000Z"}]"#,
+            )
+            .create_async()
+            .await;
+
+        let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
+        let out = client.list_resources(Some("runbook"), None).await.unwrap();
+
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].kind, "runbook");
+        assert_eq!(out[0].slug, "oom");
+        assert_eq!(out[0].repoid, "github.com/acme/app");
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn get_resource_returns_document_json() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("GET", "/api/cli/resources/dashboard/default/errors")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"kind":"Dashboard","metadata":{"name":"errors"}}"#)
+            .create_async()
+            .await;
+
+        let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
+        let doc = client
+            .get_resource("dashboard", "default", "errors")
+            .await
+            .unwrap();
+
+        assert_eq!(doc["kind"], "Dashboard");
+        assert_eq!(doc["metadata"]["name"], "errors");
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn delete_resource_succeeds_on_2xx() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("DELETE", "/api/cli/resources/dashboard/default/errors")
+            .with_status(200)
+            .with_body(r#"{"ok":true}"#)
+            .create_async()
+            .await;
+
+        let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
+        client
+            .delete_resource("dashboard", "default", "errors")
+            .await
+            .unwrap();
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn delete_resource_surfaces_404() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("DELETE", "/api/cli/resources/dashboard/default/nope")
+            .with_status(404)
+            .with_body(r#"{"error":"resource not found: dashboard/default/nope"}"#)
+            .create_async()
+            .await;
+
+        let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
+        let err = client
+            .delete_resource("dashboard", "default", "nope")
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("404"), "got: {err}");
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn adopt_resource_sends_repoid_and_parses_outcome() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("POST", "/api/cli/resources/dashboard/default/errors/adopt")
+            .match_body(r#"{"repoid":"github.com/acme/app"}"#)
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                r#"{"kind":"dashboard","project":"default","slug":"errors","repoid":"github.com/acme/app","alreadyOwned":false}"#,
+            )
+            .create_async()
+            .await;
+
+        let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
+        let outcome = client
+            .adopt_resource("dashboard", "default", "errors", "github.com/acme/app")
+            .await
+            .unwrap();
+
+        assert_eq!(outcome.repoid, "github.com/acme/app");
+        assert!(!outcome.already_owned);
         mock.assert_async().await;
     }
 }

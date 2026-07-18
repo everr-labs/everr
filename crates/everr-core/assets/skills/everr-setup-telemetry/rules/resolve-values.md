@@ -77,4 +77,4 @@ For production Everr ingest:
 - Set `Authorization: Bearer <ingest-key>` server-side only.
 - Never commit keys, print keys, invent keys, or expose `EVERR_INGEST_KEY` in browser bundles.
 
-Browser production telemetry must go through a backend or collector that attaches credentials server-side.
+Browser production telemetry authenticates with a **public** ingest key instead: origin-bound, ingest-only, safe in page source, injected through a client build variable such as `VITE_EVERR_PUBLIC_INGEST_KEY`. Never ship a secret key to the browser. See `rules/browser.md`.

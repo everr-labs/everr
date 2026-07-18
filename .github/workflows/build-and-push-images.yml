@@ -102,6 +102,8 @@ jobs:
           context: .
           file: packages/app/Dockerfile
           push: true
+          build-args: |
+            VITE_EVERR_PUBLIC_INGEST_KEY=${{ vars.APP_EVERR_PUBLIC_INGEST_KEY }}
           tags: |
             ${{ env.SCW_REGISTRY_HOST }}/${{ env.SCW_REGISTRY_NAMESPACE }}/app:${{ github.sha }}
             ${{ env.SCW_REGISTRY_HOST }}/${{ env.SCW_REGISTRY_NAMESPACE }}/app:latest

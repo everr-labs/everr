@@ -1,3 +1,6 @@
+// Side-effect import: starts browser error tracking as early as the client
+// bundle loads (no-op during SSR and when unconfigured). See telemetry/client.
+import "@/telemetry/client";
 import { Toaster } from "@everr/ui/components/sonner";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import { FormDevtoolsPanel } from "@tanstack/react-form-devtools";

@@ -45,6 +45,8 @@ pub enum Commands {
     Skills(SkillsArgs),
     /// Apply a directory of resource definitions (gitops)
     Apply(ApplyArgs),
+    /// Inspect and manage live Cloud resources (dashboards, runbooks, alerts)
+    Resources(ResourcesArgs),
 }
 
 impl Cli {
@@ -66,6 +68,7 @@ impl Commands {
             Commands::Init => true,
             Commands::Skills(_) => true,
             Commands::Apply(_) => true,
+            Commands::Resources(args) => args.command.prints_human_stdout(stdout_is_terminal),
         }
     }
 }
@@ -444,6 +447,106 @@ impl GetLogsArgs {
 pub struct LogPagingArgs {
     pub limit: u32,
     pub offset: u32,
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+pub enum ResourceKindArg {
+    Dashboard,
+    Runbook,
+    Alert,
+}
+
+impl ResourceKindArg {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ResourceKindArg::Dashboard => "dashboard",
+            ResourceKindArg::Runbook => "runbook",
+            ResourceKindArg::Alert => "alert",
+        }
+    }
+}
+
+#[derive(Args, Debug)]
+pub struct ResourcesArgs {
+    #[command(subcommand)]
+    pub command: ResourcesSubcommand,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum ResourcesSubcommand {
+    /// List live resources across the organization
+    List(ResourcesListArgs),
+    /// Print a resource's stored configuration
+    Show(ResourcesShowArgs),
+    /// Delete a live resource
+    Delete(ResourcesDeleteArgs),
+    /// Take ownership of a resource for this repository
+    Adopt(ResourcesTargetArgs),
+}
+
+impl ResourcesSubcommand {
+    fn prints_human_stdout(&self, _stdout_is_terminal: bool) -> bool {
+        match self {
+            ResourcesSubcommand::List(args) => !args.json,
+            ResourcesSubcommand::Show(args) => !args.json,
+            ResourcesSubcommand::Delete(_) | ResourcesSubcommand::Adopt(_) => true,
+        }
+    }
+}
+
+#[derive(Args, Debug)]
+pub struct ResourcesListArgs {
+    /// Only resources of this kind
+    #[arg(long, value_enum)]
+    pub kind: Option<ResourceKindArg>,
+    /// Only resources owned by this repoid (pass an empty string for UI-created)
+    #[arg(long)]
+    pub repoid: Option<String>,
+    /// Output raw JSON instead of a table
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Args, Debug)]
+pub struct ResourcesShowArgs {
+    /// Resource kind
+    #[arg(value_enum)]
+    pub kind: ResourceKindArg,
+    /// Resource slug (metadata.name)
+    pub slug: String,
+    /// Project namespace
+    #[arg(long, default_value = "default")]
+    pub project: String,
+    /// Output raw JSON instead of YAML
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Args, Debug)]
+pub struct ResourcesDeleteArgs {
+    /// Resource kind
+    #[arg(value_enum)]
+    pub kind: ResourceKindArg,
+    /// Resource slug (metadata.name)
+    pub slug: String,
+    /// Project namespace
+    #[arg(long, default_value = "default")]
+    pub project: String,
+}
+
+#[derive(Args, Debug)]
+pub struct ResourcesTargetArgs {
+    /// Resource kind
+    #[arg(value_enum)]
+    pub kind: ResourceKindArg,
+    /// Resource slug (metadata.name)
+    pub slug: String,
+    /// Project namespace
+    #[arg(long, default_value = "default")]
+    pub project: String,
+    /// Skip the confirmation prompt (required in non-interactive contexts)
+    #[arg(long, short = 'y')]
+    pub yes: bool,
 }
 
 #[cfg(test)]

@@ -10,9 +10,27 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+
+	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal/sqltemplates"
 )
 
 const DefaultDatabase = "default"
+
+// CreateErrorFingerprintFunction registers the errorFingerprint UDF (idempotent)
+// so `everr local query` and the desktop app group Errors the same way the cloud
+// does. Route it through Query, not Exec: chDB only persists CREATE FUNCTION when
+// the statement runs with a real output format, and Exec uses an empty one. Keep
+// the DDL in step with clickhouse/init/04-create-error-fingerprint-function.sql.
+func CreateErrorFingerprintFunction(ctx context.Context, db driver.Conn) error {
+	rows, err := db.Query(ctx, sqltemplates.CreateErrorFingerprintFunction)
+	if err != nil {
+		return fmt.Errorf("create errorFingerprint function: %w", err)
+	}
+	if rows != nil {
+		_ = rows.Close()
+	}
+	return nil
+}
 
 // DatabaseFromDSN returns the database specified in the DSN. Empty if unset.
 func DatabaseFromDSN(dsn string) (string, error) {

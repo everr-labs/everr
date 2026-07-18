@@ -21,6 +21,7 @@ mod test_support {
 use anyhow::Result;
 use clap::Parser;
 use cli::{CiSubcommand, Cli, CloudSubcommand, Commands};
+use tracing::Instrument;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -28,11 +29,21 @@ async fn main() -> Result<()> {
     let cli = Cli::parse_from(argv.clone());
     let telemetry = command_telemetry::init();
     let (command, subcommand) = command_telemetry::command_names(&cli);
-    command_telemetry::record_invocation(&cli, argv);
-    update_notice::maybe_print(&cli).await;
 
-    let result = run_command(cli.command).await;
-    command_telemetry::record_result(command, subcommand, &result);
+    // Run the whole command inside the root span so every everr-core HTTP call
+    // is a child of it and the injected trace context stitches the trace across
+    // the CLI → server → ClickHouse boundary.
+    let span = command_telemetry::command_span(command, subcommand);
+    let result = async move {
+        command_telemetry::record_invocation(&cli, argv);
+        update_notice::maybe_print(&cli).await;
+        let result = run_command(cli.command).await;
+        command_telemetry::record_result(command, subcommand, &result);
+        result
+    }
+    .instrument(span)
+    .await;
+
     telemetry.shutdown();
 
     result
@@ -60,6 +71,7 @@ async fn run_command(command: Commands) -> Result<()> {
         Commands::Init => init::run().await?,
         Commands::Skills(args) => skills::run(args)?,
         Commands::Apply(args) => core::run_apply(args).await?,
+        Commands::Resources(args) => core::run_resources(args.command).await?,
     }
 
     Ok(())

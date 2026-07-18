@@ -1,0 +1,72 @@
+---
+title: Link alerts to runbooks
+description: Point spec.runbook at a runbook so every notification lands responders on live panels, not a wall of prose.
+---
+
+Set `spec.runbook` on the alert, and ship a runbook whose panels show exactly what the alert measured. The alert — `error-spike.alert.yaml`:
+
+```yaml
+kind: AlertRule
+metadata:
+  name: error-spike
+spec:
+  runbook: error-spike-runbook   # bare slug; resolves in this alert's project
+  evaluationInterval: 1m
+  notificationMessage:
+    title: "${ServiceName} error rate is high"
+  query: |
+    # same error-rate query as the writing good alerts guide:
+    # countIf(SeverityNumber >= 17) / total over 15 minutes, per service
+    SELECT ServiceName, ... FROM logs ...
+```
+
+The runbook it points at — `error-spike.runbook.yaml`:
+
+```yaml
+kind: Runbook
+metadata:
+  name: error-spike-runbook
+spec:
+  markdown:
+    file: ./error-spike.runbook.md
+```
+
+And the markdown it renders — `error-spike.runbook.md`:
+
+````md
+# Error spike
+
+The `error-spike` alert is firing. Is it still happening?
+
+```panel
+kind: Panel
+spec:
+  display: { name: Error rate }
+  plugin: { kind: TimeSeriesChart, spec: { unit: "%", showLegend: true } }
+  queries:
+    - kind: ClickHouseSQL
+      spec:
+        plugin:
+          kind: ClickHouseSQL
+          spec:
+            query: |
+              SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                     ServiceName,
+                     countIf(SeverityNumber >= 17) / count() * 100 AS error_pct
+              FROM logs
+              WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+              GROUP BY ts, ServiceName ORDER BY ts
+```
+
+1. Read the firing `ServiceName` off the notification.
+2. Find that service's line on the panel above — is its rate still climbing?
+3. If the spike lines up with a deploy, follow [Rollback](./rollback).
+````
+
+`everr apply` fails if the linked runbook doesn't exist in the same batch or in Everr — the link can't go stale.
+
+## If the runbook is in another project
+
+Use `project/slug`; a bare slug resolves in the alert's own project (the legacy `spec.notebook` field is still accepted as an alias).
+
+Full format, page trees, and shared panels: [Runbook spec](/docs/reference/runbook-spec).

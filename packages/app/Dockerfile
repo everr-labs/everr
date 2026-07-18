@@ -15,6 +15,10 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
 
 # Stage 2: build
 FROM deps AS build
+# Public (origin-bound, ingest-only) browser key baked into the client bundle by
+# Vite at build time. Optional: when unset, browser error tracking stays off.
+ARG VITE_EVERR_PUBLIC_INGEST_KEY
+ENV VITE_EVERR_PUBLIC_INGEST_KEY=$VITE_EVERR_PUBLIC_INGEST_KEY
 COPY packages/auto-otel-errors ./packages/auto-otel-errors
 COPY packages/datemath ./packages/datemath
 COPY packages/ui ./packages/ui

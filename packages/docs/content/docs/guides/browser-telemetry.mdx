@@ -1,0 +1,52 @@
+---
+title: Browser telemetry
+description: Send OpenTelemetry from a web page to Everr with a public, origin-bound key. Hand the wiring to your Agent, or set it up yourself.
+---
+
+Everr accepts OpenTelemetry (OTLP) straight from the browser. Because anything in a web page is visible to every visitor, browser ingestion uses a **public key**: safe to ship in page source because it only works from the origins you allowlist, and it can do nothing but send telemetry.
+
+## Mint a public key
+
+In the Everr dashboard, open the user menu (top-left), click **API keys**, then **New key**.
+
+1. Turn on **Public browser key**.
+2. Add every origin your app is served from, one per line, for example `https://app.example.com`. An origin is scheme://host with an optional port, and no path.
+3. Create the key and copy it. Origins cannot be edited later; to change them, mint a new key and rotate the value in your frontend config.
+
+## Let your Agent wire it up
+
+Everr ships the `everr-setup-telemetry` skill. Ask your Agent to instrument the app with the key you just minted:
+
+```text
+/everr-setup-telemetry Instrument this web app with the OpenTelemetry web SDK and send traces, logs, and metrics to Everr's browser ingest using my public key
+```
+
+The Agent installs the web SDK, points the exporters at `ingest.everr.dev`, reads the key from an env var, and registers the provider at startup.
+
+## Alternative: wire it up by hand
+
+Point any OpenTelemetry web SDK at Everr with the key as a bearer token:
+
+```ts
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
+import {
+  BatchSpanProcessor,
+  WebTracerProvider,
+} from "@opentelemetry/sdk-trace-web";
+
+const exporter = new OTLPTraceExporter({
+  url: "https://ingest.everr.dev/v1/traces",
+  headers: { Authorization: "Bearer <your-public-key>" },
+});
+
+const provider = new WebTracerProvider({
+  spanProcessors: [new BatchSpanProcessor(exporter)],
+});
+provider.register();
+```
+
+Logs and metrics work the same way with the matching exporters (`/v1/logs`, `/v1/metrics`). Requests from an origin that is not on the key's allowlist return **401 Unauthorized**, and the SDK drops the batch.
+
+## Local development
+
+The local Everr collector (started by the CLI and the desktop app) accepts browser OTLP on `http://127.0.0.1:54318` with no key and no origin setup. Public keys only matter for sending browser telemetry to Everr Cloud.

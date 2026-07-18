@@ -6,6 +6,7 @@ import {
   OWN_PREVIEW,
   OWN_REPO,
   previewIdOf,
+  toAlertRuleDocument,
   toRuleSpec,
   withAlertLink,
 } from "./mapping";
@@ -230,5 +231,49 @@ describe("isOwnedRule", () => {
     expect(isOwnedRule({ ...spec, annotations: {} } as never, "repo-1")).toBe(
       false,
     );
+  });
+});
+
+describe("toAlertRuleDocument", () => {
+  it("round-trips through the schema and back to an equivalent CC spec", () => {
+    const input = parseRule(
+      {
+        for: "10m",
+        resolveAfter: 3,
+        valueColumn: "count",
+        maxInterval: "1h",
+        runbook: "ops/high-5xx",
+        annotations: { "team.pager": "platform" },
+      },
+      { name: "high-5xx" },
+    );
+    const spec = toRuleSpec(input, "repo-1");
+    const doc = toAlertRuleDocument(spec);
+
+    // The reconstructed document is valid as-code input...
+    const reparsed = AlertRuleYamlSchema.parse(JSON.parse(JSON.stringify(doc)));
+    expect(reparsed.metadata.name).toBe("high-5xx");
+    expect(reparsed.metadata.labels).toEqual({ team: "platform" });
+    expect(reparsed.spec.display).toEqual(input.spec.display);
+    expect(reparsed.spec.runbook).toBe("ops/high-5xx");
+    expect(reparsed.spec.evaluationInterval).toBe("5m");
+    expect(reparsed.spec.for).toBe("10m");
+    expect(reparsed.spec.resolveAfter).toBe(3);
+    expect(reparsed.spec.maxInterval).toBe("1h");
+    expect(reparsed.spec.annotations).toEqual({ "team.pager": "platform" });
+
+    // ...and mapping it forward again reproduces the original CC spec.
+    expect(toRuleSpec(reparsed, "repo-1")).toEqual(spec);
+  });
+
+  it("omits optional fields that the spec does not carry", () => {
+    const doc = toAlertRuleDocument(toRuleSpec(parseRule(), "repo-1"));
+    const json = JSON.parse(JSON.stringify(doc));
+    expect(json.spec.runbook).toBeUndefined();
+    expect(json.spec.valueColumn).toBeUndefined();
+    expect(json.spec.maxInterval).toBeUndefined();
+    expect(json.spec.annotations).toBeUndefined();
+    expect(json.spec.display).toEqual(baseInput.spec.display);
+    expect(AlertRuleYamlSchema.parse(json).spec.for).toBe("0s");
   });
 });

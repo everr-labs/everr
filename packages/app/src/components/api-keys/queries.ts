@@ -34,6 +34,8 @@ export function useCreateApiKey() {
       name: string;
       expiresInDays?: number;
       scopes: ApiKeyScope[];
+      public?: boolean;
+      allowedOrigins?: string[];
     }) =>
       createApiKey({
         data: {
@@ -42,6 +44,9 @@ export function useCreateApiKey() {
             ? { expiresInDays: vars.expiresInDays }
             : {}),
           scopes: vars.scopes,
+          ...(vars.public
+            ? { public: true, allowedOrigins: vars.allowedOrigins ?? [] }
+            : {}),
         },
       }),
     onSuccess: () => {

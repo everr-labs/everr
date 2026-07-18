@@ -1,48 +1,34 @@
 ---
-title: How Everr works
-description: The mental model, one OpenTelemetry pipeline across Local, CI, and Production, read through the evidence loop.
+title: What Everr is
+description: Observability with the DX of web development
 ---
 
-Everr is built on a single idea: the signals that explain your software should be available wherever your code runs, whether that's your laptop, CI, or production. And they should be as easy for an Agent to read as they are for you.
+Most observability tools are complex, built for organizations that can afford dedicated telemetry engineers and the time to wire everything up.
 
-Instead of separate tools for local debugging, CI inspection, and production monitoring, Everr collects everything as standard [OpenTelemetry](https://opentelemetry.io) and makes it queryable through one CLI and one workspace.
+As web developers we are used to work with great dev tools, but observability tooling hasn't catched up yet.
 
-## One pipeline, everywhere your code runs
+Everr is an observability platform for teams that need to ship fast: deep insight into your systems without losing days to setup or standing up a team to run it.
 
-The same telemetry model follows your code through its whole lifecycle. Each place your code runs feeds the same queryable store, read through two surfaces: the local Collector and the Cloud backend.
+- **Local-first.** A desktop app runs on your machine and shows your telemetry with no cloud account needed.
+- **Configured as code.** Dashboards, alerts, and runbooks are files in your repo, queried in SQL. See [Observability as code](/docs/concepts/observability-as-code).
+- **Open.** It is all OpenTelemetry underneath, so nothing you set up is locked to Everr. See [What's OpenTelemetry](/docs/concepts/whats-opentelemetry).
+- **For agents too.** Your coding agent uses the same telemetry you do. See the [MCP server](/docs/reference/mcp).
 
-### Local
+## Two places telemetry lives
 
-A Collector runs on your machine, receiving OpenTelemetry over OTLP from your app, tests, and wrapped commands, and keeps the data local. This is the fast feedback loop you use while writing and debugging code. See [Instrument your app](/docs/learn/instrument-your-app).
+Your code emits OpenTelemetry over OTLP, and it lands in one of two places that share the same query model:
 
-### Production
+- **Your laptop**, using a local collector the desktop app runs on your machine. It holds your local telemetry for a fast feedback loop while you write and debug code.
+- **The Cloud** is Everr's hosted backend. It holds CI and production telemetry in a shared, per-organization workspace.
 
-Your services send OpenTelemetry to the Everr Cloud over OTLP, authenticated with an API key. Everything lands in a shared, per-organization workspace you can inspect during and after an incident. See [Send production telemetry](/docs/learn/production-telemetry).
+A query you write against local traces reads the same against production ones.
 
-### CI
+## Where telemetry comes from
 
-The Everr GitHub App ingests your GitHub Actions runs (workflows, jobs, steps, and logs) so a failing run is structured data rather than pasted screenshots. Verbose test output is parsed into per-test Spans, and an optional action adds per-job resource metrics. See [CI Insights](/docs/ci-insights/setup-new-repo).
+- **Local.** Your app, tests, and wrapped commands send OTLP to the Collector on your machine. See [Instrument your app](/docs/learn/instrument-your-app).
+- **Production.** Your services send OTLP to the Cloud, authenticated with an API key. See [Send production telemetry](/docs/learn/production-telemetry).
+- **CI.** The Everr GitHub App ingests your GitHub Actions runs. A run becomes a trace, its steps become spans, and verbose test output becomes a span per test. See [CI insights](/docs/guides/setup-new-repo).
 
-## Collector vs Cloud
+## Get started
 
-Local telemetry lives in the Collector, the sidecar that runs on your machine. CI and Production telemetry live in the Cloud, Everr's hosted backend. Both surfaces speak the same query model, so a query you write against local traces reads the same way against production ones.
-
-## The signals are all OpenTelemetry
-
-Traces, Logs, and Metrics are standard OpenTelemetry Signals. CI runs and test results are represented as the same kinds of Signals (a CI run is a Trace, a test case is a Span), so one set of tools works everywhere. You don't learn a different model for CI than you use for production.
-
-## Built for humans and AIs, equally
-
-Everr is built for humans and AIs at the same level. The signals are meant to be as usable by an AI as by a person, so whether you run a query yourself or hand the investigation to your Agent, it works the same way. Bundled Skills teach your Agent when to reach for telemetry and how to query it, and because it works from your repository, it can connect runtime signal back to the code that produced it.
-
-The recurring pattern across every Everr workflow is the **evidence loop**:
-
-1. State the question the telemetry should answer.
-2. Add the smallest signal that answers it (or use what's already there).
-3. Run the workflow: exercise the app, trigger the CI run, reproduce the bug.
-4. Inspect what was actually recorded.
-5. Compare it to what you expected, then make the next change.
-
-Local debugging, production monitoring, and CI investigation are all variations on this loop. The rest of the docs show what it looks like in each context.
-
-Ready to try it? Follow [Getting started](/docs/learn/install) to install Everr and go from your first trace to your first alert.
+Follow [Install Everr](/docs/learn/install) and go from your first trace to your first alert.
