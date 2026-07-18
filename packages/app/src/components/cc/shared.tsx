@@ -1,13 +1,23 @@
 // packages/app/src/components/cc/shared.tsx
 import { Badge } from "@everr/ui/components/badge";
 import { CollapsibleTrigger } from "@everr/ui/components/collapsible";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@everr/ui/components/empty";
 import { Skeleton } from "@everr/ui/components/skeleton";
+import {
+  ToggleGroup,
+  ToggleGroupItem,
+} from "@everr/ui/components/toggle-group";
 import { cn } from "@everr/ui/lib/utils";
 import { ChevronRight, Info, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
-import { sortedLabelEntries } from "@/data/alerts/matchers";
-import type { CcMatcher } from "@/data/cc/types";
-import { ccOpSymbol } from "./route-resolution";
+import { ccOpSymbol } from "@/data/cc/route-resolution";
+import type { CcMatcher, CcRuleHealthStatus } from "@/data/cc/types";
 
 // ── Guidance ──────────────────────────────────────────────────────────────────
 // Plain-language, always-visible explainers. Alerting is hard; the UI should
@@ -185,7 +195,7 @@ export function CcInstanceStatusBadge({ status }: { status: string }) {
   );
 }
 
-export function CcHealthBadge({ status }: { status: string }) {
+export function CcHealthBadge({ status }: { status: CcRuleHealthStatus }) {
   const degraded = status === "degraded";
   return (
     <CcStatusLabel tone={degraded ? "degraded" : "healthy"} pulse={degraded}>
@@ -197,9 +207,20 @@ export function CcHealthBadge({ status }: { status: string }) {
 // ── Conditions & labels ───────────────────────────────────────────────────────
 // Rendered as scannable pills instead of a comma-run-on mono string.
 
-function Pill({ children }: { children: ReactNode }) {
+export function Pill({
+  className,
+  children,
+}: {
+  className?: string;
+  children: ReactNode;
+}) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-1.5 py-0.5 font-mono text-[0.6875rem] leading-none">
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-1.5 py-0.5 font-mono text-[0.6875rem] leading-none",
+        className,
+      )}
+    >
       {children}
     </span>
   );
@@ -276,14 +297,9 @@ export function EvidenceChips({
   truncated?: boolean;
 }) {
   const entries = evidence
-    ? sortedLabelEntries(
-        Object.fromEntries(
-          Object.entries(evidence).map(([key, value]) => [
-            key,
-            formatEvidenceValue(value),
-          ]),
-        ),
-      )
+    ? Object.entries(evidence)
+        .map(([key, value]) => [key, formatEvidenceValue(value)] as const)
+        .sort(([a], [b]) => a.localeCompare(b))
     : [];
   if (entries.length === 0 && !truncated) return null;
   return (
@@ -345,8 +361,8 @@ export function CcDisclosureTrigger({
 }
 
 // ── Segmented control ─────────────────────────────────────────────────────────
-// The hand-rolled tablist pill used as a coarse lens switcher (triage lenses,
-// event-kind lenses): one bordered pill row, the active segment lifted onto
+// The coarse lens switcher (triage lenses, event-kind lenses): a single-select
+// ToggleGroup styled as one bordered pill row, the active segment lifted onto
 // the card surface.
 
 export function CcSegmentedControl<K extends string>({
@@ -361,32 +377,30 @@ export function CcSegmentedControl<K extends string>({
   "aria-label": string;
 }) {
   return (
-    <div
-      role="tablist"
+    <ToggleGroup
       aria-label={ariaLabel}
-      className="inline-flex rounded-md border border-border bg-muted/20 p-0.5"
+      value={[value]}
+      // spacing=1 opts out of the joined data-[spacing=0] look (each segment
+      // keeps its own radius); the group's gap is zeroed back out below.
+      spacing={1}
+      className="inline-flex gap-0 rounded-md border border-border bg-muted/20 p-0.5"
+      onValueChange={(next) => {
+        // Single-select ToggleGroup allows deselect-to-empty; ignore it so one
+        // option is always selected.
+        const key = next[0];
+        if (key !== undefined) onChange(key as K);
+      }}
     >
-      {items.map((item) => {
-        const active = value === item.key;
-        return (
-          <button
-            key={item.key}
-            type="button"
-            role="tab"
-            aria-selected={active}
-            onClick={() => onChange(item.key)}
-            className={cn(
-              "rounded-[0.3rem] px-3 py-1 text-xs font-medium outline-2 outline-dotted outline-transparent outline-offset-[-2px] transition-colors duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] focus-visible:outline-primary",
-              active
-                ? "bg-card text-foreground ring-1 ring-foreground/10"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {item.label}
-          </button>
-        );
-      })}
-    </div>
+      {items.map((item) => (
+        <ToggleGroupItem
+          key={item.key}
+          value={item.key}
+          className="h-auto min-w-0 rounded-[0.3rem] px-3 py-1 text-xs font-medium text-muted-foreground outline-offset-[-2px] transition-colors hover:bg-transparent hover:text-foreground focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-primary aria-pressed:bg-card aria-pressed:text-foreground aria-pressed:ring-1 aria-pressed:ring-foreground/10"
+        >
+          {item.label}
+        </ToggleGroupItem>
+      ))}
+    </ToggleGroup>
   );
 }
 
@@ -402,13 +416,17 @@ export function CcEmptyState({
   hint?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 px-4 py-12 text-center">
-      {Icon && (
-        <Icon className="size-6 text-muted-foreground/60" strokeWidth={1.5} />
-      )}
-      <p className="text-sm font-medium text-foreground">{title}</p>
-      {hint && <p className="max-w-sm text-xs text-muted-foreground">{hint}</p>}
-    </div>
+    <Empty className="border-0 py-12">
+      <EmptyHeader>
+        {Icon && (
+          <EmptyMedia variant="icon">
+            <Icon />
+          </EmptyMedia>
+        )}
+        <EmptyTitle>{title}</EmptyTitle>
+        {hint && <EmptyDescription>{hint}</EmptyDescription>}
+      </EmptyHeader>
+    </Empty>
   );
 }
 

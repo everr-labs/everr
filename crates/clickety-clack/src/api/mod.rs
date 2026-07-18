@@ -45,6 +45,30 @@ pub(crate) fn duplicate_entries(values: &[String]) -> Vec<String> {
     dupes
 }
 
+/// `__cc_`-prefixed label names are reserved (e.g. the per-rule rule-health instance
+/// key). Rejecting them keeps a data instance from ever colliding with a synthetic
+/// one. Shared by the rule and SLO spec validators.
+pub(crate) fn reject_reserved_label_columns(
+    label_columns: &[String],
+) -> Result<(), error::ApiError> {
+    if let Some(col) = label_columns.iter().find(|c| c.starts_with("__cc_")) {
+        return Err(error::ApiError::Validation(format!(
+            "label column {col:?} uses the reserved \"__cc_\" prefix"
+        )));
+    }
+    Ok(())
+}
+
+/// The shared delete-handler tail: `{"deleted": true}` when the row existed,
+/// 404 otherwise.
+pub(crate) fn deleted(ok: bool) -> Result<axum::Json<serde_json::Value>, error::ApiError> {
+    if ok {
+        Ok(axum::Json(serde_json::json!({"deleted": true})))
+    } else {
+        Err(error::ApiError::NotFound)
+    }
+}
+
 /// Router with the API-key gate disabled (dev default, and the pre-gate
 /// behavior). Equivalent to `build_router_with_auth(state, ApiKeySet::default())`.
 pub fn build_router(state: AppState) -> Router {

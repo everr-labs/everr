@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use cc::dispatcher::cache::FilterCache;
-use cc::dispatcher::{flush_group, process_event_batch, Notifiers, WebhookNotifier};
+use cc::dispatcher::{flush_group, process_event_batch, DispatchCtx, Notifiers, WebhookNotifier};
 use cc::domain::ids::RuleId;
 use cc::queue::event_bus::RedisEventBus;
 use cc::queue::groups::{GroupStore, RedisGroups};
@@ -40,15 +40,16 @@ async fn load_dispatcher_ingest_throughput() {
     let t0 = Instant::now();
     let mut handles = Vec::new();
     for w in 0..cfg.dispatch_workers {
-        let (store, bus, groups, cache, notifiers, cipher, processed) = (
-            pg.store.clone(),
-            bus.clone(),
-            groups.clone(),
-            cache.clone(),
-            notifiers.clone(),
-            cipher.clone(),
-            processed.clone(),
-        );
+        let ctx = DispatchCtx {
+            store: pg.store.clone(),
+            bus: bus.clone(),
+            notifiers: notifiers.clone(),
+            groups: groups.clone(),
+            cache: cache.clone(),
+            cipher: cipher.clone(),
+            sink: Arc::new(cc::domain::sink::NullSink),
+        };
+        let (bus, processed) = (bus.clone(), processed.clone());
         let total = cfg.events;
         handles.push(tokio::spawn(async move {
             let consumer = format!("disp-w{w}");
@@ -64,17 +65,7 @@ async fn load_dispatcher_ingest_throughput() {
                     continue;
                 }
                 let n = entries.len();
-                let acks = process_event_batch(
-                    &store,
-                    bus.as_ref(),
-                    &notifiers,
-                    groups.as_ref(),
-                    &cache,
-                    cipher.as_ref(),
-                    &cc::domain::sink::NullSink,
-                    &entries,
-                )
-                .await;
+                let acks = process_event_batch(&ctx, &entries).await;
                 for (id, ack) in &acks {
                     if *ack {
                         bus.ack(id).await.unwrap();
@@ -126,15 +117,16 @@ async fn buffer_events(
     let processed = Arc::new(AtomicUsize::new(0));
     let mut handles = Vec::new();
     for w in 0..workers {
-        let (store, bus, groups, cache, notifiers, cipher, processed) = (
-            store.clone(),
-            bus.clone(),
-            groups.clone(),
-            cache.clone(),
-            notifiers.clone(),
-            cipher.clone(),
-            processed.clone(),
-        );
+        let ctx = DispatchCtx {
+            store: store.clone(),
+            bus: bus.clone(),
+            notifiers: notifiers.clone(),
+            groups: groups.clone(),
+            cache: cache.clone(),
+            cipher: cipher.clone(),
+            sink: Arc::new(cc::domain::sink::NullSink),
+        };
+        let (bus, processed) = (bus.clone(), processed.clone());
         handles.push(tokio::spawn(async move {
             let consumer = format!("buf-w{w}");
             loop {
@@ -149,17 +141,7 @@ async fn buffer_events(
                     continue;
                 }
                 let n = entries.len();
-                let acks = process_event_batch(
-                    &store,
-                    bus.as_ref(),
-                    &notifiers,
-                    groups.as_ref(),
-                    &cache,
-                    cipher.as_ref(),
-                    &cc::domain::sink::NullSink,
-                    &entries,
-                )
-                .await;
+                let acks = process_event_batch(&ctx, &entries).await;
                 for (id, ack) in &acks {
                     if *ack {
                         bus.ack(id).await.unwrap();
@@ -212,15 +194,16 @@ async fn load_dispatcher_flush_throughput() {
     let t0 = Instant::now();
     let mut handles = Vec::new();
     for _ in 0..cfg.dispatch_workers {
-        let (store, bus, groups, cache, notifiers, cipher, flushed) = (
-            pg.store.clone(),
-            bus.clone(),
-            groups.clone(),
-            cache.clone(),
-            notifiers.clone(),
-            cipher.clone(),
-            flushed.clone(),
-        );
+        let ctx = DispatchCtx {
+            store: pg.store.clone(),
+            bus: bus.clone(),
+            notifiers: notifiers.clone(),
+            groups: groups.clone(),
+            cache: cache.clone(),
+            cipher: cipher.clone(),
+            sink: Arc::new(cc::domain::sink::NullSink),
+        };
+        let (groups, flushed) = (groups.clone(), flushed.clone());
         handles.push(tokio::spawn(async move {
             loop {
                 let ids = groups.claim_due(now_ms(), 32).await.unwrap();
@@ -228,17 +211,7 @@ async fn load_dispatcher_flush_throughput() {
                     break;
                 }
                 for gid in ids {
-                    flush_group(
-                        &store,
-                        bus.as_ref(),
-                        &notifiers,
-                        groups.as_ref(),
-                        cache.as_ref(),
-                        cipher.as_ref(),
-                        &cc::domain::sink::NullSink,
-                        &gid,
-                    )
-                    .await;
+                    flush_group(&ctx, &gid).await;
                     flushed.fetch_add(1, Ordering::Relaxed);
                 }
             }

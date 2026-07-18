@@ -1,30 +1,10 @@
 use cc::dispatcher::notify::{Notification, Notifier, NotifyError};
 use cc::dispatcher::slack::SlackNotifier;
-use cc::domain::event::{Event, EventStatus};
-use cc::domain::ids::{InstanceKey, RuleId, TenantId};
-use cc::domain::rule::Severity;
-use std::collections::BTreeMap;
+use cc::domain::event::Event;
 use std::sync::{Arc, Mutex};
-use time::OffsetDateTime;
-use uuid::Uuid;
 
 fn ev() -> Event {
-    Event {
-        tenant: TenantId::from_trusted(Uuid::nil().to_string()),
-        rule: RuleId(Uuid::nil()),
-        slo: None,
-        instance_key: InstanceKey("k".into()),
-        status: EventStatus::Firing,
-        kind: cc::domain::event::EventKind::Alert,
-        labels: BTreeMap::new(),
-        value: None,
-        severity: Severity::Warning,
-        annotations: BTreeMap::new(),
-        eval_ts: OffsetDateTime::UNIX_EPOCH,
-        suppressed: false,
-        evidence: None,
-        evidence_truncated: false,
-    }
+    crate::common::base_event()
 }
 
 async fn start_server(status: u16, body_sink: Arc<Mutex<Option<serde_json::Value>>>) -> String {

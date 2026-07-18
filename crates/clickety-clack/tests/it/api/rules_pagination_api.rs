@@ -1,48 +1,13 @@
 //! Cursor pagination on `GET /v1/rules`: envelope mode (limit/cursor), the
 //! legacy bare-array mode, and cursor/limit rejection statuses.
 
+use crate::api::support::{body_json, setup as app_with_store};
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use cc::api::auth::HeaderAuth;
-use cc::api::{build_router, AppState};
-use cc::clickhouse::ChClient;
-use cc::crypto::EnvKeyring;
 use cc::domain::ids::{RuleId, TenantId};
-use cc::stores::PgStore;
-use std::collections::HashMap;
-use std::sync::Arc;
 use time::OffsetDateTime;
 use tower::ServiceExt;
 use uuid::Uuid;
-
-async fn body_json(resp: axum::response::Response) -> serde_json::Value {
-    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
-        .await
-        .unwrap();
-    serde_json::from_slice(&bytes).unwrap()
-}
-
-async fn app_with_store() -> (axum::Router, PgStore) {
-    let pg_url = crate::support::fresh_db().await;
-    let store = PgStore::connect(&pg_url).await.unwrap();
-    let state = AppState {
-        store: store.clone(),
-        ch: ChClient::new(
-            "http://127.0.0.1:1",
-            cc::clickhouse::build_ch_auth("shared", "default", "", None, None, "", None).unwrap(),
-        ),
-        auth: Arc::new(HeaderAuth),
-        cipher: Arc::new(
-            EnvKeyring::new(
-                HashMap::from([("v1".to_string(), [7u8; 32])]),
-                "v1".to_string(),
-            )
-            .unwrap(),
-        ),
-        allow_private_webhooks: false,
-    };
-    (build_router(state), store)
-}
 
 async fn create_rule(app: &axum::Router, tenant: Uuid) -> String {
     let req = Request::builder()

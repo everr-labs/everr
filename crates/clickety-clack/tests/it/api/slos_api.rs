@@ -5,7 +5,7 @@ use tower::ServiceExt;
 
 // Reuse the shared API test harness. `setup()` builds a router with a stubbed
 // ClickHouse (127.0.0.1:1) and HeaderAuth — SLO CRUD never calls ClickHouse.
-use crate::api::slos_api_support::{body_json, setup, TENANT};
+use crate::api::support::{body_json, setup, TENANT};
 
 async fn create_slo(router: &axum::Router, name: &str) -> Value {
     let payload = json!({

@@ -19,6 +19,7 @@ import type {
   CcChannelConfig,
   CcInhibitionInput,
   CcRouteInput,
+  CcRuleHealthStatus,
   CcRuleSpec,
   CcSilenceInput,
 } from "./types";
@@ -40,7 +41,7 @@ export async function listRulesPage(
   opts: {
     limit?: number;
     cursor?: string;
-    health?: "degraded" | "healthy";
+    health?: CcRuleHealthStatus;
   } = {},
 ) {
   const params = new URLSearchParams({ limit: String(opts.limit ?? 100) });

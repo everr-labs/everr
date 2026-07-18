@@ -402,7 +402,7 @@ pub async fn evaluate_slo(
     for (_key, mut prev) in known_by_key {
         let labels = std::mem::take(&mut prev.labels);
         let tier = labels
-            .get("slo_tier")
+            .get(crate::domain::slo::SLO_TIER_LABEL)
             .and_then(|name| tiers.iter().find(|t| t.name == *name));
         // Severity goes through the shared helper (unified with `stores::pg`'s
         // `list_firing_slos`/`list_stale_slo_instances`): unknown/vanished tier
@@ -605,7 +605,10 @@ pub(crate) fn plan_tier_firing(spec: &SloSpec, payload: &SloStatusPayload) -> Ve
                 && short_burn.is_some_and(|s| s > tier.burn_rate);
 
             let mut labels = group.labels.clone();
-            labels.insert("slo_tier".to_string(), tier.name.clone());
+            labels.insert(
+                crate::domain::slo::SLO_TIER_LABEL.to_string(),
+                tier.name.clone(),
+            );
 
             out.push(TierFiring {
                 labels,

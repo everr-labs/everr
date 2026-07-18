@@ -14,6 +14,7 @@ import { ArrowRight, X, Zap } from "lucide-react";
 import { useState } from "react";
 import type { CcChannel, CcReceiver, CcRoute } from "@/data/cc/types";
 import { ccLabelKeyOptions, ccLabelValueOptions } from "./matchers-editor";
+import { Pill } from "./shared";
 
 /**
  * A channel as a compact chip: name plus resolved type. Shared with the
@@ -34,17 +35,16 @@ export function ChannelChip({
 }) {
   const type = channel ? channel.config.type : missingLabel;
   return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-mono text-[0.6875rem] leading-none",
+    <Pill
+      className={
         emphasized
           ? "border-primary/40 bg-primary/10 text-foreground"
-          : "border-border bg-muted/40",
-      )}
+          : undefined
+      }
     >
       <span className="text-foreground">{name}</span>
       {type != null && <span className="text-muted-foreground">{type}</span>}
-    </span>
+    </Pill>
   );
 }
 
@@ -89,10 +89,7 @@ export function RoutePreview({
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-1.5">
         {entries.map(([k, v]) => (
-          <span
-            key={k}
-            className="inline-flex items-center gap-1 rounded-md border border-primary/40 bg-primary/10 px-1.5 py-0.5 font-mono text-[0.6875rem] leading-none"
-          >
+          <Pill key={k} className="border-primary/40 bg-primary/10">
             <span className="text-muted-foreground">{k}</span>
             <span className="text-muted-foreground/60">=</span>
             <span className="text-foreground">{v}</span>
@@ -104,7 +101,7 @@ export function RoutePreview({
             >
               <X className="size-3" />
             </button>
-          </span>
+          </Pill>
         ))}
         <SuggestCombobox
           label="Preview label key"

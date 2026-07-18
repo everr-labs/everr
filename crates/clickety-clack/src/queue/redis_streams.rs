@@ -50,6 +50,88 @@ fn entry_enqueue_unix_ms(entry_id: &str) -> Option<i64> {
     entry_id.split('-').next()?.parse().ok()
 }
 
+/// One consumer group's reclaim coordinates: the stream, the group whose PEL is
+/// swept, and the hash field carrying the JSON payload (`"job"` / `"event"`).
+pub(crate) struct ReclaimTarget<'a> {
+    pub stream: &'a str,
+    pub group: &'a str,
+    pub field: &'a str,
+}
+
+/// Steal entries idle for at least `min_idle_ms` in the target group's
+/// pending-entries-list and hand them to `consumer`, via a combined XPENDING+XCLAIM
+/// (`XAUTOCLAIM`) pass starting from the beginning of the PEL. Returns each claimed
+/// entry's id and its raw payload-field bytes (still JSON, undeserialized — callers
+/// know the target type). Shared by `RedisQueue` (both job streams) and
+/// `RedisEventBus` (`cc:events`).
+///
+/// `XAUTOCLAIM` needs Redis >= 6.2. Against an older server this degrades to a
+/// no-op instead of failing the consume outright, so the reclaim pre-pass stays
+/// additive rather than a hard requirement on the Redis version in use. Once
+/// detected via `unsupported`, reclaim is disabled for the lifetime of the owning
+/// handle to avoid repeated probe round-trips and log spam.
+///
+/// Entries with no payload field at all can never be salvaged, so they're acked
+/// here and dropped rather than reclaimed forever (a poison-pill guard, same
+/// philosophy as the batch-panic guard in the evaluator loop). Payloads that are
+/// present but fail to deserialize get the same ack treatment in the callers.
+pub(crate) async fn reclaim_pending_raw(
+    conn: &mut ConnectionManager,
+    unsupported: &AtomicBool,
+    target: &ReclaimTarget<'_>,
+    consumer: &str,
+    min_idle_ms: usize,
+    count: usize,
+) -> Result<Vec<(String, Vec<u8>)>, QueueError> {
+    // If we've already detected XAUTOCLAIM is unsupported, skip the probe entirely.
+    if unsupported.load(Ordering::Relaxed) {
+        return Ok(Vec::new());
+    }
+
+    let ReclaimTarget {
+        stream,
+        group,
+        field,
+    } = *target;
+    let opts = StreamAutoClaimOptions::default().count(count);
+    let reply: StreamAutoClaimReply = match conn
+        .xautoclaim_options(stream, group, consumer, min_idle_ms, "0-0", opts)
+        .await
+    {
+        Ok(reply) => reply,
+        Err(e) if is_unknown_command(&e) => {
+            unsupported.store(true, Ordering::Relaxed);
+            tracing::warn!(
+                stream,
+                group,
+                error = %e,
+                "XAUTOCLAIM unsupported by this Redis server (needs >= 6.2); \
+                 reclaim disabled until restart"
+            );
+            return Ok(Vec::new());
+        }
+        Err(e) => return Err(e.into()),
+    };
+    let mut out = Vec::with_capacity(reply.claimed.len());
+    for entry in reply.claimed {
+        match entry.map.get(field) {
+            Some(redis::Value::BulkString(bytes)) => out.push((entry.id, bytes.clone())),
+            _ => {
+                tracing::warn!(
+                    stream,
+                    group,
+                    id = %entry.id,
+                    field,
+                    "reclaimed entry missing its payload field; acking as poison pill"
+                );
+                let _: Result<i64, redis::RedisError> =
+                    conn.xack(stream, group, &[entry.id.as_str()]).await;
+            }
+        }
+    }
+    Ok(out)
+}
+
 impl RedisQueue {
     /// Connect and ensure the consumer group exists (idempotent).
     pub async fn connect(url: &str) -> Result<Self, QueueError> {
@@ -96,78 +178,8 @@ impl RedisQueue {
         self
     }
 
-    /// Steal entries idle for at least `min_idle_ms` in `group`'s pending-entries-list
-    /// and hand them to `consumer`, via a combined XPENDING+XCLAIM (`XAUTOCLAIM`) pass
-    /// starting from the beginning of the PEL. Returns each claimed entry's id and its
-    /// raw `"job"` field (still JSON, undeserialized — callers know the target type).
-    ///
-    /// `XAUTOCLAIM` needs Redis >= 6.2. Against an older server this degrades to a
-    /// no-op instead of failing `consume`/`consume_slo` outright, so the reclaim
-    /// pre-pass stays additive rather than a hard requirement on the Redis version
-    /// in use. Once detected, reclaim is disabled for the lifetime of this queue handle
-    /// to avoid repeated probe round-trips and log spam.
-    ///
-    /// Entries with no parseable `"job"` field can never be salvaged, so they're acked
-    /// here and dropped rather than reclaimed forever (a poison-pill guard, same
-    /// philosophy as the batch-panic guard in the evaluator loop).
-    async fn reclaim_pending(
-        &self,
-        stream: &str,
-        group: &str,
-        consumer: &str,
-        min_idle_ms: usize,
-        count: usize,
-    ) -> Result<Vec<(String, String)>, QueueError> {
-        // If we've already detected XAUTOCLAIM is unsupported, skip the probe entirely.
-        if self.reclaim_unsupported.load(Ordering::Relaxed) {
-            return Ok(Vec::new());
-        }
-
-        let mut conn = self.conn.clone();
-        let opts = StreamAutoClaimOptions::default().count(count);
-        let reply: StreamAutoClaimReply = match conn
-            .xautoclaim_options(stream, group, consumer, min_idle_ms, "0-0", opts)
-            .await
-        {
-            Ok(reply) => reply,
-            Err(e) if is_unknown_command(&e) => {
-                self.reclaim_unsupported.store(true, Ordering::Relaxed);
-                tracing::warn!(
-                    stream,
-                    group,
-                    error = %e,
-                    "XAUTOCLAIM unsupported by this Redis server (needs >= 6.2); \
-                     reclaim disabled until restart"
-                );
-                return Ok(Vec::new());
-            }
-            Err(e) => return Err(e.into()),
-        };
-        let mut out = Vec::with_capacity(reply.claimed.len());
-        for entry in reply.claimed {
-            let job_json = match entry.map.get("job") {
-                Some(redis::Value::BulkString(bytes)) => String::from_utf8(bytes.clone()).ok(),
-                _ => None,
-            };
-            match job_json {
-                Some(json) => out.push((entry.id, json)),
-                None => {
-                    tracing::warn!(
-                        stream,
-                        group,
-                        id = %entry.id,
-                        "reclaimed entry missing a valid \"job\" field; acking as poison pill"
-                    );
-                    let _: Result<i64, redis::RedisError> =
-                        conn.xack(stream, group, &[entry.id.as_str()]).await;
-                }
-            }
-        }
-        Ok(out)
-    }
-
     /// Shared consume path for both streams: an `XAUTOCLAIM` reclaim pre-pass (via
-    /// [`Self::reclaim_pending`]), a blocking group read of new entries, poison-pill
+    /// [`reclaim_pending_raw`]), a blocking group read of new entries, poison-pill
     /// acking of reclaimed payloads that no longer deserialize, and lag/batch-size
     /// metrics. `consume`/`consume_slo` are thin wrappers supplying their stream,
     /// group, job type, and metric channel.
@@ -184,9 +196,19 @@ impl RedisQueue {
         let mut conn = self.conn.clone();
         // Reclaim pre-pass: hand this consumer any jobs left stuck in another
         // (presumably crashed) consumer's PEL before reading new work.
-        let reclaimed = self
-            .reclaim_pending(stream, group, consumer, self.reclaim_idle_ms, count)
-            .await?;
+        let reclaimed = reclaim_pending_raw(
+            &mut conn,
+            &self.reclaim_unsupported,
+            &ReclaimTarget {
+                stream,
+                group,
+                field: "job",
+            },
+            consumer,
+            self.reclaim_idle_ms,
+            count,
+        )
+        .await?;
 
         let opts = StreamReadOptions::default()
             .group(group, consumer)
@@ -196,8 +218,8 @@ impl RedisQueue {
         let now_ms = (time::OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000_000) as i64;
         let mut out = Vec::with_capacity(reclaimed.len());
 
-        for (id, job_json) in reclaimed {
-            match serde_json::from_str::<J>(&job_json) {
+        for (id, payload) in reclaimed {
+            match serde_json::from_slice::<J>(&payload) {
                 Ok(job) => {
                     if let Some(enq_ms) = entry_enqueue_unix_ms(&id) {
                         record_lag((now_ms - enq_ms).max(0) as f64 / 1000.0);

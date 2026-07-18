@@ -3,8 +3,6 @@ use cc::domain::ids::{InstanceKey, RuleId, TenantId};
 use cc::domain::rule::Severity;
 use cc::queue::groups::{GroupMeta, GroupStore, RedisGroups};
 use std::collections::BTreeMap;
-use testcontainers_modules::redis::Redis;
-use testcontainers_modules::testcontainers::runners::AsyncRunner;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
@@ -37,11 +35,8 @@ fn meta() -> GroupMeta {
 }
 
 async fn redis_groups() -> (String, RedisGroups) {
-    let redis = Redis::default().start().await.unwrap();
-    let url = format!(
-        "redis://127.0.0.1:{}",
-        redis.get_host_port_ipv4(6379).await.unwrap()
-    );
+    let redis = crate::common::start_redis().await;
+    let url = redis.url.clone();
     // Keep the container alive for the duration of the process.
     std::mem::forget(redis);
     let groups = RedisGroups::connect(&url).await.unwrap();

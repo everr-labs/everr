@@ -32,26 +32,19 @@ import {
   CornerDownRight,
   Inbox,
   type LucideIcon,
-  Mail,
-  MessageSquare,
   Pencil,
   Plus,
-  Send,
-  Siren,
   Trash2,
   Webhook,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ChannelBuilder } from "@/components/cc/channel-builder";
+import { CHANNEL_ICON, channelTarget } from "@/components/cc/channel-meta";
 import { InhibitionBuilder } from "@/components/cc/inhibition-builder";
 import { ReceiverBuilder } from "@/components/cc/receiver-builder";
 import { RouteBuilder } from "@/components/cc/route-builder";
 import { ChannelChip, RoutePreview } from "@/components/cc/route-preview";
-import {
-  ccSelectRoutes,
-  ccSyntheticLabels,
-} from "@/components/cc/route-resolution";
 import {
   CcDisclosureTrigger,
   CcEmptyState,
@@ -61,6 +54,8 @@ import {
   ccErrorMessage,
   ccFormatTs,
 } from "@/components/cc/shared";
+import { isEverrAnnotationKey } from "@/data/alerts/annotations";
+import { ccDispatchLabels, ccSelectRoutes } from "@/data/cc/route-resolution";
 import {
   createCcSubscription,
   deleteCcChannel,
@@ -78,7 +73,6 @@ import {
 } from "@/data/cc/server";
 import type {
   CcChannel,
-  CcChannelConfig,
   CcInhibition,
   CcReceiver,
   CcRoute,
@@ -136,28 +130,6 @@ export const Route = createFileRoute(
     ]),
   component: CcDeliveryPage,
 });
-
-const CHANNEL_ICON: Record<CcChannelConfig["type"], LucideIcon> = {
-  slack: MessageSquare,
-  webhook: Webhook,
-  pagerduty: Siren,
-  email: Mail,
-  telegram: Send,
-};
-
-function channelTarget(c: CcChannelConfig): string {
-  switch (c.type) {
-    case "slack":
-    case "webhook":
-      return c.url ?? "";
-    case "pagerduty":
-      return c.routing_key ?? "";
-    case "email":
-      return (c.to ?? []).join(", ");
-    case "telegram":
-      return (c.chat_ids ?? []).join(", ");
-  }
-}
 
 // ── How delivery works ────────────────────────────────────────────────────────
 // The page's only explanatory prose: the whole flow in three sentences,
@@ -362,7 +334,6 @@ function PipelineRoute({
 
 function PipelineSection({
   receivers,
-  receiversByName,
   channelsByName,
   previewLabels,
   matchedRouteIds,
@@ -370,7 +341,6 @@ function PipelineSection({
   onFirehoseClick,
 }: {
   receivers: CcReceiver[];
-  receiversByName: Map<string, CcReceiver>;
   channelsByName: Map<string, CcChannel>;
   /** Preview label set; empty object = preview inactive. */
   previewLabels: Record<string, string>;
@@ -382,6 +352,10 @@ function PipelineSection({
   const qc = useQueryClient();
   const { data, isPending, isError, error } = useQuery(q.routes());
   const [editing, setEditing] = useState<CcRoute | "new" | null>(null);
+  const receiversByName = useMemo(
+    () => new Map(receivers.map((r) => [r.name, r])),
+    [receivers],
+  );
 
   const remove = useMutation({
     mutationFn: (id: string) => deleteCcRoute({ data: { id } }),
@@ -509,16 +483,14 @@ function PipelineSection({
 
 // ── Address book ──────────────────────────────────────────────────────────────
 
-function ReceiversSection({
-  channels,
-  channelsByName,
-}: {
-  channels: CcChannel[];
-  channelsByName: Map<string, CcChannel>;
-}) {
+function ReceiversSection({ channels }: { channels: CcChannel[] }) {
   const qc = useQueryClient();
   const { data, isPending, isError, error } = useQuery(q.receivers());
   const [open, setOpen] = useState(false);
+  const channelsByName = useMemo(
+    () => new Map(channels.map((c) => [c.name, c])),
+    [channels],
+  );
 
   const remove = useMutation({
     mutationFn: (name: string) => deleteCcReceiver({ data: { name } }),
@@ -565,7 +537,7 @@ function ReceiversSection({
               // (stamped by older flows; not user metadata).
               const customAnnotations = Object.entries(
                 r.annotations ?? {},
-              ).filter(([k]) => !k.startsWith("everr."));
+              ).filter(([k]) => !isEverrAnnotationKey(k));
               return (
                 <li
                   key={r.name}
@@ -942,11 +914,7 @@ function CcDeliveryPage() {
     const firing = (alerts.data ?? []).find((a) => a.status === "firing");
     if (!firing) return null;
     const rule = (rules.data ?? []).find((r) => r.id === firing.rule);
-    return ccSyntheticLabels(firing.labels, {
-      severity: rule?.spec.severity ?? "info",
-      status: "firing",
-      rule: firing.rule,
-    });
+    return ccDispatchLabels(firing, rule);
   }, [alerts.data, rules.data]);
 
   const receiversByName = useMemo(
@@ -965,7 +933,6 @@ function CcDeliveryPage() {
 
       <PipelineSection
         receivers={receivers.data ?? []}
-        receiversByName={receiversByName}
         channelsByName={channelsByName}
         previewLabels={previewLabels}
         matchedRouteIds={matchedRouteIds}
@@ -1003,10 +970,7 @@ function CcDeliveryPage() {
       </Card>
 
       <div className="grid items-start gap-3 lg:grid-cols-2">
-        <ReceiversSection
-          channels={channels.data ?? []}
-          channelsByName={channelsByName}
-        />
+        <ReceiversSection channels={channels.data ?? []} />
         <ChannelsSection />
       </div>
 

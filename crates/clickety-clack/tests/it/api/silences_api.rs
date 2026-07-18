@@ -1,3 +1,4 @@
+use crate::api::support::body_json;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use cc::api::auth::HeaderAuth;
@@ -9,13 +10,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tower::ServiceExt;
 use uuid::Uuid;
-
-async fn body_json(resp: axum::response::Response) -> serde_json::Value {
-    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
-        .await
-        .unwrap();
-    serde_json::from_slice(&bytes).unwrap()
-}
 
 #[tokio::test]
 async fn silence_create_list_delete() {

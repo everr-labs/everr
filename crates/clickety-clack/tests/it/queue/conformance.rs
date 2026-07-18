@@ -1,13 +1,9 @@
-use cc::domain::event::{Event, EventStatus};
-use cc::domain::ids::{InstanceKey, RuleId, TenantId};
-use cc::domain::rule::Severity;
+use cc::domain::event::Event;
+use cc::domain::ids::{RuleId, TenantId};
 use cc::queue::event_bus::RedisEventBus;
 use cc::queue::redis_streams::RedisQueue;
 use cc::queue::{EvalJob, EventBus, Queue};
-use std::collections::BTreeMap;
 use std::sync::Arc;
-use testcontainers_modules::redis::Redis;
-use testcontainers_modules::testcontainers::runners::AsyncRunner;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
@@ -20,22 +16,9 @@ fn job() -> EvalJob {
 }
 
 fn ev() -> Event {
-    Event {
-        tenant: TenantId::from_trusted(Uuid::nil().to_string()),
-        rule: RuleId(Uuid::nil()),
-        slo: None,
-        instance_key: InstanceKey("k".into()),
-        status: EventStatus::Firing,
-        kind: cc::domain::event::EventKind::Alert,
-        labels: BTreeMap::new(),
-        value: Some(1.0),
-        severity: Severity::Warning,
-        annotations: BTreeMap::new(),
-        eval_ts: OffsetDateTime::UNIX_EPOCH,
-        suppressed: false,
-        evidence: None,
-        evidence_truncated: false,
-    }
+    let mut e = crate::common::base_event();
+    e.value = Some(1.0);
+    e
 }
 
 // ---- backend-agnostic contract assertions ----
@@ -67,13 +50,9 @@ async fn eventbus_dead_letter(bus: Arc<dyn EventBus>) {
     bus.dead_letter(&ev(), "boom").await.unwrap();
 }
 
-async fn redis_url() -> (
-    String,
-    testcontainers_modules::testcontainers::ContainerAsync<Redis>,
-) {
-    let node = Redis::default().start().await.unwrap();
-    let port = node.get_host_port_ipv4(6379).await.unwrap();
-    (format!("redis://127.0.0.1:{port}"), node)
+async fn redis_url() -> (String, crate::common::RedisInfra) {
+    let redis = crate::common::start_redis().await;
+    (redis.url.clone(), redis)
 }
 
 #[tokio::test]

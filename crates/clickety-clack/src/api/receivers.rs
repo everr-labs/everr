@@ -6,7 +6,7 @@ use axum::extract::{Path, State};
 use axum::http::HeaderMap;
 use axum::Json;
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::collections::BTreeMap;
 
 #[derive(Deserialize)]
@@ -97,10 +97,10 @@ pub async fn create(
 pub async fn list(
     State(state): State<AppState>,
     headers: HeaderMap,
-) -> Result<Json<Value>, ApiError> {
+) -> Result<Json<Vec<Receiver>>, ApiError> {
     let t = tenant(&state, &headers)?;
     let receivers = state.store.list_receivers(t).await?;
-    Ok(Json(json!(receivers)))
+    Ok(Json(receivers))
 }
 
 pub async fn get(
@@ -124,11 +124,7 @@ pub async fn delete(
 ) -> Result<Json<Value>, ApiError> {
     let t = tenant(&state, &headers)?;
     let ok = state.store.delete_receiver(t, &name).await?;
-    if ok {
-        Ok(Json(json!({"deleted": true})))
-    } else {
-        Err(ApiError::NotFound)
-    }
+    crate::api::deleted(ok)
 }
 
 #[cfg(test)]

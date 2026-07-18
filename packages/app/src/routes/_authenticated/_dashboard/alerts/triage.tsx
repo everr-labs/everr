@@ -16,11 +16,6 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ccEventStatus } from "@/components/cc/alert-event-feed";
 import {
-  ccMatchingSilence,
-  ccSelectRoutes,
-  ccSyntheticLabels,
-} from "@/components/cc/route-resolution";
-import {
   CcEmptyState,
   CcInstanceStatusBadge,
   CcQueryError,
@@ -37,6 +32,11 @@ import {
 import type { AlertEventLogRow } from "@/data/alerts/history.server";
 import { fromCcRuleSpec } from "@/data/alerts/mapping";
 import { ccRuleIdentity } from "@/data/alerts/rule-identity";
+import {
+  ccDispatchLabels,
+  ccMatchingSilence,
+  ccSelectRoutes,
+} from "@/data/cc/route-resolution";
 import {
   CC_POLL_INTERVAL_MS,
   createCcSilence,
@@ -55,6 +55,7 @@ import type {
   CcRuleView,
   CcSilence,
 } from "@/data/cc/types";
+import type { SilenceHandoff } from "./silences";
 
 // The alerts layout hides the global time-range picker, so Triage reads a
 // fixed trailing window of stored events for evidence and recent transitions.
@@ -263,10 +264,7 @@ function InstanceDetail({
     (e) => e.evidence && Object.keys(e.evidence).length > 0,
   );
   const transitions = own
-    .filter(
-      (e) =>
-        e.eventType === "instance_fired" || e.eventType === "instance_resolved",
-    )
+    .filter((e) => ccEventStatus(e.eventType) !== null)
     .slice(0, 6);
   const runbook = runbookParams(rule);
   const description = rule
@@ -544,11 +542,7 @@ function CcTriagePage() {
     const now = Date.now();
     return (alerts.data ?? []).map((alert) => {
       const rule = ruleById.get(alert.rule);
-      const matchLabels = ccSyntheticLabels(alert.labels, {
-        severity: rule?.spec.severity ?? "info",
-        status: "firing",
-        rule: alert.rule,
-      });
+      const matchLabels = ccDispatchLabels(alert, rule);
       return {
         alert,
         rule,
@@ -770,11 +764,15 @@ function CcTriagePage() {
                         onCustomSilence={() =>
                           navigate({
                             to: "/alerts/silences",
+                            // TanStack Router's history state is untyped
+                            // without global augmentation, hence the cast; the
+                            // shared SilenceHandoff type keeps both sides of
+                            // the handoff agreeing on the shape.
                             state: {
                               silencePrefill: ruleScopedSilenceMatchers(
                                 inst.alert,
                               ),
-                            } as never,
+                            } satisfies SilenceHandoff as never,
                           })
                         }
                       />

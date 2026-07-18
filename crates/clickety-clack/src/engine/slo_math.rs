@@ -32,12 +32,7 @@ pub fn budget_remaining_fraction(
     valid_total: f64,
     target_percent: f64,
 ) -> Option<f64> {
-    let bad = window_bad_ratio(good_total, valid_total)?;
-    let budget = error_budget_fraction(target_percent);
-    if budget <= 0.0 {
-        return None;
-    }
-    Some(1.0 - bad / budget)
+    Some(1.0 - burn_rate(good_total, valid_total, target_percent)?)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

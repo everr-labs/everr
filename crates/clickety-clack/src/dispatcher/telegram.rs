@@ -156,22 +156,17 @@ mod tests {
     use uuid::Uuid;
 
     fn ev() -> Event {
-        Event {
-            tenant: TenantId::from_trusted(Uuid::nil().to_string()),
-            rule: RuleId(Uuid::nil()),
-            slo: None,
-            instance_key: InstanceKey("svc=api".into()),
-            status: EventStatus::Firing,
-            kind: crate::domain::event::EventKind::Alert,
-            labels: BTreeMap::from([("svc".to_string(), "api".to_string())]),
-            value: None,
-            severity: Severity::Critical,
-            annotations: BTreeMap::new(),
-            eval_ts: OffsetDateTime::UNIX_EPOCH,
-            suppressed: false,
-            evidence: None,
-            evidence_truncated: false,
-        }
+        Event::new(
+            TenantId::from_trusted(Uuid::nil().to_string()),
+            RuleId(Uuid::nil()),
+            InstanceKey("svc=api".into()),
+            EventStatus::Firing,
+            BTreeMap::from([("svc".to_string(), "api".to_string())]),
+            None,
+            Severity::Critical,
+            BTreeMap::new(),
+            OffsetDateTime::UNIX_EPOCH,
+        )
     }
 
     #[test]

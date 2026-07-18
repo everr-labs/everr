@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { CcMatcher, CcRoute } from "@/data/cc/types";
 import {
-  CC_SYNTHETIC_LABEL_KEYS,
   ccMatcherMatches,
   ccMatchingSilence,
   ccOpSymbol,
@@ -9,6 +7,8 @@ import {
   ccSelectRoutes,
   ccSyntheticLabels,
 } from "./route-resolution";
+import { CC_SYNTHETIC_LABEL_KEYS } from "./synthetic-labels";
+import type { CcMatcher, CcRoute } from "./types";
 
 function matcher(
   op: CcMatcher["op"],

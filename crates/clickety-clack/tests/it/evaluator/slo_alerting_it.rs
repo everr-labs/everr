@@ -15,8 +15,6 @@ use cc::queue::EventBus;
 use cc::stores::{PgStore, SloCreate};
 use std::collections::BTreeMap;
 use std::sync::Mutex;
-use testcontainers_modules::redis::Redis;
-use testcontainers_modules::testcontainers::runners::AsyncRunner;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
@@ -58,7 +56,6 @@ impl RowQuerier for StubCh {
     fn auth_identity(&self, t: &TenantId) -> AuthIdentity {
         AuthIdentity {
             user: t.as_str().to_string(),
-            settings: Vec::new(),
         }
     }
 }
@@ -81,7 +78,6 @@ impl RowQuerier for ErrCh {
     fn auth_identity(&self, t: &TenantId) -> AuthIdentity {
         AuthIdentity {
             user: t.as_str().to_string(),
-            settings: Vec::new(),
         }
     }
 }
@@ -117,12 +113,10 @@ async fn pg() -> PgStore {
 /// lifetime (mirrors `suppressed_evidence_it.rs`'s `redis_queue` helper) since
 /// dropping it would tear down the container out from under the bus.
 async fn redis_bus() -> RedisEventBus {
-    let node = Redis::default().start().await.unwrap();
-    let port = node.get_host_port_ipv4(6379).await.unwrap();
-    std::mem::forget(node);
-    RedisEventBus::connect(&format!("redis://127.0.0.1:{port}"))
-        .await
-        .unwrap()
+    let redis = crate::common::start_redis().await;
+    let url = redis.url.clone();
+    std::mem::forget(redis);
+    RedisEventBus::connect(&url).await.unwrap()
 }
 
 /// Breach at 20x on every window (good=9800/valid=10000 against a 99.9% target:

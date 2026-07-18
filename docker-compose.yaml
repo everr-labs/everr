@@ -49,8 +49,9 @@ services:
       - ./collector/dev-everr-app.pem:/etc/everr-collector/dev-everr-app.pem:ro,z
     environment:
       # Shared secret gating the trusted OTLP ingest path (otlp/trusted, ports
-      # 4417/4418). clickety-clack sends `Authorization: Bearer <this>`. Dev-only.
-      TRUSTED_INGEST_TOKEN: cc-trusted-wLrlvA6pELmMieZ2odq0njrui8qr5QLQ
+      # 4417/4418). clickety-clack sends `Authorization: Bearer <this>` (anchor
+      # reused as CC_TRUSTED_INGEST_SECRET below). Dev-only.
+      TRUSTED_INGEST_TOKEN: &cc-trusted-ingest-token cc-trusted-wLrlvA6pELmMieZ2odq0njrui8qr5QLQ
 
   mailpit:
     image: axllent/mailpit
@@ -149,7 +150,7 @@ services:
       # Trusted OTLP path: the `events` role + dispatcher ship alert-event logs
       # here (one ResourceLogs per tenant, everr.tenant.id preserved) → app.logs.
       CC_TRUSTED_OTLP_ENDPOINT: http://collector:4418/v1/logs
-      CC_TRUSTED_INGEST_SECRET: cc-trusted-wLrlvA6pELmMieZ2odq0njrui8qr5QLQ
+      CC_TRUSTED_INGEST_SECRET: *cc-trusted-ingest-token
       # Engine self-telemetry (cc.* metrics + engine traces) over the public
       # OTLP gRPC path. The key is a normal ingest API key, kept out of the
       # repo: set CC_ENGINE_INGEST_API_KEY in the git-ignored .env. When unset

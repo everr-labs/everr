@@ -31,6 +31,16 @@ pub enum EventKind {
     RuleHealth,
 }
 
+impl EventKind {
+    /// The snake_case wire/label form, matching the serde `snake_case` rename.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            EventKind::Alert => "alert",
+            EventKind::RuleHealth => "rule_health",
+        }
+    }
+}
+
 /// Emitted on a firing or resolved transition.
 ///
 /// The three trailing fields (`suppressed`, `evidence`, `evidence_truncated`) are

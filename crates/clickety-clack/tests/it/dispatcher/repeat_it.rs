@@ -4,89 +4,41 @@
 //! `flush_group` to flush) with a short store-level repeat interval (the 60s API
 //! minimum is an API-layer rule; the dispatcher honors whatever the route stores).
 
-use cc::crypto::{EnvKeyring, SecretCipher};
+use crate::common;
 use cc::dispatcher::cache::FilterCache;
-use cc::dispatcher::notify::WebhookNotifier;
-use cc::dispatcher::{flush_group, grouping, process_event, Notifiers};
+use cc::dispatcher::{flush_group, grouping, process_event, DispatchCtx};
+use cc::domain::channel::ChannelConfig;
 use cc::domain::event::{Event, EventStatus};
-use cc::domain::ids::{InstanceKey, RuleId, TenantId};
-use cc::domain::receiver::ChannelConfig;
+use cc::domain::ids::{InstanceKey, TenantId};
 use cc::domain::routing::{MatchOp, Matcher};
-use cc::domain::rule::Severity;
-use cc::domain::sink::NullSink;
-use cc::queue::event_bus::RedisEventBus;
-use cc::queue::groups::{GroupStore, RedisGroups};
+use cc::queue::groups::GroupStore;
 use cc::queue::EventBus;
 use cc::stores::PgStore;
-use std::collections::{BTreeMap, HashMap};
-use std::sync::{Arc, Mutex};
+use std::collections::BTreeMap;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
-use testcontainers_modules::redis::Redis;
-use testcontainers_modules::testcontainers::runners::AsyncRunner;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-fn test_cipher() -> Arc<dyn SecretCipher> {
-    Arc::new(
-        EnvKeyring::new(
-            HashMap::from([("v1".to_string(), [7u8; 32])]),
-            "v1".to_string(),
-        )
-        .unwrap(),
-    )
-}
-
-async fn start_webhook(hits: Arc<Mutex<usize>>) -> String {
-    use axum::routing::post;
-    use axum::Router;
-    let app = Router::new().route(
-        "/hook",
-        post(move || {
-            let hits = hits.clone();
-            async move {
-                *hits.lock().unwrap() += 1;
-                "ok"
-            }
-        }),
-    );
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let addr = listener.local_addr().unwrap();
-    tokio::spawn(async move {
-        axum::serve(listener, app).await.ok();
-    });
-    format!("http://{addr}/hook")
-}
-
 fn ev_status(tenant: TenantId, status: EventStatus) -> Event {
-    let mut labels = BTreeMap::new();
-    labels.insert("svc".to_string(), "api".to_string());
-    Event {
-        tenant,
-        rule: RuleId(Uuid::nil()),
-        slo: None,
-        instance_key: InstanceKey("svc=api".into()),
-        status,
-        kind: cc::domain::event::EventKind::Alert,
-        labels,
-        value: Some(1.0),
-        severity: Severity::Warning,
-        annotations: BTreeMap::new(),
-        eval_ts: OffsetDateTime::UNIX_EPOCH,
-        suppressed: false,
-        evidence: None,
-        evidence_truncated: false,
-    }
+    let mut e = common::base_event();
+    e.tenant = tenant;
+    e.instance_key = InstanceKey("svc=api".into());
+    e.status = status;
+    e.labels = BTreeMap::from([("svc".to_string(), "api".to_string())]);
+    e.value = Some(1.0);
+    e
 }
 
 struct Harness {
+    _infra: common::DispatchInfra,
     store: PgStore,
     bus: Arc<dyn EventBus>,
-    notifiers: Arc<Notifiers>,
+    ctx: DispatchCtx,
     groups: Arc<dyn GroupStore>,
-    cache: FilterCache,
-    cipher: Arc<dyn SecretCipher>,
     tenant: TenantId,
-    hits: Arc<Mutex<usize>>,
+    hits: Arc<AtomicUsize>,
     gid: String,
 }
 
@@ -96,17 +48,7 @@ impl Harness {
         self.bus.publish(ev).await.unwrap();
         let entries = self.bus.consume("t", 16, 500).await.unwrap();
         let entry = entries.last().unwrap();
-        let acked = process_event(
-            &self.store,
-            self.bus.as_ref(),
-            self.notifiers.as_ref(),
-            self.groups.as_ref(),
-            &self.cache,
-            self.cipher.as_ref(),
-            &NullSink,
-            entry,
-        )
-        .await;
+        let acked = process_event(&self.ctx, entry).await;
         assert!(acked, "event should buffer and ack");
         self.bus.ack(&entry.id).await.unwrap();
     }
@@ -115,21 +57,11 @@ impl Harness {
         // The real flusher loop CLAIMS due timers (removing them from the ZSET) before
         // flushing; mirror that so leftover due timers don't masquerade as reminders.
         let _ = self.groups.claim_due(Harness::now_ms(), 16).await.unwrap();
-        flush_group(
-            &self.store,
-            self.bus.as_ref(),
-            self.notifiers.as_ref(),
-            self.groups.as_ref(),
-            &self.cache,
-            self.cipher.as_ref(),
-            &NullSink,
-            &self.gid,
-        )
-        .await;
+        flush_group(&self.ctx, &self.gid).await;
     }
 
     fn hits(&self) -> usize {
-        *self.hits.lock().unwrap()
+        self.hits.load(Ordering::Relaxed)
     }
 
     fn now_ms() -> i64 {
@@ -140,26 +72,20 @@ impl Harness {
 /// Bring up Postgres + Redis, one webhook receiver, and one catch-all route with the
 /// given repeat interval (group_wait/group_interval = 0 so flushes are immediately due).
 async fn setup(repeat_interval_secs: Option<u32>) -> Harness {
-    let pg_url = crate::support::fresh_db().await;
-    let redis = Redis::default().start().await.unwrap();
-    let redis_url = format!(
-        "redis://127.0.0.1:{}",
-        redis.get_host_port_ipv4(6379).await.unwrap()
-    );
-    std::mem::forget(redis);
+    let infra = common::dispatch_infra().await;
+    let store = infra.store.clone();
+    let ctx = DispatchCtx {
+        cache: Arc::new(FilterCache::with_ttl(store.clone(), Duration::ZERO)),
+        ..common::dispatch_ctx(&infra)
+    };
 
-    let store = PgStore::connect(&pg_url).await.unwrap();
-    let bus: Arc<dyn EventBus> = Arc::new(RedisEventBus::connect(&redis_url).await.unwrap());
-    let cipher = test_cipher();
-
-    let hits = Arc::new(Mutex::new(0usize));
-    let url = start_webhook(hits.clone()).await;
+    let (url, hits, _hook) = common::start_counting_webhook().await;
 
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
     let receiver_name = "oncall";
     store
         .create_channel(
-            cipher.as_ref(),
+            ctx.cipher.as_ref(),
             tenant.clone(),
             "oncall-hook",
             &ChannelConfig::Webhook { url },
@@ -190,12 +116,6 @@ async fn setup(repeat_interval_secs: Option<u32>) -> Harness {
         .await
         .unwrap();
 
-    let mut reg = Notifiers::new();
-    reg.register(Arc::new(WebhookNotifier::new()));
-    let notifiers = Arc::new(reg);
-    let groups: Arc<dyn GroupStore> = Arc::new(RedisGroups::connect(&redis_url).await.unwrap());
-    let cache = FilterCache::with_ttl(store.clone(), Duration::ZERO);
-
     // The deterministic group id for our single instance (default group_by).
     let group_by = grouping::default_group_by();
     let labels =
@@ -205,11 +125,10 @@ async fn setup(repeat_interval_secs: Option<u32>) -> Harness {
 
     Harness {
         store,
-        bus,
-        notifiers,
-        groups,
-        cache,
-        cipher,
+        bus: infra.bus.clone(),
+        groups: infra.groups.clone(),
+        _infra: infra,
+        ctx,
         tenant,
         hits,
         gid,

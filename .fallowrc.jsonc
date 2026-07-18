@@ -26,12 +26,6 @@
     "packages/app/src/ssr-shims/**",
     // CC domain types — public type API, consumers added in follow-up tasks.
     "packages/app/src/data/cc/types.ts",
-    // CC server functions — consumers (pages) added in follow-up tasks.
-    "packages/app/src/data/cc/server.ts",
-    // CC shared UI helpers — consumers (CC pages) added in follow-up tasks.
-    "packages/app/src/routes/_authenticated/_dashboard/cc-alerting/-cc-shared.tsx",
-    // CC matchers editor — consumers (routes/inhibitions/silences pages) added in follow-up tasks.
-    "packages/app/src/components/cc/matchers-editor.tsx",
   ],
   // @everr/auto-otel-errors: referenced in docs/examples, not a build dep.
   // The two @opentelemetry/* entries are imported only by the OTel web SDK
@@ -145,21 +139,6 @@
     {
       // CC client verbs — consumers (server functions, pages) added in follow-up tasks.
       "file": "packages/app/src/data/cc/client.ts",
-      "exports": ["*"]
-    },
-    {
-      // CC server functions — consumers (pages) added in follow-up tasks.
-      "file": "packages/app/src/data/cc/server.ts",
-      "exports": ["*"]
-    },
-    {
-      // CC shared UI helpers — consumers (CC pages) added in follow-up tasks.
-      "file": "packages/app/src/routes/_authenticated/_dashboard/cc-alerting/-cc-shared.tsx",
-      "exports": ["*"]
-    },
-    {
-      // CC matchers editor — consumers (CC CRUD pages) added in follow-up tasks.
-      "file": "packages/app/src/components/cc/matchers-editor.tsx",
       "exports": ["*"]
     }
   ]

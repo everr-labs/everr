@@ -20,7 +20,11 @@ import {
 } from "@everr/ui/components/select";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { queryOptions, useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import {
+  ALERT_EVENT_TYPES,
+  type AlertEventType,
+} from "@/data/alerts/event-types";
 import type { AlertEventLogRow } from "@/data/alerts/history.server";
 import { CC_POLL_INTERVAL_MS, listCcEventHistory } from "@/data/cc/server";
 import { useTimeRange } from "@/hooks/use-time-range";
@@ -43,11 +47,9 @@ const SEVERITY_LABELS: Record<string, string> = {
   critical: "Critical",
 };
 
-// The real alert.event_type values CC writes (history.server.ts's readers):
-// instance fire/resolve, notification delivery, rule evaluation health, and
-// dispatcher mutes.
-const EVENT_TYPE_LABELS: Record<string, string> = {
-  all: "All types",
+// Display labels for the engine's event-type vocabulary (ALERT_EVENT_TYPES);
+// the Record keying keeps this exhaustive against it.
+const EVENT_TYPE_LABELS: Record<AlertEventType, string> = {
   instance_fired: "Fired",
   instance_resolved: "Resolved",
   delivery: "Delivery",
@@ -70,7 +72,11 @@ const TYPE_LENSES = [
   },
   { key: "deliveries", label: "Deliveries", types: ["delivery"] },
   { key: "silence_audits", label: "Silence audits", types: ["silenced"] },
-] as const;
+] as const satisfies readonly {
+  key: string;
+  label: string;
+  types: readonly AlertEventType[] | null;
+}[];
 
 type TypeLensKey = (typeof TYPE_LENSES)[number]["key"];
 
@@ -146,8 +152,8 @@ export function AlertEventFeed({
   // severity falls back to its rule's — transitions are the only kinds a
   // rule's severity describes, so other kinds (delivery, rule health, silence
   // audits) are left as a genuine gap and still render "—".
-  const eventSeverity = useMemo(
-    () => (e: AlertEventLogRow) =>
+  const eventSeverity = useCallback(
+    (e: AlertEventLogRow) =>
       e.severity ||
       (ccEventStatus(e.eventType) !== null
         ? (resolveRuleSeverity?.(e.slug) ?? null)
@@ -164,7 +170,7 @@ export function AlertEventFeed({
         .filter(
           (e) =>
             lensTypes === null ||
-            (lensTypes as readonly string[]).includes(e.eventType),
+            (lensTypes as readonly AlertEventType[]).includes(e.eventType),
         )
         .filter((e) => eventType === "all" || e.eventType === eventType)
         .filter((e) => severity === "all" || eventSeverity(e) === severity),
@@ -261,13 +267,18 @@ export function AlertEventFeed({
             >
               <SelectTrigger size="sm" className="w-36" aria-label="Event type">
                 <SelectValue>
-                  {(v) => EVENT_TYPE_LABELS[v as string] ?? "All types"}
+                  {(v) =>
+                    v === "all"
+                      ? "All types"
+                      : EVENT_TYPE_LABELS[v as AlertEventType]
+                  }
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {Object.entries(EVENT_TYPE_LABELS).map(([value, label]) => (
+                <SelectItem value="all">All types</SelectItem>
+                {ALERT_EVENT_TYPES.map((value) => (
                   <SelectItem key={value} value={value}>
-                    {label}
+                    {EVENT_TYPE_LABELS[value]}
                   </SelectItem>
                 ))}
               </SelectContent>

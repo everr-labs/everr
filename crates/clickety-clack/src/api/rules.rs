@@ -135,13 +135,7 @@ fn validate_spec(spec: &RuleSpec) -> Result<(), ApiError> {
             )));
         }
     }
-    // `__cc_`-prefixed label names are reserved (e.g. the per-rule rule-health instance key).
-    // Rejecting them here keeps a data instance from ever colliding with a synthetic one.
-    if let Some(col) = spec.label_columns.iter().find(|c| c.starts_with("__cc_")) {
-        return Err(ApiError::Validation(format!(
-            "label column {col:?} uses the reserved \"__cc_\" prefix"
-        )));
-    }
+    crate::api::reject_reserved_label_columns(&spec.label_columns)?;
     Ok(())
 }
 
@@ -216,11 +210,7 @@ pub async fn delete(
 ) -> Result<Json<Value>, ApiError> {
     let t = tenant(&state, &headers)?;
     let ok = state.store.delete_rule(t, RuleId(id)).await?;
-    if ok {
-        Ok(Json(json!({"deleted": true})))
-    } else {
-        Err(ApiError::NotFound)
-    }
+    crate::api::deleted(ok)
 }
 
 /// Shared body of `pause`/`resume`: flip the paused flag, then return the

@@ -1,38 +1,17 @@
-use cc::domain::event::{Event, EventStatus};
-use cc::domain::ids::{InstanceKey, RuleId, TenantId};
-use cc::domain::rule::Severity;
+use cc::domain::event::Event;
 use cc::queue::event_bus::RedisEventBus;
 use cc::queue::EventBus;
-use std::collections::BTreeMap;
-use testcontainers_modules::redis::Redis;
-use testcontainers_modules::testcontainers::runners::AsyncRunner;
-use time::OffsetDateTime;
-use uuid::Uuid;
 
 fn ev() -> Event {
-    Event {
-        tenant: TenantId::from_trusted(Uuid::nil().to_string()),
-        rule: RuleId(Uuid::nil()),
-        slo: None,
-        instance_key: InstanceKey("k".into()),
-        status: EventStatus::Firing,
-        kind: cc::domain::event::EventKind::Alert,
-        labels: BTreeMap::new(),
-        value: Some(1.0),
-        severity: Severity::Warning,
-        annotations: BTreeMap::new(),
-        eval_ts: OffsetDateTime::UNIX_EPOCH,
-        suppressed: false,
-        evidence: None,
-        evidence_truncated: false,
-    }
+    let mut e = crate::common::base_event();
+    e.value = Some(1.0);
+    e
 }
 
 #[tokio::test]
 async fn publish_consume_ack() {
-    let node = Redis::default().start().await.unwrap();
-    let port = node.get_host_port_ipv4(6379).await.unwrap();
-    let url = format!("redis://127.0.0.1:{port}");
+    let node = crate::common::start_redis().await;
+    let url = node.url.clone();
 
     let bus = RedisEventBus::connect(&url).await.unwrap();
 
@@ -47,9 +26,8 @@ async fn publish_consume_ack() {
 
 #[tokio::test]
 async fn dispatcher_and_logexport_groups_are_independent() {
-    let node = Redis::default().start().await.unwrap();
-    let port = node.get_host_port_ipv4(6379).await.unwrap();
-    let url = format!("redis://127.0.0.1:{port}");
+    let node = crate::common::start_redis().await;
+    let url = node.url.clone();
 
     let bus = RedisEventBus::connect(&url).await.unwrap();
     bus.publish(&ev()).await.unwrap();

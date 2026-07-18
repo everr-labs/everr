@@ -87,11 +87,11 @@ pub async fn create(
 pub async fn list(
     State(state): State<AppState>,
     headers: HeaderMap,
-) -> Result<Json<Value>, ApiError> {
+) -> Result<Json<Vec<Channel>>, ApiError> {
     let t = tenant(&state, &headers)?;
     let channels = state.store.list_channels(&*state.cipher, t).await?;
     let redacted: Vec<Channel> = channels.iter().map(Channel::redacted).collect();
-    Ok(Json(json!(redacted)))
+    Ok(Json(redacted))
 }
 
 pub async fn get(

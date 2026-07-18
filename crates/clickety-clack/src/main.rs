@@ -316,55 +316,36 @@ async fn main() -> anyhow::Result<()> {
                 Arc::new(NullSink)
             }
         };
+        let ctx = cc::dispatcher::DispatchCtx {
+            store: store.clone(),
+            bus: event_bus.clone(),
+            notifiers,
+            groups,
+            cache,
+            cipher: cipher.clone(),
+            sink,
+        };
         {
-            let store = store.clone();
-            let bus = event_bus.clone();
-            let notifiers = notifiers.clone();
-            let groups = groups.clone();
-            let cache = cache.clone();
-            let cipher = cipher.clone();
-            let sink = sink.clone();
+            let ctx = ctx.clone();
             let rx = sd_rx.clone();
             let consumer = cfg.node_id.clone();
             roles.push(RoleSpec::restartable("dispatcher", move || {
                 let consumer = consumer.clone();
-                let store = store.clone();
-                let bus = bus.clone();
-                let notifiers = notifiers.clone();
-                let groups = groups.clone();
-                let cache = cache.clone();
-                let cipher = cipher.clone();
-                let sink = sink.clone();
+                let ctx = ctx.clone();
                 let rx = rx.clone();
                 async move {
-                    run_dispatcher(
-                        consumer, store, bus, notifiers, groups, cache, cipher, sink, rx,
-                    )
-                    .await;
+                    run_dispatcher(consumer, ctx, rx).await;
                     Ok(())
                 }
             }));
         }
         {
-            let store = store.clone();
-            let bus = event_bus.clone();
-            let notifiers = notifiers.clone();
-            let groups = groups.clone();
-            let cache = cache.clone();
-            let cipher = cipher.clone();
-            let sink = sink.clone();
             let rx = sd_rx.clone();
             roles.push(RoleSpec::restartable("group-flusher", move || {
-                let store = store.clone();
-                let bus = bus.clone();
-                let notifiers = notifiers.clone();
-                let groups = groups.clone();
-                let cache = cache.clone();
-                let cipher = cipher.clone();
-                let sink = sink.clone();
+                let ctx = ctx.clone();
                 let rx = rx.clone();
                 async move {
-                    run_group_flusher(store, bus, notifiers, groups, cache, cipher, sink, rx).await;
+                    run_group_flusher(ctx, rx).await;
                     Ok(())
                 }
             }));

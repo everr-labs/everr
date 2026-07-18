@@ -1,7 +1,7 @@
-// packages/app/src/components/cc/route-resolution.ts
+// packages/app/src/data/cc/route-resolution.ts
 // Pure, mirrors CC's matcher semantics. Used to show "where does this alert go"
 // and to drive the routing pipeline preview. First match by ascending priority.
-import type { CcMatcher, CcRoute } from "@/data/cc/types";
+import type { CcAlert, CcMatcher, CcRoute, CcRuleView } from "./types";
 
 const OP_SYMBOL: Record<CcMatcher["op"], string> = {
   eq: "=",
@@ -67,10 +67,6 @@ export function ccRouteMatches(
   return matchers.every((m) => ccMatcherMatches(m, labels));
 }
 
-// Re-exported so existing importers keep working; the list lives with the
-// rest of the CC data layer.
-export { CC_SYNTHETIC_LABEL_KEYS } from "@/data/cc/synthetic-labels";
-
 /**
  * The label set CC's dispatcher actually matches routes/silences/inhibitions
  * against (dispatcher/routing.rs `synthetic_labels`): the instance's own labels
@@ -89,6 +85,22 @@ export function ccSyntheticLabels(
     rule: opts.rule,
     kind: opts.kind ?? "alert",
   };
+}
+
+/**
+ * The dispatch-time label set of a live alert instance: {@link ccSyntheticLabels}
+ * fed exactly as the dispatcher would — severity from the owning rule ("info"
+ * when the rule is unknown), status "firing", and `rule` as the CC rule id.
+ */
+export function ccDispatchLabels(
+  alert: Pick<CcAlert, "labels" | "rule">,
+  rule: Pick<CcRuleView, "spec"> | undefined,
+): Record<string, string> {
+  return ccSyntheticLabels(alert.labels, {
+    severity: rule?.spec.severity ?? "info",
+    status: "firing",
+    rule: alert.rule,
+  });
 }
 
 /**

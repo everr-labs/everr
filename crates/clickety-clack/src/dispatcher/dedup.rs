@@ -41,22 +41,17 @@ mod tests {
     use uuid::Uuid;
 
     fn ev(status: EventStatus, ts: OffsetDateTime) -> Event {
-        Event {
-            tenant: TenantId::from_trusted(Uuid::nil().to_string()),
-            rule: RuleId(Uuid::nil()),
-            slo: None,
-            instance_key: InstanceKey("k".into()),
+        Event::new(
+            TenantId::from_trusted(Uuid::nil().to_string()),
+            RuleId(Uuid::nil()),
+            InstanceKey("k".into()),
             status,
-            kind: crate::domain::event::EventKind::Alert,
-            labels: BTreeMap::new(),
-            value: None,
-            severity: Severity::Warning,
-            annotations: BTreeMap::new(),
-            eval_ts: ts,
-            suppressed: false,
-            evidence: None,
-            evidence_truncated: false,
-        }
+            BTreeMap::new(),
+            None,
+            Severity::Warning,
+            BTreeMap::new(),
+            ts,
+        )
     }
 
     fn t(s: i64) -> OffsetDateTime {

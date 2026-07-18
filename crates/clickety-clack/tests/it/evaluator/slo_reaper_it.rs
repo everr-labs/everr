@@ -12,8 +12,6 @@ use cc::queue::EventBus;
 use cc::stores::{PgStore, RedisLease, SloCreate};
 use std::collections::BTreeMap;
 use std::time::Duration as StdDuration;
-use testcontainers_modules::redis::Redis;
-use testcontainers_modules::testcontainers::runners::AsyncRunner;
 use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
@@ -85,11 +83,8 @@ fn slo_instance(
 #[tokio::test]
 async fn reaper_resolves_stale_slo_instance_and_leaves_fresh_untouched() {
     let pg_url = crate::support::fresh_db().await;
-    let redis = Redis::default().start().await.unwrap();
-    let redis_url = format!(
-        "redis://127.0.0.1:{}",
-        redis.get_host_port_ipv4(6379).await.unwrap()
-    );
+    let redis = crate::common::start_redis().await;
+    let redis_url = redis.url.clone();
 
     let store = PgStore::connect(&pg_url).await.unwrap();
     let bus = RedisEventBus::connect(&redis_url).await.unwrap();
@@ -151,11 +146,8 @@ async fn reaper_resolves_stale_slo_instance_and_leaves_fresh_untouched() {
 #[tokio::test]
 async fn maintenance_loop_reaps_slo_and_prunes_ledgers() {
     let pg_url = crate::support::fresh_db().await;
-    let redis = Redis::default().start().await.unwrap();
-    let redis_url = format!(
-        "redis://127.0.0.1:{}",
-        redis.get_host_port_ipv4(6379).await.unwrap()
-    );
+    let redis = crate::common::start_redis().await;
+    let redis_url = redis.url.clone();
 
     let store = PgStore::connect(&pg_url).await.unwrap();
     let bus: std::sync::Arc<dyn EventBus> =

@@ -4,17 +4,14 @@ use cc::queue::redis_streams::RedisQueue;
 use cc::queue::Queue;
 use cc::stores::{PgStore, SloCreate};
 use std::collections::BTreeMap;
-use testcontainers_modules::redis::Redis;
-use testcontainers_modules::testcontainers::runners::AsyncRunner;
 
 #[tokio::test]
 async fn tick_enqueues_due_slo_jobs() {
     let pg = crate::support::fresh_db().await;
     let store = PgStore::connect(&pg).await.unwrap();
 
-    let node = Redis::default().start().await.unwrap();
-    let port = node.get_host_port_ipv4(6379).await.unwrap();
-    let url = format!("redis://127.0.0.1:{port}");
+    let node = crate::common::start_redis().await;
+    let url = node.url.clone();
     let queue = RedisQueue::connect(&url).await.unwrap();
 
     let spec = SloSpec {

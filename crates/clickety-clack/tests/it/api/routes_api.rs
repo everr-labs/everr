@@ -1,57 +1,11 @@
-use axum::body::Body;
-use axum::http::{Request, StatusCode};
-use cc::api::auth::HeaderAuth;
-use cc::api::{build_router, AppState};
-use cc::clickhouse::ChClient;
-use cc::crypto::EnvKeyring;
-use cc::stores::PgStore;
-use std::collections::HashMap;
-use std::sync::Arc;
+use crate::api::support::{body_json, req, setup};
+use axum::http::StatusCode;
 use tower::ServiceExt;
 use uuid::Uuid;
 
-async fn setup() -> axum::Router {
-    let pg_url = crate::support::fresh_db().await;
-    let store = PgStore::connect(&pg_url).await.unwrap();
-    let state = AppState {
-        store,
-        ch: ChClient::new(
-            "http://127.0.0.1:1",
-            cc::clickhouse::build_ch_auth("shared", "default", "", None, None, "", None).unwrap(),
-        ),
-        auth: Arc::new(HeaderAuth),
-        cipher: Arc::new(
-            EnvKeyring::new(
-                HashMap::from([("v1".to_string(), [7u8; 32])]),
-                "v1".to_string(),
-            )
-            .unwrap(),
-        ),
-        allow_private_webhooks: false,
-    };
-    build_router(state)
-}
-
-async fn body_json(resp: axum::response::Response) -> serde_json::Value {
-    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
-        .await
-        .unwrap();
-    serde_json::from_slice(&bytes).unwrap()
-}
-
-fn req(method: &str, uri: &str, tenant: Uuid, body: &str) -> Request<Body> {
-    Request::builder()
-        .method(method)
-        .uri(uri)
-        .header("content-type", "application/json")
-        .header("X-CC-Tenant", tenant.to_string())
-        .body(Body::from(body.to_string()))
-        .unwrap()
-}
-
 #[tokio::test]
 async fn create_accepts_and_returns_repeat_interval() {
-    let app = setup().await;
+    let (app, _) = setup().await;
     let tenant = Uuid::new_v4();
 
     // Without the field: repeats stay off (null in the response).
@@ -103,7 +57,7 @@ async fn create_accepts_and_returns_repeat_interval() {
 
 #[tokio::test]
 async fn repeat_interval_below_minimum_is_422_on_create_and_update() {
-    let app = setup().await;
+    let (app, _) = setup().await;
     let tenant = Uuid::new_v4();
 
     let resp = app
@@ -168,7 +122,7 @@ async fn repeat_interval_below_minimum_is_422_on_create_and_update() {
 
 #[tokio::test]
 async fn put_replaces_the_route_in_full() {
-    let app = setup().await;
+    let (app, _) = setup().await;
     let tenant = Uuid::new_v4();
 
     let resp = app
@@ -223,7 +177,7 @@ async fn put_replaces_the_route_in_full() {
 
 #[tokio::test]
 async fn put_unknown_or_foreign_route_is_404() {
-    let app = setup().await;
+    let (app, _) = setup().await;
     let tenant = Uuid::new_v4();
     let body = r#"{"matchers":[],"receiver":"ops"}"#;
 

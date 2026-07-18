@@ -1,132 +1,50 @@
-use cc::crypto::{EnvKeyring, SecretCipher};
+use crate::common;
 use cc::dispatcher::cache::FilterCache;
 use cc::dispatcher::dedup::dedup_key;
-use cc::dispatcher::notify::WebhookNotifier;
-use cc::dispatcher::{flush_group, grouping, process_event, run_dispatcher, Notifiers};
-use cc::domain::event::{Event, EventStatus};
-use cc::domain::ids::{InstanceKey, RuleId, TenantId};
+use cc::dispatcher::{flush_group, grouping, process_event, DispatchCtx};
+use cc::domain::channel::ChannelConfig;
+use cc::domain::event::Event;
+use cc::domain::ids::{InstanceKey, TenantId};
 use cc::domain::instance::{InstanceState, Status};
-use cc::domain::receiver::ChannelConfig;
 use cc::domain::routing::{MatchOp, Matcher};
 use cc::domain::rule::{RuleSpec, Severity};
 use cc::domain::sink::{AlertLogSink, DeliveryFacts};
-use cc::queue::event_bus::RedisEventBus;
-use cc::queue::groups::{GroupStore, RedisGroups};
-use cc::queue::EventBus;
-use cc::stores::PgStore;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use testcontainers_modules::redis::Redis;
-use testcontainers_modules::testcontainers::runners::AsyncRunner;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-fn test_cipher() -> Arc<dyn SecretCipher> {
-    Arc::new(
-        EnvKeyring::new(
-            HashMap::from([("v1".to_string(), [7u8; 32])]),
-            "v1".to_string(),
-        )
-        .unwrap(),
-    )
-}
-
-async fn start_webhook(hits: Arc<Mutex<usize>>) -> String {
-    use axum::routing::post;
-    use axum::Router;
-    let app = Router::new().route(
-        "/hook",
-        post(move || {
-            let hits = hits.clone();
-            async move {
-                *hits.lock().unwrap() += 1;
-                "ok"
-            }
-        }),
-    );
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let addr = listener.local_addr().unwrap();
-    tokio::spawn(async move {
-        axum::serve(listener, app).await.ok();
-    });
-    format!("http://{addr}/hook")
-}
-
 fn ev(tenant: TenantId) -> Event {
-    Event {
-        tenant,
-        rule: RuleId(Uuid::nil()),
-        slo: None,
-        instance_key: InstanceKey("svc=api".into()),
-        status: EventStatus::Firing,
-        kind: cc::domain::event::EventKind::Alert,
-        labels: BTreeMap::new(),
-        value: Some(1.0),
-        severity: Severity::Warning,
-        annotations: BTreeMap::new(),
-        eval_ts: OffsetDateTime::UNIX_EPOCH,
-        suppressed: false,
-        evidence: None,
-        evidence_truncated: false,
-    }
+    let mut e = common::base_event();
+    e.tenant = tenant;
+    e.instance_key = InstanceKey("svc=api".into());
+    e.value = Some(1.0);
+    e
 }
 
 #[tokio::test]
 async fn dispatcher_delivers_once_and_dedups() {
-    let pg_url = crate::support::fresh_db().await;
-    let redis = Redis::default().start().await.unwrap();
-    let redis_url = format!(
-        "redis://127.0.0.1:{}",
-        redis.get_host_port_ipv4(6379).await.unwrap()
-    );
+    let infra = common::dispatch_infra().await;
+    let store = infra.store.clone();
+    let ctx = common::dispatch_ctx(&infra);
 
-    let store = PgStore::connect(&pg_url).await.unwrap();
-    let bus: Arc<dyn EventBus> = Arc::new(RedisEventBus::connect(&redis_url).await.unwrap());
-    let cipher = test_cipher();
-
-    let hits = Arc::new(Mutex::new(0usize));
-    let url = start_webhook(hits.clone()).await;
+    let (url, hits, _hook) = common::start_counting_webhook().await;
 
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
     store
-        .create_subscription(cipher.as_ref(), tenant.clone(), &url)
+        .create_subscription(ctx.cipher.as_ref(), tenant.clone(), &url)
         .await
         .unwrap();
 
-    let mut reg = Notifiers::new();
-    reg.register(Arc::new(WebhookNotifier::new()));
-    let notifiers = Arc::new(reg);
-    let groups: Arc<dyn GroupStore> = Arc::new(RedisGroups::connect(&redis_url).await.unwrap());
-    let cache = Arc::new(FilterCache::new(store.clone()));
-    let (sd_tx, sd_rx) = tokio::sync::watch::channel(false);
-    let handle = {
-        let store = store.clone();
-        let bus = bus.clone();
-        let groups = groups.clone();
-        let cache = cache.clone();
-        let cipher = cipher.clone();
-        tokio::spawn(async move {
-            run_dispatcher(
-                "d1".into(),
-                store,
-                bus,
-                notifiers,
-                groups,
-                cache,
-                cipher,
-                std::sync::Arc::new(cc::domain::sink::NullSink),
-                sd_rx,
-            )
-            .await;
-        })
-    };
+    let dispatcher = common::spawn_dispatcher(&ctx, false);
 
-    bus.publish(&ev(tenant.clone())).await.unwrap();
-    bus.publish(&ev(tenant.clone())).await.unwrap();
+    infra.bus.publish(&ev(tenant.clone())).await.unwrap();
+    infra.bus.publish(&ev(tenant.clone())).await.unwrap();
 
     for _ in 0..50 {
-        if *hits.lock().unwrap() >= 1 {
+        if hits.load(Ordering::Relaxed) >= 1 {
             break;
         }
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -134,7 +52,7 @@ async fn dispatcher_delivers_once_and_dedups() {
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     assert_eq!(
-        *hits.lock().unwrap(),
+        hits.load(Ordering::Relaxed),
         1,
         "dedup must prevent the second delivery"
     );
@@ -149,8 +67,7 @@ async fn dispatcher_delivers_once_and_dedups() {
         "sent"
     );
 
-    let _ = sd_tx.send(true);
-    let _ = handle.await;
+    dispatcher.shutdown().await;
 }
 
 /// Capturing `AlertLogSink` that records every `(event, facts)` pair so a test can assert
@@ -168,78 +85,44 @@ impl AlertLogSink for CapturingSink {
 }
 
 fn ev_svc(tenant: TenantId, svc: &str) -> Event {
-    let mut labels = BTreeMap::new();
-    labels.insert("svc".to_string(), svc.to_string());
-    Event {
-        tenant,
-        rule: RuleId(Uuid::nil()),
-        slo: None,
-        instance_key: InstanceKey(format!("svc={svc}")),
-        status: EventStatus::Firing,
-        kind: cc::domain::event::EventKind::Alert,
-        labels,
-        value: Some(1.0),
-        severity: Severity::Warning,
-        annotations: BTreeMap::new(),
-        eval_ts: OffsetDateTime::UNIX_EPOCH,
-        suppressed: false,
-        evidence: None,
-        evidence_truncated: false,
-    }
+    let mut e = ev(tenant);
+    e.instance_key = InstanceKey(format!("svc={svc}"));
+    e.labels = BTreeMap::from([("svc".to_string(), svc.to_string())]);
+    e
 }
 
 /// A delivered event (firehose webhook path, no routes) emits exactly one `delivery`
 /// alert-log record carrying the delivery target, and no `silenced` record.
 #[tokio::test]
 async fn delivery_emits_a_delivery_record() {
-    let pg_url = crate::support::fresh_db().await;
-    let redis = Redis::default().start().await.unwrap();
-    let redis_url = format!(
-        "redis://127.0.0.1:{}",
-        redis.get_host_port_ipv4(6379).await.unwrap()
-    );
+    let infra = common::dispatch_infra().await;
+    let store = infra.store.clone();
 
-    let store = PgStore::connect(&pg_url).await.unwrap();
-    let bus: Arc<dyn EventBus> = Arc::new(RedisEventBus::connect(&redis_url).await.unwrap());
-    let cipher = test_cipher();
+    let (url, hits, _hook) = common::start_counting_webhook().await;
 
-    let hits = Arc::new(Mutex::new(0usize));
-    let url = start_webhook(hits.clone()).await;
+    // No routes for this tenant -> the firehose webhook path delivers immediately.
+    let sink = CapturingSink::default();
+    let ctx = DispatchCtx {
+        sink: Arc::new(sink.clone()),
+        ..common::dispatch_ctx(&infra)
+    };
 
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
     store
-        .create_subscription(cipher.as_ref(), tenant.clone(), &url)
+        .create_subscription(ctx.cipher.as_ref(), tenant.clone(), &url)
         .await
         .unwrap();
 
-    let mut reg = Notifiers::new();
-    reg.register(Arc::new(WebhookNotifier::new()));
-    let notifiers = Arc::new(reg);
-    let groups: Arc<dyn GroupStore> = Arc::new(RedisGroups::connect(&redis_url).await.unwrap());
-    // No routes for this tenant -> the firehose webhook path delivers immediately.
-    let cache = FilterCache::new(store.clone());
-    let sink = CapturingSink::default();
-
     let event = ev_svc(tenant.clone(), "api");
-    bus.publish(&event).await.unwrap();
-    let entries = bus.consume("test-consumer", 1, 500).await.unwrap();
+    infra.bus.publish(&event).await.unwrap();
+    let entries = infra.bus.consume("test-consumer", 1, 500).await.unwrap();
     assert_eq!(entries.len(), 1);
 
-    let acked = process_event(
-        &store,
-        bus.as_ref(),
-        notifiers.as_ref(),
-        groups.as_ref(),
-        &cache,
-        cipher.as_ref(),
-        &sink,
-        &entries[0],
-    )
-    .await;
+    let acked = process_event(&ctx, &entries[0]).await;
     assert!(acked, "delivered event should ack");
 
     assert_eq!(
-        *hits.lock().unwrap(),
+        hits.load(Ordering::Relaxed),
         1,
         "webhook should have been hit once"
     );
@@ -266,26 +149,25 @@ async fn delivery_emits_a_delivery_record() {
 /// directly (no flusher loop / sleeps).
 #[tokio::test]
 async fn grouped_delivery_uses_clean_receiver_name() {
-    let pg_url = crate::support::fresh_db().await;
-    let redis = Redis::default().start().await.unwrap();
-    let redis_url = format!(
-        "redis://127.0.0.1:{}",
-        redis.get_host_port_ipv4(6379).await.unwrap()
-    );
+    let infra = common::dispatch_infra().await;
+    let store = infra.store.clone();
 
-    let store = PgStore::connect(&pg_url).await.unwrap();
-    let bus: Arc<dyn EventBus> = Arc::new(RedisEventBus::connect(&redis_url).await.unwrap());
-    let cipher = test_cipher();
+    let (url, hits, _hook) = common::start_counting_webhook().await;
 
-    let hits = Arc::new(Mutex::new(0usize));
-    let url = start_webhook(hits.clone()).await;
+    // Zero TTL so the snapshot reflects the receiver/route we just created.
+    let sink = CapturingSink::default();
+    let ctx = DispatchCtx {
+        cache: Arc::new(FilterCache::with_ttl(store.clone(), Duration::ZERO)),
+        sink: Arc::new(sink.clone()),
+        ..common::dispatch_ctx(&infra)
+    };
 
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
     // A receiver + a catch-all route make this the routed (grouping) path, not the firehose.
     let receiver_name = "oncall";
     store
         .create_channel(
-            cipher.as_ref(),
+            ctx.cipher.as_ref(),
             tenant.clone(),
             "oncall-hook",
             &ChannelConfig::Webhook { url: url.clone() },
@@ -316,34 +198,16 @@ async fn grouped_delivery_uses_clean_receiver_name() {
         .await
         .unwrap();
 
-    let mut reg = Notifiers::new();
-    reg.register(Arc::new(WebhookNotifier::new()));
-    let notifiers = Arc::new(reg);
-    let groups: Arc<dyn GroupStore> = Arc::new(RedisGroups::connect(&redis_url).await.unwrap());
-    // Zero TTL so the snapshot reflects the receiver/route we just created.
-    let cache = FilterCache::with_ttl(store.clone(), Duration::ZERO);
-    let sink = CapturingSink::default();
-
     let event = ev_svc(tenant.clone(), "api");
-    bus.publish(&event).await.unwrap();
-    let entries = bus.consume("test-consumer", 1, 500).await.unwrap();
+    infra.bus.publish(&event).await.unwrap();
+    let entries = infra.bus.consume("test-consumer", 1, 500).await.unwrap();
     assert_eq!(entries.len(), 1);
 
     // Buffer the event into its group (arms a flush timer).
-    let acked = process_event(
-        &store,
-        bus.as_ref(),
-        notifiers.as_ref(),
-        groups.as_ref(),
-        &cache,
-        cipher.as_ref(),
-        &sink,
-        &entries[0],
-    )
-    .await;
+    let acked = process_event(&ctx, &entries[0]).await;
     assert!(acked, "routed event should ack after buffering");
     assert_eq!(
-        *hits.lock().unwrap(),
+        hits.load(Ordering::Relaxed),
         0,
         "grouped path defers delivery to flush"
     );
@@ -355,20 +219,10 @@ async fn grouped_delivery_uses_clean_receiver_name() {
     let values = grouping::group_by_values(&labels, &group_by);
     let gid = grouping::group_id(&tenant, receiver_name, &group_by, &values);
 
-    flush_group(
-        &store,
-        bus.as_ref(),
-        notifiers.as_ref(),
-        groups.as_ref(),
-        &cache,
-        cipher.as_ref(),
-        &sink,
-        &gid,
-    )
-    .await;
+    flush_group(&ctx, &gid).await;
 
     assert_eq!(
-        *hits.lock().unwrap(),
+        hits.load(Ordering::Relaxed),
         1,
         "grouped delivery hits the webhook once"
     );
@@ -387,23 +241,22 @@ async fn grouped_delivery_uses_clean_receiver_name() {
 /// silence id and no delivery (the webhook is never hit).
 #[tokio::test]
 async fn silenced_event_emits_a_silenced_record() {
-    let pg_url = crate::support::fresh_db().await;
-    let redis = Redis::default().start().await.unwrap();
-    let redis_url = format!(
-        "redis://127.0.0.1:{}",
-        redis.get_host_port_ipv4(6379).await.unwrap()
-    );
+    let infra = common::dispatch_infra().await;
+    let store = infra.store.clone();
 
-    let store = PgStore::connect(&pg_url).await.unwrap();
-    let bus: Arc<dyn EventBus> = Arc::new(RedisEventBus::connect(&redis_url).await.unwrap());
-    let cipher = test_cipher();
+    let (url, hits, _hook) = common::start_counting_webhook().await;
 
-    let hits = Arc::new(Mutex::new(0usize));
-    let url = start_webhook(hits.clone()).await;
+    // Zero TTL so the snapshot reflects the silence we just created.
+    let sink = CapturingSink::default();
+    let ctx = DispatchCtx {
+        cache: Arc::new(FilterCache::with_ttl(store.clone(), Duration::ZERO)),
+        sink: Arc::new(sink.clone()),
+        ..common::dispatch_ctx(&infra)
+    };
 
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
     store
-        .create_subscription(cipher.as_ref(), tenant.clone(), &url)
+        .create_subscription(ctx.cipher.as_ref(), tenant.clone(), &url)
         .await
         .unwrap();
 
@@ -425,34 +278,16 @@ async fn silenced_event_emits_a_silenced_record() {
         .await
         .unwrap();
 
-    let mut reg = Notifiers::new();
-    reg.register(Arc::new(WebhookNotifier::new()));
-    let notifiers = Arc::new(reg);
-    let groups: Arc<dyn GroupStore> = Arc::new(RedisGroups::connect(&redis_url).await.unwrap());
-    // Zero TTL so the snapshot reflects the silence we just created.
-    let cache = FilterCache::with_ttl(store.clone(), Duration::ZERO);
-    let sink = CapturingSink::default();
-
     let event = ev_svc(tenant.clone(), "api");
-    bus.publish(&event).await.unwrap();
-    let entries = bus.consume("test-consumer", 1, 500).await.unwrap();
+    infra.bus.publish(&event).await.unwrap();
+    let entries = infra.bus.consume("test-consumer", 1, 500).await.unwrap();
     assert_eq!(entries.len(), 1);
 
-    let acked = process_event(
-        &store,
-        bus.as_ref(),
-        notifiers.as_ref(),
-        groups.as_ref(),
-        &cache,
-        cipher.as_ref(),
-        &sink,
-        &entries[0],
-    )
-    .await;
+    let acked = process_event(&ctx, &entries[0]).await;
     assert!(acked, "silenced event is dropped but still acked");
 
     assert_eq!(
-        *hits.lock().unwrap(),
+        hits.load(Ordering::Relaxed),
         0,
         "silenced event must not be delivered"
     );
@@ -478,26 +313,25 @@ async fn silenced_event_emits_a_silenced_record() {
 /// group id directly.
 #[tokio::test]
 async fn flush_time_silence_emits_a_silenced_record() {
-    let pg_url = crate::support::fresh_db().await;
-    let redis = Redis::default().start().await.unwrap();
-    let redis_url = format!(
-        "redis://127.0.0.1:{}",
-        redis.get_host_port_ipv4(6379).await.unwrap()
-    );
+    let infra = common::dispatch_infra().await;
+    let store = infra.store.clone();
 
-    let store = PgStore::connect(&pg_url).await.unwrap();
-    let bus: Arc<dyn EventBus> = Arc::new(RedisEventBus::connect(&redis_url).await.unwrap());
-    let cipher = test_cipher();
+    let (url, hits, _hook) = common::start_counting_webhook().await;
 
-    let hits = Arc::new(Mutex::new(0usize));
-    let url = start_webhook(hits.clone()).await;
+    // Zero TTL so the flush-time snapshot reflects the silence we create after buffering.
+    let sink = CapturingSink::default();
+    let ctx = DispatchCtx {
+        cache: Arc::new(FilterCache::with_ttl(store.clone(), Duration::ZERO)),
+        sink: Arc::new(sink.clone()),
+        ..common::dispatch_ctx(&infra)
+    };
 
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
     // Routed (grouping) path so the event is buffered, not delivered at ingest.
     let receiver_name = "oncall";
     store
         .create_channel(
-            cipher.as_ref(),
+            ctx.cipher.as_ref(),
             tenant.clone(),
             "oncall-hook",
             &ChannelConfig::Webhook { url: url.clone() },
@@ -528,34 +362,16 @@ async fn flush_time_silence_emits_a_silenced_record() {
         .await
         .unwrap();
 
-    let mut reg = Notifiers::new();
-    reg.register(Arc::new(WebhookNotifier::new()));
-    let notifiers = Arc::new(reg);
-    let groups: Arc<dyn GroupStore> = Arc::new(RedisGroups::connect(&redis_url).await.unwrap());
-    // Zero TTL so the flush-time snapshot reflects the silence we create after buffering.
-    let cache = FilterCache::with_ttl(store.clone(), Duration::ZERO);
-    let sink = CapturingSink::default();
-
     let event = ev_svc(tenant.clone(), "api");
-    bus.publish(&event).await.unwrap();
-    let entries = bus.consume("test-consumer", 1, 500).await.unwrap();
+    infra.bus.publish(&event).await.unwrap();
+    let entries = infra.bus.consume("test-consumer", 1, 500).await.unwrap();
     assert_eq!(entries.len(), 1);
 
     // Buffer the event into its group (no silence exists yet → not suppressed at ingest).
-    let acked = process_event(
-        &store,
-        bus.as_ref(),
-        notifiers.as_ref(),
-        groups.as_ref(),
-        &cache,
-        cipher.as_ref(),
-        &sink,
-        &entries[0],
-    )
-    .await;
+    let acked = process_event(&ctx, &entries[0]).await;
     assert!(acked, "routed event should ack after buffering");
     assert_eq!(
-        *hits.lock().unwrap(),
+        hits.load(Ordering::Relaxed),
         0,
         "grouped path defers delivery to flush"
     );
@@ -588,20 +404,10 @@ async fn flush_time_silence_emits_a_silenced_record() {
     let values = grouping::group_by_values(&labels, &group_by);
     let gid = grouping::group_id(&tenant, receiver_name, &group_by, &values);
 
-    flush_group(
-        &store,
-        bus.as_ref(),
-        notifiers.as_ref(),
-        groups.as_ref(),
-        &cache,
-        cipher.as_ref(),
-        &sink,
-        &gid,
-    )
-    .await;
+    flush_group(&ctx, &gid).await;
 
     assert_eq!(
-        *hits.lock().unwrap(),
+        hits.load(Ordering::Relaxed),
         0,
         "event suppressed by the late silence must not be delivered"
     );
@@ -631,25 +437,23 @@ async fn flush_time_silence_emits_a_silenced_record() {
 /// then flush directly.
 #[tokio::test]
 async fn flush_time_inhibition_emits_no_record() {
-    let pg_url = crate::support::fresh_db().await;
-    let redis = Redis::default().start().await.unwrap();
-    let redis_url = format!(
-        "redis://127.0.0.1:{}",
-        redis.get_host_port_ipv4(6379).await.unwrap()
-    );
+    let infra = common::dispatch_infra().await;
+    let store = infra.store.clone();
 
-    let store = PgStore::connect(&pg_url).await.unwrap();
-    let bus: Arc<dyn EventBus> = Arc::new(RedisEventBus::connect(&redis_url).await.unwrap());
-    let cipher = test_cipher();
+    let (url, hits, _hook) = common::start_counting_webhook().await;
 
-    let hits = Arc::new(Mutex::new(0usize));
-    let url = start_webhook(hits.clone()).await;
+    let sink = CapturingSink::default();
+    let ctx = DispatchCtx {
+        cache: Arc::new(FilterCache::with_ttl(store.clone(), Duration::ZERO)),
+        sink: Arc::new(sink.clone()),
+        ..common::dispatch_ctx(&infra)
+    };
 
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
     let receiver_name = "oncall";
     store
         .create_channel(
-            cipher.as_ref(),
+            ctx.cipher.as_ref(),
             tenant.clone(),
             "oncall-hook",
             &ChannelConfig::Webhook { url: url.clone() },
@@ -680,52 +484,18 @@ async fn flush_time_inhibition_emits_no_record() {
         .await
         .unwrap();
 
-    let mut reg = Notifiers::new();
-    reg.register(Arc::new(WebhookNotifier::new()));
-    let notifiers = Arc::new(reg);
-    let groups: Arc<dyn GroupStore> = Arc::new(RedisGroups::connect(&redis_url).await.unwrap());
-    let cache = FilterCache::with_ttl(store.clone(), Duration::ZERO);
-    let sink = CapturingSink::default();
-
     // Target event: severity=warning, svc=db (Severity::Warning so synthetic "severity"
     // label matches the inhibition target_matchers).
-    let mut target_labels = BTreeMap::new();
-    target_labels.insert("svc".to_string(), "db".to_string());
-    let target = Event {
-        tenant: tenant.clone(),
-        rule: RuleId(Uuid::nil()),
-        slo: None,
-        instance_key: InstanceKey("svc=db".into()),
-        status: EventStatus::Firing,
-        kind: cc::domain::event::EventKind::Alert,
-        labels: target_labels,
-        value: Some(1.0),
-        severity: Severity::Warning,
-        annotations: BTreeMap::new(),
-        eval_ts: OffsetDateTime::UNIX_EPOCH,
-        suppressed: false,
-        evidence: None,
-        evidence_truncated: false,
-    };
-    bus.publish(&target).await.unwrap();
-    let entries = bus.consume("test-consumer", 1, 500).await.unwrap();
+    let target = ev_svc(tenant.clone(), "db");
+    infra.bus.publish(&target).await.unwrap();
+    let entries = infra.bus.consume("test-consumer", 1, 500).await.unwrap();
     assert_eq!(entries.len(), 1);
 
     // Buffer the target (no inhibition active yet → survives ingest, gets grouped).
-    let acked = process_event(
-        &store,
-        bus.as_ref(),
-        notifiers.as_ref(),
-        groups.as_ref(),
-        &cache,
-        cipher.as_ref(),
-        &sink,
-        &entries[0],
-    )
-    .await;
+    let acked = process_event(&ctx, &entries[0]).await;
     assert!(acked, "target event should ack after buffering");
     assert_eq!(
-        *hits.lock().unwrap(),
+        hits.load(Ordering::Relaxed),
         0,
         "grouped path defers delivery to flush"
     );
@@ -781,20 +551,10 @@ async fn flush_time_inhibition_emits_no_record() {
     let values = grouping::group_by_values(&labels, &group_by);
     let gid = grouping::group_id(&tenant, receiver_name, &group_by, &values);
 
-    flush_group(
-        &store,
-        bus.as_ref(),
-        notifiers.as_ref(),
-        groups.as_ref(),
-        &cache,
-        cipher.as_ref(),
-        &sink,
-        &gid,
-    )
-    .await;
+    flush_group(&ctx, &gid).await;
 
     assert_eq!(
-        *hits.lock().unwrap(),
+        hits.load(Ordering::Relaxed),
         0,
         "event inhibited at flush time must not be delivered"
     );

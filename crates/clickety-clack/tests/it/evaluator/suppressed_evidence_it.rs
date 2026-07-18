@@ -11,12 +11,10 @@ use cc::domain::rule::{RuleSpec, Severity};
 use cc::domain::Event;
 use cc::evaluator::process_batch;
 use cc::queue::redis_streams::RedisQueue;
-use cc::queue::{EvalJob, EventBus, EventEntry, EventId, Queue, QueueError};
+use cc::queue::{EvalJob, Queue};
 use cc::stores::PgStore;
 use std::collections::BTreeMap;
 use std::sync::Mutex;
-use testcontainers_modules::redis::Redis;
-use testcontainers_modules::testcontainers::runners::AsyncRunner;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
@@ -51,33 +49,11 @@ impl RowQuerier for FixedCh {
     fn auth_identity(&self, tenant: &TenantId) -> cc::clickhouse::AuthIdentity {
         cc::clickhouse::AuthIdentity {
             user: tenant.as_str().to_string(),
-            settings: Vec::new(),
         }
     }
 }
 
-/// Records every published event so the test can inspect the exact wire payloads.
-#[derive(Default)]
-struct RecordingBus {
-    events: Mutex<Vec<Event>>,
-}
-
-#[async_trait]
-impl EventBus for RecordingBus {
-    async fn publish(&self, ev: &Event) -> Result<(), QueueError> {
-        self.events.lock().unwrap().push(ev.clone());
-        Ok(())
-    }
-    async fn consume(&self, _c: &str, _n: usize, _b: usize) -> Result<Vec<EventEntry>, QueueError> {
-        Ok(vec![])
-    }
-    async fn ack(&self, _id: &EventId) -> Result<(), QueueError> {
-        Ok(())
-    }
-    async fn dead_letter(&self, _ev: &Event, _reason: &str) -> Result<(), QueueError> {
-        Ok(())
-    }
-}
+use crate::common::RecordingBus;
 
 fn spec(suppressed: bool) -> RuleSpec {
     RuleSpec {
@@ -112,12 +88,10 @@ async fn pg() -> PgStore {
 }
 
 async fn redis_queue() -> RedisQueue {
-    let node = Redis::default().start().await.unwrap();
-    let port = node.get_host_port_ipv4(6379).await.unwrap();
-    std::mem::forget(node);
-    RedisQueue::connect(&format!("redis://127.0.0.1:{port}"))
-        .await
-        .unwrap()
+    let redis = crate::common::start_redis().await;
+    let url = redis.url.clone();
+    std::mem::forget(redis);
+    RedisQueue::connect(&url).await.unwrap()
 }
 
 struct Ctx {

@@ -46,14 +46,19 @@ function historyRow(
   };
 }
 
-beforeEach(() => {
-  mockUseQuery.mockReset();
+/** Settled event-history query returning `data` (the only axis tests vary). */
+function mockHistory(data: AlertEventLogRow[]) {
   mockUseQuery.mockReturnValue({
-    data: [],
+    data,
     isPending: false,
     isError: false,
     error: null,
   });
+}
+
+beforeEach(() => {
+  mockUseQuery.mockReset();
+  mockHistory([]);
 });
 
 describe("AlertEventFeed", () => {
@@ -63,12 +68,7 @@ describe("AlertEventFeed", () => {
   });
 
   it("shows all events when unscoped", () => {
-    mockUseQuery.mockReturnValue({
-      data: [historyRow({ slug: "alpha" }), historyRow({ slug: "beta" })],
-      isPending: false,
-      isError: false,
-      error: null,
-    });
+    mockHistory([historyRow({ slug: "alpha" }), historyRow({ slug: "beta" })]);
 
     render(<AlertEventFeed />);
 
@@ -77,12 +77,7 @@ describe("AlertEventFeed", () => {
   });
 
   it("filters to scopeSlug, hiding other slugs", () => {
-    mockUseQuery.mockReturnValue({
-      data: [historyRow({ slug: "alpha" }), historyRow({ slug: "beta" })],
-      isPending: false,
-      isError: false,
-      error: null,
-    });
+    mockHistory([historyRow({ slug: "alpha" }), historyRow({ slug: "beta" })]);
 
     render(<AlertEventFeed scopeSlug={["alpha"]} />);
 
@@ -91,18 +86,13 @@ describe("AlertEventFeed", () => {
   });
 
   it("renders evidence chips for a row that carries evidence", () => {
-    mockUseQuery.mockReturnValue({
-      data: [
-        historyRow({
-          slug: "beta",
-          evidence: { status_code: 500 },
-          evidenceTruncated: false,
-        }),
-      ],
-      isPending: false,
-      isError: false,
-      error: null,
-    });
+    mockHistory([
+      historyRow({
+        slug: "beta",
+        evidence: { status_code: 500 },
+        evidenceTruncated: false,
+      }),
+    ]);
 
     render(<AlertEventFeed />);
 
@@ -110,18 +100,13 @@ describe("AlertEventFeed", () => {
   });
 
   it("hints at truncation when evidenceTruncated is set", () => {
-    mockUseQuery.mockReturnValue({
-      data: [
-        historyRow({
-          slug: "beta",
-          evidence: { status_code: 500 },
-          evidenceTruncated: true,
-        }),
-      ],
-      isPending: false,
-      isError: false,
-      error: null,
-    });
+    mockHistory([
+      historyRow({
+        slug: "beta",
+        evidence: { status_code: 500 },
+        evidenceTruncated: true,
+      }),
+    ]);
 
     render(<AlertEventFeed />);
 
@@ -129,12 +114,7 @@ describe("AlertEventFeed", () => {
   });
 
   it("renders the suppressed marker for a suppressed row", () => {
-    mockUseQuery.mockReturnValue({
-      data: [historyRow({ slug: "beta", suppressed: true })],
-      isPending: false,
-      isError: false,
-      error: null,
-    });
+    mockHistory([historyRow({ slug: "beta", suppressed: true })]);
 
     render(<AlertEventFeed />);
 
@@ -142,12 +122,7 @@ describe("AlertEventFeed", () => {
   });
 
   it("renders no evidence chips for a row without evidence", () => {
-    mockUseQuery.mockReturnValue({
-      data: [historyRow({ slug: "beta", evidence: null })],
-      isPending: false,
-      isError: false,
-      error: null,
-    });
+    mockHistory([historyRow({ slug: "beta", evidence: null })]);
 
     render(<AlertEventFeed />);
 
@@ -155,16 +130,11 @@ describe("AlertEventFeed", () => {
   });
 
   it("filters by event type, hiding non-matching rows", async () => {
-    mockUseQuery.mockReturnValue({
-      data: [
-        historyRow({ slug: "beta", eventType: "instance_fired" }),
-        historyRow({ slug: "gamma", eventType: "delivery" }),
-        historyRow({ slug: "delta", eventType: "rule_health" }),
-      ],
-      isPending: false,
-      isError: false,
-      error: null,
-    });
+    mockHistory([
+      historyRow({ slug: "beta", eventType: "instance_fired" }),
+      historyRow({ slug: "gamma", eventType: "delivery" }),
+      historyRow({ slug: "delta", eventType: "rule_health" }),
+    ]);
     const user = userEvent.setup();
 
     render(<AlertEventFeed />);
@@ -184,61 +154,51 @@ describe("AlertEventFeed", () => {
     render(<AlertEventFeed />);
 
     expect(
-      screen.queryByRole("tablist", { name: "Event kind" }),
+      screen.queryByRole("group", { name: "Event kind" }),
     ).not.toBeInTheDocument();
   });
 
   it("type lens narrows to the lens's event types", async () => {
-    mockUseQuery.mockReturnValue({
-      data: [
-        historyRow({ slug: "beta", eventType: "instance_fired" }),
-        historyRow({ slug: "gamma", eventType: "instance_resolved" }),
-        historyRow({ slug: "delta", eventType: "delivery" }),
-        historyRow({ slug: "epsilon", eventType: "silenced" }),
-        historyRow({ slug: "zeta", eventType: "rule_health" }),
-      ],
-      isPending: false,
-      isError: false,
-      error: null,
-    });
+    mockHistory([
+      historyRow({ slug: "beta", eventType: "instance_fired" }),
+      historyRow({ slug: "gamma", eventType: "instance_resolved" }),
+      historyRow({ slug: "delta", eventType: "delivery" }),
+      historyRow({ slug: "epsilon", eventType: "silenced" }),
+      historyRow({ slug: "zeta", eventType: "rule_health" }),
+    ]);
     const user = userEvent.setup();
 
     render(<AlertEventFeed showTypeLens />);
 
-    await user.click(screen.getByRole("tab", { name: "Transitions" }));
+    await user.click(screen.getByRole("button", { name: "Transitions" }));
     expect(screen.getByText("beta")).toBeInTheDocument();
     expect(screen.getByText("gamma")).toBeInTheDocument();
     expect(screen.queryByText("delta")).not.toBeInTheDocument();
     expect(screen.queryByText("epsilon")).not.toBeInTheDocument();
     expect(screen.queryByText("zeta")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("tab", { name: "Deliveries" }));
+    await user.click(screen.getByRole("button", { name: "Deliveries" }));
     expect(screen.getByText("delta")).toBeInTheDocument();
     expect(screen.queryByText("beta")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("tab", { name: "Silence audits" }));
+    await user.click(screen.getByRole("button", { name: "Silence audits" }));
     expect(screen.getByText("epsilon")).toBeInTheDocument();
     expect(screen.queryByText("delta")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("tab", { name: "All" }));
+    await user.click(screen.getByRole("button", { name: "All" }));
     expect(screen.getByText("zeta")).toBeInTheDocument();
   });
 
   it("type lens composes AND with the fine event-type filter", async () => {
-    mockUseQuery.mockReturnValue({
-      data: [
-        historyRow({ slug: "beta", eventType: "instance_fired" }),
-        historyRow({ slug: "gamma", eventType: "instance_resolved" }),
-      ],
-      isPending: false,
-      isError: false,
-      error: null,
-    });
+    mockHistory([
+      historyRow({ slug: "beta", eventType: "instance_fired" }),
+      historyRow({ slug: "gamma", eventType: "instance_resolved" }),
+    ]);
     const user = userEvent.setup();
 
     render(<AlertEventFeed showTypeLens />);
 
-    await user.click(screen.getByRole("tab", { name: "Transitions" }));
+    await user.click(screen.getByRole("button", { name: "Transitions" }));
     await user.click(screen.getByRole("combobox", { name: "Event type" }));
     await user.click(await screen.findByRole("option", { name: "Resolved" }));
 
@@ -247,12 +207,7 @@ describe("AlertEventFeed", () => {
   });
 
   it("resolves rule handles to display names via resolveRuleName", () => {
-    mockUseQuery.mockReturnValue({
-      data: [historyRow({ slug: "beta" })],
-      isPending: false,
-      isError: false,
-      error: null,
-    });
+    mockHistory([historyRow({ slug: "beta" })]);
 
     render(
       <AlertEventFeed
@@ -267,28 +222,23 @@ describe("AlertEventFeed", () => {
   });
 
   it("composes the event-type filter with severity (AND)", async () => {
-    mockUseQuery.mockReturnValue({
-      data: [
-        historyRow({
-          slug: "beta",
-          eventType: "instance_fired",
-          severity: "critical",
-        }),
-        historyRow({
-          slug: "gamma",
-          eventType: "instance_fired",
-          severity: "warning",
-        }),
-        historyRow({
-          slug: "delta",
-          eventType: "delivery",
-          severity: "critical",
-        }),
-      ],
-      isPending: false,
-      isError: false,
-      error: null,
-    });
+    mockHistory([
+      historyRow({
+        slug: "beta",
+        eventType: "instance_fired",
+        severity: "critical",
+      }),
+      historyRow({
+        slug: "gamma",
+        eventType: "instance_fired",
+        severity: "warning",
+      }),
+      historyRow({
+        slug: "delta",
+        eventType: "delivery",
+        severity: "critical",
+      }),
+    ]);
     const user = userEvent.setup();
 
     render(<AlertEventFeed />);
@@ -310,12 +260,7 @@ describe("AlertEventFeed", () => {
   });
 
   it("hideRuleColumns drops the Severity and Rule columns and the severity filter", () => {
-    mockUseQuery.mockReturnValue({
-      data: [historyRow({ slug: "beta" })],
-      isPending: false,
-      isError: false,
-      error: null,
-    });
+    mockHistory([historyRow({ slug: "beta" })]);
 
     render(<AlertEventFeed hideRuleColumns />);
 
@@ -338,12 +283,7 @@ describe("AlertEventFeed", () => {
   });
 
   it("keeps the full column set (including Severity and Rule) without hideRuleColumns", () => {
-    mockUseQuery.mockReturnValue({
-      data: [historyRow({ slug: "beta" })],
-      isPending: false,
-      isError: false,
-      error: null,
-    });
+    mockHistory([historyRow({ slug: "beta" })]);
 
     render(<AlertEventFeed />);
 
@@ -359,18 +299,13 @@ describe("AlertEventFeed", () => {
   });
 
   it("falls back to the rule's severity for a fire/resolve transition whose own severity is a stored-history gap", () => {
-    mockUseQuery.mockReturnValue({
-      data: [
-        historyRow({
-          slug: "beta",
-          eventType: "instance_fired",
-          severity: "", // CC doesn't stamp alert.severity on stored records yet
-        }),
-      ],
-      isPending: false,
-      isError: false,
-      error: null,
-    });
+    mockHistory([
+      historyRow({
+        slug: "beta",
+        eventType: "instance_fired",
+        severity: "", // CC doesn't stamp alert.severity on stored records yet
+      }),
+    ]);
 
     render(
       <AlertEventFeed
@@ -384,18 +319,13 @@ describe("AlertEventFeed", () => {
   });
 
   it('leaves a genuine data gap as "—" for a non-transition event kind, even with resolveRuleSeverity available', () => {
-    mockUseQuery.mockReturnValue({
-      data: [
-        historyRow({
-          slug: "beta",
-          eventType: "delivery",
-          severity: "",
-        }),
-      ],
-      isPending: false,
-      isError: false,
-      error: null,
-    });
+    mockHistory([
+      historyRow({
+        slug: "beta",
+        eventType: "delivery",
+        severity: "",
+      }),
+    ]);
 
     render(<AlertEventFeed resolveRuleSeverity={() => "critical"} />);
 

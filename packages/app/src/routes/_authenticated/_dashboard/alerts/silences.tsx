@@ -60,8 +60,9 @@ function toRfc3339(local: string): string {
 
 // Triage hands off a ready-made matcher set (the instance's labels plus the
 // rule-scoping matcher) via router history state — search params can't be used
-// because the dashboard route's schema strips unknown keys.
-type SilenceHandoff = { silencePrefill?: CcMatcher[] };
+// because the dashboard route's schema strips unknown keys. Exported so the
+// producer (Triage's Custom-silence navigate) types the same shape.
+export type SilenceHandoff = { silencePrefill?: CcMatcher[] };
 
 type SilenceGroup = "active" | "scheduled" | "expired";
 

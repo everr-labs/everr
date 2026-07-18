@@ -11,7 +11,7 @@ use crate::api::error::ApiError;
 use crate::api::AppState;
 use crate::domain::ids::SloId;
 use crate::domain::instance::{InstanceState, Status};
-use crate::domain::slo::{parse_window_secs, Slo, SloSpec};
+use crate::domain::slo::{parse_window_secs, Slo, SloSpec, RESERVED_SLO_LABELS, SLO_TIER_LABEL};
 use crate::engine::slo_math::{time_to_exhaustion_secs, SloStatusPayload};
 use crate::stores::{SloCreate, SloUpdate};
 
@@ -104,11 +104,7 @@ pub async fn delete(
 ) -> Result<Json<Value>, ApiError> {
     let t = tenant(&state, &headers)?;
     let ok = state.store.delete_slo(t, SloId(id)).await?;
-    if ok {
-        Ok(Json(json!({ "deleted": true })))
-    } else {
-        Err(ApiError::NotFound)
-    }
+    crate::api::deleted(ok)
 }
 
 /// Shared body of `pause`/`resume`: flip the paused flag, then return the
@@ -162,26 +158,7 @@ pub struct SloStatusOut {
     #[serde(with = "time::serde::rfc3339")]
     pub computed_at: time::OffsetDateTime,
     pub payload: Value,
-    pub health: SloHealthOut,
-}
-
-/// Serializable view of [`crate::stores::SloHealth`].
-#[derive(serde::Serialize)]
-pub struct SloHealthOut {
-    pub status: String,
-    #[serde(with = "time::serde::rfc3339::option")]
-    pub degraded_since: Option<time::OffsetDateTime>,
-    pub last_error: Option<String>,
-}
-
-impl From<crate::stores::SloHealth> for SloHealthOut {
-    fn from(h: crate::stores::SloHealth) -> Self {
-        SloHealthOut {
-            status: h.status,
-            degraded_since: h.degraded_since,
-            last_error: h.last_error,
-        }
-    }
+    pub health: crate::stores::SloHealth,
 }
 
 /// `POST /v1/slos/:id/test`: a dry-run probe (`:id` is ignored, like
@@ -265,7 +242,7 @@ pub async fn status(
     Ok(Json(SloStatusOut {
         computed_at: row.computed_at,
         payload,
-        health: health.into(),
+        health,
     }))
 }
 
@@ -291,7 +268,7 @@ fn enrich_status_payload(raw: Value, instances: &[InstanceState]) -> Value {
     let mut tiers_by_labels: HashMap<BTreeMap<String, String>, Vec<Value>> = HashMap::new();
     for inst in instances.iter().filter(|i| i.status != Status::Inactive) {
         let mut labels = inst.labels.clone();
-        let Some(tier) = labels.remove("slo_tier") else {
+        let Some(tier) = labels.remove(SLO_TIER_LABEL) else {
             continue;
         };
         tiers_by_labels.entry(labels).or_default().push(json!({
@@ -402,16 +379,7 @@ pub(crate) fn validate_slo_spec(spec: &SloSpec) -> Result<(), ApiError> {
     validate_window_secs(&spec.time_window.duration)?;
 
     // 5. Reserved label prefix (mirrors rule validation).
-    if let Some(col) = spec
-        .sli
-        .label_columns
-        .iter()
-        .find(|c| c.starts_with("__cc_"))
-    {
-        return Err(ApiError::Validation(format!(
-            "label column {col:?} uses the reserved \"__cc_\" prefix"
-        )));
-    }
+    crate::api::reject_reserved_label_columns(&spec.sli.label_columns)?;
     // `slo` and `slo_tier` are injected by the pipeline itself (the synthetic
     // `slo` routing label and the per-tier instance discriminator), so a user
     // label column with either name would be silently clobbered.
@@ -419,7 +387,7 @@ pub(crate) fn validate_slo_spec(spec: &SloSpec) -> Result<(), ApiError> {
         .sli
         .label_columns
         .iter()
-        .find(|c| *c == "slo" || *c == "slo_tier")
+        .find(|c| RESERVED_SLO_LABELS.contains(&c.as_str()))
     {
         return Err(ApiError::Validation(format!(
             "label column {col:?} collides with a label the SLO pipeline injects \
@@ -590,7 +558,7 @@ mod tests {
 
     #[test]
     fn rejects_pipeline_injected_label_names() {
-        for reserved in ["slo", "slo_tier"] {
+        for reserved in RESERVED_SLO_LABELS {
             let mut s = spec(GOOD_SQL);
             s.sli.label_columns = vec!["service".into(), reserved.into()];
             let err = validate_slo_spec(&s).unwrap_err();

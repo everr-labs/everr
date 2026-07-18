@@ -4,20 +4,17 @@ use crate::domain::ids::TenantId;
 pub struct ChAuth {
     pub user: String,
     pub key: String,
-    /// Reserved for future RLS-via-setting providers; empty for shared/derived/map.
-    pub extra_settings: Vec<(String, String)>,
     pub quota: Option<String>,
     /// True ⇒ the CH user/profile already pins readonly + caps, so the client omits
     /// its own `readonly=1` (avoids "Cannot modify setting in readonly mode").
     pub server_enforced_limits: bool,
 }
 
-/// What distinguishes two queries' result sets for coalescing: the auth user plus any
-/// sorted extra settings. Equal identity ⇒ safe to share one ClickHouse round-trip.
+/// What distinguishes two queries' result sets for coalescing: the auth user.
+/// Equal identity ⇒ safe to share one ClickHouse round-trip.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct AuthIdentity {
     pub user: String,
-    pub settings: Vec<(String, String)>,
 }
 
 /// Resolves the ClickHouse auth context for one tenant's query.
@@ -26,12 +23,8 @@ pub trait ChAuthProvider: Send + Sync {
 
     /// Coalescing key derived from `resolve`. Default impl is correct for all providers.
     fn auth_identity_of(&self, tenant: &TenantId) -> AuthIdentity {
-        let a = self.resolve(tenant);
-        let mut settings = a.extra_settings;
-        settings.sort();
         AuthIdentity {
-            user: a.user,
-            settings,
+            user: self.resolve(tenant).user,
         }
     }
 }
@@ -47,7 +40,6 @@ impl ChAuthProvider for SharedAuth {
         ChAuth {
             user: self.user.clone(),
             key: self.password.clone(),
-            extra_settings: Vec::new(),
             quota: None,
             server_enforced_limits: false,
         }
@@ -94,7 +86,6 @@ impl ChAuthProvider for DerivedAuth {
         ChAuth {
             user: user.clone(),
             key,
-            extra_settings: Vec::new(),
             quota: Some(user),
             server_enforced_limits: true,
         }
@@ -118,7 +109,6 @@ impl ChAuthProvider for MapAuth {
             Some(e) => ChAuth {
                 user: e.user.clone(),
                 key: e.password.clone(),
-                extra_settings: Vec::new(),
                 quota: Some(e.user.clone()),
                 server_enforced_limits: true,
             },
@@ -128,7 +118,6 @@ impl ChAuthProvider for MapAuth {
             None => ChAuth {
                 user: String::new(),
                 key: String::new(),
-                extra_settings: Vec::new(),
                 quota: None,
                 server_enforced_limits: true,
             },
@@ -209,7 +198,6 @@ mod tests {
         assert_eq!(a.key, "pw");
         assert!(a.quota.is_none());
         assert!(!a.server_enforced_limits);
-        assert!(a.extra_settings.is_empty());
         // Same identity for any tenant ⇒ coalescing preserved.
         assert_eq!(p.auth_identity_of(&t("x")), p.auth_identity_of(&t("y")));
     }

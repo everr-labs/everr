@@ -2,8 +2,8 @@ import { and, eq, inArray } from "drizzle-orm";
 import * as cc from "@/data/cc/client";
 import { db } from "@/db/client";
 import { previews } from "@/db/schema";
+import { createLimiter } from "@/lib/limiter";
 import { errorMessage, serverLogger } from "@/telemetry/logger";
-import { mapSettledWithConcurrency } from "./concurrency";
 import { previewIdOf } from "./mapping";
 
 /** At most this many orphan rules are deleted per org per sweep run. */
@@ -26,10 +26,9 @@ async function deleteCcRules(
 ): Promise<{ deleted: number; capped: boolean }> {
   const capped = cap > 0 && ruleIds.length > cap;
   const targets = capped ? ruleIds.slice(0, cap) : ruleIds;
-  const results = await mapSettledWithConcurrency(
-    targets,
-    DELETE_CONCURRENCY,
-    (id) => cc.deleteRule(orgId, id),
+  const runDelete = createLimiter(DELETE_CONCURRENCY);
+  const results = await Promise.allSettled(
+    targets.map((id) => runDelete(undefined, () => cc.deleteRule(orgId, id))),
   );
   const failure = results.find((r) => r.status === "rejected");
   if (failure) throw failure.reason;

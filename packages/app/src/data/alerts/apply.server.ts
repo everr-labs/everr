@@ -3,10 +3,11 @@ import { stableStringify } from "@/data/as-code/reconcile";
 import type { Reconciler } from "@/data/as-code/registry";
 import * as cc from "@/data/cc/client";
 import { CcApiError } from "@/data/cc/errors";
+import type { CcRuleView } from "@/data/cc/types";
 import { authEnv } from "@/env/auth";
 import { querySqlApiWithMeta, type SqlApiResult } from "@/lib/clickhouse";
+import { createLimiter } from "@/lib/limiter";
 import { errorMessage } from "@/telemetry/logger";
-import { mapSettledWithConcurrency } from "./concurrency";
 import {
   isOwnedRule,
   OWN_NAME,
@@ -222,11 +223,29 @@ export const applyAlertSpecs: Reconciler = async ({
     return { ...p, path };
   });
 
-  const validations = await mapSettledWithConcurrency(
-    parsed,
-    VALIDATION_QUERY_CONCURRENCY,
-    (p) => validateAlertRuleQuery(p.path, p.rule, orgId),
-  );
+  // The CC listing for step 2 is independent of the validation queries, so it
+  // starts here and overlaps the validation pool. A first-apply dry run has no
+  // preview registry row yet (previewId null on a preview namespace would
+  // alias the LIVE scope), so it skips the listing: nothing tagged with a
+  // not-yet-minted id can exist in CC.
+  const listingPromise: Promise<CcRuleView[]> =
+    namespace.kind === "preview" && namespace.id === null
+      ? Promise.resolve([])
+      : cc.listRules(orgId);
+
+  // Bounded pool via the shared limiter; allSettled keeps results in input
+  // order, so the first failure can still be reported deterministically.
+  const runValidation = createLimiter(VALIDATION_QUERY_CONCURRENCY);
+  const [validations, listed] = await Promise.all([
+    Promise.allSettled(
+      parsed.map((p) =>
+        runValidation(undefined, () =>
+          validateAlertRuleQuery(p.path, p.rule, orgId),
+        ),
+      ),
+    ),
+    listingPromise,
+  ]);
 
   // Non-fatal validation findings (e.g. evidence-cap overruns), surfaced on
   // the apply result's note alongside the preview note.
@@ -255,16 +274,9 @@ export const applyAlertSpecs: Reconciler = async ({
   // repo's, and matching this namespace's preview id (null = live). The
   // previewIdOf check cuts both ways — a live apply never adopts or prunes a
   // preview's suppressed rules, and a preview apply never touches live ones.
-  // A first-apply dry run has no preview registry row yet (previewId null on a
-  // preview namespace would alias the LIVE scope), so it skips the listing:
-  // nothing tagged with a not-yet-minted id can exist in CC.
-  const existing =
-    namespace.kind === "preview" && namespace.id === null
-      ? []
-      : (await cc.listRules(orgId)).filter(
-          (r) =>
-            isOwnedRule(r.spec, repoid) && previewIdOf(r.spec) === previewId,
-        );
+  const existing = listed.filter(
+    (r) => isOwnedRule(r.spec, repoid) && previewIdOf(r.spec) === previewId,
+  );
   const existingByName = new Map(
     existing.map((r) => [r.spec.annotations?.[OWN_NAME] ?? "", r]),
   );
@@ -278,52 +290,56 @@ export const applyAlertSpecs: Reconciler = async ({
   // within one rule the create -> link-stamp PUT stays strictly sequential.
   // Outcomes aggregate by input index and the first failure (in input order)
   // is rethrown, matching the sequential loop's deterministic reporting.
-  const outcomes = await mapSettledWithConcurrency(
-    desired,
-    CC_MUTATION_CONCURRENCY,
-    async (d): Promise<"created" | "updated" | "unchanged"> => {
-      const cur = existingByName.get(d.name);
-      if (!cur) {
-        if (!dryRun) {
-          // link.alert needs the CC rule id, which only exists after create:
-          // create first, then immediately stamp the link with a follow-up PUT
-          // (guarded by the fresh version, so nothing can race in between).
-          const createdRule = await cc.createRule(orgId, d.spec);
-          await cc.updateRule(
-            orgId,
-            createdRule.id,
-            withAlertLink(d.spec, appBaseUrl, createdRule.id),
-            createdRule.version,
-          );
-        }
-        return "created";
-      }
-      // The id is known, so the desired spec carries its link.alert; this also
-      // keeps the fingerprint stable against the stored rule's annotation.
-      const next = withAlertLink(d.spec, appBaseUrl, cur.id);
-      if (
-        specFingerprint(cur.spec as Record<string, unknown>) ===
-        specFingerprint(next as unknown as Record<string, unknown>)
-      ) {
-        return "unchanged";
-      }
-      // Update in place: preserves the rule id and instance state (CC clears
-      // instances only when the label_columns set changes). The stored
-      // version guards against concurrent edits.
-      if (!dryRun) {
-        try {
-          await cc.updateRule(orgId, cur.id, next, cur.version);
-        } catch (error) {
-          if (isCcVersionConflict(error)) {
-            throw new ApplyValidationError(
-              `${d.path}: alert "${d.name}" was modified concurrently in the alert engine (version conflict); re-run apply`,
-            );
+  const runMutation = createLimiter(CC_MUTATION_CONCURRENCY);
+  const outcomes = await Promise.allSettled(
+    desired.map((d) =>
+      runMutation(
+        undefined,
+        async (): Promise<"created" | "updated" | "unchanged"> => {
+          const cur = existingByName.get(d.name);
+          if (!cur) {
+            if (!dryRun) {
+              // link.alert needs the CC rule id, which only exists after create:
+              // create first, then immediately stamp the link with a follow-up PUT
+              // (guarded by the fresh version, so nothing can race in between).
+              const createdRule = await cc.createRule(orgId, d.spec);
+              await cc.updateRule(
+                orgId,
+                createdRule.id,
+                withAlertLink(d.spec, appBaseUrl, createdRule.id),
+                createdRule.version,
+              );
+            }
+            return "created";
           }
-          throw error;
-        }
-      }
-      return "updated";
-    },
+          // The id is known, so the desired spec carries its link.alert; this also
+          // keeps the fingerprint stable against the stored rule's annotation.
+          const next = withAlertLink(d.spec, appBaseUrl, cur.id);
+          if (
+            specFingerprint(cur.spec as Record<string, unknown>) ===
+            specFingerprint(next as unknown as Record<string, unknown>)
+          ) {
+            return "unchanged";
+          }
+          // Update in place: preserves the rule id and instance state (CC clears
+          // instances only when the label_columns set changes). The stored
+          // version guards against concurrent edits.
+          if (!dryRun) {
+            try {
+              await cc.updateRule(orgId, cur.id, next, cur.version);
+            } catch (error) {
+              if (isCcVersionConflict(error)) {
+                throw new ApplyValidationError(
+                  `${d.path}: alert "${d.name}" was modified concurrently in the alert engine (version conflict); re-run apply`,
+                );
+              }
+              throw error;
+            }
+          }
+          return "updated";
+        },
+      ),
+    ),
   );
   desired.forEach((d, i) => {
     const outcome = outcomes[i];
@@ -336,12 +352,12 @@ export const applyAlertSpecs: Reconciler = async ({
   // after every create/update settled cleanly, like the sequential version.
   const desiredNames = new Set(desired.map((d) => d.name));
   const stale = [...existingByName].filter(([name]) => !desiredNames.has(name));
-  const deletions = await mapSettledWithConcurrency(
-    stale,
-    CC_MUTATION_CONCURRENCY,
-    async ([, cur]) => {
-      if (!dryRun) await cc.deleteRule(orgId, cur.id);
-    },
+  const deletions = await Promise.allSettled(
+    stale.map(([, cur]) =>
+      runMutation(undefined, async () => {
+        if (!dryRun) await cc.deleteRule(orgId, cur.id);
+      }),
+    ),
   );
   stale.forEach(([name], i) => {
     const outcome = deletions[i];

@@ -1,4 +1,10 @@
-import type { CcRuleSpec } from "@/data/cc/types";
+import type { CcRuleSpec, CcSeverity } from "@/data/cc/types";
+import {
+  ANN_CC_DESCRIPTION,
+  ANN_CC_LINK_ALERT,
+  ANN_CC_LINK_RUNBOOK,
+  ANN_CC_SUMMARY,
+} from "./annotations";
 import {
   type AlertRuleYaml,
   formatRunbookRef,
@@ -30,16 +36,6 @@ const ANN_LABEL_PREFIX = "everr.label."; // metadata.labels.<k> → everr.label.
 // deep-link to it. Replaces the old Postgres runbook_project/runbook_slug
 // columns now that a simple alert IS a CC rule.
 const ANN_RUNBOOK = "everr.runbook";
-
-// CC's dispatcher renders these annotations on notifications: `summary` is the
-// headline, `description` an extra body line (both substitute ${<key>} against
-// the event's labels, then ${value}, then its evidence columns), and
-// `link.alert` / `link.runbook` become View-alert / View-runbook links when
-// they are http(s) URLs.
-const ANN_CC_SUMMARY = "summary";
-const ANN_CC_DESCRIPTION = "description";
-const ANN_CC_LINK_ALERT = "link.alert";
-const ANN_CC_LINK_RUNBOOK = "link.runbook";
 
 /** Absolute URL of the everr rule detail page for a CC rule id. */
 function alertDetailUrl(appBaseUrl: string, ruleId: string): string {
@@ -140,7 +136,7 @@ export function toRuleSpec(
 export type SimpleAlertView = {
   slug: string;
   repoid: string;
-  severity: "info" | "warning" | "critical";
+  severity: CcSeverity;
   notificationTitleTemplate: string;
   notificationDescriptionTemplate: string;
   displayName: string | null;

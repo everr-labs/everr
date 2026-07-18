@@ -3,11 +3,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use uuid::Uuid;
 
-// Channel configs used to be inlined in receivers; they are standalone named
-// resources now (see `crate::domain::channel`). Re-exported here so existing
-// `receiver::ChannelConfig` imports keep working.
-pub use crate::domain::channel::ChannelConfig;
-
 /// A named set of channel references. Receivers carry no secrets themselves:
 /// each entry of `channels` is the NAME of a [`crate::domain::Channel`], which
 /// holds the actual endpoint config.

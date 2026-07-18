@@ -1,16 +1,13 @@
 use cc::domain::ids::{RuleId, TenantId};
 use cc::queue::redis_streams::RedisQueue;
 use cc::queue::{EvalJob, Queue};
-use testcontainers_modules::redis::Redis;
-use testcontainers_modules::testcontainers::runners::AsyncRunner;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
 #[tokio::test]
 async fn enqueue_consume_ack_roundtrip() {
-    let node = Redis::default().start().await.unwrap();
-    let port = node.get_host_port_ipv4(6379).await.unwrap();
-    let url = format!("redis://127.0.0.1:{port}");
+    let node = crate::common::start_redis().await;
+    let url = node.url.clone();
 
     let q = RedisQueue::connect(&url).await.unwrap();
     let job = EvalJob {

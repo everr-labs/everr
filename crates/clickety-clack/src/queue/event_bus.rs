@@ -1,13 +1,11 @@
 use crate::domain::Event;
-use crate::queue::redis_streams::{is_unknown_command, PEL_RECLAIM_IDLE_MS};
+use crate::queue::redis_streams::{reclaim_pending_raw, ReclaimTarget, PEL_RECLAIM_IDLE_MS};
 use crate::queue::{EventBus, EventEntry, EventId, QueueError};
 use async_trait::async_trait;
 use redis::aio::ConnectionManager;
-use redis::streams::{
-    StreamAutoClaimOptions, StreamAutoClaimReply, StreamMaxlen, StreamReadOptions, StreamReadReply,
-};
+use redis::streams::{StreamMaxlen, StreamReadOptions, StreamReadReply};
 use redis::AsyncCommands;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 const STREAM: &str = "cc:events";
@@ -58,8 +56,8 @@ impl RedisEventBus {
     }
 
     /// Steal `cc:events` entries idle for at least `reclaim_idle_ms` in `group`'s
-    /// pending-entries-list and hand them to `consumer`, mirroring
-    /// `RedisQueue::reclaim_pending` (see there for the XAUTOCLAIM semantics, the
+    /// pending-entries-list and hand them to `consumer`, via the shared
+    /// [`reclaim_pending_raw`] pass (see there for the XAUTOCLAIM semantics, the
     /// pre-6.2 degrade-to-no-op behavior, and the poison-pill rationale). Returns
     /// parsed entries; unparseable ones are acked in `group` so they aren't
     /// reclaimed (and fail) forever.
@@ -69,52 +67,37 @@ impl RedisEventBus {
         consumer: &str,
         count: usize,
     ) -> Result<Vec<EventEntry>, QueueError> {
-        if self.reclaim_unsupported.load(Ordering::Relaxed) {
-            return Ok(Vec::new());
-        }
-
         let mut conn = self.conn.clone();
-        let opts = StreamAutoClaimOptions::default().count(count);
-        let reply: StreamAutoClaimReply = match conn
-            .xautoclaim_options(STREAM, group, consumer, self.reclaim_idle_ms, "0-0", opts)
-            .await
-        {
-            Ok(reply) => reply,
-            Err(e) if is_unknown_command(&e) => {
-                self.reclaim_unsupported.store(true, Ordering::Relaxed);
-                tracing::warn!(
-                    stream = STREAM,
-                    group,
-                    error = %e,
-                    "XAUTOCLAIM unsupported by this Redis server (needs >= 6.2); \
-                     reclaim disabled until restart"
-                );
-                return Ok(Vec::new());
-            }
-            Err(e) => return Err(e.into()),
-        };
-        let mut out = Vec::with_capacity(reply.claimed.len());
-        for entry in reply.claimed {
-            let event = match entry.map.get("event") {
-                Some(redis::Value::BulkString(bytes)) => {
-                    serde_json::from_slice::<Event>(bytes).ok()
-                }
-                _ => None,
-            };
-            match event {
-                Some(event) => out.push(EventEntry {
-                    id: EventId(entry.id),
+        let reclaimed = reclaim_pending_raw(
+            &mut conn,
+            &self.reclaim_unsupported,
+            &ReclaimTarget {
+                stream: STREAM,
+                group,
+                field: "event",
+            },
+            consumer,
+            self.reclaim_idle_ms,
+            count,
+        )
+        .await?;
+        let mut out = Vec::with_capacity(reclaimed.len());
+        for (id, payload) in reclaimed {
+            match serde_json::from_slice::<Event>(&payload) {
+                Ok(event) => out.push(EventEntry {
+                    id: EventId(id),
                     event,
                 }),
-                None => {
+                Err(e) => {
                     tracing::warn!(
                         stream = STREAM,
                         group,
-                        id = %entry.id,
-                        "reclaimed entry missing a parseable \"event\" field; acking as poison pill"
+                        id = %id,
+                        error = %e,
+                        "reclaimed event payload failed to deserialize; acking as poison pill"
                     );
                     let _: Result<i64, redis::RedisError> =
-                        conn.xack(STREAM, group, &[entry.id.as_str()]).await;
+                        conn.xack(STREAM, group, &[id.as_str()]).await;
                 }
             }
         }

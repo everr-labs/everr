@@ -97,7 +97,7 @@ mod tests {
             inhibitions: vec![],
             firing: vec![],
             routes: vec![],
-            receivers: vec![],
+            receivers: Default::default(),
         }
     }
 
@@ -166,7 +166,7 @@ mod tests {
             inhibitions: vec![],
             firing: vec![],
             routes: vec![],
-            receivers: vec![],
+            receivers: Default::default(),
         };
         let firing = make_event(EventStatus::Firing, BTreeMap::new());
         let resolved = make_event(EventStatus::Resolved, BTreeMap::new());
@@ -233,7 +233,7 @@ mod tests {
             // source_matchers directly; inhibition::is_inhibited uses these verbatim.
             firing: vec![(source_key, source_labels)],
             routes: vec![],
-            receivers: vec![],
+            receivers: Default::default(),
         };
 
         let result = filter_suppressed(&snap, vec![target_ev], now, &NullSink).await;

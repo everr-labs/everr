@@ -7,7 +7,7 @@ use axum::extract::{Path, State};
 use axum::http::HeaderMap;
 use axum::Json;
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::Value;
 use uuid::Uuid;
 
 #[derive(Deserialize)]
@@ -34,10 +34,10 @@ pub async fn create(
 pub async fn list(
     State(state): State<AppState>,
     headers: HeaderMap,
-) -> Result<Json<Value>, ApiError> {
+) -> Result<Json<Vec<InhibitionRule>>, ApiError> {
     let t = tenant(&state, &headers)?;
     let rules = state.store.list_inhibitions(t).await?;
-    Ok(Json(json!(rules)))
+    Ok(Json(rules))
 }
 
 pub async fn delete(
@@ -47,9 +47,5 @@ pub async fn delete(
 ) -> Result<Json<Value>, ApiError> {
     let t = tenant(&state, &headers)?;
     let ok = state.store.delete_inhibition(t, id).await?;
-    if ok {
-        Ok(Json(json!({"deleted": true})))
-    } else {
-        Err(ApiError::NotFound)
-    }
+    crate::api::deleted(ok)
 }

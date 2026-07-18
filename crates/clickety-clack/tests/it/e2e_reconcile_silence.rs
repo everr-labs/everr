@@ -1,36 +1,17 @@
-use cc::crypto::{EnvKeyring, SecretCipher};
-use cc::dispatcher::cache::FilterCache;
-use cc::dispatcher::notify::WebhookNotifier;
-use cc::dispatcher::{run_dispatcher, Notifiers};
+use crate::common;
 use cc::domain::ids::{InstanceKey, RuleId, TenantId};
 use cc::domain::instance::{InstanceState, Status};
 use cc::domain::routing::{MatchOp, Matcher};
 use cc::domain::rule::{RuleSpec, Severity};
 use cc::evaluator::maintenance::run_maintenance;
-use cc::queue::event_bus::RedisEventBus;
-use cc::queue::groups::{GroupStore, RedisGroups};
-use cc::queue::EventBus;
-use cc::stores::{PgStore, RedisLease};
+use cc::stores::RedisLease;
 use std::collections::BTreeMap;
-use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use testcontainers_modules::redis::Redis;
-use testcontainers_modules::testcontainers::runners::AsyncRunner;
 use time::{Duration as TimeDuration, OffsetDateTime};
 use uuid::Uuid;
 
 type Captured = Arc<Mutex<Vec<serde_json::Value>>>;
-
-fn test_cipher() -> Arc<dyn SecretCipher> {
-    Arc::new(
-        EnvKeyring::new(
-            HashMap::from([("v1".to_string(), [7u8; 32])]),
-            "v1".to_string(),
-        )
-        .unwrap(),
-    )
-}
 
 async fn stub_webhook(captured: Captured) -> String {
     use axum::routing::post;
@@ -90,24 +71,17 @@ fn stale_firing(rule: RuleId, tenant: TenantId, svc: &str, now: OffsetDateTime) 
 /// Exactly one webhook delivery is expected: svc=control, status resolved.
 #[tokio::test]
 async fn reconcile_resolved_respects_silence() {
-    let pg_url = crate::support::fresh_db().await;
-    let redis = Redis::default().start().await.unwrap();
-    let redis_url = format!(
-        "redis://127.0.0.1:{}",
-        redis.get_host_port_ipv4(6379).await.unwrap()
-    );
-
-    let store = PgStore::connect(&pg_url).await.unwrap();
-    let bus: Arc<dyn EventBus> = Arc::new(RedisEventBus::connect(&redis_url).await.unwrap());
+    let infra = common::dispatch_infra().await;
+    let store = infra.store.clone();
 
     let captured: Captured = Arc::new(Mutex::new(Vec::new()));
     let hook = stub_webhook(captured.clone()).await;
 
-    let cipher = test_cipher();
+    let ctx = common::dispatch_ctx(&infra);
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
     // No routes → firehose path → one webhook per delivered event.
     store
-        .create_subscription(cipher.as_ref(), tenant.clone(), &hook)
+        .create_subscription(ctx.cipher.as_ref(), tenant.clone(), &hook)
         .await
         .unwrap();
     let rule = store
@@ -145,44 +119,13 @@ async fn reconcile_resolved_respects_silence() {
         .await
         .unwrap();
 
-    let groups: Arc<dyn GroupStore> = Arc::new(RedisGroups::connect(&redis_url).await.unwrap());
-    let cache = Arc::new(FilterCache::new(store.clone()));
-
-    let (sd_tx, sd_rx) = tokio::sync::watch::channel(false);
-
-    let disp_handle = {
-        let mut reg = Notifiers::new();
-        reg.register(Arc::new(WebhookNotifier::new()));
-        let notifiers = Arc::new(reg);
-        let (store, bus, groups, cache, cipher, rx) = (
-            store.clone(),
-            bus.clone(),
-            groups.clone(),
-            cache.clone(),
-            cipher.clone(),
-            sd_rx.clone(),
-        );
-        tokio::spawn(async move {
-            run_dispatcher(
-                "d1".into(),
-                store,
-                bus,
-                notifiers,
-                groups,
-                cache,
-                cipher,
-                std::sync::Arc::new(cc::domain::sink::NullSink),
-                rx,
-            )
-            .await;
-        })
-    };
+    let dispatcher = common::spawn_dispatcher(&ctx, false);
 
     let maint_handle = {
-        let lease = RedisLease::connect(&redis_url, "cc:maintenance:lease", "m1", 10_000)
+        let lease = RedisLease::connect(&infra.redis.url, "cc:maintenance:lease", "m1", 10_000)
             .await
             .unwrap();
-        let (store, bus, rx) = (store.clone(), bus.clone(), sd_rx.clone());
+        let (store, bus, rx) = (store.clone(), infra.bus.clone(), dispatcher.shutdown_rx());
         tokio::spawn(async move {
             run_maintenance(
                 store,
@@ -218,7 +161,6 @@ async fn reconcile_resolved_respects_silence() {
         assert_eq!(got[0]["events"][0]["labels"]["service"], "control");
     }
 
-    let _ = sd_tx.send(true);
-    let _ = disp_handle.await;
+    dispatcher.shutdown().await;
     let _ = maint_handle.await;
 }

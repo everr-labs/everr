@@ -28,9 +28,10 @@ pub struct Snapshot {
     pub firing: Vec<(InstanceKey, BTreeMap<String, String>)>,
     /// Routes in evaluation order (priority asc, then creation order).
     pub routes: Vec<Route>,
-    /// Receivers as stored: named sets of channel references. No secrets here;
-    /// the flusher resolves channel names to configs at delivery time.
-    pub receivers: Vec<Receiver>,
+    /// Receivers as stored, keyed by name for the per-event route lookup: named
+    /// sets of channel references. No secrets here; the flusher resolves channel
+    /// names to configs at delivery time.
+    pub receivers: HashMap<String, Receiver>,
 }
 
 struct Entry {
@@ -146,7 +147,7 @@ impl FilterCache {
             inhibitions,
             firing,
             routes,
-            receivers,
+            receivers: receivers.into_iter().map(|r| (r.name.clone(), r)).collect(),
         })
     }
 }

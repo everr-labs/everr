@@ -137,22 +137,17 @@ mod tests {
     use uuid::Uuid;
 
     fn ev(inst: &str, status: EventStatus, secs: i64) -> Event {
-        Event {
-            tenant: TenantId::from_trusted(Uuid::nil().to_string()),
-            rule: RuleId(Uuid::nil()),
-            slo: None,
-            instance_key: InstanceKey(inst.into()),
+        Event::new(
+            TenantId::from_trusted(Uuid::nil().to_string()),
+            RuleId(Uuid::nil()),
+            InstanceKey(inst.into()),
             status,
-            kind: crate::domain::event::EventKind::Alert,
-            labels: BTreeMap::new(),
-            value: None,
-            severity: Severity::Warning,
-            annotations: BTreeMap::new(),
-            eval_ts: OffsetDateTime::UNIX_EPOCH + Duration::seconds(secs),
-            suppressed: false,
-            evidence: None,
-            evidence_truncated: false,
-        }
+            BTreeMap::new(),
+            None,
+            Severity::Warning,
+            BTreeMap::new(),
+            OffsetDateTime::UNIX_EPOCH + Duration::seconds(secs),
+        )
     }
 
     fn labels(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {

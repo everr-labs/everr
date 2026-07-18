@@ -85,6 +85,13 @@ pub struct Slo {
     pub paused: bool,
 }
 
+/// The synthetic routing label carrying the SLO id on every SLO-originated event.
+pub const SLO_LABEL: &str = "slo";
+/// The per-tier instance discriminator injected into burn-rate instance labels.
+pub const SLO_TIER_LABEL: &str = "slo_tier";
+/// Label names the SLO pipeline injects; user label columns must not collide.
+pub const RESERVED_SLO_LABELS: [&str; 2] = [SLO_LABEL, SLO_TIER_LABEL];
+
 /// The SRE-workbook canonical three tiers, calibrated to a 30-day window.
 pub fn canonical_tiers() -> Vec<BurnRateTier> {
     vec![
@@ -119,7 +126,7 @@ pub fn canonical_tiers() -> Vec<BurnRateTier> {
 /// longer in the spec, shared by every caller so the fallback can't disagree with itself.
 pub(crate) fn tier_severity(tiers: &[BurnRateTier], labels: &BTreeMap<String, String>) -> Severity {
     labels
-        .get("slo_tier")
+        .get(SLO_TIER_LABEL)
         .and_then(|name| tiers.iter().find(|t| &t.name == name))
         .map(|t| t.severity)
         .unwrap_or(Severity::Critical)

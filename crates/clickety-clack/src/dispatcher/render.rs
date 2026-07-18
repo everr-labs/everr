@@ -153,22 +153,17 @@ mod tests {
         value: Option<f64>,
         annotations: BTreeMap<String, String>,
     ) -> Event {
-        Event {
-            tenant: TenantId::from_trusted(Uuid::nil().to_string()),
-            rule: RuleId(Uuid::nil()),
-            slo: None,
-            instance_key: InstanceKey("svc=api".into()),
-            status: EventStatus::Firing,
-            kind: EventKind::Alert,
+        Event::new(
+            TenantId::from_trusted(Uuid::nil().to_string()),
+            RuleId(Uuid::nil()),
+            InstanceKey("svc=api".into()),
+            EventStatus::Firing,
             labels,
             value,
-            severity: Severity::Warning,
+            Severity::Warning,
             annotations,
-            eval_ts: OffsetDateTime::UNIX_EPOCH,
-            suppressed: false,
-            evidence: None,
-            evidence_truncated: false,
-        }
+            OffsetDateTime::UNIX_EPOCH,
+        )
     }
 
     #[test]

@@ -1,19 +1,16 @@
+use crate::common::{NoopBus, RecordingBus};
 use async_trait::async_trait;
 use cc::clickhouse::{ChError, ResultRow, RowQuerier};
-use cc::domain::event::{EventKind, EventStatus};
+use cc::domain::event::EventStatus;
 use cc::domain::ids::TenantId;
 use cc::domain::instance::Status;
 use cc::domain::rule::{RuleSpec, Severity};
-use cc::domain::Event;
 use cc::evaluator::process_batch;
 use cc::queue::redis_streams::RedisQueue;
-use cc::queue::{EvalJob, EventBus, EventEntry, EventId, Queue, QueueError};
+use cc::queue::{EvalJob, Queue};
 use cc::stores::PgStore;
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::Mutex;
-use testcontainers_modules::redis::Redis;
-use testcontainers_modules::testcontainers::runners::AsyncRunner;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
@@ -39,26 +36,7 @@ impl RowQuerier for CountingCh {
     fn auth_identity(&self, tenant: &TenantId) -> cc::clickhouse::AuthIdentity {
         cc::clickhouse::AuthIdentity {
             user: tenant.as_str().to_string(),
-            settings: Vec::new(),
         }
-    }
-}
-
-struct NoopBus;
-
-#[async_trait]
-impl EventBus for NoopBus {
-    async fn publish(&self, _ev: &Event) -> Result<(), QueueError> {
-        Ok(())
-    }
-    async fn consume(&self, _c: &str, _n: usize, _b: usize) -> Result<Vec<EventEntry>, QueueError> {
-        Ok(vec![])
-    }
-    async fn ack(&self, _id: &EventId) -> Result<(), QueueError> {
-        Ok(())
-    }
-    async fn dead_letter(&self, _ev: &Event, _reason: &str) -> Result<(), QueueError> {
-        Ok(())
     }
 }
 
@@ -93,16 +71,10 @@ async fn pg() -> (PgStore, impl Sized) {
     (store, ())
 }
 
-async fn redis_queue() -> (
-    RedisQueue,
-    testcontainers_modules::testcontainers::ContainerAsync<Redis>,
-) {
-    let node = Redis::default().start().await.unwrap();
-    let port = node.get_host_port_ipv4(6379).await.unwrap();
-    let q = RedisQueue::connect(&format!("redis://127.0.0.1:{port}"))
-        .await
-        .unwrap();
-    (q, node)
+async fn redis_queue() -> (RedisQueue, crate::common::RedisInfra) {
+    let redis = crate::common::start_redis().await;
+    let q = RedisQueue::connect(&redis.url).await.unwrap();
+    (q, redis)
 }
 
 #[tokio::test]
@@ -361,42 +333,7 @@ impl RowQuerier for FlakyCh {
     fn auth_identity(&self, tenant: &TenantId) -> cc::clickhouse::AuthIdentity {
         cc::clickhouse::AuthIdentity {
             user: tenant.as_str().to_string(),
-            settings: Vec::new(),
         }
-    }
-}
-
-/// An event bus that records everything published, for asserting health transitions.
-#[derive(Default)]
-struct RecordingBus {
-    events: Mutex<Vec<Event>>,
-}
-
-impl RecordingBus {
-    fn health_count(&self, status: EventStatus) -> usize {
-        self.events
-            .lock()
-            .unwrap()
-            .iter()
-            .filter(|e| e.kind == EventKind::RuleHealth && e.status == status)
-            .count()
-    }
-}
-
-#[async_trait]
-impl EventBus for RecordingBus {
-    async fn publish(&self, ev: &Event) -> Result<(), QueueError> {
-        self.events.lock().unwrap().push(ev.clone());
-        Ok(())
-    }
-    async fn consume(&self, _c: &str, _n: usize, _b: usize) -> Result<Vec<EventEntry>, QueueError> {
-        Ok(vec![])
-    }
-    async fn ack(&self, _id: &EventId) -> Result<(), QueueError> {
-        Ok(())
-    }
-    async fn dead_letter(&self, _ev: &Event, _reason: &str) -> Result<(), QueueError> {
-        Ok(())
     }
 }
 

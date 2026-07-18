@@ -31,22 +31,21 @@ import {
   ccFormatTs,
 } from "@/components/cc/shared";
 import { ccRuleIdentity } from "@/data/alerts/rule-identity";
+import { CcRuleHealthStatusSchema } from "@/data/cc/schema";
 import {
   CC_POLL_INTERVAL_MS,
   listCcRulesPage,
   pauseCcRule,
   resumeCcRule,
 } from "@/data/cc/server";
-import type { CcRuleView } from "@/data/cc/types";
+import type { CcRuleHealthStatus, CcRuleView } from "@/data/cc/types";
 
 const RULES_PAGE_LIMIT = 100;
-
-type RuleHealthFilter = "degraded" | "healthy";
 
 // Keyset-paginated listing: each page is CC's {items, next_cursor} envelope,
 // and a null next_cursor is the last page. The key stays under ["cc", "rules"]
 // so the pause/resume invalidation below keeps matching by prefix.
-const ccRulesQuery = (health?: RuleHealthFilter) =>
+const ccRulesQuery = (health?: CcRuleHealthStatus) =>
   infiniteQueryOptions({
     queryKey: ["cc", "rules", "page", health ?? "all"],
     queryFn: ({ pageParam }) =>
@@ -65,7 +64,7 @@ const ccRulesQuery = (health?: RuleHealthFilter) =>
 // `health` narrows the listing server-side (CC's rule-health filter); Triage's
 // degraded-rules count links here with ?health=degraded.
 const RulesSearchSchema = z.object({
-  health: z.enum(["degraded", "healthy"]).optional().catch(undefined),
+  health: CcRuleHealthStatusSchema.optional().catch(undefined),
 });
 
 export const Route = createFileRoute("/_authenticated/_dashboard/alerts/rules")(

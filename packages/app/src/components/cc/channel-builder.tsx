@@ -22,18 +22,7 @@ import { CcConceptNote, ccErrorMessage } from "@/components/cc/shared";
 import { createCcChannel } from "@/data/cc/server";
 import type { CcChannelConfig } from "@/data/cc/types";
 import { CcDrawer } from "./cc-drawer";
-
-export type ChannelType = CcChannelConfig["type"];
-
-// The engine's channel enum (ChannelConfig in clickety-clack's
-// domain/channel.rs) with its per-type fields.
-export const CHANNEL_LABEL: Record<ChannelType, string> = {
-  webhook: "Webhook",
-  slack: "Slack",
-  pagerduty: "PagerDuty",
-  email: "Email",
-  telegram: "Telegram",
-};
+import { CHANNEL_LABEL, type ChannelType } from "./channel-meta";
 
 /** The config form state: every per-type field kept side by side so switching
  * the type back and forth never loses input. */

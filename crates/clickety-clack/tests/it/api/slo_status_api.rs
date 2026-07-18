@@ -3,7 +3,7 @@
 //! at read time with per-group time-to-exhaustion + live firing-tier state
 //! (spec §8.2) -- the stored row itself is never touched.
 
-use crate::api::slos_api_support::{body_json, setup, TENANT};
+use crate::api::support::{body_json, setup, TENANT};
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use cc::domain::ids::{InstanceKey, RuleId};

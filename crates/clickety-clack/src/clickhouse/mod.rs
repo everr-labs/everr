@@ -148,14 +148,11 @@ impl ChClient {
         value_column: Option<&str>,
     ) -> Result<Vec<ResultRow>, ChError> {
         let auth = self.auth.resolve(tenant);
-        let mut settings = if auth.server_enforced_limits {
-            crate::sqlguard::resource_limit_settings_no_readonly().to_string()
+        let settings = if auth.server_enforced_limits {
+            crate::sqlguard::resource_limit_settings_no_readonly()
         } else {
-            crate::sqlguard::resource_limit_settings().to_string()
+            crate::sqlguard::resource_limit_settings()
         };
-        for (k, v) in &auth.extra_settings {
-            settings.push_str(&format!(", {k}={v}"));
-        }
         let wrapped = format!("{sql} FORMAT JSONEachRow");
         let url = build_query_url(&self.base_url, params);
         let mut req = self

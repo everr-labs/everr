@@ -1,42 +1,10 @@
+use crate::api::support::{body_json, state};
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use cc::api::auth::{ApiKeySet, HeaderAuth};
-use cc::api::{build_router, build_router_with_auth, AppState};
-use cc::clickhouse::ChClient;
-use cc::crypto::EnvKeyring;
-use cc::stores::PgStore;
-use std::collections::HashMap;
-use std::sync::Arc;
+use cc::api::auth::ApiKeySet;
+use cc::api::{build_router, build_router_with_auth};
 use tower::ServiceExt;
 use uuid::Uuid;
-
-async fn state() -> AppState {
-    let pg_url = crate::support::fresh_db().await;
-    let store = PgStore::connect(&pg_url).await.unwrap();
-    AppState {
-        store,
-        ch: ChClient::new(
-            "http://127.0.0.1:1",
-            cc::clickhouse::build_ch_auth("shared", "default", "", None, None, "", None).unwrap(),
-        ),
-        auth: Arc::new(HeaderAuth),
-        cipher: Arc::new(
-            EnvKeyring::new(
-                HashMap::from([("v1".to_string(), [7u8; 32])]),
-                "v1".to_string(),
-            )
-            .unwrap(),
-        ),
-        allow_private_webhooks: false,
-    }
-}
-
-async fn body_json(resp: axum::response::Response) -> serde_json::Value {
-    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
-        .await
-        .unwrap();
-    serde_json::from_slice(&bytes).unwrap()
-}
 
 /// GET request with a tenant header and an optional `Authorization: Bearer`.
 fn req(uri: &str, tenant: Uuid, bearer: Option<&str>) -> Request<Body> {

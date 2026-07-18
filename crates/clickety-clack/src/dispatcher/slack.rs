@@ -141,24 +141,24 @@ mod tests {
     use time::OffsetDateTime;
     use uuid::Uuid;
 
+    fn ev(inst: &str, severity: Severity) -> Event {
+        Event::new(
+            TenantId::from_trusted(Uuid::nil().to_string()),
+            RuleId(Uuid::nil()),
+            InstanceKey(inst.into()),
+            EventStatus::Firing,
+            BTreeMap::new(),
+            None,
+            severity,
+            BTreeMap::new(),
+            OffsetDateTime::UNIX_EPOCH,
+        )
+    }
+
     #[test]
     fn payload_carries_status_and_labels() {
-        let ev = Event {
-            tenant: TenantId::from_trusted(Uuid::nil().to_string()),
-            rule: RuleId(Uuid::nil()),
-            slo: None,
-            instance_key: InstanceKey("svc=api".into()),
-            status: EventStatus::Firing,
-            kind: crate::domain::event::EventKind::Alert,
-            labels: BTreeMap::from([("svc".to_string(), "api".to_string())]),
-            value: None,
-            severity: Severity::Critical,
-            annotations: BTreeMap::new(),
-            eval_ts: OffsetDateTime::UNIX_EPOCH,
-            suppressed: false,
-            evidence: None,
-            evidence_truncated: false,
-        };
+        let mut ev = ev("svc=api", Severity::Critical);
+        ev.labels = BTreeMap::from([("svc".to_string(), "api".to_string())]);
         let v = build_slack_payload(&Notification::single(&ev));
         let text = v["text"].as_str().unwrap();
         assert!(text.contains("FIRING"));
@@ -169,22 +169,7 @@ mod tests {
 
     #[test]
     fn batch_payload_summarizes_count() {
-        let mk = |inst: &str| Event {
-            tenant: TenantId::from_trusted(Uuid::nil().to_string()),
-            rule: RuleId(Uuid::nil()),
-            slo: None,
-            instance_key: InstanceKey(inst.into()),
-            status: EventStatus::Firing,
-            kind: crate::domain::event::EventKind::Alert,
-            labels: BTreeMap::new(),
-            value: None,
-            severity: Severity::Warning,
-            annotations: BTreeMap::new(),
-            eval_ts: OffsetDateTime::UNIX_EPOCH,
-            suppressed: false,
-            evidence: None,
-            evidence_truncated: false,
-        };
+        let mk = |inst: &str| ev(inst, Severity::Warning);
         let notif = Notification {
             group_key: "rule=r,severity=warning".into(),
             events: vec![mk("a"), mk("b")],
@@ -196,31 +181,19 @@ mod tests {
 
     #[test]
     fn summary_annotation_drives_header_and_is_escaped_after_substitution() {
-        let mut e = Event {
-            tenant: TenantId::from_trusted(Uuid::nil().to_string()),
-            rule: RuleId(Uuid::nil()),
-            slo: None,
-            instance_key: InstanceKey("svc=api".into()),
-            status: EventStatus::Firing,
-            kind: crate::domain::event::EventKind::Alert,
-            labels: BTreeMap::from([("svc".to_string(), "a<b&c".to_string())]),
-            value: Some(42.0),
-            severity: Severity::Critical,
-            annotations: BTreeMap::from([
-                (
-                    "summary".to_string(),
-                    "Errors on ${svc}: ${value}".to_string(),
-                ),
-                (
-                    "description".to_string(),
-                    "rate ${value} on ${svc}".to_string(),
-                ),
-            ]),
-            eval_ts: OffsetDateTime::UNIX_EPOCH,
-            suppressed: false,
-            evidence: None,
-            evidence_truncated: false,
-        };
+        let mut e = ev("svc=api", Severity::Critical);
+        e.labels = BTreeMap::from([("svc".to_string(), "a<b&c".to_string())]);
+        e.value = Some(42.0);
+        e.annotations = BTreeMap::from([
+            (
+                "summary".to_string(),
+                "Errors on ${svc}: ${value}".to_string(),
+            ),
+            (
+                "description".to_string(),
+                "rate ${value} on ${svc}".to_string(),
+            ),
+        ]);
         let v = build_slack_payload(&Notification::single(&e));
         let text = v["text"].as_str().unwrap();
         assert!(
@@ -245,25 +218,11 @@ mod tests {
 
     #[test]
     fn link_annotations_become_action_buttons() {
-        let e = Event {
-            tenant: TenantId::from_trusted(Uuid::nil().to_string()),
-            rule: RuleId(Uuid::nil()),
-            slo: None,
-            instance_key: InstanceKey("svc=api".into()),
-            status: EventStatus::Firing,
-            kind: crate::domain::event::EventKind::Alert,
-            labels: BTreeMap::new(),
-            value: None,
-            severity: Severity::Warning,
-            annotations: BTreeMap::from([
-                ("link.alert".to_string(), "https://app/alerts/1".to_string()),
-                ("link.runbook".to_string(), "https://wiki/rb".to_string()),
-            ]),
-            eval_ts: OffsetDateTime::UNIX_EPOCH,
-            suppressed: false,
-            evidence: None,
-            evidence_truncated: false,
-        };
+        let mut e = ev("svc=api", Severity::Warning);
+        e.annotations = BTreeMap::from([
+            ("link.alert".to_string(), "https://app/alerts/1".to_string()),
+            ("link.runbook".to_string(), "https://wiki/rb".to_string()),
+        ]);
         let v = build_slack_payload(&Notification::single(&e));
         let actions = v["attachments"][0]["actions"].as_array().unwrap();
         assert_eq!(actions.len(), 2);
@@ -275,21 +234,11 @@ mod tests {
 
     #[test]
     fn batch_attachments_carry_each_events_summary() {
-        let mk = |inst: &str, summary: &str| Event {
-            tenant: TenantId::from_trusted(Uuid::nil().to_string()),
-            rule: RuleId(Uuid::nil()),
-            slo: None,
-            instance_key: InstanceKey(inst.into()),
-            status: EventStatus::Firing,
-            kind: crate::domain::event::EventKind::Alert,
-            labels: BTreeMap::from([("host".to_string(), inst.to_string())]),
-            value: None,
-            severity: Severity::Warning,
-            annotations: BTreeMap::from([("summary".to_string(), summary.to_string())]),
-            eval_ts: OffsetDateTime::UNIX_EPOCH,
-            suppressed: false,
-            evidence: None,
-            evidence_truncated: false,
+        let mk = |inst: &str, summary: &str| {
+            let mut e = ev(inst, Severity::Warning);
+            e.labels = BTreeMap::from([("host".to_string(), inst.to_string())]);
+            e.annotations = BTreeMap::from([("summary".to_string(), summary.to_string())]);
+            e
         };
         let notif = Notification {
             group_key: "rule=r,severity=warning".into(),

@@ -12,6 +12,7 @@ import {
   type SuggestItem,
 } from "@everr/ui/components/suggest-combobox";
 import { Plus, X } from "lucide-react";
+import { ccOpSymbol } from "@/data/cc/route-resolution";
 import { CcMatchOpSchema } from "@/data/cc/schema";
 import {
   type CcLabelKeySuggestion,
@@ -20,14 +21,6 @@ import {
   listCcLabelValues,
 } from "@/data/cc/server";
 import type { CcMatcher } from "@/data/cc/types";
-import { ccOpSymbol } from "./route-resolution";
-
-// Derived from the schema so the operator list and its display symbols cannot
-// drift from the matcher vocabulary.
-const OPS = CcMatchOpSchema.options.map((value) => ({
-  value,
-  symbol: ccOpSymbol(value),
-}));
 
 const OP_PHRASE: Record<CcMatcher["op"], string> = {
   eq: "=",
@@ -134,15 +127,15 @@ export function MatchersEditor({
               <SelectValue>
                 {(v) => (
                   <span className="font-mono">
-                    {OPS.find((o) => o.value === v)?.symbol ?? "="}
+                    {ccOpSymbol(v as CcMatcher["op"])}
                   </span>
                 )}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {OPS.map((op) => (
-                <SelectItem key={op.value} value={op.value}>
-                  <span className="font-mono">{op.symbol}</span>
+              {CcMatchOpSchema.options.map((op) => (
+                <SelectItem key={op} value={op}>
+                  <span className="font-mono">{ccOpSymbol(op)}</span>
                 </SelectItem>
               ))}
             </SelectContent>

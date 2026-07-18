@@ -2,7 +2,7 @@
 //! `slo_instances`: an SLO's firing burn-rate instance must appear alongside a
 //! rule's firing instance, with the SLO row carrying the `slo_tier` label.
 
-use crate::api::slos_api_support::{body_json, setup, TENANT};
+use crate::api::support::{body_json, setup, TENANT};
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use cc::domain::ids::{InstanceKey, RuleId, SloId, TenantId};

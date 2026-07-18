@@ -6,7 +6,7 @@ use axum::extract::{Path, State};
 use axum::http::HeaderMap;
 use axum::Json;
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::Value;
 use uuid::Uuid;
 
 #[derive(Deserialize)]
@@ -50,9 +50,5 @@ pub async fn delete(
 ) -> Result<Json<Value>, ApiError> {
     let t = tenant(&state, &headers)?;
     let ok = state.store.delete_subscription(t, id).await?;
-    if ok {
-        Ok(Json(json!({"deleted": true})))
-    } else {
-        Err(ApiError::NotFound)
-    }
+    crate::api::deleted(ok)
 }

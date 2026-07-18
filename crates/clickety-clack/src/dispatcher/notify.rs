@@ -123,22 +123,17 @@ mod tests {
     use uuid::Uuid;
 
     fn ev(instance: &str) -> Event {
-        Event {
-            tenant: TenantId::from_trusted(Uuid::nil().to_string()),
-            rule: RuleId(Uuid::nil()),
-            slo: None,
-            instance_key: InstanceKey(instance.into()),
-            status: EventStatus::Firing,
-            kind: crate::domain::event::EventKind::Alert,
-            labels: BTreeMap::new(),
-            value: None,
-            severity: Severity::Warning,
-            annotations: BTreeMap::new(),
-            eval_ts: OffsetDateTime::UNIX_EPOCH,
-            suppressed: false,
-            evidence: None,
-            evidence_truncated: false,
-        }
+        Event::new(
+            TenantId::from_trusted(Uuid::nil().to_string()),
+            RuleId(Uuid::nil()),
+            InstanceKey(instance.into()),
+            EventStatus::Firing,
+            BTreeMap::new(),
+            None,
+            Severity::Warning,
+            BTreeMap::new(),
+            OffsetDateTime::UNIX_EPOCH,
+        )
     }
 
     #[test]

@@ -9,16 +9,20 @@ import type {
   CcReceiverSchema,
   CcRouteInputSchema,
   CcRouteSchema,
+  CcRuleHealthStatusSchema,
   CcRuleRollupSchema,
   CcRuleSpecSchema,
   CcRulesPageSchema,
   CcRuleViewSchema,
+  CcSeveritySchema,
   CcSilenceInputSchema,
   CcSilenceSchema,
   CcSubscriptionSchema,
   CcTestResultSchema,
 } from "./schema";
 
+export type CcSeverity = z.infer<typeof CcSeveritySchema>;
+export type CcRuleHealthStatus = z.infer<typeof CcRuleHealthStatusSchema>;
 export type CcMatcher = z.infer<typeof CcMatcherSchema>;
 export type CcRuleSpec = z.infer<typeof CcRuleSpecSchema>;
 export type CcRuleRollup = z.infer<typeof CcRuleRollupSchema>;

@@ -129,10 +129,11 @@ pub struct SloStatusRow {
 
 /// SLO health, as read by [`PgStore::get_slo_health`]. Lean sibling of [`RuleHealth`]
 /// (no `consecutive_failures`/`last_error_at`, which the `/status` health object doesn't
-/// surface) for the `/v1/slos/:id/status` response.
-#[derive(Debug, Clone)]
+/// surface); serialized as-is into the `/v1/slos/:id/status` response.
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct SloHealth {
     pub status: String,
+    #[serde(with = "time::serde::rfc3339::option")]
     pub degraded_since: Option<OffsetDateTime>,
     pub last_error: Option<String>,
 }
@@ -1022,22 +1023,12 @@ impl PgStore {
         Ok(out)
     }
 
+    /// Single-instance upsert. A thin wrapper over [`Self::persist_eval_batch`] (the
+    /// production write path) so the upsert semantics — including the tenant-guarded
+    /// conflict update — cannot drift from it. Test-only convenience today.
     pub async fn upsert_instance(&self, s: &InstanceState) -> Result<(), StoreError> {
-        let labels = serde_json::to_value(&s.labels)?;
-        // The conflict update is tenant-guarded: instance keys are sha256(rule_id +
-        // labels) so a cross-tenant key collision cannot occur in practice, but if
-        // one ever did, the write becomes a no-op instead of a cross-tenant overwrite.
-        sqlx::query(
-            "INSERT INTO instances (key, rule, tenant, status, labels, value, active_since, last_seen, absent_count)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-             ON CONFLICT (key) DO UPDATE SET
-               status=$4, labels=$5, value=$6, active_since=$7, last_seen=$8, absent_count=$9
-             WHERE instances.tenant = EXCLUDED.tenant"
-        )
-        .bind(&s.key.0).bind(s.rule.0).bind(s.tenant.as_str())
-        .bind(status_str(s.status)).bind(&labels).bind(s.value)
-        .bind(s.active_since).bind(s.last_seen).bind(absent_count_to_db(s.absent_count))
-        .execute(&self.pool).await?;
+        self.persist_eval_batch(std::slice::from_ref(s), &[], None, None, None)
+            .await?;
         Ok(())
     }
 
@@ -1779,11 +1770,13 @@ impl PgStore {
         Ok(res.rows_affected() > 0)
     }
 
-    /// Firing instances for a tenant, enriched with the rule's severity (read from the
-    /// rule spec). Used as the inhibition source-set.
+    /// Firing instances for a tenant, enriched with the rule's severity (projected
+    /// straight out of the spec JSONB, so a snapshot refresh never decodes every full
+    /// rule spec just to read one field). Used as the inhibition source-set.
     pub async fn list_firing(&self, tenant: TenantId) -> Result<Vec<FiringInstance>, StoreError> {
         let rows = sqlx::query(
-            "SELECT i.key AS key, i.rule AS rule, i.labels AS labels, r.spec AS spec
+            "SELECT i.key AS key, i.rule AS rule, i.labels AS labels,
+                    r.spec->'severity' AS severity
              FROM instances i JOIN rules r ON r.id = i.rule
              WHERE i.tenant=$1 AND i.status=$2",
         )
@@ -1794,11 +1787,14 @@ impl PgStore {
         let mut out = Vec::with_capacity(rows.len());
         for r in &rows {
             let labels: BTreeMap<String, String> = serde_json::from_value(r.get("labels"))?;
-            let spec: RuleSpec = serde_json::from_value(r.get("spec"))?;
+            let severity: crate::domain::rule::Severity = serde_json::from_value(
+                r.get::<Option<serde_json::Value>, _>("severity")
+                    .unwrap_or(serde_json::Value::Null),
+            )?;
             out.push(FiringInstance {
                 key: InstanceKey(r.get("key")),
                 rule: RuleId(r.get("rule")),
-                severity: spec.severity,
+                severity,
                 labels,
             });
         }
@@ -1888,22 +1884,18 @@ impl PgStore {
         s: &InstanceState,
         ev: &Event,
     ) -> Result<Uuid, StoreError> {
-        let labels = serde_json::to_value(&s.labels)?;
-        let mut tx = self.pool.begin().await?;
-        sqlx::query(
-            "INSERT INTO instances (key, rule, tenant, status, labels, value, active_since, last_seen, absent_count)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-             ON CONFLICT (key) DO UPDATE SET
-               status=$4, labels=$5, value=$6, active_since=$7, last_seen=$8, absent_count=$9
-             WHERE instances.tenant = EXCLUDED.tenant"
-        )
-        .bind(&s.key.0).bind(s.rule.0).bind(s.tenant.as_str())
-        .bind(status_str(s.status)).bind(&labels).bind(s.value)
-        .bind(s.active_since).bind(s.last_seen).bind(absent_count_to_db(s.absent_count))
-        .execute(&mut *tx).await?;
-        let id = insert_outbox_event(&mut tx, ev).await?;
-        tx.commit().await?;
-        Ok(id)
+        // Delegates to the batch write path (one transaction, instance upsert + outbox
+        // row) so the single-row primitive shares its exact semantics.
+        let ids = self
+            .persist_eval_batch(
+                std::slice::from_ref(s),
+                std::slice::from_ref(ev),
+                None,
+                None,
+                None,
+            )
+            .await?;
+        Ok(ids[0])
     }
 
     /// Persist a batch of instance next-states and, atomically, an outbox row per event, in
@@ -2599,14 +2591,16 @@ impl PgStore {
     }
 
     /// Firing SLO instances for a tenant, enriched with the instance's per-tier
-    /// severity (read from the SLO spec). Mirrors [`Self::list_firing`]; used as an
-    /// inhibition source-set once burn-rate alerts join the union (Task 10).
+    /// severity (resolved from the projected `spec->'tiers'`, so a snapshot refresh
+    /// never decodes every full SLO spec — mirrors [`Self::list_slos_for_dispatch`]).
+    /// Mirrors [`Self::list_firing`]; used as an inhibition source-set once burn-rate
+    /// alerts join the union (Task 10).
     pub async fn list_firing_slos(
         &self,
         tenant: &TenantId,
     ) -> Result<Vec<FiringInstance>, StoreError> {
         let rows = sqlx::query(
-            "SELECT i.key AS key, i.slo AS slo, i.labels AS labels, s.spec AS spec
+            "SELECT i.key AS key, i.slo AS slo, i.labels AS labels, s.spec->'tiers' AS tiers
              FROM slo_instances i JOIN slos s ON s.id = i.slo
              WHERE i.tenant=$1 AND i.status=$2",
         )
@@ -2617,11 +2611,13 @@ impl PgStore {
         let mut out = Vec::with_capacity(rows.len());
         for r in &rows {
             let labels: BTreeMap<String, String> = serde_json::from_value(r.get("labels"))?;
-            let spec: crate::domain::slo::SloSpec = serde_json::from_value(r.get("spec"))?;
-            let tiers = spec
-                .tiers
-                .clone()
-                .unwrap_or_else(crate::domain::slo::canonical_tiers);
+            // SQL NULL when the spec has no `tiers` key (or an explicit `null`):
+            // resolve to the canonical set, same as `list_slos_for_dispatch`.
+            let tiers: Vec<crate::domain::slo::BurnRateTier> =
+                match r.get::<Option<serde_json::Value>, _>("tiers") {
+                    Some(v) if !v.is_null() => serde_json::from_value(v)?,
+                    _ => crate::domain::slo::canonical_tiers(),
+                };
             let severity = crate::domain::slo::tier_severity(&tiers, &labels);
             out.push(FiringInstance {
                 key: InstanceKey(r.get("key")),

@@ -5,7 +5,7 @@
 //! and [`FakeKms`] (in-process envelope encryption proving the data-key-wrap path so a
 //! real cloud KMS can be added later behind the same trait).
 
-use crate::domain::receiver::ChannelConfig;
+use crate::domain::channel::ChannelConfig;
 use aes_gcm::aead::{rand_core::RngCore, Aead, AeadCore, KeyInit, OsRng};
 use aes_gcm::{Aes256Gcm, Key, Nonce};
 use base64::engine::general_purpose::STANDARD;
@@ -565,7 +565,7 @@ mod env_keyring_tests {
 #[cfg(test)]
 mod helper_tests {
     use super::*;
-    use crate::domain::receiver::ChannelConfig;
+    use crate::domain::channel::ChannelConfig;
 
     fn cipher() -> EnvKeyring {
         EnvKeyring::new(

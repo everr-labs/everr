@@ -110,23 +110,17 @@ pub async fn reconcile_slo_once(
     now: OffsetDateTime,
     cadence_secs: i64,
 ) -> anyhow::Result<usize> {
-    reconcile_slo_sweep(store, bus, now, cadence_secs, RECONCILE_BATCH).await
+    sweep(
+        store,
+        bus,
+        now,
+        ReconcileKind::Slo { cadence_secs },
+        RECONCILE_BATCH,
+    )
+    .await
 }
 
-/// Drain the SLO stale set as of `now` in transactions of at most `batch` instances
-/// each. Twin of [`reconcile_sweep`] — same chunking/idempotency reasoning applies,
-/// substituting the SLO store methods.
-pub async fn reconcile_slo_sweep(
-    store: &PgStore,
-    bus: &dyn EventBus,
-    now: OffsetDateTime,
-    cadence_secs: i64,
-    batch: i64,
-) -> anyhow::Result<usize> {
-    sweep(store, bus, now, ReconcileKind::Slo { cadence_secs }, batch).await
-}
-
-/// The one sweep implementation behind [`reconcile_sweep`] and [`reconcile_slo_sweep`]:
+/// The one sweep implementation behind [`reconcile_sweep`] and [`reconcile_slo_once`]:
 /// identical chunked drain, with `kind` selecting the stale lister, the commit path,
 /// and the transition's SLO stamping.
 async fn sweep(

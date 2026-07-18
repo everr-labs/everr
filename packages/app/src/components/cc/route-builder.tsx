@@ -27,17 +27,15 @@ import {
   CcDisclosureTrigger,
   ccErrorMessage,
 } from "@/components/cc/shared";
+import {
+  CC_DEFAULT_GROUP_BY,
+  CC_DEFAULT_GROUP_INTERVAL_SECS,
+  CC_DEFAULT_GROUP_WAIT_SECS,
+} from "@/data/cc/defaults";
 import { createCcRoute, updateCcRoute } from "@/data/cc/server";
 import type { CcMatcher, CcReceiver, CcRoute } from "@/data/cc/types";
 import { CcDrawer } from "./cc-drawer";
 import { MatchersEditor, matchersPhrase } from "./matchers-editor";
-
-// The dispatcher's grouping defaults (CC's dispatcher/grouping.rs), applied
-// when a route leaves a timing field unset. Surfaced in the Timing disclosure
-// so the effective behavior is visible without opening it.
-const CC_DEFAULT_GROUP_BY = ["rule", "severity"] as const;
-const CC_DEFAULT_GROUP_WAIT_SECS = 10;
-const CC_DEFAULT_GROUP_INTERVAL_SECS = 300;
 
 /** Parse a numeric duration field. Empty ⇒ null (CC default). */
 function parseDuration(
@@ -275,12 +273,12 @@ export function RouteBuilder({
               <Label htmlFor="route-group-by">
                 Group by{" "}
                 <span className="font-normal text-muted-foreground">
-                  (empty uses the default: rule, severity)
+                  (empty uses the default: {CC_DEFAULT_GROUP_BY.join(", ")})
                 </span>
               </Label>
               <TagsInput
                 aria-label="Group by labels"
-                placeholder="rule, severity"
+                placeholder={CC_DEFAULT_GROUP_BY.join(", ")}
                 value={groupBy}
                 onValueChange={setGroupBy}
               />
@@ -289,7 +287,7 @@ export function RouteBuilder({
               <DurationField
                 id="route-group-wait"
                 label="Group wait (s)"
-                placeholder="10"
+                placeholder={String(CC_DEFAULT_GROUP_WAIT_SECS)}
                 value={groupWait}
                 onChange={setGroupWait}
                 error={wait.error}
@@ -297,7 +295,7 @@ export function RouteBuilder({
               <DurationField
                 id="route-group-interval"
                 label="Group interval (s)"
-                placeholder="300"
+                placeholder={String(CC_DEFAULT_GROUP_INTERVAL_SECS)}
                 value={groupInterval}
                 onChange={setGroupInterval}
                 error={interval.error}

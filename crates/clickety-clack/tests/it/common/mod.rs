@@ -11,13 +11,20 @@ use std::time::Duration;
 
 use cc::clickhouse::{ChClient, RowQuerier};
 use cc::crypto::{EnvKeyring, SecretCipher};
+use cc::dispatcher::cache::FilterCache;
+use cc::dispatcher::notify::WebhookNotifier;
+use cc::dispatcher::{run_dispatcher, run_group_flusher, DispatchCtx, Notifiers};
+use cc::domain::channel::ChannelConfig;
 use cc::domain::ids::{InstanceKey, RuleId, TenantId};
-use cc::domain::receiver::ChannelConfig;
 use cc::domain::routing::{MatchOp, Matcher};
 use cc::domain::rule::Severity;
+use cc::domain::sink::NullSink;
 use cc::domain::{Event, EventKind, EventStatus};
+use cc::queue::event_bus::RedisEventBus;
+use cc::queue::groups::{GroupStore, RedisGroups};
 use cc::queue::{EventBus, EventEntry, EventId, QueueError};
 use cc::stores::PgStore;
+use std::sync::Mutex;
 use testcontainers_modules::postgres::Postgres;
 use testcontainers_modules::redis::Redis;
 use testcontainers_modules::testcontainers::core::IntoContainerPort;
@@ -401,6 +408,162 @@ pub async fn start_counting_webhook() -> (String, Arc<AtomicUsize>, JoinHandle<(
         axum::serve(listener, app).await.ok();
     });
     (format!("http://{addr}/hook"), count, handle)
+}
+
+/// The baseline event the notifier/queue/dispatcher suites start from: nil ids,
+/// firing alert, warning severity, epoch timestamp, no labels/value/annotations.
+/// Tests mutate the fields they care about on their copy.
+pub fn base_event() -> Event {
+    Event::new(
+        TenantId::from_trusted(Uuid::nil().to_string()),
+        RuleId(Uuid::nil()),
+        InstanceKey("k".into()),
+        EventStatus::Firing,
+        BTreeMap::new(),
+        None,
+        Severity::Warning,
+        BTreeMap::new(),
+        OffsetDateTime::UNIX_EPOCH,
+    )
+}
+
+/// Axum stub standing in for ClickHouse: returns one fixed JSONEachRow row
+/// (`service=api, n=5`) for any query.
+pub async fn stub_clickhouse() -> String {
+    use axum::routing::post;
+    use axum::Router;
+    let app = Router::new().route(
+        "/",
+        post(|| async { "{\"service\":\"api\",\"n\":5}\n".to_string() }),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.ok();
+    });
+    format!("http://{addr}/")
+}
+
+/// Fresh Postgres (template clone via `support::fresh_db`) + a Redis container,
+/// connected the way the dispatcher sees them. Holds the Redis guard alive.
+pub struct DispatchInfra {
+    pub redis: RedisInfra,
+    pub store: PgStore,
+    pub bus: Arc<dyn EventBus>,
+    pub groups: Arc<dyn GroupStore>,
+}
+
+pub async fn dispatch_infra() -> DispatchInfra {
+    let pg_url = crate::support::fresh_db().await;
+    let redis = start_redis().await;
+    let store = PgStore::connect(&pg_url).await.unwrap();
+    let bus: Arc<dyn EventBus> = Arc::new(RedisEventBus::connect(&redis.url).await.unwrap());
+    let groups: Arc<dyn GroupStore> = Arc::new(RedisGroups::connect(&redis.url).await.unwrap());
+    DispatchInfra {
+        redis,
+        store,
+        bus,
+        groups,
+    }
+}
+
+/// The `DispatchCtx` every dispatcher test starts from: webhook-only notifiers,
+/// `test_cipher`, a default-TTL `FilterCache`, and the null sink. Tests that need
+/// more override individual fields with struct-update syntax.
+pub fn dispatch_ctx(infra: &DispatchInfra) -> DispatchCtx {
+    let mut reg = Notifiers::new();
+    reg.register(Arc::new(WebhookNotifier::new()));
+    DispatchCtx {
+        store: infra.store.clone(),
+        bus: infra.bus.clone(),
+        notifiers: Arc::new(reg),
+        groups: infra.groups.clone(),
+        cache: Arc::new(FilterCache::new(infra.store.clone())),
+        cipher: test_cipher(),
+        sink: Arc::new(NullSink),
+    }
+}
+
+/// Spawned dispatcher workers plus the shutdown switch that stops them.
+pub struct DispatcherHandle {
+    tx: tokio::sync::watch::Sender<bool>,
+    handles: Vec<JoinHandle<()>>,
+}
+
+impl DispatcherHandle {
+    /// A receiver on the same shutdown switch, for tests that spawn extra workers
+    /// (evaluator, maintenance) that must stop with the dispatcher.
+    pub fn shutdown_rx(&self) -> tokio::sync::watch::Receiver<bool> {
+        self.tx.subscribe()
+    }
+
+    /// Flip the switch and join every worker spawned by `spawn_dispatcher`.
+    pub async fn shutdown(self) {
+        let _ = self.tx.send(true);
+        for h in self.handles {
+            let _ = h.await;
+        }
+    }
+}
+
+/// Spawn `run_dispatcher` (and the group flusher when `with_flusher`) on clones of `ctx`.
+pub fn spawn_dispatcher(ctx: &DispatchCtx, with_flusher: bool) -> DispatcherHandle {
+    let (tx, rx) = tokio::sync::watch::channel(false);
+    let mut handles = Vec::new();
+    {
+        let (ctx, rx) = (ctx.clone(), rx.clone());
+        handles.push(tokio::spawn(async move {
+            run_dispatcher("d1".into(), ctx, rx).await;
+        }));
+    }
+    if with_flusher {
+        let ctx = ctx.clone();
+        handles.push(tokio::spawn(async move {
+            run_group_flusher(ctx, rx).await;
+        }));
+    }
+    DispatcherHandle { tx, handles }
+}
+
+/// An `EventBus` that records everything published, for asserting on the exact
+/// event stream (rule-health transitions, evidence payloads, ...).
+#[derive(Default)]
+pub struct RecordingBus {
+    pub events: Mutex<Vec<Event>>,
+}
+
+impl RecordingBus {
+    /// Count recorded rule-health events with the given status.
+    pub fn health_count(&self, status: EventStatus) -> usize {
+        self.events
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|e| e.kind == EventKind::RuleHealth && e.status == status)
+            .count()
+    }
+}
+
+#[async_trait::async_trait]
+impl EventBus for RecordingBus {
+    async fn publish(&self, ev: &Event) -> Result<(), QueueError> {
+        self.events.lock().unwrap().push(ev.clone());
+        Ok(())
+    }
+    async fn consume(
+        &self,
+        _consumer: &str,
+        _count: usize,
+        _block_ms: usize,
+    ) -> Result<Vec<EventEntry>, QueueError> {
+        Ok(Vec::new())
+    }
+    async fn ack(&self, _id: &EventId) -> Result<(), QueueError> {
+        Ok(())
+    }
+    async fn dead_letter(&self, _ev: &Event, _reason: &str) -> Result<(), QueueError> {
+        Ok(())
+    }
 }
 
 /// An `EventBus` that drops everything — used to isolate the evaluator from event publish

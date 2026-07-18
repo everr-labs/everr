@@ -6,6 +6,7 @@
 
 use crate::domain::inhibition::InhibitionRule;
 use crate::domain::routing::{MatchOp, Matcher};
+use crate::domain::slo::{SLO_LABEL, SLO_TIER_LABEL};
 use crate::engine::slo_math::tier_pairs;
 use crate::stores::SloDispatchInfo;
 use time::OffsetDateTime;
@@ -26,7 +27,7 @@ pub(crate) fn synthesize_slo_inhibitions(slos: &[SloDispatchInfo]) -> Vec<Inhibi
         let tiers = &slo.tiers;
         let slo_str = slo.id.0.to_string();
 
-        let mut equal: Vec<String> = std::iter::once("slo".to_string())
+        let mut equal: Vec<String> = std::iter::once(SLO_LABEL.to_string())
             .chain(slo.label_columns.iter().cloned())
             .collect();
         equal.sort();
@@ -42,24 +43,24 @@ pub(crate) fn synthesize_slo_inhibitions(slos: &[SloDispatchInfo]) -> Vec<Inhibi
                 tenant: slo.tenant.clone(),
                 source_matchers: vec![
                     Matcher {
-                        label: "slo".to_string(),
+                        label: SLO_LABEL.to_string(),
                         op: MatchOp::Eq,
                         value: slo_str.clone(),
                     },
                     Matcher {
-                        label: "slo_tier".to_string(),
+                        label: SLO_TIER_LABEL.to_string(),
                         op: MatchOp::Eq,
                         value: tiers[i].name.clone(),
                     },
                 ],
                 target_matchers: vec![
                     Matcher {
-                        label: "slo".to_string(),
+                        label: SLO_LABEL.to_string(),
                         op: MatchOp::Eq,
                         value: slo_str.clone(),
                     },
                     Matcher {
-                        label: "slo_tier".to_string(),
+                        label: SLO_TIER_LABEL.to_string(),
                         op: MatchOp::Eq,
                         value: tiers[j].name.clone(),
                     },

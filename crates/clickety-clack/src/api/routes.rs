@@ -6,7 +6,7 @@ use axum::extract::{Path, State};
 use axum::http::HeaderMap;
 use axum::Json;
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::Value;
 use uuid::Uuid;
 
 /// Minimum accepted `repeat_interval_secs` (anything shorter is a paging loop, not a
@@ -104,10 +104,10 @@ pub async fn update(
 pub async fn list(
     State(state): State<AppState>,
     headers: HeaderMap,
-) -> Result<Json<Value>, ApiError> {
+) -> Result<Json<Vec<Route>>, ApiError> {
     let t = tenant(&state, &headers)?;
     let routes = state.store.routes_for(t).await?;
-    Ok(Json(json!(routes)))
+    Ok(Json(routes))
 }
 
 pub async fn delete(
@@ -117,9 +117,5 @@ pub async fn delete(
 ) -> Result<Json<Value>, ApiError> {
     let t = tenant(&state, &headers)?;
     let ok = state.store.delete_route(t, id).await?;
-    if ok {
-        Ok(Json(json!({"deleted": true})))
-    } else {
-        Err(ApiError::NotFound)
-    }
+    crate::api::deleted(ok)
 }

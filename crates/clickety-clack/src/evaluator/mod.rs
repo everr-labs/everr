@@ -557,10 +557,7 @@ mod tests {
     }
 
     fn ident(user: &str) -> crate::clickhouse::AuthIdentity {
-        crate::clickhouse::AuthIdentity {
-            user: user.into(),
-            settings: Vec::new(),
-        }
+        crate::clickhouse::AuthIdentity { user: user.into() }
     }
 
     #[test]

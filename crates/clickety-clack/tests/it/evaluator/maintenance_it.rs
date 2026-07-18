@@ -9,8 +9,6 @@ use cc::queue::{EventBus, EventEntry, QueueError};
 use cc::stores::PgStore;
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use testcontainers_modules::redis::Redis;
-use testcontainers_modules::testcontainers::runners::AsyncRunner;
 use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
@@ -77,11 +75,8 @@ fn instance(
 #[tokio::test]
 async fn relay_publishes_stale_outbox_rows_and_deletes_them() {
     let pg_url = crate::support::fresh_db().await;
-    let redis = Redis::default().start().await.unwrap();
-    let redis_url = format!(
-        "redis://127.0.0.1:{}",
-        redis.get_host_port_ipv4(6379).await.unwrap()
-    );
+    let redis = crate::common::start_redis().await;
+    let redis_url = redis.url.clone();
 
     let store = PgStore::connect(&pg_url).await.unwrap();
     let bus = RedisEventBus::connect(&redis_url).await.unwrap();
@@ -132,11 +127,8 @@ async fn relay_publishes_stale_outbox_rows_and_deletes_them() {
 #[tokio::test]
 async fn reconcile_resolves_stale_firing_and_clears_pending() {
     let pg_url = crate::support::fresh_db().await;
-    let redis = Redis::default().start().await.unwrap();
-    let redis_url = format!(
-        "redis://127.0.0.1:{}",
-        redis.get_host_port_ipv4(6379).await.unwrap()
-    );
+    let redis = crate::common::start_redis().await;
+    let redis_url = redis.url.clone();
 
     let store = PgStore::connect(&pg_url).await.unwrap();
     let bus = RedisEventBus::connect(&redis_url).await.unwrap();
@@ -206,11 +198,8 @@ async fn reconcile_resolves_stale_firing_and_clears_pending() {
 #[tokio::test]
 async fn reconcile_sweep_drains_backlog_across_chunks() {
     let pg_url = crate::support::fresh_db().await;
-    let redis = Redis::default().start().await.unwrap();
-    let redis_url = format!(
-        "redis://127.0.0.1:{}",
-        redis.get_host_port_ipv4(6379).await.unwrap()
-    );
+    let redis = crate::common::start_redis().await;
+    let redis_url = redis.url.clone();
 
     let store = PgStore::connect(&pg_url).await.unwrap();
     let bus = RedisEventBus::connect(&redis_url).await.unwrap();
@@ -264,11 +253,8 @@ async fn reconcile_sweep_drains_backlog_across_chunks() {
 #[tokio::test]
 async fn relay_retries_when_publish_fails() {
     let pg_url = crate::support::fresh_db().await;
-    let redis = Redis::default().start().await.unwrap();
-    let redis_url = format!(
-        "redis://127.0.0.1:{}",
-        redis.get_host_port_ipv4(6379).await.unwrap()
-    );
+    let redis = crate::common::start_redis().await;
+    let redis_url = redis.url.clone();
 
     let store = PgStore::connect(&pg_url).await.unwrap();
     let bus = FailNBus {

@@ -2,109 +2,55 @@
 //! ingest, before silence/inhibition processing, before group buffering (routed tenants)
 //! and before the subscription firehose (no-routes tenants).
 
-use cc::crypto::{EnvKeyring, SecretCipher};
-use cc::dispatcher::cache::FilterCache;
-use cc::dispatcher::notify::WebhookNotifier;
-use cc::dispatcher::{process_event, Notifiers};
-use cc::domain::event::{Event, EventStatus};
-use cc::domain::ids::{InstanceKey, RuleId, TenantId};
-use cc::domain::receiver::ChannelConfig;
+use crate::common;
+use cc::dispatcher::{process_event, DispatchCtx};
+use cc::domain::channel::ChannelConfig;
+use cc::domain::event::Event;
+use cc::domain::ids::{InstanceKey, TenantId};
 use cc::domain::routing::{MatchOp, Matcher};
 use cc::domain::rule::Severity;
-use cc::domain::sink::NullSink;
-use cc::queue::event_bus::RedisEventBus;
-use cc::queue::groups::{GroupStore, RedisGroups};
+use cc::queue::groups::GroupStore;
 use cc::queue::{EventBus, EventEntry};
 use cc::stores::PgStore;
-use std::collections::{BTreeMap, HashMap};
-use std::sync::{Arc, Mutex};
-use testcontainers_modules::redis::Redis;
-use testcontainers_modules::testcontainers::runners::AsyncRunner;
-use time::OffsetDateTime;
+use std::collections::BTreeMap;
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
 use uuid::Uuid;
 
-fn test_cipher() -> Arc<dyn SecretCipher> {
-    Arc::new(
-        EnvKeyring::new(
-            HashMap::from([("v1".to_string(), [7u8; 32])]),
-            "v1".to_string(),
-        )
-        .unwrap(),
-    )
-}
-
-async fn start_webhook(hits: Arc<Mutex<usize>>) -> String {
-    use axum::routing::post;
-    use axum::Router;
-    let app = Router::new().route(
-        "/hook",
-        post(move || {
-            let hits = hits.clone();
-            async move {
-                *hits.lock().unwrap() += 1;
-                "ok"
-            }
-        }),
-    );
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let addr = listener.local_addr().unwrap();
-    tokio::spawn(async move {
-        axum::serve(listener, app).await.ok();
-    });
-    format!("http://{addr}/hook")
-}
-
 fn suppressed_event(tenant: TenantId) -> Event {
-    Event {
-        tenant,
-        rule: RuleId(Uuid::nil()),
-        slo: None,
-        instance_key: InstanceKey("svc=api".into()),
-        status: EventStatus::Firing,
-        kind: cc::domain::event::EventKind::Alert,
-        labels: BTreeMap::from([("svc".to_string(), "api".to_string())]),
-        value: Some(1.0),
-        severity: Severity::Critical,
-        annotations: BTreeMap::new(),
-        eval_ts: OffsetDateTime::UNIX_EPOCH,
-        suppressed: true,
-        evidence: None,
-        evidence_truncated: false,
-    }
+    let mut e = common::base_event();
+    e.tenant = tenant;
+    e.instance_key = InstanceKey("svc=api".into());
+    e.labels = BTreeMap::from([("svc".to_string(), "api".to_string())]);
+    e.value = Some(1.0);
+    e.severity = Severity::Critical;
+    e.suppressed = true;
+    e
 }
 
 struct Harness {
+    _infra: common::DispatchInfra,
     store: PgStore,
     bus: Arc<dyn EventBus>,
     groups: Arc<dyn GroupStore>,
-    cache: Arc<FilterCache>,
-    cipher: Arc<dyn SecretCipher>,
-    notifiers: Arc<Notifiers>,
+    ctx: DispatchCtx,
+}
+
+impl Harness {
+    fn ctx(&self) -> DispatchCtx {
+        self.ctx.clone()
+    }
 }
 
 async fn harness() -> Harness {
-    let pg_url = crate::support::fresh_db().await;
-    let redis = Redis::default().start().await.unwrap();
-    let redis_url = format!(
-        "redis://127.0.0.1:{}",
-        redis.get_host_port_ipv4(6379).await.unwrap()
-    );
-    std::mem::forget(redis);
-
-    let store = PgStore::connect(&pg_url).await.unwrap();
-    let bus: Arc<dyn EventBus> = Arc::new(RedisEventBus::connect(&redis_url).await.unwrap());
-    let cipher = test_cipher();
-    let groups: Arc<dyn GroupStore> = Arc::new(RedisGroups::connect(&redis_url).await.unwrap());
-    let cache = Arc::new(FilterCache::new(store.clone()));
-    let mut reg = Notifiers::new();
-    reg.register(Arc::new(WebhookNotifier::new()));
+    let infra = common::dispatch_infra().await;
+    let ctx = common::dispatch_ctx(&infra);
     Harness {
-        store,
-        bus,
-        groups,
-        cache,
-        cipher,
-        notifiers: Arc::new(reg),
+        store: infra.store.clone(),
+        bus: infra.bus.clone(),
+        groups: infra.groups.clone(),
+        _infra: infra,
+        ctx,
     }
 }
 
@@ -123,12 +69,11 @@ async fn entry_for(bus: &Arc<dyn EventBus>, ev: &Event, consumer: &str) -> Event
 async fn suppressed_event_is_dropped_before_grouping() {
     let h = harness().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let hits = Arc::new(Mutex::new(0usize));
-    let url = start_webhook(hits.clone()).await;
+    let (url, hits, _hook) = common::start_counting_webhook().await;
 
     h.store
         .create_channel(
-            h.cipher.as_ref(),
+            h.ctx.cipher.as_ref(),
             tenant.clone(),
             "ops-hook",
             &ChannelConfig::Webhook { url: url.clone() },
@@ -164,17 +109,7 @@ async fn suppressed_event_is_dropped_before_grouping() {
         .unwrap();
 
     let entry = entry_for(&h.bus, &suppressed_event(tenant), "grp-c1").await;
-    let acked = process_event(
-        &h.store,
-        h.bus.as_ref(),
-        h.notifiers.as_ref(),
-        h.groups.as_ref(),
-        h.cache.as_ref(),
-        h.cipher.as_ref(),
-        &NullSink,
-        &entry,
-    )
-    .await;
+    let acked = process_event(&h.ctx(), &entry).await;
 
     assert!(acked, "a suppressed event is dropped, not left in the PEL");
     // Nothing was buffered: no group ever becomes due, even far in the future.
@@ -184,7 +119,7 @@ async fn suppressed_event_is_dropped_before_grouping() {
         due.is_empty(),
         "suppressed event must not create a notification group: {due:?}"
     );
-    assert_eq!(*hits.lock().unwrap(), 0, "no delivery of any kind");
+    assert_eq!(hits.load(Ordering::Relaxed), 0, "no delivery of any kind");
 }
 
 /// No-routes tenant: a suppressed event skips the subscription firehose entirely: the
@@ -193,30 +128,19 @@ async fn suppressed_event_is_dropped_before_grouping() {
 async fn suppressed_event_is_dropped_before_subscription_firehose() {
     let h = harness().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let hits = Arc::new(Mutex::new(0usize));
-    let url = start_webhook(hits.clone()).await;
+    let (url, hits, _hook) = common::start_counting_webhook().await;
 
     h.store
-        .create_subscription(h.cipher.as_ref(), tenant.clone(), &url)
+        .create_subscription(h.ctx.cipher.as_ref(), tenant.clone(), &url)
         .await
         .unwrap();
 
     let ev = suppressed_event(tenant.clone());
     let entry = entry_for(&h.bus, &ev, "fh-c1").await;
-    let acked = process_event(
-        &h.store,
-        h.bus.as_ref(),
-        h.notifiers.as_ref(),
-        h.groups.as_ref(),
-        h.cache.as_ref(),
-        h.cipher.as_ref(),
-        &NullSink,
-        &entry,
-    )
-    .await;
+    let acked = process_event(&h.ctx(), &entry).await;
 
     assert!(acked, "a suppressed event is dropped, not left in the PEL");
-    assert_eq!(*hits.lock().unwrap(), 0, "firehose must not deliver");
+    assert_eq!(hits.load(Ordering::Relaxed), 0, "firehose must not deliver");
     let key = cc::dispatcher::dedup_key("webhook", &url, &ev);
     assert_eq!(
         h.store.notification_status(&tenant, &key).await.unwrap(),
@@ -230,20 +154,10 @@ async fn suppressed_event_is_dropped_before_subscription_firehose() {
     live.tenant = ev.tenant.clone();
     live.suppressed = false;
     let entry = entry_for(&h.bus, &live, "fh-c2").await;
-    let acked = process_event(
-        &h.store,
-        h.bus.as_ref(),
-        h.notifiers.as_ref(),
-        h.groups.as_ref(),
-        h.cache.as_ref(),
-        h.cipher.as_ref(),
-        &NullSink,
-        &entry,
-    )
-    .await;
+    let acked = process_event(&h.ctx(), &entry).await;
     assert!(acked);
     assert_eq!(
-        *hits.lock().unwrap(),
+        hits.load(Ordering::Relaxed),
         1,
         "non-suppressed event on the same path delivers"
     );

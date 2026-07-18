@@ -105,26 +105,51 @@ fn now_ms() -> i64 {
     (time::OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000_000) as i64
 }
 
+/// The dispatcher's shared handles, built once per role (see `main`) and threaded
+/// through the consume and flush paths as one context instead of seven positional
+/// arguments.
+#[derive(Clone)]
+pub struct DispatchCtx {
+    pub store: PgStore,
+    pub bus: Arc<dyn EventBus>,
+    pub notifiers: Arc<Notifiers>,
+    pub groups: Arc<dyn GroupStore>,
+    pub cache: Arc<FilterCache>,
+    pub cipher: Arc<dyn SecretCipher>,
+    pub sink: Arc<dyn AlertLogSink>,
+}
+
+/// The delivery slice of the context: ledger, dead-letter bus, and notifier
+/// registry, as trait objects so the fan-out can be unit-tested against fakes.
+struct DeliveryDeps<'a> {
+    ledger: &'a dyn NotificationLedger,
+    bus: &'a dyn EventBus,
+    notifiers: &'a Notifiers,
+}
+
+impl DispatchCtx {
+    fn delivery_deps(&self) -> DeliveryDeps<'_> {
+        DeliveryDeps {
+            ledger: &self.store,
+            bus: self.bus.as_ref(),
+            notifiers: &self.notifiers,
+        }
+    }
+}
+
 /// Run the dispatcher consume loop until `shutdown` flips true. Routed events are
 /// buffered into Redis groups (flushed by `run_group_flusher`); no-routes tenants keep
 /// the immediate per-event webhook firehose.
-#[allow(clippy::too_many_arguments)]
 pub async fn run_dispatcher(
     consumer: String,
-    store: PgStore,
-    bus: Arc<dyn EventBus>,
-    notifiers: Arc<Notifiers>,
-    groups: Arc<dyn GroupStore>,
-    cache: Arc<FilterCache>,
-    cipher: Arc<dyn SecretCipher>,
-    sink: Arc<dyn AlertLogSink>,
+    ctx: DispatchCtx,
     mut shutdown: tokio::sync::watch::Receiver<bool>,
 ) {
     loop {
         if *shutdown.borrow() {
             break;
         }
-        let entries = match bus.consume(&consumer, 16, 2000).await {
+        let entries = match ctx.bus.consume(&consumer, 16, 2000).await {
             Ok(e) => e,
             Err(e) => {
                 tracing::error!(error = %e, "event consume failed");
@@ -135,20 +160,10 @@ pub async fn run_dispatcher(
                 continue;
             }
         };
-        let acks = process_event_batch(
-            &store,
-            bus.as_ref(),
-            notifiers.as_ref(),
-            groups.as_ref(),
-            cache.as_ref(),
-            cipher.as_ref(),
-            sink.as_ref(),
-            &entries,
-        )
-        .await;
+        let acks = process_event_batch(&ctx, &entries).await;
         for (id, ack_ok) in acks {
             if ack_ok {
-                if let Err(e) = bus.ack(&id).await {
+                if let Err(e) = ctx.bus.ack(&id).await {
                     tracing::error!(error = %e, "event ack failed");
                 }
             }
@@ -165,17 +180,7 @@ pub async fn run_dispatcher(
 /// (false only when a required input could not be loaded — leaves it in the PEL).
 ///
 /// Public so the load-test harness can drive a single event; not a stable API.
-#[allow(clippy::too_many_arguments)]
-pub async fn process_event(
-    store: &PgStore,
-    bus: &dyn EventBus,
-    notifiers: &Notifiers,
-    groups: &dyn GroupStore,
-    cache: &FilterCache,
-    cipher: &dyn SecretCipher,
-    sink: &dyn AlertLogSink,
-    entry: &EventEntry,
-) -> bool {
+pub async fn process_event(ctx: &DispatchCtx, entry: &EventEntry) -> bool {
     let ev: &Event = &entry.event;
 
     // Suppressed (preview-rule) events never notify: drop at ingest, before
@@ -188,7 +193,7 @@ pub async fn process_event(
     }
 
     let labels = routing::match_labels(ev);
-    let snap = match cache.snapshot(ev.tenant.clone()).await {
+    let snap = match ctx.cache.snapshot(ev.tenant.clone()).await {
         Ok(s) => s,
         Err(e) => {
             tracing::error!(error = %e, entry_id = %entry.id, tenant = ?ev.tenant,
@@ -198,15 +203,16 @@ pub async fn process_event(
     };
     let now = time::OffsetDateTime::now_utc();
     if let Some(sid) = silence::matching_silence(&labels, &snap.silences, now) {
-        sink.record_delivery(
-            ev,
-            &DeliveryFacts {
-                delivery_targets: vec![],
-                silence_id: Some(sid.to_string()),
-                silenced: true,
-            },
-        )
-        .await;
+        ctx.sink
+            .record_delivery(
+                ev,
+                &DeliveryFacts {
+                    delivery_targets: vec![],
+                    silence_id: Some(sid.to_string()),
+                    silenced: true,
+                },
+            )
+            .await;
         tracing::debug!(entry_id = %entry.id, "event silenced; dropping");
         return true;
     }
@@ -216,20 +222,15 @@ pub async fn process_event(
     }
 
     if snap.routes.is_empty() {
-        return firehose_deliver(store, bus, notifiers, cipher, sink, ev, &entry.id).await;
+        return firehose_deliver(ctx, ev, &entry.id).await;
     }
 
-    let by_name: HashMap<&str, &[String]> = snap
-        .receivers
-        .iter()
-        .map(|r| (r.name.as_str(), r.channels.as_slice()))
-        .collect();
     let now = now_ms();
     let mut all_handled = true;
 
-    for target in routing::select_grouping_targets(&snap.routes, ev) {
-        let channel_names = match by_name.get(target.receiver.as_str()) {
-            Some(c) => *c,
+    for target in routing::select_grouping_targets(&snap.routes, ev, &labels) {
+        let channel_names = match snap.receivers.get(target.receiver.as_str()) {
+            Some(r) => r.channels.as_slice(),
             None => {
                 tracing::warn!(receiver = %target.receiver,
                     "route references unknown receiver; skipping");
@@ -261,7 +262,8 @@ pub async fn process_event(
             .grouping
             .repeat_interval_secs
             .map(|v| v as i64 * 1000);
-        if let Err(e) = groups
+        if let Err(e) = ctx
+            .groups
             .add_to_group(
                 &gid,
                 &meta,
@@ -293,36 +295,24 @@ pub async fn process_event(
 /// — group buffering keys by fingerprint and `group_dedup_key` folds in `eval_ts`, so the
 /// next evaluation self-corrects within a flush interval — but grouping logic must not come
 /// to depend on within-batch event order.
-#[allow(clippy::too_many_arguments)]
 pub async fn process_event_batch(
-    store: &PgStore,
-    bus: &dyn EventBus,
-    notifiers: &Notifiers,
-    groups: &dyn GroupStore,
-    cache: &FilterCache,
-    cipher: &dyn SecretCipher,
-    sink: &dyn AlertLogSink,
+    ctx: &DispatchCtx,
     entries: &[EventEntry],
 ) -> Vec<(crate::queue::EventId, bool)> {
     futures::future::join_all(entries.iter().map(|entry| async move {
-        let ack = process_event(store, bus, notifiers, groups, cache, cipher, sink, entry).await;
+        let ack = process_event(ctx, entry).await;
         (entry.id.clone(), ack)
     }))
     .await
 }
 
 /// Immediate per-event webhook delivery for tenants with no routes (Phase 2a behavior).
-#[allow(clippy::too_many_arguments)]
-async fn firehose_deliver(
-    store: &PgStore,
-    bus: &dyn EventBus,
-    notifiers: &Notifiers,
-    cipher: &dyn SecretCipher,
-    sink: &dyn AlertLogSink,
-    ev: &Event,
-    entry_id: &crate::queue::EventId,
-) -> bool {
-    let subs = match store.subscriptions_for(cipher, ev.tenant.clone()).await {
+async fn firehose_deliver(ctx: &DispatchCtx, ev: &Event, entry_id: &crate::queue::EventId) -> bool {
+    let subs = match ctx
+        .store
+        .subscriptions_for(ctx.cipher.as_ref(), ev.tenant.clone())
+        .await
+    {
         Ok(s) => s,
         Err(e) => {
             tracing::error!(error = %e, entry_id = %entry_id, tenant = ?ev.tenant,
@@ -336,7 +326,8 @@ async fn firehose_deliver(
         let channel = "webhook";
         let target = s.webhook_url;
         let key = dedup::dedup_key(channel, &target, ev);
-        match store
+        match ctx
+            .store
             .try_begin_notification(
                 &key,
                 ev.tenant.clone(),
@@ -353,7 +344,7 @@ async fn firehose_deliver(
                 continue;
             }
         }
-        if deliver_one(store, bus, notifiers, channel, &target, &key, &notif, ev).await {
+        if deliver_one(&ctx.delivery_deps(), channel, &target, &key, &notif, ev).await {
             // Record the delivery as an OTLP `delivery` log (target = channel name,
             // matching the pre-multi-channel firehose shape).
             let facts = DeliveryFacts {
@@ -361,29 +352,19 @@ async fn firehose_deliver(
                 silence_id: None,
                 silenced: false,
             };
-            sink.record_delivery(ev, &facts).await;
+            ctx.sink.record_delivery(ev, &facts).await;
         }
     }
     all_handled
 }
 
 /// The group flusher: every replica claims due groups and delivers each as one batch.
-#[allow(clippy::too_many_arguments)]
-pub async fn run_group_flusher(
-    store: PgStore,
-    bus: Arc<dyn EventBus>,
-    notifiers: Arc<Notifiers>,
-    groups: Arc<dyn GroupStore>,
-    cache: Arc<FilterCache>,
-    cipher: Arc<dyn SecretCipher>,
-    sink: Arc<dyn AlertLogSink>,
-    mut shutdown: tokio::sync::watch::Receiver<bool>,
-) {
+pub async fn run_group_flusher(ctx: DispatchCtx, mut shutdown: tokio::sync::watch::Receiver<bool>) {
     loop {
         if *shutdown.borrow() {
             break;
         }
-        let ids = match groups.claim_due(now_ms(), 32).await {
+        let ids = match ctx.groups.claim_due(now_ms(), 32).await {
             Ok(v) => v,
             Err(e) => {
                 tracing::error!(error = %e, "claim_due failed");
@@ -401,26 +382,10 @@ pub async fn run_group_flusher(
         // slow channel (retries back off up to seconds) cannot head-of-line block the
         // rest of the claim. Each flush keeps its own per-group logging and ledger
         // bookkeeping.
-        let store = &store;
-        let bus = &bus;
-        let notifiers = &notifiers;
-        let groups = &groups;
-        let cache = &cache;
-        let cipher = &cipher;
-        let sink = &sink;
+        let ctx = &ctx;
         futures::stream::iter(ids)
             .for_each_concurrent(8, |gid| async move {
-                flush_group(
-                    store,
-                    bus.as_ref(),
-                    notifiers.as_ref(),
-                    groups.as_ref(),
-                    cache.as_ref(),
-                    cipher.as_ref(),
-                    sink.as_ref(),
-                    &gid,
-                )
-                .await;
+                flush_group(ctx, &gid).await;
             })
             .await;
     }
@@ -464,19 +429,9 @@ async fn filter_or_dead_letter(
 }
 
 /// Public so the load-test harness can drive a single group flush; not a stable API.
-#[allow(clippy::too_many_arguments)]
-pub async fn flush_group(
-    store: &PgStore,
-    bus: &dyn EventBus,
-    notifiers: &Notifiers,
-    groups: &dyn GroupStore,
-    cache: &FilterCache,
-    cipher: &dyn SecretCipher,
-    sink: &dyn AlertLogSink,
-    gid: &str,
-) {
+pub async fn flush_group(ctx: &DispatchCtx, gid: &str) {
     let taken_at = now_ms();
-    let batch = match groups.take_group(gid, taken_at).await {
+    let batch = match ctx.groups.take_group(gid, taken_at).await {
         Ok(Some(g)) => g,
         Ok(None) => return,
         Err(e) => {
@@ -504,7 +459,7 @@ pub async fn flush_group(
             // Keep the reminder loop alive for still-firing members.
             if firing_count > 0 {
                 if let Some(ln) = batch.last_notified_ms {
-                    if let Err(e) = groups.arm_repeat(gid, ln + r).await {
+                    if let Err(e) = ctx.groups.arm_repeat(gid, ln + r).await {
                         tracing::error!(error = %e, group = %gid, "arm_repeat failed");
                     }
                 }
@@ -521,7 +476,7 @@ pub async fn flush_group(
     // re-arm and therefore never repeat.
     if let Some(r) = repeat_ms {
         if firing_count > 0 {
-            if let Err(e) = groups.arm_repeat(gid, taken_at + r).await {
+            if let Err(e) = ctx.groups.arm_repeat(gid, taken_at + r).await {
                 tracing::error!(error = %e, group = %gid, "arm_repeat failed");
             }
         }
@@ -529,11 +484,20 @@ pub async fn flush_group(
 
     let tenant = TenantId::from_trusted(meta.tenant);
     let now = time::OffsetDateTime::now_utc();
-    let events =
-        match filter_or_dead_letter(bus, cache, sink, tenant.clone(), events, gid, now).await {
-            Some(evs) => evs,
-            None => return, // snapshot load failed; batch dead-lettered inside the helper
-        };
+    let events = match filter_or_dead_letter(
+        ctx.bus.as_ref(),
+        ctx.cache.as_ref(),
+        ctx.sink.as_ref(),
+        tenant.clone(),
+        events,
+        gid,
+        now,
+    )
+    .await
+    {
+        Some(evs) => evs,
+        None => return, // snapshot load failed; batch dead-lettered inside the helper
+    };
     if events.is_empty() {
         return; // every event suppressed at flush time (silence/inhibition)
     }
@@ -547,8 +511,9 @@ pub async fn flush_group(
     // time. take_group has already claimed and cleared this batch from Redis, so a
     // load failure cannot simply return - the alerts would vanish silently; the
     // representative event is dead-lettered instead (observable, recoverable).
-    let loaded = match store
-        .channels_by_names(cipher, &tenant, &meta.channels)
+    let loaded = match ctx
+        .store
+        .channels_by_names(ctx.cipher.as_ref(), &tenant, &meta.channels)
         .await
     {
         Ok(chs) => chs,
@@ -556,7 +521,7 @@ pub async fn flush_group(
             let reason = format!("loading channels for group flush failed: {e}");
             tracing::error!(error = %e, group = %gid,
                 "loading channels failed; dead-lettering claimed batch");
-            if let Err(de) = bus.dead_letter(&rep, &reason).await {
+            if let Err(de) = ctx.bus.dead_letter(&rep, &reason).await {
                 tracing::error!(dead_letter_error = %de, group = %gid,
                     "channel load failure AND dead-letter write failed; batch lost");
             }
@@ -565,13 +530,19 @@ pub async fn flush_group(
     };
     let channels = resolve_channels(gid, &meta.channels, loaded);
     let outcome = deliver_group_channels(
-        store, bus, notifiers, gid, &channels, is_repeat, taken_at, &tenant, &notif, &rep,
+        &ctx.delivery_deps(),
+        gid,
+        &channels,
+        is_repeat.then_some(taken_at),
+        &tenant,
+        &notif,
+        &rep,
     )
     .await;
     // A notification was committed for this group on at least one channel; stamp it so
     // the repeat clock measures from the latest send.
     if outcome.begun {
-        if let Err(e) = groups.mark_notified(gid, taken_at).await {
+        if let Err(e) = ctx.groups.mark_notified(gid, taken_at).await {
             tracing::error!(error = %e, group = %gid, "mark_notified failed");
         }
     }
@@ -585,7 +556,7 @@ pub async fn flush_group(
             silence_id: None,
             silenced: false,
         };
-        sink.record_delivery(&rep, &facts).await;
+        ctx.sink.record_delivery(&rep, &facts).await;
     }
 }
 
@@ -625,15 +596,14 @@ fn resolve_channels(gid: &str, names: &[String], loaded: Vec<Channel>) -> Vec<Ch
 /// gets its own dedup key (keyed by the channel NAME, stable across config edits) and
 /// its own ledger row. A failing channel never short-circuits the rest: failures are
 /// recorded (ledger + dead letter) per channel and the loop keeps going.
-#[allow(clippy::too_many_arguments)]
+///
+/// `repeat_taken_at` is `Some(take timestamp)` when this flush is a still-firing
+/// repeat reminder, `None` for a normal buffered flush.
 async fn deliver_group_channels(
-    ledger: &dyn NotificationLedger,
-    bus: &dyn EventBus,
-    notifiers: &Notifiers,
+    deps: &DeliveryDeps<'_>,
     gid: &str,
     channels: &[Channel],
-    is_repeat: bool,
-    taken_at: i64,
+    repeat_taken_at: Option<i64>,
     tenant: &TenantId,
     notif: &Notification,
     rep: &Event,
@@ -647,12 +617,12 @@ async fn deliver_group_channels(
         let target = ch.config.target();
         // A repeat folds the take timestamp into the key so the identical still-firing
         // set yields a NEW notification instead of deduping against the original send.
-        let key = if is_repeat {
-            grouping::repeat_dedup_key(gid, &ch.name, &notif.events, taken_at)
-        } else {
-            grouping::group_dedup_key(gid, &ch.name, &notif.events)
+        let key = match repeat_taken_at {
+            Some(taken_at) => grouping::repeat_dedup_key(gid, &ch.name, &notif.events, taken_at),
+            None => grouping::group_dedup_key(gid, &ch.name, &notif.events),
         };
-        match ledger
+        match deps
+            .ledger
             .try_begin_notification(&key, tenant.clone(), kind, &dedup::redact_target(&target))
             .await
         {
@@ -665,7 +635,7 @@ async fn deliver_group_channels(
             }
         }
         outcome.begun = true;
-        if deliver_one(ledger, bus, notifiers, kind, &target, &key, notif, rep).await {
+        if deliver_one(deps, kind, &target, &key, notif, rep).await {
             outcome.sent = true;
         }
     }
@@ -675,29 +645,27 @@ async fn deliver_group_channels(
 /// Shared delivery + bookkeeping: look up the notifier, retry, then record sent/failed
 /// and dead-letter on permanent/exhausted failure. `rep` is the event used for the
 /// dead-letter record. Returns true when delivery succeeded.
-#[allow(clippy::too_many_arguments)]
 async fn deliver_one(
-    ledger: &dyn NotificationLedger,
-    bus: &dyn EventBus,
-    notifiers: &Notifiers,
+    deps: &DeliveryDeps<'_>,
     channel: &str,
     target: &str,
     key: &str,
     notif: &Notification,
     rep: &Event,
 ) -> bool {
-    let metrics = notifiers.engine_metrics();
-    let notifier = match notifiers.get(channel) {
+    let metrics = deps.notifiers.engine_metrics();
+    let notifier = match deps.notifiers.get(channel) {
         Some(n) => n,
         None => {
             let reason = format!("no notifier registered for channel '{channel}'");
-            if let Err(e) = ledger
+            if let Err(e) = deps
+                .ledger
                 .mark_notification_failed(&rep.tenant, key, 0, &reason)
                 .await
             {
                 tracing::error!(error = %e, key = %key, "mark_notification_failed write failed");
             }
-            let _ = bus.dead_letter(rep, &reason).await;
+            let _ = deps.bus.dead_letter(rep, &reason).await;
             metrics.record_delivery(
                 channel,
                 rep.tenant.as_str(),
@@ -714,7 +682,8 @@ async fn deliver_one(
                 rep.tenant.as_str(),
                 crate::otel::metrics::DeliveryOutcome::Sent,
             );
-            if let Err(e) = ledger
+            if let Err(e) = deps
+                .ledger
                 .mark_notification_sent(&rep.tenant, key, attempts)
                 .await
             {
@@ -730,13 +699,14 @@ async fn deliver_one(
                 crate::otel::metrics::DeliveryOutcome::Failed,
             );
             let reason = err.to_string();
-            if let Err(e) = ledger
+            if let Err(e) = deps
+                .ledger
                 .mark_notification_failed(&rep.tenant, key, attempts, &reason)
                 .await
             {
                 tracing::error!(error = %e, key = %key, "mark_notification_failed write failed");
             }
-            match bus.dead_letter(rep, &reason).await {
+            match deps.bus.dead_letter(rep, &reason).await {
                 Ok(()) => {
                     tracing::warn!(channel = %channel, target = %dedup::redact_target(target), error = %err,
                     "notification dead-lettered")
@@ -935,7 +905,17 @@ mod fan_out_tests {
         ];
 
         let out = deliver_group_channels(
-            &ledger, &bus, &notifiers, "gid-1", &channels, false, 0, &ev.tenant, &notif, &ev,
+            &DeliveryDeps {
+                ledger: &ledger,
+                bus: &bus,
+                notifiers: &notifiers,
+            },
+            "gid-1",
+            &channels,
+            None,
+            &ev.tenant,
+            &notif,
+            &ev,
         )
         .await;
 
@@ -980,7 +960,17 @@ mod fan_out_tests {
         ];
 
         let out = deliver_group_channels(
-            &ledger, &bus, &notifiers, "gid-1", &channels, false, 0, &ev.tenant, &notif, &ev,
+            &DeliveryDeps {
+                ledger: &ledger,
+                bus: &bus,
+                notifiers: &notifiers,
+            },
+            "gid-1",
+            &channels,
+            None,
+            &ev.tenant,
+            &notif,
+            &ev,
         )
         .await;
 
@@ -1026,7 +1016,17 @@ mod fan_out_tests {
         ];
 
         let first = deliver_group_channels(
-            &ledger, &bus, &notifiers, "gid-1", &channels, false, 0, &ev.tenant, &notif, &ev,
+            &DeliveryDeps {
+                ledger: &ledger,
+                bus: &bus,
+                notifiers: &notifiers,
+            },
+            "gid-1",
+            &channels,
+            None,
+            &ev.tenant,
+            &notif,
+            &ev,
         )
         .await;
         // Same channel NAMES but an edited config: the dedup key is name-stable, so
@@ -1036,7 +1036,17 @@ mod fan_out_tests {
             email_channel("ops-mail", "b@x.test"),
         ];
         let second = deliver_group_channels(
-            &ledger, &bus, &notifiers, "gid-1", &rotated, false, 0, &ev.tenant, &notif, &ev,
+            &DeliveryDeps {
+                ledger: &ledger,
+                bus: &bus,
+                notifiers: &notifiers,
+            },
+            "gid-1",
+            &rotated,
+            None,
+            &ev.tenant,
+            &notif,
+            &ev,
         )
         .await;
 
@@ -1071,7 +1081,17 @@ mod fan_out_tests {
         ];
 
         let out = deliver_group_channels(
-            &ledger, &bus, &notifiers, "gid-1", &channels, false, 0, &ev.tenant, &notif, &ev,
+            &DeliveryDeps {
+                ledger: &ledger,
+                bus: &bus,
+                notifiers: &notifiers,
+            },
+            "gid-1",
+            &channels,
+            None,
+            &ev.tenant,
+            &notif,
+            &ev,
         )
         .await;
 
@@ -1146,7 +1166,17 @@ mod fan_out_tests {
         let notif = Notification::single(&ev);
 
         let out = deliver_group_channels(
-            &ledger, &bus, &notifiers, "gid-1", &resolved, false, 0, &ev.tenant, &notif, &ev,
+            &DeliveryDeps {
+                ledger: &ledger,
+                bus: &bus,
+                notifiers: &notifiers,
+            },
+            "gid-1",
+            &resolved,
+            None,
+            &ev.tenant,
+            &notif,
+            &ev,
         )
         .await;
 
@@ -1185,7 +1215,17 @@ mod fan_out_tests {
 
         let channels = resolve_channels("gid-1", &names, loaded);
         let out = deliver_group_channels(
-            &ledger, &bus, &notifiers, "gid-1", &channels, false, 0, &ev.tenant, &notif, &ev,
+            &DeliveryDeps {
+                ledger: &ledger,
+                bus: &bus,
+                notifiers: &notifiers,
+            },
+            "gid-1",
+            &channels,
+            None,
+            &ev.tenant,
+            &notif,
+            &ev,
         )
         .await;
 
@@ -1239,7 +1279,7 @@ mod flush_dead_letter_tests {
                 inhibitions: vec![],
                 firing: vec![],
                 routes: vec![],
-                receivers: vec![],
+                receivers: Default::default(),
             }))
         }
     }

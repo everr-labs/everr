@@ -6,7 +6,7 @@
 //! query, without requiring a live ClickHouse (this repo runs no ClickHouse
 //! testcontainer).
 
-use crate::api::slos_api_support::{setup, TENANT};
+use crate::api::support::{setup, TENANT};
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use serde_json::json;

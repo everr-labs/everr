@@ -1,44 +1,10 @@
+use crate::api::support::{body_json, setup};
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use cc::api::auth::HeaderAuth;
-use cc::api::{build_router, AppState};
-use cc::clickhouse::ChClient;
-use cc::crypto::EnvKeyring;
-use cc::stores::PgStore;
-use std::collections::HashMap;
-use std::sync::Arc;
 use tower::ServiceExt;
 use uuid::Uuid;
 
-async fn setup() -> axum::Router {
-    let pg_url = crate::support::fresh_db().await;
-    let store = PgStore::connect(&pg_url).await.unwrap();
-    let state = AppState {
-        store,
-        ch: ChClient::new(
-            "http://127.0.0.1:1",
-            cc::clickhouse::build_ch_auth("shared", "default", "", None, None, "", None).unwrap(),
-        ),
-        auth: Arc::new(HeaderAuth),
-        cipher: Arc::new(
-            EnvKeyring::new(
-                HashMap::from([("v1".to_string(), [7u8; 32])]),
-                "v1".to_string(),
-            )
-            .unwrap(),
-        ),
-        allow_private_webhooks: false,
-    };
-    build_router(state)
-}
-
-async fn body_json(resp: axum::response::Response) -> serde_json::Value {
-    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
-        .await
-        .unwrap();
-    serde_json::from_slice(&bytes).unwrap()
-}
-
+/// Local variant: an optional body (GET/DELETE send none).
 fn req(method: &str, uri: &str, tenant: Uuid, body: Option<&str>) -> Request<Body> {
     let b = Request::builder()
         .method(method)
@@ -51,7 +17,7 @@ fn req(method: &str, uri: &str, tenant: Uuid, body: Option<&str>) -> Request<Bod
 
 #[tokio::test]
 async fn subscriptions_create_list_delete_round_trip() {
-    let app = setup().await;
+    let (app, _) = setup().await;
     let tenant = Uuid::new_v4();
 
     // Empty list to start.

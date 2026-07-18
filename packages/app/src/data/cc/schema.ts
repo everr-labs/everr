@@ -31,8 +31,16 @@ export const CcRuleSpecSchema = z.object({
   suppressed: z.boolean().default(false),
 });
 
+// The engine's rule-health vocabulary. Consumers (health filter, badges)
+// derive from this schema rather than re-declaring the union.
+export const CcRuleHealthStatusSchema = z.enum(["healthy", "degraded"]);
+
 export const CcRuleHealthSchema = z.object({
-  status: z.string(), // observed: "healthy" | "degraded"
+  // `.catch("healthy")`: the previous z.string() tolerated unknown values, and
+  // every reader already treated non-"degraded" as healthy, so vocabulary
+  // drift keeps parsing (and keeps its old healthy rendering) instead of
+  // failing the whole rule-list parse.
+  status: CcRuleHealthStatusSchema.catch("healthy"),
   consecutive_failures: z.number().int(),
   degraded_since: CcTimestampNullable,
   last_error: z.string().nullable(),

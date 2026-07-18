@@ -1,33 +1,16 @@
 use cc::dispatcher::email::EmailNotifier;
 use cc::dispatcher::notify::{Notification, Notifier};
-use cc::domain::event::{Event, EventStatus};
-use cc::domain::ids::{InstanceKey, RuleId, TenantId};
-use cc::domain::rule::Severity;
-use std::collections::BTreeMap;
+use cc::domain::event::Event;
+use cc::domain::ids::InstanceKey;
 use std::time::Duration;
 use testcontainers::core::{IntoContainerPort, WaitFor};
 use testcontainers::runners::AsyncRunner;
 use testcontainers::GenericImage;
-use time::OffsetDateTime;
-use uuid::Uuid;
 
 fn ev() -> Event {
-    Event {
-        tenant: TenantId::from_trusted(Uuid::nil().to_string()),
-        rule: RuleId(Uuid::nil()),
-        slo: None,
-        instance_key: InstanceKey("svc=api".into()),
-        status: EventStatus::Firing,
-        kind: cc::domain::event::EventKind::Alert,
-        labels: BTreeMap::new(),
-        value: None,
-        severity: Severity::Warning,
-        annotations: BTreeMap::new(),
-        eval_ts: OffsetDateTime::UNIX_EPOCH,
-        suppressed: false,
-        evidence: None,
-        evidence_truncated: false,
-    }
+    let mut e = crate::common::base_event();
+    e.instance_key = InstanceKey("svc=api".into());
+    e
 }
 
 #[tokio::test]

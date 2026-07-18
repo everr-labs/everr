@@ -3,15 +3,9 @@ use crate::dispatcher::matching::matchers_match;
 use crate::domain::ids::{RuleId, SloId};
 use crate::domain::routing::Route;
 use crate::domain::rule::Severity;
+use crate::domain::slo::{SLO_LABEL, SLO_TIER_LABEL};
 use crate::domain::{Event, EventKind, EventStatus};
 use std::collections::BTreeMap;
-
-fn kind_str(k: EventKind) -> &'static str {
-    match k {
-        EventKind::Alert => "alert",
-        EventKind::RuleHealth => "rule_health",
-    }
-}
 
 /// Build the matchable label set from raw labels + synthetic `severity`/`status`/`rule`/`kind`/`slo`.
 /// Synthetic labels take precedence over any same-named user label (inserted last).
@@ -27,9 +21,9 @@ pub fn synthetic_labels(
     m.insert("severity".to_string(), severity.as_str().to_string());
     m.insert("status".to_string(), status.as_str().to_string());
     m.insert("rule".to_string(), rule.0.to_string());
-    m.insert("kind".to_string(), kind_str(kind).to_string());
+    m.insert("kind".to_string(), kind.as_str().to_string());
     if let Some(s) = slo {
-        m.insert("slo".to_string(), s.0.to_string());
+        m.insert(SLO_LABEL.to_string(), s.0.to_string());
     }
     m
 }
@@ -65,14 +59,14 @@ pub struct MatchedTarget {
 /// explicit group_by. Group-label names = the event's labels minus the
 /// tier discriminator (slo_tier) — i.e. the SLI label_columns.
 pub(crate) fn slo_default_group_by(ev_labels: &BTreeMap<String, String>) -> Vec<String> {
-    let mut gb = vec!["slo".to_string()];
+    let mut gb = vec![SLO_LABEL.to_string()];
     // Also filter out a user label literally named `slo` (e.g. a label_column called
     // "slo") so it isn't duplicated alongside the leading synthetic entry -- mirrors
     // the equal-list dedup in `slo_inhibit::synthesize_slo_inhibitions`.
     gb.extend(
         ev_labels
             .keys()
-            .filter(|k| *k != "slo_tier" && *k != "slo")
+            .filter(|k| *k != SLO_TIER_LABEL && *k != SLO_LABEL)
             .cloned(),
     );
     gb
@@ -82,17 +76,22 @@ pub(crate) fn slo_default_group_by(ev_labels: &BTreeMap<String, String>) -> Vec<
 /// creation order); stop after the first matching route unless it has `continue ==
 /// true`. Returns each unique receiver (first-match order) paired with the grouping
 /// parameters from the FIRST route that selected it (route defaults applied).
+/// `labels` is the event's matchable label set (`match_labels(ev)`), passed in so a
+/// caller that already built it doesn't pay for a second synthetic-label clone.
 ///
 /// The route-default `group_by` (used only when the route sets none) depends on whether
 /// `ev` is SLO-originated: SLO events default to `slo_default_group_by(&ev.labels)`
 /// (spec §5, collapsing burn-rate tiers into one group per (slo, group)); all other
 /// events keep the existing `["rule","severity"]` default. An explicit route `group_by`
 /// always wins regardless of `ev.slo`.
-pub fn select_grouping_targets(routes: &[Route], ev: &Event) -> Vec<MatchedTarget> {
-    let labels = match_labels(ev);
+pub fn select_grouping_targets(
+    routes: &[Route],
+    ev: &Event,
+    labels: &BTreeMap<String, String>,
+) -> Vec<MatchedTarget> {
     let mut out: Vec<MatchedTarget> = Vec::new();
     for r in routes {
-        if route_matches(r, &labels) {
+        if route_matches(r, labels) {
             if !out.iter().any(|t| t.receiver == r.receiver) {
                 out.push(MatchedTarget {
                     receiver: r.receiver.clone(),
@@ -133,25 +132,20 @@ mod tests {
     use uuid::Uuid;
 
     fn ev(severity: Severity, labels: &[(&str, &str)]) -> Event {
-        Event {
-            tenant: TenantId::from_trusted(Uuid::nil().to_string()),
-            rule: RuleId(Uuid::nil()),
-            slo: None,
-            instance_key: InstanceKey("k".into()),
-            status: EventStatus::Firing,
-            kind: crate::domain::event::EventKind::Alert,
-            labels: labels
+        Event::new(
+            TenantId::from_trusted(Uuid::nil().to_string()),
+            RuleId(Uuid::nil()),
+            InstanceKey("k".into()),
+            EventStatus::Firing,
+            labels
                 .iter()
                 .map(|(k, v)| (k.to_string(), v.to_string()))
                 .collect(),
-            value: None,
+            None,
             severity,
-            annotations: BTreeMap::new(),
-            eval_ts: OffsetDateTime::UNIX_EPOCH,
-            suppressed: false,
-            evidence: None,
-            evidence_truncated: false,
-        }
+            BTreeMap::new(),
+            OffsetDateTime::UNIX_EPOCH,
+        )
     }
 
     fn route(receiver: &str, cont: bool, matchers: Vec<Matcher>) -> Route {
@@ -179,10 +173,15 @@ mod tests {
 
     /// Route-walk receiver names for `ev`, via the production selection path.
     fn receivers(routes: &[Route], ev: &Event) -> Vec<String> {
-        select_grouping_targets(routes, ev)
+        select_grouping_targets(routes, ev, &match_labels(ev))
             .into_iter()
             .map(|t| t.receiver)
             .collect()
+    }
+
+    /// Grouping targets for `ev`, building the label set the way production does.
+    fn targets(routes: &[Route], ev: &Event) -> Vec<MatchedTarget> {
+        select_grouping_targets(routes, ev, &match_labels(ev))
     }
 
     #[test]
@@ -288,7 +287,7 @@ mod tests {
         let mut r1 = route("ops", true, vec![m("severity", MatchOp::Eq, "critical")]);
         r1.group_wait_secs = Some(3);
         let r2 = route("ops", false, vec![m("svc", MatchOp::Eq, "api")]); // same receiver again
-        let targets = select_grouping_targets(&[r1, r2], &e);
+        let targets = targets(&[r1, r2], &e);
         assert_eq!(targets.len(), 1, "receiver deduped, first match wins");
         assert_eq!(targets[0].receiver, "ops");
         assert_eq!(targets[0].grouping.group_wait_secs, 3);
@@ -339,7 +338,7 @@ mod tests {
         );
         e.slo = Some(SloId(Uuid::nil()));
         let routes = vec![route("ops", false, vec![])];
-        let targets = select_grouping_targets(&routes, &e);
+        let targets = targets(&routes, &e);
         assert_eq!(
             targets[0].grouping.group_by,
             vec!["slo".to_string(), "service".to_string()],
@@ -357,7 +356,7 @@ mod tests {
         e.slo = Some(SloId(Uuid::nil()));
         let mut r = route("ops", false, vec![]);
         r.group_by = Some(vec!["severity".to_string()]);
-        let targets = select_grouping_targets(&[r], &e);
+        let targets = targets(&[r], &e);
         assert_eq!(
             targets[0].grouping.group_by,
             vec!["severity".to_string()],
@@ -369,7 +368,7 @@ mod tests {
     fn rule_event_default_group_by_is_unaffected_by_slo_change() {
         let e = ev(Severity::Critical, &[("svc", "api")]);
         let routes = vec![route("ops", false, vec![])];
-        let targets = select_grouping_targets(&routes, &e);
+        let targets = targets(&routes, &e);
         assert_eq!(
             targets[0].grouping.group_by,
             vec!["rule".to_string(), "severity".to_string()],

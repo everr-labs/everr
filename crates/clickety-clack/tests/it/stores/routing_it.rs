@@ -1,21 +1,10 @@
-use cc::crypto::{EnvKeyring, SecretCipher};
+use crate::common::test_cipher;
 use cc::domain::channel::ChannelConfig;
 use cc::domain::ids::TenantId;
 use cc::domain::routing::{MatchOp, Matcher};
 use cc::stores::{ChannelDelete, PgStore};
-use std::collections::{BTreeMap, HashMap};
-use std::sync::Arc;
+use std::collections::BTreeMap;
 use uuid::Uuid;
-
-fn test_cipher() -> Arc<dyn SecretCipher> {
-    Arc::new(
-        EnvKeyring::new(
-            HashMap::from([("v1".to_string(), [7u8; 32])]),
-            "v1".to_string(),
-        )
-        .unwrap(),
-    )
-}
 
 #[tokio::test]
 async fn receivers_upsert_and_routes_order() {

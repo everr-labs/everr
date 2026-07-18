@@ -1,8 +1,10 @@
 import * as z from "zod";
+import { CcSeveritySchema } from "@/data/cc/schema";
 import {
   dashboardProjectSchema,
   dashboardSlugSchema,
 } from "@/data/dashboards/schema";
+import { isEverrAnnotationKey, RESERVED_ANNOTATION_KEYS } from "./annotations";
 import { parseWindow } from "./window";
 
 const nonEmptyString = z.string().min(1);
@@ -92,19 +94,10 @@ export function formatRunbookRef(project: string, slug: string): string {
   return project === "default" ? slug : `${project}/${slug}`;
 }
 
-// Annotation keys reserved for CC-consumable sugar the mapping layer derives
-// from other AlertRule fields (notification templates, runbook links, ...).
-// A hand-authored spec.annotations entry would silently be clobbered by that
-// generated value, so it is rejected at parse time instead.
-const RESERVED_ANNOTATION_KEYS = new Set([
-  "summary",
-  "description",
-  "link.alert",
-  "link.runbook",
-]);
-
+// Reserved keys are the generated-annotation vocabulary (see ./annotations)
+// plus every internal `everr.`-prefixed marker.
 export function isReservedAnnotationKey(key: string): boolean {
-  return key.startsWith("everr.") || RESERVED_ANNOTATION_KEYS.has(key);
+  return isEverrAnnotationKey(key) || RESERVED_ANNOTATION_KEYS.has(key);
 }
 
 export const EverrConfigYamlSchema = z
@@ -137,7 +130,7 @@ export const AlertRuleYamlSchema = z
         // Consecutive empty evaluations required before a firing instance
         // resolves. Raise it to tolerate gaps in the data.
         resolveAfter: z.number().int().min(1).default(1),
-        severity: z.enum(["info", "warning", "critical"]).default("info"),
+        severity: CcSeveritySchema.default("info"),
         notificationMessage: notificationMessageSchema,
         query: nonEmptyString.optional(),
         // `sql` is the clickety-clack-native alias for `query`, accepted for

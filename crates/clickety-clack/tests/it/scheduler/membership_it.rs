@@ -1,14 +1,8 @@
 use cc::scheduler::membership::MembershipRegistry;
-use testcontainers_modules::redis::Redis;
-use testcontainers_modules::testcontainers::runners::AsyncRunner;
 
-async fn registry() -> (
-    String,
-    testcontainers_modules::testcontainers::ContainerAsync<Redis>,
-) {
-    let node = Redis::default().start().await.unwrap();
-    let port = node.get_host_port_ipv4(6379).await.unwrap();
-    (format!("redis://127.0.0.1:{port}"), node)
+async fn registry() -> (String, crate::common::RedisInfra) {
+    let redis = crate::common::start_redis().await;
+    (redis.url.clone(), redis)
 }
 
 #[tokio::test]

@@ -1,19 +1,7 @@
-use cc::crypto::{EnvKeyring, SecretCipher};
+use crate::common::test_cipher;
 use cc::domain::ids::TenantId;
 use cc::stores::PgStore;
-use std::collections::HashMap;
-use std::sync::Arc;
 use uuid::Uuid;
-
-fn test_cipher() -> Arc<dyn SecretCipher> {
-    Arc::new(
-        EnvKeyring::new(
-            HashMap::from([("v1".to_string(), [7u8; 32])]),
-            "v1".to_string(),
-        )
-        .unwrap(),
-    )
-}
 
 #[tokio::test]
 async fn subscription_url_not_stored_cleartext() {

@@ -1,4 +1,5 @@
 import type { ClickhouseQuery } from "@/lib/clickhouse";
+import type { AlertEventType } from "./event-types";
 
 // A JSON value, spelled out so the evidence record stays serializable across the
 // server-fn boundary (a bare `unknown` value trips TanStack's serializer).
@@ -133,8 +134,8 @@ export async function queryObservedLabelValues(
 // One row of the rule-agnostic alerting event log (all slugs, all event types).
 export type AlertEventLogRow = {
   timestamp: string;
-  // alert.event_type: instance_fired | instance_resolved | rule_health | delivery | silenced
-  eventType: string;
+  // alert.event_type; the vocabulary lives in ./event-types.
+  eventType: AlertEventType;
   slug: string; // alert.slug (everr.name annotation, falling back to the rule id)
   instanceFingerprint: string;
   labels: Record<string, string>; // alert.instance_labels decoded
@@ -150,7 +151,9 @@ export type AlertEventLogRow = {
 
 type AlertEventLogRawRow = {
   timestamp: string;
-  eventType: string;
+  // Asserted (not validated) at the ClickHouse read boundary: CC is the only
+  // writer of ScopeName='everr.alerting' records and only emits this vocabulary.
+  eventType: AlertEventType;
   slug: string;
   instanceFingerprint: string;
   instanceLabelsJson: string;

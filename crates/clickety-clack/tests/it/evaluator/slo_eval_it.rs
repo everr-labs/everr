@@ -1,33 +1,15 @@
 use async_trait::async_trait;
 use cc::domain::ids::TenantId;
 use cc::domain::slo::{SliSpec, SloSpec, TimeWindow};
-use cc::domain::Event;
 use cc::engine::slo_math::{SloGroupStatus, SloStatusPayload, SloTierStatus};
-use cc::queue::{EventBus, EventEntry, EventId, QueueError};
 use cc::stores::{PgStore, SloCreate};
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use time::OffsetDateTime;
 
-/// A `Plan 2` fixture bus: these tests only assert on the `slo_status` snapshot, not
-/// on published events (that's `slo_alerting_it.rs`'s job), so this is a pure no-op.
-struct NoopBus;
-
-#[async_trait]
-impl EventBus for NoopBus {
-    async fn publish(&self, _ev: &Event) -> Result<(), QueueError> {
-        Ok(())
-    }
-    async fn consume(&self, _c: &str, _n: usize, _b: usize) -> Result<Vec<EventEntry>, QueueError> {
-        Ok(vec![])
-    }
-    async fn ack(&self, _id: &EventId) -> Result<(), QueueError> {
-        Ok(())
-    }
-    async fn dead_letter(&self, _ev: &Event, _reason: &str) -> Result<(), QueueError> {
-        Ok(())
-    }
-}
+// These tests only assert on the `slo_status` snapshot, not on published events
+// (that's `slo_alerting_it.rs`'s job), so the shared no-op bus suffices.
+use crate::common::NoopBus;
 
 /// A stub querier that returns fixed good/valid regardless of params/window, and
 /// counts how many times it was called (used by the freshness/merge test).
@@ -57,7 +39,6 @@ impl cc::clickhouse::RowQuerier for StubCh {
     fn auth_identity(&self, t: &TenantId) -> cc::clickhouse::AuthIdentity {
         cc::clickhouse::AuthIdentity {
             user: t.as_str().to_string(),
-            settings: Vec::new(),
         }
     }
 }
@@ -79,7 +60,6 @@ impl cc::clickhouse::RowQuerier for ErrCh {
     fn auth_identity(&self, t: &TenantId) -> cc::clickhouse::AuthIdentity {
         cc::clickhouse::AuthIdentity {
             user: t.as_str().to_string(),
-            settings: Vec::new(),
         }
     }
 }

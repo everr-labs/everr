@@ -12,6 +12,7 @@ import {
   CcChannelConfigSchema,
   CcInhibitionInputSchema,
   CcRouteInputSchema,
+  CcRuleHealthStatusSchema,
   CcRuleSpecSchema,
   CcSilenceInputSchema,
 } from "./schema";
@@ -44,7 +45,7 @@ export const listCcRulesPage = createAuthenticatedServerFn({ method: "GET" })
     z.object({
       limit: z.number().int().min(1).max(500).default(100),
       cursor: z.string().optional(),
-      health: z.enum(["degraded", "healthy"]).optional(),
+      health: CcRuleHealthStatusSchema.optional(),
     }),
   )
   .handler(({ data, context: { session } }) =>

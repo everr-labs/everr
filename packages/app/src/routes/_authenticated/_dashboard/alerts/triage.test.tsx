@@ -325,7 +325,7 @@ describe("/alerts/triage route", () => {
     renderTriageRoute();
     await screen.findByText("Flapping check");
 
-    await user.click(screen.getByRole("tab", { name: "Silenced" }));
+    await user.click(screen.getByRole("button", { name: "Silenced" }));
 
     // fp-3 (svc=api on the api-errors rule) is the one silenced instance.
     expect(screen.getByText("api")).toBeInTheDocument();
@@ -338,7 +338,7 @@ describe("/alerts/triage route", () => {
     renderTriageRoute();
     await screen.findByText("Flapping check");
 
-    await user.click(screen.getByRole("tab", { name: "All" }));
+    await user.click(screen.getByRole("button", { name: "All" }));
 
     expect(screen.getByText("web-9")).toBeInTheDocument();
     expect(screen.getByText("web-1")).toBeInTheDocument();
