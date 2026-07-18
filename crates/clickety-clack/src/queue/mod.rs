@@ -140,8 +140,12 @@ pub struct EventEntry {
 /// (shared group). Redis Streams now, Kafka later.
 ///
 /// # Backend contract
-/// `consume` is an at-least-once shared-group read acked by `ack(id)`. `dead_letter`
-/// records a permanently-undeliverable event out-of-band. See `tests/conformance.rs`.
+/// `consume` is an at-least-once shared-group read acked by `ack(id)`. Unacked
+/// entries remain claimable for redelivery via a backend reclaim mechanism
+/// (Redis: `RedisEventBus::consume`/`consume_logexport` run an `XAUTOCLAIM`
+/// pre-pass over their group's PEL ahead of every read, same as `RedisQueue`).
+/// `dead_letter` records a permanently-undeliverable event out-of-band. See
+/// `tests/conformance.rs`.
 #[async_trait]
 pub trait EventBus: Send + Sync {
     /// Publish one event to the stream.

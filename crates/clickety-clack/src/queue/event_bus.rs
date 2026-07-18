@@ -1,9 +1,14 @@
 use crate::domain::Event;
+use crate::queue::redis_streams::{is_unknown_command, PEL_RECLAIM_IDLE_MS};
 use crate::queue::{EventBus, EventEntry, EventId, QueueError};
 use async_trait::async_trait;
 use redis::aio::ConnectionManager;
-use redis::streams::{StreamMaxlen, StreamReadOptions, StreamReadReply};
+use redis::streams::{
+    StreamAutoClaimOptions, StreamAutoClaimReply, StreamMaxlen, StreamReadOptions, StreamReadReply,
+};
 use redis::AsyncCommands;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 const STREAM: &str = "cc:events";
 const GROUP: &str = "dispatchers";
@@ -12,6 +17,12 @@ const DEADLETTER: &str = "cc:events:deadletter";
 
 pub struct RedisEventBus {
     conn: ConnectionManager,
+    /// Minimum PEL idle time (ms) before a pending entry is reclaimed. Defaults
+    /// to `PEL_RECLAIM_IDLE_MS`; overridable via `with_reclaim_idle_ms`.
+    reclaim_idle_ms: usize,
+    /// Detects when XAUTOCLAIM is unsupported (Redis < 6.2) to skip reclaim probes
+    /// without repeatedly logging. Prevents a warn-per-poll flood on older Redis versions.
+    reclaim_unsupported: Arc<AtomicBool>,
 }
 
 impl RedisEventBus {
@@ -31,7 +42,104 @@ impl RedisEventBus {
                 .query_async(&mut conn)
                 .await;
         }
-        Ok(Self { conn })
+        Ok(Self {
+            conn,
+            reclaim_idle_ms: PEL_RECLAIM_IDLE_MS,
+            reclaim_unsupported: Arc::new(AtomicBool::new(false)),
+        })
+    }
+
+    /// Test seam: shrink the PEL reclaim idle threshold so container tests don't
+    /// have to wait out the full crash-recovery cadence. Production callers should
+    /// leave this at the `PEL_RECLAIM_IDLE_MS` default set by `connect`.
+    pub fn with_reclaim_idle_ms(mut self, ms: usize) -> Self {
+        self.reclaim_idle_ms = ms;
+        self
+    }
+
+    /// Steal `cc:events` entries idle for at least `reclaim_idle_ms` in `group`'s
+    /// pending-entries-list and hand them to `consumer`, mirroring
+    /// `RedisQueue::reclaim_pending` (see there for the XAUTOCLAIM semantics, the
+    /// pre-6.2 degrade-to-no-op behavior, and the poison-pill rationale). Returns
+    /// parsed entries; unparseable ones are acked in `group` so they aren't
+    /// reclaimed (and fail) forever.
+    async fn reclaim_pending(
+        &self,
+        group: &str,
+        consumer: &str,
+        count: usize,
+    ) -> Result<Vec<EventEntry>, QueueError> {
+        if self.reclaim_unsupported.load(Ordering::Relaxed) {
+            return Ok(Vec::new());
+        }
+
+        let mut conn = self.conn.clone();
+        let opts = StreamAutoClaimOptions::default().count(count);
+        let reply: StreamAutoClaimReply = match conn
+            .xautoclaim_options(STREAM, group, consumer, self.reclaim_idle_ms, "0-0", opts)
+            .await
+        {
+            Ok(reply) => reply,
+            Err(e) if is_unknown_command(&e) => {
+                self.reclaim_unsupported.store(true, Ordering::Relaxed);
+                tracing::warn!(
+                    stream = STREAM,
+                    group,
+                    error = %e,
+                    "XAUTOCLAIM unsupported by this Redis server (needs >= 6.2); \
+                     reclaim disabled until restart"
+                );
+                return Ok(Vec::new());
+            }
+            Err(e) => return Err(e.into()),
+        };
+        let mut out = Vec::with_capacity(reply.claimed.len());
+        for entry in reply.claimed {
+            let event = match entry.map.get("event") {
+                Some(redis::Value::BulkString(bytes)) => {
+                    serde_json::from_slice::<Event>(bytes).ok()
+                }
+                _ => None,
+            };
+            match event {
+                Some(event) => out.push(EventEntry {
+                    id: EventId(entry.id),
+                    event,
+                }),
+                None => {
+                    tracing::warn!(
+                        stream = STREAM,
+                        group,
+                        id = %entry.id,
+                        "reclaimed entry missing a parseable \"event\" field; acking as poison pill"
+                    );
+                    let _: Result<i64, redis::RedisError> =
+                        conn.xack(STREAM, group, &[entry.id.as_str()]).await;
+                }
+            }
+        }
+        Ok(out)
+    }
+
+    /// Shared read path for both consumer groups: reclaim pre-pass over `group`'s
+    /// PEL (crash recovery for a consumer that died mid-delivery), then a blocking
+    /// group read of new entries.
+    async fn consume_group(
+        &self,
+        group: &str,
+        consumer: &str,
+        count: usize,
+        block_ms: usize,
+    ) -> Result<Vec<EventEntry>, QueueError> {
+        let mut out = self.reclaim_pending(group, consumer, count).await?;
+        let mut conn = self.conn.clone();
+        let opts = StreamReadOptions::default()
+            .group(group, consumer)
+            .count(count)
+            .block(block_ms);
+        let reply: StreamReadReply = conn.xread_options(&[STREAM], &[">"], &opts).await?;
+        out.extend(Self::parse_entries(reply)?);
+        Ok(out)
     }
 
     fn parse_entries(reply: StreamReadReply) -> Result<Vec<EventEntry>, QueueError> {
@@ -73,13 +181,7 @@ impl EventBus for RedisEventBus {
         count: usize,
         block_ms: usize,
     ) -> Result<Vec<EventEntry>, QueueError> {
-        let mut conn = self.conn.clone();
-        let opts = StreamReadOptions::default()
-            .group(GROUP, consumer)
-            .count(count)
-            .block(block_ms);
-        let reply: StreamReadReply = conn.xread_options(&[STREAM], &[">"], &opts).await?;
-        Self::parse_entries(reply)
+        self.consume_group(GROUP, consumer, count, block_ms).await
     }
 
     async fn ack(&self, id: &EventId) -> Result<(), QueueError> {
@@ -94,13 +196,8 @@ impl EventBus for RedisEventBus {
         count: usize,
         block_ms: usize,
     ) -> Result<Vec<EventEntry>, QueueError> {
-        let mut conn = self.conn.clone();
-        let opts = StreamReadOptions::default()
-            .group(GROUP_LOGEXPORT, consumer)
-            .count(count)
-            .block(block_ms);
-        let reply: StreamReadReply = conn.xread_options(&[STREAM], &[">"], &opts).await?;
-        Self::parse_entries(reply)
+        self.consume_group(GROUP_LOGEXPORT, consumer, count, block_ms)
+            .await
     }
 
     async fn ack_logexport(&self, id: &EventId) -> Result<(), QueueError> {

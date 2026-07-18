@@ -16,8 +16,9 @@ const SLO_GROUP: &str = "slo-evaluators";
 /// Crash-recovery reclaim cadence: how long a job must sit idle in another
 /// consumer's pending-entries-list before `consume`/`consume_slo` will steal it
 /// back via `XAUTOCLAIM`. This is recovery for a consumer that died mid-job, not
-/// a fast-retry knob, so it's set well above normal processing time.
-const PEL_RECLAIM_IDLE_MS: usize = 60_000;
+/// a fast-retry knob, so it's set well above normal processing time. Shared with
+/// `RedisEventBus`, which runs the same pre-pass over `cc:events`.
+pub(crate) const PEL_RECLAIM_IDLE_MS: usize = 60_000;
 
 pub struct RedisQueue {
     conn: ConnectionManager,
@@ -36,7 +37,7 @@ pub struct RedisQueue {
 /// True if `err` is Redis rejecting a command it doesn't recognize (the
 /// `ERR unknown command '...'` reply), as opposed to some other server-side
 /// failure. Used to detect a pre-6.2 server that has no `XAUTOCLAIM`.
-fn is_unknown_command(err: &redis::RedisError) -> bool {
+pub(crate) fn is_unknown_command(err: &redis::RedisError) -> bool {
     err.kind() == redis::ErrorKind::ResponseError
         && err
             .detail()

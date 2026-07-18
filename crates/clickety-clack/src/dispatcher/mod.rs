@@ -151,7 +151,8 @@ pub async fn run_dispatcher(
                     tracing::error!(error = %e, "event ack failed");
                 }
             }
-            // if !ack_ok: entry stays in the PEL (unacked) — preserved for Phase 3 reclaim.
+            // if !ack_ok: entry stays in the PEL (unacked) — redelivered by the
+            // event-bus XAUTOCLAIM reclaim pre-pass once it goes idle.
         }
     }
     tracing::info!("dispatcher stopped");
