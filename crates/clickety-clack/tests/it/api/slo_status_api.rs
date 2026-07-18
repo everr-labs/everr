@@ -52,7 +52,7 @@ async fn status_404_then_returns_snapshot() {
         .upsert_slo_status(
             SloId(id.parse().unwrap()),
             &TenantId::from_trusted(TENANT),
-            &json!({"groups":[],"window":"30d","target_percent":99.9,"degraded":false,"window_computed_at":{}}),
+            &json!({"groups":[],"window":"30d","target_percent":99.9,"window_computed_at":{}}),
             time::OffsetDateTime::now_utc(),
         )
         .await

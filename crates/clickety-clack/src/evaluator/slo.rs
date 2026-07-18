@@ -319,7 +319,6 @@ pub async fn evaluate_slo(
     let payload = SloStatusPayload {
         window: slo.spec.time_window.duration.clone(),
         target_percent: slo.spec.target_percent,
-        degraded: false,
         groups: out_groups,
         window_computed_at,
     };
@@ -740,7 +739,6 @@ mod tier_firing_tests {
         SloStatusPayload {
             window: "30d".into(),
             target_percent: 99.9,
-            degraded: false,
             groups: vec![SloGroupStatus {
                 labels,
                 sli: None,
@@ -912,7 +910,6 @@ mod tier_firing_tests {
         let payload = SloStatusPayload {
             window: "30d".into(),
             target_percent: 99.9,
-            degraded: false,
             groups: vec![SloGroupStatus {
                 labels: group_labels(),
                 sli: None,

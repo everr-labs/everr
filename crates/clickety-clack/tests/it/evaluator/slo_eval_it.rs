@@ -215,7 +215,6 @@ async fn fresh_windows_are_not_requeried() {
     let prior = SloStatusPayload {
         window: "30d".into(),
         target_percent: 99.9,
-        degraded: false,
         groups: vec![SloGroupStatus {
             labels: BTreeMap::new(),
             sli: Some(0.999),

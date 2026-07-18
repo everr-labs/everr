@@ -115,7 +115,6 @@ pub struct SloGroupStatus {
 pub struct SloStatusPayload {
     pub window: String,
     pub target_percent: f64,
-    pub degraded: bool,
     pub groups: Vec<SloGroupStatus>,
     /// WindowReq.name -> unix seconds last computed (coordinated freshness ledger).
     pub window_computed_at: BTreeMap<String, i64>,
@@ -125,7 +124,6 @@ pub fn empty_payload(spec: &SloSpec) -> SloStatusPayload {
     SloStatusPayload {
         window: spec.time_window.duration.clone(),
         target_percent: spec.target_percent,
-        degraded: false,
         groups: Vec::new(),
         window_computed_at: BTreeMap::new(),
     }
@@ -271,7 +269,6 @@ mod tests {
         let p = empty_payload(&spec_with(None, "30d"));
         assert_eq!(p.window, "30d");
         assert_eq!(p.target_percent, 99.9);
-        assert!(!p.degraded);
         assert!(p.groups.is_empty());
         assert!(p.window_computed_at.is_empty());
     }
@@ -281,7 +278,6 @@ mod tests {
         let p = SloStatusPayload {
             window: "30d".into(),
             target_percent: 99.9,
-            degraded: false,
             groups: vec![SloGroupStatus {
                 labels: std::collections::BTreeMap::from([("service".into(), "api".into())]),
                 sli: Some(0.999),
@@ -296,6 +292,25 @@ mod tests {
             window_computed_at: std::collections::BTreeMap::from([("300s".into(), 1234i64)]),
         };
         let v = serde_json::to_value(&p).unwrap();
+        let back: SloStatusPayload = serde_json::from_value(v).unwrap();
+        assert_eq!(back, p);
+    }
+
+    #[test]
+    fn stored_payload_with_legacy_degraded_key_still_parses() {
+        // Old snapshots persisted before the `degraded` field was dropped still have
+        // the key in their stored JSONB. Serde ignores unknown fields by default (no
+        // `deny_unknown_fields` on SloStatusPayload), so those rows must keep parsing.
+        let p = SloStatusPayload {
+            window: "30d".into(),
+            target_percent: 99.9,
+            groups: vec![],
+            window_computed_at: std::collections::BTreeMap::from([("300s".into(), 1234i64)]),
+        };
+        let mut v = serde_json::to_value(&p).unwrap();
+        v.as_object_mut()
+            .unwrap()
+            .insert("degraded".into(), serde_json::json!(false));
         let back: SloStatusPayload = serde_json::from_value(v).unwrap();
         assert_eq!(back, p);
     }
