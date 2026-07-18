@@ -925,14 +925,16 @@ impl PgStore {
         }
     }
 
-    /// Like `get_rule`, but also returns the rule's health (for the API representation).
+    /// Like `get_rule`, but also returns the rule's health (for the API representation)
+    /// and `updated_at` (maintained by every rule write: the insert default on create,
+    /// `now()` on spec update, pause and resume).
     pub async fn get_rule_with_health(
         &self,
         tenant: TenantId,
         id: RuleId,
-    ) -> Result<Option<(Rule, RuleHealth, RuleRollup)>, StoreError> {
+    ) -> Result<Option<(Rule, RuleHealth, RuleRollup, OffsetDateTime)>, StoreError> {
         let row = sqlx::query(
-            "SELECT spec, version, paused, health_status, consecutive_failures,
+            "SELECT spec, version, paused, updated_at, health_status, consecutive_failures,
                     degraded_since, last_error, last_error_at,
                     alert_state, firing_instance_count, last_fired_at,
                     last_resolved_at, last_seen_at, last_row_count
@@ -947,8 +949,9 @@ impl PgStore {
             Some(r) => {
                 let health = Self::health_from_row(&r);
                 let rollup = Self::rollup_from_row(&r);
+                let updated_at = r.get("updated_at");
                 let rule = rule_from_row(&r, id, tenant)?;
-                Ok(Some((rule, health, rollup)))
+                Ok(Some((rule, health, rollup, updated_at)))
             }
         }
     }
@@ -966,11 +969,17 @@ impl PgStore {
         health: Option<&str>,
         after: Option<&RulePageKey>,
         limit: i64,
-    ) -> Result<(Vec<(Rule, RuleHealth, RuleRollup)>, Option<RulePageKey>), StoreError> {
+    ) -> Result<
+        (
+            Vec<(Rule, RuleHealth, RuleRollup, OffsetDateTime)>,
+            Option<RulePageKey>,
+        ),
+        StoreError,
+    > {
         // Fetch one extra row: its presence (not its content) tells us whether a
         // next page exists, so `next` is only set when resuming would yield rows.
         let rows = sqlx::query(
-            "SELECT id, created_at, spec, version, paused, health_status, consecutive_failures,
+            "SELECT id, created_at, updated_at, spec, version, paused, health_status, consecutive_failures,
                     degraded_since, last_error, last_error_at,
                     alert_state, firing_instance_count, last_fired_at,
                     last_resolved_at, last_seen_at, last_row_count
@@ -999,7 +1008,7 @@ impl PgStore {
                 id,
             });
             let rule = rule_from_row(r, id, tenant.clone())?;
-            out.push((rule, health, rollup));
+            out.push((rule, health, rollup, r.get("updated_at")));
         }
         Ok((out, if has_more { last_key } else { None }))
     }

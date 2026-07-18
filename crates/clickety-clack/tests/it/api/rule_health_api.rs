@@ -62,6 +62,10 @@ async fn get_and_list_expose_rule_health() {
     let body = body_json(resp).await;
     assert_eq!(body["health"]["status"], "healthy");
     assert_eq!(body["health"]["consecutive_failures"], 0);
+    // The view carries the row's write timestamp as RFC-3339.
+    let updated_at = body["updated_at"].as_str().expect("updated_at present");
+    OffsetDateTime::parse(updated_at, &time::format_description::well_known::Rfc3339)
+        .expect("updated_at is RFC-3339");
 
     // Degrade it directly (threshold 1).
     let tid = TenantId::from_trusted(tenant.to_string());
@@ -91,6 +95,10 @@ async fn get_and_list_expose_rule_health() {
     let body = body_json(app.clone().oneshot(list_degraded).await.unwrap()).await;
     assert_eq!(body["items"].as_array().unwrap().len(), 1);
     assert_eq!(body["items"][0]["health"]["status"], "degraded");
+    assert!(
+        body["items"][0]["updated_at"].is_string(),
+        "list items carry updated_at"
+    );
 
     let list_healthy = Request::builder()
         .uri("/v1/rules?health=healthy")

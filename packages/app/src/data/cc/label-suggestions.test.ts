@@ -44,6 +44,7 @@ function ccRule(overrides: {
     },
     version: 1,
     paused: false,
+    updated_at: "2026-06-14T12:00:00Z",
     health: {
       status: "healthy",
       consecutive_failures: 0,

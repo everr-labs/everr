@@ -7,6 +7,7 @@ const ruleView = {
   tenant: "t",
   version: 1,
   paused: false,
+  updated_at: "2026-06-14T12:00:00Z",
   spec: {
     sql: "SELECT 1",
     interval_secs: 30,

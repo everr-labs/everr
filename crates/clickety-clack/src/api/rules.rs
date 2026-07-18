@@ -46,6 +46,10 @@ impl From<RuleRollup> for RuleRollupOut {
 pub struct RuleView {
     #[serde(flatten)]
     rule: Rule,
+    /// When the rule row was last written (create, spec update, pause/resume);
+    /// maintained by the store, not part of the domain `Rule`.
+    #[serde(with = "time::serde::rfc3339")]
+    updated_at: time::OffsetDateTime,
     health: RuleHealth,
     rollup: RuleRollupOut,
 }
@@ -190,13 +194,14 @@ pub async fn get(
     Path(id): Path<Uuid>,
 ) -> Result<Json<RuleView>, ApiError> {
     let t = tenant(&state, &headers)?;
-    let (rule, health, rollup) = state
+    let (rule, health, rollup, updated_at) = state
         .store
         .get_rule_with_health(t, RuleId(id))
         .await?
         .ok_or(ApiError::NotFound)?;
     Ok(Json(RuleView {
         rule,
+        updated_at,
         health,
         rollup: rollup.into(),
     }))
@@ -272,9 +277,15 @@ pub async fn list(
             )))
         }
     };
-    let view = |(rule, health, rollup): (Rule, RuleHealth, RuleRollup)| {
+    let view = |(rule, health, rollup, updated_at): (
+        Rule,
+        RuleHealth,
+        RuleRollup,
+        time::OffsetDateTime,
+    )| {
         serde_json::to_value(RuleView {
             rule,
+            updated_at,
             health,
             rollup: rollup.into(),
         })

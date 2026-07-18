@@ -58,7 +58,7 @@ async fn rollup_written_in_same_tx_and_advances() {
         .await
         .unwrap();
 
-    let (_r, _h, _rollup) = store
+    let (_r, _h, _rollup, _updated_at) = store
         .get_rule_with_health(tenant.clone(), rule.id)
         .await
         .unwrap()

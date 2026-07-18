@@ -195,7 +195,7 @@ async fn get_and_list_expose_health() {
     let rule = store.create_rule(tenant.clone(), &spec()).await.unwrap();
     let now = OffsetDateTime::now_utc();
 
-    let (_r, h, _rollup) = store
+    let (_r, h, _rollup, _updated_at) = store
         .get_rule_with_health(tenant.clone(), rule.id)
         .await
         .unwrap()
@@ -208,7 +208,7 @@ async fn get_and_list_expose_health() {
         .record_rule_failure(rule.id, &tenant, "boom", 1, now)
         .await
         .unwrap();
-    let (_r, h, _rollup) = store
+    let (_r, h, _rollup, _updated_at) = store
         .get_rule_with_health(tenant.clone(), rule.id)
         .await
         .unwrap()

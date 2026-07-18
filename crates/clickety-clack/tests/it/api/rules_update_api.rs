@@ -22,6 +22,23 @@ async fn create_rule(app: &axum::Router, tenant: Uuid) -> String {
     body_json(resp).await["id"].as_str().unwrap().to_string()
 }
 
+/// GET the rule view and return its `updated_at` (RFC-3339, parsed for comparison).
+async fn get_updated_at(app: &axum::Router, tenant: Uuid, id: &str) -> time::OffsetDateTime {
+    let get = Request::builder()
+        .uri(format!("/v1/rules/{id}"))
+        .header("X-CC-Tenant", tenant.to_string())
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.clone().oneshot(get).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_json(resp).await;
+    time::OffsetDateTime::parse(
+        body["updated_at"].as_str().expect("updated_at present"),
+        &time::format_description::well_known::Rfc3339,
+    )
+    .expect("updated_at is RFC-3339")
+}
+
 fn put(tenant: Uuid, id: &str, body: &str) -> Request<Body> {
     Request::builder()
         .method("PUT")
@@ -55,6 +72,7 @@ async fn put_updates_spec_in_place_and_preserves_instances() {
         .upsert_instance(&seed_firing_instance(&id, tenant))
         .await
         .unwrap();
+    let created_stamp = get_updated_at(&app, tenant, &id).await;
 
     // Same label_columns, new SQL + severity, no version guard (last-write-wins).
     let resp = app
@@ -83,6 +101,13 @@ async fn put_updates_spec_in_place_and_preserves_instances() {
         .unwrap();
     assert_eq!(instances.len(), 1, "instance state preserved");
     assert_eq!(instances[0].status, Status::Firing);
+
+    // The PUT ran in a later transaction than the INSERT, so the write stamp advances.
+    let updated_stamp = get_updated_at(&app, tenant, &id).await;
+    assert!(
+        updated_stamp > created_stamp,
+        "updated_at must advance on PUT: {created_stamp} -> {updated_stamp}"
+    );
 }
 
 #[tokio::test]

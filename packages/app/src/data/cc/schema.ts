@@ -66,6 +66,10 @@ export const CcRuleRollupSchema = z.object({
 });
 
 export const CcRuleViewSchema = CcRuleSchema.extend({
+  // When the rule row was last written (create, spec update, pause/resume).
+  // Backed by a NOT NULL column CC always serializes, so it is required here.
+  // Only on the view: create/update/pause responses are the bare Rule.
+  updated_at: CcTimestampSchema,
   health: CcRuleHealthSchema,
   // Optional for rollout safety: a CC not yet on SP2 2a omits `rollup`, and
   // requiring it would break the whole rule-list parse (and the alerts

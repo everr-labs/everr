@@ -26,7 +26,11 @@ export interface ResourceSummary {
   slug: string;
   /** "" for UI-created resources. */
   repoid: string;
-  /** "" for alerts: CC rules carry no timestamps. */
+  /**
+   * RFC-3339 timestamp of the resource's last write. Postgres-backed kinds
+   * serialize their `updated_at` column; alerts surface the CC rule's
+   * `updated_at` (maintained on create, spec update, pause/resume).
+   */
   updatedAt: string;
 }
 
@@ -181,14 +185,14 @@ const alertBackend: KindBackend = {
   async list(orgId, repoid) {
     const rules = await listLiveAlertRules(orgId);
     return rules
-      .map((r) => fromCcRuleSpec(r.spec))
-      .filter((view) => repoid === undefined || view.repoid === repoid)
-      .map((view) => ({
+      .map((r) => ({ view: fromCcRuleSpec(r.spec), updatedAt: r.updated_at }))
+      .filter(({ view }) => repoid === undefined || view.repoid === repoid)
+      .map(({ view, updatedAt }) => ({
         kind: "alert" as const,
         project: ALERT_PROJECT,
         slug: view.slug,
         repoid: view.repoid,
-        updatedAt: "",
+        updatedAt,
       }));
   },
   async get(orgId, project, slug) {

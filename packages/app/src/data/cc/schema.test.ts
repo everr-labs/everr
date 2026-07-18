@@ -43,6 +43,7 @@ it("parses a RuleView (Rule flattened + health)", () => {
     },
     version: 1,
     paused: false,
+    updated_at: "2026-06-14T12:00:00Z",
     health: {
       status: "healthy",
       consecutive_failures: 0,
@@ -85,6 +86,7 @@ it("passes an explicit suppressed flag through the rule spec", () => {
     },
     version: 1,
     paused: false,
+    updated_at: "2026-06-14T12:00:00Z",
     health: {
       status: "healthy",
       consecutive_failures: 0,
@@ -112,6 +114,7 @@ it("parses a RuleView from a pre-SP2 CC that omits rollup", () => {
     },
     version: 1,
     paused: false,
+    updated_at: "2026-06-14T12:00:00Z",
     health: {
       status: "healthy",
       consecutive_failures: 0,
@@ -301,6 +304,7 @@ it("parses the paginated rules envelope with and without a next cursor", () => {
     },
     version: 1,
     paused: false,
+    updated_at: "2026-06-14T12:00:00Z",
     health: {
       status: "healthy",
       consecutive_failures: 0,
