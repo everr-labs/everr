@@ -6,8 +6,8 @@
 
 use crate::domain::inhibition::InhibitionRule;
 use crate::domain::routing::{MatchOp, Matcher};
-use crate::domain::slo::{canonical_tiers, Slo};
 use crate::engine::slo_math::tier_pairs;
+use crate::stores::SloDispatchInfo;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
@@ -15,19 +15,24 @@ use uuid::Uuid;
 /// (higher, lower) tier pair, the higher tier suppresses the lower for the
 /// same (slo, group). Synthesized on every snapshot load — never stored, so
 /// lifecycle is automatic and users cannot break the no-triple-page guarantee.
-pub(crate) fn synthesize_slo_inhibitions(slos: &[Slo]) -> Vec<InhibitionRule> {
+///
+/// Takes the lean [`SloDispatchInfo`] projection (id/tenant/label_columns/tiers) rather
+/// than the full `Slo` — `tiers` is already resolved (`spec.tiers`, or
+/// `canonical_tiers()` when unset) by [`crate::stores::PgStore::list_slos_for_dispatch`],
+/// so this function no longer needs to know about that fallback.
+pub(crate) fn synthesize_slo_inhibitions(slos: &[SloDispatchInfo]) -> Vec<InhibitionRule> {
     let mut out = Vec::new();
     for slo in slos {
-        let tiers = slo.spec.tiers.clone().unwrap_or_else(canonical_tiers);
+        let tiers = &slo.tiers;
         let slo_str = slo.id.0.to_string();
 
         let mut equal: Vec<String> = std::iter::once("slo".to_string())
-            .chain(slo.spec.sli.label_columns.iter().cloned())
+            .chain(slo.label_columns.iter().cloned())
             .collect();
         equal.sort();
         equal.dedup();
 
-        for (i, j) in tier_pairs(&tiers) {
+        for (i, j) in tier_pairs(tiers) {
             out.push(InhibitionRule {
                 // Inert sentinel: `is_inhibited` (src/dispatcher/inhibition.rs) never reads
                 // `id` or `created_at` — matching is entirely source/target matchers + `equal`
@@ -82,32 +87,15 @@ pub(crate) fn synthesize_slo_inhibitions(slos: &[Slo]) -> Vec<InhibitionRule> {
 mod tests {
     use super::*;
     use crate::domain::ids::{SloId, TenantId};
-    use crate::domain::slo::{SliSpec, SloSpec, TimeWindow};
+    use crate::domain::slo::canonical_tiers;
     use std::collections::BTreeMap;
 
-    fn slo_with(label_columns: Vec<String>) -> Slo {
-        Slo {
+    fn slo_with(label_columns: Vec<String>) -> SloDispatchInfo {
+        SloDispatchInfo {
             id: SloId(Uuid::new_v4()),
             tenant: TenantId::from_trusted(Uuid::new_v4().to_string()),
-            name: "checkout-availability".into(),
-            spec: SloSpec {
-                sli: SliSpec {
-                    sql: "SELECT 1 AS good, 1 AS valid".into(),
-                    label_columns,
-                },
-                target_percent: 99.9,
-                time_window: TimeWindow {
-                    duration: "30d".into(),
-                    is_rolling: true,
-                    calendar: None,
-                },
-                min_valid_events: None,
-                tiers: None, // canonical
-                annotations: BTreeMap::new(),
-                suppressed: false,
-            },
-            version: 1,
-            paused: false,
+            label_columns,
+            tiers: canonical_tiers(),
         }
     }
 

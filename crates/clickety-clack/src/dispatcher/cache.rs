@@ -98,8 +98,11 @@ impl FilterCache {
         let receivers = self.store.list_receivers(tenant.clone()).await?;
 
         // Spec §5: every SLO auto-provisions tier inhibitions, synthesized in-memory on
-        // every load (never stored — see `dispatcher::slo_inhibit`).
-        let slos = self.store.list_slos(&tenant).await?;
+        // every load (never stored — see `dispatcher::slo_inhibit`). Uses the lean
+        // dispatch projection (id/tenant/label_columns/tiers) instead of `list_slos`, so
+        // a refresh never decodes the full spec (SQL text, target, window...) of every
+        // SLO just to synthesize inhibitions.
+        let slos = self.store.list_slos_for_dispatch(&tenant).await?;
         inhibitions.extend(synthesize_slo_inhibitions(&slos));
 
         let mut firing: Vec<(InstanceKey, BTreeMap<String, String>)> = self

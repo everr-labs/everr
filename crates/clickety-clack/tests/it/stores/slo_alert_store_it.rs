@@ -1,7 +1,7 @@
 use cc::domain::ids::{InstanceKey, RuleId, SloId, TenantId};
 use cc::domain::instance::{InstanceState, Status};
 use cc::domain::rule::Severity;
-use cc::domain::slo::{SliSpec, SloSpec, TimeWindow};
+use cc::domain::slo::{canonical_tiers, BurnRateTier, SliSpec, SloSpec, TimeWindow};
 use cc::domain::{Event, EventKind, EventStatus};
 use cc::stores::{PgStore, SloCreate};
 use std::collections::BTreeMap;
@@ -125,6 +125,9 @@ async fn stale_scan_excludes_paused_and_degraded() {
     let healthy_slo = make_slo(&s, &t, "healthy").await;
     let paused_slo = make_slo(&s, &t, "paused").await;
     let degraded_slo = make_slo(&s, &t, "degraded").await;
+    // Failing but not yet degraded: degrade_after is high (5), so one failure below
+    // threshold leaves health_status='healthy' with consecutive_failures=1.
+    let failing_slo = make_slo(&s, &t, "failing").await;
 
     s.pause_slo(t.clone(), paused_slo).await.unwrap();
     let now = OffsetDateTime::now_utc();
@@ -134,9 +137,15 @@ async fn stale_scan_excludes_paused_and_degraded() {
         .await
         .unwrap()
         .is_some());
+    // threshold 5: one failure stays healthy (consecutive_failures=1).
+    assert!(s
+        .record_slo_failure(failing_slo, &t, "boom", 5, now)
+        .await
+        .unwrap()
+        .is_none());
 
     let old = now - Duration::hours(1);
-    for slo_id in [healthy_slo, paused_slo, degraded_slo] {
+    for slo_id in [healthy_slo, paused_slo, degraded_slo, failing_slo] {
         let rule = RuleId(slo_id.0);
         let labels = BTreeMap::from([("svc".to_string(), "x".to_string())]);
         let mut inst =
@@ -148,9 +157,59 @@ async fn stale_scan_excludes_paused_and_degraded() {
         s.persist_slo_eval_batch(&[inst], &[]).await.unwrap();
     }
 
+    // Only the fully-healthy SLO's instance is stale: paused is excluded, degraded is
+    // excluded, and the failing-but-not-yet-degraded one is excluded too (freeze-on-error
+    // guard: the reaper must not resolve it before the degrade threshold decides).
     let stale = s.list_stale_slo_instances(now, 30, 10).await.unwrap();
     assert_eq!(stale.len(), 1);
     assert_eq!(stale[0].rule, RuleId(healthy_slo.0));
+}
+
+#[tokio::test]
+async fn list_for_dispatch_resolves_canonical_tiers_and_label_columns() {
+    let s = store().await;
+    let t = tenant();
+
+    // Unset tiers -> canonical_tiers(); explicit label_columns returned verbatim.
+    let mut spec_a = spec();
+    spec_a.sli.label_columns = vec!["service".to_string()];
+    let slo_a = match s.create_slo(t.clone(), "a", &spec_a).await.unwrap() {
+        SloCreate::Created(slo) => slo.id,
+        other => panic!("expected Created, got {other:?}"),
+    };
+
+    // Explicit tiers -> returned verbatim, not the canonical set.
+    let explicit_tiers = vec![BurnRateTier {
+        name: "custom".into(),
+        long_window: "2h".into(),
+        short_window: "10m".into(),
+        burn_rate: 5.0,
+        severity: Severity::Warning,
+    }];
+    let mut spec_b = spec();
+    spec_b.tiers = Some(explicit_tiers.clone());
+    let slo_b = match s.create_slo(t.clone(), "b", &spec_b).await.unwrap() {
+        SloCreate::Created(slo) => slo.id,
+        other => panic!("expected Created, got {other:?}"),
+    };
+
+    let dispatch = s.list_slos_for_dispatch(&t).await.unwrap();
+    assert_eq!(dispatch.len(), 2);
+
+    let got_a = dispatch.iter().find(|d| d.id == slo_a).unwrap();
+    assert_eq!(got_a.label_columns, vec!["service".to_string()]);
+    assert_eq!(
+        got_a.tiers,
+        canonical_tiers(),
+        "None tiers resolve to canonical"
+    );
+
+    let got_b = dispatch.iter().find(|d| d.id == slo_b).unwrap();
+    assert!(got_b.label_columns.is_empty());
+    assert_eq!(
+        got_b.tiers, explicit_tiers,
+        "explicit tiers are returned verbatim"
+    );
 }
 
 #[tokio::test]

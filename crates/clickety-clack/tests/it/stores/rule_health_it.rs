@@ -62,6 +62,40 @@ async fn degraded_rule_firing_instances_are_not_stale() {
     );
 }
 
+/// A rule that is failing but not yet degraded (health_status stays 'healthy',
+/// consecutive_failures > 0) froze deliberately (freeze-on-error): the reaper must not
+/// resolve its instances before the degrade threshold decides. Closes the
+/// reaper-vs-degrade race when `degrade_after` > 4 (the 4x-cadence staleness window).
+#[tokio::test]
+async fn failing_but_not_degraded_rule_firing_instances_are_not_stale() {
+    let (store, _node) = store().await;
+    let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
+    let rule = store.create_rule(tenant.clone(), &spec()).await.unwrap();
+    let now = OffsetDateTime::now_utc();
+
+    let key = InstanceKey::new(rule.id, &BTreeMap::new());
+    let mut inst = InstanceState::new_inactive(key, rule.id, tenant.clone(), BTreeMap::new());
+    inst.status = Status::Firing;
+    inst.active_since = Some(now - Duration::seconds(300));
+    inst.last_seen = Some(now - Duration::seconds(300));
+    store.upsert_instance(&inst).await.unwrap();
+
+    // One failure below a high threshold (5): health_status stays 'healthy',
+    // consecutive_failures=1.
+    assert!(store
+        .record_rule_failure(rule.id, &tenant, "boom", 5, now)
+        .await
+        .unwrap()
+        .is_none());
+
+    // Despite the stale last_seen, the instance must NOT be returned: the rule froze
+    // deliberately and hasn't crossed the degrade threshold yet.
+    assert_eq!(
+        store.list_stale_instances(now, 1000).await.unwrap().len(),
+        0
+    );
+}
+
 // ---- Task 6: record_rule_failure ----
 
 #[tokio::test]

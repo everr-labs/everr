@@ -137,6 +137,19 @@ pub struct SloHealth {
     pub last_error: Option<String>,
 }
 
+/// Lean per-SLO projection for dispatch-time inhibition synthesis (see
+/// `dispatcher::slo_inhibit`), returned by [`PgStore::list_slos_for_dispatch`]. Dispatch
+/// never needs the full [`crate::domain::slo::Slo`] (SQL text, target, window...) — just
+/// identity, the label columns that fan the tier group out, and the resolved tiers.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SloDispatchInfo {
+    pub id: crate::domain::ids::SloId,
+    pub tenant: TenantId,
+    pub label_columns: Vec<String>,
+    /// Resolved: `spec.tiers`, or `canonical_tiers()` when unset.
+    pub tiers: Vec<crate::domain::slo::BurnRateTier>,
+}
+
 fn status_str(s: Status) -> &'static str {
     match s {
         Status::Inactive => "inactive",
@@ -1814,6 +1827,13 @@ impl PgStore {
              WHERE i.status IN ('pending','firing')
                AND NOT r.paused
                AND r.health_status <> 'degraded'
+               -- A failing-but-not-yet-degraded rule (consecutive_failures > 0, still
+               -- 'healthy') froze deliberately (freeze-on-error): the reaper must not
+               -- resolve its instances before the degrade threshold decides. Without
+               -- this guard, a degrade_after > 4 configuration races the 4x-cadence
+               -- staleness window and the reaper wins, resolving instances a source
+               -- that is about to legitimately degrade.
+               AND r.consecutive_failures = 0
                AND i.last_seen < ($1::timestamptz
                    - make_interval(secs => GREATEST(4 * (r.spec->>'interval_secs')::int, 60)))
              ORDER BY i.last_seen
@@ -2325,6 +2345,49 @@ impl PgStore {
         })
     }
 
+    /// Lean projection of SLOs for dispatch-time inhibition synthesis (see
+    /// `dispatcher::slo_inhibit`): every snapshot refresh (`FilterCache::load`) used to
+    /// call [`Self::list_slos`] and decode the *full* spec (SQL text, target, window...)
+    /// just to read `label_columns` and `tiers`. This projects only those two JSONB
+    /// paths, and resolves `tiers` here (`spec.tiers`, or `canonical_tiers()` when unset)
+    /// so the dispatcher never needs to know about the "None = canonical" rule.
+    pub async fn list_slos_for_dispatch(
+        &self,
+        tenant: &TenantId,
+    ) -> Result<Vec<SloDispatchInfo>, StoreError> {
+        use crate::domain::ids::SloId;
+        use crate::domain::slo::{canonical_tiers, BurnRateTier};
+        let rows = sqlx::query(
+            "SELECT id, tenant, spec->'sli'->'label_columns' AS label_columns,
+                    spec->'tiers' AS tiers
+             FROM slos WHERE tenant=$1",
+        )
+        .bind(tenant.as_str())
+        .fetch_all(&self.pool)
+        .await?;
+        let mut out = Vec::with_capacity(rows.len());
+        for r in &rows {
+            // Both paths are SQL NULL when the JSON key is absent (spec predates the
+            // field, or was explicitly `null`) — treat missing and null identically.
+            let label_columns: Vec<String> =
+                match r.get::<Option<serde_json::Value>, _>("label_columns") {
+                    Some(v) if !v.is_null() => serde_json::from_value(v)?,
+                    _ => Vec::new(),
+                };
+            let tiers: Vec<BurnRateTier> = match r.get::<Option<serde_json::Value>, _>("tiers") {
+                Some(v) if !v.is_null() => serde_json::from_value(v)?,
+                _ => canonical_tiers(),
+            };
+            out.push(SloDispatchInfo {
+                id: SloId(r.get("id")),
+                tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
+                label_columns,
+                tiers,
+            });
+        }
+        Ok(out)
+    }
+
     // ---- slo evaluation: due-scan ----
 
     /// Like [`Self::claim_due_rules_sharded`], but against `slos`. There is no per-SLO
@@ -2725,6 +2788,13 @@ impl PgStore {
              WHERE i.status IN ('pending','firing')
                AND NOT s.paused
                AND s.health_status <> 'degraded'
+               -- A failing-but-not-yet-degraded SLO (consecutive_failures > 0, still
+               -- 'healthy') froze deliberately (freeze-on-error): the reaper must not
+               -- resolve its instances before the degrade threshold decides. Without
+               -- this guard, a degrade_after > 4 configuration races the 4x-cadence
+               -- staleness window and the reaper wins, resolving instances a source
+               -- that is about to legitimately degrade.
+               AND s.consecutive_failures = 0
                AND i.last_seen < ($1::timestamptz - make_interval(secs => GREATEST(4 * $2, 60)))
              ORDER BY i.last_seen
              LIMIT $3",
