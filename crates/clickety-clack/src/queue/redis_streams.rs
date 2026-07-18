@@ -5,6 +5,8 @@ use redis::streams::{
     StreamAutoClaimOptions, StreamAutoClaimReply, StreamReadOptions, StreamReadReply,
 };
 use redis::AsyncCommands;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 const STREAM: &str = "cc:eval:jobs";
 const GROUP: &str = "evaluators";
@@ -26,6 +28,9 @@ pub struct RedisQueue {
     /// Minimum PEL idle time (ms) before a pending entry is reclaimed. Defaults
     /// to `PEL_RECLAIM_IDLE_MS`; overridable via `with_reclaim_idle_ms`.
     reclaim_idle_ms: usize,
+    /// Detects when XAUTOCLAIM is unsupported (Redis < 6.2) to skip reclaim probes
+    /// without repeatedly logging. Prevents a warn-per-poll flood on older Redis versions.
+    reclaim_unsupported: Arc<AtomicBool>,
 }
 
 /// True if `err` is Redis rejecting a command it doesn't recognize (the
@@ -72,6 +77,7 @@ impl RedisQueue {
             conn,
             metrics: crate::otel::EngineMetrics::disabled(),
             reclaim_idle_ms: PEL_RECLAIM_IDLE_MS,
+            reclaim_unsupported: Arc::new(AtomicBool::new(false)),
         })
     }
 
@@ -95,9 +101,10 @@ impl RedisQueue {
     /// raw `"job"` field (still JSON, undeserialized — callers know the target type).
     ///
     /// `XAUTOCLAIM` needs Redis >= 6.2. Against an older server this degrades to a
-    /// no-op (logged once per call) instead of failing `consume`/`consume_slo`
-    /// outright, so the reclaim pre-pass stays additive rather than a hard
-    /// requirement on the Redis version in use.
+    /// no-op instead of failing `consume`/`consume_slo` outright, so the reclaim
+    /// pre-pass stays additive rather than a hard requirement on the Redis version
+    /// in use. Once detected, reclaim is disabled for the lifetime of this queue handle
+    /// to avoid repeated probe round-trips and log spam.
     ///
     /// Entries with no parseable `"job"` field can never be salvaged, so they're acked
     /// here and dropped rather than reclaimed forever (a poison-pill guard, same
@@ -110,6 +117,11 @@ impl RedisQueue {
         min_idle_ms: usize,
         count: usize,
     ) -> Result<Vec<(String, String)>, QueueError> {
+        // If we've already detected XAUTOCLAIM is unsupported, skip the probe entirely.
+        if self.reclaim_unsupported.load(Ordering::Relaxed) {
+            return Ok(Vec::new());
+        }
+
         let mut conn = self.conn.clone();
         let opts = StreamAutoClaimOptions::default().count(count);
         let reply: StreamAutoClaimReply = match conn
@@ -118,12 +130,13 @@ impl RedisQueue {
         {
             Ok(reply) => reply,
             Err(e) if is_unknown_command(&e) => {
+                self.reclaim_unsupported.store(true, Ordering::Relaxed);
                 tracing::warn!(
                     stream,
                     group,
                     error = %e,
                     "XAUTOCLAIM unsupported by this Redis server (needs >= 6.2); \
-                     skipping the stale-PEL reclaim pass"
+                     reclaim disabled until restart"
                 );
                 return Ok(Vec::new());
             }
