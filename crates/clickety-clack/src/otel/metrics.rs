@@ -98,6 +98,8 @@ struct Instruments {
     eval_errors: Counter<u64>,
     queue_consume_lag: Histogram<f64>,
     queue_batch_size: Histogram<u64>,
+    slo_queue_consume_lag: Histogram<f64>,
+    slo_queue_batch_size: Histogram<u64>,
     notify_deliveries: Counter<u64>,
     scheduler_drift: Histogram<f64>,
     outbox_relayed: Counter<u64>,
@@ -151,6 +153,21 @@ impl EngineMetrics {
                 .u64_histogram("cc.queue.batch.size")
                 .with_unit("{job}")
                 .with_description("Jobs returned per non-empty eval-queue consume call.")
+                .with_boundaries(BATCH_SIZE_BOUNDARIES.to_vec())
+                .build(),
+            slo_queue_consume_lag: meter
+                .f64_histogram("cc.slo_queue.consume.lag")
+                .with_unit("s")
+                .with_description(
+                    "Age of each consumed SLO eval job: consume time minus enqueue time \
+                     (from the Redis stream entry id).",
+                )
+                .with_boundaries(LAG_BOUNDARIES.to_vec())
+                .build(),
+            slo_queue_batch_size: meter
+                .u64_histogram("cc.slo_queue.batch.size")
+                .with_unit("{job}")
+                .with_description("Jobs returned per non-empty SLO-queue consume call.")
                 .with_boundaries(BATCH_SIZE_BOUNDARIES.to_vec())
                 .build(),
             notify_deliveries: meter
@@ -244,6 +261,20 @@ impl EngineMetrics {
         }
     }
 
+    /// Size of one non-empty SLO-queue consume batch.
+    pub fn record_slo_queue_batch_size(&self, size: usize) {
+        if let Some(m) = &self.inner {
+            m.slo_queue_batch_size.record(size as u64, &[]);
+        }
+    }
+
+    /// Enqueue-to-consume lag of one SLO eval job.
+    pub fn record_slo_queue_lag(&self, seconds: f64) {
+        if let Some(m) = &self.inner {
+            m.slo_queue_consume_lag.record(seconds, &[]);
+        }
+    }
+
     /// One notification delivery attempt chain (post-retry outcome).
     pub fn record_delivery(&self, channel: &str, tenant: &str, outcome: DeliveryOutcome) {
         if let Some(m) = &self.inner {
@@ -312,6 +343,8 @@ mod tests {
         m.record_eval_error(EvalErrorKind::Consume, None);
         m.record_queue_batch_size(16);
         m.record_queue_lag(0.05);
+        m.record_slo_queue_batch_size(16);
+        m.record_slo_queue_lag(0.05);
         m.record_delivery("webhook", "t1", DeliveryOutcome::Sent);
         m.record_scheduler_drift(0.2, "t1");
         m.record_outbox_relayed(3);
@@ -339,6 +372,8 @@ mod tests {
         m.record_eval_error(EvalErrorKind::RuleEval, Some("t1"));
         m.record_queue_batch_size(4);
         m.record_queue_lag(0.5);
+        m.record_slo_queue_batch_size(4);
+        m.record_slo_queue_lag(0.5);
         m.record_delivery("slack", "t1", DeliveryOutcome::Failed);
         m.record_scheduler_drift(1.5, "t1");
         m.record_outbox_relayed(2);
@@ -358,6 +393,8 @@ mod tests {
             "cc.eval.errors",
             "cc.queue.consume.lag",
             "cc.queue.batch.size",
+            "cc.slo_queue.consume.lag",
+            "cc.slo_queue.batch.size",
             "cc.notify.deliveries",
             "cc.scheduler.drift",
             "cc.outbox.relayed",

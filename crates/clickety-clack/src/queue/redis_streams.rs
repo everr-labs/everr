@@ -260,11 +260,18 @@ impl Queue for RedisQueue {
             .count(count)
             .block(block_ms);
         let reply: StreamReadReply = conn.xread_options(&[SLO_STREAM], &[">"], &opts).await?;
+        let now_ms = (time::OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000_000) as i64;
         let mut out = Vec::with_capacity(reclaimed.len());
 
         for (id, job_json) in reclaimed {
             match serde_json::from_str::<SloEvalJob>(&job_json) {
-                Ok(job) => out.push(SloDelivery { id: JobId(id), job }),
+                Ok(job) => {
+                    if let Some(enq_ms) = entry_enqueue_unix_ms(&id) {
+                        self.metrics
+                            .record_slo_queue_lag((now_ms - enq_ms).max(0) as f64 / 1000.0);
+                    }
+                    out.push(SloDelivery { id: JobId(id), job });
+                }
                 Err(e) => {
                     tracing::warn!(
                         id = %id,
@@ -281,12 +288,23 @@ impl Queue for RedisQueue {
             for entry in key.ids {
                 if let Some(redis::Value::BulkString(bytes)) = entry.map.get("job") {
                     let job: SloEvalJob = serde_json::from_slice(bytes)?;
+                    // Stream ids are `<enqueue-unix-ms>-<seq>`, so enqueue-to-consume
+                    // lag falls out of the id itself. Clamp at 0 against clock skew.
+                    if let Some(enq_ms) = entry_enqueue_unix_ms(&entry.id) {
+                        self.metrics
+                            .record_slo_queue_lag((now_ms - enq_ms).max(0) as f64 / 1000.0);
+                    }
                     out.push(SloDelivery {
                         id: JobId(entry.id),
                         job,
                     });
                 }
             }
+        }
+        // Empty replies (the XREAD block timeout on an idle queue) are not batches;
+        // recording them would drown the size distribution in zeros.
+        if !out.is_empty() {
+            self.metrics.record_slo_queue_batch_size(out.len());
         }
         Ok(out)
     }
