@@ -58,6 +58,17 @@ pub(crate) fn synthesize_slo_inhibitions(slos: &[Slo]) -> Vec<InhibitionRule> {
                         op: MatchOp::Eq,
                         value: tiers[j].name.clone(),
                     },
+                    // Only Firing events are suppressed — a Resolved must always pass so a
+                    // delivered page can close. Without this, a lower tier's Resolved event
+                    // matches the target_matchers against a still-firing higher tier in the
+                    // source-set and gets dropped at ingest, and the open incident never
+                    // resolves (resolves don't page, so suppressing one buys no
+                    // no-triple-page benefit).
+                    Matcher {
+                        label: "status".to_string(),
+                        op: MatchOp::Eq,
+                        value: "firing".to_string(),
+                    },
                 ],
                 equal: equal.clone(),
                 created_at: OffsetDateTime::UNIX_EPOCH,
@@ -138,6 +149,11 @@ mod tests {
                     op: MatchOp::Eq,
                     value: "ticket".into(),
                 },
+                Matcher {
+                    label: "status".into(),
+                    op: MatchOp::Eq,
+                    value: "firing".into(),
+                },
             ]
         );
         assert_eq!(
@@ -170,5 +186,74 @@ mod tests {
         let slo = slo_with(vec!["slo".to_string()]);
         let rules = synthesize_slo_inhibitions(std::slice::from_ref(&slo));
         assert_eq!(rules[0].equal, vec!["slo".to_string()]);
+    }
+
+    #[test]
+    fn resolved_events_are_never_inhibited() {
+        use crate::dispatcher::inhibition::is_inhibited;
+        use crate::dispatcher::routing::synthetic_labels;
+        use crate::domain::ids::{InstanceKey, RuleId};
+        use crate::domain::rule::Severity;
+        use crate::domain::EventStatus;
+
+        let slo = slo_with(vec!["service".to_string()]);
+        let rules = synthesize_slo_inhibitions(std::slice::from_ref(&slo));
+
+        // fast-burn -> slow-burn is rules[0] (see tier_pairs precedence order comment above).
+        let fast_to_slow = std::slice::from_ref(&rules[0]);
+
+        let mut user_labels = BTreeMap::new();
+        user_labels.insert("service".to_string(), "api".to_string());
+        user_labels.insert("slo_tier".to_string(), "slow-burn".to_string());
+
+        let fast_source_key = InstanceKey("fast-burn-api".to_string());
+        let mut fast_source_labels = BTreeMap::new();
+        fast_source_labels.insert("service".to_string(), "api".to_string());
+        fast_source_labels.insert("slo_tier".to_string(), "fast-burn".to_string());
+        let fast_source_labels = synthetic_labels(
+            &fast_source_labels,
+            Severity::Critical,
+            EventStatus::Firing,
+            RuleId(slo.id.0),
+            crate::domain::EventKind::Alert,
+            Some(slo.id),
+        );
+        let firing = vec![(fast_source_key.clone(), fast_source_labels)];
+
+        let slow_resolved_key = InstanceKey("slow-burn-api".to_string());
+        let slow_resolved_labels = synthetic_labels(
+            &user_labels,
+            Severity::Critical,
+            EventStatus::Resolved,
+            RuleId(slo.id.0),
+            crate::domain::EventKind::Alert,
+            Some(slo.id),
+        );
+        assert!(
+            !is_inhibited(
+                &slow_resolved_labels,
+                &slow_resolved_key,
+                fast_to_slow,
+                &firing
+            ),
+            "a Resolved event must never be inhibited, even while the higher tier is firing, \
+             so a delivered page can close"
+        );
+
+        // The guarantee still holds for the Firing case: same labels but Firing status IS
+        // inhibited by the still-firing fast-burn source for the same (slo, service).
+        let slow_firing_key = InstanceKey("slow-burn-api-firing".to_string());
+        let slow_firing_labels = synthetic_labels(
+            &user_labels,
+            Severity::Critical,
+            EventStatus::Firing,
+            RuleId(slo.id.0),
+            crate::domain::EventKind::Alert,
+            Some(slo.id),
+        );
+        assert!(
+            is_inhibited(&slow_firing_labels, &slow_firing_key, fast_to_slow, &firing),
+            "a Firing slow-burn event must still be inhibited by the firing fast-burn tier"
+        );
     }
 }

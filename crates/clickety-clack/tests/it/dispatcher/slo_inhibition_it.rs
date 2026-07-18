@@ -44,6 +44,18 @@ fn spec() -> SloSpec {
 /// to build the same synthetic label set `process_event` would build for a real one, so
 /// `is_inhibited` sees exactly what the dispatcher would.
 fn tier_event(tenant: TenantId, slo: SloId, service: &str, tier: &str) -> Event {
+    tier_event_with_status(tenant, slo, service, tier, EventStatus::Firing)
+}
+
+/// Like [`tier_event`] but with an explicit status, so callers can build a Resolved
+/// event for the "does a resolve ever get swallowed" case.
+fn tier_event_with_status(
+    tenant: TenantId,
+    slo: SloId,
+    service: &str,
+    tier: &str,
+    status: EventStatus,
+) -> Event {
     let mut labels = BTreeMap::new();
     labels.insert("service".to_string(), service.to_string());
     labels.insert("slo_tier".to_string(), tier.to_string());
@@ -52,7 +64,7 @@ fn tier_event(tenant: TenantId, slo: SloId, service: &str, tier: &str) -> Event 
         rule: RuleId(slo.0),
         slo: Some(slo),
         instance_key: InstanceKey(format!("{service}-{tier}")),
-        status: EventStatus::Firing,
+        status,
         kind: EventKind::Alert,
         labels,
         value: Some(1.0),
@@ -157,5 +169,25 @@ async fn snapshot_synthesizes_tier_inhibitions_and_feeds_slo_firing_set() {
             &snap.firing,
         ),
         "the fast-burn tier itself must never be self-inhibited"
+    );
+
+    // A slow-burn RESOLVED event for the same slo+service must never be swallowed, even
+    // while the fast-burn tier is still firing: a delivered page's resolve must always be
+    // able to close the incident (resolves don't page, so suppressing one buys nothing).
+    let slow_resolved_same_service = tier_event_with_status(
+        tenant.clone(),
+        slo_id,
+        "api",
+        "slow-burn",
+        EventStatus::Resolved,
+    );
+    assert!(
+        !is_inhibited(
+            &match_labels(&slow_resolved_same_service),
+            &slow_resolved_same_service.instance_key,
+            &snap.inhibitions,
+            &snap.firing,
+        ),
+        "a Resolved slow-burn event must never be inhibited by a still-firing fast-burn tier"
     );
 }
