@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   extractVariables,
-  renderMessage,
   validateMessageRefs,
   validateQueryTemplate,
 } from "./template";
@@ -59,20 +58,5 @@ describe("validateMessageRefs", () => {
     expect(() =>
       validateMessageRefs(`\${value}`, ["value"], false),
     ).not.toThrow();
-  });
-});
-
-describe("rendering", () => {
-  it("renderMessage fills columns and uses an empty string when no rows", () => {
-    expect(
-      renderMessage(`route \${route}`, {
-        firstRow: { route: "/api/x" },
-      }),
-    ).toBe("route /api/x");
-    expect(
-      renderMessage(`route \${route}`, {
-        firstRow: undefined,
-      }),
-    ).toBe("route ");
   });
 });

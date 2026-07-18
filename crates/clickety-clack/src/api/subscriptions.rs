@@ -1,3 +1,4 @@
+use crate::api::auth::tenant;
 use crate::api::error::ApiError;
 use crate::api::AppState;
 use crate::domain::subscription::Subscription;
@@ -18,10 +19,7 @@ pub async fn create(
     headers: HeaderMap,
     Json(body): Json<CreateSub>,
 ) -> Result<Json<Subscription>, ApiError> {
-    let t = state
-        .auth
-        .tenant_from(&headers)
-        .ok_or(ApiError::Unauthorized)?;
+    let t = tenant(&state, &headers)?;
     // SSRF guard: reject statically-recognizable internal targets at create time.
     // DNS-rebinding-resistant egress filtering is a deployment-level concern
     // (see `crate::api::webhook_url` module docs).
@@ -30,8 +28,7 @@ pub async fn create(
     let sub = state
         .store
         .create_subscription(&*state.cipher, t, &body.webhook_url)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+        .await?;
     Ok(Json(sub))
 }
 
@@ -40,15 +37,8 @@ pub async fn list(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<Subscription>>, ApiError> {
-    let t = state
-        .auth
-        .tenant_from(&headers)
-        .ok_or(ApiError::Unauthorized)?;
-    let subs = state
-        .store
-        .subscriptions_for(&*state.cipher, t)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    let t = tenant(&state, &headers)?;
+    let subs = state.store.subscriptions_for(&*state.cipher, t).await?;
     Ok(Json(subs))
 }
 
@@ -58,15 +48,8 @@ pub async fn delete(
     headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Value>, ApiError> {
-    let t = state
-        .auth
-        .tenant_from(&headers)
-        .ok_or(ApiError::Unauthorized)?;
-    let ok = state
-        .store
-        .delete_subscription(t, id)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    let t = tenant(&state, &headers)?;
+    let ok = state.store.delete_subscription(t, id).await?;
     if ok {
         Ok(Json(json!({"deleted": true})))
     } else {

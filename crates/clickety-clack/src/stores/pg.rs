@@ -191,24 +191,6 @@ fn row_to_instance(r: &sqlx::postgres::PgRow) -> Result<InstanceState, StoreErro
     })
 }
 
-/// Mirrors [`row_to_instance`] for `slo_instances` rows. `InstanceState.rule` carries
-/// the SLO uuid for slo_instances rows (documented type-pun at the storage boundary;
-/// `Event.slo` carries the typed identity).
-fn row_to_slo_instance(r: &sqlx::postgres::PgRow) -> Result<InstanceState, StoreError> {
-    let labels: BTreeMap<String, String> = serde_json::from_value(r.get("labels"))?;
-    Ok(InstanceState {
-        key: InstanceKey(r.get("key")),
-        rule: RuleId(r.get::<Uuid, _>("slo")), // InstanceState.rule carries the SLO uuid for slo_instances rows
-        tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
-        status: status_from(r.get::<&str, _>("status")),
-        labels,
-        value: r.get("value"),
-        active_since: r.get("active_since"),
-        last_seen: r.get("last_seen"),
-        absent_count: absent_count_from_db(r.get::<i32, _>("absent_count")),
-    })
-}
-
 fn row_to_silence(r: &sqlx::postgres::PgRow) -> Result<Silence, StoreError> {
     Ok(Silence {
         id: r.get("id"),
@@ -231,6 +213,128 @@ fn row_to_inhibition(r: &sqlx::postgres::PgRow) -> Result<InhibitionRule, StoreE
         equal: serde_json::from_value(r.get("equal"))?,
         created_at: r.get("created_at"),
     })
+}
+
+/// Build a [`Rule`] from a row's `spec`/`version`/`paused` columns. `id` and `tenant`
+/// come from the caller: the tenant-scoped point reads already hold them as arguments
+/// (and don't select those columns), while the listing/claim paths read them off the
+/// row first.
+fn rule_from_row(r: &PgRow, id: RuleId, tenant: TenantId) -> Result<Rule, StoreError> {
+    let spec: RuleSpec = serde_json::from_value(r.get("spec"))?;
+    Ok(Rule {
+        id,
+        tenant,
+        spec,
+        version: r.get("version"),
+        paused: r.get("paused"),
+    })
+}
+
+/// Insert one event into the outbox within `tx`. Returns the generated row id (used
+/// to delete the row after a successful publish).
+async fn insert_outbox_event(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    ev: &Event,
+) -> Result<Uuid, StoreError> {
+    let id = Uuid::new_v4();
+    let payload = serde_json::to_value(ev)?;
+    sqlx::query("INSERT INTO event_outbox (id, tenant, payload) VALUES ($1,$2,$3)")
+        .bind(id)
+        .bind(ev.tenant.as_str())
+        .bind(&payload)
+        .execute(&mut **tx)
+        .await?;
+    Ok(id)
+}
+
+/// The eval-batch instance upsert, rule side. Differs from
+/// [`SLO_INSTANCES_UPSERT_SQL`] only in table and id column.
+const INSTANCES_UPSERT_SQL: &str =
+    "INSERT INTO instances (key, rule, tenant, status, labels, value, active_since, last_seen, absent_count)
+     SELECT * FROM unnest($1::text[], $2::uuid[], $3::text[], $4::text[], $5::jsonb[], $6::float8[], $7::timestamptz[], $8::timestamptz[], $9::int[])
+     ON CONFLICT (key) DO UPDATE SET
+       status=EXCLUDED.status, labels=EXCLUDED.labels, value=EXCLUDED.value,
+       active_since=EXCLUDED.active_since, last_seen=EXCLUDED.last_seen, absent_count=EXCLUDED.absent_count
+     WHERE instances.tenant = EXCLUDED.tenant";
+
+/// The eval-batch instance upsert, SLO side (see [`INSTANCES_UPSERT_SQL`]).
+const SLO_INSTANCES_UPSERT_SQL: &str =
+    "INSERT INTO slo_instances (key, slo, tenant, status, labels, value, active_since, last_seen, absent_count)
+     SELECT * FROM unnest($1::text[], $2::uuid[], $3::text[], $4::text[], $5::jsonb[], $6::float8[], $7::timestamptz[], $8::timestamptz[], $9::int[])
+     ON CONFLICT (key) DO UPDATE SET
+       status=EXCLUDED.status, labels=EXCLUDED.labels, value=EXCLUDED.value,
+       active_since=EXCLUDED.active_since, last_seen=EXCLUDED.last_seen, absent_count=EXCLUDED.absent_count
+     WHERE slo_instances.tenant = EXCLUDED.tenant";
+
+/// Shared write path of [`PgStore::persist_eval_batch`] and
+/// [`PgStore::persist_slo_eval_batch`]: marshal the batch into unnest arrays, upsert
+/// the instance rows via `upsert_sql` ([`INSTANCES_UPSERT_SQL`] or
+/// [`SLO_INSTANCES_UPSERT_SQL`]), and insert one outbox row per event. Returns the
+/// generated outbox ids in `events` order.
+async fn write_eval_batch(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    upsert_sql: &str,
+    instances: &[InstanceState],
+    events: &[Event],
+) -> Result<Vec<Uuid>, StoreError> {
+    let n = instances.len();
+    let mut keys = Vec::with_capacity(n);
+    let mut rules = Vec::with_capacity(n);
+    let mut tenants = Vec::with_capacity(n);
+    let mut statuses = Vec::with_capacity(n);
+    let mut labels_arr = Vec::with_capacity(n);
+    let mut values = Vec::with_capacity(n);
+    let mut active = Vec::with_capacity(n);
+    let mut last_seen = Vec::with_capacity(n);
+    let mut absent = Vec::with_capacity(n);
+    for s in instances {
+        keys.push(s.key.0.clone());
+        rules.push(s.rule.0); // InstanceState.rule carries the SLO uuid for slo_instances rows
+        tenants.push(s.tenant.as_str().to_string());
+        statuses.push(status_str(s.status).to_string());
+        labels_arr.push(serde_json::to_value(&s.labels)?);
+        values.push(s.value);
+        active.push(s.active_since);
+        last_seen.push(s.last_seen);
+        absent.push(absent_count_to_db(s.absent_count));
+    }
+
+    let ids: Vec<Uuid> = (0..events.len()).map(|_| Uuid::new_v4()).collect();
+    let ev_tenants: Vec<String> = events
+        .iter()
+        .map(|e| e.tenant.as_str().to_string())
+        .collect();
+    let payloads: Vec<serde_json::Value> = events
+        .iter()
+        .map(serde_json::to_value)
+        .collect::<Result<_, _>>()?;
+
+    if !instances.is_empty() {
+        sqlx::query(upsert_sql)
+            .bind(&keys)
+            .bind(&rules)
+            .bind(&tenants)
+            .bind(&statuses)
+            .bind(&labels_arr)
+            .bind(&values)
+            .bind(&active)
+            .bind(&last_seen)
+            .bind(&absent)
+            .execute(&mut **tx)
+            .await?;
+    }
+    if !events.is_empty() {
+        sqlx::query(
+            "INSERT INTO event_outbox (id, tenant, payload)
+             SELECT * FROM unnest($1::uuid[], $2::text[], $3::jsonb[])",
+        )
+        .bind(&ids)
+        .bind(&ev_tenants)
+        .bind(&payloads)
+        .execute(&mut **tx)
+        .await?;
+    }
+    Ok(ids)
 }
 
 impl PgStore {
@@ -295,16 +399,7 @@ impl PgStore {
             .await?;
         match row {
             None => Ok(None),
-            Some(r) => {
-                let spec: RuleSpec = serde_json::from_value(r.get("spec"))?;
-                Ok(Some(Rule {
-                    id,
-                    tenant,
-                    spec,
-                    version: r.get("version"),
-                    paused: r.get("paused"),
-                }))
-            }
+            Some(r) => Ok(Some(rule_from_row(&r, id, tenant)?)),
         }
     }
 
@@ -529,55 +624,14 @@ impl PgStore {
     }
 
     /// Claim rules whose next_eval <= now, advance next_eval by interval, return them.
+    /// Single-shard form of [`Self::claim_due_rules_sharded`]: with one shard owning
+    /// shard 0, the shard predicate is always true, so this claims across all tenants.
     pub async fn claim_due_rules(
         &self,
         now: OffsetDateTime,
         limit: i64,
     ) -> Result<Vec<Rule>, StoreError> {
-        // NOTE: next_eval advances from `now`, not the original due time, so a backlog can drift scheduling by up to one tick.
-        // `due.next_eval` is the pre-update due time; it feeds the `cc.scheduler.drift`
-        // metric (claim time minus due time) without changing scheduling semantics.
-        //
-        // The advance uses the rule's EFFECTIVE interval: the adaptive stretch
-        // (`eval_backoff_secs`, written by the evaluator after quiet evaluations),
-        // clamped into [interval_secs, max_interval_secs] at read time. The clamp
-        // makes stale stretch state harmless: a lowered or removed
-        // `max_interval_secs` takes effect at the very next claim, and rules that
-        // never opted in (backoff 0, max NULL) advance by exactly `interval_secs`.
-        let rows = sqlx::query(
-            "WITH due AS (
-                SELECT id, next_eval FROM rules WHERE next_eval <= $1 AND NOT paused
-                ORDER BY next_eval LIMIT $2 FOR UPDATE SKIP LOCKED
-             )
-             UPDATE rules r
-             SET next_eval = $1 + make_interval(secs => GREATEST(
-                    LEAST(r.eval_backoff_secs, COALESCE((r.spec->>'max_interval_secs')::int, 0)),
-                    (r.spec->>'interval_secs')::int))
-             FROM due WHERE r.id = due.id
-             RETURNING r.id, r.tenant, r.spec, r.version, r.paused, due.next_eval AS due_at",
-        )
-        .bind(now)
-        .bind(limit)
-        .fetch_all(&self.pool)
-        .await?;
-
-        let mut out = Vec::new();
-        for r in rows {
-            let spec: RuleSpec = serde_json::from_value(r.get("spec"))?;
-            let rule = Rule {
-                id: RuleId(r.get("id")),
-                tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
-                spec,
-                version: r.get("version"),
-                paused: r.get("paused"),
-            };
-            self.metrics.record_scheduler_drift(
-                crate::otel::metrics::elapsed_seconds(r.get::<OffsetDateTime, _>("due_at"), now),
-                rule.tenant.as_str(),
-            );
-            out.push(rule);
-        }
-        Ok(out)
+        self.claim_due_rules_sharded(now, limit, &[0], 1).await
     }
 
     /// Like [`Self::claim_due_rules`], but only claims rules whose tenant maps into
@@ -593,8 +647,16 @@ impl PgStore {
         owned_shards: &[i32],
         shard_count: i32,
     ) -> Result<Vec<Rule>, StoreError> {
-        // As in `claim_due_rules`, `due.next_eval` feeds `cc.scheduler.drift` only,
-        // and the advance uses the clamped effective interval (see there).
+        // NOTE: next_eval advances from `now`, not the original due time, so a backlog can drift scheduling by up to one tick.
+        // `due.next_eval` is the pre-update due time; it feeds the `cc.scheduler.drift`
+        // metric (claim time minus due time) without changing scheduling semantics.
+        //
+        // The advance uses the rule's EFFECTIVE interval: the adaptive stretch
+        // (`eval_backoff_secs`, written by the evaluator after quiet evaluations),
+        // clamped into [interval_secs, max_interval_secs] at read time. The clamp
+        // makes stale stretch state harmless: a lowered or removed
+        // `max_interval_secs` takes effect at the very next claim, and rules that
+        // never opted in (backoff 0, max NULL) advance by exactly `interval_secs`.
         let rows = sqlx::query(
             "WITH due AS (
                 SELECT id, next_eval FROM rules
@@ -618,14 +680,11 @@ impl PgStore {
 
         let mut out = Vec::new();
         for r in rows {
-            let spec: RuleSpec = serde_json::from_value(r.get("spec"))?;
-            let rule = Rule {
-                id: RuleId(r.get("id")),
-                tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
-                spec,
-                version: r.get("version"),
-                paused: r.get("paused"),
-            };
+            let rule = rule_from_row(
+                &r,
+                RuleId(r.get("id")),
+                TenantId::from_trusted(r.get::<String, _>("tenant")),
+            )?;
             self.metrics.record_scheduler_drift(
                 crate::otel::metrics::elapsed_seconds(r.get::<OffsetDateTime, _>("due_at"), now),
                 rule.tenant.as_str(),
@@ -728,14 +787,7 @@ impl PgStore {
             // A preview (suppressed) rule must never notify, its health events included.
             // Stamped here so the outbox payload carries the flag for the relay too.
             ev.suppressed = suppressed;
-            let id = Uuid::new_v4();
-            let payload = serde_json::to_value(&ev)?;
-            sqlx::query("INSERT INTO event_outbox (id, tenant, payload) VALUES ($1,$2,$3)")
-                .bind(id)
-                .bind(tenant.as_str())
-                .bind(&payload)
-                .execute(&mut *tx)
-                .await?;
+            let id = insert_outbox_event(&mut tx, &ev).await?;
             tx.commit().await?;
             return Ok(Some((ev, id)));
         }
@@ -788,14 +840,7 @@ impl PgStore {
             ann.insert("summary".to_string(), format!("Rule {} recovered", rule.0));
             let mut ev = Event::rule_health(tenant.clone(), rule, EventStatus::Resolved, ann, now);
             ev.suppressed = suppressed;
-            let id = Uuid::new_v4();
-            let payload = serde_json::to_value(&ev)?;
-            sqlx::query("INSERT INTO event_outbox (id, tenant, payload) VALUES ($1,$2,$3)")
-                .bind(id)
-                .bind(tenant.as_str())
-                .bind(&payload)
-                .execute(&mut *tx)
-                .await?;
+            let id = insert_outbox_event(&mut tx, &ev).await?;
             tx.commit().await?;
             return Ok(Some((ev, id)));
         }
@@ -845,16 +890,9 @@ impl PgStore {
         match row {
             None => Ok(None),
             Some(r) => {
-                let spec: RuleSpec = serde_json::from_value(r.get("spec"))?;
                 let health = Self::health_from_row(&r);
                 let rollup = Self::rollup_from_row(&r);
-                let rule = Rule {
-                    id,
-                    tenant,
-                    spec,
-                    version: r.get("version"),
-                    paused: r.get("paused"),
-                };
+                let rule = rule_from_row(&r, id, tenant)?;
                 Ok(Some((rule, health, rollup)))
             }
         }
@@ -883,16 +921,9 @@ impl PgStore {
         .await?;
         let mut out = Vec::with_capacity(rows.len());
         for r in &rows {
-            let spec: RuleSpec = serde_json::from_value(r.get("spec"))?;
             let health = Self::health_from_row(r);
             let rollup = Self::rollup_from_row(r);
-            let rule = Rule {
-                id: RuleId(r.get("id")),
-                tenant: tenant.clone(),
-                spec,
-                version: r.get("version"),
-                paused: r.get("paused"),
-            };
+            let rule = rule_from_row(r, RuleId(r.get("id")), tenant.clone())?;
             out.push((rule, health, rollup));
         }
         Ok(out)
@@ -935,7 +966,6 @@ impl PgStore {
         let mut out = Vec::with_capacity(rows.len().min(limit as usize));
         let mut last_key = None;
         for r in rows.iter().take(limit as usize) {
-            let spec: RuleSpec = serde_json::from_value(r.get("spec"))?;
             let health = Self::health_from_row(r);
             let rollup = Self::rollup_from_row(r);
             let id = RuleId(r.get("id"));
@@ -943,13 +973,7 @@ impl PgStore {
                 created_at: r.get("created_at"),
                 id,
             });
-            let rule = Rule {
-                id,
-                tenant: tenant.clone(),
-                spec,
-                version: r.get("version"),
-                paused: r.get("paused"),
-            };
+            let rule = rule_from_row(r, id, tenant.clone())?;
             out.push((rule, health, rollup));
         }
         Ok((out, if has_more { last_key } else { None }))
@@ -1018,8 +1042,9 @@ impl PgStore {
     }
 
     /// Union of rule-side and SLO-side (burn-rate) firing/pending alerts. SLO rows surface
-    /// the SLO uuid in `InstanceState.rule` (see [`row_to_slo_instance`]) and carry the
-    /// `slo_tier` label; the `ORDER BY` applies to the combined result set.
+    /// the SLO uuid in `InstanceState.rule` (via the `slo AS rule` alias; documented
+    /// type-pun at the storage boundary) and carry the `slo_tier` label; the `ORDER BY`
+    /// applies to the combined result set.
     pub async fn list_alerts(&self, tenant: TenantId) -> Result<Vec<InstanceState>, StoreError> {
         let rows = sqlx::query(
             "SELECT key, rule, tenant, status, labels, value, active_since, last_seen, absent_count
@@ -1864,8 +1889,6 @@ impl PgStore {
         ev: &Event,
     ) -> Result<Uuid, StoreError> {
         let labels = serde_json::to_value(&s.labels)?;
-        let payload = serde_json::to_value(ev)?;
-        let id = Uuid::new_v4();
         let mut tx = self.pool.begin().await?;
         sqlx::query(
             "INSERT INTO instances (key, rule, tenant, status, labels, value, active_since, last_seen, absent_count)
@@ -1878,12 +1901,7 @@ impl PgStore {
         .bind(status_str(s.status)).bind(&labels).bind(s.value)
         .bind(s.active_since).bind(s.last_seen).bind(absent_count_to_db(s.absent_count))
         .execute(&mut *tx).await?;
-        sqlx::query("INSERT INTO event_outbox (id, tenant, payload) VALUES ($1,$2,$3)")
-            .bind(id)
-            .bind(ev.tenant.as_str())
-            .bind(&payload)
-            .execute(&mut *tx)
-            .await?;
+        let id = insert_outbox_event(&mut tx, ev).await?;
         tx.commit().await?;
         Ok(id)
     }
@@ -1928,71 +1946,8 @@ impl PgStore {
             return Ok(Vec::new());
         }
 
-        let n = instances.len();
-        let mut keys = Vec::with_capacity(n);
-        let mut rules = Vec::with_capacity(n);
-        let mut tenants = Vec::with_capacity(n);
-        let mut statuses = Vec::with_capacity(n);
-        let mut labels_arr = Vec::with_capacity(n);
-        let mut values = Vec::with_capacity(n);
-        let mut active = Vec::with_capacity(n);
-        let mut last_seen = Vec::with_capacity(n);
-        let mut absent = Vec::with_capacity(n);
-        for s in instances {
-            keys.push(s.key.0.clone());
-            rules.push(s.rule.0);
-            tenants.push(s.tenant.as_str().to_string());
-            statuses.push(status_str(s.status).to_string());
-            labels_arr.push(serde_json::to_value(&s.labels)?);
-            values.push(s.value);
-            active.push(s.active_since);
-            last_seen.push(s.last_seen);
-            absent.push(absent_count_to_db(s.absent_count));
-        }
-
-        let ids: Vec<Uuid> = (0..events.len()).map(|_| Uuid::new_v4()).collect();
-        let ev_tenants: Vec<String> = events
-            .iter()
-            .map(|e| e.tenant.as_str().to_string())
-            .collect();
-        let payloads: Vec<serde_json::Value> = events
-            .iter()
-            .map(serde_json::to_value)
-            .collect::<Result<_, _>>()?;
-
         let mut tx = self.pool.begin().await?;
-        if !instances.is_empty() {
-            sqlx::query(
-                "INSERT INTO instances (key, rule, tenant, status, labels, value, active_since, last_seen, absent_count)
-                 SELECT * FROM unnest($1::text[], $2::uuid[], $3::text[], $4::text[], $5::jsonb[], $6::float8[], $7::timestamptz[], $8::timestamptz[], $9::int[])
-                 ON CONFLICT (key) DO UPDATE SET
-                   status=EXCLUDED.status, labels=EXCLUDED.labels, value=EXCLUDED.value,
-                   active_since=EXCLUDED.active_since, last_seen=EXCLUDED.last_seen, absent_count=EXCLUDED.absent_count
-                 WHERE instances.tenant = EXCLUDED.tenant",
-            )
-            .bind(&keys)
-            .bind(&rules)
-            .bind(&tenants)
-            .bind(&statuses)
-            .bind(&labels_arr)
-            .bind(&values)
-            .bind(&active)
-            .bind(&last_seen)
-            .bind(&absent)
-            .execute(&mut *tx)
-            .await?;
-        }
-        if !events.is_empty() {
-            sqlx::query(
-                "INSERT INTO event_outbox (id, tenant, payload)
-                 SELECT * FROM unnest($1::uuid[], $2::text[], $3::jsonb[])",
-            )
-            .bind(&ids)
-            .bind(&ev_tenants)
-            .bind(&payloads)
-            .execute(&mut *tx)
-            .await?;
-        }
+        let ids = write_eval_batch(&mut tx, INSTANCES_UPSERT_SQL, instances, events).await?;
 
         // Tenant predicate for the per-rule writes below; NULL only on the
         // maintenance path, which writes neither rollup nor cadence.
@@ -2477,14 +2432,7 @@ impl PgStore {
             );
             ann.insert("last_error".to_string(), err.to_string());
             let ev = Event::slo_health(tenant.clone(), slo, EventStatus::Firing, ann, now);
-            let id = Uuid::new_v4();
-            let payload = serde_json::to_value(&ev)?;
-            sqlx::query("INSERT INTO event_outbox (id, tenant, payload) VALUES ($1,$2,$3)")
-                .bind(id)
-                .bind(tenant.as_str())
-                .bind(&payload)
-                .execute(&mut *tx)
-                .await?;
+            let id = insert_outbox_event(&mut tx, &ev).await?;
             tx.commit().await?;
             return Ok(Some((ev, id)));
         }
@@ -2532,14 +2480,7 @@ impl PgStore {
             let mut ann = BTreeMap::new();
             ann.insert("summary".to_string(), format!("SLO {} recovered", slo.0));
             let ev = Event::slo_health(tenant.clone(), slo, EventStatus::Resolved, ann, now);
-            let id = Uuid::new_v4();
-            let payload = serde_json::to_value(&ev)?;
-            sqlx::query("INSERT INTO event_outbox (id, tenant, payload) VALUES ($1,$2,$3)")
-                .bind(id)
-                .bind(tenant.as_str())
-                .bind(&payload)
-                .execute(&mut *tx)
-                .await?;
+            let id = insert_outbox_event(&mut tx, &ev).await?;
             tx.commit().await?;
             return Ok(Some((ev, id)));
         }
@@ -2623,7 +2564,7 @@ impl PgStore {
         slo: crate::domain::ids::SloId,
     ) -> Result<Vec<InstanceState>, StoreError> {
         let rows = sqlx::query(
-            "SELECT key, slo, tenant, status, labels, value, active_since, last_seen, absent_count
+            "SELECT key, slo AS rule, tenant, status, labels, value, active_since, last_seen, absent_count
              FROM slo_instances WHERE slo=$1 AND tenant=$2 ORDER BY key",
         )
         .bind(slo.0)
@@ -2632,7 +2573,7 @@ impl PgStore {
         .await?;
         let mut out = Vec::new();
         for r in &rows {
-            out.push(row_to_slo_instance(r)?);
+            out.push(row_to_instance(r)?);
         }
         Ok(out)
     }
@@ -2651,71 +2592,8 @@ impl PgStore {
             return Ok(Vec::new());
         }
 
-        let n = instances.len();
-        let mut keys = Vec::with_capacity(n);
-        let mut slos = Vec::with_capacity(n);
-        let mut tenants = Vec::with_capacity(n);
-        let mut statuses = Vec::with_capacity(n);
-        let mut labels_arr = Vec::with_capacity(n);
-        let mut values = Vec::with_capacity(n);
-        let mut active = Vec::with_capacity(n);
-        let mut last_seen = Vec::with_capacity(n);
-        let mut absent = Vec::with_capacity(n);
-        for s in instances {
-            keys.push(s.key.0.clone());
-            slos.push(s.rule.0); // InstanceState.rule carries the SLO uuid for slo_instances rows
-            tenants.push(s.tenant.as_str().to_string());
-            statuses.push(status_str(s.status).to_string());
-            labels_arr.push(serde_json::to_value(&s.labels)?);
-            values.push(s.value);
-            active.push(s.active_since);
-            last_seen.push(s.last_seen);
-            absent.push(absent_count_to_db(s.absent_count));
-        }
-
-        let ids: Vec<Uuid> = (0..events.len()).map(|_| Uuid::new_v4()).collect();
-        let ev_tenants: Vec<String> = events
-            .iter()
-            .map(|e| e.tenant.as_str().to_string())
-            .collect();
-        let payloads: Vec<serde_json::Value> = events
-            .iter()
-            .map(serde_json::to_value)
-            .collect::<Result<_, _>>()?;
-
         let mut tx = self.pool.begin().await?;
-        if !instances.is_empty() {
-            sqlx::query(
-                "INSERT INTO slo_instances (key, slo, tenant, status, labels, value, active_since, last_seen, absent_count)
-                 SELECT * FROM unnest($1::text[], $2::uuid[], $3::text[], $4::text[], $5::jsonb[], $6::float8[], $7::timestamptz[], $8::timestamptz[], $9::int[])
-                 ON CONFLICT (key) DO UPDATE SET
-                   status=EXCLUDED.status, labels=EXCLUDED.labels, value=EXCLUDED.value,
-                   active_since=EXCLUDED.active_since, last_seen=EXCLUDED.last_seen, absent_count=EXCLUDED.absent_count
-                 WHERE slo_instances.tenant = EXCLUDED.tenant",
-            )
-            .bind(&keys)
-            .bind(&slos)
-            .bind(&tenants)
-            .bind(&statuses)
-            .bind(&labels_arr)
-            .bind(&values)
-            .bind(&active)
-            .bind(&last_seen)
-            .bind(&absent)
-            .execute(&mut *tx)
-            .await?;
-        }
-        if !events.is_empty() {
-            sqlx::query(
-                "INSERT INTO event_outbox (id, tenant, payload)
-                 SELECT * FROM unnest($1::uuid[], $2::text[], $3::jsonb[])",
-            )
-            .bind(&ids)
-            .bind(&ev_tenants)
-            .bind(&payloads)
-            .execute(&mut *tx)
-            .await?;
-        }
+        let ids = write_eval_batch(&mut tx, SLO_INSTANCES_UPSERT_SQL, instances, events).await?;
         tx.commit().await?;
         Ok(ids)
     }

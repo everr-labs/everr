@@ -1,5 +1,6 @@
+use crate::api::auth::tenant;
 use crate::api::error::ApiError;
-use crate::api::AppState;
+use crate::api::{duplicate_entries, AppState};
 use crate::domain::receiver::Receiver;
 use axum::extract::{Path, State};
 use axum::http::HeaderMap;
@@ -7,13 +8,6 @@ use axum::Json;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
-
-fn tenant(state: &AppState, headers: &HeaderMap) -> Result<crate::domain::ids::TenantId, ApiError> {
-    state
-        .auth
-        .tenant_from(headers)
-        .ok_or(ApiError::Unauthorized)
-}
 
 #[derive(Deserialize)]
 pub struct CreateReceiver {
@@ -47,23 +41,11 @@ fn validate_create(body: &CreateReceiver) -> Result<(), ApiError> {
     }
     // A repeated reference is always a caller mistake (a receiver delivers to a
     // channel once); reject it loudly rather than silently deduping.
-    let dupes = duplicate_channels(&body.channels);
+    let dupes = duplicate_entries(&body.channels);
     if !dupes.is_empty() {
         return Err(ApiError::Validation(duplicate_channels_detail(&dupes)));
     }
     Ok(())
-}
-
-/// Which names appear more than once in `requested` (order-preserving, each
-/// duplicate reported once).
-fn duplicate_channels(requested: &[String]) -> Vec<String> {
-    let mut dupes = Vec::new();
-    for (i, name) in requested.iter().enumerate() {
-        if requested[..i].contains(name) && !dupes.contains(name) {
-            dupes.push(name.clone());
-        }
-    }
-    dupes
 }
 
 /// The 422 detail for a channel referenced more than once.
@@ -100,8 +82,7 @@ pub async fn create(
     let existing = state
         .store
         .existing_channel_names(&t, &body.channels)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+        .await?;
     let unknown = unknown_channels(&body.channels, &existing);
     if !unknown.is_empty() {
         return Err(ApiError::Validation(unknown_channels_detail(&unknown)));
@@ -109,8 +90,7 @@ pub async fn create(
     let rcv = state
         .store
         .create_receiver(t, &body.name, &body.channels, &body.annotations)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+        .await?;
     Ok(Json(rcv))
 }
 
@@ -119,11 +99,7 @@ pub async fn list(
     headers: HeaderMap,
 ) -> Result<Json<Value>, ApiError> {
     let t = tenant(&state, &headers)?;
-    let receivers = state
-        .store
-        .list_receivers(t)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    let receivers = state.store.list_receivers(t).await?;
     Ok(Json(json!(receivers)))
 }
 
@@ -136,8 +112,7 @@ pub async fn get(
     state
         .store
         .get_receiver(t, &name)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?
+        .await?
         .map(Json)
         .ok_or(ApiError::NotFound)
 }
@@ -148,11 +123,7 @@ pub async fn delete(
     Path(name): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
     let t = tenant(&state, &headers)?;
-    let ok = state
-        .store
-        .delete_receiver(t, &name)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    let ok = state.store.delete_receiver(t, &name).await?;
     if ok {
         Ok(Json(json!({"deleted": true})))
     } else {
@@ -236,11 +207,11 @@ mod tests {
             "a".to_string(),
         ];
         assert_eq!(
-            duplicate_channels(&names),
+            duplicate_entries(&names),
             vec!["a".to_string(), "b".to_string()]
         );
         // No duplicates: nothing reported, validation passes.
-        assert!(duplicate_channels(&["a".to_string(), "b".to_string()]).is_empty());
+        assert!(duplicate_entries(&["a".to_string(), "b".to_string()]).is_empty());
     }
 
     #[test]

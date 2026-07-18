@@ -15,6 +15,39 @@ import { useState } from "react";
 import type { CcChannel, CcReceiver, CcRoute } from "@/data/cc/types";
 import { ccLabelKeyOptions, ccLabelValueOptions } from "./matchers-editor";
 
+/**
+ * A channel as a compact chip: name plus resolved type. Shared with the
+ * Delivery pipeline, which emphasizes the chips on the matched route and
+ * labels unresolved channels via `missingLabel`.
+ */
+export function ChannelChip({
+  name,
+  channel,
+  emphasized = false,
+  missingLabel,
+}: {
+  name: string;
+  channel: CcChannel | undefined;
+  emphasized?: boolean;
+  /** Shown in place of the type when the channel doesn't resolve; omit to show nothing. */
+  missingLabel?: string;
+}) {
+  const type = channel ? channel.config.type : missingLabel;
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-mono text-[0.6875rem] leading-none",
+        emphasized
+          ? "border-primary/40 bg-primary/10 text-foreground"
+          : "border-border bg-muted/40",
+      )}
+    >
+      <span className="text-foreground">{name}</span>
+      {type != null && <span className="text-muted-foreground">{type}</span>}
+    </span>
+  );
+}
+
 export function RoutePreview({
   labels,
   onLabelsChange,
@@ -145,22 +178,13 @@ export function RoutePreview({
                   <ArrowRight aria-hidden className="size-3 text-primary" />
                   <span className="font-medium text-foreground">{name}</span>
                   {receiver ? (
-                    receiver.channels.map((ch) => {
-                      const channel = channelsByName.get(ch);
-                      return (
-                        <span
-                          key={ch}
-                          className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-1.5 py-0.5 text-[0.6875rem] leading-none"
-                        >
-                          <span className="text-foreground">{ch}</span>
-                          {channel && (
-                            <span className="text-muted-foreground">
-                              {channel.config.type}
-                            </span>
-                          )}
-                        </span>
-                      );
-                    })
+                    receiver.channels.map((ch) => (
+                      <ChannelChip
+                        key={ch}
+                        name={ch}
+                        channel={channelsByName.get(ch)}
+                      />
+                    ))
                   ) : (
                     <span className="text-amber-600 dark:text-amber-400">
                       receiver not found

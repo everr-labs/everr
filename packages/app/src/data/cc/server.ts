@@ -1,6 +1,5 @@
 import { resolveTimeRange, TimeRangeSchema } from "@everr/ui/lib/time-range";
 import { z } from "zod";
-import { CC_SYNTHETIC_LABEL_KEYS } from "@/components/cc/route-resolution";
 import {
   queryAlertEventLog,
   queryObservedLabelKeys,
@@ -11,10 +10,15 @@ import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import * as cc from "./client";
 import {
   CcChannelConfigSchema,
-  CcMatcherSchema,
+  CcInhibitionInputSchema,
+  CcRouteInputSchema,
   CcRuleSpecSchema,
-  CcSeveritySchema,
+  CcSilenceInputSchema,
 } from "./schema";
+import {
+  CC_SYNTHETIC_LABEL_KEYS,
+  CC_SYNTHETIC_LABEL_VALUES,
+} from "./synthetic-labels";
 
 const orgId = (session: { session: { activeOrganizationId: string } }) =>
   session.session.activeOrganizationId;
@@ -163,13 +167,12 @@ export const listCcLabelValues = createAuthenticatedServerFn({ method: "GET" })
       data: { key },
       context: { session, clickhouse },
     }): Promise<CcLabelValueSuggestion[]> => {
+      const staticValues =
+        CC_SYNTHETIC_LABEL_VALUES[
+          key as keyof typeof CC_SYNTHETIC_LABEL_VALUES
+        ];
+      if (staticValues) return staticValues.map((value) => ({ value }));
       switch (key) {
-        case "severity":
-          return CcSeveritySchema.options.map((value) => ({ value }));
-        case "status":
-          return [{ value: "firing" }, { value: "resolved" }];
-        case "kind":
-          return [{ value: "alert" }, { value: "rule_health" }];
         case "rule": {
           const rules = await cc.listRules(orgId(session)).catch(() => []);
           return rules.map((rule) => ({
@@ -264,25 +267,14 @@ export const deleteCcReceiver = createAuthenticatedServerFn({ method: "POST" })
   );
 
 // ---- Routes ----
-const RouteInputSchema = z.object({
-  matchers: z.array(CcMatcherSchema),
-  receiver: z.string().min(1),
-  continue: z.boolean(),
-  priority: z.number().int(),
-  group_by: z.array(z.string()).nullable(),
-  group_wait_secs: z.number().int().min(0).nullable(),
-  group_interval_secs: z.number().int().min(0).nullable(),
-  repeat_interval_secs: z.number().int().min(60).nullable(),
-});
-
 export const createCcRoute = createAuthenticatedServerFn({ method: "POST" })
-  .inputValidator(RouteInputSchema)
+  .inputValidator(CcRouteInputSchema)
   .handler(({ data, context: { session } }) =>
     cc.createRoute(orgId(session), data),
   );
 
 export const updateCcRoute = createAuthenticatedServerFn({ method: "POST" })
-  .inputValidator(z.object({ id: z.string(), input: RouteInputSchema }))
+  .inputValidator(z.object({ id: z.string(), input: CcRouteInputSchema }))
   .handler(({ data: { id, input }, context: { session } }) =>
     cc.updateRoute(orgId(session), id, input),
   );
@@ -294,16 +286,10 @@ export const deleteCcRoute = createAuthenticatedServerFn({ method: "POST" })
   );
 
 // ---- Inhibitions ----
-const InhibitionInputSchema = z.object({
-  source_matchers: z.array(CcMatcherSchema),
-  target_matchers: z.array(CcMatcherSchema),
-  equal: z.array(z.string()),
-});
-
 export const createCcInhibition = createAuthenticatedServerFn({
   method: "POST",
 })
-  .inputValidator(InhibitionInputSchema)
+  .inputValidator(CcInhibitionInputSchema)
   .handler(({ data, context: { session } }) =>
     cc.createInhibition(orgId(session), data),
   );
@@ -317,16 +303,8 @@ export const deleteCcInhibition = createAuthenticatedServerFn({
   );
 
 // ---- Silences ----
-const SilenceInputSchema = z.object({
-  matchers: z.array(CcMatcherSchema).min(1),
-  starts_at: z.string(),
-  ends_at: z.string(),
-  comment: z.string().optional(),
-  author: z.string().optional(),
-});
-
 export const createCcSilence = createAuthenticatedServerFn({ method: "POST" })
-  .inputValidator(SilenceInputSchema)
+  .inputValidator(CcSilenceInputSchema)
   .handler(({ data, context: { session } }) =>
     cc.createSilence(orgId(session), data),
   );

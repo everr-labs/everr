@@ -5,31 +5,28 @@ use std::collections::{BTreeMap, HashMap};
 use std::sync::{OnceLock, RwLock};
 
 /// Process-global cache of compiled, anchored patterns, keyed by the raw pattern string.
+/// `None` records a pattern that failed to compile (known-invalid, never matches).
 /// Patterns come from user routes/silences/inhibitions; the distinct count is bounded by
 /// configuration size, so the map is intentionally unbounded (see spec §1c).
-static REGEX_CACHE: OnceLock<RwLock<HashMap<String, regex::Regex>>> = OnceLock::new();
+static REGEX_CACHE: OnceLock<RwLock<HashMap<String, Option<regex::Regex>>>> = OnceLock::new();
 
-/// Anchored (full-string) regex match. An invalid pattern never matches and is not cached.
-/// Each distinct pattern is compiled at most once.
+/// Anchored (full-string) regex match. An invalid pattern never matches.
+/// Each distinct pattern is compiled at most once; compile failures are cached too.
 pub fn regex_full_match(pattern: &str, val: &str) -> bool {
     let cache = REGEX_CACHE.get_or_init(|| RwLock::new(HashMap::new()));
-    // Fast path: already compiled.
+    // Fast path: already compiled (or known-invalid).
     if let Ok(guard) = cache.read() {
-        if let Some(re) = guard.get(pattern) {
-            return re.is_match(val);
+        if let Some(entry) = guard.get(pattern) {
+            return entry.as_ref().is_some_and(|re| re.is_match(val));
         }
     }
-    // Slow path: compile once, store, match. Invalid patterns are not cached.
-    match regex::Regex::new(&format!("^(?:{pattern})$")) {
-        Ok(re) => {
-            let matched = re.is_match(val);
-            if let Ok(mut guard) = cache.write() {
-                guard.insert(pattern.to_string(), re);
-            }
-            matched
-        }
-        Err(_) => false,
+    // Slow path: compile once, store the outcome (including failure), match.
+    let compiled = regex::Regex::new(&format!("^(?:{pattern})$")).ok();
+    let matched = compiled.as_ref().is_some_and(|re| re.is_match(val));
+    if let Ok(mut guard) = cache.write() {
+        guard.insert(pattern.to_string(), compiled);
     }
+    matched
 }
 
 /// Match one matcher against a label set. A missing label is the empty string
@@ -114,7 +111,7 @@ mod tests {
         for _ in 0..3 {
             assert!(regex_full_match("api-.*", "api-1"));
             assert!(!regex_full_match("api-.*", "web-1"));
-            assert!(!regex_full_match("[unterminated", "anything")); // invalid never matches, never cached
+            assert!(!regex_full_match("[unterminated", "anything")); // invalid never matches, cached or not
         }
         // Distinct patterns coexist in the cache.
         assert!(regex_full_match("a+", "aaa"));

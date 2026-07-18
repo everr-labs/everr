@@ -10,6 +10,17 @@ pub enum Severity {
     Critical,
 }
 
+impl Severity {
+    /// The lowercase wire/label form, matching the serde `lowercase` rename.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Severity::Info => "info",
+            Severity::Warning => "warning",
+            Severity::Critical => "critical",
+        }
+    }
+}
+
 /// Consumer-supplied definition of a rule (the API request body shape).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RuleSpec {
@@ -72,9 +83,6 @@ pub struct RuleHealth {
 }
 
 impl RuleSpec {
-    pub fn interval(&self) -> Duration {
-        Duration::seconds(self.interval_secs as i64)
-    }
     pub fn for_duration(&self) -> Duration {
         Duration::seconds(self.for_secs as i64)
     }

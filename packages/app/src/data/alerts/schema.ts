@@ -83,7 +83,7 @@ export function parseRunbookRef(
  * NUL-separated so neither segment can forge a collision. For internal Map
  * keying only.
  */
-export function identityKey(project: string, slug: string): string {
+export function refIdentityKey(project: string, slug: string): string {
   return `${project}\0${slug}`;
 }
 

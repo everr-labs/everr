@@ -20,7 +20,7 @@ use crate::engine::slo_math::{
     SloTierStatus, WindowReq,
 };
 use crate::engine::{evaluate, EvalInput};
-use crate::evaluator::{publish_health, published_outbox_ids};
+use crate::evaluator::{publish_and_clear_outbox, publish_health};
 use crate::queue::{EventBus, JobId, Queue, SloDelivery};
 use crate::stores::PgStore;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -52,6 +52,30 @@ fn window_name_for(dur: &str) -> Option<String> {
     parse_window_secs(dur).ok().map(|s| format!("{s}s"))
 }
 
+/// The freshness/merge core shared by [`burn_rate_for`] and [`long_window_valid_for`]:
+/// `Some((good, valid))` observed this tick for `labels` when `window_dur`'s window was
+/// due (zeros when the group is absent from the results); `None` when the window was
+/// not recomputed this tick (or its duration fails to parse), meaning the caller
+/// carries the prior snapshot's value unchanged.
+fn fresh_window_values(
+    window_dur: &str,
+    labels: &GroupKey,
+    due_names: &BTreeSet<&str>,
+    window_values: &GroupValues,
+) -> Option<(f64, f64)> {
+    let name = window_name_for(window_dur)?;
+    if !due_names.contains(name.as_str()) {
+        return None;
+    }
+    Some(
+        window_values
+            .get(&name)
+            .and_then(|g| g.get(labels))
+            .copied()
+            .unwrap_or((0.0, 0.0)),
+    )
+}
+
 /// Compute one tier-window's burn rate for `labels`: recomputed from this tick's rows
 /// if `window_dur`'s window was due, else carried over unchanged from the prior
 /// snapshot's value for the same tier+window.
@@ -63,18 +87,10 @@ fn burn_rate_for(
     prior_value: Option<f64>,
     target_percent: f64,
 ) -> Option<f64> {
-    let Some(name) = window_name_for(window_dur) else {
-        return prior_value;
-    };
-    if !due_names.contains(name.as_str()) {
-        return prior_value;
+    match fresh_window_values(window_dur, labels, due_names, window_values) {
+        Some((good, valid)) => burn_rate(good, valid, target_percent),
+        None => prior_value,
     }
-    let (good, valid) = window_values
-        .get(&name)
-        .and_then(|g| g.get(labels))
-        .copied()
-        .unwrap_or((0.0, 0.0));
-    burn_rate(good, valid, target_percent)
 }
 
 /// Same freshness/merge idiom as [`burn_rate_for`], but yields the tier's long-window
@@ -86,18 +102,10 @@ fn long_window_valid_for(
     window_values: &GroupValues,
     prior_value: Option<f64>,
 ) -> Option<f64> {
-    let Some(name) = window_name_for(window_dur) else {
-        return prior_value;
-    };
-    if !due_names.contains(name.as_str()) {
-        return prior_value;
+    match fresh_window_values(window_dur, labels, due_names, window_values) {
+        Some((_good, valid)) => Some(valid),
+        None => prior_value,
     }
-    let (_good, valid) = window_values
-        .get(&name)
-        .and_then(|g| g.get(labels))
-        .copied()
-        .unwrap_or((0.0, 0.0));
-    Some(valid)
 }
 
 /// Evaluate one SLO as of `eval_ts`: plan the due windows (coordinated freshness,
@@ -155,43 +163,29 @@ pub async fn evaluate_slo(
         })
         .collect();
 
-    // Run each due window's SLI query once, keyed by group labels. On the first
-    // query error, record the failure and freeze (no snapshot write) — matching
-    // the rule evaluator's degrade-on-error contract.
-    let mut window_values: GroupValues = BTreeMap::new();
-    for w in &due_windows {
+    // Run every due window's SLI query once, keyed by group labels. The queries are
+    // independent reads, so they run concurrently; the results are then folded IN
+    // WINDOW ORDER so the freeze-on-first-error path reports the same window's error
+    // a sequential pass would. On any window's error, record the failure and freeze
+    // (no snapshot write) — matching the rule evaluator's degrade-on-error contract.
+    // (Unlike a sequential pass, queries for windows after a failing one may still
+    // have run; their results are simply discarded.)
+    let window_queries = due_windows.iter().map(|w| async move {
         // Defensive: `validate_slo_spec` caps every window to `MAX_WINDOW_SECS`, but
         // existing DB rows predate that cap (or a future bug could smuggle one past
         // it), so guard the subtraction here too. `time::OffsetDateTime - Duration`
         // PANICS on overflow (year outside +-9999); `checked_sub` turns that into a
         // recoverable failure instead of a tenant-triggerable crash-loop. Treated
         // exactly like a ClickHouse query failure: record + freeze, no snapshot write.
-        let window_start = match i64::try_from(w.secs)
+        let window_start = i64::try_from(w.secs)
             .ok()
             .and_then(|secs| eval_ts.checked_sub(Duration::seconds(secs)))
-        {
-            Some(t) => t,
-            None => {
-                if let Some((ev, id)) = store
-                    .record_slo_failure(
-                        slo.id,
-                        &slo.tenant,
-                        "window duration out of range",
-                        degrade_after,
-                        eval_ts,
-                    )
-                    .await?
-                {
-                    publish_health(store, events, ev, id).await;
-                }
-                return Ok(());
-            }
-        };
+            .ok_or_else(|| "window duration out of range".to_string())?;
         let params = vec![
             ("window_start".to_string(), fmt_ch_datetime(window_start)),
             ("window_end".to_string(), fmt_ch_datetime(eval_ts)),
         ];
-        let rows = match ch
+        let rows = ch
             .query_rows_params(
                 &slo.tenant,
                 &slo.spec.sli.sql,
@@ -200,25 +194,33 @@ pub async fn evaluate_slo(
                 Some("valid"),
             )
             .await
-        {
-            Ok(rows) => rows,
-            Err(e) => {
-                if let Some((ev, id)) = store
-                    .record_slo_failure(slo.id, &slo.tenant, &e.to_string(), degrade_after, eval_ts)
-                    .await?
-                {
-                    publish_health(store, events, ev, id).await;
-                }
-                return Ok(());
-            }
-        };
+            .map_err(|e| e.to_string())?;
         let mut groups: BTreeMap<GroupKey, (f64, f64)> = BTreeMap::new();
         for row in rows {
             let valid = row.value.unwrap_or(0.0);
             let good = row.extra.get("good").and_then(json_to_f64).unwrap_or(0.0);
             groups.insert(row.labels, (good, valid));
         }
-        window_values.insert(w.name.clone(), groups);
+        Ok::<_, String>(groups)
+    });
+    let results = futures::future::join_all(window_queries).await;
+
+    let mut window_values: GroupValues = BTreeMap::new();
+    for (w, result) in due_windows.iter().zip(results) {
+        match result {
+            Ok(groups) => {
+                window_values.insert(w.name.clone(), groups);
+            }
+            Err(msg) => {
+                if let Some((ev, id)) = store
+                    .record_slo_failure(slo.id, &slo.tenant, &msg, degrade_after, eval_ts)
+                    .await?
+                {
+                    publish_health(store, events, ev, id).await;
+                }
+                return Ok(());
+            }
+        }
     }
 
     // Every due window's query succeeded: record success (recovers a degraded SLO)
@@ -453,20 +455,15 @@ pub(crate) async fn commit_and_publish_slo(
     let outbox_ids = store
         .persist_slo_eval_batch(&next_states, &out_events)
         .await?;
-    let published = events.publish_batch(&out_events).await?;
-    let to_delete = published_outbox_ids(&outbox_ids, &published);
-    if let Err(e) = store.delete_outbox_batch(&to_delete).await {
-        tracing::warn!(error = %e, "slo outbox batch delete failed; relay will re-publish");
-    }
-    Ok(())
+    publish_and_clear_outbox(store, events, &out_events, &outbox_ids).await
 }
 
 /// Claim + resolve + evaluate every delivery in one SLO batch, swallowing per-job
-/// errors (logged) so one bad job never blocks the rest of the batch. Returns the
-/// ack ids for every delivery in the batch (computed up front, before any
-/// processing) — a claim/lookup/eval failure for one job still acks that job, since
-/// redelivering it would either re-fail identically or (if the (slo, eval_ts) pair
-/// was already claimed) be a no-op anyway.
+/// errors (logged) so one bad job never blocks the rest of the batch. The caller
+/// acks every delivery in the batch regardless — a claim/lookup/eval failure for
+/// one job still acks that job, since redelivering it would either re-fail
+/// identically or (if the (slo, eval_ts) pair was already claimed) be a no-op
+/// anyway.
 async fn process_slo_batch_inner(
     store: &PgStore,
     ch: &dyn RowQuerier,
@@ -474,8 +471,7 @@ async fn process_slo_batch_inner(
     base_cadence_secs: u64,
     degrade_after: u32,
     deliveries: Vec<SloDelivery>,
-) -> Vec<JobId> {
-    let ack_ids: Vec<JobId> = deliveries.iter().map(|d| d.id.clone()).collect();
+) {
     for d in deliveries {
         let job = d.job;
         match store.try_claim_slo_eval(job.slo, job.eval_ts).await {
@@ -506,7 +502,6 @@ async fn process_slo_batch_inner(
             Err(e) => tracing::error!(slo = ?job.slo, error = %e, "get_slo failed"),
         }
     }
-    ack_ids
 }
 
 /// Run the SLO-evaluator consume loop over `cc:slo:jobs` until `shutdown` flips true.
@@ -547,19 +542,15 @@ pub async fn run_slo_evaluator(
             degrade_after,
             deliveries,
         ));
-        let to_ack = match futures::FutureExt::catch_unwind(batch).await {
-            Ok(ids) => ids,
-            Err(payload) => {
-                let msg = crate::supervisor::panic_message(payload);
-                tracing::error!(
-                    panic = %msg,
-                    deliveries = ack_ids.len(),
-                    "slo evaluation batch panicked; acking the batch and continuing"
-                );
-                ack_ids
-            }
-        };
-        for id in to_ack {
+        if let Err(payload) = futures::FutureExt::catch_unwind(batch).await {
+            let msg = crate::supervisor::panic_message(payload);
+            tracing::error!(
+                panic = %msg,
+                deliveries = ack_ids.len(),
+                "slo evaluation batch panicked; acking the batch and continuing"
+            );
+        }
+        for id in ack_ids {
             if let Err(e) = queue.ack_slo(&id).await {
                 tracing::error!(error = %e, "ack_slo failed");
             }

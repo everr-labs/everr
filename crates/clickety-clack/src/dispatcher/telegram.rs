@@ -1,18 +1,11 @@
-use crate::dispatcher::notify::{Notification, Notifier, NotifyError};
-use crate::domain::rule::Severity;
+use crate::dispatcher::notify::{
+    classify_status_429_transient, default_http_client, Notification, Notifier, NotifyError,
+};
 use crate::domain::EventStatus;
 use async_trait::async_trait;
 use serde::Deserialize;
 
 const DEFAULT_API_BASE: &str = "https://api.telegram.org";
-
-fn severity_str(s: Severity) -> &'static str {
-    match s {
-        Severity::Info => "info",
-        Severity::Warning => "warning",
-        Severity::Critical => "critical",
-    }
-}
 
 /// The `target` for a Telegram receiver is the JSON produced by
 /// `ChannelConfig::Telegram::target()`: `{ "bot_token": "...", "chat_ids": ["..."] }`.
@@ -37,7 +30,7 @@ pub fn build_telegram_message(notif: &Notification) -> String {
         format!(
             "{emoji} <b>[{}] {}</b> — {}",
             crate::dispatcher::render::status_word(ev),
-            severity_str(ev.severity),
+            ev.severity.as_str(),
             html_escape(&crate::dispatcher::render::headline(ev))
         )
     } else {
@@ -51,7 +44,7 @@ pub fn build_telegram_message(notif: &Notification) -> String {
         body.push_str(&format!(
             "\n• <b>{}</b> {} — {}",
             crate::dispatcher::render::status_word(ev),
-            severity_str(ev.severity),
+            ev.severity.as_str(),
             html_escape(&crate::dispatcher::render::headline(ev)),
         ));
         if let Some(d) = crate::dispatcher::render::description(ev) {
@@ -105,10 +98,7 @@ impl TelegramNotifier {
     /// For tests: point the Bot API at a stub server.
     pub fn with_api_base(api_base: &str) -> Self {
         Self {
-            http: reqwest::Client::builder()
-                .timeout(std::time::Duration::from_secs(10))
-                .build()
-                .expect("building reqwest client with timeout should not fail"),
+            http: default_http_client(),
             api_base: api_base.to_string(),
         }
     }
@@ -149,16 +139,7 @@ impl Notifier for TelegramNotifier {
                 .send()
                 .await
                 .map_err(|e| NotifyError::Transient(e.without_url().to_string()))?;
-            let status = resp.status();
-            if status.is_success() {
-                continue;
-            } else if status.as_u16() == 429 {
-                return Err(NotifyError::Transient("rate limited (429)".into()));
-            } else if status.is_client_error() {
-                return Err(NotifyError::Permanent(format!("status {status}")));
-            } else {
-                return Err(NotifyError::Transient(format!("status {status}")));
-            }
+            classify_status_429_transient(resp.status())?;
         }
         Ok(())
     }
@@ -168,6 +149,7 @@ impl Notifier for TelegramNotifier {
 mod tests {
     use super::*;
     use crate::domain::ids::{InstanceKey, RuleId, TenantId};
+    use crate::domain::rule::Severity;
     use crate::domain::Event;
     use std::collections::BTreeMap;
     use time::OffsetDateTime;

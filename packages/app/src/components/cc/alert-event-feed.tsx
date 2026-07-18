@@ -19,7 +19,6 @@ import {
   SelectValue,
 } from "@everr/ui/components/select";
 import type { TimeRange } from "@everr/ui/lib/time-range";
-import { cn } from "@everr/ui/lib/utils";
 import { queryOptions, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import type { AlertEventLogRow } from "@/data/alerts/history.server";
@@ -28,6 +27,7 @@ import { useTimeRange } from "@/hooks/use-time-range";
 import {
   CcEmptyState,
   CcEventStatusBadge,
+  CcSegmentedControl,
   CcSeverityBadge,
   CcTableSkeleton,
   ccErrorMessage,
@@ -93,7 +93,6 @@ export const ccEventHistoryQueryOptions = (timeRange: TimeRange) =>
 
 export function AlertEventFeed({
   scopeSlug,
-  className,
   showTypeLens = false,
   hideRuleColumns = false,
   resolveRuleName,
@@ -104,8 +103,7 @@ export function AlertEventFeed({
    * knows it and the bare rule id otherwise, so callers that know both pass
    * both and either handle matches.
    */
-  scopeSlug?: string | readonly string[];
-  className?: string;
+  scopeSlug?: readonly string[];
   /** Render the coarse All/Transitions/Deliveries/Silence-audits lens. */
   showTypeLens?: boolean;
   /**
@@ -139,9 +137,7 @@ export function AlertEventFeed({
 
   const scoped = useMemo(() => {
     if (!scopeSlug) return rows;
-    const handles = new Set(
-      typeof scopeSlug === "string" ? [scopeSlug] : scopeSlug,
-    );
+    const handles = new Set(scopeSlug);
     return rows.filter((e) => handles.has(e.slug));
   }, [rows, scopeSlug]);
 
@@ -250,7 +246,7 @@ export function AlertEventFeed({
     : allColumns;
 
   return (
-    <Card inset="flush-content" className={className}>
+    <Card inset="flush-content">
       <CardHeader>
         <CardTitle>Event history</CardTitle>
         <CardDescription>
@@ -269,12 +265,11 @@ export function AlertEventFeed({
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All types</SelectItem>
-                <SelectItem value="instance_fired">Fired</SelectItem>
-                <SelectItem value="instance_resolved">Resolved</SelectItem>
-                <SelectItem value="delivery">Delivery</SelectItem>
-                <SelectItem value="rule_health">Rule health</SelectItem>
-                <SelectItem value="silenced">Silenced</SelectItem>
+                {Object.entries(EVENT_TYPE_LABELS).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             {!hideRuleColumns && (
@@ -288,10 +283,11 @@ export function AlertEventFeed({
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All severities</SelectItem>
-                  <SelectItem value="info">Info</SelectItem>
-                  <SelectItem value="warning">Warning</SelectItem>
-                  <SelectItem value="critical">Critical</SelectItem>
+                  {Object.entries(SEVERITY_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             )}
@@ -301,32 +297,12 @@ export function AlertEventFeed({
       <CardContent>
         {showTypeLens && (
           <div className="px-3 pb-3">
-            <div
-              role="tablist"
+            <CcSegmentedControl
               aria-label="Event kind"
-              className="inline-flex rounded-md border border-border bg-muted/20 p-0.5"
-            >
-              {TYPE_LENSES.map((lens) => {
-                const active = typeLens === lens.key;
-                return (
-                  <button
-                    key={lens.key}
-                    type="button"
-                    role="tab"
-                    aria-selected={active}
-                    onClick={() => setTypeLens(lens.key)}
-                    className={cn(
-                      "rounded-[0.3rem] px-3 py-1 text-xs font-medium outline-2 outline-dotted outline-transparent outline-offset-[-2px] transition-colors duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] focus-visible:outline-primary",
-                      active
-                        ? "bg-card text-foreground ring-1 ring-foreground/10"
-                        : "text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    {lens.label}
-                  </button>
-                );
-              })}
-            </div>
+              items={TYPE_LENSES}
+              value={typeLens}
+              onChange={setTypeLens}
+            />
           </div>
         )}
         {history.isError && (

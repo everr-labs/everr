@@ -15,7 +15,6 @@ import {
 import {
   Collapsible,
   CollapsibleContent,
-  CollapsibleTrigger,
 } from "@everr/ui/components/collapsible";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
@@ -30,7 +29,6 @@ import { createFileRoute, useLocation } from "@tanstack/react-router";
 import {
   ArrowRight,
   BellMinus,
-  ChevronRight,
   CornerDownRight,
   Inbox,
   type LucideIcon,
@@ -49,13 +47,21 @@ import { ChannelBuilder } from "@/components/cc/channel-builder";
 import { InhibitionBuilder } from "@/components/cc/inhibition-builder";
 import { ReceiverBuilder } from "@/components/cc/receiver-builder";
 import { RouteBuilder } from "@/components/cc/route-builder";
-import { RoutePreview } from "@/components/cc/route-preview";
+import { ChannelChip, RoutePreview } from "@/components/cc/route-preview";
 import {
   ccSelectRoutes,
   ccSyntheticLabels,
 } from "@/components/cc/route-resolution";
 import {
-  CC_POLL_INTERVAL_MS,
+  CcDisclosureTrigger,
+  CcEmptyState,
+  CcQueryError,
+  CcTableSkeleton,
+  Conditions,
+  ccErrorMessage,
+  ccFormatTs,
+} from "@/components/cc/shared";
+import {
   createCcSubscription,
   deleteCcChannel,
   deleteCcInhibition,
@@ -77,14 +83,6 @@ import type {
   CcReceiver,
   CcRoute,
 } from "@/data/cc/types";
-import {
-  CcEmptyState,
-  CcQueryError,
-  CcTableSkeleton,
-  ccErrorMessage,
-  ccFormatTs,
-  Matchers,
-} from "./-cc-shared";
 
 const q = {
   routes: () =>
@@ -108,13 +106,11 @@ const q = {
     queryOptions({
       queryKey: ["cc", "alerts"],
       queryFn: () => listCcAlerts(),
-      refetchInterval: CC_POLL_INTERVAL_MS,
     }),
   rules: () =>
     queryOptions({
       queryKey: ["cc", "rules"],
       queryFn: () => listCcRules(),
-      refetchInterval: CC_POLL_INTERVAL_MS,
     }),
   subscriptions: () =>
     queryOptions({
@@ -171,15 +167,13 @@ function HowDeliveryWorks() {
   const [open, setOpen] = useState(false);
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <CollapsibleTrigger className="flex items-center gap-1.5 rounded-md px-1 py-0.5 text-xs text-muted-foreground outline-2 outline-dotted outline-transparent outline-offset-[-2px] transition-colors duration-150 hover:text-foreground focus-visible:outline-primary">
-        <ChevronRight
-          className={cn(
-            "size-3.5 transition-transform duration-150",
-            open && "rotate-90",
-          )}
-        />
+      <CcDisclosureTrigger
+        open={open}
+        variant="bare"
+        className="text-muted-foreground"
+      >
         How delivery works
-      </CollapsibleTrigger>
+      </CcDisclosureTrigger>
       <CollapsibleContent>
         <p className="max-w-3xl px-1 pt-1 pb-1.5 text-xs leading-relaxed text-muted-foreground">
           A firing alert&rsquo;s labels are checked against each route&rsquo;s
@@ -196,35 +190,47 @@ function HowDeliveryWorks() {
   );
 }
 
+// ── Section body cascade ──────────────────────────────────────────────────────
+// Every section on this page renders the same way: query error, then loading
+// skeleton, then (optionally) an empty state, then the loaded content.
+
+function SectionBody({
+  isError,
+  error,
+  isPending,
+  skeletonRows,
+  empty,
+  errorClassName = "px-3 pb-3",
+  children,
+}: {
+  isError: boolean;
+  error: unknown;
+  isPending: boolean;
+  skeletonRows: number;
+  /** Empty state, shown instead of children; omit to always render children. */
+  empty?: { when: boolean; icon: LucideIcon; title: string; hint: string };
+  errorClassName?: string;
+  children: React.ReactNode;
+}) {
+  if (isError) {
+    return (
+      <div className={errorClassName}>
+        <CcQueryError error={error} />
+      </div>
+    );
+  }
+  if (isPending) return <CcTableSkeleton rows={skeletonRows} />;
+  if (empty?.when) {
+    return (
+      <CcEmptyState icon={empty.icon} title={empty.title} hint={empty.hint} />
+    );
+  }
+  return <>{children}</>;
+}
+
 // ── Live pipeline ─────────────────────────────────────────────────────────────
 // The hero: routes rendered as the flow the dispatcher walks. While the
 // preview is active, the selected route chain lights up and the rest dims.
-
-function ChannelChip({
-  name,
-  channel,
-  emphasized,
-}: {
-  name: string;
-  channel: CcChannel | undefined;
-  emphasized: boolean;
-}) {
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-mono text-[0.6875rem] leading-none",
-        emphasized
-          ? "border-primary/40 bg-primary/10 text-foreground"
-          : "border-border bg-muted/40",
-      )}
-    >
-      <span className="text-foreground">{name}</span>
-      <span className="text-muted-foreground">
-        {channel ? channel.config.type : "missing"}
-      </span>
-    </span>
-  );
-}
 
 /** Custom timing only: routes on engine defaults keep a single-line row. */
 function routeTimingSummary(r: CcRoute): string[] {
@@ -275,7 +281,7 @@ function PipelineRoute({
       </span>
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex flex-wrap items-center gap-2">
-          <Matchers matchers={route.matchers} emptyLabel="any alert" />
+          <Conditions matchers={route.matchers} emptyLabel="any alert" />
           <ArrowRight
             aria-hidden
             className={cn(
@@ -304,6 +310,7 @@ function PipelineRoute({
                 name={name}
                 channel={channelsByName.get(name)}
                 emphasized={previewActive && matched}
+                missingLabel="missing"
               />
             ))
           ) : (
@@ -355,14 +362,16 @@ function PipelineRoute({
 
 function PipelineSection({
   receivers,
-  channels,
+  receiversByName,
+  channelsByName,
   previewLabels,
   matchedRouteIds,
   subscriberCount,
   onFirehoseClick,
 }: {
   receivers: CcReceiver[];
-  channels: CcChannel[];
+  receiversByName: Map<string, CcReceiver>;
+  channelsByName: Map<string, CcChannel>;
   /** Preview label set; empty object = preview inactive. */
   previewLabels: Record<string, string>;
   /** Ids of the routes ccSelectRoutes picked for the preview labels. */
@@ -385,8 +394,6 @@ function PipelineSection({
 
   const previewActive = Object.keys(previewLabels).length > 0;
   const sorted = [...(data ?? [])].sort((a, b) => a.priority - b.priority);
-  const receiverByName = new Map(receivers.map((r) => [r.name, r]));
-  const channelsByName = new Map(channels.map((c) => [c.name, c]));
   const fellThrough = previewActive && matchedRouteIds.size === 0;
 
   return (
@@ -405,13 +412,12 @@ function PipelineSection({
         </CardAction>
       </CardHeader>
       <CardContent>
-        {isError ? (
-          <div className="px-3 pb-3">
-            <CcQueryError error={error} />
-          </div>
-        ) : isPending ? (
-          <CcTableSkeleton rows={3} />
-        ) : (
+        <SectionBody
+          isError={isError}
+          error={error}
+          isPending={isPending}
+          skeletonRows={3}
+        >
           <ul className="divide-y divide-border/60">
             {sorted.length === 0 && (
               <li className="px-3 py-2 text-xs text-muted-foreground">
@@ -423,7 +429,7 @@ function PipelineSection({
               <PipelineRoute
                 key={r.id}
                 route={r}
-                receiver={receiverByName.get(r.receiver)}
+                receiver={receiversByName.get(r.receiver)}
                 channelsByName={channelsByName}
                 previewActive={previewActive}
                 matched={matchedRouteIds.has(r.id)}
@@ -486,7 +492,7 @@ function PipelineSection({
               </span>
             </li>
           </ul>
-        )}
+        </SectionBody>
       </CardContent>
       <RouteBuilder
         key={editing === "new" ? "new" : (editing?.id ?? "closed")}
@@ -503,7 +509,13 @@ function PipelineSection({
 
 // ── Address book ──────────────────────────────────────────────────────────────
 
-function ReceiversSection({ channels }: { channels: CcChannel[] }) {
+function ReceiversSection({
+  channels,
+  channelsByName,
+}: {
+  channels: CcChannel[];
+  channelsByName: Map<string, CcChannel>;
+}) {
   const qc = useQueryClient();
   const { data, isPending, isError, error } = useQuery(q.receivers());
   const [open, setOpen] = useState(false);
@@ -517,8 +529,6 @@ function ReceiversSection({ channels }: { channels: CcChannel[] }) {
     onError: (e) => toast.error(ccErrorMessage(e)),
   });
 
-  const channelByName = new Map(channels.map((c) => [c.name, c]));
-
   return (
     <Card id="receivers" inset="flush-content" className="scroll-mt-4">
       <CardHeader>
@@ -531,24 +541,23 @@ function ReceiversSection({ channels }: { channels: CcChannel[] }) {
         </CardAction>
       </CardHeader>
       <CardContent>
-        {isError ? (
-          <div className="px-3 pb-3">
-            <CcQueryError error={error} />
-          </div>
-        ) : isPending ? (
-          <CcTableSkeleton rows={3} />
-        ) : (data ?? []).length === 0 ? (
-          <CcEmptyState
-            icon={Inbox}
-            title="No receivers defined"
-            hint="Add a receiver that references one or more channels for routes to deliver alerts to."
-          />
-        ) : (
+        <SectionBody
+          isError={isError}
+          error={error}
+          isPending={isPending}
+          skeletonRows={3}
+          empty={{
+            when: (data ?? []).length === 0,
+            icon: Inbox,
+            title: "No receivers defined",
+            hint: "Add a receiver that references one or more channels for routes to deliver alerts to.",
+          }}
+        >
           <ul className="divide-y divide-border/60">
             {(data ?? []).map((r) => {
               const resolved = r.channels.map((name) => ({
                 name,
-                channel: channelByName.get(name),
+                channel: channelsByName.get(name),
               }));
               const Icon =
                 CHANNEL_ICON[resolved[0]?.channel?.config.type ?? "webhook"];
@@ -599,7 +608,7 @@ function ReceiversSection({ channels }: { channels: CcChannel[] }) {
               );
             })}
           </ul>
-        )}
+        </SectionBody>
       </CardContent>
       <ReceiverBuilder
         key={open ? "open" : "closed"}
@@ -641,19 +650,18 @@ function ChannelsSection() {
         </CardAction>
       </CardHeader>
       <CardContent>
-        {isError ? (
-          <div className="px-3 pb-3">
-            <CcQueryError error={error} />
-          </div>
-        ) : isPending ? (
-          <CcTableSkeleton rows={3} />
-        ) : (data ?? []).length === 0 ? (
-          <CcEmptyState
-            icon={Inbox}
-            title="No channels defined"
-            hint="Add a Slack, webhook, PagerDuty, email, or Telegram endpoint for receivers to deliver through."
-          />
-        ) : (
+        <SectionBody
+          isError={isError}
+          error={error}
+          isPending={isPending}
+          skeletonRows={3}
+          empty={{
+            when: (data ?? []).length === 0,
+            icon: Inbox,
+            title: "No channels defined",
+            hint: "Add a Slack, webhook, PagerDuty, email, or Telegram endpoint for receivers to deliver through.",
+          }}
+        >
           <ul className="divide-y divide-border/60">
             {(data ?? []).map((c) => {
               const Icon = CHANNEL_ICON[c.config.type];
@@ -689,7 +697,7 @@ function ChannelsSection() {
               );
             })}
           </ul>
-        )}
+        </SectionBody>
       </CardContent>
       <ChannelBuilder
         key={open ? "open" : "closed"}
@@ -733,19 +741,18 @@ function InhibitionsSection() {
         </CardAction>
       </CardHeader>
       <CardContent>
-        {isError ? (
-          <div className="px-3 pb-3">
-            <CcQueryError error={error} />
-          </div>
-        ) : isPending ? (
-          <CcTableSkeleton rows={2} />
-        ) : (data ?? []).length === 0 ? (
-          <CcEmptyState
-            icon={BellMinus}
-            title="No inhibition rules"
-            hint="Add a rule to mute downstream alerts while a higher-level alert is already firing."
-          />
-        ) : (
+        <SectionBody
+          isError={isError}
+          error={error}
+          isPending={isPending}
+          skeletonRows={2}
+          empty={{
+            when: (data ?? []).length === 0,
+            icon: BellMinus,
+            title: "No inhibition rules",
+            hint: "Add a rule to mute downstream alerts while a higher-level alert is already firing.",
+          }}
+        >
           <ul className="divide-y divide-border/60">
             {(data ?? []).map((r: CcInhibition) => (
               <li
@@ -755,11 +762,11 @@ function InhibitionsSection() {
                 <div className="min-w-0 flex-1">
                   While{" "}
                   <span className="inline-flex flex-wrap items-center gap-1 align-middle">
-                    <Matchers matchers={r.source_matchers} />
+                    <Conditions matchers={r.source_matchers} />
                   </span>{" "}
                   fires, suppress{" "}
                   <span className="inline-flex flex-wrap items-center gap-1 align-middle">
-                    <Matchers matchers={r.target_matchers} />
+                    <Conditions matchers={r.target_matchers} />
                   </span>
                   {(r.equal ?? []).length > 0 && (
                     <>
@@ -784,7 +791,7 @@ function InhibitionsSection() {
               </li>
             ))}
           </ul>
-        )}
+        </SectionBody>
       </CardContent>
       <InhibitionBuilder open={open} onOpenChange={setOpen} />
     </Card>
@@ -825,19 +832,19 @@ function FirehoseSection() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        {isError ? (
-          <div className="px-3">
-            <CcQueryError error={error} />
-          </div>
-        ) : isPending ? (
-          <CcTableSkeleton rows={2} />
-        ) : (data ?? []).length === 0 ? (
-          <CcEmptyState
-            icon={Webhook}
-            title="No firehose subscriptions"
-            hint="Add a webhook URL below to receive every alert that matches no route."
-          />
-        ) : (
+        <SectionBody
+          isError={isError}
+          error={error}
+          isPending={isPending}
+          skeletonRows={2}
+          errorClassName="px-3"
+          empty={{
+            when: (data ?? []).length === 0,
+            icon: Webhook,
+            title: "No firehose subscriptions",
+            hint: "Add a webhook URL below to receive every alert that matches no route.",
+          }}
+        >
           <ul className="divide-y divide-border/60">
             {(data ?? []).map((s) => (
               <li key={s.id} className="flex items-center gap-3 px-3 py-2.5">
@@ -864,7 +871,7 @@ function FirehoseSection() {
               </li>
             ))}
           </ul>
-        )}
+        </SectionBody>
         <form
           className="flex items-end gap-2 px-3"
           onSubmit={(e) => {
@@ -958,7 +965,8 @@ function CcDeliveryPage() {
 
       <PipelineSection
         receivers={receivers.data ?? []}
-        channels={channels.data ?? []}
+        receiversByName={receiversByName}
+        channelsByName={channelsByName}
         previewLabels={previewLabels}
         matchedRouteIds={matchedRouteIds}
         subscriberCount={subscriberCount}
@@ -995,23 +1003,20 @@ function CcDeliveryPage() {
       </Card>
 
       <div className="grid items-start gap-3 lg:grid-cols-2">
-        <ReceiversSection channels={channels.data ?? []} />
+        <ReceiversSection
+          channels={channels.data ?? []}
+          channelsByName={channelsByName}
+        />
         <ChannelsSection />
       </div>
 
       <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
-        <CollapsibleTrigger className="flex w-full items-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 text-left outline-2 outline-dotted outline-transparent outline-offset-[-2px] transition-colors duration-150 hover:bg-muted/40 focus-visible:outline-primary">
-          <ChevronRight
-            className={cn(
-              "size-3.5 shrink-0 text-muted-foreground transition-transform duration-150",
-              advancedOpen && "rotate-90",
-            )}
-          />
+        <CcDisclosureTrigger open={advancedOpen} className="bg-card">
           <span className="text-xs font-medium">Advanced delivery</span>
           <span className="text-xs text-muted-foreground">
             inhibitions · firehose subscriptions
           </span>
-        </CollapsibleTrigger>
+        </CcDisclosureTrigger>
         <CollapsibleContent>
           <div className="space-y-3 pt-3">
             <InhibitionsSection />

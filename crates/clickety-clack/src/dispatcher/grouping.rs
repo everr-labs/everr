@@ -98,17 +98,13 @@ pub fn repeat_dedup_key(
 }
 
 fn dedup_hash(group_id: &str, channel_name: &str, events: &[Event]) -> sha2::Sha256 {
-    use crate::domain::EventStatus;
     use sha2::{Digest, Sha256};
     let mut parts: Vec<(String, &'static str, i128)> = events
         .iter()
         .map(|e| {
             (
                 e.instance_key.0.clone(),
-                match e.status {
-                    EventStatus::Firing => "firing",
-                    EventStatus::Resolved => "resolved",
-                },
+                e.status.as_str(),
                 e.eval_ts.unix_timestamp_nanos(),
             )
         })

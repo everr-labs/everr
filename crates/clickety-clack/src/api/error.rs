@@ -22,6 +22,14 @@ pub enum ApiError {
     Internal(String),
 }
 
+/// Store failures are always internal errors: the detail is logged server-side
+/// and the response body carries the generic 500 shape.
+impl From<crate::stores::StoreError> for ApiError {
+    fn from(e: crate::stores::StoreError) -> Self {
+        ApiError::Internal(e.to_string())
+    }
+}
+
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let (status, code, detail) = match self {

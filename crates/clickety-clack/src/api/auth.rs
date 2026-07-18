@@ -15,6 +15,18 @@ pub trait Authenticator: Send + Sync + 'static {
     fn tenant_from(&self, headers: &HeaderMap) -> Option<TenantId>;
 }
 
+/// Resolve the caller's tenant via the state's [`Authenticator`]; a missing or
+/// invalid tenant is a 401. Shared by every `/v1` handler.
+pub(crate) fn tenant(
+    state: &crate::api::AppState,
+    headers: &HeaderMap,
+) -> Result<TenantId, ApiError> {
+    state
+        .auth
+        .tenant_from(headers)
+        .ok_or(ApiError::Unauthorized)
+}
+
 /// Phase 1 stub: trust an `X-CC-Tenant: <uuid>` header. When the API-key gate
 /// runs with a tenant-bound key (see [`ApiKeySet`]), the gate middleware has
 /// already derived and stamped this header from the key, so "trusting" it here

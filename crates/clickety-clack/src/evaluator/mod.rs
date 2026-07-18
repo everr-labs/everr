@@ -170,10 +170,29 @@ pub(crate) fn published_outbox_ids(
     published.iter().map(|&i| outbox_ids[i]).collect()
 }
 
+/// The shared publish tail of every commit path: publish the events in one pipelined
+/// batch, then delete exactly the outbox rows whose events published. A failed delete
+/// only warns — the events already published, so the relay re-publishing those rows
+/// is a duplicate the dispatcher dedups. Unpublished rows are left for the maintenance
+/// relay (exactly-once relative to the committed state is preserved).
+pub(crate) async fn publish_and_clear_outbox(
+    store: &PgStore,
+    events: &dyn EventBus,
+    out_events: &[Event],
+    outbox_ids: &[uuid::Uuid],
+) -> anyhow::Result<()> {
+    let published = events.publish_batch(out_events).await?;
+    let to_delete = published_outbox_ids(outbox_ids, &published);
+    if let Err(e) = store.delete_outbox_batch(&to_delete).await {
+        tracing::warn!(error = %e, "outbox batch delete failed; relay will re-publish");
+    }
+    Ok(())
+}
+
 /// The single state+outbox write+publish path: persist all instance states + outbox rows in
-/// one transaction, publish the events in one pipelined batch, then delete exactly the outbox
-/// rows whose events published. Unpublished rows are left for the maintenance relay
-/// (exactly-once relative to the committed state is preserved).
+/// one transaction, then run the [`publish_and_clear_outbox`] tail. Used by the maintenance
+/// sweep (cross-rule batch, no rollup, no cadence); the per-rule evaluator path goes
+/// through [`commit_and_publish_with_rollup`].
 pub(crate) async fn commit_and_publish(
     store: &PgStore,
     events: &dyn EventBus,
@@ -183,12 +202,7 @@ pub(crate) async fn commit_and_publish(
     let outbox_ids = store
         .persist_eval_batch(&next_states, &out_events, None, None, None)
         .await?;
-    let published = events.publish_batch(&out_events).await?;
-    let to_delete = published_outbox_ids(&outbox_ids, &published);
-    if let Err(e) = store.delete_outbox_batch(&to_delete).await {
-        tracing::warn!(error = %e, "outbox batch delete failed; relay will re-publish");
-    }
-    Ok(())
+    publish_and_clear_outbox(store, events, &out_events, &outbox_ids).await
 }
 
 /// Like `commit_and_publish`, but also writes the rule rollup and the adaptive-cadence
@@ -218,12 +232,7 @@ pub(crate) async fn commit_and_publish_with_rollup(
             Some(tenant),
         )
         .await?;
-    let published = events.publish_batch(&out_events).await?;
-    let to_delete = published_outbox_ids(&outbox_ids, &published);
-    if let Err(e) = store.delete_outbox_batch(&to_delete).await {
-        tracing::warn!(error = %e, "outbox batch delete failed; relay will re-publish");
-    }
-    Ok(())
+    publish_and_clear_outbox(store, events, &out_events, &outbox_ids).await
 }
 
 /// Process one consume batch with identical-query coalescing. Jobs are claimed and their

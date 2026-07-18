@@ -24,6 +24,7 @@ import {
   CcEmptyState,
   CcInstanceStatusBadge,
   CcQueryError,
+  CcSegmentedControl,
   CcSeverityBadge,
   CcStatusDot,
   CcTableSkeleton,
@@ -525,7 +526,6 @@ function CcTriagePage() {
     subscriptions,
   ].find((query) => query.isError);
 
-  const now = Date.now();
   const ruleById = useMemo(
     () => new Map((rules.data ?? []).map((r) => [r.id, r])),
     [rules.data],
@@ -538,7 +538,10 @@ function CcTriagePage() {
 
   // Every derived fact for every instance, resolved once with the engine's own
   // matching semantics (synthetic labels, priority + continue routes).
+  // Date.now() is read inside the memo: silence-window staleness is bounded by
+  // the 15s poll cycling alerts/silences data.
   const instances: TriageInstance[] = useMemo(() => {
+    const now = Date.now();
     return (alerts.data ?? []).map((alert) => {
       const rule = ruleById.get(alert.rule);
       const matchLabels = ccSyntheticLabels(alert.labels, {
@@ -553,28 +556,34 @@ function CcTriagePage() {
         silence: ccMatchingSilence(matchLabels, silences.data ?? [], now),
       };
     });
-  }, [alerts.data, ruleById, routes.data, silences.data, now]);
+  }, [alerts.data, ruleById, routes.data, silences.data]);
 
-  const active = instances.filter((i) => i.alert.status !== "inactive");
-  const counts = {
-    firing: instances.filter((i) => i.alert.status === "firing").length,
-    silenced: active.filter((i) => i.silence !== null).length,
-    degradedRules: (rules.data ?? []).filter(
-      (r) => r.health.status === "degraded",
-    ).length,
-    activeSilences: (silences.data ?? []).filter(
-      (s) =>
-        new Date(s.starts_at).getTime() <= now &&
-        now < new Date(s.ends_at).getTime(),
-    ).length,
-  };
-
-  const visible =
-    lens === "firing"
-      ? active.filter((i) => i.silence === null)
-      : lens === "silenced"
-        ? active.filter((i) => i.silence !== null)
-        : instances;
+  // Stable identities for `visible` and the counts so the `groups` memo below
+  // only recomputes when the underlying facts or the lens change.
+  const { visible, counts } = useMemo(() => {
+    const now = Date.now();
+    const active = instances.filter((i) => i.alert.status !== "inactive");
+    return {
+      counts: {
+        firing: instances.filter((i) => i.alert.status === "firing").length,
+        silenced: active.filter((i) => i.silence !== null).length,
+        degradedRules: (rules.data ?? []).filter(
+          (r) => r.health.status === "degraded",
+        ).length,
+        activeSilences: (silences.data ?? []).filter(
+          (s) =>
+            new Date(s.starts_at).getTime() <= now &&
+            now < new Date(s.ends_at).getTime(),
+        ).length,
+      },
+      visible:
+        lens === "firing"
+          ? active.filter((i) => i.silence === null)
+          : lens === "silenced"
+            ? active.filter((i) => i.silence !== null)
+            : instances,
+    };
+  }, [instances, lens, rules.data, silences.data]);
 
   // Group by rule, severity-sorted (critical → warning → info), then by name;
   // within a group firing instances precede pending (muted) and inactive.
@@ -661,32 +670,12 @@ function CcTriagePage() {
         </section>
       )}
 
-      <div
-        role="tablist"
+      <CcSegmentedControl
+        items={LENSES}
+        value={lens}
+        onChange={setLens}
         aria-label="Triage lens"
-        className="inline-flex rounded-md border border-border bg-muted/20 p-0.5"
-      >
-        {LENSES.map((l) => {
-          const activeLens = lens === l.key;
-          return (
-            <button
-              key={l.key}
-              type="button"
-              role="tab"
-              aria-selected={activeLens}
-              onClick={() => setLens(l.key)}
-              className={cn(
-                "rounded-[0.3rem] px-3 py-1 text-xs font-medium outline-2 outline-dotted outline-transparent outline-offset-[-2px] transition-colors duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] focus-visible:outline-primary",
-                activeLens
-                  ? "bg-card text-foreground ring-1 ring-foreground/10"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {l.label}
-            </button>
-          );
-        })}
-      </div>
+      />
 
       <Card inset="flush-content">
         <CardContent>

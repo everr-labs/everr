@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use redis::aio::ConnectionManager;
 use redis::Script;
 use serde::{Deserialize, Serialize};
+use std::sync::LazyLock;
 
 const FLUSH_ZSET: &str = "cc:groupflush";
 /// Group hashes expire if untouched for this long (bounds storage for silent groups).
@@ -180,6 +181,14 @@ end
 return 1
 "#;
 
+// Scripts are built once (the SHA1 each `Script` carries is computed in `new`),
+// not per invocation on the per-event hot paths below.
+static ADD_SCRIPT: LazyLock<Script> = LazyLock::new(|| Script::new(ADD_LUA));
+static CLAIM_SCRIPT: LazyLock<Script> = LazyLock::new(|| Script::new(CLAIM_LUA));
+static TAKE_SCRIPT: LazyLock<Script> = LazyLock::new(|| Script::new(TAKE_LUA));
+static MARK_NOTIFIED_SCRIPT: LazyLock<Script> = LazyLock::new(|| Script::new(MARK_NOTIFIED_LUA));
+static ARM_REPEAT_SCRIPT: LazyLock<Script> = LazyLock::new(|| Script::new(ARM_REPEAT_LUA));
+
 #[async_trait]
 impl GroupStore for RedisGroups {
     async fn add_to_group(
@@ -200,7 +209,7 @@ impl GroupStore for RedisGroups {
             .map(|v| v.to_string())
             .unwrap_or_default();
         let mut conn = self.conn.clone();
-        let _: i64 = Script::new(ADD_LUA)
+        let _: i64 = ADD_SCRIPT
             .key(group_key(group_id))
             .key(FLUSH_ZSET)
             .arg(group_id)
@@ -220,7 +229,7 @@ impl GroupStore for RedisGroups {
 
     async fn claim_due(&self, now_ms: i64, max: usize) -> Result<Vec<String>, QueueError> {
         let mut conn = self.conn.clone();
-        let ids: Vec<String> = Script::new(CLAIM_LUA)
+        let ids: Vec<String> = CLAIM_SCRIPT
             .key(FLUSH_ZSET)
             .arg(now_ms)
             .arg(max as i64)
@@ -235,7 +244,7 @@ impl GroupStore for RedisGroups {
         now_ms: i64,
     ) -> Result<Option<GroupBatch>, QueueError> {
         let mut conn = self.conn.clone();
-        let flat: Vec<String> = Script::new(TAKE_LUA)
+        let flat: Vec<String> = TAKE_SCRIPT
             .key(group_key(group_id))
             .arg(now_ms)
             .arg(GROUP_TTL_MS)
@@ -274,7 +283,7 @@ impl GroupStore for RedisGroups {
 
     async fn mark_notified(&self, group_id: &str, now_ms: i64) -> Result<(), QueueError> {
         let mut conn = self.conn.clone();
-        let _: i64 = Script::new(MARK_NOTIFIED_LUA)
+        let _: i64 = MARK_NOTIFIED_SCRIPT
             .key(group_key(group_id))
             .arg(now_ms)
             .invoke_async(&mut conn)
@@ -284,7 +293,7 @@ impl GroupStore for RedisGroups {
 
     async fn arm_repeat(&self, group_id: &str, due_ms: i64) -> Result<(), QueueError> {
         let mut conn = self.conn.clone();
-        let _: i64 = Script::new(ARM_REPEAT_LUA)
+        let _: i64 = ARM_REPEAT_SCRIPT
             .key(group_key(group_id))
             .key(FLUSH_ZSET)
             .arg(group_id)

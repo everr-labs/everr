@@ -1,17 +1,7 @@
 use crate::dispatcher::notify::{Notification, Notifier, NotifyError};
-use crate::domain::rule::Severity;
-use crate::domain::EventStatus;
 use async_trait::async_trait;
 use lettre::message::Mailbox;
 use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
-
-fn severity_str(s: Severity) -> &'static str {
-    match s {
-        Severity::Info => "info",
-        Severity::Warning => "warning",
-        Severity::Critical => "critical",
-    }
-}
 
 /// Build a plaintext email for a notification (one or more events). A bad `from`/`to`
 /// address or empty recipient list is a Permanent error (misconfiguration, not worth
@@ -34,7 +24,7 @@ pub fn build_email_message(
         format!(
             "[{}] {} {}",
             crate::dispatcher::render::status_word(ev),
-            severity_str(ev.severity),
+            ev.severity.as_str(),
             crate::dispatcher::render::headline(ev)
         )
     } else {
@@ -42,15 +32,11 @@ pub fn build_email_message(
     };
     let mut body = format!("group: {}\nalerts: {n}\n\n", notif.group_key);
     for ev in &notif.events {
-        let status = match ev.status {
-            EventStatus::Firing => "firing",
-            EventStatus::Resolved => "resolved",
-        };
         body.push_str(&format!(
             "- {}\n  status: {}\n  severity: {}\n  instance: {}\n",
             crate::dispatcher::render::headline(ev),
-            status,
-            severity_str(ev.severity),
+            ev.status.as_str(),
+            ev.severity.as_str(),
             ev.instance_key.0
         ));
         if let Some(d) = crate::dispatcher::render::description(ev) {
@@ -142,7 +128,8 @@ impl Notifier for EmailNotifier {
 mod tests {
     use super::*;
     use crate::domain::ids::{InstanceKey, RuleId, TenantId};
-    use crate::domain::Event;
+    use crate::domain::rule::Severity;
+    use crate::domain::{Event, EventStatus};
     use std::collections::BTreeMap;
     use time::OffsetDateTime;
     use uuid::Uuid;

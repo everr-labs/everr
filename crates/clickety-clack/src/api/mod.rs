@@ -32,6 +32,19 @@ pub struct AppState {
     pub allow_private_webhooks: bool,
 }
 
+/// Which values appear more than once in `values` (order-preserving, each
+/// duplicate reported once). Shared by the channel-recipient and
+/// receiver-channel-reference duplicate guards.
+pub(crate) fn duplicate_entries(values: &[String]) -> Vec<String> {
+    let mut dupes = Vec::new();
+    for (i, v) in values.iter().enumerate() {
+        if values[..i].contains(v) && !dupes.contains(v) {
+            dupes.push(v.clone());
+        }
+    }
+    dupes
+}
+
 /// Router with the API-key gate disabled (dev default, and the pre-gate
 /// behavior). Equivalent to `build_router_with_auth(state, ApiKeySet::default())`.
 pub fn build_router(state: AppState) -> Router {

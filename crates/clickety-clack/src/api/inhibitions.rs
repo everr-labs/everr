@@ -1,3 +1,4 @@
+use crate::api::auth::tenant;
 use crate::api::error::ApiError;
 use crate::api::AppState;
 use crate::domain::inhibition::InhibitionRule;
@@ -8,13 +9,6 @@ use axum::Json;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use uuid::Uuid;
-
-fn tenant(state: &AppState, headers: &HeaderMap) -> Result<crate::domain::ids::TenantId, ApiError> {
-    state
-        .auth
-        .tenant_from(headers)
-        .ok_or(ApiError::Unauthorized)
-}
 
 #[derive(Deserialize)]
 pub struct CreateInhibition {
@@ -33,8 +27,7 @@ pub async fn create(
     let r = state
         .store
         .create_inhibition(t, &body.source_matchers, &body.target_matchers, &body.equal)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+        .await?;
     Ok(Json(r))
 }
 
@@ -43,11 +36,7 @@ pub async fn list(
     headers: HeaderMap,
 ) -> Result<Json<Value>, ApiError> {
     let t = tenant(&state, &headers)?;
-    let rules = state
-        .store
-        .list_inhibitions(t)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    let rules = state.store.list_inhibitions(t).await?;
     Ok(Json(json!(rules)))
 }
 
@@ -57,11 +46,7 @@ pub async fn delete(
     Path(id): Path<Uuid>,
 ) -> Result<Json<Value>, ApiError> {
     let t = tenant(&state, &headers)?;
-    let ok = state
-        .store
-        .delete_inhibition(t, id)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    let ok = state.store.delete_inhibition(t, id).await?;
     if ok {
         Ok(Json(json!({"deleted": true})))
     } else {

@@ -8,7 +8,7 @@ import {
 import { type Namespace, previewScope } from "@/data/previews/scope";
 import { db } from "@/db/client";
 import { runbooks } from "@/db/schema";
-import { AlertRuleYamlSchema, identityKey, parseRunbookRef } from "./schema";
+import { AlertRuleYamlSchema, parseRunbookRef, refIdentityKey } from "./schema";
 
 /**
  * Validate that every alert's `spec.runbook` resolves to a runbook that
@@ -36,7 +36,7 @@ export async function validateAlertRunbookLinks(opts: {
   const identities = new Set<string>();
   for (const { path, resource } of opts.runbooks) {
     identities.add(
-      identityKey(
+      refIdentityKey(
         projectFromDocument(path, resource),
         slugFromDocument(path, resource),
       ),
@@ -48,7 +48,7 @@ export async function validateAlertRunbookLinks(opts: {
   // of linked runbooks, not the repo's runbook count.
   const missing = new Map<string, { project: string; slug: string }>();
   for (const { ref } of links) {
-    const key = identityKey(ref.project, ref.slug);
+    const key = refIdentityKey(ref.project, ref.slug);
     if (!identities.has(key)) missing.set(key, ref);
   }
 
@@ -74,11 +74,11 @@ export async function validateAlertRunbookLinks(opts: {
         ),
       );
     for (const row of dbRows)
-      identities.add(identityKey(row.project, row.slug));
+      identities.add(refIdentityKey(row.project, row.slug));
   }
 
   for (const { path, ref } of links) {
-    if (!identities.has(identityKey(ref.project, ref.slug))) {
+    if (!identities.has(refIdentityKey(ref.project, ref.slug))) {
       throw new ApplyValidationError(
         `${path}: linked runbook "${ref.project}/${ref.slug}" does not exist (not in this apply and not already applied)`,
       );

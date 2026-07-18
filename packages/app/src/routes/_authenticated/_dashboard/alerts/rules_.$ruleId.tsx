@@ -14,7 +14,6 @@ import {
 import {
   Collapsible,
   CollapsibleContent,
-  CollapsibleTrigger,
 } from "@everr/ui/components/collapsible";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { Skeleton } from "@everr/ui/components/skeleton";
@@ -31,7 +30,6 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowLeft,
   BookOpenText,
-  ChevronRight,
   FlaskConical,
   Pause,
   Play,
@@ -43,6 +41,17 @@ import {
   AlertEventFeed,
   ccEventHistoryQueryOptions,
 } from "@/components/cc/alert-event-feed";
+import {
+  CcDisclosureTrigger,
+  CcEmptyState,
+  CcHealthBadge,
+  CcInstanceStatusBadge,
+  CcQueryError,
+  CcSeverityBadge,
+  ccErrorMessage,
+  ccFormatTs,
+  LabelSet,
+} from "@/components/cc/shared";
 import { ccRuleIdentity } from "@/data/alerts/rule-identity";
 import {
   CC_POLL_INTERVAL_MS,
@@ -53,16 +62,6 @@ import {
   testCcRule,
 } from "@/data/cc/server";
 import type { CcAlert, CcRuleView, CcTestResult } from "@/data/cc/types";
-import {
-  CcEmptyState,
-  CcHealthBadge,
-  CcInstanceStatusBadge,
-  CcQueryError,
-  CcSeverityBadge,
-  ccErrorMessage,
-  ccFormatTs,
-  LabelSet,
-} from "./-cc-shared";
 
 const ccRuleQuery = (ruleId: string) =>
   queryOptions({
@@ -187,13 +186,11 @@ function HealthSection({ health }: { health: CcRuleView["health"] }) {
           </div>
         ) : (
           <Collapsible open={open} onOpenChange={setOpen}>
-            <CollapsibleTrigger className="flex w-full items-center gap-1.5 rounded-md px-1 py-0.5 text-left text-xs outline-2 outline-dotted outline-transparent outline-offset-[-2px] transition-colors duration-150 hover:text-foreground focus-visible:outline-primary">
-              <ChevronRight
-                className={cn(
-                  "size-3.5 shrink-0 text-muted-foreground transition-transform duration-150",
-                  open && "rotate-90",
-                )}
-              />
+            <CcDisclosureTrigger
+              open={open}
+              variant="bare"
+              className="w-full text-left"
+            >
               <CcHealthBadge status={health.status} />
               <span className="text-muted-foreground">
                 ·{" "}
@@ -201,7 +198,7 @@ function HealthSection({ health }: { health: CcRuleView["health"] }) {
                   ? `last error ${ccFormatTs(health.last_error_at)}`
                   : "no failures on record"}
               </span>
-            </CollapsibleTrigger>
+            </CcDisclosureTrigger>
             <CollapsibleContent>
               <div className="px-1 pt-1">
                 <HealthForensics health={health} />
@@ -373,20 +370,14 @@ function CcRuleDetailPage() {
           </dl>
           {/* Authors have Git; readers get the SQL on demand, not as a wall. */}
           <Collapsible open={sqlOpen} onOpenChange={setSqlOpen}>
-            <CollapsibleTrigger className="flex w-full items-center gap-1.5 rounded-md border border-border bg-muted/20 px-3 py-2 text-left outline-2 outline-dotted outline-transparent outline-offset-[-2px] transition-colors duration-150 hover:bg-muted/40 focus-visible:outline-primary">
-              <ChevronRight
-                className={cn(
-                  "size-3.5 shrink-0 text-muted-foreground transition-transform duration-150",
-                  sqlOpen && "rotate-90",
-                )}
-              />
+            <CcDisclosureTrigger open={sqlOpen}>
               <span className="text-xs font-medium">SQL</span>
               {!sqlOpen && (
                 <span className="min-w-0 truncate font-mono text-[0.6875rem] text-muted-foreground">
                   {r.spec.sql}
                 </span>
               )}
-            </CollapsibleTrigger>
+            </CcDisclosureTrigger>
             <CollapsibleContent>
               <pre className="mt-2 overflow-x-auto rounded-md bg-muted/50 p-3 font-mono text-xs ring-1 ring-foreground/10">
                 {r.spec.sql}

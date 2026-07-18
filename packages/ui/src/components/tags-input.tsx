@@ -8,7 +8,6 @@ const TAG_SEPARATORS = /[\s,;]+/;
 function TagsInput({
   value,
   onValueChange,
-  validate,
   placeholder,
   disabled,
   className,
@@ -16,35 +15,23 @@ function TagsInput({
 }: {
   value: string[];
   onValueChange: (value: string[]) => void;
-  /** Returns an error message for an invalid tag, or null to accept it. */
-  validate?: (tag: string) => string | null;
   placeholder?: string;
   disabled?: boolean;
   className?: string;
   "aria-label"?: string;
 }) {
   const [draft, setDraft] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   function addTags(raw: string) {
     const next = [...value];
-    const rejected: string[] = [];
-    let firstError: string | null = null;
     for (const item of raw.split(TAG_SEPARATORS)) {
       const tag = item.trim();
       if (!tag || next.includes(tag)) continue;
-      const message = validate?.(tag) ?? null;
-      if (message) {
-        rejected.push(tag);
-        firstError ??= message;
-        continue;
-      }
       next.push(tag);
     }
     if (next.length !== value.length) onValueChange(next);
-    setDraft(rejected.join(", "));
-    setError(firstError);
+    setDraft("");
   }
 
   function removeTag(tag: string) {
@@ -59,7 +46,6 @@ function TagsInput({
         data-slot="tags-input"
         className={cn(
           "border-border bg-input/30 hover:bg-input/45 bg-clip-padding outline-2 outline-dotted outline-transparent outline-offset-2 ring-offset-background focus-within:border-ring focus-within:ring-primary focus-within:ring-2 focus-within:ring-offset-[3px] flex min-h-8 w-full cursor-text flex-wrap items-center gap-1 rounded-md border px-2 py-1 transition-[outline,outline-offset,box-shadow,background-color,border-color] duration-200 ease-[cubic-bezier(0.19,1,0.22,1)]",
-          error && "border-destructive/50 ring-destructive/40 ring-2",
           disabled && "pointer-events-none opacity-50",
           className,
         )}
@@ -84,15 +70,11 @@ function TagsInput({
         <input
           ref={inputRef}
           aria-label={ariaLabel}
-          aria-invalid={error ? true : undefined}
           placeholder={value.length === 0 ? placeholder : undefined}
           disabled={disabled}
           value={draft}
           className="placeholder:text-muted-foreground min-w-24 flex-1 bg-transparent text-sm outline-none md:text-xs/relaxed"
-          onChange={(event) => {
-            setDraft(event.target.value);
-            setError(null);
-          }}
+          onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter" || event.key === ",") {
               event.preventDefault();
@@ -114,11 +96,6 @@ function TagsInput({
           }}
         />
       </div>
-      {error && (
-        <p className="text-destructive text-xs" role="alert">
-          {error}
-        </p>
-      )}
     </div>
   );
 }

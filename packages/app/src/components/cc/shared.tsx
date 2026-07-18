@@ -1,8 +1,9 @@
 // packages/app/src/components/cc/shared.tsx
 import { Badge } from "@everr/ui/components/badge";
+import { CollapsibleTrigger } from "@everr/ui/components/collapsible";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { cn } from "@everr/ui/lib/utils";
-import { Info, type LucideIcon } from "lucide-react";
+import { ChevronRight, Info, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { sortedLabelEntries } from "@/data/alerts/matchers";
 import type { CcMatcher } from "@/data/cc/types";
@@ -36,11 +37,17 @@ export function CcConceptNote({
 
 // CC server-fn errors (incl. CcApiError) are serialized across the server→client
 // boundary and arrive as plain Errors, so we match on `error.message` here rather
-// than importing the server-only CcApiError class into this client-bundled module.
-// The message already carries CC's problem+json `detail`.
+// than importing the class into this client-bundled module. The transport wraps
+// network/timeout failures with the stable "clickety-clack unreachable"/"request
+// timed out" prefixes matched below; the message already carries CC's
+// problem+json `detail`.
 export function ccErrorMessage(error: unknown): string {
   if (error instanceof Error) {
-    if (/fetch failed|timeout|ECONNREFUSED/i.test(error.message)) {
+    if (
+      /clickety-clack unreachable|clickety-clack request timed out|fetch failed|timeout|ECONNREFUSED/i.test(
+        error.message,
+      )
+    ) {
       return "Alerting service unavailable";
     }
     return error.message;
@@ -215,7 +222,6 @@ export function Conditions({
   return (
     <span className="flex flex-wrap gap-1">
       {matchers.map((m, i) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: matchers are positional, no stable id
         <Pill key={i}>
           <span className="text-foreground">{m.label}</span>
           <span className="text-muted-foreground">{ccOpSymbol(m.op)}</span>
@@ -296,6 +302,94 @@ export function EvidenceChips({
   );
 }
 
+// ── Disclosure trigger ────────────────────────────────────────────────────────
+// The one CollapsibleTrigger style for the alerts surfaces: chevron that
+// rotates open, dotted focus outline, quiet hover. Two shapes:
+//   boxed (default) — a full-width bordered bar (bg-muted/20; pass e.g.
+//     `bg-card` via className where the bar sits on a muted background);
+//   bare — an inline text trigger (pass `w-full text-left` or
+//     `text-muted-foreground` via className where a site needs them).
+// Children carry the label and any trailing summary content.
+
+export function CcDisclosureTrigger({
+  open,
+  variant = "boxed",
+  className,
+  children,
+}: {
+  /** The Collapsible's open state; drives the chevron rotation. */
+  open: boolean;
+  variant?: "boxed" | "bare";
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <CollapsibleTrigger
+      className={cn(
+        "flex items-center gap-1.5 rounded-md outline-2 outline-dotted outline-transparent outline-offset-[-2px] transition-colors duration-150 focus-visible:outline-primary",
+        variant === "boxed"
+          ? "w-full border border-border bg-muted/20 px-3 py-2 text-left hover:bg-muted/40"
+          : "px-1 py-0.5 text-xs hover:text-foreground",
+        className,
+      )}
+    >
+      <ChevronRight
+        className={cn(
+          "size-3.5 shrink-0 text-muted-foreground transition-transform duration-150",
+          open && "rotate-90",
+        )}
+      />
+      {children}
+    </CollapsibleTrigger>
+  );
+}
+
+// ── Segmented control ─────────────────────────────────────────────────────────
+// The hand-rolled tablist pill used as a coarse lens switcher (triage lenses,
+// event-kind lenses): one bordered pill row, the active segment lifted onto
+// the card surface.
+
+export function CcSegmentedControl<K extends string>({
+  items,
+  value,
+  onChange,
+  "aria-label": ariaLabel,
+}: {
+  items: readonly { key: K; label: ReactNode }[];
+  value: K;
+  onChange: (key: K) => void;
+  "aria-label": string;
+}) {
+  return (
+    <div
+      role="tablist"
+      aria-label={ariaLabel}
+      className="inline-flex rounded-md border border-border bg-muted/20 p-0.5"
+    >
+      {items.map((item) => {
+        const active = value === item.key;
+        return (
+          <button
+            key={item.key}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => onChange(item.key)}
+            className={cn(
+              "rounded-[0.3rem] px-3 py-1 text-xs font-medium outline-2 outline-dotted outline-transparent outline-offset-[-2px] transition-colors duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] focus-visible:outline-primary",
+              active
+                ? "bg-card text-foreground ring-1 ring-foreground/10"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {item.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Empty & loading ───────────────────────────────────────────────────────────
 
 export function CcEmptyState({
@@ -304,7 +398,7 @@ export function CcEmptyState({
   hint,
 }: {
   icon?: LucideIcon;
-  title: string;
+  title: ReactNode;
   hint?: ReactNode;
 }) {
   return (
@@ -322,7 +416,6 @@ export function CcTableSkeleton({ rows = 5 }: { rows?: number }) {
   return (
     <div className="space-y-2 px-3 py-2">
       {Array.from({ length: rows }).map((_, i) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length skeleton placeholder
         <Skeleton key={i} className="h-7 w-full" />
       ))}
     </div>

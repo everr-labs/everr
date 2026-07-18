@@ -84,7 +84,7 @@ describe("AlertEventFeed", () => {
       error: null,
     });
 
-    render(<AlertEventFeed scopeSlug="alpha" />);
+    render(<AlertEventFeed scopeSlug={["alpha"]} />);
 
     expect(screen.getByText("alpha")).toBeInTheDocument();
     expect(screen.queryByText("beta")).not.toBeInTheDocument();

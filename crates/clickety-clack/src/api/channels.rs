@@ -1,5 +1,6 @@
+use crate::api::auth::tenant;
 use crate::api::error::ApiError;
-use crate::api::AppState;
+use crate::api::{duplicate_entries, AppState};
 use crate::domain::channel::{Channel, ChannelConfig};
 use crate::stores::ChannelDelete;
 use axum::extract::{Path, State};
@@ -7,13 +8,6 @@ use axum::http::HeaderMap;
 use axum::Json;
 use serde::Deserialize;
 use serde_json::{json, Value};
-
-fn tenant(state: &AppState, headers: &HeaderMap) -> Result<crate::domain::ids::TenantId, ApiError> {
-    state
-        .auth
-        .tenant_from(headers)
-        .ok_or(ApiError::Unauthorized)
-}
 
 #[derive(Deserialize)]
 pub struct CreateChannel {
@@ -67,19 +61,6 @@ fn validate_create(body: &CreateChannel, allow_private_webhooks: bool) -> Result
     Ok(())
 }
 
-/// Which values appear more than once in `values` (order-preserving, each
-/// duplicate reported once). Same shape as the receiver API's
-/// duplicate-channel-reference guard.
-fn duplicate_entries(values: &[String]) -> Vec<String> {
-    let mut dupes = Vec::new();
-    for (i, v) in values.iter().enumerate() {
-        if values[..i].contains(v) && !dupes.contains(v) {
-            dupes.push(v.clone());
-        }
-    }
-    dupes
-}
-
 /// The 409 detail for a delete blocked by referencing receivers.
 fn in_use_detail(referrers: &[String]) -> String {
     format!(
@@ -99,8 +80,7 @@ pub async fn create(
     let ch = state
         .store
         .create_channel(&*state.cipher, t, &body.name, &body.config)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+        .await?;
     Ok(Json(ch.redacted()))
 }
 
@@ -109,11 +89,7 @@ pub async fn list(
     headers: HeaderMap,
 ) -> Result<Json<Value>, ApiError> {
     let t = tenant(&state, &headers)?;
-    let channels = state
-        .store
-        .list_channels(&*state.cipher, t)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    let channels = state.store.list_channels(&*state.cipher, t).await?;
     let redacted: Vec<Channel> = channels.iter().map(Channel::redacted).collect();
     Ok(Json(json!(redacted)))
 }
@@ -127,8 +103,7 @@ pub async fn get(
     state
         .store
         .get_channel(&*state.cipher, t, &name)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?
+        .await?
         .map(|ch| Json(ch.redacted()))
         .ok_or(ApiError::NotFound)
 }
@@ -141,12 +116,7 @@ pub async fn delete(
     Path(name): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
     let t = tenant(&state, &headers)?;
-    match state
-        .store
-        .delete_channel(t, &name)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?
-    {
+    match state.store.delete_channel(t, &name).await? {
         ChannelDelete::Deleted => Ok(Json(json!({"deleted": true}))),
         ChannelDelete::NotFound => Err(ApiError::NotFound),
         ChannelDelete::InUse(referrers) => Err(ApiError::Conflict(in_use_detail(&referrers))),

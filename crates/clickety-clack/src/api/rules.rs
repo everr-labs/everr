@@ -1,3 +1,4 @@
+use crate::api::auth::tenant;
 use crate::api::error::ApiError;
 use crate::api::AppState;
 use crate::domain::ids::RuleId;
@@ -117,13 +118,6 @@ fn decode_cursor(raw: &str) -> Result<RulePageKey, ApiError> {
     }
 }
 
-fn tenant(state: &AppState, headers: &HeaderMap) -> Result<crate::domain::ids::TenantId, ApiError> {
-    state
-        .auth
-        .tenant_from(headers)
-        .ok_or(ApiError::Unauthorized)
-}
-
 /// Validate the spec: SQL must be a read-only SELECT and basic params sane.
 fn validate_spec(spec: &RuleSpec) -> Result<(), ApiError> {
     crate::sqlguard::validate(&spec.sql).map_err(|e| ApiError::Validation(e.to_string()))?;
@@ -158,11 +152,7 @@ pub async fn create(
 ) -> Result<Json<Rule>, ApiError> {
     let t = tenant(&state, &headers)?;
     validate_spec(&spec)?;
-    let rule = state
-        .store
-        .create_rule(t, &spec)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    let rule = state.store.create_rule(t, &spec).await?;
     Ok(Json(rule))
 }
 
@@ -190,8 +180,7 @@ pub async fn update(
     let outcome = state
         .store
         .update_rule(t, RuleId(id), &body.spec, body.version)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+        .await?;
     match outcome {
         crate::stores::RuleUpdate::Updated(rule) => Ok(Json(rule)),
         crate::stores::RuleUpdate::NotFound => Err(ApiError::NotFound),
@@ -211,8 +200,7 @@ pub async fn get(
     let (rule, health, rollup) = state
         .store
         .get_rule_with_health(t, RuleId(id))
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?
+        .await?
         .ok_or(ApiError::NotFound)?;
     Ok(Json(RuleView {
         rule,
@@ -227,11 +215,7 @@ pub async fn delete(
     Path(id): Path<Uuid>,
 ) -> Result<Json<Value>, ApiError> {
     let t = tenant(&state, &headers)?;
-    let ok = state
-        .store
-        .delete_rule(t, RuleId(id))
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    let ok = state.store.delete_rule(t, RuleId(id)).await?;
     if ok {
         Ok(Json(json!({"deleted": true})))
     } else {
@@ -239,27 +223,37 @@ pub async fn delete(
     }
 }
 
-pub async fn pause(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    Path(id): Path<Uuid>,
+/// Shared body of `pause`/`resume`: flip the paused flag, then return the
+/// stored rule. A miss on either step is a 404.
+async fn set_paused(
+    state: &AppState,
+    headers: &HeaderMap,
+    id: RuleId,
+    pause: bool,
 ) -> Result<Json<Rule>, ApiError> {
-    let t = tenant(&state, &headers)?;
-    let ok = state
-        .store
-        .pause_rule(t.clone(), RuleId(id))
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    let t = tenant(state, headers)?;
+    let ok = if pause {
+        state.store.pause_rule(t.clone(), id).await?
+    } else {
+        state.store.resume_rule(t.clone(), id).await?
+    };
     if !ok {
         return Err(ApiError::NotFound);
     }
     state
         .store
-        .get_rule(t, RuleId(id))
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?
+        .get_rule(t, id)
+        .await?
         .map(Json)
         .ok_or(ApiError::NotFound)
+}
+
+pub async fn pause(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Rule>, ApiError> {
+    set_paused(&state, &headers, RuleId(id), true).await
 }
 
 pub async fn resume(
@@ -267,22 +261,7 @@ pub async fn resume(
     headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Rule>, ApiError> {
-    let t = tenant(&state, &headers)?;
-    let ok = state
-        .store
-        .resume_rule(t.clone(), RuleId(id))
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
-    if !ok {
-        return Err(ApiError::NotFound);
-    }
-    state
-        .store
-        .get_rule(t, RuleId(id))
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?
-        .map(Json)
-        .ok_or(ApiError::NotFound)
+    set_paused(&state, &headers, RuleId(id), false).await
 }
 
 /// List rules, in two modes:
@@ -321,11 +300,7 @@ pub async fn list(
 
     if params.limit.is_none() && params.cursor.is_none() {
         // Legacy mode: bare unbounded array (pre-pagination response shape).
-        let rules = state
-            .store
-            .list_rules(&t, filter)
-            .await
-            .map_err(|e| ApiError::Internal(e.to_string()))?;
+        let rules = state.store.list_rules(&t, filter).await?;
         let views: Vec<Value> = rules.into_iter().map(view).collect();
         return Ok(Json(Value::Array(views)));
     }
@@ -335,8 +310,7 @@ pub async fn list(
     let (rules, next) = state
         .store
         .list_rules_page(&t, filter, after.as_ref(), limit)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+        .await?;
     let items: Vec<Value> = rules.into_iter().map(view).collect();
     Ok(Json(json!({
         "items": items,

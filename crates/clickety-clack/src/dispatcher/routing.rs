@@ -6,21 +6,6 @@ use crate::domain::rule::Severity;
 use crate::domain::{Event, EventKind, EventStatus};
 use std::collections::BTreeMap;
 
-fn severity_str(s: Severity) -> &'static str {
-    match s {
-        Severity::Info => "info",
-        Severity::Warning => "warning",
-        Severity::Critical => "critical",
-    }
-}
-
-fn status_str(s: EventStatus) -> &'static str {
-    match s {
-        EventStatus::Firing => "firing",
-        EventStatus::Resolved => "resolved",
-    }
-}
-
 fn kind_str(k: EventKind) -> &'static str {
     match k {
         EventKind::Alert => "alert",
@@ -39,8 +24,8 @@ pub fn synthetic_labels(
     slo: Option<SloId>,
 ) -> BTreeMap<String, String> {
     let mut m = labels.clone();
-    m.insert("severity".to_string(), severity_str(severity).to_string());
-    m.insert("status".to_string(), status_str(status).to_string());
+    m.insert("severity".to_string(), severity.as_str().to_string());
+    m.insert("status".to_string(), status.as_str().to_string());
     m.insert("rule".to_string(), rule.0.to_string());
     m.insert("kind".to_string(), kind_str(kind).to_string());
     if let Some(s) = slo {
@@ -56,25 +41,6 @@ pub fn match_labels(ev: &Event) -> BTreeMap<String, String> {
 
 fn route_matches(r: &Route, labels: &BTreeMap<String, String>) -> bool {
     matchers_match(&r.matchers, labels)
-}
-
-/// Walk `routes` in the given order; collect receiver names of matching routes.
-/// Stops after the first matching route unless it has `continue == true`. Receiver
-/// names are de-duplicated while preserving first-match order. `routes` is expected
-/// pre-ordered by the store (priority asc, then creation order).
-pub fn select_receivers(routes: &[Route], labels: &BTreeMap<String, String>) -> Vec<String> {
-    let mut out: Vec<String> = Vec::new();
-    for r in routes {
-        if route_matches(r, labels) {
-            if !out.contains(&r.receiver) {
-                out.push(r.receiver.clone());
-            }
-            if !r.continue_matching {
-                break;
-            }
-        }
-    }
-    out
 }
 
 /// Resolved grouping parameters for one matched receiver (route defaults applied).
@@ -112,9 +78,10 @@ pub(crate) fn slo_default_group_by(ev_labels: &BTreeMap<String, String>) -> Vec<
     gb
 }
 
-/// Like `select_receivers`, but returns each unique receiver (first-match order) paired
-/// with the grouping parameters from the FIRST route that selected it (route defaults
-/// applied). `continue` semantics match `select_receivers`.
+/// Walk `routes` in the given order (pre-ordered by the store: priority asc, then
+/// creation order); stop after the first matching route unless it has `continue ==
+/// true`. Returns each unique receiver (first-match order) paired with the grouping
+/// parameters from the FIRST route that selected it (route defaults applied).
 ///
 /// The route-default `group_by` (used only when the route sets none) depends on whether
 /// `ev` is SLO-originated: SLO events default to `slo_default_group_by(&ev.labels)`
@@ -210,6 +177,14 @@ mod tests {
         }
     }
 
+    /// Route-walk receiver names for `ev`, via the production selection path.
+    fn receivers(routes: &[Route], ev: &Event) -> Vec<String> {
+        select_grouping_targets(routes, ev)
+            .into_iter()
+            .map(|t| t.receiver)
+            .collect()
+    }
+
     #[test]
     fn synthetic_severity_and_status_are_matchable() {
         let labels = match_labels(&ev(Severity::Critical, &[("svc", "api")]));
@@ -225,8 +200,8 @@ mod tests {
         let labels = match_labels(&e);
         assert_eq!(labels["kind"], "rule_health");
 
-        let alert = match_labels(&ev(Severity::Info, &[]));
-        assert_eq!(alert["kind"], "alert");
+        let alert = ev(Severity::Info, &[]);
+        assert_eq!(match_labels(&alert)["kind"], "alert");
 
         // A health route selects health and not a plain alert.
         let routes = vec![route(
@@ -234,8 +209,8 @@ mod tests {
             false,
             vec![m("kind", MatchOp::Eq, "rule_health")],
         )];
-        assert_eq!(select_receivers(&routes, &labels), vec!["ops"]);
-        assert!(select_receivers(&routes, &alert).is_empty());
+        assert_eq!(receivers(&routes, &e), vec!["ops"]);
+        assert!(receivers(&routes, &alert).is_empty());
     }
 
     #[test]
@@ -255,53 +230,53 @@ mod tests {
 
     #[test]
     fn first_match_wins_without_continue() {
-        let labels = match_labels(&ev(Severity::Critical, &[]));
+        let e = ev(Severity::Critical, &[]);
         let routes = vec![
             route("pd", false, vec![m("severity", MatchOp::Eq, "critical")]),
             route("ops", false, vec![m("severity", MatchOp::Eq, "critical")]),
         ];
-        assert_eq!(select_receivers(&routes, &labels), vec!["pd"]);
+        assert_eq!(receivers(&routes, &e), vec!["pd"]);
     }
 
     #[test]
     fn continue_collects_multiple_receivers() {
-        let labels = match_labels(&ev(Severity::Critical, &[]));
+        let e = ev(Severity::Critical, &[]);
         let routes = vec![
             route("pd", true, vec![m("severity", MatchOp::Eq, "critical")]),
             route("ops", false, vec![m("severity", MatchOp::Eq, "critical")]),
         ];
-        assert_eq!(select_receivers(&routes, &labels), vec!["pd", "ops"]);
+        assert_eq!(receivers(&routes, &e), vec!["pd", "ops"]);
     }
 
     #[test]
     fn non_matching_routes_are_skipped() {
-        let labels = match_labels(&ev(Severity::Warning, &[("svc", "api")]));
+        let e = ev(Severity::Warning, &[("svc", "api")]);
         let routes = vec![
             route("pd", false, vec![m("severity", MatchOp::Eq, "critical")]),
             route("ops", false, vec![m("svc", MatchOp::Eq, "api")]),
         ];
-        assert_eq!(select_receivers(&routes, &labels), vec!["ops"]);
+        assert_eq!(receivers(&routes, &e), vec!["ops"]);
     }
 
     #[test]
     fn regex_is_anchored_and_ne_handles_missing() {
-        let labels = match_labels(&ev(Severity::Warning, &[("svc", "api-1")]));
-        assert!(select_receivers(
+        let e = ev(Severity::Warning, &[("svc", "api-1")]);
+        assert!(receivers(
             &[route("r", false, vec![m("svc", MatchOp::Regex, "api")])],
-            &labels
+            &e
         )
         .is_empty());
         assert_eq!(
-            select_receivers(
+            receivers(
                 &[route("r", false, vec![m("svc", MatchOp::Regex, "api-.*")])],
-                &labels
+                &e
             ),
             vec!["r"]
         );
         assert_eq!(
-            select_receivers(
+            receivers(
                 &[route("r", false, vec![m("absent", MatchOp::Ne, "x")])],
-                &labels
+                &e
             ),
             vec!["r"]
         );
@@ -405,12 +380,12 @@ mod tests {
     proptest! {
         #[test]
         fn empty_matchers_always_selects_first(extra in prop::collection::vec("[a-z]{1,4}", 0..3)) {
-            let labels = match_labels(&ev(Severity::Info, &[]));
+            let e = ev(Severity::Info, &[]);
             let mut routes = vec![route("first", false, vec![])];
             for (i, name) in extra.iter().enumerate() {
                 routes.push(route(&format!("{name}{i}"), false, vec![]));
             }
-            prop_assert_eq!(select_receivers(&routes, &labels), vec!["first".to_string()]);
+            prop_assert_eq!(receivers(&routes, &e), vec!["first".to_string()]);
         }
     }
 }

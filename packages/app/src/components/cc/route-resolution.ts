@@ -14,28 +14,49 @@ export function ccOpSymbol(op: CcMatcher["op"]): string {
   return OP_SYMBOL[op];
 }
 
+// Module-level cache of compiled anchored patterns, keyed by the raw pattern
+// string (null = known-invalid, never matches). Mirrors matching.rs's
+// REGEX_CACHE: patterns come from routes/silences/inhibitions, so the distinct
+// count is bounded by configuration size and the map is intentionally unbounded.
+const REGEX_CACHE = new Map<string, RegExp | null>();
+
+/**
+ * Anchored (full-string) regex match, mirroring matching.rs `regex_full_match`:
+ * the pattern is compiled as `^(?:pattern)$`, and an invalid pattern never
+ * matches. Each distinct pattern is compiled at most once.
+ */
+function ccRegexFullMatch(pattern: string, value: string): boolean {
+  let re = REGEX_CACHE.get(pattern);
+  if (re === undefined) {
+    try {
+      re = new RegExp(`^(?:${pattern})$`);
+    } catch {
+      re = null;
+    }
+    REGEX_CACHE.set(pattern, re);
+  }
+  return re?.test(value) ?? false;
+}
+
+/**
+ * Match one matcher against a label set, mirroring matching.rs
+ * `matcher_matches`. A missing label is the empty string (Alertmanager-like):
+ * `severity != critical` is true when `severity` is absent.
+ */
 export function ccMatcherMatches(
   m: CcMatcher,
   labels: Record<string, string>,
 ): boolean {
-  const v = labels[m.label];
+  const v = labels[m.label] ?? "";
   switch (m.op) {
     case "eq":
       return v === m.value;
     case "ne":
       return v !== m.value;
     case "regex":
-      try {
-        return v != null && new RegExp(m.value).test(v);
-      } catch {
-        return false;
-      }
+      return ccRegexFullMatch(m.value, v);
     case "notregex":
-      try {
-        return v == null || !new RegExp(m.value).test(v);
-      } catch {
-        return false;
-      }
+      return !ccRegexFullMatch(m.value, v);
   }
 }
 
@@ -46,29 +67,9 @@ export function ccRouteMatches(
   return matchers.every((m) => ccMatcherMatches(m, labels));
 }
 
-/** First route matching `labels`, by ascending priority (first match wins). */
-export function ccFirstRoute(
-  routes: CcRoute[],
-  labels: Record<string, string>,
-): CcRoute | null {
-  return (
-    [...routes]
-      .sort((a, b) => a.priority - b.priority)
-      .find((r) => ccRouteMatches(r.matchers, labels)) ?? null
-  );
-}
-
-/**
- * The synthetic label keys the dispatcher injects, in CC's own order
- * (dispatcher/routing.rs `synthetic_labels`). The one list every suggestion
- * surface reads, so it cannot drift from ccSyntheticLabels below.
- */
-export const CC_SYNTHETIC_LABEL_KEYS = [
-  "severity",
-  "status",
-  "rule",
-  "kind",
-] as const;
+// Re-exported so existing importers keep working; the list lives with the
+// rest of the CC data layer.
+export { CC_SYNTHETIC_LABEL_KEYS } from "@/data/cc/synthetic-labels";
 
 /**
  * The label set CC's dispatcher actually matches routes/silences/inhibitions

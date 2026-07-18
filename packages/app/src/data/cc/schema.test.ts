@@ -11,24 +11,7 @@ import {
   CcSubscriptionSchema,
 } from "./schema";
 
-it("normalizes CC's array timestamp format to an ISO string", () => {
-  // Shape observed from a live CC `/v1/alerts` response (time-crate default serde).
-  const a = CcAlertSchema.parse({
-    key: "k",
-    rule: "r",
-    tenant: "t",
-    status: "firing",
-    labels: { svc: "always" },
-    value: 1.0,
-    active_since: [2026, 167, 15, 53, 50, 186382000, 0, 0, 0],
-    last_seen: [2026, 167, 15, 54, 20, 347598000, 0, 0, 0],
-    absent_count: 0,
-  });
-  expect(a.active_since).toBe("2026-06-16T15:53:50.186Z");
-  expect(a.last_seen).toBe("2026-06-16T15:54:20.347Z");
-});
-
-it("still accepts RFC-3339 string timestamps", () => {
+it("accepts RFC-3339 string timestamps", () => {
   const a = CcAlertSchema.parse({
     key: "k",
     rule: "r",
@@ -347,16 +330,6 @@ it("parses a subscription with an RFC-3339 created_at", () => {
   });
   expect(s.webhook_url).toBe("https://example.com/hook");
   expect(s.created_at).toBe("2026-06-14T12:00:00Z");
-});
-
-it("normalizes a subscription's array created_at to an ISO string", () => {
-  const s = CcSubscriptionSchema.parse({
-    id: "sub1",
-    tenant: "t",
-    webhook_url: "https://example.com/hook",
-    created_at: [2026, 167, 15, 53, 50, 186382000, 0, 0, 0],
-  });
-  expect(s.created_at).toBe("2026-06-16T15:53:50.186Z");
 });
 
 it("parses a rule spec with max_interval_secs and omits it when absent", () => {

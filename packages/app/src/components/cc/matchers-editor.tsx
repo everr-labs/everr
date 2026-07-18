@@ -12,6 +12,7 @@ import {
   type SuggestItem,
 } from "@everr/ui/components/suggest-combobox";
 import { Plus, X } from "lucide-react";
+import { CcMatchOpSchema } from "@/data/cc/schema";
 import {
   type CcLabelKeySuggestion,
   type CcLabelValueSuggestion,
@@ -19,13 +20,14 @@ import {
   listCcLabelValues,
 } from "@/data/cc/server";
 import type { CcMatcher } from "@/data/cc/types";
+import { ccOpSymbol } from "./route-resolution";
 
-const OPS: { value: CcMatcher["op"]; symbol: string }[] = [
-  { value: "eq", symbol: "=" },
-  { value: "ne", symbol: "≠" },
-  { value: "regex", symbol: "=~" },
-  { value: "notregex", symbol: "!~" },
-];
+// Derived from the schema so the operator list and its display symbols cannot
+// drift from the matcher vocabulary.
+const OPS = CcMatchOpSchema.options.map((value) => ({
+  value,
+  symbol: ccOpSymbol(value),
+}));
 
 const OP_PHRASE: Record<CcMatcher["op"], string> = {
   eq: "=",
@@ -110,7 +112,6 @@ export function MatchersEditor({
         </Button>
       </div>
       {value.map((row, i) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: rows are positional and have no stable id
         <div key={i} className="flex items-center gap-2">
           <SuggestCombobox
             label="Matcher label"

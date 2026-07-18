@@ -37,24 +37,36 @@ pub async fn relay_once(
     batch: i64,
 ) -> anyhow::Result<usize> {
     let claimed = store.claim_outbox(cutoff, batch).await?;
-    let mut republished = 0;
-    for (id, ev) in claimed {
-        match bus.publish(&ev).await {
-            Ok(()) => {
-                // Publish succeeded but delete failed: propagate via `?`. A delete_outbox
-                // error signals an unhealthy DB, and since the event is already published
-                // the row will simply be re-published next tick (a duplicate the dispatcher
-                // dedups). A publish failure, by contrast, is a transient broker hiccup we
-                // warn-and-continue on and retry next tick.
-                store.delete_outbox(id).await?;
-                republished += 1;
-            }
-            Err(e) => {
-                tracing::warn!(error = %e, "relay publish failed; will retry next tick");
-            }
-        }
+    if claimed.is_empty() {
+        return Ok(0);
     }
+    let (ids, events): (Vec<uuid::Uuid>, Vec<Event>) = claimed.into_iter().unzip();
+    // One pipelined publish for the whole batch; only the rows whose events actually
+    // published are deleted, so an unpublished row is retried next tick. A publish
+    // failure is a transient broker hiccup we warn-and-continue on.
+    let published = bus.publish_batch(&events).await?;
+    if published.len() < events.len() {
+        tracing::warn!(
+            failed = events.len() - published.len(),
+            "relay publish failed for some events; will retry next tick"
+        );
+    }
+    let to_delete = crate::evaluator::published_outbox_ids(&ids, &published);
+    let republished = to_delete.len();
+    // Publish succeeded but delete failed: propagate via `?`. A delete_outbox_batch
+    // error signals an unhealthy DB, and since the events are already published the
+    // rows will simply be re-published next tick (duplicates the dispatcher dedups).
+    store.delete_outbox_batch(&to_delete).await?;
     Ok(republished)
+}
+
+/// Which stale set a reconciliation pass drains: rule instances, or SLO burn-rate
+/// instances (which carry the scheduler cadence their stale predicate needs and stamp
+/// `slo` on the synthetic Resolved events).
+#[derive(Clone, Copy)]
+enum ReconcileKind {
+    Rule,
+    Slo { cadence_secs: i64 },
 }
 
 /// Auto-resolve stale instances as of `now`. Stale firing -> synthetic Resolved event
@@ -85,67 +97,7 @@ pub async fn reconcile_sweep(
     now: OffsetDateTime,
     batch: i64,
 ) -> anyhow::Result<usize> {
-    let mut total = 0;
-    loop {
-        let stale = store.list_stale_instances(now, batch).await?;
-        let n = stale.len();
-        if n == 0 {
-            break;
-        }
-        let mut next_states: Vec<InstanceState> = Vec::with_capacity(n);
-        let mut out_events: Vec<Event> = Vec::new();
-        for s in stale {
-            let (next, maybe_ev) = reconcile_transition(s, now);
-            if let Some(ev) = maybe_ev {
-                out_events.push(ev);
-            }
-            next_states.push(next);
-        }
-        crate::evaluator::commit_and_publish(store, bus, next_states, out_events).await?;
-        total += n;
-        // A short page means the backlog is drained; a full page means more may remain.
-        if (n as i64) < batch {
-            break;
-        }
-    }
-    Ok(total)
-}
-
-/// Pure reconciliation transition: a stale instance resets to Inactive; a stale FIRING
-/// instance additionally emits a synthetic Resolved event (others emit nothing).
-fn reconcile_transition(s: StaleInstance, now: OffsetDateTime) -> (InstanceState, Option<Event>) {
-    let next = InstanceState {
-        key: s.key.clone(),
-        rule: s.rule,
-        tenant: s.tenant.clone(),
-        status: Status::Inactive,
-        labels: s.labels.clone(),
-        value: s.value,
-        active_since: None,
-        last_seen: Some(now),
-        absent_count: 0,
-    };
-    let ev = match s.status {
-        Status::Firing => {
-            let mut ev = Event::new(
-                s.tenant,
-                s.rule,
-                s.key,
-                EventStatus::Resolved,
-                s.labels,
-                s.value,
-                s.severity,
-                s.annotations,
-                now,
-            );
-            // A preview rule's synthetic Resolved must not notify either. No source row
-            // here, so evidence stays None/untruncated.
-            ev.suppressed = s.suppressed;
-            Some(ev)
-        }
-        _ => None,
-    };
-    (next, ev)
+    sweep(store, bus, now, ReconcileKind::Rule, batch).await
 }
 
 /// Auto-resolve stale SLO burn-rate instances as of `now`. Mirrors [`reconcile_once`]/
@@ -171,11 +123,29 @@ pub async fn reconcile_slo_sweep(
     cadence_secs: i64,
     batch: i64,
 ) -> anyhow::Result<usize> {
+    sweep(store, bus, now, ReconcileKind::Slo { cadence_secs }, batch).await
+}
+
+/// The one sweep implementation behind [`reconcile_sweep`] and [`reconcile_slo_sweep`]:
+/// identical chunked drain, with `kind` selecting the stale lister, the commit path,
+/// and the transition's SLO stamping.
+async fn sweep(
+    store: &PgStore,
+    bus: &dyn EventBus,
+    now: OffsetDateTime,
+    kind: ReconcileKind,
+    batch: i64,
+) -> anyhow::Result<usize> {
     let mut total = 0;
     loop {
-        let stale = store
-            .list_stale_slo_instances(now, cadence_secs, batch)
-            .await?;
+        let stale = match kind {
+            ReconcileKind::Rule => store.list_stale_instances(now, batch).await?,
+            ReconcileKind::Slo { cadence_secs } => {
+                store
+                    .list_stale_slo_instances(now, cadence_secs, batch)
+                    .await?
+            }
+        };
         let n = stale.len();
         if n == 0 {
             break;
@@ -183,13 +153,21 @@ pub async fn reconcile_slo_sweep(
         let mut next_states: Vec<InstanceState> = Vec::with_capacity(n);
         let mut out_events: Vec<Event> = Vec::new();
         for s in stale {
-            let (next, maybe_ev) = reconcile_slo_transition(s, now);
+            let (next, maybe_ev) = reconcile_transition(s, now, kind);
             if let Some(ev) = maybe_ev {
                 out_events.push(ev);
             }
             next_states.push(next);
         }
-        crate::evaluator::slo::commit_and_publish_slo(store, bus, next_states, out_events).await?;
+        match kind {
+            ReconcileKind::Rule => {
+                crate::evaluator::commit_and_publish(store, bus, next_states, out_events).await?
+            }
+            ReconcileKind::Slo { .. } => {
+                crate::evaluator::slo::commit_and_publish_slo(store, bus, next_states, out_events)
+                    .await?
+            }
+        }
         total += n;
         // A short page means the backlog is drained; a full page means more may remain.
         if (n as i64) < batch {
@@ -199,13 +177,15 @@ pub async fn reconcile_slo_sweep(
     Ok(total)
 }
 
-/// Pure SLO reconciliation transition: twin of [`reconcile_transition`]. A stale
-/// instance resets to Inactive; a stale FIRING instance additionally emits a synthetic
-/// Resolved event stamped with `slo` (StaleInstance.rule carries the SLO uuid for
-/// `slo_instances` rows, per [`PgStore::list_stale_slo_instances`]).
-fn reconcile_slo_transition(
+/// Pure reconciliation transition: a stale instance resets to Inactive; a stale FIRING
+/// instance additionally emits a synthetic Resolved event (others emit nothing).
+/// For [`ReconcileKind::Slo`] the event is additionally stamped with `slo`
+/// (StaleInstance.rule carries the SLO uuid for `slo_instances` rows, per
+/// [`PgStore::list_stale_slo_instances`]).
+fn reconcile_transition(
     s: StaleInstance,
     now: OffsetDateTime,
+    kind: ReconcileKind,
 ) -> (InstanceState, Option<Event>) {
     let next = InstanceState {
         key: s.key.clone(),
@@ -231,9 +211,11 @@ fn reconcile_slo_transition(
                 s.annotations,
                 now,
             );
-            ev.slo = Some(SloId(s.rule.0));
-            // A suppressed (preview) SLO's synthetic Resolved must not notify either. No
-            // source row here, so evidence stays None/untruncated.
+            if let ReconcileKind::Slo { .. } = kind {
+                ev.slo = Some(SloId(s.rule.0));
+            }
+            // A preview (suppressed) rule's or SLO's synthetic Resolved must not notify
+            // either. No source row here, so evidence stays None/untruncated.
             ev.suppressed = s.suppressed;
             Some(ev)
         }
@@ -352,7 +334,7 @@ mod tests {
         let now = OffsetDateTime::UNIX_EPOCH + Duration::hours(50);
         let mut s = stale(Status::Firing);
         s.suppressed = true;
-        let (_, ev) = reconcile_transition(s, now);
+        let (_, ev) = reconcile_transition(s, now, ReconcileKind::Rule);
         let ev = ev.expect("stale firing emits a Resolved event");
         assert!(ev.suppressed);
         assert_eq!(ev.evidence, None);
@@ -374,7 +356,7 @@ mod tests {
 
         let results: Vec<_> = inputs
             .into_iter()
-            .map(|s| reconcile_transition(s, now))
+            .map(|s| reconcile_transition(s, now, ReconcileKind::Rule))
             .collect();
 
         // All next-states must be Inactive.

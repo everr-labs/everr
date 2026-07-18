@@ -1,9 +1,12 @@
 import { ApplyValidationError } from "@/data/as-code/errors";
+import { stableStringify } from "@/data/as-code/reconcile";
 import type { Reconciler } from "@/data/as-code/registry";
 import * as cc from "@/data/cc/client";
+import { CcApiError } from "@/data/cc/errors";
 import { authEnv } from "@/env/auth";
 import { querySqlApiWithMeta, type SqlApiResult } from "@/lib/clickhouse";
 import { errorMessage } from "@/telemetry/logger";
+import { mapSettledWithConcurrency } from "./concurrency";
 import {
   isOwnedRule,
   OWN_NAME,
@@ -51,11 +54,8 @@ function parseAlertRule(path: string, resource: unknown) {
   }
 
   const rule = parsed.data;
-  let evaluationIntervalSeconds: number;
   try {
-    evaluationIntervalSeconds = parseEvaluationInterval(
-      rule.spec.evaluationInterval,
-    );
+    parseEvaluationInterval(rule.spec.evaluationInterval);
     parseForDuration(rule.spec.for);
     validateQueryTemplate(rule.spec.query);
     // Message templates are validated result-dependently (any query result
@@ -65,7 +65,7 @@ function parseAlertRule(path: string, resource: unknown) {
     throw validationError(path, error);
   }
 
-  return { rule, slug: rule.metadata.name, evaluationIntervalSeconds };
+  return { rule, slug: rule.metadata.name };
 }
 
 // CC's evidence caps (pinned contract with clickety-clack's evaluator): events
@@ -159,56 +159,25 @@ async function validateAlertRuleQuery(
 // at once would risk exhausting the connection pool. Cap the in-flight queries.
 const VALIDATION_QUERY_CONCURRENCY = 8;
 
-// allSettled with a bounded worker pool: every item runs to completion and
-// results stay in input order, so callers can still report the first failure
-// deterministically.
-async function mapSettledWithConcurrency<T, R>(
-  items: T[],
-  limit: number,
-  fn: (item: T) => Promise<R>,
-): Promise<PromiseSettledResult<R>[]> {
-  const results = new Array<PromiseSettledResult<R>>(items.length);
-  let next = 0;
-  async function worker(): Promise<void> {
-    while (next < items.length) {
-      const index = next++;
-      try {
-        results[index] = { status: "fulfilled", value: await fn(items[index]) };
-      } catch (reason) {
-        results[index] = { status: "rejected", reason };
-      }
-    }
-  }
-  await Promise.all(
-    Array.from({ length: Math.min(limit, items.length) }, worker),
-  );
-  return results;
-}
+// Cap on in-flight CC mutations during a reconcile. Per-rule operations are
+// independent (CC keys rules by id, matched here by name before any call), so
+// they run in a bounded pool instead of strictly one at a time.
+const CC_MUTATION_CONCURRENCY = 8;
 
 // Stable identity for change detection: everything except ownership
-// annotations. Annotation key order is NOT stable across the YAML source and
-// CC's response, so we sort the annotation entries before hashing — otherwise a
-// rule with 2+ annotations would look "changed" on every apply and be needlessly
-// deleted+recreated.
+// annotations, serialized with all object keys recursively sorted so no key
+// order — the YAML source's, CC's serialization, or a parser's — can ever fake
+// a diff (which would needlessly rewrite the rule on every apply).
 function specFingerprint(spec: Record<string, unknown>): string {
   const ann = { ...(spec.annotations as Record<string, string> | undefined) };
   delete ann[OWN_NAME];
   delete ann[OWN_REPO];
-  const sortedAnnotations = Object.fromEntries(
-    Object.entries(ann).sort(([a], [b]) => a.localeCompare(b)),
-  );
-  return JSON.stringify({ ...spec, annotations: sortedAnnotations });
+  return stableStringify({ ...spec, annotations: ann });
 }
 
 // True for CC's optimistic-concurrency failure (PUT with a stale `version`).
-// Matched structurally instead of importing CcApiError so this module does not
-// pull the transport (and its env validation) into the test import graph.
 function isCcVersionConflict(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    error.name === "CcApiError" &&
-    (error as { status?: unknown }).status === 409
-  );
+  return error instanceof CcApiError && error.status === 409;
 }
 
 /**
@@ -304,54 +273,81 @@ export const applyAlertSpecs: Reconciler = async ({
   const updated: string[] = [];
   const deleted: string[] = [];
 
-  for (const d of desired) {
-    const cur = existingByName.get(d.name);
-    if (!cur) {
-      if (!dryRun) {
-        // link.alert needs the CC rule id, which only exists after create:
-        // create first, then immediately stamp the link with a follow-up PUT
-        // (guarded by the fresh version, so nothing can race in between).
-        const createdRule = await cc.createRule(orgId, d.spec);
-        await cc.updateRule(
-          orgId,
-          createdRule.id,
-          withAlertLink(d.spec, appBaseUrl, createdRule.id),
-          createdRule.version,
-        );
+  // Converge each desired rule. The rules are independent (each touches only
+  // its own CC rule, matched by name up front), so they run in a bounded pool;
+  // within one rule the create -> link-stamp PUT stays strictly sequential.
+  // Outcomes aggregate by input index and the first failure (in input order)
+  // is rethrown, matching the sequential loop's deterministic reporting.
+  const outcomes = await mapSettledWithConcurrency(
+    desired,
+    CC_MUTATION_CONCURRENCY,
+    async (d): Promise<"created" | "updated" | "unchanged"> => {
+      const cur = existingByName.get(d.name);
+      if (!cur) {
+        if (!dryRun) {
+          // link.alert needs the CC rule id, which only exists after create:
+          // create first, then immediately stamp the link with a follow-up PUT
+          // (guarded by the fresh version, so nothing can race in between).
+          const createdRule = await cc.createRule(orgId, d.spec);
+          await cc.updateRule(
+            orgId,
+            createdRule.id,
+            withAlertLink(d.spec, appBaseUrl, createdRule.id),
+            createdRule.version,
+          );
+        }
+        return "created";
       }
-      created.push(d.name);
-    } else {
       // The id is known, so the desired spec carries its link.alert; this also
       // keeps the fingerprint stable against the stored rule's annotation.
       const next = withAlertLink(d.spec, appBaseUrl, cur.id);
       if (
-        specFingerprint(cur.spec as Record<string, unknown>) !==
+        specFingerprint(cur.spec as Record<string, unknown>) ===
         specFingerprint(next as unknown as Record<string, unknown>)
       ) {
-        // Update in place: preserves the rule id and instance state (CC clears
-        // instances only when the label_columns set changes). The stored
-        // version guards against concurrent edits.
-        if (!dryRun) {
-          try {
-            await cc.updateRule(orgId, cur.id, next, cur.version);
-          } catch (error) {
-            if (isCcVersionConflict(error)) {
-              throw new ApplyValidationError(
-                `${d.path}: alert "${d.name}" was modified concurrently in the alert engine (version conflict); re-run apply`,
-              );
-            }
-            throw error;
-          }
-        }
-        updated.push(d.name);
+        return "unchanged";
       }
-    }
-    existingByName.delete(d.name);
-  }
-  for (const [name, cur] of existingByName) {
-    if (!dryRun) await cc.deleteRule(orgId, cur.id);
+      // Update in place: preserves the rule id and instance state (CC clears
+      // instances only when the label_columns set changes). The stored
+      // version guards against concurrent edits.
+      if (!dryRun) {
+        try {
+          await cc.updateRule(orgId, cur.id, next, cur.version);
+        } catch (error) {
+          if (isCcVersionConflict(error)) {
+            throw new ApplyValidationError(
+              `${d.path}: alert "${d.name}" was modified concurrently in the alert engine (version conflict); re-run apply`,
+            );
+          }
+          throw error;
+        }
+      }
+      return "updated";
+    },
+  );
+  desired.forEach((d, i) => {
+    const outcome = outcomes[i];
+    if (outcome.status === "rejected") throw outcome.reason;
+    if (outcome.value === "created") created.push(d.name);
+    if (outcome.value === "updated") updated.push(d.name);
+  });
+
+  // Scoped rules absent from config are pruned, same bounded pool. Runs only
+  // after every create/update settled cleanly, like the sequential version.
+  const desiredNames = new Set(desired.map((d) => d.name));
+  const stale = [...existingByName].filter(([name]) => !desiredNames.has(name));
+  const deletions = await mapSettledWithConcurrency(
+    stale,
+    CC_MUTATION_CONCURRENCY,
+    async ([, cur]) => {
+      if (!dryRun) await cc.deleteRule(orgId, cur.id);
+    },
+  );
+  stale.forEach(([name], i) => {
+    const outcome = deletions[i];
+    if (outcome.status === "rejected") throw outcome.reason;
     deleted.push(name);
-  }
+  });
 
   const notes = [
     ...(namespace.kind === "preview" ? [PREVIEW_NOTE] : []),

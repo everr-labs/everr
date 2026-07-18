@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import type { CcMatcher, CcRoute } from "@/data/cc/types";
 import {
   CC_SYNTHETIC_LABEL_KEYS,
-  ccFirstRoute,
   ccMatcherMatches,
   ccMatchingSilence,
   ccOpSymbol,
@@ -66,8 +65,9 @@ describe("ccMatcherMatches", () => {
     );
   });
 
-  it("regex: false when the label is missing (nothing to test against)", () => {
-    expect(ccMatcherMatches(matcher("regex", ".*"), {})).toBe(false);
+  it("regex: a missing label is the empty string, so permissive patterns match", () => {
+    expect(ccMatcherMatches(matcher("regex", ".*"), {})).toBe(true);
+    expect(ccMatcherMatches(matcher("regex", "pay"), {})).toBe(false);
   });
 
   it("regex: false (not throw) on an invalid pattern", () => {
@@ -86,12 +86,75 @@ describe("ccMatcherMatches", () => {
     ).toBe(false);
   });
 
-  it("notregex: false (not true) on an invalid pattern", () => {
-    // Pinning actual behavior: the catch branch returns false for notregex
-    // too, even though missing-label semantics would suggest true.
+  it("notregex: true on an invalid pattern (an invalid pattern never matches)", () => {
+    // Mirrors matching.rs: NotRegex is !regex_full_match, and regex_full_match
+    // is false for an invalid pattern, so notregex is true.
     expect(ccMatcherMatches(matcher("notregex", "("), { team: "pay" })).toBe(
-      false,
+      true,
     );
+  });
+
+  // Parity vectors copied from matching.rs's unit tests, so the TS port and
+  // the engine cannot silently diverge.
+  describe("parity with matching.rs", () => {
+    it("eq_and_ne", () => {
+      const l = { svc: "api" };
+      expect(ccMatcherMatches(matcher("eq", "api", "svc"), l)).toBe(true);
+      expect(ccMatcherMatches(matcher("eq", "web", "svc"), l)).toBe(false);
+      expect(ccMatcherMatches(matcher("ne", "web", "svc"), l)).toBe(true);
+    });
+
+    it("missing_label_is_empty_string", () => {
+      expect(ccMatcherMatches(matcher("eq", "api", "svc"), {})).toBe(false);
+      expect(ccMatcherMatches(matcher("ne", "api", "svc"), {})).toBe(true);
+      // eq "" matches a missing label: absent means empty string.
+      expect(ccMatcherMatches(matcher("eq", "", "svc"), {})).toBe(true);
+    });
+
+    it("regex_is_anchored", () => {
+      const l = { svc: "api" };
+      expect(ccMatcherMatches(matcher("regex", "api", "svc"), l)).toBe(true);
+      // Anchored, not a prefix.
+      expect(ccMatcherMatches(matcher("regex", "ap", "svc"), l)).toBe(false);
+      expect(ccMatcherMatches(matcher("regex", "ap.*", "svc"), l)).toBe(true);
+      expect(ccMatcherMatches(matcher("notregex", "web", "svc"), l)).toBe(true);
+    });
+
+    it("invalid_pattern_never_matches", () => {
+      expect(
+        ccMatcherMatches(matcher("regex", "[unterminated", "svc"), {
+          svc: "api",
+        }),
+      ).toBe(false);
+    });
+
+    it("repeated_patterns_are_consistent_and_cached", () => {
+      // Same pattern, many calls: behavior identical across calls (the
+      // pattern cache must not corrupt results).
+      for (let i = 0; i < 3; i++) {
+        expect(
+          ccMatcherMatches(matcher("regex", "api-.*", "svc"), { svc: "api-1" }),
+        ).toBe(true);
+        expect(
+          ccMatcherMatches(matcher("regex", "api-.*", "svc"), { svc: "web-1" }),
+        ).toBe(false);
+        expect(
+          ccMatcherMatches(matcher("regex", "[unterminated", "svc"), {
+            svc: "anything",
+          }),
+        ).toBe(false);
+      }
+      // Distinct patterns coexist in the cache.
+      expect(
+        ccMatcherMatches(matcher("regex", "a+", "svc"), { svc: "aaa" }),
+      ).toBe(true);
+      expect(
+        ccMatcherMatches(matcher("regex", "b+", "svc"), { svc: "bbb" }),
+      ).toBe(true);
+      expect(
+        ccMatcherMatches(matcher("regex", "a+", "svc"), { svc: "bbb" }),
+      ).toBe(false);
+    });
   });
 });
 
@@ -111,43 +174,6 @@ describe("ccRouteMatches", () => {
     expect(ccRouteMatches(matchers, { team: "pay", severity: "warning" })).toBe(
       false,
     );
-  });
-});
-
-describe("ccFirstRoute", () => {
-  it("picks the matching route with the lowest priority number", () => {
-    const low = route(1, [matcher("eq", "pay")]);
-    const high = route(5, [matcher("eq", "pay")]);
-    expect(ccFirstRoute([high, low], { team: "pay" })).toBe(low);
-  });
-
-  it("skips non-matching routes regardless of priority", () => {
-    const low = route(1, [matcher("eq", "core")]);
-    const high = route(5, [matcher("eq", "pay")]);
-    expect(ccFirstRoute([low, high], { team: "pay" })).toBe(high);
-  });
-
-  it("returns null when no route matches", () => {
-    expect(
-      ccFirstRoute([route(1, [matcher("eq", "core")])], { team: "pay" }),
-    ).toBeNull();
-  });
-
-  it("breaks ties on equal priority by original array order (stable sort)", () => {
-    const first = route(1, [matcher("eq", "pay")], { id: "first" });
-    const second = route(1, [matcher("eq", "pay")], { id: "second" });
-    expect(ccFirstRoute([first, second], { team: "pay" })).toBe(first);
-    expect(ccFirstRoute([second, first], { team: "pay" })).toBe(second);
-  });
-
-  it("does not mutate the input array", () => {
-    const routes = [
-      route(5, [matcher("eq", "pay")]),
-      route(1, [matcher("eq", "pay")]),
-    ];
-    const copy = [...routes];
-    ccFirstRoute(routes, { team: "pay" });
-    expect(routes).toEqual(copy);
   });
 });
 

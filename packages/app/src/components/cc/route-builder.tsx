@@ -6,7 +6,6 @@ import { Button } from "@everr/ui/components/button";
 import {
   Collapsible,
   CollapsibleContent,
-  CollapsibleTrigger,
 } from "@everr/ui/components/collapsible";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
@@ -19,12 +18,15 @@ import {
 } from "@everr/ui/components/select";
 import { Switch } from "@everr/ui/components/switch";
 import { TagsInput } from "@everr/ui/components/tags-input";
-import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, ChevronRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { CcConceptNote, ccErrorMessage } from "@/components/cc/shared";
+import {
+  CcConceptNote,
+  CcDisclosureTrigger,
+  ccErrorMessage,
+} from "@/components/cc/shared";
 import { createCcRoute, updateCcRoute } from "@/data/cc/server";
 import type { CcMatcher, CcReceiver, CcRoute } from "@/data/cc/types";
 import { CcDrawer } from "./cc-drawer";
@@ -256,18 +258,7 @@ export function RouteBuilder({
           collapsed by default, with the effective values (engine defaults
           where unset) always readable on the trigger line. */}
       <Collapsible open={timingOpen} onOpenChange={setTimingOpen}>
-        <CollapsibleTrigger
-          className={cn(
-            "flex w-full items-center gap-1.5 rounded-md border border-border bg-muted/20 px-3 py-2 text-left",
-            "outline-2 outline-dotted outline-transparent outline-offset-[-2px] transition-colors duration-150 hover:bg-muted/40 focus-visible:outline-primary",
-          )}
-        >
-          <ChevronRight
-            className={cn(
-              "size-3.5 shrink-0 text-muted-foreground transition-transform duration-150",
-              timingOpen && "rotate-90",
-            )}
-          />
+        <CcDisclosureTrigger open={timingOpen}>
           <span className="text-xs font-medium">Timing</span>
           <span className="min-w-0 truncate font-mono text-[0.6875rem] text-muted-foreground">
             {effectiveTimingSummary({
@@ -277,7 +268,7 @@ export function RouteBuilder({
               repeatIntervalSecs: repeat.value,
             })}
           </span>
-        </CollapsibleTrigger>
+        </CcDisclosureTrigger>
         <CollapsibleContent>
           <div className="space-y-3 rounded-b-md border-x border-b border-border/60 p-3">
             <div className="space-y-1.5">

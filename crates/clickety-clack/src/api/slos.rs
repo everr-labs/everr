@@ -3,22 +3,17 @@ use axum::http::HeaderMap;
 use axum::Json;
 use serde::Deserialize;
 use serde_json::{json, Value};
+use std::collections::{BTreeMap, HashMap};
 use uuid::Uuid;
 
+use crate::api::auth::tenant;
 use crate::api::error::ApiError;
 use crate::api::AppState;
-use crate::domain::ids::{SloId, TenantId};
-use crate::domain::instance::Status;
+use crate::domain::ids::SloId;
+use crate::domain::instance::{InstanceState, Status};
 use crate::domain::slo::{parse_window_secs, Slo, SloSpec};
 use crate::engine::slo_math::{time_to_exhaustion_secs, SloStatusPayload};
 use crate::stores::{SloCreate, SloUpdate};
-
-fn tenant(state: &AppState, headers: &HeaderMap) -> Result<crate::domain::ids::TenantId, ApiError> {
-    state
-        .auth
-        .tenant_from(headers)
-        .ok_or(ApiError::Unauthorized)
-}
 
 #[derive(Deserialize)]
 pub struct CreateSloBody {
@@ -43,12 +38,7 @@ pub async fn create(
     let t = tenant(&state, &headers)?;
     validate_name(&body.name)?;
     validate_slo_spec(&body.spec)?;
-    match state
-        .store
-        .create_slo(t, &body.name, &body.spec)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?
-    {
+    match state.store.create_slo(t, &body.name, &body.spec).await? {
         SloCreate::Created(slo) => Ok(Json(slo)),
         SloCreate::NameConflict => Err(ApiError::Conflict(format!(
             "SLO name {:?} already exists",
@@ -66,8 +56,7 @@ pub async fn get(
     state
         .store
         .get_slo(t, SloId(id))
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?
+        .await?
         .map(Json)
         .ok_or(ApiError::NotFound)
 }
@@ -77,11 +66,7 @@ pub async fn list(
     headers: HeaderMap,
 ) -> Result<Json<Vec<Slo>>, ApiError> {
     let t = tenant(&state, &headers)?;
-    let slos = state
-        .store
-        .list_slos(&t)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    let slos = state.store.list_slos(&t).await?;
     Ok(Json(slos))
 }
 
@@ -97,8 +82,7 @@ pub async fn update(
     let outcome = state
         .store
         .update_slo(t, SloId(id), &body.name, &body.spec, body.version)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+        .await?;
     match outcome {
         SloUpdate::Updated(slo) => Ok(Json(slo)),
         SloUpdate::NotFound => Err(ApiError::NotFound),
@@ -119,11 +103,7 @@ pub async fn delete(
     Path(id): Path<Uuid>,
 ) -> Result<Json<Value>, ApiError> {
     let t = tenant(&state, &headers)?;
-    let ok = state
-        .store
-        .delete_slo(t, SloId(id))
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    let ok = state.store.delete_slo(t, SloId(id)).await?;
     if ok {
         Ok(Json(json!({ "deleted": true })))
     } else {
@@ -131,27 +111,37 @@ pub async fn delete(
     }
 }
 
-pub async fn pause(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    Path(id): Path<Uuid>,
+/// Shared body of `pause`/`resume`: flip the paused flag, then return the
+/// stored SLO. A miss on either step is a 404.
+async fn set_paused(
+    state: &AppState,
+    headers: &HeaderMap,
+    id: SloId,
+    pause: bool,
 ) -> Result<Json<Slo>, ApiError> {
-    let t = tenant(&state, &headers)?;
-    let ok = state
-        .store
-        .pause_slo(t.clone(), SloId(id))
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    let t = tenant(state, headers)?;
+    let ok = if pause {
+        state.store.pause_slo(t.clone(), id).await?
+    } else {
+        state.store.resume_slo(t.clone(), id).await?
+    };
     if !ok {
         return Err(ApiError::NotFound);
     }
     state
         .store
-        .get_slo(t, SloId(id))
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?
+        .get_slo(t, id)
+        .await?
         .map(Json)
         .ok_or(ApiError::NotFound)
+}
+
+pub async fn pause(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Slo>, ApiError> {
+    set_paused(&state, &headers, SloId(id), true).await
 }
 
 pub async fn resume(
@@ -159,22 +149,7 @@ pub async fn resume(
     headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Slo>, ApiError> {
-    let t = tenant(&state, &headers)?;
-    let ok = state
-        .store
-        .resume_slo(t.clone(), SloId(id))
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
-    if !ok {
-        return Err(ApiError::NotFound);
-    }
-    state
-        .store
-        .get_slo(t, SloId(id))
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?
-        .map(Json)
-        .ok_or(ApiError::NotFound)
+    set_paused(&state, &headers, SloId(id), false).await
 }
 
 /// Read-only view of the evaluator's latest status snapshot for an SLO
@@ -276,21 +251,17 @@ pub async fn status(
     Path(id): Path<Uuid>,
 ) -> Result<Json<SloStatusOut>, ApiError> {
     let t = tenant(&state, &headers)?;
-    let row = state
-        .store
-        .get_slo_status(&t, SloId(id))
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?
-        .ok_or(ApiError::NotFound)?;
-    // 404 stays keyed on the snapshot row above; health is fetched only once the SLO
-    // is known to exist (the snapshot query already guarantees that in practice).
-    let health = state
-        .store
-        .get_slo_health(&t, SloId(id))
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?
-        .ok_or(ApiError::NotFound)?;
-    let payload = enrich_status_payload(&state, &t, SloId(id), row.payload).await?;
+    // Three independent reads, issued concurrently. 404 stays keyed on the
+    // snapshot row (checked first below); health is a sibling read that the
+    // snapshot's existence already guarantees in practice.
+    let (row, health, instances) = tokio::try_join!(
+        state.store.get_slo_status(&t, SloId(id)),
+        state.store.get_slo_health(&t, SloId(id)),
+        state.store.load_slo_instances(&t, SloId(id)),
+    )?;
+    let row = row.ok_or(ApiError::NotFound)?;
+    let health = health.ok_or(ApiError::NotFound)?;
+    let payload = enrich_status_payload(row.payload, &instances);
     Ok(Json(SloStatusOut {
         computed_at: row.computed_at,
         payload,
@@ -307,27 +278,31 @@ pub async fn status(
 /// If the stored payload doesn't deserialize as `SloStatusPayload` (a legacy
 /// or corrupt row), the raw payload is served unmodified instead of erroring:
 /// the read path must not 500 on old data.
-async fn enrich_status_payload(
-    state: &AppState,
-    t: &TenantId,
-    id: SloId,
-    raw: Value,
-) -> Result<Value, ApiError> {
-    let payload: SloStatusPayload = match serde_json::from_value(raw.clone()) {
+fn enrich_status_payload(raw: Value, instances: &[InstanceState]) -> Value {
+    let payload: SloStatusPayload = match SloStatusPayload::deserialize(&raw) {
         Ok(p) => p,
-        Err(_) => return Ok(raw),
+        Err(_) => return raw,
     };
     let budget_window_secs = parse_window_secs(&payload.window).ok();
-    let instances = state
-        .store
-        .load_slo_instances(t, id)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
 
-    let groups: Vec<Value> = payload
-        .groups
-        .iter()
-        .map(|g| {
+    // One pass over the instances: bucket each non-inactive tier instance under
+    // its labels minus the injected `slo_tier` discriminator, keeping the
+    // stored instance order within each bucket.
+    let mut tiers_by_labels: HashMap<BTreeMap<String, String>, Vec<Value>> = HashMap::new();
+    for inst in instances.iter().filter(|i| i.status != Status::Inactive) {
+        let mut labels = inst.labels.clone();
+        let Some(tier) = labels.remove("slo_tier") else {
+            continue;
+        };
+        tiers_by_labels.entry(labels).or_default().push(json!({
+            "tier": tier,
+            "status": serde_json::to_value(inst.status).unwrap_or(Value::Null),
+        }));
+    }
+
+    let mut out = serde_json::to_value(&payload).unwrap_or(raw);
+    if let Some(groups) = out.get_mut("groups").and_then(Value::as_array_mut) {
+        for (g, v) in payload.groups.iter().zip(groups) {
             // The first tier's long-window burn rate is the most currently-representative
             // sustained estimate: tiers are precedence-ordered fastest-first (see
             // `domain::slo::canonical_tiers`), so tier 0 is the fast-burn tier with the
@@ -339,36 +314,14 @@ async fn enrich_status_payload(
                 }
                 _ => None,
             };
-
-            let firing_tiers: Vec<Value> = instances
-                .iter()
-                .filter(|inst| inst.status != Status::Inactive)
-                .filter_map(|inst| {
-                    let mut labels = inst.labels.clone();
-                    let tier = labels.remove("slo_tier")?;
-                    (labels == g.labels).then(|| {
-                        json!({
-                            "tier": tier,
-                            "status": serde_json::to_value(inst.status).unwrap_or(Value::Null),
-                        })
-                    })
-                })
-                .collect();
-
-            let mut v = serde_json::to_value(g).unwrap_or(Value::Null);
+            let firing_tiers = tiers_by_labels.get(&g.labels).cloned().unwrap_or_default();
             if let Some(obj) = v.as_object_mut() {
                 obj.insert("time_to_exhaustion_secs".into(), json!(tte));
                 obj.insert("firing_tiers".into(), json!(firing_tiers));
             }
-            v
-        })
-        .collect();
-
-    let mut out = serde_json::to_value(&payload).unwrap_or(raw);
-    if let Some(obj) = out.as_object_mut() {
-        obj.insert("groups".into(), json!(groups));
+        }
     }
-    Ok(out)
+    out
 }
 
 /// Replace each ClickHouse-native `{name:Type}` query parameter with a

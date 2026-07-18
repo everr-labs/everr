@@ -17,6 +17,7 @@ vi.mock("@/env/auth", () => ({
 
 import { ApplyValidationError } from "@/data/as-code/errors";
 import * as cc from "@/data/cc/client";
+import { CcApiError } from "@/data/cc/errors";
 import type { DbExecutor } from "@/db/client";
 import { querySqlApiWithMeta } from "@/lib/clickhouse";
 import { applyAlertSpecs } from "./apply.server";
@@ -513,10 +514,11 @@ describe("applyAlertSpecs", () => {
       }),
     ]);
     mockedUpdateRule.mockRejectedValueOnce(
-      Object.assign(new Error("rule version mismatch: expected 3, current 4"), {
-        name: "CcApiError",
-        status: 409,
-      }),
+      new CcApiError(
+        409,
+        "conflict",
+        "rule version mismatch: expected 3, current 4",
+      ),
     );
 
     try {

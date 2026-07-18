@@ -11,19 +11,20 @@ import { CcConceptNote, ccErrorMessage } from "@/components/cc/shared";
 import {
   type CcLabelKeySuggestion,
   createCcInhibition,
-  listCcLabelKeys,
 } from "@/data/cc/server";
 import type { CcMatcher } from "@/data/cc/types";
 import { CcDrawer } from "./cc-drawer";
-import { MatchersEditor, matchersPhrase } from "./matchers-editor";
+import {
+  ccLabelKeyOptions,
+  MatchersEditor,
+  matchersPhrase,
+} from "./matchers-editor";
 import { PreviewLine } from "./route-builder";
 
 // The same key suggestions the matcher rows use, flattened to the string list
 // FilterCombobox consumes (synthetic keys like severity/rule included).
 const ccEqualKeyOptions = () => ({
-  queryKey: ["cc", "label-keys"] as const,
-  queryFn: () => listCcLabelKeys(),
-  staleTime: 60_000,
+  ...ccLabelKeyOptions(),
   select: (keys: CcLabelKeySuggestion[]) => keys.map((k) => k.key),
 });
 

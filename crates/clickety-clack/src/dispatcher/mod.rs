@@ -35,6 +35,7 @@ use crate::queue::groups::{GroupMeta, GroupStore};
 use crate::queue::{EventBus, EventEntry};
 use crate::stores::{PgStore, StoreError};
 use async_trait::async_trait;
+use futures::StreamExt;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -396,19 +397,32 @@ pub async fn run_group_flusher(
             }
             continue;
         }
-        for gid in ids {
-            flush_group(
-                &store,
-                bus.as_ref(),
-                notifiers.as_ref(),
-                groups.as_ref(),
-                cache.as_ref(),
-                cipher.as_ref(),
-                sink.as_ref(),
-                &gid,
-            )
+        // Claimed groups are independent; flush them with bounded concurrency so one
+        // slow channel (retries back off up to seconds) cannot head-of-line block the
+        // rest of the claim. Each flush keeps its own per-group logging and ledger
+        // bookkeeping.
+        let store = &store;
+        let bus = &bus;
+        let notifiers = &notifiers;
+        let groups = &groups;
+        let cache = &cache;
+        let cipher = &cipher;
+        let sink = &sink;
+        futures::stream::iter(ids)
+            .for_each_concurrent(8, |gid| async move {
+                flush_group(
+                    store,
+                    bus.as_ref(),
+                    notifiers.as_ref(),
+                    groups.as_ref(),
+                    cache.as_ref(),
+                    cipher.as_ref(),
+                    sink.as_ref(),
+                    &gid,
+                )
+                .await;
+            })
             .await;
-        }
     }
     tracing::info!("group flusher stopped");
 }
@@ -513,12 +527,13 @@ pub async fn flush_group(
         }
     }
 
-    let tenant = TenantId::from_trusted(meta.tenant.clone());
+    let tenant = TenantId::from_trusted(meta.tenant);
     let now = time::OffsetDateTime::now_utc();
-    let events = match filter_or_dead_letter(bus, cache, sink, tenant, events, gid, now).await {
-        Some(evs) => evs,
-        None => return, // snapshot load failed; batch dead-lettered inside the helper
-    };
+    let events =
+        match filter_or_dead_letter(bus, cache, sink, tenant.clone(), events, gid, now).await {
+            Some(evs) => evs,
+            None => return, // snapshot load failed; batch dead-lettered inside the helper
+        };
     if events.is_empty() {
         return; // every event suppressed at flush time (silence/inhibition)
     }
@@ -526,7 +541,6 @@ pub async fn flush_group(
         group_key: meta.group_key.clone(),
         events,
     };
-    let tenant = TenantId::from_trusted(meta.tenant);
     // Representative event for the dead-letter record (the batch shares a group key).
     let rep = notif.events[0].clone();
     // Resolve the buffered channel NAMES to their stored configs now, at delivery

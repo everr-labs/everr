@@ -40,6 +40,34 @@ pub trait Notifier: Send + Sync {
     async fn send(&self, target: &str, notif: &Notification) -> Result<(), NotifyError>;
 }
 
+/// The HTTP client shared in shape by all HTTP notifiers: a 10s overall timeout.
+pub fn default_http_client() -> reqwest::Client {
+    reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .expect("building reqwest client with timeout should not fail")
+}
+
+/// Classify a delivery response: 2xx ok; 4xx permanent; else transient.
+pub fn classify_status(status: reqwest::StatusCode) -> Result<(), NotifyError> {
+    if status.is_success() {
+        Ok(())
+    } else if status.is_client_error() {
+        Err(NotifyError::Permanent(format!("status {status}")))
+    } else {
+        Err(NotifyError::Transient(format!("status {status}")))
+    }
+}
+
+/// Like [`classify_status`], but for APIs whose 429 rate-limit is worth retrying:
+/// 2xx ok; 429 transient; other 4xx permanent; else transient.
+pub fn classify_status_429_transient(status: reqwest::StatusCode) -> Result<(), NotifyError> {
+    if status.as_u16() == 429 {
+        return Err(NotifyError::Transient("rate limited (429)".into()));
+    }
+    classify_status(status)
+}
+
 /// Generic webhook: POST `{group_key, events:[…]}` as JSON. 2xx = ok, 4xx = permanent,
 /// else transient.
 pub struct WebhookNotifier {
@@ -49,10 +77,7 @@ pub struct WebhookNotifier {
 impl WebhookNotifier {
     pub fn new() -> Self {
         Self {
-            http: reqwest::Client::builder()
-                .timeout(std::time::Duration::from_secs(10))
-                .build()
-                .expect("building reqwest client with timeout should not fail"),
+            http: default_http_client(),
         }
     }
 }
@@ -83,14 +108,7 @@ impl Notifier for WebhookNotifier {
             // Strip the URL: it is the secret delivery target and must not reach
             // notifications.last_error, the dead-letter stream, or logs.
             .map_err(|e| NotifyError::Transient(e.without_url().to_string()))?;
-        let status = resp.status();
-        if status.is_success() {
-            Ok(())
-        } else if status.is_client_error() {
-            Err(NotifyError::Permanent(format!("status {status}")))
-        } else {
-            Err(NotifyError::Transient(format!("status {status}")))
-        }
+        classify_status(resp.status())
     }
 }
 

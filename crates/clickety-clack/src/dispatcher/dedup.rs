@@ -16,10 +16,7 @@ pub fn dedup_key(channel: &str, target: &str, ev: &Event) -> String {
     h.update(b"\x00");
     h.update(ev.instance_key.0.as_bytes());
     h.update(b"\x00");
-    h.update(match ev.status {
-        crate::domain::EventStatus::Firing => b"firing".as_slice(),
-        crate::domain::EventStatus::Resolved => b"resolved".as_slice(),
-    });
+    h.update(ev.status.as_str().as_bytes());
     h.update(b"\x00");
     h.update(ev.eval_ts.unix_timestamp_nanos().to_be_bytes());
     hex::encode(h.finalize())

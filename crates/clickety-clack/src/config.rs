@@ -34,12 +34,6 @@ pub struct Config {
     pub node_id: String,
     pub rule_degrade_after: u32,
     pub slo_base_cadence_secs: u32,
-    /// Reserved tunable: the per-window freshness cadence (Task 2's `is_window_due`)
-    /// is currently derived from each SLO's own window durations, not from this
-    /// value. Threaded through config now so a future budget-refresh cadence knob
-    /// doesn't need a config-shape change; not yet read anywhere.
-    #[allow(dead_code)]
-    pub slo_budget_refresh_secs: u32,
     pub scheduler_shards: u32,
     pub scheduler_member_ttl_ms: u64,
     pub smtp: Option<SmtpConfig>,
@@ -112,11 +106,6 @@ impl Config {
                 .ok()
                 .filter(|&n| n >= 1)
                 .unwrap_or(30),
-            slo_budget_refresh_secs: var("CC_SLO_BUDGET_REFRESH_SECS", "300")
-                .parse()
-                .ok()
-                .filter(|&n| n >= 1)
-                .unwrap_or(300),
             smtp,
             secret_provider: var("CC_SECRET_PROVIDER", "env"),
             secret_keys: env::var("CC_SECRET_KEYS").ok(),

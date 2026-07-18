@@ -1,18 +1,11 @@
-use crate::dispatcher::notify::{Notification, Notifier, NotifyError};
-use crate::domain::rule::Severity;
+use crate::dispatcher::notify::{
+    classify_status_429_transient, default_http_client, Notification, Notifier, NotifyError,
+};
 use crate::domain::{Event, EventStatus};
 use async_trait::async_trait;
 use serde_json::{json, Value};
 
 const DEFAULT_ENQUEUE_URL: &str = "https://events.pagerduty.com/v2/enqueue";
-
-fn pd_severity(s: Severity) -> &'static str {
-    match s {
-        Severity::Info => "info",
-        Severity::Warning => "warning",
-        Severity::Critical => "critical",
-    }
-}
 
 /// PagerDuty caps `payload.summary` at 1024 characters; longer summaries are rejected
 /// with a 400 (a permanent, dead-lettering failure), so truncate defensively.
@@ -47,7 +40,7 @@ pub fn build_pagerduty_payload(routing_key: &str, ev: &Event) -> Value {
     let summary = truncate_chars(
         format!(
             "[{}] {}",
-            pd_severity(ev.severity),
+            ev.severity.as_str(),
             crate::dispatcher::render::headline(ev)
         ),
         PD_SUMMARY_MAX_CHARS,
@@ -59,7 +52,7 @@ pub fn build_pagerduty_payload(routing_key: &str, ev: &Event) -> Value {
         "payload": {
             "summary": summary,
             "source": ev.instance_key.0,
-            "severity": pd_severity(ev.severity),
+            "severity": ev.severity.as_str(),
             "custom_details": custom_details,
         }
     });
@@ -91,10 +84,7 @@ impl PagerDutyNotifier {
     /// For tests: point the enqueue POST at a stub server.
     pub fn with_base_url(base_url: &str) -> Self {
         Self {
-            http: reqwest::Client::builder()
-                .timeout(std::time::Duration::from_secs(10))
-                .build()
-                .expect("building reqwest client with timeout should not fail"),
+            http: default_http_client(),
             base_url: base_url.to_string(),
         }
     }
@@ -126,16 +116,7 @@ impl Notifier for PagerDutyNotifier {
                 // base_url carries no secret, but strip the URL defensively so a
                 // future change can't leak it into last_error/dead-letter/logs.
                 .map_err(|e| NotifyError::Transient(e.without_url().to_string()))?;
-            let status = resp.status();
-            if status.is_success() {
-                continue;
-            } else if status.as_u16() == 429 {
-                return Err(NotifyError::Transient("rate limited (429)".into()));
-            } else if status.is_client_error() {
-                return Err(NotifyError::Permanent(format!("status {status}")));
-            } else {
-                return Err(NotifyError::Transient(format!("status {status}")));
-            }
+            classify_status_429_transient(resp.status())?;
         }
         Ok(())
     }
@@ -145,6 +126,7 @@ impl Notifier for PagerDutyNotifier {
 mod tests {
     use super::*;
     use crate::domain::ids::{InstanceKey, RuleId, TenantId};
+    use crate::domain::rule::Severity;
     use std::collections::BTreeMap;
     use time::OffsetDateTime;
     use uuid::Uuid;

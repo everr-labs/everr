@@ -80,6 +80,9 @@ impl FilterCache {
         let key = tenant.as_str().to_string();
         let snap = Arc::new(self.load(tenant).await?);
         let mut guard = self.entries.write().await;
+        // Evict expired entries while holding the write lock anyway, so tenants that
+        // stop emitting don't pin their last snapshot in memory forever.
+        guard.retain(|_, e| e.loaded_at.elapsed() <= self.ttl);
         guard.insert(
             key,
             Entry {
@@ -92,23 +95,25 @@ impl FilterCache {
 
     async fn load(&self, tenant: TenantId) -> Result<Snapshot, StoreError> {
         let now = time::OffsetDateTime::now_utc();
-        let silences = self.store.list_active_silences(tenant.clone(), now).await?;
-        let mut inhibitions = self.store.list_inhibitions(tenant.clone()).await?;
-        let routes = self.store.routes_for(tenant.clone()).await?;
-        let receivers = self.store.list_receivers(tenant.clone()).await?;
-
+        // The seven reads are independent; issue them concurrently.
+        //
         // Spec §5: every SLO auto-provisions tier inhibitions, synthesized in-memory on
         // every load (never stored — see `dispatcher::slo_inhibit`). Uses the lean
         // dispatch projection (id/tenant/label_columns/tiers) instead of `list_slos`, so
         // a refresh never decodes the full spec (SQL text, target, window...) of every
         // SLO just to synthesize inhibitions.
-        let slos = self.store.list_slos_for_dispatch(&tenant).await?;
+        let (silences, mut inhibitions, routes, receivers, slos, firing_rules, firing_slos) = tokio::try_join!(
+            self.store.list_active_silences(tenant.clone(), now),
+            self.store.list_inhibitions(tenant.clone()),
+            self.store.routes_for(tenant.clone()),
+            self.store.list_receivers(tenant.clone()),
+            self.store.list_slos_for_dispatch(&tenant),
+            self.store.list_firing(tenant.clone()),
+            self.store.list_firing_slos(&tenant),
+        )?;
         inhibitions.extend(synthesize_slo_inhibitions(&slos));
 
-        let mut firing: Vec<(InstanceKey, BTreeMap<String, String>)> = self
-            .store
-            .list_firing(tenant.clone())
-            .await?
+        let mut firing: Vec<(InstanceKey, BTreeMap<String, String>)> = firing_rules
             .into_iter()
             .map(|f| {
                 let labels = synthetic_labels(
@@ -125,23 +130,17 @@ impl FilterCache {
         // SLO-originated firing instances (`FiringInstance.rule` type-puns the SLO uuid)
         // join the same source-set, labeled with their SLO identity so the synthesized
         // inhibitions' `equal: ["slo", ...]` comparison sees the label on both sides.
-        firing.extend(
-            self.store
-                .list_firing_slos(&tenant)
-                .await?
-                .into_iter()
-                .map(|f| {
-                    let labels = synthetic_labels(
-                        &f.labels,
-                        f.severity,
-                        EventStatus::Firing,
-                        f.rule,
-                        crate::domain::EventKind::Alert,
-                        Some(SloId(f.rule.0)),
-                    );
-                    (f.key, labels)
-                }),
-        );
+        firing.extend(firing_slos.into_iter().map(|f| {
+            let labels = synthetic_labels(
+                &f.labels,
+                f.severity,
+                EventStatus::Firing,
+                f.rule,
+                crate::domain::EventKind::Alert,
+                Some(SloId(f.rule.0)),
+            );
+            (f.key, labels)
+        }));
         Ok(Snapshot {
             silences,
             inhibitions,

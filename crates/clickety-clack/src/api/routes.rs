@@ -1,3 +1,4 @@
+use crate::api::auth::tenant;
 use crate::api::error::ApiError;
 use crate::api::AppState;
 use crate::domain::routing::{Matcher, Route};
@@ -7,13 +8,6 @@ use axum::Json;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use uuid::Uuid;
-
-fn tenant(state: &AppState, headers: &HeaderMap) -> Result<crate::domain::ids::TenantId, ApiError> {
-    state
-        .auth
-        .tenant_from(headers)
-        .ok_or(ApiError::Unauthorized)
-}
 
 /// Minimum accepted `repeat_interval_secs` (anything shorter is a paging loop, not a
 /// reminder cadence).
@@ -75,8 +69,7 @@ pub async fn create(
             body.group_interval_secs,
             body.repeat_interval_secs,
         )
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+        .await?;
     Ok(Json(route))
 }
 
@@ -104,8 +97,7 @@ pub async fn update(
             body.group_interval_secs,
             body.repeat_interval_secs,
         )
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+        .await?;
     updated.map(Json).ok_or(ApiError::NotFound)
 }
 
@@ -114,11 +106,7 @@ pub async fn list(
     headers: HeaderMap,
 ) -> Result<Json<Value>, ApiError> {
     let t = tenant(&state, &headers)?;
-    let routes = state
-        .store
-        .routes_for(t)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    let routes = state.store.routes_for(t).await?;
     Ok(Json(json!(routes)))
 }
 
@@ -128,11 +116,7 @@ pub async fn delete(
     Path(id): Path<Uuid>,
 ) -> Result<Json<Value>, ApiError> {
     let t = tenant(&state, &headers)?;
-    let ok = state
-        .store
-        .delete_route(t, id)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    let ok = state.store.delete_route(t, id).await?;
     if ok {
         Ok(Json(json!({"deleted": true})))
     } else {

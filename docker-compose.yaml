@@ -105,6 +105,10 @@ services:
   clickety-clack:
     build:
       context: ./crates/clickety-clack
+      args:
+        # Debug build: this stack only cares that CC runs, and the dev profile
+        # compiles far faster than release.
+        PROFILE: dev
     depends_on:
       postgres:
         condition: service_healthy

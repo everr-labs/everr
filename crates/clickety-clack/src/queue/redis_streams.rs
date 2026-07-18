@@ -165,6 +165,80 @@ impl RedisQueue {
         }
         Ok(out)
     }
+
+    /// Shared consume path for both streams: an `XAUTOCLAIM` reclaim pre-pass (via
+    /// [`Self::reclaim_pending`]), a blocking group read of new entries, poison-pill
+    /// acking of reclaimed payloads that no longer deserialize, and lag/batch-size
+    /// metrics. `consume`/`consume_slo` are thin wrappers supplying their stream,
+    /// group, job type, and metric channel.
+    async fn consume_stream<J: serde::de::DeserializeOwned>(
+        &self,
+        stream: &str,
+        group: &str,
+        consumer: &str,
+        count: usize,
+        block_ms: usize,
+        record_lag: impl Fn(f64),
+        record_batch_size: impl Fn(usize),
+    ) -> Result<Vec<(JobId, J)>, QueueError> {
+        let mut conn = self.conn.clone();
+        // Reclaim pre-pass: hand this consumer any jobs left stuck in another
+        // (presumably crashed) consumer's PEL before reading new work.
+        let reclaimed = self
+            .reclaim_pending(stream, group, consumer, self.reclaim_idle_ms, count)
+            .await?;
+
+        let opts = StreamReadOptions::default()
+            .group(group, consumer)
+            .count(count)
+            .block(block_ms);
+        let reply: StreamReadReply = conn.xread_options(&[stream], &[">"], &opts).await?;
+        let now_ms = (time::OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000_000) as i64;
+        let mut out = Vec::with_capacity(reclaimed.len());
+
+        for (id, job_json) in reclaimed {
+            match serde_json::from_str::<J>(&job_json) {
+                Ok(job) => {
+                    if let Some(enq_ms) = entry_enqueue_unix_ms(&id) {
+                        record_lag((now_ms - enq_ms).max(0) as f64 / 1000.0);
+                    }
+                    out.push((JobId(id), job));
+                }
+                Err(e) => {
+                    // Poison pill: this payload will never deserialize, so ack it
+                    // instead of leaving it to be reclaimed (and fail) forever.
+                    tracing::warn!(
+                        stream,
+                        id = %id,
+                        error = %e,
+                        "reclaimed job payload failed to deserialize; acking as poison pill"
+                    );
+                    let _: Result<i64, redis::RedisError> =
+                        conn.xack(stream, group, &[id.as_str()]).await;
+                }
+            }
+        }
+
+        for key in reply.keys {
+            for entry in key.ids {
+                if let Some(redis::Value::BulkString(bytes)) = entry.map.get("job") {
+                    let job: J = serde_json::from_slice(bytes)?;
+                    // Stream ids are `<enqueue-unix-ms>-<seq>`, so enqueue-to-consume
+                    // lag falls out of the id itself. Clamp at 0 against clock skew.
+                    if let Some(enq_ms) = entry_enqueue_unix_ms(&entry.id) {
+                        record_lag((now_ms - enq_ms).max(0) as f64 / 1000.0);
+                    }
+                    out.push((JobId(entry.id), job));
+                }
+            }
+        }
+        // Empty replies (the XREAD block timeout on an idle queue) are not batches;
+        // recording them would drown the size distribution in zeros.
+        if !out.is_empty() {
+            record_batch_size(out.len());
+        }
+        Ok(out)
+    }
 }
 
 #[async_trait]
@@ -182,67 +256,21 @@ impl Queue for RedisQueue {
         count: usize,
         block_ms: usize,
     ) -> Result<Vec<Delivery>, QueueError> {
-        let mut conn = self.conn.clone();
-        // Reclaim pre-pass: hand this consumer any jobs left stuck in another
-        // (presumably crashed) consumer's PEL before reading new work.
-        let reclaimed = self
-            .reclaim_pending(STREAM, GROUP, consumer, self.reclaim_idle_ms, count)
+        let jobs = self
+            .consume_stream::<EvalJob>(
+                STREAM,
+                GROUP,
+                consumer,
+                count,
+                block_ms,
+                |lag| self.metrics.record_queue_lag(lag),
+                |n| self.metrics.record_queue_batch_size(n),
+            )
             .await?;
-
-        let opts = StreamReadOptions::default()
-            .group(GROUP, consumer)
-            .count(count)
-            .block(block_ms);
-        let reply: StreamReadReply = conn.xread_options(&[STREAM], &[">"], &opts).await?;
-        let now_ms = (time::OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000_000) as i64;
-        let mut out = Vec::with_capacity(reclaimed.len());
-
-        for (id, job_json) in reclaimed {
-            match serde_json::from_str::<EvalJob>(&job_json) {
-                Ok(job) => {
-                    if let Some(enq_ms) = entry_enqueue_unix_ms(&id) {
-                        self.metrics
-                            .record_queue_lag((now_ms - enq_ms).max(0) as f64 / 1000.0);
-                    }
-                    out.push(Delivery { id: JobId(id), job });
-                }
-                Err(e) => {
-                    // Poison pill: this payload will never deserialize, so ack it
-                    // instead of leaving it to be reclaimed (and fail) forever.
-                    tracing::warn!(
-                        id = %id,
-                        error = %e,
-                        "reclaimed rule job payload failed to deserialize; acking as poison pill"
-                    );
-                    let _: Result<i64, redis::RedisError> =
-                        conn.xack(STREAM, GROUP, &[id.as_str()]).await;
-                }
-            }
-        }
-
-        for key in reply.keys {
-            for entry in key.ids {
-                if let Some(redis::Value::BulkString(bytes)) = entry.map.get("job") {
-                    let job: EvalJob = serde_json::from_slice(bytes)?;
-                    // Stream ids are `<enqueue-unix-ms>-<seq>`, so enqueue-to-consume
-                    // lag falls out of the id itself. Clamp at 0 against clock skew.
-                    if let Some(enq_ms) = entry_enqueue_unix_ms(&entry.id) {
-                        self.metrics
-                            .record_queue_lag((now_ms - enq_ms).max(0) as f64 / 1000.0);
-                    }
-                    out.push(Delivery {
-                        id: JobId(entry.id),
-                        job,
-                    });
-                }
-            }
-        }
-        // Empty replies (the XREAD block timeout on an idle queue) are not batches;
-        // recording them would drown the size distribution in zeros.
-        if !out.is_empty() {
-            self.metrics.record_queue_batch_size(out.len());
-        }
-        Ok(out)
+        Ok(jobs
+            .into_iter()
+            .map(|(id, job)| Delivery { id, job })
+            .collect())
     }
 
     async fn ack(&self, id: &JobId) -> Result<(), QueueError> {
@@ -264,64 +292,21 @@ impl Queue for RedisQueue {
         count: usize,
         block_ms: usize,
     ) -> Result<Vec<SloDelivery>, QueueError> {
-        let mut conn = self.conn.clone();
-        // Reclaim pre-pass, mirroring `consume` above for the SLO stream/group.
-        let reclaimed = self
-            .reclaim_pending(SLO_STREAM, SLO_GROUP, consumer, self.reclaim_idle_ms, count)
+        let jobs = self
+            .consume_stream::<SloEvalJob>(
+                SLO_STREAM,
+                SLO_GROUP,
+                consumer,
+                count,
+                block_ms,
+                |lag| self.metrics.record_queue_slo_lag(lag),
+                |n| self.metrics.record_queue_slo_batch_size(n),
+            )
             .await?;
-
-        let opts = StreamReadOptions::default()
-            .group(SLO_GROUP, consumer)
-            .count(count)
-            .block(block_ms);
-        let reply: StreamReadReply = conn.xread_options(&[SLO_STREAM], &[">"], &opts).await?;
-        let now_ms = (time::OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000_000) as i64;
-        let mut out = Vec::with_capacity(reclaimed.len());
-
-        for (id, job_json) in reclaimed {
-            match serde_json::from_str::<SloEvalJob>(&job_json) {
-                Ok(job) => {
-                    if let Some(enq_ms) = entry_enqueue_unix_ms(&id) {
-                        self.metrics
-                            .record_queue_slo_lag((now_ms - enq_ms).max(0) as f64 / 1000.0);
-                    }
-                    out.push(SloDelivery { id: JobId(id), job });
-                }
-                Err(e) => {
-                    tracing::warn!(
-                        id = %id,
-                        error = %e,
-                        "reclaimed SLO job payload failed to deserialize; acking as poison pill"
-                    );
-                    let _: Result<i64, redis::RedisError> =
-                        conn.xack(SLO_STREAM, SLO_GROUP, &[id.as_str()]).await;
-                }
-            }
-        }
-
-        for key in reply.keys {
-            for entry in key.ids {
-                if let Some(redis::Value::BulkString(bytes)) = entry.map.get("job") {
-                    let job: SloEvalJob = serde_json::from_slice(bytes)?;
-                    // Stream ids are `<enqueue-unix-ms>-<seq>`, so enqueue-to-consume
-                    // lag falls out of the id itself. Clamp at 0 against clock skew.
-                    if let Some(enq_ms) = entry_enqueue_unix_ms(&entry.id) {
-                        self.metrics
-                            .record_queue_slo_lag((now_ms - enq_ms).max(0) as f64 / 1000.0);
-                    }
-                    out.push(SloDelivery {
-                        id: JobId(entry.id),
-                        job,
-                    });
-                }
-            }
-        }
-        // Empty replies (the XREAD block timeout on an idle queue) are not batches;
-        // recording them would drown the size distribution in zeros.
-        if !out.is_empty() {
-            self.metrics.record_queue_slo_batch_size(out.len());
-        }
-        Ok(out)
+        Ok(jobs
+            .into_iter()
+            .map(|(id, job)| SloDelivery { id, job })
+            .collect())
     }
 
     async fn ack_slo(&self, id: &JobId) -> Result<(), QueueError> {

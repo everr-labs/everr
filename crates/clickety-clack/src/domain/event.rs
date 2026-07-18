@@ -11,6 +11,16 @@ pub enum EventStatus {
     Resolved,
 }
 
+impl EventStatus {
+    /// The lowercase wire/label form, matching the serde `lowercase` rename.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            EventStatus::Firing => "firing",
+            EventStatus::Resolved => "resolved",
+        }
+    }
+}
+
 /// Discriminates an operational rule-health notification from a data alert. Projected
 /// into a `kind` routing label so operators route/silence health with normal matchers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]

@@ -51,14 +51,3 @@ export function validateMessageRefs(
     }
   }
 }
-
-export function renderMessage(
-  template: string,
-  ctx: { firstRow: Record<string, unknown> | undefined },
-): string {
-  return template.replace(VARIABLE_RE, (_, name: string) => {
-    const value = ctx.firstRow?.[name];
-    if (value === undefined || value === null) return "";
-    return String(value);
-  });
-}

@@ -3,15 +3,21 @@ import * as cc from "@/data/cc/client";
 import { db } from "@/db/client";
 import { previews } from "@/db/schema";
 import { errorMessage, serverLogger } from "@/telemetry/logger";
+import { mapSettledWithConcurrency } from "./concurrency";
 import { previewIdOf } from "./mapping";
 
 /** At most this many orphan rules are deleted per org per sweep run. */
 const ORPHAN_SWEEP_CAP_PER_ORG = 100;
 
+/** Cap on in-flight CC delete calls while clearing a batch of rule ids. */
+const DELETE_CONCURRENCY = 8;
+
 /**
  * Delete the given CC rule ids for one org, at most `cap` of them (0 = no cap).
- * Shared by the on-delete fast path and the periodic sweep. Returns how many
- * were deleted and whether the cap clipped the list.
+ * Shared by the on-delete fast path and the periodic sweep. Deletes run in a
+ * bounded pool; every one is attempted and the first failure (in input order)
+ * is rethrown, so callers keep their existing catch-and-log handling. Returns
+ * how many were deleted and whether the cap clipped the list.
  */
 async function deleteCcRules(
   orgId: string,
@@ -20,7 +26,13 @@ async function deleteCcRules(
 ): Promise<{ deleted: number; capped: boolean }> {
   const capped = cap > 0 && ruleIds.length > cap;
   const targets = capped ? ruleIds.slice(0, cap) : ruleIds;
-  for (const id of targets) await cc.deleteRule(orgId, id);
+  const results = await mapSettledWithConcurrency(
+    targets,
+    DELETE_CONCURRENCY,
+    (id) => cc.deleteRule(orgId, id),
+  );
+  const failure = results.find((r) => r.status === "rejected");
+  if (failure) throw failure.reason;
   return { deleted: targets.length, capped };
 }
 

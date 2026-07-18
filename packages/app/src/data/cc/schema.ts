@@ -4,28 +4,9 @@ export const CcSeveritySchema = z.enum(["info", "warning", "critical"]);
 export const CcMatchOpSchema = z.enum(["eq", "ne", "regex", "notregex"]);
 export const CcInstanceStatusSchema = z.enum(["inactive", "pending", "firing"]);
 
-// CC serializes `OffsetDateTime` with the `time` crate's DEFAULT format — a
-// numeric array `[year, ordinalDay, hour, minute, second, nanosecond,
-// offsetH, offsetM, offsetS]` (UTC ⇒ trailing zeros) — NOT the RFC-3339 string
-// its HTTP docs advertise. Accept either and normalize to an ISO-8601 string so
-// the UI's `new Date(...)` formatting works regardless of which CC emits.
-function timeArrayToIso(a: number[]): string {
-  const [year, ordinalDay, hour = 0, minute = 0, second = 0, nanos = 0] = a;
-  return new Date(
-    Date.UTC(
-      year,
-      0,
-      ordinalDay,
-      hour,
-      minute,
-      second,
-      Math.floor(nanos / 1e6),
-    ),
-  ).toISOString();
-}
-export const CcTimestampSchema = z
-  .union([z.string(), z.array(z.number())])
-  .transform((v) => (typeof v === "string" ? v : timeArrayToIso(v)));
+// CC serializes every API timestamp as an RFC-3339 string (serde's rfc3339
+// format on `OffsetDateTime`), which `new Date(...)` parses directly.
+export const CcTimestampSchema = z.string();
 export const CcTimestampNullable = CcTimestampSchema.nullable();
 
 export const CcMatcherSchema = z.object({
@@ -46,9 +27,7 @@ export const CcRuleSpecSchema = z.object({
   max_interval_secs: z.number().int().positive().optional(),
   // Preview mode: CC evaluates the rule fully (instances, events, history) but
   // the dispatcher never notifies on it. Defaulted so pre-suppression CC
-  // responses still parse. Keep this key AFTER resolve_after: the reconcilers'
-  // JSON fingerprints rely on the parsed spec's key order matching CC's
-  // serialization order (RuleSpec in crates/domain/src/rule.rs).
+  // responses still parse.
   suppressed: z.boolean().default(false),
 });
 
@@ -158,6 +137,36 @@ export const CcRouteSchema = z.object({
   group_wait_secs: z.number().int().nullable(),
   group_interval_secs: z.number().int().nullable(),
   repeat_interval_secs: z.number().int().nullable(),
+});
+
+// ---- Create/update input bodies ----
+// The POST/PUT payloads the engine accepts, defined once here: the client
+// types (data/cc/types.ts) and the server-fn input validators (data/cc/
+// server.ts) both derive from these, so the two can never drift.
+
+export const CcRouteInputSchema = z.object({
+  matchers: z.array(CcMatcherSchema),
+  receiver: z.string().min(1),
+  continue: z.boolean(),
+  priority: z.number().int(),
+  group_by: z.array(z.string()).nullable(),
+  group_wait_secs: z.number().int().min(0).nullable(),
+  group_interval_secs: z.number().int().min(0).nullable(),
+  repeat_interval_secs: z.number().int().min(60).nullable(),
+});
+
+export const CcInhibitionInputSchema = z.object({
+  source_matchers: z.array(CcMatcherSchema),
+  target_matchers: z.array(CcMatcherSchema),
+  equal: z.array(z.string()),
+});
+
+export const CcSilenceInputSchema = z.object({
+  matchers: z.array(CcMatcherSchema).min(1),
+  starts_at: z.string(),
+  ends_at: z.string(),
+  comment: z.string().optional(),
+  author: z.string().optional(),
 });
 
 export const CcSilenceSchema = z.object({

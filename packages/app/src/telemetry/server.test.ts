@@ -8,10 +8,12 @@ const telemetryMocks = vi.hoisted(() => {
 
   return {
     captureError: vi.fn(),
+    // Mirrors the 4-arg overload server.ts uses: (name, options, context, fn).
     startActiveSpan: vi.fn(
       async (
         _name: string,
         _options: unknown,
+        _context: unknown,
         run: (span: {
           end: () => void;
           setAttribute: () => void;
@@ -80,6 +82,7 @@ describe("instrumentServerFetch", () => {
         },
         kind: 1,
       },
+      expect.anything(),
       expect.any(Function),
     );
   });

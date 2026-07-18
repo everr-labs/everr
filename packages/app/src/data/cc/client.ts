@@ -15,7 +15,13 @@ import {
   CcSubscriptionSchema,
   CcTestResultSchema,
 } from "./schema";
-import type { CcChannelConfig, CcMatcher, CcRuleSpec } from "./types";
+import type {
+  CcChannelConfig,
+  CcInhibitionInput,
+  CcRouteInput,
+  CcRuleSpec,
+  CcSilenceInput,
+} from "./types";
 
 // ---- Rules ----
 export async function listRules(orgId: string) {
@@ -159,22 +165,12 @@ export async function deleteReceiver(orgId: string, name: string) {
 }
 
 // ---- Routes ----
-export type RouteInput = {
-  matchers: CcMatcher[];
-  receiver: string;
-  continue: boolean;
-  priority: number;
-  group_by: string[] | null;
-  group_wait_secs: number | null;
-  group_interval_secs: number | null;
-  repeat_interval_secs: number | null;
-};
 export async function listRoutes(orgId: string) {
   return z
     .array(CcRouteSchema)
     .parse(await ccRequest(orgId, "GET", "/v1/routes"));
 }
-export async function createRoute(orgId: string, input: RouteInput) {
+export async function createRoute(orgId: string, input: CcRouteInput) {
   return CcRouteSchema.parse(
     await ccRequest(orgId, "POST", "/v1/routes", input),
   );
@@ -183,7 +179,7 @@ export async function createRoute(orgId: string, input: RouteInput) {
 export async function updateRoute(
   orgId: string,
   id: string,
-  input: RouteInput,
+  input: CcRouteInput,
 ) {
   return CcRouteSchema.parse(
     await ccRequest(orgId, "PUT", `/v1/routes/${id}`, input),
@@ -196,17 +192,15 @@ export async function deleteRoute(orgId: string, id: string) {
 }
 
 // ---- Inhibitions ----
-export type InhibitionInput = {
-  source_matchers: CcMatcher[];
-  target_matchers: CcMatcher[];
-  equal: string[];
-};
 export async function listInhibitions(orgId: string) {
   return z
     .array(CcInhibitionSchema)
     .parse(await ccRequest(orgId, "GET", "/v1/inhibitions"));
 }
-export async function createInhibition(orgId: string, input: InhibitionInput) {
+export async function createInhibition(
+  orgId: string,
+  input: CcInhibitionInput,
+) {
   return CcInhibitionSchema.parse(
     await ccRequest(orgId, "POST", "/v1/inhibitions", input),
   );
@@ -218,19 +212,12 @@ export async function deleteInhibition(orgId: string, id: string) {
 }
 
 // ---- Silences ----
-export type SilenceInput = {
-  matchers: CcMatcher[];
-  starts_at: string;
-  ends_at: string;
-  comment?: string;
-  author?: string;
-};
 export async function listSilences(orgId: string) {
   return z
     .array(CcSilenceSchema)
     .parse(await ccRequest(orgId, "GET", "/v1/silences"));
 }
-export async function createSilence(orgId: string, input: SilenceInput) {
+export async function createSilence(orgId: string, input: CcSilenceInput) {
   return CcSilenceSchema.parse(
     await ccRequest(orgId, "POST", "/v1/silences", input),
   );

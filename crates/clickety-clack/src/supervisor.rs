@@ -203,18 +203,6 @@ impl RoleSpec {
             factory: Box::new(move || Box::pin(factory())),
         }
     }
-
-    /// A role whose first failure escalates straight to process shutdown.
-    pub fn escalate_only<F, Fut>(name: &'static str, factory: F) -> Self
-    where
-        F: Fn() -> Fut + Send + Sync + 'static,
-        Fut: Future<Output = anyhow::Result<()>> + Send + 'static,
-    {
-        Self {
-            escalate_only: true,
-            ..Self::restartable(name, factory)
-        }
-    }
 }
 
 /// How a [`supervise`] run ended.

@@ -1,16 +1,9 @@
-use crate::dispatcher::notify::{Notification, Notifier, NotifyError};
-use crate::domain::rule::Severity;
+use crate::dispatcher::notify::{
+    classify_status, default_http_client, Notification, Notifier, NotifyError,
+};
 use crate::domain::EventStatus;
 use async_trait::async_trait;
 use serde_json::{json, Value};
-
-fn severity_str(s: Severity) -> &'static str {
-    match s {
-        Severity::Info => "info",
-        Severity::Warning => "warning",
-        Severity::Critical => "critical",
-    }
-}
 
 /// Slack message-text escaping (`&`, `<`, `>` are Slack's mrkdwn control
 /// characters). Applied AFTER template substitution so substituted label values
@@ -38,7 +31,7 @@ pub fn build_slack_payload(notif: &Notification) -> Value {
         format!(
             "{emoji} [{}] {} — {}",
             crate::dispatcher::render::status_word(ev),
-            severity_str(ev.severity),
+            ev.severity.as_str(),
             slack_escape(&crate::dispatcher::render::headline(ev))
         )
     } else {
@@ -57,7 +50,7 @@ pub fn build_slack_payload(notif: &Notification) -> Value {
                 .map(|(k, v)| json!({"title": k, "value": v, "short": true}))
                 .collect();
             fields.push(
-                json!({"title": "severity", "value": severity_str(ev.severity), "short": true}),
+                json!({"title": "severity", "value": ev.severity.as_str(), "short": true}),
             );
             fields.push(json!({"title": "instance", "value": ev.instance_key.0, "short": true}));
             let mut attachment = json!({
@@ -71,7 +64,7 @@ pub fn build_slack_payload(notif: &Notification) -> Value {
                 text_lines.push(format!(
                     "*[{}] {}* — {}",
                     crate::dispatcher::render::status_word(ev),
-                    severity_str(ev.severity),
+                    ev.severity.as_str(),
                     slack_escape(&crate::dispatcher::render::headline(ev))
                 ));
             }
@@ -107,10 +100,7 @@ pub struct SlackNotifier {
 impl SlackNotifier {
     pub fn new() -> Self {
         Self {
-            http: reqwest::Client::builder()
-                .timeout(std::time::Duration::from_secs(10))
-                .build()
-                .expect("building reqwest client with timeout should not fail"),
+            http: default_http_client(),
         }
     }
 }
@@ -137,14 +127,7 @@ impl Notifier for SlackNotifier {
             // Strip the URL: it is the secret webhook target and must not reach
             // notifications.last_error, the dead-letter stream, or logs.
             .map_err(|e| NotifyError::Transient(e.without_url().to_string()))?;
-        let status = resp.status();
-        if status.is_success() {
-            Ok(())
-        } else if status.is_client_error() {
-            Err(NotifyError::Permanent(format!("status {status}")))
-        } else {
-            Err(NotifyError::Transient(format!("status {status}")))
-        }
+        classify_status(resp.status())
     }
 }
 
@@ -152,6 +135,7 @@ impl Notifier for SlackNotifier {
 mod tests {
     use super::*;
     use crate::domain::ids::{InstanceKey, RuleId, TenantId};
+    use crate::domain::rule::Severity;
     use crate::domain::Event;
     use std::collections::BTreeMap;
     use time::OffsetDateTime;

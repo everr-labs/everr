@@ -17,7 +17,7 @@ import {
 } from "@tanstack/react-query";
 import { createFileRoute, useLocation } from "@tanstack/react-router";
 import { BellOff, Plus } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CcDrawer } from "@/components/cc/cc-drawer";
 import { MatchersEditor } from "@/components/cc/matchers-editor";
@@ -101,17 +101,15 @@ function CcSilencesPage() {
     setOpen(true);
   };
 
-  // Open the dialog from the handoff state once, after mount (Base UI's Dialog
-  // mishandles being born `open`, so we transition like a click would).
-  const seededRef = useRef(false);
+  // Open the dialog from the handoff state after mount (Base UI's Dialog
+  // mishandles being born `open`, so we transition like a click would). The
+  // only producer (Triage's "Custom" silence button) always freshly mounts
+  // this route, so a mount-only effect is enough.
   useEffect(() => {
-    const prefill = (location.state as SilenceHandoff)?.silencePrefill;
-    if (prefill && !seededRef.current && prefill.length > 0) {
-      seededRef.current = true;
-      openForMatchers(prefill);
-    }
-    // biome-ignore lint/correctness/useExhaustiveDependencies: one-shot seed from navigation state
-  }, [location.state]);
+    const prefill = (location.state as SilenceHandoff | undefined)
+      ?.silencePrefill;
+    if (prefill && prefill.length > 0) openForMatchers(prefill);
+  }, []);
 
   const invalidate = () =>
     qc.invalidateQueries({ queryKey: ["cc", "silences"] });

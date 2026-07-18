@@ -19,14 +19,6 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { BookOpenText, Pause, Play, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
-import { ccRuleIdentity } from "@/data/alerts/rule-identity";
-import {
-  CC_POLL_INTERVAL_MS,
-  listCcRulesPage,
-  pauseCcRule,
-  resumeCcRule,
-} from "@/data/cc/server";
-import type { CcRuleView } from "@/data/cc/types";
 import {
   CcConceptNote,
   CcEmptyState,
@@ -37,7 +29,15 @@ import {
   CcTableSkeleton,
   ccErrorMessage,
   ccFormatTs,
-} from "./-cc-shared";
+} from "@/components/cc/shared";
+import { ccRuleIdentity } from "@/data/alerts/rule-identity";
+import {
+  CC_POLL_INTERVAL_MS,
+  listCcRulesPage,
+  pauseCcRule,
+  resumeCcRule,
+} from "@/data/cc/server";
+import type { CcRuleView } from "@/data/cc/types";
 
 const RULES_PAGE_LIMIT = 100;
 
