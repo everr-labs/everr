@@ -175,6 +175,7 @@ async fn relay_recovers_dropped_inline_publish() {
                 bus,
                 lease,
                 Duration::from_millis(200),
+                30,
                 cc::otel::EngineMetrics::disabled(),
                 rx,
             )

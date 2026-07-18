@@ -226,8 +226,18 @@ async fn main() -> anyhow::Result<()> {
                 let lease = lease.clone();
                 let metrics = metrics.clone();
                 let rx = rx.clone();
+                let slo_cadence_secs = cfg.slo_base_cadence_secs as i64;
                 async move {
-                    run_maintenance(store, bus, lease, Duration::from_secs(5), metrics, rx).await;
+                    run_maintenance(
+                        store,
+                        bus,
+                        lease,
+                        Duration::from_secs(5),
+                        slo_cadence_secs,
+                        metrics,
+                        rx,
+                    )
+                    .await;
                     Ok(())
                 }
             }));
