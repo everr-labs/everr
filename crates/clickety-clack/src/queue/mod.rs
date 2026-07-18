@@ -100,8 +100,9 @@ pub struct SloDelivery {
 /// Any implementation MUST provide: at-least-once delivery (a job survives until acked);
 /// `ack(id)` permanently removes that delivery from the never-delivered set; and
 /// `consume` returns each job to exactly one consumer in the group until acked. Unacked
-/// jobs remain claimable for redelivery via a backend reclaim mechanism (Redis: the
-/// consumer-group PEL; reclaim wiring is future work). See `tests/conformance.rs`.
+/// jobs remain claimable for redelivery via a backend reclaim mechanism (Redis:
+/// `RedisQueue::consume`/`consume_slo` run an `XAUTOCLAIM` pre-pass over the
+/// consumer-group PEL ahead of every read). See `tests/conformance.rs`.
 ///
 /// The `_slo` methods provide the same contract on a separate stream for SLO
 /// evaluation jobs, kept independent of the rule-evaluation stream above.
