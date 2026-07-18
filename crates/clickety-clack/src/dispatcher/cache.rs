@@ -3,7 +3,8 @@
 //! invalidation (a later Phase 3 item) only changes WHEN snapshots refresh.
 
 use crate::dispatcher::routing::synthetic_labels;
-use crate::domain::ids::{InstanceKey, TenantId};
+use crate::dispatcher::slo_inhibit::synthesize_slo_inhibitions;
+use crate::domain::ids::{InstanceKey, SloId, TenantId};
 use crate::domain::inhibition::InhibitionRule;
 use crate::domain::receiver::Receiver;
 use crate::domain::routing::Route;
@@ -92,12 +93,21 @@ impl FilterCache {
     async fn load(&self, tenant: TenantId) -> Result<Snapshot, StoreError> {
         let now = time::OffsetDateTime::now_utc();
         let silences = self.store.list_active_silences(tenant.clone(), now).await?;
-        let inhibitions = self.store.list_inhibitions(tenant.clone()).await?;
+        let mut inhibitions = self.store.list_inhibitions(tenant.clone()).await?;
         let routes = self.store.routes_for(tenant.clone()).await?;
         let receivers = self.store.list_receivers(tenant.clone()).await?;
-        let firing = self
+
+        // Spec §5: every SLO auto-provisions tier inhibitions, synthesized in-memory on
+        // every load (never stored — see `dispatcher::slo_inhibit`). Uses the lean
+        // dispatch projection (id/tenant/label_columns/tiers) instead of `list_slos`, so
+        // a refresh never decodes the full spec (SQL text, target, window...) of every
+        // SLO just to synthesize inhibitions.
+        let slos = self.store.list_slos_for_dispatch(&tenant).await?;
+        inhibitions.extend(synthesize_slo_inhibitions(&slos));
+
+        let mut firing: Vec<(InstanceKey, BTreeMap<String, String>)> = self
             .store
-            .list_firing(tenant)
+            .list_firing(tenant.clone())
             .await?
             .into_iter()
             .map(|f| {
@@ -107,10 +117,31 @@ impl FilterCache {
                     EventStatus::Firing,
                     f.rule,
                     crate::domain::EventKind::Alert,
+                    None, // rule-originated firing instances carry no SLO identity
                 );
                 (f.key, labels)
             })
             .collect();
+        // SLO-originated firing instances (`FiringInstance.rule` type-puns the SLO uuid)
+        // join the same source-set, labeled with their SLO identity so the synthesized
+        // inhibitions' `equal: ["slo", ...]` comparison sees the label on both sides.
+        firing.extend(
+            self.store
+                .list_firing_slos(&tenant)
+                .await?
+                .into_iter()
+                .map(|f| {
+                    let labels = synthetic_labels(
+                        &f.labels,
+                        f.severity,
+                        EventStatus::Firing,
+                        f.rule,
+                        crate::domain::EventKind::Alert,
+                        Some(SloId(f.rule.0)),
+                    );
+                    (f.key, labels)
+                }),
+        );
         Ok(Snapshot {
             silences,
             inhibitions,

@@ -1,4 +1,5 @@
 use crate::domain::event::{Event, EventStatus};
+use crate::domain::ids::SloId;
 use crate::domain::instance::{InstanceState, StaleInstance, Status};
 use crate::queue::EventBus;
 use crate::stores::{PgStore, RedisLease};
@@ -16,6 +17,10 @@ const RELAY_BATCH: i64 = 256;
 /// Max stale instances reconciled per transaction. A full sweep loops in chunks of this
 /// size so a backlog after an outage never becomes one unbounded transaction.
 const RECONCILE_BATCH: i64 = 256;
+/// Retention for the rule/SLO evaluation idempotency ledgers (`evaluations` /
+/// `slo_evaluations`) before GC prunes them. Piggybacks on the same hourly
+/// [`GC_INTERVAL`] cadence as silence GC rather than a second wall-clock timer.
+const LEDGER_RETENTION: Duration = Duration::days(7);
 
 /// Whether the hourly silence GC is due as of `now`, given the last run time.
 /// `None` (never run) is always due. Wall-clock based so it survives lease hand-offs.
@@ -143,13 +148,108 @@ fn reconcile_transition(s: StaleInstance, now: OffsetDateTime) -> (InstanceState
     (next, ev)
 }
 
+/// Auto-resolve stale SLO burn-rate instances as of `now`. Mirrors [`reconcile_once`]/
+/// [`reconcile_sweep`] exactly, against `slo_instances` via
+/// [`PgStore::list_stale_slo_instances`] and [`crate::evaluator::slo::commit_and_publish_slo`]
+/// instead of the rule-side tables. Returns how many SLO instances were reconciled.
+pub async fn reconcile_slo_once(
+    store: &PgStore,
+    bus: &dyn EventBus,
+    now: OffsetDateTime,
+    cadence_secs: i64,
+) -> anyhow::Result<usize> {
+    reconcile_slo_sweep(store, bus, now, cadence_secs, RECONCILE_BATCH).await
+}
+
+/// Drain the SLO stale set as of `now` in transactions of at most `batch` instances
+/// each. Twin of [`reconcile_sweep`] — same chunking/idempotency reasoning applies,
+/// substituting the SLO store methods.
+pub async fn reconcile_slo_sweep(
+    store: &PgStore,
+    bus: &dyn EventBus,
+    now: OffsetDateTime,
+    cadence_secs: i64,
+    batch: i64,
+) -> anyhow::Result<usize> {
+    let mut total = 0;
+    loop {
+        let stale = store
+            .list_stale_slo_instances(now, cadence_secs, batch)
+            .await?;
+        let n = stale.len();
+        if n == 0 {
+            break;
+        }
+        let mut next_states: Vec<InstanceState> = Vec::with_capacity(n);
+        let mut out_events: Vec<Event> = Vec::new();
+        for s in stale {
+            let (next, maybe_ev) = reconcile_slo_transition(s, now);
+            if let Some(ev) = maybe_ev {
+                out_events.push(ev);
+            }
+            next_states.push(next);
+        }
+        crate::evaluator::slo::commit_and_publish_slo(store, bus, next_states, out_events).await?;
+        total += n;
+        // A short page means the backlog is drained; a full page means more may remain.
+        if (n as i64) < batch {
+            break;
+        }
+    }
+    Ok(total)
+}
+
+/// Pure SLO reconciliation transition: twin of [`reconcile_transition`]. A stale
+/// instance resets to Inactive; a stale FIRING instance additionally emits a synthetic
+/// Resolved event stamped with `slo` (StaleInstance.rule carries the SLO uuid for
+/// `slo_instances` rows, per [`PgStore::list_stale_slo_instances`]).
+fn reconcile_slo_transition(
+    s: StaleInstance,
+    now: OffsetDateTime,
+) -> (InstanceState, Option<Event>) {
+    let next = InstanceState {
+        key: s.key.clone(),
+        rule: s.rule,
+        tenant: s.tenant.clone(),
+        status: Status::Inactive,
+        labels: s.labels.clone(),
+        value: s.value,
+        active_since: None,
+        last_seen: Some(now),
+        absent_count: 0,
+    };
+    let ev = match s.status {
+        Status::Firing => {
+            let mut ev = Event::new(
+                s.tenant,
+                s.rule,
+                s.key,
+                EventStatus::Resolved,
+                s.labels,
+                s.value,
+                s.severity,
+                s.annotations,
+                now,
+            );
+            ev.slo = Some(SloId(s.rule.0));
+            // A suppressed (preview) SLO's synthetic Resolved must not notify either. No
+            // source row here, so evidence stays None/untruncated.
+            ev.suppressed = s.suppressed;
+            Some(ev)
+        }
+        _ => None,
+    };
+    (next, ev)
+}
+
 /// Lease-singleton maintenance loop: relay + reconciliation every tick, silence GC
-/// hourly. Mirrors `run_scheduler`'s lease + watch-shutdown pattern.
+/// and ledger prune hourly. Mirrors `run_scheduler`'s lease + watch-shutdown pattern.
 pub async fn run_maintenance(
     store: PgStore,
     bus: std::sync::Arc<dyn EventBus>,
     lease: RedisLease,
     tick: StdDuration,
+    slo_cadence_secs: i64,
     metrics: crate::otel::EngineMetrics,
     mut shutdown: tokio::sync::watch::Receiver<bool>,
 ) {
@@ -172,11 +272,24 @@ pub async fn run_maintenance(
                 if let Err(e) = reconcile_once(&store, bus.as_ref(), now).await {
                     tracing::error!(error = %e, "reconciliation failed");
                 }
+                if let Err(e) =
+                    reconcile_slo_once(&store, bus.as_ref(), now, slo_cadence_secs).await
+                {
+                    tracing::error!(error = %e, "slo reconciliation failed");
+                }
                 if gc_due(last_gc, now) {
                     match store.gc_silences(now - SILENCE_RETENTION).await {
                         Ok(n) if n > 0 => tracing::info!(removed = n, "expired silences GC'd"),
                         Ok(_) => {}
                         Err(e) => tracing::error!(error = %e, "silence GC failed"),
+                    }
+                    match store.prune_eval_ledgers(now - LEDGER_RETENTION).await {
+                        Ok((rules, slos)) => tracing::debug!(
+                            rules_pruned = rules,
+                            slos_pruned = slos,
+                            "eval ledgers pruned"
+                        ),
+                        Err(e) => tracing::error!(error = %e, "eval ledger prune failed"),
                     }
                     // Set regardless of Ok/Err so a transient GC error doesn't busy-loop.
                     last_gc = Some(now);

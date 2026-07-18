@@ -63,6 +63,7 @@ fn ev_status(tenant: TenantId, status: EventStatus) -> Event {
     Event {
         tenant,
         rule: RuleId(Uuid::nil()),
+        slo: None,
         instance_key: InstanceKey("svc=api".into()),
         status,
         kind: cc::domain::event::EventKind::Alert,

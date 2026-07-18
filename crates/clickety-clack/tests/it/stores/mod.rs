@@ -14,3 +14,6 @@ mod rule_update_it;
 mod secret_at_rest_it;
 mod sharding_it;
 mod silences_it;
+mod slo_alert_store_it;
+mod slo_eval_it;
+mod slo_it;

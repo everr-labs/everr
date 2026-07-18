@@ -58,6 +58,7 @@ fn sample_event(tenant: TenantId) -> Event {
     Event {
         tenant,
         rule: RuleId(Uuid::nil()),
+        slo: None,
         instance_key: InstanceKey("k".into()),
         status: EventStatus::Firing,
         kind: cc::domain::event::EventKind::Alert,

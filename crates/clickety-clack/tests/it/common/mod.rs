@@ -364,6 +364,7 @@ pub fn make_event(tenant: &TenantId, rule: RuleId, i: usize) -> Event {
     Event {
         tenant: tenant.clone(),
         rule,
+        slo: None,
         instance_key: InstanceKey::new(rule, &labels),
         status: EventStatus::Firing,
         kind: EventKind::Alert,

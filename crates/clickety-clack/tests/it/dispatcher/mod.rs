@@ -8,6 +8,7 @@ mod pagerduty_it;
 mod repeat_it;
 mod routing_dispatch_it;
 mod slack_it;
+mod slo_inhibition_it;
 mod suppressed_it;
 mod telegram_it;
 mod webhook_it;

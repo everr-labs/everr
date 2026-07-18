@@ -30,6 +30,10 @@ pub enum EventKind {
 pub struct Event {
     pub tenant: TenantId,
     pub rule: RuleId,
+    /// Originating SLO, for burn-rate and SLO-health events. `rule` still carries
+    /// the same uuid for wire compatibility with consumers that key on it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub slo: Option<crate::domain::ids::SloId>,
     pub instance_key: InstanceKey,
     pub status: EventStatus,
     pub kind: EventKind,
@@ -71,6 +75,7 @@ impl Event {
         Self {
             tenant,
             rule,
+            slo: None,
             instance_key,
             status,
             kind: EventKind::Alert,
@@ -98,6 +103,7 @@ impl Event {
         Self {
             tenant,
             rule,
+            slo: None,
             instance_key: InstanceKey::health(rule),
             status,
             kind: EventKind::RuleHealth,
@@ -110,6 +116,24 @@ impl Event {
             evidence: None,
             evidence_truncated: false,
         }
+    }
+
+    /// Build an SLO-health event. Delegates to [`Self::rule_health`] (same instance key,
+    /// severity, and dedup pairing) then stamps `slo` so consumers that care can
+    /// distinguish an SLO health notification from a rule one.
+    ///
+    /// Reuses `EventKind::RuleHealth` on the wire: adding a kind variant breaks older
+    /// deserializers mid-rolling-upgrade. The slo field/label distinguishes.
+    pub fn slo_health(
+        tenant: TenantId,
+        slo: crate::domain::ids::SloId,
+        status: EventStatus,
+        annotations: BTreeMap<String, String>,
+        eval_ts: OffsetDateTime,
+    ) -> Self {
+        let mut ev = Self::rule_health(tenant, RuleId(slo.0), status, annotations, eval_ts);
+        ev.slo = Some(slo);
+        ev
     }
 }
 
@@ -206,6 +230,74 @@ mod tests {
         assert_eq!(v["evidence_truncated"], true);
         let back: Event = serde_json::from_value(v).unwrap();
         assert_eq!(back, ev);
+    }
+
+    /// Rolling-upgrade compat: payloads written before `slo` existed still deserialize,
+    /// defaulting the field to `None`.
+    #[test]
+    fn old_format_event_without_slo_key_deserializes_to_none() {
+        let ev = Event::new(
+            TenantId::from_trusted(Uuid::nil().to_string()),
+            RuleId(Uuid::nil()),
+            InstanceKey("k".into()),
+            EventStatus::Firing,
+            BTreeMap::new(),
+            Some(1.0),
+            Severity::Warning,
+            BTreeMap::new(),
+            OffsetDateTime::UNIX_EPOCH,
+        );
+        let mut v = serde_json::to_value(&ev).unwrap();
+        assert!(
+            v.get("slo").is_none(),
+            "None slo must already be omitted by the serializer"
+        );
+        // Simulate an old wire payload explicitly (defense in depth: even if a future
+        // change stops omitting it, a payload missing the key must still deserialize).
+        v.as_object_mut().unwrap().remove("slo");
+        let back: Event = serde_json::from_value(v).unwrap();
+        assert_eq!(back.slo, None);
+    }
+
+    #[test]
+    fn slo_round_trips_when_present() {
+        use crate::domain::ids::SloId;
+        let mut ev = Event::new(
+            TenantId::from_trusted(Uuid::nil().to_string()),
+            RuleId(Uuid::nil()),
+            InstanceKey("k".into()),
+            EventStatus::Firing,
+            BTreeMap::new(),
+            Some(1.0),
+            Severity::Warning,
+            BTreeMap::new(),
+            OffsetDateTime::UNIX_EPOCH,
+        );
+        let slo = SloId(Uuid::nil());
+        ev.slo = Some(slo);
+        let v = serde_json::to_value(&ev).unwrap();
+        assert_eq!(v["slo"], Uuid::nil().to_string());
+        let back: Event = serde_json::from_value(v).unwrap();
+        assert_eq!(back.slo, Some(slo));
+        assert_eq!(back, ev);
+    }
+
+    #[test]
+    fn slo_none_omits_key_from_serialized_json() {
+        let ev = Event::new(
+            TenantId::from_trusted(Uuid::nil().to_string()),
+            RuleId(Uuid::nil()),
+            InstanceKey("k".into()),
+            EventStatus::Firing,
+            BTreeMap::new(),
+            Some(1.0),
+            Severity::Warning,
+            BTreeMap::new(),
+            OffsetDateTime::UNIX_EPOCH,
+        );
+        assert_eq!(ev.slo, None);
+        let v = serde_json::to_value(&ev).unwrap();
+        assert!(!v.as_object().unwrap().contains_key("slo"));
     }
 
     #[test]

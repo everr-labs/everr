@@ -206,6 +206,7 @@ async fn fan_out_to_webhook_and_slack_receivers() {
     let ev = Event {
         tenant,
         rule: RuleId(Uuid::nil()),
+        slo: None,
         instance_key: InstanceKey("svc=api".into()),
         status: EventStatus::Firing,
         kind: cc::domain::event::EventKind::Alert,

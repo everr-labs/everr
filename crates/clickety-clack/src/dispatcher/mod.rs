@@ -13,6 +13,7 @@ pub mod retry;
 pub mod routing;
 pub mod silence;
 pub mod slack;
+pub mod slo_inhibit;
 pub mod telegram;
 
 pub use dedup::dedup_key;
@@ -224,7 +225,7 @@ pub async fn process_event(
     let now = now_ms();
     let mut all_handled = true;
 
-    for target in routing::select_grouping_targets(&snap.routes, &labels) {
+    for target in routing::select_grouping_targets(&snap.routes, ev) {
         let channel_names = match by_name.get(target.receiver.as_str()) {
             Some(c) => *c,
             None => {

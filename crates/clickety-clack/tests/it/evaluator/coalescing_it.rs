@@ -24,10 +24,11 @@ struct CountingCh {
 
 #[async_trait]
 impl RowQuerier for CountingCh {
-    async fn query_rows(
+    async fn query_rows_params(
         &self,
         _tenant: &TenantId,
         _sql: &str,
+        _params: &[(String, String)],
         _label_columns: &[String],
         _value_column: Option<&str>,
     ) -> Result<Vec<ResultRow>, ChError> {
@@ -342,10 +343,11 @@ impl FlakyCh {
 
 #[async_trait]
 impl RowQuerier for FlakyCh {
-    async fn query_rows(
+    async fn query_rows_params(
         &self,
         _tenant: &TenantId,
         _sql: &str,
+        _params: &[(String, String)],
         _label_columns: &[String],
         _value_column: Option<&str>,
     ) -> Result<Vec<ResultRow>, ChError> {

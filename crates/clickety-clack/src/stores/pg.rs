@@ -67,6 +67,36 @@ pub enum RuleUpdate {
     VersionConflict { current: i64 },
 }
 
+/// Outcome of [`PgStore::create_slo`].
+// `Slo` carries an owned `SloSpec` (label columns, tiers, annotations); boxing the
+// `Created` payload would force callers to deref through a `Box` everywhere and break
+// direct `Slo == Slo` comparisons in the store tests, for a lint that's purely about
+// the outcome enum's stack footprint (never hot-path-cloned).
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, Clone, PartialEq)]
+pub enum SloCreate {
+    Created(crate::domain::slo::Slo),
+    NameConflict,
+}
+
+/// Outcome of [`PgStore::update_slo`].
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, Clone, PartialEq)]
+pub enum SloUpdate {
+    Updated(crate::domain::slo::Slo),
+    NotFound,
+    VersionConflict { current: i64 },
+    NameConflict,
+}
+
+/// True if a sqlx error is a Postgres unique-constraint violation (SQLSTATE 23505).
+fn is_unique_violation(e: &sqlx::Error) -> bool {
+    e.as_database_error()
+        .and_then(|d| d.code())
+        .map(|c| c == "23505")
+        .unwrap_or(false)
+}
+
 /// Outcome of [`PgStore::delete_channel`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ChannelDelete {
@@ -84,6 +114,40 @@ pub enum ChannelDelete {
 pub struct RulePageKey {
     pub created_at: OffsetDateTime,
     pub id: RuleId,
+}
+
+/// A stored SLO status snapshot, as read by [`PgStore::get_slo_status`]. `payload`
+/// holds the per-group status + per-window freshness timestamps computed by the
+/// evaluator (see [`crate::engine::slo_math::SloStatusPayload`] for its shape).
+#[derive(Debug, Clone)]
+pub struct SloStatusRow {
+    pub slo: crate::domain::ids::SloId,
+    pub tenant: TenantId,
+    pub payload: serde_json::Value,
+    pub computed_at: OffsetDateTime,
+}
+
+/// SLO health, as read by [`PgStore::get_slo_health`]. Lean sibling of [`RuleHealth`]
+/// (no `consecutive_failures`/`last_error_at`, which the `/status` health object doesn't
+/// surface) for the `/v1/slos/:id/status` response.
+#[derive(Debug, Clone)]
+pub struct SloHealth {
+    pub status: String,
+    pub degraded_since: Option<OffsetDateTime>,
+    pub last_error: Option<String>,
+}
+
+/// Lean per-SLO projection for dispatch-time inhibition synthesis (see
+/// `dispatcher::slo_inhibit`), returned by [`PgStore::list_slos_for_dispatch`]. Dispatch
+/// never needs the full [`crate::domain::slo::Slo`] (SQL text, target, window...) — just
+/// identity, the label columns that fan the tier group out, and the resolved tiers.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SloDispatchInfo {
+    pub id: crate::domain::ids::SloId,
+    pub tenant: TenantId,
+    pub label_columns: Vec<String>,
+    /// Resolved: `spec.tiers`, or `canonical_tiers()` when unset.
+    pub tiers: Vec<crate::domain::slo::BurnRateTier>,
 }
 
 fn status_str(s: Status) -> &'static str {
@@ -117,6 +181,24 @@ fn row_to_instance(r: &sqlx::postgres::PgRow) -> Result<InstanceState, StoreErro
     Ok(InstanceState {
         key: InstanceKey(r.get("key")),
         rule: RuleId(r.get("rule")),
+        tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
+        status: status_from(r.get::<&str, _>("status")),
+        labels,
+        value: r.get("value"),
+        active_since: r.get("active_since"),
+        last_seen: r.get("last_seen"),
+        absent_count: absent_count_from_db(r.get::<i32, _>("absent_count")),
+    })
+}
+
+/// Mirrors [`row_to_instance`] for `slo_instances` rows. `InstanceState.rule` carries
+/// the SLO uuid for slo_instances rows (documented type-pun at the storage boundary;
+/// `Event.slo` carries the typed identity).
+fn row_to_slo_instance(r: &sqlx::postgres::PgRow) -> Result<InstanceState, StoreError> {
+    let labels: BTreeMap<String, String> = serde_json::from_value(r.get("labels"))?;
+    Ok(InstanceState {
+        key: InstanceKey(r.get("key")),
+        rule: RuleId(r.get::<Uuid, _>("slo")), // InstanceState.rule carries the SLO uuid for slo_instances rows
         tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
         status: status_from(r.get::<&str, _>("status")),
         labels,
@@ -935,10 +1017,17 @@ impl PgStore {
         Ok(())
     }
 
+    /// Union of rule-side and SLO-side (burn-rate) firing/pending alerts. SLO rows surface
+    /// the SLO uuid in `InstanceState.rule` (see [`row_to_slo_instance`]) and carry the
+    /// `slo_tier` label; the `ORDER BY` applies to the combined result set.
     pub async fn list_alerts(&self, tenant: TenantId) -> Result<Vec<InstanceState>, StoreError> {
         let rows = sqlx::query(
             "SELECT key, rule, tenant, status, labels, value, active_since, last_seen, absent_count
-             FROM instances WHERE tenant=$1 AND status != 'inactive' ORDER BY active_since DESC",
+             FROM instances WHERE tenant=$1 AND status != 'inactive'
+             UNION ALL
+             SELECT key, slo AS rule, tenant, status, labels, value, active_since, last_seen, absent_count
+             FROM slo_instances WHERE tenant=$1 AND status != 'inactive'
+             ORDER BY active_since DESC",
         )
         .bind(tenant.as_str())
         .fetch_all(&self.pool)
@@ -1718,6 +1807,13 @@ impl PgStore {
              WHERE i.status IN ('pending','firing')
                AND NOT r.paused
                AND r.health_status <> 'degraded'
+               -- A failing-but-not-yet-degraded rule (consecutive_failures > 0, still
+               -- 'healthy') froze deliberately (freeze-on-error): the reaper must not
+               -- resolve its instances before the degrade threshold decides. Without
+               -- this guard, a degrade_after > 4 configuration races the 4x-cadence
+               -- staleness window and the reaper wins, resolving instances a source
+               -- that is about to legitimately degrade.
+               AND r.consecutive_failures = 0
                AND i.last_seen < ($1::timestamptz
                    - make_interval(secs => GREATEST(4 * (r.spec->>'interval_secs')::int, 60)))
              ORDER BY i.last_seen
@@ -2037,5 +2133,700 @@ impl PgStore {
             .execute(&self.pool)
             .await?;
         Ok(())
+    }
+
+    // ---- slos ----
+
+    pub async fn create_slo(
+        &self,
+        tenant: TenantId,
+        name: &str,
+        spec: &crate::domain::slo::SloSpec,
+    ) -> Result<SloCreate, StoreError> {
+        use crate::domain::ids::SloId;
+        let id = Uuid::new_v4();
+        let spec_json = serde_json::to_value(spec)?;
+        let res = sqlx::query("INSERT INTO slos (id, tenant, name, spec) VALUES ($1,$2,$3,$4)")
+            .bind(id)
+            .bind(tenant.as_str())
+            .bind(name)
+            .bind(&spec_json)
+            .execute(&self.pool)
+            .await;
+        match res {
+            Ok(_) => Ok(SloCreate::Created(crate::domain::slo::Slo {
+                id: SloId(id),
+                tenant,
+                name: name.to_string(),
+                spec: spec.clone(),
+                version: 1,
+                paused: false,
+            })),
+            Err(e) if is_unique_violation(&e) => Ok(SloCreate::NameConflict),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    pub async fn get_slo(
+        &self,
+        tenant: TenantId,
+        id: crate::domain::ids::SloId,
+    ) -> Result<Option<crate::domain::slo::Slo>, StoreError> {
+        let row = sqlx::query(
+            "SELECT id, tenant, name, spec, version, paused FROM slos WHERE id=$1 AND tenant=$2",
+        )
+        .bind(id.0)
+        .bind(tenant.as_str())
+        .fetch_optional(&self.pool)
+        .await?;
+        match row {
+            None => Ok(None),
+            Some(r) => Ok(Some(Self::slo_from_row(&r)?)),
+        }
+    }
+
+    /// Update an SLO's name/spec in place, preserving its id, tenant, and `paused`
+    /// flag. Bumps `version` by one.
+    ///
+    /// `expected_version`: `Some(v)` is an optimistic-concurrency guard — if the stored
+    /// version differs, nothing is written and `SloUpdate::VersionConflict` is
+    /// returned. `None` means last-write-wins.
+    pub async fn update_slo(
+        &self,
+        tenant: TenantId,
+        id: crate::domain::ids::SloId,
+        name: &str,
+        spec: &crate::domain::slo::SloSpec,
+        expected_version: Option<i64>,
+    ) -> Result<SloUpdate, StoreError> {
+        let mut tx = self.pool.begin().await?;
+        let row =
+            sqlx::query("SELECT version, paused FROM slos WHERE id=$1 AND tenant=$2 FOR UPDATE")
+                .bind(id.0)
+                .bind(tenant.as_str())
+                .fetch_optional(&mut *tx)
+                .await?;
+        let Some(row) = row else {
+            tx.rollback().await?;
+            return Ok(SloUpdate::NotFound);
+        };
+        let current: i64 = row.get("version");
+        let paused: bool = row.get("paused");
+        if let Some(expected) = expected_version {
+            if expected != current {
+                tx.rollback().await?;
+                return Ok(SloUpdate::VersionConflict { current });
+            }
+        }
+        let spec_json = serde_json::to_value(spec)?;
+        let res = sqlx::query(
+            "UPDATE slos SET name=$3, spec=$4, version = version + 1, updated_at = now() WHERE id=$1 AND tenant=$2",
+        )
+        .bind(id.0)
+        .bind(tenant.as_str())
+        .bind(name)
+        .bind(&spec_json)
+        .execute(&mut *tx)
+        .await;
+        match res {
+            Ok(_) => {
+                tx.commit().await?;
+                Ok(SloUpdate::Updated(crate::domain::slo::Slo {
+                    id,
+                    tenant,
+                    name: name.to_string(),
+                    spec: spec.clone(),
+                    version: current + 1,
+                    paused,
+                }))
+            }
+            Err(e) if is_unique_violation(&e) => {
+                tx.rollback().await?;
+                Ok(SloUpdate::NameConflict)
+            }
+            Err(e) => {
+                tx.rollback().await?;
+                Err(e.into())
+            }
+        }
+    }
+
+    pub async fn delete_slo(
+        &self,
+        tenant: TenantId,
+        id: crate::domain::ids::SloId,
+    ) -> Result<bool, StoreError> {
+        let res = sqlx::query("DELETE FROM slos WHERE id=$1 AND tenant=$2")
+            .bind(id.0)
+            .bind(tenant.as_str())
+            .execute(&self.pool)
+            .await?;
+        Ok(res.rows_affected() > 0)
+    }
+
+    /// Pause an SLO (exclude it from evaluation). Idempotent. Returns false if no
+    /// such SLO exists for the tenant.
+    pub async fn pause_slo(
+        &self,
+        tenant: TenantId,
+        id: crate::domain::ids::SloId,
+    ) -> Result<bool, StoreError> {
+        let res = sqlx::query(
+            "UPDATE slos SET paused = true, updated_at = now() WHERE id=$1 AND tenant=$2",
+        )
+        .bind(id.0)
+        .bind(tenant.as_str())
+        .execute(&self.pool)
+        .await?;
+        Ok(res.rows_affected() > 0)
+    }
+
+    /// Resume a paused SLO. Idempotent. Returns false if no such SLO exists for the
+    /// tenant.
+    pub async fn resume_slo(
+        &self,
+        tenant: TenantId,
+        id: crate::domain::ids::SloId,
+    ) -> Result<bool, StoreError> {
+        let res = sqlx::query(
+            "UPDATE slos SET paused = false, updated_at = now() WHERE id=$1 AND tenant=$2",
+        )
+        .bind(id.0)
+        .bind(tenant.as_str())
+        .execute(&self.pool)
+        .await?;
+        Ok(res.rows_affected() > 0)
+    }
+
+    pub async fn list_slos(
+        &self,
+        tenant: &TenantId,
+    ) -> Result<Vec<crate::domain::slo::Slo>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT id, tenant, name, spec, version, paused FROM slos WHERE tenant=$1 ORDER BY created_at, id",
+        )
+        .bind(tenant.as_str())
+        .fetch_all(&self.pool)
+        .await?;
+        rows.iter().map(Self::slo_from_row).collect()
+    }
+
+    fn slo_from_row(r: &PgRow) -> Result<crate::domain::slo::Slo, StoreError> {
+        use crate::domain::ids::SloId;
+        use crate::domain::slo::{Slo, SloSpec};
+        let spec: SloSpec = serde_json::from_value(r.get("spec"))?;
+        Ok(Slo {
+            id: SloId(r.get("id")),
+            tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
+            name: r.get("name"),
+            spec,
+            version: r.get("version"),
+            paused: r.get("paused"),
+        })
+    }
+
+    /// Lean projection of SLOs for dispatch-time inhibition synthesis (see
+    /// `dispatcher::slo_inhibit`): every snapshot refresh (`FilterCache::load`) used to
+    /// call [`Self::list_slos`] and decode the *full* spec (SQL text, target, window...)
+    /// just to read `label_columns` and `tiers`. This projects only those two JSONB
+    /// paths, and resolves `tiers` here (`spec.tiers`, or `canonical_tiers()` when unset)
+    /// so the dispatcher never needs to know about the "None = canonical" rule.
+    pub async fn list_slos_for_dispatch(
+        &self,
+        tenant: &TenantId,
+    ) -> Result<Vec<SloDispatchInfo>, StoreError> {
+        use crate::domain::ids::SloId;
+        use crate::domain::slo::{canonical_tiers, BurnRateTier};
+        let rows = sqlx::query(
+            "SELECT id, tenant, spec->'sli'->'label_columns' AS label_columns,
+                    spec->'tiers' AS tiers
+             FROM slos WHERE tenant=$1",
+        )
+        .bind(tenant.as_str())
+        .fetch_all(&self.pool)
+        .await?;
+        let mut out = Vec::with_capacity(rows.len());
+        for r in &rows {
+            // Both paths are SQL NULL when the JSON key is absent (spec predates the
+            // field, or was explicitly `null`) — treat missing and null identically.
+            let label_columns: Vec<String> =
+                match r.get::<Option<serde_json::Value>, _>("label_columns") {
+                    Some(v) if !v.is_null() => serde_json::from_value(v)?,
+                    _ => Vec::new(),
+                };
+            let tiers: Vec<BurnRateTier> = match r.get::<Option<serde_json::Value>, _>("tiers") {
+                Some(v) if !v.is_null() => serde_json::from_value(v)?,
+                _ => canonical_tiers(),
+            };
+            out.push(SloDispatchInfo {
+                id: SloId(r.get("id")),
+                tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
+                label_columns,
+                tiers,
+            });
+        }
+        Ok(out)
+    }
+
+    // ---- slo evaluation: due-scan ----
+
+    /// Like [`Self::claim_due_rules_sharded`], but against `slos`. There is no per-SLO
+    /// interval column (unlike rules' `spec->>'interval_secs'`) — the scheduler passes
+    /// the base cadence via `base_cadence_secs` and every claimed SLO advances by that
+    /// same fixed amount (no adaptive stretch axis for SLOs).
+    pub async fn claim_due_slos_sharded(
+        &self,
+        now: OffsetDateTime,
+        batch: i64,
+        owned_shards: &[i32],
+        shard_count: i32,
+        base_cadence_secs: i32,
+    ) -> Result<Vec<crate::domain::slo::Slo>, StoreError> {
+        let rows = sqlx::query(
+            "WITH due AS (
+                 SELECT id FROM slos
+                 WHERE next_eval <= $1 AND NOT paused
+                   AND (((hashtext(tenant::text)::bigint % $3) + $3) % $3)::int = ANY($4)
+                 ORDER BY next_eval LIMIT $2 FOR UPDATE SKIP LOCKED
+             )
+             UPDATE slos s
+             SET next_eval = $1 + make_interval(secs => $5)
+             FROM due WHERE s.id = due.id
+             RETURNING s.id, s.tenant, s.name, s.spec, s.version, s.paused",
+        )
+        .bind(now)
+        .bind(batch)
+        .bind(shard_count)
+        .bind(owned_shards)
+        .bind(base_cadence_secs)
+        .fetch_all(&self.pool)
+        .await?;
+        rows.iter().map(Self::slo_from_row).collect()
+    }
+
+    // ---- slo evaluation: idempotency ----
+
+    /// Returns true if this (slo, eval_ts) was newly claimed; false if already applied.
+    /// Mirrors [`Self::try_claim_eval`] against `slo_evaluations`.
+    pub async fn try_claim_slo_eval(
+        &self,
+        slo: crate::domain::ids::SloId,
+        eval_ts: OffsetDateTime,
+    ) -> Result<bool, StoreError> {
+        let res = sqlx::query(
+            "INSERT INTO slo_evaluations (slo, eval_ts) VALUES ($1,$2) ON CONFLICT DO NOTHING",
+        )
+        .bind(slo.0)
+        .bind(eval_ts)
+        .execute(&self.pool)
+        .await?;
+        Ok(res.rows_affected() == 1)
+    }
+
+    // ---- slo evaluation: health ----
+
+    /// Record a query failure for `slo`: bump the consecutive-failure counter and store the
+    /// error. If this crosses `degrade_after` from a healthy state, flip to degraded and write
+    /// an `SloHealth`/`Firing` event to the outbox in the same transaction, mirroring
+    /// [`Self::record_rule_failure`]. Returns the event + outbox id to publish, or `None`.
+    pub async fn record_slo_failure(
+        &self,
+        slo: crate::domain::ids::SloId,
+        tenant: &TenantId,
+        err: &str,
+        degrade_after: u32,
+        now: OffsetDateTime,
+    ) -> Result<Option<(Event, Uuid)>, StoreError> {
+        let mut tx = self.pool.begin().await?;
+        let row = sqlx::query(
+            "SELECT health_status, consecutive_failures FROM slos WHERE id=$1 AND tenant=$2 FOR UPDATE",
+        )
+        .bind(slo.0)
+        .bind(tenant.as_str())
+        .fetch_optional(&mut *tx)
+        .await?;
+        let Some(row) = row else {
+            tx.rollback().await?;
+            return Ok(None);
+        };
+        let was: String = row.get("health_status");
+        let n: i32 = row.get::<i32, _>("consecutive_failures") + 1;
+        let now_degraded = n >= degrade_after as i32;
+        let transitioned = now_degraded && was != "degraded";
+        sqlx::query(
+            "UPDATE slos SET consecutive_failures=$3, last_error=$4, last_error_at=$5,
+                 health_status = CASE WHEN $6 THEN 'degraded' ELSE health_status END,
+                 degraded_since = CASE WHEN $7 THEN $5 ELSE degraded_since END
+             WHERE id=$1 AND tenant=$2",
+        )
+        .bind(slo.0)
+        .bind(tenant.as_str())
+        .bind(n)
+        .bind(err)
+        .bind(now)
+        .bind(now_degraded)
+        .bind(transitioned)
+        .execute(&mut *tx)
+        .await?;
+
+        if transitioned {
+            let mut ann = BTreeMap::new();
+            ann.insert(
+                "summary".to_string(),
+                format!("SLO {} degraded: {}", slo.0, err),
+            );
+            ann.insert("last_error".to_string(), err.to_string());
+            let ev = Event::slo_health(tenant.clone(), slo, EventStatus::Firing, ann, now);
+            let id = Uuid::new_v4();
+            let payload = serde_json::to_value(&ev)?;
+            sqlx::query("INSERT INTO event_outbox (id, tenant, payload) VALUES ($1,$2,$3)")
+                .bind(id)
+                .bind(tenant.as_str())
+                .bind(&payload)
+                .execute(&mut *tx)
+                .await?;
+            tx.commit().await?;
+            return Ok(Some((ev, id)));
+        }
+
+        tx.commit().await?;
+        Ok(None)
+    }
+
+    /// Record a query success for `slo`: reset the failure counter and clear the stored
+    /// error. If the SLO was degraded, flip to healthy and write an `SloHealth`/`Resolved`
+    /// event to the outbox in the same transaction, mirroring [`Self::record_rule_success`].
+    /// Returns the recovery event + outbox id, or `None`.
+    pub async fn record_slo_success(
+        &self,
+        slo: crate::domain::ids::SloId,
+        tenant: &TenantId,
+        now: OffsetDateTime,
+    ) -> Result<Option<(Event, Uuid)>, StoreError> {
+        let mut tx = self.pool.begin().await?;
+        let row = sqlx::query(
+            "UPDATE slos SET consecutive_failures=0, last_error=NULL, last_error_at=NULL
+              WHERE id = $1 AND tenant = $2
+                AND (consecutive_failures <> 0 OR last_error IS NOT NULL OR health_status <> 'healthy')
+            RETURNING health_status",
+        )
+        .bind(slo.0)
+        .bind(tenant.as_str())
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        let Some(row) = row else {
+            tx.commit().await?;
+            return Ok(None);
+        };
+        let status: String = row.get("health_status");
+
+        if status == "degraded" {
+            sqlx::query(
+                "UPDATE slos SET health_status='healthy', degraded_since=NULL WHERE id=$1 AND tenant=$2",
+            )
+            .bind(slo.0)
+            .bind(tenant.as_str())
+            .execute(&mut *tx)
+            .await?;
+            let mut ann = BTreeMap::new();
+            ann.insert("summary".to_string(), format!("SLO {} recovered", slo.0));
+            let ev = Event::slo_health(tenant.clone(), slo, EventStatus::Resolved, ann, now);
+            let id = Uuid::new_v4();
+            let payload = serde_json::to_value(&ev)?;
+            sqlx::query("INSERT INTO event_outbox (id, tenant, payload) VALUES ($1,$2,$3)")
+                .bind(id)
+                .bind(tenant.as_str())
+                .bind(&payload)
+                .execute(&mut *tx)
+                .await?;
+            tx.commit().await?;
+            return Ok(Some((ev, id)));
+        }
+
+        tx.commit().await?;
+        Ok(None)
+    }
+
+    /// Lean health read for the `/v1/slos/:id/status` response's `health` sibling field.
+    /// `None` iff the SLO doesn't exist for this tenant.
+    pub async fn get_slo_health(
+        &self,
+        tenant: &TenantId,
+        slo: crate::domain::ids::SloId,
+    ) -> Result<Option<SloHealth>, StoreError> {
+        let row = sqlx::query(
+            "SELECT health_status, degraded_since, last_error FROM slos WHERE id=$1 AND tenant=$2",
+        )
+        .bind(slo.0)
+        .bind(tenant.as_str())
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row.map(|r| SloHealth {
+            status: r.get("health_status"),
+            degraded_since: r.get("degraded_since"),
+            last_error: r.get("last_error"),
+        }))
+    }
+
+    // ---- slo evaluation: status snapshot ----
+
+    pub async fn upsert_slo_status(
+        &self,
+        slo: crate::domain::ids::SloId,
+        tenant: &TenantId,
+        payload: &serde_json::Value,
+        computed_at: OffsetDateTime,
+    ) -> Result<(), StoreError> {
+        sqlx::query(
+            "INSERT INTO slo_status (slo, tenant, payload, computed_at) VALUES ($1,$2,$3,$4)
+             ON CONFLICT (slo) DO UPDATE SET payload=EXCLUDED.payload, computed_at=EXCLUDED.computed_at, tenant=EXCLUDED.tenant",
+        )
+        .bind(slo.0)
+        .bind(tenant.as_str())
+        .bind(payload)
+        .bind(computed_at)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn get_slo_status(
+        &self,
+        tenant: &TenantId,
+        slo: crate::domain::ids::SloId,
+    ) -> Result<Option<SloStatusRow>, StoreError> {
+        let row = sqlx::query(
+            "SELECT slo, tenant, payload, computed_at FROM slo_status WHERE slo=$1 AND tenant=$2",
+        )
+        .bind(slo.0)
+        .bind(tenant.as_str())
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row.map(|r| SloStatusRow {
+            slo: crate::domain::ids::SloId(r.get("slo")),
+            tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
+            payload: r.get("payload"),
+            computed_at: r.get("computed_at"),
+        }))
+    }
+
+    // ---- slo instances (burn-rate alerting) ----
+
+    /// Load an SLO's instances, tenant-scoped. Mirrors [`Self::load_instances`] against
+    /// `slo_instances`; callers already resolve the SLO via `get_slo(tenant, slo)`, the
+    /// tenant predicate here is defense-in-depth as there.
+    pub async fn load_slo_instances(
+        &self,
+        tenant: &TenantId,
+        slo: crate::domain::ids::SloId,
+    ) -> Result<Vec<InstanceState>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT key, slo, tenant, status, labels, value, active_since, last_seen, absent_count
+             FROM slo_instances WHERE slo=$1 AND tenant=$2",
+        )
+        .bind(slo.0)
+        .bind(tenant.as_str())
+        .fetch_all(&self.pool)
+        .await?;
+        let mut out = Vec::new();
+        for r in &rows {
+            out.push(row_to_slo_instance(r)?);
+        }
+        Ok(out)
+    }
+
+    /// Mirrors [`Self::persist_eval_batch`] steps 1-2 (the unnest-upsert + outbox
+    /// insert) against `slo_instances`. There is no rollup/cadence write here — SLOs
+    /// have no per-row rollup counters and no adaptive cadence axis (see
+    /// [`Self::claim_due_slos_sharded`]). Returns the generated outbox ids in `events`
+    /// order. Empty input is a no-op.
+    pub async fn persist_slo_eval_batch(
+        &self,
+        instances: &[InstanceState],
+        events: &[Event],
+    ) -> Result<Vec<Uuid>, StoreError> {
+        if instances.is_empty() && events.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let n = instances.len();
+        let mut keys = Vec::with_capacity(n);
+        let mut slos = Vec::with_capacity(n);
+        let mut tenants = Vec::with_capacity(n);
+        let mut statuses = Vec::with_capacity(n);
+        let mut labels_arr = Vec::with_capacity(n);
+        let mut values = Vec::with_capacity(n);
+        let mut active = Vec::with_capacity(n);
+        let mut last_seen = Vec::with_capacity(n);
+        let mut absent = Vec::with_capacity(n);
+        for s in instances {
+            keys.push(s.key.0.clone());
+            slos.push(s.rule.0); // InstanceState.rule carries the SLO uuid for slo_instances rows
+            tenants.push(s.tenant.as_str().to_string());
+            statuses.push(status_str(s.status).to_string());
+            labels_arr.push(serde_json::to_value(&s.labels)?);
+            values.push(s.value);
+            active.push(s.active_since);
+            last_seen.push(s.last_seen);
+            absent.push(absent_count_to_db(s.absent_count));
+        }
+
+        let ids: Vec<Uuid> = (0..events.len()).map(|_| Uuid::new_v4()).collect();
+        let ev_tenants: Vec<String> = events
+            .iter()
+            .map(|e| e.tenant.as_str().to_string())
+            .collect();
+        let payloads: Vec<serde_json::Value> = events
+            .iter()
+            .map(serde_json::to_value)
+            .collect::<Result<_, _>>()?;
+
+        let mut tx = self.pool.begin().await?;
+        if !instances.is_empty() {
+            sqlx::query(
+                "INSERT INTO slo_instances (key, slo, tenant, status, labels, value, active_since, last_seen, absent_count)
+                 SELECT * FROM unnest($1::text[], $2::uuid[], $3::text[], $4::text[], $5::jsonb[], $6::float8[], $7::timestamptz[], $8::timestamptz[], $9::int[])
+                 ON CONFLICT (key) DO UPDATE SET
+                   status=EXCLUDED.status, labels=EXCLUDED.labels, value=EXCLUDED.value,
+                   active_since=EXCLUDED.active_since, last_seen=EXCLUDED.last_seen, absent_count=EXCLUDED.absent_count
+                 WHERE slo_instances.tenant = EXCLUDED.tenant",
+            )
+            .bind(&keys)
+            .bind(&slos)
+            .bind(&tenants)
+            .bind(&statuses)
+            .bind(&labels_arr)
+            .bind(&values)
+            .bind(&active)
+            .bind(&last_seen)
+            .bind(&absent)
+            .execute(&mut *tx)
+            .await?;
+        }
+        if !events.is_empty() {
+            sqlx::query(
+                "INSERT INTO event_outbox (id, tenant, payload)
+                 SELECT * FROM unnest($1::uuid[], $2::text[], $3::jsonb[])",
+            )
+            .bind(&ids)
+            .bind(&ev_tenants)
+            .bind(&payloads)
+            .execute(&mut *tx)
+            .await?;
+        }
+        tx.commit().await?;
+        Ok(ids)
+    }
+
+    /// Firing SLO instances for a tenant, enriched with the instance's per-tier
+    /// severity (read from the SLO spec). Mirrors [`Self::list_firing`]; used as an
+    /// inhibition source-set once burn-rate alerts join the union (Task 10).
+    pub async fn list_firing_slos(
+        &self,
+        tenant: &TenantId,
+    ) -> Result<Vec<FiringInstance>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT i.key AS key, i.slo AS slo, i.labels AS labels, s.spec AS spec
+             FROM slo_instances i JOIN slos s ON s.id = i.slo
+             WHERE i.tenant=$1 AND i.status=$2",
+        )
+        .bind(tenant.as_str())
+        .bind(status_str(Status::Firing))
+        .fetch_all(&self.pool)
+        .await?;
+        let mut out = Vec::with_capacity(rows.len());
+        for r in &rows {
+            let labels: BTreeMap<String, String> = serde_json::from_value(r.get("labels"))?;
+            let spec: crate::domain::slo::SloSpec = serde_json::from_value(r.get("spec"))?;
+            let tiers = spec
+                .tiers
+                .clone()
+                .unwrap_or_else(crate::domain::slo::canonical_tiers);
+            let severity = crate::domain::slo::tier_severity(&tiers, &labels);
+            out.push(FiringInstance {
+                key: InstanceKey(r.get("key")),
+                rule: RuleId(r.get("slo")), // InstanceState.rule carries the SLO uuid for slo_instances rows
+                severity,
+                labels,
+            });
+        }
+        Ok(out)
+    }
+
+    /// SLO instances still pending/firing whose last evaluation is older than
+    /// max(4 * `cadence_secs`, 60)s. Mirrors [`Self::list_stale_instances`]; SLOs have
+    /// no per-row interval (unlike rules' `spec->>'interval_secs'`), so the fixed base
+    /// cadence is passed in by the caller (see [`Self::claim_due_slos_sharded`]).
+    /// `now` is passed in for testability.
+    pub async fn list_stale_slo_instances(
+        &self,
+        now: OffsetDateTime,
+        cadence_secs: i64,
+        limit: i64,
+    ) -> Result<Vec<StaleInstance>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT i.key AS key, i.slo AS slo, i.tenant AS tenant, i.status AS status,
+                    i.labels AS labels, i.value AS value, s.spec AS spec
+             FROM slo_instances i JOIN slos s ON s.id = i.slo
+             WHERE i.status IN ('pending','firing')
+               AND NOT s.paused
+               AND s.health_status <> 'degraded'
+               -- A failing-but-not-yet-degraded SLO (consecutive_failures > 0, still
+               -- 'healthy') froze deliberately (freeze-on-error): the reaper must not
+               -- resolve its instances before the degrade threshold decides. Without
+               -- this guard, a degrade_after > 4 configuration races the 4x-cadence
+               -- staleness window and the reaper wins, resolving instances a source
+               -- that is about to legitimately degrade.
+               AND s.consecutive_failures = 0
+               AND i.last_seen < ($1::timestamptz - make_interval(secs => GREATEST(4 * $2, 60)))
+             ORDER BY i.last_seen
+             LIMIT $3",
+        )
+        .bind(now)
+        .bind(cadence_secs)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+        let mut out = Vec::with_capacity(rows.len());
+        for r in &rows {
+            let labels: BTreeMap<String, String> = serde_json::from_value(r.get("labels"))?;
+            let spec: crate::domain::slo::SloSpec = serde_json::from_value(r.get("spec"))?;
+            let tiers = spec
+                .tiers
+                .clone()
+                .unwrap_or_else(crate::domain::slo::canonical_tiers);
+            let severity = crate::domain::slo::tier_severity(&tiers, &labels);
+            out.push(StaleInstance {
+                key: InstanceKey(r.get("key")),
+                rule: RuleId(r.get("slo")), // InstanceState.rule carries the SLO uuid for slo_instances rows
+                tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
+                status: status_from(r.get::<&str, _>("status")),
+                labels,
+                value: r.get("value"),
+                severity,
+                annotations: spec.annotations,
+                suppressed: spec.suppressed,
+            });
+        }
+        Ok(out)
+    }
+
+    /// Delete evaluation-ledger rows (both the rule-side `evaluations` and SLO-side
+    /// `slo_evaluations` idempotency tables) older than `cutoff` (housekeeping).
+    /// Returns `(rules rows deleted, slos rows deleted)`.
+    pub async fn prune_eval_ledgers(
+        &self,
+        cutoff: OffsetDateTime,
+    ) -> Result<(u64, u64), StoreError> {
+        let rules = sqlx::query("DELETE FROM evaluations WHERE eval_ts < $1")
+            .bind(cutoff)
+            .execute(&self.pool)
+            .await?;
+        let slos = sqlx::query("DELETE FROM slo_evaluations WHERE eval_ts < $1")
+            .bind(cutoff)
+            .execute(&self.pool)
+            .await?;
+        Ok((rules.rows_affected(), slos.rows_affected()))
     }
 }

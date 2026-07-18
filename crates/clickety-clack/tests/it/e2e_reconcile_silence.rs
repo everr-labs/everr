@@ -189,6 +189,7 @@ async fn reconcile_resolved_respects_silence() {
                 bus,
                 lease,
                 Duration::from_millis(200),
+                30,
                 cc::otel::EngineMetrics::disabled(),
                 rx,
             )

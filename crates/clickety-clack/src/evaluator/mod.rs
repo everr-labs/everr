@@ -12,6 +12,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 pub mod maintenance;
+pub mod slo;
 
 /// Evidence caps (pinned contract with the everr frontend): at most 16 columns, and the
 /// compact-JSON serialization must fit in 4096 bytes or the evidence is dropped entirely.
@@ -145,7 +146,12 @@ pub async fn run_evaluator(
 
 /// Publish a rule-health event written to the outbox in `record_rule_*`, deleting the row
 /// on success. A failed publish leaves the row for the maintenance relay (exactly-once).
-async fn publish_health(store: &PgStore, events: &dyn EventBus, ev: Event, id: uuid::Uuid) {
+pub(crate) async fn publish_health(
+    store: &PgStore,
+    events: &dyn EventBus,
+    ev: Event,
+    id: uuid::Uuid,
+) {
     match events.publish(&ev).await {
         Ok(()) => {
             if let Err(e) = store.delete_outbox(id).await {
@@ -157,7 +163,10 @@ async fn publish_health(store: &PgStore, events: &dyn EventBus, ev: Event, id: u
 }
 
 /// Select the outbox ids to delete: those at the indices that published successfully.
-fn published_outbox_ids(outbox_ids: &[uuid::Uuid], published: &[usize]) -> Vec<uuid::Uuid> {
+pub(crate) fn published_outbox_ids(
+    outbox_ids: &[uuid::Uuid],
+    published: &[usize],
+) -> Vec<uuid::Uuid> {
     published.iter().map(|&i| outbox_ids[i]).collect()
 }
 

@@ -59,6 +59,7 @@ async fn persist_eval_batch_upserts_and_outboxes() {
     let ev = Event {
         tenant: tenant.clone(),
         rule: rule.id,
+        slo: None,
         instance_key: instances[0].key.clone(),
         status: EventStatus::Firing,
         kind: EventKind::Alert,

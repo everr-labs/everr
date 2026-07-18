@@ -6,6 +6,8 @@ omitted.
 
 - [Rule](#rule)
 - [Instance and Status](#instance-and-status)
+- [SLO](#slo)
+- [SLO status snapshot](#slo-status-snapshot)
 - [Event](#event)
 - [Matcher](#matcher)
 - [Channel and ChannelConfig](#channel-and-channelconfig)
@@ -75,6 +77,106 @@ The transition rules are in [the evaluation model](../explanation/evaluation-mod
 
 ---
 
+## SLO
+
+An error-budget objective plus its multi-window burn-rate tiers, evaluated
+against a `good`/`valid` SLI query. See
+[define SLOs and burn-rate alerts](../how-to/define-slos-and-burn-rate-alerts.md).
+
+| Field              | Type                   | Default | Meaning |
+| ------------------ | ---------------------- | ------- | ------- |
+| `sli.sql`          | string                 | —       | Read-only `SELECT` returning `good`/`valid` numeric columns, evaluated against ClickHouse with `{window_start:DateTime}`/`{window_end:DateTime}` bound. |
+| `sli.label_columns`| string[]               | `[]`    | Result columns that fan the SLO into per-group SLIs. Empty = scalar SLO. |
+| `targetPercent`    | f64                    | —       | Objective percentage, `> 0` and `< 100`. |
+| `timeWindow.duration` | string               | —       | Rolling-window shorthand (`m`/`h`/`d`/`w`), capped at 366 days. |
+| `timeWindow.isRolling` | bool                | `true`  | v1 supports rolling windows only. |
+| `timeWindow.calendar` | object \| null       | `null`  | Reserved for a future calendar-aligned window; rejected if present in v1. |
+| `min_valid_events` | u64 \| null            | `null`  | Floor on the long window's `valid` count below which a tier cannot fire. `null` = off. |
+| `tiers`            | [BurnRateTier](#burnratetier)[] \| null | `null` → canonical three tiers | Multi-window burn-rate tiers (see below). |
+| `annotations`      | object<string,string>  | `{}`    | Free-form metadata, passed through onto tier-firing events. `summary`/`description`/`link.*` render into notifications the same as [rule annotations](../how-to/write-alert-rules.md#annotations). |
+| `suppressed`       | bool                   | `false` | Preview mode: the SLO evaluates fully and tracks tier state, but the dispatcher never notifies on its events. |
+
+Stored as an `Slo`: `{ id, tenant, name, spec, version, paused }` — same
+envelope shape as a `Rule`: `name` is unique per tenant, `spec` is the object
+above, `version` is an optimistic-lock counter (bumped by every
+`PUT /v1/slos/:id`), and `paused` is an operational flag (not part of `spec`,
+does not affect `version`).
+
+### BurnRateTier
+
+| Field         | Type                  | Meaning |
+| ------------- | --------------------- | ------- |
+| `name`        | string                | Tier identity (non-empty); becomes the synthetic `slo_tier` label on tier-firing instances/events. |
+| `long_window` | string                | Sustained-burn window, e.g. `1h`. Must be strictly greater than `short_window`. |
+| `short_window`| string                | Anti-flap window, e.g. `5m`. |
+| `burn_rate`   | f64                   | Threshold (`> 0`); a tier fires when **both** its long- and short-window burn rates strictly exceed this. |
+| `severity`    | [Severity](#severity) | Severity attached to the tier's emitted events. |
+
+**Canonical tiers** (used when `tiers` is `null`), calibrated to a 30-day
+budget window:
+
+| Tier        | `long_window` | `short_window` | `burn_rate` | `severity` |
+| ----------- | -------------- | -------------- | ----------- | ---------- |
+| `fast-burn` | `1h`           | `5m`           | `14.4`      | critical   |
+| `slow-burn` | `6h`           | `30m`          | `6.0`       | critical   |
+| `ticket`    | `3d`           | `6h`           | `1.0`       | warning    |
+
+**Tier instance identity.** Each (group × tier) pair is tracked as its own
+instance, keyed like a rule instance but with the SLO id standing in for the
+rule id and an extra `slo_tier` label added to the group's own labels — so a
+tier transition drives the same engine state machine (`inactive` →
+`pending`/`firing` → resolved) as any rule instance, and shows up alongside
+rule instances in `GET /v1/alerts`. A faster tier firing auto-inhibits its
+slower siblings for the same (SLO, group) — synthesized by the dispatcher,
+never stored, so it cannot be misconfigured away.
+
+---
+
+## SLO status snapshot
+
+The evaluator's latest computed read for an SLO — one row per SLO, upserted on
+every successful evaluation tick. Returned (enriched, see below) by
+`GET /v1/slos/:id/status`.
+
+| Field                | Type                              | Meaning |
+| -------------------- | --------------------------------- | ------- |
+| `window`             | string                            | The SLO's `timeWindow.duration` at the time of the snapshot. |
+| `target_percent`     | f64                               | The SLO's `targetPercent` at the time of the snapshot. |
+| `groups[]`           | [SloGroupStatus](#slogroupstatus)[] | One entry per distinct `label_columns` combination observed. |
+| `window_computed_at` | object<string,i64>                | Per-window freshness ledger: window name (e.g. `"300s"`) → unix seconds it was last recomputed. Drives the coordinated-refresh cadence — see [evaluation cadence](../how-to/define-slos-and-burn-rate-alerts.md#evaluation-cadence). |
+
+### SloGroupStatus
+
+| Field               | Type                              | Meaning |
+| ------------------- | --------------------------------- | ------- |
+| `labels`             | object<string,string>              | This group's `label_columns` values. |
+| `sli`                | f64 \| null                        | `good / valid` over the budget window. `null` at zero traffic. |
+| `budget_remaining`   | f64 \| null                        | Fraction of the error budget left over the budget window; may go negative once the objective is breached. `null` at zero traffic. |
+| `tiers[]`            | [SloTierStatus](#slotierstatus)[]  | One entry per configured tier. |
+
+At **read time only** (`GET /v1/slos/:id/status`; never persisted), each group
+also gains:
+
+| Field                     | Type                 | Meaning |
+| ------------------------- | -------------------- | ------- |
+| `time_to_exhaustion_secs` | u64 \| null          | Projected seconds until budget exhaustion, from `budget_remaining` and the fastest tier's `long_burn_rate`. `null` when that burn rate is unknown or `<= 0`; `0` when the budget is already exhausted. |
+| `firing_tiers[]`          | object[]             | `{ tier, status }` for this group's currently non-`inactive` tier instances (`pending` or `firing`), read live from the instance store. |
+
+A stored payload that fails to deserialize into the current shape (legacy or
+corrupt) is returned verbatim by the API, without either enrichment field,
+rather than erroring.
+
+### SloTierStatus
+
+| Field               | Type        | Meaning |
+| ------------------- | ----------- | ------- |
+| `name`              | string      | Tier name, matching a `BurnRateTier.name`. |
+| `long_burn_rate`     | f64 \| null | Burn rate over the tier's `long_window`. `null` at zero traffic in that window. |
+| `short_burn_rate`    | f64 \| null | Burn rate over the tier's `short_window`. `null` at zero traffic in that window. |
+| `long_window_valid`  | f64 \| null | The tier's long-window `valid` count — the input to `min_valid_events`'s floor. `null` on rows written before this field existed (additive, defaults to `null` on read). |
+
+---
+
 ## Event
 
 Emitted on a firing or resolving transition; carried on the Redis event stream.
@@ -93,6 +195,7 @@ Emitted on a firing or resolving transition; carried on the Redis event stream.
 | `suppressed`   | bool                       | Mirrors the rule's `suppressed` flag at emit time. Default `false`; older payloads without the field deserialize as `false`. The dispatcher drops suppressed events before any notification processing. |
 | `evidence`     | object<string,json> \| null | Source-row context for the instance: the row's columns excluding `label_columns` (the value column is included). Capped at 16 columns and 4096 bytes of compact JSON; over the byte cap it becomes `null` with `evidence_truncated: true`. `null` for resolved-by-absence and rule-health events. |
 | `evidence_truncated` | bool                 | `true` when evidence was cut to the column cap or dropped for the byte cap. Default `false`. |
+| `slo`          | uuid \| null               | Set (to the SLO id) only for SLO tier-firing/resolving events; omitted from the JSON entirely when `null` (a plain rule event, or an event from a replica predating this field). Its presence drives the dispatcher's synthetic `slo` label, the SLO default `group_by`, and tier auto-inhibition — see [define SLOs and burn-rate alerts](../how-to/define-slos-and-burn-rate-alerts.md). |
 
 ---
 

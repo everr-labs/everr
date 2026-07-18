@@ -1,0 +1,51 @@
+use cc::domain::ids::TenantId;
+use cc::domain::slo::{SliSpec, SloSpec, TimeWindow};
+use cc::queue::redis_streams::RedisQueue;
+use cc::queue::Queue;
+use cc::stores::{PgStore, SloCreate};
+use std::collections::BTreeMap;
+use testcontainers_modules::redis::Redis;
+use testcontainers_modules::testcontainers::runners::AsyncRunner;
+
+#[tokio::test]
+async fn tick_enqueues_due_slo_jobs() {
+    let pg = crate::support::fresh_db().await;
+    let store = PgStore::connect(&pg).await.unwrap();
+
+    let node = Redis::default().start().await.unwrap();
+    let port = node.get_host_port_ipv4(6379).await.unwrap();
+    let url = format!("redis://127.0.0.1:{port}");
+    let queue = RedisQueue::connect(&url).await.unwrap();
+
+    let spec = SloSpec {
+        sli: SliSpec {
+            sql: "SELECT 1 AS good, 1 AS valid FROM t WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}".into(),
+            label_columns: vec![],
+        },
+        target_percent: 99.9,
+        time_window: TimeWindow {
+            duration: "30d".into(),
+            is_rolling: true,
+            calendar: None,
+        },
+        min_valid_events: None,
+        tiers: None,
+        annotations: BTreeMap::new(),
+        suppressed: false,
+    };
+    let SloCreate::Created(slo) = store
+        .create_slo(TenantId::from_trusted("t"), "s", &spec)
+        .await
+        .unwrap()
+    else {
+        panic!("expected slo to be created")
+    };
+
+    // one tick with a single shard owning everything
+    cc::scheduler::tick_slos_once(&store, &queue, 100, &[0], 1, 30)
+        .await
+        .unwrap();
+
+    let got = queue.consume_slo("c", 10, 500).await.unwrap();
+    assert!(got.iter().any(|d| d.job.slo == slo.id));
+}

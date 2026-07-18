@@ -21,9 +21,15 @@ fn group_key(group_id: &str) -> String {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GroupMeta {
     pub tenant: String,
+    /// `default` so a group hash written by a pre-named-channels binary (which had
+    /// `channel`/`target` instead) still deserializes during a rolling upgrade,
+    /// reading as no channels (drained, never notified) rather than erroring.
+    #[serde(default)]
     pub channels: Vec<String>,
     pub group_key: String,
     /// Clean receiver name (no grouping-value suffix); used as the delivery-target label.
+    /// `default` for the same rolling-upgrade reason: legacy meta had no `receiver`.
+    #[serde(default)]
     pub receiver: String,
 }
 
