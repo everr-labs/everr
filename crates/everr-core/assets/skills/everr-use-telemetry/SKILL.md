@@ -156,8 +156,8 @@ An error log has a `service.name` resource attribute, `SeverityNumber >= 17`, an
 mapContains(ResourceAttributes, 'service.name')
 AND SeverityNumber >= 17
 AND (
-  LogAttributes['exception.type'] != ''
-  OR LogAttributes['exception.message'] != ''
+  mapContains(LogAttributes, 'exception.type')
+  OR mapContains(LogAttributes, 'exception.message')
 )
 ```
 

@@ -105,8 +105,8 @@ WHERE Timestamp > now() - INTERVAL 10 MINUTE
   AND SeverityNumber >= 17
   AND mapContains(ResourceAttributes, 'service.name')
   AND (
-    LogAttributes['exception.type'] != ''
-    OR LogAttributes['exception.message'] != ''
+    mapContains(LogAttributes, 'exception.type')
+    OR mapContains(LogAttributes, 'exception.message')
   )
 ORDER BY Timestamp DESC
 LIMIT 20

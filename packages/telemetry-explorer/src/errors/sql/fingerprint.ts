@@ -11,7 +11,7 @@ export const EXCEPTION_LOG_FILTER_SQL = `
   mapContains(ResourceAttributes, 'service.name')
   AND SeverityNumber >= 17
   AND (
-    LogAttributes['exception.type'] != ''
-    OR LogAttributes['exception.message'] != ''
+    mapContains(LogAttributes, 'exception.type')
+    OR mapContains(LogAttributes, 'exception.message')
   )
 `;
