@@ -244,6 +244,120 @@ Spec-change side effects (all applied atomically with the update):
 
 ---
 
+## SLOs
+
+An SLO is a `good`/`valid` SLI query plus the metadata that turns its error
+budget into multi-window burn-rate alerts. See [data model → SLO](data-model.md#slo)
+for field semantics and [define SLOs and burn-rate alerts](../how-to/define-slos-and-burn-rate-alerts.md)
+for how to write one.
+
+| Method & path              | Description |
+| -------------------------- | ----------- |
+| `POST /v1/slos`             | Create an SLO. Body = `{ "name": ..., ...spec }` (below). Returns the stored `Slo`. |
+| `GET /v1/slos`               | List SLOs for the tenant. Unpaginated; bounded by tenant scale. |
+| `GET /v1/slos/:id`           | Get one SLO by UUID. |
+| `PUT /v1/slos/:id`           | Update an SLO's spec in place (same body as create, plus optional `version`). Preserves id, tenant, `paused`; bumps `version`. |
+| `DELETE /v1/slos/:id`        | Delete an SLO. |
+| `POST /v1/slos/:id/pause`    | Pause evaluation. Freezes state, emits no events. Returns the updated `Slo`. Idempotent; unknown id → `404`. |
+| `POST /v1/slos/:id/resume`   | Resume evaluation. Re-arms scheduling. Returns the updated `Slo`. |
+| `GET /v1/slos/:id/status`    | Read-time-enriched status snapshot (below). `404` if the SLO does not exist. |
+| `POST /v1/slos/:id/test`     | Evaluate the supplied spec ad hoc against ClickHouse over its own window. **No state change, no events.** |
+
+### SLO spec (request body)
+
+```json
+{
+  "name": "checkout-availability",
+  "sli": {
+    "sql": "SELECT countIf(status < 500) AS good, count() AS valid FROM http_requests WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}",
+    "label_columns": []
+  },
+  "targetPercent": 99.9,
+  "timeWindow": { "duration": "30d", "isRolling": true },
+  "min_valid_events": 100,
+  "tiers": null,
+  "annotations": { "runbook": "https://…" },
+  "suppressed": false
+}
+```
+
+| Field              | Type                  | Required | Default | Notes |
+| ------------------ | --------------------- | -------- | ------- | ----- |
+| `name`             | string                | yes      | —       | Tenant-unique, 1–128 chars of `[A-Za-z0-9_.-]`. `422` otherwise. |
+| `sli.sql`          | string                | yes      | —       | Read-only `SELECT` returning `good`/`valid` numeric columns; must reference both `{window_start:DateTime}` and `{window_end:DateTime}` (`422` otherwise). |
+| `sli.label_columns`| string[]              | no       | `[]`    | Result columns that fan the SLO into per-group SLIs. May not start with the reserved `__cc_` prefix (`422`). |
+| `targetPercent`    | f64                   | yes      | —       | Objective, e.g. `99.9`. Must be `> 0` and `< 100` (`422` otherwise). |
+| `timeWindow.duration` | string             | yes      | —       | Rolling-window shorthand (`m`/`h`/`d`/`w`), capped at 366 days (`422` over the cap). |
+| `timeWindow.isRolling` | bool              | no       | `true`  | v1 supports rolling only; `false` (or a non-null `timeWindow.calendar`) is rejected `422`. |
+| `timeWindow.calendar` | object \| null    | no       | `null`  | Reserved for a future calendar-aligned window; must be omitted/`null` in v1. |
+| `min_valid_events` | u64 \| null           | no       | `null`  | Floor on the long window's `valid` count below which no tier can fire. `null` = off. |
+| `tiers`            | BurnRateTier[] \| null | no      | `null` → canonical three tiers | See [tiers](../how-to/define-slos-and-burn-rate-alerts.md#tiers-canonical-defaults-and-when-to-override). Each tier: `name` (non-empty), `long_window`/`short_window` (`long_window` strictly greater, both capped at 366 days), `burn_rate` (`> 0`), `severity`. |
+| `annotations`      | object<string,string> | no       | `{}`    | Free-form metadata passed through onto tier-firing events; same `summary`/`description`/`link.*` rendering as [rule annotations](../how-to/write-alert-rules.md#annotations). |
+| `suppressed`       | bool                  | no       | `false` | Preview mode: evaluates fully and tracks tier state, but never notifies. See [pause vs. suppressed](../how-to/define-slos-and-burn-rate-alerts.md#pause-vs-suppressed). |
+
+### SLO response
+
+```json
+{ "id": "<uuid>", "tenant": "<uuid>", "name": "checkout-availability", "spec": { … }, "version": 1, "paused": false }
+```
+
+Same envelope shape as a `Rule` response: `paused` is an operational flag, not
+part of `spec`, and does not affect `version`.
+
+### Updating an SLO
+
+`PUT /v1/slos/:id` takes the full body above (same validation as create) plus
+one optional top-level field, `version` (i64) — an optimistic-concurrency
+guard: must equal the stored `version`, else `409 conflict` and nothing is
+written. Omit for last-write-wins. `name` conflicts with another SLO in the
+tenant yield `409`.
+
+### Test response
+
+```json
+{ "matched": 1, "groups": [ { "labels": {}, "good": 998234.0, "valid": 1000000.0, "sli": 0.998234 } ] }
+```
+
+`sli` is `good / valid`, or `null` when `valid` is `0`.
+
+### Status response
+
+```json
+{
+  "computed_at": "2026-07-17T12:00:00Z",
+  "payload": {
+    "window": "30d",
+    "target_percent": 99.9,
+    "groups": [
+      {
+        "labels": {},
+        "sli": 0.9987,
+        "budget_remaining": 0.42,
+        "tiers": [
+          { "name": "fast-burn", "long_burn_rate": 2.1, "short_burn_rate": 1.8, "long_window_valid": 210000.0 }
+        ],
+        "time_to_exhaustion_secs": 1123200,
+        "firing_tiers": [ { "tier": "ticket", "status": "firing" } ]
+      }
+    ],
+    "window_computed_at": { "300s": 1752753600, "3600s": 1752750000 }
+  },
+  "health": { "status": "healthy", "degraded_since": null, "last_error": null }
+}
+```
+
+`payload.groups[*].time_to_exhaustion_secs` and `.firing_tiers` are computed at
+**read time only** from the stored snapshot plus the live `slo_instances` rows
+— they are never persisted. If the stored snapshot fails to deserialize into
+the current shape (a legacy or corrupt row), it is returned verbatim without
+this enrichment rather than erroring. `health` has the same
+`status`/`degraded_since`/`last_error` shape as
+[rule health](../how-to/observe-degraded-rules.md#inspect-health-via-the-api)
+and reuses `CC_RULE_DEGRADE_AFTER` as its degrade threshold — SLOs have no
+separate health-config knob.
+
+---
+
 ## Alerts (instances)
 
 | Method & path     | Description |

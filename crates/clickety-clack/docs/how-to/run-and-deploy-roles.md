@@ -120,6 +120,37 @@ See [Operate at scale](operate-at-scale.md) for the scheduler-sharding details a
 [durability](../explanation/durability-and-delivery.md) for why duplicate
 processing is safe.
 
+## Rolling upgrades: SLO awareness on the dispatcher
+
+The dispatcher's SLO-aware behavior — the synthetic `slo` label, the auto-
+provisioned tier inhibitions that stop a burn from paging on all three tiers
+at once, and the `slo`-first default `group_by` for SLO events — all depend on
+the dispatcher binary knowing about an event's `slo` field. During a rolling
+upgrade where evaluator and dispatcher replicas are on mixed versions, a
+**previous-version dispatcher replica simply doesn't know the field exists**:
+it deserializes the event fine (unknown/absent fields don't break
+deserialization) but treats every SLO tier-firing event exactly like a rule
+event —
+
+- no synthetic `slo` label is added, so route/silence/inhibition matchers on
+  `slo` never match against it there;
+- no tier inhibition is synthesized, so a burn that breaches `fast-burn`,
+  `slow-burn`, and `ticket` together can page for all three instead of just
+  the fastest;
+- grouping falls back to the ordinary `["rule","severity"]` default instead of
+  the SLO's `["slo", ...group labels]` default (an explicit route `group_by`
+  is unaffected either way).
+
+None of this corrupts state — it's a temporary loss of the SLO-specific
+notification shaping, not a data-loss or evaluation-correctness issue, and it
+self-resolves as soon as that replica is upgraded.
+
+If you're enabling SLOs with paging tiers for the first time on an existing
+deployment, **upgrade (or bounce) every dispatcher replica before creating
+paging SLOs**, or accept that any tier breach during the mixed-version window
+may arrive as several duplicate-looking tier pages instead of one deduplicated
+notification.
+
 ## Graceful shutdown
 
 Each process installs a Ctrl-C / SIGINT handler that signals all its background

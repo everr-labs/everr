@@ -84,6 +84,17 @@ interact.
 
 See [Observe and respond to degraded rules](../how-to/observe-degraded-rules.md).
 
+## SLO evaluation
+
+| Variable                      | Default | Purpose |
+| ------------------------------ | ------- | ------- |
+| `CC_SLO_BASE_CADENCE_SECS`    | `30`    | Fixed scheduling cadence applied to every SLO (SLOs have no per-resource `interval_secs` like rules). Also the floor for each window's own refresh cadence (`max(base_cadence, window_secs / 12)`). A value below `1` (or an unparseable one) falls back to the default `30`. |
+| `CC_SLO_BUDGET_REFRESH_SECS`  | `300`   | **Reserved, not yet read by any code path.** Parsed and clamped the same way as the cadence above (`>= 1`, else falls back to `300`) but has no effect today. |
+
+SLO health (degraded/recovered) reuses `CC_RULE_DEGRADE_AFTER` — see
+[Rule health](#rule-health) above — rather than a separate threshold. See
+[define SLOs and burn-rate alerts](../how-to/define-slos-and-burn-rate-alerts.md#evaluation-cadence).
+
 ## Email (SMTP) — optional
 
 The email channel is **disabled unless `CC_SMTP_HOST` is set**. When unset, the
