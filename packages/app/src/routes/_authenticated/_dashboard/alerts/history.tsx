@@ -37,7 +37,7 @@ function CcHistoryPage() {
   // alike. The shared resolvers map either handle to the rule's display name
   // and (for records stored before CC stamped severity) its severity, or to
   // the owning SLO; an unknown handle renders as-is.
-  const { resolveRuleName, resolveRuleSeverity } = useMemo(
+  const { resolveRuleName, resolveRuleSeverity, resolveRuleId } = useMemo(
     () => ccRuleHandleResolvers(rules.data ?? []),
     [rules.data],
   );
@@ -75,6 +75,7 @@ function CcHistoryPage() {
         resolveRuleName={resolveRuleName}
         resolveRuleSeverity={resolveRuleSeverity}
         resolveSlo={resolveSlo}
+        resolveRuleId={resolveRuleId}
       />
     </div>
   );

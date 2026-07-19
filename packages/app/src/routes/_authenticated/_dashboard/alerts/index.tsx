@@ -396,7 +396,7 @@ function CcOverviewPage() {
   const resolveSlo = useMemo(() => ccSloHandleResolver(slosData), [slosData]);
   // Event rows carry a source handle (slug or uuid) for rules and SLOs alike;
   // the shared resolvers map either to a display name.
-  const { resolveRuleName } = useMemo(
+  const { resolveRuleName, resolveRuleId } = useMemo(
     () => ccRuleHandleResolvers(rules.data ?? []),
     [rules.data],
   );
@@ -583,7 +583,7 @@ function CcOverviewPage() {
             className={STAGE_LINK_CLASS}
           >
             <Stage
-              label="Muted"
+              label="Silenced"
               primary={facts.silencedInstances}
               secondary={`${facts.activeSilences} active ${
                 facts.activeSilences === 1 ? "silence" : "silences"
@@ -711,8 +711,9 @@ function CcOverviewPage() {
               <ul className="divide-y divide-border/60">
                 {(events.data ?? []).map((e) => {
                   const status = ccEventStatus(e.eventType);
-                  const name =
-                    resolveSlo(e.slug)?.name ?? resolveRuleName(e.slug);
+                  const slo = resolveSlo(e.slug);
+                  const ruleId = slo ? undefined : resolveRuleId(e.slug);
+                  const name = slo?.name ?? resolveRuleName(e.slug);
                   return (
                     <li
                       key={`${e.timestamp}-${e.eventType}-${e.instanceFingerprint}`}
@@ -733,9 +734,29 @@ function CcOverviewPage() {
                           </span>
                         )}
                       </span>
-                      <span className="min-w-0 flex-1 truncate text-foreground">
-                        {name}
-                      </span>
+                      {/* A resolved source links to where you act on it — the
+                          feed's contract with the rest of the page. */}
+                      {slo ? (
+                        <Link
+                          to="/alerts/slos/$sloId"
+                          params={{ sloId: slo.id }}
+                          className="min-w-0 flex-1 truncate text-foreground underline-offset-2 hover:underline"
+                        >
+                          {name}
+                        </Link>
+                      ) : ruleId !== undefined ? (
+                        <Link
+                          to="/alerts/rules/$ruleId"
+                          params={{ ruleId }}
+                          className="min-w-0 flex-1 truncate text-foreground underline-offset-2 hover:underline"
+                        >
+                          {name}
+                        </Link>
+                      ) : (
+                        <span className="min-w-0 flex-1 truncate text-foreground">
+                          {name}
+                        </span>
+                      )}
                     </li>
                   );
                 })}

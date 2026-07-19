@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@everr/ui/components/select";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { useCallback, useMemo, useState } from "react";
 import {
   ALERT_EVENT_TYPES,
@@ -93,6 +94,7 @@ export function AlertEventFeed({
   resolveRuleName,
   resolveRuleSeverity,
   resolveSlo,
+  resolveRuleId,
 }: {
   /**
    * Scope the feed to one rule. Event rows carry the rule's slug when CC
@@ -130,6 +132,12 @@ export function AlertEventFeed({
    * before resolveRuleName.
    */
   resolveSlo?: (handle: string) => { id: string; name: string } | undefined;
+  /**
+   * Map a row's rule handle to the rule's id. A hit turns the rule name into
+   * a link to the rule detail page (resolveSlo hits already link to the SLO);
+   * without it names render as plain text, as before.
+   */
+  resolveRuleId?: (handle: string) => string | undefined;
 }) {
   const [severity, setSeverity] = useState<string>("all");
   const [eventType, setEventType] = useState<string>("all");
@@ -231,17 +239,21 @@ export function AlertEventFeed({
       header: "Rule",
       cell: (e) => {
         // SLO-originated rows name their SLO with an origin marker; rule
-        // rows keep the resolved rule name (or the raw handle).
+        // rows keep the resolved rule name (or the raw handle). Resolved
+        // sources link to their detail page — the feed is where "what
+        // happened" turns into "go act on it".
         const slo = resolveSlo?.(e.slug);
         if (slo) {
           return (
             <span className="inline-flex max-w-44 items-center gap-1.5">
-              <span
-                className="min-w-0 truncate font-mono text-xs"
+              <Link
+                to="/alerts/slos/$sloId"
+                params={{ sloId: slo.id }}
+                className="min-w-0 truncate font-mono text-xs underline-offset-2 hover:underline"
                 title={`${slo.name} (${e.slug})`}
               >
                 {slo.name}
-              </span>
+              </Link>
               <span className="shrink-0 rounded-sm border border-border bg-muted/40 px-1 font-mono text-[0.625rem] leading-4 text-muted-foreground">
                 SLO
               </span>
@@ -249,6 +261,19 @@ export function AlertEventFeed({
           );
         }
         const name = resolveRuleName ? resolveRuleName(e.slug) : e.slug;
+        const ruleId = resolveRuleId?.(e.slug);
+        if (ruleId !== undefined) {
+          return (
+            <Link
+              to="/alerts/rules/$ruleId"
+              params={{ ruleId }}
+              className="inline-block max-w-44 truncate align-bottom font-mono text-xs underline-offset-2 hover:underline"
+              title={name === e.slug ? e.slug : `${name} (${e.slug})`}
+            >
+              {name}
+            </Link>
+          );
+        }
         return (
           <span
             className="inline-block max-w-44 truncate align-bottom font-mono text-xs"

@@ -6,7 +6,7 @@ import type { TimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { BellOff, BookOpenText, ChevronRight } from "lucide-react";
+import { BellOff, BookOpenText, ChevronRight, FileSearch } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ccEventStatus } from "@/components/cc/alert-event-feed";
@@ -128,6 +128,31 @@ function sourceScopedSilenceMatchers(alert: CcAlert): CcMatcher[] {
       ? { label: "slo", op: "eq" as const, value: alert.slo }
       : { label: "rule", op: "eq" as const, value: alert.rule },
   ];
+}
+
+/**
+ * Search params for a Logs link scoped to this instance: the window from
+ * shortly before it started firing until now, plus the shared service filter
+ * when the instance carries a service-shaped label. Labels are arbitrary SQL
+ * columns, so only the well-known service key maps to an explorer filter —
+ * anything cleverer would silently build wrong queries.
+ */
+function instanceLogsSearch(alert: CcAlert): {
+  from: string;
+  to: string;
+  service?: string[];
+} {
+  const activeMs = alert.active_since
+    ? new Date(alert.active_since).getTime()
+    : Date.now() - 3_600_000;
+  const serviceKey = Object.keys(alert.labels).find((k) =>
+    /^service([_-]?name)?$/i.test(k),
+  );
+  return {
+    from: new Date(activeMs - 15 * 60_000).toISOString(),
+    to: "now",
+    ...(serviceKey ? { service: [alert.labels[serviceKey]] } : {}),
+  };
 }
 
 // One triage row: the instance plus every fact the board derives for it.
@@ -374,6 +399,16 @@ function InstanceDetail({
             Runbook
           </Link>
         )}
+        {/* The diagnose edge: from "I'm paged" into the telemetry that fired,
+            scoped to the instance's window (and service, when it has one). */}
+        <Link
+          to="/logs"
+          search={instanceLogsSearch(alert)}
+          className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
+        >
+          <FileSearch data-icon="inline-start" />
+          View logs
+        </Link>
       </div>
     </div>
   );
@@ -384,12 +419,21 @@ function InstanceRow({
   expanded,
   onToggle,
   deliveryFact,
+  valueLabel,
+  quietFiring = false,
   children,
 }: {
   inst: TriageInstance;
   expanded: boolean;
   onToggle: () => void;
   deliveryFact: React.ReactNode;
+  /** The group's value-column name, printed inline on small screens where the
+   *  desktop column header row is hidden. */
+  valueLabel: string;
+  /** Under the Firing lens every row is firing: the red badge on each row is
+   *  pure repetition, so firing stays unmarked (sr-only) and only the
+   *  exceptions (pending) keep a visible badge. */
+  quietFiring?: boolean;
   children?: React.ReactNode;
 }) {
   const { alert, silence } = inst;
@@ -415,7 +459,7 @@ function InstanceRow({
           if ((e.target as HTMLElement).closest("a,button") !== null) return;
           onToggle();
         }}
-        className="flex cursor-pointer items-center gap-3 px-3 py-1.5 transition-colors duration-150 hover:bg-muted/40"
+        className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-1.5 transition-colors duration-150 hover:bg-muted/40 md:flex-nowrap"
       >
         <button
           type="button"
@@ -431,8 +475,14 @@ function InstanceRow({
             )}
           />
         </button>
-        <span className="w-16 shrink-0 text-xs">
-          <CcInstanceStatusBadge status={alert.status} />
+        {/* Fixed width only where columns exist (md+); on the stacked phone
+            layout the width would just indent the row. */}
+        <span className="shrink-0 text-xs md:w-16">
+          {quietFiring && alert.status === "firing" ? (
+            <span className="sr-only">firing</span>
+          ) : (
+            <CcInstanceStatusBadge status={alert.status} />
+          )}
         </span>
         <span className="flex min-w-0 flex-1 items-center gap-2">
           {tier !== undefined && inst.slo !== undefined && (
@@ -447,7 +497,15 @@ function InstanceRow({
             <LabelSet labels={shownLabels} emptyLabel="no labels" />
           )}
         </span>
-        <span className="w-16 shrink-0 text-right font-mono text-xs tabular-nums">
+        {/* Below md the fixed-width facts wrap onto their own line (phone
+            widths can't fit labels + value + time + delivery side by side);
+            this breaker forces the wrap, and the pl-8 lines the second row up
+            under the status column. */}
+        <span className="basis-full md:hidden" aria-hidden />
+        <span className="shrink-0 pl-8 font-mono text-xs tabular-nums md:w-16 md:pl-0 md:text-right">
+          <span className="font-sans text-muted-foreground md:hidden">
+            {valueLabel}{" "}
+          </span>
           {/* SLO rows carry the tier's burn rate as their value: print it at
               the engine's own precision (one decimal, ×) instead of the raw
               float. */}
@@ -456,7 +514,7 @@ function InstanceRow({
             : (alert.value ?? "—")}
         </span>
         <span
-          className="w-24 shrink-0 text-right text-xs whitespace-nowrap text-muted-foreground"
+          className="shrink-0 text-xs whitespace-nowrap text-muted-foreground md:w-24 md:text-right"
           title={ccFormatTs(alert.active_since)}
         >
           {alert.active_since ? (
@@ -465,7 +523,7 @@ function InstanceRow({
             "—"
           )}
         </span>
-        <span className="flex w-56 shrink-0 items-center justify-end gap-2">
+        <span className="flex min-w-0 flex-1 items-center justify-end gap-2 overflow-hidden md:w-56 md:flex-none">
           {silence && (
             <span
               className="inline-flex items-center gap-1 text-xs text-muted-foreground"
@@ -818,8 +876,32 @@ function CcTriagePage() {
                       {group.instances.length}{" "}
                       {group.instances.length === 1 ? "instance" : "instances"}
                     </span>
+                    {/* One mute for the whole source: opens the drawer seeded
+                        with the synthetic scoping matcher (slo/rule), so a
+                        30-instance group is one review-and-create away instead
+                        of 30 per-row silences. */}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="ml-auto text-muted-foreground"
+                      aria-label={`Silence all ${group.name} instances`}
+                      onClick={() =>
+                        silenceDrawer.current?.openWith([
+                          group.sloId !== undefined
+                            ? { label: "slo", op: "eq", value: group.sloId }
+                            : {
+                                label: "rule",
+                                op: "eq",
+                                value: group.sourceId,
+                              },
+                        ])
+                      }
+                    >
+                      <BellOff data-icon="inline-start" />
+                      Silence all
+                    </Button>
                   </div>
-                  <div className="flex items-center gap-3 px-3 pb-0.5 text-[0.625rem] font-medium tracking-wide text-muted-foreground/70 uppercase">
+                  <div className="hidden items-center gap-3 px-3 pb-0.5 text-[0.625rem] font-medium tracking-wide text-muted-foreground/70 uppercase md:flex">
                     <span className="size-5 shrink-0" />
                     <span className="w-16 shrink-0" />
                     <span className="min-w-0 flex-1" />
@@ -835,6 +917,12 @@ function CcTriagePage() {
                     <InstanceRow
                       key={inst.alert.key}
                       inst={inst}
+                      valueLabel={
+                        group.sloId !== undefined
+                          ? "burn rate"
+                          : group.rule?.spec.value_column || "value"
+                      }
+                      quietFiring={lens === "firing"}
                       expanded={expandedKey === inst.alert.key}
                       onToggle={() =>
                         setExpandedKey((k) =>

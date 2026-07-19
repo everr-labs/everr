@@ -4,7 +4,6 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle,
 } from "@everr/ui/components/card";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { RelativeTime } from "@everr/ui/components/relative-time";
@@ -33,6 +32,7 @@ import { ccRuleIdentity } from "@/data/alerts/rule-identity";
 import { ccQueries } from "@/data/cc/queries";
 import { CcRuleHealthStatusSchema } from "@/data/cc/schema";
 import { pauseCcRule, resumeCcRule } from "@/data/cc/server";
+import { ccFormatSloDuration } from "@/data/cc/slo";
 import type { CcRuleView } from "@/data/cc/types";
 
 // `health` narrows the listing server-side (CC's rule-health filter); Triage's
@@ -133,7 +133,9 @@ function CcRulesPage() {
       header: "Interval",
       cell: (r) => (
         <span className="tabular-nums text-muted-foreground">
-          {r.spec.interval_secs}s
+          {/* Human units ("30m", not "1800s") — the machine unit is recall
+              tax; the exact seconds stay in the as-code spec. */}
+          {ccFormatSloDuration(r.spec.interval_secs)}
         </span>
       ),
     },
@@ -242,7 +244,8 @@ function CcRulesPage() {
       />
       <Card inset="flush-content">
         <CardHeader>
-          <CardTitle>Rules</CardTitle>
+          {/* No CardTitle: the page h1 directly above already says "Rules" —
+              the header carries only the hint / active-filter readout. */}
           <CardDescription>
             {health ? (
               <>

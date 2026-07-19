@@ -1,3 +1,11 @@
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  Outlet,
+  RouterProvider,
+} from "@tanstack/react-router";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -62,6 +70,39 @@ beforeEach(() => {
   mockHistory([]);
 });
 
+/**
+ * Mount the feed inside a minimal router: resolved sources render as Links to
+ * the rule/SLO detail routes, which need a live router to build hrefs. Tests
+ * that pass resolveSlo/resolveRuleId use this; the rest render bare.
+ */
+function renderInRouter(ui: React.ReactElement) {
+  const rootRoute = createRootRoute({ component: Outlet });
+  const indexRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/",
+    component: () => ui,
+  });
+  const sloDetailRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/alerts/slos/$sloId",
+    component: () => null,
+  });
+  const ruleDetailRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/alerts/rules/$ruleId",
+    component: () => null,
+  });
+  const router = createRouter({
+    routeTree: rootRoute.addChildren([
+      indexRoute,
+      sloDetailRoute,
+      ruleDetailRoute,
+    ]),
+    history: createMemoryHistory({ initialEntries: ["/"] }),
+  });
+  render(<RouterProvider router={router} />);
+}
+
 describe("AlertEventFeed", () => {
   it("polls the event-history query so the feed stays current", () => {
     const opts = ccQueries.eventHistory({ from: "now-1h", to: "now" });
@@ -86,13 +127,13 @@ describe("AlertEventFeed", () => {
     expect(screen.queryByText("beta")).not.toBeInTheDocument();
   });
 
-  it("names SLO-originated rows by their SLO with an SLO origin marker", () => {
+  it("names SLO-originated rows by their SLO with an SLO origin marker, linked to the SLO detail page", async () => {
     mockHistory([
       historyRow({ slug: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" }),
       historyRow({ slug: "beta" }),
     ]);
 
-    render(
+    renderInRouter(
       <AlertEventFeed
         resolveSlo={(handle) =>
           handle === "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
@@ -103,14 +144,38 @@ describe("AlertEventFeed", () => {
       />,
     );
 
-    // The SLO row resolves to its name plus the origin marker; the rule row
-    // keeps its resolved rule name, unmarked.
-    expect(screen.getByText("checkout-availability")).toBeInTheDocument();
+    // The SLO row resolves to its name plus the origin marker and links to
+    // the SLO detail page; the rule row keeps its resolved rule name,
+    // unmarked (and unlinked without resolveRuleId).
+    const sloLink = await screen.findByRole("link", {
+      name: "checkout-availability",
+    });
+    expect(sloLink).toHaveAttribute(
+      "href",
+      "/alerts/slos/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+    );
     expect(screen.getByText("SLO")).toBeInTheDocument();
     expect(
       screen.queryByText("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
     ).not.toBeInTheDocument();
     expect(screen.getByText("Beta rule")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Beta rule" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("links resolved rule rows to the rule detail page via resolveRuleId", async () => {
+    mockHistory([historyRow({ slug: "beta" })]);
+
+    renderInRouter(
+      <AlertEventFeed
+        resolveRuleName={(handle) => (handle === "beta" ? "Beta rule" : handle)}
+        resolveRuleId={(handle) => (handle === "beta" ? "rule-1" : undefined)}
+      />,
+    );
+
+    const ruleLink = await screen.findByRole("link", { name: "Beta rule" });
+    expect(ruleLink).toHaveAttribute("href", "/alerts/rules/rule-1");
   });
 
   it("renders evidence chips for a row that carries evidence", () => {

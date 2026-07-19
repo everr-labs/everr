@@ -1,5 +1,6 @@
 // packages/app/src/components/cc/shared.tsx
 import { Badge } from "@everr/ui/components/badge";
+import { Button } from "@everr/ui/components/button";
 import { CollapsibleTrigger } from "@everr/ui/components/collapsible";
 import {
   Empty,
@@ -14,7 +15,8 @@ import {
   ToggleGroupItem,
 } from "@everr/ui/components/toggle-group";
 import { cn } from "@everr/ui/lib/utils";
-import { ChevronRight, Info, type LucideIcon } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { ChevronRight, Info, type LucideIcon, RotateCw } from "lucide-react";
 import type { ReactNode } from "react";
 import { ccErrorInfo } from "@/data/cc/errors";
 import { ccOpSymbol } from "@/data/cc/route-resolution";
@@ -69,12 +71,24 @@ export function ccErrorMessage(error: unknown): string {
 }
 
 export function CcQueryError({ error }: { error: unknown }) {
+  const qc = useQueryClient();
   return (
     <div
       role="alert"
-      className="rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive"
+      className="flex items-center justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive"
     >
-      {ccErrorMessage(error)}
+      <span>{ccErrorMessage(error)}</span>
+      <Button
+        variant="outline"
+        size="sm"
+        // Refetching errored queries under the "cc" prefix re-runs exactly the
+        // queries whose failure produced this card; a transient outage clears
+        // without a full page reload.
+        onClick={() => qc.refetchQueries({ queryKey: ["cc"] })}
+      >
+        <RotateCw data-icon="inline-start" />
+        Retry
+      </Button>
     </div>
   );
 }
@@ -89,7 +103,8 @@ type Tone =
   | "inactive"
   | "degraded"
   | "healthy"
-  | "resolved";
+  | "resolved"
+  | "warning";
 
 const TONE_DOT: Record<Tone, string> = {
   firing: "bg-destructive",
@@ -97,6 +112,9 @@ const TONE_DOT: Record<Tone, string> = {
   // above: green/amber rather than the firing red, so a degraded rule reads
   // as "needs attention" without being confused with an actual firing alert.
   degraded: "bg-amber-500",
+  // Warning severity shares degraded's amber: both mean "attention, not an
+  // emergency". Signal Lime (bg-primary) stays reserved for live/selected.
+  warning: "bg-amber-500",
   pending: "bg-primary",
   healthy: "bg-emerald-500",
   inactive: "bg-muted-foreground/50",
@@ -108,6 +126,7 @@ const TONE_TEXT: Record<Tone, string> = {
   // Matches the amber degraded dot above — degraded is a health warning, not
   // the firing red.
   degraded: "text-amber-600 dark:text-amber-400",
+  warning: "text-amber-600 dark:text-amber-400",
   pending: "text-foreground",
   healthy: "text-muted-foreground",
   inactive: "text-muted-foreground",
@@ -170,7 +189,7 @@ export function CcSeverityBadge({ severity }: { severity: string }) {
     severity === "critical"
       ? "firing"
       : severity === "warning"
-        ? "pending"
+        ? "warning"
         : "inactive";
   return <CcStatusLabel tone={tone}>{severity}</CcStatusLabel>;
 }
@@ -214,7 +233,7 @@ export function CcSloTierBadge({
     severity === "critical"
       ? "firing"
       : severity === "warning"
-        ? "pending"
+        ? "warning"
         : "inactive";
   return (
     <CcStatusLabel tone={tone}>

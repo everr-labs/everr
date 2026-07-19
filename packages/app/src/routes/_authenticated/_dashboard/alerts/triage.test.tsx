@@ -483,8 +483,10 @@ describe("/alerts/triage route", () => {
 
     renderTriageRoute();
 
-    expect(await screen.findByText("value")).toBeInTheDocument();
-    expect(screen.getByText("val")).toBeInTheDocument();
+    // The label renders twice per group: the desktop column header and the
+    // mobile inline prefix (visibility split via CSS, both in the DOM).
+    expect((await screen.findAllByText("value")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("val").length).toBeGreaterThan(0);
   });
 
   it("creates a rule-scoped silence from the row actions", async () => {
@@ -552,8 +554,9 @@ describe("/alerts/triage route", () => {
     // without repeating slo_tier.
     expect(screen.getByText("fast-burn")).toBeInTheDocument();
     expect(screen.getByText("checkout")).toBeInTheDocument();
-    // The value column header names the SLO's metric.
-    expect(screen.getByText("burn rate")).toBeInTheDocument();
+    // The value column header (and the mobile inline prefix) names the SLO's
+    // metric.
+    expect(screen.getAllByText("burn rate").length).toBeGreaterThan(0);
     // fast-burn is critical in the canonical tiers, so the group joins the
     // critical band alongside the rule-sourced group (two critical badges).
     expect(screen.getAllByText("critical").length).toBeGreaterThanOrEqual(1);

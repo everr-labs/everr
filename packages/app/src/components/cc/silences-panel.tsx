@@ -48,6 +48,14 @@ function toRfc3339(local: string): string {
   return local ? new Date(local).toISOString() : "";
 }
 
+/** A Date as a `datetime-local` input value (local time, minute precision). */
+function toLocalInput(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
+    date.getDate(),
+  )}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 type SilenceGroup = "active" | "scheduled" | "expired";
 
 function groupOf(s: CcSilence, now: number): SilenceGroup {
@@ -230,7 +238,9 @@ export function SilenceCreateDrawer({
     () => ({
       openWith: (seed) => {
         setMatchers(seed);
-        setStarts("");
+        // Silences almost always start immediately: prefill "now" so the
+        // common case is one duration click away, not two datetime fields.
+        setStarts(toLocalInput(new Date()));
         setEnds("");
         setComment("");
         setOpen(true);
@@ -238,6 +248,15 @@ export function SilenceCreateDrawer({
     }),
     [],
   );
+
+  // Duration presets: end = start (or now) + h. The raw datetime inputs stay
+  // for the odd shape (a maintenance window next Tuesday); presets carry the
+  // common case.
+  const applyDuration = (h: number) => {
+    const base = starts ? new Date(starts) : new Date();
+    if (!starts) setStarts(toLocalInput(base));
+    setEnds(toLocalInput(new Date(base.getTime() + h * 3_600_000)));
+  };
 
   const create = useMutation({
     mutationFn: () =>
@@ -280,9 +299,29 @@ export function SilenceCreateDrawer({
     >
       <CcConceptNote>
         Alerts whose labels match <em>all</em> of these matchers will be muted
-        for the window below. An empty matcher set matches every alert.
+        for the window below. At least one matcher is required — a silence is
+        always scoped.
       </CcConceptNote>
       <MatchersEditor value={matchers} onChange={setMatchers} />
+      <div className="space-y-1.5">
+        <span className="text-sm font-medium">Duration</span>
+        <div className="flex items-center gap-1.5">
+          {[1, 8, 24].map((h) => (
+            <Button
+              key={h}
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => applyDuration(h)}
+            >
+              {h}h
+            </Button>
+          ))}
+          <span className="pl-1 text-xs text-muted-foreground">
+            or set the window below
+          </span>
+        </div>
+      </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label htmlFor="silence-starts">Starts</Label>

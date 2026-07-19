@@ -50,18 +50,22 @@ export function ccRuleHandles(rule: CcRuleView): string[] {
 export function ccRuleHandleResolvers(rules: readonly CcRuleView[]): {
   resolveRuleName: (handle: string) => string;
   resolveRuleSeverity: (handle: string) => string | undefined;
+  resolveRuleId: (handle: string) => string | undefined;
 } {
   const nameByHandle = new Map<string, string>();
   const severityByHandle = new Map<string, string>();
+  const idByHandle = new Map<string, string>();
   for (const rule of rules) {
     const { name } = ccRuleIdentity(rule);
     for (const handle of ccRuleHandles(rule)) {
       nameByHandle.set(handle, name);
       severityByHandle.set(handle, rule.spec.severity);
+      idByHandle.set(handle, rule.id);
     }
   }
   return {
     resolveRuleName: (handle) => nameByHandle.get(handle) ?? handle,
     resolveRuleSeverity: (handle) => severityByHandle.get(handle),
+    resolveRuleId: (handle) => idByHandle.get(handle),
   };
 }
