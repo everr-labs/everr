@@ -4,7 +4,7 @@
 // the canonical burn-rate tiers, tier/severity resolution, and the handles an
 // event row may carry for an SLO. Owned here in the data layer so every SLO
 // surface (list, detail, triage, history) reads the same rules.
-import type { CcSlo, CcSloSpec, CcSloTier } from "./types";
+import type { CcSlo, CcSloGroupStatus, CcSloSpec, CcSloTier } from "./types";
 
 /**
  * The SRE-workbook canonical three tiers, calibrated to a 30-day window —
@@ -79,6 +79,47 @@ export function ccSloHandleResolver(
     for (const handle of ccSloHandles(slo)) byHandle.set(handle, slo);
   }
   return (handle) => byHandle.get(handle);
+}
+
+// Tier window shorthand (m/h/d/w plus defensive s) → seconds; unparseable
+// sorts last so a malformed spec tier can never win the headline slot.
+const TIER_WINDOW_SECONDS: Record<string, number> = {
+  s: 1,
+  m: 60,
+  h: 3_600,
+  d: 86_400,
+  w: 604_800,
+};
+
+function tierWindowSecs(window: string): number {
+  const m = /^(\d+)([smhdw])$/.exec(window);
+  return m
+    ? Number(m[1]) * TIER_WINDOW_SECONDS[m[2]]
+    : Number.POSITIVE_INFINITY;
+}
+
+/**
+ * A group's headline burn: the long-window rate of the shortest-long-window
+ * tier that has a computed rate (the 1h window for canonical tiers) — the
+ * most current sustained signal. 1× spends exactly the error budget over the
+ * SLO window. The full per-tier long/short matrix stays reachable where this
+ * is shown (tooltip), this only picks the lead number.
+ */
+export function ccSloCurrentBurn(
+  specTiers: readonly CcSloTier[],
+  snapshot: CcSloGroupStatus["tiers"],
+): { rate: number; window: string } | null {
+  const rateByName = new Map(snapshot.map((t) => [t.name, t.long_burn_rate]));
+  let best: { rate: number; window: string; secs: number } | null = null;
+  for (const t of specTiers) {
+    const rate = rateByName.get(t.name);
+    if (rate === null || rate === undefined) continue;
+    const secs = tierWindowSecs(t.long_window);
+    if (best === null || secs < best.secs) {
+      best = { rate, window: t.long_window, secs };
+    }
+  }
+  return best === null ? null : { rate: best.rate, window: best.window };
 }
 
 /** "99.9%" without trailing-zero noise ("99.5%", "99.95%"). */

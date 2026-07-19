@@ -18,6 +18,11 @@ import {
 import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { RelativeTime } from "@everr/ui/components/relative-time";
 import { Skeleton } from "@everr/ui/components/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@everr/ui/components/tooltip";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, Pause, Play, TriangleAlert } from "lucide-react";
@@ -40,6 +45,7 @@ import { pauseCcSlo, resumeCcSlo } from "@/data/cc/server";
 import {
   ccFormatSloDuration,
   ccFormatSloTarget,
+  ccSloCurrentBurn,
   ccSloTierSeverity,
   ccSloTiers,
   ccSloWindowLabel,
@@ -233,23 +239,71 @@ function BudgetSection({ slo }: { slo: CcSlo }) {
         ),
     },
     {
-      // One line per tier: "fast-burn 0.4× / 0.2×" (long / short window burn).
-      header: "Burn rates (long / short)",
-      cell: (g) => (
-        <span className="flex flex-col gap-0.5">
-          {g.tiers.map((t) => (
-            <span
-              key={t.name}
-              className="font-mono text-[0.6875rem] tabular-nums"
+      // One headline number (the shortest-long-window tier's sustained burn);
+      // the full per-tier long/short matrix stays reachable in the tooltip.
+      header: "Burn rate",
+      cell: (g) => {
+        const burn = ccSloCurrentBurn(tiers, g.tiers);
+        if (burn === null) {
+          return <span className="text-xs text-muted-foreground">—</span>;
+        }
+        // Tone from real state, not projection: firing tiers set the color;
+        // a sub-threshold burn above 1× still reads as "budget shrinking".
+        const firingSeverities = g.firing_tiers.map((f) =>
+          ccSloTierSeverity(tiers, { slo_tier: f.tier }),
+        );
+        const tone = firingSeverities.includes("critical")
+          ? "font-medium text-destructive"
+          : firingSeverities.length > 0
+            ? "font-medium text-amber-600 dark:text-amber-400"
+            : burn.rate >= 1
+              ? "text-foreground"
+              : "text-muted-foreground";
+        return (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <span className={`font-mono text-xs tabular-nums ${tone}`} />
+              }
             >
-              <span className="text-muted-foreground">{t.name}</span>{" "}
-              {t.long_burn_rate !== null ? fmtBurn(t.long_burn_rate) : "—"}
-              {" / "}
-              {t.short_burn_rate !== null ? fmtBurn(t.short_burn_rate) : "—"}
-            </span>
-          ))}
-        </span>
-      ),
+              {fmtBurn(burn.rate)}
+              <span className="text-muted-foreground"> / {burn.window}</span>
+            </TooltipTrigger>
+            <TooltipContent className="space-y-1.5">
+              <p className="max-w-56 text-xs">
+                Error-budget burn over each tier&rsquo;s windows; 1&times;
+                spends exactly the budget over {ccSloWindowLabel(slo.spec)}. A
+                tier fires when both its windows exceed its threshold.
+              </p>
+              <table className="font-mono text-[0.6875rem] tabular-nums">
+                <tbody>
+                  {tiers.map((t) => {
+                    const snap = g.tiers.find((s) => s.name === t.name);
+                    return (
+                      <tr key={t.name}>
+                        <td className="pr-2">{t.name}</td>
+                        <td className="pr-2">
+                          {snap?.long_burn_rate != null
+                            ? fmtBurn(snap.long_burn_rate)
+                            : "—"}{" "}
+                          / {t.long_window}
+                        </td>
+                        <td className="pr-2">
+                          {snap?.short_burn_rate != null
+                            ? fmtBurn(snap.short_burn_rate)
+                            : "—"}{" "}
+                          / {t.short_window}
+                        </td>
+                        <td>fires &ge;{fmtBurn(t.burn_rate)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </TooltipContent>
+          </Tooltip>
+        );
+      },
     },
     {
       header: "Time to exhaustion",

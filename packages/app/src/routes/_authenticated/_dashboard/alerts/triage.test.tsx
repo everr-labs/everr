@@ -298,7 +298,7 @@ beforeEach(() => {
 });
 
 describe("/alerts index redirect", () => {
-  it("sends /alerts to /alerts/triage", () => {
+  it("sends /alerts to /alerts/slos (the section leads with objectives)", () => {
     let thrown: unknown;
     try {
       AlertsIndexRoute.options.beforeLoad?.({} as never);
@@ -307,7 +307,7 @@ describe("/alerts index redirect", () => {
     }
     expect(thrown).toBeDefined();
     expect((thrown as { options: { to: string } }).options.to).toBe(
-      "/alerts/triage",
+      "/alerts/slos",
     );
   });
 });

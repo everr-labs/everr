@@ -176,12 +176,15 @@ describe("/alerts/slos/$sloId route", () => {
     expect(await screen.findByText("checkout")).toBeInTheDocument();
     expect(screen.getByText("99.92%")).toBeInTheDocument(); // SLI
     expect(screen.getByText("42.00%")).toBeInTheDocument(); // budget remaining
-    expect(screen.getByText(/1\.4×/)).toBeInTheDocument(); // long burn
-    expect(screen.getByText(/0\.9×/)).toBeInTheDocument(); // short burn
+    // The burn column leads with the shortest-long-window tier's sustained
+    // burn ("1.4× / 1h"); the per-tier long/short matrix lives in its tooltip.
+    expect(screen.getByText(/1\.4×/)).toBeInTheDocument();
+    expect(screen.getByText(/\/ 1h/)).toBeInTheDocument();
+    expect(screen.queryByText(/0\.9×/)).not.toBeInTheDocument(); // short burn: tooltip-only
     expect(screen.getByText("3d 4h")).toBeInTheDocument(); // exhaustion
-    // fast-burn shows up in the group's burn-rate readout, the firing-tier
-    // badge, and the objective's canonical tier table.
-    expect(screen.getAllByText("fast-burn").length).toBeGreaterThanOrEqual(3);
+    // fast-burn shows up in the firing-tier badge and the objective's
+    // canonical tier table.
+    expect(screen.getAllByText("fast-burn").length).toBeGreaterThanOrEqual(2);
 
     // Freshness line off computed_at.
     expect(screen.getByText(/Snapshot computed/)).toBeInTheDocument();
@@ -191,8 +194,9 @@ describe("/alerts/slos/$sloId route", () => {
       screen.getByText(/Burn-rate tiers \(canonical\)/),
     ).toBeInTheDocument();
     expect(screen.getByText("slow-burn")).toBeInTheDocument();
-    // ticket appears in the group readout and the canonical tier table.
-    expect(screen.getAllByText("ticket").length).toBeGreaterThanOrEqual(2);
+    // ticket appears in the canonical tier table (the group readout keeps
+    // per-tier detail in the burn tooltip).
+    expect(screen.getByText("ticket")).toBeInTheDocument();
 
     // Health reads healthy, quietly.
     expect(screen.getByText("healthy")).toBeInTheDocument();

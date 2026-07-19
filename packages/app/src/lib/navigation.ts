@@ -31,13 +31,13 @@ export const navMain: NavItem[] = [
   },
   {
     title: "Alerts",
-    url: "/alerts/triage",
+    url: "/alerts/slos",
     icon: Zap,
     isActive: true,
     items: [
+      { title: "SLOs", url: "/alerts/slos" },
       { title: "Triage", url: "/alerts/triage" },
       { title: "History", url: "/alerts/history" },
-      { title: "SLOs", url: "/alerts/slos" },
       { title: "Rules", url: "/alerts/rules" },
       { title: "Delivery", url: "/alerts/delivery" },
       { title: "Silences", url: "/alerts/silences" },
