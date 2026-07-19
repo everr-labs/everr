@@ -5,11 +5,13 @@ import { Skeleton } from "@everr/ui/components/skeleton";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { BellOff, BookOpenText, ChevronRight } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ccEventStatus } from "@/components/cc/alert-event-feed";
+import { ccFmtBurn } from "@/components/cc/budget-bar";
+import { CcPageIntro } from "@/components/cc/page-intro";
 import {
   CcEmptyState,
   CcInstanceStatusBadge,
@@ -26,6 +28,11 @@ import {
   LabelSet,
   Pill,
 } from "@/components/cc/shared";
+import {
+  SilenceCreateDrawer,
+  type SilenceDrawerHandle,
+  SilencesPanel,
+} from "@/components/cc/silences-panel";
 import { fromCcRuleSpec } from "@/data/alerts/mapping";
 import { ccRuleIdentity } from "@/data/alerts/rule-identity";
 import { ccQueries } from "@/data/cc/queries";
@@ -44,7 +51,6 @@ import type {
   CcSilence,
   CcSlo,
 } from "@/data/cc/types";
-import type { SilenceHandoff } from "./silences";
 
 // The alerts layout hides the global time-range picker, so Triage reads a
 // fixed trailing window of stored events for evidence and recent transitions.
@@ -442,7 +448,12 @@ function InstanceRow({
           )}
         </span>
         <span className="w-16 shrink-0 text-right font-mono text-xs tabular-nums">
-          {alert.value ?? "—"}
+          {/* SLO rows carry the tier's burn rate as their value: print it at
+              the engine's own precision (one decimal, ×) instead of the raw
+              float. */}
+          {inst.slo !== undefined && typeof alert.value === "number"
+            ? ccFmtBurn(alert.value)
+            : (alert.value ?? "—")}
         </span>
         <span
           className="w-24 shrink-0 text-right text-xs whitespace-nowrap text-muted-foreground"
@@ -485,7 +496,7 @@ type LensKey = (typeof LENSES)[number]["key"];
 
 function CcTriagePage() {
   const qc = useQueryClient();
-  const navigate = useNavigate();
+  const silenceDrawer = useRef<SilenceDrawerHandle>(null);
   const alerts = useQuery(ccQueries.alerts());
   const rules = useQuery(ccQueries.rules());
   const slos = useQuery(ccQueries.slos());
@@ -662,6 +673,30 @@ function CcTriagePage() {
 
   return (
     <div className="space-y-3">
+      <CcPageIntro
+        title="Triage"
+        lede="Everything firing or muted right now, and the fastest way to act on it: silence it, follow its runbook, check who was told."
+        explainerLabel="How triage works"
+        explainer={
+          <>
+            <p>
+              Each row is an <strong>alert instance</strong> — one label set a
+              rule&rsquo;s query returned, or one burn-rate tier of an SLO.
+              Instances are grouped by the rule or SLO that produced them, most
+              severe first. Expand a row for its evidence, matched routes, and
+              recent transitions.
+            </p>
+            <p>
+              <strong>Silencing</strong> mutes delivery for a window without
+              touching the rule: the instance keeps evaluating and stays visible
+              under the Silenced lens, but nobody gets notified. Quick silences
+              (1h/8h/24h) scope to the instance&rsquo;s exact labels; Custom
+              opens the full editor. Silences are managed at the bottom of this
+              page.
+            </p>
+          </>
+        }
+      />
       {/* Instrument strip: the four numbers that answer "is anything wrong".
           Gated on load — zeros while fetching would read as a false all-clear. */}
       {pending ? (
@@ -691,12 +726,12 @@ function CcTriagePage() {
               />
             </Link>
           )}
-          <Link
-            to="/alerts/silences"
+          <a
+            href="#silences"
             className="outline-2 outline-dotted outline-transparent outline-offset-[-2px] transition-colors duration-150 hover:bg-muted/40 focus-visible:outline-primary"
           >
             <StripCell label="active silences" value={counts.activeSilences} />
-          </Link>
+          </a>
         </section>
       )}
 
@@ -707,7 +742,9 @@ function CcTriagePage() {
         aria-label="Triage lens"
       />
 
-      <Card inset="flush-content">
+      {/* role/label: the board is a landmark distinct from the silences panel
+          below, for assistive tech and scoped queries alike. */}
+      <Card inset="flush-content" role="region" aria-label="Alert instances">
         <CardContent>
           {pending ? (
             <CcTableSkeleton rows={6} />
@@ -819,18 +856,11 @@ function CcTriagePage() {
                           silenceInstance.mutate({ alert: inst.alert, hours })
                         }
                         onCustomSilence={() =>
-                          navigate({
-                            to: "/alerts/silences",
-                            // TanStack Router's history state is untyped
-                            // without global augmentation, hence the cast; the
-                            // shared SilenceHandoff type keeps both sides of
-                            // the handoff agreeing on the shape.
-                            state: {
-                              silencePrefill: sourceScopedSilenceMatchers(
-                                inst.alert,
-                              ),
-                            } satisfies SilenceHandoff as never,
-                          })
+                          // The create drawer lives on this page — a custom
+                          // silence opens pre-seeded in place, no navigation.
+                          silenceDrawer.current?.openWith(
+                            sourceScopedSilenceMatchers(inst.alert),
+                          )
                         }
                       />
                     </InstanceRow>
@@ -841,6 +871,11 @@ function CcTriagePage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Muting lives where muting happens: the silences inventory sits under
+          the board, and the create drawer is shared with the row actions. */}
+      <SilencesPanel onNewSilence={() => silenceDrawer.current?.openWith([])} />
+      <SilenceCreateDrawer ref={silenceDrawer} />
     </div>
   );
 }

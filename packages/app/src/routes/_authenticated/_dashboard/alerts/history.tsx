@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { AlertEventFeed } from "@/components/cc/alert-event-feed";
+import { CcPageIntro } from "@/components/cc/page-intro";
 import { ccRuleHandleResolvers } from "@/data/alerts/rule-identity";
 import { ccQueries } from "@/data/cc/queries";
 import { ccSloHandleResolver } from "@/data/cc/slo";
@@ -46,11 +47,35 @@ function CcHistoryPage() {
   );
 
   return (
-    <AlertEventFeed
-      showTypeLens
-      resolveRuleName={resolveRuleName}
-      resolveRuleSeverity={resolveRuleSeverity}
-      resolveSlo={resolveSlo}
-    />
+    <div className="space-y-3">
+      <CcPageIntro
+        title="History"
+        lede="The stored record of everything alerting did: fired, resolved, delivered, silenced — over the selected time range."
+        explainerLabel="How the event log works"
+        explainer={
+          <>
+            <p>
+              Every state change is written to ClickHouse as an event:{" "}
+              <strong>transitions</strong> (an instance fired or resolved),{" "}
+              <strong>deliveries</strong> (a notification went to a receiver),
+              and <strong>silence audits</strong> (a delivery was muted by a
+              silence). Rule-health events record when a rule&rsquo;s own
+              evaluation degrades.
+            </p>
+            <p>
+              Use it to answer &ldquo;did anyone get told?&rdquo; — a firing
+              transition with no delivery event next to it means the alert
+              matched no route or was silenced, both worth knowing.
+            </p>
+          </>
+        }
+      />
+      <AlertEventFeed
+        showTypeLens
+        resolveRuleName={resolveRuleName}
+        resolveRuleSeverity={resolveRuleSeverity}
+        resolveSlo={resolveSlo}
+      />
+    </div>
   );
 }

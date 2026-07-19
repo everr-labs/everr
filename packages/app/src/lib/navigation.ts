@@ -15,6 +15,8 @@ export type NavItem = {
   items?: {
     title: string;
     url: string;
+    /** Match this URL exactly (for section landing pages like /alerts). */
+    exact?: boolean;
   }[];
 };
 
@@ -31,16 +33,19 @@ export const navMain: NavItem[] = [
   },
   {
     title: "Alerts",
-    url: "/alerts/slos",
+    url: "/alerts",
     icon: Zap,
     isActive: true,
+    // Ordered by intent: understand the whole picture (Overview), respond
+    // (Triage, which also hosts silences), track promises (SLOs), inspect
+    // detectors (Rules), control notifications (Delivery), audit (History).
     items: [
-      { title: "SLOs", url: "/alerts/slos" },
+      { title: "Overview", url: "/alerts", exact: true },
       { title: "Triage", url: "/alerts/triage" },
-      { title: "History", url: "/alerts/history" },
+      { title: "SLOs", url: "/alerts/slos" },
       { title: "Rules", url: "/alerts/rules" },
       { title: "Delivery", url: "/alerts/delivery" },
-      { title: "Silences", url: "/alerts/silences" },
+      { title: "History", url: "/alerts/history" },
     ],
   },
   {

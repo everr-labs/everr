@@ -37,6 +37,7 @@ import { toast } from "sonner";
 import { ChannelBuilder } from "@/components/cc/channel-builder";
 import { CHANNEL_ICON, channelTarget } from "@/components/cc/channel-meta";
 import { InhibitionBuilder } from "@/components/cc/inhibition-builder";
+import { CcPageIntro } from "@/components/cc/page-intro";
 import { ReceiverBuilder } from "@/components/cc/receiver-builder";
 import { RouteBuilder } from "@/components/cc/route-builder";
 import { ChannelChip, RoutePreview } from "@/components/cc/route-preview";
@@ -86,37 +87,6 @@ export const Route = createFileRoute(
     ]),
   component: CcDeliveryPage,
 });
-
-// ── How delivery works ────────────────────────────────────────────────────────
-// The page's only explanatory prose: the whole flow in three sentences,
-// collapsed by default. (Re-homed from the old Overview glossary.)
-
-function HowDeliveryWorks() {
-  const [open, setOpen] = useState(false);
-  return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <CcDisclosureTrigger
-        open={open}
-        variant="bare"
-        className="text-muted-foreground"
-      >
-        How delivery works
-      </CcDisclosureTrigger>
-      <CollapsibleContent>
-        <p className="max-w-3xl px-1 pt-1 pb-1.5 text-xs leading-relaxed text-muted-foreground">
-          A firing alert&rsquo;s labels are checked against each route&rsquo;s
-          matchers, top to bottom by priority; the first match hands it to that
-          route&rsquo;s receiver, which fans out to its channels, and a route
-          marked <span className="font-mono text-foreground">continue</span>{" "}
-          lets later routes match too. Alerts matching no route are sent to
-          every firehose webhook instead. Silences mute matching alerts for a
-          window; inhibitions suppress downstream alerts while a related source
-          alert is firing.
-        </p>
-      </CollapsibleContent>
-    </Collapsible>
-  );
-}
 
 // ── Section body cascade ──────────────────────────────────────────────────────
 // Every section on this page renders the same way: query error, then loading
@@ -893,7 +863,22 @@ function CcDeliveryPage() {
 
   return (
     <div className="space-y-3">
-      <HowDeliveryWorks />
+      <CcPageIntro
+        title="Delivery"
+        lede="Who gets told about a firing alert, and how: routes match alerts to receivers, receivers fan out to channels."
+        explainerLabel="How delivery works"
+        explainer={
+          <p>
+            A firing alert&rsquo;s labels are checked against each route&rsquo;s
+            matchers, top to bottom by priority; the first match hands it to
+            that route&rsquo;s receiver, which fans out to its channels, and a
+            route marked <code>continue</code> lets later routes match too.
+            Alerts matching no route are sent to every firehose webhook instead.
+            Silences mute matching alerts for a window; inhibitions suppress
+            downstream alerts while a related source alert is firing.
+          </p>
+        }
+      />
 
       <PipelineSection
         receivers={receivers.data ?? []}

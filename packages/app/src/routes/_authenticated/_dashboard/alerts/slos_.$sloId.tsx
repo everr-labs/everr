@@ -28,6 +28,12 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, Pause, Play, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { CcAsCode } from "@/components/cc/as-code";
+import {
+  CcBudgetBar,
+  ccFmtBurn,
+  ccFmtFraction,
+} from "@/components/cc/budget-bar";
 import {
   CcDisclosureTrigger,
   CcEmptyState,
@@ -51,6 +57,7 @@ import {
   ccSloWindowLabel,
 } from "@/data/cc/slo";
 import type { CcSlo, CcSloGroupStatus, CcSloHealth } from "@/data/cc/types";
+import { toSloDocument } from "@/data/slos/mapping";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/alerts/slos_/$sloId",
@@ -91,15 +98,8 @@ function DefRow({
   );
 }
 
-/** "99.95%" — SLI/budget fractions with enough precision to be honest. */
-function fmtFraction(f: number): string {
-  return `${(f * 100).toFixed(2)}%`;
-}
-
-/** Burn rate multiple, the engine's own precision (fmt_burn: one decimal). */
-function fmtBurn(b: number): string {
-  return `${b.toFixed(1)}×`;
-}
+// Fraction/burn formatting is shared with the listing and overview surfaces
+// (ccFmtFraction / ccFmtBurn from budget-bar.tsx).
 
 // ── What is it ────────────────────────────────────────────────────────────────
 
@@ -107,6 +107,12 @@ function ObjectiveSection({ slo }: { slo: CcSlo }) {
   const [sqlOpen, setSqlOpen] = useState(false);
   const tiers = ccSloTiers(slo.spec);
   const annotations = Object.entries(slo.spec.annotations);
+  // An SLO created outside the as-code flow has no `everr.name` annotation;
+  // its first-class name still makes a valid document name.
+  const asCodeDoc = toSloDocument(slo.spec);
+  if (!asCodeDoc.metadata.name) {
+    asCodeDoc.metadata.name = slo.name;
+  }
 
   return (
     <Card>
@@ -161,7 +167,7 @@ function ObjectiveSection({ slo }: { slo: CcSlo }) {
                 <tr key={t.name}>
                   <td className="py-1.5 pr-3 font-mono">{t.name}</td>
                   <td className="py-1.5 pr-3 font-mono tabular-nums">
-                    {fmtBurn(t.burn_rate)}
+                    {ccFmtBurn(t.burn_rate)}
                   </td>
                   <td className="py-1.5 pr-3 font-mono">{t.long_window}</td>
                   <td className="py-1.5 pr-3 font-mono">{t.short_window}</td>
@@ -190,6 +196,10 @@ function ObjectiveSection({ slo }: { slo: CcSlo }) {
             </pre>
           </CollapsibleContent>
         </Collapsible>
+
+        {/* The edit path: SLOs are Git-owned, so editing means copying the
+            as-code document, changing it, and running `everr apply`. */}
+        <CcAsCode doc={asCodeDoc} filename={`${slo.name}.slo.yaml`} />
       </CardContent>
     </Card>
   );
@@ -217,26 +227,13 @@ function BudgetSection({ slo }: { slo: CcSlo }) {
       header: "SLI",
       cell: (g) => (
         <span className="font-mono text-xs tabular-nums">
-          {g.sli !== null ? fmtFraction(g.sli) : "—"}
+          {g.sli !== null ? ccFmtFraction(g.sli) : "—"}
         </span>
       ),
     },
     {
       header: "Budget remaining",
-      cell: (g) =>
-        g.budget_remaining === null ? (
-          <span className="text-xs text-muted-foreground">—</span>
-        ) : (
-          <span
-            className={
-              g.budget_remaining <= 0
-                ? "font-mono text-xs font-medium tabular-nums text-destructive"
-                : "font-mono text-xs tabular-nums"
-            }
-          >
-            {fmtFraction(g.budget_remaining)}
-          </span>
-        ),
+      cell: (g) => <CcBudgetBar remaining={g.budget_remaining} />,
     },
     {
       // One headline number (the shortest-long-window tier's sustained burn);
@@ -266,7 +263,7 @@ function BudgetSection({ slo }: { slo: CcSlo }) {
                 <span className={`font-mono text-xs tabular-nums ${tone}`} />
               }
             >
-              {fmtBurn(burn.rate)}
+              {ccFmtBurn(burn.rate)}
               <span className="text-muted-foreground"> / {burn.window}</span>
             </TooltipTrigger>
             <TooltipContent className="space-y-1.5">
@@ -284,17 +281,17 @@ function BudgetSection({ slo }: { slo: CcSlo }) {
                         <td className="pr-2">{t.name}</td>
                         <td className="pr-2">
                           {snap?.long_burn_rate != null
-                            ? fmtBurn(snap.long_burn_rate)
+                            ? ccFmtBurn(snap.long_burn_rate)
                             : "—"}{" "}
                           / {t.long_window}
                         </td>
                         <td className="pr-2">
                           {snap?.short_burn_rate != null
-                            ? fmtBurn(snap.short_burn_rate)
+                            ? ccFmtBurn(snap.short_burn_rate)
                             : "—"}{" "}
                           / {t.short_window}
                         </td>
-                        <td>fires &ge;{fmtBurn(t.burn_rate)}</td>
+                        <td>fires &ge;{ccFmtBurn(t.burn_rate)}</td>
                       </tr>
                     );
                   })}

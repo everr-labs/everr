@@ -297,18 +297,14 @@ beforeEach(() => {
   seedBoard();
 });
 
-describe("/alerts index redirect", () => {
-  it("sends /alerts to /alerts/slos (the section leads with objectives)", () => {
-    let thrown: unknown;
-    try {
-      AlertsIndexRoute.options.beforeLoad?.({} as never);
-    } catch (e) {
-      thrown = e;
-    }
-    expect(thrown).toBeDefined();
-    expect((thrown as { options: { to: string } }).options.to).toBe(
-      "/alerts/slos",
-    );
+describe("/alerts index", () => {
+  it("is the Overview page, not a redirect (the section leads with the live picture)", () => {
+    expect(AlertsIndexRoute.options.beforeLoad).toBeUndefined();
+    expect(AlertsIndexRoute.options.component).toBeDefined();
+    expect(
+      (AlertsIndexRoute.options.staticData as { breadcrumb?: string })
+        ?.breadcrumb,
+    ).toBe("Overview");
   });
 });
 
@@ -346,17 +342,20 @@ describe("/alerts/triage route", () => {
     expect(within(strip).queryByText("degraded rules")).not.toBeInTheDocument();
   });
 
+  // Lens assertions scope to the board region: the silences panel below it
+  // renders matcher pills that would otherwise collide with instance labels.
   it("Firing lens shows unsilenced firing + pending rows and hides silenced ones", async () => {
     renderTriageRoute();
 
     // fp-1 (firing) and fp-2 (pending) under the rule's display name.
     expect(await screen.findByText("Flapping check")).toBeInTheDocument();
-    expect(screen.getByText("web-1")).toBeInTheDocument();
-    expect(screen.getByText("pending")).toBeInTheDocument();
-    expect(screen.getByText("web-2")).toBeInTheDocument();
+    const board = screen.getByRole("region", { name: "Alert instances" });
+    expect(within(board).getByText("web-1")).toBeInTheDocument();
+    expect(within(board).getByText("pending")).toBeInTheDocument();
+    expect(within(board).getByText("web-2")).toBeInTheDocument();
     // fp-3 is silenced, fp-4 inactive: neither shows under Firing.
-    expect(screen.queryByText("api")).not.toBeInTheDocument();
-    expect(screen.queryByText("web-9")).not.toBeInTheDocument();
+    expect(within(board).queryByText("api")).not.toBeInTheDocument();
+    expect(within(board).queryByText("web-9")).not.toBeInTheDocument();
   });
 
   it("Silenced lens shows only instances matched by an active silence", async () => {
@@ -367,9 +366,10 @@ describe("/alerts/triage route", () => {
     await user.click(screen.getByRole("button", { name: "Silenced" }));
 
     // fp-3 (svc=api on the api-errors rule) is the one silenced instance.
-    expect(screen.getByText("api")).toBeInTheDocument();
-    expect(screen.getByText("api-errors")).toBeInTheDocument();
-    expect(screen.queryByText("web-1")).not.toBeInTheDocument();
+    const board = screen.getByRole("region", { name: "Alert instances" });
+    expect(within(board).getByText("api")).toBeInTheDocument();
+    expect(within(board).getByText("api-errors")).toBeInTheDocument();
+    expect(within(board).queryByText("web-1")).not.toBeInTheDocument();
   });
 
   it("All lens includes inactive instances", async () => {
@@ -379,9 +379,10 @@ describe("/alerts/triage route", () => {
 
     await user.click(screen.getByRole("button", { name: "All" }));
 
-    expect(screen.getByText("web-9")).toBeInTheDocument();
-    expect(screen.getByText("web-1")).toBeInTheDocument();
-    expect(screen.getByText("api")).toBeInTheDocument();
+    const board = screen.getByRole("region", { name: "Alert instances" });
+    expect(within(board).getByText("web-9")).toBeInTheDocument();
+    expect(within(board).getByText("web-1")).toBeInTheDocument();
+    expect(within(board).getByText("api")).toBeInTheDocument();
   });
 
   it("resolves the delivery fact through routes: receiver plus channels", async () => {

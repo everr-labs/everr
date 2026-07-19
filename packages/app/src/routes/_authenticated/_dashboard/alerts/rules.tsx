@@ -18,8 +18,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { BookOpenText, Pause, Play, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
+import { CcPageIntro } from "@/components/cc/page-intro";
 import {
-  CcConceptNote,
   CcEmptyState,
   CcHealthBadge,
   CcQueryError,
@@ -216,14 +216,30 @@ function CcRulesPage() {
 
   return (
     <div className="space-y-3">
-      <CcConceptNote>
-        A rule is a SQL query the alerting engine evaluates on a schedule. Each
-        row it returns becomes an <strong>alert instance</strong>; if rows
-        persist past the rule&rsquo;s <code>for</code> duration, the alert
-        starts <strong>firing</strong>. Rules are defined as code and applied
-        with <code>everr apply</code> — here you can inspect, test, and pause
-        them.
-      </CcConceptNote>
+      <CcPageIntro
+        title="Rules"
+        lede="The queries watching your telemetry: what each one checks, whether it fires, and whether it can still evaluate."
+        explainerLabel="How rules work"
+        explainer={
+          <>
+            <p>
+              A rule is a SQL query the alerting engine evaluates on a schedule.
+              Each row it returns becomes an <strong>alert instance</strong>; if
+              rows persist past the rule&rsquo;s <code>for</code> duration, the
+              alert starts <strong>firing</strong> and flows through Delivery to
+              whoever should hear about it.
+            </p>
+            <p>
+              Rules are defined as code and applied with{" "}
+              <code>everr apply</code> — here you inspect them, test them
+              against live data without side effects, and pause them.{" "}
+              <strong>Health</strong> is about the rule itself: a degraded rule
+              is one whose query is failing to evaluate, which is different from
+              firing.
+            </p>
+          </>
+        }
+      />
       <Card inset="flush-content">
         <CardHeader>
           <CardTitle>Rules</CardTitle>

@@ -33,6 +33,7 @@ import {
 import { useState } from "react";
 import { toast } from "sonner";
 import { AlertEventFeed } from "@/components/cc/alert-event-feed";
+import { CcAsCode } from "@/components/cc/as-code";
 import {
   CcDisclosureTrigger,
   CcEmptyState,
@@ -44,6 +45,7 @@ import {
   ccFormatTs,
   LabelSet,
 } from "@/components/cc/shared";
+import { toAlertRuleDocument } from "@/data/alerts/mapping";
 import {
   ccRuleHandleResolvers,
   ccRuleHandles,
@@ -233,6 +235,12 @@ function CcRuleDetailPage() {
 
   const r = rule.data;
   const identity = ccRuleIdentity(r);
+  // A rule created outside the as-code flow has no `everr.name` annotation;
+  // its display identity still makes a valid document name.
+  const asCodeDoc = toAlertRuleDocument(r.spec);
+  if (!asCodeDoc.metadata.name) {
+    asCodeDoc.metadata.name = identity.name;
+  }
   // `a.rule` carries the source uuid for SLO-sourced instances too (CC's
   // wire convention), so exclude those explicitly: this page is rule scope.
   const ruleInstances = (alerts.data ?? []).filter(
@@ -365,6 +373,9 @@ function CcRuleDetailPage() {
               </pre>
             </CollapsibleContent>
           </Collapsible>
+          {/* The edit path: rules are Git-owned, so editing means copying the
+              as-code document, changing it, and running `everr apply`. */}
+          <CcAsCode doc={asCodeDoc} filename={`${identity.name}.alert.yaml`} />
         </CardContent>
       </Card>
 

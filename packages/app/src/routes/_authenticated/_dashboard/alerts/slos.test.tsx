@@ -19,6 +19,7 @@ import { Route as SlosFileRoute } from "./slos";
 
 const mocks = vi.hoisted(() => ({
   listCcSlos: vi.fn(),
+  getCcSloStatus: vi.fn(),
   pauseCcSlo: vi.fn(),
   resumeCcSlo: vi.fn(),
   deleteCcSlo: vi.fn(),
@@ -28,6 +29,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/data/cc/server", () => ({
   listCcSlos: mocks.listCcSlos,
+  getCcSloStatus: mocks.getCcSloStatus,
   pauseCcSlo: mocks.pauseCcSlo,
   resumeCcSlo: mocks.resumeCcSlo,
   deleteCcSlo: mocks.deleteCcSlo,
@@ -118,31 +120,60 @@ function renderSlosRoute() {
 beforeEach(() => {
   for (const fn of Object.values(mocks)) fn.mockReset();
   mocks.listCcSlos.mockResolvedValue([ccSlo()]);
+  // The listing joins each SLO with its latest evaluator snapshot.
+  mocks.getCcSloStatus.mockResolvedValue({
+    computed_at: new Date().toISOString(),
+    health: { status: "healthy", degraded_since: null, last_error: null },
+    payload: {
+      window: "30d",
+      target_percent: 99.9,
+      window_computed_at: {},
+      groups: [
+        {
+          labels: { service: "checkout" },
+          sli: 0.9995,
+          budget_remaining: 0.5,
+          tiers: [
+            {
+              name: "fast-burn",
+              long_burn_rate: 0.5,
+              short_burn_rate: 0.4,
+              long_window_valid: true,
+            },
+          ],
+          time_to_exhaustion_secs: 86_400,
+          firing_tiers: [],
+        },
+      ],
+    },
+  });
   mocks.pauseCcSlo.mockResolvedValue(ccSlo({ paused: true }));
   mocks.resumeCcSlo.mockResolvedValue(ccSlo());
   mocks.deleteCcSlo.mockResolvedValue({ deleted: true });
 });
 
 describe("/alerts/slos route", () => {
-  it("renders the SLO's config facts: name link, target, window, groups, tiers, state", async () => {
+  it("leads each row with status: budget, burn, exhaustion — config as the secondary line", async () => {
     renderSlosRoute();
 
     const link = await screen.findByRole("link", {
       name: "checkout-availability",
     });
     expect(link).toHaveAttribute("href", `/alerts/slos/${SLO_ID}`);
-    // Scope to the table: the concept note also mentions "99.9%" as prose.
     const table = screen.getByRole("table");
-    expect(within(table).getByText("99.9%")).toBeInTheDocument();
-    expect(within(table).getByText("30d rolling")).toBeInTheDocument();
-    expect(within(table).getByText("service")).toBeInTheDocument();
-    // No explicit tiers -> the canonical trio is what the engine evaluates.
+    // Config compressed into one secondary line under the name.
     expect(
-      within(table).getByText("fast-burn, slow-burn, ticket"),
+      within(table).getByText(/99\.9% over 30d rolling/),
     ).toBeInTheDocument();
+    expect(within(table).getByText("service")).toBeInTheDocument();
+    // The evaluator snapshot renders as budget meter, burn headline (the
+    // shortest-long-window canonical tier: fast-burn over 1h), and time to
+    // exhaustion.
+    expect(await within(table).findByText("50.00%")).toBeInTheDocument();
+    expect(within(table).getAllByText(/0\.5×/).length).toBeGreaterThan(0);
+    expect(within(table).getAllByText(/\/ 1h/).length).toBeGreaterThan(0);
+    expect(within(table).getByText("1d")).toBeInTheDocument();
     expect(within(table).getByText("active")).toBeInTheDocument();
-    // The id survives as the muted secondary line.
-    expect(within(table).getByText(SLO_ID.slice(0, 8))).toBeInTheDocument();
   });
 
   it("marks a paused SLO and flags a suppressed one", async () => {
