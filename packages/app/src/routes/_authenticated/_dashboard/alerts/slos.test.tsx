@@ -22,7 +22,6 @@ const mocks = vi.hoisted(() => ({
   getCcSloStatus: vi.fn(),
   pauseCcSlo: vi.fn(),
   resumeCcSlo: vi.fn(),
-  deleteCcSlo: vi.fn(),
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
 }));
@@ -32,7 +31,6 @@ vi.mock("@/data/cc/server", () => ({
   getCcSloStatus: mocks.getCcSloStatus,
   pauseCcSlo: mocks.pauseCcSlo,
   resumeCcSlo: mocks.resumeCcSlo,
-  deleteCcSlo: mocks.deleteCcSlo,
 }));
 
 vi.mock("sonner", () => ({
@@ -149,7 +147,6 @@ beforeEach(() => {
   });
   mocks.pauseCcSlo.mockResolvedValue(ccSlo({ paused: true }));
   mocks.resumeCcSlo.mockResolvedValue(ccSlo());
-  mocks.deleteCcSlo.mockResolvedValue({ deleted: true });
 });
 
 describe("/alerts/slos route", () => {
@@ -205,29 +202,13 @@ describe("/alerts/slos route", () => {
     expect(mocks.toastSuccess).toHaveBeenCalledWith("SLO updated");
   });
 
-  it("deletes only after the confirm dialog", async () => {
-    const user = userEvent.setup();
+  it("offers no delete action — SLOs are removed as code, not from the UI", async () => {
     renderSlosRoute();
 
-    await user.click(
-      await screen.findByRole("button", {
-        name: "Delete SLO checkout-availability",
-      }),
-    );
-    // The dialog interposes: nothing deleted yet.
-    expect(mocks.deleteCcSlo).not.toHaveBeenCalled();
+    await screen.findByRole("link", { name: "checkout-availability" });
     expect(
-      screen.getByText(/Delete SLO “checkout-availability”\?/),
-    ).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Delete SLO" }));
-
-    await waitFor(() =>
-      expect(mocks.deleteCcSlo).toHaveBeenCalledWith({
-        data: { sloId: SLO_ID },
-      }),
-    );
-    expect(mocks.toastSuccess).toHaveBeenCalledWith("SLO deleted");
+      screen.queryByRole("button", { name: /Delete/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the empty state when no SLOs are defined", async () => {

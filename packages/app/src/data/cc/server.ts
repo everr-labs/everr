@@ -286,11 +286,9 @@ export const resumeCcSlo = createAuthenticatedServerFn({ method: "POST" })
     cc.resumeSlo(orgId(session), sloId),
   );
 
-export const deleteCcSlo = createAuthenticatedServerFn({ method: "POST" })
-  .inputValidator(z.object({ sloId: z.string() }))
-  .handler(({ data: { sloId }, context: { session } }) =>
-    cc.deleteSlo(orgId(session), sloId),
-  );
+// SLOs are as-code resources: there is deliberately no delete server fn for
+// the UI. Deletion happens by removing the document from the repo and
+// re-applying (the resource admin calls cc.deleteSlo directly).
 
 // ---- Channels ----
 // CC's POST /v1/channels is an upsert by name; the UI guards against

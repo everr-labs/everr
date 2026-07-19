@@ -2,17 +2,6 @@
 // error budget, burn rate, time to exhaustion, firing tiers — before showing
 // the config that produced it. Rows sort by risk (firing, then thinnest
 // budget), so the SLO most in danger is always the first one on the page.
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@everr/ui/components/alert-dialog";
 import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
 import { Card, CardContent } from "@everr/ui/components/card";
@@ -25,7 +14,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Gauge, Pause, Play, Trash2 } from "lucide-react";
+import { Gauge, Pause, Play } from "lucide-react";
 import { toast } from "sonner";
 import { CcBudgetBar, ccFmtBurn } from "@/components/cc/budget-bar";
 import { CcPageIntro, CcTerm } from "@/components/cc/page-intro";
@@ -38,7 +27,7 @@ import {
   ccErrorMessage,
 } from "@/components/cc/shared";
 import { ccQueries } from "@/data/cc/queries";
-import { deleteCcSlo, pauseCcSlo, resumeCcSlo } from "@/data/cc/server";
+import { pauseCcSlo, resumeCcSlo } from "@/data/cc/server";
 import {
   ccFormatSloDuration,
   ccFormatSloTarget,
@@ -56,53 +45,6 @@ export const Route = createFileRoute("/_authenticated/_dashboard/alerts/slos")({
     queryClient.prefetchQuery(ccQueries.slos()),
   component: CcSlosPage,
 });
-
-function DeleteSloAction({
-  slo,
-  onDelete,
-  pending,
-}: {
-  slo: CcSlo;
-  onDelete: () => void;
-  pending: boolean;
-}) {
-  return (
-    <AlertDialog>
-      <AlertDialogTrigger
-        render={
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={`Delete SLO ${slo.name}`}
-            disabled={pending}
-            className="text-muted-foreground hover:text-destructive"
-          />
-        }
-      >
-        <Trash2 />
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Delete SLO “{slo.name}”?</AlertDialogTitle>
-          <AlertDialogDescription>
-            Removes the SLO, its burn-rate instances, and its status snapshot.
-            Alerts already firing for it resolve as their instances are deleted.
-            This cannot be undone.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={onDelete}
-            className="bg-destructive hover:bg-destructive/90 text-white"
-          >
-            Delete SLO
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
-}
 
 // One listing row: the SLO plus its resolved status facts. `worst` is the
 // group spending budget fastest (min budget remaining) — the row's headline.
@@ -160,15 +102,6 @@ function CcSlosPage() {
     onSuccess: () => {
       invalidate();
       toast.success("SLO updated");
-    },
-    onError: (e) => toast.error(ccErrorMessage(e)),
-  });
-
-  const remove = useMutation({
-    mutationFn: (slo: CcSlo) => deleteCcSlo({ data: { sloId: slo.id } }),
-    onSuccess: () => {
-      invalidate();
-      toast.success("SLO deleted");
     },
     onError: (e) => toast.error(ccErrorMessage(e)),
   });
@@ -366,11 +299,6 @@ function CcSlosPage() {
             )}
             {s.paused ? "Resume" : "Pause"}
           </Button>
-          <DeleteSloAction
-            slo={s}
-            onDelete={() => remove.mutate(s)}
-            pending={remove.isPending}
-          />
         </span>
       ),
     },
@@ -397,9 +325,10 @@ function CcSlosPage() {
               The engine watches how fast the budget is being spent (the{" "}
               <strong>burn rate</strong>) over multiple windows and fires
               alerting <strong>tiers</strong> at different urgencies: fast-burn
-              pages someone now, ticket nudges tomorrow. SLOs are defined as
-              code and applied with <code>everr apply</code>; here you inspect
-              their budgets, pause them, or delete them.
+              pages someone now, ticket nudges tomorrow. SLOs live as code:
+              create, change, and remove them in your repo and run{" "}
+              <code>everr apply</code>. Here you inspect their budgets and pause
+              them.
             </p>
           </>
         }
