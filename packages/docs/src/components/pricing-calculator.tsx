@@ -1,3 +1,9 @@
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@everr/ui/components/tooltip";
 import { cn } from "@everr/ui/lib/utils";
 import { ArrowRight } from "lucide-react";
 import { motion, useInView } from "motion/react";
@@ -122,7 +128,7 @@ const PROVIDERS: Provider[] = [
           provider: {
             amount: Math.max(0, v.metricSeries - 10) * 6.5,
             detail: `${v.metricSeries}k series (10k free)`,
-            trap: "Billed per active series past 10k free. Dashboards and high-cardinality labels quietly explode the count.",
+            trap: "Billed per active time series past 10k free. It scales with metric cardinality, so high-cardinality tags multiply the count fast.",
           },
         },
         {
@@ -264,7 +270,7 @@ const PROVIDERS: Provider[] = [
           provider: {
             amount: Math.max(0, v.errorEvents - 50) * 0.3,
             detail: `${v.errorEvents}k events (50k free)`,
-            trap: "50k errors are included, but past that they add up quickly at production volume.",
+            trap: "50k errors are included, but past that they add up fast at production volume. On Everr, errors are just logs, billed at the normal log rate.",
           },
         },
         {
@@ -447,224 +453,223 @@ export function PricingCalculator() {
   };
 
   return (
-    <section className="relative overflow-x-clip border-t-2 border-fd-border bg-fd-background">
-      <div ref={ref} className="mx-auto max-w-7xl px-6 py-24 md:py-36">
-        {/* Section intro */}
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={inView ? { opacity: 1, y: 0 } : undefined}
-          transition={{ duration: 0.8, ease: EASE }}
-          className="max-w-3xl"
-        >
-          <p className="font-heading text-[11px] font-bold uppercase tracking-[0.3em] text-fd-muted-foreground/60">
-            Cost calculator
-          </p>
-          <h2 className="mt-4 text-balance font-heading text-3xl leading-[1.1] tracking-tight sm:text-4xl md:text-5xl lg:text-6xl">
-            Estimate your bill.
-          </h2>
-        </motion.div>
+    <TooltipProvider delay={150}>
+      <section className="relative overflow-x-clip border-t-2 border-fd-border bg-fd-background">
+        <div ref={ref} className="mx-auto max-w-7xl px-6 py-24 md:py-36">
+          {/* Section intro */}
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            animate={inView ? { opacity: 1, y: 0 } : undefined}
+            transition={{ duration: 0.8, ease: EASE }}
+            className="max-w-3xl"
+          >
+            <p className="font-heading text-[11px] font-bold uppercase tracking-[0.3em] text-fd-muted-foreground/60">
+              Cost calculator
+            </p>
+            <h2 className="mt-4 text-balance font-heading text-3xl leading-[1.1] tracking-tight sm:text-4xl md:text-5xl lg:text-6xl">
+              Estimate your bill.
+            </h2>
+          </motion.div>
 
-        {/* One stacked panel: tabs → sliders → comparison → savings */}
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={inView ? { opacity: 1, y: 0 } : undefined}
-          transition={{ duration: 0.8, delay: 0.12, ease: EASE }}
-          className="mt-14 overflow-hidden rounded-2xl border border-fd-border bg-fd-card/40 md:mt-20"
-        >
-          {/* Compare against */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-fd-border/60 px-6 py-5 md:px-10">
-            <span className="font-heading text-[11px] font-bold uppercase tracking-[0.2em] text-fd-muted-foreground/50">
-              Compare against
-            </span>
-            <div
-              role="tablist"
-              aria-label="Compare against"
-              className="inline-flex flex-wrap gap-1 rounded-full border border-fd-border bg-fd-card/60 p-1"
-            >
-              {PROVIDERS.map((prov) => {
-                const active = prov.id === providerId;
-                return (
-                  <button
-                    key={prov.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={active}
-                    onClick={() => setProviderId(prov.id)}
-                    className={cn(
-                      "rounded-full px-4 py-1.5 font-heading text-[13px] font-bold tracking-tight outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary motion-reduce:transition-none",
-                      active
-                        ? "bg-primary text-fd-background"
-                        : "text-fd-muted-foreground hover:text-fd-foreground",
-                    )}
-                  >
-                    {prov.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Adjust your usage */}
-          <div className="border-b border-fd-border/60 px-6 py-7 md:px-10 md:py-8">
-            <span className="font-heading text-[11px] font-bold uppercase tracking-[0.2em] text-fd-muted-foreground/50">
-              Adjust your usage
-            </span>
-            <div className="mt-6 grid gap-x-12 gap-y-6 md:grid-cols-2">
-              {provider.controls.map((c) => (
-                <Slider
-                  key={c.key}
-                  control={c}
-                  value={values[c.key]}
-                  onChange={(val) => setValue(c.key, val)}
-                />
-              ))}
-            </div>
-            {providerId === "datadog" && (
-              <p className="mt-6 font-mono text-[11px] leading-relaxed text-fd-muted-foreground/50">
-                APM hosts auto-adjust to your trace volume (capped at your host
-                count) until you set them. Custom metrics beyond 100/host and
-                spans beyond 150 GB/host bill as overage.
-              </p>
-            )}
-          </div>
-
-          {/* Comparison: two vendor blocks, rows aligned via equal headers */}
-          <div className="grid md:grid-cols-2">
-            {/* Everr */}
-            <div className="border-b border-fd-border/60 px-6 py-8 md:border-b-0 md:border-r md:px-10">
-              <span className="font-heading text-[11px] font-bold uppercase tracking-[0.2em] text-primary">
-                Everr
+          {/* One stacked panel: tabs → sliders → comparison → savings */}
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            animate={inView ? { opacity: 1, y: 0 } : undefined}
+            transition={{ duration: 0.8, delay: 0.12, ease: EASE }}
+            className="mt-14 overflow-hidden rounded-2xl border border-fd-border bg-fd-card/40 md:mt-20"
+          >
+            {/* Compare against */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-fd-border/60 px-6 py-5 md:px-10">
+              <span className="font-heading text-[11px] font-bold uppercase tracking-[0.2em] text-fd-muted-foreground/50">
+                Compare against
               </span>
-              <div className="mt-3 flex items-end gap-1.5">
-                <span className="font-mono text-4xl font-bold leading-none tracking-tight text-fd-foreground md:text-5xl">
-                  {usd(everrTotal)}
-                </span>
-                <span className="pb-1 font-mono text-sm text-fd-muted-foreground/70">
-                  / mo
-                </span>
-              </div>
-              <p className="mt-2 font-mono text-[11px] text-fd-muted-foreground/60">
-                Pro plan
-              </p>
-              <dl className="mt-6 space-y-3">
-                {orderedRows.map((row) => (
-                  <div
-                    key={row.label}
-                    className="flex items-baseline justify-between gap-4"
-                  >
-                    <dt className="text-sm text-fd-muted-foreground">
-                      {row.label}
-                    </dt>
-                    <dd className="font-mono text-sm font-medium text-primary">
-                      {usd(row.everr.amount)}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
-
-            {/* Provider */}
-            <div className="px-6 py-8 md:px-10">
-              <span className="font-heading text-[11px] font-bold uppercase tracking-[0.2em] text-fd-muted-foreground">
-                {provider.label}
-              </span>
-              <div className="mt-3 flex items-end gap-1.5">
-                <span className="font-mono text-4xl font-bold leading-none tracking-tight text-fd-muted-foreground/70 md:text-5xl">
-                  {usd(providerTotal)}
-                </span>
-                <span className="pb-1 font-mono text-sm text-fd-muted-foreground/50">
-                  / mo
-                </span>
-              </div>
-              <p className="mt-2 font-mono text-[11px] text-fd-muted-foreground/40">
-                Estimated
-              </p>
-              <dl className="mt-6 space-y-3">
-                {orderedRows.map((row) => (
-                  <div
-                    key={row.label}
-                    className="flex items-baseline justify-between gap-4"
-                  >
-                    <dt className="text-sm text-fd-muted-foreground">
-                      {row.label}
-                    </dt>
-                    <dd
+              <div
+                role="tablist"
+                aria-label="Compare against"
+                className="inline-flex flex-wrap gap-1 rounded-full border border-fd-border bg-fd-card/60 p-1"
+              >
+                {PROVIDERS.map((prov) => {
+                  const active = prov.id === providerId;
+                  return (
+                    <button
+                      key={prov.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      onClick={() => setProviderId(prov.id)}
                       className={cn(
-                        "font-mono text-sm",
-                        row.provider.trap
-                          ? "font-medium text-rose-400"
-                          : "text-fd-muted-foreground/80",
+                        "rounded-full px-4 py-1.5 font-heading text-[13px] font-bold tracking-tight outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary motion-reduce:transition-none",
+                        active
+                          ? "bg-primary text-fd-background"
+                          : "text-fd-muted-foreground hover:text-fd-foreground",
                       )}
                     >
-                      {row.provider.trap ? (
-                        <span
-                          title={row.provider.trap}
-                          className="cursor-help underline decoration-rose-400/40 decoration-dotted underline-offset-4"
-                        >
-                          {usd(row.provider.amount)}
-                        </span>
-                      ) : (
-                        usd(row.provider.amount)
-                      )}
-                    </dd>
-                  </div>
+                      {prov.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Adjust your usage */}
+            <div className="border-b border-fd-border/60 px-6 py-7 md:px-10 md:py-8">
+              <span className="font-heading text-[11px] font-bold uppercase tracking-[0.2em] text-fd-muted-foreground/50">
+                Adjust your usage
+              </span>
+              <div className="mt-6 grid gap-x-12 gap-y-6 md:grid-cols-2">
+                {provider.controls.map((c) => (
+                  <Slider
+                    key={c.key}
+                    control={c}
+                    value={values[c.key]}
+                    onChange={(val) => setValue(c.key, val)}
+                  />
                 ))}
-              </dl>
-              {orderedRows.some((row) => row.provider.trap) && (
-                <p className="mt-6 text-xs leading-relaxed text-fd-muted-foreground/60">
-                  <span className="text-rose-400">Highlighted</span> lines are
-                  hidden cost traps. Hover for why.
+              </div>
+              {providerId === "datadog" && (
+                <p className="mt-6 font-mono text-[11px] leading-relaxed text-fd-muted-foreground/50">
+                  APM hosts auto-adjust to your trace volume (capped at your
+                  host count) until you set them. Custom metrics beyond 100/host
+                  and spans beyond 150 GB/host bill as overage.
                 </p>
               )}
             </div>
-          </div>
 
-          {/* Savings footer */}
-          <div className="flex flex-col gap-5 border-t border-fd-border/60 bg-primary/[0.06] px-6 py-6 sm:flex-row sm:items-center sm:justify-between md:px-10">
-            <div>
-              {savings > 0 ? (
-                <>
-                  <p className="font-heading text-2xl font-bold tracking-tight text-fd-foreground md:text-3xl">
-                    Save{" "}
-                    <span className="text-primary">{usd(savings)}/month</span>
-                  </p>
-                  <p className="mt-1.5 text-sm text-fd-muted-foreground">
-                    That's {savingsPct}% less than {provider.label}, or{" "}
-                    {yearlyLabel}/year back in your budget.
-                  </p>
-                  <p className="mt-1 text-sm text-fd-muted-foreground/70">
-                    That's {bananaKg.toLocaleString("en-US")}kg of bananas/year.
-                    🍌
-                  </p>
-                </>
-              ) : (
-                <p className="font-heading text-3xl font-bold text-primary">
-                  Waaaat
+            {/* Comparison: two vendor blocks, rows aligned via equal headers */}
+            <div className="grid md:grid-cols-2">
+              {/* Everr */}
+              <div className="border-b border-fd-border/60 px-6 py-8 md:border-b-0 md:border-r md:px-10">
+                <span className="font-heading text-[11px] font-bold uppercase tracking-[0.2em] text-primary">
+                  Everr
+                </span>
+                <div className="mt-3 flex items-end gap-1.5">
+                  <span className="font-mono text-4xl font-bold leading-none tracking-tight text-fd-foreground md:text-5xl">
+                    {usd(everrTotal)}
+                  </span>
+                  <span className="pb-1 font-mono text-sm text-fd-muted-foreground/70">
+                    / mo
+                  </span>
+                </div>
+                <p className="mt-2 font-mono text-[11px] text-fd-muted-foreground/60">
+                  Pro plan
                 </p>
-              )}
-            </div>
-            <a
-              href="https://app.everr.dev"
-              className="group flex shrink-0 items-center justify-center gap-2 rounded-full bg-primary px-7 py-3.5 font-heading text-sm font-bold tracking-tight text-fd-background outline-none transition-colors duration-200 hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-fd-background motion-reduce:transition-none"
-            >
-              Get started
-              <ArrowRight
-                className="size-4 transition-transform duration-200 group-hover:translate-x-0.5 motion-reduce:transition-none"
-                strokeWidth={2.5}
-                aria-hidden
-              />
-            </a>
-          </div>
-        </motion.div>
+                <dl className="mt-6 space-y-3">
+                  {orderedRows.map((row) => (
+                    <div
+                      key={row.label}
+                      className="flex items-baseline justify-between gap-4"
+                    >
+                      <dt className="text-sm text-fd-muted-foreground">
+                        {row.label}
+                      </dt>
+                      <dd className="font-mono text-sm font-medium text-primary">
+                        {usd(row.everr.amount)}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
 
-        <p className="mt-6 max-w-3xl font-mono text-[11px] leading-relaxed tracking-[0.05em] text-fd-muted-foreground/50">
-          Estimates based on published pricing as of 2026. Actual costs vary
-          with contract terms, volume discounts, and features. Everr figure uses
-          the Pro plan: $39/mo + $8/user (first 3 free), with 300 GB total
-          included, then $0.40/GB. Hosts are never billed.
-        </p>
-      </div>
-    </section>
+              {/* Provider */}
+              <div className="px-6 py-8 md:px-10">
+                <span className="font-heading text-[11px] font-bold uppercase tracking-[0.2em] text-fd-muted-foreground">
+                  {provider.label}
+                </span>
+                <div className="mt-3 flex items-end gap-1.5">
+                  <span className="font-mono text-4xl font-bold leading-none tracking-tight text-fd-muted-foreground/70 md:text-5xl">
+                    {usd(providerTotal)}
+                  </span>
+                  <span className="pb-1 font-mono text-sm text-fd-muted-foreground/50">
+                    / mo
+                  </span>
+                </div>
+                <p className="mt-2 font-mono text-[11px] text-fd-muted-foreground/40">
+                  Estimated
+                </p>
+                <dl className="mt-6 space-y-3">
+                  {orderedRows.map((row) => (
+                    <div
+                      key={row.label}
+                      className="flex items-baseline justify-between gap-4"
+                    >
+                      <dt className="text-sm text-fd-muted-foreground">
+                        {row.label}
+                      </dt>
+                      <dd className="font-mono text-sm">
+                        {row.provider.trap ? (
+                          <Tooltip>
+                            <TooltipTrigger className="cursor-help rounded font-medium text-rose-400 underline decoration-rose-400/40 decoration-dotted underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50">
+                              {usd(row.provider.amount)}
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs text-left leading-relaxed">
+                              {row.provider.trap}
+                            </TooltipContent>
+                          </Tooltip>
+                        ) : (
+                          <span className="text-fd-muted-foreground/80">
+                            {usd(row.provider.amount)}
+                          </span>
+                        )}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+                {orderedRows.some((row) => row.provider.trap) && (
+                  <p className="mt-6 text-xs leading-relaxed text-fd-muted-foreground/60">
+                    <span className="text-rose-400">Highlighted</span> lines are
+                    hidden cost traps. Hover for why.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Savings footer */}
+            <div className="flex flex-col gap-5 border-t border-fd-border/60 bg-primary/[0.06] px-6 py-6 sm:flex-row sm:items-center sm:justify-between md:px-10">
+              <div>
+                {savings > 0 ? (
+                  <>
+                    <p className="font-heading text-2xl font-bold tracking-tight text-fd-foreground md:text-3xl">
+                      Save{" "}
+                      <span className="text-primary">{usd(savings)}/month</span>
+                    </p>
+                    <p className="mt-1.5 text-sm text-fd-muted-foreground">
+                      That's {savingsPct}% less than {provider.label}, or{" "}
+                      {yearlyLabel}/year back in your budget.
+                    </p>
+                    <p className="mt-1 text-sm text-fd-muted-foreground/70">
+                      That's {bananaKg.toLocaleString("en-US")}kg of
+                      bananas/year. 🍌
+                    </p>
+                  </>
+                ) : (
+                  <p className="font-heading text-3xl font-bold text-primary">
+                    Waaaat
+                  </p>
+                )}
+              </div>
+              <a
+                href="https://app.everr.dev"
+                className="group flex shrink-0 items-center justify-center gap-2 rounded-full bg-primary px-7 py-3.5 font-heading text-sm font-bold tracking-tight text-fd-background outline-none transition-colors duration-200 hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-fd-background motion-reduce:transition-none"
+              >
+                Get started
+                <ArrowRight
+                  className="size-4 transition-transform duration-200 group-hover:translate-x-0.5 motion-reduce:transition-none"
+                  strokeWidth={2.5}
+                  aria-hidden
+                />
+              </a>
+            </div>
+          </motion.div>
+
+          <p className="mt-6 max-w-3xl font-mono text-[11px] leading-relaxed tracking-[0.05em] text-fd-muted-foreground/50">
+            Estimates based on published pricing as of 2026. Actual costs vary
+            with contract terms, volume discounts, and features. Everr figure
+            uses the Pro plan: $39/mo + $8/user (first 3 free), with 300 GB
+            total included, then $0.40/GB. Hosts are never billed.
+          </p>
+        </div>
+      </section>
+    </TooltipProvider>
   );
 }
 
