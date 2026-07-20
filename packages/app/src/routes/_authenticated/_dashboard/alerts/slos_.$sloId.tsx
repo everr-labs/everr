@@ -62,12 +62,21 @@ import { toSloDocument } from "@/data/slos/mapping";
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/alerts/slos_/$sloId",
 )({
-  staticData: { breadcrumb: "SLO" },
-  loader: ({ context: { queryClient }, params }) =>
-    Promise.all([
-      queryClient.prefetchQuery(ccQueries.slo(params.sloId)),
+  // This detail route is flat (slos_), so it doesn't inherit the SLOs listing
+  // crumb — emit it here so the trail reads Alerts > SLOs > <name>.
+  staticData: {
+    breadcrumb: (match: { loaderData?: { name: string } }) => [
+      { label: "SLOs", to: "/alerts/slos" },
+      { label: match.loaderData?.name ?? "SLO" },
+    ],
+  },
+  loader: async ({ context: { queryClient }, params }) => {
+    const [slo] = await Promise.all([
+      queryClient.ensureQueryData(ccQueries.slo(params.sloId)),
       queryClient.prefetchQuery(ccQueries.sloStatus(params.sloId)),
-    ]),
+    ]);
+    return { name: slo.name };
+  },
   component: CcSloDetailPage,
 });
 
