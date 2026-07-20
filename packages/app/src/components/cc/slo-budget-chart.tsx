@@ -133,13 +133,14 @@ export function SloBudgetChart({
         {markerT && (
           <ReferenceLine
             x={markerT}
-            stroke="var(--muted-foreground)"
+            stroke="var(--color-blue-500)"
+            strokeDasharray="4 3"
             strokeWidth={1}
             label={{
               value: "applied",
               position: "insideTopLeft",
               fontSize: 10,
-              fill: "var(--muted-foreground)",
+              fill: "var(--color-blue-500)",
             }}
           />
         )}
