@@ -30,7 +30,6 @@ import { ArrowLeft, Pause, Play, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { AlertEventFeed } from "@/components/cc/alert-event-feed";
-import { CcAsCode } from "@/components/cc/as-code";
 import {
   CcBudgetBar,
   ccFmtBurn,
@@ -48,6 +47,11 @@ import {
   LabelSet,
 } from "@/components/cc/shared";
 import { SloStatusHero } from "@/components/cc/slo-status";
+import {
+  ANN_LABEL_PREFIX,
+  ANN_PROJECT,
+  isEverrAnnotationKey,
+} from "@/data/alerts/annotations";
 import { ccQueries } from "@/data/cc/queries";
 import { pauseCcSlo, resumeCcSlo } from "@/data/cc/server";
 import {
@@ -61,7 +65,6 @@ import {
   ccWorstSloGroup,
 } from "@/data/cc/slo";
 import type { CcSlo, CcSloGroupStatus, CcSloHealth } from "@/data/cc/types";
-import { toSloDocument } from "@/data/slos/mapping";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/alerts/slos_/$sloId",
@@ -125,17 +128,19 @@ function DefRow({
 function ObjectiveSection({ slo }: { slo: CcSlo }) {
   const [sqlOpen, setSqlOpen] = useState(false);
   const tiers = ccSloTiers(slo.spec);
-  // `description`/`summary` are surfaced as prose in the status hero, so drop
-  // them from the raw annotation dump here to avoid saying the same thing twice.
-  const annotations = Object.entries(slo.spec.annotations).filter(
-    ([k]) => k !== "description" && k !== "summary",
+  const ann = slo.spec.annotations;
+  // Surface the as-code identity fields natively instead of behind a YAML dump.
+  // `everr.project` and `everr.label.*` fold into first-class fields (as they do
+  // in the applied document); `description`/`summary` lead the status hero; the
+  // rest of the everr.* internals stay hidden. What's left is the author's own
+  // pass-through annotations, shown raw.
+  const project = ann[ANN_PROJECT];
+  const labels = Object.entries(ann)
+    .filter(([k]) => k.startsWith(ANN_LABEL_PREFIX))
+    .map(([k, v]) => [k.slice(ANN_LABEL_PREFIX.length), v] as const);
+  const annotations = Object.entries(ann).filter(
+    ([k]) => !isEverrAnnotationKey(k) && k !== "description" && k !== "summary",
   );
-  // An SLO created outside the as-code flow has no `everr.name` annotation;
-  // its first-class name still makes a valid document name.
-  const asCodeDoc = toSloDocument(slo.spec);
-  if (!asCodeDoc.metadata.name) {
-    asCodeDoc.metadata.name = slo.name;
-  }
 
   return (
     <Card>
@@ -156,6 +161,18 @@ function ObjectiveSection({ slo }: { slo: CcSlo }) {
           <DefRow label="SLI groups by">
             {slo.spec.sli.label_columns.join(", ") || "— (scalar SLI)"}
           </DefRow>
+          {project !== undefined && <DefRow label="Project">{project}</DefRow>}
+          {labels.length > 0 && (
+            <DefRow label="Labels">
+              <span className="flex flex-col gap-0.5">
+                {labels.map(([k, v]) => (
+                  <span key={k}>
+                    <span className="text-muted-foreground">{k}:</span> {v}
+                  </span>
+                ))}
+              </span>
+            </DefRow>
+          )}
           {annotations.length > 0 && (
             <DefRow label="Annotations">
               <span className="flex flex-col gap-0.5">
@@ -219,10 +236,6 @@ function ObjectiveSection({ slo }: { slo: CcSlo }) {
             </pre>
           </CollapsibleContent>
         </Collapsible>
-
-        {/* The edit path: SLOs are Git-owned, so editing means copying the
-            as-code document, changing it, and running `everr apply`. */}
-        <CcAsCode doc={asCodeDoc} filename={`${slo.name}.slo.yaml`} />
       </CardContent>
     </Card>
   );
