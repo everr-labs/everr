@@ -83,4 +83,4 @@ Declarations sit flat in `everr/`, named by kind: `*.alert.yaml`, `*.dashboard.y
 - Set at most one of `instanceLabels` or `labelColumns`, never both.
 - `maxInterval`, when set, must be a valid duration and, when `evaluationInterval` also parses, greater than or equal to it.
 - `annotations` keys starting with `everr.`, and the exact keys `summary`, `description`, `link.alert`, and `link.runbook`, are rejected: those are reserved for Everr's own generated annotations.
-- Supported document kinds for apply are `Dashboard` and `AlertRule`.
+- Supported document kinds for apply are `Dashboard`, `AlertRule`, `Runbook`, and `SLO`.
