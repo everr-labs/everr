@@ -38,8 +38,10 @@ const FLOOR_PCT = -25;
 
 type Row = {
   t: string;
-  /** Plotted budget %, floored at FLOOR_PCT so the axis stays legible. */
-  budgetPct: number | null;
+  /** Plotted budget % for the REAL (post-epoch) segment, floored at FLOOR_PCT. */
+  realPct: number | null;
+  /** Plotted budget % for the SYNTHETIC (pre-epoch, reconstructed) segment. */
+  synthPct: number | null;
   /** True budget % for the tooltip (may be far below the floor). */
   rawPct: number | null;
   /** This point predates the budget epoch: reconstructed, not observed. */
@@ -58,10 +60,9 @@ export function SloBudgetChart({
   points: CcSloBudgetPoint[];
   /**
    * When the budget's meaning begins (the SLO's apply / last significant-edit
-   * instant, ISO 8601). One continuous line whose stroke turns from muted
-   * (reconstructed history that predates the SLO) to solid (the real observed
-   * budget) exactly at the epoch, with an "applied" marker there. Omit to draw a
-   * fully solid line.
+   * instant, ISO 8601). Points before it are reconstructed from telemetry that
+   * predates the SLO, so they render muted + dashed behind an "applied" marker;
+   * points on/after it are the real observed budget. Omit to draw one solid line.
    */
   epoch?: string;
 }) {
@@ -72,53 +73,34 @@ export function SloBudgetChart({
   }
   const epochMs = epoch ? Date.parse(epoch) : Number.NaN;
   const hasEpoch = Number.isFinite(epochMs);
-  const data: Row[] = points.map((p) => {
+  // First point on/after the epoch: the boundary. Everything before it is
+  // synthetic; -1 means the whole range predates the epoch (all synthetic).
+  const boundary = hasEpoch
+    ? points.findIndex((p) => Date.parse(p.t) >= epochMs)
+    : 0;
+  const data: Row[] = points.map((p, i) => {
     const raw = p.budgetRemaining === null ? null : p.budgetRemaining * 100;
+    const plotted = raw === null ? null : Math.max(raw, FLOOR_PCT);
+    const synthetic = hasEpoch && (boundary === -1 || i < boundary);
     return {
       t: p.t,
-      budgetPct: raw === null ? null : Math.max(raw, FLOOR_PCT),
+      realPct: synthetic ? null : plotted,
+      // The synthetic segment also carries the boundary point so the two lines
+      // meet with no gap where the budget becomes real.
+      synthPct: synthetic || (boundary > 0 && i === boundary) ? plotted : null,
       rawPct: raw,
-      synthetic: hasEpoch && Date.parse(p.t) < epochMs,
+      synthetic,
       good: p.good,
       valid: p.valid,
     };
   });
-  // Gradient split point as a fraction of the plotted range. The instants span
-  // [first, last] evenly, so the epoch's time-fraction is its x-fraction; a hard
-  // two-stop gradient at this offset turns the single stroke muted -> solid
-  // exactly at the epoch (0 = all real, 1 = all reconstructed).
-  const firstT = Date.parse(points[0].t);
-  const lastT = Date.parse(points[points.length - 1].t);
-  const splitOffset =
-    hasEpoch && lastT > firstT
-      ? Math.min(1, Math.max(0, (epochMs - firstT) / (lastT - firstT)))
-      : 0;
-  // The "applied" marker sits on the first real point, shown only when the split
-  // actually falls inside the range (some reconstructed points precede it).
-  const firstRealIdx = hasEpoch
-    ? points.findIndex((p) => Date.parse(p.t) >= epochMs)
-    : 0;
-  const markerT = firstRealIdx > 0 ? points[firstRealIdx].t : null;
+  // The "applied" marker sits on the boundary point, but only when it falls
+  // inside the range: boundary 0 is off the left edge, -1 is off the right.
+  const markerT = boundary > 0 ? points[boundary].t : null;
 
   return (
     <ChartContainer config={chartConfig} className="h-[240px] w-full">
       <LineChart data={data} margin={{ left: 12, right: 12, top: 8 }}>
-        {/* Muted (reconstructed) up to the epoch, solid (real) after it, as one
-            hard-edged two-stop gradient along the x axis. */}
-        <defs>
-          <linearGradient id="cc-budget-split" x1="0" y1="0" x2="1" y2="0">
-            <stop
-              offset={splitOffset}
-              stopColor="var(--color-budgetPct)"
-              stopOpacity={0.32}
-            />
-            <stop
-              offset={splitOffset}
-              stopColor="var(--color-budgetPct)"
-              stopOpacity={1}
-            />
-          </linearGradient>
-        </defs>
         <CartesianGrid vertical={false} />
         <XAxis
           dataKey="t"
@@ -168,7 +150,12 @@ export function SloBudgetChart({
                 const t = payload?.[0]?.payload?.t as string | undefined;
                 return t ? new Date(t).toLocaleString() : "";
               }}
-              formatter={(_value, _name, item) => {
+              formatter={(_value, _name, item, index) => {
+                // Both the synthetic and real series carry the boundary point,
+                // so at the split they both appear in the tooltip payload. They
+                // share one data row, so render it once (first item only) and
+                // read from the row — never a doubled entry at the boundary.
+                if (index !== 0) return null;
                 const row = item?.payload as Row | undefined;
                 const raw = row?.rawPct;
                 // Report the true budget; a deeply overspent SLO reads as the
@@ -198,28 +185,26 @@ export function SloBudgetChart({
             />
           }
         />
-        {/* One continuous budget line; the gradient stroke carries the
-            reconstructed -> real transition. Dots mark only the real, observed
-            points, so reconstructed history reads as an inferred trend. */}
+        {/* Reconstructed (pre-apply) budget: muted + dashed, no dots — inferred
+            from telemetry that predates the SLO, not observed. */}
         <Line
-          dataKey="budgetPct"
+          dataKey="synthPct"
           type="monotone"
-          stroke="url(#cc-budget-split)"
+          stroke="var(--color-budgetPct)"
+          strokeOpacity={0.4}
+          strokeDasharray="4 3"
           strokeWidth={2}
-          dot={(props: { cx?: number; cy?: number; payload?: Row }) => {
-            const { cx, cy, payload } = props;
-            if (
-              payload?.synthetic ||
-              cx === undefined ||
-              cy === undefined ||
-              payload?.budgetPct === null
-            ) {
-              return <g />;
-            }
-            return (
-              <circle cx={cx} cy={cy} r={2.5} fill="var(--color-budgetPct)" />
-            );
-          }}
+          dot={false}
+          isAnimationActive={false}
+          connectNulls
+        />
+        {/* Real (post-apply) budget: solid with a dot per point. */}
+        <Line
+          dataKey="realPct"
+          type="monotone"
+          stroke="var(--color-budgetPct)"
+          strokeWidth={2}
+          dot={{ r: 2.5, strokeWidth: 0, fill: "var(--color-budgetPct)" }}
           isAnimationActive={false}
           connectNulls
         />
