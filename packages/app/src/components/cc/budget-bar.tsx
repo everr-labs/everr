@@ -21,6 +21,20 @@ export function ccFmtBurn(b: number): string {
 // objective, but close enough that a sustained burn deserves attention.
 const LOW_BUDGET = 0.25;
 
+/**
+ * The budget health band for a remaining fraction: `exhausted` (<= 0), `low`
+ * (< 25% left), or neither. Shared so every budget readout (the inline bar,
+ * the detail hero) turns amber and red on exactly the same thresholds.
+ */
+export function ccBudgetTone(remaining: number | null): {
+  exhausted: boolean;
+  low: boolean;
+} {
+  if (remaining === null) return { exhausted: false, low: false };
+  const exhausted = remaining <= 0;
+  return { exhausted, low: !exhausted && remaining < LOW_BUDGET };
+}
+
 export function CcBudgetBar({
   remaining,
   className,
@@ -33,8 +47,7 @@ export function CcBudgetBar({
     return <span className="text-xs text-muted-foreground">—</span>;
   }
   const clamped = Math.max(0, Math.min(1, remaining));
-  const exhausted = remaining <= 0;
-  const low = !exhausted && remaining < LOW_BUDGET;
+  const { exhausted, low } = ccBudgetTone(remaining);
   return (
     <span className={cn("inline-flex items-center gap-2", className)}>
       {/* The printed percentage below is the accessible value; the bar is a

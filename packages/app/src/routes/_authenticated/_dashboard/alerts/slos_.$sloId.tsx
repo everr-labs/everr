@@ -23,11 +23,13 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@everr/ui/components/tooltip";
+import { withTimeRange } from "@everr/ui/lib/time-range";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, Pause, Play, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { AlertEventFeed } from "@/components/cc/alert-event-feed";
 import { CcAsCode } from "@/components/cc/as-code";
 import {
   CcBudgetBar,
@@ -41,20 +43,22 @@ import {
   CcQueryError,
   CcSeverityBadge,
   CcSloTierBadge,
-  CcTableSkeleton,
   ccErrorMessage,
   ccFormatTs,
   LabelSet,
 } from "@/components/cc/shared";
+import { SloStatusHero } from "@/components/cc/slo-status";
 import { ccQueries } from "@/data/cc/queries";
 import { pauseCcSlo, resumeCcSlo } from "@/data/cc/server";
 import {
   ccFormatSloDuration,
   ccFormatSloTarget,
   ccSloCurrentBurn,
+  ccSloHandles,
   ccSloTierSeverity,
   ccSloTiers,
   ccSloWindowLabel,
+  ccWorstSloGroup,
 } from "@/data/cc/slo";
 import type { CcSlo, CcSloGroupStatus, CcSloHealth } from "@/data/cc/types";
 import { toSloDocument } from "@/data/slos/mapping";
@@ -69,11 +73,17 @@ export const Route = createFileRoute(
       { label: "SLOs", to: "/alerts/slos" },
       { label: match.loaderData?.name ?? "SLO" },
     ],
+    // The alerts section hides the global time-range picker; the firing-history
+    // feed below reads stored history, so this page opts back in (like the rule
+    // detail page).
+    hideTimeRangePicker: false,
   },
-  loader: async ({ context: { queryClient }, params }) => {
+  loaderDeps: ({ search }) => ({ timeRange: withTimeRange(search).timeRange }),
+  loader: async ({ context: { queryClient }, params, deps }) => {
     const [slo] = await Promise.all([
       queryClient.ensureQueryData(ccQueries.slo(params.sloId)),
       queryClient.prefetchQuery(ccQueries.sloStatus(params.sloId)),
+      queryClient.prefetchQuery(ccQueries.eventHistory(deps.timeRange)),
     ]);
     return { name: slo.name };
   },
@@ -115,7 +125,11 @@ function DefRow({
 function ObjectiveSection({ slo }: { slo: CcSlo }) {
   const [sqlOpen, setSqlOpen] = useState(false);
   const tiers = ccSloTiers(slo.spec);
-  const annotations = Object.entries(slo.spec.annotations);
+  // `description`/`summary` are surfaced as prose in the status hero, so drop
+  // them from the raw annotation dump here to avoid saying the same thing twice.
+  const annotations = Object.entries(slo.spec.annotations).filter(
+    ([k]) => k !== "description" && k !== "summary",
+  );
   // An SLO created outside the as-code flow has no `everr.name` annotation;
   // its first-class name still makes a valid document name.
   const asCodeDoc = toSloDocument(slo.spec);
@@ -216,7 +230,7 @@ function ObjectiveSection({ slo }: { slo: CcSlo }) {
 
 // ── How's the budget ──────────────────────────────────────────────────────────
 
-function BudgetSection({ slo }: { slo: CcSlo }) {
+function StatusSection({ slo }: { slo: CcSlo }) {
   const status = useQuery(ccQueries.sloStatus(slo.id));
   const tiers = ccSloTiers(slo.spec);
 
@@ -342,53 +356,105 @@ function BudgetSection({ slo }: { slo: CcSlo }) {
     },
   ];
 
-  return (
-    <Card inset="flush-content">
-      <CardHeader>
-        <CardTitle>Error budget</CardTitle>
-        <CardDescription>
-          {status.data ? (
-            <>
-              Snapshot computed{" "}
-              <span title={ccFormatTs(status.data.computed_at)}>
-                <RelativeTime timestamp={status.data.computed_at} />
-              </span>{" "}
-              against a {ccFormatSloTarget(slo.spec.targetPercent)} target over{" "}
-              {ccSloWindowLabel(slo.spec)}.
-            </>
-          ) : (
-            "The evaluator's latest per-group snapshot of SLI, error budget, and burn rates."
-          )}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {status.isError ? (
-          <div className="px-3 pb-3">
-            <CcQueryError error={status.error} />
-          </div>
-        ) : status.isPending ? (
-          <CcTableSkeleton rows={3} />
-        ) : status.data === null || status.data.payload === null ? (
-          // No snapshot row yet (a new SLO before its first evaluation tick),
-          // or a stored payload predating the current snapshot shape.
+  if (status.isError) {
+    return <CcQueryError error={status.error} />;
+  }
+  if (status.isPending) {
+    return (
+      <Card>
+        <CardContent>
+          <Skeleton className="h-40 w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
+  const data = status.data;
+  if (!data || data.payload === null) {
+    // No snapshot row yet (a new SLO before its first evaluation tick), or a
+    // stored payload predating the current snapshot shape.
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Status</CardTitle>
+        </CardHeader>
+        <CardContent>
           <CcEmptyState
             title="No status snapshot yet"
             hint="The evaluator writes a snapshot on its first evaluation tick; until then there is no SLI or error budget to show."
           />
-        ) : status.data.payload.groups.length === 0 ? (
+        </CardContent>
+      </Card>
+    );
+  }
+  if (data.payload.groups.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Status</CardTitle>
+        </CardHeader>
+        <CardContent>
           <CcEmptyState
             title="No SLI groups yet"
             hint="The SLI query has not returned rows for any group in the budget window."
           />
-        ) : (
-          <DataTable
-            data={status.data.payload.groups}
-            columns={groupCols}
-            rowKey={(g) => JSON.stringify(g.labels)}
-          />
-        )}
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const groups = data.payload.groups;
+  const worst = ccWorstSloGroup(groups);
+
+  return (
+    <div className="space-y-2">
+      {/* At-a-glance: the worst group's budget, burn, and per-tier pressure. */}
+      <SloStatusHero slo={slo} worst={worst} groupCount={groups.length} />
+      <p className="px-1 text-[0.6875rem] text-muted-foreground">
+        Snapshot computed{" "}
+        <span title={ccFormatTs(data.computed_at)}>
+          <RelativeTime timestamp={data.computed_at} />
+        </span>{" "}
+        against a {ccFormatSloTarget(slo.spec.targetPercent)} target over{" "}
+        {ccSloWindowLabel(slo.spec)}.
+      </p>
+
+      {/* The full per-group breakdown, only when there is more than one group
+          to break down — a scalar SLO is fully described by the hero above. */}
+      {groups.length > 1 && (
+        <Card inset="flush-content">
+          <CardHeader>
+            <CardTitle>All groups</CardTitle>
+            <CardDescription>
+              Per-group SLI, error budget, burn rate, and firing tiers.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DataTable
+              data={groups}
+              columns={groupCols}
+              rowKey={(g) => JSON.stringify(g.labels)}
+            />
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ── History ───────────────────────────────────────────────────────────────────
+
+function FiringHistorySection({ slo }: { slo: CcSlo }) {
+  // Scoped to this SLO's handles: the stored fire/resolve transitions and
+  // deliveries for its burn-rate tiers, over the page's time range. There is
+  // no budget-over-time series to chart, so this is the SLO's temporal record.
+  // hideRuleColumns drops the (constant) source and severity columns, leaving
+  // Time / Event / Labels — the tier rides in the labels as `slo_tier`.
+  return (
+    <AlertEventFeed
+      scopeSlug={ccSloHandles(slo)}
+      hideRuleColumns
+      showTypeLens
+    />
   );
 }
 
@@ -511,8 +577,9 @@ function CcSloDetailPage() {
         </Button>
       </div>
 
-      <BudgetSection slo={s} />
+      <StatusSection slo={s} />
       <ObjectiveSection slo={s} />
+      <FiringHistorySection slo={s} />
       <HealthSection sloId={s.id} />
     </div>
   );

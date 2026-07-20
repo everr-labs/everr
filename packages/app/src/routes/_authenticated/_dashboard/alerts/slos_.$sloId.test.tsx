@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   resumeCcSlo: vi.fn(),
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
+  feedProps: vi.fn(),
 }));
 
 vi.mock("@/data/cc/server", () => ({
@@ -37,6 +38,15 @@ vi.mock("sonner", () => ({
   toast: {
     success: (...a: unknown[]) => mocks.toastSuccess(...a),
     error: (...a: unknown[]) => mocks.toastError(...a),
+  },
+}));
+
+// The firing-history feed is exercised by its own tests; here we stub it and
+// assert the detail page scopes it to this SLO's handles.
+vi.mock("@/components/cc/alert-event-feed", () => ({
+  AlertEventFeed: (props: unknown) => {
+    mocks.feedProps(props);
+    return <div data-testid="event-feed" />;
   },
 }));
 
@@ -162,7 +172,7 @@ beforeEach(() => {
 });
 
 describe("/alerts/slos/$sloId route", () => {
-  it("renders the header facts and the per-group budget snapshot", async () => {
+  it("leads with the status hero: state, budget, SLI, burn, and per-tier pressure", async () => {
     renderSloDetailRoute();
 
     expect(
@@ -170,20 +180,28 @@ describe("/alerts/slos/$sloId route", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("99.9% over 30d rolling")).toBeInTheDocument();
 
-    // The group row: labels, SLI, error budget remaining, per-tier burn
-    // rates, humanized time to exhaustion, firing tier badge. (findBy: the
-    // status query settles after the SLO's own read.)
-    expect(await screen.findByText("checkout")).toBeInTheDocument();
+    // The objective reads as a sentence before any numbers.
+    expect(
+      await screen.findByText(
+        /Promises 99\.9% of valid events are good over a 30d rolling window, tracked per service\./,
+      ),
+    ).toBeInTheDocument();
+
+    // The hero state pill: fast-burn is firing (critical), so the SLO is Firing.
+    expect(screen.getByText("Firing")).toBeInTheDocument();
+    // The worst group's identity rides next to the state.
+    expect(screen.getByText("checkout")).toBeInTheDocument();
+    // Headline numbers: SLI, budget remaining, time to exhaustion.
     expect(screen.getByText("99.92%")).toBeInTheDocument(); // SLI
     expect(screen.getByText("42.00%")).toBeInTheDocument(); // budget remaining
-    // The burn column leads with the shortest-long-window tier's sustained
-    // burn ("1.4× / 1h"); the per-tier long/short matrix lives in its tooltip.
-    expect(screen.getByText(/1\.4×/)).toBeInTheDocument();
-    expect(screen.getByText(/\/ 1h/)).toBeInTheDocument();
-    expect(screen.queryByText(/0\.9×/)).not.toBeInTheDocument(); // short burn: tooltip-only
     expect(screen.getByText("3d 4h")).toBeInTheDocument(); // exhaustion
-    // fast-burn shows up in the firing-tier badge and the objective's
-    // canonical tier table.
+    // The headline burn and the fast-burn pressure gauge both print 1.4× / 1h.
+    expect(screen.getAllByText(/1\.4×/).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText(/\/ 1h/).length).toBeGreaterThanOrEqual(2);
+    // The short-window burn is now surfaced on the fast-burn gauge (not buried
+    // in a tooltip).
+    expect(screen.getByText(/short window 0\.9×/)).toBeInTheDocument();
+    // fast-burn appears in the pressure gauge and the objective's tier table.
     expect(screen.getAllByText("fast-burn").length).toBeGreaterThanOrEqual(2);
 
     // Freshness line off computed_at.
@@ -193,16 +211,33 @@ describe("/alerts/slos/$sloId route", () => {
     expect(
       screen.getByText(/Burn-rate tiers \(canonical\)/),
     ).toBeInTheDocument();
-    expect(screen.getByText("slow-burn")).toBeInTheDocument();
-    // ticket appears in the canonical tier table (the group readout keeps
-    // per-tier detail in the burn tooltip).
-    expect(screen.getByText("ticket")).toBeInTheDocument();
+    // slow-burn / ticket now appear in both the pressure gauges and the
+    // objective tier table.
+    expect(screen.getAllByText("slow-burn").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("ticket").length).toBeGreaterThanOrEqual(1);
 
     // Health reads healthy, quietly.
     expect(screen.getByText("healthy")).toBeInTheDocument();
+
+    // The firing-history feed is scoped to this SLO's handles.
+    expect(mocks.feedProps).toHaveBeenCalled();
+    const props = mocks.feedProps.mock.calls.at(-1)?.[0] as {
+      scopeSlug: string[];
+    };
+    expect(props.scopeSlug).toContain(SLO_ID);
   });
 
-  it("renders a scalar (label-less) group as all traffic", async () => {
+  it("describes a scalar SLO without a per-group table", async () => {
+    // A scalar SLO: no label columns, one label-less group. The hero fully
+    // describes it, so there is no "All groups" breakdown.
+    mocks.getCcSlo.mockResolvedValue(
+      ccSlo({
+        spec: {
+          ...ccSlo().spec,
+          sli: { ...ccSlo().spec.sli, label_columns: [] },
+        },
+      }),
+    );
     mocks.getCcSloStatus.mockResolvedValue(
       sloStatus({
         payload: {
@@ -225,7 +260,16 @@ describe("/alerts/slos/$sloId route", () => {
 
     renderSloDetailRoute();
 
-    expect(await screen.findByText("all traffic")).toBeInTheDocument();
+    // Scalar summary: no "tracked per" clause.
+    expect(
+      await screen.findByText(
+        /Promises 99\.9% of valid events are good over a 30d rolling window\./,
+      ),
+    ).toBeInTheDocument();
+    // Budget and SLI both read 100% for a perfectly healthy scalar SLO.
+    expect(screen.getAllByText("100.00%").length).toBeGreaterThanOrEqual(1);
+    // No multi-group breakdown for a single group.
+    expect(screen.queryByText("All groups")).not.toBeInTheDocument();
   });
 
   it("shows the pending state when no snapshot exists yet", async () => {

@@ -127,6 +127,83 @@ export function ccFormatSloTarget(targetPercent: number): string {
   return `${targetPercent}%`;
 }
 
+/**
+ * The group spending its budget fastest (least remaining), the SLO's headline
+ * status. Groups with no budget number sort last so a real number always wins
+ * the summary when one exists. Null only when there are no groups at all.
+ */
+export function ccWorstSloGroup(
+  groups: readonly CcSloGroupStatus[],
+): CcSloGroupStatus | null {
+  let worst: CcSloGroupStatus | null = null;
+  for (const g of groups) {
+    if (worst === null) {
+      worst = g;
+      continue;
+    }
+    const a = g.budget_remaining ?? Number.POSITIVE_INFINITY;
+    const b = worst.budget_remaining ?? Number.POSITIVE_INFINITY;
+    if (a < b) worst = g;
+  }
+  return worst;
+}
+
+/**
+ * The at-a-glance state of an SLO, derived from a group's snapshot: the single
+ * word that answers "how is this promise doing". `exhausted` and the firing
+ * states are facts (from budget/firing_tiers); `at-risk` is the low-budget
+ * warning band; `healthy` is everything else. `unknown` is no snapshot yet.
+ */
+export type CcSloState =
+  | "exhausted"
+  | "firing-critical"
+  | "firing-warning"
+  | "at-risk"
+  | "healthy"
+  | "unknown";
+
+export function ccSloGroupState(
+  tiers: readonly CcSloTier[],
+  group: CcSloGroupStatus | null,
+): CcSloState {
+  if (group === null) return "unknown";
+  if (group.budget_remaining !== null && group.budget_remaining <= 0) {
+    return "exhausted";
+  }
+  const firingSeverities = group.firing_tiers.map((f) =>
+    ccSloTierSeverity(tiers, { slo_tier: f.tier }),
+  );
+  if (firingSeverities.includes("critical")) return "firing-critical";
+  if (firingSeverities.length > 0) return "firing-warning";
+  if (group.budget_remaining !== null && group.budget_remaining < 0.25) {
+    return "at-risk";
+  }
+  return "healthy";
+}
+
+/**
+ * A plain-language description of what an SLO promises, derived from its spec.
+ * Surfaced at the top of the detail page so the objective reads as a sentence,
+ * not a config table, before any numbers.
+ */
+export function ccSloSummarySentence(spec: CcSloSpec): string {
+  const target = ccFormatSloTarget(spec.targetPercent);
+  const window = ccSloWindowLabel(spec);
+  const cols = spec.sli.label_columns;
+  const grouped = cols.length > 0 ? `, tracked per ${cols.join(", ")}` : "";
+  return `Promises ${target} of valid events are good over a ${window} window${grouped}.`;
+}
+
+/**
+ * A human description an author attached via a `description` or `summary`
+ * pass-through annotation, or null when none is set. Lets an SLO carry prose
+ * intent through the as-code pipeline and surface it above the derived
+ * sentence.
+ */
+export function ccSloDescription(spec: CcSloSpec): string | null {
+  return spec.annotations.description ?? spec.annotations.summary ?? null;
+}
+
 /** "30d rolling" (v1 is rolling-only; the flag is honored anyway). */
 export function ccSloWindowLabel(spec: CcSloSpec): string {
   const { duration, isRolling } = spec.timeWindow;
