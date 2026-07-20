@@ -106,6 +106,7 @@ async fn evaluate_writes_budget_snapshot() {
         &store,
         &ch,
         &NoopBus,
+        &cc::domain::NullSink,
         &slo,
         OffsetDateTime::now_utc(),
         30,
@@ -143,6 +144,7 @@ async fn query_error_degrades_and_does_not_write_snapshot() {
         &store,
         &ErrCh,
         &NoopBus,
+        &cc::domain::NullSink,
         &slo,
         OffsetDateTime::now_utc(),
         30,
@@ -238,9 +240,18 @@ async fn fresh_windows_are_not_requeried() {
         valid: 100.0,
         calls: AtomicUsize::new(0),
     };
-    cc::evaluator::slo::evaluate_slo(&store, &ch, &NoopBus, &slo, eval_ts, 60, 3)
-        .await
-        .unwrap();
+    cc::evaluator::slo::evaluate_slo(
+        &store,
+        &ch,
+        &NoopBus,
+        &cc::domain::NullSink,
+        &slo,
+        eval_ts,
+        60,
+        3,
+    )
+    .await
+    .unwrap();
 
     assert_eq!(
         ch.calls.load(Ordering::SeqCst),
@@ -347,6 +358,7 @@ async fn garbage_prior_payload_self_heals_instead_of_freezing() {
         &store,
         &ch,
         &NoopBus,
+        &cc::domain::NullSink,
         &slo,
         OffsetDateTime::now_utc(),
         30,

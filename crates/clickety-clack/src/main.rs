@@ -252,12 +252,34 @@ async fn main() -> anyhow::Result<()> {
             let consumer = cfg.node_id.clone();
             let degrade_after = cfg.rule_degrade_after;
             let base_cadence = cfg.slo_base_cadence_secs as u64;
+            // Sink for SLO evaluation samples (raw good/valid counts as OTLP gauges).
+            // Uses the same trusted OTLP endpoint + ingest secret as the alert-log
+            // export, deriving the /v1/metrics path; a no-op when unset.
+            let samples: Arc<dyn cc::domain::SloSampleSink> = match (
+                cfg.trusted_otlp_endpoint.clone(),
+                cfg.trusted_ingest_secret.clone(),
+            ) {
+                (Some(endpoint), Some(secret)) => {
+                    let metrics_endpoint = cc::otel::metrics_endpoint_from_logs(&endpoint);
+                    tracing::info!(endpoint = %metrics_endpoint, "slo sample export enabled");
+                    Arc::new(cc::otel::SloSampleExporterSink::new(
+                        cc::otel::SloSampleExporter::new(&metrics_endpoint, &secret),
+                    ))
+                }
+                _ => {
+                    tracing::warn!(
+                        "slo sample export disabled (set CC_TRUSTED_OTLP_ENDPOINT / CC_TRUSTED_INGEST_SECRET to enable)"
+                    );
+                    Arc::new(cc::domain::NullSink)
+                }
+            };
             roles.push(RoleSpec::restartable("slo-evaluator", move || {
                 let consumer = consumer.clone();
                 let store = store.clone();
                 let queue = queue.clone();
                 let ch = ch.clone();
                 let events = events.clone();
+                let samples = samples.clone();
                 let rx = rx.clone();
                 async move {
                     cc::evaluator::slo::run_slo_evaluator(
@@ -266,6 +288,7 @@ async fn main() -> anyhow::Result<()> {
                         queue,
                         ch,
                         events,
+                        samples,
                         base_cadence,
                         degrade_after,
                         rx,

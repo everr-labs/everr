@@ -12,6 +12,7 @@ use crate::clickhouse::{json_to_f64, RowQuerier};
 use crate::domain::ids::{InstanceKey, RuleId};
 use crate::domain::instance::InstanceState;
 use crate::domain::rule::Severity;
+use crate::domain::sink::{SloSample, SloSampleSink};
 use crate::domain::slo::{canonical_tiers, parse_window_secs, BurnRateTier, Slo, SloSpec};
 use crate::domain::Event;
 use crate::engine::slo_math::{
@@ -119,10 +120,44 @@ fn long_window_valid_for(
 /// `window_computed_at` timestamps) is left exactly as-is. This mirrors the rule
 /// evaluator's freeze-on-error semantics: a flaky/broken SLI query must never
 /// produce a partial or garbage snapshot.
+/// Turn this tick's freshly-queried per-window `(good, valid)` counts into
+/// [`SloSample`]s and buffer them on the sink. Only windows present in
+/// `window_values` (the windows due this tick) carry fresh data, so those are
+/// the only ones emitted.
+fn buffer_slo_samples(
+    samples: &dyn SloSampleSink,
+    slo: &Slo,
+    window_values: &GroupValues,
+    eval_ts: OffsetDateTime,
+) {
+    let time_unix_nanos = eval_ts.unix_timestamp_nanos().max(0) as u64;
+    let slo_id = slo.id.0.to_string();
+    let mut batch = Vec::new();
+    for (window, groups) in window_values {
+        for (labels, (good, valid)) in groups {
+            batch.push(SloSample {
+                tenant: slo.tenant.as_str().to_string(),
+                slo_id: slo_id.clone(),
+                slo_name: slo.name.clone(),
+                window: window.clone(),
+                labels: labels.clone(),
+                good: *good,
+                valid: *valid,
+                time_unix_nanos,
+            });
+        }
+    }
+    if !batch.is_empty() {
+        samples.record(batch);
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 pub async fn evaluate_slo(
     store: &PgStore,
     ch: &dyn RowQuerier,
     events: &dyn EventBus,
+    samples: &dyn SloSampleSink,
     slo: &Slo,
     eval_ts: OffsetDateTime,
     base_cadence_secs: u64,
@@ -231,6 +266,12 @@ pub async fn evaluate_slo(
     {
         publish_health(store, events, ev, id).await;
     }
+
+    // Record the raw (good, valid) counts for every window queried THIS tick (only
+    // the due windows carry fresh data; carried-over windows are not re-emitted, so
+    // each window's series samples at its own refresh cadence). Buffered here and
+    // exported once per consume batch; best-effort, so it never blocks the snapshot.
+    buffer_slo_samples(samples, slo, &window_values, eval_ts);
 
     let due_names: BTreeSet<&str> = due_windows.iter().map(|w| w.name.as_str()).collect();
     let tiers = slo.spec.tiers.clone().unwrap_or_else(canonical_tiers);
@@ -470,10 +511,12 @@ pub(crate) async fn commit_and_publish_slo(
 /// one job still acks that job, since redelivering it would either re-fail
 /// identically or (if the (slo, eval_ts) pair was already claimed) be a no-op
 /// anyway.
+#[allow(clippy::too_many_arguments)]
 async fn process_slo_batch_inner(
     store: &PgStore,
     ch: &dyn RowQuerier,
     events: &dyn EventBus,
+    samples: &dyn SloSampleSink,
     base_cadence_secs: u64,
     degrade_after: u32,
     deliveries: Vec<SloDelivery>,
@@ -518,6 +561,7 @@ async fn process_slo_batch_inner(
                     store,
                     ch,
                     events,
+                    samples,
                     slo,
                     job.eval_ts,
                     base_cadence_secs,
@@ -531,6 +575,8 @@ async fn process_slo_batch_inner(
             _ => {} // paused, deleted, or tenant mismatch: drop the job (still acked)
         }
     }
+    // Export every sample buffered across this batch in one request (best-effort).
+    samples.flush().await;
 }
 
 /// Run the SLO-evaluator consume loop over `cc:slo:jobs` until `shutdown` flips true.
@@ -546,6 +592,7 @@ pub async fn run_slo_evaluator(
     queue: Arc<dyn Queue>,
     ch: Arc<dyn RowQuerier>,
     events: Arc<dyn EventBus>,
+    samples: Arc<dyn SloSampleSink>,
     base_cadence_secs: u64,
     degrade_after: u32,
     shutdown: tokio::sync::watch::Receiver<bool>,
@@ -567,6 +614,7 @@ pub async fn run_slo_evaluator(
             &store,
             ch.as_ref(),
             events.as_ref(),
+            samples.as_ref(),
             base_cadence_secs,
             degrade_after,
             deliveries,

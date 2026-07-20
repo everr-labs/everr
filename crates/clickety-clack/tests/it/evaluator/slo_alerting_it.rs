@@ -137,7 +137,7 @@ async fn breach_fires_and_recovery_resolves() {
 
     let ch = StubCh::new(9800.0, 10000.0);
     let t0 = OffsetDateTime::now_utc();
-    cc::evaluator::slo::evaluate_slo(&store, &ch, &bus, &slo, t0, 30, 3)
+    cc::evaluator::slo::evaluate_slo(&store, &ch, &bus, &cc::domain::NullSink, &slo, t0, 30, 3)
         .await
         .unwrap();
 
@@ -198,7 +198,7 @@ async fn breach_fires_and_recovery_resolves() {
         .unwrap();
 
     ch.set(10000.0, 10000.0); // burn 0x: fully recovered
-    cc::evaluator::slo::evaluate_slo(&store, &ch, &bus, &slo, t1, 30, 3)
+    cc::evaluator::slo::evaluate_slo(&store, &ch, &bus, &cc::domain::NullSink, &slo, t1, 30, 3)
         .await
         .unwrap();
 
@@ -231,9 +231,18 @@ async fn suppressed_slo_marks_events() {
     };
 
     let ch = StubCh::new(9800.0, 10000.0); // 20x breach, same as the firing test
-    cc::evaluator::slo::evaluate_slo(&store, &ch, &bus, &slo, OffsetDateTime::now_utc(), 30, 3)
-        .await
-        .unwrap();
+    cc::evaluator::slo::evaluate_slo(
+        &store,
+        &ch,
+        &bus,
+        &cc::domain::NullSink,
+        &slo,
+        OffsetDateTime::now_utc(),
+        30,
+        3,
+    )
+    .await
+    .unwrap();
 
     let got = bus.consume("alerting-suppressed", 10, 1000).await.unwrap();
     assert_eq!(got.len(), 3);
@@ -264,9 +273,18 @@ async fn no_events_below_threshold() {
     };
 
     let ch = StubCh::new(9991.0, 10000.0);
-    cc::evaluator::slo::evaluate_slo(&store, &ch, &bus, &slo, OffsetDateTime::now_utc(), 30, 3)
-        .await
-        .unwrap();
+    cc::evaluator::slo::evaluate_slo(
+        &store,
+        &ch,
+        &bus,
+        &cc::domain::NullSink,
+        &slo,
+        OffsetDateTime::now_utc(),
+        30,
+        3,
+    )
+    .await
+    .unwrap();
 
     let got = bus.consume("alerting-below", 10, 1000).await.unwrap();
     assert!(
@@ -308,9 +326,18 @@ async fn freeze_on_error_freezes_instances() {
     inst.last_seen = Some(seeded_last_seen);
     store.persist_slo_eval_batch(&[inst], &[]).await.unwrap();
 
-    cc::evaluator::slo::evaluate_slo(&store, &ErrCh, &bus, &slo, OffsetDateTime::now_utc(), 30, 3)
-        .await
-        .unwrap();
+    cc::evaluator::slo::evaluate_slo(
+        &store,
+        &ErrCh,
+        &bus,
+        &cc::domain::NullSink,
+        &slo,
+        OffsetDateTime::now_utc(),
+        30,
+        3,
+    )
+    .await
+    .unwrap();
 
     let got = bus.consume("alerting-freeze", 10, 1000).await.unwrap();
     assert!(got.is_empty(), "error path must never publish: {got:?}");
@@ -358,9 +385,18 @@ async fn leftover_instance_with_unknown_tier_resolves_severity_as_critical() {
     // 0x burn on every canonical tier: nothing new fires, so the only event out of
     // this tick is the ghost-tier instance resolving via the leftover loop.
     let ch = StubCh::new(10000.0, 10000.0);
-    cc::evaluator::slo::evaluate_slo(&store, &ch, &bus, &slo, OffsetDateTime::now_utc(), 30, 3)
-        .await
-        .unwrap();
+    cc::evaluator::slo::evaluate_slo(
+        &store,
+        &ch,
+        &bus,
+        &cc::domain::NullSink,
+        &slo,
+        OffsetDateTime::now_utc(),
+        30,
+        3,
+    )
+    .await
+    .unwrap();
 
     let got = bus.consume("alerting-ghost-tier", 10, 1000).await.unwrap();
     let resolved = got
@@ -391,9 +427,18 @@ async fn erroring_slo_publishes_health_event() {
         panic!("slo creation must succeed against a fresh tenant")
     };
 
-    cc::evaluator::slo::evaluate_slo(&store, &ErrCh, &bus, &slo, OffsetDateTime::now_utc(), 30, 1)
-        .await
-        .unwrap();
+    cc::evaluator::slo::evaluate_slo(
+        &store,
+        &ErrCh,
+        &bus,
+        &cc::domain::NullSink,
+        &slo,
+        OffsetDateTime::now_utc(),
+        30,
+        1,
+    )
+    .await
+    .unwrap();
 
     let got = bus.consume("slo-health", 10, 1000).await.unwrap();
     assert_eq!(got.len(), 1, "one degrade health event: {got:?}");
