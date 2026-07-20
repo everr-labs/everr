@@ -48,11 +48,10 @@
       "rules": { "unresolved-imports": "off" }
     },
     {
-      // Pricing is shelved until launch pricing is finalized: the route is
-      // excluded via its "-" prefix and these components stay in-tree for reuse
-      // when it returns, but nothing renders them right now.
+      // The /pricing page renders the cards + calculator. The feature-matrix
+      // and self-host/Cloud toggle are kept in-tree for possible reuse but are
+      // not rendered right now.
       "files": [
-        "packages/docs/src/routes/-pricing.tsx",
         "packages/docs/src/components/pricing-matrix.tsx",
         "packages/docs/src/components/pricing-toggle.tsx"
       ],
