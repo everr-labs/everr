@@ -14,6 +14,7 @@ import {
 } from "@everr/ui/components/chart";
 import {
   ChartEmptyState,
+  createChartTooltipLabelFormatter,
   formatChartDate,
 } from "@everr/ui/components/chart-helpers";
 import {
@@ -52,6 +53,12 @@ type Row = {
 
 /** "1,234" — event counts in the tooltip stay readable at scale. */
 const fmtCount = (n: number) => n.toLocaleString();
+
+// The budget series is intraday (per-minute/hour grid), so the tooltip title
+// carries the full date + time, keyed off each point's `t` field.
+const budgetLabelFormatter = createChartTooltipLabelFormatter("t", {
+  withTime: true,
+});
 
 export function SloBudgetChart({
   points,
@@ -147,10 +154,7 @@ export function SloBudgetChart({
         <ChartTooltip
           content={
             <ChartTooltipContent
-              labelFormatter={(_label, payload) => {
-                const t = payload?.[0]?.payload?.t as string | undefined;
-                return t ? new Date(t).toLocaleString() : "";
-              }}
+              labelFormatter={budgetLabelFormatter}
               formatter={(_value, _name, item, index) => {
                 // Both the synthetic and real series carry the boundary point,
                 // so at the split they both appear in the tooltip payload. They
