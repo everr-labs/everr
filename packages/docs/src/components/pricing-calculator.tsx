@@ -29,8 +29,9 @@ const EVERR = {
 };
 
 const LOG_KB = 2;
+// A log/error event is ~2 KB (500k ≈ 1 GB); a metric series counts as ~1 GB
+// per 1k, so its k-value is used directly as GB in Everr's volume billing.
 const kEventsToGb = (kEvents: number) => (kEvents * 1000 * LOG_KB) / 1_000_000;
-const seriesToGb = (kSeries: number) => kSeries;
 
 // Datadog per-host allotments: an infra host includes 100 custom metrics and an
 // APM host includes 150 GB of ingested spans. Custom metrics past the allotment
@@ -52,8 +53,9 @@ type Control = {
 };
 
 // `trap` holds the tooltip text explaining why a vendor line is a hidden cost.
-type Cell = { amount: number; detail?: string; trap?: string };
-type Row = { label: string; everr: Cell; provider: Cell };
+type Cell = { amount: number; trap?: string };
+// `control` is the slider key that drives this row; it orders the summary.
+type Row = { label: string; control?: string; everr: Cell; provider: Cell };
 
 type Provider = {
   id: string;
@@ -69,39 +71,30 @@ const seatsRow = (
   teamSize: number,
   providerPerSeat: number,
   providerFreeSeats = 0,
-): Row => {
-  const providerBilled = Math.max(0, teamSize - providerFreeSeats);
-  return {
-    label: "Seats",
-    everr: {
-      amount: billedSeats(teamSize) * EVERR.perSeat,
-      detail: `${billedSeats(teamSize)} × $8 (3 free)`,
-    },
-    provider:
-      providerPerSeat > 0
-        ? {
-            amount: providerBilled * providerPerSeat,
-            detail: `${providerBilled} × $${providerPerSeat} (${providerFreeSeats} free)`,
-          }
-        : { amount: 0, detail: "included" },
-  };
-};
-
-const baseRow = (providerAmount: number, providerDetail: string): Row => ({
-  label: "Base",
-  everr: { amount: EVERR.base, detail: "Pro plan" },
-  provider: { amount: providerAmount, detail: providerDetail },
+): Row => ({
+  label: "Seats",
+  control: "teamSize",
+  everr: { amount: billedSeats(teamSize) * EVERR.perSeat },
+  provider: {
+    amount: Math.max(0, teamSize - providerFreeSeats) * providerPerSeat,
+  },
 });
 
-type Cat = { label: string; gb: number; provider: Cell };
+const baseRow = (providerAmount: number): Row => ({
+  label: "Base",
+  everr: { amount: EVERR.base },
+  provider: { amount: providerAmount },
+});
+
+type Cat = { label: string; control: string; gb: number; provider: Cell };
 function dataRows(cats: Cat[]): Row[] {
   const total = cats.reduce((s, c) => s + c.gb, 0);
   const overage = Math.max(0, total - EVERR.includedGb);
   return cats.map((c) => ({
     label: c.label,
+    control: c.control,
     everr: {
       amount: total > 0 ? (c.gb / total) * overage * EVERR.overagePerGb : 0,
-      detail: `${Math.round(c.gb)} GB`,
     },
     provider: c.provider,
   }));
@@ -120,32 +113,28 @@ const PROVIDERS: Provider[] = [
     label: "Grafana Cloud",
     controls: [METRIC_SERIES(), LOG_VOLUME(), TRACE_VOLUME(), TEAM_SIZE()],
     rows: (v) => [
-      baseRow(19, "Base plan"),
+      baseRow(19),
       ...dataRows([
         {
           label: "Metrics",
-          gb: seriesToGb(v.metricSeries),
+          control: "metricSeries",
+          gb: v.metricSeries,
           provider: {
             amount: Math.max(0, v.metricSeries - 10) * 6.5,
-            detail: `${v.metricSeries}k series (10k free)`,
             trap: "Billed per active time series past 10k free. It scales with metric cardinality, so high-cardinality tags multiply the count fast.",
           },
         },
         {
           label: "Logs",
+          control: "logVolume",
           gb: v.logVolume,
-          provider: {
-            amount: Math.max(0, v.logVolume - 50) * 0.5,
-            detail: `${v.logVolume} GB (50 GB free)`,
-          },
+          provider: { amount: Math.max(0, v.logVolume - 50) * 0.5 },
         },
         {
           label: "Traces",
+          control: "traceVolume",
           gb: v.traceVolume,
-          provider: {
-            amount: Math.max(0, v.traceVolume - 50) * 0.5,
-            detail: `${v.traceVolume} GB (50 GB free)`,
-          },
+          provider: { amount: Math.max(0, v.traceVolume - 50) * 0.5 },
         },
       ]),
       seatsRow(v.teamSize, 8, 3),
@@ -182,37 +171,38 @@ const PROVIDERS: Provider[] = [
       },
     ],
     rows: (v) => [
-      baseRow(0, "no base fee"),
+      baseRow(0),
       {
         label: "Infrastructure",
-        everr: { amount: 0, detail: "not billed" },
+        control: "infraHosts",
+        everr: { amount: 0 },
         provider: {
           amount: v.infraHosts * 15,
-          detail: `${v.infraHosts} hosts × $15`,
           trap: "Flat per-host fee. Every monitored host is billed $15/mo, busy or idle.",
         },
       },
       {
         label: "APM",
-        everr: { amount: 0, detail: "not billed" },
+        control: "apmHosts",
+        everr: { amount: 0 },
         provider: {
           amount: v.apmHosts * 31,
-          detail: `${v.apmHosts} hosts × $31`,
           trap: "Billed per host again, on top of infrastructure. Trace-heavy services need more APM hosts.",
         },
       },
       ...dataRows([
         {
           label: "Logs",
+          control: "logVolume",
           gb: v.logVolume,
           provider: {
             amount: v.logVolume * 0.36,
-            detail: `${v.logVolume} GB ingested`,
             trap: "The per-GB rate is ingestion only. Indexing and retention are billed separately and usually dwarf it.",
           },
         },
         {
           label: "Traces",
+          control: "traceVolume",
           gb: v.traceVolume,
           provider: {
             // Ingested spans beyond the 150 GB/APM-host allotment: $0.10/GB.
@@ -221,13 +211,13 @@ const PROVIDERS: Provider[] = [
                 0,
                 v.traceVolume - v.apmHosts * DATADOG_SPAN_GB_PER_HOST,
               ) * 0.1,
-            detail: "span overage",
             trap: "Spans past the 150 GB/host allotment, plus indexed-span retention billed on top.",
           },
         },
         {
           label: "Metrics",
-          gb: seriesToGb(v.metricSeries),
+          control: "metricSeries",
+          gb: v.metricSeries,
           provider: {
             // Custom metrics beyond the 100/host allotment: ~$0.05 each.
             amount:
@@ -235,7 +225,6 @@ const PROVIDERS: Provider[] = [
                 0,
                 v.metricSeries * 1000 - v.infraHosts * DATADOG_METRICS_PER_HOST,
               ) * 0.05,
-            detail: "custom metric overage",
             trap: "Custom metrics past 100/host cost ~$0.05 each. High-cardinality tags multiply this fast.",
           },
         },
@@ -262,40 +251,34 @@ const PROVIDERS: Provider[] = [
       },
     ],
     rows: (v) => [
-      baseRow(29, "Team plan"),
+      baseRow(29),
       ...dataRows([
         {
           label: "Errors",
+          control: "errorEvents",
           gb: kEventsToGb(v.errorEvents),
           provider: {
             amount: Math.max(0, v.errorEvents - 50) * 0.3,
-            detail: `${v.errorEvents}k events (50k free)`,
             trap: "50k errors are included, but past that they add up fast at production volume. On Everr, errors are just logs, billed at the normal log rate.",
           },
         },
         {
           label: "Logs",
+          control: "logVolume",
           gb: v.logVolume,
-          provider: {
-            amount: Math.max(0, v.logVolume - 5) * 0.5,
-            detail: `${v.logVolume} GB (5 GB free)`,
-          },
+          provider: { amount: Math.max(0, v.logVolume - 5) * 0.5 },
         },
         {
           label: "Traces",
+          control: "traceVolume",
           gb: v.traceVolume,
-          provider: {
-            amount: Math.max(0, v.traceVolume - 5) * 0.5,
-            detail: `${v.traceVolume} GB (5 GB free)`,
-          },
+          provider: { amount: Math.max(0, v.traceVolume - 5) * 0.5 },
         },
         {
           label: "Metrics",
-          gb: seriesToGb(v.metricSeries),
-          provider: {
-            amount: seriesToGb(v.metricSeries) * 0.5,
-            detail: `${v.metricSeries}k series`,
-          },
+          control: "metricSeries",
+          gb: v.metricSeries,
+          provider: { amount: v.metricSeries * 0.5 },
         },
       ]),
       seatsRow(v.teamSize, 0),
@@ -361,19 +344,6 @@ function TEAM_SIZE(): Control {
   };
 }
 
-// Maps a summary row to the slider that drives it, so the breakdown can be
-// ordered to match the slider layout (left-to-right, top-to-bottom). Rows with
-// no slider (Base) sort first.
-const ROW_CONTROL: Record<string, string> = {
-  Metrics: "metricSeries",
-  Logs: "logVolume",
-  Traces: "traceVolume",
-  Seats: "teamSize",
-  APM: "apmHosts",
-  Infrastructure: "infraHosts",
-  Errors: "errorEvents",
-};
-
 function usd(n: number): string {
   return `$${Math.round(n).toLocaleString("en-US")}`;
 }
@@ -418,14 +388,13 @@ export function PricingCalculator() {
 
   const rows = useMemo(() => provider.rows(values), [provider, values]);
   // Order the summary to match the slider layout (reading order = controls order).
+  // Rows without a control (Base) sort first.
   const orderedRows = useMemo(() => {
-    const rank = (label: string) => {
-      const key = ROW_CONTROL[label];
-      if (!key) return -1;
-      const i = provider.controls.findIndex((c) => c.key === key);
-      return i === -1 ? Number.MAX_SAFE_INTEGER : i;
-    };
-    return [...rows].sort((a, b) => rank(a.label) - rank(b.label));
+    const rank = (row: Row) =>
+      row.control
+        ? provider.controls.findIndex((c) => c.key === row.control)
+        : -1;
+    return [...rows].sort((a, b) => rank(a) - rank(b));
   }, [rows, provider]);
   const everrTotal = useMemo(
     () => rows.reduce((s, r) => s + r.everr.amount, 0),
