@@ -1,5 +1,22 @@
 # @everr/desktop-app
 
+## 0.6.0
+
+### Minor Changes
+
+- 415f479: Add `everr resources` to inspect and manage live Cloud resources (dashboards, runbooks, alert rules) directly, alongside the declarative `everr apply`:
+
+  - `everr resources list [--kind] [--repoid] [--json]`: list live resources across the organization, with the repoid that owns each one.
+  - `everr resources show <kind> <slug> [--project] [--json]`: print a resource's stored config (YAML by default, or `--json`).
+  - `everr resources delete <kind> <slug>`: delete a live resource (non-interactive).
+  - `everr resources adopt <kind> <slug>`: reassign a resource's repoid to this repository.
+
+  `everr apply` now also prints the resolved repoid before the plan.
+
+### Patch Changes
+
+- 1dc5b24: The `everr-setup-telemetry` skill now covers direct browser ingestion: a new `browser` rule explains public origin-bound ingest keys, endpoint gating for keyless deploys, error capture, and validation. The old guidance saying all browser telemetry must proxy through a backend now applies to secret keys only.
+
 ## 0.5.1
 
 ### Patch Changes
