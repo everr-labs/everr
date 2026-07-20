@@ -140,6 +140,13 @@ service:
       receivers: [otlp/trusted]
       processors: [batch]
       exporters: [clickhouse, debug]
+    # Trusted SLO samples: CC records raw (good, valid) counts per SLO/group/
+    # window as gauges. Same trust as logs/trusted (no strip, no stamp) so the
+    # per-ResourceMetrics everr.tenant.id flows to app.metrics_gauge.tenant_id.
+    metrics/trusted:
+      receivers: [otlp/trusted]
+      processors: [batch]
+      exporters: [clickhouse, debug]
 
   # Ship the collector's own telemetry (its logs, metrics, and internal
   # traces) to the dev-machine's local everr collector so we can observe the
