@@ -1,0 +1,14 @@
+kind: SLO
+metadata:
+  name: log-pipeline-quality
+spec:
+  sli:
+    sql: >-
+      SELECT countIf(SeverityNumber < 17) AS good, count() AS valid
+      FROM app.logs
+      WHERE TimestampTime >= {window_start:DateTime}
+      AND TimestampTime < {window_end:DateTime}
+    labelColumns:
+      - ServiceName
+  targetPercent: 99.5
+  timeWindow: 7d
