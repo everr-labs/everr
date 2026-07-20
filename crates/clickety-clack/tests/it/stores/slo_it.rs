@@ -38,10 +38,39 @@ async fn create_get_roundtrip() {
     assert!(!created.paused);
     assert_eq!(created.name, "checkout");
 
-    let (got, updated_at) = s.get_slo(tenant(), created.id).await.unwrap().unwrap();
+    let (got, updated_at, budget_epoch) =
+        s.get_slo(tenant(), created.id).await.unwrap().unwrap();
     assert_eq!(got, created);
-    // `updated_at` is populated by the insert default and never in the future.
-    assert!(updated_at <= time::OffsetDateTime::now_utc());
+    // Both timestamps are populated by insert defaults and never in the future;
+    // on create the budget epoch is the SLO's birth (same `now()` as the write).
+    let now = time::OffsetDateTime::now_utc();
+    assert!(updated_at <= now);
+    assert!(budget_epoch <= now);
+}
+
+#[tokio::test]
+async fn budget_epoch_advances_only_on_significant_edits() {
+    let s = store().await;
+    let SloCreate::Created(slo) = s.create_slo(tenant(), "e", &spec()).await.unwrap() else {
+        panic!()
+    };
+    let (_, _, epoch0) = s.get_slo(tenant(), slo.id).await.unwrap().unwrap();
+
+    // A pure rename leaves the spec untouched: the budget epoch must NOT move.
+    s.update_slo(tenant(), slo.id, "e2", &spec(), None)
+        .await
+        .unwrap();
+    let (_, _, epoch1) = s.get_slo(tenant(), slo.id).await.unwrap().unwrap();
+    assert_eq!(epoch1, epoch0, "rename must not advance the budget epoch");
+
+    // A target change redefines the budget: the epoch MUST advance.
+    let mut spec2 = spec();
+    spec2.target_percent = 99.5;
+    s.update_slo(tenant(), slo.id, "e2", &spec2, None)
+        .await
+        .unwrap();
+    let (_, _, epoch2) = s.get_slo(tenant(), slo.id).await.unwrap().unwrap();
+    assert!(epoch2 > epoch1, "a target change must advance the budget epoch");
 }
 
 #[tokio::test]

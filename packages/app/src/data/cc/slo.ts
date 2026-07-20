@@ -223,6 +223,16 @@ export function ccSloBudgetWindowKey(spec: CcSloSpec): string | null {
 }
 
 /**
+ * The budget window length in whole seconds, or null if the duration shorthand
+ * doesn't parse. The trailing-window length each error-budget-chart point sums
+ * over (the read-time series runs the SLI over `[t - windowSecs, t]`).
+ */
+export function ccSloWindowSecs(spec: CcSloSpec): number | null {
+  const secs = tierWindowSecs(spec.timeWindow.duration);
+  return Number.isFinite(secs) ? secs : null;
+}
+
+/**
  * Compact humanized seconds for budget projections ("3d 4h", "2h 15m",
  * "45m", "30s"), mirroring the engine's own readout granularity
  * (engine/slo_math.rs `fmt_duration_secs`): the two largest non-zero units.

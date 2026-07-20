@@ -47,22 +47,32 @@ pub async fn create(
     }
 }
 
-/// SLO representation with its `updated_at`, returned by GET and list (the
-/// SLO analogue of [`crate::api::rules::RuleView`]). The timestamp is store
-/// bookkeeping (maintained on create, spec update, pause/resume), so it lives
-/// on the read view only: create/update/pause/resume keep returning the bare
-/// [`Slo`].
+/// SLO representation with its `updated_at` and `budget_epoch`, returned by GET
+/// and list (the SLO analogue of [`crate::api::rules::RuleView`]). Both are store
+/// bookkeeping, so they live on the read view only: create/update/pause/resume
+/// keep returning the bare [`Slo`]. `updated_at` is the last write of any kind;
+/// `budget_epoch` is when the error budget last began (creation, or the last
+/// budget-significant edit), which the budget-over-time chart uses to divide
+/// reconstructed history from the real, observed budget.
 #[derive(serde::Serialize)]
 pub struct SloView {
     #[serde(flatten)]
     slo: Slo,
     #[serde(with = "time::serde::rfc3339")]
     updated_at: time::OffsetDateTime,
+    #[serde(with = "time::serde::rfc3339")]
+    budget_epoch: time::OffsetDateTime,
 }
 
-impl From<(Slo, time::OffsetDateTime)> for SloView {
-    fn from((slo, updated_at): (Slo, time::OffsetDateTime)) -> Self {
-        SloView { slo, updated_at }
+impl From<(Slo, time::OffsetDateTime, time::OffsetDateTime)> for SloView {
+    fn from(
+        (slo, updated_at, budget_epoch): (Slo, time::OffsetDateTime, time::OffsetDateTime),
+    ) -> Self {
+        SloView {
+            slo,
+            updated_at,
+            budget_epoch,
+        }
     }
 }
 
@@ -147,7 +157,7 @@ async fn set_paused(
         .store
         .get_slo(t, id)
         .await?
-        .map(|(slo, _updated_at)| Json(slo))
+        .map(|(slo, _updated_at, _budget_epoch)| Json(slo))
         .ok_or(ApiError::NotFound)
 }
 

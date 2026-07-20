@@ -1,10 +1,11 @@
 // packages/app/src/components/cc/slo-budget-chart.tsx
 //
 // The error budget over time: a burn-down line of budget remaining (100% = full
-// budget, 0% = exhausted, below 0 = overspent), reconstructed from the raw
-// (good, valid) sample gauges the engine records each evaluation tick. This is
-// the SLO's slow-moving trend; the status hero shows the current instant and the
-// per-tier burn pressure, so here one calm line answers "which way is it going".
+// budget, 0% = exhausted, below 0 = overspent), computed at read time by
+// replaying the SLI over a trailing window at each point (slo-series.server.ts).
+// This is the SLO's slow-moving trend; the status hero shows the current instant
+// and the per-tier burn pressure, so here one calm line answers "which way is it
+// going".
 import {
   type ChartConfig,
   ChartContainer,
@@ -37,10 +38,14 @@ const FLOOR_PCT = -25;
 
 type Row = {
   t: string;
-  /** Plotted budget %, floored at FLOOR_PCT so the axis stays legible. */
-  budgetPct: number | null;
+  /** Plotted budget % for the REAL (post-epoch) segment, floored at FLOOR_PCT. */
+  realPct: number | null;
+  /** Plotted budget % for the SYNTHETIC (pre-epoch, reconstructed) segment. */
+  synthPct: number | null;
   /** True budget % for the tooltip (may be far below the floor). */
   rawPct: number | null;
+  /** This point predates the budget epoch: reconstructed, not observed. */
+  synthetic: boolean;
   good: number;
   valid: number;
 };
@@ -48,22 +53,50 @@ type Row = {
 /** "1,234" — event counts in the tooltip stay readable at scale. */
 const fmtCount = (n: number) => n.toLocaleString();
 
-export function SloBudgetChart({ points }: { points: CcSloBudgetPoint[] }) {
+export function SloBudgetChart({
+  points,
+  epoch,
+}: {
+  points: CcSloBudgetPoint[];
+  /**
+   * When the budget's meaning begins (the SLO's apply / last significant-edit
+   * instant, ISO 8601). Points before it are reconstructed from telemetry that
+   * predates the SLO, so they render muted + dashed behind an "applied" marker;
+   * points on/after it are the real observed budget. Omit to draw one solid line.
+   */
+  epoch?: string;
+}) {
   if (points.length === 0) {
     return (
-      <ChartEmptyState message="No budget samples recorded in this range yet" />
+      <ChartEmptyState message="No telemetry in this range to compute the budget" />
     );
   }
-  const data: Row[] = points.map((p) => {
+  const epochMs = epoch ? Date.parse(epoch) : Number.NaN;
+  const hasEpoch = Number.isFinite(epochMs);
+  // First point on/after the epoch: the boundary. Everything before it is
+  // synthetic; -1 means the whole range predates the epoch (all synthetic).
+  const boundary = hasEpoch
+    ? points.findIndex((p) => Date.parse(p.t) >= epochMs)
+    : 0;
+  const data: Row[] = points.map((p, i) => {
     const raw = p.budgetRemaining === null ? null : p.budgetRemaining * 100;
+    const plotted = raw === null ? null : Math.max(raw, FLOOR_PCT);
+    const synthetic = hasEpoch && (boundary === -1 || i < boundary);
     return {
       t: p.t,
-      budgetPct: raw === null ? null : Math.max(raw, FLOOR_PCT),
+      realPct: synthetic ? null : plotted,
+      // The synthetic segment also carries the boundary point so the two lines
+      // meet with no gap where the budget becomes real.
+      synthPct: synthetic || (boundary > 0 && i === boundary) ? plotted : null,
       rawPct: raw,
+      synthetic,
       good: p.good,
       valid: p.valid,
     };
   });
+  // The "applied" marker sits on the boundary point, but only when it falls
+  // inside the range: boundary 0 is off the left edge, -1 is off the right.
+  const markerT = boundary > 0 ? points[boundary].t : null;
 
   return (
     <ChartContainer config={chartConfig} className="h-[240px] w-full">
@@ -95,6 +128,21 @@ export function SloBudgetChart({ points }: { points: CcSloBudgetPoint[] }) {
           strokeDasharray="3 3"
           strokeWidth={1}
         />
+        {/* When the budget became real: everything left of this is reconstructed
+            from telemetry that predates the SLO. */}
+        {markerT && (
+          <ReferenceLine
+            x={markerT}
+            stroke="var(--muted-foreground)"
+            strokeWidth={1}
+            label={{
+              value: "applied",
+              position: "insideTopLeft",
+              fontSize: 10,
+              fill: "var(--muted-foreground)",
+            }}
+          />
+        )}
         <ChartTooltip
           content={
             <ChartTooltipContent
@@ -121,19 +169,36 @@ export function SloBudgetChart({ points }: { points: CcSloBudgetPoint[] }) {
                         {fmtCount(row.good)} good / {fmtCount(row.valid)} valid
                       </span>
                     )}
+                    {row?.synthetic && (
+                      <span className="text-[0.6875rem] text-muted-foreground italic">
+                        reconstructed (predates this SLO)
+                      </span>
+                    )}
                   </div>
                 );
               }}
             />
           }
         />
+        {/* Reconstructed (pre-apply) budget: muted + dashed, no dots — inferred
+            from telemetry that predates the SLO, not observed. */}
         <Line
-          dataKey="budgetPct"
+          dataKey="synthPct"
+          type="monotone"
+          stroke="var(--color-budgetPct)"
+          strokeOpacity={0.4}
+          strokeDasharray="4 3"
+          strokeWidth={2}
+          dot={false}
+          isAnimationActive={false}
+          connectNulls
+        />
+        {/* Real (post-apply) budget: solid with a dot per point. */}
+        <Line
+          dataKey="realPct"
           type="monotone"
           stroke="var(--color-budgetPct)"
           strokeWidth={2}
-          // Budget samples are sparse (the window recomputes slowly), so show a
-          // dot per point — a single sample must still be visible as a mark.
           dot={{ r: 2.5, strokeWidth: 0, fill: "var(--color-budgetPct)" }}
           isAnimationActive={false}
           connectNulls

@@ -265,6 +265,11 @@ export const CcSloSchema = z.object({
 // create/update/pause/resume responses stay the bare CcSloSchema.
 export const CcSloViewSchema = CcSloSchema.extend({
   updated_at: CcTimestampSchema,
+  // When the error budget last began — creation, or the last budget-significant
+  // edit (sli / target / window), but NOT pause/resume or a rename. The
+  // budget-over-time chart splits reconstructed (pre-epoch) history from the
+  // real budget here.
+  budget_epoch: CcTimestampSchema,
 });
 
 // The evaluator's health sibling on GET /v1/slos/:id/status (stores/pg.rs

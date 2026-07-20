@@ -2329,17 +2329,25 @@ impl PgStore {
         }
     }
 
-    /// One SLO plus its `updated_at` (maintained by every SLO write: the insert
-    /// default on create, and the explicit `now()` on update/pause/resume).
-    /// Returned alongside rather than on `Slo` because the domain type mirrors
-    /// the consumer-supplied definition; the timestamp is store bookkeeping.
+    /// One SLO plus its `updated_at` and `budget_epoch`. `updated_at` is bumped
+    /// by every SLO write (create default, and `now()` on update/pause/resume);
+    /// `budget_epoch` advances only on a budget-significant edit (sli / target /
+    /// window) — see [`Self::update_slo`]. Both are store bookkeeping, returned
+    /// alongside rather than on `Slo` (which mirrors the consumer definition).
     pub async fn get_slo(
         &self,
         tenant: TenantId,
         id: crate::domain::ids::SloId,
-    ) -> Result<Option<(crate::domain::slo::Slo, time::OffsetDateTime)>, StoreError> {
+    ) -> Result<
+        Option<(
+            crate::domain::slo::Slo,
+            time::OffsetDateTime,
+            time::OffsetDateTime,
+        )>,
+        StoreError,
+    > {
         let row = sqlx::query(
-            "SELECT id, tenant, name, spec, version, paused, updated_at FROM slos WHERE id=$1 AND tenant=$2",
+            "SELECT id, tenant, name, spec, version, paused, updated_at, budget_epoch FROM slos WHERE id=$1 AND tenant=$2",
         )
         .bind(id.0)
         .bind(tenant.as_str())
@@ -2347,7 +2355,11 @@ impl PgStore {
         .await?;
         match row {
             None => Ok(None),
-            Some(r) => Ok(Some((Self::slo_from_row(&r)?, r.get("updated_at")))),
+            Some(r) => Ok(Some((
+                Self::slo_from_row(&r)?,
+                r.get("updated_at"),
+                r.get("budget_epoch"),
+            ))),
         }
     }
 
@@ -2385,8 +2397,21 @@ impl PgStore {
             }
         }
         let spec_json = serde_json::to_value(spec)?;
+        // `budget_epoch` advances only when a BUDGET-SIGNIFICANT field changes
+        // (sli / targetPercent / timeWindow) — those redefine what the error
+        // budget means, so its history before the edit is no longer comparable.
+        // A rename, tier change, or annotation edit leaves the epoch untouched.
+        // In an UPDATE's SET, `spec` on the right refers to the OLD row, so this
+        // compares the stored spec against the incoming one; JSONB equality is
+        // key-order-insensitive.
         let res = sqlx::query(
-            "UPDATE slos SET name=$3, spec=$4, version = version + 1, updated_at = now() WHERE id=$1 AND tenant=$2",
+            "UPDATE slos SET name=$3, spec=$4, version = version + 1, updated_at = now(),
+                 budget_epoch = CASE
+                     WHEN (spec->'sli') IS DISTINCT FROM ($4->'sli')
+                       OR (spec->'targetPercent') IS DISTINCT FROM ($4->'targetPercent')
+                       OR (spec->'timeWindow') IS DISTINCT FROM ($4->'timeWindow')
+                     THEN now() ELSE budget_epoch END
+             WHERE id=$1 AND tenant=$2",
         )
         .bind(id.0)
         .bind(tenant.as_str())
@@ -2464,19 +2489,33 @@ impl PgStore {
         Ok(res.rows_affected() > 0)
     }
 
-    /// Every SLO of the tenant, each with its `updated_at` (see [`Self::get_slo`]).
+    /// Every SLO of the tenant, each with its `updated_at` and `budget_epoch`
+    /// (see [`Self::get_slo`]).
     pub async fn list_slos(
         &self,
         tenant: &TenantId,
-    ) -> Result<Vec<(crate::domain::slo::Slo, time::OffsetDateTime)>, StoreError> {
+    ) -> Result<
+        Vec<(
+            crate::domain::slo::Slo,
+            time::OffsetDateTime,
+            time::OffsetDateTime,
+        )>,
+        StoreError,
+    > {
         let rows = sqlx::query(
-            "SELECT id, tenant, name, spec, version, paused, updated_at FROM slos WHERE tenant=$1 ORDER BY created_at, id",
+            "SELECT id, tenant, name, spec, version, paused, updated_at, budget_epoch FROM slos WHERE tenant=$1 ORDER BY created_at, id",
         )
         .bind(tenant.as_str())
         .fetch_all(&self.pool)
         .await?;
         rows.iter()
-            .map(|r| Ok((Self::slo_from_row(r)?, r.get("updated_at"))))
+            .map(|r| {
+                Ok((
+                    Self::slo_from_row(r)?,
+                    r.get("updated_at"),
+                    r.get("budget_epoch"),
+                ))
+            })
             .collect()
     }
 

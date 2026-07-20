@@ -66,7 +66,12 @@ import {
   ccSloWindowLabel,
   ccWorstSloGroup,
 } from "@/data/cc/slo";
-import type { CcSlo, CcSloGroupStatus, CcSloHealth } from "@/data/cc/types";
+import type {
+  CcSlo,
+  CcSloGroupStatus,
+  CcSloHealth,
+  CcSloView,
+} from "@/data/cc/types";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/alerts/slos_/$sloId",
@@ -90,17 +95,11 @@ export const Route = createFileRoute(
       queryClient.prefetchQuery(ccQueries.sloStatus(params.sloId)),
       queryClient.prefetchQuery(ccQueries.eventHistory(deps.timeRange)),
     ]);
-    // Prefetch the budget history once the SLO (and thus its window/target) is
-    // known; skipped for a spec whose window doesn't parse into a sample key.
-    const windowKey = ccSloBudgetWindowKey(slo.spec);
-    if (windowKey) {
+    // Prefetch the budget history; skipped for a spec whose window doesn't parse
+    // (nothing to chart a trailing window over).
+    if (ccSloBudgetWindowKey(slo.spec)) {
       await queryClient.prefetchQuery(
-        ccQueries.sloBudgetSeries(
-          slo.id,
-          deps.timeRange,
-          windowKey,
-          slo.spec.targetPercent,
-        ),
+        ccQueries.sloBudgetSeries(slo.id, deps.timeRange),
       );
     }
     return { name: slo.name };
@@ -473,16 +472,11 @@ function StatusSection({ slo }: { slo: CcSlo }) {
 
 // ── How's the budget trending ─────────────────────────────────────────────────
 
-function BudgetHistorySection({ slo }: { slo: CcSlo }) {
+function BudgetHistorySection({ slo }: { slo: CcSloView }) {
   const { timeRange } = Route.useLoaderDeps();
   const windowKey = ccSloBudgetWindowKey(slo.spec);
   const series = useQuery({
-    ...ccQueries.sloBudgetSeries(
-      slo.id,
-      timeRange,
-      windowKey ?? "",
-      slo.spec.targetPercent,
-    ),
+    ...ccQueries.sloBudgetSeries(slo.id, timeRange),
     enabled: windowKey !== null,
   });
 
@@ -495,8 +489,9 @@ function BudgetHistorySection({ slo }: { slo: CcSlo }) {
       <CardHeader>
         <CardTitle>Error budget over time</CardTitle>
         <CardDescription>
-          Budget remaining across the {ccSloWindowLabel(slo.spec)} window, from
-          each evaluation. 100% is the full budget; 0% is exhausted.
+          Budget remaining over a trailing {ccSloWindowLabel(slo.spec)} window,
+          computed across the selected range. 100% is the full budget; 0% is
+          exhausted.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -505,7 +500,7 @@ function BudgetHistorySection({ slo }: { slo: CcSlo }) {
         ) : series.isPending ? (
           <Skeleton className="h-[240px] w-full" />
         ) : (
-          <SloBudgetChart points={series.data} />
+          <SloBudgetChart points={series.data} epoch={slo.budget_epoch} />
         )}
       </CardContent>
     </Card>

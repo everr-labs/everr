@@ -237,19 +237,17 @@ describe("/alerts/slos/$sloId route", () => {
       await screen.findByText("Error budget over time"),
     ).toBeInTheDocument();
 
-    // The series query is scoped to this SLO and its budget window key: the 30d
-    // window as the engine stamps it ("2592000s"), at the spec's target.
+    // The series query is scoped to this SLO (the server fetches the SLO for the
+    // authoritative SLI/target/window, so the request carries just the id + range).
     await waitFor(() => expect(mocks.getCcSloBudgetSeries).toHaveBeenCalled());
     const arg = mocks.getCcSloBudgetSeries.mock.calls.at(-1)?.[0] as {
-      data: { sloId: string; window: string; targetPercent: number };
+      data: { sloId: string };
     };
     expect(arg.data.sloId).toBe(SLO_ID);
-    expect(arg.data.window).toBe("2592000s");
-    expect(arg.data.targetPercent).toBe(99.9);
 
-    // No samples yet in the fixture: the empty state shows, no chart.
+    // Empty series in the fixture: the empty state shows, no chart.
     expect(
-      screen.getByText(/No budget samples recorded in this range/),
+      screen.getByText(/No telemetry in this range to compute the budget/),
     ).toBeInTheDocument();
   });
 

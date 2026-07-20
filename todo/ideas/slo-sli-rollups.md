@@ -22,6 +22,31 @@ For SLIs the engine can decompose (a `countIf`/`count` over a table with a time 
 
 Then drop the `/12` throttle for rollup-backed SLIs (dense budget/burn history, richer chart), and fall back to the current full-scan + throttle for opaque SQL.
 
+## Read-time charting is the same decision (not a separate path)
+
+The "Error budget over time" chart now computes its series **at read time**: it
+replays the SLI over a trailing window at each plotted point, directly against
+raw telemetry (`packages/app/src/data/cc/slo-series.server.ts`). No stored
+samples, no backfill — a freshly-created SLO shows history as far back as raw
+retention goes. That deleted the whole store-derived-samples-and-backfill
+apparatus (which foundered on `metrics_gauge` being day-partitioned by
+`TimeUnix`: past-dated writes explode partitions, and its TTL is keyed on the
+data timestamp). But it's expensive by construction: N independent full-window
+scans per chart load, windows overlapping ~11/12.
+
+A colleague's observation makes the connection explicit: *if the SLI respects a
+bucketable standard, "just chart the query" collapses from N overlapping
+full-window scans to ONE bucketed scan plus a rolling window*, entirely at read
+time — `SELECT toStartOfInterval(ts, step) AS b, countIf(<good>), count() ...
+GROUP BY b`, then `sum(...) OVER (... RANGE <window> PRECEDING ...)`. Aligning
+buckets to fixed boundaries makes it deterministic and cacheable. So the
+structured-SLI decision below doesn't only make *live eval* cheap; it's the same
+lever that turns the read-time chart from expensive-per-load into a single cheap
+query. Read-time also sidesteps the late-arriving-data drift risk entirely (it
+always reflects current raw state), which the stored/incremental rollup path
+does not. Opaque SLIs (`uniq`/`quantile`/joins/dedup) have no bucket standard
+and stay on the expensive per-point path.
+
 ## Key decision (sets the whole estimate)
 Do rollup-eligible SLIs stay as arbitrary SQL, or become a structured declaration?
 - **Auto-detect a safe subset of raw SQL** (keep today's UX): needs a SQL parser/validator that reliably recognizes the decomposable shape and *rejects everything else*. Correctness-critical (a misclassification means a silently-wrong SLO) and the long pole. ~4-6+ weeks.
