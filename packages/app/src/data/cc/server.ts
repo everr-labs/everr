@@ -17,6 +17,7 @@ import {
   CcSilenceInputSchema,
 } from "./schema";
 import { ccSloTiers } from "./slo";
+import { querySloBudgetSeries } from "./slo-series.server";
 import {
   CC_SLO_RESERVED_LABEL_KEYS,
   CC_SYNTHETIC_LABEL_KEYS,
@@ -123,6 +124,39 @@ export const listCcEventHistory = createAuthenticatedServerFn({ method: "GET" })
         fromISO,
         toISO,
         ...(fingerprint !== undefined ? { fingerprint } : {}),
+      });
+    },
+  );
+
+// The SLO's error-budget-over-time series, from the raw (good, valid) sample
+// gauges the engine records into app.metrics_gauge. Tenancy rides on the
+// org-scoped clickhouse context (row-level policy), not on a SQL filter.
+export const getCcSloBudgetSeries = createAuthenticatedServerFn({
+  method: "GET",
+})
+  .inputValidator(
+    z.object({
+      sloId: z.string().min(1),
+      // The budget window key as the engine stamps it (e.g. "2592000s").
+      window: z.string().min(1),
+      targetPercent: z.number(),
+      timeRange: TimeRangeSchema,
+      limit: z.number().int().min(1).max(5000).default(2000),
+    }),
+  )
+  .handler(
+    ({
+      data: { sloId, window, targetPercent, timeRange, limit },
+      context: { clickhouse },
+    }) => {
+      const { fromISO, toISO } = resolveTimeRange(timeRange);
+      return querySloBudgetSeries(clickhouse.query, {
+        sloId,
+        window,
+        targetPercent,
+        fromISO,
+        toISO,
+        limit,
       });
     },
   );

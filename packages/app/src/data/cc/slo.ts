@@ -211,6 +211,18 @@ export function ccSloWindowLabel(spec: CcSloSpec): string {
 }
 
 /**
+ * The engine's stable key for the SLO's budget window, as it stamps it on the
+ * `slo.window` sample attribute: the window duration in whole seconds followed
+ * by "s" (`window_name_for` -> `format!("{secs}s")`, e.g. "30d" -> "2592000s").
+ * Null if the duration doesn't parse. Used to filter the budget-history query to
+ * the budget window's samples (the tiers publish their own shorter windows too).
+ */
+export function ccSloBudgetWindowKey(spec: CcSloSpec): string | null {
+  const secs = tierWindowSecs(spec.timeWindow.duration);
+  return Number.isFinite(secs) ? `${secs}s` : null;
+}
+
+/**
  * Compact humanized seconds for budget projections ("3d 4h", "2h 15m",
  * "45m", "30s"), mirroring the engine's own readout granularity
  * (engine/slo_math.rs `fmt_duration_secs`): the two largest non-zero units.

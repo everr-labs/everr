@@ -18,6 +18,7 @@ import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import {
   getCcRule,
   getCcSlo,
+  getCcSloBudgetSeries,
   getCcSloStatus,
   listCcAlerts,
   listCcChannels,
@@ -111,6 +112,30 @@ export const ccQueries = {
     queryOptions({
       queryKey: ["cc", "slo-status", sloId] as const,
       queryFn: () => getCcSloStatus({ data: { sloId } }),
+      refetchInterval: CC_POLL_INTERVAL_MS,
+    }),
+
+  // The SLO's error-budget-over-time series (raw good/valid gauges, budget
+  // derived server-side). Keyed on the window + target so a spec change refetches
+  // a fresh series; polls like the status snapshot since new sample points land
+  // as the evaluator ticks.
+  sloBudgetSeries: (
+    sloId: string,
+    timeRange: TimeRange,
+    window: string,
+    targetPercent: number,
+  ) =>
+    queryOptions({
+      queryKey: [
+        "cc",
+        "slo-budget-series",
+        sloId,
+        { timeRange, window, targetPercent },
+      ] as const,
+      queryFn: () =>
+        getCcSloBudgetSeries({
+          data: { sloId, window, targetPercent, timeRange },
+        }),
       refetchInterval: CC_POLL_INTERVAL_MS,
     }),
 

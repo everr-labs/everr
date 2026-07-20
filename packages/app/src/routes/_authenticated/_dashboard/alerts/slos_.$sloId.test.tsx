@@ -20,6 +20,7 @@ import { Route as SloDetailFileRoute } from "./slos_.$sloId";
 const mocks = vi.hoisted(() => ({
   getCcSlo: vi.fn(),
   getCcSloStatus: vi.fn(),
+  getCcSloBudgetSeries: vi.fn(),
   pauseCcSlo: vi.fn(),
   resumeCcSlo: vi.fn(),
   toastSuccess: vi.fn(),
@@ -30,6 +31,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/data/cc/server", () => ({
   getCcSlo: mocks.getCcSlo,
   getCcSloStatus: mocks.getCcSloStatus,
+  getCcSloBudgetSeries: mocks.getCcSloBudgetSeries,
   pauseCcSlo: mocks.pauseCcSlo,
   resumeCcSlo: mocks.resumeCcSlo,
 }));
@@ -167,6 +169,7 @@ beforeEach(() => {
   for (const fn of Object.values(mocks)) fn.mockReset();
   mocks.getCcSlo.mockResolvedValue(ccSlo());
   mocks.getCcSloStatus.mockResolvedValue(sloStatus());
+  mocks.getCcSloBudgetSeries.mockResolvedValue([]);
   mocks.pauseCcSlo.mockResolvedValue(ccSlo({ paused: true }));
   mocks.resumeCcSlo.mockResolvedValue(ccSlo());
 });
@@ -225,6 +228,29 @@ describe("/alerts/slos/$sloId route", () => {
       scopeSlug: string[];
     };
     expect(props.scopeSlug).toContain(SLO_ID);
+  });
+
+  it("charts the error budget over time, scoped to the SLO's budget window", async () => {
+    renderSloDetailRoute();
+
+    expect(
+      await screen.findByText("Error budget over time"),
+    ).toBeInTheDocument();
+
+    // The series query is scoped to this SLO and its budget window key: the 30d
+    // window as the engine stamps it ("2592000s"), at the spec's target.
+    await waitFor(() => expect(mocks.getCcSloBudgetSeries).toHaveBeenCalled());
+    const arg = mocks.getCcSloBudgetSeries.mock.calls.at(-1)?.[0] as {
+      data: { sloId: string; window: string; targetPercent: number };
+    };
+    expect(arg.data.sloId).toBe(SLO_ID);
+    expect(arg.data.window).toBe("2592000s");
+    expect(arg.data.targetPercent).toBe(99.9);
+
+    // No samples yet in the fixture: the empty state shows, no chart.
+    expect(
+      screen.getByText(/No budget samples recorded in this range/),
+    ).toBeInTheDocument();
   });
 
   it("describes a scalar SLO without a per-group table", async () => {

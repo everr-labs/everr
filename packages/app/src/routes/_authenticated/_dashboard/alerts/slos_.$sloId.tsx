@@ -46,6 +46,7 @@ import {
   ccFormatTs,
   LabelSet,
 } from "@/components/cc/shared";
+import { SloBudgetChart } from "@/components/cc/slo-budget-chart";
 import { SloStatusHero } from "@/components/cc/slo-status";
 import {
   ANN_LABEL_PREFIX,
@@ -57,6 +58,7 @@ import { pauseCcSlo, resumeCcSlo } from "@/data/cc/server";
 import {
   ccFormatSloDuration,
   ccFormatSloTarget,
+  ccSloBudgetWindowKey,
   ccSloCurrentBurn,
   ccSloHandles,
   ccSloTierSeverity,
@@ -88,6 +90,19 @@ export const Route = createFileRoute(
       queryClient.prefetchQuery(ccQueries.sloStatus(params.sloId)),
       queryClient.prefetchQuery(ccQueries.eventHistory(deps.timeRange)),
     ]);
+    // Prefetch the budget history once the SLO (and thus its window/target) is
+    // known; skipped for a spec whose window doesn't parse into a sample key.
+    const windowKey = ccSloBudgetWindowKey(slo.spec);
+    if (windowKey) {
+      await queryClient.prefetchQuery(
+        ccQueries.sloBudgetSeries(
+          slo.id,
+          deps.timeRange,
+          windowKey,
+          slo.spec.targetPercent,
+        ),
+      );
+    }
     return { name: slo.name };
   },
   component: CcSloDetailPage,
@@ -456,10 +471,51 @@ function StatusSection({ slo }: { slo: CcSlo }) {
 
 // ── History ───────────────────────────────────────────────────────────────────
 
+// ── How's the budget trending ─────────────────────────────────────────────────
+
+function BudgetHistorySection({ slo }: { slo: CcSlo }) {
+  const { timeRange } = Route.useLoaderDeps();
+  const windowKey = ccSloBudgetWindowKey(slo.spec);
+  const series = useQuery({
+    ...ccQueries.sloBudgetSeries(
+      slo.id,
+      timeRange,
+      windowKey ?? "",
+      slo.spec.targetPercent,
+    ),
+    enabled: windowKey !== null,
+  });
+
+  // A spec whose window doesn't parse can't be charted; the objective card
+  // still states the window, so no error card is owed here.
+  if (windowKey === null) return null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Error budget over time</CardTitle>
+        <CardDescription>
+          Budget remaining across the {ccSloWindowLabel(slo.spec)} window, from
+          each evaluation. 100% is the full budget; 0% is exhausted.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {series.isError ? (
+          <CcQueryError error={series.error} />
+        ) : series.isPending ? (
+          <Skeleton className="h-[240px] w-full" />
+        ) : (
+          <SloBudgetChart points={series.data} />
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function FiringHistorySection({ slo }: { slo: CcSlo }) {
   // Scoped to this SLO's handles: the stored fire/resolve transitions and
-  // deliveries for its burn-rate tiers, over the page's time range. There is
-  // no budget-over-time series to chart, so this is the SLO's temporal record.
+  // deliveries for its burn-rate tiers, over the page's time range. This is the
+  // event-level record that complements the budget trend above.
   // hideRuleColumns drops the (constant) source and severity columns, leaving
   // Time / Event / Labels — the tier rides in the labels as `slo_tier`.
   return (
@@ -591,6 +647,7 @@ function CcSloDetailPage() {
       </div>
 
       <StatusSection slo={s} />
+      <BudgetHistorySection slo={s} />
       <ObjectiveSection slo={s} />
       <FiringHistorySection slo={s} />
       <HealthSection sloId={s.id} />
