@@ -22,9 +22,27 @@ For SLIs the engine can decompose (a `countIf`/`count` over a table with a time 
 
 Then drop the `/12` throttle for rollup-backed SLIs (dense budget/burn history, richer chart), and fall back to the current full-scan + throttle for opaque SQL.
 
+## Key decision (sets the whole estimate)
+Do rollup-eligible SLIs stay as arbitrary SQL, or become a structured declaration?
+- **Auto-detect a safe subset of raw SQL** (keep today's UX): needs a SQL parser/validator that reliably recognizes the decomposable shape and *rejects everything else*. Correctness-critical (a misclassification means a silently-wrong SLO) and the long pole. ~4-6+ weeks.
+- **Structured "fast SLI" form** (`{good_expr, valid_expr, table, time_column}`) for the rollup path, with raw SQL kept as the general escape hatch: skips the parser because the user hands over the decomposable pieces. This is exactly how Datadog/Grafana avoid the problem. ~2-3 weeks.
+
+Recommended: ship the structured fast-SLI + rollup path, keep raw SQL as the escape hatch (strictly additive; arbitrary SQL still works, it just doesn't get the rollup unless expressed in the fast form).
+
+## Effort
+Rough scoping from reading the engine (not a written design): **2-6 weeks for one engineer**, the range driven almost entirely by the decision above. Much of the plumbing already exists from the raw-sample work, which pulls the number down.
+
+Already built (reused, not rewritten):
+- Emission pipeline (engine -> collector `metrics/trusted` -> `app.metrics_gauge`); a rollup just changes the granularity of what's emitted.
+- The `sloBurnRate`/`sloBudgetRemaining` UDFs (compute from whatever good/valid they're fed).
+- The "Error budget over time" chart (would get denser data for free).
+
+Work items: SLI shape handling (S with structured form / L with auto-parse) · bucketed emission over the new tail (M) · window read as `sum` over buckets (M) · one-time backfill on enable (M) · relax `/12` for rollup-backed windows (S) · rollup table schema/partition/TTL (S-M) · parity tests rollup-vs-raw (M).
+
 ## Constraints / open questions
-- Detecting which SLIs are safe to roll up (parse/whitelist `countIf`/`count` shapes; refuse `uniqExact`, `quantile`, joins, dedup).
-- Where the rollup lives: a per-SLI MV vs a generic `slo_bucket_counts` table the engine writes alongside the current sample gauges.
+- Structured-vs-raw-SQL SLI decision (see Key decision) — resolving it as the structured form removes the SQL-parser long pole.
+- **Late-arriving data (biggest risk).** An incrementally-built rollup fixes each bucket at eval time; a full re-scan catches events that land late, so the two can disagree and undermine the no-drift guarantee. Incumbents handle this with ingestion-time aggregation + acceptance/finalization windows. This is real design work and the item most likely to stretch the estimate; treat it as an explicit design item, not an afterthought.
+- Where the rollup lives: a per-SLI MV (DDL churn + engine needs admin rights) vs a generic `slo_bucket_counts` table the engine writes alongside the current sample gauges (favored — no DDL, aligned with what we already write).
 - Cardinality of per-group rollups (the `label_columns` fan-out) at fine buckets.
 - Keeping the derived budget/burn identical to the full-scan result (no drift between the two paths).
 - Interaction with the raw-telemetry TTL (rollups can outlive raw data, which is a feature).
