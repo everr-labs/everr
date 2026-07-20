@@ -29,9 +29,18 @@ const chartConfig = {
   budgetPct: { label: "Budget remaining", color: "hsl(160, 84%, 39%)" },
 } satisfies ChartConfig;
 
+// A badly-overspent SLO's budget goes deeply negative (e.g. -99900%); plotting
+// that literally would flatten every other point against an absurd axis. Pin the
+// PLOTTED value to this floor so an exhausted line sits just under the 0% line
+// and stays visible, while the tooltip still reports the true number.
+const FLOOR_PCT = -25;
+
 type Row = {
   t: string;
+  /** Plotted budget %, floored at FLOOR_PCT so the axis stays legible. */
   budgetPct: number | null;
+  /** True budget % for the tooltip (may be far below the floor). */
+  rawPct: number | null;
   good: number;
   valid: number;
 };
@@ -45,12 +54,16 @@ export function SloBudgetChart({ points }: { points: CcSloBudgetPoint[] }) {
       <ChartEmptyState message="No budget samples recorded in this range yet" />
     );
   }
-  const data: Row[] = points.map((p) => ({
-    t: p.t,
-    budgetPct: p.budgetRemaining === null ? null : p.budgetRemaining * 100,
-    good: p.good,
-    valid: p.valid,
-  }));
+  const data: Row[] = points.map((p) => {
+    const raw = p.budgetRemaining === null ? null : p.budgetRemaining * 100;
+    return {
+      t: p.t,
+      budgetPct: raw === null ? null : Math.max(raw, FLOOR_PCT),
+      rawPct: raw,
+      good: p.good,
+      valid: p.valid,
+    };
+  });
 
   return (
     <ChartContainer config={chartConfig} className="h-[240px] w-full">
@@ -70,9 +83,9 @@ export function SloBudgetChart({ points }: { points: CcSloBudgetPoint[] }) {
           axisLine={false}
           tickMargin={8}
           width={44}
-          // Full budget at the top; drop to whatever the worst overspend reaches
-          // (never above 0 as the floor) so exhaustion is always on screen.
-          domain={[(min: number) => Math.floor(Math.min(0, min)), 100]}
+          // Full budget at the top, the overspend floor at the bottom; the 0%
+          // exhaustion line always sits on screen between them.
+          domain={[FLOOR_PCT, 100]}
           tickFormatter={(v: number) => `${v}%`}
         />
         {/* Budget exhausted: the line crossing this is the whole story. */}
@@ -89,15 +102,20 @@ export function SloBudgetChart({ points }: { points: CcSloBudgetPoint[] }) {
                 const t = payload?.[0]?.payload?.t as string | undefined;
                 return t ? new Date(t).toLocaleString() : "";
               }}
-              formatter={(value, _name, item) => {
+              formatter={(_value, _name, item) => {
                 const row = item?.payload as Row | undefined;
-                const pct =
-                  typeof value === "number" ? `${value.toFixed(2)}%` : "—";
+                const raw = row?.rawPct;
+                // Report the true budget; a deeply overspent SLO reads as the
+                // fact ("exhausted"), not an absurd negative percentage.
+                const headline =
+                  raw == null
+                    ? "—"
+                    : raw <= -100
+                      ? "Budget exhausted"
+                      : `${raw.toFixed(2)}% budget left`;
                 return (
                   <div className="flex flex-col gap-0.5">
-                    <span className="font-mono tabular-nums">
-                      {pct} budget left
-                    </span>
+                    <span className="font-mono tabular-nums">{headline}</span>
                     {row && (
                       <span className="text-[0.6875rem] text-muted-foreground">
                         {fmtCount(row.good)} good / {fmtCount(row.valid)} valid
@@ -114,7 +132,9 @@ export function SloBudgetChart({ points }: { points: CcSloBudgetPoint[] }) {
           type="monotone"
           stroke="var(--color-budgetPct)"
           strokeWidth={2}
-          dot={false}
+          // Budget samples are sparse (the window recomputes slowly), so show a
+          // dot per point — a single sample must still be visible as a mark.
+          dot={{ r: 2.5, strokeWidth: 0, fill: "var(--color-budgetPct)" }}
           isAnimationActive={false}
           connectNulls
         />
