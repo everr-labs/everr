@@ -17,7 +17,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Gauge, Pause, Play } from "lucide-react";
 import { toast } from "sonner";
 import { CcBudgetBar, ccFmtBurn } from "@/components/cc/budget-bar";
-import { CcPageIntro, CcTerm } from "@/components/cc/page-intro";
+import { CcPageIntro } from "@/components/cc/page-intro";
 import {
   CcEmptyState,
   CcQueryError,
@@ -167,11 +167,7 @@ function CcSlosPage() {
       ),
     },
     {
-      header: (
-        <CcTerm def="What's left of the allowed failure. At a 99.5% target over 7d, 0.5% of events may fail; the budget is how much of that allowance remains.">
-          Error budget
-        </CcTerm>
-      ),
+      header: "Error budget",
       cell: (row) =>
         row.statusPending ? (
           <Skeleton className="h-4 w-40" />
@@ -197,11 +193,7 @@ function CcSlosPage() {
         ),
     },
     {
-      header: (
-        <CcTerm def="How fast the budget is being spent: 1× spends exactly the budget over the SLO window; 14× empties it fourteen times sooner. Tiers fire on sustained burn.">
-          Burn rate
-        </CcTerm>
-      ),
+      header: "Burn rate",
       cell: (row) => {
         if (row.statusPending || row.worst === null) {
           return <span className="text-xs text-muted-foreground">—</span>;
@@ -311,27 +303,7 @@ function CcSlosPage() {
       <CcPageIntro
         title="SLOs"
         lede="Reliability targets with an error budget: how much failure is affordable before each promise breaks."
-        explainerLabel="How SLOs work"
-        explainer={
-          <>
-            <p>
-              An SLO promises a target (say <code>99.9%</code>) over a rolling
-              window. The <strong>SLI</strong> is a SQL query counting{" "}
-              <code>good</code> and <code>valid</code> events; the gap between
-              the target and 100% is the <strong>error budget</strong> — the
-              failure you are allowed before the promise breaks.
-            </p>
-            <p>
-              The engine watches how fast the budget is being spent (the{" "}
-              <strong>burn rate</strong>) over multiple windows and fires
-              alerting <strong>tiers</strong> at different urgencies: fast-burn
-              pages someone now, ticket nudges tomorrow. SLOs live as code:
-              create, change, and remove them in your repo and run{" "}
-              <code>everr apply</code>. Here you inspect their budgets and pause
-              them.
-            </p>
-          </>
-        }
+        docsHref="https://everr.dev/docs/concepts/how-slos-work"
       />
       <Card inset="flush-content">
         <CardContent>

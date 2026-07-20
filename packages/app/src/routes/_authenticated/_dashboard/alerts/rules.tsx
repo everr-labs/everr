@@ -221,26 +221,7 @@ function CcRulesPage() {
       <CcPageIntro
         title="Rules"
         lede="The queries watching your telemetry: what each one checks, whether it fires, and whether it can still evaluate."
-        explainerLabel="How rules work"
-        explainer={
-          <>
-            <p>
-              A rule is a SQL query the alerting engine evaluates on a schedule.
-              Each row it returns becomes an <strong>alert instance</strong>; if
-              rows persist past the rule&rsquo;s <code>for</code> duration, the
-              alert starts <strong>firing</strong> and flows through Delivery to
-              whoever should hear about it.
-            </p>
-            <p>
-              Rules are defined as code and applied with{" "}
-              <code>everr apply</code> — here you inspect them, test them
-              against live data without side effects, and pause them.{" "}
-              <strong>Health</strong> is about the rule itself: a degraded rule
-              is one whose query is failing to evaluate, which is different from
-              firing.
-            </p>
-          </>
-        }
+        docsHref="https://everr.dev/docs/concepts/how-alerts-work"
       />
       <Card inset="flush-content">
         <CardHeader>

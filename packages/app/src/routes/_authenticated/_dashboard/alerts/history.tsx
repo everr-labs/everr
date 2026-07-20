@@ -50,25 +50,8 @@ function CcHistoryPage() {
     <div className="space-y-3">
       <CcPageIntro
         title="History"
-        lede="The stored record of everything alerting did: fired, resolved, delivered, silenced — over the selected time range."
-        explainerLabel="How the event log works"
-        explainer={
-          <>
-            <p>
-              Every state change is written to ClickHouse as an event:{" "}
-              <strong>transitions</strong> (an instance fired or resolved),{" "}
-              <strong>deliveries</strong> (a notification went to a receiver),
-              and <strong>silence audits</strong> (a delivery was muted by a
-              silence). Rule-health events record when a rule&rsquo;s own
-              evaluation degrades.
-            </p>
-            <p>
-              Use it to answer &ldquo;did anyone get told?&rdquo; — a firing
-              transition with no delivery event next to it means the alert
-              matched no route or was silenced, both worth knowing.
-            </p>
-          </>
-        }
+        lede="The stored record of everything alerting did: fired, resolved, delivered, silenced, over the selected time range."
+        docsHref="https://everr.dev/docs/concepts/how-alerts-work"
       />
       <AlertEventFeed
         showTypeLens

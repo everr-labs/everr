@@ -866,18 +866,7 @@ function CcDeliveryPage() {
       <CcPageIntro
         title="Delivery"
         lede="Who gets told about a firing alert, and how: routes match alerts to receivers, receivers fan out to channels."
-        explainerLabel="How delivery works"
-        explainer={
-          <p>
-            A firing alert&rsquo;s labels are checked against each route&rsquo;s
-            matchers, top to bottom by priority; the first match hands it to
-            that route&rsquo;s receiver, which fans out to its channels, and a
-            route marked <code>continue</code> lets later routes match too.
-            Alerts matching no route are sent to every firehose webhook instead.
-            Silences mute matching alerts for a window; inhibitions suppress
-            downstream alerts while a related source alert is firing.
-          </p>
-        }
+        docsHref="https://everr.dev/docs/guides/set-up-notifications"
       />
 
       <PipelineSection

@@ -507,31 +507,7 @@ function CcOverviewPage() {
       <CcPageIntro
         title="Alerting"
         lede="Rules and SLOs watch your telemetry; what they catch flows through routes to the people who need to know. This is the live picture."
-        explainerLabel="How alerting fits together"
-        explainer={
-          <>
-            <p>
-              <strong>Rules</strong> are SQL queries evaluated on a schedule —
-              every row they return becomes an alert instance.{" "}
-              <strong>SLOs</strong> are reliability targets whose burn-rate
-              tiers fire instances when the error budget is being spent too
-              fast. Together they are the watching layer.
-            </p>
-            <p>
-              A firing instance can be <strong>silenced</strong> (muted for a
-              window, from Triage) and is otherwise handed to{" "}
-              <strong>Delivery</strong>: routes match its labels and notify
-              their receivers&rsquo; channels; unmatched alerts fall through to
-              the firehose. Every transition, delivery, and silence is stored in{" "}
-              <strong>History</strong>.
-            </p>
-            <p>
-              Rules and SLOs are defined as code and applied with{" "}
-              <code>everr apply</code>; silences and delivery config are managed
-              right here in the app.
-            </p>
-          </>
-        }
+        docsHref="https://everr.dev/docs/concepts/how-alerts-work"
       />
 
       {/* The pipeline: four live stages, each linking to its page. */}

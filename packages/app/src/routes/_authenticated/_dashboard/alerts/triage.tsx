@@ -734,26 +734,7 @@ function CcTriagePage() {
       <CcPageIntro
         title="Triage"
         lede="Everything firing or muted right now, and the fastest way to act on it: silence it, follow its runbook, check who was told."
-        explainerLabel="How triage works"
-        explainer={
-          <>
-            <p>
-              Each row is an <strong>alert instance</strong> — one label set a
-              rule&rsquo;s query returned, or one burn-rate tier of an SLO.
-              Instances are grouped by the rule or SLO that produced them, most
-              severe first. Expand a row for its evidence, matched routes, and
-              recent transitions.
-            </p>
-            <p>
-              <strong>Silencing</strong> mutes delivery for a window without
-              touching the rule: the instance keeps evaluating and stays visible
-              under the Silenced lens, but nobody gets notified. Quick silences
-              (1h/8h/24h) scope to the instance&rsquo;s exact labels; Custom
-              opens the full editor. Silences are managed at the bottom of this
-              page.
-            </p>
-          </>
-        }
+        docsHref="https://everr.dev/docs/concepts/how-alerts-work"
       />
       {/* Instrument strip: the four numbers that answer "is anything wrong".
           Gated on load — zeros while fetching would read as a false all-clear. */}
