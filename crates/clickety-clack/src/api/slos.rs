@@ -309,12 +309,19 @@ fn enrich_status_payload(raw: Value, instances: &[InstanceState]) -> Value {
     let mut out = serde_json::to_value(&payload).unwrap_or(raw);
     if let Some(groups) = out.get_mut("groups").and_then(Value::as_array_mut) {
         for (g, v) in payload.groups.iter().zip(groups) {
-            // The first tier's long-window burn rate is the most currently-representative
-            // sustained estimate: tiers are precedence-ordered fastest-first (see
-            // `domain::slo::canonical_tiers`), so tier 0 is the fast-burn tier with the
-            // shortest long-window, i.e. the freshest sustained-burn read.
-            let first_tier_long_burn = g.tiers.first().and_then(|tier| tier.long_burn_rate);
-            let tte = match (g.budget_remaining, first_tier_long_burn, budget_window_secs) {
+            // The fast-burn tier's effective (both-window) burn is the freshest
+            // confirmed spend: tiers are precedence-ordered fastest-first (see
+            // `domain::slo::canonical_tiers`), so tier 0 is the shortest-window pair.
+            // `min(long, short)` reads 0 once a spike has passed (short back to 0)
+            // even while the long window still remembers it, so a recovering budget
+            // gets no exhaustion projection — matching the frontend's `ccEffectiveBurn`.
+            let first_tier_burn = g.tiers.first().and_then(|tier| {
+                match (tier.long_burn_rate, tier.short_burn_rate) {
+                    (Some(long), Some(short)) => Some(long.min(short)),
+                    _ => None,
+                }
+            });
+            let tte = match (g.budget_remaining, first_tier_burn, budget_window_secs) {
                 (Some(budget), Some(burn), Some(window_secs)) => {
                     time_to_exhaustion_secs(budget, burn, window_secs)
                 }

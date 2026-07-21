@@ -95,27 +95,57 @@ function tierWindowSecs(window: string): number {
 }
 
 /**
- * A group's headline burn: the long-window rate of the shortest-long-window
- * tier that has a computed rate (the 1h window for canonical tiers) — the
- * most current sustained signal. 1× spends exactly the error budget over the
- * SLO window. The full per-tier long/short matrix stays reachable where this
- * is shown (tooltip), this only picks the lead number.
+ * The burn rate confirmed by BOTH of a tier's windows: `min(long, short)`. The
+ * short window drops to ~0 as soon as spending stops, so this reads 0 once a past
+ * spike is over even while the long window still remembers it — the same
+ * both-windows agreement the engine fires on. Null when either window has no data
+ * (zero traffic), so a rate is only claimed when the current spend is confirmed.
+ */
+export function ccEffectiveBurn(
+  longBurn: number | null | undefined,
+  shortBurn: number | null | undefined,
+): number | null {
+  if (longBurn == null || shortBurn == null) return null;
+  return Math.min(longBurn, shortBurn);
+}
+
+/**
+ * A group's headline burn: the shortest-long-window tier that has a computed
+ * long-window rate (the 1h window for canonical tiers). `rate` is that long-window
+ * value — the number shown, labelled by `window` (so "1.4× / 1h" is honest). Its
+ * `effective` burn is `min(long, short)`: the spend confirmed by BOTH windows,
+ * which drops to ~0 the moment a spike passes even while the long window still
+ * remembers it. Read the pace and time-to-exhaustion off `effective` so a
+ * recovering budget never reads as draining; show `rate` as the raw 1h figure.
  */
 export function ccSloCurrentBurn(
   specTiers: readonly CcSloTier[],
   snapshot: CcSloGroupStatus["tiers"],
-): { rate: number; window: string } | null {
-  const rateByName = new Map(snapshot.map((t) => [t.name, t.long_burn_rate]));
-  let best: { rate: number; window: string; secs: number } | null = null;
+): { rate: number; effective: number | null; window: string } | null {
+  const byName = new Map(snapshot.map((t) => [t.name, t]));
+  let best: {
+    rate: number;
+    effective: number | null;
+    window: string;
+    secs: number;
+  } | null = null;
   for (const t of specTiers) {
-    const rate = rateByName.get(t.name);
-    if (rate === null || rate === undefined) continue;
+    const s = byName.get(t.name);
+    const long = s?.long_burn_rate;
+    if (long === null || long === undefined) continue;
     const secs = tierWindowSecs(t.long_window);
     if (best === null || secs < best.secs) {
-      best = { rate, window: t.long_window, secs };
+      best = {
+        rate: long,
+        effective: ccEffectiveBurn(long, s?.short_burn_rate),
+        window: t.long_window,
+        secs,
+      };
     }
   }
-  return best === null ? null : { rate: best.rate, window: best.window };
+  return best === null
+    ? null
+    : { rate: best.rate, effective: best.effective, window: best.window };
 }
 
 /**
@@ -231,7 +261,8 @@ function sloLabelsKey(labels: Record<string, string>): string {
  * when it fails). Burn rates and firing tiers always stay from the snapshot: they
  * refresh far more often than the throttled budget window, so the snapshot's are
  * already current. TTE is re-derived from the fresh budget and the snapshot's
- * first-tier long burn, exactly as api/slos.rs projects it.
+ * first-tier effective (both-window) burn, exactly as api/slos.rs projects it —
+ * so a passed spike (short back to 0) yields no exhaustion projection.
  */
 export function ccApplyFreshBudget(
   groups: readonly CcSloGroupStatus[],
@@ -249,7 +280,10 @@ export function ccApplyFreshBudget(
       budget_remaining: f.budgetRemaining,
       time_to_exhaustion_secs: ccTimeToExhaustionSecs(
         f.budgetRemaining,
-        g.tiers[0]?.long_burn_rate ?? null,
+        ccEffectiveBurn(
+          g.tiers[0]?.long_burn_rate,
+          g.tiers[0]?.short_burn_rate,
+        ),
         windowSecs,
       ),
     };
@@ -329,10 +363,12 @@ export function ccSloGroupBreakdown(
 export function ccSloVerdict(
   state: CcSloState,
   opts: {
-    burn: { rate: number; window: string } | null;
+    burn: { rate: number; effective: number | null; window: string } | null;
     tteSecs: number | null;
   },
 ): string {
+  // The confirmed (both-window) spend, so a passed spike reads as recovering.
+  const effective = opts.burn?.effective ?? null;
   const emptiesIn =
     opts.tteSecs && opts.tteSecs > 0
       ? `the budget runs out in about ${ccFormatSloDuration(opts.tteSecs)}`
@@ -353,10 +389,10 @@ export function ccSloVerdict(
     case "at-risk":
       return "Running low. Nothing is paging yet, but there is little error budget left to spend this window.";
     case "healthy":
-      if (opts.burn === null || opts.burn.rate <= 0) {
+      if (effective === null || effective <= 0) {
         return "On track. Nothing is spending error budget right now.";
       }
-      if (opts.burn.rate < 1) {
+      if (effective < 1) {
         return "On track. Budget is being spent slower than the sustainable rate.";
       }
       return "On track for now, but currently spending budget faster than sustainable. Worth a look if it holds.";

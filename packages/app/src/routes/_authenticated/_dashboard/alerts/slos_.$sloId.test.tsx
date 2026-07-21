@@ -249,8 +249,10 @@ describe("/alerts/slos/$sloId route", () => {
     // Fresh budget (10%), not the snapshot's 42%.
     expect(await screen.findByText("10.00%")).toBeInTheDocument();
     expect(screen.queryByText("42.00%")).not.toBeInTheDocument();
-    // TTE re-derived: floor(2592000s * 0.10 / 1.4 burn) = 185142s -> 2d 3h.
-    expect(screen.getByText("2d 3h")).toBeInTheDocument();
+    // TTE re-derived from the fresh budget and the effective (both-window) burn
+    // min(1.4, 0.9) = 0.9, not the raw 1h rate: 2592000 * 0.10 / 0.9 = 288000s
+    // -> 3d 8h. The snapshot's stored 3d 4h is gone.
+    expect(screen.getByText("3d 8h")).toBeInTheDocument();
     expect(screen.queryByText("3d 4h")).not.toBeInTheDocument();
     // A non-empty scan landed, so the freshness line reads "computed just now".
     expect(

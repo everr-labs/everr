@@ -251,3 +251,52 @@ async fn status_enrichment_empty_group_has_no_instances_and_null_tte() {
     assert!(group["time_to_exhaustion_secs"].is_null());
     assert_eq!(group["firing_tiers"], json!([]));
 }
+
+#[tokio::test]
+async fn status_enrichment_passed_spike_has_null_tte() {
+    let (router, store) = setup().await;
+    let id = create_slo(&router, "c").await;
+    let slo_id = cc::domain::ids::SloId(id.parse().unwrap());
+    let tenant = cc::domain::ids::TenantId::from_trusted(TENANT);
+
+    // The long window still remembers a spike (3x) but the short window has
+    // recovered to 0: the effective burn is min(long, short) = 0, so the budget
+    // is not being spent and there is no exhaustion to project.
+    store
+        .upsert_slo_status(
+            slo_id,
+            &tenant,
+            &json!({
+                "window": "30d",
+                "target_percent": 99.9,
+                "groups": [{
+                    "labels": {"service": "checkout"},
+                    "sli": 0.99,
+                    "budget_remaining": 0.5,
+                    "tiers": [{
+                        "name": "fast-burn",
+                        "long_burn_rate": 3.0,
+                        "short_burn_rate": 0.0,
+                        "long_window_valid": 1000.0
+                    }]
+                }],
+                "window_computed_at": {}
+            }),
+            time::OffsetDateTime::now_utc(),
+        )
+        .await
+        .unwrap();
+
+    let r = router
+        .oneshot(
+            Request::get(format!("/v1/slos/{id}/status"))
+                .header("X-CC-Tenant", TENANT)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(r.status(), StatusCode::OK);
+    let b = body_json(r).await;
+    assert!(b["payload"]["groups"][0]["time_to_exhaustion_secs"].is_null());
+}

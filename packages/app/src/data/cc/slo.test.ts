@@ -4,9 +4,11 @@ import { describe, expect, it } from "vitest";
 import {
   CC_CANONICAL_SLO_TIERS,
   ccApplyFreshBudget,
+  ccEffectiveBurn,
   ccFormatSloDuration,
   ccSloBurnPace,
   ccSloBurnPaceLabel,
+  ccSloCurrentBurn,
   ccSloGroupBreakdown,
   ccSloHandleResolver,
   ccSloHandles,
@@ -105,8 +107,61 @@ describe("ccFormatSloDuration", () => {
   });
 });
 
+describe("ccEffectiveBurn", () => {
+  it("is min(long, short) when both windows have data", () => {
+    expect(ccEffectiveBurn(3, 2)).toBe(2);
+    expect(ccEffectiveBurn(2, 3)).toBe(2);
+    // A passed spike: long still remembers it, short has recovered to 0.
+    expect(ccEffectiveBurn(3, 0)).toBe(0);
+  });
+
+  it("is null when either window has no data (fail open, like firing)", () => {
+    expect(ccEffectiveBurn(3, null)).toBeNull();
+    expect(ccEffectiveBurn(null, 2)).toBeNull();
+    expect(ccEffectiveBurn(undefined, undefined)).toBeNull();
+  });
+});
+
+describe("ccSloCurrentBurn", () => {
+  const tiers = CC_CANONICAL_SLO_TIERS;
+  const tier = (
+    name: string,
+    long: number | null,
+    short: number | null,
+  ): CcSloGroupStatus["tiers"][number] => ({
+    name,
+    long_burn_rate: long,
+    short_burn_rate: short,
+    long_window_valid: null,
+  });
+
+  it("leads with the fast-burn 1h rate but carries the confirmed effective burn", () => {
+    // Sustained drain: long 3x over 1h, short 2x over 5m -> shows the 1h figure,
+    // effective is the both-window min (2x) that pace/TTE read.
+    const burn = ccSloCurrentBurn(tiers, [tier("fast-burn", 3, 2)]);
+    expect(burn).toEqual({ rate: 3, effective: 2, window: "1h" });
+  });
+
+  it("keeps the raw 1h rate but reads effective 0 once a spike has passed", () => {
+    // long 3x (the last hour), short 0 (the last 5m): the number shown stays the
+    // honest 1h rate, but effective is 0 so the pace reads steady, not draining.
+    const burn = ccSloCurrentBurn(tiers, [tier("fast-burn", 3, 0)]);
+    expect(burn).toEqual({ rate: 3, effective: 0, window: "1h" });
+    expect(ccSloBurnPace(burn?.effective ?? null, [])).toBe("steady");
+  });
+
+  it("prefers the shortest-long-window tier and skips tiers with no long rate", () => {
+    const burn = ccSloCurrentBurn(tiers, [
+      tier("fast-burn", null, null), // no data -> skipped
+      tier("slow-burn", 2, 2), // 6h long window
+      tier("ticket", 1, 1), // 3d long window
+    ]);
+    expect(burn?.window).toBe("6h"); // slow-burn wins over ticket
+  });
+});
+
 describe("ccSloVerdict", () => {
-  const burn = { rate: 1.4, window: "1h" };
+  const burn = { rate: 1.4, effective: 1.4, window: "1h" };
 
   it("gives a plain sentence per state", () => {
     expect(ccSloVerdict("unknown", { burn: null, tteSecs: null })).toMatch(
@@ -138,16 +193,25 @@ describe("ccSloVerdict", () => {
     );
     expect(
       ccSloVerdict("healthy", {
-        burn: { rate: 0.3, window: "1h" },
+        burn: { rate: 0.3, effective: 0.3, window: "1h" },
         tteSecs: null,
       }),
     ).toMatch(/slower than the sustainable rate/);
     expect(
       ccSloVerdict("healthy", {
-        burn: { rate: 2, window: "1h" },
+        burn: { rate: 2, effective: 2, window: "1h" },
         tteSecs: null,
       }),
     ).toMatch(/faster than sustainable/);
+    // The verdict reads the confirmed (both-window) burn, not the 1h figure: a
+    // spike already passed (long still 3×, short back to 0 -> effective 0) is
+    // recovering, so it reads "nothing spending", not "faster than sustainable".
+    expect(
+      ccSloVerdict("healthy", {
+        burn: { rate: 3, effective: 0, window: "1h" },
+        tteSecs: null,
+      }),
+    ).toMatch(/Nothing is spending/);
   });
 });
 
@@ -199,10 +263,36 @@ describe("ccApplyFreshBudget", () => {
     );
     expect(merged.budget_remaining).toBe(0.1);
     expect(merged.sli).toBe(0.998);
-    expect(merged.time_to_exhaustion_secs).toBe(185142); // from the fresh budget
+    // TTE is re-derived from the fresh budget and the effective (both-window)
+    // burn min(1.4, 0.9) = 0.9, not the raw 1h rate: 2592000 * 0.1 / 0.9 = 288000.
+    expect(merged.time_to_exhaustion_secs).toBe(288000);
     // Burn tiers and firing state stay from the snapshot (they refresh often).
     expect(merged.tiers).toEqual(group().tiers);
     expect(merged.firing_tiers).toEqual(group().firing_tiers);
+  });
+
+  it("gives no exhaustion projection once a spike has passed (short back to 0)", () => {
+    // Long window still remembers the spike (3×) but the short window has
+    // recovered to 0, so the effective burn is 0 and there is nothing draining
+    // the (fresh) budget to project an exhaustion from.
+    const [merged] = ccApplyFreshBudget(
+      [
+        group({
+          tiers: [
+            {
+              name: "fast-burn",
+              long_burn_rate: 3,
+              short_burn_rate: 0,
+              long_window_valid: 120000,
+            },
+          ],
+        }),
+      ],
+      [{ labels: { service: "checkout" }, sli: 0.999, budgetRemaining: 0.5 }],
+      2_592_000,
+    );
+    expect(merged.budget_remaining).toBe(0.5);
+    expect(merged.time_to_exhaustion_secs).toBeNull();
   });
 
   it("matches groups by label set regardless of key order", () => {

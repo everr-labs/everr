@@ -229,7 +229,7 @@ function CcSlosPage() {
           tier: f.tier,
           severity: ccSloTierSeverity(tiers, { slo_tier: f.tier }),
         }));
-        const pace = ccSloBurnPace(burn?.rate ?? null, firing);
+        const pace = ccSloBurnPace(burn?.effective ?? null, firing);
         if (pace === "steady") {
           return <span className="text-xs text-muted-foreground">Steady</span>;
         }

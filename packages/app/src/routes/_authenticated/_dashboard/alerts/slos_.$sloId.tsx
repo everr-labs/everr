@@ -386,8 +386,9 @@ function StatusSection({ slo }: { slo: CcSlo }) {
         if (burn === null) {
           return <span className="text-xs text-muted-foreground">—</span>;
         }
-        // Tone from real state, not projection: firing tiers set the color;
-        // a sub-threshold burn above 1× still reads as "budget shrinking".
+        // Tone from real state, not projection: firing tiers set the color; a
+        // confirmed (both-window) burn above 1× still reads as "budget shrinking",
+        // but a spike already gone (short back to 0) does not.
         const firingSeverities = g.firing_tiers.map((f) =>
           ccSloTierSeverity(tiers, { slo_tier: f.tier }),
         );
@@ -395,7 +396,7 @@ function StatusSection({ slo }: { slo: CcSlo }) {
           ? "font-medium text-destructive"
           : firingSeverities.length > 0
             ? "font-medium text-amber-600 dark:text-amber-400"
-            : burn.rate >= 1
+            : (burn.effective ?? 0) >= 1
               ? "text-foreground"
               : "text-muted-foreground";
         return (
