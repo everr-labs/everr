@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
 use crate::domain::ids::{SloId, TenantId};
@@ -61,9 +62,6 @@ pub struct SloSpec {
     /// Optional low-traffic floor on the long window; None = off.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub min_valid_events: Option<u64>,
-    /// None = use `canonical_tiers()`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tiers: Option<Vec<BurnRateTier>>,
     #[serde(default)]
     pub annotations: BTreeMap<String, String>,
     /// Preview mode: evaluate fully but never notify.
@@ -119,11 +117,10 @@ pub fn canonical_tiers() -> Vec<BurnRateTier> {
     ]
 }
 
-/// Resolve a tier's severity from `labels["slo_tier"]` against the SLO's already-resolved
-/// tier list (caller passes `spec.tiers.clone().unwrap_or_else(canonical_tiers)`, or the
-/// pre-resolved `tiers` off a lean dispatch/evaluator projection). Unknown/missing tier
-/// defensively falls back to `Severity::Critical` — a conservative default for a tier no
-/// longer in the spec, shared by every caller so the fallback can't disagree with itself.
+/// Resolve a tier's severity from `labels["slo_tier"]` against the `canonical_tiers()`
+/// list every SLO is evaluated on. Unknown/missing tier defensively falls back to
+/// `Severity::Critical` — a conservative default for a tier name no longer present,
+/// shared by every caller so the fallback can't disagree with itself.
 pub(crate) fn tier_severity(tiers: &[BurnRateTier], labels: &BTreeMap<String, String>) -> Severity {
     labels
         .get(SLO_TIER_LABEL)
@@ -163,6 +160,37 @@ pub fn parse_window_secs(s: &str) -> Result<u64, WindowParseError> {
     };
     n.checked_mul(mult)
         .ok_or_else(|| WindowParseError(s.to_string()))
+}
+
+/// A stable fingerprint of the SLO's *objective*: the fields that determine what
+/// a stored status snapshot's numbers mean — the SLI (query + group columns), the
+/// target, and the time window. When it changes, a snapshot's groups and
+/// per-window burn/budget values describe a different query, so both the evaluator
+/// (carry-forward) and the store (`update_slo`) drop the snapshot on a mismatch.
+///
+/// The excluded fields (`min_valid_events`, `annotations`, `suppressed`) affect
+/// firing or presentation, not the computed numbers — the same "budget-significant"
+/// set `update_slo` keys `budget_epoch` off of. Hashed from the struct (not raw
+/// JSON) over `\0`-separated fields, so it is order-stable and safe to persist.
+pub fn objective_fingerprint(spec: &SloSpec) -> String {
+    let mut h = Sha256::new();
+    h.update(spec.sli.sql.as_bytes());
+    h.update([0u8]);
+    for col in &spec.sli.label_columns {
+        h.update(col.as_bytes());
+        h.update([0u8]);
+    }
+    h.update([0u8]);
+    h.update(spec.target_percent.to_bits().to_le_bytes());
+    h.update(spec.time_window.duration.as_bytes());
+    h.update([0u8]);
+    h.update([spec.time_window.is_rolling as u8]);
+    if let Some(cal) = &spec.time_window.calendar {
+        h.update(cal.start_time.as_bytes());
+        h.update([0u8]);
+        h.update(cal.time_zone.as_bytes());
+    }
+    format!("{:x}", h.finalize())
 }
 
 #[cfg(test)]
@@ -231,7 +259,6 @@ mod tests {
         assert!(spec.time_window.calendar.is_none());
         assert!(spec.sli.label_columns.is_empty()); // default []
         assert!(spec.min_valid_events.is_none());
-        assert!(spec.tiers.is_none());
         assert!(!spec.suppressed); // default false
         assert!(spec.annotations.is_empty());
     }
@@ -250,11 +277,91 @@ mod tests {
                 calendar: None,
             },
             min_valid_events: Some(1000),
-            tiers: None,
             annotations: BTreeMap::new(),
             suppressed: false,
         };
         let round: SloSpec = serde_json::from_value(serde_json::to_value(&spec).unwrap()).unwrap();
         assert_eq!(round, spec);
+    }
+
+    fn fp_spec() -> SloSpec {
+        SloSpec {
+            sli: SliSpec {
+                sql: "SELECT 1 AS good, 1 AS valid".into(),
+                label_columns: vec!["service".into()],
+            },
+            target_percent: 99.9,
+            time_window: TimeWindow {
+                duration: "30d".into(),
+                is_rolling: true,
+                calendar: None,
+            },
+            min_valid_events: None,
+            annotations: BTreeMap::new(),
+            suppressed: false,
+        }
+    }
+
+    #[test]
+    fn objective_fingerprint_is_stable_and_order_insensitive() {
+        let a = fp_spec();
+        let b = fp_spec();
+        // Deterministic for identical specs, and unaffected by JSON key order
+        // (built from the struct, then serialized and back).
+        assert_eq!(objective_fingerprint(&a), objective_fingerprint(&b));
+        let round: SloSpec = serde_json::from_value(serde_json::to_value(&a).unwrap()).unwrap();
+        assert_eq!(objective_fingerprint(&a), objective_fingerprint(&round));
+    }
+
+    #[test]
+    fn objective_fingerprint_changes_on_objective_fields() {
+        let base = objective_fingerprint(&fp_spec());
+
+        let mut sql = fp_spec();
+        sql.sli.sql = "SELECT 2 AS good, 2 AS valid".into();
+        assert_ne!(objective_fingerprint(&sql), base);
+
+        let mut cols = fp_spec();
+        cols.sli.label_columns = vec!["service".into(), "region".into()];
+        assert_ne!(objective_fingerprint(&cols), base);
+
+        let mut target = fp_spec();
+        target.target_percent = 99.5;
+        assert_ne!(objective_fingerprint(&target), base);
+
+        let mut window = fp_spec();
+        window.time_window.duration = "7d".into();
+        assert_ne!(objective_fingerprint(&window), base);
+    }
+
+    #[test]
+    fn objective_fingerprint_ignores_non_objective_fields() {
+        // These change firing or presentation, not the stored SLI/burn/budget
+        // numbers, so a snapshot stays valid across them — the fingerprint holds.
+        let base = objective_fingerprint(&fp_spec());
+
+        let mut floor = fp_spec();
+        floor.min_valid_events = Some(1000);
+        assert_eq!(objective_fingerprint(&floor), base);
+
+        let mut annotated = fp_spec();
+        annotated
+            .annotations
+            .insert("runbook".into(), "https://x".into());
+        assert_eq!(objective_fingerprint(&annotated), base);
+
+        let mut suppressed = fp_spec();
+        suppressed.suppressed = true;
+        assert_eq!(objective_fingerprint(&suppressed), base);
+    }
+
+    #[test]
+    fn objective_fingerprint_column_boundary_is_unambiguous() {
+        // ["a","b"] must not collide with ["ab"]: the `\0` separators disambiguate.
+        let mut ab = fp_spec();
+        ab.sli.label_columns = vec!["a".into(), "b".into()];
+        let mut concat = fp_spec();
+        concat.sli.label_columns = vec!["ab".into()];
+        assert_ne!(objective_fingerprint(&ab), objective_fingerprint(&concat));
     }
 }

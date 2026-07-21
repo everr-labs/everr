@@ -16,7 +16,6 @@ import {
   CollapsibleContent,
 } from "@everr/ui/components/collapsible";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
-import { RelativeTime } from "@everr/ui/components/relative-time";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import {
   Tooltip,
@@ -26,10 +25,13 @@ import {
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, Pause, Play, TriangleAlert } from "lucide-react";
-import { useState } from "react";
+import { ArrowLeft, Info, Pause, Play, TriangleAlert } from "lucide-react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { AlertEventFeed } from "@/components/cc/alert-event-feed";
+import {
+  AlertEventFeed,
+  ccEventStatus,
+} from "@/components/cc/alert-event-feed";
 import {
   CcBudgetBar,
   ccFmtBurn,
@@ -46,7 +48,10 @@ import {
   ccFormatTs,
   LabelSet,
 } from "@/components/cc/shared";
-import { SloBudgetChart } from "@/components/cc/slo-budget-chart";
+import {
+  SloBudgetChart,
+  type SloBudgetEvent,
+} from "@/components/cc/slo-budget-chart";
 import { SloStatusHero } from "@/components/cc/slo-status";
 import {
   ANN_LABEL_PREFIX,
@@ -56,20 +61,22 @@ import {
 import { ccQueries } from "@/data/cc/queries";
 import { pauseCcSlo, resumeCcSlo } from "@/data/cc/server";
 import {
+  CC_CANONICAL_SLO_TIERS,
+  ccApplyFreshBudget,
   ccFormatSloDuration,
   ccFormatSloTarget,
-  ccSloBudgetWindowKey,
   ccSloCurrentBurn,
   ccSloHandles,
   ccSloTierSeverity,
-  ccSloTiers,
   ccSloWindowLabel,
+  ccSloWindowSecs,
   ccWorstSloGroup,
 } from "@/data/cc/slo";
 import type {
   CcSlo,
   CcSloGroupStatus,
   CcSloHealth,
+  CcSloTier,
   CcSloView,
 } from "@/data/cc/types";
 
@@ -97,7 +104,7 @@ export const Route = createFileRoute(
     ]);
     // Prefetch the budget history; skipped for a spec whose window doesn't parse
     // (nothing to chart a trailing window over).
-    if (ccSloBudgetWindowKey(slo.spec)) {
+    if (ccSloWindowSecs(slo.spec) !== null) {
       await queryClient.prefetchQuery(
         ccQueries.sloBudgetSeries(slo.id, deps.timeRange),
       );
@@ -119,6 +126,57 @@ function BackLink() {
   );
 }
 
+// A collapsed-by-default plain-language primer on the four concepts this page
+// leans on. Discoverable for a newcomer, one line out of the way for everyone
+// else. Kept in step with the in-hero glosses and verdict copy.
+function SloPrimer() {
+  const [open, setOpen] = useState(false);
+  const terms: Array<{ term: string; gloss: string }> = [
+    {
+      term: "SLO: the promise",
+      gloss:
+        '"99% of requests succeed over the last 7 days." A realistic target, not "zero errors".',
+    },
+    {
+      term: "Error budget: how much you may fail",
+      gloss:
+        "The leftover (here, the other 1%). Full means room to spare; 0% means the promise is broken for this window.",
+    },
+    {
+      term: "Burn rate: how fast you spend it",
+      gloss:
+        "1× is the sustainable pace; 14× means the whole budget would be gone in hours. This is what pages you.",
+    },
+    {
+      term: "Window: the rolling period",
+      gloss:
+        "Everything is measured over a moving span (e.g. 7 days). Old failures age out, so the budget recovers on its own.",
+    },
+  ];
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CcDisclosureTrigger open={open}>
+        <span className="text-xs font-medium">New to SLOs?</span>
+        {!open && (
+          <span className="min-w-0 truncate text-[0.6875rem] text-muted-foreground">
+            error budget, burn rate, and window in plain words
+          </span>
+        )}
+      </CcDisclosureTrigger>
+      <CollapsibleContent>
+        <dl className="mt-2 grid gap-2.5 rounded-md bg-muted/40 p-3 text-xs ring-1 ring-foreground/10 sm:grid-cols-2">
+          {terms.map(({ term, gloss }) => (
+            <div key={term} className="space-y-0.5">
+              <dt className="font-medium">{term}</dt>
+              <dd className="text-muted-foreground">{gloss}</dd>
+            </div>
+          ))}
+        </dl>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
 function DefRow({
   label,
   children,
@@ -137,11 +195,31 @@ function DefRow({
 // Fraction/burn formatting is shared with the listing and overview surfaces
 // (ccFmtFraction / ccFmtBurn from budget-bar.tsx).
 
+// The two alert outcomes, foregrounded over the raw tiers: the critical tiers
+// page, the warning tier tickets. Order = urgency (page before ticket).
+const ALERT_OUTCOMES: {
+  label: string;
+  severity: CcSloTier["severity"];
+  blurb: string;
+}[] = [
+  {
+    label: "Pages you",
+    severity: "critical",
+    blurb: "budget draining fast enough to wake someone",
+  },
+  {
+    label: "Opens a ticket",
+    severity: "warning",
+    blurb: "a slow leak worth fixing, not tonight",
+  },
+];
+
 // ── What is it ────────────────────────────────────────────────────────────────
 
 function ObjectiveSection({ slo }: { slo: CcSlo }) {
   const [sqlOpen, setSqlOpen] = useState(false);
-  const tiers = ccSloTiers(slo.spec);
+  const [tiersOpen, setTiersOpen] = useState(false);
+  const tiers = CC_CANONICAL_SLO_TIERS;
   const ann = slo.spec.annotations;
   // Surface the as-code identity fields natively instead of behind a YAML dump.
   // `everr.project` and `everr.label.*` fold into first-class fields (as they do
@@ -200,39 +278,49 @@ function ObjectiveSection({ slo }: { slo: CcSlo }) {
           )}
         </dl>
 
-        {/* The burn-rate tiers the evaluator alerts on: explicit spec tiers,
-            or the canonical fast-burn/slow-burn/ticket trio when unset. */}
-        <div className="space-y-1">
-          <div className="text-[0.625rem] font-medium tracking-wide text-muted-foreground uppercase">
-            Burn-rate tiers{slo.spec.tiers ? "" : " (canonical)"}
-          </div>
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="text-[0.625rem] font-medium tracking-wide text-muted-foreground uppercase">
-                <th className="py-1 pr-3 font-medium">Tier</th>
-                <th className="py-1 pr-3 font-medium">Burn rate over</th>
-                <th className="py-1 pr-3 font-medium">Long window</th>
-                <th className="py-1 pr-3 font-medium">Short window</th>
-                <th className="py-1 font-medium">Severity</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/60">
-              {tiers.map((t) => (
-                <tr key={t.name}>
-                  <td className="py-1.5 pr-3 font-mono">{t.name}</td>
-                  <td className="py-1.5 pr-3 font-mono tabular-nums">
-                    {ccFmtBurn(t.burn_rate)}
-                  </td>
-                  <td className="py-1.5 pr-3 font-mono">{t.long_window}</td>
-                  <td className="py-1.5 pr-3 font-mono">{t.short_window}</td>
-                  <td className="py-1.5">
-                    <CcSeverityBadge severity={t.severity} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {/* What alerts, framed by outcome rather than by tier: the two critical
+            tiers page, the warning tier tickets. The hero's "what would page you"
+            carries the live view; this is the static reference, folded by default.
+            Tiers are the fixed canonical set (not user-configurable). */}
+        <Collapsible open={tiersOpen} onOpenChange={setTiersOpen}>
+          <CcDisclosureTrigger open={tiersOpen}>
+            <span className="text-xs font-medium">When it alerts</span>
+            {!tiersOpen && (
+              <span className="min-w-0 truncate text-[0.6875rem] text-muted-foreground">
+                pages on fast or sustained burn, tickets on a slow leak
+              </span>
+            )}
+          </CcDisclosureTrigger>
+          <CollapsibleContent>
+            <dl className="mt-2 space-y-3">
+              {ALERT_OUTCOMES.map(({ label, severity, blurb }) => {
+                const rows = tiers.filter((t) => t.severity === severity);
+                if (rows.length === 0) return null;
+                return (
+                  <div key={severity} className="flex flex-col gap-1">
+                    <dt className="flex items-baseline gap-2">
+                      <CcSeverityBadge severity={severity} />
+                      <span className="text-xs font-medium">{label}</span>
+                      <span className="text-[0.6875rem] text-muted-foreground">
+                        {blurb}
+                      </span>
+                    </dt>
+                    {rows.map((t) => (
+                      <dd
+                        key={t.name}
+                        className="font-mono text-[0.6875rem] text-muted-foreground"
+                      >
+                        <span className="text-foreground">{t.name}</span> ·{" "}
+                        {ccFmtBurn(t.burn_rate)} over {t.long_window} (short{" "}
+                        {t.short_window})
+                      </dd>
+                    ))}
+                  </div>
+                );
+              })}
+            </dl>
+          </CollapsibleContent>
+        </Collapsible>
 
         {/* Authors have Git; readers get the SLI SQL on demand, not as a wall. */}
         <Collapsible open={sqlOpen} onOpenChange={setSqlOpen}>
@@ -259,7 +347,11 @@ function ObjectiveSection({ slo }: { slo: CcSlo }) {
 
 function StatusSection({ slo }: { slo: CcSlo }) {
   const status = useQuery(ccQueries.sloStatus(slo.id));
-  const tiers = ccSloTiers(slo.spec);
+  // The budget as of page view: a read-time SLI scan that overrides the stored
+  // snapshot's throttled budget once it lands. The snapshot renders instantly
+  // meanwhile; this only refines budget/SLI/time-to-exhaustion.
+  const fresh = useQuery(ccQueries.sloBudgetNow(slo.id));
+  const tiers = CC_CANONICAL_SLO_TIERS;
 
   const groupCols: Column<CcSloGroupStatus>[] = [
     {
@@ -429,20 +521,30 @@ function StatusSection({ slo }: { slo: CcSlo }) {
     );
   }
 
-  const groups = data.payload.groups;
+  // The budget shown is read-time-fresh once the scan lands; until then the
+  // stored snapshot is the instant fallback. Overriding budget/SLI/TTE per group
+  // can change which group is worst, so merge before picking the headline. An
+  // empty scan (no traffic in the trailing window) leaves the snapshot unchanged,
+  // so it is not "fresh" — require the scan to have produced groups.
+  const budgetIsFresh = fresh.data !== undefined && fresh.data.length > 0;
+  const groups = ccApplyFreshBudget(
+    data.payload.groups,
+    fresh.data,
+    ccSloWindowSecs(slo.spec),
+  );
   const worst = ccWorstSloGroup(groups);
 
   return (
     <div className="space-y-2">
       {/* At-a-glance: the worst group's budget, burn, and per-tier pressure. */}
       <SloStatusHero slo={slo} worst={worst} groupCount={groups.length} />
+      {/* The budget is computed at read time: "just now" once the scan lands,
+          and the stored snapshot (already in the hero) meanwhile. */}
       <p className="px-1 text-[0.6875rem] text-muted-foreground">
-        Snapshot computed{" "}
-        <span title={ccFormatTs(data.computed_at)}>
-          <RelativeTime timestamp={data.computed_at} />
-        </span>{" "}
-        against a {ccFormatSloTarget(slo.spec.targetPercent)} target over{" "}
-        {ccSloWindowLabel(slo.spec)}.
+        Error budget {budgetIsFresh ? "computed just now" : "computing"} over
+        the last {ccSloWindowLabel(slo.spec)}, against a{" "}
+        {ccFormatSloTarget(slo.spec.targetPercent)} target
+        {budgetIsFresh ? "." : <>&hellip;</>}
       </p>
 
       {/* The full per-group breakdown, only when there is more than one group
@@ -474,24 +576,61 @@ function StatusSection({ slo }: { slo: CcSlo }) {
 
 function BudgetHistorySection({ slo }: { slo: CcSloView }) {
   const { timeRange } = Route.useLoaderDeps();
-  const windowKey = ccSloBudgetWindowKey(slo.spec);
+  const hasWindow = ccSloWindowSecs(slo.spec) !== null;
   const series = useQuery({
     ...ccQueries.sloBudgetSeries(slo.id, timeRange),
-    enabled: windowKey !== null,
+    enabled: hasWindow,
   });
+  // The same fire/resolve transitions the history feed below shows, overlaid on
+  // the budget line so a drop lines up with the tier that fired. Scoped to this
+  // SLO's handles; non-transition events (deliveries, silences) drop out.
+  const events = useQuery({
+    ...ccQueries.eventHistory(timeRange),
+    enabled: hasWindow,
+  });
+  const budgetEvents = useMemo<SloBudgetEvent[]>(() => {
+    const handles = new Set(ccSloHandles(slo));
+    const out: SloBudgetEvent[] = [];
+    for (const e of events.data ?? []) {
+      if (!handles.has(e.slug)) continue;
+      const type = ccEventStatus(e.eventType);
+      if (type) out.push({ t: e.timestamp, type });
+    }
+    return out;
+  }, [events.data, slo]);
 
   // A spec whose window doesn't parse can't be charted; the objective card
   // still states the window, so no error card is owed here.
-  if (windowKey === null) return null;
+  if (!hasWindow) return null;
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Error budget over time</CardTitle>
+        <CardTitle className="flex items-center gap-1.5">
+          Error budget over time
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  aria-label="How to read this chart"
+                  className="text-muted-foreground transition-colors hover:text-foreground"
+                />
+              }
+            >
+              <Info className="size-3.5" />
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs text-xs">
+              100% is the full budget, 0% is exhausted. Solid line is measured;
+              the faded dashed section is reconstructed from before this SLO
+              existed. Blue "applied" marks where the budget started counting,
+              red and green bars are alerts firing and resolving, and the line
+              stops at the last evaluation.
+            </TooltipContent>
+          </Tooltip>
+        </CardTitle>
         <CardDescription>
-          Budget remaining over a trailing {ccSloWindowLabel(slo.spec)} window,
-          computed across the selected range. 100% is the full budget; 0% is
-          exhausted.
+          Budget remaining over a trailing {ccSloWindowLabel(slo.spec)} window.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -500,7 +639,11 @@ function BudgetHistorySection({ slo }: { slo: CcSloView }) {
         ) : series.isPending ? (
           <Skeleton className="h-[240px] w-full" />
         ) : (
-          <SloBudgetChart points={series.data} epoch={slo.budget_epoch} />
+          <SloBudgetChart
+            points={series.data}
+            epoch={slo.budget_epoch}
+            events={budgetEvents}
+          />
         )}
       </CardContent>
     </Card>
@@ -641,6 +784,7 @@ function CcSloDetailPage() {
         </Button>
       </div>
 
+      <SloPrimer />
       <StatusSection slo={s} />
       <BudgetHistorySection slo={s} />
       <ObjectiveSection slo={s} />

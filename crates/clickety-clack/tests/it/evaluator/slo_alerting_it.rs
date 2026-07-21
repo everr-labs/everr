@@ -97,7 +97,6 @@ fn spec(suppressed: bool) -> SloSpec {
             calendar: None,
         },
         min_valid_events: None,
-        tiers: None,
         annotations: BTreeMap::new(),
         suppressed,
     }

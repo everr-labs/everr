@@ -42,7 +42,7 @@ import {
   ccSelectRoutes,
 } from "@/data/cc/route-resolution";
 import { createCcSilence } from "@/data/cc/server";
-import { ccSloTierSeverity, ccSloTiers } from "@/data/cc/slo";
+import { CC_CANONICAL_SLO_TIERS, ccSloTierSeverity } from "@/data/cc/slo";
 import type {
   CcAlert,
   CcMatcher,
@@ -167,8 +167,8 @@ type TriageInstance = {
 };
 
 /** The severity an SLO-sourced instance fires at: its tier's severity. */
-function sloInstanceSeverity(slo: CcSlo, alert: CcAlert) {
-  return ccSloTierSeverity(ccSloTiers(slo.spec), alert.labels);
+function sloInstanceSeverity(alert: CcAlert) {
+  return ccSloTierSeverity(CC_CANONICAL_SLO_TIERS, alert.labels);
 }
 
 // ── Instrument strip ──────────────────────────────────────────────────────────
@@ -486,10 +486,7 @@ function InstanceRow({
         </span>
         <span className="flex min-w-0 flex-1 items-center gap-2">
           {tier !== undefined && inst.slo !== undefined && (
-            <CcSloTierBadge
-              tier={tier}
-              severity={sloInstanceSeverity(inst.slo, alert)}
-            />
+            <CcSloTierBadge tier={tier} severity={sloInstanceSeverity(alert)} />
           )}
           {/* A scalar SLO instance's only label is the tier, already shown as
               the badge — don't append a "no labels" placeholder after it. */}
@@ -680,7 +677,7 @@ function CcTriagePage() {
         const sloId = list[0].alert.slo;
         const severity = slo
           ? list.reduce((top: string, inst) => {
-              const s = sloInstanceSeverity(slo, inst.alert);
+              const s = sloInstanceSeverity(inst.alert);
               return (SEVERITY_RANK[s] ?? 3) < (SEVERITY_RANK[top] ?? 3)
                 ? s
                 : top;

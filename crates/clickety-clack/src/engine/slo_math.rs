@@ -42,15 +42,11 @@ pub struct WindowReq {
     pub secs: u64,
 }
 
-fn tiers_of(spec: &SloSpec) -> Vec<BurnRateTier> {
-    spec.tiers.clone().unwrap_or_else(canonical_tiers)
-}
-
 /// The deduplicated set of windows the evaluator must query: every tier's long
 /// and short window, plus the SLO's own timeWindow (the budget window).
 pub fn required_windows(spec: &SloSpec) -> Vec<WindowReq> {
     let mut secs: std::collections::BTreeSet<u64> = std::collections::BTreeSet::new();
-    for t in tiers_of(spec) {
+    for t in canonical_tiers() {
         if let Ok(s) = parse_window_secs(&t.long_window) {
             secs.insert(s);
         }
@@ -113,6 +109,12 @@ pub struct SloStatusPayload {
     pub groups: Vec<SloGroupStatus>,
     /// WindowReq.name -> unix seconds last computed (coordinated freshness ledger).
     pub window_computed_at: BTreeMap<String, i64>,
+    /// Objective this snapshot was computed for (`domain::slo::objective_fingerprint`);
+    /// carried forward only while it matches the SLO's current objective. Additive
+    /// (`#[serde(default)]`), so pre-existing snapshots read `None` and are treated
+    /// as a mismatch.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub objective_fingerprint: Option<String>,
 }
 
 pub fn empty_payload(spec: &SloSpec) -> SloStatusPayload {
@@ -121,6 +123,7 @@ pub fn empty_payload(spec: &SloSpec) -> SloStatusPayload {
         target_percent: spec.target_percent,
         groups: Vec::new(),
         window_computed_at: BTreeMap::new(),
+        objective_fingerprint: None,
     }
 }
 
@@ -181,7 +184,7 @@ mod tests {
     use proptest::prelude::*;
     use std::collections::BTreeMap;
 
-    fn spec_with(tiers: Option<Vec<BurnRateTier>>, window: &str) -> SloSpec {
+    fn spec_with(window: &str) -> SloSpec {
         SloSpec {
             sli: SliSpec {
                 sql: "x".into(),
@@ -194,7 +197,6 @@ mod tests {
                 calendar: None,
             },
             min_valid_events: None,
-            tiers,
             annotations: BTreeMap::new(),
             suppressed: false,
         }
@@ -236,7 +238,7 @@ mod tests {
 
     #[test]
     fn required_windows_dedup_union_of_tiers_and_budget() {
-        let w = required_windows(&spec_with(None, "30d")); // canonical tiers
+        let w = required_windows(&spec_with("30d")); // canonical tiers
         let secs: std::collections::BTreeSet<u64> = w.iter().map(|r| r.secs).collect();
         // canonical: 5m,1h,30m,6h,6h,3d + budget 30d -> {300,1800,3600,21600,259200,2592000}
         for s in [300u64, 1800, 3600, 21600, 259200, 2_592_000] {
@@ -261,7 +263,7 @@ mod tests {
 
     #[test]
     fn empty_payload_carries_spec_metadata() {
-        let p = empty_payload(&spec_with(None, "30d"));
+        let p = empty_payload(&spec_with("30d"));
         assert_eq!(p.window, "30d");
         assert_eq!(p.target_percent, 99.9);
         assert!(p.groups.is_empty());
@@ -285,10 +287,33 @@ mod tests {
                 }],
             }],
             window_computed_at: std::collections::BTreeMap::from([("300s".into(), 1234i64)]),
+            objective_fingerprint: Some("abc123".into()),
         };
         let v = serde_json::to_value(&p).unwrap();
         let back: SloStatusPayload = serde_json::from_value(v).unwrap();
         assert_eq!(back, p);
+    }
+
+    #[test]
+    fn old_payload_without_objective_fingerprint_parses_as_none() {
+        // Snapshots written before the field carry no `objective_fingerprint`. It
+        // is additive (#[serde(default)]), so those rows still parse — and read as
+        // `None`, which the evaluator treats as a mismatch (a one-time clean
+        // recompute on the first tick after deploy).
+        let p = SloStatusPayload {
+            window: "30d".into(),
+            target_percent: 99.9,
+            groups: vec![],
+            window_computed_at: std::collections::BTreeMap::from([("300s".into(), 1234i64)]),
+            objective_fingerprint: Some("abc123".into()),
+        };
+        let mut v = serde_json::to_value(&p).unwrap();
+        v.as_object_mut()
+            .unwrap()
+            .remove("objective_fingerprint")
+            .unwrap();
+        let back: SloStatusPayload = serde_json::from_value(v).unwrap();
+        assert_eq!(back.objective_fingerprint, None);
     }
 
     #[test]
@@ -301,6 +326,7 @@ mod tests {
             target_percent: 99.9,
             groups: vec![],
             window_computed_at: std::collections::BTreeMap::from([("300s".into(), 1234i64)]),
+            objective_fingerprint: None,
         };
         let mut v = serde_json::to_value(&p).unwrap();
         v.as_object_mut()
@@ -377,7 +403,7 @@ mod tests {
 
         #[test]
         fn required_windows_secs_all_parse_and_positive(dur in prop::sample::select(vec!["7d","30d","90d"])) {
-            let w = required_windows(&spec_with(None, dur));
+            let w = required_windows(&spec_with(dur));
             for r in &w { prop_assert!(r.secs > 0); }
             prop_assert!(w.iter().any(|r| r.secs == parse_window_secs(dur).unwrap()));
         }

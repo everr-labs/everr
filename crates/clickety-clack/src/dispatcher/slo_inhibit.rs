@@ -6,7 +6,7 @@
 
 use crate::domain::inhibition::InhibitionRule;
 use crate::domain::routing::{MatchOp, Matcher};
-use crate::domain::slo::{SLO_LABEL, SLO_TIER_LABEL};
+use crate::domain::slo::{canonical_tiers, SLO_LABEL, SLO_TIER_LABEL};
 use crate::engine::slo_math::tier_pairs;
 use crate::stores::SloDispatchInfo;
 use time::OffsetDateTime;
@@ -17,14 +17,15 @@ use uuid::Uuid;
 /// same (slo, group). Synthesized on every snapshot load — never stored, so
 /// lifecycle is automatic and users cannot break the no-triple-page guarantee.
 ///
-/// Takes the lean [`SloDispatchInfo`] projection (id/tenant/label_columns/tiers) rather
-/// than the full `Slo` — `tiers` is already resolved (`spec.tiers`, or
-/// `canonical_tiers()` when unset) by [`crate::stores::PgStore::list_slos_for_dispatch`],
-/// so this function no longer needs to know about that fallback.
+/// Takes the lean [`SloDispatchInfo`] projection (id/tenant/label_columns) rather
+/// than the full `Slo`; the tier pairs come from `canonical_tiers()`, the same set
+/// every SLO is evaluated on.
 pub(crate) fn synthesize_slo_inhibitions(slos: &[SloDispatchInfo]) -> Vec<InhibitionRule> {
+    // Every SLO evaluates the same canonical tiers, so the (higher, lower) pairs
+    // are identical across SLOs — compute them once.
+    let tiers = canonical_tiers();
     let mut out = Vec::new();
     for slo in slos {
-        let tiers = &slo.tiers;
         let slo_str = slo.id.0.to_string();
 
         let mut equal: Vec<String> = std::iter::once(SLO_LABEL.to_string())
@@ -33,7 +34,7 @@ pub(crate) fn synthesize_slo_inhibitions(slos: &[SloDispatchInfo]) -> Vec<Inhibi
         equal.sort();
         equal.dedup();
 
-        for (i, j) in tier_pairs(tiers) {
+        for (i, j) in tier_pairs(&tiers) {
             out.push(InhibitionRule {
                 // Inert sentinel: `is_inhibited` (src/dispatcher/inhibition.rs) never reads
                 // `id` or `created_at` — matching is entirely source/target matchers + `equal`
@@ -88,7 +89,6 @@ pub(crate) fn synthesize_slo_inhibitions(slos: &[SloDispatchInfo]) -> Vec<Inhibi
 mod tests {
     use super::*;
     use crate::domain::ids::{SloId, TenantId};
-    use crate::domain::slo::canonical_tiers;
     use std::collections::BTreeMap;
 
     fn slo_with(label_columns: Vec<String>) -> SloDispatchInfo {
@@ -96,7 +96,6 @@ mod tests {
             id: SloId(Uuid::new_v4()),
             tenant: TenantId::from_trusted(Uuid::new_v4().to_string()),
             label_columns,
-            tiers: canonical_tiers(),
         }
     }
 

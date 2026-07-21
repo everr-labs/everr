@@ -239,10 +239,8 @@ export const CcSloSpecSchema = z.object({
       .object({ startTime: z.string(), timeZone: z.string() })
       .optional(),
   }),
-  // Serde skips both when None, so they arrive absent rather than null.
+  // Serde skips when None, so it arrives absent rather than null.
   min_valid_events: z.number().int().optional(),
-  // None = the engine's canonical three tiers (see data/cc/slo.ts).
-  tiers: z.array(CcSloTierSchema).optional(),
   annotations: z.record(z.string(), z.string()).default({}),
   // Preview mode: evaluated fully, never notified on.
   suppressed: z.boolean().default(false),

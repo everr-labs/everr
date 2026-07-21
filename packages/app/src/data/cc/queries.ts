@@ -18,6 +18,7 @@ import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import {
   getCcRule,
   getCcSlo,
+  getCcSloBudgetNow,
   getCcSloBudgetSeries,
   getCcSloStatus,
   listCcAlerts,
@@ -124,6 +125,20 @@ export const ccQueries = {
     queryOptions({
       queryKey: ["cc", "slo-budget-series", sloId, { timeRange }] as const,
       queryFn: () => getCcSloBudgetSeries({ data: { sloId, timeRange } }),
+    }),
+
+  // One SLO's CURRENT error budget per group, computed at read time (a single
+  // trailing-window SLI scan) so the hero and each listing row show budget as of
+  // page view rather than the engine's throttled last evaluation. Keyed per SLO
+  // so list -> detail navigation reuses the cache; the paginated listing only
+  // subscribes for its visible rows. Expensive (a ClickHouse scan), and the
+  // budget moves slowly, so it does NOT poll and stays fresh for a few minutes —
+  // the snapshot query keeps burn/firing live in the meantime.
+  sloBudgetNow: (sloId: string) =>
+    queryOptions({
+      queryKey: ["cc", "slo-budget-now", sloId] as const,
+      queryFn: () => getCcSloBudgetNow({ data: { sloId } }),
+      staleTime: 5 * 60_000,
     }),
 
   routes: () =>

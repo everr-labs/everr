@@ -77,7 +77,6 @@ fn spec() -> SloSpec {
             calendar: None,
         },
         min_valid_events: None,
-        tiers: None,
         annotations: BTreeMap::new(),
         suppressed: false,
     }
@@ -220,6 +219,11 @@ async fn fresh_windows_are_not_requeried() {
             ("259200s".into(), seed_ts.unix_timestamp()),
             ("2592000s".into(), seed_ts.unix_timestamp()),
         ]),
+        // Stamp the CURRENT objective so the evaluator treats this seeded snapshot
+        // as its own and carries it forward — the point of this freshness test. A
+        // missing/mismatched fingerprint would make it discard the snapshot and
+        // recompute every window, defeating the "only 300s/1800s are due" setup.
+        objective_fingerprint: Some(cc::domain::slo::objective_fingerprint(&spec())),
     };
     store
         .upsert_slo_status(

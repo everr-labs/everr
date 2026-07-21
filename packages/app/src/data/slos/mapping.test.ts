@@ -34,22 +34,6 @@ const FULL = {
     targetPercent: 99.5,
     timeWindow: "30d",
     minValidEvents: 1000,
-    tiers: [
-      {
-        name: "fast-burn",
-        longWindow: "1h",
-        shortWindow: "5m",
-        burnRate: 14.4,
-        severity: "critical" as const,
-      },
-      {
-        name: "ticket",
-        longWindow: "3d",
-        shortWindow: "6h",
-        burnRate: 1.0,
-        severity: "warning" as const,
-      },
-    ],
     annotations: { runbook: "https://example.com/rb" },
   },
 };
@@ -61,22 +45,7 @@ describe("toSloSpec", () => {
     expect(spec.targetPercent).toBe(99.5);
     expect(spec.timeWindow).toEqual({ duration: "30d", isRolling: true });
     expect(spec.min_valid_events).toBe(1000);
-    expect(spec.tiers).toEqual([
-      {
-        name: "fast-burn",
-        long_window: "1h",
-        short_window: "5m",
-        burn_rate: 14.4,
-        severity: "critical",
-      },
-      {
-        name: "ticket",
-        long_window: "3d",
-        short_window: "6h",
-        burn_rate: 1.0,
-        severity: "warning",
-      },
-    ]);
+    expect(spec).not.toHaveProperty("tiers");
     expect(spec.suppressed).toBe(false);
     expect(spec.annotations).toEqual({
       runbook: "https://example.com/rb",

@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   getCcSlo: vi.fn(),
   getCcSloStatus: vi.fn(),
   getCcSloBudgetSeries: vi.fn(),
+  getCcSloBudgetNow: vi.fn(),
   pauseCcSlo: vi.fn(),
   resumeCcSlo: vi.fn(),
   toastSuccess: vi.fn(),
@@ -32,6 +33,7 @@ vi.mock("@/data/cc/server", () => ({
   getCcSlo: mocks.getCcSlo,
   getCcSloStatus: mocks.getCcSloStatus,
   getCcSloBudgetSeries: mocks.getCcSloBudgetSeries,
+  getCcSloBudgetNow: mocks.getCcSloBudgetNow,
   pauseCcSlo: mocks.pauseCcSlo,
   resumeCcSlo: mocks.resumeCcSlo,
 }));
@@ -170,6 +172,7 @@ beforeEach(() => {
   mocks.getCcSlo.mockResolvedValue(ccSlo());
   mocks.getCcSloStatus.mockResolvedValue(sloStatus());
   mocks.getCcSloBudgetSeries.mockResolvedValue([]);
+  mocks.getCcSloBudgetNow.mockResolvedValue([]);
   mocks.pauseCcSlo.mockResolvedValue(ccSlo({ paused: true }));
   mocks.resumeCcSlo.mockResolvedValue(ccSlo());
 });
@@ -183,11 +186,9 @@ describe("/alerts/slos/$sloId route", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("99.9% over 30d rolling")).toBeInTheDocument();
 
-    // The objective reads as a sentence before any numbers.
+    // The hero leads with a plain-language verdict, before any number.
     expect(
-      await screen.findByText(
-        /Promises 99\.9% of valid events are good over a 30d rolling window, tracked per service\./,
-      ),
+      await screen.findByText(/Burning fast\. A critical alert is firing/),
     ).toBeInTheDocument();
 
     // The hero state pill: fast-burn is firing (critical), so the SLO is Firing.
@@ -204,18 +205,24 @@ describe("/alerts/slos/$sloId route", () => {
     // The short-window burn is now surfaced on the fast-burn gauge (not buried
     // in a tooltip).
     expect(screen.getByText(/short window 0\.9×/)).toBeInTheDocument();
-    // fast-burn appears in the pressure gauge and the objective's tier table.
-    expect(screen.getAllByText("fast-burn").length).toBeGreaterThanOrEqual(2);
+    // fast-burn is named once, in the hero's "what would page you" gauge; the
+    // Objective's static tiers table is collapsed behind a disclosure by default.
+    expect(screen.getAllByText("fast-burn")).toHaveLength(1);
 
-    // Freshness line off computed_at.
-    expect(screen.getByText(/Snapshot computed/)).toBeInTheDocument();
+    // The read-time scan is empty here (no traffic in the trailing window), so the
+    // stored snapshot stands and the freshness line reads "computing", not fresh.
+    expect(screen.getByText(/Error budget computing/)).toBeInTheDocument();
 
-    // Objective card: canonical tiers table (spec has none of its own).
+    // Objective card: the tiers are foregrounded by outcome behind a collapsed
+    // "When it alerts" disclosure (page vs ticket), not a raw tiers table.
+    expect(screen.getByText("When it alerts")).toBeInTheDocument();
     expect(
-      screen.getByText(/Burn-rate tiers \(canonical\)/),
+      screen.getByText(
+        /pages on fast or sustained burn, tickets on a slow leak/,
+      ),
     ).toBeInTheDocument();
-    // slow-burn / ticket now appear in both the pressure gauges and the
-    // objective tier table.
+    // slow-burn / ticket are named in the pressure gauges (the objective
+    // outcome list that also names them is collapsed by default).
     expect(screen.getAllByText("slow-burn").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("ticket").length).toBeGreaterThanOrEqual(1);
 
@@ -228,6 +235,27 @@ describe("/alerts/slos/$sloId route", () => {
       scopeSlug: string[];
     };
     expect(props.scopeSlug).toContain(SLO_ID);
+  });
+
+  it("overrides the snapshot's budget with the read-time value on the hero", async () => {
+    // The stored snapshot is throttled (budget 42%); the read-time scan returns
+    // a thinner current budget for the same group. The hero must show the fresh
+    // number and re-derive time-to-exhaustion from it, not the stale snapshot.
+    mocks.getCcSloBudgetNow.mockResolvedValue([
+      { labels: { service: "checkout" }, sli: 0.998, budgetRemaining: 0.1 },
+    ]);
+    renderSloDetailRoute();
+
+    // Fresh budget (10%), not the snapshot's 42%.
+    expect(await screen.findByText("10.00%")).toBeInTheDocument();
+    expect(screen.queryByText("42.00%")).not.toBeInTheDocument();
+    // TTE re-derived: floor(2592000s * 0.10 / 1.4 burn) = 185142s -> 2d 3h.
+    expect(screen.getByText("2d 3h")).toBeInTheDocument();
+    expect(screen.queryByText("3d 4h")).not.toBeInTheDocument();
+    // A non-empty scan landed, so the freshness line reads "computed just now".
+    expect(
+      screen.getByText(/Error budget computed just now/),
+    ).toBeInTheDocument();
   });
 
   it("charts the error budget over time, scoped to the SLO's budget window", async () => {
@@ -284,12 +312,12 @@ describe("/alerts/slos/$sloId route", () => {
 
     renderSloDetailRoute();
 
-    // Scalar summary: no "tracked per" clause.
+    // The hero leads with the verdict; a calm scalar SLO reads "on track".
     expect(
-      await screen.findByText(
-        /Promises 99\.9% of valid events are good over a 30d rolling window\./,
-      ),
+      await screen.findByText(/On track\. Nothing is spending error budget/),
     ).toBeInTheDocument();
+    // Scalar: the objective states there are no grouping columns.
+    expect(screen.getByText(/\(scalar SLI\)/)).toBeInTheDocument();
     // Budget and SLI both read 100% for a perfectly healthy scalar SLO.
     expect(screen.getAllByText("100.00%").length).toBeGreaterThanOrEqual(1);
     // No multi-group breakdown for a single group.

@@ -20,6 +20,7 @@ import { Route as SlosFileRoute } from "./slos";
 const mocks = vi.hoisted(() => ({
   listCcSlos: vi.fn(),
   getCcSloStatus: vi.fn(),
+  getCcSloBudgetNow: vi.fn(),
   pauseCcSlo: vi.fn(),
   resumeCcSlo: vi.fn(),
   toastSuccess: vi.fn(),
@@ -29,6 +30,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/data/cc/server", () => ({
   listCcSlos: mocks.listCcSlos,
   getCcSloStatus: mocks.getCcSloStatus,
+  getCcSloBudgetNow: mocks.getCcSloBudgetNow,
   pauseCcSlo: mocks.pauseCcSlo,
   resumeCcSlo: mocks.resumeCcSlo,
 }));
@@ -145,6 +147,8 @@ beforeEach(() => {
       ],
     },
   });
+  // No read-time budget by default: the row falls back to the snapshot.
+  mocks.getCcSloBudgetNow.mockResolvedValue([]);
   mocks.pauseCcSlo.mockResolvedValue(ccSlo({ paused: true }));
   mocks.resumeCcSlo.mockResolvedValue(ccSlo());
 });
@@ -163,12 +167,12 @@ describe("/alerts/slos route", () => {
       within(table).getByText(/99\.9% over 30d rolling/),
     ).toBeInTheDocument();
     expect(within(table).getByText("service")).toBeInTheDocument();
-    // The evaluator snapshot renders as budget meter, burn headline (the
-    // shortest-long-window canonical tier: fast-burn over 1h), and time to
-    // exhaustion.
+    // The evaluator snapshot renders as budget meter, a plain-language burn pace
+    // (0.5× is under the sustainable line -> "Sustainable") with the multiplier
+    // as support, and time to exhaustion.
     expect(await within(table).findByText("50.00%")).toBeInTheDocument();
+    expect(within(table).getByText("Sustainable")).toBeInTheDocument();
     expect(within(table).getAllByText(/0\.5×/).length).toBeGreaterThan(0);
-    expect(within(table).getAllByText(/\/ 1h/).length).toBeGreaterThan(0);
     expect(within(table).getByText("1d")).toBeInTheDocument();
     expect(within(table).getByText("active")).toBeInTheDocument();
   });
@@ -225,5 +229,154 @@ describe("/alerts/slos route", () => {
     renderSlosRoute();
 
     expect(await screen.findByRole("alert")).toHaveTextContent("cc down");
+  });
+
+  it("overrides a row's budget with the read-time value as of page view", async () => {
+    mocks.getCcSloBudgetNow.mockResolvedValue([
+      { labels: { service: "checkout" }, sli: 0.99, budgetRemaining: 0.1 },
+    ]);
+    renderSlosRoute();
+
+    const table = await screen.findByRole("table");
+    // The fresh 10%, not the snapshot's 50%.
+    expect(await within(table).findByText("10.00%")).toBeInTheDocument();
+    expect(within(table).queryByText("50.00%")).not.toBeInTheDocument();
+  });
+
+  it("folds firing tiers into the Burn column and summarizes multi-group risk", async () => {
+    mocks.getCcSloStatus.mockResolvedValue({
+      computed_at: new Date().toISOString(),
+      health: { status: "healthy", degraded_since: null, last_error: null },
+      payload: {
+        window: "30d",
+        target_percent: 99.9,
+        window_computed_at: {},
+        groups: [
+          {
+            labels: { service: "checkout" },
+            sli: 0.9,
+            budget_remaining: 0.02, // worst, and firing
+            tiers: [
+              {
+                name: "fast-burn",
+                long_burn_rate: 20,
+                short_burn_rate: 18,
+                long_window_valid: 1,
+              },
+            ],
+            time_to_exhaustion_secs: 3600,
+            firing_tiers: [{ tier: "fast-burn", status: "firing" }],
+          },
+          {
+            labels: { service: "cart" },
+            sli: 0.95,
+            budget_remaining: 0.1, // at risk (<25%)
+            tiers: [],
+            time_to_exhaustion_secs: null,
+            firing_tiers: [],
+          },
+          {
+            labels: { service: "search" },
+            sli: 0.999,
+            budget_remaining: 0.9, // healthy
+            tiers: [],
+            time_to_exhaustion_secs: null,
+            firing_tiers: [],
+          },
+        ],
+      },
+    });
+
+    renderSlosRoute();
+    const table = await screen.findByRole("table");
+
+    // No standalone Firing column; the pace word carries severity and the tier
+    // badge is folded in beside it.
+    expect(
+      within(table).queryByRole("columnheader", { name: "Firing" }),
+    ).not.toBeInTheDocument();
+    expect(await within(table).findByText("Burning fast")).toBeInTheDocument();
+    expect(within(table).getByText("fast-burn")).toBeInTheDocument();
+
+    // The worst group is the 2% one; the row also flags the rest of the fleet.
+    expect(within(table).getByText("2.00%")).toBeInTheDocument();
+    expect(within(table).getByText(/worst of 3 groups/)).toBeInTheDocument();
+    expect(within(table).getByText(/1 firing/)).toBeInTheDocument();
+    expect(within(table).getByText(/1 at risk/)).toBeInTheDocument();
+  });
+
+  it("orders by name, independent of status: a firing SLO does not jump the list", async () => {
+    mocks.listCcSlos.mockResolvedValue([
+      ccSlo({ id: "z", name: "z-svc" }),
+      ccSlo({ id: "a", name: "a-svc" }),
+    ]);
+    const status = (firing: boolean) => ({
+      computed_at: new Date().toISOString(),
+      health: { status: "healthy", degraded_since: null, last_error: null },
+      payload: {
+        window: "30d",
+        target_percent: 99.9,
+        window_computed_at: {},
+        groups: [
+          {
+            labels: { service: "checkout" },
+            sli: 0.99,
+            budget_remaining: firing ? 0.05 : 0.9,
+            tiers: [
+              {
+                name: "fast-burn",
+                long_burn_rate: 0.5,
+                short_burn_rate: 0.4,
+                long_window_valid: 1,
+              },
+            ],
+            time_to_exhaustion_secs: 86_400,
+            firing_tiers: firing
+              ? [{ tier: "fast-burn", status: "firing" }]
+              : [],
+          },
+        ],
+      },
+    });
+    // z-svc is firing and nearly out of budget; a-svc is healthy. Name order
+    // still wins: a-svc leads, z-svc stays last.
+    mocks.getCcSloStatus.mockImplementation(({ data: { sloId } }) =>
+      Promise.resolve(status(sloId === "z")),
+    );
+
+    renderSlosRoute();
+
+    await screen.findByRole("link", { name: "a-svc" });
+    const names = screen
+      .getAllByRole("link")
+      .map((a) => a.textContent)
+      .filter((n) => n?.endsWith("svc"));
+    expect(names).toEqual(["a-svc", "z-svc"]);
+  });
+
+  it("paginates when there are more SLOs than fit on a page", async () => {
+    const many = Array.from({ length: 12 }, (_, i) => {
+      const n = i.toString().padStart(2, "0");
+      return ccSlo({ id: `slo-${n}`, name: `svc-${n}` });
+    });
+    mocks.listCcSlos.mockResolvedValue(many);
+    const user = userEvent.setup();
+    renderSlosRoute();
+
+    // First page: 10 of 12, with a range indicator.
+    expect(await screen.findByText(/1-10 of 12/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "svc-00" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "svc-10" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Next/ }));
+
+    // Second page: the remaining 2.
+    expect(await screen.findByText(/11-12 of 12/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "svc-10" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "svc-00" }),
+    ).not.toBeInTheDocument();
   });
 });

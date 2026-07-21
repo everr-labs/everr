@@ -7,21 +7,30 @@
 // per tier showing how close each is to firing. The plain-language objective
 // leads, so the page reads as a sentence before it reads as numbers.
 import { Card, CardContent } from "@everr/ui/components/card";
+import {
+  Collapsible,
+  CollapsibleContent,
+} from "@everr/ui/components/collapsible";
 import { cn } from "@everr/ui/lib/utils";
+import { useState } from "react";
 import {
   ccBudgetTone,
   ccFmtBurn,
   ccFmtFraction,
 } from "@/components/cc/budget-bar";
-import { CcSloTierBadge, CcStatusDot } from "@/components/cc/shared";
 import {
+  CcDisclosureTrigger,
+  CcSloTierBadge,
+  CcStatusDot,
+} from "@/components/cc/shared";
+import {
+  CC_CANONICAL_SLO_TIERS,
   type CcSloState,
   ccFormatSloDuration,
   ccSloCurrentBurn,
   ccSloDescription,
   ccSloGroupState,
-  ccSloSummarySentence,
-  ccSloTiers,
+  ccSloVerdict,
 } from "@/data/cc/slo";
 import type { CcSlo, CcSloGroupStatus, CcSloTier } from "@/data/cc/types";
 
@@ -176,7 +185,7 @@ export function SloStatusHero({
   worst: CcSloGroupStatus | null;
   groupCount: number;
 }) {
-  const tiers = ccSloTiers(slo.spec);
+  const tiers = CC_CANONICAL_SLO_TIERS;
   const state = ccSloGroupState(tiers, worst);
   const readout = STATE_READOUT[state];
   const description = ccSloDescription(slo.spec);
@@ -184,19 +193,26 @@ export function SloStatusHero({
   const fill = budgetFill(budget);
   const burn = worst ? ccSloCurrentBurn(tiers, worst.tiers) : null;
   const tte = worst?.time_to_exhaustion_secs ?? null;
+  const firingTiers = worst?.firing_tiers ?? [];
+  // The tier meters are detail: fold them away when nothing is near firing, open
+  // by default when a tier actually is, so an active incident shows its pressure.
+  const [tiersOpen, setTiersOpen] = useState(firingTiers.length > 0);
 
   return (
     <Card>
       <CardContent className="space-y-4">
-        {/* Objective as a sentence: the author's prose if any, then the derived
-            promise, before any numbers. */}
+        {/* The answer first, in plain words: how this promise is doing right now.
+            The promise itself and the concept glossary live elsewhere (header +
+            objective + the "New to SLOs?" primer), so the hero stays terse. */}
         <div className="space-y-1">
-          {description && (
-            <p className="max-w-prose text-sm text-foreground">{description}</p>
-          )}
-          <p className="max-w-prose text-xs text-muted-foreground">
-            {ccSloSummarySentence(slo.spec)}
+          <p className="max-w-prose text-sm font-medium text-foreground">
+            {ccSloVerdict(state, { burn, tteSecs: tte })}
           </p>
+          {description && (
+            <p className="max-w-prose text-xs text-muted-foreground">
+              {description}
+            </p>
+          )}
         </div>
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -298,24 +314,41 @@ export function SloStatusHero({
           </div>
         </div>
 
-        {/* Burn pressure per tier: how close each alerting tier is to firing. */}
+        {/* What would page you: a one-line verdict, with the per-tier pressure
+            meters on demand (open when something is firing). */}
         {worst && (
-          <div className="space-y-2 border-t border-border/60 pt-3">
-            <div className="flex items-center justify-between">
-              <span className="text-[0.625rem] font-medium tracking-wide text-muted-foreground uppercase">
-                Burn pressure
-              </span>
-            </div>
-            <div className="space-y-2.5">
-              {tiers.map((t) => (
-                <TierPressure
-                  key={t.name}
-                  tier={t}
-                  snap={worst.tiers.find((s) => s.name === t.name)}
-                  firing={worst.firing_tiers.some((f) => f.tier === t.name)}
-                />
-              ))}
-            </div>
+          <div className="border-t border-border/60 pt-3">
+            <Collapsible open={tiersOpen} onOpenChange={setTiersOpen}>
+              <CcDisclosureTrigger open={tiersOpen}>
+                <span
+                  className={cn(
+                    "text-xs font-medium",
+                    firingTiers.length > 0 ? readout.text : "text-foreground",
+                  )}
+                >
+                  {firingTiers.length > 0
+                    ? `${firingTiers.map((f) => f.tier).join(", ")} firing`
+                    : "No alert tier near firing"}
+                </span>
+                {!tiersOpen && (
+                  <span className="text-[0.6875rem] text-muted-foreground">
+                    burn-rate pressure
+                  </span>
+                )}
+              </CcDisclosureTrigger>
+              <CollapsibleContent>
+                <div className="mt-2 space-y-2.5">
+                  {tiers.map((t) => (
+                    <TierPressure
+                      key={t.name}
+                      tier={t}
+                      snap={worst.tiers.find((s) => s.name === t.name)}
+                      firing={firingTiers.some((f) => f.tier === t.name)}
+                    />
+                  ))}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
           </div>
         )}
       </CardContent>

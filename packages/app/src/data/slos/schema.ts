@@ -1,6 +1,5 @@
 import * as z from "zod";
 import { isEverrAnnotationKey } from "@/data/alerts/annotations";
-import { CcSeveritySchema } from "@/data/cc/schema";
 import { dashboardProjectSchema } from "@/data/dashboards/schema";
 
 const nonEmptyString = z.string().min(1);
@@ -93,38 +92,6 @@ const timeWindowSchema = z
       }),
   ])
   .transform((tw) => (typeof tw === "string" ? tw : tw.duration));
-
-// One multi-window burn-rate tier, mirroring CC's BurnRateTier validation
-// (api/slos.rs validate_slo_spec step 6) so malformed tiers fail at parse time.
-const sloTierSchema = z
-  .object({
-    name: z
-      .string()
-      .refine((name) => name.trim().length > 0, "tier name must not be empty"),
-    longWindow: windowDurationSchema,
-    shortWindow: windowDurationSchema,
-    burnRate: z.number().positive("burnRate must be > 0"),
-    severity: CcSeveritySchema,
-  })
-  .strict()
-  .superRefine((tier, ctx) => {
-    // Windows already validated above; a still-unparsable one is reported there.
-    let long: number;
-    let short: number;
-    try {
-      long = parseSloWindowSeconds(tier.longWindow);
-      short = parseSloWindowSeconds(tier.shortWindow);
-    } catch {
-      return;
-    }
-    if (long <= short) {
-      ctx.addIssue({
-        code: "custom",
-        message: `tier "${tier.name}" longWindow must be greater than shortWindow`,
-        path: ["longWindow"],
-      });
-    }
-  });
 
 // Label names the SLO pipeline itself injects (domain/slo.rs
 // RESERVED_SLO_LABELS): the synthetic `slo` routing label and the per-tier
@@ -219,8 +186,6 @@ export const SloYamlSchema = z
         timeWindow: timeWindowSchema,
         // Optional low-traffic floor on each tier's long window; omit = off.
         minValidEvents: z.number().int().nonnegative().optional(),
-        // Omit to evaluate the engine's canonical three burn-rate tiers.
-        tiers: z.array(sloTierSchema).min(1).optional(),
         // Pass-through annotations merged onto the CC SLO alongside the
         // generated ownership keys; `everr.`-prefixed keys are reserved for
         // those and rejected here so they can never be shadowed.

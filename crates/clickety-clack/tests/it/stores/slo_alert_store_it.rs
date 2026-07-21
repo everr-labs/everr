@@ -1,7 +1,7 @@
 use cc::domain::ids::{InstanceKey, RuleId, SloId, SourceId, TenantId};
 use cc::domain::instance::{InstanceState, Status};
 use cc::domain::rule::Severity;
-use cc::domain::slo::{canonical_tiers, BurnRateTier, SliSpec, SloSpec, TimeWindow};
+use cc::domain::slo::{SliSpec, SloSpec, TimeWindow};
 use cc::domain::{Event, EventKind, EventStatus};
 use cc::stores::{PgStore, SloCreate};
 use std::collections::BTreeMap;
@@ -17,7 +17,7 @@ fn spec() -> SloSpec {
         sli: SliSpec { sql: "SELECT 1 AS good, 1 AS valid FROM t WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}".into(), label_columns: vec![] },
         target_percent: 99.9,
         time_window: TimeWindow { duration: "30d".into(), is_rolling: true, calendar: None },
-        min_valid_events: None, tiers: None, annotations: BTreeMap::new(), suppressed: false,
+        min_valid_events: None, annotations: BTreeMap::new(), suppressed: false,
     }
 }
 
@@ -178,11 +178,11 @@ async fn stale_scan_excludes_paused_and_degraded() {
 }
 
 #[tokio::test]
-async fn list_for_dispatch_resolves_canonical_tiers_and_label_columns() {
+async fn list_for_dispatch_projects_label_columns() {
     let s = store().await;
     let t = tenant();
 
-    // Unset tiers -> canonical_tiers(); explicit label_columns returned verbatim.
+    // Explicit label_columns are returned verbatim.
     let mut spec_a = spec();
     spec_a.sli.label_columns = vec!["service".to_string()];
     let slo_a = match s.create_slo(t.clone(), "a", &spec_a).await.unwrap() {
@@ -190,16 +190,9 @@ async fn list_for_dispatch_resolves_canonical_tiers_and_label_columns() {
         other => panic!("expected Created, got {other:?}"),
     };
 
-    // Explicit tiers -> returned verbatim, not the canonical set.
-    let explicit_tiers = vec![BurnRateTier {
-        name: "custom".into(),
-        long_window: "2h".into(),
-        short_window: "10m".into(),
-        burn_rate: 5.0,
-        severity: Severity::Warning,
-    }];
+    // A scalar SLO (no label columns) comes back with an empty list.
     let mut spec_b = spec();
-    spec_b.tiers = Some(explicit_tiers.clone());
+    spec_b.sli.label_columns = vec![];
     let slo_b = match s.create_slo(t.clone(), "b", &spec_b).await.unwrap() {
         SloCreate::Created(slo) => slo.id,
         other => panic!("expected Created, got {other:?}"),
@@ -210,18 +203,9 @@ async fn list_for_dispatch_resolves_canonical_tiers_and_label_columns() {
 
     let got_a = dispatch.iter().find(|d| d.id == slo_a).unwrap();
     assert_eq!(got_a.label_columns, vec!["service".to_string()]);
-    assert_eq!(
-        got_a.tiers,
-        canonical_tiers(),
-        "None tiers resolve to canonical"
-    );
 
     let got_b = dispatch.iter().find(|d| d.id == slo_b).unwrap();
     assert!(got_b.label_columns.is_empty());
-    assert_eq!(
-        got_b.tiers, explicit_tiers,
-        "explicit tiers are returned verbatim"
-    );
 }
 
 #[tokio::test]

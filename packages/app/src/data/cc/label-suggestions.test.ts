@@ -75,7 +75,6 @@ function ccSloFixture(overrides: {
   id?: string;
   name?: string;
   label_columns?: string[];
-  tiers?: CcSlo["spec"]["tiers"];
 }): CcSlo {
   return {
     id: overrides.id ?? "55555555-5555-5555-5555-555555555555",
@@ -90,7 +89,6 @@ function ccSloFixture(overrides: {
       timeWindow: { duration: "30d", isRolling: true },
       annotations: {},
       suppressed: false,
-      ...(overrides.tiers !== undefined ? { tiers: overrides.tiers } : {}),
     },
     version: 1,
     paused: false,
@@ -219,37 +217,16 @@ describe("listCcLabelValues", () => {
     ]);
   });
 
-  it("answers slo_tier with tier names across SLOs: canonical when unset, explicit when set, deduped", async () => {
-    mocks.listSlos.mockResolvedValue([
-      ccSloFixture({}), // no explicit tiers -> the canonical trio
-      ccSloFixture({
-        id: "66666666-6666-6666-6666-666666666666",
-        name: "latency",
-        tiers: [
-          {
-            name: "fast-burn", // collides with a canonical name -> deduped
-            long_window: "1h",
-            short_window: "5m",
-            burn_rate: 10,
-            severity: "critical",
-          },
-          {
-            name: "page",
-            long_window: "6h",
-            short_window: "30m",
-            burn_rate: 3,
-            severity: "warning",
-          },
-        ],
-      }),
-    ]);
+  it("answers slo_tier with the fixed canonical tier names", async () => {
+    // Every SLO evaluates the same canonical tiers, so the suggestions are the
+    // three canonical names regardless of the tenant's SLO set.
+    mocks.listSlos.mockResolvedValue([ccSloFixture({})]);
 
     const values = await listCcLabelValues({ data: { key: "slo_tier" } });
     expect(values.map((v) => v.value)).toEqual([
       "fast-burn",
       "slow-burn",
       "ticket",
-      "page",
     ]);
   });
 

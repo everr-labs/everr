@@ -424,34 +424,6 @@ pub(crate) fn validate_slo_spec(spec: &SloSpec) -> Result<(), ApiError> {
         )));
     }
 
-    // 6. Explicit tiers, if given, must be well-formed.
-    if let Some(tiers) = &spec.tiers {
-        if tiers.is_empty() {
-            return Err(ApiError::Validation(
-                "tiers, if present, must be non-empty".into(),
-            ));
-        }
-        for t in tiers {
-            if t.name.trim().is_empty() {
-                return Err(ApiError::Validation("tier name must not be empty".into()));
-            }
-            if t.burn_rate.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
-                return Err(ApiError::Validation(format!(
-                    "tier {:?} burn_rate must be > 0",
-                    t.name
-                )));
-            }
-            let long = validate_window_secs(&t.long_window)?;
-            let short = validate_window_secs(&t.short_window)?;
-            if long <= short {
-                return Err(ApiError::Validation(format!(
-                    "tier {:?} long_window must be greater than short_window",
-                    t.name
-                )));
-            }
-        }
-    }
-
     Ok(())
 }
 
@@ -473,7 +445,7 @@ pub(crate) fn validate_name(name: &str) -> Result<(), ApiError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::slo::{canonical_tiers, SliSpec, TimeWindow};
+    use crate::domain::slo::{SliSpec, TimeWindow};
     use std::collections::BTreeMap;
 
     #[test]
@@ -517,7 +489,6 @@ mod tests {
                 calendar: None,
             },
             min_valid_events: None,
-            tiers: None,
             annotations: BTreeMap::new(),
             suppressed: false,
         }
@@ -603,22 +574,6 @@ mod tests {
     }
 
     #[test]
-    fn rejects_bad_tier_windows() {
-        let mut s = spec(GOOD_SQL);
-        let mut tiers = canonical_tiers();
-        tiers[0].long_window = "5m".into(); // long !> short (both 5m)
-        s.tiers = Some(tiers);
-        assert!(validate_slo_spec(&s).is_err());
-    }
-
-    #[test]
-    fn accepts_explicit_valid_tiers() {
-        let mut s = spec(GOOD_SQL);
-        s.tiers = Some(canonical_tiers());
-        assert!(validate_slo_spec(&s).is_ok());
-    }
-
-    #[test]
     fn accepts_window_at_the_366_day_cap() {
         let mut s = spec(GOOD_SQL);
         s.time_window.duration = "366d".into();
@@ -635,19 +590,6 @@ mod tests {
         };
         assert!(msg.contains("700000w"), "message was: {msg}");
         assert!(msg.contains("366"), "message was: {msg}");
-    }
-
-    #[test]
-    fn rejects_tier_window_over_the_cap() {
-        let mut s = spec(GOOD_SQL);
-        let mut tiers = canonical_tiers();
-        tiers[0].long_window = "700000w".into();
-        s.tiers = Some(tiers);
-        let err = validate_slo_spec(&s).unwrap_err();
-        let ApiError::Validation(msg) = err else {
-            panic!("expected Validation, got {err:?}")
-        };
-        assert!(msg.contains("700000w"), "message was: {msg}");
     }
 
     #[test]

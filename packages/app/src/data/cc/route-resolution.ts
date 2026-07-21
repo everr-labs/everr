@@ -1,7 +1,7 @@
 // packages/app/src/data/cc/route-resolution.ts
 // Pure, mirrors CC's matcher semantics. Used to show "where does this alert go"
 // and to drive the routing pipeline preview. First match by ascending priority.
-import { ccSloTierSeverity, ccSloTiers } from "./slo";
+import { CC_CANONICAL_SLO_TIERS, ccSloTierSeverity } from "./slo";
 import type { CcAlert, CcMatcher, CcRoute, CcRuleView, CcSlo } from "./types";
 
 const OP_SYMBOL: Record<CcMatcher["op"], string> = {
@@ -113,7 +113,7 @@ export function ccDispatchLabels(
   return ccSyntheticLabels(alert.labels, {
     severity:
       rule?.spec.severity ??
-      (slo ? ccSloTierSeverity(ccSloTiers(slo.spec), alert.labels) : "info"),
+      (slo ? ccSloTierSeverity(CC_CANONICAL_SLO_TIERS, alert.labels) : "info"),
     status: "firing",
     rule: alert.rule,
     ...(alert.slo !== undefined ? { slo: alert.slo } : {}),

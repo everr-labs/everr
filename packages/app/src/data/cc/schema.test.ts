@@ -395,10 +395,9 @@ it("parses an Slo as CC serializes it (OpenSLO field names, optional fields abse
   expect(slo.spec.targetPercent).toBe(99.9);
   expect(slo.spec.timeWindow.duration).toBe("30d");
   expect(slo.spec.min_valid_events).toBeUndefined();
-  expect(slo.spec.tiers).toBeUndefined();
 });
 
-it("parses an Slo with explicit tiers and min_valid_events", () => {
+it("parses an Slo with min_valid_events", () => {
   const slo = CcSloSchema.parse({
     id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
     tenant: "org1",
@@ -408,23 +407,12 @@ it("parses an Slo with explicit tiers and min_valid_events", () => {
       targetPercent: 99.5,
       timeWindow: { duration: "7d", isRolling: true },
       min_valid_events: 1000,
-      tiers: [
-        {
-          name: "fast-burn",
-          long_window: "1h",
-          short_window: "5m",
-          burn_rate: 14.4,
-          severity: "critical",
-        },
-      ],
       annotations: { "everr.name": "latency-slo" },
       suppressed: true,
     },
     version: 1,
     paused: true,
   });
-  expect(slo.spec.tiers).toHaveLength(1);
-  expect(slo.spec.tiers?.[0].severity).toBe("critical");
   expect(slo.spec.min_valid_events).toBe(1000);
   expect(slo.paused).toBe(true);
 });
@@ -444,10 +432,12 @@ it("SloView (list/get) requires updated_at; the bare Slo (mutations) has none", 
     version: 3,
     paused: false,
   };
-  // GET /v1/slos(/:id) serializes the SloView: bare Slo + rfc3339 updated_at.
+  // GET /v1/slos(/:id) serializes the SloView: bare Slo + rfc3339 updated_at
+  // and budget_epoch.
   const view = CcSloViewSchema.parse({
     ...bare,
     updated_at: "2026-07-01T12:00:00Z",
+    budget_epoch: "2026-07-01T12:00:00Z",
   });
   expect(view.updated_at).toBe("2026-07-01T12:00:00Z");
   // The column is NOT NULL and always serialized on the view, so parsing must

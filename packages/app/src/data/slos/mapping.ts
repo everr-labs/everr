@@ -53,17 +53,6 @@ export function toSloSpec(
     ...(slo.spec.minValidEvents !== undefined
       ? { min_valid_events: slo.spec.minValidEvents }
       : {}),
-    ...(slo.spec.tiers !== undefined
-      ? {
-          tiers: slo.spec.tiers.map((t) => ({
-            name: t.name,
-            long_window: t.longWindow,
-            short_window: t.shortWindow,
-            burn_rate: t.burnRate,
-            severity: t.severity,
-          })),
-        }
-      : {}),
     annotations,
     // Preview SLOs are a full dress rehearsal: evaluated, stateful, and
     // visible in history, but the dispatcher never notifies on them.
@@ -136,17 +125,6 @@ export function toSloDocument(spec: CcSloSpec): SloYaml {
       timeWindow: spec.timeWindow.duration,
       ...(spec.min_valid_events !== undefined
         ? { minValidEvents: spec.min_valid_events }
-        : {}),
-      ...(spec.tiers !== undefined
-        ? {
-            tiers: spec.tiers.map((t) => ({
-              name: t.name,
-              longWindow: t.long_window,
-              shortWindow: t.short_window,
-              burnRate: t.burn_rate,
-              severity: t.severity,
-            })),
-          }
         : {}),
       ...(Object.keys(passthrough).length > 0
         ? { annotations: passthrough }

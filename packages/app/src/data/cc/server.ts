@@ -16,8 +16,8 @@ import {
   CcRuleSpecSchema,
   CcSilenceInputSchema,
 } from "./schema";
-import { ccSloTiers, ccSloWindowSecs } from "./slo";
-import { querySloBudgetSeries } from "./slo-series.server";
+import { CC_CANONICAL_SLO_TIERS, ccSloWindowSecs } from "./slo";
+import { querySloBudgetNow, querySloBudgetSeries } from "./slo-series.server";
 import {
   CC_SLO_RESERVED_LABEL_KEYS,
   CC_SYNTHETIC_LABEL_KEYS,
@@ -128,9 +128,6 @@ export const listCcEventHistory = createAuthenticatedServerFn({ method: "GET" })
     },
   );
 
-// The SLO's error-budget-over-time series, from the raw (good, valid) sample
-// gauges the engine records into app.metrics_gauge. Tenancy rides on the
-// org-scoped clickhouse context (row-level policy), not on a SQL filter.
 // The SLO's error-budget-over-time series, computed at read time by replaying
 // the SLI over trailing windows against raw telemetry (slo-series.server.ts) —
 // no stored samples, so a fresh SLO charts history as far back as retention. We
@@ -151,10 +148,15 @@ export const getCcSloBudgetSeries = createAuthenticatedServerFn({
       data: { sloId, timeRange, points },
       context: { session, clickhouse },
     }) => {
-      const slo = await cc.getSlo(orgId(session), sloId);
+      const org = orgId(session);
+      const slo = await cc.getSlo(org, sloId);
       const windowSecs = ccSloWindowSecs(slo.spec);
       if (windowSecs === null) return [];
       const { fromISO, toISO } = resolveTimeRange(timeRange);
+
+      // The recent edge runs to the range end ("now"): the status hero computes
+      // its budget at read time too (getCcSloBudgetNow), so the chart and the
+      // hero agree without capping the chart at the engine's throttled last eval.
       return querySloBudgetSeries(clickhouse.query, {
         sliSql: slo.spec.sli.sql,
         targetPercent: slo.spec.targetPercent,
@@ -165,6 +167,28 @@ export const getCcSloBudgetSeries = createAuthenticatedServerFn({
       });
     },
   );
+
+// One SLO's CURRENT error budget per group, computed at read time from a single
+// SLI scan over the trailing window ending now (querySloBudgetNow). The status
+// hero and each visible listing row use this to override the stored snapshot's
+// throttled budget with a value as of page view; it's keyed per SLO client-side
+// (ccQueries.sloBudgetNow) so list -> detail navigation reuses the cache. An SLO
+// whose window shorthand doesn't parse returns []. Tenancy rides on the
+// org-scoped clickhouse context (row-level policy), not a SQL filter.
+export const getCcSloBudgetNow = createAuthenticatedServerFn({ method: "GET" })
+  .inputValidator(z.object({ sloId: z.string().min(1) }))
+  .handler(async ({ data: { sloId }, context: { session, clickhouse } }) => {
+    const slo = await cc.getSlo(orgId(session), sloId);
+    const windowSecs = ccSloWindowSecs(slo.spec);
+    if (windowSecs === null) return [];
+    return querySloBudgetNow(clickhouse.query, {
+      sliSql: slo.spec.sli.sql,
+      labelColumns: slo.spec.sli.label_columns,
+      targetPercent: slo.spec.targetPercent,
+      windowSecs,
+      nowMs: Date.now(),
+    });
+  });
 
 // ---- Label suggestions ----
 // What the matcher/label comboboxes offer. Sources are merged best-effort
@@ -263,11 +287,9 @@ export const listCcLabelValues = createAuthenticatedServerFn({ method: "GET" })
           return slos.map((slo) => ({ value: slo.id, hint: slo.name }));
         }
         case "slo_tier": {
-          const slos = await cc.listSlos(orgId(session)).catch(() => []);
-          const names = new Set<string>();
-          for (const slo of slos)
-            for (const tier of ccSloTiers(slo.spec)) names.add(tier.name);
-          return [...names].map((value) => ({ value }));
+          // Every SLO evaluates the same fixed canonical tiers, so the tier
+          // names are constant (no need to walk the tenant's SLOs).
+          return CC_CANONICAL_SLO_TIERS.map((tier) => ({ value: tier.name }));
         }
         default: {
           const { fromISO, toISO } = resolveTimeRange(SUGGESTION_WINDOW);

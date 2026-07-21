@@ -34,7 +34,6 @@ fn spec() -> SloSpec {
             calendar: None,
         },
         min_valid_events: None,
-        tiers: None, // canonical: fast-burn, slow-burn, ticket
         annotations: BTreeMap::new(),
         suppressed: false,
     }

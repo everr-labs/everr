@@ -26,7 +26,6 @@ async fn tick_enqueues_due_slo_jobs() {
             calendar: None,
         },
         min_valid_events: None,
-        tiers: None,
         annotations: BTreeMap::new(),
         suppressed: false,
     };

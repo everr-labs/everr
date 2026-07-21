@@ -141,14 +141,13 @@ pub struct SloHealth {
 /// Lean per-SLO projection for dispatch-time inhibition synthesis (see
 /// `dispatcher::slo_inhibit`), returned by [`PgStore::list_slos_for_dispatch`]. Dispatch
 /// never needs the full [`crate::domain::slo::Slo`] (SQL text, target, window...) — just
-/// identity, the label columns that fan the tier group out, and the resolved tiers.
+/// identity and the label columns that fan the tier group out. Tiers are the
+/// canonical set for every SLO, so the consumer reads them from `canonical_tiers()`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SloDispatchInfo {
     pub id: crate::domain::ids::SloId,
     pub tenant: TenantId,
     pub label_columns: Vec<String>,
-    /// Resolved: `spec.tiers`, or `canonical_tiers()` when unset.
-    pub tiers: Vec<crate::domain::slo::BurnRateTier>,
 }
 
 fn status_str(s: Status) -> &'static str {
@@ -2378,12 +2377,13 @@ impl PgStore {
         expected_version: Option<i64>,
     ) -> Result<SloUpdate, StoreError> {
         let mut tx = self.pool.begin().await?;
-        let row =
-            sqlx::query("SELECT version, paused FROM slos WHERE id=$1 AND tenant=$2 FOR UPDATE")
-                .bind(id.0)
-                .bind(tenant.as_str())
-                .fetch_optional(&mut *tx)
-                .await?;
+        let row = sqlx::query(
+            "SELECT version, paused, spec FROM slos WHERE id=$1 AND tenant=$2 FOR UPDATE",
+        )
+        .bind(id.0)
+        .bind(tenant.as_str())
+        .fetch_optional(&mut *tx)
+        .await?;
         let Some(row) = row else {
             tx.rollback().await?;
             return Ok(SloUpdate::NotFound);
@@ -2396,27 +2396,42 @@ impl PgStore {
                 return Ok(SloUpdate::VersionConflict { current });
             }
         }
+        // Does this edit redefine the objective (sli / targetPercent / timeWindow)
+        // rather than just rename or re-annotate? Shared with the evaluator through
+        // `objective_fingerprint` so the two can't disagree. An unparseable stored
+        // spec (specs are validated on write) counts as changed — the safe default.
+        let objective_changed = match serde_json::from_value::<crate::domain::slo::SloSpec>(
+            row.get("spec"),
+        ) {
+            Ok(old) => {
+                crate::domain::slo::objective_fingerprint(&old)
+                    != crate::domain::slo::objective_fingerprint(spec)
+            }
+            Err(_) => true,
+        };
         let spec_json = serde_json::to_value(spec)?;
-        // `budget_epoch` advances only when a BUDGET-SIGNIFICANT field changes
-        // (sli / targetPercent / timeWindow) — those redefine what the error
-        // budget means, so its history before the edit is no longer comparable.
-        // A rename, tier change, or annotation edit leaves the epoch untouched.
-        // In an UPDATE's SET, `spec` on the right refers to the OLD row, so this
-        // compares the stored spec against the incoming one; JSONB equality is
-        // key-order-insensitive.
+        // A redefining edit invalidates the status snapshot (its numbers describe
+        // the old query) and resets `budget_epoch` (pre-edit history is no longer
+        // comparable). Clearing the snapshot in the spec-write transaction lets
+        // `apply` take effect on the next tick; the evaluator's fingerprint check is
+        // the backstop for every other path.
+        if objective_changed {
+            sqlx::query("DELETE FROM slo_status WHERE slo=$1 AND tenant=$2")
+                .bind(id.0)
+                .bind(tenant.as_str())
+                .execute(&mut *tx)
+                .await?;
+        }
         let res = sqlx::query(
             "UPDATE slos SET name=$3, spec=$4, version = version + 1, updated_at = now(),
-                 budget_epoch = CASE
-                     WHEN (spec->'sli') IS DISTINCT FROM ($4->'sli')
-                       OR (spec->'targetPercent') IS DISTINCT FROM ($4->'targetPercent')
-                       OR (spec->'timeWindow') IS DISTINCT FROM ($4->'timeWindow')
-                     THEN now() ELSE budget_epoch END
+                 budget_epoch = CASE WHEN $5 THEN now() ELSE budget_epoch END
              WHERE id=$1 AND tenant=$2",
         )
         .bind(id.0)
         .bind(tenant.as_str())
         .bind(name)
         .bind(&spec_json)
+        .bind(objective_changed)
         .execute(&mut *tx)
         .await;
         match res {
@@ -2534,20 +2549,16 @@ impl PgStore {
     }
 
     /// Lean projection of SLOs for dispatch-time inhibition synthesis (see
-    /// `dispatcher::slo_inhibit`): every snapshot refresh (`FilterCache::load`) used to
-    /// call [`Self::list_slos`] and decode the *full* spec (SQL text, target, window...)
-    /// just to read `label_columns` and `tiers`. This projects only those two JSONB
-    /// paths, and resolves `tiers` here (`spec.tiers`, or `canonical_tiers()` when unset)
-    /// so the dispatcher never needs to know about the "None = canonical" rule.
+    /// `dispatcher::slo_inhibit`), called on every snapshot refresh
+    /// (`FilterCache::load`). Projects only `label_columns` out of the spec rather
+    /// than decoding the full [`crate::domain::slo::Slo`] (SQL text, target, window...).
     pub async fn list_slos_for_dispatch(
         &self,
         tenant: &TenantId,
     ) -> Result<Vec<SloDispatchInfo>, StoreError> {
         use crate::domain::ids::SloId;
-        use crate::domain::slo::{canonical_tiers, BurnRateTier};
         let rows = sqlx::query(
-            "SELECT id, tenant, spec->'sli'->'label_columns' AS label_columns,
-                    spec->'tiers' AS tiers
+            "SELECT id, tenant, spec->'sli'->'label_columns' AS label_columns
              FROM slos WHERE tenant=$1",
         )
         .bind(tenant.as_str())
@@ -2555,22 +2566,16 @@ impl PgStore {
         .await?;
         let mut out = Vec::with_capacity(rows.len());
         for r in &rows {
-            // Both paths are SQL NULL when the JSON key is absent (spec predates the
-            // field, or was explicitly `null`) — treat missing and null identically.
+            // SQL NULL when the JSON key is absent — treat missing and null identically.
             let label_columns: Vec<String> =
                 match r.get::<Option<serde_json::Value>, _>("label_columns") {
                     Some(v) if !v.is_null() => serde_json::from_value(v)?,
                     _ => Vec::new(),
                 };
-            let tiers: Vec<BurnRateTier> = match r.get::<Option<serde_json::Value>, _>("tiers") {
-                Some(v) if !v.is_null() => serde_json::from_value(v)?,
-                _ => canonical_tiers(),
-            };
             out.push(SloDispatchInfo {
                 id: SloId(r.get("id")),
                 tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
                 label_columns,
-                tiers,
             });
         }
         Ok(out)
@@ -2891,33 +2896,24 @@ impl PgStore {
     }
 
     /// Firing SLO instances for a tenant, enriched with the instance's per-tier
-    /// severity (resolved from the projected `spec->'tiers'`, so a snapshot refresh
-    /// never decodes every full SLO spec — mirrors [`Self::list_slos_for_dispatch`]).
-    /// Mirrors [`Self::list_firing`]; used as an inhibition source-set once burn-rate
-    /// alerts join the union (Task 10).
+    /// severity (from the `slo_tier` label against the canonical tiers). Mirrors
+    /// [`Self::list_firing`]; used as an inhibition source-set once burn-rate alerts
+    /// join the union (Task 10).
     pub async fn list_firing_slos(
         &self,
         tenant: &TenantId,
     ) -> Result<Vec<FiringInstance>, StoreError> {
         let rows = sqlx::query(
-            "SELECT i.key AS key, i.slo AS slo, i.labels AS labels, s.spec->'tiers' AS tiers
-             FROM slo_instances i JOIN slos s ON s.id = i.slo
-             WHERE i.tenant=$1 AND i.status=$2",
+            "SELECT key, slo, labels FROM slo_instances WHERE tenant=$1 AND status=$2",
         )
         .bind(tenant.as_str())
         .bind(status_str(Status::Firing))
         .fetch_all(&self.pool)
         .await?;
+        let tiers = crate::domain::slo::canonical_tiers();
         let mut out = Vec::with_capacity(rows.len());
         for r in &rows {
             let labels: BTreeMap<String, String> = serde_json::from_value(r.get("labels"))?;
-            // SQL NULL when the spec has no `tiers` key (or an explicit `null`):
-            // resolve to the canonical set, same as `list_slos_for_dispatch`.
-            let tiers: Vec<crate::domain::slo::BurnRateTier> =
-                match r.get::<Option<serde_json::Value>, _>("tiers") {
-                    Some(v) if !v.is_null() => serde_json::from_value(v)?,
-                    _ => crate::domain::slo::canonical_tiers(),
-                };
             let severity = crate::domain::slo::tier_severity(&tiers, &labels);
             out.push(FiringInstance {
                 key: InstanceKey(r.get("key")),
@@ -2943,8 +2939,7 @@ impl PgStore {
         let rows = sqlx::query(
             "SELECT i.key AS key, i.slo AS slo, i.tenant AS tenant, i.status AS status,
                     i.labels AS labels, i.value AS value,
-                    s.spec->'tiers' AS tiers, s.spec->'annotations' AS annotations,
-                    s.spec->'suppressed' AS suppressed
+                    s.spec->'annotations' AS annotations, s.spec->'suppressed' AS suppressed
              FROM slo_instances i JOIN slos s ON s.id = i.slo
              WHERE i.status IN ('pending','firing')
                AND NOT s.paused
@@ -2965,17 +2960,13 @@ impl PgStore {
         .bind(limit)
         .fetch_all(&self.pool)
         .await?;
+        // Projects only the spec fields it needs (annotations/suppressed), not the
+        // full JSONB blob. Severity comes from the `slo_tier` label against the
+        // canonical tiers.
+        let tiers = crate::domain::slo::canonical_tiers();
         let mut out = Vec::with_capacity(rows.len());
         for r in &rows {
             let labels: BTreeMap<String, String> = serde_json::from_value(r.get("labels"))?;
-            // Projected spec fields (tiers/annotations/suppressed), not the full
-            // JSONB blob. SQL NULL tiers (no `tiers` key, or explicit `null`)
-            // resolve to the canonical set, same as `list_firing_slos`.
-            let tiers: Vec<crate::domain::slo::BurnRateTier> =
-                match r.get::<Option<serde_json::Value>, _>("tiers") {
-                    Some(v) if !v.is_null() => serde_json::from_value(v)?,
-                    _ => crate::domain::slo::canonical_tiers(),
-                };
             let severity = crate::domain::slo::tier_severity(&tiers, &labels);
             let annotations: BTreeMap<String, String> =
                 match r.get::<Option<serde_json::Value>, _>("annotations") {

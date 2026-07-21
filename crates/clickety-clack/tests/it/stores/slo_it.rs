@@ -16,7 +16,6 @@ fn spec() -> SloSpec {
         target_percent: 99.9,
         time_window: TimeWindow { duration: "30d".into(), is_rolling: true, calendar: None },
         min_valid_events: None,
-        tiers: None,
         annotations: BTreeMap::new(),
         suppressed: false,
     }
@@ -71,6 +70,50 @@ async fn budget_epoch_advances_only_on_significant_edits() {
         .unwrap();
     let (_, _, epoch2) = s.get_slo(tenant(), slo.id).await.unwrap().unwrap();
     assert!(epoch2 > epoch1, "a target change must advance the budget epoch");
+}
+
+#[tokio::test]
+async fn objective_change_clears_the_status_snapshot() {
+    let s = store().await;
+    let SloCreate::Created(slo) = s.create_slo(tenant(), "snap", &spec()).await.unwrap() else {
+        panic!()
+    };
+
+    // Seed a status snapshot as the evaluator would.
+    let seed_payload = serde_json::json!({
+        "window": "30d", "target_percent": 99.9, "groups": [],
+        "window_computed_at": {}, "objective_fingerprint": "x",
+    });
+    s.upsert_slo_status(
+        slo.id,
+        &tenant(),
+        &seed_payload,
+        time::OffsetDateTime::now_utc(),
+    )
+    .await
+    .unwrap();
+
+    // A non-objective edit (rename) keeps the snapshot: its numbers still describe
+    // the same query, so aging it out would waste a full recompute.
+    s.update_slo(tenant(), slo.id, "snap2", &spec(), None)
+        .await
+        .unwrap();
+    assert!(
+        s.get_slo_status(&tenant(), slo.id).await.unwrap().is_some(),
+        "a rename must not clear the snapshot"
+    );
+
+    // An objective edit (target change) drops the snapshot: its groups/burn/budget
+    // were computed for the old objective and must not be carried forward.
+    let mut spec2 = spec();
+    spec2.target_percent = 99.5;
+    s.update_slo(tenant(), slo.id, "snap2", &spec2, None)
+        .await
+        .unwrap();
+    assert!(
+        s.get_slo_status(&tenant(), slo.id).await.unwrap().is_none(),
+        "an objective change must clear the snapshot"
+    );
 }
 
 #[tokio::test]
@@ -161,5 +204,5 @@ async fn list_is_tenant_scoped() {
 
     let mine = s.list_slos(&tenant()).await.unwrap();
     assert_eq!(mine.len(), 2);
-    assert!(mine.iter().all(|(slo, _)| slo.tenant == tenant()));
+    assert!(mine.iter().all(|(slo, _, _)| slo.tenant == tenant()));
 }

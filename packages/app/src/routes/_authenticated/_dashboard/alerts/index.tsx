@@ -33,12 +33,12 @@ import {
   ccSelectRoutes,
 } from "@/data/cc/route-resolution";
 import {
+  CC_CANONICAL_SLO_TIERS,
   ccFormatSloDuration,
   ccFormatSloTarget,
   ccSloCurrentBurn,
   ccSloHandleResolver,
   ccSloTierSeverity,
-  ccSloTiers,
   ccSloWindowLabel,
 } from "@/data/cc/slo";
 import type { CcSlo, CcSloGroupStatus, CcSloTier } from "@/data/cc/types";
@@ -193,7 +193,7 @@ function SloPostureRow({
   statusPending: boolean;
 }) {
   const burn = worst
-    ? ccSloCurrentBurn(ccSloTiers(slo.spec), worst.tiers)
+    ? ccSloCurrentBurn(CC_CANONICAL_SLO_TIERS, worst.tiers)
     : null;
   return (
     <Link
@@ -344,7 +344,7 @@ function CcOverviewPage() {
         sourceId: i.alert.slo ?? i.alert.rule,
         count: 0,
         severity: i.slo
-          ? ccSloTierSeverity(ccSloTiers(i.slo.spec), i.alert.labels)
+          ? ccSloTierSeverity(CC_CANONICAL_SLO_TIERS, i.alert.labels)
           : (i.rule?.spec.severity ?? "info"),
       };
       entry.count += 1;
@@ -389,7 +389,7 @@ function CcOverviewPage() {
       slo,
       statusPending: status.isPending,
       worst: worstGroup(groups),
-      firing: firingTiersOf(ccSloTiers(slo.spec), groups),
+      firing: firingTiersOf(CC_CANONICAL_SLO_TIERS, groups),
     };
   });
 

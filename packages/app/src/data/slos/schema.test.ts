@@ -78,20 +78,11 @@ describe("SloYamlSchema", () => {
         targetPercent: 99.5,
         timeWindow: "30d",
         minValidEvents: 1000,
-        tiers: [
-          {
-            name: "fast-burn",
-            longWindow: "1h",
-            shortWindow: "5m",
-            burnRate: 14.4,
-            severity: "critical",
-          },
-        ],
         annotations: { runbook: "https://example.com/rb" },
       },
     });
     expect(parsed.metadata.project).toBe("payments");
-    expect(parsed.spec.tiers?.[0]?.burnRate).toBe(14.4);
+    expect(parsed.spec.minValidEvents).toBe(1000);
   });
 
   it("rejects SQL missing either window placeholder", () => {
@@ -139,24 +130,18 @@ describe("SloYamlSchema", () => {
     ).toBe(true);
   });
 
-  it("rejects malformed tiers (long <= short, burnRate <= 0, empty name, empty list)", () => {
-    const tier = {
-      name: "fast-burn",
-      longWindow: "1h",
-      shortWindow: "5m",
-      burnRate: 14.4,
-      severity: "critical",
-    };
-    expect(
-      firstMessage(sloDoc({ tiers: [{ ...tier, longWindow: "5m" }] })),
-    ).toMatch(/longWindow must be greater than shortWindow/);
-    expect(firstMessage(sloDoc({ tiers: [{ ...tier, burnRate: 0 }] }))).toMatch(
-      /burnRate must be > 0/,
-    );
-    expect(firstMessage(sloDoc({ tiers: [{ ...tier, name: "  " }] }))).toMatch(
-      /tier name must not be empty/,
-    );
-    expect(SloYamlSchema.safeParse(sloDoc({ tiers: [] })).success).toBe(false);
+  it("rejects a custom tiers field — the canonical tiers are fixed, not configurable", () => {
+    const tiers = [
+      {
+        name: "fast-burn",
+        longWindow: "1h",
+        shortWindow: "5m",
+        burnRate: 14.4,
+        severity: "critical",
+      },
+    ];
+    // The spec object is strict, so an unrecognized `tiers` key is a parse error.
+    expect(SloYamlSchema.safeParse(sloDoc({ tiers })).success).toBe(false);
   });
 
   it("rejects reserved everr.* annotation keys", () => {

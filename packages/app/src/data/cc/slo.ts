@@ -7,9 +7,10 @@
 import type { CcSlo, CcSloGroupStatus, CcSloSpec, CcSloTier } from "./types";
 
 /**
- * The SRE-workbook canonical three tiers, calibrated to a 30-day window —
- * what the engine evaluates when `spec.tiers` is unset (domain/slo.rs
- * `canonical_tiers()`).
+ * The SRE-workbook canonical three burn-rate tiers, calibrated to a 30-day
+ * window — the fixed set every SLO is evaluated on (domain/slo.rs
+ * `canonical_tiers()`; tiers are not user-configurable). The two `critical`
+ * tiers page; the `warning` tier opens a ticket.
  */
 export const CC_CANONICAL_SLO_TIERS: readonly CcSloTier[] = [
   {
@@ -34,11 +35,6 @@ export const CC_CANONICAL_SLO_TIERS: readonly CcSloTier[] = [
     severity: "warning",
   },
 ];
-
-/** The tiers the engine actually evaluates: explicit spec tiers or canonical. */
-export function ccSloTiers(spec: CcSloSpec): readonly CcSloTier[] {
-  return spec.tiers ?? CC_CANONICAL_SLO_TIERS;
-}
 
 /**
  * Resolve a burn-rate instance's severity from its `slo_tier` label against
@@ -122,6 +118,46 @@ export function ccSloCurrentBurn(
   return best === null ? null : { rate: best.rate, window: best.window };
 }
 
+/**
+ * Plain-language pace for a burn rate, so a listing cell can lead with a word
+ * ("Draining", "Sustainable") instead of a bare "1.4×". The firing state wins
+ * (an actually-paging tier is "Burning", severity aside from the rate), then the
+ * rate against the 1x sustainable line. "steady" is nothing meaningfully
+ * spending. `ccSloBurnPaceLabel` gives the display word; tone is the caller's.
+ */
+export type CcSloBurnPace =
+  | "burning-fast"
+  | "burning"
+  | "draining"
+  | "sustainable"
+  | "steady";
+
+export function ccSloBurnPace(
+  rate: number | null,
+  firing: readonly { severity: string }[],
+): CcSloBurnPace {
+  if (firing.some((f) => f.severity === "critical")) return "burning-fast";
+  if (firing.length > 0) return "burning";
+  if (rate === null || rate <= 0) return "steady";
+  if (rate >= 1) return "draining"; // spending faster than sustainable
+  return "sustainable"; // under 1x: recovers within the window
+}
+
+export function ccSloBurnPaceLabel(pace: CcSloBurnPace): string {
+  switch (pace) {
+    case "burning-fast":
+      return "Burning fast";
+    case "burning":
+      return "Burning";
+    case "draining":
+      return "Draining";
+    case "sustainable":
+      return "Sustainable";
+    case "steady":
+      return "Steady";
+  }
+}
+
 /** "99.9%" without trailing-zero noise ("99.5%", "99.95%"). */
 export function ccFormatSloTarget(targetPercent: number): string {
   return `${targetPercent}%`;
@@ -146,6 +182,78 @@ export function ccWorstSloGroup(
     if (a < b) worst = g;
   }
   return worst;
+}
+
+/**
+ * One group's freshly-computed error budget, from a read-time SLI scan over the
+ * trailing window ending now (data/cc/slo-series.server.ts `querySloBudgetNow`).
+ * `ccApplyFreshBudget` merges these onto a stored status snapshot so the hero and
+ * the listing show budget as of page view rather than the engine's throttled
+ * last evaluation (the budget window only re-evaluates every ~window/12).
+ */
+export type CcFreshBudgetGroup = {
+  labels: Record<string, string>;
+  sli: number | null;
+  budgetRemaining: number | null;
+};
+
+/**
+ * Seconds until the error budget is exhausted at the current burn, mirroring the
+ * engine's `time_to_exhaustion_secs` (engine/slo_math.rs) exactly: null when any
+ * input is missing or the burn is non-positive, 0 when already overspent, else
+ * `window * budget_remaining / burn_rate` truncated. Re-derives TTE after a
+ * group's budget is overridden with a fresh read-time value.
+ */
+export function ccTimeToExhaustionSecs(
+  budgetRemaining: number | null,
+  burnRate: number | null,
+  windowSecs: number | null,
+): number | null {
+  if (budgetRemaining === null || burnRate === null || windowSecs === null) {
+    return null;
+  }
+  if (Number.isNaN(burnRate) || burnRate <= 0) return null;
+  if (budgetRemaining <= 0) return 0;
+  return Math.floor((windowSecs * budgetRemaining) / burnRate);
+}
+
+/** Order-independent, collision-safe key identifying a group by its label set. */
+function sloLabelsKey(labels: Record<string, string>): string {
+  const sorted: Record<string, string> = {};
+  for (const k of Object.keys(labels).sort()) sorted[k] = labels[k];
+  return JSON.stringify(sorted);
+}
+
+/**
+ * Override each snapshot group's budget, SLI, and time-to-exhaustion with the
+ * fresh read-time values, matched by label set. Groups with no fresh match keep
+ * the stored snapshot (the instant fallback shown while the scan is in flight or
+ * when it fails). Burn rates and firing tiers always stay from the snapshot: they
+ * refresh far more often than the throttled budget window, so the snapshot's are
+ * already current. TTE is re-derived from the fresh budget and the snapshot's
+ * first-tier long burn, exactly as api/slos.rs projects it.
+ */
+export function ccApplyFreshBudget(
+  groups: readonly CcSloGroupStatus[],
+  fresh: readonly CcFreshBudgetGroup[] | undefined,
+  windowSecs: number | null,
+): CcSloGroupStatus[] {
+  if (fresh === undefined || fresh.length === 0) return groups.slice();
+  const byKey = new Map(fresh.map((f) => [sloLabelsKey(f.labels), f]));
+  return groups.map((g) => {
+    const f = byKey.get(sloLabelsKey(g.labels));
+    if (f === undefined) return g;
+    return {
+      ...g,
+      sli: f.sli,
+      budget_remaining: f.budgetRemaining,
+      time_to_exhaustion_secs: ccTimeToExhaustionSecs(
+        f.budgetRemaining,
+        g.tiers[0]?.long_burn_rate ?? null,
+        windowSecs,
+      ),
+    };
+  });
 }
 
 /**
@@ -182,16 +290,77 @@ export function ccSloGroupState(
 }
 
 /**
- * A plain-language description of what an SLO promises, derived from its spec.
- * Surfaced at the top of the detail page so the objective reads as a sentence,
- * not a config table, before any numbers.
+ * How a multi-group SLO's groups are distributed across the risk states, so a
+ * listing row can say "worst of 12 · 3 firing" instead of hiding everything
+ * behind the single worst group. Counts each group's `ccSloGroupState` into the
+ * three that warrant attention; a group that is both exhausted and firing counts
+ * as exhausted (the state resolves exhausted first).
  */
-export function ccSloSummarySentence(spec: CcSloSpec): string {
-  const target = ccFormatSloTarget(spec.targetPercent);
-  const window = ccSloWindowLabel(spec);
-  const cols = spec.sli.label_columns;
-  const grouped = cols.length > 0 ? `, tracked per ${cols.join(", ")}` : "";
-  return `Promises ${target} of valid events are good over a ${window} window${grouped}.`;
+export function ccSloGroupBreakdown(
+  tiers: readonly CcSloTier[],
+  groups: readonly CcSloGroupStatus[],
+): { total: number; firing: number; exhausted: number; atRisk: number } {
+  let firing = 0;
+  let exhausted = 0;
+  let atRisk = 0;
+  for (const g of groups) {
+    switch (ccSloGroupState(tiers, g)) {
+      case "firing-critical":
+      case "firing-warning":
+        firing++;
+        break;
+      case "exhausted":
+        exhausted++;
+        break;
+      case "at-risk":
+        atRisk++;
+        break;
+    }
+  }
+  return { total: groups.length, firing, exhausted, atRisk };
+}
+
+/**
+ * The one-sentence plain-language verdict for the hero: what the current state
+ * *means*, in words, before the reader parses any number. Answers the two
+ * questions a newcomer actually has ("am I OK?" / "am I about to be paged?")
+ * from the state plus the live burn and time-to-exhaustion.
+ */
+export function ccSloVerdict(
+  state: CcSloState,
+  opts: {
+    burn: { rate: number; window: string } | null;
+    tteSecs: number | null;
+  },
+): string {
+  const emptiesIn =
+    opts.tteSecs && opts.tteSecs > 0
+      ? `the budget runs out in about ${ccFormatSloDuration(opts.tteSecs)}`
+      : null;
+  switch (state) {
+    case "unknown":
+      return "Not evaluated yet. The first reading appears once the evaluator runs.";
+    case "exhausted":
+      return "Out of error budget. This window is already below target and will stay there until older failures age out of the window.";
+    case "firing-critical":
+      return emptiesIn
+        ? `Burning fast. A critical alert is firing and ${emptiesIn} at the current rate. A page has gone out.`
+        : "Burning fast. A critical alert is firing and a page has gone out.";
+    case "firing-warning":
+      return emptiesIn
+        ? `Draining faster than sustainable. A warning alert is firing and ${emptiesIn}.`
+        : "Draining faster than sustainable. A warning alert is firing.";
+    case "at-risk":
+      return "Running low. Nothing is paging yet, but there is little error budget left to spend this window.";
+    case "healthy":
+      if (opts.burn === null || opts.burn.rate <= 0) {
+        return "On track. Nothing is spending error budget right now.";
+      }
+      if (opts.burn.rate < 1) {
+        return "On track. Budget is being spent slower than the sustainable rate.";
+      }
+      return "On track for now, but currently spending budget faster than sustainable. Worth a look if it holds.";
+  }
 }
 
 /**
@@ -208,18 +377,6 @@ export function ccSloDescription(spec: CcSloSpec): string | null {
 export function ccSloWindowLabel(spec: CcSloSpec): string {
   const { duration, isRolling } = spec.timeWindow;
   return isRolling ? `${duration} rolling` : duration;
-}
-
-/**
- * The engine's stable key for the SLO's budget window, as it stamps it on the
- * `slo.window` sample attribute: the window duration in whole seconds followed
- * by "s" (`window_name_for` -> `format!("{secs}s")`, e.g. "30d" -> "2592000s").
- * Null if the duration doesn't parse. Used to filter the budget-history query to
- * the budget window's samples (the tiers publish their own shorter windows too).
- */
-export function ccSloBudgetWindowKey(spec: CcSloSpec): string | null {
-  const secs = tierWindowSecs(spec.timeWindow.duration);
-  return Number.isFinite(secs) ? `${secs}s` : null;
 }
 
 /**

@@ -1,5 +1,6 @@
 import type { ClickhouseQuery } from "@/lib/clickhouse";
 import { createLimiter } from "@/lib/limiter";
+import type { CcFreshBudgetGroup } from "./slo";
 
 /** One point of the error-budget-over-time series (one trailing-window eval). */
 export type CcSloBudgetPoint = {
@@ -50,9 +51,62 @@ function chooseStepMs(spanMs: number, targetPoints: number): number {
 // label columns; the SQL API hands every column back as a string.
 type SliRow = { good: string; valid: string };
 
+/**
+ * The SLO's CURRENT error budget per group, computed at read time from a single
+ * SLI scan over the trailing window `[now - windowSecs, now]` — the point-in-time
+ * counterpart of `querySloBudgetSeries` (which walks many trailing windows across
+ * a range). One scan, grouped by the SLI's own label columns, so the status hero
+ * and the listing can show budget as of page view instead of the engine's
+ * throttled last evaluation (the budget window only re-evaluates every
+ * ~windowSecs/12). Row-level security pins the tenant, exactly as the engine runs
+ * the SLI.
+ */
+export async function querySloBudgetNow(
+  clickhouse: ClickhouseQuery,
+  opts: {
+    /** The SLO's SLI SQL, parameterized on `{window_start}`/`{window_end}`. */
+    sliSql: string;
+    /** The SLI's grouping columns: an output row's keys beyond good/valid. */
+    labelColumns: string[];
+    targetPercent: number;
+    /** Budget window length in seconds (the trailing window's span). */
+    windowSecs: number;
+    /** Read-time "now" as a ms instant; the trailing window ends here. */
+    nowMs: number;
+  },
+): Promise<CcFreshBudgetGroup[]> {
+  const end = opts.nowMs;
+  const start = end - opts.windowSecs * 1000;
+  const rows = await clickhouse<Record<string, string>>(opts.sliSql, {
+    window_start: fmtCh(start),
+    window_end: fmtCh(end),
+  });
+  return rows.map((r) => {
+    const labels: Record<string, string> = {};
+    for (const col of opts.labelColumns) labels[col] = r[col] ?? "";
+    const good = Number(r.good) || 0;
+    const valid = Number(r.valid) || 0;
+    return {
+      labels,
+      sli: valid > 0 ? good / valid : null,
+      budgetRemaining: budgetRemaining(good, valid, opts.targetPercent),
+    };
+  });
+}
+
 /** ClickHouse `DateTime` literal ("YYYY-MM-DD HH:MM:SS", UTC) for a ms instant. */
 function fmtCh(ms: number): string {
   return new Date(ms).toISOString().slice(0, 19).replace("T", " ");
+}
+
+/**
+ * Parse a ClickHouse UTC wall-clock string ("YYYY-MM-DD HH:MM:SS", no zone) as
+ * UTC. Plain `Date.parse` reads that space-separated, zone-less form as LOCAL
+ * time, which skews the whole series (and the recent edge) by the server's
+ * offset. These strings are always UTC (they come from `toClickHouseDateTime`).
+ */
+function parseChUtc(s: string): number {
+  return Date.parse(`${s.replace(" ", "T")}Z`);
 }
 
 /**
@@ -99,8 +153,8 @@ export async function querySloBudgetSeries(
     points: number;
   },
 ): Promise<CcSloBudgetPoint[]> {
-  const from = Date.parse(opts.fromISO);
-  const to = Date.parse(opts.toISO);
+  const from = parseChUtc(opts.fromISO);
+  const to = parseChUtc(opts.toISO);
   if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return [];
 
   // Snap instants to a round grid: the largest multiple of `step` at or before
