@@ -22,7 +22,10 @@ const EASE = [0.22, 1, 0.36, 1] as const;
 
 const EVERR = {
   base: 39,
-  includedGb: 300,
+  // Each signal (logs / traces / metrics) gets its own 100 GB allotment, then
+  // bills overage per GB. This mirrors the Pro plan cards; a single pooled
+  // allotment would let 300 GB of one signal ride free, which it shouldn't.
+  includedGbPerSignal: 100,
   overagePerGb: 0.4,
   perSeat: 8,
   includedSeats: 3,
@@ -88,13 +91,12 @@ const baseRow = (providerAmount: number): Row => ({
 
 type Cat = { label: string; control: string; gb: number; provider: Cell };
 function dataRows(cats: Cat[]): Row[] {
-  const total = cats.reduce((s, c) => s + c.gb, 0);
-  const overage = Math.max(0, total - EVERR.includedGb);
   return cats.map((c) => ({
     label: c.label,
     control: c.control,
     everr: {
-      amount: total > 0 ? (c.gb / total) * overage * EVERR.overagePerGb : 0,
+      amount:
+        Math.max(0, c.gb - EVERR.includedGbPerSignal) * EVERR.overagePerGb,
     },
     provider: c.provider,
   }));
@@ -633,8 +635,8 @@ export function PricingCalculator() {
           <p className="mt-6 max-w-3xl font-mono text-[11px] leading-relaxed tracking-[0.05em] text-fd-muted-foreground/50">
             Estimates based on published pricing as of 2026. Actual costs vary
             with contract terms, volume discounts, and features. Everr figure
-            uses the Pro plan: $39/mo + $8/user (first 3 free), with 300 GB
-            total included, then $0.40/GB. Hosts are never billed.
+            uses the Pro plan: $39/mo + $8/user (first 3 free), with 100 GB
+            included per signal, then $0.40/GB. Hosts are never billed.
           </p>
         </div>
       </section>
