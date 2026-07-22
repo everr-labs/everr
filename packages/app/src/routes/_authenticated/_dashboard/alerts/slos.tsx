@@ -25,7 +25,6 @@ import {
   CcEmptyState,
   CcQueryError,
   CcSloTierBadge,
-  CcStatusDot,
   CcTableSkeleton,
   ccErrorMessage,
 } from "@/components/cc/shared";
@@ -39,6 +38,7 @@ import {
   ccSloBurnPaceLabel,
   ccSloCurrentBurn,
   ccSloGroupBreakdown,
+  ccSloGroupState,
   ccSloTierSeverity,
   ccSloTiers,
   ccSloWindowLabel,
@@ -70,6 +70,201 @@ type SloRow = {
 
 /** How many rows the listing shows per page (also the fresh-budget scan fan-out). */
 const SLO_PAGE_SIZE = 10;
+
+function rowBurn(row: SloRow) {
+  if (row.worst === null) return null;
+  const tiers = ccSloTiers(row.slo.spec);
+  const burn = ccSloCurrentBurn(tiers, row.worst.tiers);
+  const firing = row.worst.firing_tiers.map((f) => ({
+    tier: f.tier,
+    severity: ccSloTierSeverity(tiers, { slo_tier: f.tier }),
+  }));
+  const pace = ccSloBurnPace(burn?.effective ?? null, firing);
+  return { burn, firing, pace };
+}
+
+function paceTone(pace: ReturnType<typeof ccSloBurnPace>): string {
+  return pace === "burning-fast"
+    ? "font-medium text-destructive"
+    : pace === "burning"
+      ? "font-medium text-amber-600 dark:text-amber-400"
+      : pace === "draining"
+        ? "text-foreground"
+        : "text-muted-foreground";
+}
+
+function rowStateLabel({
+  state,
+  pace,
+}: {
+  state: ReturnType<typeof ccSloGroupState>;
+  pace: ReturnType<typeof ccSloBurnPace> | null;
+}): string {
+  switch (state) {
+    case "unknown":
+      return "Not evaluated";
+    case "exhausted":
+      return "Budget exhausted";
+    case "firing-critical":
+      return "Paging";
+    case "firing-warning":
+      return "Alert firing";
+    case "at-risk":
+      return "Low budget";
+    case "healthy":
+      return pace === "draining" ? "Draining" : "On track";
+  }
+}
+
+function rowExhaustionLabel({
+  tteSecs,
+  burn,
+  firingCount,
+}: {
+  tteSecs: number | null;
+  burn: ReturnType<typeof rowBurn>;
+  firingCount: number;
+}): string {
+  if (tteSecs === 0) return "exhausted";
+  if (tteSecs !== null) return `${ccFormatSloDuration(tteSecs)} to empty`;
+  if (firingCount > 0) {
+    return burn?.burn?.effective === 0
+      ? "current burn stopped"
+      : "forecast unavailable";
+  }
+  return "no exhaustion forecast";
+}
+
+function firingWindowLabel(row: SloRow, firing: { tier: string }[]): string {
+  const first = firing[0]?.tier;
+  if (first === undefined || row.worst === null) return "alert window high";
+  const snap = row.worst.tiers.find((t) => t.name === first);
+  const rate =
+    snap?.long_burn_rate !== null && snap?.long_burn_rate !== undefined
+      ? ` ${ccFmtBurn(snap.long_burn_rate)}`
+      : "";
+  return `${first} window${rate}`;
+}
+
+function SloPromiseCell({
+  slo: s,
+  compact = false,
+}: {
+  slo: CcSlo;
+  compact?: boolean;
+}) {
+  return (
+    <span className={`flex flex-col gap-1 ${compact ? "min-w-0" : "min-w-56"}`}>
+      <span className="flex min-w-0 flex-wrap items-center gap-2">
+        <Link
+          to="/alerts/slos/$sloId"
+          params={{ sloId: s.id }}
+          className="font-medium text-foreground underline-offset-2 hover:underline"
+        >
+          {s.name}
+        </Link>
+        {s.paused && <Badge variant="secondary">paused</Badge>}
+        {s.spec.suppressed && <Badge variant="destructive">suppressed</Badge>}
+      </span>
+      <span className="text-[0.6875rem] whitespace-nowrap text-muted-foreground">
+        {ccFormatSloTarget(s.spec.targetPercent)} over{" "}
+        {ccSloWindowLabel(s.spec)}
+        {s.spec.sli.label_columns.length > 0 && (
+          <>
+            {" · by "}
+            <span className="font-mono">
+              {s.spec.sli.label_columns.join(", ")}
+            </span>
+          </>
+        )}
+      </span>
+    </span>
+  );
+}
+
+function SloNowCell({ row }: { row: SloRow }) {
+  if (row.statusPending) return <Skeleton className="h-4 w-40" />;
+  if (row.worst === null) {
+    return (
+      <span className="text-xs text-muted-foreground">no snapshot yet</span>
+    );
+  }
+  const burn = rowBurn(row);
+  const firing = burn?.firing ?? [];
+  const state = ccSloGroupState(ccSloTiers(row.slo.spec), row.worst);
+  return (
+    <span className="flex max-w-md flex-col gap-1">
+      <span className="text-xs font-medium text-foreground">
+        {rowStateLabel({ state, pace: burn?.pace ?? null })}
+      </span>
+      <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.6875rem] text-muted-foreground">
+        {burn && burn.burn?.effective === 0 && firing.length > 0 ? (
+          <span className={paceTone(burn.pace)}>
+            {firingWindowLabel(row, firing)}
+          </span>
+        ) : burn && burn.pace !== "steady" ? (
+          <span className={paceTone(burn.pace)}>
+            {ccSloBurnPaceLabel(burn.pace)}
+            {burn.burn !== null && (
+              <span className="ml-1 font-mono tabular-nums text-muted-foreground">
+                {ccFmtBurn(burn.burn.rate)}
+              </span>
+            )}
+          </span>
+        ) : (
+          <span>Steady</span>
+        )}
+        <span>
+          {rowExhaustionLabel({
+            tteSecs: row.worst.time_to_exhaustion_secs,
+            burn,
+            firingCount: firing.length,
+          })}
+        </span>
+        {firing.map((f) => (
+          <CcSloTierBadge key={f.tier} tier={f.tier} severity={f.severity} />
+        ))}
+      </span>
+    </span>
+  );
+}
+
+function SloBudgetCell({ row }: { row: SloRow }) {
+  if (row.statusPending) return <Skeleton className="h-4 w-40" />;
+  if (row.worst === null) {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+  const b = ccSloGroupBreakdown(ccSloTiers(row.slo.spec), row.groups);
+  const worstLabels = Object.values(row.worst.labels);
+  return (
+    <span className="flex flex-col gap-0.5">
+      <CcBudgetBar remaining={row.worst.budget_remaining} />
+      {b.total > 1 && (
+        <span className="text-[0.6875rem] text-muted-foreground">
+          worst of {b.total} groups
+          {b.firing > 0 && (
+            <span className="text-destructive"> · {b.firing} firing</span>
+          )}
+          {b.exhausted > 0 && (
+            <span className="text-destructive"> · {b.exhausted} exhausted</span>
+          )}
+          {b.atRisk > 0 && (
+            <span className="text-amber-600 dark:text-amber-400">
+              {" "}
+              · {b.atRisk} at risk
+            </span>
+          )}
+          {worstLabels.length > 0 && (
+            <>
+              {": "}
+              <span className="font-mono">{worstLabels.join(", ")}</span>
+            </>
+          )}
+        </span>
+      )}
+    </span>
+  );
+}
 
 function CcSlosPage() {
   const qc = useQueryClient();
@@ -139,170 +334,34 @@ function CcSlosPage() {
     return { ...r, groups, worst: ccWorstSloGroup(groups) };
   });
 
+  const emptyState = (
+    <CcEmptyState
+      icon={Gauge}
+      title="No SLOs defined"
+      hint={
+        <>
+          Define an SLO as code with an SLI query, a target, and a rolling
+          window. Everr tracks the error budget and burn-rate alerts.
+        </>
+      }
+    />
+  );
+
   const columns: Column<SloRow>[] = [
     {
-      header: "SLO",
-      cell: ({ slo: s }) => (
-        <span className="flex flex-col gap-0.5">
-          <Link
-            to="/alerts/slos/$sloId"
-            params={{ sloId: s.id }}
-            className="font-medium text-foreground underline-offset-2 hover:underline"
-          >
-            {s.name}
-          </Link>
-          <span className="text-[0.6875rem] whitespace-nowrap text-muted-foreground">
-            {ccFormatSloTarget(s.spec.targetPercent)} over{" "}
-            {ccSloWindowLabel(s.spec)}
-            {s.spec.sli.label_columns.length > 0 && (
-              <>
-                {" · by "}
-                <span className="font-mono">
-                  {s.spec.sli.label_columns.join(", ")}
-                </span>
-              </>
-            )}
-          </span>
-        </span>
-      ),
+      header: "Promise",
+      cell: ({ slo }) => <SloPromiseCell slo={slo} />,
+    },
+    {
+      header: "Now",
+      cell: (row) => <SloNowCell row={row} />,
     },
     {
       // The worst group's budget is the headline; for a multi-group SLO a second
       // line says how many of the rest also need attention (firing / exhausted /
       // at risk), so the bar isn't hiding a fleet of struggling groups behind it.
-      header: "Error budget",
-      cell: (row) => {
-        if (row.statusPending) return <Skeleton className="h-4 w-40" />;
-        if (row.worst === null) {
-          return (
-            <span className="text-xs text-muted-foreground">
-              no snapshot yet
-            </span>
-          );
-        }
-        const b = ccSloGroupBreakdown(ccSloTiers(row.slo.spec), row.groups);
-        const worstLabels = Object.values(row.worst.labels);
-        return (
-          <span className="flex flex-col gap-0.5">
-            <CcBudgetBar remaining={row.worst.budget_remaining} />
-            {b.total > 1 && (
-              <span className="text-[0.6875rem] text-muted-foreground">
-                worst of {b.total} groups
-                {b.firing > 0 && (
-                  <span className="text-destructive"> · {b.firing} firing</span>
-                )}
-                {b.exhausted > 0 && (
-                  <span className="text-destructive">
-                    {" "}
-                    · {b.exhausted} exhausted
-                  </span>
-                )}
-                {b.atRisk > 0 && (
-                  <span className="text-amber-600 dark:text-amber-400">
-                    {" "}
-                    · {b.atRisk} at risk
-                  </span>
-                )}
-                {worstLabels.length > 0 && (
-                  <>
-                    {": "}
-                    <span className="font-mono">{worstLabels.join(", ")}</span>
-                  </>
-                )}
-              </span>
-            )}
-          </span>
-        );
-      },
-    },
-    {
-      // Burn folds in what used to be a separate "Firing" column: the pace word
-      // (Draining / Sustainable / Burning) leads with the multiplier as quiet
-      // support, and when a tier is actually paging its badges sit beneath — the
-      // word carries severity, the badges name which windows tripped. The
-      // tier-window suffix ("/ 1h") is dropped; time to exhaustion is the "when".
-      header: "Burn",
-      cell: (row) => {
-        if (row.statusPending || row.worst === null) {
-          return <span className="text-xs text-muted-foreground">—</span>;
-        }
-        const tiers = ccSloTiers(row.slo.spec);
-        const burn = ccSloCurrentBurn(tiers, row.worst.tiers);
-        const firing = row.worst.firing_tiers.map((f) => ({
-          tier: f.tier,
-          severity: ccSloTierSeverity(tiers, { slo_tier: f.tier }),
-        }));
-        const pace = ccSloBurnPace(burn?.effective ?? null, firing);
-        if (pace === "steady") {
-          return <span className="text-xs text-muted-foreground">Steady</span>;
-        }
-        const tone =
-          pace === "burning-fast"
-            ? "font-medium text-destructive"
-            : pace === "burning"
-              ? "font-medium text-amber-600 dark:text-amber-400"
-              : pace === "draining"
-                ? "text-foreground"
-                : "text-muted-foreground";
-        return (
-          <span className="flex flex-col items-start gap-1">
-            <span className={`text-xs whitespace-nowrap ${tone}`}>
-              {ccSloBurnPaceLabel(pace)}
-              {burn !== null && (
-                <span className="ml-1.5 font-mono tabular-nums text-muted-foreground">
-                  {ccFmtBurn(burn.rate)}
-                </span>
-              )}
-            </span>
-            {firing.length > 0 && (
-              <span className="flex flex-wrap gap-1.5">
-                {firing.map((f) => (
-                  <CcSloTierBadge
-                    key={f.tier}
-                    tier={f.tier}
-                    severity={f.severity}
-                  />
-                ))}
-              </span>
-            )}
-          </span>
-        );
-      },
-    },
-    {
-      header: "Time to exhaustion",
-      cell: (row) => (
-        <span className="font-mono text-xs tabular-nums whitespace-nowrap">
-          {row.worst === null || row.worst.time_to_exhaustion_secs === null
-            ? "—"
-            : row.worst.time_to_exhaustion_secs === 0
-              ? "exhausted"
-              : ccFormatSloDuration(row.worst.time_to_exhaustion_secs)}
-        </span>
-      ),
-    },
-    {
-      header: "State",
-      cell: ({ slo: s }) => (
-        <span className="inline-flex items-center gap-2">
-          {s.paused ? (
-            <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-              <CcStatusDot tone="inactive" />
-              paused
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1.5">
-              <CcStatusDot tone="healthy" />
-              active
-            </span>
-          )}
-          {s.spec.suppressed && (
-            // Evaluates fully but the dispatcher never notifies — worth a
-            // loud flag, or the silence is invisible.
-            <Badge variant="destructive">suppressed</Badge>
-          )}
-        </span>
-      ),
+      header: "Budget",
+      cell: (row) => <SloBudgetCell row={row} />,
     },
     {
       header: "",
@@ -332,7 +391,7 @@ function CcSlosPage() {
     <div className="space-y-3">
       <CcPageIntro
         title="SLOs"
-        lede="Reliability targets with an error budget: how much failure is affordable before each promise breaks."
+        lede="Promises, budgets, and whether anything needs attention now."
         docsHref="https://everr.dev/docs/concepts/how-slos-work"
       />
       <Card inset="flush-content">
@@ -341,35 +400,56 @@ function CcSlosPage() {
             <CcTableSkeleton rows={5} />
           ) : (
             <>
-              <DataTable
-                data={displayRows}
-                columns={columns}
-                rowKey={(row) => row.slo.id}
-                onRowClick={(row, e) => {
-                  if ((e.target as HTMLElement).closest("a,button") !== null) {
-                    return;
-                  }
-                  void navigate({
-                    to: "/alerts/slos/$sloId",
-                    params: { sloId: row.slo.id },
-                  });
-                }}
-                emptyState={
-                  <CcEmptyState
-                    icon={Gauge}
-                    title="No SLOs defined"
-                    hint={
-                      <>
-                        Define an SLO as code — an SLI query with{" "}
-                        <code>good</code>/<code>valid</code> counts, a target,
-                        and a rolling window — and apply it with{" "}
-                        <code>everr apply</code>. The engine tracks the error
-                        budget and alerts on burn rate.
-                      </>
-                    }
-                  />
-                }
-              />
+              {displayRows.length === 0 ? (
+                emptyState
+              ) : (
+                <>
+                  <div className="hidden md:block">
+                    <DataTable
+                      data={displayRows}
+                      columns={columns}
+                      rowKey={(row) => row.slo.id}
+                      onRowClick={(row, e) => {
+                        if (
+                          (e.target as HTMLElement).closest("a,button") !== null
+                        ) {
+                          return;
+                        }
+                        void navigate({
+                          to: "/alerts/slos/$sloId",
+                          params: { sloId: row.slo.id },
+                        });
+                      }}
+                    />
+                  </div>
+                  <div className="md:hidden">
+                    <div className="divide-y divide-border/60">
+                      {displayRows.map((row) => (
+                        <article key={row.slo.id} className="space-y-3 p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <SloPromiseCell slo={row.slo} compact />
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={toggle.isPending}
+                              onClick={() => toggle.mutate(row.slo)}
+                            >
+                              {row.slo.paused ? (
+                                <Play data-icon="inline-start" />
+                              ) : (
+                                <Pause data-icon="inline-start" />
+                              )}
+                              {row.slo.paused ? "Resume" : "Pause"}
+                            </Button>
+                          </div>
+                          <SloNowCell row={row} />
+                          <SloBudgetCell row={row} />
+                        </article>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
               {rows.length > SLO_PAGE_SIZE && (
                 <div className="flex items-center justify-between px-3 py-2 text-xs text-muted-foreground">
                   <span className="tabular-nums">

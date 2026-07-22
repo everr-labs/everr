@@ -157,11 +157,11 @@ describe("/alerts/slos route", () => {
   it("leads each row with status: budget, burn, exhaustion — config as the secondary line", async () => {
     renderSlosRoute();
 
-    const link = await screen.findByRole("link", {
+    const table = await screen.findByRole("table");
+    const link = within(table).getByRole("link", {
       name: "checkout-availability",
     });
     expect(link).toHaveAttribute("href", `/alerts/slos/${SLO_ID}`);
-    const table = screen.getByRole("table");
     // Config compressed into one secondary line under the name.
     expect(
       within(table).getByText(/99\.9% over 30d rolling/),
@@ -171,10 +171,13 @@ describe("/alerts/slos route", () => {
     // (0.5× is under the sustainable line -> "Sustainable") with the multiplier
     // as support, and time to exhaustion.
     expect(await within(table).findByText("50.00%")).toBeInTheDocument();
+    expect(within(table).getByText("On track")).toBeInTheDocument();
     expect(within(table).getByText("Sustainable")).toBeInTheDocument();
     expect(within(table).getAllByText(/0\.5×/).length).toBeGreaterThan(0);
-    expect(within(table).getByText("1d")).toBeInTheDocument();
-    expect(within(table).getByText("active")).toBeInTheDocument();
+    expect(within(table).getByText("1d to empty")).toBeInTheDocument();
+    expect(
+      within(table).getByRole("button", { name: /Pause/ }),
+    ).toBeInTheDocument();
   });
 
   it("marks a paused SLO and flags a suppressed one", async () => {
@@ -187,16 +190,19 @@ describe("/alerts/slos route", () => {
 
     renderSlosRoute();
 
-    expect(await screen.findByText("paused")).toBeInTheDocument();
-    expect(screen.getByText("suppressed")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Resume/ })).toBeInTheDocument();
+    expect((await screen.findAllByText("paused")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("suppressed").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByRole("button", { name: /Resume/ }).length,
+    ).toBeGreaterThan(0);
   });
 
   it("pauses an active SLO and invalidates the listing", async () => {
     const user = userEvent.setup();
     renderSlosRoute();
 
-    await user.click(await screen.findByRole("button", { name: /Pause/ }));
+    const table = await screen.findByRole("table");
+    await user.click(within(table).getByRole("button", { name: /Pause/ }));
 
     await waitFor(() =>
       expect(mocks.pauseCcSlo).toHaveBeenCalledWith({
@@ -209,7 +215,10 @@ describe("/alerts/slos route", () => {
   it("offers no delete action — SLOs are removed as code, not from the UI", async () => {
     renderSlosRoute();
 
-    await screen.findByRole("link", { name: "checkout-availability" });
+    const table = await screen.findByRole("table");
+    expect(
+      within(table).getByRole("link", { name: "checkout-availability" }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /Delete/ }),
     ).not.toBeInTheDocument();
@@ -227,8 +236,9 @@ describe("/alerts/slos route", () => {
     renderSlosRoute("/alerts/slos?preview=feat%2Fslo-preview");
 
     expect(
-      await screen.findByRole("link", { name: "checkout-availability" }),
-    ).toBeInTheDocument();
+      (await screen.findAllByRole("link", { name: "checkout-availability" }))
+        .length,
+    ).toBeGreaterThan(0);
     expect(mocks.listCcSlos).toHaveBeenCalledWith({
       data: { preview: "feat/slo-preview" },
     });
@@ -254,7 +264,7 @@ describe("/alerts/slos route", () => {
     expect(within(table).queryByText("50.00%")).not.toBeInTheDocument();
   });
 
-  it("folds firing tiers into the Burn column and summarizes multi-group risk", async () => {
+  it("folds burn, exhaustion, and firing tiers into the Now column", async () => {
     mocks.getCcSloStatus.mockResolvedValue({
       computed_at: new Date().toISOString(),
       health: { status: "healthy", degraded_since: null, last_error: null },
@@ -301,8 +311,11 @@ describe("/alerts/slos route", () => {
     renderSlosRoute();
     const table = await screen.findByRole("table");
 
-    // No standalone Firing column; the pace word carries severity and the tier
-    // badge is folded in beside it.
+    // No standalone Burn or Firing columns; the pace word carries severity and
+    // the tier badge is folded in beside it.
+    expect(
+      within(table).queryByRole("columnheader", { name: "Burn" }),
+    ).not.toBeInTheDocument();
     expect(
       within(table).queryByRole("columnheader", { name: "Firing" }),
     ).not.toBeInTheDocument();
@@ -314,6 +327,52 @@ describe("/alerts/slos route", () => {
     expect(within(table).getByText(/worst of 3 groups/)).toBeInTheDocument();
     expect(within(table).getByText(/1 firing/)).toBeInTheDocument();
     expect(within(table).getByText(/1 at risk/)).toBeInTheDocument();
+  });
+
+  it("shows a firing alert window without calling stopped current burn burning", async () => {
+    mocks.getCcSloStatus.mockResolvedValue({
+      computed_at: new Date().toISOString(),
+      health: { status: "healthy", degraded_since: null, last_error: null },
+      payload: {
+        window: "30d",
+        target_percent: 99.9,
+        window_computed_at: {},
+        groups: [
+          {
+            labels: { service: "payments" },
+            sli: 0.98,
+            budget_remaining: 0.3,
+            tiers: [
+              {
+                name: "fast-burn",
+                long_burn_rate: 4,
+                short_burn_rate: 0,
+                long_window_valid: 1,
+              },
+              {
+                name: "ticket",
+                long_burn_rate: 2,
+                short_burn_rate: 1.5,
+                long_window_valid: 1,
+              },
+            ],
+            time_to_exhaustion_secs: null,
+            firing_tiers: [{ tier: "ticket", status: "firing" }],
+          },
+        ],
+      },
+    });
+
+    renderSlosRoute();
+    const table = await screen.findByRole("table");
+
+    expect(within(table).getByText("Alert firing")).toBeInTheDocument();
+    expect(within(table).getByText("ticket window 2.0×")).toBeInTheDocument();
+    expect(within(table).getByText("current burn stopped")).toBeInTheDocument();
+    expect(within(table).queryByText("Burning")).not.toBeInTheDocument();
+    expect(
+      within(table).queryByText("no exhaustion forecast"),
+    ).not.toBeInTheDocument();
   });
 
   it("orders by name, independent of status: a firing SLO does not jump the list", async () => {
@@ -357,8 +416,11 @@ describe("/alerts/slos route", () => {
 
     renderSlosRoute();
 
-    await screen.findByRole("link", { name: "a-svc" });
-    const names = screen
+    const table = await screen.findByRole("table");
+    expect(
+      within(table).getByRole("link", { name: "a-svc" }),
+    ).toBeInTheDocument();
+    const names = within(table)
       .getAllByRole("link")
       .map((a) => a.textContent)
       .filter((n) => n?.endsWith("svc"));
@@ -376,18 +438,23 @@ describe("/alerts/slos route", () => {
 
     // First page: 10 of 12, with a range indicator.
     expect(await screen.findByText(/1-10 of 12/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "svc-00" })).toBeInTheDocument();
+    const table = await screen.findByRole("table");
     expect(
-      screen.queryByRole("link", { name: "svc-10" }),
+      within(table).getByRole("link", { name: "svc-00" }),
+    ).toBeInTheDocument();
+    expect(
+      within(table).queryByRole("link", { name: "svc-10" }),
     ).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /Next/ }));
 
     // Second page: the remaining 2.
     expect(await screen.findByText(/11-12 of 12/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "svc-10" })).toBeInTheDocument();
     expect(
-      screen.queryByRole("link", { name: "svc-00" }),
+      within(table).getByRole("link", { name: "svc-10" }),
+    ).toBeInTheDocument();
+    expect(
+      within(table).queryByRole("link", { name: "svc-00" }),
     ).not.toBeInTheDocument();
   });
 });

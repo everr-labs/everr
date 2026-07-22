@@ -130,57 +130,6 @@ function BackLink() {
   );
 }
 
-// A collapsed-by-default plain-language primer on the four concepts this page
-// leans on. Discoverable for a newcomer, one line out of the way for everyone
-// else. Kept in step with the in-hero glosses and verdict copy.
-function SloPrimer() {
-  const [open, setOpen] = useState(false);
-  const terms: Array<{ term: string; gloss: string }> = [
-    {
-      term: "SLO: the promise",
-      gloss:
-        '"99% of requests succeed over the last 7 days." A realistic target, not "zero errors".',
-    },
-    {
-      term: "Error budget: how much you may fail",
-      gloss:
-        "The leftover (here, the other 1%). Full means room to spare; 0% means the promise is broken for this window.",
-    },
-    {
-      term: "Burn rate: how fast you spend it",
-      gloss:
-        "1× is the sustainable pace; 14× means the whole budget would be gone in hours. This is what pages you.",
-    },
-    {
-      term: "Window: the rolling period",
-      gloss:
-        "Everything is measured over a moving span (e.g. 7 days). Old failures age out, so the budget recovers on its own.",
-    },
-  ];
-  return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <CcDisclosureTrigger open={open}>
-        <span className="text-xs font-medium">New to SLOs?</span>
-        {!open && (
-          <span className="min-w-0 truncate text-[0.6875rem] text-muted-foreground">
-            error budget, burn rate, and window in plain words
-          </span>
-        )}
-      </CcDisclosureTrigger>
-      <CollapsibleContent>
-        <dl className="mt-2 grid gap-2.5 rounded-md bg-muted/40 p-3 text-xs ring-1 ring-foreground/10 sm:grid-cols-2">
-          {terms.map(({ term, gloss }) => (
-            <div key={term} className="space-y-0.5">
-              <dt className="font-medium">{term}</dt>
-              <dd className="text-muted-foreground">{gloss}</dd>
-            </div>
-          ))}
-        </dl>
-      </CollapsibleContent>
-    </Collapsible>
-  );
-}
-
 function DefRow({
   label,
   children,
@@ -241,7 +190,7 @@ function ObjectiveSection({ slo }: { slo: CcSlo }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Objective</CardTitle>
+        <CardTitle>Definition</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <dl className="divide-y divide-border/60">
@@ -357,6 +306,7 @@ function StatusSection({ slo }: { slo: CcSlo }) {
   // meanwhile; this only refines budget/SLI/time-to-exhaustion.
   const fresh = useQuery(ccQueries.sloBudgetNow(slo.id));
   const tiers = ccSloTiers(slo.spec);
+  const [groupsOpen, setGroupsOpen] = useState(false);
 
   const groupCols: Column<CcSloGroupStatus>[] = [
     {
@@ -558,29 +508,36 @@ function StatusSection({ slo }: { slo: CcSlo }) {
       </p>
 
       {/* The full per-group breakdown, only when there is more than one group
-          to break down — a scalar SLO is fully described by the hero above. */}
+          to break down. Keep it available, but not louder than the answer. */}
       {groups.length > 1 && (
-        <Card inset="flush-content">
-          <CardHeader>
-            <CardTitle>All groups</CardTitle>
-            <CardDescription>
-              Per-group SLI, error budget, burn rate, and firing tiers.
-            </CardDescription>
+        <Card>
+          <CardHeader className="pb-1">
+            <Collapsible open={groupsOpen} onOpenChange={setGroupsOpen}>
+              <CcDisclosureTrigger open={groupsOpen}>
+                <span className="text-xs font-medium">All groups</span>
+                {!groupsOpen && (
+                  <span className="text-[0.6875rem] text-muted-foreground">
+                    SLI, budget, burn, and firing tiers for {groups.length}{" "}
+                    groups
+                  </span>
+                )}
+              </CcDisclosureTrigger>
+              <CollapsibleContent>
+                <div className="mt-2">
+                  <DataTable
+                    data={groups}
+                    columns={groupCols}
+                    rowKey={(g) => JSON.stringify(g.labels)}
+                  />
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
           </CardHeader>
-          <CardContent>
-            <DataTable
-              data={groups}
-              columns={groupCols}
-              rowKey={(g) => JSON.stringify(g.labels)}
-            />
-          </CardContent>
         </Card>
       )}
     </div>
   );
 }
-
-// ── History ───────────────────────────────────────────────────────────────────
 
 // ── How's the budget trending ─────────────────────────────────────────────────
 
@@ -623,7 +580,7 @@ function BudgetHistorySection({ slo }: { slo: CcSloView }) {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-1.5">
-          Error budget over time
+          Budget history
           <Tooltip>
             <TooltipTrigger
               render={
@@ -696,7 +653,7 @@ function HealthSection({ sloId }: { sloId: string }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Is it healthy</CardTitle>
+        <CardTitle>Evaluator</CardTitle>
       </CardHeader>
       <CardContent>
         {degraded ? (
@@ -801,7 +758,6 @@ function CcSloDetailPage() {
         </Button>
       </div>
 
-      <SloPrimer />
       <StatusSection slo={s} />
       <BudgetHistorySection slo={s} />
       <ObjectiveSection slo={s} />

@@ -205,15 +205,15 @@ describe("/alerts/slos/$sloId route", () => {
     // The short-window burn is now surfaced on the fast-burn gauge (not buried
     // in a tooltip).
     expect(screen.getByText(/short window 0\.9×/)).toBeInTheDocument();
-    // fast-burn is named once, in the hero's "what would page you" gauge; the
-    // Objective's static tiers table is collapsed behind a disclosure by default.
-    expect(screen.getAllByText("fast-burn")).toHaveLength(1);
+    // fast-burn is named in the hero's pressure gauge; the Definition's static
+    // tiers table stays collapsed by default.
+    expect(screen.getAllByText("fast-burn").length).toBeGreaterThanOrEqual(1);
 
     // The read-time scan is empty here (no traffic in the trailing window), so the
     // stored snapshot stands and the freshness line reads "computing", not fresh.
     expect(screen.getByText(/Error budget computing/)).toBeInTheDocument();
 
-    // Objective card: the tiers are foregrounded by outcome behind a collapsed
+    // Definition card: the tiers are foregrounded by outcome behind a collapsed
     // "When it alerts" disclosure (page vs ticket), not a raw tiers table.
     expect(screen.getByText("When it alerts")).toBeInTheDocument();
     expect(
@@ -260,12 +260,10 @@ describe("/alerts/slos/$sloId route", () => {
     ).toBeInTheDocument();
   });
 
-  it("charts the error budget over time, scoped to the SLO's budget window", async () => {
+  it("charts the budget history, scoped to the SLO's budget window", async () => {
     renderSloDetailRoute();
 
-    expect(
-      await screen.findByText("Error budget over time"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Budget history")).toBeInTheDocument();
 
     // The series query is scoped to this SLO (the server fetches the SLO for the
     // authoritative SLI/target/window, so the request carries just the id + range).
@@ -336,7 +334,7 @@ describe("/alerts/slos/$sloId route", () => {
       await screen.findByText("No status snapshot yet"),
     ).toBeInTheDocument();
     // Without a snapshot there is no health row either: no health card.
-    expect(screen.queryByText("Is it healthy")).not.toBeInTheDocument();
+    expect(screen.queryByText("Evaluator")).not.toBeInTheDocument();
   });
 
   it("renders degraded health loudly with the SLI failure forensics", async () => {
