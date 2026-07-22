@@ -72,11 +72,12 @@ export const Route = createFileRoute(
 )({
   staticData: { breadcrumb: "Triage" },
   head: () => ({ meta: [{ title: "Everr - Alerts Triage" }] }),
-  loader: ({ context: { queryClient } }) =>
+  loaderDeps: ({ search: { preview } }) => ({ preview }),
+  loader: ({ context: { queryClient }, deps }) =>
     Promise.all([
       queryClient.prefetchQuery(ccQueries.alerts()),
       queryClient.prefetchQuery(ccQueries.rules()),
-      queryClient.prefetchQuery(ccQueries.slos()),
+      queryClient.prefetchQuery(ccQueries.slos(deps.preview)),
       queryClient.prefetchQuery(ccQueries.routes()),
       queryClient.prefetchQuery(ccQueries.receivers()),
       queryClient.prefetchQuery(ccQueries.silences()),
@@ -550,11 +551,12 @@ const LENSES = [
 type LensKey = (typeof LENSES)[number]["key"];
 
 function CcTriagePage() {
+  const { preview } = Route.useSearch();
   const qc = useQueryClient();
   const silenceDrawer = useRef<SilenceDrawerHandle>(null);
   const alerts = useQuery(ccQueries.alerts());
   const rules = useQuery(ccQueries.rules());
-  const slos = useQuery(ccQueries.slos());
+  const slos = useQuery(ccQueries.slos(preview));
   const routes = useQuery(ccQueries.routes());
   const receivers = useQuery(ccQueries.receivers());
   const silences = useQuery(ccQueries.silences());

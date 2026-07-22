@@ -50,8 +50,9 @@ import type { CcSlo, CcSloGroupStatus } from "@/data/cc/types";
 export const Route = createFileRoute("/_authenticated/_dashboard/alerts/slos")({
   staticData: { breadcrumb: "SLOs" },
   head: () => ({ meta: [{ title: "Everr - Alerts SLOs" }] }),
-  loader: ({ context: { queryClient } }) =>
-    queryClient.prefetchQuery(ccQueries.slos()),
+  loaderDeps: ({ search: { preview } }) => ({ preview }),
+  loader: ({ context: { queryClient }, deps }) =>
+    queryClient.prefetchQuery(ccQueries.slos(deps.preview)),
   component: CcSlosPage,
 });
 
@@ -73,8 +74,10 @@ const SLO_PAGE_SIZE = 10;
 function CcSlosPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const { preview } = Route.useSearch();
+  const previewName = preview?.trim() || undefined;
   const [pageIndex, setPageIndex] = useState(0);
-  const slos = useQuery(ccQueries.slos());
+  const slos = useQuery(ccQueries.slos(previewName));
   const slosData = slos.data ?? [];
   // One status query per SLO, cache-shared with the detail page. The listing
   // is small (a tenant's SLO set), so per-row polling stays cheap.
@@ -82,8 +85,7 @@ function CcSlosPage() {
     queries: slosData.map((s) => ccQueries.sloStatus(s.id)),
   });
 
-  const invalidate = () =>
-    qc.invalidateQueries({ queryKey: ccQueries.slos().queryKey });
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["cc", "slos"] });
 
   const toggle = useMutation({
     mutationFn: (slo: CcSlo) =>

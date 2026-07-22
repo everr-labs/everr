@@ -20,6 +20,7 @@ const sloNameSchema = z
 // (api/slos.rs): rolling windows cover at most about a year, and the engine's
 // window arithmetic requires the cap.
 const MAX_WINDOW_SECS = 366 * 86_400;
+const MIN_WINDOW_SECS = 86_400;
 
 // CC's SLO window vocabulary (domain/slo.rs parse_window_secs): m/h/d/w only —
 // note no seconds, unlike AlertRule durations, and no calendar units (M/Q/Y).
@@ -27,8 +28,8 @@ const WINDOW_UNIT_SECONDS = { m: 60, h: 3_600, d: 86_400, w: 604_800 } as const;
 const WINDOW_RE = /^(\d+)([mhdw])$/;
 
 /**
- * Parse an SLO window shorthand ("5m", "1h", "30d", "1w") to seconds,
- * mirroring clickety-clack's `parse_window_secs` plus its 366-day cap. Throws
+ * Parse an SLO window shorthand ("24h", "30d", "1w") to seconds, mirroring
+ * clickety-clack's `parse_window_secs` plus its 1-day..366-day bounds. Throws
  * with a message naming the value.
  */
 export function parseSloWindowSeconds(value: string): number {
@@ -44,6 +45,9 @@ export function parseSloWindowSeconds(value: string): number {
   }
   const seconds =
     amount * WINDOW_UNIT_SECONDS[match[2] as keyof typeof WINDOW_UNIT_SECONDS];
+  if (seconds < MIN_WINDOW_SECS) {
+    throw new Error(`window duration "${value}" is below the minimum of 1 day`);
+  }
   if (seconds > MAX_WINDOW_SECS) {
     throw new Error(
       `window duration "${value}" exceeds the maximum of 366 days`,
@@ -52,7 +56,7 @@ export function parseSloWindowSeconds(value: string): number {
   return seconds;
 }
 
-/** A window shorthand string validated (units, positivity, 366d cap) at parse time. */
+/** A window shorthand string validated (units, positivity, 1d..366d bounds) at parse time. */
 const windowDurationSchema = z.string().superRefine((value, ctx) => {
   try {
     parseSloWindowSeconds(value);

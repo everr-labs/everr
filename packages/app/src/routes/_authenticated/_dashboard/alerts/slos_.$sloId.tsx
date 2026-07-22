@@ -748,7 +748,7 @@ function CcSloDetailPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ccQueries.slo(sloId).queryKey });
       // The SLOs listing shows the paused state too.
-      qc.invalidateQueries({ queryKey: ccQueries.slos().queryKey });
+      qc.invalidateQueries({ queryKey: ["cc", "slos"] });
       toast.success("SLO updated");
     },
     onError: (e) => toast.error(ccErrorMessage(e)),

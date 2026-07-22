@@ -53,11 +53,12 @@ const OVERVIEW_EVENT_LIMIT = 8;
 export const Route = createFileRoute("/_authenticated/_dashboard/alerts/")({
   staticData: { breadcrumb: "Overview" },
   head: () => ({ meta: [{ title: "Everr - Alerts" }] }),
-  loader: ({ context: { queryClient } }) =>
+  loaderDeps: ({ search: { preview } }) => ({ preview }),
+  loader: ({ context: { queryClient }, deps }) =>
     Promise.all([
       queryClient.prefetchQuery(ccQueries.alerts()),
       queryClient.prefetchQuery(ccQueries.rules()),
-      queryClient.prefetchQuery(ccQueries.slos()),
+      queryClient.prefetchQuery(ccQueries.slos(deps.preview)),
       queryClient.prefetchQuery(ccQueries.routes()),
       queryClient.prefetchQuery(ccQueries.receivers()),
       queryClient.prefetchQuery(ccQueries.silences()),
@@ -276,9 +277,10 @@ function SectionCard({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 function CcOverviewPage() {
+  const { preview } = Route.useSearch();
   const alerts = useQuery(ccQueries.alerts());
   const rules = useQuery(ccQueries.rules());
-  const slos = useQuery(ccQueries.slos());
+  const slos = useQuery(ccQueries.slos(preview));
   const routes = useQuery(ccQueries.routes());
   const receivers = useQuery(ccQueries.receivers());
   const silences = useQuery(ccQueries.silences());

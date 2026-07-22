@@ -40,7 +40,7 @@ Burn rate, not raw failure percentage, is what the engine alerts on. It answers 
 
 Alerting on a single window forces a bad trade: a short window pages on every transient blip, a long window notices a real outage hours too late. Everr uses the SRE-workbook pattern instead: each tier pairs a **long** window (is this sustained?) with a **short** window (is it still happening right now?), and fires only when both agree the budget is burning past the tier's threshold.
 
-Omit `tiers` and the engine evaluates its three canonical tiers, calibrated for a 30-day window:
+The engine evaluates its three canonical tiers, calibrated for a 30-day window and scaled proportionally for other SLO windows:
 
 | Tier | Burn rate | Long window | Short window | Severity |
 | --- | --- | --- | --- | --- |
@@ -48,7 +48,7 @@ Omit `tiers` and the engine evaluates its three canonical tiers, calibrated for 
 | `slow-burn` | 6.0× | 6h | 30m | critical |
 | `ticket` | 1.0× | 3d | 6h | warning |
 
-Fast-burn pages someone now (a sharp outage eating the budget in hours). Ticket opens a warning that can wait until tomorrow (a slow leak that will breach the budget eventually). Define your own `tiers` to override all three at once.
+Fast-burn pages someone now (a sharp outage eating the budget in hours). Ticket opens a warning that can wait until tomorrow (a slow leak that will breach the budget eventually). Custom tiers are not currently configurable in SLO YAML.
 
 ## Groups: one SLI, many SLIs
 

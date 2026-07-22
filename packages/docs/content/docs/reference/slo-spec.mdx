@@ -3,7 +3,7 @@ title: SLO Spec
 description: The full SLO file format, the SLI query contract, and the burn-rate tier model.
 ---
 
-An `SLO` is a resource with three top-level keys. Everr validates it on `everr apply` and again on read. The `spec` holds a ClickHouse query that counts good and valid events over a window, a reliability target, and the burn-rate tiers that decide when to alert. For the model behind these fields see [how SLOs work](/docs/concepts/how-slos-work).
+An `SLO` is a resource with three top-level keys. Everr validates it on `everr apply` and again on read. The `spec` holds a ClickHouse query that counts good and valid events over a window, a reliability target, and the fixed burn-rate tiers that decide when to alert. For the model behind these fields see [how SLOs work](/docs/concepts/how-slos-work).
 
 ```yaml
 kind: SLO
@@ -28,9 +28,8 @@ spec:
 | `sli.sql` | string | yes | ClickHouse SQL returning `good` and `valid` counts for the window. Must reference `{window_start:DateTime}` and `{window_end:DateTime}`. See [the SLI contract](#the-sli-query) below. |
 | `sli.labelColumns` | [string] | no | Columns that fan the SLO out into per-group SLIs, one budget per distinct value. Omit for a scalar SLO. ≥1 entry when present, and the SQL must actually project and `GROUP BY` them. See [grouping](#grouping). |
 | `targetPercent` | number | yes | The objective, strictly `> 0` and `< 100`. `99.9` means 99.9% of valid events must be good. |
-| `timeWindow` | string | yes | The rolling budget window: `<int><m\|h\|d\|w>`, for example `30d`. No seconds unit, and at most 366 days. The object form `{ duration, isRolling: true }` is also accepted; calendar-aligned windows (`isRolling: false`) are rejected. |
+| `timeWindow` | string | yes | The rolling budget window: `<int><m\|h\|d\|w>`, for example `30d`. No seconds unit, minimum 1 day, and at most 366 days. The object form `{ duration, isRolling: true }` is also accepted; calendar-aligned windows (`isRolling: false`) are rejected. |
 | `minValidEvents` | int | no | Low-traffic floor: a tier's long window is only allowed to fire once it has seen at least this many valid events, suppressing noise from thin data. Omit to disable. |
-| `tiers` | [object] | no | Burn-rate tiers. Omit to evaluate the [canonical three](#burn-rate-tiers). When present, ≥1 entry, and they replace the canonical set entirely. |
 | `annotations` | map (string to string) | no | Free-form key/value pairs passed through to the engine alongside Everr's generated annotations. Keys starting with `everr.` are reserved and rejected. |
 
 An SLO created directly through the engine API that carries `everr.name` and a matching `everr.repoid` is treated as owned by that repo's config: the next `everr apply` adopts it, and prunes it if no YAML file declares it.
@@ -78,7 +77,7 @@ Two label names are reserved because the SLO pipeline injects them: `slo` (the s
 
 ## Burn-rate tiers
 
-Each tier fires when the burn rate exceeds `burnRate` over **both** its long and short windows at once. Omit `spec.tiers` and the engine evaluates its canonical three, calibrated for a 30-day window:
+Each tier fires when the burn rate exceeds `burnRate` over **both** its long and short windows at once. The engine evaluates the canonical three tiers, calibrated for a 30-day window and scaled proportionally for other SLO windows:
 
 | Tier | Burn rate | Long window | Short window | Severity |
 | --- | --- | --- | --- | --- |
@@ -86,30 +85,7 @@ Each tier fires when the burn rate exceeds `burnRate` over **both** its long and
 | `slow-burn` | 6.0× | 6h | 30m | critical |
 | `ticket` | 1.0× | 3d | 6h | warning |
 
-To override them, define your own tiers. Setting `tiers` replaces the canonical set entirely (it is not merged), so list every tier you want.
-
-```yaml
-spec:
-  tiers:
-    - name: page
-      burnRate: 14.4
-      longWindow: 1h
-      shortWindow: 5m
-      severity: critical
-    - name: ticket
-      burnRate: 1
-      longWindow: 3d
-      shortWindow: 6h
-      severity: warning
-```
-
-| Tier field | Type | Notes |
-| --- | --- | --- |
-| `name` | string | Non-empty. Names the tier in the UI and rides on its instances as `slo_tier`. |
-| `burnRate` | number | The multiple that fires the tier. Must be `> 0`. |
-| `longWindow` | string | The sustained window (`<int><m\|h\|d\|w>`). Must be greater than `shortWindow`. |
-| `shortWindow` | string | The recency window. |
-| `severity` | `info` \| `warning` \| `critical` | The severity the tier's instances fire at. |
+Custom tiers are not currently configurable in SLO YAML.
 
 ## Manifest
 
@@ -122,9 +98,8 @@ SLO declarations sit flat in `everr/`, named `*.slo.yaml`. `everr apply ./everr`
 - `metadata.name` must be 1 to 128 chars of `[A-Za-z0-9_.-]`.
 - `sli.sql` must be non-empty and reference both `{window_start:DateTime}` and `{window_end:DateTime}`.
 - `targetPercent` must be strictly `> 0` and `< 100`.
-- `timeWindow` must be `<int><m|h|d|w>`, at most 366 days; calendar windows (`isRolling: false`) are rejected.
+- `timeWindow` must be `<int><m|h|d|w>`, minimum 1 day and at most 366 days; calendar windows (`isRolling: false`) are rejected.
 - `minValidEvents`, when set, must be a non-negative integer.
 - `sli.labelColumns` needs ≥1 entry when present; entries may not be `slo`, `slo_tier`, or start with `__cc_`.
-- `tiers`, when set, needs ≥1 entry; each tier's `burnRate` must be `> 0` and its `longWindow` must be greater than its `shortWindow`.
 - `annotations` keys starting with `everr.` are rejected: those are reserved for Everr's own generated annotations.
 - Supported document kinds for apply are `Dashboard`, `AlertRule`, `Runbook`, and `SLO`.

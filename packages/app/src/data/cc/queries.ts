@@ -94,11 +94,16 @@ export const ccQueries = {
   // The tenant's SLOs (bare configs — no status). A config listing like
   // routes/receivers: it changes through user actions (pause/resume/delete,
   // as-code apply), so mutations invalidate it rather than polling.
-  slos: () =>
-    queryOptions({
-      queryKey: ["cc", "slos"] as const,
-      queryFn: () => listCcSlos(),
-    }),
+  slos: (preview?: string) => {
+    const previewName = preview?.trim() || null;
+    return queryOptions({
+      queryKey: ["cc", "slos", previewName] as const,
+      queryFn: () =>
+        previewName === null
+          ? listCcSlos()
+          : listCcSlos({ data: { preview: previewName } }),
+    });
+  },
 
   slo: (sloId: string) =>
     queryOptions({

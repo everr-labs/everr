@@ -73,7 +73,7 @@ function ccSlo(overrides: Partial<CcSlo> = {}): CcSlo {
 // Harness
 // ---------------------------------------------------------------------------
 
-function renderSlosRoute() {
+function renderSlosRoute(initialEntry = "/alerts/slos") {
   const rootRoute = createRootRoute({ component: Outlet });
   const authenticatedRoute = createRoute({
     getParentRoute: () => rootRoute,
@@ -103,7 +103,7 @@ function renderSlosRoute() {
     ]),
   ]);
 
-  const history = createMemoryHistory({ initialEntries: ["/alerts/slos"] });
+  const history = createMemoryHistory({ initialEntries: [initialEntry] });
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -221,6 +221,17 @@ describe("/alerts/slos route", () => {
     renderSlosRoute();
 
     expect(await screen.findByText("No SLOs defined")).toBeInTheDocument();
+  });
+
+  it("passes the active preview name into the SLO listing query", async () => {
+    renderSlosRoute("/alerts/slos?preview=feat%2Fslo-preview");
+
+    expect(
+      await screen.findByRole("link", { name: "checkout-availability" }),
+    ).toBeInTheDocument();
+    expect(mocks.listCcSlos).toHaveBeenCalledWith({
+      data: { preview: "feat/slo-preview" },
+    });
   });
 
   it("fails to the shared error card when the listing errors", async () => {

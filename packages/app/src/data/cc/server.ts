@@ -6,6 +6,11 @@ import {
   queryObservedLabelValues,
 } from "@/data/alerts/history.server";
 import { ccRuleIdentity } from "@/data/alerts/rule-identity";
+import { getPreviewScopes } from "@/data/previews/repoids";
+import {
+  visibleSlosForPreview,
+  withAuthoredSloName,
+} from "@/data/slos/preview-overlay";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import * as cc from "./client";
 import {
@@ -61,14 +66,22 @@ export const listCcAlerts = createAuthenticatedServerFn({
   method: "GET",
 }).handler(({ context: { session } }) => cc.listAlerts(orgId(session)));
 
-export const listCcSlos = createAuthenticatedServerFn({
-  method: "GET",
-}).handler(({ context: { session } }) => cc.listSlos(orgId(session)));
+export const listCcSlos = createAuthenticatedServerFn({ method: "GET" })
+  .inputValidator(z.object({ preview: z.string().optional() }).optional())
+  .handler(async ({ data, context: { session } }) => {
+    const org = orgId(session);
+    const preview = data?.preview?.trim() || null;
+    const [slos, scopes] = await Promise.all([
+      cc.listSlos(org),
+      preview === null ? null : getPreviewScopes(org, preview),
+    ]);
+    return visibleSlosForPreview(slos, scopes);
+  });
 
 export const getCcSlo = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(z.object({ sloId: z.string() }))
-  .handler(({ data: { sloId }, context: { session } }) =>
-    cc.getSlo(orgId(session), sloId),
+  .handler(async ({ data: { sloId }, context: { session } }) =>
+    withAuthoredSloName(await cc.getSlo(orgId(session), sloId)),
   );
 
 // The evaluator's latest status snapshot; null until the first evaluation

@@ -18,19 +18,23 @@ export const Route = createFileRoute(
     hideTimeRangePicker: false,
   },
   head: () => ({ meta: [{ title: "Everr - Alerts History" }] }),
-  loaderDeps: ({ search }) => ({ timeRange: withTimeRange(search).timeRange }),
+  loaderDeps: ({ search }) => ({
+    preview: search.preview,
+    timeRange: withTimeRange(search).timeRange,
+  }),
   loader: ({ context: { queryClient }, deps }) =>
     Promise.all([
       queryClient.prefetchQuery(ccQueries.eventHistory(deps.timeRange)),
       queryClient.prefetchQuery(ccQueries.rules()),
-      queryClient.prefetchQuery(ccQueries.slos()),
+      queryClient.prefetchQuery(ccQueries.slos(deps.preview)),
     ]),
   component: CcHistoryPage,
 });
 
 function CcHistoryPage() {
+  const { preview } = Route.useSearch();
   const rules = useQuery(ccQueries.rules());
-  const slos = useQuery(ccQueries.slos());
+  const slos = useQuery(ccQueries.slos(preview));
 
   // Event rows carry a source handle: the slug (everr.name) when CC knows it,
   // otherwise the bare source uuid — for rule- and SLO-originated events
