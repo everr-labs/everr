@@ -34,11 +34,13 @@ import {
 } from "@/data/cc/route-resolution";
 import {
   CC_CANONICAL_SLO_TIERS,
+  ccFmtWindowLabel,
   ccFormatSloDuration,
   ccFormatSloTarget,
   ccSloCurrentBurn,
   ccSloHandleResolver,
   ccSloTierSeverity,
+  ccSloTiers,
   ccSloWindowLabel,
 } from "@/data/cc/slo";
 import type { CcSlo, CcSloGroupStatus, CcSloTier } from "@/data/cc/types";
@@ -193,7 +195,7 @@ function SloPostureRow({
   statusPending: boolean;
 }) {
   const burn = worst
-    ? ccSloCurrentBurn(CC_CANONICAL_SLO_TIERS, worst.tiers)
+    ? ccSloCurrentBurn(ccSloTiers(slo.spec), worst.tiers)
     : null;
   return (
     <Link
@@ -220,7 +222,7 @@ function SloPostureRow({
           <span className="w-20 text-right font-mono text-xs tabular-nums whitespace-nowrap text-muted-foreground">
             {burn ? (
               <>
-                {ccFmtBurn(burn.rate)} / {burn.window}
+                {ccFmtBurn(burn.rate)} / {ccFmtWindowLabel(burn.window)}
               </>
             ) : (
               "—"

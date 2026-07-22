@@ -1,4 +1,4 @@
-use crate::domain::slo::{canonical_tiers, parse_window_secs, BurnRateTier, SloSpec};
+use crate::domain::slo::{parse_window_secs, tiers_for_window, BurnRateTier, SloSpec};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -46,7 +46,11 @@ pub struct WindowReq {
 /// and short window, plus the SLO's own timeWindow (the budget window).
 pub fn required_windows(spec: &SloSpec) -> Vec<WindowReq> {
     let mut secs: std::collections::BTreeSet<u64> = std::collections::BTreeSet::new();
-    for t in canonical_tiers() {
+    // The tiers are scaled to this SLO's own budget window, so their windows (and
+    // hence the freshness-ledger names the evaluator looks burns up by) match.
+    let window_secs = parse_window_secs(&spec.time_window.duration).ok();
+    let tier_window = window_secs.unwrap_or(crate::domain::slo::CANONICAL_TIER_WINDOW_SECS);
+    for t in tiers_for_window(tier_window) {
         if let Ok(s) = parse_window_secs(&t.long_window) {
             secs.insert(s);
         }
@@ -54,7 +58,7 @@ pub fn required_windows(spec: &SloSpec) -> Vec<WindowReq> {
             secs.insert(s);
         }
     }
-    if let Ok(s) = parse_window_secs(&spec.time_window.duration) {
+    if let Some(s) = window_secs {
         secs.insert(s);
     }
     secs.into_iter()
@@ -383,7 +387,7 @@ mod tests {
 
     #[test]
     fn tier_pairs_precedence_order() {
-        let t = canonical_tiers();
+        let t = crate::domain::slo::canonical_tiers();
         assert_eq!(tier_pairs(&t), vec![(0, 1), (0, 2), (1, 2)]);
     }
 

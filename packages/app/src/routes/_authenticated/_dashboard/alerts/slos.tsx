@@ -32,7 +32,6 @@ import {
 import { ccQueries } from "@/data/cc/queries";
 import { pauseCcSlo, resumeCcSlo } from "@/data/cc/server";
 import {
-  CC_CANONICAL_SLO_TIERS,
   ccApplyFreshBudget,
   ccFormatSloDuration,
   ccFormatSloTarget,
@@ -41,6 +40,7 @@ import {
   ccSloCurrentBurn,
   ccSloGroupBreakdown,
   ccSloTierSeverity,
+  ccSloTiers,
   ccSloWindowLabel,
   ccSloWindowSecs,
   ccWorstSloGroup,
@@ -129,6 +129,7 @@ function CcSlosPage() {
     const fresh = freshBudgets[i]?.data;
     if (fresh === undefined) return r;
     const groups = ccApplyFreshBudget(
+      ccSloTiers(r.slo.spec),
       r.groups,
       fresh,
       ccSloWindowSecs(r.slo.spec),
@@ -177,7 +178,7 @@ function CcSlosPage() {
             </span>
           );
         }
-        const b = ccSloGroupBreakdown(CC_CANONICAL_SLO_TIERS, row.groups);
+        const b = ccSloGroupBreakdown(ccSloTiers(row.slo.spec), row.groups);
         const worstLabels = Object.values(row.worst.labels);
         return (
           <span className="flex flex-col gap-0.5">
@@ -223,7 +224,7 @@ function CcSlosPage() {
         if (row.statusPending || row.worst === null) {
           return <span className="text-xs text-muted-foreground">—</span>;
         }
-        const tiers = CC_CANONICAL_SLO_TIERS;
+        const tiers = ccSloTiers(row.slo.spec);
         const burn = ccSloCurrentBurn(tiers, row.worst.tiers);
         const firing = row.worst.firing_tiers.map((f) => ({
           tier: f.tier,

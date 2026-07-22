@@ -24,12 +24,13 @@ import {
   CcStatusDot,
 } from "@/components/cc/shared";
 import {
-  CC_CANONICAL_SLO_TIERS,
   type CcSloState,
+  ccFmtWindowLabel,
   ccFormatSloDuration,
   ccSloCurrentBurn,
   ccSloDescription,
   ccSloGroupState,
+  ccSloTiers,
   ccSloVerdict,
 } from "@/data/cc/slo";
 import type { CcSlo, CcSloGroupStatus, CcSloTier } from "@/data/cc/types";
@@ -146,7 +147,7 @@ function TierPressure({
           {long === null ? "—" : ccFmtBurn(long)}
           <span className="text-muted-foreground/70">
             {" "}
-            / {tier.long_window}
+            / {ccFmtWindowLabel(tier.long_window)}
           </span>
           <span className="px-1 text-muted-foreground/40">·</span>
           fires ≥ {ccFmtBurn(tier.burn_rate)}
@@ -168,7 +169,8 @@ function TierPressure({
       </div>
       {short !== null && (
         <div className="text-[0.625rem] text-muted-foreground/70">
-          short window {ccFmtBurn(short)} / {tier.short_window}
+          short window {ccFmtBurn(short)} /{" "}
+          {ccFmtWindowLabel(tier.short_window)}
         </div>
       )}
     </div>
@@ -185,7 +187,7 @@ export function SloStatusHero({
   worst: CcSloGroupStatus | null;
   groupCount: number;
 }) {
-  const tiers = CC_CANONICAL_SLO_TIERS;
+  const tiers = ccSloTiers(slo.spec);
   const state = ccSloGroupState(tiers, worst);
   const readout = STATE_READOUT[state];
   const description = ccSloDescription(slo.spec);
@@ -297,7 +299,7 @@ export function SloStatusHero({
                   {ccFmtBurn(burn.rate)}
                   <span className="text-muted-foreground">
                     {" "}
-                    / {burn.window}
+                    / {ccFmtWindowLabel(burn.window)}
                   </span>
                 </span>
               )}

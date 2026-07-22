@@ -94,6 +94,112 @@ function tierWindowSecs(window: string): number {
     : Number.POSITIVE_INFINITY;
 }
 
+/** The window the canonical burn-rate table is calibrated for (30 days). */
+const CC_CANONICAL_TIER_WINDOW_SECS = 30 * 86_400;
+
+/** Floor on a scaled tier's short window (mirrors domain/slo.rs). */
+const CC_SHORT_WINDOW_FLOOR_SECS = 60;
+
+// The canonical tiers as (name, long secs, short secs, ...), calibrated to
+// CC_CANONICAL_TIER_WINDOW_SECS. Mirror of domain/slo.rs BASE_TIERS.
+const CC_BASE_TIERS: readonly {
+  name: string;
+  longSecs: number;
+  shortSecs: number;
+  burn_rate: number;
+  severity: CcSloTier["severity"];
+}[] = [
+  {
+    name: "fast-burn",
+    longSecs: 3600,
+    shortSecs: 300,
+    burn_rate: 14.4,
+    severity: "critical",
+  },
+  {
+    name: "slow-burn",
+    longSecs: 21_600,
+    shortSecs: 1800,
+    burn_rate: 6,
+    severity: "critical",
+  },
+  {
+    name: "ticket",
+    longSecs: 259_200,
+    shortSecs: 21_600,
+    burn_rate: 1,
+    severity: "warning",
+  },
+];
+
+/** Seconds → shortest exact shorthand (mirror of domain/slo.rs `fmt_window_secs`). */
+export function ccFmtWindowSecs(secs: number): string {
+  if (secs % 604_800 === 0) return `${secs / 604_800}w`;
+  if (secs % 86_400 === 0) return `${secs / 86_400}d`;
+  if (secs % 3600 === 0) return `${secs / 3600}h`;
+  if (secs % 60 === 0) return `${secs / 60}m`;
+  return `${secs}s`;
+}
+
+/**
+ * A tier window rendered for humans as its two largest non-zero units: the
+ * single-unit stored form (`"1008m"` for a 7-day SLO's ticket window) reads back
+ * as `"16h 48m"`, and a 70s short window as `"1m 10s"` (seconds kept, not
+ * rounded). Passes an unparsable window through untouched.
+ */
+export function ccFmtWindowLabel(window: string): string {
+  const secs = tierWindowSecs(window);
+  if (!Number.isFinite(secs)) return window;
+  const units: [number, string][] = [
+    [Math.floor(secs / 86_400), "d"],
+    [Math.floor((secs % 86_400) / 3600), "h"],
+    [Math.floor((secs % 3600) / 60), "m"],
+    [secs % 60, "s"],
+  ];
+  const parts = units.filter(([n]) => n > 0).map(([n, u]) => `${n}${u}`);
+  return parts.slice(0, 2).join(" ") || "0s";
+}
+
+/**
+ * The burn-rate tiers for an SLO, scaled to its own budget window — what every
+ * SLO surface should use to label a burn ("1.4× / 14m") with the window the
+ * engine measured it over. Falls back to the canonical 30-day windows when the
+ * spec's window doesn't parse (guarded at the API, defensive here).
+ */
+export function ccSloTiers(spec: CcSloSpec): CcSloTier[] {
+  return ccTiersForWindow(
+    ccSloWindowSecs(spec) ?? CC_CANONICAL_TIER_WINDOW_SECS,
+  );
+}
+
+/**
+ * The three burn-rate tiers scaled to a `windowSecs` budget window, mirroring
+ * domain/slo.rs `tiers_for_window`. The engine measures each tier's burn over
+ * these scaled windows (the canonical 1h/6h/3d only for a 30-day SLO), so the
+ * SLO surfaces label a burn with the same window. Short windows floor at
+ * `CC_SHORT_WINDOW_FLOOR_SECS`, pinning the tier at its 12:1 ratio.
+ */
+export function ccTiersForWindow(windowSecs: number): CcSloTier[] {
+  const k = windowSecs / CC_CANONICAL_TIER_WINDOW_SECS;
+  return CC_BASE_TIERS.map((b) => {
+    const shortScaled = Math.round(b.shortSecs * k);
+    const [long, short] =
+      shortScaled < CC_SHORT_WINDOW_FLOOR_SECS
+        ? [
+            CC_SHORT_WINDOW_FLOOR_SECS * (b.longSecs / b.shortSecs),
+            CC_SHORT_WINDOW_FLOOR_SECS,
+          ]
+        : [Math.round(b.longSecs * k), shortScaled];
+    return {
+      name: b.name,
+      long_window: ccFmtWindowSecs(long),
+      short_window: ccFmtWindowSecs(short),
+      burn_rate: b.burn_rate,
+      severity: b.severity,
+    };
+  });
+}
+
 /**
  * The burn rate confirmed by BOTH of a tier's windows: `min(long, short)`. The
  * short window drops to ~0 as soon as spending stops, so this reads 0 once a past
@@ -260,11 +366,14 @@ function sloLabelsKey(labels: Record<string, string>): string {
  * the stored snapshot (the instant fallback shown while the scan is in flight or
  * when it fails). Burn rates and firing tiers always stay from the snapshot: they
  * refresh far more often than the throttled budget window, so the snapshot's are
- * already current. TTE is re-derived from the fresh budget and the snapshot's
- * first-tier effective (both-window) burn, exactly as api/slos.rs projects it —
- * so a passed spike (short back to 0) yields no exhaustion projection.
+ * already current. TTE is re-derived from the fresh budget and the current-spend
+ * burn (`ccSloCurrentBurn`'s `effective`: the shortest-long-window tier's
+ * `min(long, short)`), exactly as api/slos.rs projects it. That burn drops to 0
+ * the moment spending stops, so a recovering budget shows no horizon even while a
+ * slower tier still fires on a burst that has already passed.
  */
 export function ccApplyFreshBudget(
+  specTiers: readonly CcSloTier[],
   groups: readonly CcSloGroupStatus[],
   fresh: readonly CcFreshBudgetGroup[] | undefined,
   windowSecs: number | null,
@@ -280,10 +389,7 @@ export function ccApplyFreshBudget(
       budget_remaining: f.budgetRemaining,
       time_to_exhaustion_secs: ccTimeToExhaustionSecs(
         f.budgetRemaining,
-        ccEffectiveBurn(
-          g.tiers[0]?.long_burn_rate,
-          g.tiers[0]?.short_burn_rate,
-        ),
+        ccSloCurrentBurn(specTiers, g.tiers)?.effective ?? null,
         windowSecs,
       ),
     };
@@ -423,6 +529,22 @@ export function ccSloWindowLabel(spec: CcSloSpec): string {
 export function ccSloWindowSecs(spec: CcSloSpec): number | null {
   const secs = tierWindowSecs(spec.timeWindow.duration);
   return Number.isFinite(secs) ? secs : null;
+}
+
+/**
+ * The budget-over-time chart's range: exactly one SLO window, ending now. Each
+ * point plots a trailing-window budget, so pinning the x-axis to the SLO's own
+ * window keeps the chart honest with the rest of the page: the rightmost point's
+ * window is `[now - window, now]`, the same span the status hero reads, so the
+ * two always agree. Datemath (`now-<window>` .. `now`) so the query key stays
+ * stable across reloads instead of churning on an absolute instant. Null when
+ * the window shorthand doesn't parse (there is nothing to chart).
+ */
+export function ccSloChartRange(
+  spec: CcSloSpec,
+): { from: string; to: string } | null {
+  if (ccSloWindowSecs(spec) === null) return null;
+  return { from: `now-${spec.timeWindow.duration}`, to: "now" };
 }
 
 /**

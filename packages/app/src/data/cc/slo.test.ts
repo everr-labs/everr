@@ -5,15 +5,18 @@ import {
   CC_CANONICAL_SLO_TIERS,
   ccApplyFreshBudget,
   ccEffectiveBurn,
+  ccFmtWindowSecs,
   ccFormatSloDuration,
   ccSloBurnPace,
   ccSloBurnPaceLabel,
+  ccSloChartRange,
   ccSloCurrentBurn,
   ccSloGroupBreakdown,
   ccSloHandleResolver,
   ccSloHandles,
   ccSloTierSeverity,
   ccSloVerdict,
+  ccTiersForWindow,
   ccTimeToExhaustionSecs,
 } from "./slo";
 import type { CcSlo, CcSloGroupStatus, CcSloSpec } from "./types";
@@ -55,6 +58,54 @@ describe("canonical tiers", () => {
     expect(CC_CANONICAL_SLO_TIERS[0].severity).toBe("critical");
     expect(CC_CANONICAL_SLO_TIERS[1].severity).toBe("critical");
     expect(CC_CANONICAL_SLO_TIERS[2].severity).toBe("warning");
+  });
+});
+
+describe("ccTiersForWindow", () => {
+  it("reproduces the canonical 30-day windows exactly", () => {
+    const t = ccTiersForWindow(30 * 86_400);
+    expect(t.map((x) => [x.long_window, x.short_window])).toEqual([
+      ["1h", "5m"],
+      ["6h", "30m"],
+      ["3d", "6h"],
+    ]);
+  });
+
+  it("scales windows proportionally for a 7-day window, thresholds unchanged", () => {
+    const t = ccTiersForWindow(7 * 86_400); // k = 7/30
+    expect(t[0]).toMatchObject({ long_window: "14m", short_window: "70s" });
+    expect(t[1]).toMatchObject({ long_window: "84m", short_window: "7m" });
+    expect(t[2]).toMatchObject({ short_window: "84m", burn_rate: 1 });
+    expect(t[0].burn_rate).toBe(14.4);
+  });
+
+  it("floors short windows and never exceeds a 1-day objective", () => {
+    // The bug: the canonical 3-day ticket window is longer than a 1-day SLO.
+    // After scaling every window is <= the window; fast-burn's short scales below
+    // the 60s floor, pinning it to 1m / 12m.
+    const t = ccTiersForWindow(86_400);
+    expect(t[0]).toMatchObject({ long_window: "12m", short_window: "1m" });
+    for (const x of t) {
+      const long = ccTierWinSecs(x.long_window);
+      expect(long).toBeLessThanOrEqual(86_400);
+    }
+  });
+});
+
+// Local mirror of the tier-window parser for the assertion above.
+function ccTierWinSecs(w: string): number {
+  const m = /^(\d+)([smhdw])$/.exec(w);
+  const mult = { s: 1, m: 60, h: 3600, d: 86_400, w: 604_800 }[m?.[2] ?? "s"];
+  return Number(m?.[1] ?? 0) * (mult ?? 1);
+}
+
+describe("ccFmtWindowSecs", () => {
+  it("picks the coarsest exact unit, falling back to seconds", () => {
+    expect(ccFmtWindowSecs(3600)).toBe("1h");
+    expect(ccFmtWindowSecs(259_200)).toBe("3d");
+    expect(ccFmtWindowSecs(300)).toBe("5m");
+    expect(ccFmtWindowSecs(70)).toBe("70s");
+    expect(ccFmtWindowSecs(604_800)).toBe("1w");
   });
 });
 
@@ -257,6 +308,7 @@ describe("ccApplyFreshBudget", () => {
 
   it("overrides budget/SLI and re-derives TTE, keeping tiers and firing", () => {
     const [merged] = ccApplyFreshBudget(
+      CC_CANONICAL_SLO_TIERS,
       [group()],
       [{ labels: { service: "checkout" }, sli: 0.998, budgetRemaining: 0.1 }],
       2_592_000,
@@ -276,6 +328,7 @@ describe("ccApplyFreshBudget", () => {
     // recovered to 0, so the effective burn is 0 and there is nothing draining
     // the (fresh) budget to project an exhaustion from.
     const [merged] = ccApplyFreshBudget(
+      CC_CANONICAL_SLO_TIERS,
       [
         group({
           tiers: [
@@ -295,9 +348,46 @@ describe("ccApplyFreshBudget", () => {
     expect(merged.time_to_exhaustion_secs).toBeNull();
   });
 
+  it("gives no horizon when a slow tier fires on a burst the fastest tier has moved past", () => {
+    // The payments-success-rate shape: the fast-burn short window is back to 0
+    // (nothing spent recently), but the slow ticket tier still fires on a burst
+    // still inside its 3d/6h windows. TTE reads the fastest tier's current spend
+    // (min(4, 0) = 0), so there is no horizon — the ticket's lagging rate must not
+    // fabricate an exhaustion time for a budget that is recovering.
+    const [merged] = ccApplyFreshBudget(
+      CC_CANONICAL_SLO_TIERS,
+      [
+        group({
+          tiers: [
+            {
+              name: "fast-burn",
+              long_burn_rate: 4,
+              short_burn_rate: 0,
+              long_window_valid: 120000,
+            },
+            {
+              name: "ticket",
+              long_burn_rate: 2,
+              short_burn_rate: 1.5,
+              long_window_valid: 120000,
+            },
+          ],
+          firing_tiers: [{ tier: "ticket", status: "firing" }],
+        }),
+      ],
+      [{ labels: { service: "checkout" }, sli: 0.98, budgetRemaining: 0.3 }],
+      2_592_000,
+    );
+    expect(merged.time_to_exhaustion_secs).toBeNull();
+    // The ticket badge still surfaces — the SLO is still firing, it just isn't
+    // draining right now.
+    expect(merged.firing_tiers).toEqual([{ tier: "ticket", status: "firing" }]);
+  });
+
   it("matches groups by label set regardless of key order", () => {
     const g = group({ labels: { region: "eu", service: "checkout" } });
     const [merged] = ccApplyFreshBudget(
+      CC_CANONICAL_SLO_TIERS,
       [g],
       [
         {
@@ -313,6 +403,7 @@ describe("ccApplyFreshBudget", () => {
 
   it("keeps the snapshot for groups with no fresh match (instant fallback)", () => {
     const [merged] = ccApplyFreshBudget(
+      CC_CANONICAL_SLO_TIERS,
       [group()],
       [{ labels: { service: "cart" }, sli: 1, budgetRemaining: 0.99 }],
       2_592_000,
@@ -322,8 +413,35 @@ describe("ccApplyFreshBudget", () => {
 
   it("returns the snapshot unchanged when there is no fresh data", () => {
     const groups = [group()];
-    expect(ccApplyFreshBudget(groups, undefined, 2_592_000)).toEqual(groups);
-    expect(ccApplyFreshBudget(groups, [], 2_592_000)).toEqual(groups);
+    expect(
+      ccApplyFreshBudget(CC_CANONICAL_SLO_TIERS, groups, undefined, 2_592_000),
+    ).toEqual(groups);
+    expect(
+      ccApplyFreshBudget(CC_CANONICAL_SLO_TIERS, groups, [], 2_592_000),
+    ).toEqual(groups);
+  });
+});
+
+describe("ccSloChartRange", () => {
+  it("is exactly one SLO window ending now, as datemath", () => {
+    expect(
+      ccSloChartRange(
+        spec({ timeWindow: { duration: "1d", isRolling: true } }),
+      ),
+    ).toEqual({ from: "now-1d", to: "now" });
+    expect(
+      ccSloChartRange(
+        spec({ timeWindow: { duration: "30d", isRolling: true } }),
+      ),
+    ).toEqual({ from: "now-30d", to: "now" });
+  });
+
+  it("is null when the window shorthand doesn't parse", () => {
+    expect(
+      ccSloChartRange(
+        spec({ timeWindow: { duration: "banana", isRolling: true } }),
+      ),
+    ).toBeNull();
   });
 });
 

@@ -300,3 +300,155 @@ async fn status_enrichment_passed_spike_has_null_tte() {
     let b = body_json(r).await;
     assert!(b["payload"]["groups"][0]["time_to_exhaustion_secs"].is_null());
 }
+
+#[tokio::test]
+async fn status_enrichment_gives_no_horizon_when_recent_burn_stopped_even_if_a_slow_tier_fires() {
+    let (router, store) = setup().await;
+    let id = create_slo(&router, "d").await;
+    let slo_id = cc::domain::ids::SloId(id.parse().unwrap());
+    let tenant = cc::domain::ids::TenantId::from_trusted(TENANT);
+
+    // The payments-success-rate shape: a burst 1-6h ago still sits inside the slow
+    // `ticket` tier's windows (both > 1x, so it fires), but the fastest tier's short
+    // window is back to 0 — nothing has been spent recently. Current spend is the
+    // fastest tier's min(long, short) = min(4.0, 0.0) = 0, so the budget is not
+    // draining and there is NO horizon, even though `ticket` is firing. Projecting
+    // the ticket's lagging 3d/6h rate would fabricate an exhaustion time for a
+    // budget that is actually recovering.
+    store
+        .upsert_slo_status(
+            slo_id,
+            &tenant,
+            &json!({
+                "window": "30d",
+                "target_percent": 99.9,
+                "groups": [{
+                    "labels": {"service": "payments"},
+                    "sli": 0.98,
+                    "budget_remaining": 0.3,
+                    "tiers": [
+                        {
+                            "name": "fast-burn",
+                            "long_burn_rate": 4.0,
+                            "short_burn_rate": 0.0,
+                            "long_window_valid": 1000.0
+                        },
+                        {
+                            "name": "ticket",
+                            "long_burn_rate": 2.0,
+                            "short_burn_rate": 1.5,
+                            "long_window_valid": 1000.0
+                        }
+                    ]
+                }],
+                "window_computed_at": {}
+            }),
+            time::OffsetDateTime::now_utc(),
+        )
+        .await
+        .unwrap();
+
+    // A firing instance for the ticket tier only (fast-burn has recovered).
+    let rule = RuleId(slo_id.0);
+    let mut inst_labels = std::collections::BTreeMap::new();
+    inst_labels.insert("service".to_string(), "payments".to_string());
+    inst_labels.insert("slo_tier".to_string(), "ticket".to_string());
+    let mut inst = InstanceState::new_inactive(
+        InstanceKey::new(rule, &inst_labels),
+        cc::domain::ids::SourceId::Slo(slo_id),
+        tenant.clone(),
+        inst_labels,
+    );
+    inst.status = Status::Firing;
+    inst.active_since = Some(time::OffsetDateTime::now_utc());
+    inst.last_seen = Some(time::OffsetDateTime::now_utc());
+    store.persist_slo_eval_batch(&[inst], &[]).await.unwrap();
+
+    let r = router
+        .oneshot(
+            Request::get(format!("/v1/slos/{id}/status"))
+                .header("X-CC-Tenant", TENANT)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(r.status(), StatusCode::OK);
+    let b = body_json(r).await;
+    let group = &b["payload"]["groups"][0];
+    // Fastest tier's current spend is min(4.0, 0.0) = 0 -> no horizon, even though
+    // the slow ticket tier is still firing on the passed burst.
+    assert!(group["time_to_exhaustion_secs"].is_null());
+    assert_eq!(
+        group["firing_tiers"],
+        json!([{"tier": "ticket", "status": "firing"}])
+    );
+}
+
+#[tokio::test]
+async fn status_enrichment_projects_from_the_fastest_tier_that_has_a_computed_burn() {
+    let (router, store) = setup().await;
+    let id = create_slo(&router, "d").await;
+    let slo_id = cc::domain::ids::SloId(id.parse().unwrap());
+    let tenant = cc::domain::ids::TenantId::from_trusted(TENANT);
+
+    // Low traffic: the fastest tier saw no events in either window (both rates
+    // null), so the horizon falls through to the next tier that does have a
+    // computed burn (slow-burn) and projects from its min(long, short).
+    store
+        .upsert_slo_status(
+            slo_id,
+            &tenant,
+            &json!({
+                "window": "30d",
+                "target_percent": 99.9,
+                "groups": [{
+                    "labels": {},
+                    "sli": 0.99,
+                    "budget_remaining": 0.3,
+                    "tiers": [
+                        {
+                            "name": "fast-burn",
+                            "long_burn_rate": null,
+                            "short_burn_rate": null,
+                            "long_window_valid": null
+                        },
+                        {
+                            "name": "slow-burn",
+                            "long_burn_rate": 2.0,
+                            "short_burn_rate": 1.5,
+                            "long_window_valid": 1000.0
+                        },
+                        {
+                            "name": "ticket",
+                            "long_burn_rate": 1.8,
+                            "short_burn_rate": 1.8,
+                            "long_window_valid": 1000.0
+                        }
+                    ]
+                }],
+                "window_computed_at": {}
+            }),
+            time::OffsetDateTime::now_utc(),
+        )
+        .await
+        .unwrap();
+
+    let r = router
+        .oneshot(
+            Request::get(format!("/v1/slos/{id}/status"))
+                .header("X-CC-Tenant", TENANT)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(r.status(), StatusCode::OK);
+    let b = body_json(r).await;
+    let group = &b["payload"]["groups"][0];
+    // slow-burn is the fastest tier with a computed burn: 2_592_000 * 0.3 / min(2.0, 1.5).
+    assert_eq!(
+        group["time_to_exhaustion_secs"],
+        json!((2_592_000.0 * 0.3 / 1.5) as u64)
+    );
+}

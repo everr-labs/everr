@@ -22,7 +22,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@everr/ui/components/tooltip";
-import { withTimeRange } from "@everr/ui/lib/time-range";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, Info, Pause, Play, TriangleAlert } from "lucide-react";
@@ -61,13 +60,15 @@ import {
 import { ccQueries } from "@/data/cc/queries";
 import { pauseCcSlo, resumeCcSlo } from "@/data/cc/server";
 import {
-  CC_CANONICAL_SLO_TIERS,
   ccApplyFreshBudget,
+  ccFmtWindowLabel,
   ccFormatSloDuration,
   ccFormatSloTarget,
+  ccSloChartRange,
   ccSloCurrentBurn,
   ccSloHandles,
   ccSloTierSeverity,
+  ccSloTiers,
   ccSloWindowLabel,
   ccSloWindowSecs,
   ccWorstSloGroup,
@@ -90,25 +91,28 @@ export const Route = createFileRoute(
       { label: "SLOs", to: "/alerts/slos" },
       { label: match.loaderData?.name ?? "SLO" },
     ],
-    // The alerts section hides the global time-range picker; the firing-history
-    // feed below reads stored history, so this page opts back in (like the rule
-    // detail page).
-    hideTimeRangePicker: false,
+    // Every time-scoped surface on this page (budget chart, firing feed) is
+    // pinned to the SLO's own window, not a floating picker: an SLO is defined
+    // by its window, so its budget and history read cleanest over that span and
+    // always agree with the status hero. Hide the global picker accordingly.
+    hideTimeRangePicker: true,
   },
-  loaderDeps: ({ search }) => ({ timeRange: withTimeRange(search).timeRange }),
-  loader: async ({ context: { queryClient }, params, deps }) => {
-    const [slo] = await Promise.all([
-      queryClient.ensureQueryData(ccQueries.slo(params.sloId)),
+  loader: async ({ context: { queryClient }, params }) => {
+    // Fetch the SLO first: its window sets the range everything else reads.
+    const slo = await queryClient.ensureQueryData(ccQueries.slo(params.sloId));
+    const range = ccSloChartRange(slo.spec);
+    await Promise.all([
       queryClient.prefetchQuery(ccQueries.sloStatus(params.sloId)),
-      queryClient.prefetchQuery(ccQueries.eventHistory(deps.timeRange)),
+      // Budget series and event history (chart overlay + firing feed) share this
+      // window range. Skipped for a spec whose window doesn't parse (nothing to
+      // chart a trailing window over); the feed then falls back to defaults.
+      ...(range
+        ? [
+            queryClient.prefetchQuery(ccQueries.eventHistory(range)),
+            queryClient.prefetchQuery(ccQueries.sloBudgetSeries(slo.id, range)),
+          ]
+        : []),
     ]);
-    // Prefetch the budget history; skipped for a spec whose window doesn't parse
-    // (nothing to chart a trailing window over).
-    if (ccSloWindowSecs(slo.spec) !== null) {
-      await queryClient.prefetchQuery(
-        ccQueries.sloBudgetSeries(slo.id, deps.timeRange),
-      );
-    }
     return { name: slo.name };
   },
   component: CcSloDetailPage,
@@ -219,7 +223,7 @@ const ALERT_OUTCOMES: {
 function ObjectiveSection({ slo }: { slo: CcSlo }) {
   const [sqlOpen, setSqlOpen] = useState(false);
   const [tiersOpen, setTiersOpen] = useState(false);
-  const tiers = CC_CANONICAL_SLO_TIERS;
+  const tiers = ccSloTiers(slo.spec);
   const ann = slo.spec.annotations;
   // Surface the as-code identity fields natively instead of behind a YAML dump.
   // `everr.project` and `everr.label.*` fold into first-class fields (as they do
@@ -311,8 +315,9 @@ function ObjectiveSection({ slo }: { slo: CcSlo }) {
                         className="font-mono text-[0.6875rem] text-muted-foreground"
                       >
                         <span className="text-foreground">{t.name}</span> ·{" "}
-                        {ccFmtBurn(t.burn_rate)} over {t.long_window} (short{" "}
-                        {t.short_window})
+                        {ccFmtBurn(t.burn_rate)} over{" "}
+                        {ccFmtWindowLabel(t.long_window)} (short{" "}
+                        {ccFmtWindowLabel(t.short_window)})
                       </dd>
                     ))}
                   </div>
@@ -351,7 +356,7 @@ function StatusSection({ slo }: { slo: CcSlo }) {
   // snapshot's throttled budget once it lands. The snapshot renders instantly
   // meanwhile; this only refines budget/SLI/time-to-exhaustion.
   const fresh = useQuery(ccQueries.sloBudgetNow(slo.id));
-  const tiers = CC_CANONICAL_SLO_TIERS;
+  const tiers = ccSloTiers(slo.spec);
 
   const groupCols: Column<CcSloGroupStatus>[] = [
     {
@@ -407,7 +412,10 @@ function StatusSection({ slo }: { slo: CcSlo }) {
               }
             >
               {ccFmtBurn(burn.rate)}
-              <span className="text-muted-foreground"> / {burn.window}</span>
+              <span className="text-muted-foreground">
+                {" "}
+                / {ccFmtWindowLabel(burn.window)}
+              </span>
             </TooltipTrigger>
             <TooltipContent className="space-y-1.5">
               <p className="max-w-56 text-xs">
@@ -426,13 +434,13 @@ function StatusSection({ slo }: { slo: CcSlo }) {
                           {snap?.long_burn_rate != null
                             ? ccFmtBurn(snap.long_burn_rate)
                             : "—"}{" "}
-                          / {t.long_window}
+                          / {ccFmtWindowLabel(t.long_window)}
                         </td>
                         <td className="pr-2">
                           {snap?.short_burn_rate != null
                             ? ccFmtBurn(snap.short_burn_rate)
                             : "—"}{" "}
-                          / {t.short_window}
+                          / {ccFmtWindowLabel(t.short_window)}
                         </td>
                         <td>fires &ge;{ccFmtBurn(t.burn_rate)}</td>
                       </tr>
@@ -529,6 +537,7 @@ function StatusSection({ slo }: { slo: CcSlo }) {
   // so it is not "fresh" — require the scan to have produced groups.
   const budgetIsFresh = fresh.data !== undefined && fresh.data.length > 0;
   const groups = ccApplyFreshBudget(
+    ccSloTiers(slo.spec),
     data.payload.groups,
     fresh.data,
     ccSloWindowSecs(slo.spec),
@@ -575,19 +584,25 @@ function StatusSection({ slo }: { slo: CcSlo }) {
 
 // ── How's the budget trending ─────────────────────────────────────────────────
 
+// Placeholder range for the budget/event queries while they are disabled (a
+// spec whose window doesn't parse). It only seeds the query key; `enabled` keeps
+// it from ever fetching. The live range is `ccSloChartRange(slo.spec)`.
+const CHART_RANGE_FALLBACK = { from: "now-1d", to: "now" } as const;
+
 function BudgetHistorySection({ slo }: { slo: CcSloView }) {
-  const { timeRange } = Route.useLoaderDeps();
-  const hasWindow = ccSloWindowSecs(slo.spec) !== null;
+  // The chart is pinned to one SLO window ending now, so its rightmost point
+  // reads the same span as the status hero and the two always agree.
+  const range = ccSloChartRange(slo.spec);
   const series = useQuery({
-    ...ccQueries.sloBudgetSeries(slo.id, timeRange),
-    enabled: hasWindow,
+    ...ccQueries.sloBudgetSeries(slo.id, range ?? CHART_RANGE_FALLBACK),
+    enabled: range !== null,
   });
   // The same fire/resolve transitions the history feed below shows, overlaid on
   // the budget line so a drop lines up with the tier that fired. Scoped to this
   // SLO's handles; non-transition events (deliveries, silences) drop out.
   const events = useQuery({
-    ...ccQueries.eventHistory(timeRange),
-    enabled: hasWindow,
+    ...ccQueries.eventHistory(range ?? CHART_RANGE_FALLBACK),
+    enabled: range !== null,
   });
   const budgetEvents = useMemo<SloBudgetEvent[]>(() => {
     const handles = new Set(ccSloHandles(slo));
@@ -602,7 +617,7 @@ function BudgetHistorySection({ slo }: { slo: CcSloView }) {
 
   // A spec whose window doesn't parse can't be charted; the objective card
   // still states the window, so no error card is owed here.
-  if (!hasWindow) return null;
+  if (range === null) return null;
 
   return (
     <Card>
@@ -653,8 +668,8 @@ function BudgetHistorySection({ slo }: { slo: CcSloView }) {
 
 function FiringHistorySection({ slo }: { slo: CcSlo }) {
   // Scoped to this SLO's handles: the stored fire/resolve transitions and
-  // deliveries for its burn-rate tiers, over the page's time range. This is the
-  // event-level record that complements the budget trend above.
+  // deliveries for its burn-rate tiers, pinned to the same SLO window as the
+  // budget chart above (the picker is hidden on this page) so the two line up.
   // hideRuleColumns drops the (constant) source and severity columns, leaving
   // Time / Event / Labels — the tier rides in the labels as `slo_tier`.
   return (
@@ -662,6 +677,7 @@ function FiringHistorySection({ slo }: { slo: CcSlo }) {
       scopeSlug={ccSloHandles(slo)}
       hideRuleColumns
       showTypeLens
+      timeRange={ccSloChartRange(slo.spec) ?? undefined}
     />
   );
 }

@@ -171,6 +171,15 @@ export async function querySloBudgetSeries(
     instants.push(t);
   }
   if (instants.length === 0) return [];
+  // Finish exactly at `to` (now): the grid snaps ticks down, so the last tick
+  // can fall a step short, and the chart's final point would then measure a
+  // different window than the status hero (which reads the window ending now).
+  if (
+    instants[instants.length - 1] < to &&
+    instants.length < CC_SLO_BUDGET_MAX_POINTS
+  ) {
+    instants.push(to);
+  }
 
   // Bounded concurrency: N heavy scans, capped so one chart load can't flood
   // ClickHouse with the whole series at once.

@@ -90,37 +90,109 @@ pub const SLO_TIER_LABEL: &str = "slo_tier";
 /// Label names the SLO pipeline injects; user label columns must not collide.
 pub const RESERVED_SLO_LABELS: [&str; 2] = [SLO_LABEL, SLO_TIER_LABEL];
 
-/// The SRE-workbook canonical three tiers, calibrated to a 30-day window.
-pub fn canonical_tiers() -> Vec<BurnRateTier> {
-    vec![
-        BurnRateTier {
-            name: "fast-burn".into(),
-            long_window: "1h".into(),
-            short_window: "5m".into(),
-            burn_rate: 14.4,
-            severity: Severity::Critical,
-        },
-        BurnRateTier {
-            name: "slow-burn".into(),
-            long_window: "6h".into(),
-            short_window: "30m".into(),
-            burn_rate: 6.0,
-            severity: Severity::Critical,
-        },
-        BurnRateTier {
-            name: "ticket".into(),
-            long_window: "3d".into(),
-            short_window: "6h".into(),
-            burn_rate: 1.0,
-            severity: Severity::Warning,
-        },
-    ]
+/// The window the canonical burn-rate table is calibrated for (30 days). The SRE
+/// workbook's 1h/6h/3d windows and 14.4/6/1 thresholds all assume this budget
+/// window; [`tiers_for_window`] scales the windows to any other.
+pub const CANONICAL_TIER_WINDOW_SECS: u64 = 30 * 86_400;
+
+/// Floor on a tier's short (confirmation) window under scaling. Below this the
+/// window would be too short to hold enough traffic to confirm a burn on a
+/// low-volume SLO; the whole tier is pinned to `SHORT_WINDOW_FLOOR_SECS` short /
+/// 12x long (the canonical long:short ratio) instead of scaling further down.
+pub const SHORT_WINDOW_FLOOR_SECS: u64 = 60;
+
+/// One canonical tier as (name, long secs, short secs, burn rate, severity),
+/// calibrated to `CANONICAL_TIER_WINDOW_SECS`. All three share a 12:1 long:short
+/// ratio, which the floor preserves.
+struct BaseTier {
+    name: &'static str,
+    long_secs: u64,
+    short_secs: u64,
+    burn_rate: f64,
+    severity: Severity,
 }
 
-/// Resolve a tier's severity from `labels["slo_tier"]` against the `canonical_tiers()`
-/// list every SLO is evaluated on. Unknown/missing tier defensively falls back to
-/// `Severity::Critical` — a conservative default for a tier name no longer present,
-/// shared by every caller so the fallback can't disagree with itself.
+const BASE_TIERS: [BaseTier; 3] = [
+    BaseTier {
+        name: "fast-burn",
+        long_secs: 3600,
+        short_secs: 300,
+        burn_rate: 14.4,
+        severity: Severity::Critical,
+    },
+    BaseTier {
+        name: "slow-burn",
+        long_secs: 21_600,
+        short_secs: 1800,
+        burn_rate: 6.0,
+        severity: Severity::Critical,
+    },
+    BaseTier {
+        name: "ticket",
+        long_secs: 259_200,
+        short_secs: 21_600,
+        burn_rate: 1.0,
+        severity: Severity::Warning,
+    },
+];
+
+/// The three burn-rate tiers scaled to a `window_secs` budget window. The SRE
+/// canonical table (1h/6h/3d at 14.4/6/1) is calibrated for 30 days; applying it
+/// verbatim to, say, a 1-day SLO would measure burn over a 3-day ticket window
+/// (longer than the whole objective) and fire slow-burn only after 150% of the
+/// budget is spent. Scaling each window by `window_secs / 30d` keeps the intended
+/// "budget consumed over the long window" (2%/5%/10%) constant for any window,
+/// with the thresholds unchanged. Short windows are floored (see
+/// `SHORT_WINDOW_FLOOR_SECS`) so a small window can't produce a sub-minute
+/// confirmation window; the floor pins the whole tier at its 12:1 ratio.
+pub fn tiers_for_window(window_secs: u64) -> Vec<BurnRateTier> {
+    let k = window_secs as f64 / CANONICAL_TIER_WINDOW_SECS as f64;
+    BASE_TIERS
+        .iter()
+        .map(|b| {
+            let short_scaled = (b.short_secs as f64 * k).round() as u64;
+            let (long, short) = if short_scaled < SHORT_WINDOW_FLOOR_SECS {
+                // Ratio-preserving floor: long = 12x the floored short.
+                let ratio = b.long_secs / b.short_secs;
+                (SHORT_WINDOW_FLOOR_SECS * ratio, SHORT_WINDOW_FLOOR_SECS)
+            } else {
+                ((b.long_secs as f64 * k).round() as u64, short_scaled)
+            };
+            BurnRateTier {
+                name: b.name.into(),
+                long_window: fmt_window_secs(long),
+                short_window: fmt_window_secs(short),
+                burn_rate: b.burn_rate,
+                severity: b.severity,
+            }
+        })
+        .collect()
+}
+
+/// The canonical tiers at their calibrated 30-day window. Their names, severities,
+/// and burn-rate thresholds are window-independent, so this is the right list for
+/// name/severity resolution (`tier_severity`) and precedence (inhibition) where
+/// the actual windows don't matter. For evaluating burn over an SLO's own window,
+/// use [`tiers_for_window`] with that SLO's budget window.
+pub fn canonical_tiers() -> Vec<BurnRateTier> {
+    tiers_for_window(CANONICAL_TIER_WINDOW_SECS)
+}
+
+/// The burn-rate tiers for an SLO, scaled to its own budget window
+/// ([`tiers_for_window`]). An unparsable window (rejected at API validation) falls
+/// back to the canonical 30-day set, so evaluation never panics on a bad spec.
+pub fn tiers_for_spec(spec: &SloSpec) -> Vec<BurnRateTier> {
+    let window_secs =
+        parse_window_secs(&spec.time_window.duration).unwrap_or(CANONICAL_TIER_WINDOW_SECS);
+    tiers_for_window(window_secs)
+}
+
+/// Resolve a tier's severity from `labels["slo_tier"]` against a tier list. Tier
+/// names and severities are the same at every window, so either `canonical_tiers()`
+/// or a `tiers_for_window` list resolves identically. Unknown/missing tier
+/// defensively falls back to `Severity::Critical` — a conservative default for a
+/// tier name not present, shared by every caller so the fallback can't disagree
+/// with itself.
 pub(crate) fn tier_severity(tiers: &[BurnRateTier], labels: &BTreeMap<String, String>) -> Severity {
     labels
         .get(SLO_TIER_LABEL)
@@ -141,8 +213,11 @@ impl std::fmt::Display for WindowParseError {
 impl std::error::Error for WindowParseError {}
 
 /// Parse a rolling-window duration shorthand into seconds.
-/// Supported units: m (minute), h (hour), d (day), w (week). Value must be > 0.
-/// Calendar units (M/Q/Y) and anything else are rejected.
+/// Supported units: s (second), m (minute), h (hour), d (day), w (week). Value
+/// must be > 0. Calendar units (M/Q/Y) and anything else are rejected. The `s`
+/// unit exists so window-scaled burn tiers (`tiers_for_window`) round-trip: a
+/// scaled window that isn't a whole minute (e.g. a 7-day SLO's 70s short window)
+/// is emitted as `"70s"` and must parse back to the same seconds.
 pub fn parse_window_secs(s: &str) -> Result<u64, WindowParseError> {
     let s = s.trim();
     let split = s.find(|c: char| !c.is_ascii_digit()).unwrap_or(s.len());
@@ -152,6 +227,7 @@ pub fn parse_window_secs(s: &str) -> Result<u64, WindowParseError> {
         return Err(WindowParseError(s.to_string()));
     }
     let mult = match unit {
+        "s" => 1,
         "m" => 60,
         "h" => 3600,
         "d" => 86_400,
@@ -160,6 +236,28 @@ pub fn parse_window_secs(s: &str) -> Result<u64, WindowParseError> {
     };
     n.checked_mul(mult)
         .ok_or_else(|| WindowParseError(s.to_string()))
+}
+
+/// Format a whole-seconds duration back into the shortest exact shorthand
+/// `parse_window_secs` accepts: the coarsest unit that divides evenly (so 3600 is
+/// `"1h"`, 259200 is `"3d"`), falling back to minutes then seconds. The inverse of
+/// `parse_window_secs` for any value it can produce, so a `tiers_for_window` window
+/// always round-trips through the freshness ledger's `{secs}s` keys.
+pub fn fmt_window_secs(secs: u64) -> String {
+    if secs == 0 {
+        return "0s".to_string();
+    }
+    if secs % 604_800 == 0 {
+        format!("{}w", secs / 604_800)
+    } else if secs % 86_400 == 0 {
+        format!("{}d", secs / 86_400)
+    } else if secs % 3600 == 0 {
+        format!("{}h", secs / 3600)
+    } else if secs % 60 == 0 {
+        format!("{}m", secs / 60)
+    } else {
+        format!("{secs}s")
+    }
 }
 
 /// A stable fingerprint of the SLO's *objective*: the fields that determine what
@@ -243,6 +341,74 @@ mod tests {
         assert_eq!(t[0].severity, Severity::Critical);
         assert_eq!(t[2].name, "ticket");
         assert_eq!(t[2].severity, Severity::Warning);
+    }
+
+    #[test]
+    fn parses_and_formats_the_seconds_unit() {
+        assert_eq!(parse_window_secs("70s").unwrap(), 70);
+        assert_eq!(parse_window_secs("60s").unwrap(), 60);
+        // fmt picks the coarsest exact unit; falls back to seconds otherwise.
+        assert_eq!(fmt_window_secs(3600), "1h");
+        assert_eq!(fmt_window_secs(259_200), "3d");
+        assert_eq!(fmt_window_secs(300), "5m");
+        assert_eq!(fmt_window_secs(70), "70s");
+        assert_eq!(fmt_window_secs(604_800), "1w");
+    }
+
+    #[test]
+    fn fmt_window_round_trips_through_parse() {
+        for secs in [1u64, 59, 60, 70, 300, 720, 3600, 8640, 60_480, 259_200] {
+            assert_eq!(parse_window_secs(&fmt_window_secs(secs)).unwrap(), secs);
+        }
+    }
+
+    #[test]
+    fn tiers_for_30d_are_the_canonical_windows() {
+        // The 30-day case must reproduce the SRE table verbatim (no scaling drift).
+        let t = tiers_for_window(CANONICAL_TIER_WINDOW_SECS);
+        assert_eq!(t[0].long_window, "1h");
+        assert_eq!(t[0].short_window, "5m");
+        assert_eq!(t[1].long_window, "6h");
+        assert_eq!(t[1].short_window, "30m");
+        assert_eq!(t[2].long_window, "3d");
+        assert_eq!(t[2].short_window, "6h");
+    }
+
+    #[test]
+    fn tiers_scale_proportionally_for_a_seven_day_window() {
+        // k = 7d/30d; each window scales by k, thresholds unchanged.
+        let t = tiers_for_window(7 * 86_400);
+        assert_eq!(t[0].long_window, "14m"); // 1h * 7/30
+        assert_eq!(t[0].short_window, "70s"); // 5m * 7/30
+        assert_eq!(t[1].long_window, "84m"); // 6h * 7/30
+        assert_eq!(t[1].short_window, "7m"); // 30m * 7/30
+        assert_eq!(t[2].short_window, "84m"); // 6h * 7/30
+                                              // Thresholds and severities never move.
+        assert_eq!(t[0].burn_rate, 14.4);
+        assert_eq!(t[2].burn_rate, 1.0);
+        assert_eq!(t[2].severity, Severity::Warning);
+    }
+
+    #[test]
+    fn small_windows_never_exceed_the_objective_and_floor_the_short_window() {
+        // On a 1-day SLO no tier window may exceed the objective (the unscaled
+        // 3-day ticket window would), and no short window may drop below the floor.
+        let window = 86_400; // 1d
+        for t in tiers_for_window(window) {
+            let long = parse_window_secs(&t.long_window).unwrap();
+            let short = parse_window_secs(&t.short_window).unwrap();
+            assert!(long <= window, "{} long {long}s exceeds 1d", t.name);
+            assert!(
+                short >= SHORT_WINDOW_FLOOR_SECS,
+                "{} short below floor",
+                t.name
+            );
+            assert!(long > short, "{} long must exceed short", t.name);
+        }
+        // fast-burn's 5m short scales below the floor, so it pins to 1m / 12m.
+        let t = tiers_for_window(86_400);
+        assert_eq!(t[0].short_window, "1m");
+        assert_eq!(t[0].long_window, "12m");
     }
 
     #[test]

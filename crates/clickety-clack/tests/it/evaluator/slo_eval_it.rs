@@ -325,6 +325,101 @@ async fn fresh_windows_are_not_requeried() {
     );
 }
 
+/// A prior snapshot's freshness ledger may hold windows that are not in the SLO's
+/// current tier set (a tier window changed without the objective fingerprint
+/// moving, so the snapshot is carried rather than discarded). The evaluator must
+/// rebuild the ledger from the CURRENT required windows, dropping the orphaned keys
+/// instead of letting them linger.
+#[tokio::test]
+async fn stale_ledger_windows_are_pruned_to_the_current_tier_set() {
+    let store = PgStore::connect(&crate::support::fresh_db().await)
+        .await
+        .unwrap();
+    let tenant = TenantId::from_trusted("t_prune");
+    let mut spec_7d = spec();
+    spec_7d.time_window.duration = "7d".into();
+    let SloCreate::Created(slo) = store
+        .create_slo(tenant.clone(), "prune", &spec_7d)
+        .await
+        .unwrap()
+    else {
+        panic!()
+    };
+
+    // The 7-day scaled tier windows the evaluator will actually require, each
+    // seeded as just-computed, PLUS two orphans from the canonical 30-day table
+    // (3600s = 1h fast-burn long, 259200s = 3d ticket long) that a 7-day SLO does
+    // not use. The huge base cadence keeps every seeded window fresh, so nothing is
+    // requeried and the only change is the ledger rebuild.
+    let seed_ts = OffsetDateTime::now_utc();
+    let seven_day_windows = ["70s", "420s", "840s", "5040s", "60480s", "604800s"];
+    let mut ledger: BTreeMap<String, i64> = seven_day_windows
+        .iter()
+        .map(|w| ((*w).to_string(), seed_ts.unix_timestamp()))
+        .collect();
+    ledger.insert("3600s".into(), seed_ts.unix_timestamp()); // orphan
+    ledger.insert("259200s".into(), seed_ts.unix_timestamp()); // orphan
+    let prior = SloStatusPayload {
+        window: "7d".into(),
+        target_percent: 99.9,
+        groups: vec![SloGroupStatus {
+            labels: BTreeMap::new(),
+            sli: Some(0.999),
+            budget_remaining: Some(0.5),
+            tiers: vec![],
+        }],
+        window_computed_at: ledger,
+        objective_fingerprint: Some(cc::domain::slo::objective_fingerprint(&spec_7d)),
+    };
+    store
+        .upsert_slo_status(
+            slo.id,
+            &tenant,
+            &serde_json::to_value(&prior).unwrap(),
+            seed_ts,
+        )
+        .await
+        .unwrap();
+
+    let ch = StubCh {
+        good: 50.0,
+        valid: 100.0,
+        calls: AtomicUsize::new(0),
+    };
+    // Advance 60s with a base cadence far larger than any window's refresh, so no
+    // seeded window comes due (the ledger is purely carried, then pruned).
+    cc::evaluator::slo::evaluate_slo(
+        &store,
+        &ch,
+        &NoopBus,
+        &cc::domain::NullSink,
+        &slo,
+        seed_ts + time::Duration::seconds(60),
+        10_000_000,
+        3,
+    )
+    .await
+    .unwrap();
+
+    let snap = store
+        .get_slo_status(&tenant, slo.id)
+        .await
+        .unwrap()
+        .unwrap();
+    let payload: SloStatusPayload = serde_json::from_value(snap.payload).unwrap();
+    let keys: std::collections::BTreeSet<&str> = payload
+        .window_computed_at
+        .keys()
+        .map(String::as_str)
+        .collect();
+    let expected: std::collections::BTreeSet<&str> = seven_day_windows.into_iter().collect();
+    assert_eq!(
+        keys, expected,
+        "ledger must hold exactly the 7-day required windows, with the orphaned \
+         3600s/259200s canonical windows pruned"
+    );
+}
+
 /// A garbage (non-`SloStatusPayload`-shaped) prior snapshot must not permanently
 /// freeze the SLO: `evaluate_slo` should self-heal by treating it like there was
 /// no prior snapshot, recompute everything fresh, and write a real snapshot.

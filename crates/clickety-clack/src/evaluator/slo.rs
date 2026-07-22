@@ -14,7 +14,8 @@ use crate::domain::instance::InstanceState;
 use crate::domain::rule::Severity;
 use crate::domain::sink::{SloSample, SloSampleSink};
 use crate::domain::slo::{
-    canonical_tiers, objective_fingerprint, parse_window_secs, BurnRateTier, Slo, SloSpec,
+    canonical_tiers, objective_fingerprint, parse_window_secs, tiers_for_spec, BurnRateTier, Slo,
+    SloSpec,
 };
 use crate::domain::Event;
 use crate::engine::slo_math::{
@@ -229,8 +230,9 @@ pub async fn evaluate_slo(
     };
 
     let eval_unix = eval_ts.unix_timestamp();
-    let due_windows: Vec<WindowReq> = required_windows(&slo.spec)
-        .into_iter()
+    let required = required_windows(&slo.spec);
+    let due_windows: Vec<WindowReq> = required
+        .iter()
         .filter(|w| {
             is_window_due(
                 w.secs,
@@ -239,6 +241,7 @@ pub async fn evaluate_slo(
                 base_cadence_secs,
             )
         })
+        .cloned()
         .collect();
 
     // Run every due window's SLI query once, keyed by group labels. The queries are
@@ -317,7 +320,9 @@ pub async fn evaluate_slo(
     buffer_slo_samples(samples, slo, &window_values, eval_ts);
 
     let due_names: BTreeSet<&str> = due_windows.iter().map(|w| w.name.as_str()).collect();
-    let tiers = canonical_tiers();
+    // Burn tiers scaled to this SLO's own budget window: the windows the burns
+    // below are measured over, and the windows `required_windows` queried this tick.
+    let tiers = tiers_for_spec(&slo.spec);
     let budget_window_name = window_name_for(&slo.spec.time_window.duration);
 
     let prior_by_labels: BTreeMap<GroupKey, &SloGroupStatus> =
@@ -398,9 +403,19 @@ pub async fn evaluate_slo(
         });
     }
 
-    let mut window_computed_at = prior.window_computed_at;
-    for w in &due_windows {
-        window_computed_at.insert(w.name.clone(), eval_unix);
+    // Rebuild the freshness ledger from the CURRENT required windows only, so a
+    // window not in the SLO's tier set (a tier window that changed) drops out
+    // instead of lingering as an orphan key. Each window keeps its prior timestamp;
+    // the ones recomputed this tick are stamped now. A required window with no
+    // prior entry is always due (is_window_due treats a missing timestamp as due),
+    // so it is in due_names — the else is defensive.
+    let mut window_computed_at = BTreeMap::new();
+    for w in &required {
+        if due_names.contains(w.name.as_str()) {
+            window_computed_at.insert(w.name.clone(), eval_unix);
+        } else if let Some(&ts) = prior.window_computed_at.get(&w.name) {
+            window_computed_at.insert(w.name.clone(), ts);
+        }
     }
 
     let payload = SloStatusPayload {
@@ -709,6 +724,9 @@ pub(crate) struct TierFiring {
 /// Every (group × tier) pair yields exactly one entry, including absent ones
 /// — the resolve path downstream relies on seeing every pair each tick.
 pub(crate) fn plan_tier_firing(spec: &SloSpec, payload: &SloStatusPayload) -> Vec<TierFiring> {
+    // Firing compares each tier's stored burn against its threshold and matches by
+    // name — both window-independent — so the canonical list resolves the same
+    // set as the SLO's scaled tiers, without re-parsing the window.
     let tiers = canonical_tiers();
     let mut out = Vec::with_capacity(payload.groups.len() * tiers.len());
     for group in &payload.groups {
@@ -758,7 +776,10 @@ pub(crate) fn slo_annotations(slo: &Slo, tier: &BurnRateTier) -> BTreeMap<String
             "SLO {name}: {tier} burn — ${{burn_rate}}× over {long_window}",
             name = slo.name,
             tier = tier.name,
-            long_window = tier.long_window,
+            // The scaled window rendered compactly ("16h48m", not "1008m").
+            long_window = parse_window_secs(&tier.long_window)
+                .map(fmt_duration_secs)
+                .unwrap_or_else(|_| tier.long_window.clone()),
         ),
     );
     out.insert(
@@ -893,7 +914,10 @@ mod tier_firing_tests {
         // Prior snapshot carried two groups; this tick, only "checkout" reports.
         let prior = vec![bare(svc("checkout")), bare(svc("cart"))];
         let mut window_values: GroupValues = BTreeMap::new();
-        window_values.insert("1h".to_string(), BTreeMap::from([(svc("checkout"), (10.0, 10.0))]));
+        window_values.insert(
+            "1h".to_string(),
+            BTreeMap::from([(svc("checkout"), (10.0, 10.0))]),
+        );
 
         // Budget window throttled: keep the stale "cart" group — its budget-window
         // data may still be live, we just didn't recompute it this tick.

@@ -309,25 +309,27 @@ fn enrich_status_payload(raw: Value, instances: &[InstanceState]) -> Value {
     let mut out = serde_json::to_value(&payload).unwrap_or(raw);
     if let Some(groups) = out.get_mut("groups").and_then(Value::as_array_mut) {
         for (g, v) in payload.groups.iter().zip(groups) {
-            // The fast-burn tier's effective (both-window) burn is the freshest
-            // confirmed spend: tiers are precedence-ordered fastest-first (see
-            // `domain::slo::canonical_tiers`), so tier 0 is the shortest-window pair.
-            // `min(long, short)` reads 0 once a spike has passed (short back to 0)
-            // even while the long window still remembers it, so a recovering budget
-            // gets no exhaustion projection — matching the frontend's `ccEffectiveBurn`.
-            let first_tier_burn = g.tiers.first().and_then(|tier| {
-                match (tier.long_burn_rate, tier.short_burn_rate) {
+            let firing_tiers = tiers_by_labels.get(&g.labels).cloned().unwrap_or_default();
+            // The exhaustion horizon is projected from the current spend rate: the
+            // fastest tier with a computed long-window burn (tiers are stored
+            // fastest-first, in `BASE_TIERS` order via `tiers_for_spec`), taking its
+            // `min(long, short)`. That min drops to 0 the moment spending stops, so a
+            // budget recovering after a burst shows no horizon even while a slower
+            // tier still fires on it. Mirrors the frontend's `ccSloCurrentBurn`.
+            let current_burn = g
+                .tiers
+                .iter()
+                .find(|tier| tier.long_burn_rate.is_some())
+                .and_then(|tier| match (tier.long_burn_rate, tier.short_burn_rate) {
                     (Some(long), Some(short)) => Some(long.min(short)),
                     _ => None,
-                }
-            });
-            let tte = match (g.budget_remaining, first_tier_burn, budget_window_secs) {
+                });
+            let tte = match (g.budget_remaining, current_burn, budget_window_secs) {
                 (Some(budget), Some(burn), Some(window_secs)) => {
                     time_to_exhaustion_secs(budget, burn, window_secs)
                 }
                 _ => None,
             };
-            let firing_tiers = tiers_by_labels.get(&g.labels).cloned().unwrap_or_default();
             if let Some(obj) = v.as_object_mut() {
                 obj.insert("time_to_exhaustion_secs".into(), json!(tte));
                 obj.insert("firing_tiers".into(), json!(firing_tiers));
@@ -372,11 +374,25 @@ fn strip_ch_params(sql: &str) -> String {
 /// passes validation.
 const MAX_WINDOW_SECS: u64 = 366 * 86_400;
 
+/// Lower bound on the SLO's `timeWindow.duration`: 1 day. The burn-rate tiers are
+/// scaled to the budget window (`domain::slo::tiers_for_window`); at exactly a day
+/// the fast- and slow-burn tiers already collapse onto the same short-window floor,
+/// and below a day all three merge, so the multi-window method can no longer
+/// separate a fast page from a slow ticket by timescale. Sub-day monitoring is a
+/// threshold rule's job, not an error-budget SLO's, so reject the window rather
+/// than evaluate a degenerate tier set.
+const MIN_WINDOW_SECS: u64 = 86_400;
+
 fn validate_window_secs(dur: &str) -> Result<u64, ApiError> {
     let secs = parse_window_secs(dur).map_err(|e| ApiError::Validation(e.to_string()))?;
     if secs > MAX_WINDOW_SECS {
         return Err(ApiError::Validation(format!(
             "window duration {dur:?} exceeds the maximum of 366 days ({MAX_WINDOW_SECS} seconds)"
+        )));
+    }
+    if secs < MIN_WINDOW_SECS {
+        return Err(ApiError::Validation(format!(
+            "window duration {dur:?} is below the minimum of 1 day ({MIN_WINDOW_SECS} seconds)"
         )));
     }
     Ok(secs)
@@ -597,6 +613,27 @@ mod tests {
         };
         assert!(msg.contains("700000w"), "message was: {msg}");
         assert!(msg.contains("366"), "message was: {msg}");
+    }
+
+    #[test]
+    fn accepts_window_at_the_one_day_minimum() {
+        let mut s = spec(GOOD_SQL);
+        s.time_window.duration = "1d".into();
+        assert!(validate_slo_spec(&s).is_ok());
+    }
+
+    #[test]
+    fn rejects_time_window_duration_below_the_minimum() {
+        // Below a day the scaled burn tiers collapse onto the short-window floor
+        // (see `tiers_for_window`); reject rather than evaluate a degenerate set.
+        let mut s = spec(GOOD_SQL);
+        s.time_window.duration = "12h".into();
+        let err = validate_slo_spec(&s).unwrap_err();
+        let ApiError::Validation(msg) = err else {
+            panic!("expected Validation, got {err:?}")
+        };
+        assert!(msg.contains("12h"), "message was: {msg}");
+        assert!(msg.contains("minimum"), "message was: {msg}");
     }
 
     #[test]

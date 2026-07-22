@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@everr/ui/components/select";
+import type { TimeRange } from "@everr/ui/lib/time-range";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useCallback, useMemo, useState } from "react";
@@ -95,6 +96,7 @@ export function AlertEventFeed({
   resolveRuleSeverity,
   resolveSlo,
   resolveRuleId,
+  timeRange: timeRangeProp,
 }: {
   /**
    * Scope the feed to one rule. Event rows carry the rule's slug when CC
@@ -138,11 +140,18 @@ export function AlertEventFeed({
    * without it names render as plain text, as before.
    */
   resolveRuleId?: (handle: string) => string | undefined;
+  /**
+   * Pin the feed to a fixed range instead of the global time-range picker.
+   * The SLO detail page passes its window range so the feed matches the budget
+   * chart above it; callers that omit it follow the global picker.
+   */
+  timeRange?: TimeRange;
 }) {
   const [severity, setSeverity] = useState<string>("all");
   const [eventType, setEventType] = useState<string>("all");
   const [typeLens, setTypeLens] = useState<TypeLensKey>("all");
-  const { timeRange } = useTimeRange();
+  const { timeRange: pickerRange } = useTimeRange();
+  const timeRange = timeRangeProp ?? pickerRange;
   const history = useQuery(ccQueries.eventHistory(timeRange));
 
   const rows = history.data ?? [];
