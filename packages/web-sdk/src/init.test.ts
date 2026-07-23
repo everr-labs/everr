@@ -189,16 +189,20 @@ describe("init (cookieless)", () => {
     expect(await records()).toHaveLength(0);
   });
 
-  it("captures interactions through the pipeline with the envelope", async () => {
+  it("captures frustration clicks through the pipeline with the envelope", async () => {
     start();
     document.body.innerHTML = "<button>Try Everr</button>";
-    (document.querySelector("button") as HTMLElement).dispatchEvent(
-      new MouseEvent("click", { bubbles: true, clientX: 5, clientY: 6 }),
-    );
+    for (let i = 0; i < 3; i++) {
+      (document.querySelector("button") as HTMLElement).dispatchEvent(
+        new MouseEvent("click", { bubbles: true, clientX: 5, clientY: 6 }),
+      );
+    }
     const all = await records();
-    const clickRecord = all.find((r) => r.eventName === "browser.click");
-    expect(clickRecord).toBeDefined();
-    const a = attrs(clickRecord as OtlpRecord);
+    const rageRecord = all.find(
+      (r) => r.eventName === "browser.interaction.rage_click",
+    );
+    expect(rageRecord).toBeDefined();
+    const a = attrs(rageRecord as OtlpRecord);
     expect(a["everr.element.text"]).toBe("Try Everr");
     expect(a["session.id"]).toMatch(/[0-9a-f-]{36}/);
     document.body.innerHTML = "";
@@ -207,9 +211,11 @@ describe("init (cookieless)", () => {
   it('suppresses interactions only with disable: ["interactions"]', async () => {
     start({ disable: ["interactions"] });
     document.body.innerHTML = "<button>quiet</button>";
-    (document.querySelector("button") as HTMLElement).dispatchEvent(
-      new MouseEvent("click", { bubbles: true }),
-    );
+    for (let i = 0; i < 3; i++) {
+      (document.querySelector("button") as HTMLElement).dispatchEvent(
+        new MouseEvent("click", { bubbles: true, clientX: 5, clientY: 6 }),
+      );
+    }
     const all = await records();
     expect(all.map((r) => r.eventName)).toEqual(["browser.page_view"]);
     document.body.innerHTML = "";

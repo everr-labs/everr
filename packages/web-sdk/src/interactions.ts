@@ -1,8 +1,9 @@
 import type { AttrValue, Emit } from "./emitter.js";
 
-// The interactions signal: browser.click (heatmap-ready payload),
-// browser.change and browser.submit (never any values), and the derived
-// browser.rage_click / browser.dead_click detectors.
+// The interactions signal: frustration detection only. The derived
+// browser.interaction.rage_click / browser.interaction.dead_click events
+// carry the full element payload; plain clicks, changes, and submits are
+// deliberately not captured (amended 2026-07-23).
 //
 // Privacy guardrails are structural, not configurable: element values are
 // never read, password and hidden inputs are skipped entirely, captured text
@@ -39,12 +40,6 @@ export function startInteractions(emit: Emit): () => void {
     if (!el) return;
     const x = event.clientX + scrollX;
     const y = event.clientY + scrollY;
-    const attrs = {
-      ...elementAttrs(el),
-      "everr.click.x": x,
-      "everr.click.y": y,
-    };
-    emit("browser.click", attrs);
 
     const now = Date.now();
     rage =
@@ -54,7 +49,7 @@ export function startInteractions(emit: Emit): () => void {
         ? [x, y, now, rage[3] + 1]
         : [x, y, now, 1];
     if (rage[3] === 3) {
-      emit("browser.rage_click", attrs);
+      emit("browser.interaction.rage_click", clickAttrs(el, x, y));
       rage = undefined;
     }
 
@@ -62,6 +57,8 @@ export function startInteractions(emit: Emit): () => void {
       const url = location.href;
       // One pending candidate: a newer inert click replaces the older one.
       // documentElement, not body: it always exists, even for an init in <head>.
+      // Attrs are captured at click time; the element may be gone at fire time.
+      const attrs = clickAttrs(el, x, y);
       clearTimeout(deadTimer);
       observer.observe(document.documentElement, {
         subtree: true,
@@ -72,23 +69,14 @@ export function startInteractions(emit: Emit): () => void {
       deadTimer = setTimeout(() => {
         observer.disconnect();
         if (lastActivity < now && location.href === url) {
-          emit("browser.dead_click", attrs);
+          emit("browser.interaction.dead_click", attrs);
         }
       }, 3_000);
     }
   };
 
-  const forward = (eventName: string) => (event: Event) => {
-    const el = targetOf(event);
-    if (el) emit(eventName, elementAttrs(el));
-  };
-  const onChange = forward("browser.change");
-  const onSubmit = forward("browser.submit");
-
-  // Capture phase: see interactions even when handlers stop propagation.
+  // Capture phase: see clicks even when handlers stop propagation.
   addEventListener("click", onClick, true);
-  addEventListener("change", onChange, true);
-  addEventListener("submit", onSubmit, true);
   addEventListener("scroll", onActivity, true);
   document.addEventListener("selectionchange", onActivity);
 
@@ -96,11 +84,13 @@ export function startInteractions(emit: Emit): () => void {
     observer.disconnect();
     clearTimeout(deadTimer);
     removeEventListener("click", onClick, true);
-    removeEventListener("change", onChange, true);
-    removeEventListener("submit", onSubmit, true);
     removeEventListener("scroll", onActivity, true);
     document.removeEventListener("selectionchange", onActivity);
   };
+}
+
+function clickAttrs(el: Element, x: number, y: number) {
+  return { ...elementAttrs(el), "everr.click.x": x, "everr.click.y": y };
 }
 
 function targetOf(event: Event): Element | null {

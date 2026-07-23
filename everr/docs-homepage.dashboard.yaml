@@ -6,9 +6,9 @@ spec:
     name: Docs Homepage
     description: >-
       Everr-native browser telemetry from the docs homepage (cookieless
-      @everr/web-sdk): traffic and sessions at a glance, top pages and
-      clicked elements, scroll depth, and frustration signals (rage and
-      dead clicks). Populates once the homepage ships with an ingest key.
+      @everr/web-sdk): traffic and sessions at a glance, top pages, scroll
+      depth, and frustration signals (rage and dead clicks). Populates once
+      the homepage ships with an ingest key.
   duration: 24h
   refreshInterval: 1m
   panels:
@@ -98,8 +98,8 @@ spec:
                 kind: ClickHouseSQL
                 spec:
                   query: |
-                    SELECT countIf(EventName = 'browser.rage_click') AS rage,
-                           countIf(EventName = 'browser.dead_click') AS dead
+                    SELECT countIf(EventName = 'browser.interaction.rage_click') AS rage,
+                           countIf(EventName = 'browser.interaction.dead_click') AS dead
                     FROM logs
                     WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
                       AND ServiceName = 'everr-docs'
@@ -150,31 +150,6 @@ spec:
                     GROUP BY path
                     ORDER BY views DESC
                     LIMIT 10
-    top-clicks:
-      kind: Panel
-      spec:
-        display: { name: Top clicked elements }
-        plugin:
-          kind: BarChart
-          spec: { unit: " clicks", orientation: horizontal, showValues: true }
-        queries:
-          - kind: ClickHouseSQL
-            spec:
-              plugin:
-                kind: ClickHouseSQL
-                spec:
-                  query: |
-                    SELECT if(LogAttributes['everr.element.text'] != '',
-                              LogAttributes['everr.element.text'],
-                              LogAttributes['everr.element.selector']) AS element,
-                           count() AS clicks
-                    FROM logs
-                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
-                      AND ServiceName = 'everr-docs'
-                      AND EventName = 'browser.click'
-                    GROUP BY element
-                    ORDER BY clicks DESC
-                    LIMIT 10
     frustration-over-time:
       kind: Panel
       spec:
@@ -190,12 +165,12 @@ spec:
                 spec:
                   query: |
                     SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
-                           countIf(EventName = 'browser.rage_click') AS rage_clicks,
-                           countIf(EventName = 'browser.dead_click') AS dead_clicks
+                           countIf(EventName = 'browser.interaction.rage_click') AS rage_clicks,
+                           countIf(EventName = 'browser.interaction.dead_click') AS dead_clicks
                     FROM logs
                     WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
                       AND ServiceName = 'everr-docs'
-                      AND EventName IN ('browser.rage_click', 'browser.dead_click')
+                      AND EventName IN ('browser.interaction.rage_click', 'browser.interaction.dead_click')
                     GROUP BY ts
                     ORDER BY ts
   layouts:
@@ -208,5 +183,4 @@ spec:
           - { x: 18, y: 0, width: 6,  height: 5, content: { $ref: "#/spec/panels/frustration" } }
           - { x: 0,  y: 5, width: 16, height: 9, content: { $ref: "#/spec/panels/traffic" } }
           - { x: 16, y: 5, width: 8,  height: 9, content: { $ref: "#/spec/panels/top-pages" } }
-          - { x: 0,  y: 14, width: 12, height: 9, content: { $ref: "#/spec/panels/top-clicks" } }
-          - { x: 12, y: 14, width: 12, height: 9, content: { $ref: "#/spec/panels/frustration-over-time" } }
+          - { x: 0,  y: 14, width: 24, height: 9, content: { $ref: "#/spec/panels/frustration-over-time" } }

@@ -3,7 +3,7 @@
  * and only exclusions are named.
  *
  * - `pageviews` governs `browser.page_view` and `browser.page_leave` together.
- * - `interactions` governs clicks, rage/dead click detection, change and submit.
+ * - `interactions` governs rage and dead click detection.
  * - `webVitals` governs `browser.web_vital` reporting.
  *
  * Errors have no signal key (`@everr/auto-otel-errors` options govern them)
