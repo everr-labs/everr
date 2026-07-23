@@ -19,11 +19,14 @@ export type OtlpLogRecord = {
   attributes: KeyValue[];
 };
 
-export function toKeyValues(attributes: Record<string, AttrValue>): KeyValue[] {
-  return Object.entries(attributes).map(([key, value]) => ({
-    key,
-    value: toAnyValue(value),
-  }));
+export function toKeyValues(
+  attributes: Record<string, AttrValue | undefined>,
+): KeyValue[] {
+  // Skipping undefined here lets callers write optional attributes as plain
+  // properties instead of conditional spreads.
+  return Object.entries(attributes).flatMap(([key, value]) =>
+    value === undefined ? [] : [{ key, value: toAnyValue(value) }],
+  );
 }
 
 export function buildLogsPayload(

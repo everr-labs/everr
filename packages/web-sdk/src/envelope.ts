@@ -8,7 +8,7 @@ import type { SessionContext } from "./session.js";
 export function createEnvelope(
   session: SessionContext,
   attribution: Record<string, string>,
-): () => Record<string, string> {
+): () => Record<string, string | undefined> {
   return () => {
     const page = session.current();
     return {
@@ -16,7 +16,7 @@ export function createEnvelope(
       "everr.page_view.id": page.pageViewId,
       "url.full": page.url,
       "url.path": page.path,
-      ...(page.referrer ? { "everr.referrer.url": page.referrer } : {}),
+      "everr.referrer.url": page.referrer,
       // The $insert_id analogue: a per-record random id for dedup.
       "everr.event.id": crypto.randomUUID(),
       ...attribution,

@@ -84,6 +84,8 @@ describe("init (cookieless)", () => {
     expect(resource["service.name"]).toBe("everr-docs-test");
     expect(resource["everr.sdk.name"]).toBe("@everr/web-sdk");
     expect(resource["user_agent.original"]).toBeTruthy();
+    // Unset optional attributes are filtered out, not shipped as empty values.
+    expect(resource).not.toHaveProperty("deployment.environment.name");
   });
 
   it("emits history_change pageviews for SPA navigations, rotating the pageview id", async () => {
@@ -171,7 +173,6 @@ describe("structural no-op", () => {
       serviceName: "everr-docs-test",
     });
     client = inert;
-    expect(inert.mode).toBe("cookieless");
     // No emitter built and nothing patched: pushState stays native.
     expect(history.pushState.toString()).toContain("native code");
   });

@@ -26,10 +26,10 @@ const SCHEDULED_DELAY_MS = 5_000;
 export function createEmitter(options: {
   logsUrl: string;
   headers: Record<string, string> | undefined;
-  resource: Record<string, AttrValue>;
+  resource: Record<string, AttrValue | undefined>;
   scope: { name: string; version: string };
   /** Called per record; returns the context envelope to stamp. */
-  envelope: () => Record<string, AttrValue>;
+  envelope: () => Record<string, AttrValue | undefined>;
   /** Test seam; defaults to the global fetch. */
   transportFetch?: typeof fetch;
 }): Emitter {

@@ -43,12 +43,12 @@ export function initInternal(
   }
 
   // SSR guard: the SDK is browser-only; server renders get an inert client.
-  if (typeof window === "undefined") return inertClient(options.mode);
+  if (typeof window === "undefined") return INERT;
 
   // Structural no-op: a keyless production build builds no emitter and no
   // watcher, so nothing can ever issue a network request.
   const transport = resolveTransport(options);
-  if (!transport) return inertClient(options.mode);
+  if (!transport) return INERT;
 
   const off = options.disable;
   const enabled = (signal: CaptureSignal) =>
@@ -79,7 +79,6 @@ export function initInternal(
   const stopWatching = watchNavigation(session, navigationListeners);
 
   return {
-    mode: options.mode,
     flush: () => emitter.flush(),
     shutdown: async () => {
       stopWatching();
@@ -88,16 +87,16 @@ export function initInternal(
   };
 }
 
-function resourceAttributes(options: InitOptions): Record<string, AttrValue> {
+function resourceAttributes(
+  options: InitOptions,
+): Record<string, AttrValue | undefined> {
   // Viewport is deliberately absent: it changes on resize, so it rides the
   // click payload per event instead of being frozen into the resource.
   return {
     "service.name": options.serviceName,
     "service.namespace": "everr",
     "service.version": options.serviceVersion ?? SDK_VERSION,
-    ...(options.deploymentEnvironment
-      ? { "deployment.environment.name": options.deploymentEnvironment }
-      : {}),
+    "deployment.environment.name": options.deploymentEnvironment,
     "everr.sdk.name": SDK_NAME,
     "everr.sdk.version": SDK_VERSION,
     "user_agent.original": navigator.userAgent,
@@ -108,10 +107,5 @@ function resourceAttributes(options: InitOptions): Record<string, AttrValue> {
   };
 }
 
-function inertClient(mode: InitOptions["mode"]): EverrClient {
-  return {
-    mode,
-    flush: () => Promise.resolve(),
-    shutdown: () => Promise.resolve(),
-  };
-}
+const noop = () => Promise.resolve();
+const INERT: EverrClient = { flush: noop, shutdown: noop };

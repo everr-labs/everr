@@ -54,16 +54,23 @@ export type ConsentedInitOptions = CommonInitOptions & {
 
 export type InitOptions = CookielessInitOptions | ConsentedInitOptions;
 
+declare const ModeBrand: unique symbol;
+
 export interface EverrClient {
-  readonly mode: "cookieless" | "consented";
   /** Force-flushes any batched records. */
   flush(): Promise<void>;
   /** Flushes, stops all capture, and unpatches globals. */
   shutdown(): Promise<void>;
 }
 
+/**
+ * The mode distinction is a type-only brand (zero runtime bytes): the brand
+ * property never exists on the object, it just keeps the two handles
+ * mutually unassignable so consented-only capabilities cannot accept a
+ * cookieless handle.
+ */
 export interface CookielessClient extends EverrClient {
-  readonly mode: "cookieless";
+  readonly [ModeBrand]?: "cookieless";
 }
 
 /**
@@ -72,5 +79,5 @@ export interface CookielessClient extends EverrClient {
  * consented mode ships.
  */
 export interface ConsentedClient extends EverrClient {
-  readonly mode: "consented";
+  readonly [ModeBrand]?: "consented";
 }
