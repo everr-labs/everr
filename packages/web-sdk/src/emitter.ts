@@ -25,7 +25,7 @@ const swallow = () => {};
 
 export function createEmitter(options: {
   logsUrl: string;
-  headers: Record<string, string> | undefined;
+  headers?: Record<string, string>;
   resource: Record<string, AttrValue | undefined>;
   scope: { name: string; version: string };
   /** Called per record; returns the context envelope to stamp. */

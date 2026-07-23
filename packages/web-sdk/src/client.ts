@@ -3,11 +3,9 @@ import { resolveTransport } from "./config.js";
 import { createEmitter } from "./emitter.js";
 import { createEnvelope } from "./envelope.js";
 import { watchNavigation } from "./navigation.js";
-import type { AttrValue } from "./otlp.js";
 import { startPageviews } from "./pageview.js";
 import { SessionContext } from "./session.js";
 import type {
-  CaptureSignal,
   ConsentedClient,
   ConsentedInitOptions,
   CookielessClient,
@@ -21,18 +19,15 @@ const SDK_VERSION =
   typeof __PACKAGE_VERSION__ === "string" ? __PACKAGE_VERSION__ : "0.0.0-dev";
 const SDK_NAME = "@everr/web-sdk";
 
-/** Test seam: inject a fetch to capture the OTLP payloads. */
-export type InitOverrides = {
-  transportFetch?: typeof fetch;
-};
+/**
+ * Test seam: inject a fetch to capture the OTLP payloads. The implementation
+ * signature accepts it; the public overloads deliberately do not.
+ */
+export type InitOverrides = { transportFetch?: typeof fetch };
 
 export function init(options: CookielessInitOptions): CookielessClient;
 export function init(options: ConsentedInitOptions): ConsentedClient;
-export function init(options: InitOptions): EverrClient {
-  return initInternal(options);
-}
-
-export function initInternal(
+export function init(
   options: InitOptions,
   overrides?: InitOverrides,
 ): EverrClient {
@@ -50,31 +45,38 @@ export function initInternal(
   const transport = resolveTransport(options);
   if (!transport) return INERT;
 
-  const off = options.disable;
-  const enabled = (signal: CaptureSignal) =>
-    off !== true && !off?.includes(signal);
-  const session = new SessionContext(
-    window.location.href,
-    document.referrer || undefined,
-  );
+  const session = new SessionContext(location.href, document.referrer);
 
   const emitter = createEmitter({
-    logsUrl: transport.logsUrl,
-    headers: transport.headers,
-    resource: resourceAttributes(options),
+    ...transport,
     scope: { name: SDK_NAME, version: SDK_VERSION },
-    envelope: createEnvelope(
-      session,
-      attributionAttributes(window.location.search),
-    ),
+    envelope: createEnvelope(session, attributionAttributes(location.search)),
     transportFetch: overrides?.transportFetch,
+    // Viewport is deliberately absent: it changes on resize, so it rides the
+    // click payload per event instead of being frozen into the resource.
+    resource: {
+      "service.name": options.serviceName,
+      "service.namespace": "everr",
+      "service.version": options.serviceVersion ?? SDK_VERSION,
+      "deployment.environment.name": options.deploymentEnvironment,
+      "everr.sdk.name": SDK_NAME,
+      "everr.sdk.version": SDK_VERSION,
+      "user_agent.original": navigator.userAgent,
+      "everr.screen.width": screen.width,
+      "everr.screen.height": screen.height,
+      "everr.timezone": Intl.DateTimeFormat().resolvedOptions().timeZone,
+      "everr.language": navigator.language,
+    },
   });
 
   // The navigation watcher always runs so the envelope's page context stays
   // fresh for every signal; the disable list only gates the signal listeners.
+  const off = options.disable;
   const stopWatching = watchNavigation(
     session,
-    enabled("pageviews") ? [startPageviews(emitter)] : [],
+    off !== true && !off?.includes("pageviews")
+      ? [startPageviews(emitter)]
+      : [],
   );
 
   return {
@@ -83,26 +85,6 @@ export function initInternal(
       stopWatching();
       return emitter.shutdown();
     },
-  };
-}
-
-function resourceAttributes(
-  options: InitOptions,
-): Record<string, AttrValue | undefined> {
-  // Viewport is deliberately absent: it changes on resize, so it rides the
-  // click payload per event instead of being frozen into the resource.
-  return {
-    "service.name": options.serviceName,
-    "service.namespace": "everr",
-    "service.version": options.serviceVersion ?? SDK_VERSION,
-    "deployment.environment.name": options.deploymentEnvironment,
-    "everr.sdk.name": SDK_NAME,
-    "everr.sdk.version": SDK_VERSION,
-    "user_agent.original": navigator.userAgent,
-    "everr.screen.width": window.screen.width,
-    "everr.screen.height": window.screen.height,
-    "everr.timezone": Intl.DateTimeFormat().resolvedOptions().timeZone,
-    "everr.language": navigator.language,
   };
 }
 

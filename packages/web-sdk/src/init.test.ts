@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { initInternal } from "./client.js";
-import type { CaptureSignal, EverrClient } from "./types.js";
+import { type InitOverrides, init } from "./client.js";
+import type { CaptureSignal, EverrClient, InitOptions } from "./types.js";
+
+// The overloads hide the overrides seam; widen once for the tests.
+const initInternal = init as (
+  options: InitOptions,
+  overrides?: InitOverrides,
+) => EverrClient;
 
 type OtlpRecord = {
   timeUnixNano: string;
