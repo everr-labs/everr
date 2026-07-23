@@ -159,8 +159,8 @@ describe("toSloInput", () => {
     expect(input.annotations["everr.display.description"]).toBe(
       "Orders complete",
     );
-    expect(input.annotations["summary"]).toBe(
-      "Checkout availability: ${slo_tier} burn - ${burn_rate}x over budget",
+    expect(input.annotations.summary).toBe(
+      `Checkout availability: \${slo_tier} burn - \${burn_rate}x over budget`,
     );
   });
 
@@ -173,14 +173,14 @@ describe("toSloInput", () => {
       "Checkout availability",
     );
     expect(nameOnly.annotations["everr.display.description"]).toBeUndefined();
-    expect(nameOnly.annotations["summary"]).toBe(
-      "Checkout availability: ${slo_tier} burn - ${burn_rate}x over budget",
+    expect(nameOnly.annotations.summary).toBe(
+      `Checkout availability: \${slo_tier} burn - \${burn_rate}x over budget`,
     );
 
     const none = toSloInput(sloYaml(), "repo-1");
     expect(none.annotations["everr.display.name"]).toBeUndefined();
     expect(none.annotations["everr.display.description"]).toBeUndefined();
-    expect(none.annotations["summary"]).toBeUndefined();
+    expect(none.annotations.summary).toBeUndefined();
   });
 
   it("merges user annotations, generated keys always winning", () => {
