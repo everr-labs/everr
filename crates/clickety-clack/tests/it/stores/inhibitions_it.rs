@@ -1,3 +1,4 @@
+use crate::support::create_test_rule;
 use cc::domain::ids::{InstanceKey, SourceId, TenantId};
 use cc::domain::instance::{InstanceState, Status};
 use cc::domain::routing::{MatchOp, Matcher};
@@ -67,7 +68,13 @@ async fn list_firing_returns_only_firing_with_severity() {
         max_interval_secs: None,
         suppressed: false,
     };
-    let rule = store.create_rule(tenant.clone(), &spec).await.unwrap();
+    let rule = create_test_rule(
+        &store,
+        tenant.clone(),
+        "t/list_firing_returns_only_firing_with_severity",
+        &spec,
+    )
+    .await;
 
     let mut labels = BTreeMap::new();
     labels.insert("instance".to_string(), "db1".to_string());

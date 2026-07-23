@@ -1,4 +1,5 @@
 use crate::common;
+use crate::support::create_test_rule;
 use cc::domain::ids::{InstanceKey, RuleId, TenantId};
 use cc::domain::instance::{InstanceState, Status};
 use cc::domain::routing::{MatchOp, Matcher};
@@ -85,10 +86,13 @@ async fn reconcile_resolved_respects_silence() {
         .create_subscription(ctx.cipher.as_ref(), tenant.clone(), &hook)
         .await
         .unwrap();
-    let rule = store
-        .create_rule(tenant.clone(), &rule_spec())
-        .await
-        .unwrap();
+    let rule = create_test_rule(
+        &store,
+        tenant.clone(),
+        "t/reconcile_resolved_respects_silence",
+        &rule_spec(),
+    )
+    .await;
 
     let now = OffsetDateTime::now_utc();
 

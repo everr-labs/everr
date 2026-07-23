@@ -1,4 +1,5 @@
 use crate::common;
+use crate::support::create_test_rule;
 use cc::dispatcher::cache::FilterCache;
 use cc::dispatcher::dedup::dedup_key;
 use cc::dispatcher::{flush_group, grouping, process_event, DispatchCtx};
@@ -518,7 +519,13 @@ async fn flush_time_inhibition_emits_no_record() {
         max_interval_secs: None,
         suppressed: false,
     };
-    let src_rule = store.create_rule(tenant.clone(), &spec).await.unwrap();
+    let src_rule = create_test_rule(
+        &store,
+        tenant.clone(),
+        "t/flush_time_inhibition_emits_no_record",
+        &spec,
+    )
+    .await;
     let mut src_labels = BTreeMap::new();
     src_labels.insert("svc".to_string(), "db".to_string());
     let src_key = InstanceKey::new(src_rule.id, &src_labels);

@@ -1,8 +1,9 @@
+use crate::support::create_test_slo;
 use cc::domain::ids::TenantId;
 use cc::domain::slo::{SliSpec, SloSpec, TimeWindow};
 use cc::queue::redis_streams::RedisQueue;
 use cc::queue::Queue;
-use cc::stores::{PgStore, SloCreate};
+use cc::stores::PgStore;
 use std::collections::BTreeMap;
 
 #[tokio::test]
@@ -29,13 +30,7 @@ async fn tick_enqueues_due_slo_jobs() {
         annotations: BTreeMap::new(),
         suppressed: false,
     };
-    let SloCreate::Created(slo) = store
-        .create_slo(TenantId::from_trusted("t"), "s", &spec)
-        .await
-        .unwrap()
-    else {
-        panic!("expected slo to be created")
-    };
+    let slo = create_test_slo(&store, TenantId::from_trusted("t"), "s", &spec).await;
 
     // one tick with a single shard owning everything
     cc::scheduler::tick_slos_once(&store, &queue, 100, &[0], 1, 30)

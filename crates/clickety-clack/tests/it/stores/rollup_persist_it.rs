@@ -1,3 +1,4 @@
+use crate::support::create_test_rule;
 use cc::domain::ids::{InstanceKey, SourceId, TenantId};
 use cc::domain::instance::{InstanceState, Status};
 use cc::domain::rollup::{AlertState, RuleRollup};
@@ -29,7 +30,13 @@ async fn rollup_written_in_same_tx_and_advances() {
         max_interval_secs: None,
         suppressed: false,
     };
-    let rule = store.create_rule(tenant.clone(), &spec).await.unwrap();
+    let rule = create_test_rule(
+        &store,
+        tenant.clone(),
+        "t/rollup_written_in_same_tx_and_advances",
+        &spec,
+    )
+    .await;
 
     let labels = BTreeMap::from([("host".to_string(), "a".to_string())]);
     let key = InstanceKey::new(rule.id, &labels);

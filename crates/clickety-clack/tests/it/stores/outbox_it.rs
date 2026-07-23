@@ -1,3 +1,4 @@
+use crate::support::create_test_rule;
 use cc::domain::event::{Event, EventStatus};
 use cc::domain::ids::{InstanceKey, TenantId};
 use cc::domain::instance::{InstanceState, Status};
@@ -59,7 +60,13 @@ fn firing_instance(rule: cc::domain::ids::RuleId, tenant: TenantId) -> (Instance
 async fn upsert_with_outbox_writes_both_and_claim_returns_event() {
     let (store, _node) = store().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let rule = store.create_rule(tenant.clone(), &spec()).await.unwrap();
+    let rule = create_test_rule(
+        &store,
+        tenant.clone(),
+        "t/upsert_with_outbox_writes_both_and_claim_returns_event",
+        &spec(),
+    )
+    .await;
     let (inst, ev) = firing_instance(rule.id, tenant);
 
     let id = store.upsert_instance_with_outbox(&inst, &ev).await.unwrap();
@@ -88,7 +95,13 @@ async fn upsert_with_outbox_writes_both_and_claim_returns_event() {
 async fn claim_respects_grace_cutoff() {
     let (store, _node) = store().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let rule = store.create_rule(tenant.clone(), &spec()).await.unwrap();
+    let rule = create_test_rule(
+        &store,
+        tenant.clone(),
+        "t/claim_respects_grace_cutoff",
+        &spec(),
+    )
+    .await;
     let (inst, ev) = firing_instance(rule.id, tenant);
     store.upsert_instance_with_outbox(&inst, &ev).await.unwrap();
 

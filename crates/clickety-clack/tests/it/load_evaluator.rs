@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use crate::support::create_test_rule;
 use cc::clickhouse::RowQuerier;
 use cc::domain::ids::{RuleId, TenantId};
 use cc::domain::rule::{RuleSpec, Severity};
@@ -161,7 +162,8 @@ async fn load_evaluator_throughput() {
             max_interval_secs: None,
             suppressed: false,
         };
-        let rule = pg.store.create_rule(tenant.clone(), &spec).await.unwrap();
+        let rule =
+            create_test_rule(&pg.store, tenant.clone(), &format!("load/rule-{i}"), &spec).await;
         rule_ids.push(rule.id);
     }
 

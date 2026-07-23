@@ -1,3 +1,4 @@
+use crate::support::create_test_rule;
 use cc::domain::ids::{InstanceKey, TenantId};
 use cc::domain::instance::{InstanceState, Status};
 use cc::domain::rule::{RuleSpec, Severity};
@@ -43,7 +44,13 @@ async fn persist_eval_batch_upserts_and_outboxes() {
         max_interval_secs: None,
         suppressed: false,
     };
-    let rule = store.create_rule(tenant.clone(), &spec).await.unwrap();
+    let rule = create_test_rule(
+        &store,
+        tenant.clone(),
+        "t/persist_eval_batch_upserts_and_outboxes",
+        &spec,
+    )
+    .await;
 
     // Empty input is a no-op returning no ids.
     assert!(store
@@ -60,6 +67,7 @@ async fn persist_eval_batch_upserts_and_outboxes() {
         tenant: tenant.clone(),
         rule: rule.id,
         slo: None,
+        name: rule.name.clone(),
         instance_key: instances[0].key.clone(),
         status: EventStatus::Firing,
         kind: EventKind::Alert,

@@ -1,3 +1,4 @@
+use crate::support::create_test_rule;
 use async_trait::async_trait;
 use cc::domain::event::{Event, EventStatus};
 use cc::domain::ids::{InstanceKey, TenantId};
@@ -83,7 +84,13 @@ async fn relay_publishes_stale_outbox_rows_and_deletes_them() {
     let bus = RedisEventBus::connect(&redis_url).await.unwrap();
 
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let rule = store.create_rule(tenant.clone(), &spec(30)).await.unwrap();
+    let rule = create_test_rule(
+        &store,
+        tenant.clone(),
+        "t/relay_publishes_stale_outbox_rows_and_deletes_them",
+        &spec(30),
+    )
+    .await;
     let mut labels = BTreeMap::new();
     labels.insert("service".to_string(), "api".to_string());
     let key = InstanceKey::new(rule.id, &labels);
@@ -139,7 +146,13 @@ async fn reconcile_resolves_stale_firing_and_clears_pending() {
     let bus = RedisEventBus::connect(&redis_url).await.unwrap();
 
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let rule = store.create_rule(tenant.clone(), &spec(30)).await.unwrap(); // threshold 120s
+    let rule = create_test_rule(
+        &store,
+        tenant.clone(),
+        "t/reconcile_resolves_stale_firing_and_clears_pending",
+        &spec(30),
+    )
+    .await; // threshold 120s
     let now = OffsetDateTime::now_utc();
 
     store
@@ -210,7 +223,13 @@ async fn reconcile_sweep_drains_backlog_across_chunks() {
     let bus = RedisEventBus::connect(&redis_url).await.unwrap();
 
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let rule = store.create_rule(tenant.clone(), &spec(30)).await.unwrap(); // threshold 120s
+    let rule = create_test_rule(
+        &store,
+        tenant.clone(),
+        "t/reconcile_sweep_drains_backlog_across_chunks",
+        &spec(30),
+    )
+    .await; // threshold 120s
     let now = OffsetDateTime::now_utc();
 
     // Three stale firing instances; a batch of 2 forces two chunks (2 + 1).
@@ -268,7 +287,13 @@ async fn relay_retries_when_publish_fails() {
     };
 
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let rule = store.create_rule(tenant.clone(), &spec(30)).await.unwrap();
+    let rule = create_test_rule(
+        &store,
+        tenant.clone(),
+        "t/relay_retries_when_publish_fails",
+        &spec(30),
+    )
+    .await;
     let mut labels = BTreeMap::new();
     labels.insert("service".to_string(), "api".to_string());
     let key = InstanceKey::new(rule.id, &labels);

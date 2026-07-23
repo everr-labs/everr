@@ -1,4 +1,5 @@
 use crate::common;
+use crate::support::create_test_rule;
 use cc::dispatcher::cache::FilterCache;
 use cc::dispatcher::{flush_group, process_event, DispatchCtx};
 use cc::domain::channel::ChannelConfig;
@@ -106,7 +107,13 @@ async fn silence_and_inhibition_suppress_delivery() {
         max_interval_secs: None,
         suppressed: false,
     };
-    let src_rule = store.create_rule(tenant.clone(), &spec).await.unwrap();
+    let src_rule = create_test_rule(
+        &store,
+        tenant.clone(),
+        "t/silence_and_inhibition_suppress_delivery",
+        &spec,
+    )
+    .await;
     let mut src_labels = BTreeMap::new();
     src_labels.insert("svc".to_string(), "db".to_string());
     let src_key = InstanceKey::new(src_rule.id, &src_labels);

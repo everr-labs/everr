@@ -23,7 +23,7 @@ async fn store() -> PgStore {
         .unwrap()
 }
 async fn make_slo(s: &PgStore, name: &str) -> SloId {
-    match s.create_slo(tenant(), name, &spec()).await.unwrap() {
+    match s.create_slo(tenant(), "", name, &spec()).await.unwrap() {
         SloCreate::Created(slo) => slo.id,
         _ => panic!(),
     }

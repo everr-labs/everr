@@ -18,7 +18,7 @@ async fn suppressed_accepted_on_create_and_update_and_returned_on_reads() {
             "POST",
             "/v1/rules",
             tenant,
-            r#"{"sql":"SELECT host FROM t","interval_secs":30,"for_secs":0,"label_columns":["host"],"severity":"warning","suppressed":true}"#,
+            r#"{"name":"t/suppressed_accepted_on_create_and_update_and_returned_on_reads","sql":"SELECT host FROM t","interval_secs":30,"for_secs":0,"label_columns":["host"],"severity":"warning","suppressed":true}"#,
         ))
         .await
         .unwrap();
@@ -73,7 +73,7 @@ async fn suppressed_defaults_false_when_omitted() {
             "POST",
             "/v1/rules",
             tenant,
-            r#"{"sql":"SELECT host FROM t","interval_secs":30,"for_secs":0,"label_columns":["host"],"severity":"warning"}"#,
+            r#"{"sql":"SELECT host FROM t","interval_secs":30,"for_secs":0,"label_columns":["host"],"severity":"warning","name":"t/suppressed_defaults_false_when_omitted"}"#,
         ))
         .await
         .unwrap();

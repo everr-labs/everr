@@ -14,7 +14,7 @@ async fn create_rule(app: &axum::Router, tenant: Uuid) -> String {
         .header("content-type", "application/json")
         .header("X-CC-Tenant", tenant.to_string())
         .body(Body::from(
-            r#"{"sql":"SELECT host FROM t","interval_secs":30,"for_secs":0,"label_columns":["host"],"severity":"warning"}"#,
+            r#"{"name":"t/rules_update_api","sql":"SELECT host FROM t","interval_secs":30,"for_secs":0,"label_columns":["host"],"severity":"warning"}"#,
         ))
         .unwrap();
     let resp = app.clone().oneshot(create).await.unwrap();

@@ -2,6 +2,7 @@
 //! shared engine state machine, opening/resolving `slo_instances` and publishing
 //! `Event`s to a real bus.
 
+use crate::support::create_test_slo;
 use async_trait::async_trait;
 use cc::clickhouse::{AuthIdentity, ChError, ResultRow, RowQuerier};
 use cc::domain::event::{EventKind, EventStatus};
@@ -12,7 +13,7 @@ use cc::domain::slo::{SliSpec, SloSpec, TimeWindow};
 use cc::engine::slo_math::SloStatusPayload;
 use cc::queue::event_bus::RedisEventBus;
 use cc::queue::EventBus;
-use cc::stores::{PgStore, SloCreate};
+use cc::stores::PgStore;
 use std::collections::BTreeMap;
 use std::sync::Mutex;
 use time::OffsetDateTime;
@@ -126,13 +127,13 @@ async fn breach_fires_and_recovery_resolves() {
     let store = pg().await;
     let bus = redis_bus().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let SloCreate::Created(slo) = store
-        .create_slo(tenant.clone(), "checkout", &spec(false))
-        .await
-        .unwrap()
-    else {
-        panic!("slo creation must succeed against a fresh tenant")
-    };
+    let slo = create_test_slo(
+        &store,
+        tenant.clone(),
+        "t/breach_fires_and_recovery_resolves",
+        &spec(false),
+    )
+    .await;
 
     let ch = StubCh::new(9800.0, 10000.0);
     let t0 = OffsetDateTime::now_utc();
@@ -221,13 +222,13 @@ async fn suppressed_slo_marks_events() {
     let store = pg().await;
     let bus = redis_bus().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let SloCreate::Created(slo) = store
-        .create_slo(tenant.clone(), "checkout", &spec(true))
-        .await
-        .unwrap()
-    else {
-        panic!("slo creation must succeed against a fresh tenant")
-    };
+    let slo = create_test_slo(
+        &store,
+        tenant.clone(),
+        "t/suppressed_slo_marks_events",
+        &spec(true),
+    )
+    .await;
 
     let ch = StubCh::new(9800.0, 10000.0); // 20x breach, same as the firing test
     cc::evaluator::slo::evaluate_slo(
@@ -263,13 +264,13 @@ async fn no_events_below_threshold() {
     let store = pg().await;
     let bus = redis_bus().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let SloCreate::Created(slo) = store
-        .create_slo(tenant.clone(), "checkout", &spec(false))
-        .await
-        .unwrap()
-    else {
-        panic!("slo creation must succeed against a fresh tenant")
-    };
+    let slo = create_test_slo(
+        &store,
+        tenant.clone(),
+        "t/no_events_below_threshold",
+        &spec(false),
+    )
+    .await;
 
     let ch = StubCh::new(9991.0, 10000.0);
     cc::evaluator::slo::evaluate_slo(
@@ -305,13 +306,13 @@ async fn freeze_on_error_freezes_instances() {
     let store = pg().await;
     let bus = redis_bus().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let SloCreate::Created(slo) = store
-        .create_slo(tenant.clone(), "checkout", &spec(false))
-        .await
-        .unwrap()
-    else {
-        panic!("slo creation must succeed against a fresh tenant")
-    };
+    let slo = create_test_slo(
+        &store,
+        tenant.clone(),
+        "t/freeze_on_error_freezes_instances",
+        &spec(false),
+    )
+    .await;
 
     // Seed a Firing instance directly (bypassing the firing pipeline entirely) so
     // there is something for a frozen tick to leave alone.
@@ -363,13 +364,13 @@ async fn leftover_instance_with_unknown_tier_resolves_severity_as_critical() {
     let store = pg().await;
     let bus = redis_bus().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let SloCreate::Created(slo) = store
-        .create_slo(tenant.clone(), "checkout", &spec(false))
-        .await
-        .unwrap()
-    else {
-        panic!("slo creation must succeed against a fresh tenant")
-    };
+    let slo = create_test_slo(
+        &store,
+        tenant.clone(),
+        "t/leftover_instance_with_unknown_tier_resolves_severity_as_critical",
+        &spec(false),
+    )
+    .await;
 
     let rule_id = RuleId(slo.id.0);
     let labels = BTreeMap::from([("slo_tier".to_string(), "ghost-tier".to_string())]);
@@ -418,13 +419,13 @@ async fn erroring_slo_publishes_health_event() {
     let store = pg().await;
     let bus = redis_bus().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let SloCreate::Created(slo) = store
-        .create_slo(tenant.clone(), "checkout", &spec(false))
-        .await
-        .unwrap()
-    else {
-        panic!("slo creation must succeed against a fresh tenant")
-    };
+    let slo = create_test_slo(
+        &store,
+        tenant.clone(),
+        "t/erroring_slo_publishes_health_event",
+        &spec(false),
+    )
+    .await;
 
     cc::evaluator::slo::evaluate_slo(
         &store,

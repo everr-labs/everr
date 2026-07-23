@@ -1,8 +1,9 @@
+use crate::support::create_test_slo;
 use async_trait::async_trait;
 use cc::domain::ids::TenantId;
 use cc::domain::slo::{SliSpec, SloSpec, TimeWindow};
 use cc::engine::slo_math::{SloGroupStatus, SloStatusPayload, SloTierStatus};
-use cc::stores::{PgStore, SloCreate};
+use cc::stores::PgStore;
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use time::OffsetDateTime;
@@ -88,13 +89,13 @@ async fn evaluate_writes_budget_snapshot() {
         .await
         .unwrap();
     let tenant = TenantId::from_trusted("t1");
-    let SloCreate::Created(slo) = store
-        .create_slo(tenant.clone(), "s", &spec())
-        .await
-        .unwrap()
-    else {
-        panic!()
-    };
+    let slo = create_test_slo(
+        &store,
+        tenant.clone(),
+        "t/evaluate_writes_budget_snapshot",
+        &spec(),
+    )
+    .await;
     // 98.56% good -> budget over-consumed; burn rate 14.4x
     let ch = StubCh {
         good: 9856.0,
@@ -132,13 +133,13 @@ async fn query_error_degrades_and_does_not_write_snapshot() {
         .await
         .unwrap();
     let tenant = TenantId::from_trusted("t2");
-    let SloCreate::Created(slo) = store
-        .create_slo(tenant.clone(), "e", &spec())
-        .await
-        .unwrap()
-    else {
-        panic!()
-    };
+    let slo = create_test_slo(
+        &store,
+        tenant.clone(),
+        "t/query_error_degrades_and_does_not_write_snapshot",
+        &spec(),
+    )
+    .await;
     cc::evaluator::slo::evaluate_slo(
         &store,
         &ErrCh,
@@ -170,13 +171,13 @@ async fn fresh_windows_are_not_requeried() {
         .await
         .unwrap();
     let tenant = TenantId::from_trusted("t3");
-    let SloCreate::Created(slo) = store
-        .create_slo(tenant.clone(), "fresh", &spec())
-        .await
-        .unwrap()
-    else {
-        panic!()
-    };
+    let slo = create_test_slo(
+        &store,
+        tenant.clone(),
+        "t/fresh_windows_are_not_requeried",
+        &spec(),
+    )
+    .await;
 
     // Canonical tiers over a 30d budget window require windows at:
     // 300s (fast-burn short), 1800s (slow-burn short), 3600s (fast-burn long),
@@ -338,13 +339,13 @@ async fn stale_ledger_windows_are_pruned_to_the_current_tier_set() {
     let tenant = TenantId::from_trusted("t_prune");
     let mut spec_7d = spec();
     spec_7d.time_window.duration = "7d".into();
-    let SloCreate::Created(slo) = store
-        .create_slo(tenant.clone(), "prune", &spec_7d)
-        .await
-        .unwrap()
-    else {
-        panic!()
-    };
+    let slo = create_test_slo(
+        &store,
+        tenant.clone(),
+        "t/stale_ledger_windows_are_pruned_to_the_current_tier_set",
+        &spec_7d,
+    )
+    .await;
 
     // The 7-day scaled tier windows the evaluator will actually require, each
     // seeded as just-computed, PLUS two orphans from the canonical 30-day table
@@ -429,13 +430,13 @@ async fn garbage_prior_payload_self_heals_instead_of_freezing() {
         .await
         .unwrap();
     let tenant = TenantId::from_trusted("t4");
-    let SloCreate::Created(slo) = store
-        .create_slo(tenant.clone(), "garbage-prior", &spec())
-        .await
-        .unwrap()
-    else {
-        panic!()
-    };
+    let slo = create_test_slo(
+        &store,
+        tenant.clone(),
+        "t/garbage_prior_payload_self_heals_instead_of_freezing",
+        &spec(),
+    )
+    .await;
 
     let now = OffsetDateTime::now_utc();
     store

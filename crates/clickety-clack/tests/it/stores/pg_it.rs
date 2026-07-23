@@ -1,3 +1,4 @@
+use crate::support::create_test_rule;
 use cc::domain::ids::{SourceId, TenantId};
 use cc::domain::rule::{RuleSpec, Severity};
 use cc::stores::PgStore;
@@ -27,7 +28,7 @@ async fn rule_crud_and_claim_due() {
     let store = PgStore::connect(&url).await.unwrap();
 
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let rule = store.create_rule(tenant.clone(), &spec()).await.unwrap();
+    let rule = create_test_rule(&store, tenant.clone(), "t/rule_crud_and_claim_due", &spec()).await;
     assert!(store
         .get_rule(tenant.clone(), rule.id)
         .await
@@ -58,7 +59,13 @@ async fn instance_upsert_and_load_roundtrip() {
     let store = PgStore::connect(&url).await.unwrap();
 
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let rule = store.create_rule(tenant.clone(), &spec()).await.unwrap();
+    let rule = create_test_rule(
+        &store,
+        tenant.clone(),
+        "t/instance_upsert_and_load_roundtrip",
+        &spec(),
+    )
+    .await;
 
     let mut labels = BTreeMap::new();
     labels.insert("service".to_string(), "api".to_string());
@@ -98,7 +105,13 @@ async fn list_alerts_excludes_inactive() {
     let store = PgStore::connect(&url).await.unwrap();
 
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let rule = store.create_rule(tenant.clone(), &spec()).await.unwrap();
+    let rule = create_test_rule(
+        &store,
+        tenant.clone(),
+        "t/list_alerts_excludes_inactive",
+        &spec(),
+    )
+    .await;
 
     let mk = |name: &str, status: Status| {
         let mut labels = BTreeMap::new();

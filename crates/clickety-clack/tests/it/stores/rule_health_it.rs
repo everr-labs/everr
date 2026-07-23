@@ -1,3 +1,4 @@
+use crate::support::create_test_rule;
 use cc::domain::event::{EventKind, EventStatus};
 use cc::domain::ids::{InstanceKey, SourceId, TenantId};
 use cc::domain::instance::{InstanceState, Status};
@@ -34,7 +35,13 @@ async fn store() -> (PgStore, impl Sized) {
 async fn degraded_rule_firing_instances_are_not_stale() {
     let (store, _node) = store().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let rule = store.create_rule(tenant.clone(), &spec()).await.unwrap();
+    let rule = create_test_rule(
+        &store,
+        tenant.clone(),
+        "t/degraded_rule_firing_instances_are_not_stale",
+        &spec(),
+    )
+    .await;
     let now = OffsetDateTime::now_utc();
 
     // A firing instance well past the stale threshold (interval 30 -> threshold 120s).
@@ -75,7 +82,13 @@ async fn degraded_rule_firing_instances_are_not_stale() {
 async fn failing_but_not_degraded_rule_firing_instances_are_not_stale() {
     let (store, _node) = store().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let rule = store.create_rule(tenant.clone(), &spec()).await.unwrap();
+    let rule = create_test_rule(
+        &store,
+        tenant.clone(),
+        "t/failing_but_not_degraded_rule_firing_instances_are_not_stale",
+        &spec(),
+    )
+    .await;
     let now = OffsetDateTime::now_utc();
 
     let key = InstanceKey::new(rule.id, &BTreeMap::new());
@@ -112,7 +125,13 @@ async fn failing_but_not_degraded_rule_firing_instances_are_not_stale() {
 async fn failure_degrades_exactly_at_threshold() {
     let (store, _node) = store().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let rule = store.create_rule(tenant.clone(), &spec()).await.unwrap();
+    let rule = create_test_rule(
+        &store,
+        tenant.clone(),
+        "t/failure_degrades_exactly_at_threshold",
+        &spec(),
+    )
+    .await;
     let now = OffsetDateTime::now_utc();
 
     // Below threshold (K=3): no event.
@@ -153,7 +172,13 @@ async fn failure_degrades_exactly_at_threshold() {
 async fn success_recovers_only_if_degraded() {
     let (store, _node) = store().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let rule = store.create_rule(tenant.clone(), &spec()).await.unwrap();
+    let rule = create_test_rule(
+        &store,
+        tenant.clone(),
+        "t/success_recovers_only_if_degraded",
+        &spec(),
+    )
+    .await;
     let now = OffsetDateTime::now_utc();
 
     // Healthy success -> nothing.
@@ -192,7 +217,13 @@ async fn success_recovers_only_if_degraded() {
 async fn get_and_list_expose_health() {
     let (store, _node) = store().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let rule = store.create_rule(tenant.clone(), &spec()).await.unwrap();
+    let rule = create_test_rule(
+        &store,
+        tenant.clone(),
+        "t/get_and_list_expose_health",
+        &spec(),
+    )
+    .await;
     let now = OffsetDateTime::now_utc();
 
     let (_r, h, _rollup, _updated_at) = store
@@ -217,17 +248,17 @@ async fn get_and_list_expose_health() {
     assert_eq!(h.last_error.as_deref(), Some("boom"));
 
     let (all, _) = store
-        .list_rules_page(&tenant, None, None, 100)
+        .list_rules_page(&tenant, None, None, None, None, 100)
         .await
         .unwrap();
     assert_eq!(all.len(), 1);
     let (degraded, _) = store
-        .list_rules_page(&tenant, Some("degraded"), None, 100)
+        .list_rules_page(&tenant, Some("degraded"), None, None, None, 100)
         .await
         .unwrap();
     assert_eq!(degraded.len(), 1);
     let (healthy, _) = store
-        .list_rules_page(&tenant, Some("healthy"), None, 100)
+        .list_rules_page(&tenant, Some("healthy"), None, None, None, 100)
         .await
         .unwrap();
     assert_eq!(healthy.len(), 0);
@@ -244,7 +275,13 @@ async fn health_events_of_suppressed_rule_are_stamped() {
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
     let mut s = spec();
     s.suppressed = true;
-    let rule = store.create_rule(tenant.clone(), &s).await.unwrap();
+    let rule = create_test_rule(
+        &store,
+        tenant.clone(),
+        "t/health_events_of_suppressed_rule_are_stamped",
+        &s,
+    )
+    .await;
     let now = OffsetDateTime::now_utc();
 
     let (ev, outbox_id) = store
@@ -282,7 +319,13 @@ async fn health_events_of_suppressed_rule_are_stamped() {
 async fn health_events_of_normal_rule_are_not_stamped() {
     let (store, _node) = store().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let rule = store.create_rule(tenant.clone(), &spec()).await.unwrap();
+    let rule = create_test_rule(
+        &store,
+        tenant.clone(),
+        "t/health_events_of_normal_rule_are_not_stamped",
+        &spec(),
+    )
+    .await;
     let now = OffsetDateTime::now_utc();
 
     let (ev, _) = store
