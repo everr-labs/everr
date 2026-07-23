@@ -14,13 +14,10 @@ describe("attributionAttributes", () => {
     });
   });
 
-  it("stamps ad click ids", () => {
+  it("does not stamp ad click ids (deferred)", () => {
     expect(
       attributionAttributes("https://everr.dev/docs?gclid=g1&fbclid=f1"),
-    ).toEqual({
-      "everr.ad_id.gclid": "g1",
-      "everr.ad_id.fbclid": "f1",
-    });
+    ).toEqual({});
   });
 
   it("stamps nothing on organic traffic", () => {
