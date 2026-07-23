@@ -247,4 +247,30 @@ describe("toSloDocument round-trip", () => {
     expect(json.spec.minValidEvents).toBeUndefined();
     expect(json.spec.annotations).toBeUndefined();
   });
+
+  it("keeps the generated link.runbook out of a round-tripped, runbook-linked SLO in a non-default project", () => {
+    const doc = sloYaml(
+      { runbook: "checkout-triage", annotations: { team: "payments" } },
+      { project: "payments" },
+    );
+    const input = toSloInput(doc, "repo-1", {
+      appBaseUrl: "https://app.example.com",
+    });
+    const slo = asSlo(input);
+    // Sanity: the generated link annotation is actually on the wire payload.
+    expect(input.annotations["link.runbook"]).toBe(
+      "https://app.example.com/runbooks/payments/checkout-triage",
+    );
+
+    const view = fromCcSlo(slo);
+    expect(view.runbookProject).toBe("payments");
+    expect(view.runbookSlug).toBe("checkout-triage");
+
+    const rebuilt = toSloDocument(slo);
+    expect(rebuilt.spec.runbook).toBe("payments/checkout-triage");
+    expect(rebuilt.spec.annotations).toEqual({ team: "payments" });
+    const annotationKeys = Object.keys(rebuilt.spec.annotations ?? {});
+    expect(annotationKeys).not.toContain("link.runbook");
+    expect(annotationKeys.some((k) => k.startsWith("everr."))).toBe(false);
+  });
 });

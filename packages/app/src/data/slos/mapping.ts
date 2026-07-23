@@ -1,10 +1,13 @@
 import {
   ANN_CC_LINK_RUNBOOK,
   ANN_LABEL_PREFIX,
-  isEverrAnnotationKey,
   OWN_REPO,
 } from "@/data/alerts/annotations";
-import { formatRunbookRef, parseRunbookRef } from "@/data/alerts/schema";
+import {
+  formatRunbookRef,
+  isReservedAnnotationKey,
+  parseRunbookRef,
+} from "@/data/alerts/schema";
 import { formatResourceName, parseResourceName } from "@/data/as-code/identity";
 import type { CcSlo, CcSloInput } from "@/data/cc/types";
 import type { SloYaml } from "./schema";
@@ -137,8 +140,9 @@ export function fromCcSlo(
  * resources show`): SLOs have no stored document (the CC SLO is the
  * resource), so one is reconstructed. `metadata.name`/`metadata.project` come
  * from splitting the first-class `name` (project omitted when "default");
- * generated annotations (`everr.*`) fold back into their source fields;
- * everything else is the user's pass-through `spec.annotations`.
+ * generated annotations (`everr.*`, `link.runbook`) fold back into their
+ * source fields or are dropped; everything else is the user's pass-through
+ * `spec.annotations`.
  */
 export function toSloDocument(slo: Pick<CcSlo, "name" | "spec">): SloYaml {
   const { project, slug } = parseResourceName(slo.name);
@@ -149,7 +153,7 @@ export function toSloDocument(slo: Pick<CcSlo, "name" | "spec">): SloYaml {
   for (const [key, value] of Object.entries(ann)) {
     if (key.startsWith(ANN_LABEL_PREFIX)) {
       labels[key.slice(ANN_LABEL_PREFIX.length)] = value;
-    } else if (!isEverrAnnotationKey(key)) {
+    } else if (!isReservedAnnotationKey(key)) {
       passthrough[key] = value;
     }
   }
