@@ -8,10 +8,17 @@ vi.mock("@/data/cc/client", () => ({
   testSlo: vi.fn(),
 }));
 
+// The reconciler builds absolute runbook links from the app origin; tests
+// must not depend on real (validated) server env.
+vi.mock("@/env/auth", () => ({
+  authEnv: { BETTER_AUTH_URL: "https://app.example.com" },
+}));
+
 import * as cc from "@/data/cc/client";
 import { CcApiError } from "@/data/cc/errors";
 import type { DbExecutor } from "@/db/client";
 import { applySloSpecs } from "./apply.server";
+import { OWN_REPO } from "./mapping";
 
 // The SLO reconciler talks to CC over HTTP and never touches Postgres, so the
 // Reconciler contract's `db` is unused here — a stub satisfies the type.
@@ -51,13 +58,16 @@ function sloDoc(name = "checkout", overrides = {}) {
   };
 }
 
-// A CC SLO view as returned by the listing, matching what applying the default
-// sloDoc() fixture stores (so the fingerprints are equal).
+// A CC SLO view shape as returned by the listing, matching what applying the
+// default sloDoc() fixture stores (so the fingerprints are equal). Identity
+// (project/slug, live-vs-preview) lives on the SLO's first-class `name`/
+// `namespace` fields now, not an annotation — only everr.repoid stays there.
 function managedSlo(name: string, specOver: Record<string, unknown> = {}) {
   return {
     id: `slo-${name}`,
     tenant: "t",
-    name,
+    namespace: "",
+    name: `default/${name}`,
     version: 3,
     paused: false,
     updated_at: "2026-07-01T00:00:00Z",
@@ -65,7 +75,7 @@ function managedSlo(name: string, specOver: Record<string, unknown> = {}) {
       sli: { sql: SQL, label_columns: ["service"] },
       targetPercent: 99.9,
       timeWindow: { duration: "30d", isRolling: true },
-      annotations: { "everr.name": name, "everr.repoid": "repo-1" },
+      annotations: { [OWN_REPO]: "repo-1" },
       suppressed: false,
       ...specOver,
     },
@@ -73,17 +83,23 @@ function managedSlo(name: string, specOver: Record<string, unknown> = {}) {
 }
 
 // A stored PREVIEW copy: suppressed, tagged with its owning preview registry
-// id, and registered under a preview-mangled CC name (names are tenant-unique).
-function previewSlo(name: string, previewId: string) {
+// id on the first-class `namespace` field. The project/slug `name` is
+// unchanged from the live copy — CC SLO names are unique per (tenant,
+// namespace), so no CC-name mangling is needed.
+function previewSlo(
+  name: string,
+  previewId: string,
+  over: Record<string, unknown> = {},
+) {
   const base = managedSlo(name);
   return {
     ...base,
     id: `prev-slo-${name}`,
-    name: `${name}.pv-0123456789`,
+    namespace: previewId,
     spec: {
       ...base.spec,
-      annotations: { ...base.spec.annotations, "everr.preview": previewId },
       suppressed: true,
+      ...over,
     },
   };
 }
@@ -104,19 +120,20 @@ describe("applySloSpecs", () => {
     const [tOrg, tId, tInput] = mockedTest.mock.calls[0];
     expect(tOrg).toBe("o");
     expect(tId).toBe(NIL_ID);
-    expect(tInput.name).toBe("checkout");
+    expect(tInput.name).toBe("default/checkout");
+    expect(tInput.namespace).toBe("");
 
     expect(mockedCreate).toHaveBeenCalledTimes(1);
     const [org, input] = mockedCreate.mock.calls[0];
     expect(org).toBe("o");
-    expect(input.name).toBe("checkout");
-    expect(input.annotations["everr.name"]).toBe("checkout");
-    expect(input.annotations["everr.repoid"]).toBe("repo-1");
+    expect(input.name).toBe("default/checkout");
+    expect(input.namespace).toBe("");
+    expect(input.annotations[OWN_REPO]).toBe("repo-1");
     expect(input.suppressed).toBe(false);
     expect(input.sli).toEqual({ sql: SQL, label_columns: ["service"] });
     expect(mockedUpdate).not.toHaveBeenCalled();
     expect(mockedDelete).not.toHaveBeenCalled();
-    expect(res.created).toEqual(["checkout"]);
+    expect(res.created).toEqual(["default/checkout"]);
     expect(res.note).toBeUndefined();
   });
 
@@ -129,7 +146,7 @@ describe("applySloSpecs", () => {
     });
 
     expect(res).toEqual({
-      created: ["checkout"],
+      created: ["default/checkout"],
       updated: [],
       deleted: [],
       adopted: [],
@@ -141,7 +158,7 @@ describe("applySloSpecs", () => {
     expect(mockedDelete).not.toHaveBeenCalled();
   });
 
-  it("preview apply creates a suppressed SLO under a mangled name, tagged with the preview id", async () => {
+  it("preview apply creates a suppressed SLO in the preview namespace, with the SAME name as live", async () => {
     const res = await applySloSpecs({
       namespace: { ...live, kind: "preview", id: "p1" },
       db,
@@ -150,17 +167,17 @@ describe("applySloSpecs", () => {
 
     expect(mockedCreate).toHaveBeenCalledTimes(1);
     const [, input] = mockedCreate.mock.calls[0];
-    // CC SLO names are tenant-unique, so the preview copy cannot reuse the
-    // live name: it gets a deterministic per-(preview, name) suffix.
-    expect(input.name).toMatch(/^checkout\.pv-[0-9a-f]{10}$/);
+    // CC SLO names are unique per (tenant, namespace), so the preview copy
+    // reuses the live name under its own namespace: no CC-name mangling.
+    expect(input.name).toBe("default/checkout");
+    expect(input.namespace).toBe("p1");
     expect(input.suppressed).toBe(true);
-    expect(input.annotations["everr.preview"]).toBe("p1");
-    expect(input.annotations["everr.name"]).toBe("checkout");
-    expect(res.created).toEqual(["checkout"]);
+    expect(input.annotations[OWN_REPO]).toBe("repo-1");
+    expect(res.created).toEqual(["default/checkout"]);
     expect(res.note).toMatch(/suppressed/);
   });
 
-  it("scopes a preview reconcile to SLOs tagged with ITS preview id", async () => {
+  it("scopes a preview reconcile to SLOs tagged with ITS preview namespace", async () => {
     mockedList.mockResolvedValue([
       // Live SLO in the same repo: invisible to the preview reconcile.
       managedSlo("checkout"),
@@ -176,30 +193,40 @@ describe("applySloSpecs", () => {
       resources: [],
     });
 
-    expect(res.deleted).toEqual(["stale"]);
+    expect(res.deleted).toEqual(["default/stale"]);
     expect(mockedDelete).toHaveBeenCalledTimes(1);
     expect(mockedDelete).toHaveBeenCalledWith("o", "prev-slo-stale");
   });
 
-  it("updates a preview SLO in place (matched by annotation, not CC name)", async () => {
+  it("leaves an unchanged preview SLO alone and updates a changed one in place", async () => {
     mockedList.mockResolvedValue([previewSlo("checkout", "p1")]);
+    const unchanged = await applySloSpecs({
+      namespace: { ...live, kind: "preview", id: "p1" },
+      db,
+      resources: [{ path: "s.yaml", resource: sloDoc() }],
+    });
+    expect(unchanged.created).toEqual([]);
+    expect(unchanged.updated).toEqual([]);
+    expect(mockedCreate).not.toHaveBeenCalled();
+    expect(mockedUpdate).not.toHaveBeenCalled();
 
-    const res = await applySloSpecs({
+    mockedList.mockResolvedValue([
+      previewSlo("checkout", "p1", { targetPercent: 99.5 }),
+    ]);
+    const changed = await applySloSpecs({
       namespace: { ...live, kind: "preview", id: "p1" },
       db,
       resources: [{ path: "s.yaml", resource: sloDoc() }],
     });
 
-    // The stored preview name differs from the freshly mangled one, so the
-    // SLO converges via a version-guarded update — never delete + recreate.
-    expect(res.created).toEqual([]);
-    expect(res.updated).toEqual(["checkout"]);
+    expect(changed.created).toEqual([]);
+    expect(changed.updated).toEqual(["default/checkout"]);
     expect(mockedCreate).not.toHaveBeenCalled();
-    const [, id, input, version] = mockedUpdate.mock.calls[0];
+    const [, id, spec, version] = mockedUpdate.mock.calls[0];
     expect(id).toBe("prev-slo-checkout");
     expect(version).toBe(3);
-    expect(input.suppressed).toBe(true);
-    expect(input.annotations["everr.preview"]).toBe("p1");
+    expect(spec.suppressed).toBe(true);
+    expect(spec.annotations[OWN_REPO]).toBe("repo-1");
   });
 
   it("dry-run of a first preview apply (no registry row) plans creates without listing CC", async () => {
@@ -210,7 +237,7 @@ describe("applySloSpecs", () => {
       resources: [{ path: "s.yaml", resource: sloDoc() }],
     });
 
-    expect(res.created).toEqual(["checkout"]);
+    expect(res.created).toEqual(["default/checkout"]);
     expect(mockedList).not.toHaveBeenCalled();
     expect(mockedCreate).not.toHaveBeenCalled();
   });
@@ -250,16 +277,19 @@ describe("applySloSpecs", () => {
       resources: [{ path: "s.yaml", resource: sloDoc() }],
     });
 
-    expect(res.updated).toEqual(["checkout"]);
+    expect(res.updated).toEqual(["default/checkout"]);
     // Changed specs are re-validated against the existing SLO's id.
     expect(mockedTest).toHaveBeenCalledTimes(1);
     expect(mockedTest.mock.calls[0][1]).toBe("slo-checkout");
     expect(mockedUpdate).toHaveBeenCalledTimes(1);
-    const [org, id, input, version] = mockedUpdate.mock.calls[0];
+    const [org, id, spec, version] = mockedUpdate.mock.calls[0];
     expect(org).toBe("o");
     expect(id).toBe("slo-checkout");
     expect(version).toBe(3);
-    expect(input.targetPercent).toBe(99.9);
+    expect(spec.targetPercent).toBe(99.9);
+    // PUT takes the bare spec: no name/namespace (identity is immutable).
+    expect(spec.name).toBeUndefined();
+    expect(spec.namespace).toBeUndefined();
     expect(mockedCreate).not.toHaveBeenCalled();
     expect(mockedDelete).not.toHaveBeenCalled();
   });
@@ -281,7 +311,7 @@ describe("applySloSpecs", () => {
     ).rejects.toMatchObject({
       name: "ApplyValidationError",
       message: expect.stringMatching(
-        /s\.yaml: SLO "checkout" was modified concurrently .* re-run apply/,
+        /s\.yaml: SLO "default\/checkout" was modified concurrently .* re-run apply/,
       ),
     });
   });
@@ -292,18 +322,16 @@ describe("applySloSpecs", () => {
     const res = await applySloSpecs({ namespace: live, db, resources: [] });
 
     expect(mockedDelete).toHaveBeenCalledWith("o", "slo-gone");
-    expect(res.deleted).toEqual(["gone"]);
+    expect(res.deleted).toEqual(["default/gone"]);
   });
 
-  it("never deletes a bare engine SLO (no everr.name) or another repo's SLO", async () => {
+  it("never deletes a bare engine SLO (no everr.repoid) or another repo's SLO", async () => {
     mockedList.mockResolvedValue([
       {
         ...managedSlo("ui-made"),
         spec: { ...managedSlo("ui-made").spec, annotations: {} },
       },
-      managedSlo("elsewhere", {
-        annotations: { "everr.name": "elsewhere", "everr.repoid": "repo-2" },
-      }),
+      managedSlo("elsewhere", { annotations: { [OWN_REPO]: "repo-2" } }),
     ]);
 
     const res = await applySloSpecs({ namespace: live, db, resources: [] });
@@ -314,9 +342,7 @@ describe("applySloSpecs", () => {
 
   it("reports a cross-repo name collision as an ownership conflict (no writes)", async () => {
     mockedList.mockResolvedValue([
-      managedSlo("checkout", {
-        annotations: { "everr.name": "checkout", "everr.repoid": "repo-2" },
-      }),
+      managedSlo("checkout", { annotations: { [OWN_REPO]: "repo-2" } }),
     ]);
 
     const res = await applySloSpecs({
@@ -356,9 +382,7 @@ describe("applySloSpecs", () => {
 
   it("adopts a colliding foreign SLO in place with adopt: true", async () => {
     mockedList.mockResolvedValue([
-      managedSlo("checkout", {
-        annotations: { "everr.name": "checkout", "everr.repoid": "repo-2" },
-      }),
+      managedSlo("checkout", { annotations: { [OWN_REPO]: "repo-2" } }),
     ]);
 
     const res = await applySloSpecs({
@@ -369,15 +393,15 @@ describe("applySloSpecs", () => {
     });
 
     expect(res.conflicts).toEqual([]);
-    expect(res.adopted).toEqual(["checkout"]);
+    expect(res.adopted).toEqual(["default/checkout"]);
     expect(res.created).toEqual([]);
     // Ownership transfers via a version-guarded update on the existing id, so
     // the SLO's id and instance state survive the takeover.
     expect(mockedCreate).not.toHaveBeenCalled();
-    const [, id, input, version] = mockedUpdate.mock.calls[0];
+    const [, id, spec, version] = mockedUpdate.mock.calls[0];
     expect(id).toBe("slo-checkout");
     expect(version).toBe(3);
-    expect(input.annotations["everr.repoid"]).toBe("repo-1");
+    expect(spec.annotations[OWN_REPO]).toBe("repo-1");
   });
 
   it("rejects duplicate SLO names before listing CC", async () => {
@@ -449,5 +473,25 @@ describe("applySloSpecs", () => {
 
     expect(mockedCreate).not.toHaveBeenCalled();
     expect(mockedDelete).not.toHaveBeenCalled();
+  });
+
+  it("stamps an absolute link.runbook using the app origin from BETTER_AUTH_URL", async () => {
+    const res = await applySloSpecs({
+      namespace: live,
+      db,
+      resources: [
+        {
+          path: "s.yaml",
+          resource: sloDoc("checkout", { runbook: "checkout-triage" }),
+        },
+      ],
+    });
+
+    expect(res.created).toEqual(["default/checkout"]);
+    const [, input] = mockedCreate.mock.calls[0];
+    expect(input.annotations["everr.runbook"]).toBe("checkout-triage");
+    expect(input.annotations["link.runbook"]).toBe(
+      "https://app.example.com/runbooks/default/checkout-triage",
+    );
   });
 });

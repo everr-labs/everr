@@ -176,6 +176,25 @@ describe("SloYamlSchema", () => {
     }
   });
 
+  it("accepts a runbook ref as a bare slug or project/slug", () => {
+    expect(
+      SloYamlSchema.safeParse(sloDoc({ runbook: "checkout-triage" })).success,
+    ).toBe(true);
+    expect(
+      SloYamlSchema.safeParse(sloDoc({ runbook: "payments/checkout-triage" }))
+        .success,
+    ).toBe(true);
+  });
+
+  it("rejects a malformed runbook ref", () => {
+    expect(SloYamlSchema.safeParse(sloDoc({ runbook: "a/b/c" })).success).toBe(
+      false,
+    );
+    expect(SloYamlSchema.safeParse(sloDoc({ runbook: "" })).success).toBe(
+      false,
+    );
+  });
+
   it("is strict: unknown keys anywhere are rejected", () => {
     expect(SloYamlSchema.safeParse(sloDoc({ extra: true })).success).toBe(
       false,

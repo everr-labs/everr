@@ -1,5 +1,6 @@
 import * as z from "zod";
 import { isEverrAnnotationKey } from "@/data/alerts/annotations";
+import { runbookRefSchema } from "@/data/alerts/schema";
 import { dashboardProjectSchema } from "@/data/dashboards/schema";
 
 const nonEmptyString = z.string().min(1);
@@ -190,6 +191,10 @@ export const SloYamlSchema = z
         timeWindow: timeWindowSchema,
         // Optional low-traffic floor on each tier's long window; omit = off.
         minValidEvents: z.number().int().nonnegative().optional(),
+        // A linked runbook: bare `slug` (resolved against this SLO's own
+        // project) or `project/slug`. Same grammar AlertRule's spec.runbook
+        // uses, imported rather than duplicated.
+        runbook: runbookRefSchema.optional(),
         // Pass-through annotations merged onto the CC SLO alongside the
         // generated ownership keys; `everr.`-prefixed keys are reserved for
         // those and rejected here so they can never be shadowed.

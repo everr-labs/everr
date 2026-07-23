@@ -27,7 +27,8 @@ const notificationMessageSchema = z
 // A runbook reference: bare `slug` (resolved against the alert's own project)
 // or `project/slug`. Each segment must be a valid project/slug name; more than
 // one "/" or an empty segment is rejected. Existence is checked at apply time,
-// not here.
+// not here. Shared verbatim by the SLO schema (data/slos/schema.ts) for
+// `spec.runbook` so the grammar lives once.
 // Split a `spec.runbook` ref into its parts. Returns null when it has more
 // than one "/"; `project` is undefined for a bare slug. Shared by the schema
 // (validation) and parseRunbookRef (resolution) so the format lives once.
@@ -41,7 +42,7 @@ function runbookRefParts(
     : { slug: parts[0] };
 }
 
-const runbookRefSchema = z
+export const runbookRefSchema = z
   .string()
   .min(1)
   .superRefine((value, ctx) => {

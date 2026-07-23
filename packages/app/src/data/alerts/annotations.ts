@@ -4,27 +4,19 @@
 // as-code layer (data/slos) shares the ownership/identity vocabulary below, so
 // the keys live here rather than in either kind's mapping module.
 
-// Ownership annotations on a CC-backed as-code resource (rules and SLOs): the
-// resource's as-code name and the repoid that owns it. A resource carrying
-// everr.repoid is everr-managed; one without it is engine-native and never
-// touched by any reconciler.
+// Ownership annotation on a CC-backed as-code resource (rules and SLOs): the
+// repoid that owns it. A resource carrying everr.repoid is everr-managed; one
+// without it is engine-native and never touched by any reconciler.
 //
-// OWN_NAME / OWN_PREVIEW / ANN_PROJECT are write-path-retired for alerts:
-// identity (project/slug, live-vs-preview namespace) now lives on the CC
-// rule's own first-class `name`/`namespace` fields (see
-// data/alerts/mapping.ts's toRuleInput/fromCcRule), so alerts never write
-// these annotations anymore. They are kept here (not deleted) because
-// data/slos/* still writes and reads them; Tasks 4-5 retire the SLO side.
-export const OWN_NAME = "everr.name";
+// Identity (project/slug, live-vs-preview namespace) lives on the CC entity's
+// own first-class `name`/`namespace` fields for both rules (see
+// data/alerts/mapping.ts's toRuleInput/fromCcRule) and SLOs (see
+// data/slos/mapping.ts's toSloInput/fromCcSlo) now, so neither kind writes an
+// identity or preview annotation anymore.
 export const OWN_REPO = "everr.repoid";
-// The preview registry id (previews.id) owning a preview resource. Live
-// resources never carry it: it is the live/preview namespace discriminator on
-// CC-backed resources, the CC analogue of the Postgres resource tables'
-// preview_id column.
-export const OWN_PREVIEW = "everr.preview";
-// The declared metadata.project, stored only when the document sets it (SLOs;
-// resources without it surface under the "default" project). Recorded verbatim
-// so the reconstructed document round-trips exactly.
+// ANN_PROJECT is write-path-retired for both kinds (project now round-trips
+// through the first-class `name`), but stays exported: some downstream
+// readers (e.g. the SLO detail route) still parse it off legacy CC data.
 export const ANN_PROJECT = "everr.project";
 // metadata.labels.<k> → everr.label.<k> (shared by rules and SLOs).
 export const ANN_LABEL_PREFIX = "everr.label.";
