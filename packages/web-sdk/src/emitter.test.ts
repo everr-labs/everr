@@ -33,14 +33,16 @@ function makeEmitter(envelope: () => Record<string, string> = () => ({})) {
     });
     return Promise.resolve(new Response(null, { status: 200 }));
   }) as typeof fetch;
-  return createEmitter({
-    logsUrl: "https://ingest.example/v1/logs",
-    headers: { Authorization: "Bearer key" },
-    resource: { "service.name": "svc", "everr.screen.width": 1920 },
-    scope: { name: "@everr/web-sdk", version: "test" },
-    envelope,
+  return createEmitter(
+    {
+      logsUrl: "https://ingest.example/v1/logs",
+      headers: { Authorization: "Bearer key" },
+      resource: { "service.name": "svc", "everr.screen.width": 1920 },
+      scope: { name: "@everr/web-sdk", version: "test" },
+      envelope,
+    },
     transportFetch,
-  });
+  );
 }
 
 function sentRecords() {
@@ -141,14 +143,15 @@ describe("createEmitter", () => {
     const failingFetch = vi.fn(() =>
       Promise.reject(new Error("network down")),
     ) as unknown as typeof fetch;
-    const failing = createEmitter({
-      logsUrl: "https://ingest.example/v1/logs",
-      headers: undefined,
-      resource: {},
-      scope: { name: "s", version: "v" },
-      envelope: () => ({}),
-      transportFetch: failingFetch,
-    });
+    const failing = createEmitter(
+      {
+        logsUrl: "https://ingest.example/v1/logs",
+        resource: {},
+        scope: { name: "s", version: "v" },
+        envelope: () => ({}),
+      },
+      failingFetch,
+    );
     failing.emit("browser.page_view");
     await expect(failing.flush()).resolves.toBeUndefined();
   });

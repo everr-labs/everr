@@ -52,18 +52,19 @@ function toKeyValues(
   );
 }
 
-export function createEmitter(options: {
-  logsUrl: string;
-  headers?: Record<string, string>;
-  resource: Record<string, AttrValue | undefined>;
-  scope: { name: string; version: string };
-  /** Called per record; returns the context envelope to stamp. */
-  envelope: () => Record<string, AttrValue | undefined>;
+export function createEmitter(
+  options: {
+    logsUrl: string;
+    headers?: Record<string, string>;
+    resource: Record<string, AttrValue | undefined>;
+    scope: { name: string; version: string };
+    /** Called per record; returns the context envelope to stamp. */
+    envelope: () => Record<string, AttrValue | undefined>;
+  },
   /** Test seam; defaults to the global fetch. */
-  transportFetch?: typeof fetch;
-}): Emitter {
+  transportFetch: typeof fetch = fetch,
+): Emitter {
   const resource = toKeyValues(options.resource);
-  const transportFetch = options.transportFetch ?? fetch;
   let queue: OtlpLogRecord[] = [];
   let timer: ReturnType<typeof setTimeout> | undefined;
 
