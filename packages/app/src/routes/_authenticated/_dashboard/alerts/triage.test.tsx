@@ -585,6 +585,21 @@ describe("/alerts/triage route", () => {
     expect(screen.getByText("SLO")).toBeInTheDocument();
   });
 
+  it("falls back to the short rule ID for a rule-sourced alert whose rule is unknown, unlinked (no address to resolve)", async () => {
+    // A rule-sourced alert whose rule is not in the rules list renders
+    // with the short rule ID as plain text, without a link.
+    const unknownRuleId = "unknown-rule-id";
+    mocks.listCcAlerts.mockResolvedValue([ccAlert({ rule: unknownRuleId })]);
+
+    renderTriageRoute();
+
+    const name = await screen.findByText(unknownRuleId.slice(0, 8));
+    expect(name.tagName).not.toBe("A");
+    expect(
+      screen.queryByRole("link", { name: unknownRuleId.slice(0, 8) }),
+    ).not.toBeInTheDocument();
+  });
+
   it("creates an slo-scoped silence from an SLO-sourced row", async () => {
     mocks.listCcSlos.mockResolvedValue([ccSlo()]);
     mocks.listCcAlerts.mockResolvedValue([sloAlert()]);
