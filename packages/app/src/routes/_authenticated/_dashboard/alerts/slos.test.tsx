@@ -52,6 +52,7 @@ function ccSlo(overrides: Partial<CcSlo> = {}): CcSlo {
   return {
     id: SLO_ID,
     tenant: "org1",
+    namespace: "",
     name: "checkout-availability",
     spec: {
       sli: {
@@ -93,7 +94,7 @@ function renderSlosRoute(initialEntry = "/alerts/slos") {
   // Link target (per-SLO detail); never rendered here.
   const sloDetailRoute = createRoute({
     getParentRoute: () => dashboardRoute,
-    path: "alerts/slos/$sloId",
+    path: "alerts/slos/$project/$slug",
     component: () => null,
   });
 
@@ -161,7 +162,10 @@ describe("/alerts/slos route", () => {
     const link = within(table).getByRole("link", {
       name: "checkout-availability",
     });
-    expect(link).toHaveAttribute("href", `/alerts/slos/${SLO_ID}`);
+    expect(link).toHaveAttribute(
+      "href",
+      "/alerts/slos/default/checkout-availability",
+    );
     // Config compressed into one secondary line under the name.
     expect(
       within(table).getByText(/99\.9% over 30d rolling/),

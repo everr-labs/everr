@@ -28,6 +28,7 @@ import {
   CcTableSkeleton,
   ccErrorMessage,
 } from "@/components/cc/shared";
+import { parseResourceName } from "@/data/as-code/identity";
 import { ccQueries } from "@/data/cc/queries";
 import { pauseCcSlo, resumeCcSlo } from "@/data/cc/server";
 import {
@@ -160,8 +161,8 @@ function SloPromiseCell({
     <span className={`flex flex-col gap-1 ${compact ? "min-w-0" : "min-w-56"}`}>
       <span className="flex min-w-0 flex-wrap items-center gap-2">
         <Link
-          to="/alerts/slos/$sloId"
-          params={{ sloId: s.id }}
+          to="/alerts/slos/$project/$slug"
+          params={parseResourceName(s.name)}
           className="font-medium text-foreground underline-offset-2 hover:underline"
         >
           {s.name}
@@ -419,8 +420,8 @@ function CcSlosPage() {
                           return;
                         }
                         void navigate({
-                          to: "/alerts/slos/$sloId",
-                          params: { sloId: row.slo.id },
+                          to: "/alerts/slos/$project/$slug",
+                          params: parseResourceName(row.slo.name),
                         });
                       }}
                     />

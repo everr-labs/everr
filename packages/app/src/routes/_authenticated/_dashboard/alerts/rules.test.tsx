@@ -39,6 +39,8 @@ function ccRuleView(overrides: Partial<CcRuleView> = {}): CcRuleView {
   return {
     id: "11111111-1111-1111-1111-111111111111",
     tenant: "org1",
+    namespace: "",
+    name: "default/flapping",
     spec: {
       sql: "SELECT 1",
       interval_secs: 30,
@@ -100,7 +102,7 @@ function renderRulesRoute() {
   // Link targets (per-rule detail, runbooks); never rendered here.
   const ruleDetailRoute = createRoute({
     getParentRoute: () => dashboardRoute,
-    path: "alerts/rules/$ruleId",
+    path: "alerts/rules/$project/$slug",
     component: () => null,
   });
   const runbookRoute = createRoute({

@@ -11,14 +11,14 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CcSlo, CcSloStatus } from "@/data/cc/types";
-import { Route as SloDetailFileRoute } from "./slos_.$sloId";
+import { Route as SloDetailFileRoute } from "./slos_.$project.$slug";
 
 // ---------------------------------------------------------------------------
 // Mocks at the module boundary the route talks to, same as the sibling tests.
 // ---------------------------------------------------------------------------
 
 const mocks = vi.hoisted(() => ({
-  getCcSlo: vi.fn(),
+  getCcSloByName: vi.fn(),
   getCcSloStatus: vi.fn(),
   getCcSloBudgetSeries: vi.fn(),
   getCcSloBudgetNow: vi.fn(),
@@ -30,7 +30,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/data/cc/server", () => ({
-  getCcSlo: mocks.getCcSlo,
+  getCcSloByName: mocks.getCcSloByName,
   getCcSloStatus: mocks.getCcSloStatus,
   getCcSloBudgetSeries: mocks.getCcSloBudgetSeries,
   getCcSloBudgetNow: mocks.getCcSloBudgetNow,
@@ -59,12 +59,15 @@ vi.mock("@/components/cc/alert-event-feed", () => ({
 // ---------------------------------------------------------------------------
 
 const SLO_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+const PROJECT = "default";
+const SLUG = "checkout-availability";
 
 function ccSlo(overrides: Partial<CcSlo> = {}): CcSlo {
   return {
     id: SLO_ID,
     tenant: "org1",
-    name: "checkout-availability",
+    namespace: "",
+    name: `${PROJECT}/${SLUG}`,
     spec: {
       sli: {
         sql: "SELECT countIf(ok) AS good, count() AS valid FROM t WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}",
@@ -135,7 +138,7 @@ function renderSloDetailRoute() {
   });
   const sloDetailRoute = createRoute({
     getParentRoute: () => dashboardRoute,
-    path: "alerts/slos/$sloId",
+    path: "alerts/slos/$project/$slug",
     component: SloDetailFileRoute.options.component,
   });
   // Back-link target; never rendered here.
@@ -144,15 +147,20 @@ function renderSloDetailRoute() {
     path: "alerts/slos",
     component: () => null,
   });
+  const runbookRoute = createRoute({
+    getParentRoute: () => dashboardRoute,
+    path: "runbooks/$project/$slug",
+    component: () => null,
+  });
 
   const routeTree = rootRoute.addChildren([
     authenticatedRoute.addChildren([
-      dashboardRoute.addChildren([sloDetailRoute, slosRoute]),
+      dashboardRoute.addChildren([sloDetailRoute, slosRoute, runbookRoute]),
     ]),
   ]);
 
   const history = createMemoryHistory({
-    initialEntries: [`/alerts/slos/${SLO_ID}`],
+    initialEntries: [`/alerts/slos/${PROJECT}/${SLUG}`],
   });
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -169,7 +177,7 @@ function renderSloDetailRoute() {
 
 beforeEach(() => {
   for (const fn of Object.values(mocks)) fn.mockReset();
-  mocks.getCcSlo.mockResolvedValue(ccSlo());
+  mocks.getCcSloByName.mockResolvedValue(ccSlo());
   mocks.getCcSloStatus.mockResolvedValue(sloStatus());
   mocks.getCcSloBudgetSeries.mockResolvedValue([]);
   mocks.getCcSloBudgetNow.mockResolvedValue([]);
@@ -177,12 +185,12 @@ beforeEach(() => {
   mocks.resumeCcSlo.mockResolvedValue(ccSlo());
 });
 
-describe("/alerts/slos/$sloId route", () => {
+describe("/alerts/slos/$project/$slug route", () => {
   it("leads with the status hero: state, budget, SLI, burn, and per-tier pressure", async () => {
     renderSloDetailRoute();
 
     expect(
-      await screen.findByRole("heading", { name: "checkout-availability" }),
+      await screen.findByRole("heading", { name: `${PROJECT}/${SLUG}` }),
     ).toBeInTheDocument();
     // The promise leads the stats row (target + window), not the header. The
     // row rides the async status read, so wait for it.
@@ -292,7 +300,7 @@ describe("/alerts/slos/$sloId route", () => {
   it("describes a scalar SLO without a per-group table", async () => {
     // A scalar SLO: no label columns, one label-less group. The hero fully
     // describes it, so there is no "All groups" breakdown.
-    mocks.getCcSlo.mockResolvedValue(
+    mocks.getCcSloByName.mockResolvedValue(
       ccSlo({
         spec: {
           ...ccSlo().spec,
@@ -383,10 +391,29 @@ describe("/alerts/slos/$sloId route", () => {
   });
 
   it("fails to the shared error card when the SLO read errors", async () => {
-    mocks.getCcSlo.mockRejectedValue(new Error("cc down"));
+    mocks.getCcSloByName.mockRejectedValue(new Error("cc down"));
 
     renderSloDetailRoute();
 
     expect(await screen.findByRole("alert")).toHaveTextContent("cc down");
+  });
+
+  it("links the runbook chip when the SLO carries a runbook annotation", async () => {
+    mocks.getCcSloByName.mockResolvedValue(
+      ccSlo({
+        spec: {
+          ...ccSlo().spec,
+          annotations: { "everr.runbook": "demo/checkout-runbook" },
+        },
+      }),
+    );
+
+    renderSloDetailRoute();
+
+    const runbookLink = await screen.findByRole("link", { name: /Runbook/ });
+    expect(runbookLink).toHaveAttribute(
+      "href",
+      "/runbooks/demo/checkout-runbook",
+    );
   });
 });

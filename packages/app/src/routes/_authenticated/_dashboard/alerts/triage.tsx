@@ -33,8 +33,9 @@ import {
   type SilenceDrawerHandle,
   SilencesPanel,
 } from "@/components/cc/silences-panel";
-import { fromCcRuleSpec } from "@/data/alerts/mapping";
+import { fromCcRule } from "@/data/alerts/mapping";
 import { ccRuleIdentity } from "@/data/alerts/rule-identity";
+import { parseResourceName } from "@/data/as-code/identity";
 import { ccQueries } from "@/data/cc/queries";
 import {
   ccDispatchLabels,
@@ -276,9 +277,7 @@ function InstanceDetail({
     .filter((e) => ccEventStatus(e.eventType) !== null)
     .slice(0, 6);
   const runbook = runbookParams(rule);
-  const description = rule
-    ? fromCcRuleSpec(rule.spec).displayDescription
-    : null;
+  const description = rule ? fromCcRule(rule).displayDescription : null;
 
   return (
     <div className="space-y-3 border-t border-border/60 bg-muted/10 px-3 py-3 pl-9">
@@ -830,21 +829,31 @@ function CcTriagePage() {
                 <section key={group.sourceId} className="py-1">
                   <div className="flex items-center gap-2.5 px-3 py-1.5">
                     {group.sloId !== undefined ? (
+                      group.slo ? (
+                        <Link
+                          to="/alerts/slos/$project/$slug"
+                          params={parseResourceName(group.slo.name)}
+                          className="text-sm font-medium text-foreground underline-offset-2 hover:underline"
+                        >
+                          {group.name}
+                        </Link>
+                      ) : (
+                        <span className="text-sm font-medium text-foreground">
+                          {group.name}
+                        </span>
+                      )
+                    ) : group.rule ? (
                       <Link
-                        to="/alerts/slos/$sloId"
-                        params={{ sloId: group.sloId }}
+                        to="/alerts/rules/$project/$slug"
+                        params={parseResourceName(group.rule.name)}
                         className="text-sm font-medium text-foreground underline-offset-2 hover:underline"
                       >
                         {group.name}
                       </Link>
                     ) : (
-                      <Link
-                        to="/alerts/rules/$ruleId"
-                        params={{ ruleId: group.sourceId }}
-                        className="text-sm font-medium text-foreground underline-offset-2 hover:underline"
-                      >
+                      <span className="text-sm font-medium text-foreground">
                         {group.name}
-                      </Link>
+                      </span>
                     )}
                     {group.sloId !== undefined && (
                       // Origin marker: this group is an SLO's burn-rate

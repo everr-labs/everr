@@ -26,6 +26,7 @@ import {
   ccRuleHandleResolvers,
   ccRuleIdentity,
 } from "@/data/alerts/rule-identity";
+import { parseResourceName } from "@/data/as-code/identity";
 import { ccQueries } from "@/data/cc/queries";
 import {
   ccDispatchLabels,
@@ -200,8 +201,8 @@ function SloPostureRow({
     : null;
   return (
     <Link
-      to="/alerts/slos/$sloId"
-      params={{ sloId: slo.id }}
+      to="/alerts/slos/$project/$slug"
+      params={parseResourceName(slo.name)}
       className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md px-3 py-2 outline-2 outline-dotted outline-transparent outline-offset-[-2px] transition-colors duration-150 hover:bg-muted/40 focus-visible:outline-primary"
     >
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -335,6 +336,9 @@ function CcOverviewPage() {
         sourceId: string;
         count: number;
         severity: string;
+        // The rule's slug address, when the rule is still known — absent for
+        // an alert whose source rule has since been deleted (a stale handle).
+        address: { project: string; slug: string } | null;
       }
     >();
     for (const i of firing.filter((f) => f.silence === null)) {
@@ -350,6 +354,12 @@ function CcOverviewPage() {
         severity: i.slo
           ? ccSloTierSeverity(CC_CANONICAL_SLO_TIERS, i.alert.labels)
           : (i.rule?.spec.severity ?? "info"),
+        address: i.rule
+          ? {
+              project: ccRuleIdentity(i.rule).project,
+              slug: ccRuleIdentity(i.rule).slug,
+            }
+          : null,
       };
       entry.count += 1;
       firingSources.set(i.alert.rule, entry);
@@ -400,7 +410,7 @@ function CcOverviewPage() {
   const resolveSlo = useMemo(() => ccSloHandleResolver(slosData), [slosData]);
   // Event rows carry a source handle (slug or uuid) for rules and SLOs alike;
   // the shared resolvers map either to a display name.
-  const { resolveRuleName, resolveRuleId } = useMemo(
+  const { resolveRuleName, resolveRuleAddress } = useMemo(
     () => ccRuleHandleResolvers(rules.data ?? []),
     [rules.data],
   );
@@ -420,8 +430,8 @@ function CcOverviewPage() {
         : p.firing.length > 0
           ? "pending"
           : "firing",
-      to: "/alerts/slos/$sloId",
-      params: { sloId: p.slo.id },
+      to: "/alerts/slos/$project/$slug",
+      params: parseResourceName(p.slo.name),
       text: (
         <>
           <span className="font-medium text-foreground">{p.slo.name}</span>{" "}
@@ -444,8 +454,11 @@ function CcOverviewPage() {
     attention.push({
       key: `rule-${src.sourceId}`,
       tone: src.severity === "critical" ? "firing" : "pending",
-      to: "/alerts/rules/$ruleId",
-      params: { ruleId: src.sourceId },
+      // A stale handle (the source rule was deleted since) has no address to
+      // link to; fall back to the rules list rather than a dead link.
+      ...(src.address
+        ? { to: "/alerts/rules/$project/$slug", params: src.address }
+        : { to: "/alerts/rules" }),
       text: (
         <>
           <span className="font-medium text-foreground">{src.name}</span> is
@@ -692,7 +705,9 @@ function CcOverviewPage() {
                 {(events.data ?? []).map((e) => {
                   const status = ccEventStatus(e.eventType);
                   const slo = resolveSlo(e.slug);
-                  const ruleId = slo ? undefined : resolveRuleId(e.slug);
+                  const ruleAddress = slo
+                    ? undefined
+                    : resolveRuleAddress(e.slug);
                   const name = slo?.name ?? resolveRuleName(e.slug);
                   return (
                     <li
@@ -718,16 +733,16 @@ function CcOverviewPage() {
                           feed's contract with the rest of the page. */}
                       {slo ? (
                         <Link
-                          to="/alerts/slos/$sloId"
-                          params={{ sloId: slo.id }}
+                          to="/alerts/slos/$project/$slug"
+                          params={parseResourceName(slo.name)}
                           className="min-w-0 flex-1 truncate text-foreground underline-offset-2 hover:underline"
                         >
                           {name}
                         </Link>
-                      ) : ruleId !== undefined ? (
+                      ) : ruleAddress ? (
                         <Link
-                          to="/alerts/rules/$ruleId"
-                          params={{ ruleId }}
+                          to="/alerts/rules/$project/$slug"
+                          params={ruleAddress}
                           className="min-w-0 flex-1 truncate text-foreground underline-offset-2 hover:underline"
                         >
                           {name}

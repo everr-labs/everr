@@ -73,7 +73,7 @@ beforeEach(() => {
 /**
  * Mount the feed inside a minimal router: resolved sources render as Links to
  * the rule/SLO detail routes, which need a live router to build hrefs. Tests
- * that pass resolveSlo/resolveRuleId use this; the rest render bare.
+ * that pass resolveSlo/resolveRuleAddress use this; the rest render bare.
  */
 function renderInRouter(ui: React.ReactElement) {
   const rootRoute = createRootRoute({ component: Outlet });
@@ -84,12 +84,12 @@ function renderInRouter(ui: React.ReactElement) {
   });
   const sloDetailRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: "/alerts/slos/$sloId",
+    path: "/alerts/slos/$project/$slug",
     component: () => null,
   });
   const ruleDetailRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: "/alerts/rules/$ruleId",
+    path: "/alerts/rules/$project/$slug",
     component: () => null,
   });
   const router = createRouter({
@@ -137,7 +137,7 @@ describe("AlertEventFeed", () => {
       <AlertEventFeed
         resolveSlo={(handle) =>
           handle === "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
-            ? { id: handle, name: "checkout-availability" }
+            ? { name: "checkout-availability" }
             : undefined
         }
         resolveRuleName={(handle) => (handle === "beta" ? "Beta rule" : handle)}
@@ -146,13 +146,13 @@ describe("AlertEventFeed", () => {
 
     // The SLO row resolves to its name plus the origin marker and links to
     // the SLO detail page; the rule row keeps its resolved rule name,
-    // unmarked (and unlinked without resolveRuleId).
+    // unmarked (and unlinked without resolveRuleAddress).
     const sloLink = await screen.findByRole("link", {
       name: "checkout-availability",
     });
     expect(sloLink).toHaveAttribute(
       "href",
-      "/alerts/slos/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      "/alerts/slos/default/checkout-availability",
     );
     expect(screen.getByText("SLO")).toBeInTheDocument();
     expect(
@@ -164,18 +164,20 @@ describe("AlertEventFeed", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("links resolved rule rows to the rule detail page via resolveRuleId", async () => {
+  it("links resolved rule rows to the rule detail page via resolveRuleAddress", async () => {
     mockHistory([historyRow({ slug: "beta" })]);
 
     renderInRouter(
       <AlertEventFeed
         resolveRuleName={(handle) => (handle === "beta" ? "Beta rule" : handle)}
-        resolveRuleId={(handle) => (handle === "beta" ? "rule-1" : undefined)}
+        resolveRuleAddress={(handle) =>
+          handle === "beta" ? { project: "default", slug: "rule-1" } : undefined
+        }
       />,
     );
 
     const ruleLink = await screen.findByRole("link", { name: "Beta rule" });
-    expect(ruleLink).toHaveAttribute("href", "/alerts/rules/rule-1");
+    expect(ruleLink).toHaveAttribute("href", "/alerts/rules/default/rule-1");
   });
 
   it("renders evidence chips for a row that carries evidence", () => {

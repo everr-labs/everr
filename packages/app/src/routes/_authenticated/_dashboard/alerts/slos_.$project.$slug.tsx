@@ -3,7 +3,7 @@
 // budget (the evaluator's latest status snapshot per group), Is it healthy
 // (evaluation health, loud only when degraded).
 import { Badge } from "@everr/ui/components/badge";
-import { Button } from "@everr/ui/components/button";
+import { Button, buttonVariants } from "@everr/ui/components/button";
 import {
   Card,
   CardContent,
@@ -22,10 +22,12 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@everr/ui/components/tooltip";
+import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowLeft,
+  BookOpenText,
   HeartCrack,
   Info,
   Pause,
@@ -86,9 +88,10 @@ import type {
   CcSloTier,
   CcSloView,
 } from "@/data/cc/types";
+import { fromCcSlo } from "@/data/slos/mapping";
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/alerts/slos_/$sloId",
+  "/_authenticated/_dashboard/alerts/slos_/$project/$slug",
 )({
   // This detail route is flat (slos_), so it doesn't inherit the SLOs listing
   // crumb — emit it here so the trail reads Alerts > SLOs > <name>.
@@ -105,10 +108,12 @@ export const Route = createFileRoute(
   },
   loader: async ({ context: { queryClient }, params }) => {
     // Fetch the SLO first: its window sets the range everything else reads.
-    const slo = await queryClient.ensureQueryData(ccQueries.slo(params.sloId));
+    const slo = await queryClient.ensureQueryData(
+      ccQueries.sloByName(params.project, params.slug),
+    );
     const range = ccSloChartRange(slo.spec);
     await Promise.all([
-      queryClient.prefetchQuery(ccQueries.sloStatus(params.sloId)),
+      queryClient.prefetchQuery(ccQueries.sloStatus(slo.id)),
       // Budget series and event history (chart overlay + firing feed) share this
       // window range. Skipped for a spec whose window doesn't parse (nothing to
       // chart a trailing window over); the feed then falls back to defaults.
@@ -710,22 +715,31 @@ function HealthSection({ sloId }: { sloId: string }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 function CcSloDetailPage() {
-  const { sloId } = Route.useParams();
+  const { project, slug } = Route.useParams();
   const qc = useQueryClient();
-  const slo = useQuery(ccQueries.slo(sloId));
+  const slo = useQuery(ccQueries.sloByName(project, slug));
   // Evaluator health rides the (cache-shared, polling) status read. Healthy
   // is the normal system state and stays silent; only degraded surfaces, as
   // the broken heart beside the title.
-  const status = useQuery(ccQueries.sloStatus(sloId));
+  const sloId = slo.data?.id;
+  const status = useQuery({
+    ...ccQueries.sloStatus(sloId ?? ""),
+    enabled: sloId !== undefined,
+  });
   const evaluatorBroken = status.data?.health.status === "degraded";
 
   const toggle = useMutation({
-    mutationFn: (paused: boolean) =>
-      paused
-        ? resumeCcSlo({ data: { sloId } })
-        : pauseCcSlo({ data: { sloId } }),
+    mutationFn: (paused: boolean) => {
+      const id = slo.data?.id;
+      if (!id) throw new Error("SLO not loaded");
+      return paused
+        ? resumeCcSlo({ data: { sloId: id } })
+        : pauseCcSlo({ data: { sloId: id } });
+    },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ccQueries.slo(sloId).queryKey });
+      qc.invalidateQueries({
+        queryKey: ccQueries.sloByName(project, slug).queryKey,
+      });
       // The SLOs listing shows the paused state too.
       qc.invalidateQueries({ queryKey: ["cc", "slos"] });
       toast.success("SLO updated");
@@ -746,6 +760,7 @@ function CcSloDetailPage() {
   }
 
   const s = slo.data;
+  const view = fromCcSlo(s);
 
   return (
     <div className="space-y-3">
@@ -784,18 +799,33 @@ function CcSloDetailPage() {
             <Badge variant="destructive">suppressed</Badge>
           )}
         </div>
-        <Button
-          variant="outline"
-          disabled={toggle.isPending}
-          onClick={() => toggle.mutate(s.paused)}
-        >
-          {s.paused ? (
-            <Play data-icon="inline-start" />
-          ) : (
-            <Pause data-icon="inline-start" />
+        <div className="flex items-center gap-2">
+          {view.runbookSlug && (
+            <Link
+              to="/runbooks/$project/$slug"
+              params={{
+                project: view.runbookProject ?? "default",
+                slug: view.runbookSlug,
+              }}
+              className={cn(buttonVariants({ variant: "ghost" }))}
+            >
+              <BookOpenText data-icon="inline-start" />
+              Runbook
+            </Link>
           )}
-          {s.paused ? "Resume" : "Pause"}
-        </Button>
+          <Button
+            variant="outline"
+            disabled={toggle.isPending}
+            onClick={() => toggle.mutate(s.paused)}
+          >
+            {s.paused ? (
+              <Play data-icon="inline-start" />
+            ) : (
+              <Pause data-icon="inline-start" />
+            )}
+            {s.paused ? "Resume" : "Pause"}
+          </Button>
+        </div>
       </div>
 
       <StatusSection slo={s} />

@@ -58,6 +58,8 @@ function ccRule(overrides: Partial<CcRuleView> = {}): CcRuleView {
   return {
     id: "rule-1",
     tenant: "org1",
+    namespace: "",
+    name: "default/flapping",
     spec: {
       sql: "SELECT 1",
       interval_secs: 30,
@@ -66,7 +68,6 @@ function ccRule(overrides: Partial<CcRuleView> = {}): CcRuleView {
       value_column: null,
       severity: "critical",
       annotations: {
-        "everr.name": "flapping",
         "everr.display.name": "Flapping check",
         "everr.display.description": "Fires when the flap condition holds.",
         "everr.runbook": "demo/flap-runbook",
@@ -109,6 +110,7 @@ function ccSlo(overrides: Partial<CcSlo> = {}): CcSlo {
   return {
     id: SLO_ID,
     tenant: "org1",
+    namespace: "",
     name: "checkout-availability",
     spec: {
       sli: {
@@ -205,10 +207,11 @@ function seedBoard() {
     ccRule(),
     ccRule({
       id: "rule-2",
+      name: "default/api-errors",
       spec: {
         ...ccRule().spec,
         severity: "warning",
-        annotations: { "everr.name": "api-errors" },
+        annotations: {},
       },
       health: {
         status: "degraded",
@@ -460,11 +463,12 @@ describe("/alerts/triage route", () => {
       ccRule(), // value_column: null -> falls back to "value"
       ccRule({
         id: "rule-2",
+        name: "default/api-errors",
         spec: {
           ...ccRule().spec,
           value_column: "val",
           severity: "warning",
-          annotations: { "everr.name": "api-errors" },
+          annotations: {},
         },
       }),
     ]);
@@ -548,7 +552,10 @@ describe("/alerts/triage route", () => {
     const sloLink = await screen.findByRole("link", {
       name: "checkout-availability",
     });
-    expect(sloLink).toHaveAttribute("href", `/alerts/slos/${SLO_ID}`);
+    expect(sloLink).toHaveAttribute(
+      "href",
+      "/alerts/slos/default/checkout-availability",
+    );
     expect(screen.getByText("SLO")).toBeInTheDocument();
     // The tier rides as a badge; the label pills keep the SLI group labels
     // without repeating slo_tier.
@@ -562,17 +569,19 @@ describe("/alerts/triage route", () => {
     expect(screen.getAllByText("critical").length).toBeGreaterThanOrEqual(1);
   });
 
-  it("falls back to the short uuid for an SLO alert whose SLO is unknown, still linking the SLO page", async () => {
+  it("falls back to the short uuid for an SLO alert whose SLO is unknown, unlinked (no slug address to route to)", async () => {
     // The SLO list can lag a freshly-created SLO; the group must still render
-    // as SLO-originated (the instance itself carries the slo id).
+    // as SLO-originated (the instance itself carries the slo id), but without
+    // the SLO's own name/slug there is no address to build a slug link from.
     mocks.listCcAlerts.mockResolvedValue([sloAlert()]);
 
     renderTriageRoute();
 
-    const link = await screen.findByRole("link", {
-      name: SLO_ID.slice(0, 8),
-    });
-    expect(link).toHaveAttribute("href", `/alerts/slos/${SLO_ID}`);
+    const name = await screen.findByText(SLO_ID.slice(0, 8));
+    expect(name.tagName).not.toBe("A");
+    expect(
+      screen.queryByRole("link", { name: SLO_ID.slice(0, 8) }),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("SLO")).toBeInTheDocument();
   });
 
