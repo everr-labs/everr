@@ -127,23 +127,29 @@ describe("ccSloTierSeverity", () => {
 });
 
 describe("SLO event handles", () => {
-  it("carries the uuid and the first-class name", () => {
+  it("carries the uuid and the first-class name, with no legacy handle for a slashless name", () => {
     expect(ccSloHandles(slo())).toEqual([
       "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
       "checkout-availability",
     ]);
+  });
+
+  it("appends the bare slug as a legacy handle for a qualified name", () => {
     expect(ccSloHandles(slo({ name: "payments/checkout" }))).toEqual([
       "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
       "payments/checkout",
+      "checkout",
     ]);
   });
 
-  it("resolves either handle to the SLO and misses unknown handles", () => {
+  it("resolves any handle to the SLO and misses unknown handles", () => {
     const resolve = ccSloHandleResolver([slo({ name: "payments/checkout" })]);
     expect(resolve("payments/checkout")?.name).toBe("payments/checkout");
     expect(resolve("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")?.name).toBe(
       "payments/checkout",
     );
+    // The legacy bare-slug handle also resolves.
+    expect(resolve("checkout")?.name).toBe("payments/checkout");
     expect(resolve("some-rule-slug")).toBeUndefined();
   });
 });

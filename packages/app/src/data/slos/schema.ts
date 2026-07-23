@@ -1,6 +1,8 @@
 import * as z from "zod";
-import { isEverrAnnotationKey } from "@/data/alerts/annotations";
-import { runbookRefSchema } from "@/data/alerts/schema";
+import {
+  isReservedAnnotationKey,
+  runbookRefSchema,
+} from "@/data/alerts/schema";
 import { dashboardProjectSchema } from "@/data/dashboards/schema";
 
 const nonEmptyString = z.string().min(1);
@@ -203,7 +205,7 @@ export const SloYamlSchema = z
       .strict()
       .superRefine((spec, ctx) => {
         for (const key of Object.keys(spec.annotations ?? {})) {
-          if (isEverrAnnotationKey(key)) {
+          if (isReservedAnnotationKey(key)) {
             ctx.addIssue({
               code: "custom",
               message: `spec.annotations key "${key}" is reserved (generated from other fields)`,

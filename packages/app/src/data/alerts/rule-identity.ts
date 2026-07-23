@@ -35,12 +35,21 @@ export function ccRuleIdentity(rule: CcRuleView): CcRuleIdentity {
 }
 
 /**
- * The handles an event row may carry for a rule: the rule's first-class
- * `name` (what CC now logs as `alert.slug`) and the bare rule id. Callers
- * scoping an event feed to one rule pass both, so either handle matches.
+ * The handles an event row may carry for a rule: the bare rule id, the
+ * rule's first-class `name` (what CC now logs as `alert.slug`), and, when
+ * that name is qualified ("project/slug"), the bare slug too — pre-deploy
+ * ClickHouse rows stamped `alert.slug` from the old everr.name annotation,
+ * which never carried a project prefix. Callers scoping an event feed to one
+ * rule pass all three, so any generation of stored row matches. Restoring
+ * the bare-slug handle also restores the pre-branch ambiguity where two
+ * projects sharing a slug both match the same legacy rows; that is
+ * intentional (it matches the old, project-agnostic behavior) rather than a
+ * regression.
  */
 export function ccRuleHandles(rule: CcRuleView): string[] {
-  return [rule.id, rule.name];
+  const { name, id } = rule;
+  if (!name.includes("/")) return [id, name];
+  return [id, name, parseResourceName(name).slug];
 }
 
 /**

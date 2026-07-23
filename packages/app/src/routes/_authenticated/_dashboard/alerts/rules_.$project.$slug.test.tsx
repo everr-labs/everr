@@ -211,7 +211,9 @@ describe("/alerts/rules/$project/$slug", () => {
     expect(screen.getByTestId("event-feed")).toBeInTheDocument();
     expect(mocks.feedProps).toHaveBeenCalledWith(
       expect.objectContaining({
-        scopeSlug: [RULE_ID, `${PROJECT}/${SLUG}`],
+        // The rule's qualified name is "default/api-errors", so the bare
+        // slug "api-errors" is included too as a legacy event handle.
+        scopeSlug: [RULE_ID, `${PROJECT}/${SLUG}`, SLUG],
         // Scoped to one rule: the feed's own Severity/Rule columns and
         // severity filter would be constant noise, so the detail page hides
         // them and hands the feed this rule's severity as a fallback.

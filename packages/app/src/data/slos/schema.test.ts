@@ -163,6 +163,22 @@ describe("SloYamlSchema", () => {
     ).toMatch(/"everr\.name" is reserved/);
   });
 
+  it("rejects the CC-consumable annotation keys the mapping layer generates, not just everr.*", () => {
+    expect(
+      firstMessage(
+        sloDoc({ annotations: { "link.runbook": "https://example.com" } }),
+      ),
+    ).toMatch(/"link\.runbook" is reserved/);
+    expect(
+      firstMessage(sloDoc({ annotations: { summary: "custom summary" } })),
+    ).toMatch(/"summary" is reserved/);
+    // A normal custom key is unaffected.
+    expect(
+      SloYamlSchema.safeParse(sloDoc({ annotations: { team: "payments" } }))
+        .success,
+    ).toBe(true);
+  });
+
   it("enforces CC's SLO name rules at parse time", () => {
     const named = (name: string) => ({
       ...sloDoc(),

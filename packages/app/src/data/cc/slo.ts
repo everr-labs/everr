@@ -4,6 +4,7 @@
 // the canonical burn-rate tiers, tier/severity resolution, and the handles an
 // event row may carry for an SLO. Owned here in the data layer so every SLO
 // surface (list, detail, triage, history) reads the same rules.
+import { parseResourceName } from "@/data/as-code/identity";
 import type { CcSlo, CcSloGroupStatus, CcSloSpec, CcSloTier } from "./types";
 
 /**
@@ -56,10 +57,18 @@ export function ccSloTierSeverity(
  * slug as the SLO's first-class `name` (project/slug qualified), falling back
  * to the source uuid for records stored before CC stamped it (otel/
  * alert_log.rs `slug_for` — for SLO events `ev.rule` carries the SLO uuid), so
- * both handles can appear in stored history.
+ * both handles can appear in stored history. When the name is qualified, the
+ * bare slug is added too: pre-deploy ClickHouse rows stamped `alert.slug`
+ * from the old everr.name annotation, which never carried a project prefix.
+ * Restoring that bare-slug handle also restores the pre-branch ambiguity
+ * where two projects sharing a slug both match the same legacy rows; that is
+ * intentional (it matches the old, project-agnostic behavior), not a
+ * regression.
  */
 export function ccSloHandles(slo: CcSlo): string[] {
-  return [slo.id, slo.name];
+  const { name, id } = slo;
+  if (!name.includes("/")) return [id, name];
+  return [id, name, parseResourceName(name).slug];
 }
 
 /**
