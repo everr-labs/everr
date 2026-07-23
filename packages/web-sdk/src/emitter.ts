@@ -22,8 +22,16 @@ type OtlpLogRecord = {
 };
 
 export type Emitter = {
-  emit(eventName: string, attributes?: Record<string, AttrValue>): void;
+  emit(
+    eventName: string,
+    attributes?: Record<string, AttrValue | undefined>,
+  ): void;
   flush(): Promise<void>;
+  /**
+   * Exit-path flush: fetch keepalive (sendBeacon fallback), with the payload
+   * truncated to the keepalive budget by per-signal priority.
+   */
+  exitFlush(): void;
   shutdown(): Promise<void>;
 };
 
@@ -31,6 +39,19 @@ export type Emitter = {
 const MAX_QUEUE_SIZE = 100;
 const MAX_BATCH_SIZE = 32;
 const SCHEDULED_DELAY_MS = 5_000;
+
+// Exit truncation: lower survives longer. Unlisted browser.* events rank
+// last; non-browser events (errors) rank first, so the order is
+// errors > page_leave > vitals > interactions.
+const EXIT_PRIORITY: Record<string, number> = {
+  "browser.page_leave": 1,
+  "browser.web_vital": 2,
+};
+const priority = (eventName: string) =>
+  EXIT_PRIORITY[eventName] ?? (eventName.startsWith("browser.") ? 3 : 0);
+// The keepalive in-flight quota, measured in actual bytes (multibyte
+// attribute values would make string length undercount).
+const EXIT_BUDGET = 64_000;
 
 export const noop = () => Promise.resolve();
 
@@ -61,14 +82,12 @@ export function createEmitter(options: {
   envelope: () => Record<string, AttrValue | undefined>;
 }): Emitter {
   const resource = toKeyValues(options.resource);
+  const headers = { "Content-Type": "application/json", ...options.headers };
   let queue: OtlpLogRecord[] = [];
   let timer: ReturnType<typeof setTimeout> | undefined;
 
-  const flush = (): Promise<void> => {
-    clearTimeout(timer);
-    timer = undefined;
-    if (!queue.length) return Promise.resolve();
-    const body = JSON.stringify({
+  const build = () =>
+    JSON.stringify({
       resourceLogs: [
         {
           resource: { attributes: resource },
@@ -76,14 +95,48 @@ export function createEmitter(options: {
         },
       ],
     });
+
+  const takeBody = (): string | undefined => {
+    clearTimeout(timer);
+    timer = undefined;
+    if (!queue.length) return undefined;
+    const body = build();
     queue = [];
+    return body;
+  };
+
+  const flush = (): Promise<void> => {
+    const body = takeBody();
+    if (!body) return Promise.resolve();
     // Telemetry must never break the page: delivery is best-effort. The
     // global fetch is read at flush time, which is also what the tests stub.
-    return fetch(options.logsUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...options.headers },
-      body,
-    }).then(noop, noop);
+    return fetch(options.logsUrl, { method: "POST", headers, body }).then(
+      noop,
+      noop,
+    );
+  };
+
+  const exitFlush = (): void => {
+    // Truncate whole records, lowest priority first, until the batch fits
+    // the keepalive budget.
+    queue.sort((a, b) => priority(a.eventName) - priority(b.eventName));
+    while (queue.length > 1 && new Blob([build()]).size > EXIT_BUDGET)
+      queue.pop();
+    const body = takeBody();
+    if (!body) return;
+    // keepalive survives the page teardown. Deliberately no sendBeacon
+    // fallback: it cannot carry the Authorization header, so it could never
+    // deliver to the hosted ingest anyway.
+    try {
+      void fetch(options.logsUrl, {
+        method: "POST",
+        headers,
+        body,
+        keepalive: true,
+      }).then(noop, noop);
+    } catch {
+      // Telemetry must never break the page.
+    }
   };
 
   return {
@@ -102,6 +155,7 @@ export function createEmitter(options: {
       }
     },
     flush,
+    exitFlush,
     shutdown: flush,
   };
 }

@@ -4,6 +4,8 @@ import { createEmitter, type Emitter } from "./emitter.js";
 type SentBatch = {
   url: string;
   headers: Record<string, string>;
+  keepalive: boolean | undefined;
+  bodyLength: number;
   payload: {
     resourceLogs: Array<{
       resource: { attributes: Array<{ key: string; value: object }> };
@@ -31,6 +33,8 @@ function makeEmitter(envelope: () => Record<string, string> = () => ({})) {
       sent.push({
         url: String(url),
         headers: (init?.headers ?? {}) as Record<string, string>,
+        keepalive: init?.keepalive,
+        bodyLength: String(init?.body).length,
         payload: JSON.parse(String(init?.body)),
       });
       return Promise.resolve(new Response(null, { status: 200 }));
@@ -138,6 +142,44 @@ describe("createEmitter", () => {
     // and nothing threw. The cap only guards a stalled transport, which the
     // synchronous mock never simulates; assert delivery stayed bounded.
     expect(sentRecords().length).toBeLessThanOrEqual(250);
+  });
+
+  it("exitFlush posts with keepalive and empties the queue", () => {
+    emitter.emit("browser.page_view");
+    emitter.exitFlush();
+    expect(sent).toHaveLength(1);
+    expect(sent[0].keepalive).toBe(true);
+    emitter.exitFlush();
+    expect(sent).toHaveLength(1);
+  });
+
+  it("truncates the exit payload by priority within the keepalive budget", () => {
+    const filler = "x".repeat(3000);
+    for (let i = 0; i < 28; i++) emitter.emit("browser.click", { filler });
+    emitter.emit("browser.web_vital", { filler });
+    emitter.emit("browser.page_leave");
+    emitter.emit("exception");
+    emitter.exitFlush();
+
+    const names = sentRecords().map((r) => r.eventName);
+    expect(sent[0].bodyLength).toBeLessThanOrEqual(64_000);
+    // errors > page_leave > vitals > interactions: the high-priority records
+    // survive, interactions absorb the truncation.
+    expect(names).toContain("exception");
+    expect(names).toContain("browser.page_leave");
+    expect(names).toContain("browser.web_vital");
+    expect(names.filter((n) => n === "browser.click").length).toBeLessThan(28);
+  });
+
+  it("never throws from exitFlush, even when fetch throws synchronously", () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => {
+        throw new Error("keepalive unsupported");
+      }),
+    );
+    emitter.emit("browser.page_view");
+    expect(() => emitter.exitFlush()).not.toThrow();
   });
 
   it("swallows transport failures", async () => {

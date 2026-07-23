@@ -63,16 +63,34 @@ export function init(options: InitOptions): EverrClient {
   // The navigation watcher always runs so the envelope's page context stays
   // fresh for every signal; the disable list only gates the signal listeners.
   const off = options.disable;
+  const pageviews =
+    off !== true && !off?.includes("pageviews")
+      ? startPageviews(emitter, session)
+      : undefined;
   const stopWatching = watchNavigation(
     session,
-    off !== true && !off?.includes("pageviews")
-      ? [startPageviews(emitter)]
-      : [],
+    pageviews ? [pageviews.onNavigate] : [],
   );
+
+  // Exit delivery: the final leave plus whatever is batched rides the
+  // keepalive path. pagehide and visibilitychange-hidden, not beforeunload
+  // (which never fires on mobile and breaks bfcache).
+  const onHide = () => {
+    pageviews?.onHide();
+    emitter.exitFlush();
+  };
+  const onVisibilityChange = () => {
+    if (document.visibilityState === "hidden") onHide();
+  };
+  addEventListener("pagehide", onHide);
+  addEventListener("visibilitychange", onVisibilityChange);
 
   return {
     flush: emitter.flush,
     shutdown: () => {
+      removeEventListener("pagehide", onHide);
+      removeEventListener("visibilitychange", onVisibilityChange);
+      pageviews?.stop();
       stopWatching();
       return emitter.shutdown();
     },

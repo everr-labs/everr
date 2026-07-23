@@ -90,7 +90,7 @@ describe("init (cookieless)", () => {
   it("emits history_change pageviews for SPA navigations, rotating the pageview id", async () => {
     start();
     history.pushState(null, "", "/pricing");
-    const [initial, spa] = await records();
+    const [initial, leave, spa] = await records();
     expect(spa.eventName).toBe("browser.page_view");
     const spaAttrs = attrs(spa);
     const initialAttrs = attrs(initial);
@@ -101,6 +101,54 @@ describe("init (cookieless)", () => {
       initialAttrs["everr.page_view.id"],
     );
     expect(spaAttrs["session.id"]).toBe(initialAttrs["session.id"]);
+
+    // The outgoing page's leave sits between the two views, linked to the
+    // initial pageview and carrying duration and scroll depth.
+    expect(leave.eventName).toBe("browser.page_leave");
+    const leaveAttrs = attrs(leave);
+    expect(leaveAttrs["everr.page_view.id"]).toBe(
+      initialAttrs["everr.page_view.id"],
+    );
+    expect(leaveAttrs["url.path"]).toBe("/");
+    expect(String(leaveAttrs["everr.page_view.duration_ms"])).toMatch(/^\d+$/);
+    expect(leaveAttrs["everr.scroll.depth"]).toBe("0");
+  });
+
+  it("emits the pending page_leave and exit-flushes with keepalive on pagehide", async () => {
+    start();
+    dispatchEvent(new Event("pagehide"));
+    const all = await records();
+    // The exit flush sorts the batch by priority; timestamps carry ordering.
+    expect(all.map((r) => r.eventName).sort()).toEqual([
+      "browser.page_leave",
+      "browser.page_view",
+    ]);
+    // A repeated hide (tab restored, hidden again) does not duplicate the leave.
+    dispatchEvent(new Event("pagehide"));
+    expect(await records()).toHaveLength(2);
+  });
+
+  it("emits the leave on visibilitychange to hidden", async () => {
+    start();
+    Object.defineProperty(document, "visibilityState", {
+      value: "hidden",
+      configurable: true,
+    });
+    document.dispatchEvent(new Event("visibilitychange", { bubbles: true }));
+    Object.defineProperty(document, "visibilityState", {
+      value: "visible",
+      configurable: true,
+    });
+    expect((await records()).map((r) => r.eventName).sort()).toEqual([
+      "browser.page_leave",
+      "browser.page_view",
+    ]);
+  });
+
+  it("emits no leave on hide when pageviews are disabled", async () => {
+    start({ disable: ["pageviews"] });
+    dispatchEvent(new Event("pagehide"));
+    expect(await records()).toHaveLength(0);
   });
 
   it("does not emit for a pushState to the same URL", async () => {
@@ -114,8 +162,9 @@ describe("init (cookieless)", () => {
     history.pushState(null, "", "/a");
     history.replaceState(null, "", "/b");
     window.dispatchEvent(new PopStateEvent("popstate"));
-    // /a and /b changed the URL; the popstate with an unchanged URL is deduped.
-    expect(await records()).toHaveLength(3);
+    // /a and /b changed the URL (a view and a leave each); the popstate with
+    // an unchanged URL is deduped.
+    expect(await records()).toHaveLength(5);
   });
 
   it("writes zero cookies and zero storage", async () => {
