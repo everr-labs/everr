@@ -15,16 +15,12 @@ describe("resolveTransport", () => {
         ingestKey: "pub_abc",
         endpoint: "https://collector.example/",
       }),
-    ).toEqual({
-      logsUrl: "https://collector.example/v1/logs",
-      headers: undefined,
-    });
+    ).toEqual({ logsUrl: "https://collector.example/v1/logs" });
   });
 
   it("falls back to the local collector in dev with no key", () => {
     expect(resolveTransport({ dev: true })).toEqual({
       logsUrl: "http://127.0.0.1:54318/v1/logs",
-      headers: undefined,
     });
   });
 
