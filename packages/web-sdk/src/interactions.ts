@@ -17,14 +17,10 @@ const INTERACTIVE =
   "a,button,input,select,textarea,label,summary,[role=button],[onclick],[tabindex]";
 const FORM_FIELDS = "input,textarea,select";
 
-// PostHog-style thresholds.
-const RAGE_CLICKS = 3;
-const RAGE_RADIUS_PX = 30;
-const RAGE_GAP_MS = 1_000;
-const DEAD_WAIT_MS = 3_000;
-
 export function startInteractions(emit: Emit): () => void {
-  let rage: { x: number; y: number; at: number; count: number } | undefined;
+  // PostHog-style thresholds: three clicks within 30px at gaps of at most 1s
+  // make a rage click; 3s without a page reaction makes a dead click.
+  let rage: [x: number, y: number, at: number, count: number] | undefined;
   let lastActivity = 0;
   let deadTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -61,11 +57,11 @@ export function startInteractions(emit: Emit): () => void {
     const now = Date.now();
     rage =
       rage &&
-      now - rage.at <= RAGE_GAP_MS &&
-      Math.hypot(x - rage.x, y - rage.y) <= RAGE_RADIUS_PX
-        ? { x, y, at: now, count: rage.count + 1 }
-        : { x, y, at: now, count: 1 };
-    if (rage.count === RAGE_CLICKS) {
+      now - rage[2] <= 1_000 &&
+      Math.hypot(x - rage[0], y - rage[1]) <= 30
+        ? [x, y, now, rage[3] + 1]
+        : [x, y, now, 1];
+    if (rage[3] === 3) {
       emit("browser.rage_click", attrs);
       rage = undefined;
     }
@@ -80,7 +76,7 @@ export function startInteractions(emit: Emit): () => void {
         if (lastActivity < now && location.href === url) {
           emit("browser.dead_click", attrs);
         }
-      }, DEAD_WAIT_MS);
+      }, 3_000);
     }
   };
 
@@ -111,14 +107,11 @@ export function startInteractions(emit: Emit): () => void {
 
 function targetOf(event: Event): Element | null {
   const el = event.target instanceof Element ? event.target : null;
-  if (!el || el.closest(".everr-no-capture")) return null;
-  if (
-    el instanceof HTMLInputElement &&
-    (el.type === "password" || el.type === "hidden")
-  ) {
-    return null;
-  }
-  return el;
+  return !el ||
+    el.closest(".everr-no-capture") ||
+    el.matches("input[type=password],input[type=hidden]")
+    ? null
+    : el;
 }
 
 function elementAttrs(el: Element): Record<string, AttrValue | undefined> {
@@ -175,10 +168,9 @@ function chainOf(el: Element): string {
     node = node.parentElement
   ) {
     parts.push(
-      [
-        node.tagName.toLowerCase(),
-        ...Array.from(node.classList).slice(0, 3),
-      ].join("."),
+      [node.tagName.toLowerCase(), ...[...node.classList].slice(0, 3)].join(
+        ".",
+      ),
     );
   }
   return parts.join(";");

@@ -71,7 +71,7 @@ describe("init (cookieless)", () => {
     const record = all[0];
     expect(record.eventName).toBe("browser.page_view");
     expect(record.severityNumber).toBe(9);
-    expect(record.body).toBeUndefined();
+    expect(record.body).toEqual({ stringValue: "browser.page_view" });
     const a = attrs(record);
     expect(a["everr.navigation.type"]).toBe("initial");
     expect(a["session.id"]).toMatch(/[0-9a-f-]{36}/);

@@ -19,6 +19,7 @@ type OtlpLogRecord = {
   timeUnixNano: string;
   severityNumber: number;
   eventName: string;
+  body: AnyValue;
   attributes: KeyValue[];
 };
 
@@ -143,6 +144,8 @@ export function createEmitter(
         timeUnixNano: `${Date.now()}000000`,
         severityNumber: 9, // INFO
         eventName,
+        // Body mirrors the event name so log browsers show a readable line.
+        body: { stringValue: eventName },
         attributes: toKeyValues({ ...envelope(), ...attributes }),
       },
     ]);
