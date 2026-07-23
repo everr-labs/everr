@@ -1,0 +1,212 @@
+kind: Dashboard
+metadata:
+  name: docs-homepage
+spec:
+  display:
+    name: Docs Homepage
+    description: >-
+      Everr-native browser telemetry from the docs homepage (cookieless
+      @everr/web-sdk): traffic and sessions at a glance, top pages and
+      clicked elements, scroll depth, and frustration signals (rage and
+      dead clicks). Populates once the homepage ships with an ingest key.
+  duration: 24h
+  refreshInterval: 1m
+  panels:
+    pageviews:
+      kind: Panel
+      spec:
+        display: { name: Pageviews }
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: sum
+            sparkline: true
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                           count() AS pageviews
+                    FROM logs
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND ServiceName = 'everr-docs'
+                      AND EventName = 'browser.page_view'
+                    GROUP BY ts
+                    ORDER BY ts
+    sessions:
+      kind: Panel
+      spec:
+        display: { name: Sessions }
+        plugin:
+          kind: StatChart
+          spec: { calculation: last }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT uniqExact(LogAttributes['session.id']) AS sessions
+                    FROM logs
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND ServiceName = 'everr-docs'
+                      AND EventName = 'browser.page_view'
+    scroll-depth:
+      kind: Panel
+      spec:
+        display: { name: Avg scroll depth }
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last
+            unit: "%"
+            decimals: 0
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT round(avg(toFloat64OrZero(LogAttributes['everr.scroll.depth'])) * 100) AS scroll_depth
+                    FROM logs
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND ServiceName = 'everr-docs'
+                      AND EventName = 'browser.page_leave'
+    frustration:
+      kind: Panel
+      spec:
+        display: { name: Frustration clicks }
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last
+            thresholds:
+              mode: absolute
+              defaultColor: "#22c55e"
+              steps:
+                - { value: 1, color: "#f59e0b" }
+                - { value: 20, color: "#ef4444" }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT countIf(EventName = 'browser.rage_click') AS rage,
+                           countIf(EventName = 'browser.dead_click') AS dead
+                    FROM logs
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND ServiceName = 'everr-docs'
+    traffic:
+      kind: Panel
+      spec:
+        display: { name: Traffic }
+        plugin:
+          kind: TimeSeriesChart
+          spec: { showLegend: true }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                           count() AS pageviews,
+                           uniqExact(LogAttributes['session.id']) AS sessions
+                    FROM logs
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND ServiceName = 'everr-docs'
+                      AND EventName = 'browser.page_view'
+                    GROUP BY ts
+                    ORDER BY ts
+    top-pages:
+      kind: Panel
+      spec:
+        display: { name: Top pages }
+        plugin:
+          kind: Table
+          spec: { stickyHeader: true }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT LogAttributes['url.path'] AS path,
+                           count() AS views,
+                           uniqExact(LogAttributes['session.id']) AS sessions
+                    FROM logs
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND ServiceName = 'everr-docs'
+                      AND EventName = 'browser.page_view'
+                    GROUP BY path
+                    ORDER BY views DESC
+                    LIMIT 10
+    top-clicks:
+      kind: Panel
+      spec:
+        display: { name: Top clicked elements }
+        plugin:
+          kind: BarChart
+          spec: { unit: " clicks", orientation: horizontal, showValues: true }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT if(LogAttributes['everr.element.text'] != '',
+                              LogAttributes['everr.element.text'],
+                              LogAttributes['everr.element.selector']) AS element,
+                           count() AS clicks
+                    FROM logs
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND ServiceName = 'everr-docs'
+                      AND EventName = 'browser.click'
+                    GROUP BY element
+                    ORDER BY clicks DESC
+                    LIMIT 10
+    frustration-over-time:
+      kind: Panel
+      spec:
+        display: { name: Rage and dead clicks }
+        plugin:
+          kind: TimeSeriesChart
+          spec: { showLegend: true }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                           countIf(EventName = 'browser.rage_click') AS rage_clicks,
+                           countIf(EventName = 'browser.dead_click') AS dead_clicks
+                    FROM logs
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND ServiceName = 'everr-docs'
+                      AND EventName IN ('browser.rage_click', 'browser.dead_click')
+                    GROUP BY ts
+                    ORDER BY ts
+  layouts:
+    - kind: Grid
+      spec:
+        items:
+          - { x: 0,  y: 0, width: 6,  height: 5, content: { $ref: "#/spec/panels/pageviews" } }
+          - { x: 6,  y: 0, width: 6,  height: 5, content: { $ref: "#/spec/panels/sessions" } }
+          - { x: 12, y: 0, width: 6,  height: 5, content: { $ref: "#/spec/panels/scroll-depth" } }
+          - { x: 18, y: 0, width: 6,  height: 5, content: { $ref: "#/spec/panels/frustration" } }
+          - { x: 0,  y: 5, width: 16, height: 9, content: { $ref: "#/spec/panels/traffic" } }
+          - { x: 16, y: 5, width: 8,  height: 9, content: { $ref: "#/spec/panels/top-pages" } }
+          - { x: 0,  y: 14, width: 12, height: 9, content: { $ref: "#/spec/panels/top-clicks" } }
+          - { x: 12, y: 14, width: 12, height: 9, content: { $ref: "#/spec/panels/frustration-over-time" } }
