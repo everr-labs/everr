@@ -28,8 +28,8 @@ export type Emitter = {
   ): void;
   flush(): Promise<void>;
   /**
-   * Exit-path flush: fetch keepalive (sendBeacon fallback), with the payload
-   * truncated to the keepalive budget by per-signal priority.
+   * Exit-path flush: fetch keepalive, with the payload truncated to the
+   * keepalive budget by per-signal priority.
    */
   exitFlush(): void;
   shutdown(): Promise<void>;
@@ -107,7 +107,7 @@ export function createEmitter(options: {
 
   const flush = (): Promise<void> => {
     const body = takeBody();
-    if (!body) return Promise.resolve();
+    if (!body) return noop();
     // Telemetry must never break the page: delivery is best-effort. The
     // global fetch is read at flush time, which is also what the tests stub.
     return fetch(options.logsUrl, { method: "POST", headers, body }).then(
