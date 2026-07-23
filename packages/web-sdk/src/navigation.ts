@@ -1,4 +1,4 @@
-import type { SessionContext } from "./session.js";
+import type { RotatePageView } from "./session.js";
 
 // Navigation watching is envelope infrastructure, not a signal: it always
 // runs (regardless of the disable list) so the session's page context stays
@@ -9,14 +9,14 @@ import type { SessionContext } from "./session.js";
 export type NavigationListener = () => void;
 
 export function watchNavigation(
-  session: SessionContext,
+  rotate: RotatePageView,
   listeners: readonly NavigationListener[],
 ): () => void {
   let lastUrl = location.href;
   const onUrlChange = () => {
     if (location.href === lastUrl) return;
     lastUrl = location.href;
-    session.startPageView(lastUrl);
+    rotate(lastUrl);
     for (const listener of listeners) listener();
   };
 

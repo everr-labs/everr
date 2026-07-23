@@ -1,6 +1,7 @@
 // Cookieless session state: everything lives in JS memory, survives SPA
 // navigations, and dies on reload or tab close. There is deliberately no
-// storage fallback anywhere in this module.
+// storage fallback anywhere in this module. The handle is a tuple, and
+// consumers receive the function they need rather than the pair.
 
 export type PageContext = {
   readonly sessionId: string;
@@ -10,17 +11,16 @@ export type PageContext = {
   readonly referrer: string | undefined;
 };
 
-export type SessionContext = {
-  startPageView(url: string): void;
-  current(): PageContext;
-};
+/** Rotates the pageview id; the outgoing URL becomes the new referrer. */
+export type RotatePageView = (url: string) => void;
+export type CurrentPage = () => PageContext;
 
 export const randomUUID = () => crypto.randomUUID();
 
 export function createSessionContext(
   initialUrl: string,
   initialReferrer: string | undefined,
-): SessionContext {
+): [rotate: RotatePageView, current: CurrentPage] {
   let ctx = {
     sessionId: randomUUID(),
     pageViewId: randomUUID(),
@@ -29,8 +29,8 @@ export function createSessionContext(
     referrer: initialReferrer || undefined,
   };
 
-  return {
-    startPageView(url: string) {
+  return [
+    (url) => {
       ctx = {
         sessionId: ctx.sessionId,
         pageViewId: randomUUID(),
@@ -39,8 +39,8 @@ export function createSessionContext(
         referrer: ctx.url,
       };
     },
-    current: () => ctx,
-  };
+    () => ctx,
+  ];
 }
 
 function pathOf(url: string): string {

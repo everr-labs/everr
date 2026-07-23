@@ -5,11 +5,14 @@
 // public origin-bound key ships to the hosted ingest with a Bearer header,
 // dev falls back to the local collector. A keyless production build
 // resolves to `null` so the SDK never builds an emitter at all.
+//
+// Internal shapes are tuples: property names survive minification (consumers
+// bundle our source), tuple indexes do not.
 
-export type TransportConfig = {
-  logsUrl: string;
-  headers?: Record<string, string>;
-};
+export type TransportConfig = [
+  logsUrl: string,
+  headers: Record<string, string> | undefined,
+];
 
 export function resolveTransport(options: {
   ingestKey?: string;
@@ -20,13 +23,8 @@ export function resolveTransport(options: {
   const endpoint = options.endpoint?.trim().replace(/\/+$/, "");
   const headers = key ? { Authorization: `Bearer ${key}` } : undefined;
 
-  if (endpoint) return { logsUrl: `${endpoint}/v1/logs`, headers };
-  if (key) {
-    return {
-      logsUrl: "https://ingest.everr.dev/v1/logs",
-      headers,
-    };
-  }
-  if (options.dev) return { logsUrl: "http://127.0.0.1:54318/v1/logs" };
+  if (endpoint) return [`${endpoint}/v1/logs`, headers];
+  if (key) return ["https://ingest.everr.dev/v1/logs", headers];
+  if (options.dev) return ["http://127.0.0.1:54318/v1/logs", undefined];
   return null;
 }

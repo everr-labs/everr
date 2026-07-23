@@ -38,16 +38,17 @@ export function init(options: InitOptions): EverrClient {
   const transport = resolveTransport(options);
   if (!transport) return INERT;
 
-  const session = createSessionContext(location.href, document.referrer);
+  const [rotate, current] = createSessionContext(
+    location.href,
+    document.referrer,
+  );
 
-  const emitter = createEmitter({
+  const [emit, flush, exitFlush] = createEmitter(
     ...transport,
-    scope: { name: SDK_NAME, version: SDK_VERSION },
-    envelope: createEnvelope(session, attributionAttributes(location.search)),
     // Viewport is deliberately absent: it changes on resize, so it rides
     // the click payload per event instead of being frozen into the
     // resource.
-    resource: {
+    {
       "service.name": options.serviceName,
       "service.namespace": "everr",
       "service.version": options.serviceVersion ?? SDK_VERSION,
@@ -60,7 +61,9 @@ export function init(options: InitOptions): EverrClient {
       "everr.timezone": Intl.DateTimeFormat().resolvedOptions().timeZone,
       "everr.language": navigator.language,
     },
-  });
+    { name: SDK_NAME, version: SDK_VERSION },
+    createEnvelope(current, attributionAttributes(location.search)),
+  );
 
   // The navigation watcher always runs so the envelope's page context stays
   // fresh for every signal; the disable list only gates the signal listeners.
@@ -68,22 +71,19 @@ export function init(options: InitOptions): EverrClient {
   const enabled = (signal: CaptureSignal) =>
     off !== true && !off?.includes(signal);
   const pageviews = enabled("pageviews")
-    ? startPageviews(emitter, session)
+    ? startPageviews(emit, current)
     : undefined;
-  const stopWatching = watchNavigation(
-    session,
-    pageviews ? [pageviews.onNavigate] : [],
-  );
+  const stopWatching = watchNavigation(rotate, pageviews ? [pageviews[0]] : []);
   const stopInteractions = enabled("interactions")
-    ? startInteractions(emitter)
+    ? startInteractions(emit)
     : undefined;
 
   // Exit delivery: the final leave plus whatever is batched rides the
   // keepalive path. pagehide and visibilitychange-hidden, not beforeunload
   // (which never fires on mobile and breaks bfcache).
   const onHide = () => {
-    pageviews?.onHide();
-    emitter.exitFlush();
+    pageviews?.[1]();
+    exitFlush();
   };
   const onVisibilityChange = () => {
     if (document.visibilityState === "hidden") onHide();
@@ -92,14 +92,14 @@ export function init(options: InitOptions): EverrClient {
   addEventListener("visibilitychange", onVisibilityChange);
 
   return {
-    flush: emitter.flush,
+    flush,
     shutdown: () => {
       removeEventListener("pagehide", onHide);
       removeEventListener("visibilitychange", onVisibilityChange);
       stopInteractions?.();
-      pageviews?.stop();
+      pageviews?.[2]();
       stopWatching();
-      return emitter.shutdown();
+      return flush();
     },
   };
 }

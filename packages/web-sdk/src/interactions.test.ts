@@ -1,17 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Emitter } from "./emitter.js";
+import type { Emit } from "./emitter.js";
 import { startInteractions } from "./interactions.js";
 
 let emitted: Array<{ name: string; attrs?: Record<string, unknown> }>;
 let stop: () => void;
 
-const emitter: Emitter = {
-  emit: (name, attrs) => {
-    emitted.push({ name, attrs });
-  },
-  flush: () => Promise.resolve(),
-  exitFlush: () => {},
-  shutdown: () => Promise.resolve(),
+const emit: Emit = (name, attrs) => {
+  emitted.push({ name, attrs });
 };
 
 function names() {
@@ -27,7 +22,7 @@ function click(el: Element, x = 10, y = 20) {
 beforeEach(() => {
   emitted = [];
   document.body.innerHTML = "";
-  stop = startInteractions(emitter);
+  stop = startInteractions(emit);
 });
 
 afterEach(() => {

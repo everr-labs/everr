@@ -1,8 +1,4 @@
-import {
-  type PageContext,
-  randomUUID,
-  type SessionContext,
-} from "./session.js";
+import { type CurrentPage, type PageContext, randomUUID } from "./session.js";
 
 // The context envelope: stamped on EVERY record emitted through the SDK
 // (analytics and, later, errors), which is what lets any signal slice by
@@ -26,11 +22,11 @@ export function pageAttrs(
 }
 
 export function createEnvelope(
-  session: SessionContext,
+  current: CurrentPage,
   attribution: Record<string, string>,
 ): () => Record<string, string | undefined> {
   return () => {
-    const page = session.current();
+    const page = current();
     return {
       "session.id": page.sessionId,
       ...pageAttrs(page),

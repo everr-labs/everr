@@ -1,7 +1,7 @@
-import type { Emitter } from "./emitter.js";
+import type { Emit } from "./emitter.js";
 import { pageAttrs } from "./envelope.js";
 import type { NavigationListener } from "./navigation.js";
-import type { SessionContext } from "./session.js";
+import type { CurrentPage } from "./session.js";
 
 // The pageviews signal: one `browser.page_view` for the hard navigation that
 // loaded the page and one per SPA navigation, plus one `browser.page_leave`
@@ -10,18 +10,15 @@ import type { SessionContext } from "./session.js";
 // listeners run, so the leave overrides the envelope with the outgoing
 // page's context (shared `pageAttrs` keys).
 
-export type Pageviews = {
-  onNavigate: NavigationListener;
+export type Pageviews = [
+  onNavigate: NavigationListener,
   /** Emits the current pageview's leave; at most one per pageview. */
-  onHide: () => void;
-  stop: () => void;
-};
+  onHide: () => void,
+  stop: () => void,
+];
 
-export function startPageviews(
-  emitter: Emitter,
-  session: SessionContext,
-): Pageviews {
-  let page = session.current();
+export function startPageviews(emit: Emit, current: CurrentPage): Pageviews {
+  let page = current();
   let startedAt = Date.now();
   let maxBottom = 0;
   let left = false;
@@ -36,15 +33,13 @@ export function startPageviews(
   onScroll();
 
   const emitView = (navigationType: "initial" | "history_change") =>
-    emitter.emit("browser.page_view", {
-      "everr.navigation.type": navigationType,
-    });
+    emit("browser.page_view", { "everr.navigation.type": navigationType });
 
   const onHide = () => {
     if (left) return;
     left = true;
     const height = document.documentElement.scrollHeight;
-    emitter.emit(
+    emit(
       "browser.page_leave",
       {
         // The leave belongs to the page being left: override the envelope.
@@ -59,10 +54,10 @@ export function startPageviews(
 
   emitView("initial");
 
-  return {
-    onNavigate: () => {
+  return [
+    () => {
       onHide();
-      page = session.current();
+      page = current();
       startedAt = Date.now();
       maxBottom = 0;
       left = false;
@@ -70,6 +65,6 @@ export function startPageviews(
       emitView("history_change");
     },
     onHide,
-    stop: () => removeEventListener("scroll", onScroll),
-  };
+    () => removeEventListener("scroll", onScroll),
+  ];
 }

@@ -1,4 +1,4 @@
-import type { AttrValue, Emitter } from "./emitter.js";
+import type { AttrValue, Emit } from "./emitter.js";
 
 // The interactions signal: browser.click (heatmap-ready payload),
 // browser.change and browser.submit (never any values), and the derived
@@ -23,7 +23,7 @@ const RAGE_RADIUS_PX = 30;
 const RAGE_GAP_MS = 1_000;
 const DEAD_WAIT_MS = 3_000;
 
-export function startInteractions(emitter: Emitter): () => void {
+export function startInteractions(emit: Emit): () => void {
   let rage: { x: number; y: number; at: number; count: number } | undefined;
   let lastActivity = 0;
   let deadTimer: ReturnType<typeof setTimeout> | undefined;
@@ -56,7 +56,7 @@ export function startInteractions(emitter: Emitter): () => void {
       "everr.click.x": x,
       "everr.click.y": y,
     };
-    emitter.emit("browser.click", attrs);
+    emit("browser.click", attrs);
 
     const now = Date.now();
     rage =
@@ -66,7 +66,7 @@ export function startInteractions(emitter: Emitter): () => void {
         ? { x, y, at: now, count: rage.count + 1 }
         : { x, y, at: now, count: 1 };
     if (rage.count === RAGE_CLICKS) {
-      emitter.emit("browser.rage_click", attrs);
+      emit("browser.rage_click", attrs);
       rage = undefined;
     }
 
@@ -78,7 +78,7 @@ export function startInteractions(emitter: Emitter): () => void {
       deadTimer = setTimeout(() => {
         observer.disconnect();
         if (lastActivity < now && location.href === url) {
-          emitter.emit("browser.dead_click", attrs);
+          emit("browser.dead_click", attrs);
         }
       }, DEAD_WAIT_MS);
     }
@@ -86,7 +86,7 @@ export function startInteractions(emitter: Emitter): () => void {
 
   const forward = (eventName: string) => (event: Event) => {
     const el = targetOf(event);
-    if (el) emitter.emit(eventName, elementAttrs(el));
+    if (el) emit(eventName, elementAttrs(el));
   };
   const onChange = forward("browser.change");
   const onSubmit = forward("browser.submit");

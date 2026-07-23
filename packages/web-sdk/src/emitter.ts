@@ -1,8 +1,9 @@
 // The SDK's own emit pipeline: an in-memory queue, a batch timer, and one
 // fetch POST of OTLP JSON per flush. Owning the queue (instead of OTel's
-// BatchLogRecordProcessor) is what lets the exit-flush work prioritize and
-// truncate by event name later. Wire shapes follow the OTLP JSON mapping
-// (intValue is a decimal string).
+// BatchLogRecordProcessor) is what lets the exit flush prioritize and
+// truncate by signal. Wire shapes follow the OTLP JSON mapping (intValue is
+// a decimal string); everything else internal is positional, since property
+// names survive minification and tuple indexes do not.
 
 export type AttrValue = string | number | boolean;
 
@@ -21,25 +22,26 @@ type OtlpLogRecord = {
   attributes: KeyValue[];
 };
 
-export type Emitter = {
-  /**
-   * `exitPriority` ranks the record for exit truncation: lower survives
-   * longer (errors 0 > page_leave 1 > vitals 2 > interactions 3, the
-   * default). Signals declare their own rank at the emit site.
-   */
-  emit(
-    eventName: string,
-    attributes?: Record<string, AttrValue | undefined>,
-    exitPriority?: number,
-  ): void;
-  flush(): Promise<void>;
+/**
+ * `exitPriority` ranks the record for exit truncation: lower survives longer
+ * (errors 0 > page_leave 1 > vitals 2 > interactions 3, the default).
+ * Signals declare their own rank at the emit site.
+ */
+export type Emit = (
+  eventName: string,
+  attributes?: Record<string, AttrValue | undefined>,
+  exitPriority?: number,
+) => void;
+
+export type Emitter = [
+  emit: Emit,
+  flush: () => Promise<void>,
   /**
    * Exit-path flush: fetch keepalive, with the payload truncated to the
    * keepalive budget by per-signal priority.
    */
-  exitFlush(): void;
-  shutdown(): Promise<void>;
-};
+  exitFlush: () => void,
+];
 
 // Same tuning as the web app's browser telemetry client.
 const MAX_QUEUE_SIZE = 100;
@@ -70,17 +72,17 @@ function toKeyValues(
   );
 }
 
-export function createEmitter(options: {
-  logsUrl: string;
-  headers?: Record<string, string>;
-  resource: Record<string, AttrValue | undefined>;
-  scope: { name: string; version: string };
+export function createEmitter(
+  logsUrl: string,
+  extraHeaders: Record<string, string> | undefined,
+  resourceAttributes: Record<string, AttrValue | undefined>,
+  scope: { name: string; version: string },
   /** Called per record; returns the context envelope to stamp. */
-  envelope: () => Record<string, AttrValue | undefined>;
-}): Emitter {
-  const resource = toKeyValues(options.resource);
-  const headers = { "Content-Type": "application/json", ...options.headers };
-  let queue: Array<{ p: number; r: OtlpLogRecord }> = [];
+  envelope: () => Record<string, AttrValue | undefined>,
+): Emitter {
+  const resource = toKeyValues(resourceAttributes);
+  const headers = { "Content-Type": "application/json", ...extraHeaders };
+  let queue: Array<[priority: number, record: OtlpLogRecord]> = [];
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   const build = () =>
@@ -88,9 +90,7 @@ export function createEmitter(options: {
       resourceLogs: [
         {
           resource: { attributes: resource },
-          scopeLogs: [
-            { scope: options.scope, logRecords: queue.map((q) => q.r) },
-          ],
+          scopeLogs: [{ scope, logRecords: queue.map((q) => q[1]) }],
         },
       ],
     });
@@ -111,12 +111,10 @@ export function createEmitter(options: {
   // could never deliver to the hosted ingest anyway).
   const post = (body: string, keepalive?: boolean): Promise<void> => {
     try {
-      return fetch(options.logsUrl, {
-        method: "POST",
-        headers,
-        body,
-        keepalive,
-      }).then(noop, noop);
+      return fetch(logsUrl, { method: "POST", headers, body, keepalive }).then(
+        noop,
+        noop,
+      );
     } catch {
       return noop();
     }
@@ -130,33 +128,30 @@ export function createEmitter(options: {
   const exitFlush = (): void => {
     // Truncate whole records, lowest priority first, until the batch fits
     // the keepalive budget.
-    queue.sort((a, b) => a.p - b.p);
+    queue.sort((a, b) => a[0] - b[0]);
     while (queue.length > 1 && new Blob([build()]).size > EXIT_BUDGET)
       queue.pop();
     const body = takeBody();
     if (body) void post(body, true);
   };
 
-  return {
-    emit(eventName, attributes, exitPriority = 3) {
-      if (queue.length >= MAX_QUEUE_SIZE) return;
-      queue.push({
-        p: exitPriority,
-        r: {
-          timeUnixNano: `${Date.now()}000000`,
-          severityNumber: 9, // INFO
-          eventName,
-          attributes: toKeyValues({ ...options.envelope(), ...attributes }),
-        },
-      });
-      if (queue.length >= MAX_BATCH_SIZE) {
-        void flush();
-      } else {
-        timer ??= setTimeout(() => void flush(), SCHEDULED_DELAY_MS);
-      }
-    },
-    flush,
-    exitFlush,
-    shutdown: flush,
+  const emit: Emit = (eventName, attributes, exitPriority = 3) => {
+    if (queue.length >= MAX_QUEUE_SIZE) return;
+    queue.push([
+      exitPriority,
+      {
+        timeUnixNano: `${Date.now()}000000`,
+        severityNumber: 9, // INFO
+        eventName,
+        attributes: toKeyValues({ ...envelope(), ...attributes }),
+      },
+    ]);
+    if (queue.length >= MAX_BATCH_SIZE) {
+      void flush();
+    } else {
+      timer ??= setTimeout(() => void flush(), SCHEDULED_DELAY_MS);
+    }
   };
+
+  return [emit, flush, exitFlush];
 }
