@@ -6,8 +6,15 @@
 
 // Ownership annotations on a CC-backed as-code resource (rules and SLOs): the
 // resource's as-code name and the repoid that owns it. A resource carrying
-// everr.name is everr-managed; one without it is engine-native and never
+// everr.repoid is everr-managed; one without it is engine-native and never
 // touched by any reconciler.
+//
+// OWN_NAME / OWN_PREVIEW / ANN_PROJECT are write-path-retired for alerts:
+// identity (project/slug, live-vs-preview namespace) now lives on the CC
+// rule's own first-class `name`/`namespace` fields (see
+// data/alerts/mapping.ts's toRuleInput/fromCcRule), so alerts never write
+// these annotations anymore. They are kept here (not deleted) because
+// data/slos/* still writes and reads them; Tasks 4-5 retire the SLO side.
 export const OWN_NAME = "everr.name";
 export const OWN_REPO = "everr.repoid";
 // The preview registry id (previews.id) owning a preview resource. Live

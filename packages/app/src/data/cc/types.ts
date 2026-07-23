@@ -12,6 +12,7 @@ import type {
   CcRuleHealthStatusSchema,
   CcRuleInputSchema,
   CcRuleRollupSchema,
+  CcRuleSchema,
   CcRuleSpecSchema,
   CcRulesPageSchema,
   CcRuleViewSchema,
@@ -37,6 +38,7 @@ export type CcSeverity = z.infer<typeof CcSeveritySchema>;
 export type CcRuleHealthStatus = z.infer<typeof CcRuleHealthStatusSchema>;
 export type CcMatcher = z.infer<typeof CcMatcherSchema>;
 export type CcRuleSpec = z.infer<typeof CcRuleSpecSchema>;
+export type CcRule = z.infer<typeof CcRuleSchema>;
 export type CcRuleInput = z.infer<typeof CcRuleInputSchema>;
 export type CcRuleRollup = z.infer<typeof CcRuleRollupSchema>;
 export type CcRuleView = z.infer<typeof CcRuleViewSchema>;
