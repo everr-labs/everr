@@ -380,3 +380,92 @@ async fn old_format_group_hash_takes_cleanly() {
         vec!["old1".to_string()]
     );
 }
+
+/// A claim that is never released (its flusher died before taking the group) does not
+/// strand the buffered group: the flush timer no longer holds it, but the in-flight lease
+/// does, and `reclaim_expired` returns it to the timer once the lease elapses.
+#[tokio::test]
+async fn claimed_group_is_reclaimed_after_its_lease_expires() {
+    let (_url, groups) = redis_groups().await;
+    let now = 5_000_000i64;
+    groups
+        .add_to_group(
+            "g",
+            &meta(),
+            "a",
+            &ev("a", EventStatus::Firing),
+            now,
+            0,
+            1000,
+            true,
+            None,
+        )
+        .await
+        .unwrap();
+
+    // Claim leases the group (score = now + CLAIM_LEASE_MS = now + 60_000).
+    assert_eq!(
+        groups.claim_due(now, 16).await.unwrap(),
+        vec!["g".to_string()]
+    );
+    // The timer no longer holds it, so a plain claim finds nothing while the lease is live.
+    assert!(
+        groups.claim_due(now + 500, 16).await.unwrap().is_empty(),
+        "held by the in-flight lease, not the timer"
+    );
+    // Not yet reclaimable: the lease has not elapsed.
+    assert!(
+        groups
+            .reclaim_expired(now + 30_000, 16)
+            .await
+            .unwrap()
+            .is_empty(),
+        "lease not expired yet"
+    );
+    // Once the lease elapses, reclaim requeues it onto the timer for another flusher.
+    assert_eq!(
+        groups.reclaim_expired(now + 60_001, 16).await.unwrap(),
+        vec!["g".to_string()],
+        "expired lease requeued"
+    );
+    assert_eq!(
+        groups.claim_due(now + 60_001, 16).await.unwrap(),
+        vec!["g".to_string()],
+        "reclaimable again after recovery"
+    );
+}
+
+/// Releasing a claim drops its lease, so a group whose flush completed cleanly is never
+/// reclaimed (no duplicate reflush).
+#[tokio::test]
+async fn released_claim_is_not_reclaimed() {
+    let (_url, groups) = redis_groups().await;
+    let now = 6_000_000i64;
+    groups
+        .add_to_group(
+            "g",
+            &meta(),
+            "a",
+            &ev("a", EventStatus::Firing),
+            now,
+            0,
+            1000,
+            true,
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        groups.claim_due(now, 16).await.unwrap(),
+        vec!["g".to_string()]
+    );
+    groups.release_claim("g").await.unwrap();
+    assert!(
+        groups
+            .reclaim_expired(now + 120_000, 16)
+            .await
+            .unwrap()
+            .is_empty(),
+        "a released claim leaves nothing to reclaim"
+    );
+}

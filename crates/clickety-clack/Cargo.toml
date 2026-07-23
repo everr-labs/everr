@@ -56,6 +56,8 @@ http-body-util = "0.1"
 # In-memory metric exporter for engine-metrics unit tests (no collector needed).
 opentelemetry_sdk = { version = "0.30", features = ["rt-tokio", "testing"] }
 proptest = "1"
+# Raw Redis access for tests that inject store-level faults (already a normal dep).
+redis = { version = "0.27", features = ["tokio-comp"] }
 testcontainers = "0.23"
 testcontainers-modules = { version = "0.11", features = ["postgres", "redis"] }
 tower = { version = "0.5", features = ["util"] }

@@ -43,6 +43,11 @@ use std::time::Duration;
 const MAX_ATTEMPTS: u32 = 4;
 /// How often the flusher polls for due groups when none are immediately ready.
 const FLUSH_TICK: Duration = Duration::from_millis(200);
+/// Backoff before a claimed group is retried after `take_group` fails. `claim_due` has
+/// already removed the group's flush timer, so on a take failure we re-arm at this offset
+/// rather than leaving the buffered group orphaned; the delay keeps a persistently failing
+/// group from spinning the flusher.
+const TAKE_RETRY_MS: i64 = 1_000;
 
 /// The notification-ledger slice of the store that delivery bookkeeping needs.
 /// Split out as a trait so channel fan-out can be unit-tested against an in-memory
@@ -292,9 +297,9 @@ pub async fn process_event(ctx: &DispatchCtx, entry: &EventEntry) -> bool {
 /// so the load harness drives the same path production does; not a stable API.
 ///
 /// Intra-batch ordering is NOT preserved: futures interleave, so two events for the same
-/// instance within one batch may buffer into their group in either order. This is safe today
-/// — group buffering keys by fingerprint and `group_dedup_key` folds in `eval_ts`, so the
-/// next evaluation self-corrects within a flush interval — but grouping logic must not come
+/// instance within one batch may buffer into their group in either order. `add_to_group`
+/// orders writes by the event's `eval_ts` (a stale write cannot overwrite a newer one or
+/// re-add firing membership), so this is safe; but grouping logic must not otherwise come
 /// to depend on within-batch event order.
 pub async fn process_event_batch(
     ctx: &DispatchCtx,
@@ -369,6 +374,16 @@ pub async fn run_group_flusher(ctx: DispatchCtx, mut shutdown: tokio::sync::watc
         if *shutdown.borrow() {
             break;
         }
+        // Before claiming fresh work, requeue any group whose previous flusher claimed it
+        // and then died (lease expired): it goes back on the timer so this claim picks it
+        // up, instead of being stranded with buffered events and no schedule.
+        match ctx.groups.reclaim_expired(now_ms(), 32).await {
+            Ok(ids) if !ids.is_empty() => {
+                tracing::warn!(count = ids.len(), "reclaimed stranded group flush leases")
+            }
+            Ok(_) => {}
+            Err(e) => tracing::error!(error = %e, "reclaim_expired failed"),
+        }
         let ids = match ctx.groups.claim_due(now_ms(), 32).await {
             Ok(v) => v,
             Err(e) => {
@@ -433,14 +448,35 @@ async fn filter_or_dead_letter(
     Some(crate::dispatcher::flush_filter::filter_suppressed(&snap, events, now, sink).await)
 }
 
-/// Public so the load-test harness can drive a single group flush; not a stable API.
+/// Flush one claimed group and then release its in-flight lease. Every return path of the
+/// inner flush (delivered, dead-lettered, nothing-due, or a take failure that re-armed the
+/// timer) is followed by the release; only an outright crash skips it, and the lease
+/// reclaim in [`run_group_flusher`] recovers that case. Public so the load-test harness can
+/// drive a single flush; not a stable API.
 pub async fn flush_group(ctx: &DispatchCtx, gid: &str) {
+    flush_claimed_group(ctx, gid).await;
+    if let Err(e) = ctx.groups.release_claim(gid).await {
+        tracing::error!(error = %e, group = %gid,
+            "releasing group flush lease failed; it will be reclaimed on lease expiry");
+    }
+}
+
+async fn flush_claimed_group(ctx: &DispatchCtx, gid: &str) {
     let taken_at = now_ms();
     let batch = match ctx.groups.take_group(gid, taken_at).await {
         Ok(Some(g)) => g,
         Ok(None) => return,
         Err(e) => {
-            tracing::error!(error = %e, group = %gid, "take_group failed");
+            // The in-flight lease (dropped by the caller on return) would already recover
+            // this group once it expires, but re-arm the flush timer now with a short
+            // backoff so a transient Redis/JSON failure retries in seconds rather than
+            // waiting out the full lease.
+            tracing::error!(error = %e, group = %gid,
+                "take_group failed; re-arming flush timer for retry");
+            if let Err(re) = ctx.groups.arm_repeat(gid, taken_at + TAKE_RETRY_MS).await {
+                tracing::error!(error = %re, group = %gid,
+                    "re-arming flush timer after take_group failure also failed; group will be reclaimed on lease expiry");
+            }
             return;
         }
     };

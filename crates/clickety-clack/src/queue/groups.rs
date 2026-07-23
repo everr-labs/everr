@@ -7,6 +7,15 @@ use serde::{Deserialize, Serialize};
 use std::sync::LazyLock;
 
 const FLUSH_ZSET: &str = "cc:groupflush";
+/// In-flight lease set: a group claimed for flushing sits here (score = lease deadline)
+/// until the flusher releases it. If the flusher dies between claiming and taking the
+/// group, the lease expires and [`GroupStore::reclaim_expired`] returns it to `FLUSH_ZSET`
+/// so another replica reflushes it, instead of stranding the buffered group forever.
+const INFLIGHT_ZSET: &str = "cc:groupflush:inflight";
+/// How long a claimed group may stay in flight before its lease is reclaimable. Must
+/// comfortably exceed a worst-case flush (snapshot load + fan-out delivery with retries),
+/// so a healthy but slow flush is never reclaimed under it.
+const CLAIM_LEASE_MS: i64 = 60_000;
 /// Group hashes expire if untouched for this long (bounds storage for silent groups).
 const GROUP_TTL_MS: i64 = 7 * 24 * 60 * 60 * 1000;
 
@@ -67,6 +76,11 @@ pub trait GroupStore: Send + Sync {
     /// fresh batch beyond group_interval). `firing` maintains the still-firing
     /// membership; `repeat_interval_ms` (None = never) records the route's reminder
     /// cadence, latest write wins.
+    ///
+    /// Writes are ordered by the event's `eval_ts`, not arrival order: an event older
+    /// than one already applied for the same instance is dropped, so a Firing and a
+    /// later Resolved buffered concurrently (see `process_event_batch`) can never leave
+    /// the instance stuck firing regardless of which write lands last.
     #[allow(clippy::too_many_arguments)]
     async fn add_to_group(
         &self,
@@ -81,9 +95,22 @@ pub trait GroupStore: Send + Sync {
         repeat_interval_ms: Option<i64>,
     ) -> Result<(), QueueError>;
 
-    /// Atomically claim (remove from the timer) up to `max` group ids whose flush is due
-    /// (score <= now_ms). Each id is then owned by this caller for flushing.
+    /// Atomically claim up to `max` group ids whose flush is due (score <= now_ms),
+    /// moving each from the flush timer into the in-flight lease set. Each id is then
+    /// owned by this caller until it calls [`Self::release_claim`] (on success) or the
+    /// lease expires and [`Self::reclaim_expired`] hands it to another flusher. This is
+    /// the seam that makes the claim -> take -> deliver path crash-safe: the timer entry
+    /// is never simply deleted, so a flusher dying mid-flush cannot strand the group.
     async fn claim_due(&self, now_ms: i64, max: usize) -> Result<Vec<String>, QueueError>;
+
+    /// Requeue up to `max` in-flight groups whose lease expired (<= now_ms) back onto the
+    /// flush timer, returning the requeued ids. Called by the flusher before each claim so
+    /// a group claimed by a since-dead replica is picked up again instead of orphaned.
+    async fn reclaim_expired(&self, now_ms: i64, max: usize) -> Result<Vec<String>, QueueError>;
+
+    /// Release a group's in-flight lease once its flush has been handled. Idempotent; a
+    /// no-op if the lease is already gone (e.g. a slow flush reclaimed in the meantime).
+    async fn release_claim(&self, group_id: &str) -> Result<(), QueueError>;
 
     /// Snapshot a claimed group, atomically clearing the buffered event fields and
     /// stamping `__last_flush__ = now_ms` (so re-arrivals form a new batch). Firing
@@ -118,6 +145,19 @@ impl RedisGroups {
 }
 
 const ADD_LUA: &str = r#"
+-- Instance identity is ARGV[2] (fingerprint); ARGV[11] is this event's eval_ts in ms.
+-- Two events for the same instance can be buffered out of order (process_event_batch
+-- runs them concurrently), so a stale FIRING must never overwrite a newer RESOLVED and
+-- re-add firing membership. Track the newest eval_ts applied per instance (et:) and drop
+-- anything older; et: survives takes (like fi:) so a stale event that arrives after the
+-- newer one already flushed still cannot resurrect the alert.
+local etk = 'et:'..ARGV[2]
+local prev = redis.call('HGET', KEYS[1], etk)
+if prev and tonumber(ARGV[11]) < tonumber(prev) then
+  redis.call('PEXPIRE', KEYS[1], ARGV[8])
+  return 0
+end
+redis.call('HSET', KEYS[1], etk, ARGV[11])
 redis.call('HSET', KEYS[1], 'ev:'..ARGV[2], ARGV[3])
 if ARGV[9] == '1' then
   redis.call('HSET', KEYS[1], 'fi:'..ARGV[2], ARGV[3])
@@ -147,10 +187,37 @@ end
 return 1
 "#;
 
+// Move due groups from the flush timer (KEYS[1]) into the in-flight lease set (KEYS[2])
+// at score = now + lease (ARGV[3]), rather than just deleting them. A claimed group is
+// thus never without a scheduled home: the flusher releases it on success, and a crash
+// leaves it to be reclaimed once the lease expires.
 const CLAIM_LUA: &str = r#"
 local due = redis.call('ZRANGEBYSCORE', KEYS[1], '-inf', ARGV[1], 'LIMIT', 0, tonumber(ARGV[2]))
-for i=1,#due do redis.call('ZREM', KEYS[1], due[i]) end
+local lease = tonumber(ARGV[1]) + tonumber(ARGV[3])
+for i=1,#due do
+  redis.call('ZREM', KEYS[1], due[i])
+  redis.call('ZADD', KEYS[2], lease, due[i])
+end
 return due
+"#;
+
+// Return in-flight groups whose lease has expired (score <= now) and requeue each onto
+// the flush timer at `now` so the next claim reflushes it. This is the crash-recovery
+// path for a flusher that claimed a group but died before releasing it.
+const RECLAIM_LUA: &str = r#"
+local expired = redis.call('ZRANGEBYSCORE', KEYS[1], '-inf', ARGV[1], 'LIMIT', 0, tonumber(ARGV[2]))
+for i=1,#expired do
+  redis.call('ZREM', KEYS[1], expired[i])
+  redis.call('ZADD', KEYS[2], ARGV[1], expired[i])
+end
+return expired
+"#;
+
+// Drop a group's in-flight lease once its flush has been handled (delivered, or its retry
+// re-armed on the flush timer). A no-op if the lease is already gone.
+const RELEASE_LUA: &str = r#"
+redis.call('ZREM', KEYS[1], ARGV[1])
+return 1
 "#;
 
 const TAKE_LUA: &str = r#"
@@ -185,6 +252,8 @@ return 1
 // not per invocation on the per-event hot paths below.
 static ADD_SCRIPT: LazyLock<Script> = LazyLock::new(|| Script::new(ADD_LUA));
 static CLAIM_SCRIPT: LazyLock<Script> = LazyLock::new(|| Script::new(CLAIM_LUA));
+static RECLAIM_SCRIPT: LazyLock<Script> = LazyLock::new(|| Script::new(RECLAIM_LUA));
+static RELEASE_SCRIPT: LazyLock<Script> = LazyLock::new(|| Script::new(RELEASE_LUA));
 static TAKE_SCRIPT: LazyLock<Script> = LazyLock::new(|| Script::new(TAKE_LUA));
 static MARK_NOTIFIED_SCRIPT: LazyLock<Script> = LazyLock::new(|| Script::new(MARK_NOTIFIED_LUA));
 static ARM_REPEAT_SCRIPT: LazyLock<Script> = LazyLock::new(|| Script::new(ARM_REPEAT_LUA));
@@ -208,6 +277,9 @@ impl GroupStore for RedisGroups {
         let repeat_arg = repeat_interval_ms
             .map(|v| v.to_string())
             .unwrap_or_default();
+        // Milliseconds fit a Lua number exactly (unlike nanoseconds); one eval interval
+        // of resolution is ample to order two events for the same instance.
+        let eval_ms = (ev.eval_ts.unix_timestamp_nanos() / 1_000_000) as i64;
         let mut conn = self.conn.clone();
         let _: i64 = ADD_SCRIPT
             .key(group_key(group_id))
@@ -222,6 +294,7 @@ impl GroupStore for RedisGroups {
             .arg(GROUP_TTL_MS)
             .arg(if firing { "1" } else { "0" })
             .arg(repeat_arg)
+            .arg(eval_ms)
             .invoke_async(&mut conn)
             .await?;
         Ok(())
@@ -231,11 +304,35 @@ impl GroupStore for RedisGroups {
         let mut conn = self.conn.clone();
         let ids: Vec<String> = CLAIM_SCRIPT
             .key(FLUSH_ZSET)
+            .key(INFLIGHT_ZSET)
+            .arg(now_ms)
+            .arg(max as i64)
+            .arg(CLAIM_LEASE_MS)
+            .invoke_async(&mut conn)
+            .await?;
+        Ok(ids)
+    }
+
+    async fn reclaim_expired(&self, now_ms: i64, max: usize) -> Result<Vec<String>, QueueError> {
+        let mut conn = self.conn.clone();
+        let ids: Vec<String> = RECLAIM_SCRIPT
+            .key(INFLIGHT_ZSET)
+            .key(FLUSH_ZSET)
             .arg(now_ms)
             .arg(max as i64)
             .invoke_async(&mut conn)
             .await?;
         Ok(ids)
+    }
+
+    async fn release_claim(&self, group_id: &str) -> Result<(), QueueError> {
+        let mut conn = self.conn.clone();
+        let _: i64 = RELEASE_SCRIPT
+            .key(INFLIGHT_ZSET)
+            .arg(group_id)
+            .invoke_async(&mut conn)
+            .await?;
+        Ok(())
     }
 
     async fn take_group(

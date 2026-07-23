@@ -13,7 +13,7 @@ use cc::queue::EventBus;
 use uuid::Uuid;
 
 #[tokio::test(flavor = "multi_thread")]
-#[ignore = "load harness; needs Docker. Run: cargo test --release --test load_dispatcher -- --ignored --nocapture"]
+#[ignore = "load harness; needs Docker. Run: cargo test --release --features container-tests --test it -- --ignored --nocapture load_dispatcher_ingest_throughput"]
 async fn load_dispatcher_ingest_throughput() {
     let cfg = LoadConfig::from_env();
     let pg = start_pg().await;
@@ -157,7 +157,7 @@ async fn buffer_events(
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ignore = "load harness; needs Docker. Run: cargo test --release --test load_dispatcher -- --ignored --nocapture"]
+#[ignore = "load harness; needs Docker. Run: cargo test --release --features container-tests --test it -- --ignored --nocapture load_dispatcher_flush_throughput"]
 async fn load_dispatcher_flush_throughput() {
     let cfg = LoadConfig::from_env();
     let pg = start_pg().await;

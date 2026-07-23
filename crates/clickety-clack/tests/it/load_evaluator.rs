@@ -43,11 +43,14 @@ fn enqueue_round(
 
 /// Measure steady-state evaluator throughput.
 ///
-/// Workers are spawned ONCE and hold a PERSISTENT per-worker `health` map across both a
-/// warm phase and the measured phase — exactly as the long-running `run_evaluator` does.
-/// The warm phase makes each rule's health known-healthy, so the measured phase exercises
-/// the steady-state path that SKIPS the `record_rule_success` round-trip (the optimization
-/// under test), rather than the cold-start path that pays it once per rule.
+/// Workers are spawned ONCE and hold a PERSISTENT per-worker `health` map, exactly as the
+/// long-running `run_evaluator` does. Each map is pre-seeded with every rule as known-healthy
+/// so the measured phase exercises the steady-state path that SKIPS the `record_rule_success`
+/// round-trip (the optimization under test) on EVERY worker. A processing-only warm phase
+/// cannot guarantee that: it enqueues one job per rule, so each rule warms on just the one
+/// worker that happens to draw it, and a measured job landing on a different worker would
+/// still pay the cold path and skew the result. The warm phase is still run, untimed, so the
+/// measured phase upserts existing instance rows rather than inserting them.
 ///
 /// A `gate` parks the workers while measured jobs are enqueued (so enqueue is excluded from
 /// the timer), and a settle longer than `BLOCK_MS` ensures no in-flight blocking `consume`
@@ -69,6 +72,12 @@ async fn measure_steady_state(
     let gate = Arc::new(AtomicBool::new(true)); // true = parked
     let stop = Arc::new(AtomicBool::new(false));
 
+    // Pre-seed every worker's health map with all rules known-healthy (false = not
+    // degraded), so each worker skips record_rule_success on the measured phase regardless
+    // of which worker draws which rule. See the function doc for why the warm phase alone
+    // cannot guarantee this.
+    let warm_health: HashMap<RuleId, bool> = rule_ids.iter().map(|&r| (r, false)).collect();
+
     let mut handles = Vec::new();
     for w in 0..workers {
         let store = store.clone();
@@ -77,9 +86,9 @@ async fn measure_steady_state(
         let processed = processed.clone();
         let gate = gate.clone();
         let stop = stop.clone();
+        let mut health = warm_health.clone();
         handles.push(tokio::spawn(async move {
             let consumer = format!("eval-w{w}");
-            let mut health: HashMap<RuleId, bool> = HashMap::new();
             loop {
                 if stop.load(Ordering::Relaxed) {
                     break;
@@ -111,7 +120,8 @@ async fn measure_steady_state(
         }));
     }
 
-    // Warm phase (untimed): one observation per rule warms each worker's health map.
+    // Warm phase (untimed): one evaluation per rule so the measured phase upserts existing
+    // instance rows. Health is already pre-seeded above, so this need not warm the maps.
     enqueue_round(queue, tenant, rule_ids, warm_ts).await;
     gate.store(false, Ordering::Relaxed);
     while processed.load(Ordering::Relaxed) < total {
@@ -139,7 +149,7 @@ async fn measure_steady_state(
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ignore = "load harness; needs Docker. Run: cargo test --release --test load_evaluator -- --ignored --nocapture"]
+#[ignore = "load harness; needs Docker. Run: cargo test --release --features container-tests --test it -- --ignored --nocapture load_evaluator_throughput"]
 async fn load_evaluator_throughput() {
     let cfg = LoadConfig::from_env();
     let pg = start_pg().await;
