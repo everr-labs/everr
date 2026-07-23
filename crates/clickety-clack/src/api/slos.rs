@@ -1,4 +1,4 @@
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::HeaderMap;
 use axum::Json;
 use serde::Deserialize;
@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 use crate::api::auth::tenant;
 use crate::api::error::ApiError;
+use crate::api::identity::{validate_name, validate_namespace};
 use crate::api::AppState;
 use crate::domain::ids::SloId;
 use crate::domain::instance::{InstanceState, Status};
@@ -18,16 +19,24 @@ use crate::stores::{SloCreate, SloUpdate};
 #[derive(Deserialize)]
 pub struct CreateSloBody {
     pub name: String,
+    #[serde(default)]
+    pub namespace: String,
     #[serde(flatten)]
     pub spec: SloSpec,
 }
 
 #[derive(Deserialize)]
 pub struct UpdateSloBody {
-    pub name: String,
     #[serde(flatten)]
     pub spec: SloSpec,
     pub version: Option<i64>,
+}
+
+/// Optional identity filters (exact match) for `GET /v1/slos`.
+#[derive(Deserialize)]
+pub struct SloListParams {
+    pub namespace: Option<String>,
+    pub name: Option<String>,
 }
 
 pub async fn create(
@@ -37,14 +46,17 @@ pub async fn create(
 ) -> Result<Json<Slo>, ApiError> {
     let t = tenant(&state, &headers)?;
     validate_name(&body.name)?;
+    validate_namespace(&body.namespace)?;
     validate_slo_spec(&body.spec)?;
-    // TODO(task 6): thread the real namespace through the request body instead
-    // of the live-namespace placeholder here.
-    match state.store.create_slo(t, "", &body.name, &body.spec).await? {
+    match state
+        .store
+        .create_slo(t, &body.namespace, &body.name, &body.spec)
+        .await?
+    {
         SloCreate::Created(slo) => Ok(Json(slo)),
         SloCreate::NameConflict => Err(ApiError::Conflict(format!(
-            "SLO name {:?} already exists",
-            body.name
+            "SLO name {:?} already exists in namespace {:?}",
+            body.name, body.namespace
         ))),
     }
 }
@@ -95,10 +107,13 @@ pub async fn get(
 pub async fn list(
     State(state): State<AppState>,
     headers: HeaderMap,
+    Query(params): Query<SloListParams>,
 ) -> Result<Json<Vec<SloView>>, ApiError> {
     let t = tenant(&state, &headers)?;
-    // TODO(task 6): thread namespace/name filters from the request.
-    let slos = state.store.list_slos(&t, None, None).await?;
+    let slos = state
+        .store
+        .list_slos(&t, params.namespace.as_deref(), params.name.as_deref())
+        .await?;
     Ok(Json(slos.into_iter().map(Into::into).collect()))
 }
 
@@ -109,11 +124,7 @@ pub async fn update(
     Json(body): Json<UpdateSloBody>,
 ) -> Result<Json<Slo>, ApiError> {
     let t = tenant(&state, &headers)?;
-    validate_name(&body.name)?;
     validate_slo_spec(&body.spec)?;
-    // TODO(task 6): UpdateSloBody still carries `name`, but identity (namespace +
-    // name) is immutable after create, so it's ignored here; drop the field once
-    // the request body is reshaped for namespace-scoped identity.
     let outcome = state
         .store
         .update_slo(t, SloId(id), &body.spec, body.version)
@@ -452,21 +463,6 @@ pub(crate) fn validate_slo_spec(spec: &SloSpec) -> Result<(), ApiError> {
     Ok(())
 }
 
-/// A tenant-unique SLO name: 1..=128 chars, `[A-Za-z0-9_.-]`.
-pub(crate) fn validate_name(name: &str) -> Result<(), ApiError> {
-    let ok = (1..=128).contains(&name.len())
-        && name
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-'));
-    if ok {
-        Ok(())
-    } else {
-        Err(ApiError::Validation(
-            "name must be 1-128 chars of [A-Za-z0-9_.-]".into(),
-        ))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -636,13 +632,5 @@ mod tests {
         };
         assert!(msg.contains("12h"), "message was: {msg}");
         assert!(msg.contains("minimum"), "message was: {msg}");
-    }
-
-    #[test]
-    fn name_rules() {
-        assert!(validate_name("checkout-availability").is_ok());
-        assert!(validate_name("").is_err());
-        assert!(validate_name("has space").is_err());
-        assert!(validate_name(&"x".repeat(129)).is_err());
     }
 }
