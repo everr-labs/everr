@@ -142,10 +142,11 @@ describe("init (cookieless)", () => {
   });
 
   it("keeps watching navigations when pageviews are off, so the envelope stays fresh", () => {
+    const pushState = history.pushState;
     start({ disable: ["pageviews"] });
     // The navigation watcher is envelope infrastructure, not a signal: it
     // must patch history even when no pageview listener is registered.
-    expect(history.pushState.toString()).not.toContain("native code");
+    expect(history.pushState).not.toBe(pushState);
   });
 
   it("stops emitting and unpatches history after shutdown", async () => {
@@ -168,12 +169,13 @@ describe("init (cookieless)", () => {
 
 describe("structural no-op", () => {
   it("returns an inert client with no key, no endpoint, outside dev", () => {
+    const pushState = history.pushState;
     const inert = initInternal({
       mode: "cookieless",
       serviceName: "everr-docs-test",
     });
     client = inert;
-    // No emitter built and nothing patched: pushState stays native.
-    expect(history.pushState.toString()).toContain("native code");
+    // No emitter built and nothing patched: pushState is untouched.
+    expect(history.pushState).toBe(pushState);
   });
 });

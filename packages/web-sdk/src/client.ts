@@ -2,7 +2,7 @@ import { attributionAttributes } from "./attribution.js";
 import { resolveTransport } from "./config.js";
 import { createEmitter } from "./emitter.js";
 import { createEnvelope } from "./envelope.js";
-import { type NavigationListener, watchNavigation } from "./navigation.js";
+import { watchNavigation } from "./navigation.js";
 import type { AttrValue } from "./otlp.js";
 import { startPageviews } from "./pageview.js";
 import { SessionContext } from "./session.js";
@@ -72,17 +72,16 @@ export function initInternal(
 
   // The navigation watcher always runs so the envelope's page context stays
   // fresh for every signal; the disable list only gates the signal listeners.
-  const navigationListeners: NavigationListener[] = [];
-  if (enabled("pageviews")) {
-    navigationListeners.push(startPageviews(emitter));
-  }
-  const stopWatching = watchNavigation(session, navigationListeners);
+  const stopWatching = watchNavigation(
+    session,
+    enabled("pageviews") ? [startPageviews(emitter)] : [],
+  );
 
   return {
-    flush: () => emitter.flush(),
-    shutdown: async () => {
+    flush: emitter.flush,
+    shutdown: () => {
       stopWatching();
-      await emitter.shutdown();
+      return emitter.shutdown();
     },
   };
 }
