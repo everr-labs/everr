@@ -732,6 +732,34 @@ importers:
         specifier: 'catalog:'
         version: 6.0.3
 
+  packages/web-sdk:
+    dependencies:
+      '@opentelemetry/api':
+        specifier: ^1.9.1
+        version: 1.9.1
+      '@opentelemetry/api-logs':
+        specifier: ^0.218.0
+        version: 0.218.0
+      '@opentelemetry/exporter-logs-otlp-http':
+        specifier: ^0.218.0
+        version: 0.218.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/resources':
+        specifier: ^2.7.1
+        version: 2.7.1(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-logs':
+        specifier: ^0.218.0
+        version: 0.218.0(@opentelemetry/api@1.9.1)
+    devDependencies:
+      jsdom:
+        specifier: ^29.1.1
+        version: 29.1.1(@noble/hashes@2.2.0)
+      tsdown:
+        specifier: ^0.22.2
+        version: 0.22.2(tsx@4.21.0)(typescript@6.0.3)
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
 packages:
 
   '@actions/artifact@2.2.2':

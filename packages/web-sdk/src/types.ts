@@ -1,0 +1,87 @@
+/**
+ * Per-signal capture toggles. Every key defaults to `true`.
+ *
+ * - `pageviews` governs `browser.page_view` and `browser.page_leave` together.
+ * - `interactions` governs clicks, rage/dead click detection, change and submit.
+ * - `webVitals` governs `browser.web_vital` reporting.
+ *
+ * Errors have no capture key (`@everr/auto-otel-errors` options govern them)
+ * and replay is never a capture flag (the mode system owns it).
+ */
+export type CaptureOptions = {
+  pageviews?: boolean;
+  interactions?: boolean;
+  webVitals?: boolean;
+};
+
+/** `false` disables all analytics capture; `true` (the default) enables everything. */
+export type CaptureConfig = boolean | CaptureOptions;
+
+export type ResolvedCapture = {
+  pageviews: boolean;
+  interactions: boolean;
+  webVitals: boolean;
+};
+
+type CommonInitOptions = {
+  /** The `service.name` resource attribute events are reported under. */
+  serviceName: string;
+  /** Overrides the `service.version` resource attribute (defaults to the SDK build version). */
+  serviceVersion?: string;
+  /** The `deployment.environment.name` resource attribute, e.g. `import.meta.env.MODE`. */
+  deploymentEnvironment?: string;
+  /**
+   * Public origin-bound browser ingest key. When set (and no explicit
+   * `endpoint` is given) events ship to the hosted Everr ingest.
+   */
+  ingestKey?: string;
+  /** Explicit OTLP base endpoint override (used without the key's Authorization header). */
+  endpoint?: string;
+  /**
+   * Development mode, e.g. `import.meta.env.DEV`. Without a key or endpoint,
+   * dev falls back to the local collector; production becomes a structural
+   * no-op that never issues a network request.
+   */
+  dev?: boolean;
+  capture?: CaptureConfig;
+};
+
+/**
+ * Strictly cookieless: zero cookies, zero storage, no visitor id. A random
+ * in-memory `session.id` survives SPA navigations and dies on reload or tab
+ * close. There are no identity or replay fields on this type by design.
+ */
+export type CookielessInitOptions = CommonInitOptions & {
+  mode: "cookieless";
+};
+
+/**
+ * Consented mode (post-CMP-opt-in): durable identity, `identify()`, and the
+ * lazy replay subpath. Not implemented yet; `init` rejects it at runtime.
+ */
+export type ConsentedInitOptions = CommonInitOptions & {
+  mode: "consented";
+};
+
+export type InitOptions = CookielessInitOptions | ConsentedInitOptions;
+
+export interface EverrClient {
+  readonly mode: "cookieless" | "consented";
+  /** Force-flushes any batched records. */
+  flush(): Promise<void>;
+  /** Flushes, stops all capture, and unpatches globals. */
+  shutdown(): Promise<void>;
+}
+
+export interface CookielessClient extends EverrClient {
+  readonly mode: "cookieless";
+}
+
+/**
+ * Mode-typed handle for consented deployments. `identify()`, `revoke()`, and
+ * the replay capability land on this handle (and only this handle) when
+ * consented mode ships.
+ */
+export interface ConsentedClient extends EverrClient {
+  readonly mode: "consented";
+}
