@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@everr/ui": "workspace:*",
+    "@everr/web-sdk": "workspace:*",
     "@fontsource-variable/instrument-sans": "^5.2.8",
     "@icons-pack/react-simple-icons": "catalog:",
     "@posthog/react": "^1.9.0",

@@ -515,6 +515,9 @@ importers:
       '@everr/ui':
         specifier: workspace:*
         version: link:../ui
+      '@everr/web-sdk':
+        specifier: workspace:*
+        version: link:../web-sdk
       '@fontsource-variable/instrument-sans':
         specifier: ^5.2.8
         version: 5.2.8

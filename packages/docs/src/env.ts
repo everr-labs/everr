@@ -11,12 +11,14 @@ export const env = createEnv({
   client: {
     VITE_POSTHOG_PROJECT_TOKEN: z.string(),
     VITE_POSTHOG_HOST: z.string().default("https://eu.i.posthog.com"),
+    VITE_EVERR_PUBLIC_INGEST_KEY: z.string().optional(),
   },
 
   runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
     VITE_POSTHOG_PROJECT_TOKEN: import.meta.env.VITE_POSTHOG_PROJECT_TOKEN,
     VITE_POSTHOG_HOST: import.meta.env.VITE_POSTHOG_HOST,
+    VITE_EVERR_PUBLIC_INGEST_KEY: import.meta.env.VITE_EVERR_PUBLIC_INGEST_KEY,
   },
 
   emptyStringAsUndefined: true,
