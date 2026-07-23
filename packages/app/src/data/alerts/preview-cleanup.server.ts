@@ -38,7 +38,7 @@ async function deleteCcRules(
 /**
  * Best-effort removal of the suppressed CC rules left behind by deleted
  * previews: list each affected org's rules and delete every one whose
- * everr.preview annotation names a deleted preview id.
+ * `namespace` names a deleted preview id.
  *
  * Called AFTER the preview registry rows are gone. Row-first ordering keeps
  * the Postgres delete authoritative (its predicate already guards against a
@@ -63,7 +63,7 @@ export async function deletePreviewCcRules(
       const rules = await cc.listAllRules(orgId);
       const ruleIds = rules
         .filter((rule) => {
-          const previewId = previewIdOf(rule.spec);
+          const previewId = previewIdOf(rule);
           return previewId !== null && previewIds.has(previewId);
         })
         .map((rule) => rule.id);
@@ -117,7 +117,7 @@ const productionDb: OrphanSweepDb = {
 
 /**
  * Durable backstop for the on-delete fast path: reaps suppressed CC rules whose
- * everr.preview annotation names a preview that no longer exists in the
+ * `namespace` names a preview that no longer exists in the
  * registry. These accumulate when {@link deletePreviewCcRules} could not reach
  * CC at deletion time; left alone they evaluate forever and never notify.
  *
@@ -131,7 +131,7 @@ const productionDb: OrphanSweepDb = {
  * registry. A preview created between the two reads writes its registry row
  * before its CC rules (see upsertPreview → reconcile ordering), so any rule we
  * listed has its parent row present in the snapshot and is retained. We only
- * ever delete a rule whose annotation id is absent from a registry snapshot
+ * ever delete a rule whose namespace is absent from a registry snapshot
  * taken strictly after the list.
  *
  * CC unavailability is tolerated per org: a failing org is logged and skipped,
@@ -148,7 +148,7 @@ export async function sweepOrphanCcRules(
       const rules = await cc.listAllRules(orgId);
       const referenced = new Set<string>();
       for (const rule of rules) {
-        const previewId = previewIdOf(rule.spec);
+        const previewId = previewIdOf(rule);
         if (previewId !== null) referenced.add(previewId);
       }
       if (referenced.size === 0) continue;
@@ -156,7 +156,7 @@ export async function sweepOrphanCcRules(
       const live = await sweepDb.existingPreviewIds(orgId, [...referenced]);
       const orphanRuleIds = rules
         .filter((rule) => {
-          const previewId = previewIdOf(rule.spec);
+          const previewId = previewIdOf(rule);
           return previewId !== null && !live.has(previewId);
         })
         .map((rule) => rule.id);

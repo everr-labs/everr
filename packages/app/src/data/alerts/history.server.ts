@@ -136,7 +136,7 @@ export type AlertEventLogRow = {
   timestamp: string;
   // alert.event_type; the vocabulary lives in ./event-types.
   eventType: AlertEventType;
-  slug: string; // alert.slug (everr.name annotation, falling back to the rule id)
+  slug: string; // alert.slug (the rule's first-class `name`, project/slug qualified)
   instanceFingerprint: string;
   labels: Record<string, string>; // alert.instance_labels decoded
   // alert.severity: CC stamps the rule's severity on alert event logs; empty

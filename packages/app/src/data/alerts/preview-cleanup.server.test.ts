@@ -19,7 +19,7 @@ vi.mock("@/telemetry/logger", () => ({
 
 import * as cc from "@/data/cc/client";
 import { serverLogger } from "@/telemetry/logger";
-import { OWN_PREVIEW, OWN_REPO } from "./mapping";
+import { OWN_REPO } from "./mapping";
 import {
   deletePreviewCcRules,
   type OrphanSweepDb,
@@ -29,13 +29,16 @@ import {
 const mockedListRules = cc.listAllRules as ReturnType<typeof vi.fn>;
 const mockedDeleteRule = cc.deleteRule as ReturnType<typeof vi.fn>;
 
+// Preview identity lives on the rule's first-class `namespace` field now
+// ("" = live, a preview id otherwise), not an annotation.
 function ccRule(id: string, previewId?: string) {
   return {
     id,
+    namespace: previewId ?? "",
+    name: `default/${id}`,
     spec: {
       annotations: {
         [OWN_REPO]: "repo-1",
-        ...(previewId ? { [OWN_PREVIEW]: previewId } : {}),
       },
     },
   };
@@ -126,7 +129,7 @@ function fakeSweepDb(
 }
 
 describe("sweepOrphanCcRules", () => {
-  it("deletes preview rules whose annotation id is absent from the registry", async () => {
+  it("deletes preview rules whose namespace is absent from the registry", async () => {
     mockedListRules.mockResolvedValue([
       ccRule("live"), // no preview annotation → never touched
       ccRule("keep", "p-live"), // registry row still exists → kept

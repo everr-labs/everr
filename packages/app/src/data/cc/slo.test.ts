@@ -127,24 +127,22 @@ describe("ccSloTierSeverity", () => {
 });
 
 describe("SLO event handles", () => {
-  it("carries the uuid alone without an everr.name annotation, both with one", () => {
+  it("carries the uuid and the first-class name", () => {
     expect(ccSloHandles(slo())).toEqual([
       "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      "checkout-availability",
     ]);
-    expect(
-      ccSloHandles(
-        slo({ spec: spec({ annotations: { "everr.name": "checkout" } }) }),
-      ),
-    ).toEqual(["aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", "checkout"]);
+    expect(ccSloHandles(slo({ name: "payments/checkout" }))).toEqual([
+      "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      "payments/checkout",
+    ]);
   });
 
   it("resolves either handle to the SLO and misses unknown handles", () => {
-    const resolve = ccSloHandleResolver([
-      slo({ spec: spec({ annotations: { "everr.name": "checkout" } }) }),
-    ]);
-    expect(resolve("checkout")?.name).toBe("checkout-availability");
+    const resolve = ccSloHandleResolver([slo({ name: "payments/checkout" })]);
+    expect(resolve("payments/checkout")?.name).toBe("payments/checkout");
     expect(resolve("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")?.name).toBe(
-      "checkout-availability",
+      "payments/checkout",
     );
     expect(resolve("some-rule-slug")).toBeUndefined();
   });

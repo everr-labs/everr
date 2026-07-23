@@ -53,13 +53,13 @@ export function ccSloTierSeverity(
 /**
  * The handles an event row may carry for an SLO, mirroring
  * `ccRuleHandles` (data/alerts/rule-identity.ts): CC's alert log resolves the
- * slug as the `everr.name` annotation falling back to the source uuid
- * (otel/alert_log.rs `slug_for` — for SLO events `ev.rule` carries the SLO
- * uuid), so both handles can appear in stored history.
+ * slug as the SLO's first-class `name` (project/slug qualified), falling back
+ * to the source uuid for records stored before CC stamped it (otel/
+ * alert_log.rs `slug_for` — for SLO events `ev.rule` carries the SLO uuid), so
+ * both handles can appear in stored history.
  */
 export function ccSloHandles(slo: CcSlo): string[] {
-  const slug = slo.spec.annotations["everr.name"];
-  return slug ? [slo.id, slug] : [slo.id];
+  return [slo.id, slo.name];
 }
 
 /**
