@@ -496,6 +496,7 @@ pub async fn evaluate_slo(
         // The engine already stamped `ev.slo` from the instance's `SourceId::Slo`.
         if let Some(mut ev) = outcome.event {
             ev.suppressed = slo.spec.suppressed;
+            ev.name = slo.name.clone();
             ev.evidence = Some(slo_evidence(slo, tf, budget_window_secs));
             ev.evidence_truncated = false;
             out_events.push(ev);
@@ -536,6 +537,7 @@ pub async fn evaluate_slo(
         // row, so evidence stays None/untruncated (already the engine's default).
         if let Some(mut ev) = outcome.event {
             ev.suppressed = slo.spec.suppressed;
+            ev.name = slo.name.clone();
             out_events.push(ev);
         }
         next_states.push(outcome.next);

@@ -830,7 +830,7 @@ impl PgStore {
                         THEN LEAST(next_eval, now() + make_interval(secs => (spec->>'interval_secs')::int))
                         ELSE next_eval END
               WHERE id = $1 AND tenant = $3
-            RETURNING consecutive_failures, health_status,
+            RETURNING consecutive_failures, health_status, name,
                       (spec->>'suppressed')::bool AS suppressed",
         )
         .bind(rule.0)
@@ -846,6 +846,7 @@ impl PgStore {
         };
         let failures: i32 = row.get("consecutive_failures");
         let status: String = row.get("health_status");
+        let name: String = row.get("name");
         // Specs stored before the key existed read NULL -> not suppressed.
         let suppressed: bool = row.get::<Option<bool>, _>("suppressed").unwrap_or(false);
 
@@ -870,6 +871,7 @@ impl PgStore {
             // A preview (suppressed) rule must never notify, its health events included.
             // Stamped here so the outbox payload carries the flag for the relay too.
             ev.suppressed = suppressed;
+            ev.name = name;
             let id = insert_outbox_event(&mut tx, &ev).await?;
             tx.commit().await?;
             return Ok(Some((ev, id)));
@@ -896,7 +898,7 @@ impl PgStore {
                 SET consecutive_failures = 0, last_error = NULL, last_error_at = NULL
               WHERE id = $1 AND tenant = $2
                 AND (consecutive_failures <> 0 OR last_error IS NOT NULL OR health_status <> 'healthy')
-            RETURNING health_status, (spec->>'suppressed')::bool AS suppressed",
+            RETURNING health_status, name, (spec->>'suppressed')::bool AS suppressed",
         )
         .bind(rule.0)
         .bind(tenant.as_str())
@@ -909,6 +911,7 @@ impl PgStore {
             return Ok(None);
         };
         let status: String = row.get("health_status");
+        let name: String = row.get("name");
         let suppressed: bool = row.get::<Option<bool>, _>("suppressed").unwrap_or(false);
 
         if status == "degraded" {
@@ -923,6 +926,7 @@ impl PgStore {
             ann.insert("summary".to_string(), format!("Rule {} recovered", rule.0));
             let mut ev = Event::rule_health(tenant.clone(), rule, EventStatus::Resolved, ann, now);
             ev.suppressed = suppressed;
+            ev.name = name;
             let id = insert_outbox_event(&mut tx, &ev).await?;
             tx.commit().await?;
             return Ok(Some((ev, id)));
@@ -2051,7 +2055,7 @@ impl PgStore {
             "SELECT i.key AS key, i.rule AS rule, i.tenant AS tenant, i.status AS status,
                     i.labels AS labels, i.value AS value,
                     r.spec->'severity' AS severity, r.spec->'annotations' AS annotations,
-                    r.spec->'suppressed' AS suppressed
+                    r.spec->'suppressed' AS suppressed, r.name AS name
              FROM instances i JOIN rules r ON r.id = i.rule
              WHERE i.status IN ('pending','firing')
                AND NOT r.paused
@@ -2100,6 +2104,7 @@ impl PgStore {
                 severity,
                 annotations,
                 suppressed,
+                name: r.get("name"),
             });
         }
         Ok(out)
@@ -2723,7 +2728,7 @@ impl PgStore {
     ) -> Result<Option<(Event, Uuid)>, StoreError> {
         let mut tx = self.pool.begin().await?;
         let row = sqlx::query(
-            "SELECT health_status, consecutive_failures FROM slos WHERE id=$1 AND tenant=$2 FOR UPDATE",
+            "SELECT health_status, consecutive_failures, name FROM slos WHERE id=$1 AND tenant=$2 FOR UPDATE",
         )
         .bind(slo.0)
         .bind(tenant.as_str())
@@ -2734,6 +2739,7 @@ impl PgStore {
             return Ok(None);
         };
         let was: String = row.get("health_status");
+        let name: String = row.get("name");
         let n: i32 = row.get::<i32, _>("consecutive_failures") + 1;
         let now_degraded = n >= degrade_after as i32;
         let transitioned = now_degraded && was != "degraded";
@@ -2760,7 +2766,8 @@ impl PgStore {
                 format!("SLO {} degraded: {}", slo.0, err),
             );
             ann.insert("last_error".to_string(), err.to_string());
-            let ev = Event::slo_health(tenant.clone(), slo, EventStatus::Firing, ann, now);
+            let mut ev = Event::slo_health(tenant.clone(), slo, EventStatus::Firing, ann, now);
+            ev.name = name;
             let id = insert_outbox_event(&mut tx, &ev).await?;
             tx.commit().await?;
             return Ok(Some((ev, id)));
@@ -2785,7 +2792,7 @@ impl PgStore {
             "UPDATE slos SET consecutive_failures=0, last_error=NULL, last_error_at=NULL
               WHERE id = $1 AND tenant = $2
                 AND (consecutive_failures <> 0 OR last_error IS NOT NULL OR health_status <> 'healthy')
-            RETURNING health_status",
+            RETURNING health_status, name",
         )
         .bind(slo.0)
         .bind(tenant.as_str())
@@ -2797,6 +2804,7 @@ impl PgStore {
             return Ok(None);
         };
         let status: String = row.get("health_status");
+        let name: String = row.get("name");
 
         if status == "degraded" {
             sqlx::query(
@@ -2808,7 +2816,8 @@ impl PgStore {
             .await?;
             let mut ann = BTreeMap::new();
             ann.insert("summary".to_string(), format!("SLO {} recovered", slo.0));
-            let ev = Event::slo_health(tenant.clone(), slo, EventStatus::Resolved, ann, now);
+            let mut ev = Event::slo_health(tenant.clone(), slo, EventStatus::Resolved, ann, now);
+            ev.name = name;
             let id = insert_outbox_event(&mut tx, &ev).await?;
             tx.commit().await?;
             return Ok(Some((ev, id)));
@@ -2978,7 +2987,8 @@ impl PgStore {
         let rows = sqlx::query(
             "SELECT i.key AS key, i.slo AS slo, i.tenant AS tenant, i.status AS status,
                     i.labels AS labels, i.value AS value,
-                    s.spec->'annotations' AS annotations, s.spec->'suppressed' AS suppressed
+                    s.spec->'annotations' AS annotations, s.spec->'suppressed' AS suppressed,
+                    s.name AS name
              FROM slo_instances i JOIN slos s ON s.id = i.slo
              WHERE i.status IN ('pending','firing')
                AND NOT s.paused
@@ -3026,6 +3036,7 @@ impl PgStore {
                 severity,
                 annotations,
                 suppressed,
+                name: r.get("name"),
             });
         }
         Ok(out)

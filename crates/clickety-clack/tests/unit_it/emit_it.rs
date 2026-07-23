@@ -22,6 +22,7 @@ fn ev(tenant: &str) -> Event {
         tenant: TenantId::from_trusted(tenant.to_string()),
         rule: RuleId(Uuid::nil()),
         slo: None,
+        name: String::new(),
         instance_key: InstanceKey("k".into()),
         status: EventStatus::Firing,
         kind: EventKind::Alert,

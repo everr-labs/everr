@@ -203,6 +203,7 @@ fn reconcile_transition(s: StaleInstance, now: OffsetDateTime) -> (InstanceState
             // A preview (suppressed) rule's or SLO's synthetic Resolved must not notify
             // either. No source row here, so evidence stays None/untruncated.
             ev.suppressed = s.suppressed;
+            ev.name = s.name;
             Some(ev)
         }
         _ => None,
@@ -309,6 +310,7 @@ mod tests {
             severity: Severity::Critical,
             annotations: std::collections::BTreeMap::new(),
             suppressed: false,
+            name: String::new(),
         }
     }
 

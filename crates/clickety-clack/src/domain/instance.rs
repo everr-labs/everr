@@ -152,4 +152,7 @@ pub struct StaleInstance {
     pub severity: Severity,
     pub annotations: BTreeMap<String, String>,
     pub suppressed: bool,
+    /// The owning rule's/SLO's first-class name, stamped onto the synthetic
+    /// Resolved event so reconciled events still carry `alert.slug`.
+    pub name: String,
 }
