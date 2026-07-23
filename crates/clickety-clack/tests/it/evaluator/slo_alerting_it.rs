@@ -320,7 +320,13 @@ async fn freeze_on_error_freezes_instances() {
     let labels = BTreeMap::from([("slo_tier".to_string(), "fast-burn".to_string())]);
     let key = InstanceKey::new(rule_id, &labels);
     let mut inst = InstanceState::new_inactive(key, SourceId::Slo(slo.id), tenant.clone(), labels);
+    // Truncate to whole microseconds: timestamptz round-trips at micro precision,
+    // and the byte-for-byte assertion below must not depend on the host clock's
+    // granularity (Linux hands out nanoseconds; macOS happens to stop at micros).
     let seeded_last_seen = OffsetDateTime::now_utc() - time::Duration::minutes(5);
+    let seeded_last_seen = seeded_last_seen
+        .replace_nanosecond(seeded_last_seen.microsecond() * 1000)
+        .unwrap();
     inst.status = Status::Firing;
     inst.active_since = Some(seeded_last_seen);
     inst.last_seen = Some(seeded_last_seen);
