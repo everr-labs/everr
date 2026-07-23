@@ -3,6 +3,12 @@ metadata:
   name: demo-always-burning
   project: demo
 spec:
+  display:
+    name: "Demo: always burning"
+    description: >-
+      Synthetic SLO whose SLI sits near 0%, so the error budget burns
+      constantly. A fixture for exercising the burn-rate UI alongside the demo
+      alert rules.
   sli:
     # "good" counts only extreme-severity logs (SeverityNumber >= 250), which
     # effectively never occur, so the SLI sits near 0% and the budget is always
