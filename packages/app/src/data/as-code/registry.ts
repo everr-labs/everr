@@ -1,5 +1,4 @@
 import { applyAlertSpecs } from "@/data/alerts/apply.server";
-import { validateAlertRunbookLinks } from "@/data/alerts/runbook-links.server";
 import { applyDashboardSpecs } from "@/data/dashboards/apply.server";
 import { findPreviewId, upsertPreview } from "@/data/previews/apply.server";
 import type { Namespace } from "@/data/previews/scope";
@@ -8,6 +7,10 @@ import { applySloSpecs } from "@/data/slos/apply.server";
 import { type DbExecutor, db } from "@/db/client";
 import { ApplyValidationError } from "./errors";
 import type { OwnershipConflict } from "./ownership";
+import {
+  collectOrphanWarnings,
+  validateRunbookLinks,
+} from "./runbook-links.server";
 import type { ApplyInput, ApplyResourceEntry, ApplySource } from "./schema";
 
 export type { OwnershipConflict } from "./ownership";
@@ -185,15 +188,37 @@ export async function applyResources(opts: {
     );
   }
 
-  // Cross-kind: a linked runbook must exist in this batch or already in the
-  // DB. Runs after every kind validated, before any kind writes.
-  await validateAlertRunbookLinks({
+  // Cross-kind: every alert's and SLO's linked runbook must exist in this
+  // batch or already be owned by another repo. Runs after every kind
+  // validated, before any kind writes.
+  await validateRunbookLinks({
     namespace,
     alerts: state.alerts,
+    slos: state.slos,
     runbooks: state.runbooks,
   });
 
-  if (dryRun) return { dryRun: true, results: validated };
+  // Reverse check, still before any write: a runbook this apply is about to
+  // prune (in the DB, absent from the batch) may be linked from another
+  // repo's live alert or SLO. Non-fatal — surfaced as a note on the Runbook
+  // kind's result rather than failing the apply.
+  const orphanWarnings = await collectOrphanWarnings({
+    namespace,
+    runbooks: state.runbooks,
+  });
+  const withOrphanWarnings = (results: KindResult[]): KindResult[] =>
+    orphanWarnings.length === 0
+      ? results
+      : results.map((r) =>
+          r.kind === "Runbook"
+            ? {
+                ...r,
+                note: [r.note, ...orphanWarnings].filter(Boolean).join("; "),
+              }
+            : r,
+        );
+
+  if (dryRun) return { dryRun: true, results: withOrphanWarnings(validated) };
 
   // Real apply: one transaction so registration + every kind commit or roll
   // back together. Register the preview FIRST — its row is the parent every
@@ -218,5 +243,5 @@ export async function applyResources(opts: {
     }
   });
 
-  return { dryRun: false, results };
+  return { dryRun: false, results: withOrphanWarnings(results) };
 }
