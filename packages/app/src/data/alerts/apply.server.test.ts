@@ -21,7 +21,7 @@ import { CcApiError } from "@/data/cc/errors";
 import type { DbExecutor } from "@/db/client";
 import { querySqlApiWithMeta } from "@/lib/clickhouse";
 import { applyAlertSpecs } from "./apply.server";
-import { isOwnedRule, OWN_NAME, OWN_PREVIEW, OWN_REPO } from "./mapping";
+import { OWN_REPO } from "./mapping";
 
 // The simple-alert reconciler talks to CC over HTTP and never touches Postgres,
 // so the Reconciler contract's `db` is unused here — a stub satisfies the type.
@@ -40,8 +40,6 @@ beforeEach(() => {
     columns: ["service", "count"],
   });
   mockedListRules.mockResolvedValue([]);
-  // A live create is followed by a PUT stamping link.alert, which needs the
-  // freshly minted id + version.
   mockedCreateRule.mockResolvedValue({ id: "new-rule", version: 1 });
   mockedUpdateRule.mockResolvedValue({ id: "new-rule", version: 2 });
 });
@@ -62,12 +60,16 @@ function alert(name = "high-errors", overrides = {}) {
   };
 }
 
-// A CC rule view shape as returned by the rules listing, matching what applying the
-// default alert() fixture stores (so the fingerprints are equal).
+// A CC rule view shape as returned by the rules listing, matching what applying
+// the default alert() fixture stores (so the fingerprints are equal). Identity
+// (project/slug, live-vs-preview) lives on the rule's first-class `name`/
+// `namespace` fields now, not an annotation — only everr.repoid stays there.
 function managedRule(name: string, over: Record<string, unknown> = {}) {
   return {
     id: `rule-${name}`,
     version: 3,
+    namespace: "",
+    name: `default/${name}`,
     spec: {
       sql: "SELECT service, count() AS count FROM logs GROUP BY service",
       interval_secs: 300,
@@ -76,10 +78,9 @@ function managedRule(name: string, over: Record<string, unknown> = {}) {
       value_column: "count",
       severity: "info",
       annotations: {
-        [OWN_NAME]: name,
         [OWN_REPO]: "repo-1",
         summary: `\${value} errors in \${service}`,
-        "link.alert": `https://app.example.com/alerts/rules/rule-${name}`,
+        "link.alert": `https://app.example.com/alerts/rules/default/${name}`,
       },
       resolve_after: 1,
       suppressed: false,
@@ -88,8 +89,10 @@ function managedRule(name: string, over: Record<string, unknown> = {}) {
   };
 }
 
-// A stored PREVIEW copy of the alert() fixture: suppressed and tagged with its
-// owning preview registry id, link.alert pointing at its own rule id.
+// A stored PREVIEW copy of the alert() fixture: suppressed, tagged with its
+// owning preview registry id on the first-class `namespace` field. The
+// project/slug `name` and link.alert are unchanged from the live copy — the
+// link target no longer depends on the CC rule id or the live/preview split.
 function previewRule(
   name: string,
   previewId: string,
@@ -99,13 +102,9 @@ function previewRule(
   return {
     ...base,
     id: `prev-rule-${name}`,
+    namespace: previewId,
     spec: {
       ...base.spec,
-      annotations: {
-        ...base.spec.annotations,
-        [OWN_PREVIEW]: previewId,
-        "link.alert": `https://app.example.com/alerts/rules/prev-rule-${name}`,
-      },
       suppressed: true,
       ...over,
     },
@@ -113,7 +112,7 @@ function previewRule(
 }
 
 describe("applyAlertSpecs", () => {
-  it("creates a managed CC rule, then stamps link.alert with the new id", async () => {
+  it("creates a managed CC rule with a single call (no follow-up link stamp)", async () => {
     await applyAlertSpecs({
       namespace: { orgId: "o", repoid: "repo-1", kind: "live" },
       db,
@@ -121,25 +120,22 @@ describe("applyAlertSpecs", () => {
     });
 
     expect(mockedCreateRule).toHaveBeenCalledTimes(1);
-    const [org, spec] = mockedCreateRule.mock.calls[0];
+    const [org, input] = mockedCreateRule.mock.calls[0];
     expect(org).toBe("o");
-    expect(spec.annotations[OWN_NAME]).toBe("high-errors");
-    expect(spec.annotations[OWN_REPO]).toBe("repo-1");
-    expect(isOwnedRule(spec, "repo-1")).toBe(true);
-    expect(spec.annotations.summary).toBe(`\${value} errors in \${service}`);
-    expect(spec.interval_secs).toBe(300);
-    expect(spec.value_column).toBe("count");
-
-    // The alert-detail URL requires the CC rule id, which exists only after
-    // create: an immediate follow-up PUT (guarded by the fresh version) sets it.
-    expect(mockedUpdateRule).toHaveBeenCalledTimes(1);
-    const [uOrg, uId, uSpec, uVersion] = mockedUpdateRule.mock.calls[0];
-    expect(uOrg).toBe("o");
-    expect(uId).toBe("new-rule");
-    expect(uVersion).toBe(1);
-    expect(uSpec.annotations["link.alert"]).toBe(
-      "https://app.example.com/alerts/rules/new-rule",
+    expect(input).toEqual(
+      expect.objectContaining({ name: "default/high-errors", namespace: "" }),
     );
+    expect(input.annotations[OWN_REPO]).toBe("repo-1");
+    expect(input.annotations.summary).toBe(`\${value} errors in \${service}`);
+    expect(input.annotations["link.alert"]).toBe(
+      "https://app.example.com/alerts/rules/default/high-errors",
+    );
+    expect(input.interval_secs).toBe(300);
+    expect(input.value_column).toBe("count");
+
+    // Identity (project/slug/namespace) is known up front, so create is a
+    // single call: no follow-up PUT to stamp a link.
+    expect(mockedUpdateRule).not.toHaveBeenCalled();
     expect(mockedDeleteRule).not.toHaveBeenCalled();
   });
 
@@ -163,7 +159,7 @@ describe("applyAlertSpecs", () => {
     expect(mockedDeleteRule).not.toHaveBeenCalled();
   });
 
-  it("preview apply creates a suppressed rule tagged with the preview id", async () => {
+  it("preview apply creates a suppressed rule in the preview namespace", async () => {
     const res = await applyAlertSpecs({
       namespace: { orgId: "o", repoid: "repo-1", kind: "preview", id: "p1" },
       db,
@@ -173,32 +169,27 @@ describe("applyAlertSpecs", () => {
     // Full validation ran (the query was checked against ClickHouse)...
     expect(ch).toHaveBeenCalledTimes(1);
     // ...and the rule was REALLY registered, exactly like a live create but
-    // suppressed (evaluated, never notifying) and preview-tagged.
+    // suppressed (evaluated, never notifying) and namespaced to the preview.
     expect(mockedCreateRule).toHaveBeenCalledTimes(1);
-    const [org, spec] = mockedCreateRule.mock.calls[0];
+    const [org, input] = mockedCreateRule.mock.calls[0];
     expect(org).toBe("o");
-    expect(spec.suppressed).toBe(true);
-    expect(spec.annotations[OWN_PREVIEW]).toBe("p1");
-    expect(spec.annotations[OWN_REPO]).toBe("repo-1");
-    expect(isOwnedRule(spec, "repo-1")).toBe(true);
-
-    // The link.alert stamp works exactly like the live path: a follow-up PUT
-    // with the freshly minted id, still suppressed.
-    expect(mockedUpdateRule).toHaveBeenCalledTimes(1);
-    const [, uId, uSpec, uVersion] = mockedUpdateRule.mock.calls[0];
-    expect(uId).toBe("new-rule");
-    expect(uVersion).toBe(1);
-    expect(uSpec.annotations["link.alert"]).toBe(
-      "https://app.example.com/alerts/rules/new-rule",
+    expect(input.namespace).toBe("p1");
+    expect(input.name).toBe("default/high-errors");
+    expect(input.suppressed).toBe(true);
+    expect(input.annotations[OWN_REPO]).toBe("repo-1");
+    expect(input.annotations["link.alert"]).toBe(
+      "https://app.example.com/alerts/rules/default/high-errors",
     );
-    expect(uSpec.suppressed).toBe(true);
+
+    // Single-call create, same as the live path.
+    expect(mockedUpdateRule).not.toHaveBeenCalled();
 
     expect(res.created).toEqual(["high-errors"]);
     expect(res.deleted).toEqual([]);
     expect(res.note).toMatch(/suppressed/);
   });
 
-  it("scopes a preview reconcile to rules tagged with ITS preview id", async () => {
+  it("scopes a preview reconcile to rules tagged with ITS preview namespace", async () => {
     mockedListRules.mockResolvedValue([
       // Live rule in the same repo: invisible to the preview reconcile.
       managedRule("high-errors"),
@@ -214,9 +205,34 @@ describe("applyAlertSpecs", () => {
       resources: [],
     });
 
-    expect(res.deleted).toEqual(["stale"]);
+    expect(res.deleted).toEqual(["default/stale"]);
     expect(mockedDeleteRule).toHaveBeenCalledTimes(1);
     expect(mockedDeleteRule).toHaveBeenCalledWith("o", "prev-rule-stale");
+  });
+
+  it("preview-scopes rules: live and preview copies of the same name coexist, live apply only touches its own", async () => {
+    mockedListRules.mockResolvedValue([
+      managedRule("high-errors", {
+        // Different SQL → fingerprint changes, so the live apply updates it.
+        sql: "SELECT service, count() AS count FROM old_logs GROUP BY service",
+      }),
+      previewRule("high-errors", "pv-1"),
+    ]);
+
+    const res = await applyAlertSpecs({
+      namespace: { orgId: "o", repoid: "repo-1", kind: "live" },
+      db,
+      resources: [{ path: "a.yaml", resource: alert() }],
+    });
+
+    expect(res.created).toEqual([]);
+    expect(res.updated).toEqual(["high-errors"]);
+    expect(res.deleted).toEqual([]);
+    expect(mockedUpdateRule).toHaveBeenCalledTimes(1);
+    const [, id] = mockedUpdateRule.mock.calls[0];
+    // The live rule's id, never the coexisting preview copy's.
+    expect(id).toBe("rule-high-errors");
+    expect(mockedDeleteRule).not.toHaveBeenCalled();
   });
 
   it("leaves an unchanged preview rule alone and updates a changed one in place", async () => {
@@ -247,7 +263,7 @@ describe("applyAlertSpecs", () => {
     expect(id).toBe("prev-rule-high-errors");
     expect(version).toBe(3);
     expect(spec.suppressed).toBe(true);
-    expect(spec.annotations[OWN_PREVIEW]).toBe("p1");
+    expect(spec.annotations[OWN_REPO]).toBe("repo-1");
   });
 
   it("live apply never adopts or deletes preview rules (and vice versa creates fresh)", async () => {
@@ -270,9 +286,9 @@ describe("applyAlertSpecs", () => {
       resources: [{ path: "a.yaml", resource: alert() }],
     });
     expect(res.created).toEqual(["high-errors"]);
-    const [, spec] = mockedCreateRule.mock.calls[0];
-    expect(spec.suppressed).toBe(false);
-    expect(spec.annotations[OWN_PREVIEW]).toBeUndefined();
+    const [, input] = mockedCreateRule.mock.calls[0];
+    expect(input.suppressed).toBe(false);
+    expect(input.namespace).toBe("");
   });
 
   it("dry-run of a first preview apply (no registry row) plans creates without listing CC", async () => {
@@ -372,8 +388,8 @@ describe("applyAlertSpecs", () => {
     // rule maps to empty label_columns (all rows collapse into one instance).
     expect(res.created).toEqual(["replays"]);
     expect(res.note).toBeUndefined();
-    const [, spec] = mockedCreateRule.mock.calls[0];
-    expect(spec.label_columns).toEqual([]);
+    const [, input] = mockedCreateRule.mock.calls[0];
+    expect(input.label_columns).toEqual([]);
   });
 
   it("warns (without failing) when evidence refs exceed CC's 16-column evidence cap", async () => {
@@ -401,15 +417,17 @@ describe("applyAlertSpecs", () => {
     );
   });
 
-  // Dev-migration path: an existing CC rule stamped only with everr.name +
-  // everr.repoid (no everr.managed, since the marker is retired) must still be
-  // recognized as owned and reconciled in place, not treated as a bare
-  // power-user rule and left alone / duplicated.
-  it("adopts an existing rule tagged everr.name + everr.repoid with no everr.managed marker", async () => {
+  // A CC rule at the same name/namespace, carrying only everr.repoid (no
+  // summary/link annotations previously generated) must still be recognized
+  // as owned and reconciled in place, not treated as a bare power-user rule
+  // and left alone / duplicated.
+  it("adopts an existing rule at the same name/namespace with only everr.repoid set", async () => {
     mockedListRules.mockResolvedValue([
       {
         id: "rule-high-errors",
         version: 7,
+        namespace: "",
+        name: "default/high-errors",
         spec: {
           sql: "SELECT service, count() AS count FROM old_logs GROUP BY service",
           interval_secs: 300,
@@ -418,7 +436,6 @@ describe("applyAlertSpecs", () => {
           value_column: "count",
           severity: "info",
           annotations: {
-            [OWN_NAME]: "high-errors",
             [OWN_REPO]: "repo-1",
             summary: `\${value} errors in \${service}`,
           },
@@ -434,8 +451,8 @@ describe("applyAlertSpecs", () => {
       resources: [{ path: "a.yaml", resource: alert() }],
     });
 
-    // Recognized as this rule (matched by name), updated in place rather than
-    // deleted + recreated: the id and version are preserved.
+    // Recognized as this rule (matched by name/namespace), updated in place
+    // rather than deleted + recreated: the id and version are preserved.
     expect(res.created).toEqual([]);
     expect(res.updated).toEqual(["high-errors"]);
     expect(res.deleted).toEqual([]);
@@ -499,7 +516,7 @@ describe("applyAlertSpecs", () => {
       "SELECT service, count() AS count FROM logs GROUP BY service",
     );
     expect(spec.annotations["link.alert"]).toBe(
-      "https://app.example.com/alerts/rules/rule-high-errors",
+      "https://app.example.com/alerts/rules/default/high-errors",
     );
     expect(mockedDeleteRule).not.toHaveBeenCalled();
     expect(mockedCreateRule).not.toHaveBeenCalled();
@@ -540,9 +557,10 @@ describe("applyAlertSpecs", () => {
     mockedListRules.mockResolvedValue([
       {
         id: "x",
+        namespace: "",
+        name: "default/gone",
         spec: {
           annotations: {
-            [OWN_NAME]: "gone",
             [OWN_REPO]: "repo-1",
           },
         },
@@ -556,16 +574,18 @@ describe("applyAlertSpecs", () => {
     });
 
     expect(mockedDeleteRule).toHaveBeenCalledWith("o", "x");
-    expect(res.deleted).toEqual(["gone"]);
+    expect(res.deleted).toEqual(["default/gone"]);
   });
 
-  it("never deletes a bare CC rule (no everr.name) in the same repo", async () => {
+  it("never deletes a bare CC rule with no everr.repoid annotation", async () => {
     mockedListRules.mockResolvedValue([
       {
         id: "p",
-        // Owned by repo-1 but no everr.name — a power-user CC rule, never
-        // adopted or touched by the AlertRule reconciler.
-        spec: { annotations: { [OWN_REPO]: "repo-1" }, severity: "info" },
+        namespace: "",
+        name: "power-user-rule",
+        // No everr.repoid — a power-user CC rule, never adopted or touched by
+        // the AlertRule reconciler.
+        spec: { annotations: {}, severity: "info" },
       },
     ]);
 
@@ -583,9 +603,10 @@ describe("applyAlertSpecs", () => {
     mockedListRules.mockResolvedValue([
       {
         id: "other",
+        namespace: "",
+        name: "default/elsewhere",
         spec: {
           annotations: {
-            [OWN_NAME]: "elsewhere",
             [OWN_REPO]: "repo-2",
           },
         },
