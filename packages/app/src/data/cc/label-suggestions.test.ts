@@ -4,6 +4,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CcAlert, CcRuleView, CcSlo } from "@/data/cc/types";
 import { listCcLabelKeys, listCcLabelValues } from "./server";
 
+// ./server transitively imports @/data/previews/repoids -> @/db/client, whose
+// t3-env access throws under jsdom; stub the db module before that chain loads.
+vi.mock("@/db/client", () => ({ db: {} }));
+
 const mocks = vi.hoisted(() => ({
   listAllRules: vi.fn(),
   listSlos: vi.fn(),

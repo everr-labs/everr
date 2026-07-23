@@ -20,6 +20,10 @@ import { AlertEventFeed } from "./alert-event-feed";
 // AlertEventFeed (and its dependencies) load.
 // ---------------------------------------------------------------------------
 
+// The feed imports @/data/cc/queries -> server fns -> @/db/client, whose
+// t3-env access throws under jsdom; stub the db module before that chain loads.
+vi.mock("@/db/client", () => ({ db: {} }));
+
 const mockUseQuery = vi.fn();
 vi.mock("@tanstack/react-query", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-query")>();
