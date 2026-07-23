@@ -5,7 +5,7 @@ import { createEnvelope } from "./envelope.js";
 import { startInteractions } from "./interactions.js";
 import { watchNavigation } from "./navigation.js";
 import { startPageviews } from "./pageview.js";
-import { SessionContext } from "./session.js";
+import { createSessionContext } from "./session.js";
 import type {
   CaptureSignal,
   ConsentedClient,
@@ -38,7 +38,7 @@ export function init(options: InitOptions): EverrClient {
   const transport = resolveTransport(options);
   if (!transport) return INERT;
 
-  const session = new SessionContext(location.href, document.referrer);
+  const session = createSessionContext(location.href, document.referrer);
 
   const emitter = createEmitter({
     ...transport,

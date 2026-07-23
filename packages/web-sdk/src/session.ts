@@ -10,33 +10,32 @@ export type PageContext = {
   readonly referrer: string | undefined;
 };
 
-export class SessionContext {
-  private context: PageContext;
+export type SessionContext = ReturnType<typeof createSessionContext>;
 
-  constructor(initialUrl: string, initialReferrer: string | undefined) {
-    this.context = {
-      sessionId: crypto.randomUUID(),
-      pageViewId: crypto.randomUUID(),
-      url: initialUrl,
-      path: pathOf(initialUrl),
-      referrer: initialReferrer || undefined,
-    };
-  }
+export function createSessionContext(
+  initialUrl: string,
+  initialReferrer: string | undefined,
+) {
+  let ctx = {
+    sessionId: crypto.randomUUID(),
+    pageViewId: crypto.randomUUID(),
+    url: initialUrl,
+    path: pathOf(initialUrl),
+    referrer: initialReferrer || undefined,
+  };
 
-  /** Rotates the pageview id; the outgoing URL becomes the new pageview's referrer. */
-  startPageView(url: string): void {
-    this.context = {
-      sessionId: this.context.sessionId,
-      pageViewId: crypto.randomUUID(),
-      url,
-      path: pathOf(url),
-      referrer: this.context.url,
-    };
-  }
-
-  current(): PageContext {
-    return this.context;
-  }
+  return {
+    startPageView(url: string) {
+      ctx = {
+        sessionId: ctx.sessionId,
+        pageViewId: crypto.randomUUID(),
+        url,
+        path: pathOf(url),
+        referrer: ctx.url,
+      };
+    },
+    current: () => ctx,
+  };
 }
 
 function pathOf(url: string): string {
