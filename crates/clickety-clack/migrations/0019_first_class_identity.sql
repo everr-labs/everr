@@ -40,6 +40,12 @@ CREATE UNIQUE INDEX rules_tenant_ns_name_idx ON rules (tenant, namespace, name);
 -- uniqueness to (tenant, namespace, name).
 ALTER TABLE slos ADD COLUMN namespace TEXT NOT NULL DEFAULT '';
 
+-- Drop the legacy per-tenant unique index BEFORE the backfill: rewriting a
+-- preview clone's ".pv-<hash>" name back to the live SLO's name is a
+-- (tenant, name) collision by design, legal only under the namespaced index
+-- created below.
+DROP INDEX slos_tenant_name_idx;
+
 UPDATE slos SET
     namespace = COALESCE(spec->'annotations'->>'everr.preview', ''),
     name = CASE
@@ -61,5 +67,4 @@ UPDATE slos SET name = slos.name || '-' || left(slos.id::text, 8)
 FROM d
 WHERE d.id = slos.id AND d.rn > 1;
 
-DROP INDEX slos_tenant_name_idx;
 CREATE UNIQUE INDEX slos_tenant_ns_name_idx ON slos (tenant, namespace, name);
