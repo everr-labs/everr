@@ -31,16 +31,8 @@ export function startInteractions(emit: Emit): () => void {
   };
   // Armed only while a dead-click candidate is pending: delivering mutation
   // records on every DOM change is too expensive to run for the SDK's
-  // lifetime. documentElement, not body: it always exists, even for an init
-  // in <head>.
+  // lifetime.
   const observer = new MutationObserver(onActivity);
-  const armObserver = () =>
-    observer.observe(document.documentElement, {
-      subtree: true,
-      childList: true,
-      attributes: true,
-      characterData: true,
-    });
 
   const onClick = (event: MouseEvent) => {
     const el = targetOf(event);
@@ -69,8 +61,14 @@ export function startInteractions(emit: Emit): () => void {
     if (!el.closest(INTERACTIVE)) {
       const url = location.href;
       // One pending candidate: a newer inert click replaces the older one.
+      // documentElement, not body: it always exists, even for an init in <head>.
       clearTimeout(deadTimer);
-      armObserver();
+      observer.observe(document.documentElement, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        characterData: true,
+      });
       deadTimer = setTimeout(() => {
         observer.disconnect();
         if (lastActivity < now && location.href === url) {
@@ -114,13 +112,15 @@ function targetOf(event: Event): Element | null {
     : el;
 }
 
-function elementAttrs(el: Element): Record<string, AttrValue | undefined> {
+function elementAttrs(
+  el: Element,
+): Record<string, AttrValue | null | undefined> {
   return {
     "everr.element.tag": el.tagName.toLowerCase(),
     "everr.element.text": textOf(el),
     "everr.element.selector": selectorOf(el),
     "everr.element.chain": chainOf(el),
-    "everr.element.href": el.closest("a")?.getAttribute("href") ?? undefined,
+    "everr.element.href": el.closest("a")?.getAttribute("href"),
     "everr.viewport.width": innerWidth,
     "everr.viewport.height": innerHeight,
   };
@@ -168,9 +168,10 @@ function chainOf(el: Element): string {
     node = node.parentElement
   ) {
     parts.push(
-      [node.tagName.toLowerCase(), ...[...node.classList].slice(0, 3)].join(
-        ".",
-      ),
+      [
+        node.tagName.toLowerCase(),
+        ...Array.from(node.classList).slice(0, 3),
+      ].join("."),
     );
   }
   return parts.join(";");

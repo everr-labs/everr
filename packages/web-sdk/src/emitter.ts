@@ -30,7 +30,7 @@ type OtlpLogRecord = {
  */
 export type Emit = (
   eventName: string,
-  attributes?: Record<string, AttrValue | undefined>,
+  attributes?: Record<string, AttrValue | null | undefined>,
   exitPriority?: number,
 ) => void;
 
@@ -64,22 +64,22 @@ function toAnyValue(value: AttrValue): AnyValue {
 }
 
 function toKeyValues(
-  attributes: Record<string, AttrValue | undefined>,
+  attributes: Record<string, AttrValue | null | undefined>,
 ): KeyValue[] {
-  // Skipping undefined lets callers write optional attributes as plain
-  // properties instead of conditional spreads.
+  // Skipping nullish lets callers write optional attributes as plain
+  // properties (and pass DOM getters that return null) with no ceremony.
   return Object.entries(attributes).flatMap(([key, value]) =>
-    value === undefined ? [] : [{ key, value: toAnyValue(value) }],
+    value == null ? [] : [{ key, value: toAnyValue(value) }],
   );
 }
 
 export function createEmitter(
   logsUrl: string,
   extraHeaders: Record<string, string> | undefined,
-  resourceAttributes: Record<string, AttrValue | undefined>,
+  resourceAttributes: Record<string, AttrValue | null | undefined>,
   scope: { name: string; version: string },
   /** Called per record; returns the context envelope to stamp. */
-  envelope: () => Record<string, AttrValue | undefined>,
+  envelope: () => Record<string, AttrValue | null | undefined>,
 ): Emitter {
   const resource = toKeyValues(resourceAttributes);
   const headers = { "Content-Type": "application/json", ...extraHeaders };
