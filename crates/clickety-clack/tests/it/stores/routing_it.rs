@@ -2,7 +2,7 @@ use crate::common::test_cipher;
 use cc::domain::channel::ChannelConfig;
 use cc::domain::ids::TenantId;
 use cc::domain::routing::{MatchOp, Matcher};
-use cc::stores::{ChannelDelete, PgStore};
+use cc::stores::{ChannelDelete, PgStore, ReceiverInsert, ReceiverUpsert};
 use std::collections::BTreeMap;
 use uuid::Uuid;
 
@@ -37,7 +37,7 @@ async fn receivers_upsert_and_routes_order() {
         .await
         .unwrap();
 
-    let r1 = store
+    let ReceiverUpsert::Stored(r1) = store
         .create_receiver(
             tenant.clone(),
             "ops",
@@ -45,8 +45,11 @@ async fn receivers_upsert_and_routes_order() {
             &BTreeMap::from([("team".to_string(), "core".to_string())]),
         )
         .await
-        .unwrap();
-    let r2 = store
+        .unwrap()
+    else {
+        panic!("expected the receiver to be stored");
+    };
+    let ReceiverUpsert::Stored(r2) = store
         .create_receiver(
             tenant.clone(),
             "ops",
@@ -54,7 +57,10 @@ async fn receivers_upsert_and_routes_order() {
             &BTreeMap::from([("oncall".to_string(), "https://rota".to_string())]),
         )
         .await
-        .unwrap();
+        .unwrap()
+    else {
+        panic!("expected the receiver to be stored");
+    };
     assert_eq!(r1.id, r2.id, "upsert keeps the same id");
     assert_eq!(
         r1.annotations.get("team").map(String::as_str),
@@ -205,6 +211,67 @@ async fn channels_upsert_resolve_and_referenced_delete_guard() {
         store.delete_channel(tenant, "team-slack").await.unwrap(),
         ChannelDelete::NotFound
     );
+}
+
+/// The receiver-write channel check runs inside the write transaction (under a
+/// `FOR KEY SHARE` lock on each channel row), so it is the authority that closes the
+/// delete-vs-create race, not just the API boundary pre-check. Deterministic proxy for
+/// that race: writing a receiver that references a channel which does not exist is
+/// rejected with the missing names, exactly as the lock would report a channel a
+/// concurrent delete had removed.
+#[tokio::test]
+async fn receiver_write_rejects_unknown_channels() {
+    let url = crate::support::fresh_db().await;
+    let store = PgStore::connect(&url).await.unwrap();
+    let cipher = test_cipher();
+    let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
+
+    store
+        .create_channel(
+            cipher.as_ref(),
+            tenant.clone(),
+            "present",
+            &ChannelConfig::Slack {
+                url: "https://hooks.slack/OK".into(),
+            },
+        )
+        .await
+        .unwrap();
+
+    // Upsert path: the missing name is reported and no receiver row is written.
+    let outcome = store
+        .create_receiver(
+            tenant.clone(),
+            "oncall",
+            &["present".to_string(), "gone".to_string()],
+            &BTreeMap::new(),
+        )
+        .await
+        .unwrap();
+    assert!(
+        matches!(&outcome, ReceiverUpsert::MissingChannels(names) if names == &vec!["gone".to_string()]),
+        "expected MissingChannels([gone]), got {outcome:?}"
+    );
+    assert!(
+        store
+            .get_receiver(tenant.clone(), "oncall")
+            .await
+            .unwrap()
+            .is_none(),
+        "a rejected receiver write must not persist a row"
+    );
+
+    // Create-only path rejects the same way.
+    let outcome = store
+        .insert_receiver(
+            tenant.clone(),
+            "oncall",
+            &["gone".to_string()],
+            &BTreeMap::new(),
+        )
+        .await
+        .unwrap();
+    assert!(matches!(outcome, ReceiverInsert::MissingChannels(_)));
 }
 
 #[tokio::test]

@@ -100,6 +100,57 @@ pub enum SloUpdate {
     VersionConflict { current: i64 },
 }
 
+/// Outcome of [`PgStore::insert_receiver`] (create-only).
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, Clone, PartialEq)]
+pub enum ReceiverInsert {
+    Created(Receiver),
+    /// A receiver with this (tenant, name) already exists.
+    NameConflict,
+    /// One or more referenced channels do not exist, detected under the channel-row
+    /// lock inside the write transaction (see [`lock_referenced_channels`]); also fires
+    /// when a concurrent `delete_channel` removed a channel the boundary pre-check had
+    /// just seen. Carries the missing names in request order (the API renders a 422).
+    MissingChannels(Vec<String>),
+}
+
+/// Outcome of [`PgStore::create_receiver`] (upsert).
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, Clone, PartialEq)]
+pub enum ReceiverUpsert {
+    Stored(Receiver),
+    /// See [`ReceiverInsert::MissingChannels`].
+    MissingChannels(Vec<String>),
+}
+
+/// Lock the referenced channel rows (`FOR KEY SHARE`) inside the caller's write
+/// transaction and return the requested names that do not exist (empty = all present,
+/// order-preserving and deduped). The lock is what makes a receiver write serialize
+/// against [`PgStore::delete_channel`] (which takes `FOR UPDATE` on the channel row):
+/// `FOR KEY SHARE` and `FOR UPDATE` conflict, so the two can't both proceed, and
+/// several receiver writes referencing the same channel still run concurrently
+/// (`FOR KEY SHARE` does not self-conflict).
+async fn lock_referenced_channels(
+    conn: &mut sqlx::PgConnection,
+    tenant: &TenantId,
+    channels: &[String],
+) -> Result<Vec<String>, StoreError> {
+    let present: Vec<String> = sqlx::query_scalar(
+        "SELECT name FROM channels WHERE tenant=$1 AND name = ANY($2) FOR KEY SHARE",
+    )
+    .bind(tenant.as_str())
+    .bind(channels)
+    .fetch_all(conn)
+    .await?;
+    let mut missing = Vec::new();
+    for name in channels {
+        if !present.contains(name) && !missing.contains(name) {
+            missing.push(name.clone());
+        }
+    }
+    Ok(missing)
+}
+
 /// True if a sqlx error is a Postgres unique-constraint violation (SQLSTATE 23505).
 fn is_unique_violation(e: &sqlx::Error) -> bool {
     e.as_database_error()
@@ -1527,19 +1578,42 @@ impl PgStore {
         Ok(rows)
     }
 
-    /// Delete a channel unless a receiver still references it. The referrer check
-    /// and the delete run in one transaction so a concurrent receiver upsert
-    /// cannot slip a dangling reference past the guard.
+    /// Delete a channel unless a receiver still references it.
+    ///
+    /// The referrer check races receiver creation: a `FOR SHARE` over the referrers
+    /// locks no rows when there are none, so a concurrent receiver write could
+    /// validate the channel, commit a reference to it, and slip past a referrer check
+    /// that had already run. Because receiver channel lists are JSON with no foreign
+    /// key, that would strand a dangling reference. Instead we take `FOR UPDATE` on the
+    /// channel row itself, up front, as the single serialization point: receiver writes
+    /// take `FOR KEY SHARE` on the channels they reference (see
+    /// [`lock_referenced_channels`]), which conflicts with this `FOR UPDATE`. Either a
+    /// receiver write commits before we take the lock (and its row is then visible to
+    /// the referrer check), or it blocks until we remove the channel (and then observes
+    /// it gone and aborts). No interleaving leaves a reference to a deleted channel.
     pub async fn delete_channel(
         &self,
         tenant: TenantId,
         name: &str,
     ) -> Result<ChannelDelete, StoreError> {
         let mut tx = self.pool.begin().await?;
+        let locked: Option<Uuid> =
+            sqlx::query_scalar("SELECT id FROM channels WHERE tenant=$1 AND name=$2 FOR UPDATE")
+                .bind(tenant.as_str())
+                .bind(name)
+                .fetch_optional(&mut *tx)
+                .await?;
+        if locked.is_none() {
+            tx.rollback().await?;
+            return Ok(ChannelDelete::NotFound);
+        }
+        // The channel row is now locked `FOR UPDATE`, so no concurrent receiver write
+        // referencing it can be mid-flight; every committed referrer is visible here and
+        // no new one can commit until we release the lock.
         let referrers: Vec<String> = sqlx::query_scalar(
             "SELECT name FROM receivers
              WHERE tenant=$1 AND channels @> to_jsonb(ARRAY[$2::text])
-             ORDER BY name FOR SHARE",
+             ORDER BY name",
         )
         .bind(tenant.as_str())
         .bind(name)
@@ -1549,17 +1623,13 @@ impl PgStore {
             tx.rollback().await?;
             return Ok(ChannelDelete::InUse(referrers));
         }
-        let res = sqlx::query("DELETE FROM channels WHERE tenant=$1 AND name=$2")
+        sqlx::query("DELETE FROM channels WHERE tenant=$1 AND name=$2")
             .bind(tenant.as_str())
             .bind(name)
             .execute(&mut *tx)
             .await?;
         tx.commit().await?;
-        Ok(if res.rows_affected() > 0 {
-            ChannelDelete::Deleted
-        } else {
-            ChannelDelete::NotFound
-        })
+        Ok(ChannelDelete::Deleted)
     }
 
     fn channel_from_row(cipher: &dyn SecretCipher, r: &PgRow) -> Result<Channel, StoreError> {
@@ -1575,20 +1645,29 @@ impl PgStore {
 
     // ---- receivers ----
 
-    /// Create-only receiver insert: `None` if a receiver with this name already
-    /// exists for the tenant (the caller surfaces a 409). The upsert path is
-    /// [`Self::create_receiver`]. `channels` validation happens at the API
-    /// boundary, same as the upsert.
+    /// Create-only receiver insert. [`ReceiverInsert::NameConflict`] if a receiver with
+    /// this name already exists for the tenant (the caller surfaces a 409). The upsert
+    /// path is [`Self::create_receiver`]. Referenced channels are locked and confirmed to
+    /// exist inside the write transaction (see [`Self::create_receiver`]); a channel
+    /// removed by a concurrent delete surfaces as [`ReceiverInsert::MissingChannels`].
+    /// The channel check precedes the insert, so unknown channels (422) win over a name
+    /// conflict (409), matching the boundary order.
     pub async fn insert_receiver(
         &self,
         tenant: TenantId,
         name: &str,
         channels: &[String],
         annotations: &BTreeMap<String, String>,
-    ) -> Result<Option<Receiver>, StoreError> {
+    ) -> Result<ReceiverInsert, StoreError> {
         let id = Uuid::new_v4();
         let ch_json = serde_json::to_value(channels)?;
         let ann_json = serde_json::to_value(annotations)?;
+        let mut tx = self.pool.begin().await?;
+        let missing = lock_referenced_channels(&mut tx, &tenant, channels).await?;
+        if !missing.is_empty() {
+            tx.rollback().await?;
+            return Ok(ReceiverInsert::MissingChannels(missing));
+        }
         let row = sqlx::query(
             "INSERT INTO receivers (id, tenant, name, channels, annotations) VALUES ($1,$2,$3,$4,$5)
              ON CONFLICT (tenant, name) DO NOTHING
@@ -1599,32 +1678,48 @@ impl PgStore {
         .bind(name)
         .bind(&ch_json)
         .bind(&ann_json)
-        .fetch_optional(&self.pool)
+        .fetch_optional(&mut *tx)
         .await?;
-        Ok(row.map(|r| Receiver {
-            id: r.get("id"),
-            tenant,
-            name: name.to_string(),
-            channels: channels.to_vec(),
-            annotations: annotations.clone(),
-        }))
+        tx.commit().await?;
+        Ok(match row {
+            Some(r) => ReceiverInsert::Created(Receiver {
+                id: r.get("id"),
+                tenant,
+                name: name.to_string(),
+                channels: channels.to_vec(),
+                annotations: annotations.clone(),
+            }),
+            None => ReceiverInsert::NameConflict,
+        })
     }
 
-    /// Create or replace a receiver by (tenant, name). Returns the stored receiver.
-    /// Upsert semantics (PUT-like): re-issuing the same name updates its channel
-    /// references. The create-only path is [`Self::insert_receiver`]. `channels`
-    /// non-emptiness and referenced-channel existence are enforced at the API
+    /// Create or replace a receiver by (tenant, name). Upsert semantics (PUT-like):
+    /// re-issuing the same name updates its channel references. The create-only path is
+    /// [`Self::insert_receiver`]. `channels` non-emptiness is enforced at the API
     /// boundary; the column holds a JSON array of channel names and never any secret.
+    ///
+    /// Referenced-channel existence is enforced *inside* the write transaction, under a
+    /// `FOR KEY SHARE` lock on each channel row ([`lock_referenced_channels`]), so the
+    /// insert cannot race a `delete_channel` into a dangling reference. The API boundary
+    /// still pre-checks existence for a friendly 422 on the common (non-racing) case;
+    /// the in-transaction check is the authority that closes the race, and reports a
+    /// channel a concurrent delete removed as [`ReceiverUpsert::MissingChannels`].
     pub async fn create_receiver(
         &self,
         tenant: TenantId,
         name: &str,
         channels: &[String],
         annotations: &BTreeMap<String, String>,
-    ) -> Result<Receiver, StoreError> {
+    ) -> Result<ReceiverUpsert, StoreError> {
         let id = Uuid::new_v4();
         let ch_json = serde_json::to_value(channels)?;
         let ann_json = serde_json::to_value(annotations)?;
+        let mut tx = self.pool.begin().await?;
+        let missing = lock_referenced_channels(&mut tx, &tenant, channels).await?;
+        if !missing.is_empty() {
+            tx.rollback().await?;
+            return Ok(ReceiverUpsert::MissingChannels(missing));
+        }
         let row = sqlx::query(
             "INSERT INTO receivers (id, tenant, name, channels, annotations) VALUES ($1,$2,$3,$4,$5)
              ON CONFLICT (tenant, name) DO UPDATE
@@ -1636,15 +1731,16 @@ impl PgStore {
         .bind(name)
         .bind(&ch_json)
         .bind(&ann_json)
-        .fetch_one(&self.pool)
+        .fetch_one(&mut *tx)
         .await?;
-        Ok(Receiver {
+        tx.commit().await?;
+        Ok(ReceiverUpsert::Stored(Receiver {
             id: row.get("id"),
             tenant,
             name: name.to_string(),
             channels: channels.to_vec(),
             annotations: annotations.clone(),
-        })
+        }))
     }
 
     pub async fn get_receiver(
@@ -2462,8 +2558,20 @@ impl PgStore {
         // comparable). Clearing the snapshot in the spec-write transaction lets
         // `apply` take effect on the next tick; the evaluator's fingerprint check is
         // the backstop for every other path.
+        //
+        // The existing `slo_instances` rows go too: `label_columns` is part of the
+        // objective fingerprint, so a redefined objective can hash to instance keys a
+        // future evaluation never reproduces. Left in place, their pending/firing rows
+        // stay visible in `list_alerts` until a later evaluation happens to resolve
+        // them, and forever if the SLO is paused. This mirrors the rule update path's
+        // instance teardown on a label change (a silent teardown, no Resolved events).
         if objective_changed {
             sqlx::query("DELETE FROM slo_status WHERE slo=$1 AND tenant=$2")
+                .bind(id.0)
+                .bind(tenant.as_str())
+                .execute(&mut *tx)
+                .await?;
+            sqlx::query("DELETE FROM slo_instances WHERE slo=$1 AND tenant=$2")
                 .bind(id.0)
                 .bind(tenant.as_str())
                 .execute(&mut *tx)

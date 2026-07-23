@@ -109,6 +109,60 @@ async fn objective_change_clears_the_status_snapshot() {
 }
 
 #[tokio::test]
+async fn objective_change_clears_the_instance_rows() {
+    use cc::domain::ids::{InstanceKey, RuleId, SourceId};
+    use cc::domain::instance::{InstanceState, Status};
+
+    let s = store().await;
+    let slo = create_test_slo(&s, tenant(), "inst", &spec()).await;
+
+    // Seed a firing instance as the evaluator would (the SLO's rule id mirrors its
+    // own id; the instance key hashes the current `service` label set).
+    let rule = RuleId(slo.id.0);
+    let labels = BTreeMap::from([("service".to_string(), "checkout".to_string())]);
+    let mut inst = InstanceState::new_inactive(
+        InstanceKey::new(rule, &labels),
+        SourceId::Slo(slo.id),
+        tenant(),
+        labels,
+    );
+    inst.status = Status::Firing;
+    inst.value = Some(1.0);
+    inst.active_since = Some(time::OffsetDateTime::now_utc());
+    inst.last_seen = Some(time::OffsetDateTime::now_utc());
+    s.persist_slo_eval_batch(std::slice::from_ref(&inst), &[])
+        .await
+        .unwrap();
+    assert_eq!(
+        s.load_slo_instances(&tenant(), slo.id).await.unwrap().len(),
+        1
+    );
+
+    // A non-objective edit (identical spec) keeps the instance rows: their keys still
+    // hash the same label set, so future evaluations keep updating them.
+    s.update_slo(tenant(), slo.id, &spec(), None).await.unwrap();
+    assert_eq!(
+        s.load_slo_instances(&tenant(), slo.id).await.unwrap().len(),
+        1,
+        "a non-objective edit must not clear the instance rows"
+    );
+
+    // An objective edit drops the instance rows: `label_columns` feeds the objective
+    // fingerprint, so old instance keys may never be reproduced and would otherwise
+    // strand pending/firing rows in `list_alerts` (indefinitely, if the SLO is paused).
+    let mut spec2 = spec();
+    spec2.sli.label_columns = vec!["service".into(), "region".into()];
+    s.update_slo(tenant(), slo.id, &spec2, None).await.unwrap();
+    assert!(
+        s.load_slo_instances(&tenant(), slo.id)
+            .await
+            .unwrap()
+            .is_empty(),
+        "an objective change must clear the instance rows"
+    );
+}
+
+#[tokio::test]
 async fn duplicate_name_conflicts() {
     let s = store().await;
     s.create_slo(tenant(), "", "dup", &spec()).await.unwrap();

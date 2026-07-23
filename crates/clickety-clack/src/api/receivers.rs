@@ -2,6 +2,7 @@ use crate::api::auth::tenant;
 use crate::api::error::ApiError;
 use crate::api::{duplicate_entries, AppState};
 use crate::domain::receiver::Receiver;
+use crate::stores::{ReceiverInsert, ReceiverUpsert};
 use axum::extract::{Path, State};
 use axum::http::HeaderMap;
 use axum::Json;
@@ -106,14 +107,22 @@ pub async fn create(
     let t = tenant(&state, &headers)?;
     validate_receiver(&body.name, &body.channels)?;
     ensure_channels_exist(&state, &t, &body.channels).await?;
-    let rcv = state
+    match state
         .store
         .insert_receiver(t, &body.name, &body.channels, &body.annotations)
         .await?
-        .ok_or_else(|| {
-            ApiError::AlreadyExists(format!("receiver {:?} already exists", body.name))
-        })?;
-    Ok(Json(rcv))
+    {
+        ReceiverInsert::Created(rcv) => Ok(Json(rcv)),
+        ReceiverInsert::NameConflict => Err(ApiError::AlreadyExists(format!(
+            "receiver {:?} already exists",
+            body.name
+        ))),
+        // The boundary check above already 422s the common case; this arm covers the
+        // channel deleted between that check and the write transaction.
+        ReceiverInsert::MissingChannels(names) => {
+            Err(ApiError::Validation(unknown_channels_detail(&names)))
+        }
+    }
 }
 
 /// Create or replace a receiver by name (upsert). Replaces the channel list and
@@ -127,11 +136,18 @@ pub async fn update(
     let t = tenant(&state, &headers)?;
     validate_receiver(&name, &body.channels)?;
     ensure_channels_exist(&state, &t, &body.channels).await?;
-    let rcv = state
+    match state
         .store
         .create_receiver(t, &name, &body.channels, &body.annotations)
-        .await?;
-    Ok(Json(rcv))
+        .await?
+    {
+        ReceiverUpsert::Stored(rcv) => Ok(Json(rcv)),
+        // See `create`: the boundary check handles the common case; this covers a
+        // channel deleted between that check and the write transaction.
+        ReceiverUpsert::MissingChannels(names) => {
+            Err(ApiError::Validation(unknown_channels_detail(&names)))
+        }
+    }
 }
 
 pub async fn list(
