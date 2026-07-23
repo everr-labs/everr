@@ -66,6 +66,9 @@ pub enum RuleCreate {
 }
 
 /// Outcome of [`PgStore::update_rule`].
+// Same trade-off as `SloCreate` below: boxing `Updated`'s payload would tax every
+// caller for a lint about the outcome enum's stack footprint (never hot-path-cloned).
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum RuleUpdate {
     /// The rule was updated; carries the new stored rule (version already bumped).
@@ -2445,15 +2448,14 @@ impl PgStore {
         // rather than just rename or re-annotate? Shared with the evaluator through
         // `objective_fingerprint` so the two can't disagree. An unparseable stored
         // spec (specs are validated on write) counts as changed — the safe default.
-        let objective_changed = match serde_json::from_value::<crate::domain::slo::SloSpec>(
-            row.get("spec"),
-        ) {
-            Ok(old) => {
-                crate::domain::slo::objective_fingerprint(&old)
-                    != crate::domain::slo::objective_fingerprint(spec)
-            }
-            Err(_) => true,
-        };
+        let objective_changed =
+            match serde_json::from_value::<crate::domain::slo::SloSpec>(row.get("spec")) {
+                Ok(old) => {
+                    crate::domain::slo::objective_fingerprint(&old)
+                        != crate::domain::slo::objective_fingerprint(spec)
+                }
+                Err(_) => true,
+            };
         let spec_json = serde_json::to_value(spec)?;
         // A redefining edit invalidates the status snapshot (its numbers describe
         // the old query) and resets `budget_epoch` (pre-edit history is no longer
@@ -2951,13 +2953,12 @@ impl PgStore {
         &self,
         tenant: &TenantId,
     ) -> Result<Vec<FiringInstance>, StoreError> {
-        let rows = sqlx::query(
-            "SELECT key, slo, labels FROM slo_instances WHERE tenant=$1 AND status=$2",
-        )
-        .bind(tenant.as_str())
-        .bind(status_str(Status::Firing))
-        .fetch_all(&self.pool)
-        .await?;
+        let rows =
+            sqlx::query("SELECT key, slo, labels FROM slo_instances WHERE tenant=$1 AND status=$2")
+                .bind(tenant.as_str())
+                .bind(status_str(Status::Firing))
+                .fetch_all(&self.pool)
+                .await?;
         let tiers = crate::domain::slo::canonical_tiers();
         let mut out = Vec::with_capacity(rows.len());
         for r in &rows {

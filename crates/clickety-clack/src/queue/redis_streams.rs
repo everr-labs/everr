@@ -226,6 +226,9 @@ impl RedisQueue {
     /// acking of reclaimed payloads that no longer deserialize, and lag/batch-size
     /// metrics. `consume`/`consume_slo` are thin wrappers supplying their stream,
     /// group, job type, and metric channel.
+    // Private two-caller helper: the arg list IS the wrappers' full configuration
+    // surface; a one-off params struct would only relocate the same nine names.
+    #[allow(clippy::too_many_arguments)]
     async fn consume_stream<J: serde::de::DeserializeOwned>(
         &self,
         stream: &str,
