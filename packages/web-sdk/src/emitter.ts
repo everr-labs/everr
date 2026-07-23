@@ -26,15 +26,18 @@ type OtlpLogRecord = {
 /**
  * `exitPriority` ranks the record for exit truncation: lower survives longer
  * (errors 0 > page_leave 1 > vitals 2 > interactions 3, the default).
- * Signals declare their own rank at the emit site.
+ * Signals declare their own rank at the emit site. `severityNumber` defaults
+ * to INFO (9) and `body` to the event name; the error signal overrides both.
  */
 export type Emit = (
   eventName: string,
   attributes?: Record<string, AttrValue | null | undefined>,
   exitPriority?: number,
+  severityNumber?: number,
+  body?: string,
 ) => void;
 
-export type Emitter = [
+type Emitter = [
   emit: Emit,
   flush: () => Promise<void>,
   /**
@@ -136,16 +139,22 @@ export function createEmitter(
     if (body) void post(body, true);
   };
 
-  const emit: Emit = (eventName, attributes, exitPriority = 3) => {
+  const emit: Emit = (
+    eventName,
+    attributes,
+    exitPriority = 3,
+    severityNumber = 9, // INFO
+    // Body defaults to the event name so log browsers show a readable line.
+    body = eventName,
+  ) => {
     if (queue.length >= MAX_QUEUE_SIZE) return;
     queue.push([
       exitPriority,
       {
         timeUnixNano: `${Date.now()}000000`,
-        severityNumber: 9, // INFO
+        severityNumber,
         eventName,
-        // Body mirrors the event name so log browsers show a readable line.
-        body: { stringValue: eventName },
+        body: toAnyValue(body),
         attributes: toKeyValues({ ...envelope(), ...attributes }),
       },
     ]);

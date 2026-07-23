@@ -23,7 +23,7 @@ type CommonInitOptions = {
    * `endpoint` is given) events ship to the hosted Everr ingest.
    */
   ingestKey?: string;
-  /** Explicit OTLP base endpoint override (used without the key's Authorization header). */
+  /** Explicit OTLP base endpoint override (carries the ingest key's header when one is set). */
   endpoint?: string;
   /**
    * Development mode, e.g. `import.meta.env.DEV`. Without a key or endpoint,

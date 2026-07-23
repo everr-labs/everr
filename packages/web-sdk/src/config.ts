@@ -9,7 +9,7 @@
 // Internal shapes are tuples: property names survive minification (consumers
 // bundle our source), tuple indexes do not.
 
-export type TransportConfig = [
+type TransportConfig = [
   logsUrl: string,
   headers: Record<string, string> | undefined,
 ];
@@ -25,6 +25,6 @@ export function resolveTransport(options: {
 
   if (endpoint) return [`${endpoint}/v1/logs`, headers];
   if (key) return ["https://ingest.everr.dev/v1/logs", headers];
-  if (options.dev) return ["http://127.0.0.1:54318/v1/logs", undefined];
+  if (options.dev) return ["http://127.0.0.1:54318/v1/logs", headers];
   return null;
 }

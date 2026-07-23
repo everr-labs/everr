@@ -10,7 +10,7 @@ import type { CurrentPage } from "./session.js";
 // listeners run, so the leave overrides the envelope with the outgoing
 // page's context (shared `pageAttrs` keys).
 
-export type Pageviews = [
+type Pageviews = [
   onNavigate: NavigationListener,
   /** Emits the current pageview's leave; at most one per pageview. */
   onHide: () => void,
