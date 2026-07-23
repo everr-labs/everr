@@ -367,7 +367,9 @@ describe("/alerts/slos route", () => {
     const table = await screen.findByRole("table");
 
     expect(within(table).getByText("Alert firing")).toBeInTheDocument();
-    expect(within(table).getByText("ticket window 2.0×")).toBeInTheDocument();
+    expect(
+      within(table).getByText("ticket firing on earlier burn (2.0×)"),
+    ).toBeInTheDocument();
     expect(within(table).getByText("current burn stopped")).toBeInTheDocument();
     expect(within(table).queryByText("Burning")).not.toBeInTheDocument();
     expect(

@@ -14,3 +14,4 @@ spec:
       - ServiceName
   targetPercent: 99.5
   timeWindow: 7d
+  minValidEvents: 100

@@ -135,15 +135,18 @@ function rowExhaustionLabel({
   return "no exhaustion forecast";
 }
 
+// The receding-firing case (a tier still firing on a burst whose spending has
+// stopped): say it as the story instead of a bare window figure.
 function firingWindowLabel(row: SloRow, firing: { tier: string }[]): string {
   const first = firing[0]?.tier;
-  if (first === undefined || row.worst === null) return "alert window high";
+  if (first === undefined || row.worst === null)
+    return "firing on earlier burn";
   const snap = row.worst.tiers.find((t) => t.name === first);
   const rate =
     snap?.long_burn_rate !== null && snap?.long_burn_rate !== undefined
-      ? ` ${ccFmtBurn(snap.long_burn_rate)}`
+      ? ` (${ccFmtBurn(snap.long_burn_rate)})`
       : "";
-  return `${first} window${rate}`;
+  return `${first} firing on earlier burn${rate}`;
 }
 
 function SloPromiseCell({

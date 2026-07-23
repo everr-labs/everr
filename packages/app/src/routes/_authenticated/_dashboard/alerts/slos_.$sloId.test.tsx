@@ -184,7 +184,10 @@ describe("/alerts/slos/$sloId route", () => {
     expect(
       await screen.findByRole("heading", { name: "checkout-availability" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("99.9% over 30d rolling")).toBeInTheDocument();
+    // The promise leads the stats row (target + window), not the header. The
+    // row rides the async status read, so wait for it.
+    expect(await screen.findByText("over 30d rolling")).toBeInTheDocument();
+    expect(screen.getAllByText("99.9%").length).toBeGreaterThanOrEqual(1);
 
     // The hero leads with a plain-language verdict, before any number.
     expect(
@@ -199,14 +202,17 @@ describe("/alerts/slos/$sloId route", () => {
     expect(screen.getByText("99.92%")).toBeInTheDocument(); // SLI
     expect(screen.getByText("42.00%")).toBeInTheDocument(); // budget remaining
     expect(screen.getByText("3d 4h")).toBeInTheDocument(); // exhaustion
-    // The headline burn and the fast-burn pressure gauge both print 1.4× / 1h.
+    // The headline burn (1h fact) and the lookback readout both print 1.4×.
     expect(screen.getAllByText(/1\.4×/).length).toBeGreaterThanOrEqual(2);
-    expect(screen.getAllByText(/\/ 1h/).length).toBeGreaterThanOrEqual(2);
-    // The short-window burn is now surfaced on the fast-burn gauge (not buried
-    // in a tooltip).
-    expect(screen.getByText(/short window 0\.9×/)).toBeInTheDocument();
-    // fast-burn is named in the hero's pressure gauge; the Definition's static
-    // tiers table stays collapsed by default.
+    // A critical tier fires, so the alerts disclosure opens itself: the
+    // lookback axis names the windows in plain words and the fast-burn row
+    // spells its condition with both live windows in place.
+    expect(screen.getByText("Paging: fast-burn")).toBeInTheDocument();
+    expect(screen.getAllByText(/last 1h/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/0\.9×/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/Fires when the last/).length).toBe(3);
+    // fast-burn is named in the hero's tier conditions; the Definition's
+    // static tiers list stays collapsed by default.
     expect(screen.getAllByText("fast-burn").length).toBeGreaterThanOrEqual(1);
 
     // The read-time scan is empty here (no traffic in the trailing window), so the
@@ -226,8 +232,12 @@ describe("/alerts/slos/$sloId route", () => {
     expect(screen.getAllByText("slow-burn").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("ticket").length).toBeGreaterThanOrEqual(1);
 
-    // Health reads healthy, quietly.
-    expect(screen.getByText("healthy")).toBeInTheDocument();
+    // Healthy evaluation is the normal system state: no readout at all — no
+    // broken-heart flag on the title, no Evaluator card.
+    expect(
+      screen.queryByLabelText("Evaluator degraded"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Evaluator")).not.toBeInTheDocument();
 
     // The firing-history feed is scoped to this SLO's handles.
     expect(mocks.feedProps).toHaveBeenCalled();
@@ -354,6 +364,8 @@ describe("/alerts/slos/$sloId route", () => {
       await screen.findByText(/Evaluation degraded since/),
     ).toBeInTheDocument();
     expect(screen.getByText("query failed: boom")).toBeInTheDocument();
+    // The broken heart rides the title while the evaluator is degraded.
+    expect(screen.getByLabelText("Evaluator degraded")).toBeInTheDocument();
   });
 
   it("pauses the SLO from the header and invalidates both queries", async () => {
