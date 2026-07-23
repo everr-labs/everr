@@ -148,7 +148,7 @@ describe("applyAlertSpecs", () => {
     });
 
     expect(res).toEqual({
-      created: ["high-errors"],
+      created: ["default/high-errors"],
       updated: [],
       deleted: [],
       adopted: [],
@@ -184,7 +184,7 @@ describe("applyAlertSpecs", () => {
     // Single-call create, same as the live path.
     expect(mockedUpdateRule).not.toHaveBeenCalled();
 
-    expect(res.created).toEqual(["high-errors"]);
+    expect(res.created).toEqual(["default/high-errors"]);
     expect(res.deleted).toEqual([]);
     expect(res.note).toMatch(/suppressed/);
   });
@@ -226,13 +226,31 @@ describe("applyAlertSpecs", () => {
     });
 
     expect(res.created).toEqual([]);
-    expect(res.updated).toEqual(["high-errors"]);
+    expect(res.updated).toEqual(["default/high-errors"]);
     expect(res.deleted).toEqual([]);
     expect(mockedUpdateRule).toHaveBeenCalledTimes(1);
     const [, id] = mockedUpdateRule.mock.calls[0];
     // The live rule's id, never the coexisting preview copy's.
     expect(id).toBe("rule-high-errors");
     expect(mockedDeleteRule).not.toHaveBeenCalled();
+  });
+
+  it("a live apply deletes only the live copy when a preview copy of the same name coexists", async () => {
+    mockedListRules.mockResolvedValue([
+      managedRule("high-errors"),
+      previewRule("high-errors", "pv-1"),
+    ]);
+
+    const res = await applyAlertSpecs({
+      namespace: { orgId: "o", repoid: "repo-1", kind: "live" },
+      db,
+      resources: [],
+    });
+
+    expect(mockedDeleteRule).toHaveBeenCalledTimes(1);
+    // The live rule's id, never the coexisting preview copy's.
+    expect(mockedDeleteRule).toHaveBeenCalledWith("o", "rule-high-errors");
+    expect(res.deleted).toEqual(["default/high-errors"]);
   });
 
   it("leaves an unchanged preview rule alone and updates a changed one in place", async () => {
@@ -258,7 +276,7 @@ describe("applyAlertSpecs", () => {
       db,
       resources: [{ path: "a.yaml", resource: alert() }],
     });
-    expect(changed.updated).toEqual(["high-errors"]);
+    expect(changed.updated).toEqual(["default/high-errors"]);
     const [, id, spec, version] = mockedUpdateRule.mock.calls[0];
     expect(id).toBe("prev-rule-high-errors");
     expect(version).toBe(3);
@@ -285,7 +303,7 @@ describe("applyAlertSpecs", () => {
       db,
       resources: [{ path: "a.yaml", resource: alert() }],
     });
-    expect(res.created).toEqual(["high-errors"]);
+    expect(res.created).toEqual(["default/high-errors"]);
     const [, input] = mockedCreateRule.mock.calls[0];
     expect(input.suppressed).toBe(false);
     expect(input.namespace).toBe("");
@@ -299,7 +317,7 @@ describe("applyAlertSpecs", () => {
       resources: [{ path: "a.yaml", resource: alert() }],
     });
 
-    expect(res.created).toEqual(["high-errors"]);
+    expect(res.created).toEqual(["default/high-errors"]);
     expect(res.deleted).toEqual([]);
     // A null preview id would alias the live scope; the reconciler must not
     // even list CC (nothing can be tagged with a not-yet-minted id).
@@ -386,7 +404,7 @@ describe("applyAlertSpecs", () => {
 
     // Non-label columns resolve from CC's event evidence at render time; the
     // rule maps to empty label_columns (all rows collapse into one instance).
-    expect(res.created).toEqual(["replays"]);
+    expect(res.created).toEqual(["default/replays"]);
     expect(res.note).toBeUndefined();
     const [, input] = mockedCreateRule.mock.calls[0];
     expect(input.label_columns).toEqual([]);
@@ -411,7 +429,7 @@ describe("applyAlertSpecs", () => {
       ],
     });
 
-    expect(res.created).toEqual(["wide"]);
+    expect(res.created).toEqual(["default/wide"]);
     expect(res.note).toMatch(
       /wide\.yaml: the query returns 17 non-label columns but alert events keep at most 16 as evidence, so \$\{c3\} may render empty/,
     );
@@ -454,7 +472,7 @@ describe("applyAlertSpecs", () => {
     // Recognized as this rule (matched by name/namespace), updated in place
     // rather than deleted + recreated: the id and version are preserved.
     expect(res.created).toEqual([]);
-    expect(res.updated).toEqual(["high-errors"]);
+    expect(res.updated).toEqual(["default/high-errors"]);
     expect(res.deleted).toEqual([]);
     expect(mockedCreateRule).not.toHaveBeenCalled();
     expect(mockedDeleteRule).not.toHaveBeenCalled();
@@ -500,7 +518,7 @@ describe("applyAlertSpecs", () => {
 
     expect(res).toEqual({
       created: [],
-      updated: ["high-errors"],
+      updated: ["default/high-errors"],
       deleted: [],
       adopted: [],
       conflicts: [],

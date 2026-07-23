@@ -333,8 +333,8 @@ export const applyAlertSpecs: Reconciler = async ({
   desired.forEach((d, i) => {
     const outcome = outcomes[i];
     if (outcome.status === "rejected") throw outcome.reason;
-    if (outcome.value === "created") created.push(d.name);
-    if (outcome.value === "updated") updated.push(d.name);
+    if (outcome.value === "created") created.push(d.input.name);
+    if (outcome.value === "updated") updated.push(d.input.name);
   });
 
   // Scoped rules absent from config are pruned, same bounded pool. Runs only
