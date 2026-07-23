@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { initInternal } from "./client.js";
-import type { CaptureConfig, EverrClient } from "./types.js";
+import type { CaptureSignal, EverrClient } from "./types.js";
 
 type OtlpRecord = {
   timeUnixNano: string;
@@ -16,7 +16,7 @@ let batches: Array<{
   records: OtlpRecord[];
 }>;
 
-function start(options?: { capture?: CaptureConfig }): void {
+function start(options?: { disable?: true | CaptureSignal[] }): void {
   batches = [];
   const transportFetch = vi.fn(
     (_url: RequestInfo | URL, init?: RequestInit) => {
@@ -34,7 +34,7 @@ function start(options?: { capture?: CaptureConfig }): void {
       mode: "cookieless",
       serviceName: "everr-docs-test",
       dev: true,
-      capture: options?.capture,
+      disable: options?.disable,
     },
     { transportFetch },
   );
@@ -126,21 +126,21 @@ describe("init (cookieless)", () => {
     expect(sessionStorage.length).toBe(0);
   });
 
-  it("emits nothing with capture: false", async () => {
-    start({ capture: false });
+  it("emits nothing with disable: true", async () => {
+    start({ disable: true });
     history.pushState(null, "", "/nope");
     expect(await records()).toHaveLength(0);
     expect(batches).toHaveLength(0);
   });
 
-  it("suppresses pageviews only with capture: { pageviews: false }", async () => {
-    start({ capture: { pageviews: false } });
+  it('suppresses pageviews only with disable: ["pageviews"]', async () => {
+    start({ disable: ["pageviews"] });
     history.pushState(null, "", "/nope");
     expect(await records()).toHaveLength(0);
   });
 
   it("keeps watching navigations when pageviews are off, so the envelope stays fresh", () => {
-    start({ capture: { pageviews: false } });
+    start({ disable: ["pageviews"] });
     // The navigation watcher is envelope infrastructure, not a signal: it
     // must patch history even when no pageview listener is registered.
     expect(history.pushState.toString()).not.toContain("native code");

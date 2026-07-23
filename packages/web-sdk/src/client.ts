@@ -1,5 +1,4 @@
 import { attributionAttributes } from "./attribution.js";
-import { resolveCapture } from "./capture.js";
 import { resolveTransport } from "./config.js";
 import { createEmitter } from "./emitter.js";
 import { createEnvelope } from "./envelope.js";
@@ -8,6 +7,7 @@ import type { AttrValue } from "./otlp.js";
 import { startPageviews } from "./pageview.js";
 import { SessionContext } from "./session.js";
 import type {
+  CaptureSignal,
   ConsentedClient,
   ConsentedInitOptions,
   CookielessClient,
@@ -50,7 +50,9 @@ export function initInternal(
   const transport = resolveTransport(options);
   if (!transport) return inertClient(options.mode);
 
-  const capture = resolveCapture(options.capture);
+  const off = options.disable;
+  const enabled = (signal: CaptureSignal) =>
+    off !== true && !off?.includes(signal);
   const session = new SessionContext(
     window.location.href,
     document.referrer || undefined,
@@ -69,9 +71,9 @@ export function initInternal(
   });
 
   // The navigation watcher always runs so the envelope's page context stays
-  // fresh for every signal; capture flags only gate the signal listeners.
+  // fresh for every signal; the disable list only gates the signal listeners.
   const navigationListeners: NavigationListener[] = [];
-  if (capture.pageviews) {
+  if (enabled("pageviews")) {
     navigationListeners.push(startPageviews(emitter));
   }
   const stopWatching = watchNavigation(session, navigationListeners);

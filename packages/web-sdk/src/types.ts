@@ -1,23 +1,15 @@
 /**
- * Per-signal capture toggles. Every key defaults to `true`.
+ * Analytics signals that can be disabled at init; everything is on by default
+ * and only exclusions are named.
  *
  * - `pageviews` governs `browser.page_view` and `browser.page_leave` together.
  * - `interactions` governs clicks, rage/dead click detection, change and submit.
  * - `webVitals` governs `browser.web_vital` reporting.
  *
- * Errors have no capture key (`@everr/auto-otel-errors` options govern them)
- * and replay is never a capture flag (the mode system owns it).
+ * Errors have no signal key (`@everr/auto-otel-errors` options govern them)
+ * and replay is never a signal (the mode system owns it).
  */
-export type CaptureOptions = {
-  pageviews?: boolean;
-  interactions?: boolean;
-  webVitals?: boolean;
-};
-
-/** `false` disables all analytics capture; `true` (the default) enables everything. */
-export type CaptureConfig = boolean | CaptureOptions;
-
-export type ResolvedCapture = Required<CaptureOptions>;
+export type CaptureSignal = "pageviews" | "interactions" | "webVitals";
 
 type CommonInitOptions = {
   /** The `service.name` resource attribute events are reported under. */
@@ -39,7 +31,8 @@ type CommonInitOptions = {
    * no-op that never issues a network request.
    */
   dev?: boolean;
-  capture?: CaptureConfig;
+  /** Signals to turn off; `true` disables all analytics capture. Fixed at init. */
+  disable?: true | CaptureSignal[];
 };
 
 /**

@@ -1,7 +1,6 @@
 export { init } from "./client.js";
 export type {
-  CaptureConfig,
-  CaptureOptions,
+  CaptureSignal,
   ConsentedClient,
   ConsentedInitOptions,
   CookielessClient,
