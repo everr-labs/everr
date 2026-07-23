@@ -1,4 +1,6 @@
 import { ApplyValidationError } from "@/data/as-code/errors";
+import { parseResourceName } from "@/data/as-code/identity";
+import type { OwnershipConflict } from "@/data/as-code/ownership";
 import { stableStringify } from "@/data/as-code/reconcile";
 import type { Reconciler } from "@/data/as-code/registry";
 import * as cc from "@/data/cc/client";
@@ -8,7 +10,7 @@ import { authEnv } from "@/env/auth";
 import { querySqlApiWithMeta, type SqlApiResult } from "@/lib/clickhouse";
 import { createLimiter } from "@/lib/limiter";
 import { errorMessage } from "@/telemetry/logger";
-import { isOwnedRule, OWN_REPO, toRuleInput } from "./mapping";
+import { fromCcRule, isOwnedRule, OWN_REPO, toRuleInput } from "./mapping";
 import { type AlertRuleYaml, AlertRuleYamlSchema } from "./schema";
 import {
   extractVariables,
@@ -22,7 +24,7 @@ interface ApplyAlertsResult {
   updated: string[];
   deleted: string[];
   adopted: string[];
-  conflicts: never[];
+  conflicts: OwnershipConflict[];
   note?: string;
 }
 
@@ -188,11 +190,21 @@ function isCcVersionConflict(error: unknown): boolean {
  * optimistic-concurrency guard, so instance state survives); a scoped rule
  * absent from config is deleted. Preview rules are created `suppressed`: CC
  * evaluates them fully but never notifies on them.
+ *
+ * A live create can collide with a live rule (same tenant, namespace "")
+ * this repo does not own (another repo's, or a UI-created one with no
+ * everr.repoid — owner ""). That is the cross-repo ownership conflict,
+ * reported for the registry's fail-fast, or taken over in place when
+ * adopting (a version-guarded update that preserves the rule's id and
+ * instance state). Preview creates never collide (their own namespace is
+ * disjoint from the live one), and preview-namespaced rules are never
+ * adoption targets.
  */
 export const applyAlertSpecs: Reconciler = async ({
   namespace,
   resources,
   dryRun,
+  adopt,
 }): Promise<ApplyAlertsResult> => {
   const { orgId, repoid } = namespace;
   // The preview registry id scoping this reconcile; null = the live namespace.
@@ -277,70 +289,124 @@ export const applyAlertSpecs: Reconciler = async ({
   );
   const existingByName = new Map(existing.map((r) => [r.name, r]));
 
-  const created: string[] = [];
-  const updated: string[] = [];
-  const deleted: string[] = [];
+  // 3. Plan. A rule matched by name is an update when its content changed;
+  // otherwise unchanged (dropped from the plan entirely). Anything unmatched
+  // is a create, subject to the cross-repo ownership check below.
+  const updates: { d: (typeof desired)[number]; cur: CcRuleView }[] = [];
+  const creates: (typeof desired)[number][] = [];
+  for (const d of desired) {
+    const cur = existingByName.get(d.input.name);
+    if (!cur) {
+      creates.push(d);
+      continue;
+    }
+    // PUT takes the bare spec (identity is immutable after create).
+    const { name: _name, namespace: _namespace, ...spec } = d.input;
+    if (
+      specFingerprint(cur.spec as Record<string, unknown>) !==
+      specFingerprint(spec as unknown as Record<string, unknown>)
+    ) {
+      updates.push({ d, cur });
+    }
+  }
 
-  // Converge each desired rule. The rules are independent (each touches only
-  // its own CC rule, matched by name up front), so they run in a bounded
-  // pool. Outcomes aggregate by input index and the first failure (in input
-  // order) is rethrown, matching the sequential loop's deterministic
+  // 4. Cross-repo ownership: a live create can collide with a live rule
+  // (same tenant, namespace "") this repo does not own (another repo's, or a
+  // UI-created one with no everr.repoid — owner ""). Reported as conflicts
+  // for the registry's fail-fast, or taken over in place when adopting.
+  // Preview creates never collide (their own namespace is disjoint from the
+  // live one), and preview-namespaced rules are never adoption targets.
+  const foreignByName =
+    namespace.kind === "live"
+      ? new Map(
+          listed
+            .filter((r) => r.namespace === "" && !isOwnedRule(r, repoid))
+            .map((r) => [r.name, r]),
+        )
+      : new Map<string, CcRuleView>();
+  const taken = creates.flatMap((d) => {
+    const foreign = foreignByName.get(d.input.name);
+    return foreign ? [{ d, foreign }] : [];
+  });
+  const fresh = creates.filter((d) => !foreignByName.has(d.input.name));
+  const conflicts: OwnershipConflict[] = adopt
+    ? []
+    : taken.map(({ d, foreign }) => {
+        const { project, slug } = parseResourceName(d.input.name);
+        return { project, slug, owner: fromCcRule(foreign).repoid };
+      });
+  const adopted = adopt ? taken.map(({ d }) => d.input.name) : [];
+
+  // 5. Converge. Mutations run in a bounded pool (skipped entirely on
+  // dry-run); outcomes aggregate by input index and the first failure (in
+  // input order) is rethrown, matching the sequential loop's deterministic
   // reporting.
   const runMutation = createLimiter(CC_MUTATION_CONCURRENCY);
-  const outcomes = await Promise.allSettled(
-    desired.map((d) =>
-      runMutation(
-        undefined,
-        async (): Promise<"created" | "updated" | "unchanged"> => {
-          const cur = existingByName.get(d.input.name);
-          if (!cur) {
-            // link.alert/link.runbook are already baked into `d.input` (identity
-            // is known up front, unlike CC's old rule-id-based links), so
-            // creating is a single call: no follow-up PUT to stamp anything.
-            if (!dryRun) {
-              await cc.createRule(orgId, d.input);
-            }
-            return "created";
+  const writes = await Promise.allSettled([
+    ...fresh.map((d) =>
+      runMutation(undefined, async () => {
+        if (dryRun) return;
+        // link.alert/link.runbook are already baked into `d.input` (identity
+        // is known up front, unlike CC's old rule-id-based links), so
+        // creating is a single call: no follow-up PUT to stamp anything.
+        // Defense in depth: a foreign rule can appear between the listing
+        // above and this call (a race), which CC also reports as a 409 —
+        // translate it the same friendly way rather than letting the raw
+        // CcApiError bubble up.
+        try {
+          await cc.createRule(orgId, d.input);
+        } catch (error) {
+          if (isCcVersionConflict(error)) {
+            throw new ApplyValidationError(
+              `${d.path}: alert "${d.input.name}" was created by another repo since the last listing; re-run apply`,
+            );
           }
-          // PUT takes the bare spec (identity is immutable after create).
-          const { name: _name, namespace: _namespace, ...spec } = d.input;
-          if (
-            specFingerprint(cur.spec as Record<string, unknown>) ===
-            specFingerprint(spec as unknown as Record<string, unknown>)
-          ) {
-            return "unchanged";
-          }
-          // Update in place: preserves the rule id and instance state (CC clears
-          // instances only when the label_columns set changes). The stored
-          // version guards against concurrent edits.
-          if (!dryRun) {
-            try {
-              await cc.updateRule(orgId, cur.id, spec, cur.version);
-            } catch (error) {
-              if (isCcVersionConflict(error)) {
-                throw new ApplyValidationError(
-                  `${d.path}: alert "${d.name}" was modified concurrently in the alert engine (version conflict); re-run apply`,
-                );
-              }
-              throw error;
-            }
-          }
-          return "updated";
-        },
-      ),
+          throw error;
+        }
+      }),
     ),
-  );
-  desired.forEach((d, i) => {
-    const outcome = outcomes[i];
+    ...(adopt
+      ? taken.map(({ d, foreign }) =>
+          runMutation(undefined, async () => {
+            if (dryRun) return;
+            // Adoption: take over the foreign rule in place — the version-
+            // guarded PUT transfers ownership (everr.repoid) and applies the
+            // desired content while preserving the id and instance state.
+            const { name: _name, namespace: _namespace, ...spec } = d.input;
+            await cc.updateRule(orgId, foreign.id, spec, foreign.version);
+          }),
+        )
+      : []),
+    ...updates.map(({ d, cur }) =>
+      runMutation(undefined, async () => {
+        if (dryRun) return;
+        // Update in place: preserves the rule id and instance state (CC
+        // clears instances only when the label_columns set changes). The
+        // stored version guards against concurrent edits.
+        const { name: _name, namespace: _namespace, ...spec } = d.input;
+        try {
+          await cc.updateRule(orgId, cur.id, spec, cur.version);
+        } catch (error) {
+          if (isCcVersionConflict(error)) {
+            throw new ApplyValidationError(
+              `${d.path}: alert "${d.name}" was modified concurrently in the alert engine (version conflict); re-run apply`,
+            );
+          }
+          throw error;
+        }
+      }),
+    ),
+  ]);
+  for (const outcome of writes) {
     if (outcome.status === "rejected") throw outcome.reason;
-    if (outcome.value === "created") created.push(d.input.name);
-    if (outcome.value === "updated") updated.push(d.input.name);
-  });
+  }
 
-  // Scoped rules absent from config are pruned, same bounded pool. Runs only
-  // after every create/update settled cleanly, like the sequential version.
+  // 6. Scoped rules absent from config are pruned, same bounded pool. Runs
+  // only after every create/update settled cleanly, like the sequential
+  // version.
   const desiredNames = new Set(desired.map((d) => d.input.name));
   const stale = [...existingByName].filter(([name]) => !desiredNames.has(name));
+  const deleted: string[] = [];
   const deletions = await Promise.allSettled(
     stale.map(([, cur]) =>
       runMutation(undefined, async () => {
@@ -359,11 +425,11 @@ export const applyAlertSpecs: Reconciler = async ({
     ...warnings,
   ];
   return {
-    created,
-    updated,
+    created: fresh.map((d) => d.input.name),
+    updated: updates.map(({ d }) => d.input.name),
     deleted,
-    adopted: [],
-    conflicts: [],
+    adopted,
+    conflicts,
     ...(notes.length > 0 ? { note: notes.join("; ") } : {}),
   };
 };

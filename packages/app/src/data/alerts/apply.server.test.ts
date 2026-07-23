@@ -641,6 +641,97 @@ describe("applyAlertSpecs", () => {
     expect(res.deleted).toEqual([]);
   });
 
+  it("reports a cross-repo name collision as an ownership conflict (no writes)", async () => {
+    mockedListRules.mockResolvedValue([
+      managedRule("high-errors", {
+        annotations: {
+          [OWN_REPO]: "repo-2",
+          summary: `\${value} errors in \${service}`,
+        },
+      }),
+    ]);
+
+    const res = await applyAlertSpecs({
+      namespace: { orgId: "o", repoid: "repo-1", kind: "live" },
+      db,
+      resources: [{ path: "a.yaml", resource: alert() }],
+    });
+
+    expect(res.conflicts).toEqual([
+      { project: "default", slug: "high-errors", owner: "repo-2" },
+    ]);
+    expect(res.created).toEqual([]);
+    expect(res.adopted).toEqual([]);
+    expect(mockedCreateRule).not.toHaveBeenCalled();
+    expect(mockedUpdateRule).not.toHaveBeenCalled();
+  });
+
+  it('reports a UI-created rule name collision with owner ""', async () => {
+    mockedListRules.mockResolvedValue([
+      managedRule("high-errors", { annotations: {} }),
+    ]);
+
+    const res = await applyAlertSpecs({
+      namespace: { orgId: "o", repoid: "repo-1", kind: "live" },
+      db,
+      resources: [{ path: "a.yaml", resource: alert() }],
+    });
+
+    expect(res.conflicts).toEqual([
+      { project: "default", slug: "high-errors", owner: "" },
+    ]);
+  });
+
+  it("adopts a colliding foreign rule in place with adopt: true", async () => {
+    mockedListRules.mockResolvedValue([
+      managedRule("high-errors", {
+        annotations: {
+          [OWN_REPO]: "repo-2",
+          summary: `\${value} errors in \${service}`,
+        },
+      }),
+    ]);
+
+    const res = await applyAlertSpecs({
+      namespace: { orgId: "o", repoid: "repo-1", kind: "live" },
+      db,
+      adopt: true,
+      resources: [{ path: "a.yaml", resource: alert() }],
+    });
+
+    expect(res.conflicts).toEqual([]);
+    expect(res.adopted).toEqual(["default/high-errors"]);
+    expect(res.created).toEqual([]);
+    // Ownership transfers via a version-guarded update on the existing id, so
+    // the rule's id and instance state survive the takeover.
+    expect(mockedCreateRule).not.toHaveBeenCalled();
+    const [, id, spec, version] = mockedUpdateRule.mock.calls[0];
+    expect(id).toBe("rule-high-errors");
+    expect(version).toBe(3);
+    expect(spec.annotations[OWN_REPO]).toBe("repo-1");
+  });
+
+  it("translates a create-race 409 into a friendly ApplyValidationError", async () => {
+    mockedCreateRule.mockRejectedValueOnce(
+      new CcApiError(409, "conflict", "rule name already exists"),
+    );
+
+    try {
+      await applyAlertSpecs({
+        namespace: { orgId: "o", repoid: "repo-1", kind: "live" },
+        db,
+        resources: [{ path: "a.yaml", resource: alert() }],
+      });
+      expect.fail("expected the create race to fail as a validation error");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ApplyValidationError);
+      expect(error).not.toBeInstanceOf(CcApiError);
+      expect(error).toMatchObject({
+        message: expect.stringMatching(/a\.yaml:.*default\/high-errors/),
+      });
+    }
+  });
+
   it("rejects duplicate alert names before querying ClickHouse", async () => {
     try {
       await applyAlertSpecs({
