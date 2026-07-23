@@ -56,6 +56,15 @@ pub struct EvalCadence {
     pub eval_ts: OffsetDateTime,
 }
 
+/// Outcome of [`PgStore::create_rule`].
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, Clone, PartialEq)]
+pub enum RuleCreate {
+    Created(Rule),
+    /// A rule with this (tenant, namespace, name) already exists.
+    NameConflict,
+}
+
 /// Outcome of [`PgStore::update_rule`].
 #[derive(Debug, Clone, PartialEq)]
 pub enum RuleUpdate {
@@ -256,9 +265,8 @@ fn rule_from_row(r: &PgRow, id: RuleId, tenant: TenantId) -> Result<Rule, StoreE
     Ok(Rule {
         id,
         tenant,
-        // TODO(task 3): select namespace/name once the store reads them.
-        namespace: String::new(),
-        name: String::new(),
+        namespace: r.get("namespace"),
+        name: r.get("name"),
         spec,
         version: r.get("version"),
         paused: r.get("paused"),
@@ -403,38 +411,51 @@ impl PgStore {
     /// the same tick. The claim paths advance by whole intervals afterwards, which
     /// preserves the stagger. First evaluation therefore lands within one interval
     /// of creation rather than immediately.
-    pub async fn create_rule(&self, tenant: TenantId, spec: &RuleSpec) -> Result<Rule, StoreError> {
+    pub async fn create_rule(
+        &self,
+        tenant: TenantId,
+        namespace: &str,
+        name: &str,
+        spec: &RuleSpec,
+    ) -> Result<RuleCreate, StoreError> {
         let id = Uuid::new_v4();
         let spec_json = serde_json::to_value(spec)?;
         let phase = crate::domain::cadence::jitter_offset_secs(id, spec.interval_secs);
-        sqlx::query(
-            "INSERT INTO rules (id, tenant, spec, next_eval)
-             VALUES ($1,$2,$3, now() + make_interval(secs => $4::int))",
+        let res = sqlx::query(
+            "INSERT INTO rules (id, tenant, namespace, name, spec, next_eval)
+             VALUES ($1,$2,$3,$4,$5, now() + make_interval(secs => $6::int))",
         )
         .bind(id)
         .bind(tenant.as_str())
+        .bind(namespace)
+        .bind(name)
         .bind(&spec_json)
         .bind(phase as i32)
         .execute(&self.pool)
-        .await?;
-        Ok(Rule {
-            id: RuleId(id),
-            tenant,
-            // TODO(task 3): store assigns real namespace/name.
-            namespace: String::new(),
-            name: String::new(),
-            spec: spec.clone(),
-            version: 1,
-            paused: false,
-        })
+        .await;
+        match res {
+            Ok(_) => Ok(RuleCreate::Created(Rule {
+                id: RuleId(id),
+                tenant,
+                namespace: namespace.to_string(),
+                name: name.to_string(),
+                spec: spec.clone(),
+                version: 1,
+                paused: false,
+            })),
+            Err(e) if is_unique_violation(&e) => Ok(RuleCreate::NameConflict),
+            Err(e) => Err(e.into()),
+        }
     }
 
     pub async fn get_rule(&self, tenant: TenantId, id: RuleId) -> Result<Option<Rule>, StoreError> {
-        let row = sqlx::query("SELECT spec, version, paused FROM rules WHERE id=$1 AND tenant=$2")
-            .bind(id.0)
-            .bind(tenant.as_str())
-            .fetch_optional(&self.pool)
-            .await?;
+        let row = sqlx::query(
+            "SELECT namespace, name, spec, version, paused FROM rules WHERE id=$1 AND tenant=$2",
+        )
+        .bind(id.0)
+        .bind(tenant.as_str())
+        .fetch_optional(&self.pool)
+        .await?;
         match row {
             None => Ok(None),
             Some(r) => Ok(Some(rule_from_row(&r, id, tenant)?)),
@@ -450,11 +471,12 @@ impl PgStore {
             return Ok(Vec::new());
         }
         let raw: Vec<Uuid> = ids.iter().map(|r| r.0).collect();
-        let rows =
-            sqlx::query("SELECT id, tenant, spec, version, paused FROM rules WHERE id = ANY($1)")
-                .bind(&raw)
-                .fetch_all(&self.pool)
-                .await?;
+        let rows = sqlx::query(
+            "SELECT id, tenant, namespace, name, spec, version, paused FROM rules WHERE id = ANY($1)",
+        )
+        .bind(&raw)
+        .fetch_all(&self.pool)
+        .await?;
         let mut out = Vec::with_capacity(rows.len());
         for r in &rows {
             let tenant = TenantId::from_trusted(r.get::<String, _>("tenant"));
@@ -497,7 +519,7 @@ impl PgStore {
     ) -> Result<RuleUpdate, StoreError> {
         let mut tx = self.pool.begin().await?;
         let row = sqlx::query(
-            "SELECT spec, version, paused FROM rules WHERE id=$1 AND tenant=$2 FOR UPDATE",
+            "SELECT namespace, name, spec, version, paused FROM rules WHERE id=$1 AND tenant=$2 FOR UPDATE",
         )
         .bind(id.0)
         .bind(tenant.as_str())
@@ -599,9 +621,8 @@ impl PgStore {
         Ok(RuleUpdate::Updated(Rule {
             id,
             tenant,
-            // TODO(task 3): store assigns real namespace/name.
-            namespace: String::new(),
-            name: String::new(),
+            namespace: row.get("namespace"),
+            name: row.get("name"),
             spec: spec.clone(),
             version: current + 1,
             paused,
@@ -732,7 +753,7 @@ impl PgStore {
                     LEAST(r.eval_backoff_secs, COALESCE((r.spec->>'max_interval_secs')::int, 0)),
                     (r.spec->>'interval_secs')::int))
              FROM due WHERE r.id = due.id
-             RETURNING r.id, r.tenant, r.spec, r.version, r.paused, due.next_eval AS due_at",
+             RETURNING r.id, r.tenant, r.namespace, r.name, r.spec, r.version, r.paused, due.next_eval AS due_at",
         )
         .bind(now)
         .bind(limit)
@@ -942,7 +963,7 @@ impl PgStore {
         id: RuleId,
     ) -> Result<Option<(Rule, RuleHealth, RuleRollup, OffsetDateTime)>, StoreError> {
         let row = sqlx::query(
-            "SELECT spec, version, paused, updated_at, health_status, consecutive_failures,
+            "SELECT namespace, name, spec, version, paused, updated_at, health_status, consecutive_failures,
                     degraded_since, last_error, last_error_at,
                     alert_state, firing_instance_count, last_fired_at,
                     last_resolved_at, last_seen_at, last_row_count
@@ -975,6 +996,8 @@ impl PgStore {
         &self,
         tenant: &TenantId,
         health: Option<&str>,
+        namespace: Option<&str>,
+        name: Option<&str>,
         after: Option<&RulePageKey>,
         limit: i64,
     ) -> Result<
@@ -987,18 +1010,22 @@ impl PgStore {
         // Fetch one extra row: its presence (not its content) tells us whether a
         // next page exists, so `next` is only set when resuming would yield rows.
         let rows = sqlx::query(
-            "SELECT id, created_at, updated_at, spec, version, paused, health_status, consecutive_failures,
+            "SELECT id, created_at, updated_at, namespace, name, spec, version, paused, health_status, consecutive_failures,
                     degraded_since, last_error, last_error_at,
                     alert_state, firing_instance_count, last_fired_at,
                     last_resolved_at, last_seen_at, last_row_count
                FROM rules
               WHERE tenant=$1 AND ($2::text IS NULL OR health_status=$2)
-                AND ($3::timestamptz IS NULL OR (created_at, id) > ($3, $4))
+                AND ($3::text IS NULL OR namespace=$3)
+                AND ($4::text IS NULL OR name=$4)
+                AND ($5::timestamptz IS NULL OR (created_at, id) > ($5, $6))
               ORDER BY created_at, id
-              LIMIT $5",
+              LIMIT $7",
         )
         .bind(tenant.as_str())
         .bind(health)
+        .bind(namespace)
+        .bind(name)
         .bind(after.map(|k| k.created_at))
         .bind(after.map(|k| k.id.0))
         .bind(limit + 1)

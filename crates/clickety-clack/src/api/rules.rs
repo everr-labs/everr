@@ -149,8 +149,15 @@ pub async fn create(
 ) -> Result<Json<Rule>, ApiError> {
     let t = tenant(&state, &headers)?;
     validate_spec(&spec)?;
-    let rule = state.store.create_rule(t, &spec).await?;
-    Ok(Json(rule))
+    // TODO(task 5): thread the real namespace/name through the request body
+    // instead of generating a placeholder identity here.
+    let name = format!("rule-{}", Uuid::new_v4().simple());
+    match state.store.create_rule(t, "", &name, &spec).await? {
+        crate::stores::RuleCreate::Created(rule) => Ok(Json(rule)),
+        crate::stores::RuleCreate::NameConflict => Err(ApiError::Internal(
+            "generated rule name collided; retry".into(),
+        )),
+    }
 }
 
 /// `PUT /v1/rules/:id` body: a full rule spec plus an optional optimistic-concurrency
@@ -294,9 +301,10 @@ pub async fn list(
 
     let limit = parse_limit(params.limit.as_deref())?;
     let after = params.cursor.as_deref().map(decode_cursor).transpose()?;
+    // TODO(task 5): thread namespace/name filters from the request.
     let (rules, next) = state
         .store
-        .list_rules_page(&t, filter, after.as_ref(), limit)
+        .list_rules_page(&t, filter, None, None, after.as_ref(), limit)
         .await?;
     let items: Vec<Value> = rules.into_iter().map(view).collect();
     Ok(Json(json!({

@@ -123,3 +123,28 @@ async fn list_alerts_excludes_inactive() {
     assert_eq!(alerts.len(), 1, "only the firing instance should be listed");
     assert_eq!(alerts[0].status, Status::Firing);
 }
+
+#[tokio::test]
+async fn create_rule_name_conflict_within_namespace() {
+    let url = crate::support::fresh_db().await;
+    let store = PgStore::connect(&url).await.unwrap();
+    let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
+
+    let first = store
+        .create_rule(tenant.clone(), "", "default/api-errors", &spec())
+        .await
+        .unwrap();
+    assert!(matches!(first, cc::stores::RuleCreate::Created(_)));
+    // Same (tenant, namespace, name): conflict.
+    let dup = store
+        .create_rule(tenant.clone(), "", "default/api-errors", &spec())
+        .await
+        .unwrap();
+    assert!(matches!(dup, cc::stores::RuleCreate::NameConflict));
+    // Same name in a different namespace: fine (live vs preview copies).
+    let preview = store
+        .create_rule(tenant.clone(), "pv-123", "default/api-errors", &spec())
+        .await
+        .unwrap();
+    assert!(matches!(preview, cc::stores::RuleCreate::Created(_)));
+}
