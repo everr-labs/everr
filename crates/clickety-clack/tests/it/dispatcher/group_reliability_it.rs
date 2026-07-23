@@ -4,10 +4,14 @@
 
 use crate::common;
 use cc::dispatcher::flush_group;
+use cc::domain::channel::ChannelConfig;
 use cc::domain::event::EventStatus;
+use cc::domain::ids::TenantId;
 use cc::queue::groups::GroupMeta;
 use redis::AsyncCommands;
+use std::sync::atomic::Ordering;
 use time::{Duration, OffsetDateTime};
+use uuid::Uuid;
 
 fn now_ms() -> i64 {
     (OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000_000) as i64
@@ -110,4 +114,153 @@ async fn take_group_failure_rearms_instead_of_orphaning() {
         rearmed.contains(&gid.to_string()),
         "a take_group failure must re-arm the flush timer, not orphan the group"
     );
+}
+
+/// Delivery-capable harness: one webhook channel (counting stub) registered for a fresh
+/// tenant, plus a `GroupMeta` referencing it, so `flush_group` runs the full path.
+struct DeliveryHarness {
+    _infra: common::DispatchInfra,
+    ctx: cc::dispatcher::DispatchCtx,
+    groups: std::sync::Arc<dyn cc::queue::groups::GroupStore>,
+    meta: GroupMeta,
+    tenant: TenantId,
+    hits: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+}
+
+impl DeliveryHarness {
+    fn hits(&self) -> usize {
+        self.hits.load(Ordering::Relaxed)
+    }
+}
+
+async fn delivery_harness() -> DeliveryHarness {
+    let infra = common::dispatch_infra().await;
+    let ctx = common::dispatch_ctx(&infra);
+    let (url, hits, _hook) = common::start_counting_webhook().await;
+
+    let tenant_s = Uuid::new_v4().to_string();
+    let tenant = TenantId::from_trusted(tenant_s.clone());
+    infra
+        .store
+        .create_channel(
+            ctx.cipher.as_ref(),
+            tenant.clone(),
+            "hook",
+            &ChannelConfig::Webhook { url },
+        )
+        .await
+        .unwrap();
+    let meta = GroupMeta {
+        tenant: tenant_s,
+        channels: vec!["hook".into()],
+        group_key: "k".into(),
+        receiver: "r".into(),
+    };
+    DeliveryHarness {
+        groups: infra.groups.clone(),
+        _infra: infra,
+        ctx,
+        meta,
+        tenant,
+        hits,
+    }
+}
+
+/// The take -> deliver crash window: a flusher that takes (snapshots) a batch and dies
+/// before delivering must not lose it. The take is non-destructive, so once the lease
+/// expires the reclaimed group still holds the batch and the next flush delivers it.
+#[tokio::test]
+async fn batch_taken_but_undelivered_is_redelivered_after_reclaim() {
+    let h = delivery_harness().await;
+    let (gid, fp) = ("g-take-crash", "svc=api");
+
+    let mut ev = common::base_event();
+    ev.tenant = h.tenant.clone();
+    ev.eval_ts = OffsetDateTime::UNIX_EPOCH + Duration::seconds(30);
+    let now = now_ms();
+    h.groups
+        .add_to_group(gid, &h.meta, fp, &ev, now, 0, 0, true, None)
+        .await
+        .unwrap();
+    assert!(h
+        .groups
+        .claim_due(now, 16)
+        .await
+        .unwrap()
+        .contains(&gid.to_string()));
+
+    // The dying flusher got exactly as far as the take: batch snapshotted, nothing
+    // delivered, nothing drained, lease never released.
+    let taken = h
+        .groups
+        .take_group(gid, now)
+        .await
+        .unwrap()
+        .expect("group exists");
+    assert_eq!(taken.events.len(), 1);
+    assert_eq!(h.hits(), 0, "crashed before delivery");
+
+    // Lease expiry: another replica reclaims, claims, and flushes the group.
+    assert!(h
+        .groups
+        .reclaim_expired(now + 61_000, 16)
+        .await
+        .unwrap()
+        .contains(&gid.to_string()));
+    assert!(h
+        .groups
+        .claim_due(now + 61_000, 16)
+        .await
+        .unwrap()
+        .contains(&gid.to_string()));
+    flush_group(&h.ctx, gid).await;
+
+    assert_eq!(
+        h.hits(),
+        1,
+        "the taken-but-undelivered batch must be re-delivered, not lost"
+    );
+    // The successful flush committed the drain: nothing is left to deliver.
+    let after = h.groups.take_group(gid, now + 62_000).await.unwrap().unwrap();
+    assert!(after.events.is_empty(), "drain committed after delivery");
+}
+
+/// A reflush of an already-delivered batch (crash between delivery and the drain
+/// commit) must not double-send: the notifications ledger dedups the identical set.
+#[tokio::test]
+async fn reflush_of_a_delivered_batch_is_deduped_not_double_sent() {
+    let h = delivery_harness().await;
+    let (gid, fp) = ("g-reflush", "svc=api");
+
+    let mut ev = common::base_event();
+    ev.tenant = h.tenant.clone();
+    ev.eval_ts = OffsetDateTime::UNIX_EPOCH + Duration::seconds(30);
+    let now = now_ms();
+    h.groups
+        .add_to_group(gid, &h.meta, fp, &ev, now, 0, 0, true, None)
+        .await
+        .unwrap();
+    h.groups.claim_due(now, 16).await.unwrap();
+    flush_group(&h.ctx, gid).await;
+    assert_eq!(h.hits(), 1, "original delivery");
+
+    // The crash-window replay: the identical event (same instance, status, eval_ts) is
+    // buffered again, which is exactly what a reflush of an undrained batch takes.
+    let now = now_ms();
+    h.groups
+        .add_to_group(gid, &h.meta, fp, &ev, now, 0, 0, true, None)
+        .await
+        .unwrap();
+    assert!(h
+        .groups
+        .claim_due(now, 16)
+        .await
+        .unwrap()
+        .contains(&gid.to_string()));
+    flush_group(&h.ctx, gid).await;
+
+    assert_eq!(h.hits(), 1, "ledger dedup must suppress the re-delivery");
+    // The deduped reflush still commits the drain: the batch does not linger.
+    let after = h.groups.take_group(gid, now_ms()).await.unwrap().unwrap();
+    assert!(after.events.is_empty(), "reflush drained the batch");
 }

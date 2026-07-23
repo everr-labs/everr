@@ -73,7 +73,10 @@ pub fn fingerprint(ev: &Event) -> String {
 /// config or target) keeps the key stable across config edits: rotating a Slack hook
 /// must not re-send the identical active set. The active set is folded in as sorted
 /// (instance, status, eval_ts) so a changed set yields a new key (a new notification)
-/// while a redelivery of the identical set does not.
+/// while a redelivery of the identical set does not. This is deliberate for the
+/// crash-reflush path too: a reflush whose batch GREW (crash before the drain commit,
+/// then another event buffered) keys as a new notification that re-includes the
+/// already-sent members, because each notification reflects the batch as taken.
 pub fn group_dedup_key(group_id: &str, channel_name: &str, events: &[Event]) -> String {
     use sha2::Digest;
     let h = dedup_hash(group_id, channel_name, events);

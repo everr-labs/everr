@@ -412,13 +412,25 @@ pub async fn run_group_flusher(ctx: DispatchCtx, mut shutdown: tokio::sync::watc
     tracing::info!("group flusher stopped");
 }
 
+/// What became of a claimed batch in [`filter_or_dead_letter`], deciding whether the
+/// caller may commit the drain (the batch is durably handled) or must leave it buffered.
+enum FilterOutcome {
+    /// Snapshot loaded; the surviving events after silence/inhibition filtering
+    /// (possibly empty).
+    Kept(Vec<Event>),
+    /// Snapshot load failed; the batch was dead-lettered (durably recorded, safe to
+    /// drain from the group buffer).
+    DeadLettered,
+    /// Snapshot load failed AND the dead-letter write failed. The batch is still
+    /// buffered in the group store; the caller must re-arm for retry, not drain.
+    DeadLetterFailed,
+}
+
 /// Load the tenant snapshot and drop suppressed events from a claimed flush batch.
 ///
-/// `take_group` has already removed this batch from the group store, so a snapshot-load
-/// failure cannot simply return — the alerts would vanish silently. Instead the
-/// representative event is dead-lettered (observable, recoverable) and `None` is returned
-/// to tell the caller to stop. On success `Some(remaining)` is returned, where `remaining`
-/// is the surviving events after silence/inhibition filtering (possibly empty).
+/// On a snapshot-load failure the representative event is dead-lettered (observable,
+/// recoverable). The returned [`FilterOutcome`] tells the caller whether the buffered
+/// batch may be drained or must stay put for a retry.
 ///
 /// Split out from [`flush_group`] so this branch can be unit-tested against a failing
 /// [`SnapshotProvider`] without a live Postgres — it depends only on trait objects.
@@ -430,7 +442,7 @@ async fn filter_or_dead_letter(
     events: Vec<Event>,
     gid: &str,
     now: time::OffsetDateTime,
-) -> Option<Vec<Event>> {
+) -> FilterOutcome {
     let snap = match cache.snapshot(tenant).await {
         Ok(s) => s,
         Err(e) => {
@@ -438,14 +450,19 @@ async fn filter_or_dead_letter(
             tracing::error!(error = %e, group = %gid,
                 "loading tenant snapshot failed; dead-lettering claimed batch");
             let rep = events[0].clone();
-            if let Err(de) = bus.dead_letter(&rep, &reason).await {
-                tracing::error!(dead_letter_error = %de, group = %gid,
-                    "snapshot failure AND dead-letter write failed; batch lost");
-            }
-            return None;
+            return match bus.dead_letter(&rep, &reason).await {
+                Ok(()) => FilterOutcome::DeadLettered,
+                Err(de) => {
+                    tracing::error!(dead_letter_error = %de, group = %gid,
+                        "snapshot failure AND dead-letter write failed; leaving batch buffered for retry");
+                    FilterOutcome::DeadLetterFailed
+                }
+            };
         }
     };
-    Some(crate::dispatcher::flush_filter::filter_suppressed(&snap, events, now, sink).await)
+    FilterOutcome::Kept(
+        crate::dispatcher::flush_filter::filter_suppressed(&snap, events, now, sink).await,
+    )
 }
 
 /// Flush one claimed group and then release its in-flight lease. Every return path of the
@@ -455,9 +472,36 @@ async fn filter_or_dead_letter(
 /// drive a single flush; not a stable API.
 pub async fn flush_group(ctx: &DispatchCtx, gid: &str) {
     flush_claimed_group(ctx, gid).await;
-    if let Err(e) = ctx.groups.release_claim(gid).await {
+    if let Err(e) = ctx.groups.release_claim(gid, now_ms()).await {
         tracing::error!(error = %e, group = %gid,
             "releasing group flush lease failed; it will be reclaimed on lease expiry");
+    }
+}
+
+/// Re-arm the group's flush timer with a short backoff so a failed flush step retries in
+/// seconds rather than waiting out the in-flight lease. If the re-arm itself fails
+/// (Redis down), the release of the lease will fail for the same reason and the
+/// lease-expiry reclaim recovers the group.
+async fn rearm_for_retry(ctx: &DispatchCtx, gid: &str, taken_at: i64) {
+    if let Err(e) = ctx.groups.arm_repeat(gid, taken_at + TAKE_RETRY_MS).await {
+        tracing::error!(error = %e, group = %gid,
+            "re-arming flush timer failed; group will be reclaimed on lease expiry");
+    }
+}
+
+/// Phase two of the two-phase take: clear exactly the taken `ev:*` fields now that the
+/// batch is durably handled (ledger rows written, deduped, dead-lettered, or suppressed
+/// on record). Until this runs the events stay buffered, so a crash anywhere earlier
+/// re-delivers on reflush (deduped by the notifications ledger) instead of losing the
+/// batch. On failure the timer is re-armed so a near-term reflush retries the drain.
+async fn commit_drain(ctx: &DispatchCtx, gid: &str, fields: &[(String, String)], taken_at: i64) {
+    if fields.is_empty() {
+        return;
+    }
+    if let Err(e) = ctx.groups.commit_drain(gid, fields).await {
+        tracing::error!(error = %e, group = %gid,
+            "commit_drain failed; re-arming so a deduped reflush retries the drain");
+        rearm_for_retry(ctx, gid, taken_at).await;
     }
 }
 
@@ -473,16 +517,16 @@ async fn flush_claimed_group(ctx: &DispatchCtx, gid: &str) {
             // waiting out the full lease.
             tracing::error!(error = %e, group = %gid,
                 "take_group failed; re-arming flush timer for retry");
-            if let Err(re) = ctx.groups.arm_repeat(gid, taken_at + TAKE_RETRY_MS).await {
-                tracing::error!(error = %re, group = %gid,
-                    "re-arming flush timer after take_group failure also failed; group will be reclaimed on lease expiry");
-            }
+            rearm_for_retry(ctx, gid, taken_at).await;
             return;
         }
     };
     let meta = batch.meta;
     let repeat_ms = batch.repeat_interval_ms.filter(|r| *r > 0);
     let firing_count = batch.firing.len();
+    // The taken `ev:*` snapshot, cleared via `commit_drain` only once the batch is
+    // durably handled. Empty for a pure repeat-reminder flush.
+    let event_fields = batch.event_fields;
 
     // Pick what this flush delivers: the buffered batch when there is one; otherwise,
     // for a group with a repeat interval and still-firing members whose reminder is due,
@@ -536,11 +580,23 @@ async fn flush_claimed_group(ctx: &DispatchCtx, gid: &str) {
     )
     .await
     {
-        Some(evs) => evs,
-        None => return, // snapshot load failed; batch dead-lettered inside the helper
+        FilterOutcome::Kept(evs) => evs,
+        FilterOutcome::DeadLettered => {
+            // The batch now lives durably in the dead-letter stream; clear the buffer.
+            commit_drain(ctx, gid, &event_fields, taken_at).await;
+            return;
+        }
+        FilterOutcome::DeadLetterFailed => {
+            // Neither delivered nor dead-lettered: leave the batch buffered and retry.
+            rearm_for_retry(ctx, gid, taken_at).await;
+            return;
+        }
     };
     if events.is_empty() {
-        return; // every event suppressed at flush time (silence/inhibition)
+        // Every event suppressed at flush time (silence/inhibition). That is a recorded
+        // decision (the filter logged each suppression), so the batch drains.
+        commit_drain(ctx, gid, &event_fields, taken_at).await;
+        return;
     }
     let notif = Notification {
         group_key: meta.group_key.clone(),
@@ -549,9 +605,9 @@ async fn flush_claimed_group(ctx: &DispatchCtx, gid: &str) {
     // Representative event for the dead-letter record (the batch shares a group key).
     let rep = notif.events[0].clone();
     // Resolve the buffered channel NAMES to their stored configs now, at delivery
-    // time. take_group has already claimed and cleared this batch from Redis, so a
-    // load failure cannot simply return - the alerts would vanish silently; the
-    // representative event is dead-lettered instead (observable, recoverable).
+    // time. On a load failure the representative event is dead-lettered (observable,
+    // recoverable) and the batch drains; if even the dead-letter write fails, the
+    // batch stays buffered and the re-armed timer retries it.
     let loaded = match ctx
         .store
         .channels_by_names(ctx.cipher.as_ref(), &tenant, &meta.channels)
@@ -562,9 +618,13 @@ async fn flush_claimed_group(ctx: &DispatchCtx, gid: &str) {
             let reason = format!("loading channels for group flush failed: {e}");
             tracing::error!(error = %e, group = %gid,
                 "loading channels failed; dead-lettering claimed batch");
-            if let Err(de) = ctx.bus.dead_letter(&rep, &reason).await {
-                tracing::error!(dead_letter_error = %de, group = %gid,
-                    "channel load failure AND dead-letter write failed; batch lost");
+            match ctx.bus.dead_letter(&rep, &reason).await {
+                Ok(()) => commit_drain(ctx, gid, &event_fields, taken_at).await,
+                Err(de) => {
+                    tracing::error!(dead_letter_error = %de, group = %gid,
+                        "channel load failure AND dead-letter write failed; leaving batch buffered for retry");
+                    rearm_for_retry(ctx, gid, taken_at).await;
+                }
             }
             return;
         }
@@ -587,6 +647,10 @@ async fn flush_claimed_group(ctx: &DispatchCtx, gid: &str) {
             tracing::error!(error = %e, group = %gid, "mark_notified failed");
         }
     }
+    // The fan-out has handled every channel (ledger row + delivery/dead-letter, dedup
+    // skip, or a logged begin failure); commit phase two of the take so the buffered
+    // batch clears.
+    commit_drain(ctx, gid, &event_fields, taken_at).await;
     // One OTLP `delivery` log per flush, keyed by the clean receiver name exactly as
     // before multi-channel receivers (the group key additionally carries grouping
     // values, which don't belong in the target field). Per-channel detail stays in
@@ -1406,7 +1470,10 @@ mod flush_dead_letter_tests {
         )
         .await;
 
-        assert!(out.is_none(), "snapshot failure must stop the flush");
+        assert!(
+            matches!(out, FilterOutcome::DeadLettered),
+            "snapshot failure must stop the flush, with the batch durably dead-lettered"
+        );
         assert_eq!(bus.dead_letter_calls.load(Ordering::SeqCst), 1);
         let recorded = bus.dead_lettered.lock().unwrap();
         assert_eq!(
@@ -1443,12 +1510,62 @@ mod flush_dead_letter_tests {
         )
         .await;
 
-        let out = out.expect("successful snapshot returns the surviving events");
+        let FilterOutcome::Kept(out) = out else {
+            panic!("successful snapshot returns the surviving events");
+        };
         assert_eq!(
             out.len(),
             2,
             "no silences/inhibitions => nothing suppressed"
         );
         assert_eq!(bus.dead_letter_calls.load(Ordering::SeqCst), 0);
+    }
+
+    /// EventBus whose dead-letter write also fails (e.g. Redis down), exercising the
+    /// keep-buffered outcome.
+    struct FailingBus;
+    #[async_trait]
+    impl EventBus for FailingBus {
+        async fn publish(&self, _ev: &Event) -> Result<(), QueueError> {
+            unreachable!()
+        }
+        async fn consume(
+            &self,
+            _c: &str,
+            _n: usize,
+            _b: usize,
+        ) -> Result<Vec<EventEntry>, QueueError> {
+            unreachable!()
+        }
+        async fn ack(&self, _id: &EventId) -> Result<(), QueueError> {
+            unreachable!()
+        }
+        async fn dead_letter(&self, _ev: &Event, _reason: &str) -> Result<(), QueueError> {
+            Err(QueueError::Json(
+                serde_json::from_str::<i32>("not a number").unwrap_err(),
+            ))
+        }
+    }
+
+    /// When the dead-letter write fails too, the outcome must tell the flusher the batch
+    /// is still buffered so it re-arms for retry instead of dropping it (the batch is
+    /// only removed from Redis by the post-handling commit-drain).
+    #[tokio::test]
+    async fn dead_letter_failure_reports_the_batch_still_buffered() {
+        let out = filter_or_dead_letter(
+            &FailingBus,
+            &FailingSnapshots,
+            &crate::domain::sink::NullSink,
+            TenantId::from_trusted("t1".to_string()),
+            vec![event("api")],
+            "grp-1",
+            time::OffsetDateTime::UNIX_EPOCH,
+        )
+        .await;
+
+        assert!(
+            matches!(out, FilterOutcome::DeadLetterFailed),
+            "neither delivered nor dead-lettered: the caller must keep the batch buffered"
+        );
     }
 }

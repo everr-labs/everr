@@ -90,15 +90,29 @@ async fn buffers_batches_and_claims_when_due() {
     // A second claim finds nothing (timer was removed atomically).
     assert!(groups.claim_due(now + 100, 16).await.unwrap().is_empty());
 
-    // take_group returns meta + both active events, then clears them.
+    // take_group returns meta + both active events. The take is a peek (phase one of
+    // the two-phase take): the buffered fields stay in Redis until the flusher has
+    // durably handled the batch and commits the drain.
     let batch = groups.take_group("g1", now + 100).await.unwrap().unwrap();
     assert_eq!(batch.meta.channels, vec!["ops-hook".to_string()]);
-    let mut events = batch.events;
-    events.sort_by(|x, y| x.instance_key.0.cmp(&y.instance_key.0));
-    let insts: Vec<String> = events.iter().map(|e| e.instance_key.0.clone()).collect();
+    let mut insts: Vec<String> = batch
+        .events
+        .iter()
+        .map(|e| e.instance_key.0.clone())
+        .collect();
+    insts.sort();
     assert_eq!(insts, vec!["a".to_string(), "b".to_string()]);
 
-    // After take, the group has no events; a re-take yields meta with empty events.
+    // A crashed flusher's reflush sees the same still-buffered batch.
+    let again = groups.take_group("g1", now + 150).await.unwrap().unwrap();
+    assert_eq!(
+        again.events.len(),
+        2,
+        "take must not drain; only commit_drain clears the batch"
+    );
+
+    // Phase two: committing the drain with the taken fields clears the batch.
+    groups.commit_drain("g1", &batch.event_fields).await.unwrap();
     let after = groups.take_group("g1", now + 200).await.unwrap().unwrap();
     assert!(after.events.is_empty());
     // No repeat interval was ever set and nothing was marked notified.
@@ -188,7 +202,8 @@ async fn firing_membership_tracks_resolves_and_survives_takes() {
     assert_eq!(batch.firing.len(), 2, "both instances are still firing");
     assert_eq!(batch.repeat_interval_ms, Some(60_000));
 
-    // The batch was cleared, but firing membership survives the take.
+    // Committing the drain clears the batch, but firing membership survives.
+    groups.commit_drain("g3", &batch.event_fields).await.unwrap();
     let again = groups.take_group("g3", now + 20).await.unwrap().unwrap();
     assert!(again.events.is_empty());
     assert_eq!(again.firing.len(), 2, "firing set survives takes");
@@ -239,6 +254,75 @@ async fn firing_membership_tracks_resolves_and_survives_takes() {
     );
 }
 
+// The commit-drain clears exactly what the take snapshotted: an event buffered during
+// delivery (new instance) and a newer overwrite of a taken instance both survive.
+#[tokio::test]
+async fn commit_drain_keeps_events_buffered_during_delivery() {
+    let (_url, groups) = redis_groups().await;
+
+    let now = 7_000_000i64;
+    groups
+        .add_to_group(
+            "g6",
+            &meta(),
+            "a",
+            &ev("a", EventStatus::Firing),
+            now,
+            0,
+            1000,
+            true,
+            None,
+        )
+        .await
+        .unwrap();
+
+    // Phase one: the flusher snapshots the batch; delivery happens after this.
+    let batch = groups.take_group("g6", now + 10).await.unwrap().unwrap();
+    assert_eq!(batch.events.len(), 1);
+
+    // Mid-delivery, the taken instance is overwritten by a newer event and a new
+    // instance joins the group.
+    let mut newer_a = ev("a", EventStatus::Resolved);
+    newer_a.eval_ts = OffsetDateTime::UNIX_EPOCH + time::Duration::seconds(30);
+    groups
+        .add_to_group("g6", &meta(), "a", &newer_a, now + 20, 0, 1000, false, None)
+        .await
+        .unwrap();
+    groups
+        .add_to_group(
+            "g6",
+            &meta(),
+            "b",
+            &ev("b", EventStatus::Firing),
+            now + 20,
+            0,
+            1000,
+            true,
+            None,
+        )
+        .await
+        .unwrap();
+
+    // Phase two: commit the drain for the taken fields only.
+    groups.commit_drain("g6", &batch.event_fields).await.unwrap();
+
+    let next = groups.take_group("g6", now + 40).await.unwrap().unwrap();
+    let mut insts: Vec<(String, EventStatus)> = next
+        .events
+        .iter()
+        .map(|e| (e.instance_key.0.clone(), e.status))
+        .collect();
+    insts.sort_by(|x, y| x.0.cmp(&y.0));
+    assert_eq!(
+        insts,
+        vec![
+            ("a".to_string(), EventStatus::Resolved),
+            ("b".to_string(), EventStatus::Firing),
+        ],
+        "the newer overwrite and the newcomer must survive the commit-drain"
+    );
+}
+
 #[tokio::test]
 async fn mark_notified_and_arm_repeat_drive_the_reminder_timer() {
     let (_url, groups) = redis_groups().await;
@@ -259,7 +343,8 @@ async fn mark_notified_and_arm_repeat_drive_the_reminder_timer() {
         .await
         .unwrap();
     groups.claim_due(now, 16).await.unwrap();
-    groups.take_group("g4", now).await.unwrap();
+    let batch = groups.take_group("g4", now).await.unwrap().unwrap();
+    groups.commit_drain("g4", &batch.event_fields).await.unwrap();
 
     // Simulate a send + the reminder arm the flusher performs.
     groups.mark_notified("g4", now).await.unwrap();
@@ -435,6 +520,46 @@ async fn claimed_group_is_reclaimed_after_its_lease_expires() {
     );
 }
 
+/// The release safety net: dropping a lease while buffered events remain and no flush
+/// timer is armed (a slow replica's release crossing another replica's re-acquired
+/// lease) must re-arm the timer instead of stranding the batch with no schedule.
+#[tokio::test]
+async fn releasing_with_undrained_events_and_no_timer_rearms() {
+    let (_url, groups) = redis_groups().await;
+    let now = 8_000_000i64;
+    groups
+        .add_to_group(
+            "g7",
+            &meta(),
+            "a",
+            &ev("a", EventStatus::Firing),
+            now,
+            0,
+            1000,
+            true,
+            None,
+        )
+        .await
+        .unwrap();
+    // Claim consumes the timer; the take snapshots but does not drain.
+    assert_eq!(
+        groups.claim_due(now, 16).await.unwrap(),
+        vec!["g7".to_string()]
+    );
+    let batch = groups.take_group("g7", now).await.unwrap().unwrap();
+    assert_eq!(batch.events.len(), 1);
+
+    // The crossed release: the lease is dropped with the batch still buffered and
+    // nothing armed. Without the safety net the group would sit until a new event.
+    groups.release_claim("g7", now + 10).await.unwrap();
+
+    assert_eq!(
+        groups.claim_due(now + 10, 16).await.unwrap(),
+        vec!["g7".to_string()],
+        "release must re-arm the timer for an undrained, unscheduled batch"
+    );
+}
+
 /// Releasing a claim drops its lease, so a group whose flush completed cleanly is never
 /// reclaimed (no duplicate reflush).
 #[tokio::test]
@@ -459,7 +584,7 @@ async fn released_claim_is_not_reclaimed() {
         groups.claim_due(now, 16).await.unwrap(),
         vec!["g".to_string()]
     );
-    groups.release_claim("g").await.unwrap();
+    groups.release_claim("g", now).await.unwrap();
     assert!(
         groups
             .reclaim_expired(now + 120_000, 16)

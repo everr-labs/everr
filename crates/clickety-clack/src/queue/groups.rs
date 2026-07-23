@@ -50,8 +50,14 @@ pub struct GroupMeta {
 #[derive(Debug, Clone)]
 pub struct GroupBatch {
     pub meta: GroupMeta,
-    /// The buffered batch (`ev:*` fields), cleared by this take.
+    /// The buffered batch (`ev:*` fields). NOT cleared by the take: the flusher passes
+    /// [`Self::event_fields`] to [`GroupStore::commit_drain`] once the batch is durably
+    /// handled, so a crash mid-flush leaves the events buffered for the reflush.
     pub events: Vec<Event>,
+    /// Raw `(field, value)` pairs backing `events`, handed back to
+    /// [`GroupStore::commit_drain`] so exactly this take's snapshot is cleared (an
+    /// event overwritten by a newer one during delivery is left in place).
+    pub event_fields: Vec<(String, String)>,
     /// Still-firing membership (`fi:*` fields). Survives takes; an instance leaves when
     /// a resolved event for it is buffered. Feeds `repeat_interval` reminders.
     pub firing: Vec<Event>,
@@ -110,17 +116,37 @@ pub trait GroupStore: Send + Sync {
 
     /// Release a group's in-flight lease once its flush has been handled. Idempotent; a
     /// no-op if the lease is already gone (e.g. a slow flush reclaimed in the meantime).
-    async fn release_claim(&self, group_id: &str) -> Result<(), QueueError>;
+    ///
+    /// Safety net: if buffered `ev:*` events remain and no flush timer is armed, the
+    /// release re-arms the timer at `now_ms`. This covers the crossed-replica release:
+    /// a flush outliving its lease releases the lease a reclaiming replica re-acquired;
+    /// if that replica then dies mid-flush, its undrained batch would otherwise be left
+    /// with neither a timer nor a lease until the next event re-arms the group.
+    async fn release_claim(&self, group_id: &str, now_ms: i64) -> Result<(), QueueError>;
 
-    /// Snapshot a claimed group, atomically clearing the buffered event fields and
-    /// stamping `__last_flush__ = now_ms` (so re-arrivals form a new batch). Firing
-    /// membership and repeat/notify bookkeeping are returned but NOT cleared.
-    /// Returns None if the group has no metadata (already taken / expired).
+    /// Phase one of the two-phase take: snapshot a claimed group and stamp
+    /// `__last_flush__ = now_ms` (so re-arrivals form a new batch), WITHOUT clearing
+    /// the buffered `ev:*` fields. The batch is only removed by [`Self::commit_drain`]
+    /// once delivery is durably begun (notifications-ledger rows written) or the batch
+    /// is dead-lettered, so a flusher crashing between take and delivery leaves the
+    /// events buffered: the lease-expiry reflush re-delivers them (deduped by the
+    /// ledger) instead of silently losing the batch.
+    /// Returns None if the group has no metadata (already expired).
     async fn take_group(
         &self,
         group_id: &str,
         now_ms: i64,
     ) -> Result<Option<GroupBatch>, QueueError>;
+
+    /// Phase two of the two-phase take: clear exactly the given `(field, value)` pairs
+    /// (a taken batch's [`GroupBatch::event_fields`]) from the group hash. A field
+    /// whose value changed since the take (a newer event buffered during delivery) is
+    /// left in place for the next flush. Idempotent.
+    async fn commit_drain(
+        &self,
+        group_id: &str,
+        fields: &[(String, String)],
+    ) -> Result<(), QueueError>;
 
     /// Record that a notification for this group was sent at `now_ms` (drives the
     /// `repeat_interval` elapsed check). No-op if the group hash no longer exists.
@@ -214,22 +240,47 @@ return expired
 "#;
 
 // Drop a group's in-flight lease once its flush has been handled (delivered, or its retry
-// re-armed on the flush timer). A no-op if the lease is already gone.
+// re-armed on the flush timer). A no-op if the lease is already gone. Safety net: a group
+// left with buffered ev:* events but no armed timer (a crossed-replica release dropping a
+// lease someone else re-acquired) is re-armed at now (ARGV[2]) so it can never sit
+// unscheduled. A normal flush drains before releasing, so the net does not trigger.
 const RELEASE_LUA: &str = r#"
 redis.call('ZREM', KEYS[1], ARGV[1])
+if not redis.call('ZSCORE', KEYS[3], ARGV[1]) then
+  local fields = redis.call('HKEYS', KEYS[2])
+  for i=1,#fields do
+    if string.sub(fields[i],1,3) == 'ev:' then
+      redis.call('ZADD', KEYS[3], ARGV[2], ARGV[1])
+      break
+    end
+  end
+end
 return 1
 "#;
 
+// Phase one of the two-phase take: snapshot the hash and stamp __last_flush__, but do
+// NOT delete the ev:* fields. They are cleared by COMMIT_DRAIN_LUA only after the
+// flusher has durably handled the batch, so a crash between take and delivery cannot
+// lose it (the lease-expiry reflush takes the same batch again).
 const TAKE_LUA: &str = r#"
 local all = redis.call('HGETALL', KEYS[1])
-for i=1,#all,2 do
-  if string.sub(all[i],1,3) == 'ev:' then
-    redis.call('HDEL', KEYS[1], all[i])
-  end
-end
 redis.call('HSET', KEYS[1], '__last_flush__', ARGV[1])
 redis.call('PEXPIRE', KEYS[1], ARGV[2])
 return all
+"#;
+
+// Phase two: delete each ARGV (field, value) pair only while the stored value still
+// matches the taken snapshot, so a newer event buffered for the same instance during
+// delivery survives the drain.
+const COMMIT_DRAIN_LUA: &str = r#"
+local n = 0
+for i=1,#ARGV,2 do
+  if redis.call('HGET', KEYS[1], ARGV[i]) == ARGV[i+1] then
+    redis.call('HDEL', KEYS[1], ARGV[i])
+    n = n + 1
+  end
+end
+return n
 "#;
 
 const MARK_NOTIFIED_LUA: &str = r#"
@@ -255,6 +306,7 @@ static CLAIM_SCRIPT: LazyLock<Script> = LazyLock::new(|| Script::new(CLAIM_LUA))
 static RECLAIM_SCRIPT: LazyLock<Script> = LazyLock::new(|| Script::new(RECLAIM_LUA));
 static RELEASE_SCRIPT: LazyLock<Script> = LazyLock::new(|| Script::new(RELEASE_LUA));
 static TAKE_SCRIPT: LazyLock<Script> = LazyLock::new(|| Script::new(TAKE_LUA));
+static COMMIT_DRAIN_SCRIPT: LazyLock<Script> = LazyLock::new(|| Script::new(COMMIT_DRAIN_LUA));
 static MARK_NOTIFIED_SCRIPT: LazyLock<Script> = LazyLock::new(|| Script::new(MARK_NOTIFIED_LUA));
 static ARM_REPEAT_SCRIPT: LazyLock<Script> = LazyLock::new(|| Script::new(ARM_REPEAT_LUA));
 
@@ -325,11 +377,14 @@ impl GroupStore for RedisGroups {
         Ok(ids)
     }
 
-    async fn release_claim(&self, group_id: &str) -> Result<(), QueueError> {
+    async fn release_claim(&self, group_id: &str, now_ms: i64) -> Result<(), QueueError> {
         let mut conn = self.conn.clone();
         let _: i64 = RELEASE_SCRIPT
             .key(INFLIGHT_ZSET)
+            .key(group_key(group_id))
+            .key(FLUSH_ZSET)
             .arg(group_id)
+            .arg(now_ms)
             .invoke_async(&mut conn)
             .await?;
         Ok(())
@@ -349,6 +404,7 @@ impl GroupStore for RedisGroups {
             .await?;
         let mut meta: Option<GroupMeta> = None;
         let mut events: Vec<Event> = Vec::new();
+        let mut event_fields: Vec<(String, String)> = Vec::new();
         let mut firing: Vec<Event> = Vec::new();
         let mut repeat_interval_ms: Option<i64> = None;
         let mut last_notified_ms: Option<i64> = None;
@@ -364,6 +420,7 @@ impl GroupStore for RedisGroups {
                 last_notified_ms = v.parse::<i64>().ok();
             } else if k.strip_prefix("ev:").is_some() {
                 events.push(serde_json::from_str(v)?);
+                event_fields.push((k.clone(), v.clone()));
             } else if k.strip_prefix("fi:").is_some() {
                 firing.push(serde_json::from_str(v)?);
             }
@@ -372,10 +429,29 @@ impl GroupStore for RedisGroups {
         Ok(meta.map(|m| GroupBatch {
             meta: m,
             events,
+            event_fields,
             firing,
             repeat_interval_ms,
             last_notified_ms,
         }))
+    }
+
+    async fn commit_drain(
+        &self,
+        group_id: &str,
+        fields: &[(String, String)],
+    ) -> Result<(), QueueError> {
+        if fields.is_empty() {
+            return Ok(());
+        }
+        let mut conn = self.conn.clone();
+        let mut invocation = COMMIT_DRAIN_SCRIPT.prepare_invoke();
+        invocation.key(group_key(group_id));
+        for (field, value) in fields {
+            invocation.arg(field).arg(value);
+        }
+        let _: i64 = invocation.invoke_async(&mut conn).await?;
+        Ok(())
     }
 
     async fn mark_notified(&self, group_id: &str, now_ms: i64) -> Result<(), QueueError> {
