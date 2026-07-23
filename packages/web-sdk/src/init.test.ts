@@ -2,14 +2,12 @@ import { SeverityNumber } from "@opentelemetry/api-logs";
 import { InMemoryLogRecordExporter } from "@opentelemetry/sdk-logs";
 import { afterEach, describe, expect, it } from "vitest";
 import { initInternal } from "./client.js";
-import type { EverrClient } from "./types.js";
+import type { CaptureConfig, EverrClient } from "./types.js";
 
 let client: EverrClient | undefined;
 let exporter: InMemoryLogRecordExporter;
 
-function start(options?: {
-  capture?: import("./types.js").CaptureConfig;
-}): void {
+function start(options?: { capture?: CaptureConfig }): void {
   exporter = new InMemoryLogRecordExporter();
   client = initInternal(
     {
@@ -101,6 +99,13 @@ describe("init (cookieless)", () => {
     start({ capture: { pageviews: false } });
     history.pushState(null, "", "/nope");
     expect(records()).toHaveLength(0);
+  });
+
+  it("keeps watching navigations when pageviews are off, so the envelope stays fresh", () => {
+    start({ capture: { pageviews: false } });
+    // The navigation watcher is envelope infrastructure, not a signal: it
+    // must patch history even when no pageview listener is registered.
+    expect(history.pushState.toString()).not.toContain("native code");
   });
 
   it("stops emitting and unpatches history after shutdown", async () => {

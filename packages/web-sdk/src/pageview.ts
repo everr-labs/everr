@@ -1,16 +1,12 @@
 import { type Logger, SeverityNumber } from "@opentelemetry/api-logs";
-import type { SessionContext } from "./session.js";
+import type { NavigationListener } from "./navigation.js";
 
-// Pageview tracking: one `browser.page_view` for the hard navigation that
-// loaded the page, then one per SPA route change via the patched history API
-// (pushState, replaceState, popstate), deduped on the full URL. The envelope
-// processor stamps url/session/pageview context; this module only decides
-// WHEN a pageview happens and rotates the pageview id first.
+// The pageview signal: one `browser.page_view` for the hard navigation that
+// loaded the page (emitted immediately), then one per SPA navigation via the
+// returned listener. The envelope processor stamps url/session/pageview
+// context; the navigation watcher owns WHEN the page context rotates.
 
-export function startPageviewTracking(
-  logger: Logger,
-  session: SessionContext,
-): () => void {
+export function startPageviews(logger: Logger): NavigationListener {
   const emit = (navigationType: "initial" | "history_change") => {
     logger.emit({
       eventName: "browser.page_view",
@@ -20,31 +16,5 @@ export function startPageviewTracking(
   };
 
   emit("initial");
-
-  let lastUrl = window.location.href;
-  const onUrlChange = () => {
-    const url = window.location.href;
-    if (url === lastUrl) return;
-    lastUrl = url;
-    session.startPageView(url);
-    emit("history_change");
-  };
-
-  const originalPushState = history.pushState.bind(history);
-  const originalReplaceState = history.replaceState.bind(history);
-  history.pushState = (...args) => {
-    originalPushState(...args);
-    onUrlChange();
-  };
-  history.replaceState = (...args) => {
-    originalReplaceState(...args);
-    onUrlChange();
-  };
-  window.addEventListener("popstate", onUrlChange);
-
-  return () => {
-    history.pushState = originalPushState;
-    history.replaceState = originalReplaceState;
-    window.removeEventListener("popstate", onUrlChange);
-  };
+  return () => emit("history_change");
 }

@@ -10,7 +10,8 @@ import { attributionAttributes } from "./attribution.js";
 import { resolveCapture } from "./capture.js";
 import { resolveTransport } from "./config.js";
 import { createEnvelopeProcessor } from "./envelope.js";
-import { startPageviewTracking } from "./pageview.js";
+import { type NavigationListener, watchNavigation } from "./navigation.js";
+import { startPageviews } from "./pageview.js";
 import { SessionContext } from "./session.js";
 import type {
   ConsentedClient,
@@ -83,16 +84,19 @@ export function initInternal(
   });
   const logger = provider.getLogger(SDK_NAME, SDK_VERSION);
 
-  const cleanups: Array<() => void> = [];
+  // The navigation watcher always runs so the envelope's page context stays
+  // fresh for every signal; capture flags only gate the signal listeners.
+  const navigationListeners: NavigationListener[] = [];
   if (capture.pageviews) {
-    cleanups.push(startPageviewTracking(logger, session));
+    navigationListeners.push(startPageviews(logger));
   }
+  const stopWatching = watchNavigation(session, navigationListeners);
 
   return {
     mode: options.mode,
     flush: () => provider.forceFlush(),
     shutdown: async () => {
-      for (const cleanup of cleanups) cleanup();
+      stopWatching();
       await provider.shutdown();
     },
   };

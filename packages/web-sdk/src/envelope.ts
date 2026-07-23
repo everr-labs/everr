@@ -10,31 +10,24 @@ export function createEnvelopeProcessor(
   session: SessionContext,
   attribution: Record<string, string>,
 ): LogRecordProcessor {
+  const attributionEntries = Object.entries(attribution);
   return {
     onEmit(logRecord: SdkLogRecord): void {
       const page = session.current();
       logRecord.setAttribute("session.id", page.sessionId);
       logRecord.setAttribute("everr.page_view.id", page.pageViewId);
       logRecord.setAttribute("url.full", page.url);
-      logRecord.setAttribute("url.path", pathOf(page.url));
+      logRecord.setAttribute("url.path", page.path);
       if (page.referrer) {
         logRecord.setAttribute("everr.referrer.url", page.referrer);
       }
       // The $insert_id analogue: a per-record random id for dedup.
       logRecord.setAttribute("everr.event.id", crypto.randomUUID());
-      for (const [key, value] of Object.entries(attribution)) {
+      for (const [key, value] of attributionEntries) {
         logRecord.setAttribute(key, value);
       }
     },
     forceFlush: () => Promise.resolve(),
     shutdown: () => Promise.resolve(),
   };
-}
-
-function pathOf(url: string): string {
-  try {
-    return new URL(url).pathname;
-  } catch {
-    return url;
-  }
 }

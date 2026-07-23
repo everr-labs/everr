@@ -17,11 +17,7 @@ export type CaptureOptions = {
 /** `false` disables all analytics capture; `true` (the default) enables everything. */
 export type CaptureConfig = boolean | CaptureOptions;
 
-export type ResolvedCapture = {
-  pageviews: boolean;
-  interactions: boolean;
-  webVitals: boolean;
-};
+export type ResolvedCapture = Required<CaptureOptions>;
 
 type CommonInitOptions = {
   /** The `service.name` resource attribute events are reported under. */

@@ -26,12 +26,11 @@ export function resolveTransport(options: {
   const endpoint =
     explicitEndpoint ??
     (ingestKey ? EVERR_HOSTED_OTLP_ENDPOINT : DEFAULT_LOCAL_OTLP_ENDPOINT);
-  const usesHostedIngest = !explicitEndpoint && Boolean(ingestKey);
 
   return {
     logsUrl: `${normalizeBaseEndpoint(endpoint)}/v1/logs`,
     headers:
-      usesHostedIngest && ingestKey
+      !explicitEndpoint && ingestKey
         ? { Authorization: `Bearer ${ingestKey}` }
         : undefined,
   };
