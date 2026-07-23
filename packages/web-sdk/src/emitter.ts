@@ -1,14 +1,25 @@
-import {
-  type AttrValue,
-  buildLogsPayload,
-  type OtlpLogRecord,
-  toKeyValues,
-} from "./otlp.js";
-
 // The SDK's own emit pipeline: an in-memory queue, a batch timer, and one
 // fetch POST of OTLP JSON per flush. Owning the queue (instead of OTel's
 // BatchLogRecordProcessor) is what lets the exit-flush work prioritize and
-// truncate by event name later.
+// truncate by event name later. Wire shapes follow the OTLP JSON mapping
+// (intValue is a decimal string).
+
+export type AttrValue = string | number | boolean;
+
+type AnyValue =
+  | { stringValue: string }
+  | { intValue: string }
+  | { doubleValue: number }
+  | { boolValue: boolean };
+
+type KeyValue = { key: string; value: AnyValue };
+
+type OtlpLogRecord = {
+  timeUnixNano: string;
+  severityNumber: number;
+  eventName: string;
+  attributes: KeyValue[];
+};
 
 export type Emitter = {
   emit(eventName: string, attributes?: Record<string, AttrValue>): void;
@@ -21,7 +32,25 @@ const MAX_QUEUE_SIZE = 100;
 const MAX_BATCH_SIZE = 32;
 const SCHEDULED_DELAY_MS = 5_000;
 
-const swallow = () => {};
+export const noop = () => Promise.resolve();
+
+function toAnyValue(value: AttrValue): AnyValue {
+  if (typeof value === "string") return { stringValue: value };
+  if (typeof value === "boolean") return { boolValue: value };
+  return Number.isInteger(value)
+    ? { intValue: String(value) }
+    : { doubleValue: value };
+}
+
+function toKeyValues(
+  attributes: Record<string, AttrValue | undefined>,
+): KeyValue[] {
+  // Skipping undefined lets callers write optional attributes as plain
+  // properties instead of conditional spreads.
+  return Object.entries(attributes).flatMap(([key, value]) =>
+    value === undefined ? [] : [{ key, value: toAnyValue(value) }],
+  );
+}
 
 export function createEmitter(options: {
   logsUrl: string;
@@ -42,16 +71,21 @@ export function createEmitter(options: {
     clearTimeout(timer);
     timer = undefined;
     if (!queue.length) return Promise.resolve();
-    const body = JSON.stringify(
-      buildLogsPayload(resource, options.scope, queue),
-    );
+    const body = JSON.stringify({
+      resourceLogs: [
+        {
+          resource: { attributes: resource },
+          scopeLogs: [{ scope: options.scope, logRecords: queue }],
+        },
+      ],
+    });
     queue = [];
     // Telemetry must never break the page: delivery is best-effort.
     return transportFetch(options.logsUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...options.headers },
       body,
-    }).then(swallow, swallow);
+    }).then(noop, noop);
   };
 
   return {

@@ -1,6 +1,6 @@
 import { attributionAttributes } from "./attribution.js";
 import { resolveTransport } from "./config.js";
-import { createEmitter } from "./emitter.js";
+import { createEmitter, noop } from "./emitter.js";
 import { createEnvelope } from "./envelope.js";
 import { watchNavigation } from "./navigation.js";
 import { startPageviews } from "./pageview.js";
@@ -88,5 +88,4 @@ export function init(
   };
 }
 
-const noop = () => Promise.resolve();
 const INERT: EverrClient = { flush: noop, shutdown: noop };
