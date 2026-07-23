@@ -2,10 +2,12 @@ import { attributionAttributes } from "./attribution.js";
 import { resolveTransport } from "./config.js";
 import { createEmitter, noop } from "./emitter.js";
 import { createEnvelope } from "./envelope.js";
+import { startInteractions } from "./interactions.js";
 import { watchNavigation } from "./navigation.js";
 import { startPageviews } from "./pageview.js";
 import { SessionContext } from "./session.js";
 import type {
+  CaptureSignal,
   ConsentedClient,
   ConsentedInitOptions,
   CookielessClient,
@@ -63,14 +65,18 @@ export function init(options: InitOptions): EverrClient {
   // The navigation watcher always runs so the envelope's page context stays
   // fresh for every signal; the disable list only gates the signal listeners.
   const off = options.disable;
-  const pageviews =
-    off !== true && !off?.includes("pageviews")
-      ? startPageviews(emitter, session)
-      : undefined;
+  const enabled = (signal: CaptureSignal) =>
+    off !== true && !off?.includes(signal);
+  const pageviews = enabled("pageviews")
+    ? startPageviews(emitter, session)
+    : undefined;
   const stopWatching = watchNavigation(
     session,
     pageviews ? [pageviews.onNavigate] : [],
   );
+  const stopInteractions = enabled("interactions")
+    ? startInteractions(emitter)
+    : undefined;
 
   // Exit delivery: the final leave plus whatever is batched rides the
   // keepalive path. pagehide and visibilitychange-hidden, not beforeunload
@@ -90,6 +96,7 @@ export function init(options: InitOptions): EverrClient {
     shutdown: () => {
       removeEventListener("pagehide", onHide);
       removeEventListener("visibilitychange", onVisibilityChange);
+      stopInteractions?.();
       pageviews?.stop();
       stopWatching();
       return emitter.shutdown();
