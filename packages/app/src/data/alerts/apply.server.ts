@@ -389,7 +389,7 @@ export const applyAlertSpecs: Reconciler = async ({
         } catch (error) {
           if (isCcVersionConflict(error)) {
             throw new ApplyValidationError(
-              `${d.path}: alert "${d.name}" was modified concurrently in the alert engine (version conflict); re-run apply`,
+              `${d.path}: alert "${d.input.name}" was modified concurrently in the alert engine (version conflict); re-run apply`,
             );
           }
           throw error;

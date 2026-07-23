@@ -565,7 +565,7 @@ describe("applyAlertSpecs", () => {
       expect(error).toBeInstanceOf(ApplyValidationError);
       expect(error).toMatchObject({
         message: expect.stringMatching(
-          /a\.yaml: alert "high-errors" was modified concurrently .* re-run apply/,
+          /a\.yaml: alert "default\/high-errors" was modified concurrently .* re-run apply/,
         ),
       });
     }
