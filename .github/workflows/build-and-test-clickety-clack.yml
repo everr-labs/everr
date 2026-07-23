@@ -47,8 +47,8 @@ jobs:
 
       - name: Clippy
         working-directory: crates/clickety-clack
-        run: cargo clippy --all-targets --features container-tests -- -D warnings
+        run: cargo clippy --locked --all-targets --features container-tests -- -D warnings
 
       - name: Test (unit + container suites)
         working-directory: crates/clickety-clack
-        run: cargo test --features container-tests
+        run: cargo test --locked --features container-tests
