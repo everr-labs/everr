@@ -1,53 +1,76 @@
 import { and, eq, inArray } from "drizzle-orm";
 import * as cc from "@/data/cc/client";
+import { previewIdOfSlo } from "@/data/slos/mapping";
 import { db } from "@/db/client";
 import { previews } from "@/db/schema";
 import { createLimiter } from "@/lib/limiter";
 import { errorMessage, serverLogger } from "@/telemetry/logger";
 import { previewIdOf } from "./mapping";
 
-/** At most this many orphan rules are deleted per org per sweep run. */
+/**
+ * At most this many orphan rules, and separately this many orphan SLOs, are
+ * deleted per org per sweep run. Rules and SLOs are unrelated CC resources
+ * with independent listings and deletions, so the cap is applied per resource
+ * kind rather than shared: a pathological rule backlog should not starve the
+ * SLO sweep for the same org in one run, or vice versa.
+ */
 const ORPHAN_SWEEP_CAP_PER_ORG = 100;
 
-/** Cap on in-flight CC delete calls while clearing a batch of rule ids. */
+/** Cap on in-flight CC delete calls while clearing a batch of resource ids. */
 const DELETE_CONCURRENCY = 8;
 
 /**
- * Delete the given CC rule ids for one org, at most `cap` of them (0 = no cap).
- * Shared by the on-delete fast path and the periodic sweep. Deletes run in a
- * bounded pool; every one is attempted and the first failure (in input order)
- * is rethrown, so callers keep their existing catch-and-log handling. Returns
- * how many were deleted and whether the cap clipped the list.
+ * Delete the given CC resource ids for one org via `deleteFn`, at most `cap`
+ * of them (0 = no cap). Shared by the rule and SLO cleanup paths (both the
+ * on-delete fast path and the periodic sweep). Deletes run in a bounded pool;
+ * every one is attempted and the first failure (in input order) is rethrown,
+ * so callers keep their existing catch-and-log handling. Returns how many
+ * were deleted and whether the cap clipped the list.
  */
-async function deleteCcRules(
+async function deleteCcResources(
   orgId: string,
-  ruleIds: readonly string[],
+  ids: readonly string[],
+  deleteFn: (orgId: string, id: string) => Promise<unknown>,
   cap = 0,
 ): Promise<{ deleted: number; capped: boolean }> {
-  const capped = cap > 0 && ruleIds.length > cap;
-  const targets = capped ? ruleIds.slice(0, cap) : ruleIds;
+  const capped = cap > 0 && ids.length > cap;
+  const targets = capped ? ids.slice(0, cap) : ids;
   const runDelete = createLimiter(DELETE_CONCURRENCY);
   const results = await Promise.allSettled(
-    targets.map((id) => runDelete(undefined, () => cc.deleteRule(orgId, id))),
+    targets.map((id) => runDelete(undefined, () => deleteFn(orgId, id))),
   );
   const failure = results.find((r) => r.status === "rejected");
   if (failure) throw failure.reason;
   return { deleted: targets.length, capped };
 }
 
+function deleteCcRules(orgId: string, ruleIds: readonly string[], cap = 0) {
+  return deleteCcResources(orgId, ruleIds, cc.deleteRule, cap);
+}
+
+function deleteCcSlos(orgId: string, sloIds: readonly string[], cap = 0) {
+  return deleteCcResources(orgId, sloIds, cc.deleteSlo, cap);
+}
+
 /**
- * Best-effort removal of the suppressed CC rules left behind by deleted
- * previews: list each affected org's rules and delete every one whose
- * `namespace` names a deleted preview id.
+ * Best-effort removal of the suppressed CC rules and SLOs left behind by
+ * deleted previews: list each affected org's rules and SLOs and delete every
+ * one whose `namespace` names a deleted preview id.
  *
  * Called AFTER the preview registry rows are gone. Row-first ordering keeps
  * the Postgres delete authoritative (its predicate already guards against a
  * concurrent re-apply refreshing lastAppliedAt, so we never tear down the CC
- * rules of a preview that just came back to life) and means a CC outage can
- * never block retention. The tradeoff: if CC is unreachable here, the
- * suppressed rules are orphaned (they keep evaluating but never notify) with
- * no immediate retry — {@link sweepOrphanCcRules} is the periodic backstop
- * that eventually reaps them.
+ * rules/SLOs of a preview that just came back to life) and means a CC outage
+ * can never block retention. The tradeoff: if CC is unreachable here, the
+ * suppressed rules/SLOs are orphaned (they keep evaluating but never notify)
+ * with no immediate retry — {@link sweepOrphanCcRules} is the periodic
+ * backstop that eventually reaps them.
+ *
+ * Listing failures (rules or SLOs) abort both resource kinds for that org, one
+ * log, same as before this function knew about SLOs. Once listing succeeds,
+ * rule deletion and SLO deletion are attempted independently: a delete
+ * failure for one resource kind is logged but does not block the other kind's
+ * cleanup for the same org.
  */
 export async function deletePreviewCcRules(
   deleted: readonly { id: string; organizationId: string }[],
@@ -59,8 +82,21 @@ export async function deletePreviewCcRules(
     byOrg.set(p.organizationId, ids);
   }
   for (const [orgId, previewIds] of byOrg) {
+    let rules: Awaited<ReturnType<typeof cc.listAllRules>>;
+    let slos: Awaited<ReturnType<typeof cc.listSlos>>;
     try {
-      const rules = await cc.listAllRules(orgId);
+      rules = await cc.listAllRules(orgId);
+      slos = await cc.listSlos(orgId);
+    } catch (error) {
+      serverLogger.error("previews.cc_cleanup.failed", {
+        "organization.id": orgId,
+        "previews.ids": [...previewIds].join(","),
+        "error.message": errorMessage(error),
+      });
+      continue;
+    }
+
+    try {
       const ruleIds = rules
         .filter((rule) => {
           const previewId = previewIdOf(rule);
@@ -72,6 +108,24 @@ export async function deletePreviewCcRules(
       serverLogger.error("previews.cc_cleanup.failed", {
         "organization.id": orgId,
         "previews.ids": [...previewIds].join(","),
+        "resource.kind": "rule",
+        "error.message": errorMessage(error),
+      });
+    }
+
+    try {
+      const sloIds = slos
+        .filter((slo) => {
+          const previewId = previewIdOfSlo(slo);
+          return previewId !== null && previewIds.has(previewId);
+        })
+        .map((slo) => slo.id);
+      await deleteCcSlos(orgId, sloIds);
+    } catch (error) {
+      serverLogger.error("previews.cc_cleanup.failed", {
+        "organization.id": orgId,
+        "previews.ids": [...previewIds].join(","),
+        "resource.kind": "slo",
         "error.message": errorMessage(error),
       });
     }
@@ -116,8 +170,8 @@ const productionDb: OrphanSweepDb = {
 };
 
 /**
- * Durable backstop for the on-delete fast path: reaps suppressed CC rules whose
- * `namespace` names a preview that no longer exists in the
+ * Durable backstop for the on-delete fast path: reaps suppressed CC rules and
+ * SLOs whose `namespace` names a preview that no longer exists in the
  * registry. These accumulate when {@link deletePreviewCcRules} could not reach
  * CC at deletion time; left alone they evaluate forever and never notify.
  *
@@ -127,16 +181,21 @@ const productionDb: OrphanSweepDb = {
  * next applies a preview; that is an accepted, rare gap, not worth listing CC
  * for every tenant in the system.
  *
- * Race guard: for each org we list the CC rules FIRST, then snapshot the
- * registry. A preview created between the two reads writes its registry row
- * before its CC rules (see upsertPreview → reconcile ordering), so any rule we
- * listed has its parent row present in the snapshot and is retained. We only
- * ever delete a rule whose namespace is absent from a registry snapshot
- * taken strictly after the list.
+ * Race guard: for each org we list the CC rules and SLOs FIRST, then snapshot
+ * the registry once, covering ids referenced by either resource kind. A
+ * preview created between the two reads writes its registry row before its CC
+ * rules/SLOs (see upsertPreview → reconcile ordering), so anything we listed
+ * has its parent row present in the snapshot and is retained. We only ever
+ * delete a rule or SLO whose namespace is absent from a registry snapshot
+ * taken strictly after both lists.
  *
- * CC unavailability is tolerated per org: a failing org is logged and skipped,
- * and the next hourly run retries it. Deletions are capped per org per run so a
- * pathological backlog cannot monopolize a single run.
+ * CC unavailability while listing is tolerated per org: a failing org is
+ * logged and skipped, and the next hourly run retries it. Once listing
+ * succeeds, rule deletion and SLO deletion are attempted independently, each
+ * capped at {@link ORPHAN_SWEEP_CAP_PER_ORG} per org per run (see that
+ * constant for why the cap is per resource kind, not shared). A failure
+ * deleting one kind is logged but does not block the other kind's sweep for
+ * the same org.
  */
 export async function sweepOrphanCcRules(
   sweepDb: OrphanSweepDb = productionDb,
@@ -146,9 +205,14 @@ export async function sweepOrphanCcRules(
     try {
       // List first — the registry snapshot below must be strictly newer.
       const rules = await cc.listAllRules(orgId);
+      const slos = await cc.listSlos(orgId);
       const referenced = new Set<string>();
       for (const rule of rules) {
         const previewId = previewIdOf(rule);
+        if (previewId !== null) referenced.add(previewId);
+      }
+      for (const slo of slos) {
+        const previewId = previewIdOfSlo(slo);
         if (previewId !== null) referenced.add(previewId);
       }
       if (referenced.size === 0) continue;
@@ -160,17 +224,54 @@ export async function sweepOrphanCcRules(
           return previewId !== null && !live.has(previewId);
         })
         .map((rule) => rule.id);
-      if (orphanRuleIds.length === 0) continue;
+      const orphanSloIds = slos
+        .filter((slo) => {
+          const previewId = previewIdOfSlo(slo);
+          return previewId !== null && !live.has(previewId);
+        })
+        .map((slo) => slo.id);
+      if (orphanRuleIds.length === 0 && orphanSloIds.length === 0) continue;
 
-      const { deleted, capped } = await deleteCcRules(
-        orgId,
-        orphanRuleIds,
-        ORPHAN_SWEEP_CAP_PER_ORG,
-      );
+      let ruleResult = { deleted: 0, capped: false };
+      if (orphanRuleIds.length > 0) {
+        try {
+          ruleResult = await deleteCcRules(
+            orgId,
+            orphanRuleIds,
+            ORPHAN_SWEEP_CAP_PER_ORG,
+          );
+        } catch (error) {
+          serverLogger.error("previews.cc_orphan_sweep.failed", {
+            "organization.id": orgId,
+            "resource.kind": "rule",
+            "error.message": errorMessage(error),
+          });
+        }
+      }
+
+      let sloResult = { deleted: 0, capped: false };
+      if (orphanSloIds.length > 0) {
+        try {
+          sloResult = await deleteCcSlos(
+            orgId,
+            orphanSloIds,
+            ORPHAN_SWEEP_CAP_PER_ORG,
+          );
+        } catch (error) {
+          serverLogger.error("previews.cc_orphan_sweep.failed", {
+            "organization.id": orgId,
+            "resource.kind": "slo",
+            "error.message": errorMessage(error),
+          });
+        }
+      }
+
       serverLogger.info("previews.cc_orphan_sweep.swept", {
         "organization.id": orgId,
-        "previews.orphan_rules_deleted": deleted,
-        "previews.orphan_sweep_capped": capped,
+        "previews.orphan_rules_deleted": ruleResult.deleted,
+        "previews.orphan_sweep_capped": ruleResult.capped,
+        "previews.orphan_slos_deleted": sloResult.deleted,
+        "previews.orphan_slos_sweep_capped": sloResult.capped,
       });
     } catch (error) {
       serverLogger.error("previews.cc_orphan_sweep.failed", {
