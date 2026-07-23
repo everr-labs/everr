@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import { attributionAttributes } from "./attribution.js";
 
 describe("attributionAttributes", () => {
-  it("stamps UTM params from the landing URL", () => {
+  it("stamps UTM params from the landing query string", () => {
     expect(
       attributionAttributes(
-        "https://everr.dev/?utm_source=news&utm_medium=email&utm_campaign=launch",
+        "?utm_source=news&utm_medium=email&utm_campaign=launch",
       ),
     ).toEqual({
       "everr.utm.source": "news",
@@ -15,16 +15,14 @@ describe("attributionAttributes", () => {
   });
 
   it("does not stamp ad click ids (deferred)", () => {
-    expect(
-      attributionAttributes("https://everr.dev/docs?gclid=g1&fbclid=f1"),
-    ).toEqual({});
+    expect(attributionAttributes("?gclid=g1&fbclid=f1")).toEqual({});
   });
 
   it("stamps nothing on organic traffic", () => {
-    expect(attributionAttributes("https://everr.dev/docs")).toEqual({});
+    expect(attributionAttributes("")).toEqual({});
   });
 
-  it("returns nothing for an unparsable URL", () => {
-    expect(attributionAttributes("not a url")).toEqual({});
+  it("ignores garbage input", () => {
+    expect(attributionAttributes("not a query string")).toEqual({});
   });
 });

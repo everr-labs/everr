@@ -65,7 +65,7 @@ export function initInternal(
     scope: { name: SDK_NAME, version: SDK_VERSION },
     envelope: createEnvelope(
       session,
-      attributionAttributes(window.location.href),
+      attributionAttributes(window.location.search),
     ),
     transportFetch: overrides?.transportFetch,
   });
