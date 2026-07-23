@@ -33,9 +33,18 @@ fn validate_channel(
     if name.trim().is_empty() {
         return Err(ApiError::Validation("name must not be empty".into()));
     }
-    // Same SSRF guard as subscription webhooks: the dispatcher fetches these URLs
-    // from inside the deployment network (see `crate::api::webhook_url`).
-    if let ChannelConfig::Webhook { url } = config {
+    // Same SSRF guard as subscription webhooks: the dispatcher POSTs these URLs
+    // from inside the deployment network (see `crate::api::webhook_url`). Both the
+    // webhook and Slack variants carry a tenant-supplied URL the dispatcher fetches
+    // (see `dispatcher::slack`), so both must pass the guard; Pagerduty/Email/Telegram
+    // deliver via fixed provider endpoints, not a caller-chosen URL.
+    let url = match config {
+        ChannelConfig::Webhook { url } | ChannelConfig::Slack { url } => Some(url),
+        ChannelConfig::Pagerduty { .. }
+        | ChannelConfig::Email { .. }
+        | ChannelConfig::Telegram { .. } => None,
+    };
+    if let Some(url) = url {
         crate::api::webhook_url::validate_webhook_url(url, allow_private_webhooks)
             .map_err(ApiError::Validation)?;
     }
@@ -190,10 +199,26 @@ mod tests {
     }
 
     #[test]
-    fn non_webhook_configs_pass_validation() {
-        let b = body(r#"{"name":"pd","config":{"type":"pagerduty","routing_key":"k"}}"#);
-        assert!(validate_channel(&b.name, &b.config, false).is_ok());
+    fn slack_config_gets_the_ssrf_guard() {
+        // Slack URLs are tenant-supplied and the dispatcher POSTs them, so the same
+        // SSRF guard applies: an internal target is rejected unless the dev flag is set.
+        let b =
+            body(r#"{"name":"chat","config":{"type":"slack","url":"http://169.254.169.254/x"}}"#);
+        assert!(matches!(
+            validate_channel(&b.name, &b.config, false),
+            Err(ApiError::Validation(_))
+        ));
+        assert!(validate_channel(&b.name, &b.config, true).is_ok());
+        // A public Slack-style URL is still accepted.
         let b = body(r#"{"name":"chat","config":{"type":"slack","url":"https://hooks.slack/x"}}"#);
+        assert!(validate_channel(&b.name, &b.config, false).is_ok());
+    }
+
+    #[test]
+    fn non_url_configs_pass_validation() {
+        // Pagerduty/Email/Telegram deliver via fixed provider endpoints, not a
+        // caller-chosen URL, so the SSRF guard does not apply to them.
+        let b = body(r#"{"name":"pd","config":{"type":"pagerduty","routing_key":"k"}}"#);
         assert!(validate_channel(&b.name, &b.config, false).is_ok());
     }
 

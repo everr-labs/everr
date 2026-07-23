@@ -15,8 +15,14 @@ pub struct Config {
     pub http_addr: String,
     /// Comma-separated static bearer keys gating every `/v1` HTTP route
     /// (multiple entries allow zero-downtime rotation). Unset => the API-key
-    /// gate is off and `/v1` is open (dev default). Only the `api` role reads it.
+    /// gate is off; the `api` role then refuses to start unless
+    /// [`Self::dev_insecure_no_auth`] is set. Only the `api` role reads it.
     pub api_keys: Option<String>,
+    /// Explicit opt-in to run the `api` role with the API-key gate OFF (every `/v1`
+    /// route open, tenant chosen by the caller's `X-CC-Tenant`). Required to boot
+    /// without `CC_API_KEYS` so a deployment that simply forgot the keys fails closed
+    /// instead of exposing every tenant. `CC_DEV_INSECURE_NO_AUTH=1`; dev/compose only.
+    pub dev_insecure_no_auth: bool,
     /// Dev/compose escape hatch: allow webhook targets on private/loopback IPs
     /// and `localhost` (`CC_ALLOW_PRIVATE_WEBHOOKS=1`). Off by default; see
     /// `crate::api::webhook_url`. Only the `api` role reads it.
@@ -69,6 +75,10 @@ impl Config {
             role: var("CC_ROLE", "all"),
             http_addr: var("CC_HTTP_ADDR", "0.0.0.0:8080"),
             api_keys: env::var("CC_API_KEYS").ok(),
+            dev_insecure_no_auth: matches!(
+                var("CC_DEV_INSECURE_NO_AUTH", "0").trim(),
+                "1" | "true"
+            ),
             allow_private_webhooks: matches!(
                 var("CC_ALLOW_PRIVATE_WEBHOOKS", "0").trim(),
                 "1" | "true"

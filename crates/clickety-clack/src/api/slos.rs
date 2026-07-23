@@ -358,7 +358,7 @@ fn enrich_status_payload(raw: Value, instances: &[InstanceState]) -> Value {
 /// parameter syntax, so the substitution is scratch-only: it exists solely
 /// to let the guard check statement shape (single read-only SELECT). The
 /// placeholder-presence check in `validate_slo_spec` runs against the
-/// original, unmodified SQL.
+/// [comment- and literal-stripped][sql_without_comments_and_literals] SQL.
 fn strip_ch_params(sql: &str) -> String {
     let mut out = String::with_capacity(sql.len());
     let mut rest = sql;
@@ -374,6 +374,75 @@ fn strip_ch_params(sql: &str) -> String {
         }
     }
     out.push_str(rest);
+    out
+}
+
+/// A copy of `sql` with comment bodies and quoted-literal contents blanked to spaces,
+/// so a substring search sees only executable SQL. ClickHouse binds `{name:Type}`
+/// query parameters at the token level, never inside a comment or a string/identifier
+/// literal, so a placeholder that appears only there is inert: the window filter would
+/// silently drop and the SLO would scan its whole table. Recognized comment forms are
+/// `--` and `#` to end of line and `/* ... */` blocks; literal forms are single-quoted
+/// strings and double-quoted / backtick-quoted identifiers, each honoring both
+/// backslash and doubled-quote escaping. Spans are blanked in place (not deleted), so
+/// this can never fabricate a `{...}` span by splicing text across a stripped region.
+fn sql_without_comments_and_literals(sql: &str) -> String {
+    let chars: Vec<char> = sql.chars().collect();
+    let n = chars.len();
+    let mut out = String::with_capacity(sql.len());
+    let mut i = 0;
+    while i < n {
+        let c = chars[i];
+        // Line comment: `--` or `#` to the next newline.
+        if (c == '-' && chars.get(i + 1) == Some(&'-')) || c == '#' {
+            while i < n && chars[i] != '\n' {
+                out.push(' ');
+                i += 1;
+            }
+            continue;
+        }
+        // Block comment: `/* ... */` (unterminated => blanked to end of input).
+        if c == '/' && chars.get(i + 1) == Some(&'*') {
+            while i < n && !(chars[i] == '*' && chars.get(i + 1) == Some(&'/')) {
+                out.push(' ');
+                i += 1;
+            }
+            if i < n {
+                out.push_str("  "); // the closing `*/`
+                i += 2;
+            }
+            continue;
+        }
+        // Quoted string (`'`) or quoted identifier (`"` / backtick).
+        if c == '\'' || c == '"' || c == '`' {
+            out.push(' ');
+            i += 1;
+            while i < n {
+                let d = chars[i];
+                if d == '\\' && i + 1 < n {
+                    out.push_str("  ");
+                    i += 2;
+                    continue;
+                }
+                if d == c {
+                    // A doubled quote is an escaped quote, not the close.
+                    if chars.get(i + 1) == Some(&c) {
+                        out.push_str("  ");
+                        i += 2;
+                        continue;
+                    }
+                    out.push(' ');
+                    i += 1;
+                    break;
+                }
+                out.push(' ');
+                i += 1;
+            }
+            continue;
+        }
+        out.push(c);
+        i += 1;
+    }
     out
 }
 
@@ -418,9 +487,12 @@ pub(crate) fn validate_slo_spec(spec: &SloSpec) -> Result<(), ApiError> {
     crate::sqlguard::validate(&strip_ch_params(&spec.sli.sql))
         .map_err(|e| ApiError::Validation(e.to_string()))?;
 
-    // 2. Both window placeholders must be present, else the window has no effect.
-    let sql = &spec.sli.sql;
-    if !sql.contains("{window_start:") || !sql.contains("{window_end:") {
+    // 2. Both window placeholders must be present as real query parameters, else the
+    //    window has no effect. Check the comment- and literal-stripped SQL: one hidden
+    //    in a comment or string parses fine but ClickHouse never binds it, so the SLO
+    //    would quietly ignore its window and scan far more data than intended.
+    let code = sql_without_comments_and_literals(&spec.sli.sql);
+    if !code.contains("{window_start:") || !code.contains("{window_end:") {
         return Err(ApiError::Validation(
             "SLI sql must reference both {window_start:DateTime} and {window_end:DateTime}".into(),
         ));
@@ -495,6 +567,41 @@ mod tests {
         // a top-level ';' second statement outside braces is still rejected.
         let s = spec("SELECT 1 AS good, 1 AS valid FROM t WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}; DROP TABLE t");
         assert!(validate_slo_spec(&s).is_err());
+    }
+
+    #[test]
+    fn sql_without_comments_and_literals_blanks_every_hiding_place() {
+        let f = sql_without_comments_and_literals;
+        assert!(!f("a -- {window_start:DateTime}\n b").contains("{window_start:"));
+        assert!(!f("a # {window_start:DateTime}\n b").contains("{window_start:"));
+        assert!(!f("a /* {window_start:DateTime} */ b").contains("{window_start:"));
+        assert!(!f("a '{window_start:DateTime}' b").contains("{window_start:"));
+        assert!(!f(r#"a "{window_start:DateTime}" b"#).contains("{window_start:"));
+        // A doubled-quote escape keeps the scanner inside the string.
+        assert!(!f("'it''s {window_end:DateTime}'").contains("{window_end:"));
+        // Executable placeholders survive, and a trailing comment cannot swallow them.
+        assert!(f("ts >= {window_start:DateTime} -- c").contains("{window_start:DateTime}"));
+    }
+
+    #[test]
+    fn window_placeholders_hidden_in_a_comment_or_string_are_rejected() {
+        for sql in [
+            "SELECT 1 AS good, 1 AS valid FROM t WHERE ts >= 0 -- {window_start:DateTime} {window_end:DateTime}",
+            "SELECT 1 AS good, 1 AS valid FROM t WHERE ts >= 0 /* {window_start:DateTime} {window_end:DateTime} */",
+            "SELECT 1 AS good, 1 AS valid, '{window_start:DateTime}{window_end:DateTime}' AS n FROM t WHERE ts >= 0",
+        ] {
+            let s = spec(sql);
+            assert!(
+                matches!(validate_slo_spec(&s), Err(ApiError::Validation(ref m)) if m.contains("window_start")),
+                "placeholders hidden in a comment/string must be rejected: {sql}"
+            );
+        }
+    }
+
+    #[test]
+    fn real_window_placeholders_pass_despite_a_decoy_in_a_comment() {
+        let s = spec("SELECT 1 AS good, 1 AS valid FROM t WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime} -- {window_start:DateTime}");
+        assert!(validate_slo_spec(&s).is_ok());
     }
 
     fn spec(sql: &str) -> SloSpec {

@@ -115,8 +115,20 @@ async fn main() -> anyhow::Result<()> {
         let api_keys = ApiKeySet::from_env_value(cfg.api_keys.as_deref());
         if api_keys.is_enabled() {
             tracing::info!("api auth enabled (bearer key required on /v1)");
+        } else if cfg.dev_insecure_no_auth {
+            tracing::warn!(
+                "CC_DEV_INSECURE_NO_AUTH is set: /v1 is OPEN with no bearer auth and the caller \
+                 picks its tenant via X-CC-Tenant (dev only)"
+            );
         } else {
-            tracing::warn!("api auth disabled (set CC_API_KEYS to require a bearer key on /v1)");
+            // Fail closed: no keys and no explicit dev opt-in almost always means a
+            // deployment forgot CC_API_KEYS, and the default 0.0.0.0 listener would
+            // otherwise expose every /v1 route and let callers choose any tenant.
+            anyhow::bail!(
+                "refusing to start the api role with no CC_API_KEYS configured: set CC_API_KEYS \
+                 to require a bearer key on /v1, or set CC_DEV_INSECURE_NO_AUTH=1 to run without \
+                 auth (dev only)"
+            );
         }
         // The listener is bound inside the role future so a restart re-binds it.
         // A brief EADDRINUSE right after a crash surfaces as Err and rides the
