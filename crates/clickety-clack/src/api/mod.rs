@@ -2,6 +2,7 @@ pub mod alerts;
 pub mod auth;
 pub mod channels;
 pub mod error;
+mod identity;
 pub mod inhibitions;
 pub mod receivers;
 pub mod routes;

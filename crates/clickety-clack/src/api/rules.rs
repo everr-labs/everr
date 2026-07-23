@@ -1,10 +1,11 @@
 use crate::api::auth::tenant;
 use crate::api::error::ApiError;
+use crate::api::identity::{validate_name, validate_namespace};
 use crate::api::AppState;
 use crate::domain::ids::RuleId;
 use crate::domain::rollup::RuleRollup;
 use crate::domain::rule::{Rule, RuleHealth, RuleSpec};
-use crate::stores::RulePageKey;
+use crate::stores::{RuleCreate, RulePageKey};
 use axum::extract::{Path, Query, State};
 use axum::http::HeaderMap;
 use axum::Json;
@@ -58,6 +59,9 @@ pub struct RuleView {
 pub struct ListParams {
     /// Optional health filter: "degraded" or "healthy".
     health: Option<String>,
+    /// Optional identity filters (exact match).
+    namespace: Option<String>,
+    name: Option<String>,
     /// Page size, 1..=500 (default 100). Kept as a raw string so a malformed
     /// value gets a problem-details response instead of axum's plain-text
     /// query rejection.
@@ -142,21 +146,35 @@ fn validate_spec(spec: &RuleSpec) -> Result<(), ApiError> {
     Ok(())
 }
 
+/// `POST /v1/rules` body: first-class identity plus the flattened spec.
+#[derive(Deserialize)]
+pub struct CreateRuleBody {
+    pub name: String,
+    #[serde(default)]
+    pub namespace: String,
+    #[serde(flatten)]
+    pub spec: RuleSpec,
+}
+
 pub async fn create(
     State(state): State<AppState>,
     headers: HeaderMap,
-    Json(spec): Json<RuleSpec>,
+    Json(body): Json<CreateRuleBody>,
 ) -> Result<Json<Rule>, ApiError> {
     let t = tenant(&state, &headers)?;
-    validate_spec(&spec)?;
-    // TODO(task 5): thread the real namespace/name through the request body
-    // instead of generating a placeholder identity here.
-    let name = format!("rule-{}", Uuid::new_v4().simple());
-    match state.store.create_rule(t, "", &name, &spec).await? {
-        crate::stores::RuleCreate::Created(rule) => Ok(Json(rule)),
-        crate::stores::RuleCreate::NameConflict => Err(ApiError::Internal(
-            "generated rule name collided; retry".into(),
-        )),
+    validate_name(&body.name)?;
+    validate_namespace(&body.namespace)?;
+    validate_spec(&body.spec)?;
+    match state
+        .store
+        .create_rule(t, &body.namespace, &body.name, &body.spec)
+        .await?
+    {
+        RuleCreate::Created(rule) => Ok(Json(rule)),
+        RuleCreate::NameConflict => Err(ApiError::Conflict(format!(
+            "rule name {:?} already exists in namespace {:?}",
+            body.name, body.namespace
+        ))),
     }
 }
 
@@ -301,10 +319,16 @@ pub async fn list(
 
     let limit = parse_limit(params.limit.as_deref())?;
     let after = params.cursor.as_deref().map(decode_cursor).transpose()?;
-    // TODO(task 5): thread namespace/name filters from the request.
     let (rules, next) = state
         .store
-        .list_rules_page(&t, filter, None, None, after.as_ref(), limit)
+        .list_rules_page(
+            &t,
+            filter,
+            params.namespace.as_deref(),
+            params.name.as_deref(),
+            after.as_ref(),
+            limit,
+        )
         .await?;
     let items: Vec<Value> = rules.into_iter().map(view).collect();
     Ok(Json(json!({
