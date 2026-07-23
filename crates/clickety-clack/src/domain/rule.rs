@@ -62,6 +62,12 @@ fn default_resolve_after() -> u32 {
 pub struct Rule {
     pub id: RuleId,
     pub tenant: TenantId,
+    /// Identity scope: '' = live; consumers stamp preview ids here.
+    #[serde(default)]
+    pub namespace: String,
+    /// The as-code address, unique per (tenant, namespace).
+    #[serde(default)]
+    pub name: String,
     pub spec: RuleSpec,
     pub version: i64,
     /// Operational pause flag. Not part of the spec; does not affect `version`.
@@ -117,6 +123,27 @@ mod pause_tests {
         assert_eq!(r.spec.max_interval_secs, None);
         let back = serde_json::to_value(&r.spec).unwrap();
         assert!(back.get("max_interval_secs").is_none());
+    }
+
+    #[test]
+    fn rule_identity_defaults_when_absent() {
+        // Fixtures serialized before first-class identity carry no
+        // namespace/name; they must default to empty strings.
+        let v = serde_json::json!({
+            "id": Uuid::nil(),
+            "tenant": Uuid::nil(),
+            "spec": {
+                "sql": "SELECT 1",
+                "interval_secs": 30,
+                "for_secs": 0,
+                "label_columns": [],
+                "severity": "info"
+            },
+            "version": 1
+        });
+        let r: Rule = serde_json::from_value(v).unwrap();
+        assert_eq!(r.namespace, "");
+        assert_eq!(r.name, "");
     }
 
     #[test]

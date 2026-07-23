@@ -256,6 +256,9 @@ fn rule_from_row(r: &PgRow, id: RuleId, tenant: TenantId) -> Result<Rule, StoreE
     Ok(Rule {
         id,
         tenant,
+        // TODO(task 3): select namespace/name once the store reads them.
+        namespace: String::new(),
+        name: String::new(),
         spec,
         version: r.get("version"),
         paused: r.get("paused"),
@@ -417,6 +420,9 @@ impl PgStore {
         Ok(Rule {
             id: RuleId(id),
             tenant,
+            // TODO(task 3): store assigns real namespace/name.
+            namespace: String::new(),
+            name: String::new(),
             spec: spec.clone(),
             version: 1,
             paused: false,
@@ -593,6 +599,9 @@ impl PgStore {
         Ok(RuleUpdate::Updated(Rule {
             id,
             tenant,
+            // TODO(task 3): store assigns real namespace/name.
+            namespace: String::new(),
+            name: String::new(),
             spec: spec.clone(),
             version: current + 1,
             paused,
@@ -2318,6 +2327,8 @@ impl PgStore {
             Ok(_) => Ok(SloCreate::Created(crate::domain::slo::Slo {
                 id: SloId(id),
                 tenant,
+                // TODO(task 4): store assigns real namespace.
+                namespace: String::new(),
                 name: name.to_string(),
                 spec: spec.clone(),
                 version: 1,
@@ -2440,6 +2451,8 @@ impl PgStore {
                 Ok(SloUpdate::Updated(crate::domain::slo::Slo {
                     id,
                     tenant,
+                    // TODO(task 4): store assigns real namespace.
+                    namespace: String::new(),
                     name: name.to_string(),
                     spec: spec.clone(),
                     version: current + 1,
@@ -2541,6 +2554,8 @@ impl PgStore {
         Ok(Slo {
             id: SloId(r.get("id")),
             tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
+            // TODO(task 4): select namespace once the store reads it.
+            namespace: String::new(),
             name: r.get("name"),
             spec,
             version: r.get("version"),

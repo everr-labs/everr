@@ -1121,6 +1121,7 @@ mod annotations_evidence_tests {
         Slo {
             id: SloId(uuid::Uuid::nil()),
             tenant: TenantId::from_trusted("test-tenant"),
+            namespace: String::new(),
             name: name.to_string(),
             spec: SloSpec {
                 sli: SliSpec {

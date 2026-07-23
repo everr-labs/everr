@@ -74,7 +74,10 @@ pub struct SloSpec {
 pub struct Slo {
     pub id: SloId,
     pub tenant: TenantId,
-    /// Unique per tenant.
+    /// Identity scope: '' = live; consumers stamp preview ids here.
+    #[serde(default)]
+    pub namespace: String,
+    /// Unique per (tenant, namespace).
     pub name: String,
     pub spec: SloSpec,
     pub version: i64,
