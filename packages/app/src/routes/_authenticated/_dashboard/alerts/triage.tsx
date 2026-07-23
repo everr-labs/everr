@@ -43,7 +43,11 @@ import {
   ccSelectRoutes,
 } from "@/data/cc/route-resolution";
 import { createCcSilence } from "@/data/cc/server";
-import { CC_CANONICAL_SLO_TIERS, ccSloTierSeverity } from "@/data/cc/slo";
+import {
+  CC_CANONICAL_SLO_TIERS,
+  ccSloIdentity,
+  ccSloTierSeverity,
+} from "@/data/cc/slo";
 import type {
   CcAlert,
   CcMatcher,
@@ -690,7 +694,7 @@ function CcTriagePage() {
           slo,
           sloId,
           name: slo
-            ? slo.name
+            ? ccSloIdentity(slo).name
             : sloId !== undefined
               ? sloId.slice(0, 8)
               : ruleDisplayName(list[0].rule, sourceId),

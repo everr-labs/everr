@@ -569,6 +569,31 @@ describe("/alerts/triage route", () => {
     expect(screen.getAllByText("critical").length).toBeGreaterThanOrEqual(1);
   });
 
+  it("names an SLO group by its display name when the SLO carries one", async () => {
+    mocks.listCcSlos.mockResolvedValue([
+      ccSlo({
+        spec: {
+          ...ccSlo().spec,
+          annotations: { "everr.display.name": "Checkout Availability" },
+        },
+      }),
+    ]);
+    mocks.listCcAlerts.mockResolvedValue([sloAlert()]);
+
+    renderTriageRoute();
+
+    const sloLink = await screen.findByRole("link", {
+      name: "Checkout Availability",
+    });
+    expect(sloLink).toHaveAttribute(
+      "href",
+      "/alerts/slos/default/checkout-availability",
+    );
+    expect(
+      screen.queryByRole("link", { name: "checkout-availability" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("falls back to the short uuid for an SLO alert whose SLO is unknown, unlinked (no slug address to route to)", async () => {
     // The SLO list can lag a freshly-created SLO; the group must still render
     // as SLO-originated (the instance itself carries the slo id), but without

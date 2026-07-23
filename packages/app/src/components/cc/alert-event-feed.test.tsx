@@ -11,6 +11,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AlertEventLogRow } from "@/data/alerts/history.server";
 import { CC_POLL_INTERVAL_MS, ccQueries } from "@/data/cc/queries";
+import type { CcSlo } from "@/data/cc/types";
 import { AlertEventFeed } from "./alert-event-feed";
 
 // ---------------------------------------------------------------------------
@@ -35,6 +36,25 @@ vi.mock("@/hooks/use-time-range", () => ({
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
+
+function ccSlo(overrides: Partial<CcSlo> = {}): CcSlo {
+  return {
+    id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+    tenant: "org1",
+    namespace: "",
+    name: "checkout-availability",
+    spec: {
+      sli: { sql: "SELECT 1 AS good, 1 AS valid", label_columns: [] },
+      targetPercent: 99.9,
+      timeWindow: { duration: "30d", isRolling: true },
+      annotations: {},
+      suppressed: false,
+    },
+    version: 1,
+    paused: false,
+    ...overrides,
+  };
+}
 
 function historyRow(
   overrides: Partial<AlertEventLogRow> = {},
@@ -137,7 +157,7 @@ describe("AlertEventFeed", () => {
       <AlertEventFeed
         resolveSlo={(handle) =>
           handle === "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
-            ? { name: "checkout-availability" }
+            ? ccSlo()
             : undefined
         }
         resolveRuleName={(handle) => (handle === "beta" ? "Beta rule" : handle)}
@@ -162,6 +182,36 @@ describe("AlertEventFeed", () => {
     expect(
       screen.queryByRole("link", { name: "Beta rule" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("names an SLO row by its display name when the SLO carries one", async () => {
+    mockHistory([historyRow({ slug: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" })]);
+
+    renderInRouter(
+      <AlertEventFeed
+        resolveSlo={(handle) =>
+          handle === "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+            ? ccSlo({
+                spec: {
+                  ...ccSlo().spec,
+                  annotations: {
+                    "everr.display.name": "Checkout Availability",
+                  },
+                },
+              })
+            : undefined
+        }
+      />,
+    );
+
+    const sloLink = await screen.findByRole("link", {
+      name: "Checkout Availability",
+    });
+    expect(sloLink).toHaveAttribute(
+      "href",
+      "/alerts/slos/default/checkout-availability",
+    );
+    expect(screen.queryByText("checkout-availability")).not.toBeInTheDocument();
   });
 
   it("links resolved rule rows to the rule detail page via resolveRuleAddress", async () => {

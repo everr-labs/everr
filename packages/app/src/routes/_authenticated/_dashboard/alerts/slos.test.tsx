@@ -184,6 +184,44 @@ describe("/alerts/slos route", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows the display name as the row's link when set, with the slug alongside", async () => {
+    mocks.listCcSlos.mockResolvedValue([
+      ccSlo({
+        spec: {
+          ...ccSlo().spec,
+          annotations: { "everr.display.name": "Checkout Availability" },
+        },
+      }),
+    ]);
+
+    renderSlosRoute();
+
+    const table = await screen.findByRole("table");
+    const link = within(table).getByRole("link", {
+      name: "Checkout Availability",
+    });
+    expect(link).toHaveAttribute(
+      "href",
+      "/alerts/slos/default/checkout-availability",
+    );
+    // The slug stays reachable next to the display name.
+    expect(
+      within(table).getByText("checkout-availability"),
+    ).toBeInTheDocument();
+  });
+
+  it("falls back to the slug with no secondary slug chip when no display name is set", async () => {
+    renderSlosRoute();
+
+    const table = await screen.findByRole("table");
+    expect(
+      within(table).getByRole("link", { name: "checkout-availability" }),
+    ).toBeInTheDocument();
+    // The name and the fallback slug are the same text, so there is exactly
+    // one occurrence, not a redundant secondary chip.
+    expect(within(table).getAllByText("checkout-availability").length).toBe(1);
+  });
+
   it("marks a paused SLO and flags a suppressed one", async () => {
     mocks.listCcSlos.mockResolvedValue([
       ccSlo({

@@ -189,9 +189,12 @@ describe("/alerts/slos/$project/$slug route", () => {
   it("leads with the status hero: state, budget, SLI, burn, and per-tier pressure", async () => {
     renderSloDetailRoute();
 
+    // No display name set: the heading falls back to the bare slug, and
+    // there is no secondary slug chip (it would just repeat the heading).
     expect(
-      await screen.findByRole("heading", { name: `${PROJECT}/${SLUG}` }),
+      await screen.findByRole("heading", { name: SLUG }),
     ).toBeInTheDocument();
+    expect(screen.queryByText(`${PROJECT}/${SLUG}`)).not.toBeInTheDocument();
     // The promise leads the stats row (target + window), not the header. The
     // row rides the async status read, so wait for it.
     expect(await screen.findByText("over 30d rolling")).toBeInTheDocument();
@@ -253,6 +256,31 @@ describe("/alerts/slos/$project/$slug route", () => {
       scopeSlug: string[];
     };
     expect(props.scopeSlug).toContain(SLO_ID);
+  });
+
+  it("shows the display name as the heading, with the slug and description alongside", async () => {
+    mocks.getCcSloByName.mockResolvedValue(
+      ccSlo({
+        spec: {
+          ...ccSlo().spec,
+          annotations: {
+            "everr.display.name": "Checkout Availability",
+            "everr.display.description": "Can shoppers complete checkout?",
+          },
+        },
+      }),
+    );
+
+    renderSloDetailRoute();
+
+    expect(
+      await screen.findByRole("heading", { name: "Checkout Availability" }),
+    ).toBeInTheDocument();
+    // The slug stays reachable next to the display name.
+    expect(screen.getByText(SLUG)).toBeInTheDocument();
+    expect(
+      screen.getByText("Can shoppers complete checkout?"),
+    ).toBeInTheDocument();
   });
 
   it("overrides the snapshot's budget with the read-time value on the hero", async () => {

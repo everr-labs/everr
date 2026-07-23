@@ -5,6 +5,7 @@
 // event row may carry for an SLO. Owned here in the data layer so every SLO
 // surface (list, detail, triage, history) reads the same rules.
 import { parseResourceName } from "@/data/as-code/identity";
+import { fromCcSlo } from "@/data/slos/mapping";
 import type { CcSlo, CcSloGroupStatus, CcSloSpec, CcSloTier } from "./types";
 
 /**
@@ -84,6 +85,30 @@ export function ccSloHandleResolver(
     for (const handle of ccSloHandles(slo)) byHandle.set(handle, slo);
   }
   return (handle) => byHandle.get(handle);
+}
+
+/**
+ * One resolution of "what do we call this SLO", mirroring `ccRuleIdentity`
+ * (data/alerts/rule-identity.ts): the display-name annotation first, then
+ * the as-code slug (always present, carried on the SLO's own first-class
+ * `name`). Every SLO surface (list, detail, triage, feeds) reads names
+ * through this so a display name renders consistently everywhere.
+ */
+export type CcSloIdentity = {
+  /** Human name: displayName || slug. */
+  name: string;
+  project: string;
+  /** The as-code slug, split off the SLO's first-class `name`. */
+  slug: string;
+  /** The display-name annotation, or null when unset (name falls back to slug). */
+  displayName: string | null;
+};
+
+export function ccSloIdentity(
+  slo: Pick<CcSlo, "namespace" | "name" | "spec">,
+): CcSloIdentity {
+  const { project, slug, displayName } = fromCcSlo(slo);
+  return { name: displayName || slug, project, slug, displayName };
 }
 
 // Tier window shorthand (m/h/d/w plus defensive s) → seconds; unparseable

@@ -75,6 +75,7 @@ import {
   ccSloChartRange,
   ccSloCurrentBurn,
   ccSloHandles,
+  ccSloIdentity,
   ccSloTierSeverity,
   ccSloTiers,
   ccSloWindowLabel,
@@ -124,7 +125,7 @@ export const Route = createFileRoute(
           ]
         : []),
     ]);
-    return { name: slo.name };
+    return { name: ccSloIdentity(slo).name };
   },
   component: CcSloDetailPage,
 });
@@ -761,13 +762,21 @@ function CcSloDetailPage() {
 
   const s = slo.data;
   const view = fromCcSlo(s);
+  const identity = ccSloIdentity(s);
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-3">
           <BackLink />
-          <h2 className="text-base font-semibold">{s.name}</h2>
+          <h2 className="text-base font-semibold">{identity.name}</h2>
+          {/* The slug stays reachable next to a display name; suppressed
+              entirely when it IS the name (no display name set). */}
+          {identity.displayName && (
+            <span className="font-mono text-xs text-muted-foreground">
+              {identity.slug}
+            </span>
+          )}
           {/* The evaluator breaking is the one system fault worth wearing on
               the title: the SLI query is failing, so every number below is
               going stale. Healthy stays silent. */}
@@ -827,6 +836,12 @@ function CcSloDetailPage() {
           </Button>
         </div>
       </div>
+
+      {view.displayDescription && (
+        <p className="max-w-prose text-xs text-muted-foreground">
+          {view.displayDescription}
+        </p>
+      )}
 
       <StatusSection slo={s} />
       <BudgetHistorySection slo={s} />

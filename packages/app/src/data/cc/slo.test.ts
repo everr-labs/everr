@@ -1,6 +1,7 @@
 // The frontend mirror of domain/slo.rs: canonical tiers, tier-severity
 // resolution, event handles, and the budget-projection duration format.
 import { describe, expect, it } from "vitest";
+import { ANN_DISPLAY_NAME } from "@/data/alerts/annotations";
 import {
   CC_CANONICAL_SLO_TIERS,
   ccApplyFreshBudget,
@@ -16,6 +17,7 @@ import {
   ccSloGroupBreakdown,
   ccSloHandleResolver,
   ccSloHandles,
+  ccSloIdentity,
   ccSloTierSeverity,
   ccSloVerdict,
   ccSloWindowBurns,
@@ -151,6 +153,34 @@ describe("SLO event handles", () => {
     // The legacy bare-slug handle also resolves.
     expect(resolve("checkout")?.name).toBe("payments/checkout");
     expect(resolve("some-rule-slug")).toBeUndefined();
+  });
+});
+
+describe("ccSloIdentity", () => {
+  it("falls back to the slug when no display name is set", () => {
+    expect(ccSloIdentity(slo({ name: "payments/checkout" }))).toEqual({
+      name: "checkout",
+      project: "payments",
+      slug: "checkout",
+      displayName: null,
+    });
+  });
+
+  it("prefers the display-name annotation over the slug", () => {
+    const identity = ccSloIdentity(
+      slo({
+        name: "payments/checkout",
+        spec: spec({
+          annotations: { [ANN_DISPLAY_NAME]: "Checkout availability" },
+        }),
+      }),
+    );
+    expect(identity).toEqual({
+      name: "Checkout availability",
+      project: "payments",
+      slug: "checkout",
+      displayName: "Checkout availability",
+    });
   });
 });
 

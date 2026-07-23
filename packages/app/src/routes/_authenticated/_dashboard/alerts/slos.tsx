@@ -40,6 +40,7 @@ import {
   ccSloCurrentBurn,
   ccSloGroupBreakdown,
   ccSloGroupState,
+  ccSloIdentity,
   ccSloTierSeverity,
   ccSloTiers,
   ccSloWindowLabel,
@@ -157,16 +158,24 @@ function SloPromiseCell({
   slo: CcSlo;
   compact?: boolean;
 }) {
+  const identity = ccSloIdentity(s);
   return (
     <span className={`flex flex-col gap-1 ${compact ? "min-w-0" : "min-w-56"}`}>
       <span className="flex min-w-0 flex-wrap items-center gap-2">
         <Link
           to="/alerts/slos/$project/$slug"
-          params={parseResourceName(s.name)}
+          params={{ project: identity.project, slug: identity.slug }}
           className="font-medium text-foreground underline-offset-2 hover:underline"
         >
-          {s.name}
+          {identity.name}
         </Link>
+        {/* The slug stays reachable next to a display name; suppressed
+            entirely when it IS the name (no display name set). */}
+        {identity.displayName && (
+          <span className="font-mono text-[0.6875rem] text-muted-foreground">
+            {identity.slug}
+          </span>
+        )}
         {s.paused && <Badge variant="secondary">paused</Badge>}
         {s.spec.suppressed && <Badge variant="destructive">suppressed</Badge>}
       </span>
