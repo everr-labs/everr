@@ -21,6 +21,13 @@ export const ANN_PROJECT = "everr.project";
 // metadata.labels.<k> → everr.label.<k> (shared by rules and SLOs).
 export const ANN_LABEL_PREFIX = "everr.label.";
 
+// spec.display.name / spec.display.description → these annotations, shared
+// by rules and SLOs. The notification templates live ONLY under CC's own
+// `summary`/`description` keys below (rules stamp their own; SLOs derive
+// `summary` from the display name, see data/slos/mapping.ts's toSloInput).
+export const ANN_DISPLAY_NAME = "everr.display.name";
+export const ANN_DISPLAY_DESCRIPTION = "everr.display.description";
+
 // CC's dispatcher renders these annotations on notifications: `summary` is the
 // headline, `description` an extra body line (both substitute ${<key>} against
 // the event's labels, then ${value}, then its evidence columns), and

@@ -1,5 +1,6 @@
 import * as z from "zod";
 import {
+  displaySchema,
   isReservedAnnotationKey,
   runbookRefSchema,
 } from "@/data/alerts/schema";
@@ -160,6 +161,10 @@ export const SloYamlSchema = z
       .strict(),
     spec: z
       .object({
+        // A human-facing name/description overlay: the SLO's canonical name
+        // stays the technical slug, but display.name (when set) drives the
+        // burn notification summary too (see toSloInput in ./mapping).
+        display: displaySchema.optional(),
         sli: z
           .object({
             // A single read-only SELECT returning numeric `good` and `valid`

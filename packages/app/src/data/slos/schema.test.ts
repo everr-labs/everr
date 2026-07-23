@@ -211,6 +211,36 @@ describe("SloYamlSchema", () => {
     );
   });
 
+  it("accepts spec.display with a name only, or with both name and description", () => {
+    expect(
+      SloYamlSchema.safeParse(
+        sloDoc({ display: { name: "Checkout availability" } }),
+      ).success,
+    ).toBe(true);
+    expect(
+      SloYamlSchema.safeParse(
+        sloDoc({
+          display: {
+            name: "Checkout availability",
+            description: "Orders complete",
+          },
+        }),
+      ).success,
+    ).toBe(true);
+  });
+
+  it("rejects an empty spec.display.name", () => {
+    expect(
+      SloYamlSchema.safeParse(sloDoc({ display: { name: "" } })).success,
+    ).toBe(false);
+  });
+
+  it("rejects unknown spec.display keys (strict)", () => {
+    expect(
+      SloYamlSchema.safeParse(sloDoc({ display: { title: "x" } })).success,
+    ).toBe(false);
+  });
+
   it("is strict: unknown keys anywhere are rejected", () => {
     expect(SloYamlSchema.safeParse(sloDoc({ extra: true })).success).toBe(
       false,

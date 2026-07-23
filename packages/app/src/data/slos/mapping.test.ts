@@ -143,6 +143,46 @@ describe("toSloInput", () => {
     expect(previewIdOfSlo({ namespace: input.namespace })).toBeNull();
   });
 
+  it("stamps display annotations and a summary derived from the display name", () => {
+    const input = toSloInput(
+      sloYaml({
+        display: {
+          name: "Checkout availability",
+          description: "Orders complete",
+        },
+      }),
+      "repo-1",
+    );
+    expect(input.annotations["everr.display.name"]).toBe(
+      "Checkout availability",
+    );
+    expect(input.annotations["everr.display.description"]).toBe(
+      "Orders complete",
+    );
+    expect(input.annotations["summary"]).toBe(
+      "Checkout availability: ${slo_tier} burn - ${burn_rate}x over budget",
+    );
+  });
+
+  it("stamps only the display fields that are set, and no summary without a display name", () => {
+    const nameOnly = toSloInput(
+      sloYaml({ display: { name: "Checkout availability" } }),
+      "repo-1",
+    );
+    expect(nameOnly.annotations["everr.display.name"]).toBe(
+      "Checkout availability",
+    );
+    expect(nameOnly.annotations["everr.display.description"]).toBeUndefined();
+    expect(nameOnly.annotations["summary"]).toBe(
+      "Checkout availability: ${slo_tier} burn - ${burn_rate}x over budget",
+    );
+
+    const none = toSloInput(sloYaml(), "repo-1");
+    expect(none.annotations["everr.display.name"]).toBeUndefined();
+    expect(none.annotations["everr.display.description"]).toBeUndefined();
+    expect(none.annotations["summary"]).toBeUndefined();
+  });
+
   it("merges user annotations, generated keys always winning", () => {
     const input = toSloInput(
       sloYaml({ annotations: { team: "platform-eng", owner: "gio" } }),
@@ -210,6 +250,25 @@ describe("fromCcSlo", () => {
       runbookSlug: null,
     });
   });
+
+  it("exposes displayName/displayDescription, null when absent", () => {
+    const input = toSloInput(
+      sloYaml({
+        display: {
+          name: "Checkout availability",
+          description: "Orders complete",
+        },
+      }),
+      "repo-1",
+    );
+    const view = fromCcSlo(asSlo(input));
+    expect(view.displayName).toBe("Checkout availability");
+    expect(view.displayDescription).toBe("Orders complete");
+
+    const noDisplay = fromCcSlo(asSlo(toSloInput(sloYaml(), "repo-1")));
+    expect(noDisplay.displayName).toBeNull();
+    expect(noDisplay.displayDescription).toBeNull();
+  });
 });
 
 describe("toSloDocument round-trip", () => {
@@ -246,6 +305,38 @@ describe("toSloDocument round-trip", () => {
     expect(json.spec.runbook).toBeUndefined();
     expect(json.spec.minValidEvents).toBeUndefined();
     expect(json.spec.annotations).toBeUndefined();
+  });
+
+  it("round-trips spec.display and leaks none of the display/summary annotations into user annotations", () => {
+    const doc = sloYaml({
+      display: {
+        name: "Checkout availability",
+        description: "Orders complete",
+      },
+      annotations: { team: "payments" },
+    });
+    const input = toSloInput(doc, "repo-1");
+    const slo = asSlo(input);
+
+    const view = fromCcSlo(slo);
+    expect(view.displayName).toBe("Checkout availability");
+    expect(view.displayDescription).toBe("Orders complete");
+
+    const rebuilt = toSloDocument(slo);
+    expect(rebuilt.spec.display).toEqual({
+      name: "Checkout availability",
+      description: "Orders complete",
+    });
+    expect(rebuilt.spec.annotations).toEqual({ team: "payments" });
+    const annotationKeys = Object.keys(rebuilt.spec.annotations ?? {});
+    expect(annotationKeys).not.toContain("summary");
+    expect(annotationKeys.some((k) => k.startsWith("everr."))).toBe(false);
+  });
+
+  it("omits spec.display when absent", () => {
+    const doc = toSloDocument(asSlo(toSloInput(sloYaml(), "repo-1")));
+    const json = JSON.parse(JSON.stringify(doc));
+    expect(json.spec.display).toBeUndefined();
   });
 
   it("keeps the generated link.runbook out of a round-tripped, runbook-linked SLO in a non-default project", () => {

@@ -5,6 +5,8 @@ import {
   ANN_CC_LINK_ALERT,
   ANN_CC_LINK_RUNBOOK,
   ANN_CC_SUMMARY,
+  ANN_DISPLAY_DESCRIPTION,
+  ANN_DISPLAY_NAME,
   ANN_LABEL_PREFIX,
   OWN_REPO,
 } from "./annotations";
@@ -29,12 +31,11 @@ import {
 // below.
 export { OWN_REPO } from "./annotations";
 
-// Annotation keys we pack the simple-alert UI fields into. The notification
-// templates live ONLY under CC's own `summary`/`description` keys
-// (annotations.ts): CC renders them, and we read the same keys back, so one
-// key per template is both the write and the read path.
-const ANN_DISPLAY_NAME = "everr.display.name";
-const ANN_DISPLAY_DESCRIPTION = "everr.display.description";
+// ANN_DISPLAY_NAME/ANN_DISPLAY_DESCRIPTION live in ./annotations, shared with
+// the SLO mapping. The notification templates live ONLY under CC's own
+// `summary`/`description` keys (annotations.ts): CC renders them, and we read
+// the same keys back, so one key per template is both the write and the read
+// path.
 // A linked runbook (project/slug), stored canonically so the alert detail can
 // deep-link to it. Replaces the old Postgres runbook_project/runbook_slug
 // columns now that a simple alert IS a CC rule.

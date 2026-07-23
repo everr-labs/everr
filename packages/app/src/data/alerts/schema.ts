@@ -10,10 +10,14 @@ import { parseWindow } from "./window";
 const nonEmptyString = z.string().min(1);
 
 const alertLabelsSchema = z.record(nonEmptyString, nonEmptyString);
-const alertDisplaySchema = z
+
+// A human-facing name/description overlay on a resource whose canonical
+// identity is a technical slug. Shared verbatim by the SLO schema
+// (data/slos/schema.ts) for `spec.display` so the grammar lives once.
+export const displaySchema = z
   .object({
-    name: z.string().optional(),
-    description: z.string().optional(),
+    name: nonEmptyString.optional(),
+    description: nonEmptyString.optional(),
   })
   .strict();
 
@@ -119,7 +123,7 @@ export const AlertRuleYamlSchema = z
       .strict(),
     spec: z
       .object({
-        display: alertDisplaySchema.optional(),
+        display: displaySchema.optional(),
         runbook: runbookRefSchema.optional(),
         // `notebook` is the legacy alias for `runbook` (ADR 0002); accepted in
         // config for back-compat and folded into `runbook` by the transform.

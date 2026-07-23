@@ -1,5 +1,8 @@
 import {
   ANN_CC_LINK_RUNBOOK,
+  ANN_CC_SUMMARY,
+  ANN_DISPLAY_DESCRIPTION,
+  ANN_DISPLAY_NAME,
   ANN_LABEL_PREFIX,
   OWN_REPO,
 } from "@/data/alerts/annotations";
@@ -61,6 +64,18 @@ export function toSloInput(
   for (const [k, v] of Object.entries(slo.metadata.labels ?? {})) {
     annotations[`${ANN_LABEL_PREFIX}${k}`] = v;
   }
+  if (slo.spec.display?.name) {
+    annotations[ANN_DISPLAY_NAME] = slo.spec.display.name;
+    // `${slo_tier}`/`${burn_rate}` stay literal placeholder text: CC's
+    // notification renderer resolves them from the firing event's
+    // labels/evidence at dispatch time, the same way it resolves
+    // notificationMessage templates for alerts.
+    annotations[ANN_CC_SUMMARY] =
+      `${slo.spec.display.name}: \${slo_tier} burn - \${burn_rate}x over budget`;
+  }
+  if (slo.spec.display?.description) {
+    annotations[ANN_DISPLAY_DESCRIPTION] = slo.spec.display.description;
+  }
   if (slo.spec.runbook) {
     const { project: runbookProject, slug: runbookSlug } = parseRunbookRef(
       slo.spec.runbook,
@@ -106,6 +121,8 @@ export type SloOwnershipView = {
   suppressed: boolean;
   runbookProject: string | null;
   runbookSlug: string | null;
+  displayName: string | null;
+  displayDescription: string | null;
 };
 
 /**
@@ -131,6 +148,8 @@ export function fromCcSlo(
     suppressed: slo.spec.suppressed,
     runbookProject: runbook?.project ?? null,
     runbookSlug: runbook?.slug ?? null,
+    displayName: ann[ANN_DISPLAY_NAME] ?? null,
+    displayDescription: ann[ANN_DISPLAY_DESCRIPTION] ?? null,
   };
 }
 
@@ -158,6 +177,16 @@ export function toSloDocument(slo: Pick<CcSlo, "name" | "spec">): SloYaml {
     }
   }
 
+  const display =
+    ann[ANN_DISPLAY_NAME] || ann[ANN_DISPLAY_DESCRIPTION]
+      ? {
+          ...(ann[ANN_DISPLAY_NAME] ? { name: ann[ANN_DISPLAY_NAME] } : {}),
+          ...(ann[ANN_DISPLAY_DESCRIPTION]
+            ? { description: ann[ANN_DISPLAY_DESCRIPTION] }
+            : {}),
+        }
+      : undefined;
+
   return {
     kind: "SLO",
     metadata: {
@@ -166,6 +195,7 @@ export function toSloDocument(slo: Pick<CcSlo, "name" | "spec">): SloYaml {
       ...(Object.keys(labels).length > 0 ? { labels } : {}),
     },
     spec: {
+      ...(display ? { display } : {}),
       sli: {
         sql: slo.spec.sli.sql,
         ...(slo.spec.sli.label_columns.length > 0
