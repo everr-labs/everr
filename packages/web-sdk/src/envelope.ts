@@ -1,4 +1,8 @@
-import type { PageContext, SessionContext } from "./session.js";
+import {
+  type PageContext,
+  randomUUID,
+  type SessionContext,
+} from "./session.js";
 
 // The context envelope: stamped on EVERY record emitted through the SDK
 // (analytics and, later, errors), which is what lets any signal slice by
@@ -31,7 +35,7 @@ export function createEnvelope(
       "session.id": page.sessionId,
       ...pageAttrs(page),
       // The $insert_id analogue: a per-record random id for dedup.
-      "everr.event.id": crypto.randomUUID(),
+      "everr.event.id": randomUUID(),
       ...attribution,
     };
   };

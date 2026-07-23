@@ -10,15 +10,20 @@ export type PageContext = {
   readonly referrer: string | undefined;
 };
 
-export type SessionContext = ReturnType<typeof createSessionContext>;
+export type SessionContext = {
+  startPageView(url: string): void;
+  current(): PageContext;
+};
+
+export const randomUUID = () => crypto.randomUUID();
 
 export function createSessionContext(
   initialUrl: string,
   initialReferrer: string | undefined,
-) {
+): SessionContext {
   let ctx = {
-    sessionId: crypto.randomUUID(),
-    pageViewId: crypto.randomUUID(),
+    sessionId: randomUUID(),
+    pageViewId: randomUUID(),
     url: initialUrl,
     path: pathOf(initialUrl),
     referrer: initialReferrer || undefined,
@@ -28,7 +33,7 @@ export function createSessionContext(
     startPageView(url: string) {
       ctx = {
         sessionId: ctx.sessionId,
-        pageViewId: crypto.randomUUID(),
+        pageViewId: randomUUID(),
         url,
         path: pathOf(url),
         referrer: ctx.url,

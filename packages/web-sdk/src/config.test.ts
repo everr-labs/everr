@@ -9,13 +9,19 @@ describe("resolveTransport", () => {
     });
   });
 
-  it("prefers an explicit endpoint override, without the key's header", () => {
+  it("prefers an explicit endpoint override, keeping the key's header", () => {
     expect(
       resolveTransport({
         ingestKey: "pub_abc",
         endpoint: "https://collector.example/",
       }),
-    ).toEqual({ logsUrl: "https://collector.example/v1/logs" });
+    ).toEqual({
+      logsUrl: "https://collector.example/v1/logs",
+      headers: { Authorization: "Bearer pub_abc" },
+    });
+    expect(resolveTransport({ endpoint: "https://collector.example" })).toEqual(
+      { logsUrl: "https://collector.example/v1/logs" },
+    );
   });
 
   it("falls back to the local collector in dev with no key", () => {

@@ -82,6 +82,28 @@ _Avoid_: output, log line
 **Metric**:
 A numerical time-series measurement, such as a gauge, counter, or histogram.
 
+### Browser telemetry
+
+**Analytics event**:
+A browser interaction or page lifecycle moment captured as a Log with an event name (`browser.page_view`, `browser.click`, and the like). Not a separate signal kind: analytics events are Logs.
+_Avoid_: autocapture event, tracking event
+
+**Session**:
+One continuous visit, identified by a random `session.id`. In Cookieless mode it lives only in JS memory (a page load plus its SPA navigations); in Consented mode it persists with a 30-minute inactivity timeout. The top-level analytics unit.
+_Avoid_: visit
+
+**Visitor**:
+A browser identified across Sessions by a random stored `visitor.id`. Exists only in Consented mode; Cookieless mode has no Visitor concept at all.
+_Avoid_: person, device id, anonymous user
+
+**Cookieless mode**:
+The browser SDK mode with zero cookies, zero storage, and no identity derived from IP or user agent: only an in-memory Session. What the homepage runs.
+_Avoid_: anonymous mode, bannerless mode
+
+**Consented mode**:
+The browser SDK mode entered after explicit consent: persistent Visitor id, durable Sessions, and identify() stamping `user.*` attributes on subsequent events. Upgrading from Cookieless is a one-way door; revoking consent deletes the stored ids.
+_Avoid_: identified mode, cookie mode
+
 ### CI
 
 **CI run**:
