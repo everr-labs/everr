@@ -1,7 +1,6 @@
 import {
   type AttrValue,
   buildLogsPayload,
-  type KeyValue,
   type OtlpLogRecord,
   toKeyValues,
 } from "./otlp.js";
@@ -17,11 +16,12 @@ export type Emitter = {
   shutdown(): Promise<void>;
 };
 
-const SEVERITY_INFO = 9;
 // Same tuning as the web app's browser telemetry client.
 const MAX_QUEUE_SIZE = 100;
 const MAX_BATCH_SIZE = 32;
 const SCHEDULED_DELAY_MS = 5_000;
+
+const swallow = () => {};
 
 export function createEmitter(options: {
   logsUrl: string;
@@ -33,51 +33,40 @@ export function createEmitter(options: {
   /** Test seam; defaults to the global fetch. */
   transportFetch?: typeof fetch;
 }): Emitter {
-  const resourceAttributes: KeyValue[] = toKeyValues(options.resource);
+  const resource = toKeyValues(options.resource);
   const transportFetch = options.transportFetch ?? fetch;
   let queue: OtlpLogRecord[] = [];
   let timer: ReturnType<typeof setTimeout> | undefined;
 
-  const send = (logRecords: OtlpLogRecord[]): Promise<void> =>
-    transportFetch(options.logsUrl, {
+  const flush = (): Promise<void> => {
+    clearTimeout(timer);
+    timer = undefined;
+    if (!queue.length) return Promise.resolve();
+    const body = JSON.stringify(
+      buildLogsPayload(resource, options.scope, queue),
+    );
+    queue = [];
+    // Telemetry must never break the page: delivery is best-effort.
+    return transportFetch(options.logsUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...options.headers },
-      body: JSON.stringify(
-        buildLogsPayload(resourceAttributes, options.scope, logRecords),
-      ),
-      // Telemetry must never break the page: delivery is best-effort.
-    }).then(
-      () => undefined,
-      () => undefined,
-    );
-
-  const flush = (): Promise<void> => {
-    if (timer !== undefined) {
-      clearTimeout(timer);
-      timer = undefined;
-    }
-    if (queue.length === 0) return Promise.resolve();
-    const logRecords = queue;
-    queue = [];
-    return send(logRecords);
+      body,
+    }).then(swallow, swallow);
   };
 
   return {
-    emit(eventName, attributes = {}) {
+    emit(eventName, attributes) {
       if (queue.length >= MAX_QUEUE_SIZE) return;
       queue.push({
         timeUnixNano: `${Date.now()}000000`,
-        severityNumber: SEVERITY_INFO,
+        severityNumber: 9, // INFO
         eventName,
         attributes: toKeyValues({ ...options.envelope(), ...attributes }),
       });
       if (queue.length >= MAX_BATCH_SIZE) {
         void flush();
-      } else if (timer === undefined) {
-        timer = setTimeout(() => {
-          timer = undefined;
-          void flush();
-        }, SCHEDULED_DELAY_MS);
+      } else {
+        timer ??= setTimeout(() => void flush(), SCHEDULED_DELAY_MS);
       }
     },
     flush,
