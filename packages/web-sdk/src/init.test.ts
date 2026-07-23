@@ -1,12 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { type InitOverrides, init } from "./client.js";
-import type { CaptureSignal, EverrClient, InitOptions } from "./types.js";
-
-// The overloads hide the overrides seam; widen once for the tests.
-const initInternal = init as (
-  options: InitOptions,
-  overrides?: InitOverrides,
-) => EverrClient;
+import { init } from "./client.js";
+import type { CaptureSignal, EverrClient } from "./types.js";
 
 type OtlpRecord = {
   timeUnixNano: string;
@@ -24,8 +18,9 @@ let batches: Array<{
 
 function start(options?: { disable?: true | CaptureSignal[] }): void {
   batches = [];
-  const transportFetch = vi.fn(
-    (_url: RequestInfo | URL, init?: RequestInit) => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((_url: RequestInfo | URL, init?: RequestInit) => {
       const payload = JSON.parse(String(init?.body));
       const resourceLog = payload.resourceLogs[0];
       batches.push({
@@ -33,17 +28,14 @@ function start(options?: { disable?: true | CaptureSignal[] }): void {
         records: resourceLog.scopeLogs[0].logRecords,
       });
       return Promise.resolve(new Response(null, { status: 200 }));
-    },
-  ) as typeof fetch;
-  client = initInternal(
-    {
-      mode: "cookieless",
-      serviceName: "everr-docs-test",
-      dev: true,
-      disable: options?.disable,
-    },
-    { transportFetch },
+    }),
   );
+  client = init({
+    mode: "cookieless",
+    serviceName: "everr-docs-test",
+    dev: true,
+    disable: options?.disable,
+  });
 }
 
 async function records(): Promise<OtlpRecord[]> {
@@ -67,6 +59,7 @@ async function resourceAttrs(): Promise<Record<string, unknown>> {
 afterEach(async () => {
   await client?.shutdown();
   client = undefined;
+  vi.unstubAllGlobals();
   history.replaceState(null, "", "/");
 });
 
@@ -167,16 +160,16 @@ describe("init (cookieless)", () => {
   });
 
   it("rejects consented mode with a clear error", () => {
-    expect(() =>
-      initInternal({ mode: "consented", serviceName: "x" }),
-    ).toThrowError(/consented.*not implemented/);
+    expect(() => init({ mode: "consented", serviceName: "x" })).toThrowError(
+      /consented.*not implemented/,
+    );
   });
 });
 
 describe("structural no-op", () => {
   it("returns an inert client with no key, no endpoint, outside dev", () => {
     const pushState = history.pushState;
-    const inert = initInternal({
+    const inert = init({
       mode: "cookieless",
       serviceName: "everr-docs-test",
     });

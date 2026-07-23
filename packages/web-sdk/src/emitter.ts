@@ -52,18 +52,14 @@ function toKeyValues(
   );
 }
 
-export function createEmitter(
-  options: {
-    logsUrl: string;
-    headers?: Record<string, string>;
-    resource: Record<string, AttrValue | undefined>;
-    scope: { name: string; version: string };
-    /** Called per record; returns the context envelope to stamp. */
-    envelope: () => Record<string, AttrValue | undefined>;
-  },
-  /** Test seam; defaults to the global fetch. */
-  transportFetch: typeof fetch = fetch,
-): Emitter {
+export function createEmitter(options: {
+  logsUrl: string;
+  headers?: Record<string, string>;
+  resource: Record<string, AttrValue | undefined>;
+  scope: { name: string; version: string };
+  /** Called per record; returns the context envelope to stamp. */
+  envelope: () => Record<string, AttrValue | undefined>;
+}): Emitter {
   const resource = toKeyValues(options.resource);
   let queue: OtlpLogRecord[] = [];
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -81,8 +77,9 @@ export function createEmitter(
       ],
     });
     queue = [];
-    // Telemetry must never break the page: delivery is best-effort.
-    return transportFetch(options.logsUrl, {
+    // Telemetry must never break the page: delivery is best-effort. The
+    // global fetch is read at flush time, which is also what the tests stub.
+    return fetch(options.logsUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...options.headers },
       body,

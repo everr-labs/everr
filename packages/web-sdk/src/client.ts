@@ -19,18 +19,9 @@ const SDK_VERSION =
   typeof __PACKAGE_VERSION__ === "string" ? __PACKAGE_VERSION__ : "0.0.0-dev";
 const SDK_NAME = "@everr/web-sdk";
 
-/**
- * Test seam: inject a fetch to capture the OTLP payloads. The implementation
- * signature accepts it; the public overloads deliberately do not.
- */
-export type InitOverrides = { transportFetch?: typeof fetch };
-
 export function init(options: CookielessInitOptions): CookielessClient;
 export function init(options: ConsentedInitOptions): ConsentedClient;
-export function init(
-  options: InitOptions,
-  overrides?: InitOverrides,
-): EverrClient {
+export function init(options: InitOptions): EverrClient {
   if (options.mode === "consented") {
     throw new Error(
       '[@everr/web-sdk] mode "consented" is not implemented yet; use mode "cookieless".',
@@ -47,30 +38,27 @@ export function init(
 
   const session = new SessionContext(location.href, document.referrer);
 
-  const emitter = createEmitter(
-    {
-      ...transport,
-      scope: { name: SDK_NAME, version: SDK_VERSION },
-      envelope: createEnvelope(session, attributionAttributes(location.search)),
-      // Viewport is deliberately absent: it changes on resize, so it rides
-      // the click payload per event instead of being frozen into the
-      // resource.
-      resource: {
-        "service.name": options.serviceName,
-        "service.namespace": "everr",
-        "service.version": options.serviceVersion ?? SDK_VERSION,
-        "deployment.environment.name": options.deploymentEnvironment,
-        "everr.sdk.name": SDK_NAME,
-        "everr.sdk.version": SDK_VERSION,
-        "user_agent.original": navigator.userAgent,
-        "everr.screen.width": screen.width,
-        "everr.screen.height": screen.height,
-        "everr.timezone": Intl.DateTimeFormat().resolvedOptions().timeZone,
-        "everr.language": navigator.language,
-      },
+  const emitter = createEmitter({
+    ...transport,
+    scope: { name: SDK_NAME, version: SDK_VERSION },
+    envelope: createEnvelope(session, attributionAttributes(location.search)),
+    // Viewport is deliberately absent: it changes on resize, so it rides
+    // the click payload per event instead of being frozen into the
+    // resource.
+    resource: {
+      "service.name": options.serviceName,
+      "service.namespace": "everr",
+      "service.version": options.serviceVersion ?? SDK_VERSION,
+      "deployment.environment.name": options.deploymentEnvironment,
+      "everr.sdk.name": SDK_NAME,
+      "everr.sdk.version": SDK_VERSION,
+      "user_agent.original": navigator.userAgent,
+      "everr.screen.width": screen.width,
+      "everr.screen.height": screen.height,
+      "everr.timezone": Intl.DateTimeFormat().resolvedOptions().timeZone,
+      "everr.language": navigator.language,
     },
-    overrides?.transportFetch,
-  );
+  });
 
   // The navigation watcher always runs so the envelope's page context stays
   // fresh for every signal; the disable list only gates the signal listeners.

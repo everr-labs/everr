@@ -25,24 +25,24 @@ let emitter: Emitter;
 
 function makeEmitter(envelope: () => Record<string, string> = () => ({})) {
   sent = [];
-  const transportFetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
-    sent.push({
-      url: String(url),
-      headers: (init?.headers ?? {}) as Record<string, string>,
-      payload: JSON.parse(String(init?.body)),
-    });
-    return Promise.resolve(new Response(null, { status: 200 }));
-  }) as typeof fetch;
-  return createEmitter(
-    {
-      logsUrl: "https://ingest.example/v1/logs",
-      headers: { Authorization: "Bearer key" },
-      resource: { "service.name": "svc", "everr.screen.width": 1920 },
-      scope: { name: "@everr/web-sdk", version: "test" },
-      envelope,
-    },
-    transportFetch,
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      sent.push({
+        url: String(url),
+        headers: (init?.headers ?? {}) as Record<string, string>,
+        payload: JSON.parse(String(init?.body)),
+      });
+      return Promise.resolve(new Response(null, { status: 200 }));
+    }),
   );
+  return createEmitter({
+    logsUrl: "https://ingest.example/v1/logs",
+    headers: { Authorization: "Bearer key" },
+    resource: { "service.name": "svc", "everr.screen.width": 1920 },
+    scope: { name: "@everr/web-sdk", version: "test" },
+    envelope,
+  });
 }
 
 function sentRecords() {
@@ -55,6 +55,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   vi.useRealTimers();
 });
 
@@ -140,18 +141,16 @@ describe("createEmitter", () => {
   });
 
   it("swallows transport failures", async () => {
-    const failingFetch = vi.fn(() =>
-      Promise.reject(new Error("network down")),
-    ) as unknown as typeof fetch;
-    const failing = createEmitter(
-      {
-        logsUrl: "https://ingest.example/v1/logs",
-        resource: {},
-        scope: { name: "s", version: "v" },
-        envelope: () => ({}),
-      },
-      failingFetch,
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.reject(new Error("network down"))),
     );
+    const failing = createEmitter({
+      logsUrl: "https://ingest.example/v1/logs",
+      resource: {},
+      scope: { name: "s", version: "v" },
+      envelope: () => ({}),
+    });
     failing.emit("browser.page_view");
     await expect(failing.flush()).resolves.toBeUndefined();
   });
