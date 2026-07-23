@@ -10,6 +10,7 @@ import type {
   CcRouteInputSchema,
   CcRouteSchema,
   CcRuleHealthStatusSchema,
+  CcRuleInputSchema,
   CcRuleRollupSchema,
   CcRuleSpecSchema,
   CcRulesPageSchema,
@@ -26,6 +27,7 @@ import type {
   CcSloStatusSchema,
   CcSloTestResultSchema,
   CcSloTierSchema,
+  CcSloUpdateSchema,
   CcSloViewSchema,
   CcSubscriptionSchema,
   CcTestResultSchema,
@@ -35,6 +37,7 @@ export type CcSeverity = z.infer<typeof CcSeveritySchema>;
 export type CcRuleHealthStatus = z.infer<typeof CcRuleHealthStatusSchema>;
 export type CcMatcher = z.infer<typeof CcMatcherSchema>;
 export type CcRuleSpec = z.infer<typeof CcRuleSpecSchema>;
+export type CcRuleInput = z.infer<typeof CcRuleInputSchema>;
 export type CcRuleRollup = z.infer<typeof CcRuleRollupSchema>;
 export type CcRuleView = z.infer<typeof CcRuleViewSchema>;
 export type CcRulesPage = z.infer<typeof CcRulesPageSchema>;
@@ -59,4 +62,5 @@ export type CcSloGroupStatus = z.infer<typeof CcSloGroupStatusSchema>;
 export type CcSloStatusPayload = z.infer<typeof CcSloStatusPayloadSchema>;
 export type CcSloStatus = z.infer<typeof CcSloStatusSchema>;
 export type CcSloInput = z.infer<typeof CcSloInputSchema>;
+export type CcSloUpdate = z.infer<typeof CcSloUpdateSchema>;
 export type CcSloTestResult = z.infer<typeof CcSloTestResultSchema>;

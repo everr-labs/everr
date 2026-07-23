@@ -50,6 +50,11 @@ export const CcRuleHealthSchema = z.object({
 export const CcRuleSchema = z.object({
   id: z.string(),
   tenant: z.string(),
+  // Defaulted rather than required: pre-migration CC responses omit these,
+  // but the API always returns them post-migration. See CcSloSchema's `name`
+  // (required, no default) for the SLO analogue, which predates this rollout.
+  namespace: z.string().default(""),
+  name: z.string().default(""),
   spec: CcRuleSpecSchema,
   version: z.number().int(),
   paused: z.boolean(),
@@ -171,6 +176,15 @@ export const CcRouteInputSchema = z.object({
   repeat_interval_secs: z.number().int().min(60).nullable(),
 });
 
+// POST /v1/rules body (CreateRuleBody): the spec flattened beside `name`,
+// with `namespace` defaulting to "" (the same shape the engine serializes
+// back on CcRuleSchema). PUT keeps taking the bare spec (+ version):
+// identity is immutable after create.
+export const CcRuleInputSchema = CcRuleSpecSchema.extend({
+  name: z.string().min(1),
+  namespace: z.string().default(""),
+});
+
 export const CcInhibitionInputSchema = z.object({
   source_matchers: z.array(CcMatcherSchema),
   target_matchers: z.array(CcMatcherSchema),
@@ -249,7 +263,8 @@ export const CcSloSpecSchema = z.object({
 export const CcSloSchema = z.object({
   id: z.string(),
   tenant: z.string(),
-  // Unique per tenant; a first-class column, not part of the spec.
+  namespace: z.string().default(""),
+  // Unique per (tenant, namespace); a first-class column, not part of the spec.
   name: z.string(),
   spec: CcSloSpecSchema,
   version: z.number().int(),
@@ -322,11 +337,16 @@ export const CcSloStatusSchema = z.object({
   health: CcSloHealthSchema,
 });
 
-// POST /v1/slos body (CreateSloBody / UpdateSloBody): the spec flattened
-// beside `name`; update adds optional optimistic-concurrency `version`.
+// POST /v1/slos body (CreateSloBody): the spec flattened beside `name`, with
+// `namespace` defaulting to "".
 export const CcSloInputSchema = CcSloSpecSchema.extend({
   name: z.string().min(1),
+  namespace: z.string().default(""),
 });
+// PUT /v1/slos/:id body (UpdateSloBody): spec only, plus optional
+// optimistic-concurrency `version` (added by the client, not the schema).
+// Identity (namespace/name) is immutable after create.
+export const CcSloUpdateSchema = CcSloSpecSchema;
 
 // POST /v1/slos/:id/test: per-group SLI over the spec's own budget window.
 export const CcSloTestResultSchema = z.object({

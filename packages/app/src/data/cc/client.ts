@@ -7,6 +7,7 @@ import {
   CcInhibitionSchema,
   CcReceiverSchema,
   CcRouteSchema,
+  CcRuleInputSchema,
   CcRuleSchema,
   CcRuleSpecSchema,
   CcRulesPageSchema,
@@ -16,6 +17,7 @@ import {
   CcSloSchema,
   CcSloStatusSchema,
   CcSloTestResultSchema,
+  CcSloUpdateSchema,
   CcSloViewSchema,
   CcSubscriptionSchema,
   CcTestResultSchema,
@@ -25,16 +27,19 @@ import type {
   CcInhibitionInput,
   CcRouteInput,
   CcRuleHealthStatus,
+  CcRuleInput,
   CcRuleSpec,
   CcSilenceInput,
   CcSloInput,
+  CcSloUpdate,
 } from "./types";
 
 // ---- Rules ----
 /**
  * Paginated listing: sending `limit` (1..=500, CC defaults 100) opts into the
  * `{items, next_cursor}` envelope; `cursor` resumes from a previous page's
- * `next_cursor`. `health` filters server-side by evaluation health. This is
+ * `next_cursor`. `health` filters server-side by evaluation health;
+ * `namespace`/`name` filter by exact match on first-class identity. This is
  * the only listing mode: GET /v1/rules without pagination (the legacy bare
  * array) is being removed from the CC API.
  */
@@ -44,11 +49,15 @@ export async function listRulesPage(
     limit?: number;
     cursor?: string;
     health?: CcRuleHealthStatus;
+    namespace?: string;
+    name?: string;
   } = {},
 ) {
   const params = new URLSearchParams({ limit: String(opts.limit ?? 100) });
   if (opts.cursor) params.set("cursor", opts.cursor);
   if (opts.health) params.set("health", opts.health);
+  if (opts.namespace !== undefined) params.set("namespace", opts.namespace);
+  if (opts.name !== undefined) params.set("name", opts.name);
   return CcRulesPageSchema.parse(
     await ccRequest(orgId, "GET", `/v1/rules?${params.toString()}`),
   );
@@ -57,14 +66,19 @@ export async function listRulesPage(
  * Every rule, by walking {@link listRulesPage} until `next_cursor` runs out
  * (CC's page size, 500 max per request). For callers that genuinely need the
  * whole set in one shot — reconcilers, label suggestions, handle resolution —
- * now that the unpaginated GET /v1/rules mode is gone.
+ * now that the unpaginated GET /v1/rules mode is gone. `namespace`/`name`
+ * forward to every page the same way {@link listRulesPage} applies them.
  */
-export async function listAllRules(orgId: string) {
+export async function listAllRules(
+  orgId: string,
+  opts: { namespace?: string; name?: string } = {},
+) {
   const all: z.infer<typeof CcRuleViewSchema>[] = [];
   let cursor: string | undefined;
   do {
     const page = await listRulesPage(orgId, {
       limit: 500,
+      ...opts,
       ...(cursor ? { cursor } : {}),
     });
     all.push(...page.items);
@@ -77,9 +91,10 @@ export async function getRule(orgId: string, id: string) {
     await ccRequest(orgId, "GET", `/v1/rules/${id}`),
   );
 }
-export async function createRule(orgId: string, spec: CcRuleSpec) {
+/** CC's create body is the spec flattened beside `name`/`namespace` (CreateRuleBody). */
+export async function createRule(orgId: string, input: CcRuleInput) {
   return CcRuleSchema.parse(
-    await ccRequest(orgId, "POST", "/v1/rules", CcRuleSpecSchema.parse(spec)),
+    await ccRequest(orgId, "POST", "/v1/rules", CcRuleInputSchema.parse(input)),
   );
 }
 /**
@@ -139,10 +154,17 @@ export async function listAlerts(orgId: string) {
 // ---- SLOs ----
 // List and get return the SloView (bare Slo + required `updated_at`);
 // create/update/pause/resume answer the bare Slo, so they keep CcSloSchema.
-export async function listSlos(orgId: string) {
+export async function listSlos(
+  orgId: string,
+  opts: { namespace?: string; name?: string } = {},
+) {
+  const params = new URLSearchParams();
+  if (opts.namespace !== undefined) params.set("namespace", opts.namespace);
+  if (opts.name !== undefined) params.set("name", opts.name);
+  const qs = params.toString();
   return z
     .array(CcSloViewSchema)
-    .parse(await ccRequest(orgId, "GET", "/v1/slos"));
+    .parse(await ccRequest(orgId, "GET", `/v1/slos${qs ? `?${qs}` : ""}`));
 }
 export async function getSlo(orgId: string, id: string) {
   return CcSloViewSchema.parse(await ccRequest(orgId, "GET", `/v1/slos/${id}`));
@@ -169,20 +191,21 @@ export async function createSlo(orgId: string, input: CcSloInput) {
   );
 }
 /**
- * Full-body replace (name + spec) with optional `version` for optimistic
- * concurrency: a stale version answers 409 conflict and writes nothing;
- * omitting it is last-write-wins. The paused flag is not part of the spec
- * and survives updates.
+ * Full-body replace of the spec (no name/namespace: identity is immutable
+ * after create), with optional `version` for optimistic concurrency: a stale
+ * version answers 409 conflict and writes nothing; omitting it is
+ * last-write-wins. The paused flag is not part of the spec and survives
+ * updates.
  */
 export async function updateSlo(
   orgId: string,
   id: string,
-  input: CcSloInput,
+  input: CcSloUpdate,
   version?: number,
 ) {
   return CcSloSchema.parse(
     await ccRequest(orgId, "PUT", `/v1/slos/${id}`, {
-      ...CcSloInputSchema.parse(input),
+      ...CcSloUpdateSchema.parse(input),
       ...(version === undefined ? {} : { version }),
     }),
   );

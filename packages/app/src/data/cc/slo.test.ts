@@ -39,6 +39,7 @@ function slo(overrides: Partial<CcSlo> = {}): CcSlo {
   return {
     id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
     tenant: "org1",
+    namespace: "",
     name: "checkout-availability",
     spec: spec(),
     version: 1,
